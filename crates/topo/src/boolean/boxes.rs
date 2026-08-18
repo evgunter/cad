@@ -86,12 +86,25 @@ fn corrupt(what: &'static str) -> BooleanError {
 ///   past the hull of its boundary exactly as the sphere does, but it
 ///   lies in the hull of its CONTROL NET (nonnegative basis, strictly
 ///   positive weights — `geom_surfaces::boxes::nurbs_surface_aabb`
-///   carries the citation), over the whole domain and a fortiori over
-///   any trim.
-/// - [`NoSoundBox`](Self::NoSoundBox) — **Cone, Torus**, and a face
-///   whose surface is missing. No cheap superset is known, so nothing
-///   is claimed: the box is poison (never prunes) where a box is
-///   built, and a refusal where a certificate is wanted.
+///   carries the citation), over the whole KNOT DOMAIN and a fortiori
+///   over any trim inside it.
+///
+///   **The premise that carries: the face's trim lies inside the knot
+///   domain.** The convex-hull property is a statement about the
+///   domain the basis is defined on; this kernel's evaluator
+///   EXTRAPOLATES outside it, and an extrapolated point can leave the
+///   control hull by any amount. Nothing in the type system enforces
+///   trim ⊆ domain today — `pcurves.rs`'s chart window is built from
+///   the boundary's own chart boxes and is never compared against
+///   `knots_u().domain()`. What holds it up is construction: every
+///   kernel-minted NURBS wall is iso-parameter bounded at the domain
+///   edges. State the premise when you add a constructor that is not.
+/// - [`NoSoundBox`](Self::NoSoundBox) — **Cone, Torus.** No cheap
+///   superset is known, so nothing is claimed: the box is poison
+///   (never prunes) where a box is built, and a refusal where a
+///   certificate is wanted. A face whose surface key does not RESOLVE
+///   is a different answer — that is arena corruption, and the callers
+///   here report it as such rather than folding it in here.
 ///
 /// Both loose arms are loose in the conservative direction on purpose:
 /// a bigger box only admits candidates.
@@ -120,29 +133,30 @@ pub(crate) enum FaceBoxRule<'a, T: Real> {
     NoSoundBox,
 }
 
-/// The [`FaceBoxRule`] for a face's surface — the single kind→rule
-/// mapping. A kind added to [`Surface`] lands on
-/// [`FaceBoxRule::NoSoundBox`] only by being written here, never by
-/// falling through a wildcard in some consumer.
-pub(crate) fn face_box_rule<T: Real>(surface: Option<&Surface<T>>) -> FaceBoxRule<'_, T> {
+/// The [`FaceBoxRule`] for a surface — the single kind→rule mapping. A
+/// kind added to [`Surface`] lands on [`FaceBoxRule::NoSoundBox`] only
+/// by being written here, never by falling through a wildcard in some
+/// consumer. Takes a RESOLVED surface: a missing one is corruption,
+/// which is the caller's to report and not a rule.
+pub(crate) fn face_box_rule<T: Real>(surface: &Surface<T>) -> FaceBoxRule<'_, T> {
     match surface {
-        Some(Surface::Plane { .. }) => FaceBoxRule::BoundaryHull,
-        Some(Surface::Cylinder {
+        Surface::Plane { .. } => FaceBoxRule::BoundaryHull,
+        Surface::Cylinder {
             origin,
             axis,
             radius,
             ..
-        }) => FaceBoxRule::CylinderSlab {
+        } => FaceBoxRule::CylinderSlab {
             origin: *origin,
             axis: *axis,
             radius: *radius,
         },
-        Some(Surface::Sphere { center, radius, .. }) => FaceBoxRule::WholeBall {
+        Surface::Sphere { center, radius, .. } => FaceBoxRule::WholeBall {
             center: *center,
             radius: *radius,
         },
-        Some(Surface::Nurbs(patch)) => FaceBoxRule::ControlNet(patch),
-        Some(Surface::Cone { .. } | Surface::Torus { .. }) | None => FaceBoxRule::NoSoundBox,
+        Surface::Nurbs(patch) => FaceBoxRule::ControlNet(patch),
+        Surface::Cone { .. } | Surface::Torus { .. } => FaceBoxRule::NoSoundBox,
     }
 }
 
@@ -159,14 +173,19 @@ pub(crate) fn face_box_rule<T: Real>(surface: Option<&Surface<T>>) -> FaceBoxRul
 /// # Errors
 ///
 /// [`BooleanError::ClassificationInvariant`] when the face's topology
-/// is corrupt (a lost entity, an unwalkable loop).
+/// is corrupt (a lost entity, an unwalkable loop). A face whose
+/// surface key does not resolve is corruption, NOT a kind without a
+/// box — the two are separate answers here.
 pub(crate) fn face_box<T: Decide + Bounds>(
     body: &Body<T>,
     face: FaceKey,
     pad: f64,
 ) -> Result<Aabb, BooleanError> {
     let f = body.get_face(face).ok_or(corrupt("face box: face lost"))?;
-    let boxed = match face_box_rule(body.get_surface(f.surface)) {
+    let surface = body
+        .get_surface(f.surface)
+        .ok_or(corrupt("face box: surface lost"))?;
+    let boxed = match face_box_rule(surface) {
         FaceBoxRule::NoSoundBox => return Ok(Aabb::poison()),
         FaceBoxRule::ControlNet(patch) => geom_surfaces::boxes::nurbs_surface_aabb(patch),
         FaceBoxRule::WholeBall { center, radius } => {
@@ -186,26 +205,36 @@ pub(crate) fn face_box<T: Decide + Bounds>(
             radius,
         } => {
             let radius = radius.hi();
+            let Some(bnd) = boundary_hull(body, f)? else {
+                return Ok(Aabb::poison());
+            };
+            // The axial range over the boundary's own hull. Taking the
+            // hull first (rather than each edge box separately) is a
+            // superset of every per-edge range because the projection
+            // is linear — looser, the conservative direction — and it
+            // is what makes poison PROPAGATE: `Aabb::hull` carries NaN,
+            // and a NaN projection returns the poison box below rather
+            // than being dropped by an `f64::min` that ignores it.
             let mut h_min = f64::INFINITY;
             let mut h_max = f64::NEG_INFINITY;
-            for ek in boundary_edges(body, f)? {
-                let eb = edge_box(body, ek, 0.0)?;
-                for &(x, y, z) in &[
-                    (eb.min_x, eb.min_y, eb.min_z),
-                    (eb.max_x, eb.max_y, eb.max_z),
-                    (eb.min_x, eb.min_y, eb.max_z),
-                    (eb.min_x, eb.max_y, eb.min_z),
-                    (eb.max_x, eb.min_y, eb.min_z),
-                    (eb.min_x, eb.max_y, eb.max_z),
-                    (eb.max_x, eb.min_y, eb.max_z),
-                    (eb.max_x, eb.max_y, eb.min_z),
-                ] {
-                    let h = (x - origin.x.lo()) * axis.x.lo()
-                        + (y - origin.y.lo()) * axis.y.lo()
-                        + (z - origin.z.lo()) * axis.z.lo();
-                    h_min = h_min.min(h);
-                    h_max = h_max.max(h);
+            for &(x, y, z) in &[
+                (bnd.min_x, bnd.min_y, bnd.min_z),
+                (bnd.max_x, bnd.max_y, bnd.max_z),
+                (bnd.min_x, bnd.min_y, bnd.max_z),
+                (bnd.min_x, bnd.max_y, bnd.min_z),
+                (bnd.max_x, bnd.min_y, bnd.min_z),
+                (bnd.min_x, bnd.max_y, bnd.max_z),
+                (bnd.max_x, bnd.min_y, bnd.max_z),
+                (bnd.max_x, bnd.max_y, bnd.min_z),
+            ] {
+                let h = (x - origin.x.lo()) * axis.x.lo()
+                    + (y - origin.y.lo()) * axis.y.lo()
+                    + (z - origin.z.lo()) * axis.z.lo();
+                if !h.is_finite() {
+                    return Ok(Aabb::poison());
                 }
+                h_min = h_min.min(h);
+                h_max = h_max.max(h);
             }
             if !(h_min.is_finite() && h_max.is_finite()) {
                 return Ok(Aabb::poison());
@@ -227,35 +256,7 @@ pub(crate) fn face_box<T: Decide + Bounds>(
                 max_z: z0.max(z1) + radius,
             }
         }
-        FaceBoxRule::BoundaryHull => {
-            // Every boundary edge's own certified box, plus the
-            // isolated-vertex loops (which have no edge to speak for
-            // them).
-            let mut b: Option<Aabb> = None;
-            let mut grow = |x: Aabb| b = Some(b.map_or(x, |acc: Aabb| acc.hull(&x)));
-            for lk in loops_of(f) {
-                let l = body.get_loop(lk).ok_or(corrupt("face box: loop lost"))?;
-                match l.boundary {
-                    LoopBoundary::Empty { vertex } => {
-                        let p = vertex_point(body, vertex)?;
-                        grow(Aabb::from_points([p]).unwrap_or_else(Aabb::poison));
-                    }
-                    LoopBoundary::Cycle { first } => {
-                        for he in body
-                            .loop_cycle(first)
-                            .ok_or(corrupt("face box: unwalkable loop"))?
-                        {
-                            let ek = body
-                                .get_half_edge(he)
-                                .ok_or(corrupt("face box: half-edge lost"))?
-                                .edge;
-                            grow(edge_box(body, ek, 0.0)?);
-                        }
-                    }
-                }
-            }
-            b.unwrap_or_else(Aabb::poison)
-        }
+        FaceBoxRule::BoundaryHull => boundary_hull(body, f)?.unwrap_or_else(Aabb::poison),
     };
     Ok(boxed.padded(pad))
 }
@@ -266,52 +267,139 @@ fn loops_of(f: &crate::entity::Face) -> impl Iterator<Item = LoopKey> + '_ {
     core::iter::once(f.outer).chain(f.rings.iter().copied())
 }
 
-/// Every edge on the face's boundary, in [`loops_of`] order.
-fn boundary_edges<T: Decide + Bounds>(
+/// The hull of the face boundary's own certified boxes — every
+/// boundary edge's [`edge_box`], plus the isolated-vertex loops, which
+/// have no edge to speak for them. `None` for a face with no boundary
+/// at all.
+///
+/// Poison propagates: [`Aabb::hull`] carries NaN by construction, so
+/// one unboxable boundary edge poisons the face rather than quietly
+/// contributing nothing.
+///
+/// This is the [`FaceBoxRule::BoundaryHull`] arm, and it is also what
+/// the [`FaceBoxRule::CylinderSlab`] arm reads its axial range from —
+/// the axial coordinate is linear along the surface, so the face's
+/// axial extremes lie on the boundary, but not necessarily at a
+/// boundary VERTEX.
+fn boundary_hull<T: Decide + Bounds>(
     body: &Body<T>,
     f: &crate::entity::Face,
-) -> Result<Vec<EdgeKey>, BooleanError> {
-    let mut out = Vec::new();
+) -> Result<Option<Aabb>, BooleanError> {
+    let mut acc: Option<Aabb> = None;
+    let mut grow = |x: Aabb| acc = Some(acc.map_or(x, |a: Aabb| a.hull(&x)));
     for lk in loops_of(f) {
         let l = body.get_loop(lk).ok_or(corrupt("face box: loop lost"))?;
-        let LoopBoundary::Cycle { first } = l.boundary else {
-            continue;
-        };
-        for he in body
-            .loop_cycle(first)
-            .ok_or(corrupt("face box: unwalkable loop"))?
-        {
-            out.push(
-                body.get_half_edge(he)
-                    .ok_or(corrupt("face box: half-edge lost"))?
-                    .edge,
-            );
+        match l.boundary {
+            LoopBoundary::Empty { vertex } => {
+                let p = vertex_point(body, vertex)?;
+                grow(Aabb::from_points([p]).unwrap_or_else(Aabb::poison));
+            }
+            LoopBoundary::Cycle { first } => {
+                for he in body
+                    .loop_cycle(first)
+                    .ok_or(corrupt("face box: unwalkable loop"))?
+                {
+                    let ek = body
+                        .get_half_edge(he)
+                        .ok_or(corrupt("face box: half-edge lost"))?
+                        .edge;
+                    grow(edge_box(body, ek, 0.0)?);
+                }
+            }
         }
     }
-    Ok(out)
+    Ok(acc)
 }
 
-/// The edge's certified box, padded — the module contract's
-/// curve-side arm: a superset of the edge's locus, or poison.
+/// **The one soundness rule for an edge's box** — [`FaceBoxRule`]'s
+/// curve-side twin, and read by the same consumers for the same
+/// reason: which cheap construction yields a genuine SUPERSET of the
+/// edge's locus over its span.
 ///
-/// - `Line`: the two endpoints (the locus is the chord up to
-///   certification residual — inside the pad).
-/// - `Circle`, `Ellipse`: the FULL conic's center-±-amplitude box
-///   hulled with the endpoints — a superset of any arc of it (an
-///   arc's belly bulges past its chord; the full-turn box is
-///   deliberately loose, the conservative direction).
-/// - `Nurbs`, and an edge whose carrier is null scaffolding: poison
-///   (never prunes). Nothing is certified about the locus, so nothing
-///   is claimed — the chord is NOT a bound for either.
+/// - [`Chord`](Self::Chord) — **Line.** The locus IS the chord between
+///   the endpoints, up to the certification residual the pad covers.
+/// - [`ConicAmplitude`](Self::ConicAmplitude) — **Circle, Ellipse.**
+///   The FULL conic's centre-±-amplitude box (per coordinate
+///   `|û_i|·a + |v̂_i|·b`, with `v̂ = axis × û`) hulled with the chord.
+///   A superset of any arc of the conic, reflex spans included — an
+///   arc's belly bulges past its chord, so the chord alone is not a
+///   bound. The full turn is deliberately loose, the conservative
+///   direction.
+/// - [`NoSoundBox`](Self::NoSoundBox) — **NURBS carriers**, and an
+///   edge whose carrier is null scaffolding. Nothing is certified
+///   about the locus, so nothing is claimed; the chord is NOT a bound
+///   for either.
 ///
-/// The `Nurbs` arm is the ONE place a sound cheap box exists and is
-/// deliberately not taken: `geom_curves::boxes::nurbs_curve_aabb`
-/// would give the control-net hull, exactly as the face rule's
-/// [`FaceBoxRule::ControlNet`] arm does. Taking it would TIGHTEN this
-/// box — it would start pruning pairs that are examined today — and
-/// tightening is a different obligation from soundness: a rung-3
-/// operand gate has to admit the kind first. Poison is already the
-/// conservative answer, so nothing is unsound while it waits.
+///   The NURBS arm is the one place a sound cheap box exists and is
+///   deliberately not taken: `geom_curves::boxes::nurbs_curve_aabb`
+///   would give the control-net hull, exactly as
+///   [`FaceBoxRule::ControlNet`] does one dimension up. Taking it
+///   would TIGHTEN this box — it would start pruning pairs that are
+///   examined today — and tightening is a different obligation from
+///   soundness: a rung-3 operand gate has to admit the kind first.
+///   Claiming nothing is already the conservative answer, so nothing
+///   is unsound while it waits. (It also carries the same trim ⊆ knot
+///   domain premise the surface arm states.)
+pub(crate) enum EdgeBoxRule<T: Real> {
+    /// The chord between the endpoints — see the type docs.
+    Chord,
+    /// The full conic's amplitude box, hulled with the chord — see the
+    /// type docs.
+    ConicAmplitude {
+        /// The conic's centre.
+        center: Point3<T>,
+        /// The plane normal of the conic.
+        axis: Vec3<T>,
+        /// The semi-axis along `u_ref`.
+        semi_u: T,
+        /// The semi-axis along `axis × u_ref`.
+        semi_v: T,
+        /// The in-plane reference direction.
+        u_ref: Vec3<T>,
+    },
+    /// No cheap superset exists — see the type docs.
+    NoSoundBox,
+}
+
+/// The [`EdgeBoxRule`] for a carrier — the single kind→rule mapping,
+/// with `None` standing for the null-scaffolding state (no carrier by
+/// type). A kind added to [`geom_curves::Curve3`] lands on
+/// [`EdgeBoxRule::NoSoundBox`] only by being written here.
+pub(crate) fn edge_box_rule<T: Real>(carrier: Option<&geom_curves::Curve3<T>>) -> EdgeBoxRule<T> {
+    match carrier {
+        Some(geom_curves::Curve3::Line { .. }) => EdgeBoxRule::Chord,
+        Some(geom_curves::Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        }) => EdgeBoxRule::ConicAmplitude {
+            center: *center,
+            axis: *axis,
+            semi_u: *radius,
+            semi_v: *radius,
+            u_ref: *u_ref,
+        },
+        Some(geom_curves::Curve3::Ellipse {
+            center,
+            axis,
+            major,
+            minor,
+            u_ref,
+        }) => EdgeBoxRule::ConicAmplitude {
+            center: *center,
+            axis: *axis,
+            semi_u: *major,
+            semi_v: *minor,
+            u_ref: *u_ref,
+        },
+        Some(geom_curves::Curve3::Nurbs(_)) | None => EdgeBoxRule::NoSoundBox,
+    }
+}
+
+/// The edge's certified box, padded — [`EdgeBoxRule`]'s `f64`-bracket
+/// instantiation, and therefore a superset of the edge's locus or the
+/// poison box.
 ///
 /// # Errors
 ///
@@ -331,57 +419,38 @@ pub(crate) fn edge_box<T: Decide + Bounds>(
         vertex_point(body, vk)
     };
     let (a, b) = (start_of(e.he_plus)?, start_of(e.he_minus)?);
-    let vertex_box = Aabb::from_points([a, b]).unwrap_or_else(Aabb::poison);
-    let Some(carrier) = body
+    let chord = Aabb::from_points([a, b]).unwrap_or_else(Aabb::poison);
+    let carrier = body
         .get_curve_geom(e.curve)
         .and_then(crate::null::CurveGeom::certified)
-        .map(geom_brep::EdgeCurve::carrier)
-    else {
-        return Ok(Aabb::poison());
-    };
-    let conic = match carrier {
-        geom_curves::Curve3::Circle {
+        .map(geom_brep::EdgeCurve::carrier);
+    let boxed = match edge_box_rule(carrier) {
+        EdgeBoxRule::NoSoundBox => return Ok(Aabb::poison()),
+        EdgeBoxRule::Chord => chord,
+        EdgeBoxRule::ConicAmplitude {
             center,
             axis,
-            radius,
+            semi_u,
+            semi_v,
             u_ref,
-        } => Some((*center, *axis, *radius, *radius, *u_ref)),
-        geom_curves::Curve3::Ellipse {
-            center,
-            axis,
-            major,
-            minor,
-            u_ref,
-        } => Some((*center, *axis, *major, *minor, *u_ref)),
-        geom_curves::Curve3::Nurbs(_) => return Ok(Aabb::poison()),
-        geom_curves::Curve3::Line { .. } => None,
-    };
-    let boxed = match conic {
-        None => vertex_box,
-        Some((c, axis, sa, sb, u_ref)) => {
-            // Per-coordinate amplitude |û_i|·a + |v̂_i|·b of the full
-            // conic (v̂ = axis × û), hulled with the endpoint box.
+        } => {
             let v_ref = axis.cross(u_ref);
-            let reach = |ui: f64, vi: f64| ui.abs() * sa.hi() + vi.abs() * sb.hi();
+            let reach = |ui: f64, vi: f64| ui.abs() * semi_u.hi() + vi.abs() * semi_v.hi();
             let rx = reach(u_ref.x.hi(), v_ref.x.hi());
             let ry = reach(u_ref.y.hi(), v_ref.y.hi());
             let rz = reach(u_ref.z.hi(), v_ref.z.hi());
             let full = Aabb {
-                min_x: c.x.lo() - rx,
-                min_y: c.y.lo() - ry,
-                min_z: c.z.lo() - rz,
-                max_x: c.x.hi() + rx,
-                max_y: c.y.hi() + ry,
-                max_z: c.z.hi() + rz,
+                min_x: center.x.lo() - rx,
+                min_y: center.y.lo() - ry,
+                min_z: center.z.lo() - rz,
+                max_x: center.x.hi() + rx,
+                max_y: center.y.hi() + ry,
+                max_z: center.z.hi() + rz,
             };
-            Aabb {
-                min_x: full.min_x.min(vertex_box.min_x),
-                min_y: full.min_y.min(vertex_box.min_y),
-                min_z: full.min_z.min(vertex_box.min_z),
-                max_x: full.max_x.max(vertex_box.max_x),
-                max_y: full.max_y.max(vertex_box.max_y),
-                max_z: full.max_z.max(vertex_box.max_z),
-            }
+            // `Aabb::hull`, not a raw min/max fold: a poisoned centre
+            // or semi-axis must survive the hull, and `f64::min`
+            // RETURNS the non-NaN operand.
+            full.hull(&chord)
         }
     };
     Ok(boxed.padded(pad))

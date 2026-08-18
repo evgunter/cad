@@ -1098,21 +1098,15 @@ fn sweep_cross_solid_backstop<T: Decide>(
         }
         Some((lo, hi))
     };
-    // **The scalar-lane instantiation of `boolean::boxes::FaceBoxRule`
-    // — the same rule, the other arithmetic.** The rule (which surface
-    // kinds have a cheap sound superset, and by what construction) is
-    // stated once, at `FaceBoxRule`; only the arithmetic is re-derived
-    // here, and it is re-derived because it must be: `boxes::face_box`
-    // reads `[lo(), hi()]` brackets, and the `Bounds` seam that
-    // licenses is allowlisted per file (geom-core `real.rs`) and closed
-    // to this lane — the census validates `Dual` bodies too, and `Dual`
-    // has no bracket to read. So the kinds and their constructions come
-    // from the shared rule; the min/max below happens in `T`.
-    //
-    // What differs here is only the COST OF BEING WRONG, and it points
-    // the same way. In the sweep an unboxable face is poison and is
-    // never pruned; here it is `None` and its pairs refuse without a
-    // distance test. Both are the loud direction.
+    // **`boolean::boxes`'s `FaceBoxRule`/`EdgeBoxRule`, instantiated in
+    // this lane's arithmetic.** The rules — which kinds have a cheap
+    // sound superset, and by what construction — are read from there;
+    // only the min/max is re-derived, and it must be: `face_box` reads
+    // `[lo(), hi()]` brackets under a per-file `Bounds` allowlist
+    // (geom-core `real.rs`) that this lane is not on and cannot join,
+    // because the census validates `Dual` bodies and `Dual` has no
+    // bracket. An unboxable kind is `None` here and poison there —
+    // refuse without a distance test, versus never prune. Both loud.
     let edge_reach = |ek: crate::entity::EdgeKey| -> Option<(Point3<T>, Point3<T>)> {
         let e = body.edges.get(ek)?;
         let end = |he| -> Option<Point3<T>> {
@@ -1125,49 +1119,42 @@ fn sweep_cross_solid_backstop<T: Decide>(
             Point3::new(a.x.min(b.x), a.y.min(b.y), a.z.min(b.z)),
             Point3::new(a.x.max(b.x), a.y.max(b.y), a.z.max(b.z)),
         );
-        let ec = body.curves.get(e.curve).and_then(CurveGeom::certified)?;
-        // The FULL conic's centre-±-amplitude box hulled with the
-        // chord — a superset of any arc of it, reflex spans included
-        // (an arc's belly bulges past its chord).
-        let conic = match ec.carrier() {
-            geom_curves::Curve3::Line { .. } => return Some(chord),
-            geom_curves::Curve3::Circle {
+        let carrier = body
+            .curves
+            .get(e.curve)
+            .and_then(CurveGeom::certified)
+            .map(geom_brep::EdgeCurve::carrier);
+        match crate::boolean::boxes::edge_box_rule(carrier) {
+            crate::boolean::boxes::EdgeBoxRule::NoSoundBox => None,
+            crate::boolean::boxes::EdgeBoxRule::Chord => Some(chord),
+            crate::boolean::boxes::EdgeBoxRule::ConicAmplitude {
                 center,
                 axis,
-                radius,
+                semi_u,
+                semi_v,
                 u_ref,
-            } => (*center, *axis, *radius, *radius, *u_ref),
-            geom_curves::Curve3::Ellipse {
-                center,
-                axis,
-                major,
-                minor,
-                u_ref,
-            } => (*center, *axis, *major, *minor, *u_ref),
-            // No cheap sound box for the kind (the shared rule's
-            // curve-side twin) — refuse rather than under-claim.
-            geom_curves::Curve3::Nurbs(_) => return None,
-        };
-        let (c, axis, sa, sb, u_ref) = conic;
-        let v_ref = axis.cross(u_ref);
-        let reach = |ui: T, vi: T| ui.abs() * sa + vi.abs() * sb;
-        let (rx, ry, rz) = (
-            reach(u_ref.x, v_ref.x),
-            reach(u_ref.y, v_ref.y),
-            reach(u_ref.z, v_ref.z),
-        );
-        Some((
-            Point3::new(
-                (c.x - rx).min(chord.0.x),
-                (c.y - ry).min(chord.0.y),
-                (c.z - rz).min(chord.0.z),
-            ),
-            Point3::new(
-                (c.x + rx).max(chord.1.x),
-                (c.y + ry).max(chord.1.y),
-                (c.z + rz).max(chord.1.z),
-            ),
-        ))
+            } => {
+                let v_ref = axis.cross(u_ref);
+                let reach = |ui: T, vi: T| ui.abs() * semi_u + vi.abs() * semi_v;
+                let (rx, ry, rz) = (
+                    reach(u_ref.x, v_ref.x),
+                    reach(u_ref.y, v_ref.y),
+                    reach(u_ref.z, v_ref.z),
+                );
+                Some((
+                    Point3::new(
+                        (center.x - rx).min(chord.0.x),
+                        (center.y - ry).min(chord.0.y),
+                        (center.z - rz).min(chord.0.z),
+                    ),
+                    Point3::new(
+                        (center.x + rx).max(chord.1.x),
+                        (center.y + ry).max(chord.1.y),
+                        (center.z + rz).max(chord.1.z),
+                    ),
+                ))
+            }
+        }
     };
     // Every boundary edge's reach, hulled with the isolated-vertex
     // loops (which have no edge to speak for them). `None` as soon as
@@ -1203,7 +1190,9 @@ fn sweep_cross_solid_backstop<T: Decide>(
         acc
     };
     let reach_box = |f: FK| -> Option<(Point3<T>, Point3<T>)> {
-        let surface = body.get_face(f).and_then(|d| body.surfaces.get(d.surface));
+        let surface = body
+            .get_face(f)
+            .and_then(|d| body.surfaces.get(d.surface))?;
         match crate::boolean::boxes::face_box_rule(surface) {
             crate::boolean::boxes::FaceBoxRule::NoSoundBox => None,
             crate::boolean::boxes::FaceBoxRule::BoundaryHull => boundary_reach(f),
@@ -1242,11 +1231,16 @@ fn sweep_cross_solid_backstop<T: Decide>(
                     Point3::new(bhi.x, blo.y, bhi.z),
                     Point3::new(bhi.x, bhi.y, blo.z),
                 ];
+                let proj = |p: Point3<T>| {
+                    (p.x - origin.x) * axis.x
+                        + (p.y - origin.y) * axis.y
+                        + (p.z - origin.z) * axis.z
+                };
                 let mut it = corners.iter();
-                let h0 = (*it.next()? - origin).dot(axis);
+                let h0 = proj(*it.next()?);
                 let (mut h_min, mut h_max) = (h0, h0);
                 for p in it {
-                    let h = (*p - origin).dot(axis);
+                    let h = proj(*p);
                     h_min = h_min.min(h);
                     h_max = h_max.max(h);
                 }
@@ -1467,7 +1461,9 @@ fn sweep_cross_solid_backstop<T: Decide>(
                     errors.push(ValidationError::CensusUndecidable {
                         a: EntityId::Solid(outer),
                         b: EntityId::Solid(inner),
-                        what: "a surface kind with no cheap sound box leaves the                                containing instance's extent unclaimable — the same C6                                interference class",
+                        what: "a surface kind with no cheap sound box leaves the \
+                               containing instance's extent unclaimable — the \
+                               same C6 interference class",
                     });
                     continue;
                 };
