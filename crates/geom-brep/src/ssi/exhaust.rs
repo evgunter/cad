@@ -35,9 +35,9 @@
 //! [`account_chart_plane`] discharge the obligation: they return the
 //! receipt and nothing else, and they refuse at the floor unconditionally
 //! — including when their tube set is empty, which is precisely the run
-//! that has proved nothing (every seed failed to refine, or every branch
-//! lacked a pcurve). Nothing in either signature can express the other
-//! duty's answer.
+//! that has proved nothing: every seed failed to refine, or every
+//! certified branch yielded no window worth banking. Nothing in either
+//! signature can express the other duty's answer.
 //!
 //! # Brute force, deliberately, for now
 //!
@@ -112,15 +112,120 @@ enum SweepDuty<'a, C> {
     Account(&'a [C]),
 }
 
-impl<'a, C> SweepDuty<'a, C> {
-    /// The tubes to test cells against. Seeding has none — which is a
-    /// consequence of the duty, not the definition of it.
-    fn tubes(self) -> &'a [C] {
+impl<C: SweepCell> SweepDuty<'_, C> {
+    /// Whether limb 3 has already proved what is in this cell. Seeding
+    /// proves nothing about any cell, so the answer is `false` because
+    /// of the duty — not because a tube set happens to be empty.
+    fn accounts(self, cell: C) -> bool {
         match self {
-            Self::Seed => &[],
-            Self::Account(t) => t,
+            Self::Seed => false,
+            Self::Account(tubes) => tubes.iter().any(|t| cell.contained_in(*t)),
         }
     }
+}
+
+/// A cell of the subdivision. The two lanes differ in their shape and
+/// in what a survivor hands the marcher; everything the recursion does
+/// with a cell is here, so the recursion itself is written once.
+trait SweepCell: Copy {
+    /// What a surviving cell gives the marcher to start from.
+    type Seed;
+
+    /// The widest side, in the lane's own units — what the floor is
+    /// compared against.
+    fn width(self) -> f64;
+    /// The seed a survivor contributes: the cell's center.
+    fn seed(self) -> Self::Seed;
+    /// Bisect the widest axis with a fixed tie-break (D9).
+    fn split(self) -> (Self, Self);
+    /// Containment, for the accounting test against a tube.
+    fn contained_in(self, other: Self) -> bool;
+}
+
+impl SweepCell for Box3 {
+    type Seed = Point3<f64>;
+
+    fn width(self) -> f64 {
+        Box3::width(self)
+    }
+    fn seed(self) -> Point3<f64> {
+        self.center()
+    }
+    fn split(self) -> (Self, Self) {
+        Box3::split(self)
+    }
+    fn contained_in(self, other: Self) -> bool {
+        Box3::contained_in(self, other)
+    }
+}
+
+/// **The one recursion**, shared by both lanes and both duties.
+///
+/// Iterative (an explicit stack, so recursion depth is not a stack-
+/// overflow path) and depth-first with the two halves pushed in a fixed
+/// order — same cells, same order, every run (D9). `excluded` answers
+/// the lane's own question: does a certified enclosure over this cell
+/// exclude zero, or is the enclosure unusable (a typed refusal)?
+///
+/// The floor is the only place the two duties differ, and they differ
+/// by `duty`, never by the shape of the data: seeding banks the
+/// survivor, accounting refuses. Every other line — the budget, the
+/// bookkeeping, the exclude/account/refine ladder — is written once, so
+/// the never-silence refusal cannot be edited in one lane and forgotten
+/// in the other.
+fn sweep<C: SweepCell>(
+    root: C,
+    duty: SweepDuty<'_, C>,
+    floor: f64,
+    excluded: impl Fn(C) -> Result<bool, SsiError>,
+) -> Result<(Exhaustiveness, Vec<C::Seed>), SsiError> {
+    let mut stats = Exhaustiveness {
+        floor,
+        ..Exhaustiveness::default()
+    };
+    let mut out = Vec::new();
+    let mut stack = vec![(root, 0u32)];
+    while let Some((cell, depth)) = stack.pop() {
+        if stats.examined as usize >= SSI_MAX_CELLS {
+            return Err(SsiError::CellBudget {
+                budget: SSI_MAX_CELLS,
+            });
+        }
+        stats.examined += 1;
+        stats.max_depth = stats.max_depth.max(depth);
+
+        // (i) exclusion: no solution can be in this cell.
+        if excluded(cell)? {
+            stats.excluded += 1;
+            continue;
+        }
+        // (ii) accounted: inside a found branch's uniqueness tube.
+        if duty.accounts(cell) {
+            stats.accounted += 1;
+            continue;
+        }
+        // (iii) refine, unless we are at the floor.
+        if cell.width() <= floor {
+            match duty {
+                SweepDuty::Seed => {
+                    out.push(cell.seed());
+                    continue;
+                }
+                SweepDuty::Account(_) => {
+                    return Err(SsiError::ExhaustivenessInconclusive {
+                        cell_width: cell.width(),
+                        floor,
+                        examined: stats.examined,
+                    });
+                }
+            }
+        }
+        stats.refined += 1;
+        let (a, b) = cell.split();
+        stack.push((b, depth + 1));
+        stack.push((a, depth + 1));
+    }
+    Ok((stats, out))
 }
 
 /// **Seed generation**, ℝ³ lane: the centers of the cells that survived
@@ -163,11 +268,9 @@ pub(crate) fn account_r3(
     Ok(stats)
 }
 
-/// The shared recursion behind [`seed_r3`] and [`account_r3`].
-///
-/// Iterative (an explicit stack, so recursion depth is not a stack-
-/// overflow path) and depth-first with the two halves pushed in a fixed
-/// order — same cells, same order, every run (D9).
+/// The ℝ³ lane's exclusion rule, over the one shared [`sweep`]: a cell
+/// is solution-free when a certified enclosure of either surface's
+/// implicit form over it does not contain zero.
 fn sweep_r3(
     s1: &Surface<f64>,
     s2: &Surface<f64>,
@@ -175,21 +278,7 @@ fn sweep_r3(
     duty: SweepDuty<'_, Box3>,
     floor: f64,
 ) -> Result<(Exhaustiveness, Vec<Point3<f64>>), SsiError> {
-    let mut stats = Exhaustiveness {
-        floor,
-        ..Exhaustiveness::default()
-    };
-    let mut out = Vec::new();
-    let mut stack = vec![(root, 0u32)];
-    while let Some((cell, depth)) = stack.pop() {
-        if stats.examined as usize >= SSI_MAX_CELLS {
-            return Err(SsiError::CellBudget {
-                budget: SSI_MAX_CELLS,
-            });
-        }
-        stats.examined += 1;
-        stats.max_depth = stats.max_depth.max(depth);
-
+    sweep(root, duty, floor, |cell| {
         let e1 = implicit_enclosure(s1, cell);
         let e2 = implicit_enclosure(s2, cell);
         if e1.is_poison() || e2.is_poison() {
@@ -199,38 +288,8 @@ fn sweep_r3(
                        (per-arm retirement, C12.1)",
             });
         }
-        // (i) exclusion.
-        if excludes_zero(e1) || excludes_zero(e2) {
-            stats.excluded += 1;
-            continue;
-        }
-        // (ii) accounted: inside a found branch's uniqueness tube.
-        if duty.tubes().iter().any(|t| cell.contained_in(*t)) {
-            stats.accounted += 1;
-            continue;
-        }
-        // (iii) refine, unless we are at the floor.
-        if cell.width() <= floor {
-            match duty {
-                SweepDuty::Seed => {
-                    out.push(cell.center());
-                    continue;
-                }
-                SweepDuty::Account(_) => {
-                    return Err(SsiError::ExhaustivenessInconclusive {
-                        cell_width: cell.width(),
-                        floor,
-                        examined: stats.examined,
-                    });
-                }
-            }
-        }
-        stats.refined += 1;
-        let (a, b) = cell.split();
-        stack.push((b, depth + 1));
-        stack.push((a, depth + 1));
-    }
-    Ok((stats, out))
+        Ok(excludes_zero(e1) || excludes_zero(e2))
+    })
 }
 
 fn excludes_zero(i: RingInterval) -> bool {
@@ -288,6 +347,23 @@ impl UvRect {
     }
 }
 
+impl SweepCell for UvRect {
+    type Seed = (f64, f64);
+
+    fn width(self) -> f64 {
+        UvRect::width(self)
+    }
+    fn seed(self) -> (f64, f64) {
+        self.center()
+    }
+    fn split(self) -> (Self, Self) {
+        UvRect::split(self)
+    }
+    fn contained_in(self, other: Self) -> bool {
+        UvRect::contained_in(self, other)
+    }
+}
+
 /// **Seed generation**, chart lane: the centers of the parameter cells
 /// that survived exclusion against the plane.
 ///
@@ -339,13 +415,10 @@ pub(crate) fn account_chart_plane(
     Ok(stats)
 }
 
-/// Subdivide a NURBS surface's parameter rectangle against a **plane**:
-/// the locus is `φ(u,v) = n·(S(u,v) − p₀) = 0`, so exclusion is a
-/// zero-free enclosure of `φ`, computed from the surface's certified
-/// first-order box.
-///
-/// The shared recursion behind [`seed_chart_plane`] and
-/// [`account_chart_plane`].
+/// The chart lane's exclusion rule, over the one shared [`sweep`]:
+/// against a **plane** the locus is `φ(u,v) = n·(S(u,v) − p₀) = 0`, so
+/// a cell is solution-free when a zero-free enclosure of `φ` — computed
+/// from the surface's certified first-order box — says so.
 fn sweep_chart_plane(
     surface: &NurbsSurface<f64>,
     plane_origin: Point3<f64>,
@@ -355,21 +428,7 @@ fn sweep_chart_plane(
     floor_uv: f64,
 ) -> Result<(Exhaustiveness, Vec<(f64, f64)>), SsiError> {
     let boxes = NurbsBoxes::new(surface);
-    let mut stats = Exhaustiveness {
-        floor: floor_uv,
-        ..Exhaustiveness::default()
-    };
-    let mut out = Vec::new();
-    let mut stack = vec![(root, 0u32)];
-    while let Some((cell, depth)) = stack.pop() {
-        if stats.examined as usize >= SSI_MAX_CELLS {
-            return Err(SsiError::CellBudget {
-                budget: SSI_MAX_CELLS,
-            });
-        }
-        stats.examined += 1;
-        stats.max_depth = stats.max_depth.max(depth);
-
+    sweep(root, duty, floor_uv, |cell| {
         let b = boxes.rect_box(cell.u.0, cell.u.1, cell.v.0, cell.v.1);
         let phi = RingInterval::point(plane_normal.x) * (b.x - RingInterval::point(plane_origin.x))
             + RingInterval::point(plane_normal.y) * (b.y - RingInterval::point(plane_origin.y))
@@ -380,33 +439,6 @@ fn sweep_chart_plane(
                        net or a weight hull touching zero)",
             });
         }
-        if excludes_zero(phi) {
-            stats.excluded += 1;
-            continue;
-        }
-        if duty.tubes().iter().any(|t| cell.contained_in(*t)) {
-            stats.accounted += 1;
-            continue;
-        }
-        if cell.width() <= floor_uv {
-            match duty {
-                SweepDuty::Seed => {
-                    out.push(cell.center());
-                    continue;
-                }
-                SweepDuty::Account(_) => {
-                    return Err(SsiError::ExhaustivenessInconclusive {
-                        cell_width: cell.width(),
-                        floor: floor_uv,
-                        examined: stats.examined,
-                    });
-                }
-            }
-        }
-        stats.refined += 1;
-        let (a, c) = cell.split();
-        stack.push((c, depth + 1));
-        stack.push((a, depth + 1));
-    }
-    Ok((stats, out))
+        Ok(excludes_zero(phi))
+    })
 }
