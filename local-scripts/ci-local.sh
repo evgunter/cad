@@ -324,7 +324,12 @@ uv_composer_selftest() {
 # PNG lanes cannot be gated (they need FreeCAD), so this is the only
 # render lane CI can reproduce — and an ungated committed artifact rots.
 # The tour is ~3s once built and the sheet is text, so a firing diff is
-# readable. Hosted mirror: the `k-lint` job's "uv sheet drift (demos)".
+# readable. NO HOSTED MIRROR ANY MORE (2026-08-17): the `k-lint` job's
+# "uv sheet drift (demos)" row was retired when render.yml's uv lane
+# started re-baselining itself, so hosted CI now COMMITS a drifting
+# sheet and marks the run neutral instead of failing. This row stays a
+# failing check because a developer box cannot re-baseline itself —
+# locally, being told is the whole point.
 #
 # The `CAD_RENDER_LOCAL_OVERRIDE` sentence is set HERE, in the file, at
 # the one step that renders: the entry points refuse without it

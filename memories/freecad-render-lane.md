@@ -8,9 +8,9 @@ type: operational
 
 ## Re-baselining (2026-08-17 — read this before reaching for a download)
 
-CI **commits its own renders**. A run whose kernel / freecad / wild
-lane differs from the committed cells pushes the new cells to that
-branch and posts a check run with conclusion `neutral` — GitHub's "!",
+CI **commits its own renders**, on all four lanes. A run whose kernel,
+freecad, wild or uv lane differs from the committed cells pushes the
+new cells to that branch and posts a check run with conclusion `neutral` — GitHub's "!",
 not its "x" — whose text says: *if the render looks right, this job is
 a success, no re-run needed*. So:
 
@@ -20,11 +20,14 @@ That is the whole flow. There is nothing to download and nothing to
 install, and a re-baseline is **not a failure** — do not re-run the job
 to try to make it green.
 
-What still needs `local-scripts/render-hosted.sh`: the **uv lane**
-(deliberately excluded — ci.yml's `uv sheet drift (demos)` row gates
-it, and a self-re-baselining lane would make that gate unfalsifiable),
-a dispatch aimed at a bare SHA (no branch to commit to), `--on-demand`,
-and `--verify`.
+ci.yml's `uv sheet drift (demos)` row was **retired** when the uv lane
+started re-baselining: both fired on the same condition and read the
+same cached tour output, so it was a duplicate signal that would have
+reported red while the re-baseline reported neutral. Its local mirror
+in `ci-local.sh` stays — a developer box cannot re-baseline itself.
+
+What still needs `local-scripts/render-hosted.sh`: a dispatch aimed at
+a bare SHA (no branch to commit to), `--on-demand`, and `--verify`.
 
 What still FAILS loudly, unchanged: a wedged pass, and the
 `assert no matplotlib fallback` check. The re-baseline is only reached

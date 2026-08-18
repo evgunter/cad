@@ -68,9 +68,10 @@
 #     committed STEP fixtures, pinned, no GL anywhere in the path.
 #     Byte-reproducible on any box, so its diff is unambiguous and it
 #     carries no mesa exposure at all.
-#   * UV — renderer-free, and already gated by ci.yml's `uv sheet drift
-#     (demos)` row. Reported here, never re-gated: one gate per
-#     obligation.
+#   * UV — renderer-free and text, so byte-reproducible on any box
+#     like the wild lane, and re-baselined like it. ci.yml's duplicate
+#     `uv sheet drift (demos)` row was retired when that started; this
+#     workflow owns the obligation outright.
 #
 # THE LANES COMMIT THEIR OWN RE-BASELINES (2026-08-17, Evan's ruling —
 # this REVISES the "NO JOB COMMITS OR PUSHES, in either mode" rule that
@@ -99,11 +100,19 @@
 # when the render itself succeeded — so a wedge is still a wedge and is
 # never re-reported as drift.
 #
-# THE UV LANE IS DELIBERATELY EXCLUDED from all of this. Its sheet is
-# gated by ci.yml's own `uv sheet drift (demos)` row, and a lane that
-# re-baselined itself here would make that gate unfalsifiable. It stays
-# reported-here / gated-there, and stays a manual fix. One gate per
-# obligation, still.
+# ALL FOUR LANES, INCLUDING UV. The uv sheet was briefly held back —
+# ci.yml had its own `uv sheet drift (demos)` row, and a self-
+# re-baselining lane looked like it would undercut it. It would not
+# have: the two fired on the same condition and read the SAME cached
+# tour output (they shared a cache key by construction), so it was a
+# duplicate signal, and keeping both would have made every intended
+# sheet change report red there and neutral here. uv is also the same
+# CATEGORY as wild — renderer-free, text, byte-reproducible on any box
+# — so there was no principled line to draw between them. That ci.yml
+# row is retired and the obligation lives here; its local mirror in
+# local-scripts/ci-local.sh stays, because a developer box cannot
+# re-baseline itself and a failing check is the right shape there.
+# One gate per obligation, still.
 name: render (demos)
 
 on:
@@ -248,18 +257,21 @@ jobs:
       # the tour reads is in the hash (the kernel crates, the tour
       # crate, the lockfiles, the pinned toolchain), so a hit means the
       # same bytes a rebuild would have produced — the tour is
-      # deterministic, which is what ci.yml's `uv sheet drift (demos)`
+      # deterministic, which is what the `uv` lane's own re-baseline
+      # asserts on every run.
+      #
       # DIRECTLY UNDER THE CHECKOUT, BEFORE ANY CARGO STEP. `hashFiles`
       # globs the working tree, so a cargo step running first would put
       # `demos/tour/target/` inside the `demos/tour/**` pattern and the
       # key would describe build artifacts instead of sources. ci.yml's
       # copy of this step was placed after a clippy row and computed a
       # different hash for the same commit, in the same run — a
-      # permanent miss that still looked like a working cache.
+      # permanent miss that still looked like a working cache. (ci.yml's
+      # copy is gone as of 2026-08-17 — it fed only the retired `uv
+      # sheet drift` gate — so this is now the only one.)
       #
-      # gate asserts on every run. `tour_cache: refresh` forces the
-      # rebuild anyway, for when you want that assertion re-earned
-      # rather than assumed.
+      # `tour_cache: refresh` forces the rebuild anyway, for when you
+      # want that assertion re-earned rather than assumed.
       - name: tour output cache
         id: tour-cache
         if: ${{ inputs.tour_cache != 'refresh' }}
@@ -296,6 +308,12 @@ jobs:
   uv:
     name: uv trim-loop sheet
     runs-on: ubuntu-latest
+    # Same as the other lanes since 2026-08-17: this one re-baselines
+    # too, and ci.yml's duplicate `uv sheet drift` gate was retired
+    # when it did.
+    permissions:
+      contents: write
+      checks: write
     needs: tour
     if: ${{ contains(fromJSON('["all","uv"]'), inputs.lanes) }}
     timeout-minutes: 15
@@ -336,9 +354,10 @@ jobs:
           retention-days: 14
       # This lane IS byte-reproducible off-box (no renderer, and the
       # sheet is text), so a diff here is a real finding rather than a
-      # GL-stack difference — the same finding ci.yml's `uv sheet drift`
-      # step already gates on. Reported, not re-gated: one gate per
-      # obligation.
+      # GL-stack difference — an intended sheet change, or a D9
+      # determinism finding. Recorded here; acted on by the re-baseline
+      # step below, which owns the obligation outright since ci.yml's
+      # duplicate `uv sheet drift` gate was retired (2026-08-17).
       - name: sheet drift vs the committed lane (informational)
         if: always()
         run: |
@@ -346,13 +365,27 @@ jobs:
             echo "### UV lane — hosted vs committed"
             echo
             echo "Renderer-free and byte-reproducible: an empty diff is the"
-            echo "expected result. Already gated by ci.yml's \`uv sheet drift"
-            echo "(demos)\` step — reported here, not re-gated."
+            echo "expected result, so a diff is an intended sheet change or a"
+            echo "determinism finding — re-baselined by the step below."
             echo
             echo '```'
             git status --porcelain -- demos/renders-uv/ || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # Same treatment as the other three lanes. This one carries the
+      # least ambiguity of any of them: renderer-free, text output,
+      # byte-reproducible on any box — so a re-baseline here is an
+      # intended sheet change or a determinism bug, never a mesa bump.
+      - name: re-baseline committed lane
+        uses: ./.github/actions/rebaseline-lane
+        with:
+          lane: uv
+          dir: demos/renders-uv
+          # inputs.push_to wins; otherwise the dispatched branch, but
+          # only when no explicit `ref` made the target ambiguous.
+          push_to: ${{ inputs.push_to != '' && inputs.push_to || (inputs.ref == '' && github.ref_name || '') }}
+          token: ${{ github.token }}
 
   # The two FreeCAD-drawn montages. ONE definition, two legs: the lanes
   # differ only in render.sh's flag and the directory it publishes to

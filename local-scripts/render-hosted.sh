@@ -8,18 +8,17 @@
 #   local-scripts/render-hosted.sh --on-demand          # render fresh instead
 #   local-scripts/render-hosted.sh --run 12345678       # pull a specific run
 #
-# FIRST, THE SHORT ANSWER: FOR THREE OF THE FOUR LANES YOU WANT
-# `git pull`, NOT THIS SCRIPT (2026-08-17). CI now RE-BASELINES the
-# kernel, freecad and wild lanes itself — a run whose render differs
-# from the committed cells commits the new ones straight back to your
-# branch and marks the run neutral ("!", not "x") asking you to glance
-# at the images. So the ordinary flow is: push, wait for CI, `git pull`,
+# FIRST, THE SHORT ANSWER: YOU PROBABLY WANT `git pull`, NOT THIS
+# SCRIPT (2026-08-17). CI now RE-BASELINES all four lanes itself — a run
+# whose render differs from the committed cells commits the new ones
+# straight back to your branch and marks the run neutral ("!", not "x")
+# asking you to glance at the images. So the ordinary flow is: push, wait for CI, `git pull`,
 # look at the frames. Nothing to download, nothing to install.
 #
+# ALL FOUR LANES RE-BASELINE, uv included — there is no lane left that
+# needs a manual install after an ordinary CI run.
+#
 # WHAT THIS SCRIPT IS STILL FOR:
-#   * THE UV LANE. It is deliberately NOT re-baselined — ci.yml's `uv
-#     sheet drift (demos)` row gates it, and a lane that fixed itself
-#     would make that gate unfalsifiable. `--lane uv` is the fix path.
 #   * A DISPATCH AIMED AT A BARE SHA, which has no branch to commit to;
 #     those runs report the drift and name this command, as before.
 #   * `--on-demand` renders CI has not covered: an unpushed branch, no
