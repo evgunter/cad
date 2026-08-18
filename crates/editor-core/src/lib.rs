@@ -17,6 +17,7 @@
 //! instantiation at the profile crate's public description type.
 
 pub mod appearance;
+pub mod assembly;
 pub mod diff;
 pub mod doc;
 pub mod edit;
@@ -42,6 +43,9 @@ pub mod witness;
 pub use appearance::{
     AppearanceLoss, AppearanceLossCause, AppearanceMap, AppearanceRecord, AppearanceResolution,
     Attr, AttrKind, AttrSet, Rgba8,
+};
+pub use assembly::{
+    Assembly, AssemblyError, AtRestFinding, MintedDeclaration, RefusedRef, assemble,
 };
 pub use diff::{DocDiff, NodeChange};
 pub use doc::{Doc, DocParam, ParamName};
@@ -83,7 +87,7 @@ pub use persist::{
 };
 pub use persist::{NonFiniteSite, ProgramFault, SnapshotError};
 pub use placement::Frame;
-pub use product::{ProductError, product, product_named};
+pub use product::{Product, ProductError, product, product_named, product_recorded};
 pub use program::{
     LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData, ProgramRefusal,
     ProgramStep, ProgramTarget, RecordedProgramError,
