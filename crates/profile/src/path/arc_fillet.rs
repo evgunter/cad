@@ -500,6 +500,17 @@ pub(crate) fn resolve<T: Decide + Bounds>(
             Err(ArcTrimRefusal::Escalated(source)) => {
                 return Err(PathError::Escalated { source });
             }
+            // The M8 conditioning gate ABORTS the resolve exactly as an
+            // escalation does, and for the same reason: a joint space
+            // one of whose members the band cannot CERTIFY (a tangent
+            // point over an unsupported lever) cannot be honestly
+            // ranked. Falling through to another corner's build would
+            // let the twin corner of a near-tangent carrier pair mask
+            // the refusal — the silent-build class the gate exists to
+            // keep refused at every band.
+            Err(refusal @ ArcTrimRefusal::OffsetLeverTooShort { .. }) => {
+                return Err(map_refusal(refusal, radius));
+            }
             Err(refusal) => {
                 if build_refused.is_none() {
                     build_refused = Some(map_refusal(refusal, radius));

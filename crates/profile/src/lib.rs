@@ -121,11 +121,6 @@ pub mod lift;
 pub mod path;
 mod seg;
 mod sugar;
-// PROFILES-V2 §V6 (amended, #377): the raw builder is test support, not
-// API. The feature is enabled ONLY by this crate's own dev-dependency,
-// so `tests/` sees it and no downstream crate can.
-#[cfg(feature = "test-support")]
-pub mod test_support;
 mod validate;
 
 use geom_core::{Affine3, Mat3, Point2, Point3, Real, Vec3};
@@ -135,8 +130,8 @@ pub use path::program::{
     ArcData, ClosedLoop, ReplayError, ReplayErrorKind, Step, Target, TipState, Verb, replay,
 };
 pub use path::{
-    ArcCarrierScalar, ArcLen, ArcSide, Bulge, Center, LineTarget, OnArc, Open, PartialPath,
-    PathError, PointLeg, Radius, Start, Sweep, TangentArcTarget, Via, circle, circle_split,
+    ArcCarrierScalar, ArcLen, ArcSide, Bulge, Center, LineTarget, Open, PartialPath, PathError,
+    PointLeg, Radius, Start, Sweep, TangentArcTarget, Via, circle, circle_split,
 };
 pub use sugar::{ArcSweep, FilletLegShape, bulge_from_center, bulge_from_via};
 pub use validate::{

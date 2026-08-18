@@ -88,7 +88,7 @@ Everything Python can say about geometry, in full:
 - The **PATHS authoring lattice** — `Open`, `Start`, `circle`,
   `circle_split`, and one class per lattice state (`PathOpen`,
   `PathPoint`, `PathDirectedPoint`, `PathAngle`, `PathDirected`,
-  `PathOnArc`, and the arrival builders `PathRadiusArrival` /
+  and the arrival builders `PathRadiusArrival` /
   `PathRadiusArrivalAt` / `PathRadiusArrivalDir` / `PathViaArrival` /
   `PathViaArrivalStart`), each exposing only its legal continuations.
   The full current verb vocabulary: `at`, `angle`, `toward`,

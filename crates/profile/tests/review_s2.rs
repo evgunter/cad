@@ -73,7 +73,8 @@ mod common;
 
 use common::tol;
 use geom_core::Point2;
-use profile::{ArcSweep, FilletLegShape, ProfileError, ProfileLoop};
+use profile::path::PathNoCornerReason;
+use profile::{ArcSweep, Center, NoCornerReason, Open, PathError, ProfileLoop, Start};
 use test_utils::fuzz;
 
 const TAU: f64 = core::f64::consts::TAU;
@@ -103,17 +104,18 @@ enum OracleLeg {
 }
 
 impl OracleLeg {
-    fn shape(&self) -> FilletLegShape<f64> {
+    /// The travel sense of an arc leg (chain order), for the lattice's
+    /// `Center` spec.
+    fn winding(&self) -> ArcSweep {
         match *self {
-            OracleLeg::Line { .. } => FilletLegShape::Line,
-            OracleLeg::Arc { center, tau, .. } => FilletLegShape::Arc {
-                center,
-                sweep: if tau > 0.0 {
+            OracleLeg::Line { .. } => panic!("windings are asked of arc legs only"),
+            OracleLeg::Arc { tau, .. } => {
+                if tau > 0.0 {
                     ArcSweep::Ccw
                 } else {
                     ArcSweep::Cw
-                },
-            },
+                }
+            }
         }
     }
     fn far_point(&self, _corner: Point2<f64>) -> Point2<f64> {
@@ -246,18 +248,284 @@ fn turn_sign(corner: Point2<f64>, leg_in: OracleLeg, leg_out: OracleLeg) -> f64 
     (dix * doy - diy * dox).signum()
 }
 
-/// Author the corner through the public sugar and close it.
+/// The pair's OTHER carrier intersection (the mirror corner), when the
+/// carrier pair admits one: circle x circle by reflection across the
+/// centre line, ray x circle by reflection about the foot of the
+/// centre on the line. `None` for line x line (a unique corner).
+fn mirror_corner(
+    corner: Point2<f64>,
+    leg_in: OracleLeg,
+    leg_out: OracleLeg,
+) -> Option<Point2<f64>> {
+    match (leg_in, leg_out) {
+        (OracleLeg::Arc { center: o1, .. }, OracleLeg::Arc { center: o2, .. }) => {
+            let d = (o2.x - o1.x, o2.y - o1.y);
+            let len2 = d.0 * d.0 + d.1 * d.1;
+            if len2 == 0.0 {
+                return None;
+            }
+            let v = (corner.x - o1.x, corner.y - o1.y);
+            let t = (v.0 * d.0 + v.1 * d.1) / len2;
+            let foot = (o1.x + t * d.0, o1.y + t * d.1);
+            Some(p2(2.0 * foot.0 - corner.x, 2.0 * foot.1 - corner.y))
+        }
+        (OracleLeg::Line { .. }, OracleLeg::Arc { center: o, .. }) => {
+            let (dx, dy) = leg_in.travel_dir(corner, true);
+            let v = (o.x - corner.x, o.y - corner.y);
+            let t = v.0 * dx + v.1 * dy;
+            let foot = (corner.x + t * dx, corner.y + t * dy);
+            Some(p2(2.0 * foot.0 - corner.x, 2.0 * foot.1 - corner.y))
+        }
+        (OracleLeg::Arc { center: o, .. }, OracleLeg::Line { .. }) => {
+            let (dx, dy) = leg_out.travel_dir(corner, false);
+            let v = (o.x - corner.x, o.y - corner.y);
+            let t = v.0 * dx + v.1 * dy;
+            let foot = (corner.x + t * dx, corner.y + t * dy);
+            Some(p2(2.0 * foot.0 - corner.x, 2.0 * foot.1 - corner.y))
+        }
+        (OracleLeg::Line { .. }, OracleLeg::Line { .. }) => None,
+    }
+}
+
+/// Signed angular difference into [-π, π).
+fn signed(a: f64) -> f64 {
+    let s = a.rem_euclid(TAU);
+    s - TAU * (s / TAU + 0.5).floor()
+}
+
+/// The signed travel of `p` measured from `q` along an arc leg's
+/// carrier (metres), in the leg's travel sense.
+fn arc_travel(center: Point2<f64>, radius: f64, tau: f64, q: Point2<f64>, p: Point2<f64>) -> f64 {
+    let a = |x: Point2<f64>| (x.y - center.y).atan2(x.x - center.x);
+    radius * signed((a(p) - a(q)) * tau)
+}
+
+/// Clamp the ARRIVAL leg's anchor to sit strictly BEFORE the mirror
+/// corner along its own carrier (95% of the gap; arc extents also
+/// capped below the signed half-turn), so the reach gate reads the
+/// mirror as Negative. Legs whose mirror is behind the corner pass
+/// through — the incoming side's gate is checked separately.
+fn clamp_arrival(corner: Point2<f64>, m: Point2<f64>, leg: OracleLeg) -> OracleLeg {
+    match leg {
+        OracleLeg::Arc {
+            center,
+            radius,
+            tau,
+            far_angle,
+        } => {
+            let thc = (corner.y - center.y).atan2(corner.x - center.x);
+            let thm = (m.y - center.y).atan2(m.x - center.x);
+            let gap = ((thm - thc) * tau).rem_euclid(TAU);
+            let delta = ((far_angle - thc) * tau).rem_euclid(TAU);
+            let lim = (0.95 * gap).min(0.95 * PI);
+            let new_delta = delta.min(lim);
+            OracleLeg::Arc {
+                center,
+                radius,
+                tau,
+                far_angle: thc + tau * new_delta,
+            }
+        }
+        OracleLeg::Line { far } => {
+            let (dx, dy) = ((far.x - corner.x), (far.y - corner.y));
+            let len = dx.hypot(dy);
+            if len == 0.0 {
+                return leg;
+            }
+            let g = ((m.x - corner.x) * dx + (m.y - corner.y) * dy) / len;
+            if g <= 0.0 {
+                return leg;
+            }
+            let new_len = len.min(0.95 * g);
+            OracleLeg::Line {
+                far: p2(corner.x + dx / len * new_len, corner.y + dy / len * new_len),
+            }
+        }
+    }
+}
+
+/// Cap an incoming ARC leg's extent below the signed half-turn (the
+/// lattice's advance gate reads past-the-half-turn as Negative).
+fn cap_incoming(corner: Point2<f64>, leg: OracleLeg) -> OracleLeg {
+    let OracleLeg::Arc {
+        center,
+        radius,
+        tau,
+        far_angle,
+    } = leg
+    else {
+        return leg;
+    };
+    let thc = (corner.y - center.y).atan2(corner.x - center.x);
+    let delta = ((thc - far_angle) * tau).rem_euclid(TAU);
+    let new_delta = delta.min(0.95 * PI);
+    OracleLeg::Arc {
+        center,
+        radius,
+        tau,
+        far_angle: thc - tau * new_delta,
+    }
+}
+
+/// Whether the pair's mirror corner is EXCLUDED by the lattice's
+/// signed gates for these (already clamped) anchors: negative advance
+/// from the incoming anchor, or negative reach from the arrival
+/// anchor. A drawn corner whose mirror passes both gates is not the
+/// corner this harness's oracle describes (the lifted ladder may
+/// legitimately round the other crossing), so such draws are SKIPPED
+/// rather than mis-asserted.
+fn mirror_excluded(
+    m: Point2<f64>,
+    leg_in: OracleLeg,
+    leg_out: OracleLeg,
+    corner: Point2<f64>,
+) -> bool {
+    let adv = match leg_in {
+        OracleLeg::Arc {
+            center,
+            radius,
+            tau,
+            ..
+        } => arc_travel(center, radius, tau, leg_in.far_point(corner), m),
+        OracleLeg::Line { far } => {
+            let (dx, dy) = leg_in.travel_dir(corner, true);
+            (m.x - far.x) * dx + (m.y - far.y) * dy
+        }
+    };
+    let reach = match leg_out {
+        OracleLeg::Arc {
+            center,
+            radius,
+            tau,
+            ..
+        } => arc_travel(center, radius, tau, m, leg_out.far_point(corner)),
+        OracleLeg::Line { .. } => {
+            let (dx, dy) = leg_out.travel_dir(corner, false);
+            let a = leg_out.far_point(corner);
+            (a.x - m.x) * dx + (a.y - m.y) * dy
+        }
+    };
+    adv <= 0.0 || reach <= 0.0
+}
+
+/// Author the corner through the PATHS lattice and close it. The
+/// lattice derives the corner from the two anchored carriers (it is
+/// never authored), so this harness AUTHORS THE DRAWN CORNER the one
+/// way the lattice offers: each far anchor is placed to bracket it —
+/// past the corner along its own side, and strictly inside the pair's
+/// mirror corner, so the signed advance/reach gates admit exactly the
+/// corner the oracle's claims are about. §2c dissolution: an arc
+/// arrival lands on an ordinary directed point, so every leg-kind pair
+/// closes with a sharp straight seam or a short straight run.
 fn build_corner(
     corner: Point2<f64>,
     leg_in: OracleLeg,
     leg_out: OracleLeg,
     r: f64,
-) -> Result<ProfileLoop<f64>, ProfileError> {
+) -> Result<ProfileLoop<f64>, PathError<f64>> {
+    let (leg_in, leg_out) = match mirror_corner(corner, leg_in, leg_out) {
+        Some(m) => (
+            cap_incoming(corner, leg_in),
+            clamp_arrival(corner, m, leg_out),
+        ),
+        None => (leg_in, leg_out),
+    };
     let head = leg_in.far_point(corner);
     let next = leg_out.far_point(corner);
-    Ok(ProfileLoop::builder(head)
-        .fillet_corner(leg_in.shape(), corner, leg_out.shape(), next, r, tol())?
-        .close())
+    let closed = match (leg_in, leg_out) {
+        (OracleLeg::Arc { center: c1, .. }, OracleLeg::Arc { center: c2, .. }) => Open
+            .arc_fillet_arc(
+                Center {
+                    c: c1,
+                    winding: leg_in.winding(),
+                    p: head,
+                },
+                r,
+                Center {
+                    c: c2,
+                    winding: leg_out.winding(),
+                    p: next,
+                },
+            )?
+            .line_to(Start)?,
+        (OracleLeg::Arc { center: c1, .. }, OracleLeg::Line { .. }) => {
+            let (dx, dy) = leg_out.travel_dir(corner, false);
+            Open.arc_fillet(
+                Center {
+                    c: c1,
+                    winding: leg_in.winding(),
+                    p: head,
+                },
+                r,
+            )?
+            .at(next)?
+            .toward(dx, dy)?
+            .line(0.25)?
+            .line_to(Start)?
+        }
+        (OracleLeg::Line { .. }, OracleLeg::Arc { center: c2, .. }) => {
+            let (dx, dy) = leg_in.travel_dir(corner, true);
+            Open.at(head)
+                .toward(dx, dy)?
+                .fillet_arc(
+                    r,
+                    Center {
+                        c: c2,
+                        winding: leg_out.winding(),
+                        p: next,
+                    },
+                )?
+                .line_to(Start)?
+        }
+        (OracleLeg::Line { .. }, OracleLeg::Line { .. }) => {
+            let (dx1, dy1) = leg_in.travel_dir(corner, true);
+            let (dx2, dy2) = leg_out.travel_dir(corner, false);
+            Open.at(head)
+                .toward(dx1, dy1)?
+                .fillet(r)?
+                .at(next)?
+                .toward(dx2, dy2)?
+                .line(0.25)?
+                .line_to(Start)?
+        }
+    };
+    Ok(closed.loop_)
+}
+
+/// Locate the emitted fillet arc: the unique segment whose recovered
+/// circle has radius `r` (draws that would put a LEG carrier's radius
+/// within the match window of `r` are skipped at the draw, so the
+/// match cannot be ambiguous). Returns (t1, t2, bulge).
+fn fillet_segment(
+    lp: &ProfileLoop<f64>,
+    r: f64,
+    ctx: &dyn Fn() -> String,
+) -> (Point2<f64>, Point2<f64>, f64) {
+    let n = lp.vertices().len();
+    let mut found = None;
+    for i in 0..n {
+        let a = lp.vertices()[i];
+        let b = lp.vertices()[(i + 1) % n];
+        let bl = a.bulge();
+        if bl == 0.0 {
+            continue;
+        }
+        let (_, rf) = circle_from_bulge(a.pos(), b.pos(), bl);
+        if (rf - r).abs() < 1e-6 * r.max(1.0) {
+            assert!(
+                found.is_none(),
+                "two segments recover the fillet radius — {}",
+                ctx()
+            );
+            found = Some((a.pos(), b.pos(), bl));
+        }
+    }
+    found.unwrap_or_else(|| {
+        panic!(
+            "no emitted segment recovers the fillet radius {r} — {}",
+            ctx()
+        )
+    })
 }
 
 /// What one checked corner contributed to the sweep's coverage report.
@@ -291,11 +559,7 @@ fn check_corner(
         enclosing: 0,
         major: 0,
     };
-    let nv = lp.vertices().len();
-    assert!(nv == 2 || nv == 3, "chain shape: {nv} vertices — {}", ctx());
-    let t2 = lp.vertices()[nv - 1].pos();
-    let t1 = lp.vertices()[nv - 2].pos();
-    let b = lp.vertices()[nv - 2].bulge();
+    let (t1, t2, b) = fillet_segment(lp, r, ctx);
     assert!(
         b.is_finite() && b != 0.0,
         "degenerate fillet bulge {b} — {}",
@@ -485,6 +749,24 @@ fn fuzz_offset_carrier_construction_tangency_and_bulge() {
         } else {
             rng.range(0.02, 0.8)
         };
+        // A leg carrier whose radius sits inside `fillet_segment`'s
+        // match window would make the fillet-arc extraction ambiguous;
+        // the window is 1e-6, the skip band 100x it.
+        let near_r = |leg: OracleLeg| matches!(leg, OracleLeg::Arc { radius, .. } if (radius - r).abs() < 1e-4);
+        if near_r(leg_in) || near_r(leg_out) {
+            continue;
+        }
+        // The oracle speaks about the DRAWN corner, so a draw whose
+        // mirror corner would survive the gates even after bracketing
+        // is skipped (the lifted ladder may legitimately round the
+        // other crossing there).
+        if let Some(m) = mirror_corner(corner, leg_in, leg_out) {
+            let li = cap_incoming(corner, leg_in);
+            let lo = clamp_arrival(corner, m, leg_out);
+            if !mirror_excluded(m, li, lo, corner) {
+                continue;
+            }
+        }
         let Ok(lp) = build_corner(corner, leg_in, leg_out, r) else {
             continue;
         };
@@ -501,11 +783,15 @@ fn fuzz_offset_carrier_construction_tangency_and_bulge() {
     // with `CAD_FUZZ_EFFORT` instead of turning red at low effort. The
     // fractions are the review's own (500 and 50 out of 20 000). Both
     // describe the BULK of the draw distribution — a fraction is only a
-    // safe floor when the class it names is common; the rare class that
-    // used to sit here alongside them is a fixture now. Measured at 1 500
-    // corners over 22 fresh-seed runs: ~955 accepted against a floor of
-    // 38, ~277 arc-by-arc against a floor of 4. Neither is a witness
-    // search in disguise.
+    // safe floor when the class it names is common. RE-CALIBRATED at
+    // the lattice door (the mirror-survivor skip removes ~17% of draws
+    // whose oracle would speak about the wrong crossing): measured at
+    // 1 500 corners over 10 fresh-seed runs, accepted 741-796
+    // (mean ~771, 51%) against a floor of 38, arc-by-arc 179-229
+    // (mean ~206, 14%) against a floor of 4 — the unchanged fractions
+    // now bind TIGHTER relative to the distribution than the raw-door
+    // numbers did (~20x and ~55x slack, down from ~25x and ~74x).
+    // Neither is a witness search in disguise.
     let corners = corners as u64;
     assert!(
         n_ok * 40 > corners,
@@ -520,9 +806,11 @@ fn fuzz_offset_carrier_construction_tangency_and_bulge() {
     // `n_enclosing` and `n_major` are a COVERAGE REPORT, not a gate.
     //
     // `n_enclosing` used to be gated by an absolute floor, which is what
-    // forced this count to 12 500; the class is now constructed
-    // deterministically, so what the sweep stumbles onto is information
-    // about the draw distribution and nothing has to hold.
+    // forced this count to 12 500. At the lattice door the count is
+    // structurally 0 — the door never emits an enclosing tangency (see
+    // `the_lattice_door_never_emits_an_enclosing_tangency`) — so the
+    // report line is the sweep corroborating that boundary, and
+    // nothing has to hold.
     //
     // `n_major` comes out 0, which is the fuzz corroborating the bound
     // `fillet_bulge`'s docs argue for — the corner-side extent gates keep
@@ -547,25 +835,20 @@ struct EnclosingCase {
     sigma: f64,
 }
 
-/// The enclosing table, derived rather than sampled.
-///
-/// ρ = R − σ·τ·r is negative exactly when σ·τ = +1 **and** r > R, so a
-/// row is authored by picking the two carrier angles that force the
-/// wanted σ and then giving both carriers a radius below the fillet's.
-/// For an arc leg the travel direction at the corner is τ·(−sin a, cos a)
+/// The enclosing table: six corners whose geometry DEMANDS the
+/// enclosing tangency (σ·τ = +1 on both legs with r > R on both — the
+/// signed offset radius ρ = R − σ·τ·r negative on both legs). For an
+/// arc leg the travel direction at the corner is τ·(−sin a, cos a)
 /// where `a` is the corner's angle about the center, so
-/// σ = sign(τ_in·τ_out·sin(a_out − a_in)); a line leg's is
-/// ±(cos a, sin a). Every row states the σ it expects, and the test
-/// re-derives σ and both ρ signs from the built geometry, so a change to
-/// the sign convention makes the table RED rather than vacuous.
+/// σ = sign(τ_in·τ_out·sin(a_out − a_in)). Every row states the σ it
+/// expects, and the test re-derives σ and both ρ signs from the drawn
+/// geometry, so a change to the sign convention makes the table RED
+/// rather than vacuous.
 ///
 /// **Both legs, always.** A ρ < 0 leg forces its partner to be an arc
 /// that is also swallowed — see
 /// [`an_enclosing_leg_forces_an_equally_enclosing_partner`], which pins
-/// the three shapes that are ruled out. So the class the table spans is
-/// σ = τ_in = τ_out = ±1 with r > max(R_in, R_out), and what varies
-/// across rows is the turn side, equal vs unequal carriers, the turn
-/// magnitude, and how close ρ sits to 0.
+/// the three shapes that are ruled out.
 fn enclosing_cases() -> Vec<EnclosingCase> {
     // sin(a_out - a_in) > 0 with tau_in = tau_out = +1 gives sigma = +1,
     // so sigma*tau = +1 on both legs and r > R swallows both.
@@ -633,19 +916,32 @@ fn enclosing_cases() -> Vec<EnclosingCase> {
     ]
 }
 
-/// F1's enclosing (ρ < 0) class, **constructed** — the witness the fuzz
-/// used to be asked to stumble onto.
+/// **The enclosing (ρ < 0) class at the LATTICE DOOR — a structural
+/// boundary, pinned.** The raw builder reached the enclosing tangency
+/// by AUTHORING the corner; the §2c lattice derives corners from the
+/// anchored carriers and ranks every gated survivor with the lifted S8
+/// ladder. For a corner whose geometry demands the enclosing tangency,
+/// the pair's OTHER crossing always carries an ordinary (ρ > 0)
+/// candidate pair whose setbacks are strictly smaller, and that
+/// crossing cannot be excluded by the signed gates: the enclosing
+/// setbacks wrap past the inter-crossing gap on both carriers, so any
+/// anchors far enough out to fit the enclosing trims also leave the
+/// other crossing inside its windows. The ladder therefore NEVER emits
+/// an enclosing tangency — the class is unreachable through the
+/// surviving door, and this test pins exactly that: every table corner
+/// still DEMANDS the class (σ, τ and both ρ signs re-derived from the
+/// drawn geometry), and the door answers each with a refusal or with a
+/// fillet that swallows NEITHER carrier.
 ///
-/// Each row is checked by [`check_corner`], the same battery the sweep
-/// runs on every accepted draw: recovered radius, both tangent points on
-/// their carriers, the signed ρ = R − σ·τ·r predicting |P − O| (with the
-/// internal-tangency claim |P − O| + R = r spelled out on the swallowed
-/// legs), both tangent points at distance r from the fillet center, the
-/// corner-side setback/extent bounds, and the atan2 bulge oracle.
+/// (The construction machinery underneath — signed offset radii, the
+/// antipodal tangent-point flip — is unchanged and still computes the
+/// enclosing candidates; they lose the ranking. Restoring an authored-
+/// corner door is the only way to emit them, which is a design
+/// question, not a regression this suite can decide.)
 #[test]
-fn enclosing_tangency_is_constructed_not_stumbled_upon() {
+fn the_lattice_door_never_emits_an_enclosing_tangency() {
     let cases = enclosing_cases();
-    let (mut saw_ccw, mut saw_cw, mut saw_unequal, mut total) = (false, false, false, 0u64);
+    let (mut saw_ccw, mut saw_cw, mut saw_unequal) = (false, false, false);
     for case in &cases {
         let name = case.name;
         let sigma = turn_sign(case.corner, case.leg_in, case.leg_out);
@@ -662,17 +958,40 @@ fn enclosing_tangency_is_constructed_not_stumbled_upon() {
                  claims (rho = R - sigma*tau*r < 0 iff sigma*tau = +1 and r > R)"
             );
         }
-        let lp = build_corner(case.corner, case.leg_in, case.leg_out, case.r)
-            .unwrap_or_else(|e| panic!("{name}: the enclosing fillet must construct, got {e:?}"));
-        let c = check_corner(case.corner, case.leg_in, case.leg_out, case.r, &lp, &|| {
-            name.to_string()
-        });
-        assert_eq!(
-            c.enclosing, 2,
-            "{name}: the oracle battery classified {} legs as enclosing, not both",
-            c.enclosing
-        );
-        total += c.enclosing;
+        match build_corner(case.corner, case.leg_in, case.leg_out, case.r) {
+            // The PINNED branch: under the bracketing harness every
+            // table row REFUSES, on every shipped band (measured at
+            // 1e-6 / 1e-9 / 1e-12) — the enclosing demand has no
+            // corner the gates and extents can both admit.
+            Err(_) => {}
+            Ok(lp) => {
+                // A door or harness change that starts building here
+                // must flip this pin deliberately. The assertions
+                // below run FIRST so the failure names what got
+                // built: whatever it is, it must not be the enclosing
+                // tangency (the emitted fillet swallows neither
+                // carrier).
+                let (t1, t2, b) = fillet_segment(&lp, case.r, &|| name.to_string());
+                let (pf, _) = circle_from_bulge(t1, t2, b);
+                for leg in [case.leg_in, case.leg_out] {
+                    let OracleLeg::Arc { center, radius, .. } = leg else {
+                        panic!("{name}: the table is arc x arc by construction");
+                    };
+                    let d = (pf.x - center.x).hypot(pf.y - center.y);
+                    assert!(
+                        d + radius > case.r - 1e-9,
+                        "{name}: the door emitted an ENCLOSING tangency \
+                         (|P-O| + R = {} < r = {}) — the boundary claim itself has moved",
+                        d + radius,
+                        case.r
+                    );
+                }
+                panic!(
+                    "{name}: the pinned REFUSE branch moved — the row now BUILDS (a \
+                     non-swallowing fillet, verified above); re-pin deliberately"
+                );
+            }
+        }
         saw_ccw |= sigma > 0.0;
         saw_cw |= sigma < 0.0;
         if let (OracleLeg::Arc { radius: a, .. }, OracleLeg::Arc { radius: b, .. }) =
@@ -690,11 +1009,6 @@ fn enclosing_tangency_is_constructed_not_stumbled_upon() {
     assert!(
         saw_unequal,
         "a row with UNEQUAL leg carriers must appear, or |rho| is the same number twice"
-    );
-    assert!(
-        total >= 8,
-        "only {total} enclosing legs across {} rows — the table has been thinned",
-        cases.len()
     );
 }
 
@@ -760,8 +1074,8 @@ fn an_enclosing_leg_forces_an_equally_enclosing_partner() {
             "{name}: the row must contain a rho < 0 leg to be about the enclosing class"
         );
         match build_corner(c, leg_in, leg_out, r) {
-            Err(ProfileError::NoCornerForFillet {
-                reason: profile::NoCornerReason::OffsetCarriersDisjoint,
+            Err(PathError::NoCornerForFillet {
+                reason: PathNoCornerReason::NoTangentCircle(NoCornerReason::OffsetCarriersDisjoint),
                 ..
             }) => {}
             other => panic!(
@@ -773,65 +1087,63 @@ fn an_enclosing_leg_forces_an_equally_enclosing_partner() {
     }
 }
 
-/// F3 attack, now the MAJOR-1 regression pin: on the vesica's BOTTOM
-/// corner with short legs, both carrier intersections exist, and the
-/// first candidate in fixed order is the one rounding the OTHER (top)
-/// corner. Before the fix the arc setback was reduced into [0, 2π), so
-/// that candidate's tangent point read as a huge POSITIVE setback (the
-/// long way round the circle), passed the corner-side test, and the
-/// refusal rendered 8.15 m against a 0.14 m leg — numbers belonging to a
-/// corner the author never named.
-///
-/// With a signed setback the top candidate classifies Negative on
-/// `fillet_leg_reach` and is skipped, so the refusal describes the
-/// bottom corner's own candidate: a setback of the same order as the
-/// legs, not four circumferences' worth.
+/// F3 attack, now the MAJOR-1 regression pin, restated at the lattice
+/// door: on the vesica with SHORT legs near the BOTTOM corner, both
+/// carrier intersections exist. Before the fix the arc setback was
+/// reduced into [0, 2π), so the TOP corner's candidate read as a huge
+/// positive setback (the long way round), passed the corner-side test,
+/// and the refusal rendered 8.15 m against a 0.14 m leg — numbers
+/// belonging to a corner the author never named. With SIGNED setbacks
+/// (and the harness bracketing the drawn corner, as every lattice
+/// author must), the refusal describes the bottom corner's own
+/// candidate: a setback of the same order as the legs, never a
+/// wrap-around circumference.
 #[test]
 fn overrun_attribution_names_the_authored_corners_candidate() {
     let s3 = 3.0f64.sqrt();
     let deg = |d: f64| d.to_radians();
     // corner (0, -s3) on both circles (centers (-1,0),(1,0), R=2);
-    // both legs only 10 degrees long.
+    // both legs only a few degrees long.
     let far_in = p2(-1.0 + 2.0 * deg(296.0).cos(), 2.0 * deg(296.0).sin());
-    let far_out = p2(1.0 + 2.0 * deg(244.0).cos(), 2.0 * deg(244.0).sin());
-    let err = ProfileLoop::builder(far_in)
-        .fillet_corner(
-            FilletLegShape::Arc {
-                center: p2(-1.0, 0.0),
-                sweep: ArcSweep::Ccw,
-            },
-            p2(0.0, -s3),
-            FilletLegShape::Arc {
-                center: p2(1.0, 0.0),
-                sweep: ArcSweep::Ccw,
-            },
-            far_out,
-            0.5,
-            tol(),
-        )
-        .expect_err("short legs must refuse");
+    // 70 degrees past the bottom corner: far enough that the TOP corner
+    // reads Negative on the signed reach gate, close enough to keep the
+    // bottom corner in its window.
+    let far_out = p2(1.0 + 2.0 * deg(310.0).cos(), 2.0 * deg(310.0).sin());
+    let leg = |far: Point2<f64>, centre: Point2<f64>| OracleLeg::Arc {
+        center: centre,
+        radius: 2.0,
+        tau: 1.0,
+        far_angle: (far.y - centre.y).atan2(far.x - centre.x),
+    };
+    let err = build_corner(
+        p2(0.0, -s3),
+        leg(far_in, p2(-1.0, 0.0)),
+        leg(far_out, p2(1.0, 0.0)),
+        0.5,
+    )
+    .expect_err("short legs must refuse");
     match err {
-        ProfileError::FilletDoesNotFit {
-            leg,
+        PathError::AnchorOutsideTrimmedExtent {
+            side,
             setback,
-            leg_length,
+            available,
             ..
         } => {
-            // The bottom corner's OWN candidate: it overruns the 8°
-            // (0.1396 m) leg, but only by a factor of ~1.6 — not by the
+            // The bottom corner's OWN candidate: it overruns the 4-degree
+            // (0.1396 m) leg, but only by a factor of a few — not by the
             // 4.4 m the top corner's wrap-around reading produced.
-            assert_eq!(leg, profile::FilletLeg::Incoming);
+            assert_eq!(side, profile::FilletLeg::Incoming);
             assert!(
-                (leg_length - 0.139_626_340_159_546_53).abs() < 1e-15,
-                "leg length {leg_length}"
+                (available - 0.139_626_340_159_546_53).abs() < 1e-12,
+                "leg length {available}"
             );
             assert!(
-                setback > leg_length && setback < 1.0,
+                setback > available && setback < 1.0,
                 "setback {setback}: expected the near candidate's own overrun, not a \
                  wrap-around distance to the corner the author never named"
             );
             // Half the carrier's circumference is the hard ceiling a
-            // signed setback can never exceed (|Δθ| ≤ π, R = 2).
+            // signed setback can never exceed (|dtheta| <= pi, R = 2).
             assert!(setback < core::f64::consts::PI * 2.0, "setback {setback}");
         }
         other => panic!("unexpected refusal {other:?}"),
@@ -923,8 +1235,7 @@ fn an_uncertifiable_tangent_point_refuses_instead_of_being_returned() {
                  build rather than refuse; got {e:?}"
             )
         });
-        let nv = lp.vertices().len();
-        let t2 = lp.vertices()[nv - 1].pos();
+        let (_, t2, _) = fillet_segment(&lp, r, &|| "uncertifiable pin".to_string());
         let res = leg_out.carrier_residual(corner, t2);
         // 8 ulps of the ~1 m scene, not `eps`: the measured-spoke scaling
         // puts this at 0.0, and holding it to the band would be a far
@@ -938,14 +1249,14 @@ fn an_uncertifiable_tangent_point_refuses_instead_of_being_returned() {
         return;
     }
     match build_corner(corner, leg_in, leg_out, r) {
-        Err(ProfileError::FilletOffsetLeverTooShort {
-            leg,
+        Err(PathError::FilletOffsetLeverTooShort {
+            side,
             offset_radius,
             least_lever,
             margin,
             ..
         }) => {
-            assert_eq!(leg, profile::FilletLeg::Outgoing);
+            assert_eq!(side, profile::FilletLeg::Outgoing);
             assert!(
                 (offset_radius - rho).abs() < 1e-15,
                 "the refusal reports offset lever {offset_radius}, not the corner's {rho}"
@@ -971,16 +1282,12 @@ fn an_uncertifiable_tangent_point_refuses_instead_of_being_returned() {
     }
 }
 
-/// F1, enclosing case pinned deterministically (mined from the fuzz back
-/// when the sweep was the only door to this class):
-/// a fillet larger than BOTH arc legs' carriers (r > R_i, sigma*tau_i =
-/// +1) constructs with the fillet circle enclosing both: |P - O_i| =
-/// r - R_i, sign carried by the signed rho with no branch.
-///
-/// Kept alongside the constructed table because it is a real mined case
-/// at coordinates nobody would author, and it holds its residuals to
-/// 1e-11 rather than the battery's 1e-9. It also runs the full
-/// [`check_corner`] battery, which the mined pin originally did not.
+/// The mined enclosing corner (F1's deterministic pin, coordinates
+/// nobody would author), re-pointed at the lattice-door boundary the
+/// table test pins: the geometry still DEMANDS the enclosing tangency
+/// (both rho < 0, re-derived), and the door must answer with a refusal
+/// or a fillet that swallows neither carrier — never the enclosing
+/// tangency itself.
 #[test]
 fn enclosing_fillet_swallows_both_leg_carriers() {
     let corner = p2(0.4141246232685536, -0.9332926788663134);
@@ -1004,28 +1311,36 @@ fn enclosing_fillet_swallows_both_leg_carriers() {
         tau: 1.0,
         far_angle: fa2,
     };
-    let lp = build_corner(corner, leg_in, leg_out, r).expect("the enclosing fillet constructs");
-    let c = check_corner(corner, leg_in, leg_out, r, &lp, &|| {
-        "enclosing_fillet_swallows_both_leg_carriers".to_string()
-    });
-    assert_eq!(c.enclosing, 2, "both legs must classify as enclosing");
-    let nv = lp.vertices().len();
-    let (t1, t2, b) = (
-        lp.vertices()[nv - 2].pos(),
-        lp.vertices()[nv - 1].pos(),
-        lp.vertices()[nv - 2].bulge(),
-    );
-    let (pf, rf) = circle_from_bulge(t1, t2, b);
-    assert!((rf - r).abs() < 1e-11, "recovered radius {rf} vs {r}");
-    for (o, rl) in [(o1, r1), (o2, r2)] {
-        let d = (pf.x - o.x).hypot(pf.y - o.y);
+    let sigma = turn_sign(corner, leg_in, leg_out);
+    for (side, leg) in [("incoming", leg_in), ("outgoing", leg_out)] {
         assert!(
-            (d - (r - rl)).abs() < 1e-11,
-            "|P-O| = {d}, expected r - R = {}",
-            r - rl
+            leg.is_enclosing(sigma, r),
+            "the {side} leg must still demand rho < 0"
         );
-        // Internal tangency with the fillet enclosing the carrier.
-        assert!(d + rl < r + 1e-11);
+    }
+    match build_corner(corner, leg_in, leg_out, r) {
+        // The PINNED branch: the mined geometry REFUSES on every
+        // shipped band (measured at 1e-6 / 1e-9 / 1e-12).
+        Err(_) => {}
+        Ok(lp) => {
+            let (t1, t2, b) = fillet_segment(&lp, r, &|| {
+                "enclosing_fillet_swallows_both_leg_carriers".to_string()
+            });
+            let (pf, _) = circle_from_bulge(t1, t2, b);
+            for (o, rl) in [(o1, r1), (o2, r2)] {
+                let d = (pf.x - o.x).hypot(pf.y - o.y);
+                assert!(
+                    d + rl > r - 1e-9,
+                    "the door emitted an ENCLOSING tangency (|P-O| + R = {} < r = {r}) — \
+                     the boundary claim itself has moved",
+                    d + rl
+                );
+            }
+            panic!(
+                "the pinned REFUSE branch moved — the mined corner now BUILDS (a \
+                 non-swallowing fillet, verified above); re-pin deliberately"
+            );
+        }
     }
 }
 
@@ -1065,20 +1380,25 @@ fn an_ill_conditioned_corner_lands_its_tangent_point_on_the_carrier() {
     const ULPS: f64 = 8.0;
 
     let corner = p2(-0.417_819_980_559_473_56, -0.034_224_129_413_008_564);
+    // The mined corner walked in REVERSE (legs swapped, windings
+    // negated; sigma*tau per leg — and with it the collapsed offset
+    // lever — is invariant): the orientation whose anchors bracket the
+    // drawn corner at the lattice door. The ill-conditioned leg is now
+    // the INCOMING one.
     let leg_in = arc_leg(
         corner,
-        1.785_843_803_375_859_5,
-        1.107_622_274_793_787_8,
+        4.638_961_400_716_957,
+        0.165_877_420_990_701_74,
         1.0,
-        2.564_546_871_371_803,
+        1.869_369_386_166_155,
         true,
     );
     let leg_out = arc_leg(
         corner,
-        4.638_961_400_716_957,
-        0.165_877_420_990_701_74,
+        1.785_843_803_375_859_5,
+        1.107_622_274_793_787_8,
         -1.0,
-        1.869_369_386_166_155,
+        2.564_546_871_371_803,
         false,
     );
     let r = 0.102_474_035_114_155_93;
@@ -1100,51 +1420,45 @@ fn an_ill_conditioned_corner_lands_its_tangent_point_on_the_carrier() {
         "ill-conditioned tangent-point pin".to_string()
     });
 
-    let nv = lp.vertices().len();
-    let t2 = lp.vertices()[nv - 1].pos();
-    let res_out = leg_out.carrier_residual(corner, t2);
+    let (t1, _, _) = fillet_segment(&lp, r, &|| "ill-conditioned pin".to_string());
+    let res_in = leg_in.carrier_residual(corner, t1);
     let bound = ULPS * f64::EPSILON * SCENE;
     assert!(
-        res_out <= bound,
-        "t2 off its carrier by {res_out:e} ({:.1} ulps), bound {bound:e} \
+        res_in <= bound,
+        "t1 off its carrier by {res_in:e} ({:.1} ulps), bound {bound:e} \
          ({ULPS} ulps). The nominal-rho scaling this replaced put THIS \
          corner 2.01e-14 (90.6 ulps) out — see Leg::tangent_point.",
-        res_out / (f64::EPSILON * SCENE)
+        res_in / (f64::EPSILON * SCENE)
     );
 }
 
-/// **The typed refusal, on every band — through BOTH arms of the gate.**
+/// **The collapsed offset lever refuses TYPED on every band — and the
+/// band decides WHICH gate speaks, pinned exactly.**
 ///
-/// Its sibling [`an_uncertifiable_tangent_point_refuses_instead_of_being_returned`]
-/// is ε-keyed and, since the M8 retune, takes the BUILD arm at ε = 1e-9 and
-/// 1e-6, which would leave `FilletOffsetLeverTooShort` exercised only on the
-/// 1e-12 leg. This row covers it everywhere.
+/// The mined witness collapses the outgoing offset lever to
+/// |ρ| = 1.2e-7, and that collapse is STRUCTURAL company: the fillet
+/// centre must sit |ρ_in| from o_in and ~0 from o_out, so the carriers
+/// themselves are within |ρ| of mutual tangency — a hairline lens. The
+/// raw builder, handed the AUTHORED corner, sailed past that and hit
+/// the lever gate. The lattice DERIVES the corner, and on a hairline
+/// lens the corner-turn classification is band-keyed:
 ///
-/// The outgoing carrier radius sits 1.2e-7 from the authored fillet radius on
-/// the side the corner turns toward, collapsing the offset lever to
-/// |ρ₂| = 1.20e-7 against a least supported lever of 6.11e-5 at ε = 1e-9
-/// (short by 508x) and 6.11e-2 at ε = 1e-12 (short by 5.1e5).
+/// - at ε = 1e-6 and 1e-9 the derived corner's turn margin lands in
+///   the tangent band, so the pair refuses one gate earlier as
+///   `NoCornerForFillet { CarriersParallel }` — the same degeneracy,
+///   classified at the carriers;
+/// - at ε = 1e-12 the turn is definite, the construction reaches the
+///   M8 conditioning gate, and `FilletOffsetLeverTooShort` fires its
+///   DEFINITE arm — and, per the resolve doctrine, ABORTS the whole
+///   resolve rather than being outranked by the hairline pair's twin
+///   corner (the silent-build class this pin caught once already).
 ///
-/// # Why it cannot be short at ε = 1e-6, and why that is not a gap
-///
-/// It is refused there too, but by the gate's **in-band** arm rather than its
-/// definite one, and the reason is structural rather than incidental. A
-/// collapsed lever forces marginal clearance: with |ρ₂| small,
-/// `external = |ρ₁|+|ρ₂|−d` and `internal = d−||ρ₁|−|ρ₂||` are near-negatives
-/// of one another, so `min(clearance) ≲ |ρ₂|`. Reaching the lever gate at all
-/// therefore needs the clearances decidable, `|ρ₂| ≳ ε·scale`, while tripping
-/// it needs `|ρ₂| < C·R₂·scale²/(d·ε)`. Those two bracket an EMPTY window
-/// once `ε ≳ √(C·R₂·scale/d) ≈ 1e-7`: at ε = 1e-6 no corner can be short
-/// enough for the lever gate while still having offset circles that
-/// decidably meet.
-///
-/// So at 1e-6 this corner's margin is positive (5.9e-8) but smaller than the
-/// band, and the gate refuses because it cannot decide the shortfall — which
-/// is the D4 ¶1 (iv) obligation that the in-band arm render the same typed
-/// recourse as the definite one. Both arms, one fixture.
+/// What must never happen — on any band — is a build.
 #[test]
 fn a_collapsed_offset_lever_refuses_typed_at_every_band() {
     let corner = p2(-0.466_393_541_070_097, -0.036_421_594_587_948_69);
+    // The mined orientation, verbatim: the collapsed leg is the
+    // OUTGOING one — the side whose offset lever the M8 gate measures.
     let leg_in = arc_leg(
         corner,
         2.166_517_959_434_531_6,
@@ -1165,19 +1479,22 @@ fn a_collapsed_offset_lever_refuses_typed_at_every_band() {
     let eps = tol().eps;
 
     match build_corner(corner, leg_in, leg_out, r) {
-        Err(ProfileError::FilletOffsetLeverTooShort {
-            leg,
+        Err(PathError::FilletOffsetLeverTooShort {
+            side,
             carrier_radius,
             offset_radius,
             least_lever,
             margin,
         }) => {
-            // The contract, on every band: typed (never laundered into
-            // `NoCornerForFillet` — a corner and a tangent circle both exist
-            // here; what is missing is the conditioning to place the point),
-            // naming the exposed leg, and carrying the lever, the threshold
-            // and the margin so a caller can see how far off it was.
-            assert_eq!(leg, profile::FilletLeg::Outgoing);
+            // The lever gate's own definite arm (ε = 1e-12 and
+            // tighter): naming the exposed leg and carrying the lever,
+            // the threshold and the shortfall.
+            assert!(
+                eps < 1e-10,
+                "at eps = {eps:e} the hairline lens should refuse at the carriers, \
+                 not reach the lever gate"
+            );
+            assert_eq!(side, profile::FilletLeg::Outgoing);
             assert!(
                 (carrier_radius - 0.672_869_286_050_959_2).abs() < 1e-15,
                 "the refusal reports carrier radius {carrier_radius}, not the leg's"
@@ -1186,23 +1503,35 @@ fn a_collapsed_offset_lever_refuses_typed_at_every_band() {
                 offset_radius.abs() < 1e-6,
                 "the pin's offset lever is {offset_radius}, not the collapse it was mined for"
             );
-            // WHICH ARM is eps-keyed, and the docs above say why the 1e-6
-            // leg structurally cannot take the definite one.
-            if margin < 0.0 {
-                assert!(
-                    least_lever > 10.0 * offset_radius.abs(),
-                    "at eps = {eps:e} the definite arm fired, so the pin must sit well \
-                     inside the refused region: least lever {least_lever} against |rho| {}",
-                    offset_radius.abs()
-                );
-            } else {
-                assert!(
-                    margin <= eps,
-                    "at eps = {eps:e} the in-band arm fired, so the margin must be \
-                     positive-but-undecidable against the band; got {margin:e}"
-                );
-            }
+            assert!(
+                least_lever > 10.0 * offset_radius.abs(),
+                "least lever {least_lever} against |rho| {}: the pin must sit well inside \
+                 the refused region",
+                offset_radius.abs()
+            );
+            assert!(
+                margin < 0.0,
+                "margin {margin} must be the definite arm's negative shortfall"
+            );
         }
-        other => panic!("a collapsed offset lever must refuse typed on every band; got {other:?}"),
+        Err(PathError::NoCornerForFillet {
+            reason: PathNoCornerReason::CarriersParallel,
+            ..
+        }) => {
+            // The carrier-level tangency classification (ε = 1e-9 and
+            // looser): the hairline lens's turn margin is in-band, so
+            // the funnel refuses one gate earlier.
+            assert!(
+                eps >= 1e-10,
+                "at eps = {eps:e} the turn is definite, so the lever gate — not the \
+                 carrier classification — must speak"
+            );
+        }
+        Ok(_) => panic!(
+            "a collapsed offset lever must never BUILD: a tangent point placed over a \
+             lever no band supports is the silent-wrong-geometry class this pin exists \
+             to keep refused"
+        ),
+        Err(other) => panic!("expected a typed refusal of the collapsed lever, got {other:?}"),
     }
 }

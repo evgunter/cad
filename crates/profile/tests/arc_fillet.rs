@@ -28,19 +28,12 @@ use common::{profile, tol};
 use geom_core::Point2;
 use profile::path::PathNoCornerReason;
 use profile::{
-    ArcSweep, Center, FilletLeg, FilletLegCarrier, FilletLegShape, NoCornerReason, Open, PathError,
-    Profile, ProfileError, ProfileLoop, Start,
+    ArcSweep, Center, FilletLeg, FilletLegCarrier, NoCornerReason, Open, PathError, Profile,
+    ProfileLoop, Start,
 };
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
-}
-
-fn arc(cx: f64, cy: f64, sweep: ArcSweep) -> FilletLegShape<f64> {
-    FilletLegShape::Arc {
-        center: p2(cx, cy),
-        sweep,
-    }
 }
 
 /// √3 — the y coordinate of the crossing points of the unit-spaced
@@ -55,19 +48,6 @@ fn escalated_predicate(err: &PathError<f64>) -> &'static str {
     match err {
         PathError::Escalated { source } => source.predicate.unwrap_or("<unnamed>"),
         other => panic!("expected an escalation, got {other:?}"),
-    }
-}
-
-/// The same, read off the verify layer's fillet-site escalation — the
-/// shape the two arc×arc rows below still speak (see the file's TODO at
-/// `arc_arc_internal`).
-fn escalated_profile_predicate(err: &ProfileError) -> &'static str {
-    match err {
-        ProfileError::Escalated {
-            site: profile::EscalationSite::Fillet,
-            source,
-        } => source.predicate.unwrap_or("<unnamed>"),
-        other => panic!("expected a fillet-site escalation, got {other:?}"),
     }
 }
 
@@ -160,67 +140,52 @@ fn arc_line(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
     .map(|closed| closed.loop_)
 }
 
-// ---------------------------------------------------------------------
-// NOT RE-SPELLED — left verbatim on purpose, and the file does not build
-// until this is resolved.
-//
-// Both fixtures below round the vesica's TOP corner and then close the
-// loop with a STRAIGHT diameter from the arrival anchor back to the
-// incoming anchor. §2c has no spelling for that shape:
-//
-//   * an ARC arrival either closes (`Center { .., p: Start }`, which
-//     makes the arrival run the closing segment — no room for the
-//     straight leg) or leaves the tip `OnArc`, whose only continuations
-//     are the fused verbs (`arc_fillet` / `arc_fillet_arc`). A SHARP
-//     corner at the end of an arc arrival's run is unrepresentable.
-//   * rotating so the fillet closes puts the incoming arc on a POINT
-//     tip, where `arc_fillet(Center { c, winding, p }, r)` needs an
-//     anchor `p` DISTINCT from the tip (chord > 0) — but these fixtures'
-//     incoming anchor IS the tip, and at the exact-fit radius (r = 1,
-//     the `fillet_offset_circles_*` rows) T1 lands on it, so no
-//     admissible anchor exists at any radius the suite uses.
-//   * entering at the incoming anchor is the `Open.arc_fillet_arc`
-//     lens form, but here the arrival carrier is centred ON that anchor
-//     (the two anchors are each other's carrier centres), so
-//     `p: Start` degenerates.
-//
-// Re-shaping them into the lens form (the `vesica_lens` helper further
-// down) would change authored coordinates, so that call is Evan's.
-// ---------------------------------------------------------------------
-
 /// **arc×arc, both tangencies internal**: the vesica of the two
-/// radius-2 circles about (±1, 0), with its top corner (0, √3) rounded.
-/// Both sides wind counterclockwise, so σ·τ = +1 on both and both
-/// offset carriers are R − r circles.
-fn arc_arc_internal(radius: f64) -> Result<ProfileLoop<f64>, ProfileError> {
-    Ok(ProfileLoop::builder(p2(1.0, 0.0))
-        .fillet_corner(
-            arc(-1.0, 0.0, ArcSweep::Ccw),
-            p2(0.0, s3()),
-            arc(1.0, 0.0, ArcSweep::Ccw),
-            p2(-1.0, 0.0),
-            radius,
-            tol(),
-        )?
-        .arc_to_center(p2(-1.0, 0.0), p2(1.0, 0.0), ArcSweep::Ccw)
-        .close())
+/// radius-2 circles about (±1, 0), with its top corner (0, √3) rounded
+/// and the loop closed by the STRAIGHT diameter between the two
+/// anchors — the sharp-after-arc-arrival shape the §2c dissolution
+/// restored: the arrival lands on an ordinary directed point at
+/// (-1, 0), and `line_to(Start)` is the sharp seam. Both sides wind
+/// counterclockwise, so σ·τ = +1 on both and both offset carriers are
+/// R − r circles. Authored coordinates are the raw-builder fixture's,
+/// verbatim.
+fn arc_arc_internal(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+    Open.arc_fillet_arc(
+        Center {
+            c: p2(-1.0, 0.0),
+            winding: ArcSweep::Ccw,
+            p: p2(1.0, 0.0),
+        },
+        radius,
+        Center {
+            c: p2(1.0, 0.0),
+            winding: ArcSweep::Ccw,
+            p: p2(-1.0, 0.0),
+        },
+    )?
+    .line_to(Start)
+    .map(|closed| closed.loop_)
 }
 
 /// **arc×arc, one internal + one external**: the same crossing circles,
 /// but the outgoing leg winds the other way, so the fillet is external
 /// to the first carrier (R + r) and internal to the second (R − r).
-fn arc_arc_mixed(radius: f64) -> Result<ProfileLoop<f64>, ProfileError> {
-    Ok(ProfileLoop::builder(p2(1.0, 0.0))
-        .fillet_corner(
-            arc(-1.0, 0.0, ArcSweep::Ccw),
-            p2(0.0, s3()),
-            arc(1.0, 0.0, ArcSweep::Cw),
-            p2(3.0, 0.0),
-            radius,
-            tol(),
-        )?
-        .arc_to_center(p2(3.0, 0.0), p2(1.0, 0.0), ArcSweep::Cw)
-        .close())
+fn arc_arc_mixed(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+    Open.arc_fillet_arc(
+        Center {
+            c: p2(-1.0, 0.0),
+            winding: ArcSweep::Ccw,
+            p: p2(1.0, 0.0),
+        },
+        radius,
+        Center {
+            c: p2(1.0, 0.0),
+            winding: ArcSweep::Cw,
+            p: p2(3.0, 0.0),
+        },
+    )?
+    .line_to(Start)
+    .map(|closed| closed.loop_)
 }
 
 /// The line×arc corner at the radius that consumes BOTH sides exactly
@@ -884,17 +849,7 @@ fn fillet_offset_circles_external_trio() {
     assert!(arc_arc_internal(0.5).is_ok());
     // exactly zero: r = 1 makes the two offset circles externally
     // tangent — one candidate, exact fit on both legs.
-    let lp = ProfileLoop::builder(p2(1.0, 0.0))
-        .fillet_corner(
-            arc(-1.0, 0.0, ArcSweep::Ccw),
-            p2(0.0, s3()),
-            arc(1.0, 0.0, ArcSweep::Ccw),
-            p2(-1.0, 0.0),
-            1.0,
-            tol(),
-        )
-        .expect("the tangent-offset case constructs")
-        .close();
+    let lp = arc_arc_internal(1.0).expect("the tangent-offset case constructs");
     assert_eq!(lp.vertices().len(), 2, "no lead-in, no lead-out: {lp:?}");
     profile(vec![lp])
         .validate(tol())
@@ -902,10 +857,7 @@ fn fillet_offset_circles_external_trio() {
     // in-band.
     let err = arc_arc_internal(0.5f64.mul_add(-in_band(), 1.0))
         .expect_err("an in-band external clearance must escalate");
-    assert_eq!(
-        escalated_profile_predicate(&err),
-        "fillet_offset_circles_external"
-    );
+    assert_eq!(escalated_predicate(&err), "fillet_offset_circles_external");
 }
 
 #[test]
@@ -913,27 +865,14 @@ fn fillet_offset_circles_internal_trio() {
     // The mixed corner offsets to R + r and R − r, so the INTERNAL
     // clearance d − |ρ₁ − ρ₂| = 2 − 2r is the one that closes.
     assert!(arc_arc_mixed(0.5).is_ok());
-    let lp = ProfileLoop::builder(p2(1.0, 0.0))
-        .fillet_corner(
-            arc(-1.0, 0.0, ArcSweep::Ccw),
-            p2(0.0, s3()),
-            arc(1.0, 0.0, ArcSweep::Cw),
-            p2(3.0, 0.0),
-            1.0,
-            tol(),
-        )
-        .expect("the tangent-offset case constructs")
-        .close();
+    let lp = arc_arc_mixed(1.0).expect("the tangent-offset case constructs");
     assert_eq!(lp.vertices().len(), 2, "no lead-in, no lead-out: {lp:?}");
     profile(vec![lp])
         .validate(tol())
         .expect("the internally-tangent-offset fillet validates");
     let err = arc_arc_mixed(0.5f64.mul_add(-in_band(), 1.0))
         .expect_err("an in-band internal clearance must escalate");
-    assert_eq!(
-        escalated_profile_predicate(&err),
-        "fillet_offset_circles_internal"
-    );
+    assert_eq!(escalated_predicate(&err), "fillet_offset_circles_internal");
 }
 
 #[test]
