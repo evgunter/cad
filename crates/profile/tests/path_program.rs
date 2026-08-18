@@ -15,8 +15,9 @@
 //!   subset of the arms that composite chain plus the differential and
 //!   property suites' blanket `pinned` exercise);
 //! - the fused-family recording shapes: every §2c chain — entry fused
-//!   verb, mid-chain `Radius@OnArc`, the arc-arrival close — records the
-//!   ONE fused vocabulary, and its steps keep authored data only;
+//!   verb, mid-chain `Radius` arc extension, the arc-arrival close —
+//!   records the ONE fused vocabulary, and its steps keep authored data
+//!   only;
 //! - the driver's own refusal surface: the Transition class (corrupt
 //!   file — no authoring surface can produce it) against the Path class
 //!   (legal at rest, geometry refuses under this binding).
@@ -60,9 +61,9 @@ fn validate_ok(lp: &ProfileLoop<f64>) {
 /// **The census smoke row** — the one survivor of the V2 differential
 /// census (LIB-RESPELL item 2). One composite chain exercises the §2c
 /// family end to end: the fused ENTRY verb, an interior arc arrival
-/// (`OnArc`), the `Radius` re-derivation off it, straight arrivals via
-/// the uniform binders, a sharp `Sweep` leg, ray extension off a leg
-/// end, and a straight close. Its recorded program must replay to the
+/// (a directed point at the hard anchor), the `Radius` arc extension
+/// off it, straight arrivals via the uniform binders, a sharp `Sweep`
+/// leg, ray extension off a leg end, and a straight close. Its recorded program must replay to the
 /// SAME bits — which, now that both surfaces call one kernel, is the
 /// tautology the census retired into; this row smokes the plumbing
 /// (recording, driver arms, the state walk) rather than proving two
@@ -115,8 +116,9 @@ fn the_fused_family_records_and_replays_bit_identically() {
     validate_ok(&pinned(closed));
 
     // The wider walk: a Sweep leg, ray extension off its end, an
-    // interior Center arrival (OnArc), and the Radius continuation —
-    // recorded and replayed to the bit (`pinned` is the assertion).
+    // interior Center arrival, and the Radius arc extension off its
+    // directed point — recorded and replayed to the bit (`pinned` is
+    // the assertion).
     let walk = Open
         .at(p2(0.0, 0.0))
         .angle(0.0)
@@ -178,15 +180,13 @@ fn the_fused_family_records_and_replays_bit_identically() {
     validate_ok(&pinned(walk));
 }
 
-/// **The MID-CHAIN Radius@OnArc row** — the one admissible OnArc
-/// incoming after this unit's adjudication (`Center@OnArc` is excluded
-/// by the `Center@Directed` value-match doctrine; see
-/// `family::OnArcIncoming`). An entry fused verb with an interior
-/// `Center` arrival, continued off the resulting `OnArc` tip by
+/// **The MID-CHAIN Radius arc-extension row** (see
+/// `family::LegEndIncoming`). An entry fused verb with an interior
+/// `Center` arrival, continued off the resulting directed point by
 /// `arc_fillet(Radius { .. })` and its binders, comes out as
 /// [`ArcFilletArc` (entry `Center`), `ArcFillet` (`Radius`), binders,
-/// legs]; the `Radius` names the carrier the `OnArc` tip already runs
-/// on (`r = |anchor − centre| = 3`, centre right of Cw travel), so the
+/// legs]; the `Radius` names the carrier the tip already runs on
+/// (`r = |anchor − centre| = 3`, centre right of Cw travel), so the
 /// recorded program and the typed elaboration are the same geometry and
 /// replay to the same bits (`pinned` asserts it).
 #[test]
@@ -243,7 +243,7 @@ fn the_mid_chain_radius_row_records_and_replays() {
             assert_eq!(side, profile::ArcSide::Right, "Cw travel = centre right");
             assert_eq!(radius.to_bits(), 0.3_f64.to_bits());
         }
-        ref other => panic!("expected the Radius@OnArc fused step, got {other:?}"),
+        ref other => panic!("expected the Radius arc-extension fused step, got {other:?}"),
     }
     validate_ok(&pinned(closed));
 }

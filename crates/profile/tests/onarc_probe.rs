@@ -107,3 +107,47 @@ fn mismatched_radius_continuation() {
         .validate(Tolerance::get())
         .expect("every authored r is sound under the dissolution");
 }
+
+/// **Sharp-after-arc-arrival, restored** (§2c dissolution): the
+/// interior arc arrival lands on an ordinary directed point, so an
+/// ordinary DIRECTOR — a genuine corner, junction-checked — and a
+/// straight leg continue it, the spelling the OnArc state made
+/// unrepresentable.
+#[test]
+fn sharp_after_arc_arrival() {
+    let closed = Open
+        .at(p2(5.05, -1.6))
+        .toward(2.1_f64, 0.8)
+        .unwrap()
+        .fillet_arc(
+            0.5,
+            Center {
+                c: p2(7.0, 0.0),
+                winding: ArcSweep::Ccw,
+                p: p2(8.5, 0.0),
+            },
+        )
+        .unwrap()
+        // The arrival tip's tangent is +y; 2.6 rad is a genuine corner.
+        .angle(2.6)
+        .unwrap()
+        .line(1.0)
+        .unwrap()
+        .line_to(Start)
+        .expect("the sharp continuation closes");
+    let lp = &closed.loop_;
+    // The authored anchor is a VERTEX (the hard-anchor rule) and its
+    // joint is SHARP: not in the declared-tangency set.
+    let anchor_idx = lp
+        .vertices()
+        .iter()
+        .position(|v| (v.pos() - p2(8.5, 0.0)).norm_squared().sqrt() < 1e-12)
+        .expect("the authored anchor is a vertex");
+    assert!(
+        !lp.tangent_joints().contains(&anchor_idx),
+        "the sharp junction at the anchor is not declared tangent"
+    );
+    Profile::new(SketchPlane::xy(), vec![lp.clone()])
+        .validate(Tolerance::get())
+        .expect("the restored junction validates");
+}
