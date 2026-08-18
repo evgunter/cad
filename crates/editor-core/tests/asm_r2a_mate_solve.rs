@@ -18,11 +18,10 @@ use std::sync::Arc;
 
 use editor_core::{
     Alignment, AxisSense, CancelToken, ClusterMaintenance, ContactClass, DocEdit, DocRef,
-    DocumentId, EntityKind, EvalOptions, Evaluation, Frame, MateFrame, MatePrimitive, MateRole,
-    EditError, Node, NodeErrorKind, NodeResult, PartResolver, ProfileDoc, RecipeNodeId,
-    ResolveFailure,
-    ResolveFault, RoleSeg, StableName, apply, clusters, content_pin, evaluate, load, product,
-    relative_freedom_components, save, solve_document,
+    DocumentId, EditError, EntityKind, EvalOptions, Evaluation, Frame, MateFrame, MatePrimitive,
+    MateRole, Node, NodeErrorKind, NodeResult, PartResolver, ProfileDoc, RecipeNodeId,
+    ResolveFailure, ResolveFault, RoleSeg, StableName, apply, clusters, content_pin, evaluate,
+    load, product, relative_freedom_components, save, solve_document,
 };
 use fixture::{desc, insert, len, square, step};
 
@@ -1191,7 +1190,10 @@ fn a12_rebind_repairs_a_mate_head_beside_a_declare_reference() {
         DocEdit::InsertNode {
             node: Node::Declare {
                 pairs: vec![(
-                    (in_part(ids[1], RecipeNodeId(1)), in_part(ids[0], RecipeNodeId(1))),
+                    (
+                        in_part(ids[1], RecipeNodeId(1)),
+                        in_part(ids[0], RecipeNodeId(1)),
+                    ),
                     ContactClass::Rest,
                 )],
             },
@@ -1273,9 +1275,10 @@ fn a12_the_load_check_refuses_a_mate_head_past_the_mint_counter() {
     let doctored = text.replacen("\"node\": 2", "\"node\": 99", 1);
     assert_ne!(doctored, text, "the fixture carries the head id");
     match load(&doctored) {
-        Err(editor_core::PersistError::Snapshot(
-            editor_core::SnapshotError::IdBeyondCounter { id, .. },
-        )) => assert_eq!(id, RecipeNodeId(99)),
+        Err(editor_core::PersistError::Snapshot(editor_core::SnapshotError::IdBeyondCounter {
+            id,
+            ..
+        })) => assert_eq!(id, RecipeNodeId(99)),
         other => panic!("expected IdBeyondCounter, got {other:?}"),
     }
 }
