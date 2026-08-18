@@ -907,7 +907,9 @@ fn point_in_polygon<T: Decide>(
         let (a, b) = (poly[i], poly[(i + 1) % n]);
         let e = b - a;
         let w = q - a;
-        // norm_squared, not e·e: the interval-square-poison rule.
+        // norm_squared, not e·e: the powi(2) rule for zero-straddling
+        // interval squares (gated by ci.yml's "interval-square powi(2)
+        // allowlist").
         let len2 = e.norm_squared();
         let dist =
             match decide("chart_region_boundary", Margin::of(e.norm()), band).map_err(escalate)? {

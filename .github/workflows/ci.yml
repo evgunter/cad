@@ -355,11 +355,18 @@ jobs:
             echo "::error::EvalScalar (a compound Bounds bound by another name) outside the evaluation-service seam — see geom-core/src/real.rs (Bounds scope rule) and editor-core/src/eval/mod.rs; ratify before allowlisting"
             exit 1
           fi
-      # Interval-square discipline tripwire (memories/
-      # interval-square-poison.md — FOUR live bugs from this one class):
-      # squaring via plain `x * x` treats the factors as independent, so
-      # a zero-straddling enclosure gets a spurious negative lower bound
-      # that poisons downstream sqrt/decoration. Comment lines are
+      # Interval-square discipline tripwire — the rule lives HERE, and
+      # the kernel's comments point at this step. FOUR live bugs came
+      # from this one class: squaring via plain `x * x` treats the
+      # factors as independent, so a zero-straddling enclosure gets a
+      # spurious negative lower bound that poisons downstream
+      # sqrt/decoration. `Real::powi(2)` (inari `pown`) knows both
+      # factors are the same variable and returns the tight nonnegative
+      # enclosure with the decoration preserved. Squares of
+      # definitely-nonzero singletons (stored radii, bulges) may stay as
+      # `*`. Reviewing new geometry: this grep only sees `crates/*/src`,
+      # so also eyeball predicate-path diffs for `* self`, `x * x`, and
+      # `.dot(` on possibly-zero vectors. Comment lines are
       # stripped (same as the Bounds step). Allowlist rationale, per file:
       #  - geom-core real.rs / interval.rs / dual.rs / ring_interval.rs —
       #    the scalar implementations themselves: `x * x` is definitional
@@ -395,9 +402,9 @@ jobs:
       # into the binary, and cannot be an ambient channel.
       #
       # Telemetry is the recurring offender, so it has a rule of its
-      # own (memories/telemetry-gating.md): gate it behind a feature at
-      # the module boundary from the first commit, and arm it by an
-      # explicit call — never by the environment.
+      # own: gate it behind a feature at the module boundary from the
+      # first commit, and arm it by an explicit call — never by the
+      # environment. Worked examples: `mesh::budget`, `mesh::probe_stats`.
       - name: no ambient environment in the kernel
         run: |
           hits=$(grep -rPn '\benv::vars?(_os)?\s*\(' crates/*/src --include='*.rs' \

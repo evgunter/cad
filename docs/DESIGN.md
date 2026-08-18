@@ -27,6 +27,7 @@ a reader entering here should know all of them exist.
 | `docs/CURVO-AUDIT.md` | Reference | curvo/truck vendor audit behind Q5's resolution |
 | `docs/LONGTERM-IDEAS.md` | Parked, non-binding | Idea bank with a graduation rule |
 | `docs/MODEL-AB-LOG.md` | Experiment log | Model A/B protocol + running data; process data, not design |
+| `docs/NAME-CANDIDATES.md` | Reference | Q9 project-name candidates and registry availability (re-sweep before ratifying) |
 | `docs/predicate-dimension-audit.md` | LIVE working audit | Dimensional-analysis sweep; open findings F2, F6's residue, F7–F15 |
 
 ## Vision

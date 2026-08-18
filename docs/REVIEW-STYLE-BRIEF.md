@@ -3,8 +3,8 @@
 **Status: the standing second half of every review brief, alongside the
 claims to falsify** (`memories/orchestration-model.md`: *"assign reviewers
 explicit claims to falsify"*). Ratified by Evan 2026-08-18; recorded as
-Protocol v5 in `docs/MODEL-AB-LOG.md` and as A2 in
-`memories/review-protocol-amendments.md`.
+Protocol v5 in `docs/MODEL-AB-LOG.md`, which is the normative source for
+the review protocol.
 
 **Dispatchers: paste §2 and §3 into the review brief verbatim.** §1 and §4
 are for you, not for the reviewer.
@@ -142,9 +142,10 @@ kind of false one.
 
 ### Q6. Is each disclosed deviation an improvement?
 
-Per A1: if a deviation is *better* than the spec's letter, nothing further is
-owed. Anything else — a shortcut, a narrowing, a placeholder, a fence artifact,
-a "can move there later" — owes a **concretely scheduled followup**: an issue
+Per Protocol v5: if a deviation is *better* than the spec's letter, nothing
+further is owed. Anything else — a shortcut, a narrowing, a placeholder, a
+fence artifact, a "can move there later" — owes a **concretely scheduled
+followup**: an issue
 number, or a named unit in a plan. "Recorded as a pickup" and "deferred" are
 not schedules. Flag any deviation that is disclosed but unscheduled.
 
@@ -189,11 +190,11 @@ that found the first. When a style finding is plausibly one of several:
   identical stale premise for the planar arm sat fifteen lines from the text it
   quoted.)
 
-**Calibration.** Expect findings counts to rise. Per Protocol v5 that is the
-instrument changing, not implementation quality — A/B rows before and after
-2026-08-18 are not directly comparable, and the docs column in particular
-(96 of 106 rows scored 4 or 5, none ever below 3) should widen. A style lane
-producing nothing on most PRs is under-calibrated, not clean.
+**Calibration.** Expect findings counts to rise, and the docs column to widen
+downward. Per Protocol v5 that is the instrument changing, not implementation
+quality. A style lane producing nothing on most PRs is under-calibrated, not
+clean — though that expectation is inferred from the scan's hit rate on merged
+code, not measured on single diffs, so revisit it after a few rows.
 
 **What this lane must not become.** A second amnesty channel. §C2/§C7 found
 that disclosure currently functions as immunity — a disclosed deviation scores

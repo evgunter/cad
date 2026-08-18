@@ -117,8 +117,8 @@ amended:
   findings). REVIEW SCOPE WIDENS — SCORES ARE NOT COMPARABLE ACROSS
   THIS BOUNDARY.**
   1. **Review briefs now carry structural questions alongside the
-     claims to falsify**, per `memories/review-protocol-amendments.md`
-     A2: does this duplicate something (the self-declared-copy grep —
+     claims to falsify**, per `docs/REVIEW-STYLE-BRIEF.md` (the brief
+     text; dispatchers paste its §2-3 verbatim): does this duplicate something (the self-declared-copy grep —
      "verbatim", "re-derived", "ported from"); does the acceptance row
      go red when the guarantee *degrades* or only when it is violated
      at a chosen fixture; did this PR invalidate a premise something
@@ -137,12 +137,6 @@ amended:
      window spans this boundary must say so and should report the two
      eras separately.** Rows before this entry stay valid within their
      own era.
-  4. **Calibration recorded at the boundary, for the docs column
-     specifically**: of 106 rows scored to date, 96 are 4 or 5, ten
-     involve a 3, and none is ever 1 or 2. That distribution measures
-     "no doc claim in this diff was executably refuted", which is
-     narrower than doc honesty; (1) is expected to widen its range,
-     which is the intended effect and not a quality regression.
 
 - **Protocol v4 (Evan, in-chat, 2026-08-11, from the dual-review
   analysis). Four amendments; in-flight blocks complete under v3;
@@ -1002,7 +996,7 @@ Claimed as main's next number after reading main's ACTUAL constant
 by eye immediately before setting it (`git show
 origin/main:crates/editor-core/src/persist/mod.rs | grep
 SCHEMA_VERSION`). This paragraph IS the tripwire the
-`schema-claim-discipline` memory asks for: any other in-flight
+schema-claim discipline then in force asked for: any other in-flight
 branch claiming 13 collides HERE, because the constant will not —
 one line of identical text merges clean.
 

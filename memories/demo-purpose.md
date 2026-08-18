@@ -24,6 +24,6 @@ they dodge goes unrecorded.
 - Awkwardness met while writing a demo is a LIBRARY FINDING:
   gap-comment it at the site and record it in the orchestrator
   log — never quietly work around it.
-- Standing goal ([[cad-project-state]]): every demo authorable
+- Standing goal: every demo authorable
   through the Python bindings; the tour corpus doubles as the
   bindings' coverage oracle.
