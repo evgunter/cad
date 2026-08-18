@@ -1,5 +1,10 @@
-//! **The census's instance-containment arm must bound the CONTAINING
-//! solid by a superset, not by its vertices** (SMELL-SCAN §S16 sweep).
+//! **SMELL-SCAN §S16 — the box-soundness rows that need a real curved
+//! body**, so they live here rather than in `topo`'s own suite.
+//!
+//! # 1. The census's instance-containment arm
+//!
+//! It must bound the CONTAINING solid by a superset, not by its
+//! vertices.
 //!
 //! Arm 2 of the cross-solid backstop clears a pair when some extent
 //! margin is definitely negative — when the inner solid pokes out of
@@ -22,8 +27,10 @@
 use geom_core::{Affine3, Point2, Tolerance, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
-use sweep::{Extrusion, extrude};
-use topo::{Body, ContactRecords, EntityId, ValidationError, validate_pseudomanifold};
+use sweep::{Extrusion, Section, extrude, loft_body};
+use topo::{
+    Body, BooleanError, ContactRecords, EntityId, ValidationError, validate_pseudomanifold,
+};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -147,5 +154,56 @@ fn a_body_beside_the_cylinder_is_still_cleared_by_containment() {
     assert!(
         containment.is_empty(),
         "a separated pair must not refuse as containment: {containment:?}"
+    );
+}
+
+// ---------------------------------------------------------------------
+// 2. The NURBS extent re-gate, end to end
+// ---------------------------------------------------------------------
+
+/// A lofted body: squares at z = 0 and z = 2 with a trapezoid between,
+/// so its walls are genuine `Surface::Nurbs` with a real control net —
+/// not the `mvfs` placeholder, whose net is poison.
+fn lofted() -> Body<f64> {
+    let quad = |pts: [(f64, f64); 4]| -> Section {
+        vec![ProfileLoop::polygon(pts.iter().map(|&(x, y)| p2(x, y)))]
+    };
+    let square = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
+    let trapezoid = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)];
+    let sections = vec![quad(square), quad(trapezoid), quad(square)];
+    let places = vec![
+        Affine3::identity(),
+        Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
+        Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
+    ];
+    loft_body::<f64>(&sections, &places, 2).unwrap().body
+}
+
+/// **Why `NurbsExtentUnsupported` has no end-to-end row, pinned so the
+/// day that changes is loud.**
+///
+/// The fallback re-gate (`ops.rs`'s `sphere_extent_scan`) fires when a
+/// NURBS-FACED operand reaches the sphere-extent fallback. To get
+/// there an operand must survive the per-arm operand gate and produce
+/// no crossings. No constructor mints such a body today:
+///
+/// - a lofted body has NURBS **edges**, and the gate refuses those
+///   typed (`CurvedEdgeUnsupported`) before any face box is built —
+///   this row;
+/// - the `mvfs` placeholder surface gives NURBS faces with line edges,
+///   but its control net is poison, so its box is poison, so it is
+///   never pruned and meets the crossing layer first.
+///
+/// So the re-gate is defensive depth, pinned at the mechanism in
+/// `topo`'s own suite. When a rung-3 operand gate admits NURBS edges
+/// this row goes red, and whoever lifts it owes the end-to-end row.
+#[test]
+fn a_lofted_operand_is_refused_at_its_nurbs_edges_before_any_face_box() {
+    let a = lofted();
+    let b = nested_box(20.0, 0.5);
+    let err = topo::boolean::union(&a, &b).expect_err("a NURBS operand must refuse typed");
+    assert!(
+        matches!(err, BooleanError::CurvedEdgeUnsupported { .. }),
+        "the operand gate's edge arm is what a lofted body meets, got {err:?}"
     );
 }

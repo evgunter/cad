@@ -2140,8 +2140,10 @@ mod tests {
 
         // Door 2 — the fallback's own re-gate, at the mechanism: any
         // fallback entry carrying a NURBS face refuses BEFORE a vertex
-        // is probed. Reachable end-to-end only from a real control net
-        // (a lofted body), which no `topo`-side constructor mints.
+        // is probed. NO end-to-end path reaches it today (a lofted
+        // operand is refused at its NURBS EDGES first, a placeholder's
+        // poison box is never pruned) — `sweep`'s `s16_box_soundness`
+        // pins both blockers, so the day one lifts is loud.
         let band = Band::linear().unwrap();
         let Err(err) = super::sphere_extent_scan(&a, &b, band) else {
             panic!("the NURBS fallback must be re-gated, never vertex-probed");
