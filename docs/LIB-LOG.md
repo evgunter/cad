@@ -949,3 +949,17 @@ the G2 sweep/tube design conversation (U4/frontier), die_tool's
 Python re-authoring (banked), Q9, and whatever #614's smell-scan
 schedule routes to LIB (the orphaned ProfileError fillet
 variants are claimed).
+
+**LIB-PERR DISPATCHED (2026-08-18, block LIB-12 slot 1 = FABLE)**:
+the smell-scan finding LIB claimed on #613 — ProfileError's five
+fillet variants (validate.rs:411-507) became fully orphaned when
+#608 deleted test_support.rs, their only constructor. Brief-as-
+spec (S size): delete the five variants + their payload-only
+support types IF those go dead too (FilletLeg/FilletLegCarrier/
+NoCornerReason are LIVE via NoCornerForFillet — verify, don't
+assume); sweep pncad-py's tag mirror, doc references
+(PATHS-DESIGN, rustdoc), and any match arms; closure = the
+workspace compiles with zero dangling references and the tag
+parity tests stay green; zero behavior change (no live path can
+mint them — prove by the compiler after deletion). Fence: nothing
+else from the smell scan; no other error surface changes.
