@@ -600,18 +600,14 @@ measures no compile-time cost and reads cleaner in situ.
 Mechanism details (row/table syntax, emission vocabulary, module
 seam) to the re-spell unit's spec.
 
-**Shipped form (LIB-RESPELL PR-1, ruled by Evan on #531):** the
-one declaration (`step_vocabulary!`) derives the THREE enum-side
-projections — Step variant, Verb tag, `Step::verb()` — while the
-typed methods and driver arms remain hand-written single
-implementations (each arm calls the one typed binder; a deleted
-row breaks both at compile; arm drift is over-strict-only, pinned
-by the blanket replay differential and the census smoke row).
-This is WEAKER than the four-projection invariant above and is
-accepted as the merge state; **the full derivation remains the
-ratified end state**, scheduled as its own follow-up unit
-(LIB-RESPELL-TABLE), with the measured cost estimate in the PR-1
-lane report.
+**Shipped form: the invariant NOW HOLDS (LIB-RTABLE).** The one
+declaration is `transition_table!` in
+`crates/profile/src/path/program.rs`: one row per (state, verb,
+kernel fn, next state), expanded into all four projections — the
+typed method (rustdoc and signature carried by the row, geometry
+by the kernel fn it names), the driver arm, the `Step` variant
+and the `Verb` tag — so deleting a row breaks all four at
+compile, and there is no second place to write a transition.
 
 **The family (line is the unmarked middle-position default):**
 

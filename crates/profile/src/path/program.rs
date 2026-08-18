@@ -1,19 +1,26 @@
-//! **Profiles-as-programs (v2) — the profile side.** The PATHS algebra's
-//! authoring surface, recorded as data and replayed through a driver that
-//! mirrors the typestate lattice at runtime.
+//! **Profiles-as-programs (v2) — the profile side, and the transition
+//! table both surfaces are projected from.** The PATHS algebra's
+//! authoring surface, recorded as data and replayed through a driver
+//! that mirrors the typestate lattice at runtime — the two being
+//! MECHANICAL PROJECTIONS of one declaration (PATHS-DESIGN §2c rounds
+//! 13–15).
 //!
-//! Three things live here:
+//! Four things live here:
 //!
-//! 1. [`Step`] — the step vocabulary: one variant per authoring verb,
+//! 1. `transition_table!` — the one declaration. One row per
+//!    (state, verb, kernel fn, next state), expanded into all four
+//!    artifacts: the typed method, the driver arm, the [`Step`]
+//!    variant, and the [`Verb`] tag.
+//! 2. [`Step`] — the step vocabulary: one variant per authoring verb,
 //!    storing **authored data only**. `ArcVia`/`ArcCenter` keep the
 //!    points the author wrote; their bulges are DERIVED at replay, by
 //!    the same binders the typed surface calls. Storing a derived bulge
 //!    would re-type a computed value as authored and kill its
 //!    parametricity (PROFILES-V2 §V1/§V2).
-//! 2. [`ClosedLoop`] — what a closing verb now returns: the lowered
+//! 3. [`ClosedLoop`] — what a closing verb now returns: the lowered
 //!    [`ProfileLoop`] *and* the program that produced it. One authoring
 //!    surface, two consumers; no second spelling of any verb.
-//! 3. [`replay`] — the driver. It holds the in-flight tip as [`DynTip`],
+//! 4. [`replay`] — the driver. It holds the in-flight tip as [`DynTip`],
 //!    an enum over the lattice states each of which carries the TYPED
 //!    [`super::PartialPath`] value, and applying a step is a
 //!    match on (state, verb) whose arm bodies can only call the ONE typed
@@ -21,33 +28,41 @@
 //!
 //! # What the construction makes unwritable — precisely
 //!
-//! The binder bodies are never duplicated here and the lattice is never
-//! re-stated as data. The property that buys is SHARP, and worth stating
-//! exactly rather than generously:
+//! The binder bodies are never duplicated here, the lattice is never
+//! re-stated as data, and — since the table shipped — neither surface
+//! is written twice. Two distinct properties hold, and both are worth
+//! stating exactly rather than generously:
 //!
-//! **Unwritable:** calling a binder on the CARRIED VALUE of a state
-//! where that binder is not well-typed. Every arm destructures the real
-//! `PartialPath`, so `.tangent()` on a `PlainPoint` tip or a leg on an
-//! `Angle` tip is a compile error, not a test failure. This is the whole
-//! drift class the two-surface design is exposed to: an arm that
-//! *continues the actual chain* through a transition the surface forbids
-//! cannot be spelled.
+//! **Unwritable, by the table:** a transition present in one surface
+//! and absent (or different) in the other. A row IS the transition;
+//! delete it and the typed method, the driver arm, the `Step` variant
+//! and the `Verb` tag all vanish together, so every consumer of any of
+//! the four breaks at COMPILE. There is no second place to write a
+//! transition, so an inconsistent pair cannot be spelled.
 //!
-//! **Still writable, and NOT prevented by the types:** arms that IGNORE
-//! the carried value — a no-op arm returning the tip unchanged under an
-//! illegal verb, or a laundering arm that MINTS a fresh tip from the
-//! step's own arguments and continues from that. Those compile. They are
-//! deliberate authorship rather than drift (nobody writes one by
-//! accident while adding a verb), and they are backstopped downstream,
-//! not upstream: the no-op shape is caught by the refusal census
-//! (`lattice_violations_refuse_as_the_transition_class`), the laundering
-//! shape by review of this file — which is why every arm here is one
-//! line of the form "destructure, call the one binder, re-wrap".
+//! **Unwritable, by the types:** calling a binder on the CARRIED VALUE
+//! of a state where that binder is not well-typed. Every arm
+//! destructures the real `PartialPath`, so `.tangent()` on a
+//! `PlainPoint` tip or a leg on an `Angle` tip is a compile error, not
+//! a test failure.
 //!
-//! What remains is the safe direction — a MISSING arm, i.e. an
-//! over-strict refusal — and that is exactly what the differential pin
-//! catches (`tests/path_program.rs`: every typed chain's recorded
-//! program must replay to a bit-identical loop).
+//! **Still writable, and NOT prevented by either:** a row whose arm
+//! IGNORES the carried value — a no-op arm returning the tip unchanged,
+//! or a laundering arm that MINTS a fresh tip from the step's own
+//! arguments. Those compile. They are deliberate authorship rather than
+//! drift (nobody writes one by accident while adding a verb), and they
+//! are backstopped downstream, not upstream: the no-op shape is caught
+//! by the refusal census
+//! (`lattice_violations_refuse_as_the_transition_class`), the
+//! laundering shape by review of the table — which is why every arm
+//! there is one expression of the form "destructure, call the one
+//! binder, re-wrap".
+//!
+//! What remains is the safe direction — a row that declares FEWER tips
+//! than its typed method covers, i.e. an over-strict refusal — and that
+//! is exactly what the differential pin catches
+//! (`tests/path_program.rs`: every typed chain's recorded program must
+//! replay to a bit-identical loop).
 //!
 //! # Serde plays no role
 //!
