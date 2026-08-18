@@ -124,6 +124,11 @@ pub enum ErrorClass {
     /// LIB-PYSEL. The Python class keeps the Rust type's own name:
     /// the refusal IS `SelectRefusal`, crossing.
     Select,
+    /// A frame the linear-algebra constructors refused: a direction
+    /// that was not DEFINITELY usable (coincident points, a roll
+    /// reference along the aim, a zero mirror normal), or a tolerance
+    /// yielding no usable band.
+    Frame,
 }
 
 impl ErrorClass {
@@ -140,6 +145,7 @@ impl ErrorClass {
             Self::StepImport => "StepImportError",
             Self::Path => "PathError",
             Self::Select => "SelectRefusal",
+            Self::Frame => "FrameError",
         }
     }
 }
