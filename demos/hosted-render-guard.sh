@@ -49,18 +49,23 @@ require_hosted_render() {
         echo
         echo "REFUSING: renders are hosted now. $entry is not the default path."
         echo
-        echo "THE DEFAULT WAY TO RE-RENDER IS TO PUSH AND ACCEPT CI'S COMMIT."
-        echo "ci.yml renders all four lanes on every push, and since 2026-08-17"
-        echo "a lane that no longer matches is RE-BASELINED for you: CI commits"
-        echo "the new cells straight to your branch and marks the run neutral"
-        echo "(\"!\", not \"x\") asking you to look at them. So:"
+        echo "THE DEFAULT WAY TO RE-RENDER IS TO LET CI DO IT."
+        echo "ci.yml renders all four lanes on every push. A lane that no longer"
+        echo "matches is RE-BASELINED for you — you never hand-commit cells:"
         echo
-        echo "  git push          # then wait for CI"
-        echo "  git pull          # the new frames are already committed"
+        echo "  git push          # CI renders and posts a neutral (\"!\") drift"
+        echo "                    #   check naming the cells that differ"
+        echo "  <merge the PR>    # main's own run commits the new cells"
+        echo "  git pull          # on main, the frames are there"
         echo
-        echo "Then look at the images. If they are what you intended, you are"
-        echo "DONE — the neutral check is not a failure and needs no re-run."
-        echo "Nothing to download, nothing to install, no second commit."
+        echo "A drift check is NOT a failure: if the render is what you intended"
+        echo "it is a pass, needing no re-run and no second commit. PRs report"
+        echo "and main commits — a bot commit on a PR branch would strand every"
+        echo "other check on the parent commit, so it is deliberately not done."
+        echo
+        echo "To LOOK at the new cells before merging, take the run's artifact:"
+        echo
+        echo "  local-scripts/render-hosted.sh --lane <kernel|freecad|uv|wild>"
         echo
         echo "If the branch has no CI run yet (not pushed, no PR), render on"
         echo "demand instead:"

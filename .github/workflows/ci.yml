@@ -1873,4 +1873,17 @@ jobs:
     with:
       gate: true
       lanes: all
-      push_to: ${{ github.head_ref || github.ref_name }}
+      # PUSH_TO ONLY ON MAIN (2026-08-18). A bot commit onto a PR branch
+      # becomes the PR's head, and a GITHUB_TOKEN push triggers no run
+      # of its own — so the PR would show one neutral check and nothing
+      # else, every green check stranded on the parent commit. Measured
+      # on this workflow's own PR (#598): 30 green jobs on 048edc9, and
+      # a head commit carrying a single check. The recursion guard and
+      # that blank slate are the same fact, so PRs REPORT and main
+      # COMMITS — the same rule the rebuild-latency history follows,
+      # and now one rule rather than two answers to one question.
+      push_to: ${{ github.event_name == 'push' && github.ref_name || '' }}
+      # The sha the report-only drift check is posted against. On a
+      # pull_request `github.sha` is the merge commit and a check there
+      # never appears on the PR, so name the PR's head explicitly.
+      report_sha: ${{ github.event.pull_request.head.sha || github.sha }}

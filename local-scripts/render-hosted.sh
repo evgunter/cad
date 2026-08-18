@@ -9,14 +9,16 @@
 #   local-scripts/render-hosted.sh --run 12345678       # pull a specific run
 #
 # FIRST, THE SHORT ANSWER: YOU PROBABLY WANT `git pull`, NOT THIS
-# SCRIPT (2026-08-17). CI now RE-BASELINES all four lanes itself — a run
-# whose render differs from the committed cells commits the new ones
-# straight back to your branch and marks the run neutral ("!", not "x")
-# asking you to glance at the images. So the ordinary flow is: push, wait for CI, `git pull`,
+# SCRIPT (2026-08-17). CI now RE-BASELINES all four lanes itself. A PR
+# run whose render differs REPORTS it with a neutral check ("!", not
+# "x") naming the cells; main's own run then COMMITS them. So the frames
+# arrive by merging and pulling, not by installing. So the ordinary flow is: push, wait for CI, `git pull`,
 # look at the frames. Nothing to download, nothing to install.
 #
 # ALL FOUR LANES RE-BASELINE, uv included — there is no lane left that
-# needs a manual install after an ordinary CI run.
+# needs a manual install after an ordinary CI run. What this script is
+# still genuinely good for on a PR: LOOKING at the new cells before you
+# merge, since the PR run reports them rather than committing them.
 #
 # WHAT THIS SCRIPT IS STILL FOR:
 #   * A DISPATCH AIMED AT A BARE SHA, which has no branch to commit to;

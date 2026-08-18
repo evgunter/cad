@@ -51,6 +51,14 @@ inputs:
       as the old gate did, and commits nothing.
     required: false
     default: ""
+  report_sha:
+    description: >
+      The commit the neutral check is posted against WHEN NOTHING IS
+      COMMITTED (see `push_to`). Must be the PR's HEAD sha on a
+      pull_request — `github.sha` there is the merge commit, and a check
+      posted against that never appears on the PR.
+    required: false
+    default: ""
   token:
     description: "GITHUB_TOKEN. Needs contents:write and checks:write."
     required: true
@@ -63,6 +71,7 @@ runs:
         LANE: ${{ inputs.lane }}
         DIR: ${{ inputs.dir }}
         PUSH_TO: ${{ inputs.push_to }}
+        REPORT_SHA: ${{ inputs.report_sha }}
         GH_TOKEN: ${{ inputs.token }}
         RUN_ID: ${{ github.run_id }}
       run: |
@@ -77,14 +86,58 @@ runs:
         echo "$DIR drifted from the committed cells:"
         echo "$drift"
 
-        # NO BRANCH TO WRITE. A dispatch can name a bare SHA, and there
-        # is no sensible place to put a commit then. Fall back to the
-        # old contract — the artifact this job already uploaded, plus
-        # the command that installs it — and say so rather than
-        # pretending the re-baseline happened.
+        # REPORT-ONLY MODE (`push_to` empty). Two situations reach it,
+        # and both want the same thing — say so, commit nothing:
+        #
+        #   * A PULL REQUEST. ci.yml deliberately withholds `push_to`
+        #     there. A bot commit onto the PR branch would become the
+        #     PR's head, and because it is pushed with GITHUB_TOKEN it
+        #     triggers no run of its own — so the PR would show this
+        #     one neutral check and NOTHING else, with every green check
+        #     stranded on the parent commit. The recursion guard and
+        #     that blank slate are the same fact, so the fix is to not
+        #     commit here: main's own push run re-baselines after merge.
+        #   * A DISPATCH AIMED AT A BARE SHA, which has no branch to
+        #     commit onto at all.
+        #
+        # The check goes on REPORT_SHA, not $GITHUB_SHA: on a
+        # pull_request the latter is the merge commit, and a check
+        # posted there never appears on the PR.
         if [ -z "$PUSH_TO" ]; then
           fix="local-scripts/render-hosted.sh --run ${RUN_ID} --lane ${LANE}"
-          echo "::warning title=${DIR} is stale::No branch to re-baseline onto (this run rendered a bare SHA). Install this run's own artifact instead: ${fix}"
+          report_summary="$(printf '%s\n' \
+            "\`$DIR\` does not match what this code renders." \
+            "" \
+            "**Nothing is broken, and there is nothing to commit by hand.** This run" \
+            "did not re-baseline: on a pull request the cells are left alone and" \
+            "\`main\`'s own run commits them right after the merge. If the render is" \
+            "what you intended, this check is a PASS — no re-run, no second commit." \
+            "" \
+            "To LOOK at the new cells before merging, take this run's artifact:" \
+            "" \
+            '```' \
+            "$fix" \
+            '```' \
+            "" \
+            "Two things cause drift, and they need different reactions:" \
+            "" \
+            "* **the geometry changed** — the new cells are the truth; check they look like what you intended;" \
+            "* **the runner image's mesa bumped** and re-rasterised them (roughly monthly) — pixels moved, geometry did not." \
+            "" \
+            "Cells that differ:" \
+            "" \
+            '```' \
+            "$drift" \
+            '```')"
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/check-runs" \
+            -f "name=render drift (${LANE})" \
+            -f "head_sha=${REPORT_SHA:-$GITHUB_SHA}" \
+            -f "status=completed" \
+            -f "conclusion=neutral" \
+            -f "output[title]=${DIR} differs from this render — re-baselined on merge to main" \
+            -f "output[summary]=${report_summary}" \
+            --silent
+          echo "reported drift on ${REPORT_SHA:-$GITHUB_SHA} (no commit: push_to empty)"
           exit 0
         fi
 

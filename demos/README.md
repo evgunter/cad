@@ -36,13 +36,23 @@ cells straight to your branch and posts a check run whose conclusion is
 images. So re-rendering is:
 
 ```sh
-git push        # then wait for CI
-git pull        # the new frames are already committed
+git push        # CI renders; a lane that differs posts a neutral ("!")
+                #   drift check naming the cells
+# merge the PR  # main's own run commits the new cells
+git pull        # on main, the frames are there
 ```
 
-Then look at them. **If they are what you intended, you are done.** The
-neutral check is not a failure: it needs no re-run and no second commit.
-Re-run only if something *else* in the run failed.
+**If the render is what you intended, the drift check is a pass.** It
+needs no re-run and no second commit. Re-run only if something *else* in
+the run failed.
+
+**PRs report; `main` commits.** A bot commit onto a PR branch becomes the
+PR's head, and a `GITHUB_TOKEN` push triggers no run of its own — so the
+PR would show that one check and nothing else, with every green check
+stranded on the parent commit. The recursion guard and that blank slate
+are the same fact, so the commit happens on `main` instead. It is the
+same rule the rebuild-latency history follows. To see the cells before
+merging, take the run's artifact with `local-scripts/render-hosted.sh`.
 
 A re-baseline has two causes and they want different reactions — the
 geometry changed (these cells are the new truth; check they look like
@@ -775,22 +785,28 @@ over one pipeline**:
 * **on demand** (`workflow_dispatch`) — for a tree CI has not seen, or a
   re-render at a different scene budget.
 
-#### The default way to re-render: push, then pull
+#### The default way to re-render: let CI do it
 
-Since 2026-08-17 a lane that no longer matches what the code renders is
-**re-baselined for you**. CI commits the new cells straight to your
-branch and posts a check run whose conclusion is `neutral` — GitHub's
-"!" rather than its "x" — asking you to look at the images. So the whole
-flow is:
+A lane that no longer matches what the code renders is **re-baselined
+for you** — you never hand-commit cells. On a PR the run posts a check
+whose conclusion is `neutral` (GitHub's "!" rather than its "x") naming
+the cells that differ; on `main`, the run commits them.
 
 ```sh
-git push        # then wait for CI
-git pull        # the new frames are already committed
+git push        # CI renders; differing lanes post a neutral drift check
+# merge the PR  # main's own run commits the new cells
+git pull        # on main, the frames are there
 ```
 
-Then look at them. **If they are what you intended, you are done**: the
-neutral check is not a failure, needs no re-run, and wants no second
-commit. Re-run only if something *else* in the run failed.
+**If the render is what you intended, the drift check is a pass**: no
+re-run, no second commit. Re-run only if something *else* failed.
+
+**Why PRs report rather than commit.** A bot commit onto a PR branch
+becomes the PR's head, and a `GITHUB_TOKEN` push triggers no run of its
+own — so the PR would show that single check with every green check
+stranded on the parent commit. The recursion guard and that blank slate
+are the same fact. Same rule as the rebuild-latency history: PRs report,
+`main` writes.
 
 Two things cause a re-baseline and they want different reactions: the
 geometry changed (these cells are the new truth — check they look like

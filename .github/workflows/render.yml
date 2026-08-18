@@ -90,15 +90,26 @@
 # to defend. It is someone explicitly asking for new frames, and making
 # them then go download and install those frames was pure ceremony.
 #
-# What replaced it keeps the honesty and drops the ceremony. Both modes
-# now re-baseline: a drifting lane is committed back to its branch and
-# the run publishes a check run whose conclusion is NEUTRAL — GitHub's
-# "!" rather than its "x" — saying, in as many words, that if the
-# render looks right the job is a success and needs no re-run. The
-# mechanical half (fetch, install, commit, push, wait for a second run)
-# is gone; the judgement half (are these images what I meant?) is
-# exactly what the neutral check asks for and is the only thing it asks
-# for. `.github/actions/rebaseline-lane` carries the full reasoning,
+# What replaced it keeps the honesty and drops the ceremony. A drifting
+# lane publishes a check run whose conclusion is NEUTRAL — GitHub's "!"
+# rather than its "x" — saying, in as many words, that if the render
+# looks right the job is a success and needs no re-run. The mechanical
+# half (fetch, install, commit by hand) is gone; the judgement half
+# (are these images what I meant?) is what the neutral check asks for
+# and the only thing it asks for.
+#
+# WHO ACTUALLY COMMITS: `main` and dispatches, never a PR. A bot commit
+# onto a PR branch becomes the PR's HEAD, and a GITHUB_TOKEN push
+# triggers no run of its own — so the PR shows that one neutral check
+# and NOTHING else, every green check stranded on the parent commit.
+# Measured on this workflow's own PR (#598): 30 green jobs on one sha,
+# a head commit carrying a single check. The recursion guard and that
+# blank slate are the same fact; you cannot have the commit skip CI and
+# carry CI's checks with the same token. So PRs REPORT and main
+# COMMITS, which is also the rebuild-latency history's rule — one rule
+# for both, rather than two answers to one question. The accepted cost:
+# a PR merges with stale cells, and main heals within minutes.
+# `.github/actions/rebaseline-lane` carries the full reasoning,
 # including why neutral rather than red and why not silent green.
 #
 # What did NOT change: a wedged pass still fails, the matplotlib-
@@ -171,6 +182,10 @@ on:
         description: "Branch to commit re-baselined lanes to (empty: this workflow's branch, unless `ref` is set)"
         required: false
         default: ""
+      report_sha:
+        description: "Commit the drift check is posted against when nothing is committed (leave empty: this run's own sha)"
+        required: false
+        default: ""
 
   # ci.yml's render lane. Same inputs, plus `gate` — which no longer
   # turns drift into a failure (both modes re-baseline) and survives as
@@ -203,6 +218,11 @@ on:
         default: ""
       push_to:
         description: "Branch to commit re-baselined lanes to (empty: no commit, report only)"
+        type: string
+        required: false
+        default: ""
+      report_sha:
+        description: "Commit the neutral drift check is posted against when nothing is committed (must be the PR HEAD sha, not the merge commit)"
         type: string
         required: false
         default: ""
@@ -392,6 +412,10 @@ jobs:
           # inputs.push_to wins; otherwise the dispatched branch, but
           # only when no explicit `ref` made the target ambiguous.
           push_to: ${{ inputs.push_to != '' && inputs.push_to || (inputs.ref == '' && github.ref_name || '') }}
+          # On a pull_request `github.sha` is the MERGE commit; a check
+          # posted there never shows on the PR. ci.yml passes the PR's
+          # head sha explicitly.
+          report_sha: ${{ inputs.report_sha }}
           token: ${{ github.token }}
 
   # The two FreeCAD-drawn montages. ONE definition, two legs: the lanes
@@ -602,6 +626,10 @@ jobs:
           # inputs.push_to wins; otherwise the dispatched branch, but
           # only when no explicit `ref` made the target ambiguous.
           push_to: ${{ inputs.push_to != '' && inputs.push_to || (inputs.ref == '' && github.ref_name || '') }}
+          # On a pull_request `github.sha` is the MERGE commit; a check
+          # posted there never shows on the PR. ci.yml passes the PR's
+          # head sha explicitly.
+          report_sha: ${{ inputs.report_sha }}
           token: ${{ github.token }}
 
   # THE WILD-CORPUS LANE. FreeCAD-free by ratified scope (its cells are
@@ -749,4 +777,8 @@ jobs:
           # inputs.push_to wins; otherwise the dispatched branch, but
           # only when no explicit `ref` made the target ambiguous.
           push_to: ${{ inputs.push_to != '' && inputs.push_to || (inputs.ref == '' && github.ref_name || '') }}
+          # On a pull_request `github.sha` is the MERGE commit; a check
+          # posted there never shows on the PR. ci.yml passes the PR's
+          # head sha explicitly.
+          report_sha: ${{ inputs.report_sha }}
           token: ${{ github.token }}

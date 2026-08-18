@@ -8,17 +8,26 @@ type: operational
 
 ## Re-baselining (2026-08-17 — read this before reaching for a download)
 
-CI **commits its own renders**, on all four lanes. A run whose kernel,
-freecad, wild or uv lane differs from the committed cells pushes the
-new cells to that branch and posts a check run with conclusion `neutral` — GitHub's "!",
-not its "x" — whose text says: *if the render looks right, this job is
-a success, no re-run needed*. So:
+CI **re-baselines its own renders**, on all four lanes — you never
+hand-commit cells. **PRs REPORT, `main` COMMITS:**
 
-    push -> wait for CI -> git pull -> look at the images
+    push -> CI posts a neutral ("!") drift check naming the cells
+         -> merge -> main's run commits them -> git pull
 
-That is the whole flow. There is nothing to download and nothing to
-install, and a re-baseline is **not a failure** — do not re-run the job
-to try to make it green.
+A drift check is **not a failure** — if the render is what you intended
+it is a pass; do not re-run the job to make it green.
+
+**Why PRs do not commit** (learned the hard way on #598): a bot commit
+onto a PR branch becomes the PR's head, and a GITHUB_TOKEN push
+triggers no run of its own, so the PR showed ONE neutral check with all
+30 green checks stranded on the parent commit. The recursion guard and
+that blank slate are the same fact — you cannot have the bot's commit
+skip CI *and* carry CI's checks, not with GITHUB_TOKEN. So the commit
+moved to main, matching the rebuild-latency history's rule. The cost,
+accepted: a PR merges with stale cells and main heals within minutes.
+
+To LOOK at the cells before merging, take the run's artifact with
+`local-scripts/render-hosted.sh --lane <lane>`.
 
 ci.yml's `uv sheet drift (demos)` row was **retired** when the uv lane
 started re-baselining: both fired on the same condition and read the
@@ -125,11 +134,12 @@ both directions.
 
 `ci.yml`'s `renders` job calls `render.yml` on every push that builds
 anything, and a lane that no longer matches is **re-baselined for you**
-— CI commits the new cells to your branch and marks the run neutral.
-So the way to re-render is:
+— the PR run reports it with a neutral check, and main's run commits
+the new cells. So the way to re-render is:
 
-    git push        # then wait for CI
-    git pull        # the frames are already committed
+    git push        # CI posts a neutral drift check naming the cells
+    # merge the PR  # main's run commits them
+    git pull        # on main, the frames are there
 
 Then look at the images; if they are what you meant, you are done. It
 supersedes the old `local-scripts/render-hosted.sh` default, which
