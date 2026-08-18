@@ -42,10 +42,7 @@ fn boxy() -> Body<f64> {
     let lp = ProfileLoop::new(
         [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
             .into_iter()
-            .map(|(x, y)| ProfileVertex {
-                pos: p2(x, y),
-                bulge: 0.0,
-            })
+            .map(|(x, y)| ProfileVertex::new(p2(x, y), 0.0))
             .collect(),
     );
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
@@ -64,18 +61,9 @@ fn cylinder() -> Body<f64> {
         p2(0.5 * th.cos(), 0.5 * th.sin())
     };
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: at(0.0),
-            bulge: b120,
-        },
-        ProfileVertex {
-            pos: at(120.0),
-            bulge: b120,
-        },
-        ProfileVertex {
-            pos: at(240.0),
-            bulge: b120,
-        },
+        ProfileVertex::new(at(0.0), b120),
+        ProfileVertex::new(at(120.0), b120),
+        ProfileVertex::new(at(240.0), b120),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(tol())
@@ -89,22 +77,10 @@ fn cylinder() -> Body<f64> {
 /// third edge is plane–cylinder.
 fn dee() -> Body<f64> {
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(1.0, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(1.0, 1.0),
-            bulge: 0.4,
-        },
-        ProfileVertex {
-            pos: p2(0.0, 1.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.0, 0.0), 0.0),
+        ProfileVertex::new(p2(1.0, 0.0), 0.0),
+        ProfileVertex::new(p2(1.0, 1.0), 0.4),
+        ProfileVertex::new(p2(0.0, 1.0), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(tol())

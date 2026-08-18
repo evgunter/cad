@@ -37,10 +37,7 @@ use common::quad;
 /// bottom edge at `(2, 0)` and to the outgoing top edge at `(2, 2)`
 /// — two joints the profile door demands declarations for.
 fn tangent_bite(declared: bool) -> Section {
-    let v = |x: f64, y: f64, bulge: f64| ProfileVertex {
-        pos: Point2::new(x, y),
-        bulge,
-    };
+    let v = |x: f64, y: f64, bulge: f64| ProfileVertex::new(Point2::new(x, y), bulge);
     let mut lp = ProfileLoop::new(vec![
         v(0.0, 0.0, 0.0),
         v(2.0, 0.0, 1.0),
@@ -48,7 +45,7 @@ fn tangent_bite(declared: bool) -> Section {
         v(0.0, 2.0, 0.0),
     ]);
     if declared {
-        lp.tangent_joints = vec![1, 2];
+        lp = lp.with_tangent_joints(vec![1, 2]);
     }
     vec![lp]
 }

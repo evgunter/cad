@@ -266,10 +266,7 @@ fn refusal(loop_: &ProfileLoop<f64>) -> Option<LiftRefusal> {
 }
 
 fn vert(x: f64, y: f64, bulge: f64) -> ProfileVertex<f64> {
-    ProfileVertex {
-        pos: Point2::new(x, y),
-        bulge,
-    }
+    ProfileVertex::new(Point2::new(x, y), bulge)
 }
 
 #[test]
@@ -291,7 +288,7 @@ fn structural_walls_are_named() {
 
     // A declared index that names no vertex.
     let mut stray = rect(0.0, 0.0, 1.0, 1.0);
-    stray.tangent_joints = vec![9];
+    stray = stray.with_tangent_joints(vec![9]);
     assert_eq!(
         refusal(&stray),
         Some(LiftRefusal::JointIndexOutOfRange {
@@ -314,7 +311,7 @@ fn structural_walls_are_named() {
         vert(1.0, 1.0, 0.0),
         vert(0.0, 1.0, 0.0),
     ]);
-    closing_line.tangent_joints = vec![2];
+    closing_line = closing_line.with_tangent_joints(vec![2]);
     assert_eq!(
         refusal(&closing_line),
         Some(LiftRefusal::DeclaredJointBeforeClosingLine { joint: 2 })

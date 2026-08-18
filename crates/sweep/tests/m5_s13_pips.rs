@@ -56,10 +56,7 @@ fn slab() -> Body<f64> {
     let lp = ProfileLoop::new(
         [(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]
             .into_iter()
-            .map(|(x, y)| ProfileVertex {
-                pos: p2(x, y),
-                bulge: 0.0,
-            })
+            .map(|(x, y)| ProfileVertex::new(p2(x, y), 0.0))
             .collect(),
     );
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
@@ -73,14 +70,8 @@ fn slab() -> Body<f64> {
 /// horizontal axis — the chart the §1 re-cut must re-align.
 fn ball_at(r: f64, centre: Vec3<f64>) -> Body<f64> {
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, -r),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(0.0, r),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.0, -r), 1.0),
+        ProfileVertex::new(p2(0.0, r), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
@@ -374,14 +365,8 @@ fn trimmed_sphere_group_operand_refuses_typed_at_the_scan() {
 #[test]
 fn cylinder_near_sphere_refuses_typed_at_the_scan() {
     let disc = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.35, 0.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(-0.35, 0.0),
-            bulge: 1.0,
-        },
+        ProfileVertex::new(p2(0.35, 0.0), 1.0),
+        ProfileVertex::new(p2(-0.35, 0.0), 1.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![disc])
         .validate(Tolerance::get())

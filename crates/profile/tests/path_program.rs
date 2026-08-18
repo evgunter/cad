@@ -313,12 +313,12 @@ fn circle_is_a_one_step_program_that_replays_to_its_two_poles() {
         "a circle program is exactly one step"
     );
     let lowered = pinned(closed);
-    assert_eq!(lowered.vertices.len(), 2);
-    assert_eq!(lowered.vertices[0].pos.x.to_bits(), 2.25_f64.to_bits());
-    assert_eq!(lowered.vertices[1].pos.x.to_bits(), 0.75_f64.to_bits());
-    assert_eq!(lowered.vertices[0].bulge.to_bits(), 1.0_f64.to_bits());
+    assert_eq!(lowered.vertices().len(), 2);
+    assert_eq!(lowered.vertices()[0].pos().x.to_bits(), 2.25_f64.to_bits());
+    assert_eq!(lowered.vertices()[1].pos().x.to_bits(), 0.75_f64.to_bits());
+    assert_eq!(lowered.vertices()[0].bulge().to_bits(), 1.0_f64.to_bits());
     assert!(
-        lowered.tangent_joints.is_empty(),
+        lowered.tangent_joints().is_empty(),
         "same-carrier joints declare nothing — there is no tangency to claim"
     );
     validate_ok(&lowered);
@@ -334,22 +334,22 @@ fn circle_split_is_a_one_step_program_with_structural_seams() {
     let closed = profile::circle_split(p2(1.0, 0.5), 0.4, 3, 0.25).unwrap();
     assert_eq!(verbs(&program_of(&closed)), vec![Verb::CircleSplit]);
     let lowered = pinned(closed);
-    assert_eq!(lowered.vertices.len(), 3, "n vertices, n arcs");
+    assert_eq!(lowered.vertices().len(), 3, "n vertices, n arcs");
     // Expected values through the SAME libm-pure trig the lowering uses
     // (geom-core `Real`; std's tan/sin_cos may differ by an ulp).
     let expected_bulge = geom_core::Real::tan(std::f64::consts::PI / 6.0);
-    for v in &lowered.vertices {
-        assert_eq!(v.bulge.to_bits(), expected_bulge.to_bits());
+    for v in lowered.vertices() {
+        assert_eq!(v.bulge().to_bits(), expected_bulge.to_bits());
     }
     // Vertex k at centre + r·(cos θ_k, sin θ_k), θ_k = phase + k·2π/n.
-    for (k, v) in lowered.vertices.iter().enumerate() {
+    for (k, v) in lowered.vertices().iter().enumerate() {
         let theta = 0.25 + (k as f64) * std::f64::consts::TAU / 3.0;
         let (s, c) = geom_core::Real::sin_cos(theta);
-        assert_eq!(v.pos.x.to_bits(), (1.0 + 0.4 * c).to_bits());
-        assert_eq!(v.pos.y.to_bits(), (0.5 + 0.4 * s).to_bits());
+        assert_eq!(v.pos().x.to_bits(), (1.0 + 0.4 * c).to_bits());
+        assert_eq!(v.pos().y.to_bits(), (0.5 + 0.4 * s).to_bits());
     }
     assert!(
-        lowered.tangent_joints.is_empty(),
+        lowered.tangent_joints().is_empty(),
         "structural subdivisions declare nothing — one carrier, no tangency claim"
     );
     validate_ok(&lowered);
@@ -371,7 +371,7 @@ fn circle_split_refuses_nonpositive_radius_and_tiny_counts() {
     }
     // n = 2 is legal — the smallest subdivision, circle's own count.
     let two = profile::circle_split(p2(0.0, 0.0), 1.0, 2, 0.0).unwrap();
-    assert_eq!(pinned(two).vertices.len(), 2);
+    assert_eq!(pinned(two).vertices().len(), 2);
 }
 
 /// **`arc_continue`'s declared subdivision (LIB-SWITCH §5-1 fallback,
@@ -400,17 +400,17 @@ fn arc_continue_subdivides_the_carrier_structurally() {
         "the subdivision records as its own verb, storing only the authored target"
     );
     let lowered = pinned(closed);
-    assert_eq!(lowered.vertices.len(), 3);
+    assert_eq!(lowered.vertices().len(), 3);
     // The derived bulge continues the SAME carrier: a quarter of the
     // r = 0.5 circle about the origin, tan(π/8) up to the tangent-chord
     // derivation's rounding.
-    let b = lowered.vertices[1].bulge;
+    let b = lowered.vertices()[1].bulge();
     assert!(
         (b - q).abs() < 1e-15,
         "continuation bulge ≈ tan(π/8), got {b}"
     );
     assert!(
-        lowered.tangent_joints.is_empty(),
+        lowered.tangent_joints().is_empty(),
         "a subdivision vertex claims nothing — same-carrier identity, not tangency"
     );
     validate_ok(&lowered);

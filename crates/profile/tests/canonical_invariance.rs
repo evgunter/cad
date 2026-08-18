@@ -6,33 +6,37 @@
 mod common;
 
 use common::{annulus, bracket, circle_h, l_profile, lens, profile, rect, rounded_rect, tol};
-use profile::{Profile, ProfileLoop};
+use profile::{Profile, ProfileLoop, RawLoop};
 use proptest::prelude::*;
 
 /// Rotates a loop's starting vertex by `r` (a pure reindexing — the
 /// same closed chain).
 fn rotated(lp: &ProfileLoop<f64>, r: usize) -> ProfileLoop<f64> {
-    let n = lp.vertices.len();
-    ProfileLoop {
-        vertices: (0..n).map(|k| lp.vertices[(r + k) % n]).collect(),
+    let n = lp.vertices().len();
+    ProfileLoop::new((0..n).map(|k| lp.vertices()[(r + k) % n]).collect())
         // Declared joints follow their vertex through the reindexing.
-        tangent_joints: lp.tangent_joints.iter().map(|&j| (j + n - r) % n).collect(),
-    }
+        .with_tangent_joints(
+            lp.tangent_joints()
+                .iter()
+                .map(|&j| (j + n - r) % n)
+                .collect(),
+        )
 }
 
 /// Translates a loop rigidly (fixture plumbing).
 fn translated(lp: &ProfileLoop<f64>, dx: f64, dy: f64) -> ProfileLoop<f64> {
-    ProfileLoop {
-        vertices: lp
-            .vertices
+    ProfileLoop::new(
+        lp.vertices()
             .iter()
-            .map(|v| profile::ProfileVertex {
-                pos: geom_core::Point2::new(v.pos.x + dx, v.pos.y + dy),
-                bulge: v.bulge,
+            .map(|v| {
+                profile::ProfileVertex::new(
+                    geom_core::Point2::new(v.pos().x + dx, v.pos().y + dy),
+                    v.bulge(),
+                )
             })
             .collect(),
-        tangent_joints: lp.tangent_joints.clone(),
-    }
+    )
+    .with_tangent_joints(lp.tangent_joints().to_vec())
 }
 
 /// The named fixture set (every accepting fixture with ≥ 1 loop).
@@ -75,7 +79,7 @@ proptest! {
                     .iter()
                     .enumerate()
                     .map(|(i, lp)| {
-                        let r = rot[i % rot.len()] % lp.vertices.len();
+                        let r = rot[i % rot.len()] % lp.vertices().len();
                         let turned = rotated(lp, r);
                         if rev[i % rev.len()] {
                             turned.reversed()
@@ -108,10 +112,10 @@ proptest! {
             &verts.iter().map(|&(x, y, b)| (x, y, b)).collect::<Vec<_>>(),
         );
         let back = lp.reversed().reversed();
-        for (a, b) in lp.vertices.iter().zip(back.vertices.iter()) {
-            prop_assert_eq!(a.pos.x.to_bits(), b.pos.x.to_bits());
-            prop_assert_eq!(a.pos.y.to_bits(), b.pos.y.to_bits());
-            prop_assert_eq!(a.bulge.to_bits(), b.bulge.to_bits());
+        for (a, b) in lp.vertices().iter().zip(back.vertices().iter()) {
+            prop_assert_eq!(a.pos().x.to_bits(), b.pos().x.to_bits());
+            prop_assert_eq!(a.pos().y.to_bits(), b.pos().y.to_bits());
+            prop_assert_eq!(a.bulge().to_bits(), b.bulge().to_bits());
         }
     }
 }

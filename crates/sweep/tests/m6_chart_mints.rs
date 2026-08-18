@@ -65,14 +65,8 @@ fn assert_curved_faces_fully_minted(name: &str, body: &Body<f64>) {
 #[test]
 fn the_ball_carries_stored_sphere_pcurves_at_rest() {
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: Point2::new(0.0, -1.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: Point2::new(0.0, 1.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(Point2::new(0.0, -1.0), 1.0),
+        ProfileVertex::new(Point2::new(0.0, 1.0), 0.0),
     ]);
     let t = revolve::<f64>(&validated(lp), axis_y(), Revolution::Full).unwrap();
     assert_curved_faces_fully_minted("ball", &t.body);
@@ -95,14 +89,8 @@ fn the_cone_carries_stored_cone_pcurves_at_rest() {
 #[test]
 fn the_donut_carries_stored_torus_pcurves_at_rest() {
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: Point2::new(1.5, 0.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: Point2::new(2.5, 0.0),
-            bulge: 1.0,
-        },
+        ProfileVertex::new(Point2::new(1.5, 0.0), 1.0),
+        ProfileVertex::new(Point2::new(2.5, 0.0), 1.0),
     ]);
     let t = revolve::<f64>(&validated(lp), axis_y(), Revolution::Full).unwrap();
     assert_curved_faces_fully_minted("donut", &t.body);

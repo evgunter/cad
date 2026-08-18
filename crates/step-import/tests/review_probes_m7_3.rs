@@ -153,10 +153,7 @@ fn probe_all_unit_weight_rational_instance_imports_identically() {
 /// the (now non-rational) wall. Must refuse typed, never launder.
 fn native_arc_loft_for_probe() -> topo::Body<f64> {
     let arc_section = |s: f64| -> sweep::Section {
-        let v = |x: f64, y: f64, bulge: f64| profile::ProfileVertex {
-            pos: Point2::new(x, y),
-            bulge,
-        };
+        let v = |x: f64, y: f64, bulge: f64| profile::ProfileVertex::new(Point2::new(x, y), bulge);
         vec![profile::ProfileLoop::new(vec![
             v(-s, -s, 0.0),
             v(s, -s, 0.4142135623730951),

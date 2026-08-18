@@ -62,14 +62,8 @@ fn square_with_two_vertex_hole_matches_closed_forms() {
     // carrier split into two bulge-1 semicircle segments (genus 1).
     let outer = ProfileLoop::polygon([p2(-2.0, -2.0), p2(2.0, -2.0), p2(2.0, 2.0), p2(-2.0, 2.0)]);
     let hole = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(1.0, 0.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(-1.0, 0.0),
-            bulge: 1.0,
-        },
+        ProfileVertex::new(p2(1.0, 0.0), 1.0),
+        ProfileVertex::new(p2(-1.0, 0.0), 1.0),
     ]);
     let body = extrude(&validated(vec![outer, hole]), Extrusion::Distance(1.0))
         .unwrap()
@@ -97,14 +91,8 @@ fn washer_matches_closed_forms() {
 #[test]
 fn ball_matches_closed_forms() {
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, -1.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(0.0, 1.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.0, -1.0), 1.0),
+        ProfileVertex::new(p2(0.0, 1.0), 0.0),
     ]);
     let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full).unwrap();
     check(&t.body, "ball", 4.0 * PI / 3.0, 4.0 * PI);
@@ -133,14 +121,8 @@ fn cone_matches_closed_forms() {
 #[test]
 fn donut_matches_closed_forms() {
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(2.0, -0.5),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(2.0, 0.5),
-            bulge: 1.0,
-        },
+        ProfileVertex::new(p2(2.0, -0.5), 1.0),
+        ProfileVertex::new(p2(2.0, 0.5), 1.0),
     ]);
     let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full).unwrap();
     // R = 2, r = 1/2: V = 2π²Rr² = π²; A = 4π²Rr = 4π².

@@ -179,14 +179,8 @@ fn loft_prism() -> Body<f64> {
 /// with Harmonic caches), lower half — `disc`/`halves` verbatim.
 fn split_cylinder_half() -> Body<f64> {
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: Point2::new(-1.0, 0.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: Point2::new(1.0, 0.0),
-            bulge: 1.0,
-        },
+        ProfileVertex::new(Point2::new(-1.0, 0.0), 1.0),
+        ProfileVertex::new(Point2::new(1.0, 0.0), 1.0),
     ]);
     let disc = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())

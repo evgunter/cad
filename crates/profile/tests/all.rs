@@ -66,6 +66,8 @@ mod review_s8_probe;
 mod scalar_channels;
 #[path = "scalar_channels_probe.rs"]
 mod scalar_channels_probe;
+#[path = "seal.rs"]
+mod seal;
 #[path = "sketch_plane.rs"]
 mod sketch_plane;
 #[path = "validate_ok.rs"]

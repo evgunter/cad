@@ -70,7 +70,7 @@ fn old_bracket_loop() -> ProfileLoop<Probe> {
     // vertex table, so it is written as one; the bulge comes from the
     // same public constructor the raw builder called.
     let (start, via, end) = (p2(1.5, 1.0), p2(1.146, 1.146), p2(1.0, 1.5));
-    let v = |pos, bulge| ProfileVertex { pos, bulge };
+    let v = |pos, bulge| ProfileVertex::new(pos, bulge);
     ProfileLoop::new(vec![
         v(p2(0.0, 0.0), Probe(0.0)),
         v(p2(3.0, 0.0), Probe(0.0)),
