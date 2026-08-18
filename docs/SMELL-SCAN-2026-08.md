@@ -31,10 +31,40 @@ from different files are ranked highest** — that independence is the
 strongest signal in the report, and it is noted where it applies.
 
 **How to use this document.** Every finding has a stable ID (`S1`…`S48`).
-Each carries a `**Verdict:**` line, left blank for Evan. Annotate in
-place; the IDs are stable across edits so they can be cited in PRs,
-issues, and follow-up specs. Nothing here should be acted on before it
-has a verdict.
+Each carries a `**Verdict:**` line. Annotate in place; the IDs are stable
+across edits so they can be cited in PRs, issues, and follow-up specs.
+**Nothing here should be acted on before it has a verdict.**
+
+Verdict vocabulary, as used below:
+
+- **ACCEPTED** — Evan agrees the finding is real. Not yet a decision
+  about what to do.
+- **ACCEPTED IN PART** — some of the finding holds; the row says which.
+- **ACCEPTED, SORT REQUIRED** — real, but the finding lumps together
+  machinery that supports *planned* work with machinery that is
+  *superseded*, and the two need separating before anything moves.
+- **DISPUTED — REFRAME PROPOSED** — the finding over-reaches, and Evan
+  has offered a different framing of the underlying question.
+
+## Review status (2026-08-18)
+
+**Tier 1 (S1–S15): verdicts recorded.** Tier 2 and Tier 3 are unreviewed
+— their `**Verdict:**` lines are still blank.
+
+**A steelman pass is in flight over all of Tier 1.** Evan's standing
+instruction: *"for all of these we'd probably want an agent to steelman
+the original / look for the original justification and be sure we're not
+missing any basis for decision."* Eleven agents are reading git history,
+PR descriptions (which is where this repo documents the logic of a
+change — see `CLAUDE.md`), the milestone specs and logs, and `memories/`,
+to answer for each finding: what was the original basis, what is the
+strongest honest case for the current design, does the finding survive,
+and what would acting on it cost. Their results will be recorded here as
+a `**Steelman:**` line under each finding.
+
+Until that lands, **an ACCEPTED verdict means "this looks real", not
+"this is settled"** — several Tier-1 findings may turn out to rest on a
+constraint the scanning agents could not see.
 
 **What this report is not.** It is not evidence that any of this is
 wrong. Several findings describe deliberate, ratified positions that a
@@ -81,8 +111,12 @@ where `Interval` clamps-and-decorates, and requires `sqr()` instead of
 code shows is that the certification arithmetic actually running in
 shipped builds is the second type, and the first never displaced it.
 
-**Verdict:**
-
+**Verdict:** ACCEPTED (Evan, 2026-08-18). "RingInterval probably isn't
+earning its keep. Probably it should be removed and we should only use
+the full `Interval` — but I'd want to double check that there's no hidden
+cost." Steelman pass commissioned: what would deleting `RingInterval`
+actually cost (feature-gating, build graph, the poison-vs-clamp semantic
+difference at the ~600 call sites)?
 ## S2. `T: Real` genericity costs friction everywhere and monomorphizes at one-and-a-half types
 
 - **Where**: `crates/editor-core/src/eval/mod.rs:865`,
@@ -103,8 +137,12 @@ times" (it does not). It does not address whether the abstraction earns
 its signature-level friction, which is the more interesting question and
 the one this finding raises.
 
-**Verdict:**
-
+**Verdict:** ACCEPTED IN PART (Evan, 2026-08-18). The `Interval` half is
+moot — "interval is a live feature and per S1 may be in all builds soon."
+**`Dual` is the live question**: "we need to investigate what's up with
+Dual." Steelman pass commissioned on that specifically: is `Dual` planned
+work with a scheduled consumer, or was it superseded by analytic
+derivatives?
 ## S3. The "lane trait" — one cargo-culted pattern, four instances, three spellings of the same answer
 
 - **Where**: `crates/topo/src/props.rs:360`,
@@ -135,8 +173,10 @@ because they are "the same split, over the same four scalars, for the
 same reason" — which is the observation that they are one concept,
 offered as the reason to keep them as four.
 
-**Verdict:**
-
+**Verdict:** ACCEPTED (Evan, 2026-08-18). "This is a great candidate to be
+collapsed." Steelman pass commissioned to find what actually blocks the
+collapse — coherence across the `topo`/`geom-brep` crate boundary, the CI
+`Bounds` gate, or nothing.
 ## S4. One vocabulary, N hand-synced copies — the dominant repo-wide shape
 
 - **Confidence**: sure
@@ -174,8 +214,12 @@ crates take no serde dependency). The `#[serde(with)]` module written
 for the second demonstrates the first was never necessary
 (`node.rs:43`, `node.rs:1120`).
 
-**Verdict:**
-
+**Verdict:** ACCEPTED (Evan, 2026-08-18). "Oh boy, good findings — these
+look like they'll be a lot of work to fix but definitely worth it."
+Steelman pass commissioned for the constraint map: how much of the
+duplication the G1 no-serde-in-kernel rule actually forces, given that
+the `ContactClass` `#[serde(with)]` remote derive shows the mirror was
+avoidable at least once. Includes verifying the two observed drifts.
 ## S5. `splitting/` and `boolean/` are one pipeline built twice, with the shared core hosted inside one half
 
 - **Where**: `crates/topo/src/splitting/join.rs:478`,
@@ -217,8 +261,12 @@ has to be done twice.
 mid-edge split, a genuinely different job — only the name collides with
 `splitting::split`. That name collision is S45.)
 
-**Verdict:**
-
+**Verdict:** ACCEPTED (Evan, 2026-08-18), together with S6 and S7 — "also
+great findings!" Steelman pass commissioned: history of the backwards
+dependency, whether unification is already scheduled (M9 = the C7 join
+lane), and above all whether the forked `bool_sector_*`/`split_sector_*`
+predicates are dimensionally identical — if so they split one K
+population for nothing.
 ## S6. The four sweep verbs share no core; extrude's pipeline is hand-copied four times
 
 - **Where**: `crates/sweep/src/revolve/mod.rs:511`,
@@ -246,8 +294,11 @@ sweeps have since landed, `loft.rs` imports extrude's copy while
 `loft::assemble` carries a vestigial `let _ = k;` (`loft.rs:280`), which
 reads as mechanical transcription rather than derivation.
 
-**Verdict:**
-
+**Verdict:** ACCEPTED (Evan, 2026-08-18), together with S5 and S7. Steelman
+pass commissioned: confirm the unification trigger named at
+`revolve/mod.rs:507` ("a third sweep or a shared lowering layer") has in
+fact fired, and check whether the four lamina-plus-holes copies are
+genuinely the same Euler-operator sequence.
 ## S7. Two complete fillet assembly implementations, and the older one shadows the newer
 
 - **Where**: `crates/sweep/src/fillet/build.rs:205`,
@@ -273,8 +324,25 @@ strings is unreachable, because the caller discards the error to fall
 through — which also makes the `Err(other) => Err(other)` arm at
 `build.rs:213` dead.
 
-**Verdict:**
+**Verdict:** ACCEPTED (Evan, 2026-08-18), together with S5 and S6 — with a
+pointed note on the *justification*: "yikes, trying to keep outputs
+bit-preserved is such a cause of issues; I think I have a note to never
+use it as a justification in a memory now, so hopefully this predates
+that memory."
 
+Checked: **no such memory exists yet.** The closest is
+`memories/demo-purpose.md` (2026-08-09) — "byte-identity soft for
+improvements, kept for mechanical migrations" — which is the right
+principle but scoped to demos. `git blame` puts `build.rs:26` at
+2026-08-11, i.e. two days *after* that ruling, but the blame result is a
+`^`-prefixed traversal boundary so the real authoring commit may be
+earlier; the steelman pass is dating it precisely.
+
+Two follow-ups arising: (a) is anything actually pinning those M5 bytes,
+or is the justification defending nothing? (b) worth generalising the
+demo-scoped byte-identity note into a repo-wide rule, distinguishing
+load-bearing determinism contracts (D2/D9) from defensive
+golden-churn-avoidance.
 ## S8. The fitted (rung-3) pcurve lane has no producer anywhere in `src`
 
 - **Where**: `crates/geom-brep/src/pcurve_cache.rs:1379`,
@@ -296,8 +364,12 @@ It is not free: the `Arc<NurbsCurve2>` payload costs `Pcurve` and
 documented as "the general rung" and "LIVE since M6-2", which reads as
 shipped rather than as speculative.
 
-**Verdict:**
-
+**Verdict:** ACCEPTED, SORT REQUIRED (Evan, 2026-08-18). On this whole
+cluster: "a lot of these are to support planned work, so that'll need to
+be sorted out from the ones that are superseded." Steelman pass
+commissioned to make exactly that determination, and to price the
+concrete cost — `Arc<NurbsCurve2>` is what denies `Pcurve`/`PcurveCache`
+their `Copy` for every other variant.
 ## S9. The trim-containment limb is vacuous on both production paths
 
 - **Where**: `crates/topo/src/pcurves.rs:1028`,
@@ -320,8 +392,10 @@ public `ChartWindow` type, a `chart_box` arm per `Pcurve` variant, three
 lever-arm helpers (`azimuth_lever`/`chart_arms`/`chart_arms_at`) and a
 `TrimEscape` refusal.
 
-**Verdict:**
-
+**Verdict:** ACCEPTED, SORT REQUIRED (Evan, 2026-08-18) — see S8. Specific
+question for the steelman: was the trim-containment check designed
+against an *attach path* that was planned and never built? If so this is
+a planned-work row, not a superseded one.
 ## S10. The schema migration mechanism is dead, and fourteen versions are ceremony around it
 
 - **Where**: `crates/editor-core/src/persist/mod.rs:602`,
@@ -346,8 +420,11 @@ byte-identical below the header line (as are v1–v3), so five "clean
 breaks" are pinned by the same document with a different number on top,
 each with its own test file.
 
-**Verdict:**
-
+**Verdict:** ACCEPTED, SORT REQUIRED (Evan, 2026-08-18) — see S8. Specific
+question: is a migration mechanism planned for when the format
+stabilises (scaffolding awaiting its first real migration), or was
+"clean break, no migration" ratified — in which case the mechanism is
+dead by decision and the fourteen-version ledger is the residue.
 ## S11. Substantial machinery shipped as live, with no producer (roll-up)
 
 - **Confidence**: sure for each row unless noted
@@ -377,8 +454,12 @@ adversarially reviewed.
 dead-code pattern M5's reviews repeatedly punished", which makes the
 size of this table the finding rather than any single row.
 
-**Verdict:**
-
+**Verdict:** ACCEPTED, SORT REQUIRED (Evan, 2026-08-18). "A lot of these
+are to support planned work, so that'll need to be sorted out from the
+ones that are superseded." Steelman pass commissioned to sort every row
+into PLANNED (naming the scheduled consumer) / SUPERSEDED /
+DELIBERATE-FRONTIER / GENUINELY DEAD, with evidence. **This table should
+not be acted on until that sort lands.**
 ## S12. Euler atomicity is enforced by convention: every write silently no-ops on a missed precondition
 
 - **Where**: `crates/topo/src/euler.rs:1940`,
@@ -400,8 +481,12 @@ an error — and in release builds, with no postcondition, silent
 corruption. The plan structs already carry pre-resolved data, so the
 type system has the material to make this a proof; it is instead prose.
 
-**Verdict:**
-
+**Verdict:** ACCEPTED (Evan, 2026-08-18), and identified as one half of a
+larger unresolved question: "the Euler atomicity thing also sounds like
+it's hitting the tension here" — the tension being S14's question of what
+the no-panic principle actually says. Steelman pass commissioned jointly
+with S14; it also asks whether the plan structs could carry
+proof-carrying resolved handles so the mutation phase cannot fail.
 ## S13. Load-bearing invariants held by CI grep, allowlists, and a magic count
 
 - **Where**: `.github/workflows/ci.yml:322`, `:420`, `:444`,
@@ -425,8 +510,12 @@ the allowlist. Each individual ruling may be right; the aggregate is a
 rule whose exceptions now exceed the rule, upheld by string matching
 rather than by construction.
 
-**Verdict:**
-
+**Verdict:** ACCEPTED (Evan, 2026-08-18) — "lots of other great catches."
+Steelman pass commissioned on one specific question: `tools/k-lint` is
+the repo's own lint crate, so the capability exists — why are these rules
+greps rather than lints or types? Some CI greps are the right tool
+(`memories/interval-square-poison.md` documents one that caught a real
+bug class); the pass is asked to say which are which.
 ## S14. `Span` validity is prose, and the guard's removal turned poison into a documented panic
 
 - **Where**: `crates/geom-core/src/spline/knots.rs:166`,
@@ -453,8 +542,22 @@ clamps `degree.max(1)` rather than refusing degree 0, justified by seven
 lines of comment, where every caller in the workspace passes the literal
 `1` (`knots.rs:495`).
 
-**Verdict:**
+**Verdict:** DISPUTED — REFRAME PROPOSED (Evan, 2026-08-18). "For `Span`,
+the crate doesn't ban all indexing operations, so this strikes me as just
+being honest? (/ maybe we need to update that principle to *'no panic on
+any reachable state, yes panic on things that can only indicate bugs'*)
+— but it'd be even better to just make it constructively valid of
+course."
 
+So the finding as written over-reaches: it treats `hull.rs:80` as a
+violation when it may be candour about a state only a kernel bug can
+reach. The steelman pass is asked to (a) quote the ratified principle
+verbatim and say whether Evan's reframe is a clarification or a change,
+(b) census how the kernel actually handles "can only be a bug" states
+today — the scan found at least four different idioms, which would be a
+bigger finding than this one, and (c) determine whether a mismatched
+`Span` is reachable by *misuse* through any public entry point, in which
+case the honesty defence does not cover it.
 ## S15. Other invariants held by prose rather than by types (roll-up)
 
 - **Confidence**: sure for each row
@@ -471,8 +574,12 @@ lines of comment, where every caller in the workspace passes the literal
 | The 16-direction ray schedule | Re-declared verbatim in a second module, deliberately not shared, with the justification "to keep the module boundaries thin" — determinism depends on byte-identity and nothing checks | `boolean/solid_contain.rs:76` vs `splitting/containment.rs:102` |
 | `flipped_face_sense_for_tests` | `pub` on `Body`, `#[doc(hidden)]`, 18-line comment explaining it produces an incoherent body. Only `_for_tests` public fn in the workspace; exists because face orientation has two encodings kept coherent by convention | `topo/src/body.rs:630` |
 
-**Verdict:**
-
+**Verdict:** ACCEPTED (Evan, 2026-08-18) — "lots of other great catches."
+Steelman pass commissioned, prioritising the three rows that are
+bug-shaped rather than stylistic: the `emit_fillet` `Retired` comment
+being false for the whole-body door, `split_edge` sharing `mev`'s Euler
+vector while never entering `seqgen`'s fuzz lane, and `topo::iso`
+ignoring carriers that have been real since M2.
 ---
 
 # Tier 2 — significant
