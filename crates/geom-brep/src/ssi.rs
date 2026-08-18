@@ -657,7 +657,7 @@ pub fn cylinder_sphere_ssi(
     let sys = ImplicitPairR3 { a, b };
     let slab = domain.slab();
 
-    // ---- seeds: the subdivision, with no tubes ----
+    // ---- seeds: the subdivision, asked for its seeding duty ----
     let seeds = exhaust::seed_r3(a, b, slab, domain.seed_floor())?;
     let seed_count = seeds.len() as u32;
 
@@ -707,7 +707,9 @@ pub fn cylinder_sphere_ssi(
         branches.push(branch);
     }
 
-    // ---- accounting: the same subdivision, now with the tubes ----
+    // ---- accounting: the same subdivision, asked for its proof duty.
+    // An empty `tubes` here means nothing was found, so nothing is
+    // proved, and the pass refuses rather than degrading to seeding. ----
     let exhaustiveness = exhaust::account_r3(a, b, slab, &tubes, domain.floor())?;
     Ok(SsiOutcome {
         branches,
