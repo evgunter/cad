@@ -476,7 +476,7 @@ const LEAF_A_DIR: (f64, f64, f64) = (-0.72, 0.52, 0.16);
 /// See [`LEAF_A_BASE`].
 const LEAF_A_UP: (f64, f64, f64) = (0.0, 0.0, 1.0);
 /// See [`LEAF_A_BASE`].
-const LEAF_A_LEN: f64 = 4.90;
+const LEAF_A_LEN: f64 = 5.10;
 /// See [`LEAF_A_BASE`]. Negative: the blade arches OVER, which is what
 /// a basal leaf lying along the ground does.
 const LEAF_A_CURL: f64 = -0.62;

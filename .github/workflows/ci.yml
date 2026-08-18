@@ -1468,18 +1468,50 @@ jobs:
 
   # M4 PR 8a spec D2 (M4-PLAN F8): rebuild-latency REPORTING. This job
   # prints a per-document table (full rebuild + incremental recompute,
-  # median of 3) and diffs it against the committed baseline
-  # crates/editor-core/tests/baseline/rebuild-latency.json. It is
-  # DELIBERATELY NOT A GATE on any timing number — instrumentation, not
-  # a contract; PERF-PLAN stays advisory. The only assertions inside are
-  # the counted-reuse ones (cone complement), which are arithmetic, not
-  # wall clock. The table lands in the job LOG (no artifact upload: the
-  # numbers are advisory and the baseline JSON is the durable record).
+  # median of 5) and diffs it against the newest entry in the timing
+  # history, docs/perf-data/rebuild-latency/. It is DELIBERATELY NOT A
+  # GATE on any timing number — instrumentation, not a contract;
+  # PERF-PLAN stays advisory. The assertions inside are the
+  # ε-independent structural ones (counted reuse, and the corpus
+  # manifest's nodes/cone pins), which are arithmetic, not wall clock.
+  #
+  # THIS JOB IS THE CANONICAL PRODUCER of those numbers (2026-08-17).
+  # It used to be a developer workstation, via a CAD_LATENCY_BASELINE_
+  # REFRESH env var and a hand-committed baseline, and that arrangement
+  # disqualified itself: three refreshes disagreed by 90-98% on every
+  # row with contention ruled out, so docs/PERF-SCAN-2026-08.md §0 had
+  # to label every absolute-millisecond claim in the repo provisional.
+  # A runner is not a quiet box, but it is a REPRODUCIBLE box class,
+  # which is the property the workstation numbers lacked — and every
+  # entry now records its own environment block, so two entries that
+  # disagree can be compared rather than argued about. Same ruling
+  # render.yml carries for renders (#338: hosted is canonical).
+  #
+  # TWO OUTPUTS, DIFFERENT AUDIENCES:
+  #   * an ARTIFACT on every run (including PRs) — the numbers for the
+  #     change in front of you, downloadable without waiting for a
+  #     merge;
+  #   * a COMMITTED history entry on pushes to main ONLY — the durable
+  #     trend. Artifacts expire at 90 days; a question like "when did
+  #     die_composed get slower" outlives that, and the git history is
+  #     the only place in this repo that answers it.
+  #
+  # WHY MAIN ONLY. On a PR branch the entry would be that PR's own
+  # measurement, so the PR's `vs base` column would diff against
+  # itself and report nothing — the reporting row would structurally
+  # stop reporting. Writing only on main keeps every PR's diff honest
+  # (vs main's last hosted measurement) at the cost of nothing.
   rebuild-latency:
     name: rebuild latency (reporting)
     runs-on: ubuntu-latest
     needs: filter
     if: needs.filter.outputs.run_editor_core == 'true'
+    permissions:
+      # Only for the history commit below, and only on main. Every
+      # other job in this workflow runs on the default read-only token;
+      # this is the one that writes, so it says so here rather than
+      # widening the whole workflow.
+      contents: write
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -1496,13 +1528,93 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       # `--ignored`: the test is `#[ignore]`d so the ε matrix stops
-      # paying for it 5× (it is reporting, and its two assertions are a
-      # strict subset of the corpus row's — see the rustdoc on
-      # `rebuild_latency_table`). THIS job is the one that runs it, so
-      # the flag is what keeps the table alive. Same idiom as
-      # scripts/k_probe_sweep.sh.
+      # paying for it 5× (it is reporting, and its green-document and
+      # counted-reuse assertions are a strict subset of the corpus
+      # row's — see the rustdoc on `rebuild_latency_table`). THIS job is
+      # the one that runs it, so the flag is what keeps the table alive.
+      # Same idiom as scripts/k_probe_sweep.sh.
+      #
+      # CAD_LATENCY_EMIT writes the measurement OUTSIDE the working
+      # tree, into RUNNER_TEMP. The test only ever writes the file it
+      # is told to; naming it and deciding whether it joins the history
+      # is this workflow's call, never the test's — so a local run with
+      # the var set cannot touch a committed path.
       - name: per-document full-rebuild + incremental-recompute table
         run: "cargo test -p editor-core --test all -- --ignored --nocapture m4_pr8_latency::"
+        env:
+          CAD_LATENCY_EMIT: ${{ runner.temp }}/rebuild-latency.json
+          CAD_LATENCY_COMMIT: ${{ github.sha }}
+          CAD_LATENCY_RUNNER: ${{ runner.os }}/${{ runner.arch }} ubuntu-latest
+      # Every run, PRs included. `if: always()` because the measurement
+      # is emitted BEFORE the structural assertions run: when a pin
+      # fails, this artifact is exactly what the next reader wants.
+      - name: upload measurement (artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rebuild-latency-${{ github.sha }}
+          path: ${{ runner.temp }}/rebuild-latency.json
+          if-no-files-found: warn
+      # THE AUTO-COMMIT. Main pushes only; see the header.
+      #
+      # NO RECURSION, TWO WAYS. Pushes made with the default
+      # GITHUB_TOKEN do not trigger workflow runs — that is GitHub's
+      # built-in guard and is what actually stops the loop here — and
+      # the commit subject carries [skip ci] as belt-and-braces in case
+      # this ever moves to a different token.
+      #
+      # DELIBERATELY NOT ADDED TO ci-filter.py's `_is_docs`. That
+      # allowlist is for paths hosted CI CANNOT read — the claim is
+      # proven by the prune step that deletes them — and CI does read
+      # this one (m4_pr8_latency.rs takes its `vs base` from the newest
+      # entry). So a hand-committed history file classifies TIER=all,
+      # which is the allowlist failing closed exactly as designed. The
+      # auto-commit below never reaches the filter at all, per the
+      # recursion note above.
+      #
+      # APPEND-ONLY, SO THE RACE IS NOT A CONFLICT. The filename
+      # carries this run's commit sha, so no two runs write the same
+      # path and no merge is ever needed. If main moved while we were
+      # measuring, the push is rejected; the retry re-syncs to the new
+      # main and re-lands the SAME new file on top. That re-commits an
+      # unpushed local commit — it never rewrites published history,
+      # which is what the repo's merge-only rule is about.
+      - name: commit measurement to the timing history (main only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          MEASUREMENT: ${{ runner.temp }}/rebuild-latency.json
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test -f "$MEASUREMENT" || { echo "no measurement emitted"; exit 1; }
+          # <epoch>-<short-sha>.json — lexicographic sort == chronological.
+          stamp="$(date -u +%s)"
+          name="${stamp}-${SHA:0:7}.json"
+          dest="docs/perf-data/rebuild-latency/${name}"
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3 4; do
+            # Re-sync to main. This also restores the local-only trees
+            # the prune step deleted, so the commit below can only ever
+            # contain the one new file.
+            # --depth=1: the checkout is shallow and this only needs
+            # main's TIP to commit onto; the server holds the ancestry,
+            # so the push is an ordinary fast-forward.
+            git fetch --depth=1 origin main
+            git reset --hard origin/main
+            mkdir -p docs/perf-data/rebuild-latency
+            cp "$MEASUREMENT" "$dest"
+            git add "$dest"
+            git commit -m "perf(ci): rebuild-latency measurement for ${SHA:0:7} [skip ci]"
+            if git push origin HEAD:main; then
+              echo "committed ${dest}"
+              exit 0
+            fi
+            echo "push rejected (main moved); retry ${attempt}"
+            sleep $((attempt * 4))
+          done
+          echo "could not land the measurement after 4 attempts" >&2
+          exit 1
 
   # M4 PR 8a spec D1: the Band 4 corpus as a NAMED row (it also runs
   # inside the workspace rows; naming it keeps the milestone's
@@ -1579,47 +1691,6 @@ jobs:
       - name: prune local-only tooling (hosted CI may not depend on it)
         run: rm -rf local-scripts .claude
 
-      # THE TOUR'S OUTPUT, ON RENDER.YML'S KEY. `uv sheet drift` below
-      # is the only RELEASE build of demos/tour in this job — the
-      # k-probe sweep is a debug run, a different artifact set — and it
-      # exists solely to regenerate demos/out for the sheet. Measured at
-      # 107 s on run 31511197721, nearly all compile. render.yml's tour
-      # job caches exactly this directory on exactly this key, so the
-      # two share one entry.
-      #
-      # IT DOES NOT WEAKEN THE DRIFT GATE. The key hashes every source
-      # the tour reads, so a hit means the tour cannot have produced
-      # different bytes; a tour that CHANGED misses and rebuilds, which
-      # is the only case that row exists to catch.
-      #
-      # IT MUST RUN BEFORE ANY CARGO STEP, and that is not a style
-      # preference. `hashFiles` globs the WORKING TREE, so once
-      # `demos tour fmt + clippy` has run, `demos/tour/**` matches
-      # everything under `demos/tour/target/` too and the key stops
-      # describing the sources at all. Placed after clippy it computed a
-      # different hash than render.yml's tour job did for the same
-      # commit, in the same run — a permanent miss that still looked
-      # like a working cache. Keep it directly under the checkout.
-      #
-      # KEEP THE KEY IDENTICAL to render.yml's `tour output cache` —
-      # the `v1` is the handle for busting both at once. Divergence
-      # costs a miss, never a wrong hit.
-      #
-      # HOW OFTEN IT ACTUALLY HITS, measured rather than hoped: less
-      # than "every run". A PR builds against the MERGE commit, so its
-      # key moves whenever main's kernel moves — which on this repo is
-      # often — and a cache written during a PR is scoped to that PR's
-      # merge ref, invisible to every other branch. What reliably hits
-      # is a repeat push to one PR with the kernel untouched, and main's
-      # own successive runs. The step costs nothing on a miss, so this
-      # is upside without a downside, but it is not a flat -100 s.
-      - name: tour output cache
-        id: tour-cache
-        uses: actions/cache@v4
-        with:
-          path: demos/out
-          key: tour-out-v1-${{ hashFiles('crates/**', 'demos/tour/**', 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml') }}
-
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -1679,60 +1750,37 @@ jobs:
         run: |
           cargo clippy -p mesh --all-targets --features probe-stats -- -D warnings
           cargo test -p mesh --features probe-stats
-      # Drift gate for the committed UV sheet. The two PNG lanes cannot
-      # be gated — they need FreeCAD, which this job does not have — so
-      # this is the ONLY render lane CI can actually reproduce, and an
-      # ungated committed artifact rots silently. Regenerate and diff:
-      # the tour is ~3s once built (this job already builds it for the
-      # k-probe sweep below) and the sheet is text, so the diff is
-      # readable when it fires. A failure here is either a real change
-      # the author forgot to commit, or a D9 determinism finding — both
-      # worth stopping for. Mirror: ci-local's "uv sheet drift (demos)".
+      # THE UV SHEET DRIFT GATE WAS RETIRED HERE (2026-08-17). It
+      # regenerated the sheet and failed on `git diff --exit-code`; that
+      # obligation now belongs to render.yml's `uv` lane, which
+      # RE-BASELINES instead — it commits the regenerated sheet and
+      # marks the run neutral. Both rows fired on the same condition
+      # (`run_k_lint`) and both read the SAME cached tour output (they
+      # shared a cache key by construction), so this was a duplicate
+      # signal, not an independent one — and keeping it would have made
+      # every intended sheet change report red here and neutral there.
+      # One gate per obligation, as before; the obligation moved.
       #
-      # The render entry points refuse to run without the explicit
-      # `CAD_RENDER_LOCAL_OVERRIDE` sentence (demos/hosted-render-guard.sh)
-      # and deliberately do NOT sniff for CI: the exemption is written
-      # here, at the step that renders, where a reviewer sees it. This
-      # row is a sanctioned automated render — renderer-free, and the
-      # `git diff --exit-code` below is what makes drift a failure rather
-      # than a commit.
-      # THE TOUR'S OUTPUT, ON RENDER.YML'S KEY. The `cargo run --release`
-      # below is the only RELEASE build of demos/tour in this job — the
-      # k-probe sweep further down is a debug run, a different artifact
-      # set — and it exists solely to regenerate demos/out for the
-      # sheet. Measured at 107 s on run 31511197721, nearly all of it
-      # compile. render.yml's tour job caches exactly this directory on
-      # exactly this key, so the two share one entry.
+      # The LOCAL mirror in local-scripts/ci-local.sh stays: a developer
+      # box cannot re-baseline itself, so a failing check is still the
+      # right shape there.
       #
-      # IT DOES NOT WEAKEN THE DRIFT GATE. The key hashes every source
-      # the tour reads, so a hit means the tour cannot have produced
-      # different bytes than the cached ones; a tour that CHANGED misses
-      # and rebuilds, which is the only case this row exists to catch.
-      #
-      - name: uv sheet drift (demos)
-        env:
-          CAD_RENDER_LOCAL_OVERRIDE: i-accept-local-render-drift
-          TOUR_CACHED: ${{ steps.tour-cache.outputs.cache-hit }}
-        run: |
-          if [ "$TOUR_CACHED" = "true" ]; then
-            echo "demos/out restored from cache — the tour's sources are unchanged, so its output is too"
-          else
-            (cd demos/tour && cargo run --release -- ../out)
-          fi
-          demos/render-uv.sh
-          git diff --exit-code --stat HEAD -- demos/renders-uv/ || {
-            echo "::error::demos/renders-uv/montage-uv.svg is stale — \
-          re-run demos/tour then demos/render-uv.sh and commit the result"
-            exit 1
-          }
+      # `tour output cache` went with it. That step existed solely to
+      # feed demos/out to this gate — the tess-budget and k-probe sweeps
+      # below build the tour themselves and write their own outputs, and
+      # neither reads demos/out. render.yml keeps its own copy of the
+      # cache on the same key, so the entry stays warm.
+
       # The tessellation-budget gate (issue #320). It rides THIS job
       # because this job is the one that builds demos/tour, and the
       # sweep IS the tour walking its own scenes (~4 s in release).
       #
-      # COST, stated: on a `tour-cache` HIT the uv-drift step above
-      # skips its release build, and this step then pays it instead —
-      # the tour binary, not its dependencies, so tens of seconds
-      # against this job's own critical path, not the workflow's. It is
+      # COST, stated: this step now ALWAYS pays the tour's release
+      # build — the uv-drift step that used to pay it on a cache miss
+      # is retired (note above), so there is no longer a path where
+      # someone else has already built it. That is the tour binary, not
+      # its dependencies: tens of seconds against this job's own
+      # critical path, not the workflow's. It is
       # deliberately not a debug run (the k-probe sweep's profile):
       # debug tessellates the same scenes 5-10x slower, which spends
       # more wall clock than the build it would avoid. The `--features
@@ -1777,13 +1825,15 @@ jobs:
             ../../target/k-fresh/k-eps-1e-12.csv
 
   # THE RENDER GATE. The committed montages are build products of the
-  # kernel that nothing checked: `k-lint` above gates the UV sheet
-  # because it is the only lane a FreeCAD-less runner can reproduce, and
-  # the other three rotted silently between hand-run refreshes. They are
-  # gateable now — hosted is their canonical producer (#338) and a repeat
-  # hosted render is byte-identical — so this calls render.yml rather
-  # than restating how a lane renders: ONE definition, gated here and
-  # dispatched on demand there.
+  # kernel that nothing checked: for a while `k-lint` gated the UV sheet
+  # alone, because it was the only lane a FreeCAD-less runner could
+  # reproduce, and the other three rotted silently between hand-run
+  # refreshes. All four are checkable now — hosted is their canonical
+  # producer (#338) and a repeat hosted render is byte-identical — so
+  # this calls render.yml rather than restating how a lane renders: ONE
+  # definition, checked here and dispatched on demand there. (That
+  # k-lint row was retired 2026-08-17 when the uv lane started
+  # re-baselining itself; see the note where it stood.)
   #
   # It is free in wall clock. The lanes finish in ~150 s against this
   # workflow's ~460 s critical path (the test shards), so they cost
@@ -1791,9 +1841,19 @@ jobs:
   # `k-lint` uses — a render depends on the whole kernel, so "whenever
   # anything builds at all" is the right trigger for it too.
   #
-  # A FAILING ROW HANDS OVER ITS OWN FIX: each lane uploads its render
-  # to THIS run and names the command that installs it, so a stale lane
-  # costs a download and a commit, never a second render.
+  # A DRIFTING LANE FIXES ITSELF (2026-08-17): each lane commits its
+  # re-rendered cells straight back to this PR's branch and marks the
+  # run NEUTRAL — "!", not "x" — so accepting an intended render change
+  # is `git pull` and a glance at the images, not a download-install-
+  # commit-rerun cycle. See render.yml's header and
+  # .github/actions/rebaseline-lane for why neutral rather than red.
+  #
+  # `push_to` is the BRANCH, while the render itself runs on
+  # `github.ref` — the PR's MERGE commit on a pull_request, main's tip
+  # on a push. Rendering the merge preview and committing to the head
+  # branch is self-consistent because this gate always compares against
+  # that same merge preview, and main's own push run re-renders and
+  # re-baselines again after the merge if the two ever part.
   #
   # Scene concurrency is left to render.yml's own default (2, the
   # runner's core count) rather than restated here: this job renders the
@@ -1804,6 +1864,26 @@ jobs:
     needs: filter
     if: needs.filter.outputs.run_k_lint == 'true'
     uses: ./.github/workflows/render.yml
+    # A reusable workflow gets the CALLER's token scope, and this
+    # workflow declares none at the top level — so the lanes' own
+    # `permissions:` blocks cannot grant what this job never had.
+    permissions:
+      contents: write
+      checks: write
     with:
       gate: true
       lanes: all
+      # PUSH_TO ONLY ON MAIN (2026-08-18). A bot commit onto a PR branch
+      # becomes the PR's head, and a GITHUB_TOKEN push triggers no run
+      # of its own — so the PR would show one neutral check and nothing
+      # else, every green check stranded on the parent commit. Measured
+      # on this workflow's own PR (#598): 30 green jobs on 048edc9, and
+      # a head commit carrying a single check. The recursion guard and
+      # that blank slate are the same fact, so PRs REPORT and main
+      # COMMITS — the same rule the rebuild-latency history follows,
+      # and now one rule rather than two answers to one question.
+      push_to: ${{ github.event_name == 'push' && github.ref_name || '' }}
+      # The sha the report-only drift check is posted against. On a
+      # pull_request `github.sha` is the merge commit and a check there
+      # never appears on the PR, so name the PR's head explicitly.
+      report_sha: ${{ github.event.pull_request.head.sha || github.sha }}

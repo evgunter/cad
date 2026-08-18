@@ -27,23 +27,41 @@ this box's GL stack, **will** differ byte-wise, and must never be
 committed; the guard below and `check_render_provenance.py` enforce the
 commit side.
 
-**Usually you do not need to render at all — CI already did.** Every CI
-run on a pushed branch renders all four lanes and gates them (ci.yml's
-`renders` job calls `render.yml`), so the frames for your tree already
-exist as artifacts on that run. Take them:
+**You do not need to render at all — CI does it and commits the result.**
+Every CI run on a pushed branch renders all four lanes (ci.yml's
+`renders` job calls `render.yml`), and a lane that no longer matches
+what the code renders is **re-baselined for you**: CI commits the new
+cells straight to your branch and posts a check run whose conclusion is
+`neutral` — GitHub's "!" rather than its "x" — asking you to look at the
+images. So re-rendering is:
 
 ```sh
-local-scripts/render-hosted.sh                        # install what CI rendered
-local-scripts/render-hosted.sh --lane uv              # one lane of it
+git push        # CI renders; a lane that differs posts a neutral ("!")
+                #   drift check naming the cells
+# merge the PR  # main's own run commits the new cells
+git pull        # on main, the frames are there
 ```
 
-That is the default: it resolves your branch's newest CI run, downloads
-each lane's artifact, and installs it at its committed path, where you
-review and commit it the ordinary way. It works on a **failed** CI run
-too — a stale committed lane is exactly what makes the gate fail, and
-that run's artifact is what makes it current. The failing row prints the
-exact command, pinned to its own run:
-`local-scripts/render-hosted.sh --run <id> --lane <lane>`.
+**If the render is what you intended, the drift check is a pass.** It
+needs no re-run and no second commit. Re-run only if something *else* in
+the run failed.
+
+**PRs report; `main` commits.** A bot commit onto a PR branch becomes the
+PR's head, and a `GITHUB_TOKEN` push triggers no run of its own — so the
+PR would show that one check and nothing else, with every green check
+stranded on the parent commit. The recursion guard and that blank slate
+are the same fact, so the commit happens on `main` instead. It is the
+same rule the rebuild-latency history follows. To see the cells before
+merging, take the run's artifact with `local-scripts/render-hosted.sh`.
+
+A re-baseline has two causes and they want different reactions — the
+geometry changed (these cells are the new truth; check they look like
+what you meant), or the runner image's mesa bumped and re-rasterised
+them (roughly monthly; the pixels moved and the geometry did not).
+
+What still **fails** loudly: a wedged pass, and the matplotlib-fallback
+assertion. The re-baseline is only reached when the render itself
+succeeded, so a wedge is reported as a wedge and never as drift.
 
 **Render on demand only when CI has not covered it** — an unpushed
 branch, no CI run yet, or a deliberate re-render at a different scene
@@ -51,9 +69,14 @@ budget. Dispatching when CI has already rendered the same tree renders
 it twice, which is why it is the flag rather than the default:
 
 ```sh
-local-scripts/render-hosted.sh --on-demand            # push check, dispatch, poll, install
+local-scripts/render-hosted.sh --on-demand            # push check, dispatch, poll
 local-scripts/render-hosted.sh --run 31402416551      # take a specific run's artifacts
 ```
+
+Those runs re-baseline too, so they also end in a `git pull`. The
+exception is a dispatch aimed at a bare SHA: there is no branch to
+commit to, so it reports the drift and names the install command
+instead.
 
 The local entry points below **refuse to run** without an explicit
 override — see [Preview mode](#preview-mode-the-local-override). They
@@ -78,7 +101,7 @@ cd ..
 CAD_RENDER_LOCAL_OVERRIDE=i-accept-local-render-drift
 ```
 
-in the environment they print a pointer at `local-scripts/render-hosted.sh`
+in the environment they print a pointer at the push-and-pull flow above
 and **exit nonzero**.
 
 The value is a sentence on purpose. `1` / `yes` / `true` are what
@@ -756,28 +779,62 @@ above), a wedge leaves the committed lane directory exactly as it was.
 and hands each one back as a run artifact. It has **two entry points
 over one pipeline**:
 
-* **as CI's render gate** (`workflow_call`) — ci.yml's `renders` job
-  calls it on every push that builds anything, renders all four lanes,
-  and **fails when a committed lane no longer matches**. This is where
-  your frames normally come from: the gate already rendered your tree.
+* **as CI's render lane** (`workflow_call`) — ci.yml's `renders` job
+  calls it on every push that builds anything and renders all four
+  lanes. This is where your frames come from.
 * **on demand** (`workflow_dispatch`) — for a tree CI has not seen, or a
   re-render at a different scene budget.
 
-`local-scripts/render-hosted.sh` is the front end for both, and the thing to
-use:
+#### The default way to re-render: let CI do it
+
+A lane that no longer matches what the code renders is **re-baselined
+for you** — you never hand-commit cells. On a PR the run posts a check
+whose conclusion is `neutral` (GitHub's "!" rather than its "x") naming
+the cells that differ; on `main`, the run commits them.
 
 ```sh
-local-scripts/render-hosted.sh                        # install what CI already rendered
-local-scripts/render-hosted.sh --on-demand            # push check, dispatch, poll, install
-local-scripts/render-hosted.sh --lane wild --verify   # + prove the pull is byte-exact
+git push        # CI renders; differing lanes post a neutral drift check
+# merge the PR  # main's own run commits the new cells
+git pull        # on main, the frames are there
+```
+
+**If the render is what you intended, the drift check is a pass**: no
+re-run, no second commit. Re-run only if something *else* failed.
+
+**Why PRs report rather than commit.** A bot commit onto a PR branch
+becomes the PR's head, and a `GITHUB_TOKEN` push triggers no run of its
+own — so the PR would show that single check with every green check
+stranded on the parent commit. The recursion guard and that blank slate
+are the same fact. Same rule as the rebuild-latency history: PRs report,
+`main` writes.
+
+Two things cause a re-baseline and they want different reactions: the
+geometry changed (these cells are the new truth — check they look like
+what you meant), or the runner image's mesa bumped and re-rasterised
+them (roughly monthly; the pixels moved and the geometry did not).
+
+What still **fails** loudly, unchanged: a wedged pass, and the
+matplotlib-fallback assertion. The re-baseline is only reached when the
+render itself succeeded, so a wedge is reported as a wedge, never as
+drift.
+
+#### When you still need `render-hosted.sh`
+
+```sh
+local-scripts/render-hosted.sh --on-demand            # a tree CI has not rendered
+local-scripts/render-hosted.sh --lane wild --verify   # prove the artifact path is byte-exact
 local-scripts/render-hosted.sh --run <id>             # take a specific run, no re-render
 local-scripts/render-hosted.sh --lane uv --no-install # leave the artifact in a temp dir
 ```
 
-Taking is the default and rendering is the flag, because dispatching
-when CI has already rendered the same tree renders it twice. When it
-takes a CI run it waits only on the render lanes, not on the twenty
-test shards around them.
+`--on-demand` is for what CI has not covered: an unpushed branch, no CI
+run yet, or a deliberate re-render at a different scene budget — and
+that run re-baselines too, so it also ends in a `git pull`. A dispatch
+aimed at a bare SHA has no branch to commit to; those runs report the
+drift and name the install command, the way every run used to.
+
+When it takes a CI run it waits only on the render lanes, not on the
+twenty test shards around them.
 
 It **refuses** if your local HEAD is not what `origin/<branch>` points
 at — the runner checks out the pushed tree and cannot see local commits,
