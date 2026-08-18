@@ -1135,3 +1135,28 @@ report: 6 deviations ALL reported (D1 structural — the tour's
 direct profile dependency for lily's #433-gap loop — goes to the
 reviewer as an adjudication claim). Row at merge.
 | SEAL | 2026-08-17 | ProfileLoop/ProfileVertex fields PRIVATE + ValidatedLoop-shape accessors; RawLoop::with_tangent_joints + ProfileVertex::new doors; ~460-site mechanical literal migration (sweep/mesh/stl/step-export/step-import tests, 2 production scalar-lifts, k-lint litmus); E0451 compile_fail pin; serde cannot-mint proof (scan row + wire.rs argument); façade guard grows the literal pattern (whitespace-stripped per NOTE-1); lily = the one non-kernel consumer, direct profile dep with the #433 gap stated (D1) | S-M / STRUCTURAL (pre-draw logged) | OPUS (block LIB-11 slot 1) | single (ordinal 55, frozen 5aaef93f, v4) — **NOT-MERGEABLE-AS-IS 2/2/3 → delta re-review APPROVE** (both MAJORs = feature-lane compile breaks NO CI lane builds: pncad-py python lane via ClosedLoop.loop_ indirect field reach; profile probe lane ×6 — reviewer found them by compiling the gated lanes; mutation-proved the E0451 pin, a one-ulp fixture perturbation → 3 pinned rows RED, planted serde derive → scan row RED, planted façade literal → guard RED; D1 adjudicated CORRECT and honest — the presented surface genuinely has no spelling for lily's loop; MINORs = body figures not reconciling (457/6/25 measured vs 429/8/18 claimed) + missing executed bit-identity statement) | 2 silent at the frozen head (both MAJORs; D7 fix landed post-freeze pre-verdict), rest reported incl. D1 | 3 | 3 | 4 | IMPLEMENTER-INHERITED (D8 probe migration + 13-file gated-lane sibling sweep all compiling; figures corrected to measured with commands stated; executed bit-identity added; NOTE-1 adopted in 4 lines, falsified red/green at delta) | MERGED #596 35/35 at ba41c340 (merge badbfb1b); THE FUNNEL IS COMPILER-ENFORCED at every crate boundary — #431's struct-literal question SETTLED; #433's gap now visible in the dependency graph; #601 filed (the feature-lane CI rot class, both MAJORs' shared mechanism) | impl ~242k-cum (one 529 kill + two resumes absorbed) / review ~162k + delta re-review | impl ~6.5h fragmented, slot-contended / review ~8h slot-contended + delta |
+LIB-PYPU review ordinal fixed at dispatch (2026-08-17, PR #604
+open, frozen head 826f8431): claimed through 55 (SEAL) + 1 =
+**56 → SINGLE** (57 is the next third — cross-model per #572).
+Reviewer fable, v4 ladder. Pre-draw fields logged at spec time:
+M / STRUCTURAL (docs/LIB-PYPU-SPEC.md; arm = block LIB-11 slot
+2). Implementer report: 9 deviations ALL reported (headline: the
+Frame origin-vs-translation naming, the U4b trio ADOPTED with
+FrameError plumbing, the audit re-diagnosis flips NO rows — the
+YES* marks depended on the fusion half G8 still names). Row at
+merge.
+LIB-ONARC review ordinal fixed at dispatch (2026-08-18, PR #608
+open, frozen head cafd622f): claimed through 56 (PYPU) + 1 =
+**57 → a third → DUAL, CROSS-MODEL per #572** (R1 fable + R2
+opus, concurrent same-head). Pre-draw fields logged at spec time:
+M / STRUCTURAL (docs/LIB-ONARC-SPEC.md; arm = block LIB-11 slot
+3, the fable slot). Implementer report: 6 deviations ALL
+reported; headline = the ENCLOSING-TANGENCY class is unreachable
+at the lattice door (analytic + executed; shim-only historically
+— disposed as boundary pins + a named design question, NOT a
+delegation wall since no shipped spelling is lost); the §1.1
+probe pinned the mismatched-r hole as late-validate
+TangencyContradicted, sound-by-construction after; a SECOND
+latent defect found (the old Zero-fit gapped-chain shape). Row at
+merge.
+| PYPU | 2026-08-18 | PlacedUnion's Python/audit slice: Frame + PatternKind value classes (U4b trio ADOPTED — mirror_across_plane is the only Python route to improper_placement; FrameError exception added for it), the two-door placed_union/placed_union_at split mirroring node.rs:958, DocEdit.bind_count_param (the §1.4 narrowing — fence holds by CONSTRUCTION, both free parameters pinned), the param-driven Python heatsink scene, audit G8 re-diagnosed honestly (NO rows flip — the YES* marks depended on the fusion half; G8 retitled to the multi-solid-operand residual), suite 140→160 | M / STRUCTURAL (pre-draw logged) | OPUS (block LIB-11 slot 2) | single (ordinal 56, frozen 826f8431, v4) — **APPROVE 0/2/3, rubric 5/5/5** (all five refusal tags executed from Python; the dyadic heatsink oracle re-derived independently at fins=5/7/9; Frame __eq__ one-ulp mutation-proven; point_at pinned against the U4B convention; tally arithmetic verified; MINORs = an unpinned refusal tag + a depth assertion asserting count-not-depth) | 1 NOTE-level silent (Frame.determinant/__repr__ unreported), 9 deviations reported | 5 | 5 | 5 | light, IMPLEMENTER-INHERITED (tag pinned; depth asserted through the selector's role-path shape; surface disclosed) + an EN-ROUTE CI FIX post-freeze, orchestrator meta-reviewed: interval-only-selection.py gains the scoped-no-op arm — legitimacy proved from SOURCE (no cfg naming the feature in scope ⇒ none(), exit 0; every catastrophe shape stays exit 1), the aed84dc7 lineage's second wall, first pncad-py-only closure since the selection landed; the implementer FALSIFIED the orchestrator's handed-down both-lists-empty diagnosis and implemented the correct arm, disclosed | MERGED #604 35/35 at 3dd5efeb (merge 8d404bd7); THE GROUP BOOLEAN CROSSES TO PYTHON — G8 narrowed to the kernel multi-solid-operand gap + the memo-observability door; die_tool re-authoring banked | impl ~240k-cum / review ~95k / fix+CI-fix in-impl-cum | impl ~2.4h + fix segments / review ~0.9h |

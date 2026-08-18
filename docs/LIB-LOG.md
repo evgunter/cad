@@ -882,3 +882,38 @@ tests) and D1's honest boundary (the tour names `profile`
 directly for lily's #433-gap loop — the gap now lives in the
 dependency graph, not an invisible literal). ONARC dispatches
 now on LIB-11 slot 3 = FABLE (lane lib-onarc, pre-staged).
+
+**PYPU DELIVERED (2026-08-17, PR #604, suite 140→160; review
+ordinal 56 dispatched).** Register fold (the implementer's
+deviation-9 flag, orchestrator-applied): category B's G8 text is
+NARROWED — replication (Node.placed_union/placed_union_at,
+Frame/PatternKind values, U4b trio) and the structural-param
+count edit (DocEdit.bind_count_param) are CLOSED from Python;
+G8's residual = the kernel's multi-solid boolean operand
+(combine's single-solid contract, JoinDesync) + the
+memo-observability door (evaluate takes no prior — the banked
+third claim). Audit marks unchanged at 25+3+6 by measurement,
+not omission. die_tool's Python re-authoring = a banked
+candidate behind the Revolve/datum half.
+
+**ONARC DELIVERED (2026-08-18, PR #608; ordinal-57 cross-model
+dual dispatched).** Orchestrator disposition of the implementer's
+deviation 1: the enclosing-tangency (ρ<0) sub-class is
+UNREACHABLE through the §2c door — the other crossing always
+carries a strictly-nearer ordinary candidate the gates cannot
+exclude; only the retired corner-authoring spelling ever reached
+it, so nothing shipped is lost and the delegation's wall clause
+is NOT tripped. Recorded as boundary pins (the door must
+refuse-or-round, never emit the class) + a NAMED low-priority
+design question for Evan: should enclosing tangency ever be
+authorable, it needs a corner-authoring-shaped verb — vocabulary,
+not a defect. #377 completes at #608's merge.
+
+**PYPU MERGED (2026-08-18, #604 35/35, merge 8d404bd7; ordinal-56
+APPROVE 5/5/5 — row in MODEL-AB-LOG).** The en-route CI fix is
+the durable part beyond the bindings: interval-only-selection.py
+now proves scoped no-ops from SOURCE (the #601-adjacent guard
+family; the implementer falsified the orchestrator's diagnosis
+and built the correct arm — recorded as the model behavior for
+handed-down-diagnosis briefs). LIB-11 slots 1-3 consumed
+(SEAL/PYPU/ONARC); slot 4 (opus) banks for RESPELL-TABLE.
