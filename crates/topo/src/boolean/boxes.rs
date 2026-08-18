@@ -387,3 +387,251 @@ fn vertex_point<T: Decide + Bounds>(
         .copied()
         .ok_or(corrupt("face/edge box: vertex point lost"))
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    //! **The superset contract, asserted against the locus itself.**
+    //!
+    //! Every row here samples the face's TRUE locus and asserts the box
+    //! contains every sample. That is the contract (module docs), and
+    //! it is the assertion that degrades correctly: a rule that drops
+    //! any part of the bulge goes red, not only the one that drops all
+    //! of it, and the spans are swept rather than chosen so no single
+    //! fixture can be the reason it passes.
+
+    use super::*;
+    use crate::euler::{FaceSurface, MefSite, MevSite};
+    use geom_brep::{EdgeCurveSpec, EdgeGeometry};
+    use geom_core::{Point3, Vec3};
+    use geom_curves::Curve3;
+    use geom_surfaces::Surface;
+
+    /// The pad every row boxes with — the sweep's own, so a row that
+    /// only passes because of a generous pad would have to say so.
+    fn pad() -> f64 {
+        sweep_pad(Band::linear().unwrap())
+    }
+
+    /// `p` is inside `b` — the containment the contract promises.
+    fn holds(b: &Aabb, p: Point3<f64>) -> bool {
+        p.x >= b.min_x
+            && p.x <= b.max_x
+            && p.y >= b.min_y
+            && p.y <= b.max_y
+            && p.z >= b.min_z
+            && p.z <= b.max_z
+    }
+
+    fn plane_z0() -> Surface<f64> {
+        Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        }
+    }
+
+    fn cyl_r(r: f64) -> Surface<f64> {
+        Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: r,
+            u_ref: Vec3::unit_x(),
+        }
+    }
+
+    /// A PLANAR face whose rim is a circular arc: the sector of radius
+    /// `r` spanning `[0, span]` in azimuth, closed by two radii. This
+    /// is the shape the plane×cylinder lane mints as a cylinder's cap,
+    /// and the shape whose locus leaves its boundary-vertex hull.
+    ///
+    /// Returns the body and the sector face.
+    fn arc_sector(r: f64, span: f64) -> (Body<f64>, FaceKey) {
+        let on = |t: f64| Point3::new(r * t.cos(), r * t.sin(), 0.0);
+        let (a, b, c) = (on(0.0), on(span), Point3::origin());
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(a).unwrap();
+        let plane = body.add_surface(plane_z0());
+        let cyl = body.add_surface(cyl_r(r));
+        let arc = EdgeCurveSpec {
+            description: EdgeGeometry::Intersection {
+                s1: plane,
+                s2: cyl,
+                witness: on(span * 0.5),
+            },
+            carrier: Curve3::Circle {
+                center: Point3::origin(),
+                axis: Vec3::unit_z(),
+                radius: r,
+                u_ref: Vec3::unit_x(),
+            },
+            param_start: 0.0,
+            param_end: span,
+        };
+        let e_ab = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                b,
+                arc,
+            )
+            .unwrap();
+        let e_bc = body
+            .mev_line(
+                MevSite::Fan {
+                    he1: e_ab.he_minus,
+                    he2: e_ab.he_minus,
+                },
+                c,
+            )
+            .unwrap();
+        let he = body
+            .find_half_edge(seed.face, e_bc.vertex, e_ab.vertex)
+            .unwrap();
+        let face = body
+            .mef(
+                MefSite::Chords {
+                    he1: he,
+                    he2: e_ab.he_plus,
+                },
+                EdgeCurveSpec::line_between(c, a),
+                FaceSurface::Shared(plane),
+            )
+            .unwrap()
+            .face;
+        (body, face)
+    }
+
+    /// **The reported defect.** A planar face's rim bulges past its
+    /// boundary VERTICES, so a vertex-hull box is not a superset and
+    /// `Bvh::overlapping` can prune a pair the exact predicates would
+    /// have accepted.
+    ///
+    /// The span is swept from a shallow arc to a reflex one, and the
+    /// radius with it: the miss grows with the sagitta, so a rule that
+    /// covers only part of the bulge fails at the larger spans while
+    /// passing the small ones. A single fixture cannot be the reason
+    /// this row is green.
+    #[test]
+    fn a_planar_faces_circular_rim_is_inside_its_box() {
+        for &r in &[0.001, 1.0, 250.0] {
+            for span_deg in [10.0_f64, 90.0, 179.0, 181.0, 300.0, 359.0] {
+                let span = span_deg.to_radians();
+                let (body, face) = arc_sector(r, span);
+                let b = face_box(&body, face, pad()).unwrap();
+                // The locus is the convex hull of its boundary and the
+                // box is convex, so sampling the boundary settles it.
+                for i in 0..=512 {
+                    let t = span * f64::from(i) / 512.0;
+                    let p = Point3::new(r * t.cos(), r * t.sin(), 0.0);
+                    assert!(
+                        holds(&b, p),
+                        "rim point at {t} rad left the box (r = {r}, span = {span_deg}°): {b:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// The same claim stated as a margin: the box must reach the arc's
+    /// extreme in the direction the vertex hull cannot see. A
+    /// half-turn sector's rim tops out at `y = r` while both its
+    /// vertices sit at `y ≤ 0`, so a vertex-hull box misses by `r` —
+    /// this row measures that gap rather than trusting a sample to
+    /// land on it.
+    #[test]
+    fn the_boxs_reach_beyond_the_vertex_hull_is_the_whole_bulge() {
+        let r = 2.0;
+        let (body, face) = arc_sector(r, core::f64::consts::PI);
+        let b = face_box(&body, face, pad()).unwrap();
+        // Both boundary vertices and the sector's centre are at y ≤ 0;
+        // the rim reaches y = r.
+        assert!(
+            b.max_y >= r,
+            "the box must reach the rim's extreme y = {r}, got {}",
+            b.max_y
+        );
+    }
+
+    /// **The NURBS half of the same defect.** A patch's interior
+    /// bulges past the hull of its boundary — here a biquadratic whose
+    /// boundary lies entirely in `z = 0` while its centre control
+    /// point lifts the surface to `z = 1/4`. The control-net hull
+    /// contains it; the boundary hull does not.
+    #[test]
+    fn a_nurbs_patchs_interior_bulge_is_inside_its_box() {
+        use geom_core::spline::KnotVector;
+        use geom_surfaces::nurbs::NurbsSurface;
+        let kv = KnotVector::unit_segment(2);
+        let p = |x: f64, y: f64, z: f64| Point3::new(x, y, z);
+        let control = vec![
+            p(0.0, 0.0, 0.0),
+            p(0.0, 0.5, 0.0),
+            p(0.0, 1.0, 0.0),
+            p(0.5, 0.0, 0.0),
+            p(0.5, 0.5, 1.0),
+            p(0.5, 1.0, 0.0),
+            p(1.0, 0.0, 0.0),
+            p(1.0, 0.5, 0.0),
+            p(1.0, 1.0, 0.0),
+        ];
+        let patch = NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 9]).unwrap();
+        let surface = Surface::Nurbs(std::sync::Arc::new(patch));
+        // The lifted interior, on the surface itself — its boundary
+        // curves all lie in `z = 0`, so no hull of the BOUNDARY can
+        // contain this point.
+        let mid = surface.eval(0.5, 0.5);
+        assert!(mid.z > 0.2, "the fixture must actually bulge, got {mid:?}");
+        assert!(
+            surface.eval(0.0, 0.5).z.abs() < 1e-15,
+            "the fixture's boundary must lie in z = 0"
+        );
+
+        let (mut body, face) = arc_sector(1.0, core::f64::consts::PI);
+        body.set_face_surface(face, FaceSurface::New(surface)).unwrap();
+        let b = face_box(&body, face, pad()).unwrap();
+        assert!(
+            holds(&b, mid),
+            "the patch's own interior point left its box: {b:?}"
+        );
+    }
+
+    /// A kind with no cheap sound box claims NOTHING: the poison box,
+    /// which overlaps everything and therefore prunes nothing. The
+    /// alternative — a hull of the boundary — would be a claim the
+    /// kernel cannot make for a cone or a torus.
+    #[test]
+    fn kinds_without_a_sound_box_are_poison_and_never_prune() {
+        let cone = Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::unit_z(),
+            half_angle: 0.5,
+            u_ref: Vec3::unit_x(),
+        };
+        let torus = Surface::Torus {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            major_radius: 2.0,
+            minor_radius: 0.5,
+            u_ref: Vec3::unit_x(),
+        };
+        for s in [cone, torus] {
+            let (mut body, face) = arc_sector(1.0, core::f64::consts::PI);
+            body.set_face_surface(face, FaceSurface::New(s)).unwrap();
+            let b = face_box(&body, face, pad()).unwrap();
+            assert!(b.min_x.is_nan(), "an unboxable kind must poison: {b:?}");
+            assert!(
+                b.overlaps(&Aabb {
+                    min_x: 1e6,
+                    min_y: 1e6,
+                    min_z: 1e6,
+                    max_x: 2e6,
+                    max_y: 2e6,
+                    max_z: 2e6,
+                }),
+                "poison must never prune"
+            );
+        }
+    }
+}
