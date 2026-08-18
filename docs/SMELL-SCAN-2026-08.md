@@ -80,6 +80,7 @@ cases. A finding is a *question worth answering*, not a defect.
 - [Tier 2 — significant](#tier-2--significant) (S16–S37)
 - [Tier 3 — real but lower stakes](#tier-3--real-but-lower-stakes) (S38–S48)
 - [§A. Where I would start](#a-where-i-would-start)
+- [§C. Process observations](#c-process-observations)
 - [§B. Negative results and coverage](#b-negative-results-and-coverage)
 
 ---
@@ -1685,6 +1686,35 @@ faults by **string-matching** on `PersistError` variants (`:432`).
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18). "Yikes, nice catches, will need to
 think about how to fix these."
+**Postmortem (2026-08-18).**
+
+- **`closure.rs` (151 lines, zero code).** `LIB-U1-SPEC` §3 commissioned an
+  *audit* and said to **"List the audited enums in the PR body"**; the
+  implementer committed the audit as a module instead, and blinded review then
+  made it *bigger* — #232's MINOR-2 added nine missed types plus a rationale
+  for each miss. **FLAGGED AND PARTLY FIXED**: the module's *claim* was
+  falsified hard (the reviewer compiled `use topo as _;` to disprove the
+  advertised "physically incapable" proof, `MODEL-AB-LOG.md:571`) and rewritten
+  into today's honest `:135` paragraph — but its *existence with no code* was
+  never mentioned in the findings, the LIB-LOG row, or the A/B row.
+  *Lesson: when a spec commissions an audit, name where its output lives, or
+  the audit becomes a source file forever.*
+- **`select.rs` (449 comment lines before one `pub use`).** Born at 177 lines
+  in LIB-U7; each later unit appended its own titled section to the same header
+  (U7 → U5 → SEL1 → SEL2 → SWITCH-E). No single diff was unreasonable; no unit
+  ever owned the file's total length. **NEVER FLAGGED** — checked every
+  touching unit's LIB-LOG and A/B row; the doc rubric never dropped for module
+  size. *Lesson: per-unit review cannot see an accumulation, because the
+  accumulation is never in a diff.*
+- **`lib.rs:36` vs `workspace.rs`.** The "no behavior of its own" claim was
+  written in LIB-U1 (#232) **when it was true**; four days later
+  `ASM-1-SPEC.md` **D-5 deliberately placed a real subsystem there**, and PR
+  #364 delivered it. Nobody re-read a crate doc written by a different program.
+  **NEVER FLAGGED** — ASM-1's dual review returned 0 MAJOR from both reviewers
+  and neither brief covered a claim made in another unit's file.
+  *Lesson: a cross-program contradiction belongs to no PR, so no per-PR review
+  protocol will catch it.*
+
 ## S21. Two concrete holes in the Python surface
 
 - **Where**: `crates/pncad-py/src/py/doc.rs:200`,
@@ -1710,6 +1740,33 @@ surfaces in Python as `LiteralError` with a `kind` tag. A user who
 catches `DimensionError` for a dimension mistake catches the wrong one.
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18) — see S20.
+**Postmortem (2026-08-18).**
+
+- **The constant `DocumentId`.** Not a view about identity — a **lane-contention
+  artifact**. `ASM-1-SPEC.md` D-7 ruled "NO new Python doors in this unit…
+  **minimizing the collision surface with the concurrent program**", so the
+  implementer needed an id with no door and picked a label-derived constant.
+  **FLAGGED AND DEFERRED — with no issue number and no milestone.** PR #364
+  disclosed it plainly; both blinded reviewers read the disclosure and filed
+  nothing. The register it was deferred into (`LIB-LOG.md:439`, the LIB
+  residual register) **had closed the day before #364 merged**, and the one
+  *machine-enforced* register — `docs/guide/north-star-audit.md`, whose test
+  fails as doors land — has no identity/pin/workspace row. No open issue
+  mentions it (all 39 checked).
+  *Lesson: a deferral recorded only in prose is not deferred, it is forgotten
+  on a schedule — the record has to land in the register that fails a test.*
+- **Three `DimensionError`s.** Three mints, three units, months apart: the
+  kernel enum at M4 PR1; the Python struct and exception class at LIB-U9S
+  (#290) minted *because* the kernel type was not curated then; and LIB-DOORS
+  F5 (#308) which re-exported the kernel's through `pncad::document` and
+  **deliberately routed it to `LiteralError`** to preserve U9S's tag spellings.
+  #308's body narrates that swap in detail and never observes the collision.
+  **NEVER FLAGGED** — including by #308's dual review, which was *inside this
+  exact code* and found the payload drop and the Debug-dump messages but not
+  the name.
+  *Lesson: nobody owns the name-space; a collision is only visible from the
+  whole surface at once.*
+
 ## S22. Ambient state contradicting the purity thesis
 
 - **Confidence**: sure for each row
@@ -2427,6 +2484,73 @@ but about which questions look most worth answering first.
 4. **S4.** The two observed drifts (mate names not rewritten by
    `Rebind`; `name_args`' fail-quiet wildcard) are worth checking
    regardless of what is decided about the pattern.
+
+---
+
+# §C. Process observations
+
+Evan's standing request (2026-08-18): *"i wonder how they happened; it'd be
+cool to get a 1-3 sentence postmortem on each covering the rationale and
+whether (per the associated pr description, A/B log, and/or orchestrator's log)
+the reviewer flagged it as an issue. i think this could be really useful for
+improving process."*
+
+Each finding carries a **Postmortem** line where one has been done. This
+section collects only the observations that generalise. **It is being filled
+in as the postmortem passes land — treat it as incomplete.**
+
+## C1. The review protocol is claims-driven, not surface-driven
+
+This is the mechanism behind most of the façade findings, and the evidence cuts
+against the obvious reading. Reviewers are handed *"explicit claims to
+falsify"* (`memories/orchestration-model.md:152`) and they falsify them
+**behaviourally and well** — LIB-U1's reviewer compiled `use topo as _;` to
+kill a false documentation claim. The effort is *not* aimed at prose over
+behaviour.
+
+It is aimed at **asserted** things over **unasserted** ones. A code-free
+module, a 449-line accumulated header, and a duplicate type name across a
+façade assert nothing, so nothing points a reviewer at them.
+
+## C2. Disclosure functions as immunity, and the scoreboard rewards it
+
+The A/B rubric's headline column is *"silent devs"*. PR #364 scored **"0 silent
+(5 deviations reported)"** — and one of those five reported deviations was the
+constant `DocumentId` that makes two Python-authored documents un-coexistable
+in a workspace. Writing a hole into the PR body converts it into a *positive*
+metric. There is no counter-metric asking whether a disclosed deviation was
+**acceptable**, only whether it was disclosed.
+
+## C3. Deferrals must land in a register that executes
+
+The repo has exactly one self-enforcing register — `docs/guide/north-star-audit.md`,
+whose test fails as doors land — and several prose ones. Every deferral behind
+a finding here went into prose: a spec sentence, a constructor comment, or a
+residual register that **had closed the day before the PR merged**. Prose
+registers have no way to notice. Compare S15's row sort: **zero of its eight
+rows has a tracked issue**, even though the repo demonstrably knows how to do
+better (issue #214 for a census, `attach.rs:119`'s KNOWN HAZARD block for a
+named-and-pinned gap).
+
+## C4. Nothing in the process reads a whole file, a whole namespace, or a whole crate
+
+Specs are per-unit, diffs are per-unit, reviews are per-unit, log rows are
+per-unit. The ~1170-lines-of-narrative-over-~180-lines-of-code ratio, the three
+`DimensionError`s, and the `lib.rs`/`workspace.rs` contradiction are all
+properties that exist **only above the unit** — which is precisely the altitude
+at which this repo had no reviewer before this scan.
+
+## C5. Documentation is a growth sink under review pressure
+
+#232's completeness MINOR could only be discharged by making the essay
+*longer* (nine more types plus a paragraph on why each was missed). Note the
+timing against Evan's own later standing brief line — *"comments state the
+INVARIANT, not the history: no retired-type archaeology, no unit tags"*
+(2026-08-08) — which is exactly what `closure.rs:135` and `select.rs`'s
+unit-tagged sections violate, having been written days before it and never
+re-swept.
+
+---
 
 # §B. Negative results and coverage
 
