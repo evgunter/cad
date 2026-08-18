@@ -632,6 +632,168 @@ mod tests {
         );
     }
 
+    /// A cylinder WALL face: the patch `u ∈ [u0, u1] × z ∈ [z0, z1]` on
+    /// the radius-`r` cylinder about the z axis, bounded below and
+    /// above by circular rims and on the sides by axial lines.
+    fn cyl_wall(r: f64, u0: f64, u1: f64, z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
+        let on = |u: f64, z: f64| Point3::new(r * u.cos(), r * u.sin(), z);
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(on(u0, z0)).unwrap();
+        let cyl = body.add_surface(cyl_r(r));
+        // A rim at height `z`: the cylinder cut by the plane there.
+        // The descending rim runs on the reversed axis so its own
+        // parameters increase, exactly as the split lane mints them.
+        let mut rim = |body: &mut Body<f64>, z: f64, ccw: bool| {
+            let plane = body.add_surface(Surface::Plane {
+                origin: Point3::new(0.0, 0.0, z),
+                normal: Vec3::unit_z(),
+                u_ref: Vec3::unit_x(),
+            });
+            let (carrier, t0, t1) = if ccw {
+                (
+                    Curve3::Circle {
+                        center: Point3::new(0.0, 0.0, z),
+                        axis: Vec3::unit_z(),
+                        radius: r,
+                        u_ref: Vec3::unit_x(),
+                    },
+                    u0,
+                    u1,
+                )
+            } else {
+                (
+                    Curve3::Circle {
+                        center: Point3::new(0.0, 0.0, z),
+                        axis: Vec3::new(0.0, 0.0, -1.0),
+                        radius: r,
+                        u_ref: Vec3::new(u1.cos(), u1.sin(), 0.0),
+                    },
+                    0.0,
+                    u1 - u0,
+                )
+            };
+            EdgeCurveSpec {
+                description: EdgeGeometry::Intersection {
+                    s1: cyl,
+                    s2: plane,
+                    witness: on((u0 + u1) * 0.5, z),
+                },
+                carrier,
+                param_start: t0,
+                param_end: t1,
+            }
+        };
+        let bottom = rim(&mut body, z0, true);
+        let e_b = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                on(u1, z0),
+                bottom,
+            )
+            .unwrap();
+        let e_r = body
+            .mev_line(
+                MevSite::Fan {
+                    he1: e_b.he_minus,
+                    he2: e_b.he_minus,
+                },
+                on(u1, z1),
+            )
+            .unwrap();
+        let top = rim(&mut body, z1, false);
+        let e_t = body
+            .mev(
+                MevSite::Fan {
+                    he1: e_r.he_minus,
+                    he2: e_r.he_minus,
+                },
+                on(u0, z1),
+                top,
+            )
+            .unwrap();
+        let he = body
+            .find_half_edge(seed.face, e_t.vertex, e_r.vertex)
+            .unwrap();
+        let face = body
+            .mef(
+                MefSite::Chords {
+                    he1: he,
+                    he2: e_b.he_plus,
+                },
+                EdgeCurveSpec::line_between(on(u0, z1), on(u0, z0)),
+                FaceSurface::Shared(cyl),
+            )
+            .unwrap()
+            .face;
+        (body, face)
+    }
+
+    /// The cylinder arm, against the wall it bounds. The belly bulges
+    /// past every chord of the boundary, and the axial range must cover
+    /// the whole patch — both swept over radii and over azimuth spans
+    /// including a reflex one, so a rule that recovers the extent only
+    /// for short spans goes red.
+    #[test]
+    fn a_cylinder_walls_locus_is_inside_its_box() {
+        for &r in &[0.002, 1.0, 40.0] {
+            for span_deg in [30.0_f64, 170.0, 200.0, 350.0] {
+                let span = span_deg.to_radians();
+                let (z0, z1) = (-0.25 * r, 0.75 * r);
+                let (body, face) = cyl_wall(r, 0.0, span, z0, z1);
+                let b = face_box(&body, face, pad()).unwrap();
+                for i in 0..=64 {
+                    let u = span * f64::from(i) / 64.0;
+                    for j in 0..=8 {
+                        let z = z0 + (z1 - z0) * f64::from(j) / 8.0;
+                        let p = Point3::new(r * u.cos(), r * u.sin(), z);
+                        assert!(
+                            holds(&b, p),
+                            "wall point (u = {u}, z = {z}) left the box \
+                             (r = {r}, span = {span_deg}°): {b:?}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// The sphere arm, against the sphere. This arm claims the WHOLE
+    /// ball and reads nothing from the boundary, so the honest locus to
+    /// sample is the whole sphere — every point of it, at any trim, is
+    /// what the box promises to contain.
+    #[test]
+    fn a_spheres_whole_locus_is_inside_its_box() {
+        for &r in &[0.002, 1.0, 40.0] {
+            let center = Point3::new(0.3 * r, -0.2 * r, 0.1 * r);
+            let (mut body, face) = arc_sector(r, core::f64::consts::PI);
+            body.set_face_surface(
+                face,
+                FaceSurface::New(Surface::Sphere {
+                    center,
+                    radius: r,
+                    axis: Vec3::unit_z(),
+                    u_ref: Vec3::unit_x(),
+                }),
+            )
+            .unwrap();
+            let b = face_box(&body, face, pad()).unwrap();
+            for i in 0..=32 {
+                let theta = core::f64::consts::PI * f64::from(i) / 32.0;
+                for j in 0..=32 {
+                    let phi = 2.0 * core::f64::consts::PI * f64::from(j) / 32.0;
+                    let p = Point3::new(
+                        center.x + r * theta.sin() * phi.cos(),
+                        center.y + r * theta.sin() * phi.sin(),
+                        center.z + r * theta.cos(),
+                    );
+                    assert!(holds(&b, p), "sphere point left the box (r = {r}): {b:?}");
+                }
+            }
+        }
+    }
+
     /// **The NURBS half of the same defect.** A patch's interior
     /// bulges past the hull of its boundary — here a biquadratic whose
     /// boundary lies entirely in `z = 0` while its centre control
@@ -676,12 +838,15 @@ mod tests {
         );
     }
 
-    /// A kind with no cheap sound box claims NOTHING: the poison box,
+    /// **A DISPATCH row, not a locus row.** It asserts only that a
+    /// kind with no cheap sound box claims NOTHING — the poison box,
     /// which overlaps everything and therefore prunes nothing. The
-    /// alternative — a hull of the boundary — would be a claim the
-    /// kernel cannot make for a cone or a torus.
+    /// face's boundary is an arc sector's and has nothing to do with a
+    /// cone or a torus, deliberately: the point is that the arm never
+    /// looks at the boundary, because any hull of it would be a claim
+    /// the kernel cannot make for these kinds.
     #[test]
-    fn kinds_without_a_sound_box_are_poison_and_never_prune() {
+    fn kinds_without_a_sound_box_dispatch_to_poison_and_never_prune() {
         let cone = Surface::Cone {
             apex: Point3::origin(),
             axis: Vec3::unit_z(),
