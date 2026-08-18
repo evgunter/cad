@@ -1021,7 +1021,9 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
 ///    planar face vf-NAMED by the other solid's records defers to the
 ///    confirm pass (the declared boss-on-plate class).
 /// 2. **Instance containment** (C6's interference class): one solid's
-///    vertex-extent box contained in another's — a nested placement
+///    vertex-extent box inside another's REACH box (the containing
+///    side must be a superset; the contained side is a subset of its
+///    own locus, which is what makes a clear sound) — a nested placement
 ///    makes no boundary event at all (the reviewed nested-cube
 ///    witness), and interference is representable only through C6's
 ///    recorded gate-skips, which do not exist yet.
@@ -1420,7 +1422,8 @@ fn sweep_cross_solid_backstop<T: Decide>(
         }
     }
 
-    // Arm 2: instance containment (vertex-extent boxes per solid).
+    // Arm 2: instance containment (the contained side's vertex hull
+    // against the containing side's reach box).
     let mut solid_boxes: std::collections::BTreeMap<SolidKey, (Point3<T>, Point3<T>)> =
         std::collections::BTreeMap::new();
     for (f, _) in body.faces.iter() {
@@ -1435,15 +1438,44 @@ fn sweep_cross_solid_backstop<T: Decide>(
             })
             .or_insert((lo, hi));
     }
+    // The CONTAINING side must be a superset, so it is built from the
+    // one face-box rule, not from vertices: a cylinder solid's vertex
+    // hull is the segment joining its two seam vertices, and using
+    // that as a container would clear every body nested inside it. The
+    // contained side stays the vertex hull, which is a SUBSET of the
+    // solid's locus — that is what makes the clear sound, since a
+    // witness point outside the container is genuinely outside. A
+    // solid carrying a face with no cheap sound box has no claimable
+    // extent at all and can never be the container.
+    let mut solid_reach: std::collections::BTreeMap<SolidKey, Option<(Point3<T>, Point3<T>)>> =
+        std::collections::BTreeMap::new();
+    for (f, _) in body.faces.iter() {
+        let Some(solid) = solid_of(f) else { continue };
+        let this = reach_box(f);
+        let slot = solid_reach.entry(solid).or_insert(this);
+        *slot = match (*slot, this) {
+            (Some((l, h)), Some((lo, hi))) => Some((
+                Point3::new(l.x.min(lo.x), l.y.min(lo.y), l.z.min(lo.z)),
+                Point3::new(h.x.max(hi.x), h.y.max(hi.y), h.z.max(hi.z)),
+            )),
+            _ => None,
+        };
+    }
     let solids: Vec<_> = solid_boxes.iter().collect();
     for (i, &(&sa, (alo, ahi))) in solids.iter().enumerate() {
         for &(&sb, (blo, bhi)) in solids.iter().skip(i + 1) {
             if bridged.contains(&(sa, sb)) {
                 continue; // under the confirm pass's jurisdiction
             }
-            for (outer, inner, olo, ohi, ilo, ihi) in
-                [(sa, sb, alo, ahi, blo, bhi), (sb, sa, blo, bhi, alo, ahi)]
-            {
+            for (outer, inner, ilo, ihi) in [(sa, sb, blo, bhi), (sb, sa, alo, ahi)] {
+                let Some((olo, ohi)) = solid_reach.get(&outer).copied().flatten() else {
+                    errors.push(ValidationError::CensusUndecidable {
+                        a: EntityId::Solid(outer),
+                        b: EntityId::Solid(inner),
+                        what: "a surface kind with no cheap sound box leaves the                                containing instance's extent unclaimable — the same C6                                interference class",
+                    });
+                    continue;
+                };
                 // Containment of `inner` in `outer`: all six extent
                 // margins definitely positive ⇒ the interference
                 // class; ANY definitely negative ⇒ clear; anything
