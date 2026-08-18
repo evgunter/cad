@@ -293,3 +293,21 @@ but the spec must bind BOTH, cite memories/tessellation-budget);
 ASM-XSPLIT (the AQ8 conversion door) specs after the addendum
 ruling; then the R2 exit walk + assembly demo + program
 wind-down per ASM-PLAN's exit shape.
+
+## ASM-R2B MERGED (#591, 2026-08-18) — R2 IS CLOSED
+
+The program's ratified v1 scope (R1+R2) is code-complete:
+declarations flow the product path, solved mates mint into the
+kernel record set, the assembled A5 gate verifies with
+mate-attributed refusals, the interface record inhabits with
+crossing re-verification, and the update door's clause-4 hook
+executes. The review's two MAJORs were honesty findings that
+IMPROVED the design record: the F1 boundary is now truthfully a
+census Door-2 structural-identity gap (steered to M9 on-thread),
+and the unreachability claim's refutation became AQ8's addendum
+— ruled (b) SKIP and folded same-PR. Remaining before wind-down:
+TESS-SPAN's fix pass lands (1 pending check) → row 54 + merge →
+TESS-SPLIT (spec reconciled with the sliver lesson first); the
+R2 exit walk + assembly demo; ASM-XSPLIT (the AQ8 conversion
+door) as the one banked follow-on unit. Seam sweep: asm-r2b +
+asm-r2b-r1 lanes.
