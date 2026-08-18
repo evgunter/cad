@@ -1599,6 +1599,41 @@ how these even happened. they should certainly be unified." Postmortem pass
 commissioned — the sharpest question is who wrote `boolean/boxes.rs`'s KNOWN
 GAP note about the NURBS half and whether the planar-with-conic-rim half was
 considered at the same time.
+**Postmortem (2026-08-18). The rule was sound when written; the PR that
+invalidated its premise applied the correction to two of three arms — in the
+same diff.**
+
+At M5 PR 8 (#135) the boolean operand gate was **planar-only**, so a planar
+face's edges really were all lines and the vertex hull really was a superset.
+M5 PR 9 (#152, commit `514bab9`) **retired that gate** — *"the F5 planar-only
+refusal retired PER C5 TABLE ARM"* — and in the **same diff** added the
+cylinder arm (*"the vertex hull is NOT a superset — the wall's belly bulges
+past its chords"*) and the conic `edge_box` (*"an arc's belly bulges past its
+chord"*), while leaving the planar sentence untouched. The author applied the
+bulge argument twice in one sitting; the third arm's premise had just been
+invalidated by their own gate change.
+
+**FLAGGED AND PARTLY FIXED — but only the NURBS half was ever named.** The
+KNOWN GAP note was written by the perf-scan agent (PR #573, a *doc-correction*
+pass, not a fix). That agent read `separation.rs`'s doc and quoted it in the PR
+body — but that same doc comment's **Plane bullet, fifteen lines above the text
+they quoted**, already stated the planar answer: *"the vertex hull alone would
+not, for a circular rim."* They generalised the stale-premise argument to NURBS
+and stopped. The planar-with-conic-rim defect in `boolean/boxes.rs` itself:
+**NEVER FLAGGED** (checked #135/#152/#564/#571/#573 bodies, the A/B rows,
+`M9-LOG.md`, PERF-SCAN finding 1, and every "circular rim" occurrence in
+`crates/`).
+
+Sharpest supporting detail: `census.rs`'s `max(r, sagitta)` planar pad exists
+because the naive filter *"falsely refused the corpus's cube-beside-cylinder
+file"* — **a live wrong answer in a sibling lane, fixed locally, never
+propagated.**
+
+*Lesson:* when a PR removes a gate, review must re-check every comment that
+cites that gate as its justification — and when a scan finds a stale premise,
+the fix is to re-derive **all** arms resting on it, not the one that matched
+the search term.
+
 ## S17. Three ray-parity point-in-polygon implementations, one an admitted transcription
 
 - **Where**: `crates/topo/src/chart_region.rs:897`,
@@ -1622,6 +1657,28 @@ distance — exactly the drift `splitting/rules.rs:117` explicitly mints a
 distinct name to avoid.
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18) — see S16.
+**Postmortem (2026-08-18). The spec ordered the third copy.**
+
+`profile::validate::point_in_loop` (#28) came first; `topo::splitting::
+containment::point_in_loop` (#31) is genuinely separate and reuse was **blocked
+by the crate DAG** (`topo` does not depend on `profile`, and never has). The
+third — `chart_region::point_in_polygon` (#527) — is the line-for-line port,
+and `M9-2-SPEC.md:46` **specified it**: *"port `point_in_loop`'s METHOD to 2-D
+— ray parity, a fixed 2-D direction schedule, the four named trileans
+re-derived (**new predicate names = new K rows**, margins re-metered)"*. PR
+#527's body adds *"reads `containment.rs` for METHOD only (**no refactor**)"*,
+with the branch constrained to be "file-disjoint from M9-1's in-flight lane".
+
+**NEVER FLAGGED.** #527 drew a **dual blinded review**; both reviewers
+converged on the rung-2 `GeomSource` hole and neither raised the duplication —
+correctly, since it was a disclosed, specified deliverable.
+
+*Lesson:* a spec that says "port the METHOD, new predicate names" plus a review
+brief scoped to "falsify the PR's claims" together **guarantee** an intentional
+third copy passes two independent adversarial reviews without comment — and the
+K-ledger convention (new names = new rows) actively **rewards copying over
+parameterizing**.
+
 ## S18. Certified numeric derivations duplicated across crates (roll-up)
 
 - **Confidence**: sure for each row
@@ -1640,6 +1697,66 @@ distinct name to avoid.
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18) — see S16. "They should certainly
 be unified."
+**Postmortem (2026-08-18), row by row.**
+
+- **Rational quotient rule ×2 (`ssi/enclose` vs `mesh/nurbs_cert`)** — the
+  orchestrator **prescribed a fresh derivation**: M8-5 was *"built on the
+  MERGED M8-2 template — **deliberately NOT lifting #309's unmerged
+  machinery**"*, #309 being a concurrent slot in the same dispatch block. The
+  already-merged `ssi/enclose.rs` home was named by nobody. **NEVER FLAGGED**;
+  the reviewer *"hand-re-derived the recurrences"* — verifying the formula
+  independently rather than diffing it against the existing one.
+  *Lesson: "don't lift the unmerged sibling's machinery" is correct lane
+  hygiene and becomes permanent duplication unless the block that creates it
+  also books a unify-after-both-merge item.*
+- **…and again within `mesh`, curve vs surface** — both landed in the **same
+  commit**, because the dispatch defined the unit as *"two gates in two
+  files"*. The spec named two homes and never said "share one". **NEVER
+  FLAGGED.**
+- **Bulge arc ×3** — `geom-brep`'s copy is forced (it sits *below* `profile` in
+  the DAG). `sweep/skin.rs` has no such excuse — `sweep` depends on `profile`,
+  and the code says so: *"The profile crate's ratified bulge closed forms,
+  verbatim (`profile::seg::build_seg`)"*. Copied because `build_seg` is
+  `T: Decide`-generic and returns `SegIssue`. **NEVER FLAGGED** — self-disclosed
+  in code, which likely read as diligence.
+- **Knot insertion ×2** — two PRs the **same day** (#125, #136); the scalar type
+  (`RingInterval` vs f64) was the stated reason, and the linear span scan fell
+  out of not having a `KnotVector` to call `find_span` on. **NEVER FLAGGED.**
+- **"Distinct interior knots" ≥4** — all four appeared within **five days of
+  the `KnotVector` type itself**, whose accessor set was frozen in #125 *before
+  any consumer existed*. `multiplicity_of(u)` requires you to already know `u`,
+  so every consumer needing *the list* hand-writes the same scan. **NEVER
+  FLAGGED** — by the fourth copy nobody was tracking.
+  *Lesson: a data structure whose API was frozen one PR before its first
+  consumer is the tell; "did you have to hand-scan? why isn't that on the
+  type?" is a cheap review question nobody is asked to ask.*
+- **Prefer-intrinsic ×3** — **FLAGGED AND PARTLY FIXED.** #152's review raised
+  the adjacent concern and got *"the demanded set equals the certifiable set
+  through the one-home `geom_brep::tangent_certificate_lane`"* — one home **for
+  the predicate**. The *sample schedule* was left divergent in the same fix
+  pass, and #166 then hardcoded `9` two days later.
+  *Lesson: unifying a **name** without unifying the **schedule** it drives is a
+  half-fix that reads as a whole one.*
+- **`step-export/volume.rs`** — the immediate cause is a **granularity
+  mismatch**: it needs *per-shell* volume for void classification and
+  `topo::props` exposes only body-scoped `mass_properties`. **NEVER FLAGGED as
+  duplication** — the module has been repeatedly revisited and each pass
+  *documented* the divergence rather than closing it.
+  *Lesson: a module that keeps being edited to explain how it differs from the
+  canonical one is a duplication signal the process has no rule for reading.*
+- **Negative-zero flush ×3** — same crate, three units, one week; the original
+  is already `pub(crate)` and reachable from both later sites. **NEVER
+  FLAGGED** — the concept was tracked only as a *fixture* property
+  (`M7-LOG.md:694`, a byte-divergence class), never as code ownership. *The
+  cheapest one to have caught.*
+- **Deep-snapshot helper ≥4** — **policy, not drift**, and **FLAGGED AND
+  OVERRULED** in the standing sense: the reviewer-suite independence exemption
+  is ratified, and Evan re-affirmed it on this scan (S36). The fourth copy is a
+  visibility constraint (`fixtures::deep_snapshot` is `pub(crate)`; an
+  integration test cannot see it).
+  *Lesson: a deliberate independence exemption needs an expiry — the suites
+  were never combed back, so a temporary licence became four permanent copies.*
+
 ## S19. Stringly-typed catch-alls in a codebase whose thesis is closed typed errors
 
 - **Confidence**: sure
@@ -1661,6 +1778,79 @@ again that we need a bug vs reachable invalid state distinction)" — i.e. this
 finding is **downstream of S43**. The postmortem pass is asked to substantiate
 or refute that: how many of these catch-alls exist because the author had no
 vocabulary for "this can only be a kernel bug"?
+**Postmortem (2026-08-18). Evan's hypothesis is substantiated for the three
+highest-volume rows, and S43 turns out to be their generator.**
+
+- **`AssemblyUnsupported`** — born legitimate at #166 (9 sites, an explicit
+  "front door does not exist yet" marker). #171 then declared the idiom
+  `let unsupported = |detail: &'static str| …` at the head of ~12 functions,
+  and that closure is what took it to 146: the overwhelming majority are
+  `.ok_or_else(|| unsupported("a ring does not walk"))` — arena lookups that
+  cannot fail on a valid body, **five of which say "(kernel bug)" outright**.
+  #171's deviation 3 declared only the four genuine scope gaps; ~120 assertion
+  sites rode in under that sentence. **NEVER FLAGGED** — #166's F6 is the
+  closest miss: the reviewer was *inside this enum*, split a tangential case
+  into its own variant, and still did not remark on 146 sites sharing one
+  string.
+- **`MissingEntity`** — born a catch-all in one commit (28 sites on day one)
+  because the crate needed *some* error for "the arena did not return the key I
+  was handed". #157 then used it for a genuinely different thing (`"router
+  defect"`). **NEVER FLAGGED.**
+- **`SplitJoinError::Corrupt`** — the decisive evidence for Evan's hypothesis.
+  **The same commit** (`f814900f`) mints `PointInLoopError::CorruptLoop
+  { r#loop }`, `UnclassifiableComponent { shell }` and `CutInvariant { edge }`
+  (doc: *"kernel bug, loudly"*) **with** payloads — and `Corrupt` **without**.
+  The author was improvising a bug channel per-module because the codebase
+  never gave them one. **NEVER FLAGGED**: the reviewer ran a referential-
+  integrity falsification, confirmed `Corrupt` never fires, and therefore never
+  had to read one.
+  *Lesson: a refusal the suite proves unreachable gets reviewed for
+  reachability, never for diagnosability — precisely backwards, since the day
+  it fires is the day someone needs the payload.*
+- **`UnsupportedCarrier`** — born narrow and **true**; broadened by #192's Leg E
+  adding ~10 sites for degenerate *configurations* (apex-level rim, Villarceau
+  circle), none of which is a carrier-form mismatch. The sibling
+  `IsoUnsupported { what }` **existed and names its refused class**; it was not
+  extended. **NEVER FLAGGED as an overload** — but *very* narrowly missed: two
+  of M6-3's five MINORs were about these exact variants (untested arms, an
+  executed-false comment). *Lesson: "is this variant reachable and tested?" and
+  "is this variant **true** at this site?" are different questions, and only
+  the first is on the checklist.*
+- **`ValidationError`** — nobody chose a catch-all; the **tier simply never
+  became a type**. **FLAGGED AND OVERRULED on a different axis**:
+  `GENERICS-BUILD-COST.md:169` measured it formally (*"57 variants; its
+  `Display` impl is 310 source lines producing 7,328 IR lines"*) and ruled
+  *"**This is reported, not flagged as a defect.** It is the D9 fail-loud
+  charter working as specified."*
+- **`tags.rs`** — downstream of a **kernel-side gap**: neither `EditError` nor
+  `NodeErrorKind` implemented `Display`. **FLAGGED AND PARTLY FIXED** — #308's
+  F6 was *"REOPENED on review and implemented"*, landing `Display` on 34 + 33
+  arms. The residue is recorded in the same body: `StepImportError` *"is
+  out-of-fence for a Display impl"*, which is exactly why three sites still
+  `format!("{err:?}")`.
+- **`SkippedMerge { reason: String }`** — **the reverse of the others.** Born
+  with a generic label; **the reviewer killed the label**. F3, verbatim:
+  *"`Err(_)` catch-all launders tier-2 diagnostics → preserve real reasons."*
+  The implementer discharged "carry the actual diagnostics" with `format!`
+  rather than an enum — and `DESIGN.md` D4 ¶2 **later cites this outcome as the
+  in-repo precedent**.
+  *Lesson: a finding phrased as an **information** requirement gets discharged
+  by `format!` unless phrased as a **type** requirement.*
+- **`ProgramRefusal::Geometry`** — `EditError` requires `PartialEq`;
+  `profile::PathError` deliberately derives no equality. **NEVER FLAGGED**, and
+  #291 is the strongest possible "we looked": a **dual** review, two MAJORs
+  found by both reviewers independently, F1–F8 all reported — and neither
+  challenged the declared String degradation.
+
+**On the bug-vs-invalid-state question.** Substantiated for ~239 of ~260 sites.
+**54 source sites say "kernel bug" in prose**; `DESIGN.md` uses the phrase
+exactly once — in D9's footnote, which is also the ruling that *authorises* the
+smear: *"Corrupt in-crate states get typed errors where cheaply detectable, or
+documented garbage-out in release."* So these variants **do not violate the
+ratified contract; they are its only sanctioned option**, which is why no
+reviewer could flag them as violations. **S43 is not a neighbour of S19 — it is
+the generator of its three largest rows.**
+
 ## S20. The façade layers each invented a vocabulary instead of forwarding
 
 - **Where**: `crates/pncad/src/closure.rs:1`,
@@ -1794,6 +1984,143 @@ catches `DimensionError` for a dimension mistake catches the wrong one.
   rather than epsilon?"* — the open question is whether δ is the dimensionally
   correct parameter, not whether to snap.
 - **`same_chart` by pointer equality**: *"good catch as well."*
+**Postmortem (2026-08-18).**
+
+- **`Band::linear()`'s `OnceLock`** — D4 ¶1 deliberately left "compile-time
+  constant vs once-initialized" open; PR #3 closed it for one stated reason
+  still in `tolerance.rs:6`: *"which is what lets the test suite run at several
+  ε values with **zero test-code cooperation**"*. The L3 CI matrix predated the
+  type and fixed the variable's name before the design conversation happened.
+  **FLAGGED AND OVERRULED** — see below.
+- **The `k_stats` verdict log** — `M4-PR4-SPEC` D2 specified *that* the diff
+  engine consumes verdict logs but never *how* they arrive; the implementer
+  chose an installable thread-local. Harmless until **ASM-2A (#414)** made
+  `run_op` re-enter itself. **FLAGGED AND DEFERRED** (PERF-SCAN §2.4, *"(a) vs
+  (b) is UNRESOLVED and was left so deliberately at merge"*) — **no GitHub
+  issue**; all 39 checked. Near-miss: #414's own fix pass wrote *"a nested
+  run's logs die with its evaluation"* — the interaction was seen **at the PR
+  that created the defect**, but read as "the inner log is unobservable" rather
+  than "the outer log is destroyed".
+- **The mesh double-ε read** — M2 PR 6 shipped the pole read **and, in the same
+  commit, the crate-doc claim it contradicts**. The loop-closure snap was
+  originally a bare angular constant, which kept "ε read exactly once"
+  technically true; **PR #481** correctly found that constant scale-blind and
+  rewrote the bar as `residue · radius < eps`, threading ε into a second
+  structural decision. **NEVER FLAGGED** — and the invariant it broke had been
+  *pinned by an adversarial reviewer*
+  (`survives_eps_row_bitwise_independence`), whose stale comment still reads
+  *"ε is read once, for pole identification"*. **The test still passes**,
+  because only a foreign STEP file produces a nonzero residue.
+  *Lesson: a regression test that pins an invariant on the corpus that existed
+  when it was written keeps passing through the change that breaks it — and its
+  stale comment then reads as evidence the invariant still holds.*
+- **`same_chart`'s `ptr::eq`** — `M9-2-SPEC:35` defines the rung as *"one body,
+  shared `SurfaceKey` ⇒ identical chart"* **without saying how "one body" is
+  decided**. These are the only two `ptr::eq` uses in `crates/*/src` anywhere.
+  **NEVER FLAGGED** — and #527 drew a dual review in which **both** reviewers
+  independently broke *rung 2* (one forged a `PositiveArea` certificate) and
+  neither touched rung 1.
+  *Lesson: reviewers attack the rung carrying the interesting theorem and walk
+  past the premise underneath it.*
+
+### ε configuration: what was actually tried
+
+**Evaluated and rejected:** a compile-time constant (PR #3 — loses the
+multi-ε matrix; a const generic would fail the same test and appears nowhere);
+hard-fail at init (*"rejected as a D9 panic exception with no compensating
+benefit"*); and, in the widening direction, K folded into the same lock by
+Evan's direction (#41) on the reasoning that K is "ε-style per-run
+configuration".
+
+**A document-carried ε already exists — and is the source of truth.** M4 PR 6
+shipped `Doc::epsilon`, `DocEdit::SetTolerance`, the verdict-vector diff, and
+`Tolerance::init_document_eps`, whose doc states the ranking: *"the recorded
+value wins over an unread `ENV_EPS` — the ambient env mechanism is process
+BOOTSTRAP, and a document that states its ε outranks it."* A mismatch refuses
+as `ToleranceConflict` at load. **But `init_document_eps` still commits into
+the same process-global `OnceLock`, so every predicate downstream still reads
+ambient. Better source, identical ambience.**
+
+**Never evaluated in the written record:** threading a `&Tolerance` to the
+predicate funnels, or a session/context object. The nearest written analysis of
+the threading shape in the whole repo is PERF-SCAN §2.4 — about the *verdict
+sink*, not ε — and it names the intermediate design that transfers directly:
+*"a sink threaded only as far as each crate's single `sign_within` funnel,
+rather than to every call site."* Every deciding crate already has exactly one
+such funnel. Nobody has written that argument down for ε.
+
+**The telemetry-gating ruling was applied to the class and ε exempted by name
+in the same commit.** #562 wrote the *"no ambient environment in the kernel"*
+grep **and** allowlisted `tolerance.rs`, with an error message that
+institutionalises the escape hatch: *"…**or ratify this file into the
+allowlist**"*. Nothing anywhere argues that the `NURBS_PROBE` rationale —
+*"changes shipped behaviour with no rebuild, no flag, and no call site to
+review"* — applies verbatim to `CAD_TOLERANCE_EPS`, which it does. The
+asymmetry is visible in the justifications: `test-utils/fuzz.rs` got a
+**reachability** argument; ε got only a **usefulness** one. Two rules do partly
+discharge the concern: `init_document_eps` demotes env to bootstrap, and
+`env_init_errors` makes a malformed value fail loudly.
+
+**Costs on the record:** four single-test integration binaries exist purely for
+process isolation; issue **#415** (closed, tolerance-init red on pristine main);
+**#497** (open, a suite reds under a malformed ambient ε); **#470** (open, 251
+statically ε-free tests re-executed three times) — and note #470's framing,
+the strongest defence of the status quo in the repo: the zero-cooperation
+property is *ratified*, so its proposed fix is to **observe** the `OnceLock`
+rather than let any test **declare** itself ε-invariant.
+
+### What the mesh snap actually protects against
+
+**The mechanism.** `out[0].u` and the final column are the same analytic
+azimuth reached by two float paths — `atan2` of the closing **vertex** vs
+`atan2` of the carrier **midpoint**. The snap makes that polygon side bitwise
+vertical before the CDT sees it as a constraint.
+
+**Without it**, the side is a hair non-vertical and the constraint polygon can
+self-cross. That is real — M2 PR 6's review blocker was exactly this — but the
+guarded outcome is *"this face refuses to tessellate"*, not a silently wrong
+mesh. **However**, the code comment's fallback story ("the CDT pre-check
+refuses it") **was falsified by #481**: assert and snap read the same constant,
+so exceeding it disabled both, and the unsnapped polygon **shipped into the
+committed montage**.
+
+**Measured effect** (#481, release STLs byte-compared over the wild corpus):
+**7 of 8 cells byte-identical**; on the eighth, same 2148 triangles, **vertex
+set bitwise identical (all 1008 points)**, normals bitwise identical, volume
+unchanged — **16 quads split the other way**. The snap's only observable effect
+is CDT diagonal choice on near-degenerate planar quads.
+
+**Where the residue comes from** (#486 census, 315 governed closures): 266
+bitwise exact; worst tour residue 4.0e-15 rad (9 ulps). All 18 nonzero residues
+sit in **one wild file**, traced to a STEP file writing ~10 decimal digits and
+stating a hole-axis line's endpoints **21.4 pm apart perpendicular to the
+axis**. Not accumulation, not unit conversion — **source-file coordinate
+rounding.**
+
+**Would δ be right?** Both bars are metres, so both typecheck. **For δ**: by
+the crate's own doctrine δ is "how far the mesh may sag" and ε "defines what
+the *model* is" — the snap changes the mesh, not the model, and a δ-bar
+**restores `mesh = f(body, δ)`** exactly as `lib.rs` claims. **Against δ**: δ
+is caller-chosen coarseness (tests sweep 0.2 m and 0.03 m), so a δ-bar would
+authorise snapping residues six-plus orders larger than anything measured, turn
+the `debug_assert!` into a no-op at coarse δ, and make the constraint polygon's
+*topology* depend on the view parameter.
+
+**The third reading, which the history supports: the quantity is not a
+tolerance at all.** #486 recorded two routes to actual exactness, both in the
+`walk.rs:710` comment, both *"recorded, not decided"* — **(i)** re-mint such a
+line onto a single azimuth at import through the existing
+`StructureNormalization` healing class (a 21 pm move; caveat: vertices are
+shared); **(ii)** have the final meridian take its column from the **closing
+vertex** rather than the carrier midpoint — exact whatever the skew, mutates no
+geometry (caveat: touches the anchor-branch choice tuned for wedge angles
+> 3π/2). **Route (ii) makes the residue identically zero and moots the ε-vs-δ
+question entirely.**
+
+**On F6:** F6 bans ε snapping in the *boolean reduction/classification*
+pipeline. This snap is display/export-layer and moves no kernel entity, so it
+is not what F6 forbids. What it violates is the narrower mesh-local claim.
+
 ## S23. The exhaustiveness sweep degrades silently to seed-generation
 
 - **Where**: `crates/geom-brep/src/ssi/exhaust.rs:140`, `:267`,
@@ -2767,6 +3094,70 @@ inside its own lane — while the lane that predates all three (`curved.rs`)
 still carries the ordering the warning describes. A fix that establishes an
 invariant needs an explicit sweep of sibling implementations as part of its
 **acceptance**, not just its own regression row.
+
+## C11. Self-disclosed copies are invisible to everyone, and greppable
+
+Every duplication in S18 is **honestly declared in prose at the copy site**:
+*"the profile crate's ratified bulge closed forms, **verbatim**"*; *"**verbatim**
+`crate::recognize`'s"*; *"the face bound's quotient-rule assembly **one
+dimension down**"*; *"the `boolean::boxes::face_box` construction
+**re-derived** in the evaluation lane"*. The codebase is candid about all of
+them and **nothing in CI, review, or the log ever reads that prose**.
+
+A grep for `verbatim|re-derived|ported from|mirror of` across `crates/*/src`
+would surface most of S18 in seconds. This is the cheapest concrete mechanism
+any postmortem in this document produced.
+
+## C12. Specs name the *method* to copy but never the *home* to reuse
+
+*"Port `point_in_loop`'s METHOD to 2-D"*; *"the face Hessian … **AND** the
+curve-side gate"*; *"built on the MERGED M8-2 template — deliberately NOT
+lifting #309's unmerged machinery"*; *"reads `containment.rs` for METHOD only
+(**no refactor**)"*. The convention describes the source as a **reference to
+imitate**, not a dependency to call.
+
+Two structural amplifiers: **concurrent file-disjoint lanes** are mandated by
+the orchestrator for good reasons and leave behind no unify-after-merge
+obligation; and the **K-ledger rule** (new predicate names = new rows) makes
+the copy the path of least resistance, since parameterizing would disturb the
+census.
+
+## C13. Half-fixes read as whole fixes when the finding is narrower than the drift
+
+Three independent instances:
+
+- #152's reviewer forced **one home for `tangent_certificate_lane`** — and the
+  same fix pass shipped **two divergent sample schedules**, with a third
+  hardcoding the literal `9` two days later.
+- The perf scan corrected `face_box`'s stale **NURBS** premise while the
+  identical stale premise for **planar-with-conic-rim** sat fifteen lines from
+  the text it quoted.
+- M4 PR 5's reviewer correctly identified **information loss** (*"catch-all
+  launders tier-2 diagnostics → preserve real reasons"*); the remedy was
+  `format!`, and `DESIGN.md` D4 ¶2 then **canonised that outcome as the in-repo
+  precedent**.
+
+The generalisation: a review finding gets discharged **at the granularity it
+was phrased at**. An information requirement is met by stringification; a
+one-home requirement is met by unifying the name and not the schedule it
+drives.
+
+## C14. Pins guard the invariant as it was reachable *then*
+
+Three of S22's four rows were introduced by a **later** change to code whose
+contract an **earlier** reviewer had checked and pinned — and in each case the
+pin still passes:
+
+- `survives_eps_row_bitwise_independence` pins *"ε is read once, for pole
+  identification"*; #481 added a second structural ε read; the test passes
+  because only a **foreign STEP file** produces a nonzero residue.
+- `parallel_schedule_preserves_verdict_logs` pins **thread** confinement;
+  ASM-2A broke **re-entrancy**.
+- Four process-isolated binaries pin the ε global's init discipline; none
+  observes that a *document*'s ε still commits into the same lock.
+
+Nothing re-derives a pin when a new caller arrives. And a stale comment on a
+still-passing test reads as **evidence the invariant holds**.
 
 ---
 
