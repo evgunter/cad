@@ -324,7 +324,12 @@ uv_composer_selftest() {
 # PNG lanes cannot be gated (they need FreeCAD), so this is the only
 # render lane CI can reproduce — and an ungated committed artifact rots.
 # The tour is ~3s once built and the sheet is text, so a firing diff is
-# readable. Hosted mirror: the `k-lint` job's "uv sheet drift (demos)".
+# readable. NO HOSTED MIRROR ANY MORE (2026-08-17): the `k-lint` job's
+# "uv sheet drift (demos)" row was retired when render.yml's uv lane
+# started re-baselining itself, so hosted CI now COMMITS a drifting
+# sheet and marks the run neutral instead of failing. This row stays a
+# failing check because a developer box cannot re-baseline itself —
+# locally, being told is the whole point.
 #
 # The `CAD_RENDER_LOCAL_OVERRIDE` sentence is set HERE, in the file, at
 # the one step that renders: the entry points refuse without it
@@ -407,16 +412,28 @@ interval_selection() {
          target/ci-local/nextest-list-default.json \
          target/ci-local/nextest-list-interval.json > "$INTERVAL_SEL"
 }
+# `--no-tests` is decided by the SELECTION, mirroring hosted's identical
+# conditional: nextest exits 4 on a zero-test run, which is the alarm we
+# want when a real filter matches nothing, and exactly wrong for the
+# `none()` the selection script emits for a scope carrying no
+# interval-gated tests. Any other filter that selects nothing still
+# fails the row.
 # shellcheck disable=SC2086
 interval_tests() {
-  nextest_check && interval_selection \
-    && cargo nextest run $SCOPE --features interval -E "$(cat "$INTERVAL_SEL")"
+  nextest_check && interval_selection || return 1
+  local sel extra=""
+  sel=$(cat "$INTERVAL_SEL")
+  [ "$sel" = "none()" ] && extra="--no-tests=pass"
+  cargo nextest run $SCOPE --features interval -E "$sel" $extra
 }
 # shellcheck disable=SC2086
 interval_eps() {
-  nextest_check && interval_selection \
-    && CAD_TOLERANCE_EPS=1e-6 cargo nextest run $SCOPE --features interval \
-         -E "$(cat "$INTERVAL_SEL")"
+  nextest_check && interval_selection || return 1
+  local sel extra=""
+  sel=$(cat "$INTERVAL_SEL")
+  [ "$sel" = "none()" ] && extra="--no-tests=pass"
+  CAD_TOLERANCE_EPS=1e-6 cargo nextest run $SCOPE --features interval \
+    -E "$sel" $extra
 }
 # shellcheck disable=SC2086
 interval_doc_tests() { cargo test --doc $SCOPE --features interval; }
@@ -447,9 +464,20 @@ corpus_eps() {
 corpus_interval() { nextest_check && cargo nextest run -p editor-core --features interval -E 'binary_id(editor-core::all) & test(/^m4_pr8_corpus_interval::/)'; }
 
 # M4 PR 8a spec D2 (F8): rebuild-latency REPORTING — prints the
-# per-document table and diffs the committed baseline. NOT A GATE on any
-# timing number (the only assertions are the counted-reuse ones).
-# Refresh the baseline with CAD_LATENCY_BASELINE_REFRESH=1.
+# per-document table and diffs the newest entry in the timing history,
+# docs/perf-data/rebuild-latency/. NOT A GATE on any timing number (the
+# assertions are the counted-reuse ones plus the corpus manifest's
+# nodes/cone pins — arithmetic, never wall clock).
+#
+# NOTHING TO REFRESH HERE ANYMORE (2026-08-17). The old
+# CAD_LATENCY_BASELINE_REFRESH env var wrote a committed baseline from
+# whatever box ran it, and that is precisely what rotted the numbers —
+# three workstation refreshes disagreed by 90-98% with contention ruled
+# out. Hosted CI is the canonical producer now (ci.yml's `rebuild
+# latency (reporting)` job emits and commits); a local run READS the
+# history and reports against it, and can no longer write to it. Your
+# local milliseconds are not comparable with a runner's, which is the
+# point — the `vs base` column here is a sanity check, not a datum.
 # `--ignored`: the test is #[ignore]d so the eps matrix stops paying for
 # it 5x (its two assertions are a strict subset of the corpus row's —
 # see the rustdoc on rebuild_latency_table). THIS row is the one that

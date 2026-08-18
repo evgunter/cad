@@ -29,12 +29,14 @@ from pncad import (
     EditError,
     EntityKind,
     EvaluationError,
+    Frame,
     GeomPred,
     NamePat,
     Node,
     Open,
     ParamName,
     PathError,
+    PatternKind,
     PlaneRelation,
     Radius,
     SegPat,
@@ -193,11 +195,18 @@ class TestProjectbox(unittest.TestCase):
 
 
 class TestHeatsink(unittest.TestCase):
-    """Tour scenes `heatsink5/7/9` — authorable only as YES*: the BODY
-    is reproducible by hand-authoring each fin, but the scene's actual
-    point (one recipe, a LinearPattern node, a structural-param count
-    edit 5->7->9, memoized recompute) is unreachable. There is no
-    pattern node and no parameter edit in the Python surface."""
+    """Tour scenes `heatsink5/7/9`, still YES* — the FUSED body.
+
+    The scene's whole body is the fins unioned INTO a base, and that
+    last step is the residual G8 names: fusing an N-solid group into a
+    base needs a multi-solid boolean operand the kernel does not have
+    (`combine` takes two SINGLE-SOLID operands). So the fused body is
+    still reproduced here by hand-authoring each fin, one union apiece.
+
+    What is no longer hand-authored is the fin family itself —
+    `TestHeatsinkFins` below says it as ONE node with a
+    parameter-driven count, which is the structural half of the scene.
+    """
 
     def build(self, fins):
         doc = Doc()
@@ -214,6 +223,74 @@ class TestHeatsink(unittest.TestCase):
                 self.assertAlmostEqual(
                     self.build(fins), 0.75 + fins * 0.10546875, delta=1e-12
                 )
+
+
+class TestHeatsinkFins(unittest.TestCase):
+    """The structural half of `heatsink5/7/9`, said structurally —
+    the Python twin of corpus document `heat_sink_fins`.
+
+    ONE `PlacedUnion(Linear)` node carries the whole fin family, its
+    count bound to the document parameter `fins`, and 5 -> 7 -> 9 is
+    ONE `set_doc_param` edit each. That is what G8 said could not be
+    said: no pattern node, no structural-param edit.
+
+    The BASE deliberately stays out. Fusing the group into it is the
+    kernel's single-solid combine wall (`JoinDesync`: "operand A/B is
+    not a single-solid body"), a kernel door that does not exist —
+    reported, never worked around, so this document says exactly what
+    the group node buys and no more.
+    """
+
+    #: `heat_sink`'s own constants: footprint 0.1875 x 0.75 at
+    #: z = 0.1875, extruded 0.8125, pitch 0.3125 — leaving 0.125 of
+    #: clear air between neighbours, which is the clearance the
+    #: disjointness certificate needs.
+    FIN_VOLUME = 0.1875 * 0.75 * 0.8125
+    FIN_AREA = 2 * 0.140625 + 2 * (0.1875 + 0.75) * 0.8125
+
+    def build(self):
+        doc = Doc()
+        doc.apply(DocEdit.set_doc_param(ParamName("fins"), DocParam.count(5)))
+        profile = doc.insert(
+            Node.polygon(
+                [
+                    (0.25 * m, 0.125 * m),
+                    (0.4375 * m, 0.125 * m),
+                    (0.4375 * m, 0.875 * m),
+                    (0.25 * m, 0.875 * m),
+                ],
+                elevation=0.1875 * m,
+            )
+        )
+        fin = doc.insert(Node.extrude(profile, 0.8125 * m))
+        fins = doc.insert(
+            Node.placed_union(
+                fin, 5, PatternKind.linear((1.0, 0.0, 0.0), 0.3125 * m)
+            )
+        )
+        doc.apply(DocEdit.bind_count_param(fins, ParamName("fins")))
+        return doc, fins
+
+    def test_one_param_edit_recounts_the_whole_fin_family(self):
+        doc, fins = self.build()
+        for count in (5, 7, 9):
+            with self.subTest(fins=count):
+                doc.apply(DocEdit.set_doc_param(ParamName("fins"), DocParam.count(count)))
+                ev = evaluate(doc)
+                self.assertTrue(ev.succeeded(fins))
+                body = ev.value(fins).body()
+                body.validate()
+                mass = body.mass_properties()
+                # The corpus pins, exactly: both oracles are dyadic, so
+                # the comparison is `==`, not a tolerance.
+                self.assertEqual(mass.volume, count * self.FIN_VOLUME)
+                self.assertEqual(mass.surface_area, count * self.FIN_AREA)
+
+    def test_the_fin_family_is_one_node_and_one_body(self):
+        doc, fins = self.build()
+        # A pattern node would answer `instances` here, which is
+        # exactly what no boolean can consume.
+        self.assertEqual(evaluate(doc).value(fins).kind, "body")
 
 
 class TestPlateParam(unittest.TestCase):
@@ -235,7 +312,7 @@ class TestPlateParam(unittest.TestCase):
 
     FIXTURE = (
         Path(__file__).resolve().parents[3]
-        / "crates" / "pncad" / "tests" / "plate_param.v13.pncad"
+        / "crates" / "pncad" / "tests" / "plate_param.v14.pncad"
     )
 
     def plate(self):
@@ -1457,13 +1534,16 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             sorted(n for n in dir(Node) if not n.startswith("_")),
             [
                 "boolean", "datum_axis", "datum_plane", "declare", "extrude",
-                "fillet", "loft", "polygon", "profile", "revolve", "split",
-                "transform",
+                "fillet", "loft", "placed_union", "placed_union_at", "polygon",
+                "profile", "revolve", "split", "transform",
             ],
         )
         self.assertEqual(
             sorted(n for n in dir(DocEdit) if not n.startswith("_")),
-            ["delete_node", "insert_node", "set_doc_param", "set_tolerance"],
+            [
+                "bind_count_param", "delete_node", "insert_node",
+                "set_doc_param", "set_tolerance",
+            ],
         )
 
     def test_the_named_gaps_are_still_gaps(self):
@@ -1505,7 +1585,9 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # `sweep` and `tube` STAY: `wire_sweep` refuses unconditionally
         # (SWEEP_FRONTIER, the path-composition lane banked past M6),
         # and no `Node::Tube` exists at all. `pattern` stays for the
-        # measured reason below.
+        # measured reason below — and note what is NOT in this list:
+        # `placed_union`/`placed_union_at` left it when LIB-PYPU bound
+        # the group boolean, whose value is an ordinary body.
         for node_kind in ["sweep", "tube", "pattern"]:
             with self.subTest(node=node_kind):
                 self.assertFalse(hasattr(Node, node_kind), f"Node.{node_kind} exists")
@@ -1677,16 +1759,33 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         self.assertEqual(loop.vertex_count, 4)
 
     def test_a_plural_payload_cannot_feed_a_boolean(self):
-        """G8, measured rather than assumed. The heatsink's shape is a
-        pattern UNIONED into a base, and `Node::Pattern` evaluates to
-        an `Instances` payload — which the boolean's operand door
-        refuses, exactly as it refuses the one plural payload Python
-        can already produce, a split. Binding the pattern node would
-        therefore flip no row: the gap is the kernel payload, not the
-        binding, so `Node.pattern` deliberately stays absent."""
+        """Why `Node.pattern` stays unbound, measured rather than
+        assumed — and what was built INSTEAD.
+
+        A boolean's operand door refuses a plural payload: a split's
+        two halves refuse below, and a `Pattern` node's `Instances`
+        would refuse for the same reason. Binding the pattern node
+        therefore still flips no row, so `Node.pattern` stays absent.
+
+        What closes the replication half of G8 is a node whose value
+        is SINGULAR: `PlacedUnion` fuses its placements and answers an
+        ordinary `body`, which every downstream door consumes with no
+        new arms. The contrast is the assertion below — same document,
+        one payload a boolean cannot take and one it can."""
         self.assertFalse(hasattr(Node, "pattern"))
 
         doc = Doc()
+        grouped = doc.insert(
+            Node.placed_union_at(
+                slab(doc, (0, 1), (0, 1), (0, 1)),
+                [
+                    Frame.translation((0 * m, 0 * m, 0 * m)),
+                    Frame.translation((4 * m, 0 * m, 0 * m)),
+                ],
+            )
+        )
+        self.assertEqual(evaluate(doc).value(grouped).kind, "body")
+
         box = slab(doc, (0, 1), (0, 1), (0, 1))
         other = slab(doc, (2, 3), (0, 1), (0, 1))
         plane = doc.insert(Node.datum_plane((0 * m, 0 * m, 0.5 * m), (0.0, 0.0, 1.0)))

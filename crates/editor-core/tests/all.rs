@@ -42,6 +42,10 @@ mod asm4_split_inline;
 mod asm_r2a_mate_solve;
 #[path = "asm_r2a_schema_v13.rs"]
 mod asm_r2a_schema_v13;
+#[path = "asm_r2b_assembly.rs"]
+mod asm_r2b_assembly;
+#[path = "asm_r2b_schema_v14.rs"]
+mod asm_r2b_schema_v14;
 #[path = "asm_roots.rs"]
 mod asm_roots;
 #[path = "asm_upd_pin_update.rs"]

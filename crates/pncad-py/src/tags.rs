@@ -20,6 +20,7 @@ use pncad::document::{
     DimensionError, EditError, MateFault, NodeErrorKind, PersistError, PlacementRuleFault,
     RecordedProgramError, RootFault,
 };
+use pncad::geom_core::{FrameError, FrameInput};
 use pncad::profile::PathError;
 
 /// The stable tag for a PATHS authoring refusal (LIB-PYG1).
@@ -150,6 +151,44 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
     }
 }
 
+/// The stable tag for a placement-rule fault (GROUP-BOOLEAN-DESIGN) —
+/// ONE tag per fault, shared by every door that carries one.
+///
+/// The tags are the EDIT door's own (`placement_rule_mismatch`,
+/// `empty_placement_list`, `non_finite_placement`,
+/// `improper_placement`), so the same broken rule reads the same
+/// whether it is refused at the node constructor, at the edit gate, or
+/// at the evaluation backstop — one fault, one spelling, three doors.
+pub fn placement_rule_fault_tag(fault: &PlacementRuleFault) -> &'static str {
+    match fault {
+        PlacementRuleFault::CountSpelling => "placement_rule_mismatch",
+        PlacementRuleFault::NoPlacements => "empty_placement_list",
+        PlacementRuleFault::NonFiniteFrame { .. } => "non_finite_placement",
+        PlacementRuleFault::ImproperFrame { .. } => "improper_placement",
+    }
+}
+
+/// The stable tag for a frame-construction refusal
+/// (`geom_core::linalg::frame`'s U4b trio).
+///
+/// `FrameError` implements `Display`, so the human message is the
+/// kernel's own prose and the tag is the branchable discriminant. The
+/// degenerate arm tags per INPUT: which direction was unusable is what
+/// a caller branches on, and the wrapper arm alone would collapse four
+/// distinct refusals into one.
+pub fn frame_error_tag(err: &FrameError) -> &'static str {
+    match err {
+        FrameError::Degenerate { input, .. } => match input {
+            FrameInput::Aim => "degenerate_aim",
+            FrameInput::Tangent => "degenerate_tangent",
+            FrameInput::RollReference => "degenerate_roll_reference",
+            FrameInput::ReferenceLadder => "degenerate_reference_ladder",
+            FrameInput::MirrorNormal => "degenerate_mirror_normal",
+        },
+        FrameError::Band(_) => "band",
+    }
+}
+
 /// The stable tag for a product-root invariant refusal (ASM-ROOTS
 /// D-2) — shared by every door that carries a `RootFault`.
 pub fn root_fault_tag(fault: &RootFault) -> &'static str {
@@ -188,14 +227,7 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::AxisNotInSketchPlane { .. } => "axis_not_in_sketch_plane",
         NodeErrorKind::NonPositiveCount { .. } => "non_positive_count",
         NodeErrorKind::PlacementsUncertified { .. } => "placements_uncertified",
-        // One tag per fault so a Python caller can tell "the count is
-        // spelled twice" from "the list is empty" from a bad frame.
-        NodeErrorKind::PlacementRule(fault) => match fault {
-            PlacementRuleFault::CountSpelling => "placement_rule_mismatch",
-            PlacementRuleFault::NoPlacements => "empty_placement_list",
-            PlacementRuleFault::NonFiniteFrame { .. } => "non_finite_placement",
-            PlacementRuleFault::ImproperFrame { .. } => "improper_placement",
-        },
+        NodeErrorKind::PlacementRule(fault) => placement_rule_fault_tag(fault),
         NodeErrorKind::UnschedulableCycle => "unschedulable_cycle",
         NodeErrorKind::Naming { .. } => "naming",
         NodeErrorKind::DeclareResolve { .. } => "declare_resolve",
@@ -219,6 +251,7 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         // dangling head carry different recourses, so a caller
         // branches on which one fired, not on "a mate failed".
         NodeErrorKind::Mate(fault) => mate_fault_tag(fault),
+        NodeErrorKind::CrossingUnverified { .. } => "crossing_unverified",
     }
 }
 
@@ -329,6 +362,7 @@ pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
         E::SolidInvalid { .. } => "solid_invalid",
         E::ProductInvalid { .. } => "product_invalid",
         E::Naming { .. } => "product_naming",
+        E::ContactLineage { .. } => "contact_lineage",
     }
 }
 
