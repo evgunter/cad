@@ -143,6 +143,79 @@ moot — "interval is a live feature and per S1 may be in all builds soon."
 Dual." Steelman pass commissioned on that specifically: is `Dual` planned
 work with a scheduled consumer, or was it superseded by analytic
 derivatives?
+**Steelman (2026-08-18): SURVIVES IN PART — the "no consumer" framing is
+wrong, but the position is worse than "planned work waiting its turn".**
+
+*Original basis.* `Dual` is not accretion. Evan on PR #110 (2026-07-26):
+*"the original purpose to making a `Real` instead of just using `f64` was
+to support this feature, and `Interval` was a quasi-stand-in for a
+uniform distribution."* It was slated in `docs/archive/M0-PLAN.md:50`,
+implemented as M0 PR 5, and ratified with Evan's sign-off on PR #10; the
+module docs are contemporaneous with the code (same commit `355e1fa`),
+so this is a decision, not a rationalization.
+
+*There is a named, dated, ratified consumer.* `docs/ERROR-DESIGN.md` is
+RATIFIED (Evan, PR #110). **E4** (`:172`) is exactly the missing
+consumer: *"∂m/∂pᵢ = evaluate the recipe at `Dual<f64>` with pᵢ
+seeded"*. E5 consumes it for stackup reports; E7 (`:321`) uses
+`Dual<Interval>` for monotonicity pruning. `DESIGN.md:1381` schedules
+this as **M10**. `CONTACT-DESIGN.md:386` already writes contracts *for*
+"the E4 dual lane".
+
+*Not superseded.* All three candidate replacements were checked and
+none covers E4: `ssi/jet.rs:11` declines `Dual` because it needs 2nd/3rd
+derivatives and forward-mode duals do not nest; `derivative_coeffs`
+computes sup-|C″| hulls, a different quantity; and `Surface::deriv_*`
+are derivatives w.r.t. *surface* parameters where E4 needs them w.r.t.
+*model* parameters through the whole recipe. Nothing in the kernel
+computes that.
+
+*`Dual` also earns its keep today, which my report missed entirely.* It
+is the differential oracle for ~52 non-test call sites of analytic
+derivative code — `first/second_derivatives_match_duals` cross-check
+every surface and curve variant at 1e-12 including mixed-partial
+symmetry by two independent routes. And
+`topo/tests/review_m2_pr3.rs:218` builds an entire `Body<Dual64>` and
+asserts bit-identity with the `f64` build — a live proof of the
+value-channel contract and of Q1's "derivatives never branch" that no
+other scalar can provide.
+
+*The sharpest thing the steelman found, which upgrades this finding
+rather than dismissing it:* **the planned consumer cannot be built
+without first undoing a bound the kernel has already committed to.**
+`eval/mod.rs:934` requires `T: … + geom_core::Bounds + …`; `Bounds` is
+deliberately not implemented for `Dual`. So `evaluate::<Dual64>` **does
+not compile**, and `grep -c Dual crates/editor-core/` is **0** — the
+document layer where E4's recipe lives has never heard of duals. E4's
+mechanism is structurally blocked today, and no spec, issue or PR
+registers that blocker (all 39 open issues checked).
+
+*Net position:* the cost is real and is `Dual`'s; the benefit is
+deferred to M10; and the deferred benefit has an **unpaid, unregistered
+structural prerequisite**. That is materially worse than "planned work",
+and materially better than "dead weight".
+
+*Hidden costs of dropping `Dual`:* it revises a doc Evan ratified with a
+👍, re-opens the kink conventions settled over two rounds on #9/#10 and
+already leaned on by `CONTACT-DESIGN.md:386`, forfeits the differential
+oracle and the only end-to-end no-tangent-leak proof, and demotes the
+L7 "evaluation code must not read brackets" rule from a compiler fact
+(`Dual` is the one `Real` without `Bounds`, so a signature that reaches
+for a bracket stops compiling) to a CI grep.
+
+*Explicitly separable:* dropping `Dual` and narrowing the genericity are
+**two different decisions and should not be bundled**. The load-bearing
+genericity terms — the `Decide`/`Bounds` split, the `SpanLocate` seam,
+the four-scalar test axes — are driven by `Interval`, not by `Dual`.
+
+*Could not determine:* when M10 actually happens (no `M10-PLAN.md`, no
+open issue); whether the `Bounds` blocker is known-and-unwritten or
+genuinely unnoticed; and **whether a `Dual` test has ever caught a
+defect in the analytic derivative code it checks** — that last one
+distinguishes "real oracle" from "oracle that has never fired", and
+would be settled by a mutation run against `deriv_u`/`deriv_uv` with the
+dual tests as the only gate.
+
 ## S3. The "lane trait" — one cargo-culted pattern, four instances, three spellings of the same answer
 
 - **Where**: `crates/topo/src/props.rs:360`,
@@ -177,6 +250,31 @@ offered as the reason to keep them as four.
 collapsed." Steelman pass commissioned to find what actually blocks the
 collapse — coherence across the `topo`/`geom-brep` crate boundary, the CI
 `Bounds` gate, or nothing.
+**Steelman cross-reference (from S2, 2026-08-18): two findings that
+sharpen this one.**
+
+1. **At the site this report cites (`eval/mod.rs:865`), the
+   `PropsQuadLane` bound is inert.** The sibling `Bounds` bound already
+   restricts `T` to `{f64, Probe, Interval}`, and all three have a
+   certified quadrature lane. The lane trait buys nothing at that
+   signature.
+2. **The repo's own precedent says these collapse if `Dual` leaves
+   `Real`.** When the same tripwire fired on the fillet battery the
+   ruling was: *"no dual-scalar path can reach the fillet constructor …
+   A `PropsQuadLane`-style static split would therefore have had an
+   EMPTY refusing side: a dual impl refusing a call no dual scalar can
+   make. So the seam is RATIFIED rather than split"*
+   (`docs/archive/M5-LOG.md:2869`). All four lanes exist to carry a
+   refusing `Dual` impl; remove `Dual` and every refusing side goes
+   empty, so by that precedent all four become a plain
+   `T: Decide + Bounds` seam.
+
+Note also that the refusing impls are **Evan's own ruling**, not cargo
+cult: `docs/archive/M5-LOG.md:3451` records *"Evan: it is not
+semantically valid type-wise for duals to enter a pipeline that can only
+refuse them — adopted."* So the question is not "why do these refuse"
+but "should `Dual` be in `Real` at all" — i.e. S3 is downstream of S2.
+
 ## S4. One vocabulary, N hand-synced copies — the dominant repo-wide shape
 
 - **Confidence**: sure
