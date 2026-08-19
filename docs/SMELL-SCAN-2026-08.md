@@ -4275,7 +4275,7 @@ what produced the `E0034` ambiguity storm it backed out of.
 
 **Verdict:**
 
-## S56. FIXED by #NNN — the compound-`Bounds` gate was order-sensitive, so half the spellings it forbids were invisible to it
+## S56. FIXED by #676 — the compound-`Bounds` gate was order-sensitive, so half the spellings it forbids were invisible to it
 
 - **Where**: `scripts/gates/bounds-allowlist.sh` (the matcher, the
   header's `ssi/enclose.rs` paragraph, and `plant`);
@@ -4333,7 +4333,7 @@ special-case. `Decide + CertifiedBounds` is still a compound bound and
 still fires, which is correct: that genuinely is an evaluation parameter
 with brackets.
 
-**Executed by #NNN.** All thirteen non-deciding signatures converted
+**Executed by #676.** All thirteen non-deciding signatures converted
 across the three files. `ssi/certify.rs` and `topo/props.rs` were **not**
 converted — every one of their sites is `Decide + Bounds +
 CertifiedEnclosure`, genuinely decides and brackets, and they stay
