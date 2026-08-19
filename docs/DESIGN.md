@@ -50,6 +50,12 @@ self-intersection and to compute tolerance stackups.
 > deterministic, no hidden state. The B-rep is a derived value, never a
 > mutated-in-place object.
 
+**Not quite: there is one exception, and only one — ε.** No signature
+carries it and every predicate reads it, so a model is a pure function of
+its parameters *and* of ε, which is committed once per process before the
+first predicate and cannot be changed after (D4). Determinism is over the
+pair: the same parameters at the same ε give the same solid.
+
 Everything else follows from holding this invariant from day one:
 
 - **Error propagation** becomes "evaluate the same function with a different
