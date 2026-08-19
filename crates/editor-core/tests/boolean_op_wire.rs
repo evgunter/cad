@@ -2,10 +2,10 @@
 //!
 //! The operation is the KERNEL's `topo::BooleanOp`, re-exported rather
 //! than re-minted, and its bytes are supplied by a `#[serde(with)]`
-//! module in this crate — the kernel gains no serde dependency (the
-//! F3/G1 layering rule). Because the type and its bytes are declared
-//! in different crates, nothing in the compiler ties one to the other:
-//! these pins are that tie.
+//! module in this crate (`persist::kernel_wire::boolean_op`) — the
+//! kernel gains no serde dependency (the F3/G1 layering rule). Because
+//! the type and its bytes are declared in different crates, nothing in
+//! the compiler ties one to the other: these pins are that tie.
 //!
 //! The wire spelling is a stable STRING. A discriminant would silently
 //! re-map if a fourth operation ever landed between two existing ones,
@@ -72,4 +72,35 @@ fn an_unknown_operation_spelling_refuses() {
         err.to_string().contains("Xor"),
         "the refusal names the spelling it could not read: {err}"
     );
+}
+
+/// The write door's own refusal, exercised through the only route a
+/// test has to it. An operation missing from the module's read table
+/// must refuse at WRITE time rather than produce a file this build
+/// cannot open — the failure mode the compiler cannot rule out. Today
+/// the table is complete, so the check must be INVISIBLE: every
+/// operation writes, and writes the bytes pinned above.
+#[test]
+fn the_write_door_admits_every_operation_it_can_read_back() {
+    for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
+        let text = serde_json::to_string(&boolean(op)).unwrap();
+        let back: Node<ProfileProgram> = serde_json::from_str(&text).unwrap();
+        assert_eq!(
+            back,
+            boolean(op),
+            "{op:?} did not survive its own write door"
+        );
+    }
+}
+
+/// The map form a derived unit-variant deserializer would also have
+/// accepted. Nothing has ever WRITTEN it — serialization emits the
+/// string in both the old shape and the new — so refusing it is a
+/// deliberate narrowing, and this row is what keeps a later "leniency
+/// fix" from undoing it unnoticed.
+#[test]
+fn the_map_form_of_a_variant_is_refused() {
+    let text = r#"{"Boolean":{"op":{"Union":null},"a":1,"b":2,"declare":null}}"#;
+    serde_json::from_str::<Node<ProfileProgram>>(text)
+        .expect_err("the operation rides the wire as a string, never as a one-key map");
 }

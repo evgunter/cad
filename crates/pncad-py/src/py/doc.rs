@@ -313,9 +313,10 @@ impl Doc {
 ///
 /// Rust has ONE `BooleanOp` — the kernel enum the recipe node carries
 /// — and this is its binding. The mirror exists because `#[pyclass]`
-/// cannot be attached to a type from another crate, so what crosses is
-/// a python-side copy plus [`BooleanOp::to_document`], whose match is
-/// exhaustive: a fourth operation breaks this compile.
+/// cannot be attached to a type from another crate, so a python-side
+/// copy is forced; the obligation it owes the kernel is that every
+/// kernel operation has a member here, which
+/// [`_binds_every_kernel_operation`] is what enforces.
 #[pyclass(eq, eq_int, module = "pncad", from_py_object)]
 #[derive(Clone, Copy, PartialEq)]
 pub(crate) enum BooleanOp {
@@ -334,6 +335,24 @@ impl BooleanOp {
             Self::Intersect => d::BooleanOp::Intersect,
             Self::Subtract => d::BooleanOp::Subtract,
         }
+    }
+}
+
+/// Every kernel operation has a member on the python mirror.
+///
+/// The direction is the load-bearing one. `to_document` matches on
+/// `Self` — a closed local enum — so it says nothing about the kernel
+/// growing; an operation added there would leave the python surface
+/// silently short of it. This match is over the KERNEL enum, so that
+/// addition breaks this build and the binding must be written.
+///
+/// It is never called: a type-checked match is the whole product, and
+/// the leading underscore is what says so.
+const fn _binds_every_kernel_operation(kernel: d::BooleanOp) -> BooleanOp {
+    match kernel {
+        d::BooleanOp::Union => BooleanOp::Union,
+        d::BooleanOp::Intersect => BooleanOp::Intersect,
+        d::BooleanOp::Subtract => BooleanOp::Subtract,
     }
 }
 

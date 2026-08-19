@@ -89,11 +89,16 @@ gate_require_file() {
 
 # Gates say what they proved, like their siblings
 # (`scripts/check-test-aggregation.sh`, `check-interval-cfg-additive.py`).
+#
+# GATE_SCAN_NOUN names what was counted. Most gates scan `crates/*/src`
+# and inherit the default; a gate whose subject is something else sets
+# it, so the count it prints says what it actually looked at.
+: "${GATE_SCAN_NOUN:=source file}"
 gate_ok() {
   local plural=s
   [ "$GATE_SCAN_FILES" = 1 ] && plural=
-  printf '%s OK: %s (%s source file%s scanned)\n' \
-    "$(gate_name)" "$1" "$GATE_SCAN_FILES" "$plural"
+  printf '%s OK: %s (%s %s%s scanned)\n' \
+    "$(gate_name)" "$1" "$GATE_SCAN_FILES" "$GATE_SCAN_NOUN" "$plural"
 }
 
 # The clean fixture every self-test starts from. A gate whose subject is
