@@ -138,19 +138,6 @@ pub(crate) fn quad_prism(profile: &[(f64, f64); 4], height: f64) -> Body<f64> {
     body
 }
 
-/// Census: (solids, shells, faces, loops, half-edges, edges, vertices).
-fn census<T: geom_core::Decide>(b: &Body<T>) -> (usize, usize, usize, usize, usize, usize, usize) {
-    (
-        b.solids().count(),
-        b.shells().count(),
-        b.faces().count(),
-        b.loops().count(),
-        b.half_edges().count(),
-        b.edges().count(),
-        b.vertices().count(),
-    )
-}
-
 /// Re-glues one section pair: `kfmrh(below_face, above_face)` (same
 /// solid, cross-shell fusion), then the loopglue zip — per coincident
 /// vertex pair a scaffolding `mekr`/`mef` + `kev`, per doubled edge a
@@ -277,7 +264,11 @@ fn reassembly_oracle_generic_cube() {
         super::classify::insert_crossings(&mut b, &plane, &mut sides, &mut on).unwrap();
         b
     };
-    assert_eq!(census(&body), census(&reference), "census equality");
+    assert_eq!(
+        body.arena_counts(),
+        reference.arena_counts(),
+        "census equality"
+    );
     let m1 = mass_properties(&body).unwrap();
     let m0 = mass_properties(&operand).unwrap();
     let close = |a: f64, b: f64| (a - b).abs() <= 1e-12 * b.abs().max(1.0);

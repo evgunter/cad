@@ -18,8 +18,20 @@ fn brick<T: Decide + geom_core::Bounds>(x: (f64, f64), y: (f64, f64), z: (f64, f
     prism_z::<T>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
 }
 
-fn counts<T: Decide + geom_core::Bounds>(b: &Body<T>) -> (usize, usize, usize) {
-    (b.vertices().count(), b.edges().count(), b.faces().count())
+/// The three arena lengths an operand is checked untouched by.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Census {
+    vertices: usize,
+    edges: usize,
+    faces: usize,
+}
+
+fn counts<T: Decide + geom_core::Bounds>(b: &Body<T>) -> Census {
+    Census {
+        vertices: b.vertices().count(),
+        edges: b.edges().count(),
+        faces: b.faces().count(),
+    }
 }
 
 fn reduce_ok<T: Decide + geom_core::Bounds>(
