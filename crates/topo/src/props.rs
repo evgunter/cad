@@ -479,7 +479,7 @@ mod quad_lane {
     ) -> Result<(RingInterval, RingInterval), PropsError> {
         let full = RingInterval::from_bounds(-1.0, 1.0);
         let clamp = |x: RingInterval, pad: f64| {
-            RingInterval::from_bounds((x.lo() - pad).max(-1.0), (x.hi() + pad).min(1.0))
+            RingInterval::from_bounds(x.lo() - pad, x.hi() + pad).clamped_to(-1.0, 1.0)
         };
         match carrier {
             // A line's harmonic pcurve has zero trig amplitudes; the

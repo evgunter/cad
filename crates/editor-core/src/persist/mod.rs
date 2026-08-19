@@ -89,6 +89,10 @@
 mod canon;
 mod check;
 pub mod hexbytes;
+/// The bytes of kernel types, described from above the layering
+/// boundary — see the module's own docs for the rules a new one
+/// follows.
+pub(crate) mod kernel_wire;
 pub(crate) mod pairs;
 pub(crate) mod strict;
 mod wire;
@@ -325,7 +329,7 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// v13 file has no crossings), and the migration table stays empty:
 /// a v13 file refuses TYPED with the regenerate recourse.
 ///
-/// The record's `class` rides the SAME `class_wire` spelling v11 gave
+/// The record's `class` rides the SAME `kernel_wire` spelling v11 gave
 /// `Declare`'s pairs and v13 gave `Node::Mate` — one contact
 /// vocabulary, one wire spelling of it, third consumer, still not
 /// re-spelled.

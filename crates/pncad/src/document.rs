@@ -29,10 +29,9 @@
 // one in a typed field rather than only destructure it.
 pub use editor_core::{Applied, Doc, DocEdit, EditError, EditRecord, apply};
 
-// Node vocabulary. `BooleanOp` is the DOCUMENT layer's — the recipe
-// node's operation, distinct from `topo::BooleanOp`, the kernel's.
-// The prelude carries the kernel's and cannot carry both under one
-// name, so this module is where document-layer code spells it.
+// Node vocabulary. `BooleanOp` is the KERNEL's, which the recipe node
+// carries directly; it is re-exported here so document-layer code can
+// spell the whole node vocabulary through one module.
 pub use editor_core::{
     Axis3, BooleanOp, Datum, Node, PatternKind, PlacementRuleFault, RecipeNodeId, SlotId,
 };

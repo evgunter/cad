@@ -1046,7 +1046,7 @@ pub fn trace_plane_nurbs_uncertified(
 ///
 /// As [`certify::certify_branch`].
 #[allow(clippy::too_many_arguments)] // one parameter per named quantity
-pub fn certify_rung3<T: geom_core::Decide + geom_core::Bounds>(
+pub fn certify_rung3<T: geom_core::Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
     pcurve_b: Option<&NurbsCurve2<T>>,
     a: &SsiOperand<'_, T>,
