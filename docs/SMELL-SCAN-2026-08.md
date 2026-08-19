@@ -3839,6 +3839,59 @@ orientation-free by construction and so cannot inherit the bit it is testing.
 *"those tests are valuable even if they don't find anything today"*. That is why
 "may find nothing" was not a reason to defer, and the rows are the deliverable.
 
+## S52. "This face's domain is an iso-rectangle" is re-derived per consumer, in three representations, and no two agree on what it means
+
+- **Where**: `crates/geom-brep/src/props/curved.rs:421` (`du_of_rims` /
+  `props_du_consistent`), `crates/mesh/src/curved.rs`
+  (`require_swept_rectangle` / `entries_off_bbox`, added by #648),
+  `crates/geom-brep/src/props/curved.rs` (`torus()`'s `props_rim_level`)
+- **Importance**: high
+- **Confidence**: sure
+- **Raised by**: the #649 investigation and its boolean-door probe, 2026-08-19
+
+Three consumers need the same property and each derives it independently, from
+different data, to different strengths:
+
+| Consumer | Derived from | Strength |
+|---|---|---|
+| `props`' closed form (cylinder/cone/sphere) | rim structure — per-group **span sums** | **unsound**: sums are a consequence of rectangularity, not equivalent to it (**#649**) |
+| `props`' closed form (torus) | rim **levels** — every rim at an end of the anchor meridian's `[v0,v1]` | sound, and the only arm the #649 probe could not break |
+| `mesh`'s curved lane | the walked **UV polygon** vs its own bounding box | sound for shape, but sees the wobble of **#653** as well |
+
+The three do not agree, they cannot be compared, and the disagreement is
+load-bearing rather than cosmetic: the torus arm is the only one that is right,
+and it is right by accident of a periodicity constraint rather than by anyone
+deciding this is how the property should be tested.
+
+The cost of the fragmentation is already paid twice. **#649** is a wrong
+certified volume with `pad = 0.0` on three of the four kinds. And until #648
+the mesher had no check at all — it was protected *transitively*, by `props`'
+inability to measure the same faces, which is the kind of protection a later
+milestone deletes without noticing.
+
+**Verdict:** ACCEPTED (Evan, 2026-08-19), **and the resolution is chosen: it
+should be ONE named predicate.**
+
+Notes for whoever takes it, so the unit does not quietly become four:
+
+- **The predicate belongs on the face**, derived from rim structure, and the
+  right rule is the torus's: `w(v)` changes only at a rim level, so *every rim
+  at one of the two extreme v-levels* forces `w ≡ du`, which is exactly what
+  `area = r·du·(hi−lo)` assumes. Sufficient, and possibly slightly stricter
+  than necessary — an interior level with matching `+`/`−` groups would leave
+  `w` unchanged — which is the right direction for a precondition.
+- **It subsumes #649's fix.** Do not do them separately: the level rule *is*
+  the sound predicate, and landing it anywhere other than the one home
+  re-creates this finding.
+- **The mesher's check is two questions wearing one coat.** `entries_off_bbox`
+  answers *"is this domain a rectangle"* (this finding) **and** *"did the walk
+  produce a consistent polygon"* (**#653**'s ulp wobble). Once the face-level
+  predicate exists, the first question moves to it and only the second stays in
+  `mesh` — which is also the cleaner statement of what #653 is about.
+- **Ask whether it is a tier property.** Three consumers sharing one
+  precondition is an argument for refusing such a body once at `validate`
+  rather than at each door. Not decided here.
+
 ---
 
 # §A. Where I would start
