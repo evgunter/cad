@@ -1,17 +1,17 @@
-//! STL export from certified tessellations (M2 PR 7): binary and
+//! STL export from certified tessellations: binary and
 //! ASCII writers over [`mesh::Mesh`].
 //!
 //! # What is exported, and what is promised
 //!
 //! The writers consume `Mesh::positions` and each patch's triangles —
-//! outward winding is guaranteed by the tessellator (M2 PR 6) — and
+//! outward winding is guaranteed by the tessellator — and
 //! drop the back-reference keys (faces/edges/vertices mean nothing to
 //! STL). Triangles are emitted in patch order, then triangle order,
 //! exactly as stored: **no snapping, no deduplication, no reordering**
 //! — the writer adds zero nondeterminism on top of the mesh (no hash
 //! iteration anywhere on the write path), so the mesh's bitwise
-//! determinism (verified across debug/release and the ε rows in the
-//! PR 6 suites) carries through to **byte-identical STL output for
+//! determinism (verified across debug/release and the ε rows)
+//! carries through to **byte-identical STL output for
 //! identical inputs** (D9).
 //!
 //! # The f32 narrowing is an honest display-layer loss
@@ -30,8 +30,8 @@
 //! tessellator drops index-degenerate triangles, so a zero cross
 //! product is a defect — it is a typed
 //! [`StlError::DegenerateTriangle`], never a silently zeroed or
-//! guessed normal (fail loud, D4/D9). Known live case (M2 PR 7
-//! finding): at coarse δ a cone's apex fan can emit triangles whose
+//! guessed normal (fail loud, D4/D9). Known live case: at coarse δ
+//! a cone's apex fan can emit triangles whose
 //! three points are exactly collinear along a generator (distinct
 //! indices, zero 3-D area — invisible to the id-degenerate drop and
 //! to the combinatorial `check_mesh`); the writer refuses those
@@ -42,12 +42,11 @@
 //! and STL's own rule (facet normal ≈ outward, agreeing with the
 //! right-hand vertex order) holds here **transitively**: it is
 //! inherited from `mesh::FacePatch::triangles`, whose contract is
-//! outward winding for either value of the M5 S10 face orientation
-//! sense. This writer never reads `topo::Face::sense` — it has no
-//! access to the body at all — and it must not: the sense is already
-//! baked into the triangle order upstream, so applying it again would
-//! invert every facet on a reversed face. S10 category B, by
-//! derivation.
+//! outward winding for either value of the face orientation sense.
+//! This writer never reads `topo::Face::sense` — it has no access to
+//! the body at all — and it must not: the sense is already baked into
+//! the triangle order upstream, so applying it again would invert
+//! every facet on a reversed face.
 //!
 //! # Choosing δ for export
 //!
