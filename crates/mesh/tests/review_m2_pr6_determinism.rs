@@ -78,12 +78,23 @@ fn survives_eps_row_bitwise_independence() {
     // (`walk`); the banded swept-rectangle domain guard (`curved`,
     // #648), which only decides whether a face is REFUSED; and the
     // per-triangle certificate assertion in `trimmed`'s review probe,
-    // absent from a default build. NONE of them can change an emitted
-    // value — the first must not flip its identification across sane
-    // rows for these bodies, and the others do not produce one. The
-    // consumer that did move a value, the loop-closure snap, is gone:
+    // absent from a default build.
+    //
+    // What that buys, stated honestly: NO CONSUMER SNAPS A VALUE. The
+    // one that did — the loop-closure snap — is gone (S22, route (ii));
     // the closing column is now the closing vertex's own azimuth, so
-    // the residue it snapped is identically zero (S22, route (ii)).
+    // the residue it snapped is identically zero. It does NOT buy "ε
+    // cannot move an emitted coordinate": pole/apex identification is a
+    // CLASSIFICATION, and flipping it substitutes the pole's exact v
+    // for `chart.v_of(p)` and emits two `pole: true` entries instead of
+    // one — both of which reach the UV polygon, the bounding box, the
+    // interior grid and the pole fan. Its ε-dependence is structural.
+    // What this row demonstrates is that it is UNEXERCISED: over these
+    // bodies, at these three ε rows, the classification does not move,
+    // so the mesh is bitwise a function of (body, δ). A body with a
+    // near-pole vertex would be a different question, and nothing in
+    // the tree mints one (`revolve` refuses the sliver; STEP import is
+    // the plausible route in).
     let exe = std::env::current_exe().unwrap();
     let mut hashes = Vec::new();
     for row in ["1e-6", "1e-9", "1e-12"] {

@@ -2325,13 +2325,41 @@ carrier's midpoint, so the two ends of the closing polygon side are the
 same `f64` rather than the same analytic azimuth down two float paths.
 The residue is **identically zero** on every governed closure —
 `loop_polygon` asserts it bitwise after the walk — the snap is deleted,
-and no ε-derived quantity can move a value the mesh emits. The
+and **no ε consumer in `mesh` snaps a value any more**. (That is the
+exact claim, and it is weaker than "no ε-derived quantity can move a
+value the mesh emits", which is false as stated: pole/apex
+identification is a CLASSIFICATION whose outcome substitutes the pole's
+exact `v` for `Chart::v_of` and emits two polygon entries instead of
+one, both of which reach the bbox, the interior grid and the pole fan.
+Its ε-dependence is structural and **unexercised by the in-tree
+corpus** — nothing in tree puts a non-pole vertex within a suite ε row
+of a pole, and no kernel constructor mints one — not absent. Both
+surviving copies of the sentence now say that.) The
 comparison survives as a `debug_assert!` inside `closing_column`, where
 it gates nothing and therefore measures **data quality** (the
 `nist_ftc_09` 21 pm off-axis line endpoint) rather than a tolerance,
-which is what it was always really about. `closure_is_snappable` is
-kept — nothing snaps, so it is renamed `closure_gap_is_noise` — because
-it is the shape #653 needs one rung over.
+which is what it was always really about. The predicate is kept —
+nothing snaps, so `closure_is_snappable` became `gap_is_noise`, named
+for neither the snap nor the closure — because two of its three
+consumers are not closures: `curved`'s domain guard now CALLS it
+instead of respelling the same rule inline, and #653 needs the same
+shape one rung over.
+
+Three things #664's fix pass added, each of which is the finding's own
+lesson applied to #664 itself. **The detector now has a red row.** The
+`debug_assert!` was the predicate's only production consumer and the
+sole stated reason to keep it, and nothing made it fire — the four unit
+rows test the predicate, and the one row that called `closing_column`
+picked its eps and radius *so the detector stays quiet*. Removing the
+assertion could only have redded a row that observes the panic, and
+there was no `#[should_panic]` anywhere in `crates/mesh`. There is one
+now. **`loop_polygon`'s retained `debug_assert_eq!` is documented as
+what it is** — a revert detector, not a runtime guard: it compares
+`out[0].u` with itself and cannot go red for any input, only for a
+source edit (which is a real and useful job, and is what reds the
+curved row under the revert). **And the closure census has one home**,
+this document, rather than three hand-synced copies — the previous
+census in `closing_column`'s rustdoc is exactly what went stale.
 
 Measured A/B on current main (both trees release with
 `debug-assertions`, wild corpus through `import_step`, δ ∈ {5 mm,
@@ -2353,8 +2381,10 @@ work:**
   swept-rectangle domain guard (#648), which decides only whether a
   face is **refused**; and the per-triangle certificate assertion in
   `trimmed`'s review probe, absent from a default build. Only the snap
-  could move an emitted value. So today: **one read, three consumers,
-  none able to change a value.** The
+  could SNAP an emitted value. So today: **one read, three consumers,
+  none of which snaps.** Not "none of which can change a value" — the
+  pole classification can, structurally; it is unexercised, which is a
+  different and weaker fact, and the comments say the weaker one. The
   three stale *"ε is read once, for pole identification"* comments are
   corrected to say that rather than deleted — note that route (ii)
   alone would **not** have made the old wording true again, because
@@ -2409,9 +2439,14 @@ work:**
   rewrote the bar as `residue · radius < eps`, threading ε into a second
   structural decision. **NEVER FLAGGED** — and the invariant it broke had been
   *pinned by an adversarial reviewer*
-  (`survives_eps_row_bitwise_independence`), whose stale comment still reads
-  *"ε is read once, for pole identification"*. **The test still passes**,
-  because only a foreign STEP file produces a nonzero residue.
+  (`survives_eps_row_bitwise_independence`), whose comment read
+  *"ε is read once, for pole identification"* through the whole life of
+  the defect. **The test kept passing**, because only a foreign STEP
+  file produces a nonzero residue. (#664 removed that second read and
+  rewrote the comment — which by then had to name a *third* consumer,
+  #648's domain guard, rather than restore the original wording: a
+  stale claim does not become true again by undoing the change that
+  falsified it.)
   *Lesson: a regression test that pins an invariant on the corpus that existed
   when it was written keeps passing through the change that breaks it — and its
   stale comment then reads as evidence the invariant still holds.*
@@ -2814,9 +2849,10 @@ a vertex lands on that edge), placed obliquely by its assembly
 placement, false-refused at **8.88e-18 m**.
 
 The fix measures the gap in metres against the same band the module
-already uses at the loop closure (`walk::closure_gap_is_noise`,
-`gap · radius < eps` — `closure_is_snappable` until #664 deleted the
-snap and left the predicate as a diagnostic): `Chart::radial` for u — the entry's own
+already uses at the loop closure — `walk::gap_is_noise`,
+`gap · lever < eps` (`closure_is_snappable` until #664 deleted the snap,
+briefly `closure_gap_is_noise`, then named for neither once #664 made
+this guard CALL it rather than respell it): `Chart::radial` for u — the entry's own
 distance from the chart axis, so a cone and a sphere get their varying
 lever arm — and the new `Chart::v_lever` for v. Over a 1524-row split ×
 oblique-placement sweep the **worst** wobble anywhere was 1.4985e-15 m,
@@ -2835,10 +2871,11 @@ silently non-watertight mesh and still do**. That last group is #653's
 other half and is a defect on main in its own right — banding does not
 and cannot catch it, because its off-box residual (≤1.5e-15 m) is the
 same phenomenon at the same scale as the counterexample's. The fix for
-those is #653's option 2 (have the walk snap co-azimuthal consecutive
-meridians onto one column, as the loop-closure snap already does for
-the seam); it changes mesh output and belongs in its own PR with its
-own regression evidence.
+those is #653's option 2 (have the walk put co-azimuthal consecutive
+meridians on one column — the shape the loop-closure snap had for the
+seam until #664 deleted it, which is why #664 kept the predicate); it
+changes mesh output and belongs in its own PR with its own regression
+evidence.
 
 **Payload.** `off_bbox: usize` alone could not tell the two apart — it
 read `1` for a one-corner keyway and `1` for a 6e-17 m wobble, the same
@@ -4483,6 +4520,14 @@ the counterexample in an afternoon: the mechanism guarantees the
 property only when a side is one edge, and every in-tree fixture and
 the whole wild corpus happened to satisfy that, so a green suite proved
 nothing. The refusal became a **false refusal** on valid parts (#653).
+**#648 then corrected the premise only where it bit** — in
+`curved.rs`'s own docs — leaving `walk.rs`'s module header (the home of
+the mechanism) still asserting it flatly, three lines from a paragraph
+#664 was rewriting, so for a milestone two files in one crate said
+opposite things about one sentence. #664's fix pass qualified it in
+`walk.rs`, `mesh/lib.rs` and `Chart::rim_v`. *A correction lands where
+the defect bit; the claim lives wherever it was written down, and the
+two sets are not the same.*
 Two things generalise. A premise stated as *exact* is a claim about
 float representation, not about geometry, and needs a fixture that is
 adversarial to representation — an oblique placement and a subdivided

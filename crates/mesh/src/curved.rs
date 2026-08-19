@@ -49,7 +49,7 @@ use topo::{Body, EdgeKey, FaceKey};
 use crate::cert;
 use crate::chords::{ceil_count, sagitta_angle, torus_grid_step};
 use crate::types::TessellateError;
-use crate::walk::{Chart, ChartKind, UvPoint, loop_polygon};
+use crate::walk::{Chart, ChartKind, UvPoint, gap_is_noise, loop_polygon};
 
 /// The call's tolerance bundle: δ (the promise), δ_s = δ/2 (sizing),
 /// and the run's kernel ε — never sizing, and never a value the mesh
@@ -57,8 +57,23 @@ use crate::walk::{Chart, ChartKind, UvPoint, loop_polygon};
 /// vertex identification in [`crate::walk`]; this lane's banded domain
 /// guard, which only chooses whether to REFUSE; and the per-triangle
 /// certificate assertion in [`crate::trimmed`]'s review probe, which
-/// is absent from a default build. None of them can move an emitted
-/// coordinate.
+/// is absent from a default build.
+///
+/// **No consumer SNAPS a value.** The one that did — the loop-closure
+/// snap — is gone (S22); the domain guard only chooses whether to
+/// refuse, and the probe assertion emits nothing. That is the exact
+/// claim, and it is weaker than "ε cannot move an emitted coordinate",
+/// which is FALSE as stated: pole/apex identification is a
+/// CLASSIFICATION, and its outcome substitutes the pole's exact `v`
+/// for `Chart::v_of(p)` and emits TWO `pole: true` polygon entries
+/// instead of one. Both reach the UV polygon, hence the bounding box,
+/// hence this lane's interior grid and the pole fan's triangles. So an
+/// ε that flipped that classification WOULD move emitted coordinates.
+/// What is true is that nothing in the tree flips it: no in-tree body
+/// puts a non-pole vertex within any of the suite's ε rows of a pole,
+/// and none of the kernel's own constructors can mint one (`revolve`
+/// refuses that sliver; a STEP import is the plausible route in). The
+/// ε-dependence here is structural and UNEXERCISED, not absent.
 pub(crate) struct Tol {
     /// The chordal tolerance δ.
     pub delta: f64,
@@ -275,11 +290,13 @@ pub(crate) fn tessellate_curved(
 /// 6.2e-17 m of arc on its 0.5 m lever — off its own box, and the
 /// exact form refused a domain that IS the swept rectangle.
 ///
-/// So the entry's distance from the box is measured the way
-/// [`crate::walk`]'s closure detector measures its gap: through
-/// the chart's own lever arms ([`Chart::radial`] for u — the point's
-/// distance from the axis — and [`Chart::v_lever`] for v), against the
-/// run's `eps`. The band admits ulp wobble on a straight side and
+/// So the entry's distance from the box is measured through the chart's
+/// own lever arms ([`Chart::radial`] for u — the point's distance from
+/// the axis — and [`Chart::v_lever`] for v), against the run's `eps`,
+/// by calling [`crate::walk::gap_is_noise`] — the crate's ONE ε band,
+/// which the loop-closure detector also calls. It used to be spelled
+/// out again here; two spellings of one predicate is how the two halves
+/// of a rule drift apart. The band admits ulp wobble on a straight side and
 /// nothing else, and the two populations do not come close to
 /// touching: over the PR's 1524-row split × placement sweep the worst
 /// wobble anywhere was 1.4985e-15 m — 6.7e5 inside ε = 1e-9 — while a
@@ -301,15 +318,23 @@ fn entries_off_bbox(
         .filter_map(|(i, (e, &(lu, lv)))| {
             // Every entry is inside the box by construction (the box is
             // the entries' own min/max), so the spatial distance to the
-            // box BOUNDARY is the smallest of the four side gaps,
-            // each converted to metres by its axis' lever arm.
-            let d = ((e.u - u0).abs() * lu)
-                .min((e.u - u1).abs() * lu)
-                .min((e.v - v0).abs() * lv)
-                .min((e.v - v1).abs() * lv);
-            // NaN-safe by construction: `!(d < eps)` keeps a poisoned
-            // coordinate as a refusal rather than admitting it.
-            if d < eps { None } else { Some((i, d)) }
+            // box BOUNDARY is the smallest of the four side gaps, each
+            // converted to metres by its axis' lever arm — so the entry
+            // is ON the box iff the nearest of the four is noise. Taken
+            // per axis (nearest of the two sides, then the band) so the
+            // lever arm goes to the shared predicate rather than being
+            // applied here: `lu`, `lv >= 0`, so per-axis and
+            // all-four-at-once select the same gap either way.
+            let du = (e.u - u0).abs().min((e.u - u1).abs());
+            let dv = (e.v - v0).abs().min((e.v - v1).abs());
+            // NaN-safe by construction: `gap_is_noise` is a `<`, so a
+            // poisoned coordinate is false on both axes and the entry
+            // stays a refusal rather than being admitted.
+            if gap_is_noise(du, lu, eps) || gap_is_noise(dv, lv, eps) {
+                None
+            } else {
+                Some((i, (du * lu).min(dv * lv)))
+            }
         })
         .collect()
 }
