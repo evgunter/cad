@@ -273,7 +273,7 @@ See §0. Effort M.
 
 #### 3. CI: `opt-level = 2` on the interval build outlived its justification **[verified]**
 
-`.github/workflows/ci.yml:649-666` (scan base `:560-571`). PR #449 put
+`.github/workflows/ci.yml:651-668` (scan base `:562-573`). PR #449 put
 `CARGO_PROFILE_{DEV,TEST}_OPT_LEVEL: "2"` on both archive jobs on
 2026-08-12, justifying it for the interval job verbatim: *"This job is
 the run's critical path (its archive feeds the longest test leg in the
@@ -281,7 +281,7 @@ run) ... the interval lane's slowest leg was 828 s of pure execution,
 and opt-2 is aimed squarely at that."*
 
 **That leg no longer exists.** On 2026-08-13 — the next day — the
-interval-only-selection change (`ci.yml:784-859`,
+interval-only-selection change (`ci.yml:786-861`,
 `scripts/interval-only-selection.py`) cut the interval legs to the 214
 tests the feature actually adds. Measured on run 31776906935, the four
 interval legs execute **3 s, 2 s, 3 s and 2 s — 10 seconds total** —
@@ -298,19 +298,19 @@ hitting perfectly — not one non-path `Compiling` line), 17 workspace libs
 | default | 127 s → 455 s (+328 s) | 6 legs, 168 s — opt-2 still wins |
 | **interval** | **132 s → 534 s (+402 s)** | **4 legs, 10 s — opt-2 loses by ~380 s** |
 
-(opt-0 figures are #449's own hosted measurements, `ci.yml:367-369` —
+(opt-0 figures are #449's own hosted measurements, `ci.yml:369-371` —
 the same lines the scan cited, renumbered by #626. Note the citation
 was already misaimed: those lines are a prune-tooling step, not an
-opt-level knob. The knobs this table is about are `ci.yml:514-515`
-(default) and `:666-667` (interval).)
+opt-level knob. The knobs this table is about are `ci.yml:516-517`
+(default) and `:668-669` (interval).)
 
 **Fix:** delete the two `CARGO_PROFILE_*_OPT_LEVEL` lines from
 `build-interval` only, keep the debuginfo knobs, keep opt-2 on `build`,
 and rewrite the now-false rationale comment. D9-safe by the repo's own
-ratified reasoning (`ci.yml:405-408`, `ci.yml:1015-1017`: "the D9
+ratified reasoning (`ci.yml:407-410`, `ci.yml:1017-1019`: "the D9
 bit-exactness pins hold at any opt level — opt never moves rounding" —
 both renumbered by #626, and both already misaimed: the quoted sentence
-is at `ci.yml:1141-1142`, in neither range).
+is at `ci.yml:1144-1145`, in neither range).
 Effort S.
 
 **Estimated:** `build-interval` 569 s → ~170 s; **−6.7 min billed per
@@ -614,9 +614,9 @@ Effort M (refcounts) / S (the allocation).
 
 #### 10. CI: shard the default archive build
 
-`ci.yml:341-478` — renumbered by #626, and already misaimed: that span
+`ci.yml:343-480` — renumbered by #626, and already misaimed: that span
 is the `discipline` job, while the `build` job this item is about is
-`ci.yml:431-572`. 19 test binaries at ~20 s each of codegen+link, fully
+`ci.yml:433-574`. 19 test binaries at ~20 s each of codegen+link, fully
 independent, executing on a 2-vCPU runner. `ci.yml:96-106` establishes
 that 8-vCPU runners are not landable (`evgunter/cad` is User-owned;
 larger runners need an org), so more cores can only come from more
@@ -1157,7 +1157,7 @@ are not re-reported as findings.
 - **Current CI tessellation is microseconds.** All CI tessellation runs
   at δ=1e-2 (`crates/stl/tests/common/mod.rs:47-66`) → ~31 chord points
   per circle. The 44 s `watertight` row and the 96–150 s montage rows
-  are **compile-bound**, not mesh-bound (`ci.yml:1316` records the tour
+  are **compile-bound**, not mesh-bound (`ci.yml:1318` records the tour
   itself as "~3 s once built" — renumbered by #626, but the quotation
   does not appear at that line or anywhere in ci.yml, so the citation
   is unresolved rather than merely stale). Do not attribute those wall times to
