@@ -149,6 +149,13 @@ followup**: an issue
 number, or a named unit in a plan. "Recorded as a pickup" and "deferred" are
 not schedules. Flag any deviation that is disclosed but unscheduled.
 
+**A claim resting on a measurement is the same shape.** What it owes is a
+mechanical guard — something that goes red when the number stops being true —
+or a written reason it cannot have one. *"Unguardable, and here is why"* is a
+complete answer and usually the right one; a timing cannot be pinned by a
+compile-time assert, and most of the value is in having written that down.
+(#651.)
+
 ### Q7. Is this how you would have done it?
 
 If not, say so, even if you cannot articulate why and even if the existing

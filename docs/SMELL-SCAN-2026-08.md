@@ -4229,6 +4229,12 @@ pin still passes:
 Nothing re-derives a pin when a new caller arrives. And a stale comment on a
 still-passing test reads as **evidence the invariant holds**.
 
+**The weaker case — no pin at all — is #651**, raised by the style review of
+#646. The rule it produced is in `docs/REVIEW-STYLE-BRIEF.md` §Q6 (a
+measured claim owes a mechanical guard or a written reason it cannot have
+one); the classification sweep is a comment on #651, and is not repeated
+here.
+
 ---
 
 ## C15. A sweep's result is worth nothing without a statement of what its pattern cannot match

@@ -1428,9 +1428,11 @@ mod tests {
     ///
     /// **Why the value channels legitimately differ:** num-dual routes
     /// transcendentals through std's `Float` (the platform libm), ours
-    /// through the `libm` crate (D9). The census in `real.rs` measured
-    /// their divergence at ≤ 4 ulps over 20k samples with no promise of a
-    /// bound, so transcendental *value* comparisons here are
+    /// through the `libm` crate (D9). The census in `real.rs`
+    /// (`libm_vs_std_divergence_census`, which asserts the bound rather
+    /// than only reporting it) measures their divergence at ≤ 4 ulps over
+    /// 20k samples, with no promise of a bound from either side — so
+    /// transcendental *value* comparisons here are
     /// tolerance-based (generous ulp allowances) and correctly-rounded
     /// operations (`sqrt`, `+`, `−`, `·`) are asserted bit-identical.
     ///
