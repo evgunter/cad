@@ -619,9 +619,10 @@ pub enum ValidationError {
     /// cross-solid curved face pair within reach of each other (the
     /// C9-ring conformal-rest/proximity class — the exclusion ring
     /// is the certified excluder this backstop stands in for), and
-    /// one instance's extent box contained in another's (C6's
+    /// one instance's vertex hull inside another's REACH box (C6's
     /// interference class — representable only through recorded
-    /// gate-skips, which do not exist yet).
+    /// gate-skips, which do not exist yet; the containing side must be
+    /// a superset of its locus or a nested body clears silently).
     CensusUndecidable {
         /// One side of the pair the census cannot clear.
         a: EntityId,
