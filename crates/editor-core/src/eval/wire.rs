@@ -864,12 +864,7 @@ fn wire_boolean<T: Decide + geom_core::Bounds>(
     }
     let body_a = body_operand(results, a)?;
     let body_b = body_operand(results, b)?;
-    let kernel_op = match op {
-        BooleanOp::Union => topo::BooleanOp::Union,
-        BooleanOp::Intersect => topo::BooleanOp::Intersect,
-        BooleanOp::Subtract => topo::BooleanOp::Subtract,
-    };
-    match topo::boolean_op_with(kernel_op, &body_a, &body_b, &kernel_decls, boolean_sweep)
+    match topo::boolean_op_with(op, &body_a, &body_b, &kernel_decls, boolean_sweep)
         .map_err(|err| refusal_menu(results, a, b, err))?
     {
         BooleanResult::Empty => Ok(OpOut::plain(
