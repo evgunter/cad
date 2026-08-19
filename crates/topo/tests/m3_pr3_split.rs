@@ -64,13 +64,22 @@ fn body_of<T: geom_core::Real>(part: &SplitPart<T>) -> &Body<T> {
     part.body().expect("side has material")
 }
 
-fn census<T: geom_core::Real>(b: &Body<T>) -> (usize, usize, usize, usize) {
-    (
-        b.shells().count(),
-        b.faces().count(),
-        b.edges().count(),
-        b.vertices().count(),
-    )
+/// The four arena lengths a split side is pinned by.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Census {
+    shells: usize,
+    faces: usize,
+    edges: usize,
+    vertices: usize,
+}
+
+fn census<T: geom_core::Real>(b: &Body<T>) -> Census {
+    Census {
+        shells: b.shells().count(),
+        faces: b.faces().count(),
+        edges: b.edges().count(),
+        vertices: b.vertices().count(),
+    }
 }
 
 /// Vertices of `body` at exactly (x, y, z), bitwise.
@@ -213,8 +222,24 @@ fn generic_plane_asymmetric() {
 
     // Census, derived by hand: below = quad prism (V8 E12 F6); above =
     // pentagon prism (V10 E15 F7). One shell each.
-    assert_eq!(census(below), (1, 6, 12, 8));
-    assert_eq!(census(above), (1, 7, 15, 10));
+    assert_eq!(
+        census(below),
+        Census {
+            shells: 1,
+            faces: 6,
+            edges: 12,
+            vertices: 8
+        }
+    );
+    assert_eq!(
+        census(above),
+        Census {
+            shells: 1,
+            faces: 7,
+            edges: 15,
+            vertices: 10
+        }
+    );
 
     // Volume conservation (evaluation-lane check).
     let (va, vb, v0) = (
@@ -273,8 +298,24 @@ fn vertex_grazing_plane() {
     assert_tier3_after_upgrade(above);
     assert_tier3_after_upgrade(below);
     // Below = quad prism; above = triangle prism.
-    assert_eq!(census(below), (1, 6, 12, 8));
-    assert_eq!(census(above), (1, 5, 9, 6));
+    assert_eq!(
+        census(below),
+        Census {
+            shells: 1,
+            faces: 6,
+            edges: 12,
+            vertices: 8
+        }
+    );
+    assert_eq!(
+        census(above),
+        Census {
+            shells: 1,
+            faces: 5,
+            edges: 9,
+            vertices: 6
+        }
+    );
     // The grazed corners: one vertex per side at each ON position
     // (coincident across bodies — distinct entities in distinct
     // bodies).
@@ -517,9 +558,17 @@ fn ring_rehoming_genus_one() {
     // holed slab [0,3] — V16 E24 F10 (8 outer + hole rim ×2 … as the
     // holed box, x-cut): outer box 8 + 8 hole verts = 16; above: plain
     // slab V8 E12 F6.
-    assert_eq!(census(above), (1, 6, 12, 8));
-    assert_eq!(census(below).0, 1);
-    assert_eq!(census(below).3, 16);
+    assert_eq!(
+        census(above),
+        Census {
+            shells: 1,
+            faces: 6,
+            edges: 12,
+            vertices: 8
+        }
+    );
+    assert_eq!(census(below).shells, 1);
+    assert_eq!(census(below).vertices, 16);
     // Rings: below's top/bottom faces keep exactly one ring each;
     // above has none.
     let rings = |b: &Body<f64>| b.faces().map(|(_, f)| f.rings.len()).sum::<usize>();
@@ -580,8 +629,24 @@ fn interval_lane_acceptance() {
     let (above, below) = (body_of(&r.above), body_of(&r.below));
     assert_eq!(validate_closed(above), Ok(()));
     assert_eq!(validate_closed(below), Ok(()));
-    assert_eq!(census(below), (1, 6, 12, 8));
-    assert_eq!(census(above), (1, 7, 15, 10));
+    assert_eq!(
+        census(below),
+        Census {
+            shells: 1,
+            faces: 6,
+            edges: 12,
+            vertices: 8
+        }
+    );
+    assert_eq!(
+        census(above),
+        Census {
+            shells: 1,
+            faces: 7,
+            edges: 15,
+            vertices: 10
+        }
+    );
 
     // The notched block: three disconnected Above prisms, as at f64.
     let fx = prism::<Interval>(NOTCHED, 1.0);

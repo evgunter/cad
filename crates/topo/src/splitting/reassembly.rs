@@ -138,17 +138,28 @@ pub(crate) fn quad_prism(profile: &[(f64, f64); 4], height: f64) -> Body<f64> {
     body
 }
 
-/// Census: (solids, shells, faces, loops, half-edges, edges, vertices).
-fn census<T: geom_core::Decide>(b: &Body<T>) -> (usize, usize, usize, usize, usize, usize, usize) {
-    (
-        b.solids().count(),
-        b.shells().count(),
-        b.faces().count(),
-        b.loops().count(),
-        b.half_edges().count(),
-        b.edges().count(),
-        b.vertices().count(),
-    )
+/// The seven topology-arena lengths a reassembly is compared by.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Census {
+    solids: usize,
+    shells: usize,
+    faces: usize,
+    loops: usize,
+    half_edges: usize,
+    edges: usize,
+    vertices: usize,
+}
+
+fn census<T: geom_core::Decide>(b: &Body<T>) -> Census {
+    Census {
+        solids: b.solids().count(),
+        shells: b.shells().count(),
+        faces: b.faces().count(),
+        loops: b.loops().count(),
+        half_edges: b.half_edges().count(),
+        edges: b.edges().count(),
+        vertices: b.vertices().count(),
+    }
 }
 
 /// Re-glues one section pair: `kfmrh(below_face, above_face)` (same
