@@ -1394,7 +1394,11 @@ Whether that is worth paying is a D9 question — which is the point.
 
 ## S13. Load-bearing invariants held by CI grep, allowlists, and a magic count
 
-- **Where**: `.github/workflows/ci.yml:322`, `:420`, `:444`,
+- **Where**: `scripts/gates/bounds-allowlist.sh`,
+  `scripts/gates/interval-square-allowlist.sh`,
+  `scripts/gates/no-extra-real-bounds.sh` (all three were inline in
+  `.github/workflows/ci.yml` at `:322`, `:420`, `:444` when this was
+  written; #626 moved them),
   `crates/geom-core/src/real.rs:348`,
   `crates/geom-core/tests/flagged_census.rs:20`
 - **Confidence**: sure
@@ -1436,11 +1440,14 @@ across crate boundaries, since sealing controls who may *implement*, not who may
 *name*. Nobody has written that down.
 
 *Two gates could not be types or lints at all.* The interval-square rule guards
-a **whole-program** property (`ci.yml:437`: *"whether THIS enclosure can
+a **whole-program** property (now
+`scripts/gates/interval-square-allowlist.sh`, `ci.yml:437` when this was
+written: *"whether THIS enclosure can
 straddle zero is a global property of upstream callers that refactors change
 silently"*), and the env ban has a measured receipt. And `EvalScalar` is
 evidence the encoded alternative was **tried and needed more grep, not less**:
-`ci.yml:354` — *"the trait is `pub`… so without this step any file in any crate
+now `scripts/gates/evalscalar-allowlist.sh`, `ci.yml:354` then — *"the trait is
+`pub`… so without this step any file in any crate
 could acquire a compound Bounds bound invisibly to the grep above."*
 
 *The brief's premise about `tools/k-lint` was wrong, and it matters.* `k-lint`
@@ -1450,11 +1457,41 @@ is a **CSV gate** over probe sweeps, not a source lint; it does not parse Rust.
 *What does not survive.* (1) **A lint/tool alternative was never evaluated** —
 the only mention is a one-line "optional escalation" in `M0-LOG.md:74`, dropped
 silently; no `dylint`, `clippy::disallowed*`, `clippy.toml` or proc-macro
-appears anywhere in the history. The record is silence, not rejection. (2) The
-dual-maintained allowlist is a **proven drift class**, and (3) the greps' own
-known defects go unfixed — the `x*x` lookahead fix has sat in a log since
-2026-08-04; `Real +` strips no comments while its four siblings do; only one of
-six has a self-test. The regex is also leaky both ways: it **cannot see**
+appears anywhere in the history. The record is silence, not rejection. (2)
+**FIXED by #626** — the dual-maintained allowlist was a **proven drift class**
+(a `separation.rs` entry hosted-only, a `test_support.rs` entry stale locally,
+a `chart_region.rs` entry before that, and two gates with no local mirror at
+all). Nothing about these gates is maintained twice any more, at either level.
+The bodies: every mirrored gate lives once under `scripts/gates/`, ci.yml's
+`discipline` job and `local-scripts/ci-local.sh` both call the same script, and
+the ratified justifications have one home. The rosters: sharing the bodies
+would have left each half still naming its own gate list — the same defect one
+level up, and the one that let `EvalScalar` and the interval-square gate run
+hosted-only — so the local half now runs the gate DIRECTORY in a loop, leaving
+it no roster to drift, and `gate-roster.sh` checks the one hand-written roster
+that has to exist (ci.yml's named steps, since the Actions UI reads failures by
+step name) against that same directory, in both directions. What that roster
+gate proves is **wiring, not execution**: it is a grep, so it cannot read YAML
+semantics, and a step disabled by an `if:` condition — or a false job-level
+`if:` on `discipline` itself — keeps its `run:` line and satisfies the check
+while Actions skips it. Closing that would need a workflow evaluator, which was
+judged not worth building; the hole is named in the script header instead, and
+a silenced step is at least visible as skipped in the Actions UI. Each gate
+also carries a `--selftest` (clean fixture must pass, planted violation must
+fire) which **both halves invoke before the real pass**, as the sibling python
+gate does; that settles the "only one of six has a self-test" residue, which a
+self-test nobody ran would not have. A gate that scans an empty or wrong tree
+now fails instead of reporting green.
+(3) The greps' own remaining defects go unfixed, and #626 left every one of
+them alone — it moved the gates without changing a regex, a message's meaning,
+or an allowlist's membership. Its one behaviour change is disclosed:
+`bit-identity-debug-only` used to exit **0** when `crates/topo/src/source.rs`
+was absent (both `grep -c` calls exit 2, the counts are empty, `[ "" -gt 0 ]`
+errors and reads as false), i.e. it reported green precisely when its subject
+had been renamed out from under it; it now fails loudly. Still standing: the
+lint/`dylint`/proc-macro alternative in (1) is unevaluated; the `x*x` lookahead
+fix has sat in a log since 2026-08-04; `Real +` strips no comments while its
+siblings do; and the regex is leaky both ways — it **cannot see**
 `self.x * self.x`, and `linalg/vec.rs:311` contains exactly that shape in
 production generic-over-`Real` code.
 
@@ -3302,7 +3339,7 @@ Good work for filling parallel capacity. None blocks anything.
 
 | # | Item | Effort |
 |---|---|---|
-| **H1** | **ci-local mirror parity** — the local mirror has no `EvalScalar` step and no interval-square `powi(2)` step; hosted has both. Decide add-or-document. (The `separation.rs` and dead-`test_support.rs` halves are fixed in this PR.) | S |
+| **H1** ✅ #626 | **ci-local mirror parity** — **FIXED by #626**, extracted rather than synced (Evan, 2026-08-19). The eight mirrored gates of ci.yml's `discipline` job live once under `scripts/gates/`; both halves call the same script, ci.yml keeps one step per gate under today's names, and the ratified allowlist prose has one home. A ninth gate, `gate-roster.sh`, closes the level above: `ci-local.sh` runs the gate directory in a loop so it keeps no roster at all, and the gate checks ci.yml's named steps — the one roster that must be hand-written — against that directory, requiring a real invocation rather than a mention. It proves wiring, not execution: a step disabled by an `if:` condition still satisfies a grep, and the script header says so. Every gate runs a `--selftest` in both halves and fails loudly rather than passing green on a tree it could not scan. The `EvalScalar` and interval-square `powi(2)` gates now run locally too. Allowlist membership unchanged; the prose drift and the one disclosed behaviour fix are recorded in the PR. | S |
 | **H2** | **S39 stale claims** — ten rows, each classified **benign rot** vs **lost invariant** *before* its sentence is touched. `enters.rs:14` is the (ii) candidate: the outward-normal property was devolved onto every caller with no type enforcing it. | M |
 | **H3** ✅ #627 | **S40 residue** — start with the two that are not cosmetic: `emit_topo.rs:1266`'s unreachable fallback would mint `Seam{ae, ae}`, a well-formed name for the wrong thing; `seqgen.rs:853`'s discarded counter means the property suite cannot tell an all-skipped run from a full one. **FIXED by #627**: both behavioural rows plus the mechanical residue, and the review pass swept two siblings of the rows it names — `validate.rs`'s 31-of-59 Display list and `run_harmonic_checks`' doubled `reach`. S40's design-call rows (the `k_stats` shim, `WitnessSlot`, `props/curved.rs`'s NaN throws and doubled `Rim` direction, the `HashSet` paragraph) stay open there; two new stale claims went to S39 for **H2**. | S |
 | **H4** | **S37** — shipped-artifact naming: the STL header's `cad-kernel-m2`, `UnsupportedCurve.note`'s runtime-visible PR number, ~124 internal spec codes in public rustdoc and the Python stub. Evan: *"can be fixed earlier"* than S36. | S–M |
