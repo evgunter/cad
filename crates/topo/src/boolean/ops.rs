@@ -973,6 +973,7 @@ pub(super) fn describe_minted_edges<T: Decide>(
 }
 
 /// How one operand's keys map into the result body.
+#[derive(Clone, Copy)]
 pub(super) enum KeyView<'a> {
     /// Keys carried through unchanged (carve preserves keys).
     Direct,
@@ -1597,7 +1598,11 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                             return Err(BooleanError::FallbackExtentUnsupported {
                                 operand: x_is,
                                 face,
-                                what: "one sphere group escapes through NON-PARALLEL plane                                        faces — a single re-chart cannot make every section                                        polar, and multi-chart re-cutting is not built;                                        refused whole rather than metering one cap and                                        dropping the other",
+                                what: "one sphere group escapes through NON-PARALLEL \
+                                       plane faces — a single re-chart cannot make \
+                                       every section polar, and multi-chart \
+                                       re-cutting is not built; refused whole rather \
+                                       than metering one cap and dropping the other",
                             });
                         }
                     }
@@ -1946,10 +1951,6 @@ fn finish_fallback<T: Decide>(
         _ => (KeyView::Absent, KeyView::Direct),
     };
     let mut contacts = remap_contacts(&body, contacts, a_view, b_view, &desc);
-    let (a_view, b_view) = match kind {
-        BooleanResultKind::OperandA => (KeyView::Direct, KeyView::Absent),
-        _ => (KeyView::Absent, KeyView::Direct),
-    };
     remap_carried(&mut contacts, &body, decls, &a_view, &b_view, &desc);
     gate(&body)?;
     let naming = match kind {

@@ -76,7 +76,9 @@ pub(crate) enum FlushRung {
 #[derive(Clone)]
 pub(crate) struct FlushFinding(pub(crate) s::FlushFinding);
 
-/// Crossing helper: the kernel relation as the Python mirror.
+/// Crossing helper: the kernel relation as the Python mirror. The
+/// match is exhaustive over the KERNEL enum with no wildcard arm, so
+/// a kernel variant this module does not mirror stops the build.
 pub(crate) fn plane_relation(rel: KPlaneRelation) -> PlaneRelation {
     match rel {
         KPlaneRelation::SameOriented => PlaneRelation::SameOriented,
@@ -119,7 +121,9 @@ pub(crate) fn contact_class(py: Python<'_>, class: s::ContactClass) -> PyResult<
     }
 }
 
-/// Crossing helper: the kernel rung as the Python mirror.
+/// Crossing helper: the kernel rung as the Python mirror. Exhaustive
+/// over the KERNEL enum, no wildcard arm — kernel growth stops the
+/// build here.
 pub(crate) fn flush_rung(rung: s::FlushRung) -> FlushRung {
     match rung {
         s::FlushRung::SharedSource => FlushRung::SharedSource,
@@ -166,35 +170,6 @@ impl FlushFinding {
 
     fn __eq__(&self, other: &Self) -> bool {
         self.0 == other.0
-    }
-}
-
-/// **Kernel-growth tripwires** (the `select.rs` precedent): exhaustive
-/// matches over the KERNEL enums, no wildcard arm, never called — a
-/// kernel variant this module does not mirror stops the
-/// `python`-feature build here. `ContactClass` is absent by necessity
-/// (`#[non_exhaustive]` forces a wildcard); its replacement alarm is
-/// the typed refusal in [`contact_class`] plus the `src/tests.rs` pin.
-#[allow(
-    dead_code,
-    reason = "compile-time exhaustiveness tripwires; the match is the check, no caller needed"
-)]
-mod growth_tripwire {
-    use super::{FlushRung, KPlaneRelation, PlaneRelation, s};
-
-    fn plane_relation(k: KPlaneRelation) -> PlaneRelation {
-        match k {
-            KPlaneRelation::SameOriented => PlaneRelation::SameOriented,
-            KPlaneRelation::SameOpposite => PlaneRelation::SameOpposite,
-            KPlaneRelation::Distinct => PlaneRelation::Distinct,
-        }
-    }
-
-    fn flush_rung(k: s::FlushRung) -> FlushRung {
-        match k {
-            s::FlushRung::SharedSource => FlushRung::SharedSource,
-            s::FlushRung::DecidedCoincident => FlushRung::DecidedCoincident,
-        }
     }
 }
 
