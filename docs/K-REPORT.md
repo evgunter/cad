@@ -941,3 +941,71 @@ the row to advisory in both wirings with a recorded justification.
 move** — it destroys precisely the evidence the row exists to collect.
 The CLI prints this on every failure; the three exit voices are pinned
 by `tools/k-lint/tests/cli_contract.rs`.
+
+## Census note (2026-08-19): the sector rungs are ONE population (#652)
+
+Not a sweep and not a threshold change — a **name merge**, recorded here
+because the census is the thing it changes.
+
+Six K names became three. `bool_sector_{arm,reflex,straight}` (boolean
+lane) and `split_sector_{arm,reflex,straight}` (splitting lane) are, since
+#647, literally one implementation of one quantity —
+`crates/topo/src/sector_shape.rs`, called from both lanes, with the name
+set handed in as a parameter precisely so this decision could be taken
+separately. It is taken: **pool them** (Evan, 2026-08-19, issue #652).
+They now emit `sector_arm`, `sector_reflex`, `sector_straight`.
+
+**Why, in one line that is not tidiness.** Coverage. Recomputed from
+`m7-eps-1e-6.csv.gz`: all 64 `split_sector_reflex` samples are exactly
+zero, so the splitting lane's wideness name had **no** corpus coverage of
+a definite convex-or-reflex verdict, while `bool_sector_reflex` had 426
+(418 positive + 8 negative) of 1880. Pooling gives the rung one
+population with those 426 rather than two of which one is degenerate.
+The precedent runs both ways and both directions are now on the record:
+`docs/archive/M3-LOG.md:264` (PR #55 review MINOR-1) forced two margins
+under one name to be **split**; `bool_planar_chord_spec` and `chord_spec`
+deliberately **share** `split_arc_window`. This is the first time one
+margin under two names was examined.
+
+**Effect on the census count.** The M7 baseline's **233 distinct
+predicate names** (`docs/k-report-data/m7-eps-*.csv.gz`, verified 233 at
+all three ε rows) becomes **230** for any sweep cut after this change:
+six names out, three in, nothing else touched. Main has since also added
+`path_junction_turn` (recorded above), so a fresh sweep at this tip
+carries **231**. No other predicate's name, margin, band or outcome
+changes. The M7 addendum's own "233" is left as written — it describes
+the committed snapshot, which still says 233 because it still contains
+the six old names.
+
+**Effect on the emitted stream.** Margins, order, bands and outcomes are
+bit-identical; only the `predicate` column changes, and only for these
+six values. Reproduced with the probe #647 left for exactly this —
+`cargo test -p topo --features probe --test all -- --nocapture
+probe_s5_sectors::sector_margin_stream | grep '^K '` on merge base and
+tip: 26 541 rows both sides, identical row-for-row after rewriting the
+six old names to the three new ones, and identical without any rewrite
+on the 23 987 rows that are not sector rungs.
+
+**Disposition of `docs/k-report-data/`: LEFT AS WRITTEN.** The committed
+CSVs (`m4-`, `m5-`, `m7-`, and the M2-era `eps-*.csv`) are dated
+snapshots of a stated head — "these rows are what the script wrote, no
+rename" is already the standing rule for them (M7 addendum), and the
+k-lint gate reads a *fresh* sweep, never these files, so nothing breaks
+by leaving them. Regenerating them would be worse than useless: it would
+destroy the historical record to make it agree with a name.
+
+**How a future reader knows which era a row belongs to** — the one
+sentence this note exists for. The pooled names are **new spellings, not
+either lane's old one**, so the predicate column is self-dating: a row
+reading `bool_sector_arm` / `split_sector_arm` (etc.) is **pre-#652**
+data; a row reading `sector_arm` (etc.) is **post-#652**. No row in any
+committed file silently changes meaning, because no committed row is
+touched and no name is reused across the boundary. That is the reason
+the merge did not simply keep `bool_sector_*` — the 29:1 majority
+spelling would have been the cheap choice and would have made 1880
+pre-merge rows per ε indistinguishable from post-merge ones.
+
+**Still forked, and correctly so.** `bool_sector_{coplanar,within}`,
+`split_sector_{coplanar,extent}` are the `sector_face` twins and the
+face-extent arm — different quantities, still two implementations, the
+rest of smell-scan S5. Pooling does not reach them.

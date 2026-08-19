@@ -211,7 +211,7 @@ all stored surface axes/normals/`u_ref` unit; `implicit_residual` is
 | validate.rs:1795 | tangent_second_order | κ_rel × arm²/2 | m | OK |
 | validate.rs:2030 | bool_ring_run_winding | (outward · Newell sum) / loop perimeter | m | FIXED (F4) |
 | validate.rs:2014 | positive_volume | volume/surface-area (the documented dimensional fix) | m | OK |
-| sector_shape.rs:208–265 | bool_sector_arm/reflex/straight **and** split_sector_arm/reflex/straight | arm = shorter bounding chord (m); sin/cos × arm | m | OK — ONE implementation since the S5 sector-predicate unit; the two name sets are the same computation on the same quantity, which is why this is one row |
+| sector_shape.rs (the three rungs) | sector_arm / sector_reflex / sector_straight | arm = shorter bounding chord (m); sin/cos × arm | m | OK — ONE implementation since the S5 sector-predicate unit, and since #652 ONE name set: the former `bool_sector_*` / `split_sector_*` pairs were the same computation on the same quantity, which is why this was already one row |
 | splitting/classify.rs:81–286 | split_vertex_side / conic lane | plane residual; rooted amplitude; (rad)×minor semi-axis | m | OK |
 | splitting/containment.rs:179/192/219/233 | point_in_loop boundary/side/advance | distances; m²/m advance | m | OK |
 | splitting/containment.rs:203 | point_in_loop_arm | sin(member, plane normal) × loop extent (the member's in-plane fraction) | m | FIXED (was dimensionless schedule norm) |

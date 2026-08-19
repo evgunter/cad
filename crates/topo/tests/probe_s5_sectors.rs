@@ -5,9 +5,12 @@
 //! Why it exists: the vertex-neighborhood sector-shape rungs (metering
 //! arm, wideness, subdivision direction) used to be written twice, once
 //! per lane, and were merged into [`topo`]'s shared `sector_shape`
-//! module with the K predicate names as a parameter (smell scan S5).
-//! "Same names, same margins" is the load-bearing claim of that merge,
-//! and this is how it is reproduced rather than asserted:
+//! module (smell scan S5). #647 merged the bodies with the K predicate
+//! names still a per-lane parameter; **#652 then pooled the names**,
+//! six into three. Each of those steps has a load-bearing claim about
+//! this stream — "same names, same margins" for the first, "same
+//! margins, same order, three names where there were six" for the
+//! second — and this is how they are reproduced rather than asserted:
 //!
 //! ```text
 //! cargo test -p topo --features probe --test all -- --nocapture \
@@ -28,10 +31,13 @@
 //! this suite's peculiarity. The standing gate over the same telemetry
 //! is CI's `k-lint`, which runs `scripts/k_probe_sweep.sh` at three ε.
 //!
-//! The fixtures are chosen to drive BOTH lanes: two boolean subtracts at
-//! two scales (the `bool_sector_*` rungs) and three plane splits of the
-//! notched block whose plane lands ON vertices (the `split_sector_*`
-//! rungs, which only run for ON vertices).
+//! The fixtures are chosen to drive BOTH lanes: two boolean subtracts
+//! at two scales, and three plane splits of the notched block whose
+//! plane lands ON vertices (the splitting lane's sector walk only runs
+//! for ON vertices). Since #652 both lanes emit the SAME three names,
+//! so the roster below can no longer tell you which lane a row came
+//! from — the per-lane coverage claim is carried by the fixtures and
+//! by the recorded ORDER, not by the predicate column.
 #![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod common;
@@ -56,15 +62,9 @@ const NOTCHED: &[(f64, f64)] = &[
     (0.0, 1.0),
 ];
 
-/// The six rungs this probe exists for.
-const SECTOR_PREDICATES: [&str; 6] = [
-    "bool_sector_arm",
-    "bool_sector_reflex",
-    "bool_sector_straight",
-    "split_sector_arm",
-    "split_sector_reflex",
-    "split_sector_straight",
-];
+/// The three rungs this probe exists for — one name set, shared by
+/// both lanes since #652.
+const SECTOR_PREDICATES: [&str; 3] = ["sector_arm", "sector_reflex", "sector_straight"];
 
 fn bx(s: f64, x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> topo::Body<Probe> {
     let f = |v: f64| v * s;
@@ -118,7 +118,7 @@ fn sector_margin_stream() {
         let _ = split(&body, &plane_y(c));
     }
     let samples = k_stats::take_samples();
-    let mut seen = [0_usize; 6];
+    let mut seen = [0_usize; 3];
     for s in &samples {
         // Recorded ORDER is part of the claim: no sort.
         println!(
