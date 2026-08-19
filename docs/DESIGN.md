@@ -1115,9 +1115,9 @@ topology change is stated, not emergent.
   traversal is bounded.)*
 - Essentially no unsafe Rust outside vetted dependencies.
 
-**D2 addendum — the bug-vs-invalid-state taxonomy (PROPOSED
-2026-08-19, pending Evan's sign-off; Wave 0 decision D2 of
-`SMELL-SCAN-2026-08.md` §D, raised by S43).**
+**D2 addendum — the bug-vs-invalid-state taxonomy (ratified 2026-08-19,
+Evan's sign-off; Wave 0 decision D2 of `SMELL-SCAN-2026-08.md` §D,
+raised by S43).**
 
 *Why:* the kernel had **five** answers to "this state can only be a
 bug", two of them mutual negations — `crates/topo` discards a missed
@@ -1184,13 +1184,20 @@ Python layer can trigger is validated into a typed error before the
 kernel call, so an `unreachable!` never crosses into a
 `PanicException`.
 
-*Implementation consequence, not yet applied:* `Cargo.toml`'s clippy
-block lists `unreachable = "warn"` alongside `panic` / `todo` /
-`unimplemented`, and the comment above it states the superseded rule
-verbatim. Adopting this addendum means moving `unreachable` out of that
-family and rewriting that comment; `panic`, `todo` and `unimplemented`
-stay banned. The ~60 `crates/topo` discard sites and idiom 2's
-`MissingEntity` router defects then convert to row 4.
+*Lint state, applied with this addendum:* `unreachable` is out of the
+banned clippy family in both `Cargo.toml` and its hand-mirrored copy in
+`crates/pncad-py/Cargo.toml` (kept in step by that crate's
+`crate_lints_match_the_workspace_minus_unsafe_code` test, whose only
+sanctioned deviation is `unsafe_code` — so the two move together).
+`panic`, `todo` and `unimplemented` stay banned.
+
+*Conversion work this licenses, NOT yet done:* the ~60 silent
+`if let Some` discards across `euler.rs` / `euler_ring.rs` /
+`euler_kill.rs` become row 4, and idiom 2's `MissingEntity` router
+defects with them. Opening the lint permits that work; it does not
+perform it, and until it lands those sites are still the superseded
+idiom. `AssemblyUnsupported`'s rename to `Unsupported*` is likewise
+outstanding.
 
 **Replay with kills (M1, pinned in PRs #20/#23):** the determinism
 contract holds with destructive operators in the history. Identical
