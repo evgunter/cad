@@ -84,6 +84,12 @@ this project has accumulated is *self-declared in prose at the copy site* —
 prose. `rg -n 'verbatim|re-derived|ported from|mirror of' crates/*/src` over
 the touched area costs seconds.
 
+**And when the PR body reports a sweep, ask what its pattern could not match.**
+Do not accept "swept clean" as a negative result unless the sweep says what it
+was blind to; run your own, shaped differently, over the same area. Three
+separate lanes' sweeps failed this way in one day (§4, the sweep-blindness
+rule), and each time a reviewer's differently-shaped grep found the survivors.
+
 If you find one, ask **which direction the dependency runs** and whether the
 shared thing has a home. A core hosted inside one of its two consumers is the
 shape that drifts.
@@ -189,6 +195,41 @@ that found the first. When a style finding is plausibly one of several:
   schedules; a perf scan corrected `face_box`'s stale NURBS premise while the
   identical stale premise for the planar arm sat fifteen lines from the text it
   quoted.)
+
+**The sweep-blindness rule (added 2026-08-19, wave 1b).** A sweep reported in a
+PR body must **state the pattern it ran and what that pattern cannot match**. A
+sweep whose blind spot is unstated is an unverified claim, not a negative
+result — and "swept clean" is the most expensive sentence in a fix pass,
+because it closes the question for every later reader.
+
+This is not hypothetical caution. Three wave-1b lanes reported a sweep as
+verified on the same day, and every one was blind in exactly the shape it was
+hunting:
+
+- **#632** matched arms beginning `RoleSeg::` at the wildcard's indentation, so
+  every arm wrapped in `Some(…)`, `Ok(…)` or a tuple was invisible — which is
+  the shape of what it missed.
+- **#635** used a line-scoped `rg`, so a claim that **wrapped across a line
+  break** could not match. Two survivors sat in the file it had just edited,
+  one of them 25 lines above the list it fixed.
+- **#639** scanned *prefixed* codes (`LIB-*`, `Mn`, `PR n`, `#nnn`) and so could
+  not see **bare** clause letters, shipping S37's own named example
+  (`LIB-DOORS F5`) in a live Python `__doc__` in a crate its body reported at
+  zero.
+
+In all three the conclusion happened to survive and the method did not, and each
+author found their own blind spot within minutes of being asked. That is the
+whole cost of the rule.
+
+Two corollaries, both from the same batch:
+
+- A sweep is accurate as of its **merge base**, not its merge. #639 swept a
+  naming class clean, and a later merge brought in a fresh instance from another
+  lane (`expr.rs:322`). A long-running lane owes a re-sweep before merge, not
+  only one at the start.
+- Where the sweep's own tooling was the defect, **fix the instrument, not only
+  the sites** — #635 rewrote its sweep to join consecutive comment lines into
+  one logical string before matching, and that is what found the survivors.
 
 **Calibration.** Expect findings counts to rise, and the docs column to widen
 downward. Per Protocol v5 that is the instrument changing, not implementation
