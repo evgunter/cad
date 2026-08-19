@@ -8,7 +8,7 @@ use crate::{StlError, facets};
 /// or pointers (D9: byte-identical output for identical inputs). Must
 /// not begin with `solid` (some parsers sniff ASCII STL that way).
 /// Padded to 80 bytes with zeros at write time.
-const HEADER: &[u8] = b"binary STL; CAD kernel M2 tessellation export";
+const HEADER: &[u8] = b"binary STL; CAD kernel tessellation export";
 
 /// Writes `mesh` as binary STL: the 80-byte constant header, the
 /// little-endian `u32` triangle count, then per triangle the f32

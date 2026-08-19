@@ -721,16 +721,16 @@ impl core::fmt::Display for PcurveCertifyError {
             Self::UnsupportedChart { chart } => write!(
                 f,
                 "pcurve certification: no {chart}-chart lane covers this pcurve — every \
-                 analytic chart certifies its closed-form (Harmonic) classes since M6-3 \
-                 (walk row 4), a NURBS chart routes through its description-driven \
+                 analytic chart certifies its closed-form (Harmonic) classes, a NURBS \
+                 chart routes through its description-driven \
                  iso/fitted lanes instead of this door, and an image outside the chart's \
                  harmonic family belongs to the fitted lane where one exists"
             ),
             Self::UnsupportedCarrier => write!(
                 f,
                 "pcurve certification: a closed-form (Harmonic) chart image was offered for a \
-                 carrier with no {{1, cos, sin, t}} form. The general fitted/marched rung is \
-                 LIVE since M6-2 — store the chart image as Pcurve::Fitted and it certifies \
+                 carrier with no {{1, cos, sin, t}} form. The general fitted/marched rung \
+                 is live — store the chart image as Pcurve::Fitted and it certifies \
                  through the control-hull lane"
             ),
             Self::FittedLaneUnsupported { scalar } => write!(

@@ -284,9 +284,9 @@ impl core::fmt::Display for CertifyError {
                 f,
                 "certification: a Nurbs described surface, or a Nurbs carrier under a \
                  conventional description, cannot be certified in this build — rung-3 \
-                 carriers certify as the Intersection of two analytic surfaces \
-                 (M5 PR 9, C12.3), or of one plane and one described NURBS wall through \
-                 the declare-and-check lane (M7-8); NURBS x NURBS has no certificate"
+                 carriers certify as the Intersection of two analytic surfaces, or of \
+                 one plane and one described NURBS wall through the declare-and-check \
+                 lane; NURBS x NURBS has no certificate"
             ),
             Self::IntersectionSameSurface { key } => write!(
                 f,
@@ -341,9 +341,9 @@ impl core::fmt::Display for CertifyError {
             Self::TangentCertificateUnsupported => write!(
                 f,
                 "certification: this (carrier, surface-pair) class is outside the jet \
-                 certificate's certified span-bound lane — Line carriers on \
-                 Plane/Cylinder/Sphere pairs are the M5 class (C12.1: per-class \
-                 retirement with its proof; no runtime fallback)"
+                 certificate's certified span-bound lane — the certified class is Line \
+                 carriers on Plane/Cylinder/Sphere pairs (classes retire one at a time, \
+                 each with its proof; no runtime fallback)"
             ),
             Self::Escalated {
                 check,

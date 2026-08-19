@@ -342,7 +342,7 @@ impl core::fmt::Display for SsiError {
                 f,
                 "ssi: transversality died along the candidate locus \
                  (sin θ = {sin_theta:e}, arm = {arm:e} m, σ₂ = {sigma_min:e}) — this is \
-                 the tangency regime (TangentIntersection, M5 PR 9), not a locus to \
+                 the tangency regime (TangentIntersection), not a locus to \
                  march through; separate the operands, declare the tangency, or lower \
                  the tolerance"
             ),

@@ -41,7 +41,7 @@ pub struct FacePatch {
     /// from outside the material, per the D1 loop conventions).
     ///
     /// "Outward" means the *material* side, not the chart-normal side.
-    /// Since M5 S10 a face's outward normal is
+    /// A face's outward normal is
     /// `topo::Face::sense_sign() · chart_normal`, and this contract is
     /// stated in the outward frame: on a face with `sense: false` the
     /// emitted triangles wind CCW about `−chart_normal`. The
@@ -90,16 +90,10 @@ pub enum TessellateError {
     /// description yet" state has no evaluable description to
     /// tessellate against.
     ///
-    /// History (the S9 discipline — a flipped refusal carries its
-    /// record): through M7 this variant refused EVERY `Nurbs` face,
-    /// described or not, as the first dispatch arm of
-    /// [`fn@crate::tessellate`] — the banked trimmed-NURBS frontier that
-    /// `trimmed`'s module docs named. The trimmed-NURBS lane (M7,
-    /// the montage skin-scenes unit) routes described faces through
-    /// `trimmed` with the control-net Hessian certificate; only the
-    /// placeholder still lands here. Described faces OUTSIDE the
-    /// certified inventory refuse [`Self::UnsupportedNurbsFace`]
-    /// instead, naming their class.
+    /// A DESCRIBED `Nurbs` face never lands here: it routes through
+    /// `trimmed` with the control-net Hessian certificate, and one
+    /// outside the certified inventory refuses
+    /// [`Self::UnsupportedNurbsFace`] instead, naming its class.
     UnsupportedSurface {
         /// The offending face.
         face: FaceKey,
@@ -107,7 +101,7 @@ pub enum TessellateError {
     /// A DESCRIBED NURBS face outside the trimmed-NURBS lane's
     /// certified inventory: an ILLEGAL rational description (a
     /// non-positive/non-finite weight voids the convex-combination
-    /// licence — legal rational faces certify through the M8-5
+    /// licence — legal rational faces certify through the
     /// quotient-rule arm of `nurbs_cert`), a C⁰-creased direction
     /// (interior knot multiplicity ≥ degree — the interpolation
     /// Taylor bound needs C¹), or a degenerate degree-0 direction.
@@ -121,27 +115,29 @@ pub enum TessellateError {
     /// An edge/carrier configuration outside the certified inventory:
     /// an illegal-rational (non-positive weight) or C⁰-kinked
     /// B-spline carrier (legal rational carriers meter through the
-    /// M8-5 quotient-rule sagitta arm of `chords`), a
-    /// trimmed face on a chart whose TRIMMED-TESSELLATION lane is not
-    /// written (cone/sphere/torus — their pcurves mint since M6-3;
-    /// the lane's geometry is still the cylinder chart's), or a
-    /// trimmed face missing its stored pcurve caches. Since M5 PR 11 the conic-on-cylinder case is a
-    /// CONSTRUCTION lane (`trimmed`), not a refusal.
+    /// quotient-rule sagitta arm of `chords`), a trimmed face on a
+    /// chart whose TRIMMED-TESSELLATION lane is not written
+    /// (cone/sphere/torus — those charts mint stored pcurves, but the
+    /// written trimmed lane's geometry is the cylinder chart's), or a
+    /// trimmed face missing its stored pcurve caches. The
+    /// conic-on-cylinder case is a CONSTRUCTION lane (`trimmed`), not
+    /// a refusal.
     UnsupportedCurve {
         /// The offending edge.
         edge: EdgeKey,
-        /// The frontier note — WHICH lane is missing and the PR that
-        /// lands it (runtime-visible through Debug; review m2).
+        /// WHICH tessellation lane the carrier would need and why
+        /// this one is not served — human-readable, and
+        /// runtime-visible through `Debug`.
         note: &'static str,
     },
-    /// An edge is M3 null-edge scaffolding (`topo::null` — no carrier
+    /// An edge is null-edge scaffolding (`topo::null` — no carrier
     /// by type): the body is mid-surgery; tier 2 refuses null entities
     /// at rest, and tessellation is defined on at-rest bodies.
     NullScaffoldEdge {
         /// The scaffolding edge.
         edge: EdgeKey,
     },
-    /// A curved face carries interior rings — no M2 construction
+    /// A curved face carries interior rings — no construction
     /// produces one (curved patches are swept UV rectangles); refused
     /// rather than guessed at.
     RingOnCurvedFace {
@@ -192,8 +188,8 @@ pub enum TessellateError {
     /// a vertex its neighbour does not share — a 3-D T-junction no
     /// grid-retry can repair. No at-rest construction mints one (split
     /// sections and boolean seams are simple loops); the arm is the
-    /// watertightness backstop's tripwire (M5 PR 11 review MIN-1),
-    /// kept typed rather than silent.
+    /// watertightness backstop's tripwire, kept typed rather than
+    /// silent.
     SelfTouchingTrimLoop {
         /// The face whose trim loop touches itself.
         face: FaceKey,
