@@ -467,6 +467,37 @@ the table.
 - **Confidence**: sure
 - **Found independently by six scans.**
 
+**The `units` row is FIXED by #646** (that row only — every other row of
+this finding stands). There is no second spelling of the six units left in
+any crate's `src`: the display-unit code stored in `Lit` is now the row's
+POSITION in `quantity::UNITS`, so both directions go through the table.
+**Not** "written once in the workspace" — two proptest generators still
+enumerate the symbols by hand (`quantity/src/tests.rs:16` writes all six
+in order, deliberately, as the vocabulary pin;
+`editor-core/tests/u8a_parse.rs:366-369` writes the four length symbols
+and both angle symbols). What is true is narrower and is the part that matters: no `src`
+in the workspace holds a second opinion about the vocabulary, so a
+**reorder** of `quantity::UNITS` reaches `editor-core` with no edit
+anywhere, and an addition or rename needs a test edit but no `src` edit.
+The remaining `src` copies are `pncad-py`'s six module bindings plus its
+stub declarations, which are forced (PyO3 must name a module attribute at
+its registration site; `IN` → `inch` is a documented fork) and generatable
+at best, not collapsible — **and unpinned**:
+`pncad-py/tests/test_stubs.py:95` checks only that `"mm"`, one of the
+six, is among the top-level names, so the stub could lose five of them
+silently.
+`step-import`'s `UnitKind` is a different vocabulary, as the steelman
+ruled. #291's MAJOR-2 measurement — the reason a CODE is stored rather
+than the row — now has a mechanical guard of its own: `size_of::<Lit>()
+== 16` is a compile-time assertion, and re-inlining the 32-byte row
+(which takes the literal payload to 40) fails the build. (It was never
+*entirely* unguarded — `large_enum_variant` is default-on in clippy's
+`perf` group and CI runs `-D warnings`, the same detector that fired in
+#291. What was unguarded is the **margin**: whether a regrowth
+re-crosses that lint's 200-byte threshold depends on `DocEdit`'s size,
+which nothing tracks, and `Lit` is a struct, so it trips no enum lint
+alone.)
+
 | Concept | Copies | Anchor |
 |---|---|---|
 | profile `Step` verbs | `profile::Step` / `ProgramStep` / `WireStep` / `StepArg` / content-key tag table — **5**, across 3 crates | `program.rs:64`, `persist/wire.rs:255`, `profile/src/path/program.rs:190` |
@@ -537,7 +568,7 @@ serde grep exists in `ci.yml` or `ci-local.sh`. The only mechanical check is
 | `RoleSeg` arg sites | **SURVIVES IN PART** — the four answer four genuinely different questions and *should* differ. What survives is exact: three carry "exhaustive on purpose or the compile breaks", the fourth ends `_ => Vec::new()` with no note saying why it is exempt. |
 | `StableName` payload lists | **SURVIVES** — see the confirmed drift below. |
 | "no usable value" | **SURVIVES IN PART** — the four enums have genuinely different membership and closure (`RunStatus` is serde-persisted), but all four embed the identical triple, and the stringly fifth is a real fail-quiet. |
-| units | **DOES NOT SURVIVE as counted** — `parse.rs` uses the shared table; `step-import`'s `UnitKind` is a *different vocabulary* (STEP `SI_UNIT` names). Real duplicates: two-and-a-half, one of them **measured and justified** (PR #291 MAJOR-2: inlining the 32-byte row grew every `Expr` by ~40 bytes). |
+| units | **DOES NOT SURVIVE as counted; the residue FIXED by #646.** `parse.rs` uses the shared table; `step-import`'s `UnitKind` is a *different vocabulary* (STEP `SI_UNIT` names). Real duplicates: two-and-a-half, one of them **measured and justified** (PR #291 MAJOR-2: inlining the 32-byte row grew every `Expr` by ~40 bytes). #646 enumerated the two-and-a-half the steelman never named — (1) `expr.rs`'s `UnitSym` enum + its `def()` map, the measured one; (½) that file's *second* table, `from_def`'s six string literals, which the measurement never covered; (2) `pncad-py`'s six module bindings + stub lines, forced by PyO3 — and dissolved (1) and (½) together by making the code an INDEX into `quantity::UNITS`. The code is still one byte, so the measurement stands, and it now has a mechanical guard (a `size_of::<Lit>()` assertion) rather than only clippy's threshold-dependent `large_enum_variant`. (2) is untouched: forced — **and unpinned**, its stub pinned only at one of six names. A residue in `expr.rs` is filed rather than fixed: #650, `literal_with_unit` checks the caller's `UnitDef.quantity` and then stores the table's, so a mismatched pair builds an `Expr` the load door refuses. |
 | Euler vector | **SURVIVES IN PART; the surviving part FIXED by #625.** The 6-vector and the 7 arena deltas are **different quantities** — Δh is not an arena count and cannot be derived from them — so they stay separate **by design**, and the three copies plus the divergent `Ledger` remain. What survived the steelman was the spelling: the delta was an **unnamed positional** 7-tuple at 16 sites across 6 files, against the ratified "named, never positional". It is now `ArenaDelta`, a named `#[cfg(debug_assertions)]` struct with the seven `ArenaCounts` field names; sites write only their nonzero components over `..ArenaDelta::ZERO`, so a mistyped field name fails to compile (a transposition across correct names still does not, which is why the conversion was checked component-by-component). |
 
 *Drift (a) CONFIRMED, and it contradicts ratified design text.* Note the
@@ -572,7 +603,9 @@ Caught by a reviewer, not a type. S4's failure mode, realised.
 *Ranked cheapest-to-hardest to act on:* (1) `BooleanOp` → import +
 `serde(with)`; (2) `name_args`' wildcard → exhaustive; (3) the `Mate` arms —
 small but a **behaviour** fix; (4) the Euler 7-tuple → named struct
-(debug-only) — **DONE, #625**; (5) units; (6) `ProgramStep`/`WireStep` — cheap in isolation,
+(debug-only) — **DONE, #625**; (5) units — **DONE, #646** (and smaller than
+listed: the only unforced `src` copy was inside one file; the residue it
+found and filed rather than fixed is #650); (6) `ProgramStep`/`WireStep` — cheap in isolation,
 **expensive in sequence** (blocked behind OnArc + RESPELL-TABLE, and it
 crosses the same files); (7) the "no usable value" core (blocked by a
 persisted format); (8) `SegTag` (needs the workspace's first proc-macro
@@ -3637,7 +3670,7 @@ Good work for filling parallel capacity. None blocks anything.
 | **W2c** | **S19** — the three big error catch-alls | **D2** | `AssemblyUnsupported` (146), `MissingEntity` (49), `SplitJoinError::Corrupt` (42). These *are* D9's only sanctioned option today, so D2 must land first or the work is undone. |
 | **W2d** | **S6** — sweep helper unification (~230 token-identical lines) | **D3** | Must follow D3: S6 and S7 are in one crate and will collide. K-telemetry does **not** block it — both funnels already take the predicate name as a parameter. Retracted: `SweptSeg`, `strut_spec`, `full::build_lamina` and the `let _ = k;` inference are *not* duplication. |
 | **W2e** | **S5** — `splitting/` vs `boolean/` | — | The largest. Start with the narrowest, highest-value piece: the **forked sector predicates**, which are dimensionally identical line-for-line and split one K population 29:1, with the 64-sample tail the one reaching margin 0. The repo already forced the reverse fix once (`M3-LOG.md:264`). |
-| **W2f** | **S4** — the vocabulary mirrors, cheapest first | partly **W2c** | `BooleanOp` → `pub use topo::BooleanOp` + `serde(with)` (its constraint provably lapsed the day it was minted, and the technique is shipped); then units; then `ProgramStep`/`WireStep`, which is cheap in isolation but **blocked behind OnArc + RESPELL-TABLE** and crosses the same files. |
+| **W2f** 🟡 | **S4** — the vocabulary mirrors, cheapest first | partly **W2c** | `BooleanOp` → `pub use topo::BooleanOp` + `serde(with)` (its constraint provably lapsed the day it was minted, and the technique is shipped); ~~then units~~ — **units DONE, #646**, which also enumerated the real duplicates the steelman had only counted; then `ProgramStep`/`WireStep`, which is cheap in isolation but **blocked behind OnArc + RESPELL-TABLE** and crosses the same files. **The row stays open**: `BooleanOp`, `ProgramStep`/`WireStep`, `SegTag` and the "no usable value" core are all untouched, and #646 filed **#650** (a pre-existing `literal_with_unit` round-trip break found beside the row, not fixed by it). |
 | **W2g** | **S49** — the census's planar × planar skip is justified by a claim about solids | — | `census.rs:1359` skips on a **face** predicate (`a.planar && b.planar`) while `census.rs:1035` argues about planar-only **solids**; a cylinder's caps are planar faces on a non-planar solid. Structural because the repair is a **jurisdiction call** between this filter, the conformal arm and the confirm pass — deciding which owns a planar face on a curved solid, then pinning it with a row that goes red if none of them does. Not gated on D1–D4. The W1a implementer and its reviewer independently judged it too wide to fold into #620. | M |
 
 ---
