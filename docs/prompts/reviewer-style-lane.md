@@ -79,6 +79,22 @@ Specifically:
   should say which in their own docs", "kept in step by hand"?
 - Is it **still true**? Comments that instruct other code to rely on them are
   the dangerous ones; see Q4.
+- Does it exist to **reconcile two spellings of one rule** — to tell you that
+  this site and some other one are the same thing? That comment is evidence the
+  rule needs one home, and it is usually the *only* evidence, because the code
+  compiles either way. A cheap first pass over the touched area, excluding the
+  `bit-identical` / `endpoint-identical` vocabulary, which is D9's and fenced by
+  [[output-stability-as-justification]]:
+
+  ```
+  rg -i 'by hand|hand-(synced|kept|mirrored|maintained|written)|kept in (sync|step)|
+  stay in step|same (rule|logic|argument|derivation|shape) as|duplicated from|
+  not shared with|restated|must match|change both' crates/*/src
+  ```
+
+  Treat the pattern as a starting point, not the instrument — **the question is
+  the instrument**. It will miss phrasings nobody has used yet, and it over-fires
+  on prose about a *user* authoring something by hand, which is not this shape.
 
 ### Q3. Can this test fail?
 

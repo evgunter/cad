@@ -4321,15 +4321,26 @@ versus PyO3's generated `unsafe impl`), and the hand-restatement is already
 held by a test that breaks the build on drift. Duplication made incapable of
 drifting is the outcome, reached mechanically instead of structurally.
 
-**Method note, proposed not adopted.** #641's parent-sense row found its fourth
-copy through a comment whose only job was to explain that two spellings were one
-rule, which suggests a detector: *a comment that exists to reconcile two
-spellings of one rule is evidence the rule needs one home*. Run as
-`rg 'BY HAND|kept in (sync|step)|same rule as|mirrors the (implementation|logic|table)'`
-over `crates/*/src`, excluding the `bit-identical`/`endpoint-identical`
-vocabulary, which is D9's and fenced by [[output-stability-as-justification]].
-It found every site above. Adding it to `docs/prompts/reviewer-style-lane.md` would be a
-Protocol v5 amendment and so **Evan's to ratify**, not adopted here.
+**Method note — RATIFIED (Evan, 2026-08-19) and applied.** #641's parent-sense
+row found its fourth copy through a comment whose only job was to explain that
+two spellings were one rule, which suggested a detector: *a comment that exists
+to reconcile two spellings of one rule is evidence the rule needs one home, and
+it is usually the only evidence, because the code compiles either way.*
+
+It is now a bullet under **Q2** in `docs/prompts/reviewer-style-lane.md`. Two
+things were corrected before it landed. The first draft was a fixed phrase list,
+which is the checklist failure that document's own §1 warns against — so the
+**question** is the instrument and the pattern is demoted to a cheap first pass.
+And the pattern itself was too narrow (Evan): it is now case-insensitive and
+covers the hand-sync, `duplicated from`, `not shared with`, `restated` and
+`change both` phrasings, the last of which is the strongest signal in the
+`wire.rs` ladder and which the original would have missed.
+
+Its own limits are stated where it is used: it misses phrasings nobody has
+written yet, and it over-fires on prose about a *user* authoring something by
+hand. Run over `crates/*/src` at ratification it named `arc_fillet.rs` and
+`pncad-py/src/tests.rs` — the two family members S54 records — and no longer
+names `wire.rs`, because #670 removed the ladder that motivated it.
 
 ## S55. `Enclosure` is a live trait with no consumer left
 
