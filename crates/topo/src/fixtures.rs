@@ -16,6 +16,10 @@
 //!   one face whose outer loop is `Empty`, holding a lone vertex.
 //!   Tier-1-legal by design.
 //!
+//! Plus two whole-body observations the suites compare by —
+//! [`arena_snapshot`] (every arena's length) and [`deep_snapshot`]
+//! (key-for-key, field-for-field, provenance-for-provenance).
+//!
 //! Plus (M1 PR 4) two **operator-built** fixtures — [`ops_cube`] and
 //! [`ops_holed_box`] — the acceptance-test bodies rebuilt in-crate for
 //! the kill-direction, oracle, and teardown tests.
@@ -77,6 +81,42 @@ pub(crate) fn test_surface(_anchor: Point3<f64>) -> geom_surfaces::Surface<f64> 
 /// (all ten arenas, in slot-index order) carrying the **full payload**
 /// plus the entity's D5 provenance record.
 ///
+/// All ten arena lengths of a body — the seven topology arenas plus
+/// the three geometry arenas. The "body unchanged" snapshot of the
+/// atomicity tests, and the delta base of the operator count checks.
+///
+/// A different quantity from [`crate::euler::ArenaDelta`]: these are
+/// counts, not shifts, and they include geometry.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct ArenaSnapshot {
+    pub solids: usize,
+    pub shells: usize,
+    pub faces: usize,
+    pub loops: usize,
+    pub half_edges: usize,
+    pub edges: usize,
+    pub vertices: usize,
+    pub points: usize,
+    pub curves: usize,
+    pub surfaces: usize,
+}
+
+/// Captures every arena length of `body`.
+pub(crate) fn arena_snapshot(body: &Body<f64>) -> ArenaSnapshot {
+    ArenaSnapshot {
+        solids: body.solids().count(),
+        shells: body.shells().count(),
+        faces: body.faces().count(),
+        loops: body.loops().count(),
+        half_edges: body.half_edges().count(),
+        edges: body.edges().count(),
+        vertices: body.vertices().count(),
+        points: body.points().count(),
+        curves: body.curves().count(),
+        surfaces: body.surfaces().count(),
+    }
+}
+
 /// For atomicity and lineage-purity tests where counts-only comparison
 /// is too weak: two snapshots compare equal iff the bodies are
 /// key-for-key, field-for-field, provenance-for-provenance identical.

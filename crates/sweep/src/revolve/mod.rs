@@ -294,13 +294,23 @@ pub enum RevolveError {
         vertex_index: usize,
     },
     /// Full revolve of a profile with two or more disjoint on-axis
-    /// runs: the boundary would split into multiple shells (M3).
+    /// runs: the revolved boundary closes an inner shell, i.e. a VOID.
+    /// A **permanent** refusal under the ratified sweeps-vs-voids
+    /// invariant (DESIGN "∅, disjoint, and voids are typed results"),
+    /// the same rule [`RevolveError::FullRevolveHoles`] states — not a
+    /// deferral: sweeps produce genus, voids are boolean-born. Same
+    /// recourse as the holed profile.
     MultipleAxisRuns {
         /// Canonical index of the loop.
         loop_index: usize,
     },
-    /// Full revolve of a holed profile — deferred M2 scope (module
-    /// docs; typed, not silently approximated).
+    /// Full revolve of a holed profile: the hole revolves into a closed
+    /// inner shell, i.e. a VOID. A **permanent** refusal under the
+    /// ratified sweeps-vs-voids invariant, not a deferral — the
+    /// `Display` below carries the rule and the recourse. The
+    /// extrude/full-revolve hole asymmetry is an instance of that
+    /// invariant (extruded holes are cap-to-cap tunnels, hence genus),
+    /// not an inconsistency.
     FullRevolveHoles,
     /// A cosurface-sharing predicate escalated at a join (the extrude
     /// `CosurfaceEscalated` posture: defense-in-depth, believed
@@ -439,7 +449,10 @@ impl fmt::Display for RevolveError {
             Self::MultipleAxisRuns { loop_index } => write!(
                 f,
                 "full revolve: loop {loop_index} touches the axis in two or more disjoint \
-                 segment runs (multi-shell result, deferred to M3)"
+                 segment runs, so the revolved boundary would close an inner void shell, \
+                 and sweeps produce genus, never voids (the sweeps-vs-voids invariant); \
+                 voids are born only from booleans — revolve the solid profile and \
+                 subtract the hole body (topo::subtract), or use a partial revolve"
             ),
             Self::FullRevolveHoles => f.write_str(
                 "full revolve of a holed profile would enclose an inner void shell, and sweeps \

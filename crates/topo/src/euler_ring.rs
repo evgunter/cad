@@ -123,10 +123,11 @@
 //!
 //! `kfmrh(f1, f2)` makes `f2`'s outer loop a ring of `f1` and kills
 //! `f2`. Same shell ⇒ +1 genus (the through-hole finisher, §9.3 step
-//! (l)); **cross-shell is a typed error until M3**
-//! ([`EulerOpError::CrossShell`] — applied across shells the operator
-//! would merge them, and multi-shell solids arrive with M3's
-//! splitting/booleans, per the ratified plan). `f2` must carry **no
+//! (l)); cross-shell within one solid ⇒ **shell fusion** (M3 PR 1),
+//! re-homing `f2`'s shell's surviving faces into `f1`'s shell. Across
+//! **solids** it stays a typed error ([`EulerOpError::CrossSolid`]):
+//! combining bodies is the boolean pipeline's combine step, not an
+//! Euler surgery. `f2` must carry **no
 //! rings** (move them off first with [`Body::ring_move`]); its outer
 //! loop may be `Empty` or `Cycle` — an `Empty` outer becomes an `Empty`
 //! ring of `f1`. No half-edge, vertex, or edge is touched: the

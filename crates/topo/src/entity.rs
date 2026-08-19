@@ -169,11 +169,15 @@ new_key_type! {
 
 /// A solid: a connected volume bounded by one or more shells.
 ///
-/// The outer-shell/cavity-shell distinction (which shell bounds material
-/// from outside versus which bound internal voids) arrives with M3's
-/// splitting/booleans, when multi-shell solids first become
-/// constructible; until then every solid has exactly one shell in
-/// practice, though the structure does not enforce that.
+/// Multi-shell solids are constructible (a boolean's `A ∖ B` with `B`
+/// strictly inside `A` yields an outer shell plus a reverted void
+/// shell). The outer-shell/cavity-shell distinction — which shell
+/// bounds material from outside versus which bound internal voids — is
+/// **not stored**: the shell list carries no designation and this
+/// structure does not enforce one. It is DERIVED from orientation
+/// wherever it is needed, by the sign of a shell's signed volume (the
+/// loops wind about the outward normal, so a cavity wall integrates
+/// negative — `step_export::volume`).
 ///
 /// A `SolidKey` is not a `ShellKey` — a solid's shell list rejects keys
 /// of any other kind at compile time:
