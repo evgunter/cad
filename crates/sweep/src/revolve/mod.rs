@@ -294,7 +294,8 @@ pub enum RevolveError {
         vertex_index: usize,
     },
     /// Full revolve of a profile with two or more disjoint on-axis
-    /// runs: the boundary would split into multiple shells (M3).
+    /// runs: the boundary would split into multiple shells, which this
+    /// builder does not produce.
     MultipleAxisRuns {
         /// Canonical index of the loop.
         loop_index: usize,
@@ -439,7 +440,8 @@ impl fmt::Display for RevolveError {
             Self::MultipleAxisRuns { loop_index } => write!(
                 f,
                 "full revolve: loop {loop_index} touches the axis in two or more disjoint \
-                 segment runs (multi-shell result, deferred to M3)"
+                 segment runs — the result would be multi-shell, which this builder does \
+                 not produce"
             ),
             Self::FullRevolveHoles => f.write_str(
                 "full revolve of a holed profile would enclose an inner void shell, and sweeps \
