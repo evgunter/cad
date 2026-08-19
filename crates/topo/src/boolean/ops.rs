@@ -1107,14 +1107,12 @@ pub(super) fn remap_contacts<T: Real>(
         }
     }
     for c in &contacts.a_on_b {
-        if let (Some(vertex), Some(face)) = (vert_strict(a_view, c.vertex), face(b_view, c.face))
-        {
+        if let (Some(vertex), Some(face)) = (vert_strict(a_view, c.vertex), face(b_view, c.face)) {
             out.a_on_b.push(VfContact { vertex, face });
         }
     }
     for c in &contacts.b_on_a {
-        if let (Some(vertex), Some(face)) = (vert_strict(b_view, c.vertex), face(a_view, c.face))
-        {
+        if let (Some(vertex), Some(face)) = (vert_strict(b_view, c.vertex), face(a_view, c.face)) {
             out.b_on_a.push(VfContact { vertex, face });
         }
     }
