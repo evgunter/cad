@@ -3064,23 +3064,24 @@ zero-straddling enclosure), pushing it through `span_hull` /
 - **Confidence**: unsure — a lead, not a defect
 - **Raised by**: the S6 steelman pass, 2026-08-18.
 
-M5 S11 found extrude minting `sense: true` on concave arc walls, so a
-public `union` silently swallowed a body (*"volume 3.000 for 3.008, one
-shell for two, no refusal"*). The remediating audit then found the same
-defect class **already shipped** in revolve's bore cylinders, inward
-cones and under-side plane annulus — i.e. the class has recurred once
-per verb.
-
-Loft derives `sense = true` on every wall, argued from the skinned
-chart's normal following the traversal (`loft.rs:30`). The argument
-looks sound. But PR #192 pins *"all six loft faces keep `sense =
-true`"* on a single fixture — `loft_prism`, a prism, with **no concave
-arcs and no holes**: precisely the shape that did not break extrude
-either.
-
-Settled by: lofting a section pair with a concave arc, and one with a
-hole, then running the S11 union check (two operands whose union must
-produce two shells).
+**VERIFIED by #619 — no defect found.** Loft's derivation holds on both
+shapes. A concave-arc section pair and a holed one now form the third
+verb's chapter of the S11 constructor audit
+(`crates/sweep/tests/m5_s11_concave_sense.rs`), reusing that file's own
+fixtures: each row evaluates the shipped wall's `S_u × S_v`, folds in
+the stored `sense`, and requires the *same solid built by extrude* to
+read material on the inward side and void on the outward one — a probe
+a flipped bit inverts, executed as its own row. The prescribed union
+check could not be run and was substituted for a direct test of the
+property it is a symptom of: a lofted operand is refused typed at
+boolean admission, so the swallow is closed **by refusal, not by the
+bit**. The rows also pin the residual that makes them load-bearing:
+**no tier, prop or boolean in the kernel reads a lofted wall's sense**
+— check 6's curved arm skips `Surface::Nurbs` — so an inside-out lofted
+wall is tier-3 green. The class sweep turned up no second orientation
+instance; fillet's bare `sense: true` on corner patches is guarded by
+three typed concave-chain refusals, i.e. an unstated precondition
+rather than an S11 defect.
 
 **Verdict:**
 
@@ -3329,7 +3330,7 @@ every other, so these can run as five concurrent lanes.
 | **W1b** ✅ #617 | **S23** — the SSI exhaustiveness sweep switches duty on `tubes.is_empty()`, so an all-seeds-fail run returns `Ok` *plus an exhaustiveness receipt* instead of `ExhaustivenessInconclusive`. | M | **FIXED by #617**: the duty is a stated parameter (seed/account entry points over a private `SweepDuty`), and a new row enters the all-seeds-fail mode the old row's premise excluded. Chart-lane twin of that row scheduled as **H7**. |
 | **W1c** | **S41** — `Bounds for Interval` forwards `lo()`/`hi()` without consulting the decoration, and `bracket<E: Enclosure>` crosses operands into `RingInterval` by endpoints. A `Trv`-but-nonempty enclosure may be dropping a domain violation **today**. | S to test, ? to fix | Also the gating question for S1 — until this is settled, "swap `RingInterval` for `Interval`" is unsound. |
 | **W1d** ✅ #618 | **S4 drift (a)** — `Rebind`'s rewrite loop ends `_ => {}` and never reaches `Node::Mate`'s two `StableName`s, so a mate head is either falsely refused as `RebindNoReferences` or silently left dangling. Contradicts `ASSEMBLY-DESIGN.md:566`. | S | **FIXED — #618** (red-then-green, A12's reading edge asserted; two further mate-blind sites fixed with it). |
-| **W1e** | **S42** — loft's `sense = true` is pinned only on `loft_prism`: no concave arcs, no holes, i.e. the shape that did not break extrude either. | S | Loft a concave-arc section pair and a holed one, run the S11 union check. Cheap; may find nothing. |
+| **W1e** ✅ #619 | **S42** — loft's `sense = true` is pinned only on `loft_prism`: no concave arcs, no holes, i.e. the shape that did not break extrude either. | S | **#619 — verified, no defect.** Concave-arc, holed and tapered fixtures pin the bit against the extruded twin, folded into the S11 constructor audit. |
 
 ---
 
