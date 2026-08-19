@@ -83,21 +83,33 @@
 //!
 //! ## Stale rows: which ops maintain this map, and which do not
 //!
-//! Read this before storing a cache from a new call site. **Only two
-//! ops maintain the map**: the splitting lane (which runs
-//! [`mint_pcurves`] on each side it produces, and that pass CLEARS the
-//! map before re-minting) and [`crate::transform`] (which re-derives
-//! when the operand carried caches). **Every other op — the Euler
-//! operators, the kill ops, ring surgery, `merge_coplanar_faces`,
-//! `split_edge`, the boolean graft — neither clears nor re-mints.**
+//! Read this before storing a cache from a new call site. Three
+//! postures exist, and an op has exactly one of them.
+//!
+//! **Maintains the map** — runs [`mint_pcurves`] on the result, and
+//! that pass CLEARS the map before re-minting: the splitting lane (on
+//! each side it produces), the boolean pipeline (on the finished body),
+//! [`crate::Body::merge_coplanar_faces`] (on the staged result before
+//! commit, and only when the input carried caches), and
+//! [`crate::transform`]
+//! (which re-derives when the operand carried caches).
+//!
+//! **Transfers the map** — the graft (`boolean::combine`, and
+//! [`crate::graft_disjoint`] through it) remaps each row onto the
+//! transplanted half-edge's fresh key and DROPS any row whose key the
+//! graft walk did not reach, which is exactly the staleness test.
+//!
+//! **Neither clears nor re-mints** — the Euler operators, the kill ops,
+//! ring surgery, [`crate::Body::split_edge`]. These are the ops the
+//! stale-row consequence below is about.
 //!
 //! The consequence is bounded but real: a `SecondaryMap` row outlives
 //! its key until the slot is reused, so surgery on a body that already
 //! carries caches can leave a row attached to a half-edge that no
 //! longer means what the cache says (or, once a slot is recycled, to a
-//! different half-edge entirely). Nothing at M5 reaches that state on
-//! the ship path — caches are minted last, at the end of the split
-//! pipeline, and the pass clears first — and the tier-3 pcurve pass
+//! different half-edge entirely). No ship path reaches that state —
+//! every op that produces a body a consumer holds is in one of the two
+//! lists above — and the tier-3 pcurve pass
 //! catches it LOUD if it ever happens: a stale row re-certifies against
 //! the current carrier/surface/window and fails, or breaks its face
 //! loop's continuity. So the posture is fail-loud, not silent-wrong —

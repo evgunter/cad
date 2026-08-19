@@ -41,9 +41,15 @@
 //!   free.
 //! - **B-spline** ([`bspline_green_integral`], the general machinery):
 //!   channel hulls and derivative hulls from the control-coefficient
-//!   convexity facts (`geom_core::spline::hull`). Since M6-3 the loft
-//!   assembly mints stored iso-line pcurves on described NURBS walls
-//!   and the patch flux engine consumes this machinery at rest.
+//!   convexity facts (`geom_core::spline::hull`). This family has **no
+//!   at-rest consumer**: the NURBS-patch flux lane is a separate engine
+//!   in this file (`patch_flux_exact` and its composite rounds, a
+//!   tensor Newton–Cotes rule over knot-span rectangles), not this
+//!   Green-form boundary integral. The consumer that would use it is
+//!   the fitted-boundary Green lane, blocked on a construction that
+//!   mints a fitted pcurve on an analytic chart at rest — named at
+//!   `topo::props`' `QuadratureUnsupported` refusal, which is the one
+//!   place that schedule lives.
 //!
 //! # The rule and its remainder
 //!

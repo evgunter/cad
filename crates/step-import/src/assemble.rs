@@ -811,7 +811,13 @@ pub(crate) fn build_one_solid(solid: &SolidSpec) -> Result<Body<f64>, StepImport
     build(std::slice::from_ref(solid))
 }
 
-/// The assembly both doors share verbatim.
+/// The assembly proper: every solid in `solids` into one arena, then
+/// one pcurve mint over the whole body.
+///
+/// One door reaches it today — [`build_one_solid`], always with a
+/// one-element slice. The multi-solid door retired with M8 instancing,
+/// which builds each instance in a body of its own and grafts the
+/// copies (`lib.rs`), so no caller assembles two specs into one arena.
 fn build(solids: &[SolidSpec]) -> Result<Body<f64>, StepImportError> {
     let mut body = Body::new();
     for solid in solids {

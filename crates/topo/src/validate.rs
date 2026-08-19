@@ -379,7 +379,8 @@ pub enum ValidationError {
     /// teeth to the boundary *between* vertices — an honestly certified
     /// arc bulging off its face's plane is a face-boundary defect even
     /// though every vertex residual passes. (Curved-face boundary
-    /// containment stays documented-deferred to M3 pcurves.)
+    /// containment stays deferred — [`validate_geometric`]'s
+    /// not-yet-checked list.)
     PlanarBoundaryResidual {
         /// The planar face whose boundary leaves its plane.
         face: FaceKey,
@@ -1622,8 +1623,6 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///
 /// - **Global self-intersection / minimum clearance** — M3 partial (via
 ///   booleans), M6 interval clearance.
-/// - **Pcurve consistency** — pcurves are M3 derived caches; none exist
-///   at M2.
 /// - **The material wedge side** (lamina/zero-volume detection, wedge
 ///   0 vs 2π vs the legal π): distinguishing them needs the faces'
 ///   material sense **at the edge** — which side of each surface the
@@ -1638,7 +1637,7 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///   dihedral pass (check 4) classifies the *tangent-plane* wedge
 ///   only: unsigned, so it sees a sliver but not a lamina.
 /// - **Face-boundary containment on curved surfaces** (a face's loops
-///   actually bounding a region of its surface) — M3, with pcurves.
+///   actually bounding a region of its surface).
 ///   The **planar** case is now covered between vertices by check 5
 ///   (sample containment against adjacent planar faces), and its
 ///   orientation half by check 6 (loop-role winding against the

@@ -194,18 +194,14 @@
 //! loop is an empty loop, the `mvfs`-face shape inside a larger body.
 //! Euler vector `(v 0, e 0, f +1, h −1, r −1, s 0)`.
 //!
-//! The new face mints a fresh `Placeholder` surface. **Exact key or
-//! surface restoration is NOT promised** for a `kfmrh ∘ mfkrh` pair:
-//! `kfmrh` may have reaped the original surface (or, more commonly, the
+//! The new face's surface is the caller's [`FaceSurface`] choice —
+//! `Inherit` (share the demoting face's), `New` (mint), or `Shared` (an
+//! existing key); see [`Body::mfkrh`]. **Exact key or surface
+//! restoration is NOT promised** for a `kfmrh ∘ mfkrh` pair: `kfmrh`
+//! may have reaped the original surface, or — more commonly — the
 //! killed face *shared* a surviving surface, so there is nothing to
-//! restore a reference to), and `mfkrh` has no parent face to share
-//! from — minting is the only sound choice. The surface anchor is
-//! deterministic under replay (D9): the promoted ring's lone vertex's
-//! point (empty ring) or the point of `start(Cycle::first)` (cycle
-//! ring). `Cycle::first` is a representation-internal anchor, so the
-//! ballast coordinates are history-dependent — they carry no geometric
-//! meaning (M1 placeholder policy), and the isomorphism oracle ignores
-//! surface payloads for exactly this reason.
+//! restore a reference to. The isomorphism oracle ignores surface
+//! payloads for exactly this reason (`crate::iso`).
 //!
 //! # The make ↔ kill inverse map (all five pairs, for the record)
 //!
