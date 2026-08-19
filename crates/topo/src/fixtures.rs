@@ -16,6 +16,10 @@
 //!   one face whose outer loop is `Empty`, holding a lone vertex.
 //!   Tier-1-legal by design.
 //!
+//! Plus two whole-body observations the suites compare by —
+//! [`arena_snapshot`] (every arena's length) and [`deep_snapshot`]
+//! (key-for-key, field-for-field, provenance-for-provenance).
+//!
 //! Plus (M1 PR 4) two **operator-built** fixtures — [`ops_cube`] and
 //! [`ops_holed_box`] — the acceptance-test bodies rebuilt in-crate for
 //! the kill-direction, oracle, and teardown tests.

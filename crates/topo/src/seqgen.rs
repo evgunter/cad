@@ -108,58 +108,58 @@ impl OpChoice {
                 v: 1,
                 f: 1,
                 s: 1,
-                ..EulerVector::ZERO
+                ..Default::default()
             },
             Self::MevLone(_) | Self::MevFan(..) => EulerVector {
                 v: 1,
                 e: 1,
-                ..EulerVector::ZERO
+                ..Default::default()
             },
             Self::MefChords(..) | Self::MefLone(_) => EulerVector {
                 e: 1,
                 f: 1,
-                ..EulerVector::ZERO
+                ..Default::default()
             },
             Self::Kemr(..) => EulerVector {
                 e: -1,
                 r: 1,
-                ..EulerVector::ZERO
+                ..Default::default()
             },
             Self::Mekr(_) => EulerVector {
                 e: 1,
                 r: -1,
-                ..EulerVector::ZERO
+                ..Default::default()
             },
             Self::Kfmrh(..) => EulerVector {
                 f: -1,
                 h: 1,
                 r: 1,
-                ..EulerVector::ZERO
+                ..Default::default()
             },
             Self::Mfkrh(_) => EulerVector {
                 f: 1,
                 h: -1,
                 r: -1,
-                ..EulerVector::ZERO
+                ..Default::default()
             },
             Self::Kev(_) => EulerVector {
                 v: -1,
                 e: -1,
-                ..EulerVector::ZERO
+                ..Default::default()
             },
             Self::Kef(_) => EulerVector {
                 e: -1,
                 f: -1,
-                ..EulerVector::ZERO
+                ..Default::default()
             },
             Self::Kvfs(_) => EulerVector {
                 v: -1,
                 f: -1,
                 s: -1,
-                ..EulerVector::ZERO
+                ..Default::default()
             },
             // NOT an Euler operator: pure reparenting, zero vector.
-            Self::RingMove(..) => EulerVector::ZERO,
+            Self::RingMove(..) => EulerVector::default(),
         }
     }
 }
@@ -168,9 +168,9 @@ impl OpChoice {
 ///
 /// The same six components as the running [`Ledger`], carried as a
 /// shift rather than a count. Call sites name only the nonzero
-/// components and take the rest from [`EulerVector::ZERO`], so a site
-/// reads as the op's actual shift.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// components and take the rest from the derived zero, so a site reads
+/// as the op's actual shift.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct EulerVector {
     pub v: i64,
     pub e: i64,
@@ -178,18 +178,6 @@ pub(crate) struct EulerVector {
     pub h: i64,
     pub r: i64,
     pub s: i64,
-}
-
-impl EulerVector {
-    /// The shift of an op that changes no component.
-    pub(crate) const ZERO: Self = Self {
-        v: 0,
-        e: 0,
-        f: 0,
-        h: 0,
-        r: 0,
-        s: 0,
-    };
 }
 
 /// The running Euler–Poincaré ledger `(v, e, f, h, r, s)`.

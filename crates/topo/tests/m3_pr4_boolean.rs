@@ -20,14 +20,14 @@ fn brick<T: Decide + geom_core::Bounds>(x: (f64, f64), y: (f64, f64), z: (f64, f
 
 /// The three arena lengths an operand is checked untouched by.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct Counts {
+struct Census {
     vertices: usize,
     edges: usize,
     faces: usize,
 }
 
-fn counts<T: Decide + geom_core::Bounds>(b: &Body<T>) -> Counts {
-    Counts {
+fn counts<T: Decide + geom_core::Bounds>(b: &Body<T>) -> Census {
+    Census {
         vertices: b.vertices().count(),
         edges: b.edges().count(),
         faces: b.faces().count(),

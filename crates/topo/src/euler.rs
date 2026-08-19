@@ -812,9 +812,11 @@ impl fmt::Display for EulerOpError {
 
 impl std::error::Error for EulerOpError {}
 
-/// The seven topology-arena lengths, captured for the debug
-/// postcondition's Euler-vector check.
-#[cfg(debug_assertions)]
+/// The seven topology-arena lengths. Captured for the debug
+/// postcondition's Euler-vector check, and compared directly by the
+/// in-crate test oracles — hence the `test` arm on the gate, which
+/// compiles the type into `cargo test --release` too.
+#[cfg(any(debug_assertions, test))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct ArenaCounts {
     solids: usize,
@@ -1885,6 +1887,11 @@ impl<T: Decide> Body<T> {
     /// at all, and the mint's `true` stands; the caller then attaches
     /// the honest bit through [`crate::Body::set_face_sense`], as the
     /// sweep constructors do. Key equality, never a numeric compare.
+    ///
+    /// The bit has teeth: a re-mint that stamped `true` unconditionally
+    /// would silently reset the material side on every fragment of a
+    /// `sense: false` wall, so a boolean split of such a wall would
+    /// hand back correctly shaped faces facing the wrong way.
     pub(crate) fn mint_face_surface_and_sense(
         &mut self,
         spec: FaceSurface<T>,
@@ -2002,8 +2009,9 @@ impl<T: Decide> Body<T> {
         }
     }
 
-    /// Captures the topology-arena lengths for the debug postcondition.
-    #[cfg(debug_assertions)]
+    /// Captures the topology-arena lengths for the debug postcondition
+    /// and for the in-crate test oracles.
+    #[cfg(any(debug_assertions, test))]
     pub(crate) fn arena_counts(&self) -> ArenaCounts {
         ArenaCounts {
             solids: self.solids.len(),

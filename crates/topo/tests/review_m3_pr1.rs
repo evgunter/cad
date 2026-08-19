@@ -44,8 +44,9 @@ struct Census {
 }
 
 /// One step's signed shift of a [`Census`]. Sites name only the nonzero
-/// components and take the rest from [`CensusDelta::ZERO`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// components and take the rest from the derived zero, which cannot
+/// drift out of step with the field list.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct CensusDelta {
     vertices: isize,
     edges: isize,
@@ -54,19 +55,6 @@ struct CensusDelta {
     shells: isize,
     solids: isize,
     rings: isize,
-}
-
-impl CensusDelta {
-    /// The shift of a step that changes no count.
-    const ZERO: Self = Self {
-        vertices: 0,
-        edges: 0,
-        faces: 0,
-        loops: 0,
-        shells: 0,
-        solids: 0,
-        rings: 0,
-    };
 }
 
 fn census(body: &Body<f64>) -> Census {
@@ -342,7 +330,7 @@ fn cross_shell_kfmrh_connected_sum_and_genus_addition() {
             faces: -1,
             shells: -1,
             rings: 1,
-            ..CensusDelta::ZERO
+            ..Default::default()
         },
         "cross-shell kfmrh arena delta"
     );
