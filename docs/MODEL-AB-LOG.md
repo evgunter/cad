@@ -1213,3 +1213,35 @@ Reviewer fable, v5 instrument. Pre-draw fields logged at the
 LIB-12 draw: S / STRUCTURAL (brief-as-spec in LIB-LOG; arm =
 block LIB-12 slot 1). Row at merge.
 | PERR | 2026-08-18 | the smell-scan claimed item (#613/#614): ProfileError's five producer-less fillet variants DELETED (FilletDoesNotFit / FilletCornerAlreadyTangent / NoCornerForFillet / FilletOffsetLeverTooShort / FilletLegDegenerate — orphaned when #608 deleted test_support.rs) + Display arms + two dead recourse constants; FilletLeg/FilletLegCarrier/NoCornerReason KEPT (live as PathError payloads — the same-named-variant-across-enums trap correctly resolved); −211/+44 | S / STRUCTURAL (pre-logged at the LIB-12 draw) | FABLE (block LIB-12 slot 1) | single (ordinal 59, frozen 826e07fa, v5) — **APPROVE 0/1/2, rubric 5/4/5** (all five orphan claims independently re-verified at the parent; the enum distinction re-proven — every live minting site is PathError's; kept-types' liveness verified per type; MINOR = the brief's tag-parity closure criterion was SUBSTITUTED by a compile check + verified-absence argument without naming the substitution) | 0 silent (the substitution's facts were disclosed; the naming gap is the MINOR) | 5 | 4 | 5 | prose-only, ORCHESTRATOR-applied (the substitution named in the PR body; the constant count corrected 4→5) | MERGED #622 34/34 (merge ecf43ab6); the smell-scan ProfileError row discharges — LIB's first #614 item closed | impl ~84k / review ~61k | impl ~0.6h / review ~0.6h |
+
+SMELL-SCAN wave 1b (2026-08-19, PRs #625 #626 #627) — **NOT A/B ROWS,
+NOT SCOREBOARD ROWS, AND NO REVIEW ORDINAL CONSUMED.** Recorded here
+only so the counters are not read as having moved. Evan hit the fable
+usage limit, so the coin-flip draw was **suspended, not drawn**: all
+three implementations and all three reviews ran opus. Three unpaired
+opus rows entering the scoreboard would bias it, so none are entered —
+per-unit outcomes live in the §D wave 1b table of
+`docs/SMELL-SCAN-2026-08.md` and in the PRs.
+
+The **review ordinal is unchanged at 59** (LIB-PERR, #622). Wave 1b's
+reviewers were dispatched without ordinals because they did not run the
+protocol: Evan directed a **reduced instrument** for this batch — style
+lane per `docs/REVIEW-STYLE-BRIEF.md` §2-3 plus a
+completeness-of-fix-and-best-way mandate, and **no adversarial
+falsification pass**, on the grounds that stylistic fixes need it less.
+So 60 is still the next third and still cross-model per #572.
+
+What the reduced instrument did anyway, against the expectation that it
+would find less: each of the three PRs came back a **half-fix on first
+pass** and each was rescoped rather than merged. H1's shared gate bodies
+left the two *rosters* hand-maintained — the same drift class one level
+up, closed by a ninth gate. H3 fixed the reported exhaustiveness list and
+left its larger twin two files away (`validate.rs`, 31 of 59 variants).
+H6's conversion was complete but the class survived at three other
+positional-census sites, scheduled as **H8**. Two findings came from
+*evading* a check rather than reading it (the roster gate accepted a
+gate named in a comment; it also accepted a `--selftest` call with the
+real call deleted), which is the technique worth carrying into the full
+instrument. One near-miss: a `grep -q` downstream of a pipe under
+`pipefail` measured at ~32% spurious failure under parallel load, caught
+by luck during wiring rather than by review.
