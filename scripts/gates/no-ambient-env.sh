@@ -33,6 +33,7 @@ set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 gate() {
+  gate_require_crate_sources
   local hits
   hits=$(grep -rPn '\benv::vars?(_os)?\s*\(' crates/*/src --include='*.rs' \
     | grep -vE ':[0-9]+:\s*(//|///|//!)' \
@@ -44,6 +45,7 @@ gate() {
     gate_error "a kernel crate reads the environment at runtime — that is a back channel into shipped code, changing behaviour with no rebuild and no call site to review (NURBS_PROBE was exactly this). Arm it by an explicit call and gate it behind a feature, or ratify this file into the allowlist."
     exit 1
   fi
+  gate_ok "no kernel crate reads the environment at runtime"
 }
 
 plant() {

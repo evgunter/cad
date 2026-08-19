@@ -78,6 +78,7 @@ set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 gate() {
+  gate_require_crate_sources
   local hits
   hits=$(grep -rnE '\+\s*(geom_core::)?Bounds\b' crates/*/src \
     | grep -vE ':[0-9]+:\s*(//|///|//!)' \
@@ -95,6 +96,7 @@ gate() {
     gate_error "compound Bounds bound outside the ratified seams above — see geom-core/src/real.rs (Bounds scope rule); ratify before allowlisting"
     exit 1
   fi
+  gate_ok "no compound Bounds bound outside the ratified seams"
 }
 
 plant() {

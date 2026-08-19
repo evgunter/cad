@@ -22,6 +22,7 @@ set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 gate() {
+  gate_require_crate_sources
   local hits
   hits=$(grep -rnE '(:|\+)\s*(editor_core::)?EvalScalar\b' crates/*/src \
     | grep -vE ':[0-9]+:\s*(//|///|//!)' \
@@ -32,6 +33,7 @@ gate() {
     gate_error "EvalScalar (a compound Bounds bound by another name) outside the evaluation-service seam — see geom-core/src/real.rs (Bounds scope rule) and editor-core/src/eval/mod.rs; ratify before allowlisting"
     exit 1
   fi
+  gate_ok "no EvalScalar bound outside the evaluation-service seam"
 }
 
 plant() {

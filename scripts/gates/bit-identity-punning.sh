@@ -16,12 +16,14 @@ set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 gate() {
+  gate_require_crate_sources
   if grep -rnE 'downcast_ref|downcast_mut|TypeId|core::any|std::any' crates/*/src \
     | grep -vE '^crates/geom-core/src/bit_identity\.rs:' \
     | grep -vE ':[0-9]+:\s*//'; then
     gate_error "bit-identity punning outside the sanctioned seam (geom-core/src/bit_identity.rs)"
     exit 1
   fi
+  gate_ok "no type punning outside geom-core/src/bit_identity.rs"
 }
 
 plant() {

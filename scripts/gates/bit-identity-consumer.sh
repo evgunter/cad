@@ -28,6 +28,7 @@ set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 gate() {
+  gate_require_crate_sources
   if grep -rnE 'bit_identity::|repr_bits|eq_bits' crates/*/src \
     | grep -vE '^crates/geom-core/src/bit_identity\.rs:' \
     | grep -vE '^crates/geom-core/src/interval\.rs:' \
@@ -37,6 +38,7 @@ gate() {
     gate_error "bit-identity channel use above — the channel is RETIRED from production (M4 PR 5, N6); use GeomSource, or revise DESIGN.md before adding any consumer"
     exit 1
   fi
+  gate_ok "no bit-identity consumer outside the four non-consumer rows"
 }
 
 plant() {

@@ -17,10 +17,12 @@ set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 gate() {
+  gate_require_crate_sources
   if grep -rnE '\bReal\s*\+' crates/*/src; then
     gate_error "found 'Real +' bound(s) above — evaluation-code discipline forbids extra bounds on scalar type parameters"
     exit 1
   fi
+  gate_ok "no extra bounds on Real"
 }
 
 plant() {

@@ -35,6 +35,7 @@ set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 gate() {
+  gate_require_crate_sources
   local hits
   hits=$(grep -rPn '\b([a-z_][a-z0-9_]*)\s*\*\s*\1\b' crates/*/src --include='*.rs' \
     | grep -vE ':[0-9]+:\s*(//|///|//!)' \
@@ -47,6 +48,7 @@ gate() {
     gate_error "use powi(2): it is never wider than x*x and strictly tighter when the enclosure straddles zero; whether THIS enclosure can straddle zero is a global property of upstream callers that refactors change silently — four live bugs arrived exactly that way. Convert, or ratify this file into the allowlist."
     exit 1
   fi
+  gate_ok "no unratified x*x outside the allowlisted files"
 }
 
 plant() {

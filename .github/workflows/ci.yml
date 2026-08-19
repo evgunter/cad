@@ -252,19 +252,38 @@ jobs:
       # justifications are an append-only ledger of rulings, and a
       # ledger kept in two places drifts (it did, in both directions).
       # scripts/gates/lib.sh says why they cannot live under
-      # local-scripts/ (this job deletes that tree), and every gate has
-      # a `--selftest` that plants a synthetic violation and asserts it
-      # fires.
+      # local-scripts/ (this job deletes that tree).
+      #
+      # The hand-written list of steps below is itself checked: the
+      # roster gate derives the roster from scripts/gates/ and fails if
+      # either half runs a different set, so a gate added to one half
+      # and forgotten in the other cannot ride. Each step runs the
+      # gate's `--selftest` first — a guard that has never been shown to
+      # fire is not a guard.
+      - name: gate roster parity (both halves run the same set)
+        run: |
+          scripts/gates/gate-roster.sh --selftest
+          scripts/gates/gate-roster.sh
       - name: Bounds compound-bound allowlist (ratified 2026-07-29)
-        run: scripts/gates/bounds-allowlist.sh
+        run: |
+          scripts/gates/bounds-allowlist.sh --selftest
+          scripts/gates/bounds-allowlist.sh
       - name: EvalScalar allowlist (the Bounds gate, over the name)
-        run: scripts/gates/evalscalar-allowlist.sh
+        run: |
+          scripts/gates/evalscalar-allowlist.sh --selftest
+          scripts/gates/evalscalar-allowlist.sh
       - name: no ambient environment in the kernel
-        run: scripts/gates/no-ambient-env.sh
+        run: |
+          scripts/gates/no-ambient-env.sh --selftest
+          scripts/gates/no-ambient-env.sh
       - name: interval-square powi(2) allowlist (ratified 2026-08-01)
-        run: scripts/gates/interval-square-allowlist.sh
+        run: |
+          scripts/gates/interval-square-allowlist.sh --selftest
+          scripts/gates/interval-square-allowlist.sh
       - name: no extra bounds on Real
-        run: scripts/gates/no-extra-real-bounds.sh
+        run: |
+          scripts/gates/no-extra-real-bounds.sh --selftest
+          scripts/gates/no-extra-real-bounds.sh
       # Test-aggregation discipline: one [[test]] target per crate. Each
       # extra one is a full codegen+link of the ~40-rlib graph — 96% of
       # this workflow's build job, measured (bazel-verdict report). #179
@@ -290,11 +309,17 @@ jobs:
           python3 scripts/check-interval-cfg-additive.py --selftest
           python3 scripts/check-interval-cfg-additive.py
       - name: bit-identity consumer tripwire (retirement landed, M4 PR 5)
-        run: scripts/gates/bit-identity-consumer.sh
+        run: |
+          scripts/gates/bit-identity-consumer.sh --selftest
+          scripts/gates/bit-identity-consumer.sh
       - name: bit-identity debug-only guard (topo/source.rs)
-        run: scripts/gates/bit-identity-debug-only.sh
+        run: |
+          scripts/gates/bit-identity-debug-only.sh --selftest
+          scripts/gates/bit-identity-debug-only.sh
       - name: bit-identity punning tripwire
-        run: scripts/gates/bit-identity-punning.sh
+        run: |
+          scripts/gates/bit-identity-punning.sh --selftest
+          scripts/gates/bit-identity-punning.sh
 
       # RENDER PROVENANCE (#221 follow-up). Every committed per-scene
       # PNG under demos/renders{,-freecad}/ must carry FreeCAD's
