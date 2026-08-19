@@ -34,8 +34,9 @@
 //!   [`Provenance::Mef`]).
 //! - **Debug postconditions** (D1's ratified clause): under
 //!   `cfg(debug_assertions)`, each successful op asserts that the arena
-//!   count deltas match its Euler vector and that the whole body still
-//!   passes tier-1 [`crate::validate::validate`]. On tier-1-valid input
+//!   count deltas match the `ArenaDelta` it declares and that the whole
+//!   body still passes tier-1 [`crate::validate::validate`]. On
+//!   tier-1-valid input
 //!   a firing postcondition is a kernel bug by definition (the per-call
 //!   instance of the ch. 9 soundness theorem failing against our
 //!   transcription) — and since PR 5's raw-builder demotion **every
@@ -2024,8 +2025,10 @@ impl<T: Decide> Body<T> {
     }
 
     /// D1's ratified postcondition-assert clause: after a successful
-    /// operator, the arena deltas must match the op's Euler vector and
-    /// the body must be tier-1 valid. On tier-1-valid input a failure
+    /// operator, the arena deltas must match the [`ArenaDelta`] the op
+    /// declares — a different quantity from its Euler vector, which is
+    /// prose here and a `seqgen` ledger entry there — and the body must
+    /// be tier-1 valid. On tier-1-valid input a failure
     /// here is a kernel bug (a per-call violation of the ch. 9
     /// soundness theorem by our transcription) — and with the raw
     /// builder `pub(crate)` since PR 5, every publicly-constructible
@@ -2044,8 +2047,8 @@ impl<T: Decide> Body<T> {
         debug_assert_eq!(
             self.arena_counts(),
             before.plus(delta),
-            "{op} postcondition: arena deltas do not match the Euler vector \
-             (kernel bug)",
+            "{op} postcondition: arena deltas do not match the op's declared \
+             arena delta (kernel bug)",
         );
         debug_assert_eq!(
             crate::validate::validate(self),
