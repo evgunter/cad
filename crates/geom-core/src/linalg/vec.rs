@@ -52,9 +52,11 @@ impl<T: Real> Vec2<T> {
 
     /// The dot product, evaluated exactly as `(x·x′) + (y·y′)` — one
     /// product per component, one addition; the association is fixed (D9).
-    /// Because IEEE multiplication is commutative and the summation order
-    /// is unchanged under swapping the arguments, `a.dot(b)` and `b.dot(a)`
-    /// are bit-identical.
+    /// Swapping the arguments commutes each product and leaves the
+    /// summation order unchanged, so `a.dot(b)` and `b.dot(a)` are
+    /// bit-identical at every scalar whose `Mul` and `Add` are bitwise
+    /// commutative — see [`Vec3::dot`] for which scalars that is, and
+    /// which one it is not pinned for.
     pub fn dot(self, rhs: Self) -> T {
         self.x * rhs.x + self.y * rhs.y
     }
@@ -151,9 +153,21 @@ impl<T: Real> Vec3<T> {
     }
 
     /// The dot product, evaluated exactly as `((x·x′) + (y·y′)) + (z·z′)`
-    /// — the association is fixed (D9). Because IEEE multiplication is
-    /// commutative and swapping the arguments permutes nothing in that
-    /// sum, `a.dot(b)` and `b.dot(a)` are bit-identical.
+    /// — the association is fixed (D9). Swapping the arguments commutes
+    /// each componentwise product and permutes nothing in that sum, so
+    /// `a.dot(b)` and `b.dot(a)` are bit-identical **at every scalar
+    /// whose `Mul` and `Add` are themselves bitwise commutative**.
+    ///
+    /// Which scalars those are, stated rather than assumed: `f64` (IEEE
+    /// `*` and `+` commute at every finite input, ±0 included; NaN
+    /// payload propagation is unspecified) and the `f64`-carrier
+    /// scalars over it, such as `k_stats::Probe`. The
+    /// `dot_symmetry_bit_exact` proptest below pins it there, sampling
+    /// `1.0e-3..1.0e3` — so 0, −0, inf and subnormals are covered by
+    /// the argument, not by the proptest. It is **not** pinned for
+    /// `Interval`, whose `Mul`/`Add` delegate to the enclosure backend:
+    /// expected to hold, asserted nowhere in-tree. A caller relying on bit equality at an
+    /// enclosure scalar owes that assertion.
     pub fn dot(self, rhs: Self) -> T {
         self.x * rhs.x + self.y * rhs.y + self.z * rhs.z
     }
