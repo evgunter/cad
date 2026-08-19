@@ -7,8 +7,11 @@
 //! `#[cfg(any(debug_assertions, test, feature = "test-support"))]`.
 //! Each arm is a consumer that must be able to name these items:
 //!
-//! - **`test`** — the in-crate `mod tests` oracles, which compile
-//!   with the library.
+//! - **`test`** — the in-crate `mod tests` oracles, which compile with
+//!   the library. Cargo unifies the self dev-dependency's features into
+//!   that build too, so this arm is belt-and-braces: it keeps the gate
+//!   true of any in-crate test build without depending on how features
+//!   resolve.
 //! - **`feature = "test-support"`** — this crate's `tests/` binaries.
 //!   A `tests/` binary is a **separate crate** that links the library
 //!   as an ordinary dependency, so it can name neither a

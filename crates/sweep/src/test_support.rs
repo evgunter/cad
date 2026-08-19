@@ -7,7 +7,10 @@
 //! `#[cfg(any(test, feature = "test-support"))]`. Both arms are
 //! consumers that must be able to name these items:
 //!
-//! - **`test`** — the in-crate `mod tests` pins. The sites several of
+//! - **`test`** — the in-crate `mod tests` pins. (Cargo unifies the
+//!   self dev-dependency's features into that build too, so this arm is
+//!   belt-and-braces: it keeps the gate true of any in-crate test build
+//!   without depending on how features resolve.) The sites several of
 //!   them cover are private to their modules, so those pins cannot
 //!   live in `tests/`; hosting the fixtures here rather than inside
 //!   one of the test modules that uses them keeps neither module the
