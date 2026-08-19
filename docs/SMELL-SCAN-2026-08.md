@@ -4056,10 +4056,15 @@ the same manifest — and the wiring the retired `profile` shim used — so
 runs `cargo doc --workspace --all-features` as a **required** CI row, which
 turns `test-support` on — so the repo's own gate would have published, as
 public API, a module whose first line says it is not one. Both facades are
-`#[doc(hidden)]`; verified against a clean `target/doc`, neither crate's
-rendered index lists `test_support` any more (`topo`'s private
-`test_support_impl` still appears, correctly, as one of the private modules
-`--document-private-items` renders). (2) `topo` now has **three** homes for
+`#[doc(hidden)]`, and so is the private `test_support_impl` behind them —
+which turned out to be the **only** private module of `topo` a doc build
+renders at all, not because `--document-private-items` shows everything
+private but because the crate's other private modules (`fixtures`, `seqgen`,
+`tier3_tests`) are `#[cfg(test)]` and do not exist in a doc build, while that
+one exists whenever `debug_assertions` does. Verified against a wiped
+`target/doc`: zero `test_support` references in either crate's `index.html`
+or `all.html`, no generated module page, and no `ArenaCounts` page anywhere
+in the doc tree. (2) `topo` now has **three** homes for
 test vocabulary — `src/fixtures.rs` (`#[cfg(test)]`), `src/test_support_impl.rs`,
 and `tests/common/mod.rs` — so `test_support_impl`'s docs carry the routing
 rule for all three and the other two point at it: **an item lives at the
@@ -4092,20 +4097,38 @@ builds fine without, and the same probe now fails with `E0425` in **both**
 profiles.
 
 **The invariant is now a gate, not a sentence.**
-`scripts/gates/test-features-dev-only.sh` fails if any
-`[dependencies]`, `[build-dependencies]` or `[target.*.dependencies]`
-entry anywhere in the workspace enables a feature named `test-support`,
-`test-*` or `*-testing`, or if an ordinary feature forwards to one
-(`prod = ["topo/sweep-testing"]`). It parses the manifests with
-`tomllib` rather than grepping, because `features = [...]` says nothing
-about which table it sits in and `[target.'cfg(unix)'.dependencies]`
-nests. Its self-test plants five evasions including the live one, and it
-was written **before** the fix so it could be watched going red on the
-tree and green after. Its `KNOWN GAPS` block names what it cannot do —
-chiefly that it enforces a naming convention, not a semantic notion of
-"test-only". The lesson generalizes past this row: a safety property
-asserted in a comment three lines from the code that violates it had
-survived nine gates.
+`scripts/gates/test-features-dev-only.sh` fails if any non-dev dependency
+edge in **any** of the repo's 23 manifests — the kernel workspace, its root,
+and the excluded `demos/`, `tools/` and `interval-transcendentals/` roots —
+enables a feature named `test-support`, `test-*` or `*-testing`, or if an
+ordinary feature forwards to one. It parses with `tomllib` rather than
+grepping, for the reason `kernel-serde-free.sh` gives about dependency-entry
+spellings plus one of its own: `features = [...]` says nothing about which
+table it sits in, and the tables that matter nest.
+
+**Its self-test is derived from ROUTES, not spellings**, and that is the
+part worth carrying forward. The first version enumerated the spellings its
+author had thought of, passed its own self-test, and was then defeated twice
+inside its claimed scope — by `[workspace.dependencies]` + `workspace = true`
+(a traversal bug that *read* as covered: the walker recursed only under the
+key `target`, so the root manifest was scanned but never descended into),
+and by a same-crate forward `interval = ["test-support"]`, which has no
+slash and so slipped a check that required one, while the pass message
+claimed to cover it. Both are the live leak's own semantics in different
+clothes. The gate now enumerates the eight distinct ways a feature can be
+switched on for a non-dev edge (inline, workspace inheritance, `target.*`,
+`build-dependencies`, cross-crate forward, same-crate forward, a two-deep
+forward chain, and the weak `dep?/feat` spelling) and plants one case per
+route, with the sanctioned dev-dependency and workspace-inheritance shapes
+as the negative control. Both former defeats were also reproduced against
+the real manifests and watched firing there. This is the third gate in this
+batch whose self-test could not have found its own hole — the general rule
+is that **a self-test derived from the implementation can only confirm what
+the author already believed**.
+
+The lesson generalizes past this row: a safety property asserted in a
+comment three lines from the code that violates it had survived every other
+gate in the directory.
 
 **This row's own "the precedent does not exist" claim was half wrong, and is
 corrected here.** Both #641's PR body and the first draft of this row named
@@ -4133,8 +4156,9 @@ test support, gated so it does not show up in release builds.** Executed by
 the one copy that was field-for-field identical to `ArenaCounts`; what
 survives is filed as **#672** rather than left as the word "unscheduled":
 two spellings of the arena census inside `topo` alone (`ArenaCounts`, 7
-topology arenas, against `src/fixtures.rs:104`'s `ArenaSnapshot`, 10 —
-this is the PR that consolidated the census), four more `Census` structs
+topology arenas, against `src/fixtures.rs:104`'s `ArenaSnapshot`, 10 — the
+same seven, same order, **plus** points/curves/surfaces, so a strict
+superset; this is the PR that consolidated the census), four more `Census` structs
 in `crates/topo/tests/` with genuinely drifted field sets (4, 3, 7-with-`rings`,
 8-with-`shell_refs`), byte-identical `brick` fixtures in `crates/stl/tests/`,
 and local body builders in `crates/mesh/tests/`, `crates/step-export/tests/`

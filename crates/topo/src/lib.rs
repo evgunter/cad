@@ -183,6 +183,13 @@ pub mod splitting;
 // debug postcondition, the in-crate oracles, and this crate's `tests/`
 // binaries through the feature.
 #[cfg(any(debug_assertions, test, feature = "test-support"))]
+// `doc(hidden)` for the same reason as the door below. This module is
+// the ONLY private module of the crate that a doc build renders — not
+// because `--document-private-items` shows everything private, but
+// because the others (`fixtures`, `seqgen`, `tier3_tests`) are
+// `#[cfg(test)]` and do not exist in a doc build at all, while this one
+// exists whenever `debug_assertions` does.
+#[doc(hidden)]
 mod test_support_impl;
 // VISIBILITY: the only reason to export them is a test naming them from
 // another crate, so the public door opens on the test arms alone —
