@@ -932,21 +932,34 @@ mod tests {
     /// every step, make/kill roundtrips at random points, and full
     /// teardown to empty arenas + empty provenance maps.
     ///
-    /// How much of property (c) actually ran is not left to inspection.
-    /// The bar comes from the mechanism, not from a measurement: the
-    /// two documented irreversible-by-one-op subcases live in
-    /// [`roundtrip`]'s `Kev`/`Kef` arms only, so every selection on any
-    /// other choice must execute. `run_properties` asserts that per
-    /// step; the run-level check below restates it as a total, so the
-    /// bar rises with the run instead of sitting at a constant floor.
-    /// Pinning a number (today's generator executes a few hundred) would
-    /// pin the generator's mix, which is not a property of anything.
+    /// How much of property (c) ran is checked, and the check is
+    /// per-step: the two documented irreversible-by-one-op subcases
+    /// live in [`roundtrip`]'s `Kev`/`Kef` arms only, so a selection on
+    /// any other choice must execute, and `run_properties` asserts
+    /// exactly that as each step happens. **That per-step assertion is
+    /// the whole of the bar.**
     ///
-    /// The final `executed > 0` is only a collapse floor. It is NOT
-    /// implied by the design — a run whose every selection landed on an
-    /// irreversible `Kev`/`Kef` site would legally execute none — but
-    /// such a run is not one this generator produces, and if it ever
-    /// happened the run tested nothing and should say so.
+    /// The totals below are two different things, and the difference
+    /// matters more than either:
+    ///
+    /// - `executed > 0` is the only one that can fail on its own, and
+    ///   it is a COLLAPSE FLOOR, not a bar. It is not implied by the
+    ///   design — a run whose every selection landed on an irreversible
+    ///   site would legally execute none — but such a run tested
+    ///   nothing and should say so rather than pass green.
+    /// - `executed + skipped == selected` and `skipped <= skippable`
+    ///   are BOOKKEEPING IDENTITIES. The first follows from how the
+    ///   tally is accumulated, the second from the per-step assertion
+    ///   that has already run. Neither can independently go red; they
+    ///   are here to state the shape of the tally for a reader, and
+    ///   nothing more.
+    ///
+    /// No numeric threshold is asserted, because there is no number to
+    /// assert: proptest seeds its RNG from entropy, so the totals are a
+    /// fresh sample every run — four consecutive runs of this test gave
+    /// 339/335/4/47, 326/321/5/47, 290/286/4/33 and 354/351/3/46 for
+    /// selected/executed/skipped/skippable. A pinned threshold would
+    /// have pinned that noise.
     #[test]
     fn random_op_sequences_hold_all_properties() {
         let tally = std::cell::Cell::new(RoundtripTally::default());
@@ -965,6 +978,15 @@ mod tests {
             }
         );
         let t = tally.get();
+        // The only run-level check that can fail on its own.
+        assert!(
+            t.executed > 0,
+            "no make/kill roundtrip executed across the whole run: \
+             property (c) went untested",
+        );
+        // Bookkeeping identities (see the doc): the first is how the
+        // tally is accumulated, the second is what the per-step
+        // assertion has already guaranteed. Stated, not relied on.
         assert_eq!(
             t.executed + t.skipped,
             t.selected,
@@ -975,16 +997,6 @@ mod tests {
             "{} skips against {} selections that could legally skip",
             t.skipped,
             t.skippable,
-        );
-        assert_eq!(
-            t.executed,
-            t.selected - t.skipped,
-            "every selection outside the Kev/Kef sites must execute",
-        );
-        assert!(
-            t.executed > 0,
-            "no make/kill roundtrip executed across the whole run: \
-             property (c) went untested",
         );
     }
 
