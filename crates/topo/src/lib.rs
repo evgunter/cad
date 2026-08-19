@@ -177,10 +177,35 @@ pub(crate) mod seqgen;
 pub mod source;
 pub mod split;
 pub mod splitting;
-// The gate is the module's own subject — see its docs for why
-// `cfg(test)` cannot serve and what each arm buys.
+// Existence and visibility are two questions, gated separately; the
+// module's own docs are the statement of both. EXISTENCE: the items
+// must be compiled wherever any of their three consumers is — the
+// debug postcondition, the in-crate oracles, and this crate's `tests/`
+// binaries through the feature.
 #[cfg(any(debug_assertions, test, feature = "test-support"))]
-pub mod test_support;
+mod test_support_impl;
+// VISIBILITY: the only reason to export them is a test naming them from
+// another crate, so the public door opens on the test arms alone —
+// `topo::test_support` does not resolve in a plain build of any profile.
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_support {
+    //! The public door onto [`crate::test_support_impl`], open exactly
+    //! when a test needs to name its contents from another crate. That
+    //! module's docs state both gates and why they differ.
+    use geom_core::Real;
+
+    use crate::body::Body;
+    pub use crate::test_support_impl::ArenaCounts;
+
+    /// The topology-arena lengths of `body`. A free function because
+    /// `Body::arena_counts` is `pub(crate)` — an inherent method's
+    /// reach follows its own visibility, not its module's, so making
+    /// that one `pub` would be public API on [`Body`] in every profile.
+    /// This lives behind the door instead.
+    pub fn arena_counts<T: Real>(body: &Body<T>) -> ArenaCounts {
+        body.arena_counts()
+    }
+}
 #[cfg(test)]
 mod tier3_tests;
 pub mod transform;

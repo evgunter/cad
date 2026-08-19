@@ -3908,7 +3908,7 @@ orientation-free by construction and so cannot inherit the bit it is testing.
 
 ## S52. An in-crate test helper is invisible from `tests/`, so every integration suite mints its own
 
-- **Where**: `crates/topo/src/test_support.rs`,
+- **Where**: `crates/topo/src/test_support_impl.rs`,
   `crates/sweep/src/test_support.rs` (both new); the copies collapsed
   were `crates/topo/tests/m3_pr5_boolean_ops.rs`'s `Census` and the
   six private `cube`s in `crates/sweep/tests/`
@@ -3925,39 +3925,57 @@ duplicate for free and left the `tests/` one standing; #640 put `sweep`'s
 shared fixture in a crate-root `#[cfg(test)]` module and left the six
 integration copies standing, for the same reason.
 
-**EXECUTED for `topo` and `sweep` by #668.** Each crate gained a
-`test_support` module behind an **off-by-default cargo feature reached
-through a self dev-dependency** (`[features] test-support = []`,
-`[dev-dependencies] <crate> = { path = ".", features = ["test-support"] }`),
-which is on exactly when the crate's own tests compile the library and off
-for every other build. `topo`'s `ArenaCounts` and `Body::arena_counts()`
-moved there under one gate — `any(debug_assertions, test, feature =
-"test-support")`, the union of the type's three consumers, replacing #641's
-`any(debug_assertions, test)` so one item carries one gate — and the
-integration `Census` copy is gone. `sweep`'s `fixtures.rs` became
-`test_support.rs` under `any(test, feature = "test-support")`, `cube` took
-the side length its callers were passing, and all six `tests/` copies
-collapsed to it. The seventh `cube` in `crates/sweep/tests/m6_surgery_interval.rs`
-stays: it builds a `Body<Interval>` through `RawLoop::polygon`, a different
-fixture with the same name.
+**EXECUTED for `topo` and `sweep` by #668, on a mechanism that is
+repo-native rather than newly established.** The gate is an
+**off-by-default cargo feature reached through a self dev-dependency**
+(`[features] test-support = []`, `[dev-dependencies] <crate> = { path =
+".", features = ["test-support"] }`), on exactly when the crate's own tests
+compile the library and off for every other build. That is the wiring
+`topo`'s live **`sweep-testing`** feature already uses one screen away in
+the same manifest — and the wiring the retired `profile` shim used — so
+#668 applies an existing in-crate pattern to a second purpose.
+
+**Existence and visibility are gated separately**, which is what keeps
+"not public API" true in every profile:
+
+- `topo` — `ArenaCounts` and `Body::arena_counts()` moved into a private
+  `test_support_impl` whose **existence** gate is `any(debug_assertions,
+  test, feature = "test-support")`, the union of the type's three
+  consumers (the D1 debug postcondition is a real one), replacing #641's
+  `any(debug_assertions, test)`. The **visibility** gate on the public
+  `test_support` facade is `any(test, feature = "test-support")` alone, so
+  `topo::test_support` resolves in no plain build of either profile.
+  `Body::arena_counts()` stays `pub(crate)` — an inherent method's reach
+  follows its own visibility, not its module's — and the facade carries a
+  free `arena_counts(&body)` for cross-crate readers. The integration
+  `Census` copy is gone.
+- `sweep` — `fixtures.rs` became `test_support.rs` under `any(test,
+  feature = "test-support")`, where existence and visibility coincide
+  because nothing in it has a non-test consumer. `cube` took the side
+  length its callers were passing, and all six `tests/` copies collapsed to
+  it. The seventh `cube` in `crates/sweep/tests/m6_surgery_interval.rs`
+  stays: it builds a `Body<Interval>` through `RawLoop::polygon`, a
+  different fixture with the same name.
 
 **The gate was proved, not asserted.** A throwaway downstream crate that
 path-depends on both and names `topo::test_support` / `sweep::test_support`
-fails `cargo build --release` with `error[E0433]: cannot find test_support`
-for both; `cargo test --release -p topo -p sweep` passes, which is the row
-that rules out `#[cfg(debug_assertions)]`. One honest consequence: `topo`'s
-module *is* nameable from a downstream **debug** build, because
-`ArenaCounts` is also the debug postcondition's vehicle — the module doc
-says so and says nothing outside the crate may rely on it.
+fails with `error[E0433]: cannot find test_support` for both crates in
+**both profiles** — `cargo build --release` and `cargo build` alike. That is
+the real downstream case, stronger than a symbol grep, since an
+uninstantiated generic leaves no symbol either way. `cargo test --release -p
+topo -p sweep` passes, which is the row that rules out
+`#[cfg(debug_assertions)]`.
 
-**The retired-precedent correction stands, with an amendment.** Both #641's
-PR body and the first draft of this row named `crates/profile/src/test_support.rs`
-as the shipped remedy; the file was retired by LIB-RETTAIL/ONARC and
-`pncad/src/profile.rs:50` says so outright. But the *mechanism* was never
-retired — `profile`'s shim used this exact feature + self-dev-dependency
-wiring, and `topo`'s live `sweep-testing` feature still does. The file is
-gone; the pattern is repo-native, and #668 only applies it to a second
-purpose.
+**This row's own "the precedent does not exist" claim was half wrong, and is
+corrected here.** Both #641's PR body and the first draft of this row named
+`crates/profile/src/test_support.rs` as the shipped remedy; that **file** was
+indeed retired by LIB-RETTAIL/ONARC, and `pncad/src/profile.rs:50` says so
+outright. The correction then over-reached: the **mechanism** was never
+retired. `profile`'s shim used this exact feature + self-dev-dependency
+wiring, and `crates/topo/Cargo.toml` still declares it today at the
+`sweep-testing` feature and its self dev-dependency, with a comment saying
+what it is for. Searching for the pattern *by module name* found the deleted
+file and missed the live wiring — the same failure mode S39 catalogues.
 
 **Why not a `tests/common` module instead.** Both crates aggregate their
 suites into one `tests/all.rs` binary, so a tests-side shared module *is*

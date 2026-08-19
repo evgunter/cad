@@ -169,7 +169,7 @@ use crate::entity::{
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::provenance::Provenance;
 #[cfg(debug_assertions)]
-use crate::test_support::ArenaCounts;
+use crate::test_support_impl::ArenaCounts;
 
 /// How a face-minting operator obtains the new face's surface (M2 PR 3
 /// — the sweep supplies each face's surface explicitly; op parameters,

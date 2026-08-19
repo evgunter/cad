@@ -3,10 +3,15 @@
 //!
 //! # The gate (stated once for this crate)
 //!
-//! The module declaration in `lib.rs` carries
-//! `#[cfg(any(debug_assertions, test, feature = "test-support"))]`.
-//! Each arm is a consumer that must be able to name these items:
+//! Existence and visibility are separate questions and `lib.rs` gates
+//! them separately.
 //!
+//! **Existence** — `#[cfg(any(debug_assertions, test, feature =
+//! "test-support"))]` on the `mod` declaration. Each arm is a consumer
+//! that must be able to name these items:
+//!
+//! - **`debug_assertions`** — [`ArenaCounts`] is the vehicle of the D1
+//!   postcondition assert in [`crate::euler`], which is debug-only.
 //! - **`test`** — the in-crate `mod tests` oracles, which compile with
 //!   the library. Cargo unifies the self dev-dependency's features into
 //!   that build too, so this arm is belt-and-braces: it keeps the gate
@@ -24,21 +29,17 @@
 //!   (`topo = { path = ".", features = ["test-support"] }`), so it is
 //!   on exactly when this crate's own tests compile the library and
 //!   off for every other build, including every downstream dependent.
-//! - **`debug_assertions`** — [`ArenaCounts`] is also the vehicle of
-//!   the D1 postcondition assert in [`crate::euler`], which is
-//!   debug-only. One gate for one item: the counts exist wherever any
-//!   of their three consumers do.
 //!
-//! **Not public API.** The `debug_assertions` arm makes this module
-//! nameable from a downstream *debug* build; nothing outside this crate
-//! may rely on that, since the same reference does not resolve in
-//! release.
+//! **Visibility** — `#[cfg(any(test, feature = "test-support"))]` on
+//! the `pub use ... as test_support` re-export. The only reason to
+//! export any of this is a test naming it from another crate, so the
+//! public door opens on the test arms alone: in a plain build, debug or
+//! release, the module is private and `topo::test_support` does not
+//! resolve. **Not public API, in any profile.**
 //!
-//! `cargo build --release` satisfies none of the three arms (no
-//! `debug_assertions`, no `test`, and the feature is off by default
-//! and reachable only through a dev-dependency), so this module is
-//! absent from release builds. `cargo test --release` satisfies
-//! `test` — which is why `debug_assertions` alone cannot serve as the
+//! `cargo build --release` satisfies no arm of either gate, so nothing
+//! here is compiled at all. `cargo test --release` satisfies `test` —
+//! which is why `debug_assertions` alone cannot serve as the existence
 //! gate.
 
 use geom_core::Real;
@@ -72,7 +73,13 @@ pub struct ArenaCounts {
 
 impl<T: Real> Body<T> {
     /// Captures the topology-arena lengths.
-    pub fn arena_counts(&self) -> ArenaCounts {
+    ///
+    /// `pub(crate)`, never `pub`: an inherent method's reach follows
+    /// its own visibility and its type's, not its module's, so a `pub`
+    /// one here would be public API on [`Body`] whatever this module's
+    /// door does. The cross-crate reader is the free `arena_counts` in
+    /// the `test_support` facade.
+    pub(crate) fn arena_counts(&self) -> ArenaCounts {
         ArenaCounts {
             solids: self.solids.len(),
             shells: self.shells.len(),

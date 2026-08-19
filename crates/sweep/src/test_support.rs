@@ -28,6 +28,11 @@
 //!   tests compile the library and off for every other build,
 //!   including every downstream dependent.
 //!
+//! Existence and visibility coincide here, so one gate states both:
+//! nothing in this module has a non-test consumer, unlike `topo`'s
+//! `test_support_impl`, whose `ArenaCounts` the debug postcondition
+//! also needs and which is therefore compiled wider than it is exported.
+//!
 //! Neither arm is satisfied by `cargo build [--release]`, so this
 //! module is absent from every shipped build. `cargo test --release`
 //! satisfies `test` — which is why `cfg(debug_assertions)` cannot

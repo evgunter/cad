@@ -17,7 +17,7 @@ mod common;
 
 use common::prism_z;
 use geom_core::Decide;
-use topo::test_support::ArenaCounts;
+use topo::test_support::{ArenaCounts, arena_counts};
 use topo::{
     Body, BooleanBody, BooleanError, BooleanResult, BooleanResultKind, mass_properties, subtract,
     subtract_with, union, union_with, validate, validate_closed, validate_geometric,
@@ -133,7 +133,7 @@ fn two_bricks_intersect() {
     assert_eq!(body.kind, BooleanResultKind::Seamed);
     // The [1,2]³ cube: 3 A faces + 3 B faces, hexagon seam.
     assert_eq!(
-        body.body.arena_counts(),
+        arena_counts(&body.body),
         ArenaCounts {
             solids: 1,
             shells: 1,
@@ -162,7 +162,7 @@ fn two_bricks_union() {
     assert_eq!(body.kind, BooleanResultKind::Seamed);
     // 7+7 operand corners + 6 seam; 3 full + 3 L faces per operand.
     assert_eq!(
-        body.body.arena_counts(),
+        arena_counts(&body.body),
         ArenaCounts {
             solids: 1,
             shells: 1,
@@ -218,7 +218,7 @@ fn void_birth_cube_minus_inner_cube() {
     // Outer cube shell + reverted inner void shell: tier-2-legal
     // multi-shell (asserted by `run`), exact volume outer − inner.
     assert_eq!(
-        body.body.arena_counts(),
+        arena_counts(&body.body),
         ArenaCounts {
             solids: 1,
             shells: 2,
@@ -246,7 +246,7 @@ fn disjoint_operands() {
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::Assembly);
     assert_eq!(
-        body.body.arena_counts(),
+        arena_counts(&body.body),
         ArenaCounts {
             solids: 1,
             shells: 2,
@@ -267,7 +267,7 @@ fn disjoint_operands() {
     let r = run(subtract_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::OperandA);
-    assert_eq!(body.body.arena_counts(), a.arena_counts());
+    assert_eq!(arena_counts(&body.body), arena_counts(&a));
     assert_props(&body.body, 1.0, 6.0);
 }
 
@@ -281,7 +281,7 @@ fn nested_operands() {
     let r = run(topo::intersect_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::OperandB);
-    assert_eq!(body.body.arena_counts(), b.arena_counts());
+    assert_eq!(arena_counts(&body.body), arena_counts(&b));
     assert_props(&body.body, 1.0, 6.0);
     // A ∪ B_inside = A.
     let r = run(union_with, &a, &b);
@@ -306,7 +306,7 @@ fn corner_kiss_operands() {
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::Assembly);
     assert_eq!(
-        body.body.arena_counts(),
+        arena_counts(&body.body),
         ArenaCounts {
             solids: 1,
             shells: 2,
@@ -456,8 +456,8 @@ fn subtract_equals_intersect_revert_oracle() {
             (BooleanResult::Empty, BooleanResult::Empty) => {}
             (BooleanResult::Body(d), BooleanResult::Body(r)) => {
                 assert_eq!(
-                    d.body.arena_counts(),
-                    r.body.arena_counts(),
+                    arena_counts(&d.body),
+                    arena_counts(&r.body),
                     "{name}: census equality"
                 );
                 let md = mass_properties(&d.body).unwrap();
@@ -515,7 +515,7 @@ fn tangential_rest_operands() {
     let r = run(subtract_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::OperandA);
-    assert_eq!(body.body.arena_counts(), a.arena_counts());
+    assert_eq!(arena_counts(&body.body), arena_counts(&a));
     assert_props(&body.body, 8.0, 24.0);
 }
 
@@ -528,7 +528,7 @@ fn two_bricks_subtract() {
     // A's union side (7 corners, 3 L + 3 full faces) + reverted BinA
     // (3 squares, corner (1,1,1), 3 split-edge remnants).
     assert_eq!(
-        body.body.arena_counts(),
+        arena_counts(&body.body),
         ArenaCounts {
             solids: 1,
             shells: 1,
