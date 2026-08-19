@@ -2770,10 +2770,71 @@ silently non-watertight mesh and still do**. That last group is #653's
 other half and is a defect on main in its own right — banding does not
 and cannot catch it, because its off-box residual (≤1.5e-15 m) is the
 same phenomenon at the same scale as the counterexample's. The fix for
-those is #653's option 2 (have the walk snap co-azimuthal consecutive
-meridians onto one column, as the loop-closure snap already does for
-the seam); it changes mesh output and belongs in its own PR with its
-own regression evidence.
+those is #653's option 2, taken below.
+
+**OPTION 2 IS DONE: one constant coordinate per ISO SIDE, not per
+edge.** A guard sitting downstream of the walk could only ever see a
+symptom 1e-16 wide, and at that width the broken and the correct cases
+are indistinguishable — which is why banding removed the false
+refusals and could not touch the other half.
+`walk::iso_side_starts` groups consecutive traversals into **iso-side
+runs** and gives each run ONE coordinate, taken from the run's first
+edge; a run's later members take that `f64` verbatim, so the side is
+bitwise straight again.
+
+**The sameness test is structural, not a band, and that is the part
+worth carrying elsewhere.** A point off the chart axis has exactly one
+azimuth, so two meridians meeting there are necessarily co-azimuthal —
+there is no meridian-meridian corner away from the axis — and two
+coaxial circles at different `v` are disjoint, so two rims that meet
+are necessarily co-`v`. The only genuine same-kind corner is a CHART
+SINGULARITY at the junction, which is the pole fan the walk already
+emits two entries for and the π-apart wire band `unwrap_tie` exists
+for. Every singularity lies ON THE AXIS, so `radial(junction) > eps` is
+one comparison for all of them — including the horn/spindle torus's
+axis point, which `Chart::poles()` does not list and which therefore
+needed no new case. ε appears there as a **classification of the body**
+(is this junction a chart singularity?) selecting between two exactly
+computed coordinates, never as a snap of an emitted value — the
+distinction #648's band and the loop-closure snap #664 removes sit on
+opposite sides of.
+
+**Sweep A/B, the same 1524 `tessellate` calls.**
+
+| | main | with the fix |
+|---|---|---|
+| CLEAN | 1373 | **1500** |
+| DIRTY (`Ok` + `check_mesh` failure) | **71** | **0** |
+| REFUSED | 80 | 24 |
+
+Row by row: 1373 CLEAN → CLEAN **at the identical triangle count**, 71
+DIRTY → CLEAN, 56 REFUSED → CLEAN (44 `CertificateExceeded`, 12
+`Triangulation` — the walk was handing the CDT a self-crossing
+polygon), 24 REFUSED → REFUSED (all `CertificateExceeded` on the mirror
+nappe, several under the *identity* map: the δ-vs-certificate class,
+untouched). The 71 lose 90 triangles between them, one to three each —
+the slivers, and nothing else. Zero guard refusals before and after.
+The import route goes with them: `split_oblique.step` was 19 triangles
+`NonManifoldEdge` and is now 18 triangles clean, exactly what the same
+part stated axis-aligned already meshed. **A rigid placement stops
+changing how many triangles a body takes.**
+
+**A consequence for this entry's own band.** With the columns exact
+again every walk entry in tree sits on its UV box *bitwise*, so
+`entries_off_bbox` measures zero everywhere and the banded and exact
+forms agree on every in-tree fixture:
+`a_split_then_placed_swept_face_is_not_refused` no longer
+discriminates between them, and its doc now says so. The band is
+kept as the backstop, and what it guarded is asserted directly
+(`== 0.0`) by
+`a_multiply_carried_iso_side_is_bitwise_straight_and_meshes_watertight`
+over 238 split × obliquely-placed configurations of every fixture.
+Reverting `iso_side_starts` turns that row red with **50 crooked walks
+and 33 non-watertight meshes**. The import route has its own row and
+its own committed AP214 fixtures
+(`step-import/tests/fixtures/split-iso/`, generator beside them) —
+that is where the *separate-carrier* case lives, which no carrier
+identity test could have decided.
 
 **Payload.** `off_bbox: usize` alone could not tell the two apart — it
 read `1` for a one-corner keyway and `1` for a 6e-17 m wobble, the same
@@ -4453,6 +4514,30 @@ edge, not another shape. And a sweep that records pass/fail where it
 could record **margins** discards the evidence that would have shown
 the claim was fragile; #648's payload now carries the margin for the
 same reason.
+
+**The sweep the fix itself owed, run in the same PR (2026-08-19,
+#653's option 2).** The invariant established there is *"a curved
+face's iso side gets ONE constant coordinate, however many edges carry
+it"* — and §C10's rule is that such an invariant is swept across
+sibling implementations as part of acceptance. Two siblings existed and
+both were taken in the same change rather than left for a follow-up:
+**meridian columns** (u) were the reported half, and **rim rows** (v)
+are the same shape one axis over, so `iso_side_starts` classifies both
+and the `Rim` arm shares its row exactly as the `Meridian` arm shares
+its column. The rim half has no live reproducer: a `split_edge` keeps
+one carrier circle, so both sub-edges compute the same `rim_v` bitwise,
+and every DIRTY row in the 1524-sweep came from a *meridian* split. It
+is reachable through import all the same, where two co-`v` arcs are two
+independently stated `CIRCLE`s. Fixing only the half with a live
+reproducer is exactly the failure mode this section is about.
+
+The third sibling was checked and **is not one**: `trimmed`'s
+pcurve-driven lane never *derives* a constant coordinate from a
+midpoint evaluation — it reads the stored pcurve — so it has no
+derived-per-edge premise to break. (An `IsoLine` pcurve does carry a
+constant, but as stated data: two sub-edges disagreeing there is a
+statement about the file, not about the walk.) `planar` has no iso
+coordinates at all.
 
 **A second class the same review named, swept in #648.** *"Sweep a list of
 bodies, assert a global count"* has the same hole as a global floor:
