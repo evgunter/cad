@@ -241,7 +241,7 @@ impl core::fmt::Display for SplitError {
                 write!(
                     f,
                     "split: the cut tears the placement cluster gauged at node {} (node {cut} is \
-                     cut, node {kept} is kept) — A11 puts the frame on the cluster, so the cut \
+                     cut, node {kept} is kept) — the frame lives on the CLUSTER, so the cut \
                      must be a union of WHOLE clusters; widen the cut, or delete the mates \
                      holding the cluster together first",
                     gauge.0

@@ -1438,9 +1438,8 @@ pub(crate) const SWEEP_FRONTIER: &str = "a swept solid: the recipe's path operan
      a closed chain of two or more segments, even at the minimal \
      two-vertex circle — while §10.4's rigid-profile sweep needs the \
      path as ONE curve, so every recipe-expressible sweep waits on a \
-     joined-path composition lane (banked past M6); the swept BODY \
-     machinery itself is live since M6-3 — sweep::sweep_body at the \
-     library API";
+     joined-path composition lane; the swept BODY machinery itself is \
+     live — sweep::sweep_body at the library API";
 
 /// One section of a loft, taken from the RECIPE's own `f64`
 /// description rather than from the evaluated `T` payload.

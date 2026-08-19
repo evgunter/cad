@@ -5,7 +5,7 @@
 //! kind needs — an absolute placement and a replication rule — so
 //! they live together here rather than swelling the document module.
 //!
-//! §L4 throughout: lengths cross as `Length`, angles as `Angle`, and
+//! Dimensioned throughout: lengths cross as `Length`, angles as `Angle`, and
 //! a bare float appears only where the Rust side is itself a
 //! dimensionless direction or a matrix entry.
 
@@ -97,7 +97,7 @@ impl Frame {
     }
 
     /// The frame at `eye` whose local **+Z aims at** `target`, with
-    /// local +X placed by `roll_reference` (U4b).
+    /// local +X placed by `roll_reference`.
     ///
     /// The roll reference fixes the one degree of freedom aiming
     /// leaves: local +X runs along `roll_reference × aim`. A reference
@@ -124,7 +124,7 @@ impl Frame {
 
     /// The profile frame at the start of a swept path: a frame at
     /// `origin` whose local **+Z is the path `tangent`**, so the local
-    /// XY plane is the plane the profile is drawn in (U4b).
+    /// XY plane is the plane the profile is drawn in.
     ///
     /// There is no tip to read a roll from, so the roll comes from a
     /// stated LADDER — world +Z, then world +X — and the frame
@@ -146,11 +146,11 @@ impl Frame {
     }
 
     /// Reflection across the plane through `point` with `normal`
-    /// (U4b) — an IMPROPER frame, determinant −1.
+    /// — an IMPROPER frame, determinant −1.
     ///
     /// It is constructible and it is not placeable: the edit door
-    /// refuses a mirror placement (`improper_placement`, A6, pending
-    /// the equivariance audit), so this constructor is how a caller
+    /// refuses a mirror placement (`improper_placement`), so this
+    /// constructor is how a caller
     /// obtains the reflection as a VALUE — and how the refusal can be
     /// exercised at all.
     #[staticmethod]
@@ -198,7 +198,7 @@ impl Frame {
     }
 
     /// The linear part's determinant — positive for a placement the
-    /// edit door admits, ≤ 0 for the mirrors A6 refuses.
+    /// edit door admits, ≤ 0 for the mirrors the edit door refuses.
     #[getter]
     fn determinant(&self) -> f64 {
         self.0.determinant()

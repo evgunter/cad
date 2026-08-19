@@ -1,5 +1,5 @@
 //! The selector surface: structural patterns, geometric predicates,
-//! and the vocabulary both are written in (LIB-PYSEL, audit G13).
+//! and the vocabulary both are written in.
 //!
 //! # What crosses, and what stays behind
 //!
@@ -11,7 +11,7 @@
 //!
 //! The names that come back are the SAME opaque texts the whole-body
 //! materializers answer with (`doc::name_text`) — the one alphabet
-//! `Node.fillet` reads. That is the ordinal-28 ruling kept: narrowing
+//! `Node.fillet` reads. The rule that keeps: narrowing
 //! a set happens through these doors, never by reading inside a name.
 //!
 //! # The exact/decided split survives the crossing
