@@ -1710,24 +1710,16 @@ and `review_s11_adv` for a reachability pin.
 - **Confidence**: likely
 - **Found independently by two scans.**
 
-`boolean::boxes::face_box` special-cases Cylinder and Sphere faces to
-whole-extent boxes, then falls through to a **vertex-hull** box for
-everything else, justified by "straight edges make the polygon lie in
-its vertex hull". A cylinder's planar cap — which this engine's
-plane×cylinder lane mints — is a planar face whose rim is a circular arc
-that bulges past its two endpoints, so the box is not a superset and the
-BVH can prune a pair the exact predicates would have accepted, silently.
-
-`separation::certified_face_box` is a second, corrected implementation
-(hulls the planar arm with the boundary *edge* boxes, poisons NURBS) and
-it calls `boxes::face_box` to build on — but the sweep itself still uses
-the raw one. `census.rs` is a third, with a `max(r, sagitta)` pad and an
-outright NURBS refusal; its own comment admits the duplication. The
-module already carries a long "KNOWN GAP" note about the NURBS half of
-the same defect while the planar-with-conic-rim half sits under a
-sentence asserting the opposite.
-
-This is the finding most likely to correspond to a live wrong answer.
+**FIXED by #620.** `FaceBoxRule` in `boolean/boxes.rs` is now the one
+statement of which surface kinds have a cheap sound box and by what
+construction — planar faces hull their boundary EDGE boxes, NURBS take the
+control-net hull, cone/torus/no-surface poison — and `face_box` is its
+`f64`-bracket instantiation. `separation::certified_face_box` is deleted and
+calls `face_box`; `census::reach_box` reads its arm from the same rule and
+only re-derives the ARITHMETIC, because the `Bounds` allowlist is closed to a
+lane that validates `Dual` bodies. The sweep found a fourth instance —
+census's instance-containment arm compared two vertex hulls, so a body nested
+inside a cylinder cleared silently — fixed in the same PR.
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18). On this cluster: "huh, i wonder
 how these even happened. they should certainly be unified." Postmortem pass
@@ -3453,7 +3445,7 @@ every other, so these can run as five concurrent lanes.
 
 | # | Finding | Effort | Note |
 |---|---|---|---|
-| **W1a** | **S16** — `boolean/boxes.rs`'s planar arm uses a bare vertex hull, but a cylinder's planar cap has a circular rim that bulges past its endpoints, so the box is not a superset and the BVH can prune a pair silently. | S–M | **Highest single-item value in the report.** The fix is already named in `PERF-SCAN-2026-08.md` Tier A finding 1, and `separation.rs` already contains the corrected planar rule. |
+| **W1a** ✅ **#620** | **S16** — `boolean/boxes.rs`'s planar arm uses a bare vertex hull, but a cylinder's planar cap has a circular rim that bulges past its endpoints, so the box is not a superset and the BVH can prune a pair silently. | S–M | **Highest single-item value in the report.** The fix is already named in `PERF-SCAN-2026-08.md` Tier A finding 1, and `separation.rs` already contains the corrected planar rule. |
 | **W1b** ✅ #617 | **S23** — the SSI exhaustiveness sweep switches duty on `tubes.is_empty()`, so an all-seeds-fail run returns `Ok` *plus an exhaustiveness receipt* instead of `ExhaustivenessInconclusive`. | M | **FIXED by #617**: the duty is a stated parameter (seed/account entry points over a private `SweepDuty`), and a new row enters the all-seeds-fail mode the old row's premise excluded. Chart-lane twin of that row scheduled as **H7**. |
 | **W1c** | **S41** — `Bounds for Interval` forwards `lo()`/`hi()` without consulting the decoration, and `bracket<E: Enclosure>` crosses operands into `RingInterval` by endpoints. A `Trv`-but-nonempty enclosure may be dropping a domain violation **today**. | S to test, ? to fix | Also the gating question for S1 — until this is settled, "swap `RingInterval` for `Interval`" is unsound. |
 | **W1d** ✅ #618 | **S4 drift (a)** — `Rebind`'s rewrite loop ends `_ => {}` and never reaches `Node::Mate`'s two `StableName`s, so a mate head is either falsely refused as `RebindNoReferences` or silently left dangling. Contradicts `ASSEMBLY-DESIGN.md:566`. | S | **FIXED — #618** (red-then-green, A12's reading edge asserted; two further mate-blind sites fixed with it). |

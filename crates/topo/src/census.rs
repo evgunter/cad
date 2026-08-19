@@ -1012,16 +1012,18 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
 ///    (the cradle witness), value-equal walls at gap zero
 ///    (boss-in-hole), and the embedded ball cap (the delta witness)
 ///    land here; the certified excluder this stands in for is the C9
-///    exclusion ring. The reach boxes are SOUND per-kind supersets
-///    (`reach_box` — the `boolean::boxes::face_box` construction:
-///    plane hull ⊕ largest boundary-arc radius, cylinder axial span
-///    ⊕ radius, the sphere's whole ball); cone/torus/NURBS have no
-///    sound cheap box and their pairs refuse WITHOUT a distance test
-///    (the `separation.rs` poison posture). A planar face vf-NAMED
-///    by the other solid's records defers to the confirm pass (the
-///    declared boss-on-plate class).
+///    exclusion ring. The reach boxes are SOUND per-kind supersets:
+///    `reach_box` is [`crate::boolean::boxes::FaceBoxRule`] — the ONE
+///    face-box rule — instantiated in this lane's arithmetic (the
+///    closure's own comment says why the arithmetic, and only the
+///    arithmetic, is separate). A kind with no cheap sound box refuses
+///    WITHOUT a distance test rather than under-claiming its reach. A
+///    planar face vf-NAMED by the other solid's records defers to the
+///    confirm pass (the declared boss-on-plate class).
 /// 2. **Instance containment** (C6's interference class): one solid's
-///    vertex-extent box contained in another's — a nested placement
+///    vertex-extent box inside another's REACH box (the containing
+///    side must be a superset; the contained side is a subset of its
+///    own locus, which is what makes a clear sound) — a nested placement
 ///    makes no boundary event at all (the reviewed nested-cube
 ///    witness), and interference is representable only through C6's
 ///    recorded gate-skips, which do not exist yet.
@@ -1096,104 +1098,160 @@ fn sweep_cross_solid_backstop<T: Decide>(
         }
         Some((lo, hi))
     };
-    // Per-kind bulge pad (doc comment): how far the face can reach
-    // beyond its boundary-vertex hull.
-    // The per-kind SOUND reach box (F5 delta refinement — the
-    // `boolean::boxes::face_box` construction re-derived in the
-    // evaluation lane, after the isotropic vertex-hull+pad filter
-    // falsely refused the corpus's cube-beside-cylinder file):
-    //
-    // - Plane: the boundary-vertex hull, padded by the largest
-    //   boundary-arc bulge (a straight edge lies in the hull; an arc
-    //   deviates from its chord by at most its sagitta
-    //   r·(1 − cos(θ/2)), with the semi-major standing in for r on
-    //   elliptic arcs — ≤ r only for spans ≤ π, up to the DIAMETER
-    //   for a reflex span, so the pad is max(r, sagitta): the radius
-    //   floor keeps sub-π pads unchanged and the sagitta term covers
-    //   reflex arcs. The face interior lies in the hull of its
-    //   boundary.) A planar face with any OTHER curved boundary kind
-    //   has no cheap sound pad — `None`.
-    // - Cylinder: boundary vertices' axial span, swept along the
-    //   axis and widened by the radius in every component — sound
-    //   because the surface is ruled (interior points lie on ruling
-    //   segments between boundary points, so the axial extent is the
-    //   boundary's) and every surface point is within r of the axis.
-    // - Sphere: the whole ball, center ± r — every surface point is
-    //   within r of the center (the S13 `face_box` posture).
-    // - Cone / Torus / described NURBS: no cheap sound box — `None`,
-    //   and the pair REFUSES without a distance test (the
-    //   `separation.rs` poison posture: refuse to claim a reach
-    //   rather than under-claim one).
-    let plane_arc_pad = |f: FK| -> Option<T> {
+    // **`boolean::boxes`'s `FaceBoxRule`/`EdgeBoxRule`, instantiated in
+    // this lane's arithmetic.** The rules — which kinds have a cheap
+    // sound superset, and by what construction — are read from there;
+    // only the min/max is re-derived, and it must be: `face_box` reads
+    // `[lo(), hi()]` brackets under a per-file `Bounds` allowlist
+    // (geom-core `real.rs`) that this lane is not on and cannot join,
+    // because the census validates `Dual` bodies and `Dual` has no
+    // bracket. An unboxable kind is `None` here and poison there —
+    // refuse without a distance test, versus never prune. Both loud.
+    let edge_reach = |ek: crate::entity::EdgeKey| -> Option<(Point3<T>, Point3<T>)> {
+        let e = body.edges.get(ek)?;
+        let end = |he| -> Option<Point3<T>> {
+            let hd = body.half_edges.get(he)?;
+            let v = body.vertices.get(hd.start)?;
+            body.points.get(v.point).copied()
+        };
+        let (a, b) = (end(e.he_plus)?, end(e.he_minus)?);
+        let chord = (
+            Point3::new(a.x.min(b.x), a.y.min(b.y), a.z.min(b.z)),
+            Point3::new(a.x.max(b.x), a.y.max(b.y), a.z.max(b.z)),
+        );
+        let carrier = body
+            .curves
+            .get(e.curve)
+            .and_then(CurveGeom::certified)
+            .map(geom_brep::EdgeCurve::carrier);
+        match crate::boolean::boxes::edge_box_rule(carrier) {
+            crate::boolean::boxes::EdgeBoxRule::NoSoundBox => None,
+            crate::boolean::boxes::EdgeBoxRule::Chord => Some(chord),
+            crate::boolean::boxes::EdgeBoxRule::ConicAmplitude {
+                center,
+                axis,
+                semi_u,
+                semi_v,
+                u_ref,
+            } => {
+                let v_ref = axis.cross(u_ref);
+                let reach = |ui: T, vi: T| ui.abs() * semi_u + vi.abs() * semi_v;
+                let (rx, ry, rz) = (
+                    reach(u_ref.x, v_ref.x),
+                    reach(u_ref.y, v_ref.y),
+                    reach(u_ref.z, v_ref.z),
+                );
+                Some((
+                    Point3::new(
+                        (center.x - rx).min(chord.0.x),
+                        (center.y - ry).min(chord.0.y),
+                        (center.z - rz).min(chord.0.z),
+                    ),
+                    Point3::new(
+                        (center.x + rx).max(chord.1.x),
+                        (center.y + ry).max(chord.1.y),
+                        (center.z + rz).max(chord.1.z),
+                    ),
+                ))
+            }
+        }
+    };
+    // Every boundary edge's reach, hulled with the isolated-vertex
+    // loops (which have no edge to speak for them). `None` as soon as
+    // one boundary curve has no sound box.
+    let boundary_reach = |f: FK| -> Option<(Point3<T>, Point3<T>)> {
         let face = body.get_face(f)?;
-        let mut pad = T::zero();
+        let mut acc: Option<(Point3<T>, Point3<T>)> = None;
+        let mut grow = |(lo, hi): (Point3<T>, Point3<T>)| {
+            acc = Some(match acc {
+                None => (lo, hi),
+                Some((l, h)) => (
+                    Point3::new(l.x.min(lo.x), l.y.min(lo.y), l.z.min(lo.z)),
+                    Point3::new(h.x.max(hi.x), h.y.max(hi.y), h.z.max(hi.z)),
+                ),
+            });
+        };
         for &lk in core::iter::once(&face.outer).chain(&face.rings) {
             let l = body.loops.get(lk)?;
-            let LoopBoundary::Cycle { first } = l.boundary else {
-                continue;
-            };
-            for he in body.loop_cycle(first)? {
-                let ek = body.half_edges.get(he)?.edge;
-                let curve = body.edges.get(ek).and_then(|e| body.curves.get(e.curve));
-                let ec = curve.and_then(CurveGeom::certified)?;
-                // max(r, sagitta) — sound for every span (doc above);
-                // cos is even, so the param order cannot flip the sign.
-                let bulge = |r: T| {
-                    let (t0, t1) = ec.params();
-                    let half = (t1 - t0) * T::from_f64(0.5);
-                    r.max(r * (T::one() - half.cos()))
-                };
-                match ec.carrier() {
-                    geom_curves::Curve3::Line { .. } => {}
-                    geom_curves::Curve3::Circle { radius, .. } => pad = pad.max(bulge(*radius)),
-                    geom_curves::Curve3::Ellipse { major, .. } => pad = pad.max(bulge(*major)),
-                    _ => return None,
+            match l.boundary {
+                LoopBoundary::Empty { vertex } => {
+                    let v = body.vertices.get(vertex)?;
+                    let p = *body.points.get(v.point)?;
+                    grow((p, p));
+                }
+                LoopBoundary::Cycle { first } => {
+                    for he in body.loop_cycle(first)? {
+                        let ek = body.half_edges.get(he)?.edge;
+                        grow(edge_reach(ek)?);
+                    }
                 }
             }
         }
-        Some(pad)
+        acc
     };
-    let reach_box = |f: FK, pts: &[Point3<T>]| -> Option<(Point3<T>, Point3<T>)> {
-        match body.get_face(f).and_then(|d| body.surfaces.get(d.surface)) {
-            Some(geom_surfaces::Surface::Plane { .. }) => {
-                let (lo, hi) = hull(pts)?;
-                let p = plane_arc_pad(f)?;
-                Some((
-                    Point3::new(lo.x - p, lo.y - p, lo.z - p),
-                    Point3::new(hi.x + p, hi.y + p, hi.z + p),
-                ))
+    let reach_box = |f: FK| -> Option<(Point3<T>, Point3<T>)> {
+        let surface = body
+            .get_face(f)
+            .and_then(|d| body.surfaces.get(d.surface))?;
+        match crate::boolean::boxes::face_box_rule(surface) {
+            crate::boolean::boxes::FaceBoxRule::NoSoundBox => None,
+            crate::boolean::boxes::FaceBoxRule::BoundaryHull => boundary_reach(f),
+            crate::boolean::boxes::FaceBoxRule::ControlNet(patch) => {
+                let mut it = patch.control().iter();
+                let first = *it.next()?;
+                let (mut lo, mut hi) = (first, first);
+                for p in it {
+                    lo = Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z));
+                    hi = Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z));
+                }
+                Some((lo, hi))
             }
-            Some(geom_surfaces::Surface::Cylinder {
+            crate::boolean::boxes::FaceBoxRule::WholeBall { center, radius } => Some((
+                Point3::new(center.x - radius, center.y - radius, center.z - radius),
+                Point3::new(center.x + radius, center.y + radius, center.z + radius),
+            )),
+            crate::boolean::boxes::FaceBoxRule::CylinderSlab {
                 origin,
                 axis,
                 radius,
-                ..
-            }) => {
-                let mut it = pts.iter();
-                let first = it.next()?;
-                let h0 = (*first - *origin).dot(*axis);
+            } => {
+                // The axial extent comes from the boundary's own
+                // reach, not its vertices: the axial coordinate is
+                // linear along the surface, so the face's axial
+                // extremes lie ON the boundary — but not necessarily
+                // at a boundary VERTEX.
+                let (blo, bhi) = boundary_reach(f)?;
+                let corners = [
+                    Point3::new(blo.x, blo.y, blo.z),
+                    Point3::new(bhi.x, bhi.y, bhi.z),
+                    Point3::new(blo.x, blo.y, bhi.z),
+                    Point3::new(blo.x, bhi.y, blo.z),
+                    Point3::new(bhi.x, blo.y, blo.z),
+                    Point3::new(blo.x, bhi.y, bhi.z),
+                    Point3::new(bhi.x, blo.y, bhi.z),
+                    Point3::new(bhi.x, bhi.y, blo.z),
+                ];
+                let proj = |p: Point3<T>| {
+                    (p.x - origin.x) * axis.x
+                        + (p.y - origin.y) * axis.y
+                        + (p.z - origin.z) * axis.z
+                };
+                let mut it = corners.iter();
+                let h0 = proj(*it.next()?);
                 let (mut h_min, mut h_max) = (h0, h0);
                 for p in it {
-                    let h = (*p - *origin).dot(*axis);
+                    let h = proj(*p);
                     h_min = h_min.min(h);
                     h_max = h_max.max(h);
                 }
-                let a = *origin + *axis * h_min;
-                let b = *origin + *axis * h_max;
-                let r = *radius;
+                let a = origin + axis * h_min;
+                let b = origin + axis * h_max;
+                let r = radius;
                 Some((
                     Point3::new(a.x.min(b.x) - r, a.y.min(b.y) - r, a.z.min(b.z) - r),
                     Point3::new(a.x.max(b.x) + r, a.y.max(b.y) + r, a.z.max(b.z) + r),
                 ))
             }
-            Some(geom_surfaces::Surface::Sphere { center, radius, .. }) => {
-                let r = *radius;
-                Some((
-                    Point3::new(center.x - r, center.y - r, center.z - r),
-                    Point3::new(center.x + r, center.y + r, center.z + r),
-                ))
-            }
-            _ => None,
         }
     };
 
@@ -1240,7 +1298,7 @@ fn sweep_cross_solid_backstop<T: Decide>(
             .filter(|(_, fs)| fs.contains(&f))
             .map(|(&v, _)| v)
             .collect();
-        let boxed = reach_box(f, &pts);
+        let boxed = reach_box(f);
         reaches.push(Reach {
             face: f,
             solid,
@@ -1350,7 +1408,8 @@ fn sweep_cross_solid_backstop<T: Decide>(
         }
     }
 
-    // Arm 2: instance containment (vertex-extent boxes per solid).
+    // Arm 2: instance containment (the contained side's vertex hull
+    // against the containing side's reach box).
     let mut solid_boxes: std::collections::BTreeMap<SolidKey, (Point3<T>, Point3<T>)> =
         std::collections::BTreeMap::new();
     for (f, _) in body.faces.iter() {
@@ -1365,15 +1424,49 @@ fn sweep_cross_solid_backstop<T: Decide>(
             })
             .or_insert((lo, hi));
     }
+    // The CONTAINING side must be a superset, so it is built from the
+    // one face-box rule, not from vertices: a cylinder solid's vertex
+    // hull is the segment joining its two seam vertices, and using
+    // that as a container would clear every body nested inside it. The
+    // contained side stays the vertex hull, which is a SUBSET of the
+    // solid's locus — that is what makes the clear sound, since a
+    // witness point outside the container is genuinely outside. A
+    // solid carrying a face with no cheap sound box has no claimable
+    // extent at all and can never be the container.
+    /// A solid's claimable extent, or `None` when one of its faces has
+    /// no cheap sound box (so the solid can never be the container).
+    type SolidReach<T> = Option<(Point3<T>, Point3<T>)>;
+    let mut solid_reach: std::collections::BTreeMap<SolidKey, SolidReach<T>> =
+        std::collections::BTreeMap::new();
+    for (f, _) in body.faces.iter() {
+        let Some(solid) = solid_of(f) else { continue };
+        let this = reach_box(f);
+        let slot = solid_reach.entry(solid).or_insert(this);
+        *slot = match (*slot, this) {
+            (Some((l, h)), Some((lo, hi))) => Some((
+                Point3::new(l.x.min(lo.x), l.y.min(lo.y), l.z.min(lo.z)),
+                Point3::new(h.x.max(hi.x), h.y.max(hi.y), h.z.max(hi.z)),
+            )),
+            _ => None,
+        };
+    }
     let solids: Vec<_> = solid_boxes.iter().collect();
     for (i, &(&sa, (alo, ahi))) in solids.iter().enumerate() {
         for &(&sb, (blo, bhi)) in solids.iter().skip(i + 1) {
             if bridged.contains(&(sa, sb)) {
                 continue; // under the confirm pass's jurisdiction
             }
-            for (outer, inner, olo, ohi, ilo, ihi) in
-                [(sa, sb, alo, ahi, blo, bhi), (sb, sa, blo, bhi, alo, ahi)]
-            {
+            for (outer, inner, ilo, ihi) in [(sa, sb, blo, bhi), (sb, sa, alo, ahi)] {
+                let Some((olo, ohi)) = solid_reach.get(&outer).copied().flatten() else {
+                    errors.push(ValidationError::CensusUndecidable {
+                        a: EntityId::Solid(outer),
+                        b: EntityId::Solid(inner),
+                        what: "a surface kind with no cheap sound box leaves the \
+                               containing instance's extent unclaimable — the \
+                               same C6 interference class",
+                    });
+                    continue;
+                };
                 // Containment of `inner` in `outer`: all six extent
                 // margins definitely positive ⇒ the interference
                 // class; ANY definitely negative ⇒ clear; anything
