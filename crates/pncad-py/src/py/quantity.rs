@@ -1,7 +1,7 @@
 //! The §L4 typed quantities: `25 * mm` constructs a `Length`.
 //!
 //! These mirror `crates/quantity` exactly — canonical metres and
-//! radians underneath (GQ5), and the SAME infallible arithmetic
+//! radians underneath, and the SAME infallible arithmetic
 //! subset: same-dimension add/sub, negation, scalar scaling, scalar
 //! division. `quantity` refuses everything else by having no `impl`
 //! for it; Python has no compile step to refuse at, so those cases
@@ -142,7 +142,7 @@ macro_rules! continuous_quantity {
 pub(crate) struct Length(pub(crate) q::Length);
 
 continuous_quantity!(Length, Dimension::Length, meters, {
-    /// The value in metres — the canonical unit (GQ5).
+    /// The value in metres — the canonical unit.
     #[getter]
     fn meters(&self) -> f64 {
         self.0.meters()
@@ -164,7 +164,7 @@ continuous_quantity!(Length, Dimension::Length, meters, {
 pub(crate) struct Angle(pub(crate) q::Angle);
 
 continuous_quantity!(Angle, Dimension::Angle, radians, {
-    /// The value in radians — the canonical unit (GQ5).
+    /// The value in radians — the canonical unit.
     #[getter]
     fn radians(&self) -> f64 {
         self.0.radians()

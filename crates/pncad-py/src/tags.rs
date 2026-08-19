@@ -23,7 +23,7 @@ use pncad::document::{
 use pncad::geom_core::{FrameError, FrameInput};
 use pncad::profile::PathError;
 
-/// The stable tag for a PATHS authoring refusal (LIB-PYG1).
+/// The stable tag for a PATHS authoring refusal.
 ///
 /// `PathError` implements `Display`, so the human message is the
 /// kernel's own prose and the tag is the branchable discriminant —
@@ -60,7 +60,7 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
 }
 
 /// The stable tag for a recorded-program lift refusal
-/// (`LoopProgram::from_recorded`, LIB-PYG1). The literal arm carries
+/// (`LoopProgram::from_recorded`). The literal arm carries
 /// the expression layer's own tag through rather than flattening it.
 pub fn recorded_program_error_tag(err: &RecordedProgramError) -> &'static str {
     match err {
@@ -70,7 +70,7 @@ pub fn recorded_program_error_tag(err: &RecordedProgramError) -> &'static str {
     }
 }
 
-/// The stable tag for a selection refusal (LIB-PYSEL: the
+/// The stable tag for a selection refusal (the
 /// `Evaluation.select_where` door).
 ///
 /// `SelectRefusal` is `#[non_exhaustive]`, so unlike this module's
@@ -189,8 +189,8 @@ pub fn frame_error_tag(err: &FrameError) -> &'static str {
     }
 }
 
-/// The stable tag for a product-root invariant refusal (ASM-ROOTS
-/// D-2) — shared by every door that carries a `RootFault`.
+/// The stable tag for a product-root invariant refusal — shared by
+/// every door that carries a `RootFault`.
 pub fn root_fault_tag(fault: &RootFault) -> &'static str {
     match fault {
         RootFault::NotLive { .. } => "root_not_live",
@@ -255,7 +255,7 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
     }
 }
 
-/// The stable tag for a mate-solve refusal (ASM-R2a D-4). Each arm is
+/// The stable tag for a mate-solve refusal. Each arm is
 /// a different recourse: add the complementary mate, delete one of the
 /// clashing pair, rebind the stranded head, author the missing
 /// primitive, or move the geometry out of the band.
@@ -273,7 +273,7 @@ pub fn mate_fault_tag(fault: &MateFault) -> &'static str {
     }
 }
 
-/// The stable tag for a declare-sugar refusal (LIB-PYG5: the
+/// The stable tag for a declare-sugar refusal (the
 /// `Doc.declare`/`Doc.declare_all` doors over
 /// `editor_core::declare_all`). The `Edit` arm carries the document
 /// layer's own tag through rather than flattening it.
@@ -286,7 +286,7 @@ pub fn declare_error_tag(err: &pncad::select::DeclareError) -> &'static str {
     }
 }
 
-/// The stable tag for an instantiation refusal (ASM-2A D-3).
+/// The stable tag for an instantiation refusal.
 pub fn part_fault_tag(fault: &pncad::document::PartFault) -> &'static str {
     use pncad::document::PartFault as F;
     use pncad::document::ResolveFault as R;
@@ -311,7 +311,7 @@ pub fn part_fault_tag(fault: &pncad::document::PartFault) -> &'static str {
     }
 }
 
-/// The stable tag for a persistence refusal (LIB-DOORS F1; the v4
+/// The stable tag for a persistence refusal (the v4
 /// doors). `PersistError` DOES implement `Display`, so unlike the two
 /// above the human message is real prose — the tag is still the
 /// machine payload a caller branches on.
@@ -334,8 +334,8 @@ pub fn persist_error_tag(err: &PersistError) -> &'static str {
     }
 }
 
-/// The stable tag for a document-layer export refusal (LIB-DOORS F2:
-/// `pncad::export::step_for_node`'s error).
+/// The stable tag for a document-layer export refusal
+/// (`pncad::export::step_for_node`'s error).
 pub fn export_error_tag(err: &pncad::export::ExportError) -> &'static str {
     use pncad::export::ExportError as E;
     match err {
@@ -349,8 +349,8 @@ pub fn export_error_tag(err: &pncad::export::ExportError) -> &'static str {
     }
 }
 
-/// The stable tag for a whole-document product refusal (ASM-ROOTS
-/// D-4: `editor_core::product`'s error).
+/// The stable tag for a whole-document product refusal
+/// (`editor_core::product`'s error).
 pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
     use pncad::document::ProductError as E;
     match err {
@@ -366,8 +366,9 @@ pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
     }
 }
 
-/// The stable tag for an expression-constructor refusal (LIB-DOORS
-/// F5: `Expr::literal`'s own error type, no longer pre-checked).
+/// The stable tag for an expression-constructor refusal
+/// (`Expr::literal`'s own error type, matched rather than
+/// pre-checked).
 pub fn expr_dimension_error_tag(err: &DimensionError) -> &'static str {
     match err {
         DimensionError::Mismatch { .. } => "mismatch",

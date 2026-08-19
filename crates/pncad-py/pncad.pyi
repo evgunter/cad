@@ -58,11 +58,10 @@ class EvaluationError(PncadError):
     `node_failed`, or `poisoned`. `kind` (the `NodeErrorKind`'s
     stable tag), `through` (the nearest failed ancestor) and
     `finding` (the refusal-menu payload) are always present, `None`
-    where the reason has none (LIB-DOORS F3; attributes never go
-    missing).
+    where the reason has none (attributes never go missing).
 
-    `finding` is the boolean's refusal MENU (register R3, LIB-PYG5):
-    when `kind == "undeclared_contact"`, it carries the candidate
+    `finding` is the boolean's refusal MENU: when
+    `kind == "undeclared_contact"`, it carries the candidate
     declaration as a typed `FlushFinding` — the same value
     `Evaluation.find_flush_candidates` answers with, ready for
     `Node.declare` / `Doc.declare`. The menu has exactly two arms:
@@ -90,18 +89,18 @@ class DimensionError(PncadError):
 
 class LiteralError(PncadError):
     """A value the expression layer refused (`Expr::literal`'s own
-    curated error, LIB-DOORS F5). `value` is the offending number."""
+    curated error). `value` is the offending number."""
 
     kind: str
     value: float
 
 class PersistError(PncadError):
-    """A save or load the persistence doors refused (LIB-DOORS F1)."""
+    """A save or load the persistence doors refused."""
 
     variant: str
 
 class ExportError(PncadError):
-    """The document-layer export door refused (LIB-DOORS F2).
+    """The document-layer export door refused.
     `through` (poisoning ancestor) and `kind` (the wrong-kind value's
     tag) are always present, `None` where inapplicable."""
 
@@ -155,7 +154,7 @@ class FrameError(PncadError):
     variant: str
 
 # --- quantities -------------------------------------------------------
-# Canonical metres and radians underneath (GQ5). The arithmetic is
+# Canonical metres and radians underneath. The arithmetic is
 # exactly `crates/quantity`'s infallible subset; anything else raises
 # DimensionError.
 
@@ -895,7 +894,7 @@ class Doc:
 
 class Loaded:
     """A loaded document: snapshot, replayed current state, and the
-    replayed edit count (LIB-DOORS F1)."""
+    replayed edit count."""
 
     @property
     def doc(self) -> Doc: ...
@@ -909,7 +908,7 @@ def load(text: str) -> Loaded:
     PersistError, typed."""
 
 # --- selectors --------------------------------------------------------
-# The narrowing language (LIB-PYSEL, audit G13). Patterns and
+# The narrowing language. Patterns and
 # predicates are VALUES built here and evaluated in Rust by
 # `Evaluation.select` / `select_where`; nothing on this side reads
 # geometry or name text. The builder verbs return NEW values (Rust's
@@ -1153,15 +1152,15 @@ class Datum:
     @property
     def direction(self) -> Optional[tuple[float, float, float]]: ...
 
-# --- detect / declare (LIB-PYG5, audit G5) ---------------------------
+# --- detect / declare -------------------------------------------------
 # The flush-contact protocol's value vocabulary. A finding is a
 # REPORT: `Evaluation.find_flush_candidates` answers with them, the
 # caller inspects, and `Node.declare` / `Doc.declare` /
 # `Doc.declare_all` turn inspected findings into the `Declare` node
 # `Node.boolean`'s `declare=` consumes. The same value rides the
 # boolean's refusal menu (`EvaluationError.finding`). Detection and
-# declaration are separate doors ON PURPOSE (no fused
-# detect-and-declare exists, by ruling).
+# declaration are separate doors ON PURPOSE: no fused
+# detect-and-declare door exists.
 
 class PlaneRelation:
     """The verify door's relation verdict: `SameOpposite` = resting

@@ -22,8 +22,8 @@ Run it against a built module:
 
 (or `maturin develop` in a virtualenv, which does the staging for you)
 
-The journey ends at a real STEP file (LIB-DOORS F2 closed the export
-gap: `Evaluation.step_string` is the document-layer door), and the
+The journey ends at a real STEP file (`Evaluation.step_string` is
+the document-layer export door), and the
 script then re-reads its own output with the kernel's importer — the
 file must exist AND parse, asserted rather than assumed.
 """
@@ -39,7 +39,7 @@ PLATE = (80, 40)  # mm
 # the pocket's: a corner round of radius r rides a carrier circle
 # spanning x in [0, 2r], and a Boolean refuses when a cutter's plane
 # crosses that carrier — even where it stays clear of the arc itself.
-# The pocket's x = 8 mm wall therefore requires 2r <= 8. See #347.
+# The pocket's x = 8 mm wall therefore requires 2r <= 8.
 CORNER = 3 * mm
 
 

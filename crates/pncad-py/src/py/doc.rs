@@ -27,7 +27,7 @@ fn edit_err(py: Python<'_>, err: &d::EditError) -> PyErr {
     )
 }
 
-/// Raise `EditError` for a declare-sugar refusal (LIB-PYG5).
+/// Raise `EditError` for a declare-sugar refusal.
 ///
 /// `DeclareError` carries no `Display`; the per-arm prose is
 /// hand-written here and the machine payload is the stable tag
@@ -73,10 +73,9 @@ fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
 /// Build a dimensioned literal expression, refusing at the boundary.
 ///
 /// The refusal is `Expr::literal`'s OWN error type, matched — not
-/// predicted: the pre-check this function used to carry (LIB-U9S's F5
-/// workaround, from before the façade curated `DimensionError`) is
-/// gone, so the binding cannot drift from what the kernel refuses.
-/// The exception keeps U9S's payload: `kind` (the stable tag) AND
+/// predicted: the binding carries no pre-check of its own, so it
+/// cannot drift from what the kernel refuses.
+/// The exception carries `kind` (the stable tag) AND
 /// `value`, the offending number — the kernel error deliberately
 /// carries no float, but the boundary has it in hand.
 pub(crate) fn literal(py: Python<'_>, value: f64, dim: d::Dimension) -> PyResult<d::Expr> {
@@ -109,9 +108,9 @@ pub(crate) fn literal(py: Python<'_>, value: f64, dim: d::Dimension) -> PyResult
 /// and code that reads inside a name is code this crate will break.
 /// The supported operations are equality, ordering, storage, and
 /// handing it back to [`Node::fillet`]. Narrowing a set of names is a
-/// SELECTOR's job — `Evaluation.select` / `select_where` (LIB-PYSEL),
+/// SELECTOR's job — `Evaluation.select` / `select_where`,
 /// which answer in this same alphabet; the binding is the one
-/// licensed reader of the text (the ordinal-28 ruling).
+/// licensed reader of the text.
 ///
 /// # Why this encoding
 ///
@@ -189,7 +188,7 @@ pub(crate) struct Doc {
 impl Doc {
     /// An empty document.
     ///
-    /// Identity note (ASM-1 D-7): the Python surface gains no
+    /// Identity note: the Python surface gains no
     /// identity door in this unit — every `Doc()` carries the same
     /// label-derived placeholder id (deterministic, so Python-driven
     /// saves stay reproducible). The id/pin/workspace doors are a
@@ -235,7 +234,7 @@ impl Doc {
     /// Declare ONE inspected finding: insert a `Declare` node with
     /// its pair and return the node's id, for `Node.boolean`'s
     /// `declare=` input — the detect/declare protocol's declare arm
-    /// (SELECT-DESIGN §3; LIB-PYG5). Sugar over the same vocabulary
+    /// (SELECT-DESIGN §3). Sugar over the same vocabulary
     /// `Node.declare` constructs; nothing here detects — findings
     /// reach this door as VALUES the caller already inspected (the
     /// ruled no-fusion boundary).
@@ -289,7 +288,7 @@ impl Doc {
     }
 
     /// Serialize this document to the persistence text format
-    /// (LIB-DOORS F1; the schema-v4 doors, via the curated façade).
+    /// (the schema-v4 doors, via the curated façade).
     ///
     /// The Python wrapper holds only the CURRENT document — its edit
     /// history lives in the Rust values it discarded — so the file is
@@ -313,9 +312,8 @@ impl Doc {
 ///
 /// This is the DOCUMENT-layer `BooleanOp` (`pncad::document`), not the
 /// kernel's identically-named `topo::BooleanOp` that sits in the Rust
-/// prelude. LIB-LOG's U9 backlog note left the choice open; bindings
-/// speak the document vocabulary throughout (§L3), so the document
-/// one is what crosses.
+/// prelude. The bindings speak the document vocabulary throughout, so
+/// the document one is what crosses.
 #[pyclass(eq, eq_int, module = "pncad", from_py_object)]
 #[derive(Clone, Copy, PartialEq)]
 pub(crate) enum BooleanOp {
@@ -871,7 +869,7 @@ impl Node {
     /// protocol that fills this argument is
     /// `Evaluation.find_flush_candidates` → inspect → `Node.declare`
     /// (or the `Doc.declare`/`Doc.declare_all` sugar) → this
-    /// `declare=` (LIB-PYG5, audit G5).
+    /// `declare=`.
     #[staticmethod]
     #[pyo3(signature = (op, a, b, declare=None))]
     fn boolean(op: BooleanOp, a: &NodeId, b: &NodeId, declare: Option<NodeId>) -> Self {
@@ -1196,7 +1194,7 @@ impl DocEdit {
     }
 }
 
-/// A loaded document (LIB-DOORS F1): what the persistence door
+/// A loaded document: what the persistence door
 /// answered — the snapshot as saved, the replayed current state, and
 /// how many recorded edits the replay ran.
 #[pyclass(frozen, module = "pncad")]
@@ -1240,7 +1238,7 @@ impl Loaded {
     }
 }
 
-/// Parse, validate, and replay a saved document (LIB-DOORS F1).
+/// Parse, validate, and replay a saved document.
 ///
 /// Every refusal is a typed `PersistError` carrying the arm's stable
 /// `variant` tag — bad header, unknown schema, unparseable body, a

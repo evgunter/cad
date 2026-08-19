@@ -36,7 +36,7 @@ pub const fn dimension_tag(dim: Dimension) -> &'static str {
     }
 }
 
-/// The canonical unit a [`Dimension`] is stored in (GQ5: metres and
+/// The canonical unit a [`Dimension`] is stored in (metres and
 /// radians underneath), or `None` for the dimensionless kinds.
 pub const fn canonical_unit(dim: Dimension) -> Option<&'static str> {
     match dim {
@@ -108,21 +108,21 @@ pub enum ErrorClass {
     /// A value the expression layer refused (non-finite literal, a
     /// count written as continuous, ...).
     Literal,
-    /// A save or load the persistence doors refused (LIB-DOORS F1).
+    /// A save or load the persistence doors refused.
     Persist,
-    /// An export the document-layer door refused (LIB-DOORS F2).
+    /// An export the document-layer door refused.
     Export,
     /// A STEP text the importer refused, or one that parsed to a
     /// non-solid (the export test oracle's refusal class).
     StepImport,
     /// Geometry the PATHS authoring algebra refused at the call site
     /// (junction checks, `NoCornerForFillet`, the tangent-line close,
-    /// ...) — LIB-PYG1.
+    /// ...).
     Path,
     /// A selection query refused (an in-band decided margin, a tied
-    /// name whose candidates disagree, a non-datum reference, ...) —
-    /// LIB-PYSEL. The Python class keeps the Rust type's own name:
-    /// the refusal IS `SelectRefusal`, crossing.
+    /// name whose candidates disagree, a non-datum reference, ...).
+    /// The Python class keeps the Rust type's own name: the refusal
+    /// IS `SelectRefusal`, crossing.
     Select,
     /// A frame the linear-algebra constructors refused: a direction
     /// that was not DEFINITELY usable (coincident points, a roll

@@ -425,7 +425,7 @@ impl Value {
     }
 }
 
-/// The result of evaluating a document: the GQ2 per-node result DAG.
+/// The result of evaluating a document: the per-node result DAG.
 #[pyclass(frozen, module = "pncad")]
 pub(crate) struct Evaluation {
     inner: d::Evaluation<f64>,
@@ -443,7 +443,7 @@ impl Evaluation {
     /// The node's successful value.
     ///
     /// A node that produced NO value raises with the REAL typed cause
-    /// (LIB-DOORS F3; the U9S `no_value` placeholder is gone):
+    /// — never a placeholder:
     /// `reason` is `"node_failed"` or `"poisoned"`, `kind` is the
     /// `NodeErrorKind`'s stable tag, a poisoning carries `through`,
     /// and the message renders the kernel's own `NodeError`.
@@ -490,7 +490,7 @@ impl Evaluation {
     /// The answer is the WHOLE kind, and each string is an OPAQUE
     /// identifier: its internal structure is not API (see
     /// `doc::name_text`), so narrowing the set is a SELECTOR's job —
-    /// [`Self::select`] and [`Self::select_where`] (LIB-PYSEL), which
+    /// [`Self::select`] and [`Self::select_where`], which
     /// answer in the same alphabet.
     ///
     /// Empty when the node has no value, no name table, or no edges.
@@ -524,8 +524,8 @@ impl Evaluation {
     ///
     /// The answer is the same opaque texts the whole-kind
     /// materializers speak, ready for `Node.fillet` unread: narrowing
-    /// happens through this door, never by parsing a name (the
-    /// ordinal-28 ruling — name text is an identifier, not a value).
+    /// happens through this door, never by parsing a name (name text
+    /// is an identifier, not a value).
     ///
     /// Infallible like `select`: empty when `node` has no value, no
     /// name table, or nothing matches.
@@ -546,8 +546,8 @@ impl Evaluation {
     /// concatenate for a geometric union.
     ///
     /// Same materializer contract and same opaque-text alphabet as
-    /// [`Self::select`] (the ordinal-28 ruling: the binding narrows,
-    /// your code never reads inside a name).
+    /// [`Self::select`]: the binding narrows, your code never reads
+    /// inside a name.
     ///
     /// Raises `SelectRefusal`, typed, where the Rust door refuses:
     /// exact atoms are total and cannot refuse, but a DECIDED atom's
@@ -572,8 +572,8 @@ impl Evaluation {
 
     /// **The cross-body flush-plane candidates between `a`'s and
     /// `b`'s outputs, as of THIS evaluation** — the detect arm of the
-    /// detect/declare protocol (SELECT-DESIGN §3; LIB-PYG5, audit
-    /// G5): the C4 verifier run in candidate-generation mode, so a
+    /// detect/declare protocol: the verifier run in
+    /// candidate-generation mode, so a
     /// finding can never disagree with the boolean's own
     /// verify-at-use.
     ///
@@ -619,8 +619,8 @@ impl Evaluation {
     }
 
     /// Export the single body `node` denotes as a STEP (AP214 Part 21)
-    /// exchange-file string (LIB-DOORS F2: the document-layer export
-    /// door, `pncad::export::step_for_node` — one construction site
+    /// exchange-file string (the document-layer export door,
+    /// `pncad::export::step_for_node` — one construction site
     /// for "which body does this node denote", shared with Rust).
     ///
     /// Accepts a `body` or non-empty `boolean` value; everything else
