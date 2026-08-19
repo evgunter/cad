@@ -34,7 +34,7 @@
 
 use core::f64::consts::{FRAC_PI_2, PI, TAU};
 
-use pncad::document::{BooleanOp as NodeBooleanOp, BooleanValue};
+use pncad::document::{BooleanOp, BooleanValue};
 use pncad::prelude::{
     CancelToken, CurveKind, CurveKindSet, Datum, Dimension, Doc, DocEdit, EntityKind, EvalOptions,
     Evaluation, Expr, GeomPred, LoopProgram, NamePat, Node, Point3, ProfileProgram, ProgramArcData,
@@ -263,7 +263,7 @@ fn build() -> Die {
             Some(acc) => insert(
                 &mut doc,
                 Node::Boolean {
-                    op: NodeBooleanOp::Union,
+                    op: BooleanOp::Union,
                     a: acc,
                     b: pip,
                     declare: None,
@@ -274,7 +274,7 @@ fn build() -> Die {
     let pipped = insert(
         &mut doc,
         Node::Boolean {
-            op: NodeBooleanOp::Subtract,
+            op: BooleanOp::Subtract,
             a: cube,
             b: tool.expect("21 pips"),
             declare: None,

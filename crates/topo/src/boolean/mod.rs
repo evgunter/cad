@@ -118,7 +118,12 @@ pub use solid_contain::{PointInSolidError, SolidContainment, point_in_solid};
 
 /// Which regularized boolean is being computed — threaded through the
 /// classifier because on-case lumping (Eq. 15.3) is op-dependent.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+///
+/// `Hash`/`Ord` are derived because this is also the DOCUMENT layer's
+/// operation (re-exported, never re-minted), where a node's fields are
+/// keyed and ordered. Ordering is declaration order and carries no
+/// meaning — nothing may read it as a ranking of the operations.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum BooleanOp {
     /// A ∪* B.
     Union,
