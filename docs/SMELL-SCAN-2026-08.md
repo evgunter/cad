@@ -3774,6 +3774,82 @@ still-passing test reads as **evidence the invariant holds**.
 
 ---
 
+## C15. A sweep's result is worth nothing without a statement of what its pattern cannot match
+
+**Observed three times in one day**, across three independent wave-1b fix
+lanes, each of which reported its sweep as verified and each of which was
+blind in exactly the shape it was hunting:
+
+- **#632** scanned for arms beginning `RoleSeg::` at the wildcard's
+  indentation, so **every arm wrapped in `Some(…)`, `Ok(…)` or a tuple was
+  invisible** — which is the shape of what it missed.
+- **#635** used a line-scoped `rg`, so a claim that **wrapped across a line
+  break** could not match. Two survivors of the premise it was sweeping sat
+  in the file it had just edited, one of them 25 lines above the list it
+  fixed.
+- **#639** scanned **prefixed** codes (`LIB-*`, `ASM-*`, `Mn`, `PR n`,
+  `#nnn`) and so could not see **bare** clause letters (`F5`, `G1`, `C4`,
+  `S13`). It therefore shipped S37's own named example — `LIB-DOORS F5` — in
+  a live Python `__doc__`, in one of the three crates its body reported at
+  zero.
+
+This is C11/C13's mechanism one level down. Those say a class gets fixed at
+the reported instance; this says that even a lane *trying* to sweep the class
+will under-report by exactly the margin its pattern cannot express, and will
+then state the shortfall as a verified negative. In all three cases the
+conclusion happened to survive; in all three the method did not.
+
+**Proposed standing line for `docs/REVIEW-STYLE-BRIEF.md` §4** (a Protocol v5
+amendment, so Evan's to ratify): *a sweep reported in a PR body must state the
+pattern it ran and what that pattern cannot match. A sweep whose blind spot is
+unstated is an unverified claim, not a negative result.* The three lanes above
+each found their own blind spot within minutes once asked; none volunteered it.
+
+## C16. A prose-hygiene pass can manufacture the defect it exists to remove
+
+`props/quad.rs:42`'s liveness claim — the one row of eleven that #635
+classified as a **lost invariant** rather than benign rot — was itself written
+by a **previous stale-claims sweep** on 2026-08-05 (`git log -S` puts it in
+`e2222617`, whose message names its own "§7 stale-claims sweep tranche"). It
+replaced **two honest sentences** with one naming the wrong engine, and missed
+a third, inside the same function, that contradicted it for the next two weeks.
+
+The generalisation is not "sweeps are bad". It is that a pass which rewrites
+prose to state the present will, wherever its author guesses at liveness
+instead of checking it, **launder a guess into an assertion** — and the
+resulting sentence is indistinguishable from a verified one to every later
+reader. That is the argument for S39's classify-before-you-touch discipline
+being permanent rather than a one-off framing of one finding: the question
+"benign rot or lost invariant?" forces the check that the 2026-08-05 pass
+skipped.
+
+Method note, cheap and reusable: this repository's checkouts are **shallow**,
+so `git blame` misattributed that sentence by ten days. `git log -S` is the
+instrument for dating a claim.
+
+## C17. "Green when run alone" is not a verification when lanes share a target directory
+
+#639 reported `cargo test` green for three crates and shipped **ten broken
+string assertions**. Two causes, and only the second is the author's.
+
+The orchestrator had put six concurrent lanes on one `CARGO_TARGET_DIR`, which
+**clobbers across git worktrees**: at least two lanes were served results from
+another lane's binary. Confirmed by counting — the same crate reported 156
+tests on the shared directory and 155 on a dedicated one, from identical
+sources. So the lane's re-check, run to rule out contention, was green for the
+wrong reason.
+
+The author's half is that two failures **of the same shape** — a string
+assertion on text just rewritten — were read as load flakes rather than as the
+first two members of a class. This is C13 in the verification lane rather than
+the fix lane.
+
+Two rules follow, both now in force: **one target directory per lane**, and a
+run is trusted only when a `Compiling <crate>` line was observed. And the
+deeper one: a lane that rewrites text asserted anywhere must run the affected
+crates' **tests**, not their builds — `cargo build` cannot see a broken
+`assert!(msg.contains(…))`, and every one of the ten was invisible to it.
+
 # §B. Negative results and coverage
 
 **Coverage.** Twenty scopes covering every file in `crates/*/src`
