@@ -4469,15 +4469,26 @@ versus PyO3's generated `unsafe impl`), and the hand-restatement is already
 held by a test that breaks the build on drift. Duplication made incapable of
 drifting is the outcome, reached mechanically instead of structurally.
 
-**Method note, proposed not adopted.** #641's parent-sense row found its fourth
-copy through a comment whose only job was to explain that two spellings were one
-rule, which suggests a detector: *a comment that exists to reconcile two
-spellings of one rule is evidence the rule needs one home*. Run as
-`rg 'BY HAND|kept in (sync|step)|same rule as|mirrors the (implementation|logic|table)'`
-over `crates/*/src`, excluding the `bit-identical`/`endpoint-identical`
-vocabulary, which is D9's and fenced by [[output-stability-as-justification]].
-It found every site above. Adding it to `docs/prompts/reviewer-style-lane.md` would be a
-Protocol v5 amendment and so **Evan's to ratify**, not adopted here.
+**Method note — RATIFIED (Evan, 2026-08-19) and applied.** #641's parent-sense
+row found its fourth copy through a comment whose only job was to explain that
+two spellings were one rule, which suggested a detector: *a comment that exists
+to reconcile two spellings of one rule is evidence the rule needs one home, and
+it is usually the only evidence, because the code compiles either way.*
+
+It is now a bullet under **Q2** in `docs/prompts/reviewer-style-lane.md`. Two
+things were corrected before it landed. The first draft was a fixed phrase list,
+which is the checklist failure that document's own §1 warns against — so the
+**question** is the instrument and the pattern is demoted to a cheap first pass.
+And the pattern itself was too narrow (Evan): it is now case-insensitive and
+covers the hand-sync, `duplicated from`, `not shared with`, `restated` and
+`change both` phrasings, the last of which is the strongest signal in the
+`wire.rs` ladder and which the original would have missed.
+
+Its own limits are stated where it is used: it misses phrasings nobody has
+written yet, and it over-fires on prose about a *user* authoring something by
+hand. Run over `crates/*/src` at ratification it named `arc_fillet.rs` and
+`pncad-py/src/tests.rs` — the two family members S54 records — and no longer
+names `wire.rs`, because #670 removed the ladder that motivated it.
 
 ## S55. `Enclosure` is a live trait with no consumer left
 
@@ -4519,6 +4530,16 @@ question is which of these it is, and they have different answers:
 
 Deciding this was out of #643's scope — removing or re-scoping a public
 trait is design content, and the lane's mandate was the decoration seam.
+
+**Verdict: DEFERRED (Evan, 2026-08-19), pending the `Bounds` narrow-vs-broad
+split.** This question is downstream of that one, not independent of it:
+`Enclosure` and `CertifiedEnclosure` already *are* a narrow/broad pair in
+miniature, so whatever the split settles will either give `Enclosure` a job or
+subsume it. Deciding it first would prejudge the larger question from the
+smaller one. Whoever takes the split should absorb this row rather than treat it
+as separate work — and should weigh #643's evidence in the other direction, that
+collapsing the two vocabularies into a supertrait produced an `E0034` ambiguity
+storm across `ssi/certify.rs` and was backed out.
 Note that (2) is not obviously right even on its own terms: the ring is a
 genuine second implementor, and #643's own experience is evidence *for*
 keeping the two vocabularies separate rather than merging them, since
