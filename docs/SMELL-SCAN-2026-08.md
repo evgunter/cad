@@ -4016,7 +4016,7 @@ tree and green after. Its `KNOWN GAPS` block names what it cannot do —
 chiefly that it enforces a naming convention, not a semantic notion of
 "test-only". The lesson generalizes past this row: a safety property
 asserted in a comment three lines from the code that violates it had
-survived ten gates.
+survived nine gates.
 
 **This row's own "the precedent does not exist" claim was half wrong, and is
 corrected here.** Both #641's PR body and the first draft of this row named

@@ -329,7 +329,7 @@ jobs:
       # the prose was FALSE — sweep's `[dependencies]` topo edge carried
       # the feature, cargo unified it across the graph, and a downstream
       # crate compiled `--release` naming `topo::PlantedDegradation`.
-      # That sat in the tree undetected with ten gates running (S52).
+      # That sat in the tree undetected with nine gates running (S52).
       # Parses the manifests with tomllib rather than grepping, because
       # `features = [...]` says nothing about which table it is in.
       - name: test-only features are dev-dependency-only

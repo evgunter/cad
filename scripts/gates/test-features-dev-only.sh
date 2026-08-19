@@ -22,8 +22,8 @@
 # that depends on `sweep` — measured: a downstream crate compiled
 # `--release` naming `topo::PlantedDegradation` and
 # `topo::sweep_traces::<f64>`, and `crates/pncad/Cargo.toml` depends on
-# both. The violation sat in the tree undetected with ten gates running,
-# which is the argument for an eleventh.
+# both. The violation sat in the tree undetected with nine gates running,
+# which is the argument for a tenth.
 #
 # WHAT COUNTS AS TEST-ONLY: a feature named `test-support`, or one
 # whose name starts with `test-` or ends with `-testing`. That is a
