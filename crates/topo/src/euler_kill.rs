@@ -277,6 +277,8 @@ use crate::entity::{
     EdgeKey, EntityId, Face, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey,
     VertexKey,
 };
+#[cfg(debug_assertions)]
+use crate::euler::ArenaDelta;
 use crate::euler::{EulerOpError, FaceSurface};
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::provenance::Provenance;
@@ -473,7 +475,18 @@ impl<T: Decide> Body<T> {
         let killed_point = self.remove_point_if_orphaned(point).then_some(point);
 
         #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(before, (-1, -1, -1, -1, 0, 0, -1), "kvfs");
+        self.assert_euler_postcondition(
+            before,
+            ArenaDelta {
+                solids: -1,
+                shells: -1,
+                faces: -1,
+                loops: -1,
+                vertices: -1,
+                ..ArenaDelta::ZERO
+            },
+            "kvfs",
+        );
         Ok(KvfsResult {
             killed_solid: solid,
             killed_shell: shell,
@@ -660,7 +673,16 @@ impl<T: Decide> Body<T> {
         let killed_point = self.remove_point_if_orphaned(w_point).then_some(w_point);
 
         #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(before, (0, 0, 0, 0, -2, -1, -1), "kev");
+        self.assert_euler_postcondition(
+            before,
+            ArenaDelta {
+                half_edges: -2,
+                edges: -1,
+                vertices: -1,
+                ..ArenaDelta::ZERO
+            },
+            "kev",
+        );
         Ok(KevResult {
             killed_edge: edge,
             killed_he_plus: edge_data.he_plus,
@@ -893,7 +915,17 @@ impl<T: Decide> Body<T> {
             .then_some(f1_data.surface);
 
         #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(before, (0, 0, -1, -1, -2, -1, 0), "kef");
+        self.assert_euler_postcondition(
+            before,
+            ArenaDelta {
+                faces: -1,
+                loops: -1,
+                half_edges: -2,
+                edges: -1,
+                ..ArenaDelta::ZERO
+            },
+            "kef",
+        );
         Ok(KefResult {
             killed_edge: edge,
             killed_he_plus: edge_data.he_plus,
@@ -1025,7 +1057,14 @@ impl<T: Decide> Body<T> {
         }
 
         #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(before, (0, 0, 1, 0, 0, 0, 0), "mfkrh");
+        self.assert_euler_postcondition(
+            before,
+            ArenaDelta {
+                faces: 1,
+                ..ArenaDelta::ZERO
+            },
+            "mfkrh",
+        );
         Ok(MfkrhCreated { face, surface })
     }
 

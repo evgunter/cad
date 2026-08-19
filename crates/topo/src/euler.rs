@@ -34,8 +34,9 @@
 //!   [`Provenance::Mef`]).
 //! - **Debug postconditions** (D1's ratified clause): under
 //!   `cfg(debug_assertions)`, each successful op asserts that the arena
-//!   count deltas match its Euler vector and that the whole body still
-//!   passes tier-1 [`crate::validate::validate`]. On tier-1-valid input
+//!   count deltas match the `ArenaDelta` it declares and that the whole
+//!   body still passes tier-1 [`crate::validate::validate`]. On
+//!   tier-1-valid input
 //!   a firing postcondition is a kernel bug by definition (the per-call
 //!   instance of the ch. 9 soundness theorem failing against our
 //!   transcription) — and since PR 5's raw-builder demotion **every
@@ -824,23 +825,56 @@ pub(crate) struct ArenaCounts {
     vertices: usize,
 }
 
+/// One operator's signed shift of the seven topology-arena lengths.
+///
+/// A different quantity from the six-component Euler vector
+/// `(v, e, f, h, r, s)`: Δh is a genus change, not an arena length,
+/// and cannot be derived from these seven.
+///
+/// Call sites name only the nonzero components and take the rest from
+/// [`ArenaDelta::ZERO`], so a site reads as the op's actual shift.
+#[cfg(debug_assertions)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ArenaDelta {
+    pub(crate) solids: isize,
+    pub(crate) shells: isize,
+    pub(crate) faces: isize,
+    pub(crate) loops: isize,
+    pub(crate) half_edges: isize,
+    pub(crate) edges: isize,
+    pub(crate) vertices: isize,
+}
+
+#[cfg(debug_assertions)]
+impl ArenaDelta {
+    /// The shift of an operator that mints and kills nothing.
+    pub(crate) const ZERO: Self = Self {
+        solids: 0,
+        shells: 0,
+        faces: 0,
+        loops: 0,
+        half_edges: 0,
+        edges: 0,
+        vertices: 0,
+    };
+}
+
 #[cfg(debug_assertions)]
 impl ArenaCounts {
-    /// The counts shifted by an op's Euler vector
-    /// `(Δsolids, Δshells, Δfaces, Δloops, Δhalf-edges, Δedges,
-    /// Δvertices)`. Deltas are signed since PR 3's kill-direction
-    /// components; an (impossible) underflow saturates to `usize::MAX`,
-    /// which the postcondition assert then reports loudly.
-    fn plus(self, delta: (isize, isize, isize, isize, isize, isize, isize)) -> Self {
+    /// The counts shifted by an op's arena delta. Components are
+    /// signed since PR 3's kill-direction ops; an (impossible)
+    /// underflow saturates to `usize::MAX`, which the postcondition
+    /// assert then reports loudly.
+    fn plus(self, delta: ArenaDelta) -> Self {
         let shift = |count: usize, d: isize| count.checked_add_signed(d).unwrap_or(usize::MAX);
         Self {
-            solids: shift(self.solids, delta.0),
-            shells: shift(self.shells, delta.1),
-            faces: shift(self.faces, delta.2),
-            loops: shift(self.loops, delta.3),
-            half_edges: shift(self.half_edges, delta.4),
-            edges: shift(self.edges, delta.5),
-            vertices: shift(self.vertices, delta.6),
+            solids: shift(self.solids, delta.solids),
+            shells: shift(self.shells, delta.shells),
+            faces: shift(self.faces, delta.faces),
+            loops: shift(self.loops, delta.loops),
+            half_edges: shift(self.half_edges, delta.half_edges),
+            edges: shift(self.edges, delta.edges),
+            vertices: shift(self.vertices, delta.vertices),
         }
     }
 }
@@ -924,7 +958,18 @@ impl<T: Decide> Body<T> {
         }
 
         #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(before, (1, 1, 1, 1, 0, 0, 1), "mvfs");
+        self.assert_euler_postcondition(
+            before,
+            ArenaDelta {
+                solids: 1,
+                shells: 1,
+                faces: 1,
+                loops: 1,
+                vertices: 1,
+                ..ArenaDelta::ZERO
+            },
+            "mvfs",
+        );
         Ok(MvfsCreated {
             solid,
             shell,
@@ -1018,7 +1063,16 @@ impl<T: Decide> Body<T> {
         }?;
 
         #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(before, (0, 0, 0, 0, 2, 1, 1), "mev");
+        self.assert_euler_postcondition(
+            before,
+            ArenaDelta {
+                half_edges: 2,
+                edges: 1,
+                vertices: 1,
+                ..ArenaDelta::ZERO
+            },
+            "mev",
+        );
         Ok(created)
     }
 
@@ -1152,7 +1206,17 @@ impl<T: Decide> Body<T> {
         }?;
 
         #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(before, (0, 0, 1, 1, 2, 1, 0), "mef");
+        self.assert_euler_postcondition(
+            before,
+            ArenaDelta {
+                faces: 1,
+                loops: 1,
+                half_edges: 2,
+                edges: 1,
+                ..ArenaDelta::ZERO
+            },
+            "mef",
+        );
         Ok(created)
     }
 
@@ -1961,8 +2025,10 @@ impl<T: Decide> Body<T> {
     }
 
     /// D1's ratified postcondition-assert clause: after a successful
-    /// operator, the arena deltas must match the op's Euler vector and
-    /// the body must be tier-1 valid. On tier-1-valid input a failure
+    /// operator, the arena deltas must match the [`ArenaDelta`] the op
+    /// declares — a different quantity from its Euler vector, which is
+    /// prose here and a `seqgen` ledger entry there — and the body must
+    /// be tier-1 valid. On tier-1-valid input a failure
     /// here is a kernel bug (a per-call violation of the ch. 9
     /// soundness theorem by our transcription) — and with the raw
     /// builder `pub(crate)` since PR 5, every publicly-constructible
@@ -1975,14 +2041,14 @@ impl<T: Decide> Body<T> {
     pub(crate) fn assert_euler_postcondition(
         &self,
         before: ArenaCounts,
-        delta: (isize, isize, isize, isize, isize, isize, isize),
+        delta: ArenaDelta,
         op: &str,
     ) {
         debug_assert_eq!(
             self.arena_counts(),
             before.plus(delta),
-            "{op} postcondition: arena deltas do not match the Euler vector \
-             (kernel bug)",
+            "{op} postcondition: arena deltas do not match the op's declared \
+             arena delta (kernel bug)",
         );
         debug_assert_eq!(
             crate::validate::validate(self),
@@ -3057,15 +3123,63 @@ mod tests {
         assert_eq!(deep_snapshot(&with_errs), deep_snapshot(&without_errs));
     }
 
+    /// Display smoke test, one sample per [`EulerOpError`] variant.
+    ///
+    /// What the compiler enforces: `variant_index` matches the enum with
+    /// NO wildcard arm, so a new variant fails to build until an arm
+    /// exists for it, and the coverage assertion then names the variant
+    /// whose sample is missing.
+    ///
+    /// What it does NOT enforce: `VARIANTS` is hand-written, so a new
+    /// variant given an arm but no sample still passes. Closing that
+    /// needs the variant count from the compiler — `strum`'s `EnumCount`
+    /// derive or the workspace's first proc-macro crate — and neither is
+    /// bought here. When you add an arm, its index is the new
+    /// `VARIANTS - 1`.
     #[test]
     fn every_error_displays() {
-        // Exhaustive Display smoke test (one per variant; a new variant
-        // extends this list by compiler guidance at the match in
-        // Display).
+        const VARIANTS: usize = 27;
+        fn variant_index(e: &EulerOpError) -> usize {
+            match e {
+                EulerOpError::Certification { .. } => 0,
+                EulerOpError::DescriptionNotAdjacent { .. } => 1,
+                EulerOpError::StaleKey { .. } => 2,
+                EulerOpError::StaleGeometry { .. } => 3,
+                EulerOpError::FanStartMismatch { .. } => 4,
+                EulerOpError::FanOrbitBroken { .. } => 5,
+                EulerOpError::NotSameLoop { .. } => 6,
+                EulerOpError::LoopCycleBroken { .. } => 7,
+                EulerOpError::LoopNotEmpty { .. } => 8,
+                EulerOpError::LoopNotCycle { .. } => 9,
+                EulerOpError::NotSameEdge { .. } => 10,
+                EulerOpError::UnclaimedHalfEdge { .. } => 11,
+                EulerOpError::SelfLoopEdge { .. } => 12,
+                EulerOpError::OrbitBroken { .. } => 13,
+                EulerOpError::EmptyAnchorsCollide { .. } => 14,
+                EulerOpError::SameLoop { .. } => 15,
+                EulerOpError::NotSameFace { .. } => 16,
+                EulerOpError::RingIsOuter { .. } => 17,
+                EulerOpError::SameFace { .. } => 18,
+                EulerOpError::CrossShell { .. } => 19,
+                EulerOpError::FaceHasRings { .. } => 20,
+                EulerOpError::SolidNotSingleShell { .. } => 21,
+                EulerOpError::ShellNotSingleFace { .. } => 22,
+                EulerOpError::NullScaffoldCurve { .. } => 23,
+                EulerOpError::SplitParamNotInterior { .. } => 24,
+                EulerOpError::SplitParamEscalated { .. } => 25,
+                EulerOpError::CrossSolid { .. } => 26,
+            }
+        }
         let he = HalfEdgeKey::default();
         let lp = LoopKey::default();
         let fc = FaceKey::default();
+        let ek = EdgeKey::default();
+        let vk = VertexKey::default();
         let errors = [
+            EulerOpError::Certification {
+                error: CertifyError::Unimplemented,
+            },
+            EulerOpError::DescriptionNotAdjacent { edge: ek },
             EulerOpError::StaleKey {
                 key: EntityId::HalfEdge(he),
             },
@@ -3079,9 +3193,13 @@ mod tests {
             EulerOpError::LoopNotEmpty { r#loop: lp },
             EulerOpError::LoopNotCycle { r#loop: lp },
             EulerOpError::NotSameEdge { he1: he, he2: he },
-            EulerOpError::EmptyAnchorsCollide {
-                vertex: VertexKey::default(),
+            EulerOpError::UnclaimedHalfEdge { he, edge: ek },
+            EulerOpError::SelfLoopEdge {
+                edge: ek,
+                vertex: vk,
             },
+            EulerOpError::OrbitBroken { he },
+            EulerOpError::EmptyAnchorsCollide { vertex: vk },
             EulerOpError::SameLoop { r#loop: lp },
             EulerOpError::NotSameFace {
                 target: lp,
@@ -3091,10 +3209,38 @@ mod tests {
             EulerOpError::SameFace { face: fc },
             EulerOpError::CrossShell { f1: fc, f2: fc },
             EulerOpError::FaceHasRings { face: fc },
+            EulerOpError::SolidNotSingleShell {
+                solid: SolidKey::default(),
+                shells: 2,
+            },
+            EulerOpError::ShellNotSingleFace {
+                shell: ShellKey::default(),
+                faces: 2,
+            },
+            EulerOpError::NullScaffoldCurve {
+                curve: CurveKey::default(),
+            },
+            EulerOpError::SplitParamNotInterior { edge: ek },
+            EulerOpError::SplitParamEscalated {
+                edge: ek,
+                diag: geom_core::Indeterminate {
+                    margin: geom_core::MarginDiag::Value(5e-9),
+                    band: Band::new(1e-9, 1e-8).unwrap(),
+                    predicate: Some("split_edge_param_interior"),
+                },
+            },
+            EulerOpError::CrossSolid { f1: fc, f2: fc },
         ];
-        for error in errors {
-            assert!(!error.to_string().is_empty());
+        let mut covered = [false; VARIANTS];
+        for error in &errors {
+            assert!(!error.to_string().is_empty(), "{error:?}");
+            covered[variant_index(error)] = true;
         }
+        assert!(
+            covered.iter().all(|&c| c),
+            "every EulerOpError variant needs a Display sample; missing index {:?}",
+            covered.iter().position(|&c| !c),
+        );
     }
 
     /// S6 (two-tolerance, D4 ¶1 addendum): both `split_edge`

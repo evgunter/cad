@@ -22,6 +22,8 @@ use geom_core::Decide;
 
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, LoopBoundary, Shell, ShellKey};
+#[cfg(debug_assertions)]
+use crate::euler::ArenaDelta;
 use crate::euler::EulerOpError;
 use crate::provenance::Provenance;
 
@@ -131,7 +133,7 @@ impl<T: Decide> Body<T> {
         // ---- Mutation (infallible from here on). ----
         if count <= 1 {
             #[cfg(debug_assertions)]
-            self.assert_euler_postcondition(before, (0, 0, 0, 0, 0, 0, 0), "movefac");
+            self.assert_euler_postcondition(before, ArenaDelta::ZERO, "movefac");
             return Ok(vec![shell]);
         }
         // Per-component face lists, preserving original relative order.
@@ -170,7 +172,14 @@ impl<T: Decide> Body<T> {
         #[cfg(debug_assertions)]
         {
             let minted = isize::try_from(count - 1).unwrap_or(isize::MAX);
-            self.assert_euler_postcondition(before, (0, minted, 0, 0, 0, 0, 0), "movefac");
+            self.assert_euler_postcondition(
+                before,
+                ArenaDelta {
+                    shells: minted,
+                    ..ArenaDelta::ZERO
+                },
+                "movefac",
+            );
         }
         Ok(result)
     }

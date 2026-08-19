@@ -486,17 +486,6 @@ pub(super) fn bool_connect<T: Decide>(
         .map(|r| r.a.iter().filter(|(_, u)| !u).count())
         .sum();
     if leftovers != 0 {
-        #[cfg(feature = "dbg-join")]
-        for r in &open {
-            for (g, used) in r.a.iter().chain(r.b.iter()) {
-                if !used {
-                    eprintln!(
-                        "loose germ: he {:?} faces ({:?},{:?}) dir ({:?},{:?},{:?})",
-                        g.he, g.a_face, g.b_face, g.dir.x, g.dir.y, g.dir.z
-                    );
-                }
-            }
-        }
         return Err(BooleanError::Join(SplitJoinError::UnpairedLooseEnds {
             count: leftovers,
         }));
@@ -623,14 +612,6 @@ fn find_match<T: Decide>(
     Ok(best.map(|(_, m)| m))
 }
 
-/// Still-unused null-edge halves, each mapped to its geometric MATCH
-/// PARTNER's half in the same solid: the nearest mutually-facing loose
-/// germ with the same face pair — [`find_match`]'s own criteria,
-/// static in the germ geometry, so a captured partner PAIR can still
-/// join (same face) while splitting a pair walls one side off. Germ
-/// meta is shared between the solids, so the (record, slot) partner
-/// relation is computed once (A-clone points — coincident copies) and
-/// translated per solid. A loose half with no partner maps to `None`
 /// The germ pair's section frame, when the pair is curved: the conic
 /// center and axis of the plane×cylinder section the germ line lies
 /// on. `None` for planar pairs (straight germ lines) and for the
@@ -768,9 +749,17 @@ fn germs_face_each_other<T: Decide>(
     }
 }
 
-/// (conservatively separated wherever captured).
 type LooseMap = SecondaryMap<HalfEdgeKey, Option<HalfEdgeKey>>;
 
+/// Still-unused null-edge halves, each mapped to its geometric MATCH
+/// PARTNER's half in the same solid: the nearest mutually-facing loose
+/// germ with the same face pair — [`find_match`]'s own criteria,
+/// static in the germ geometry, so a captured partner PAIR can still
+/// join (same face) while splitting a pair walls one side off. Germ
+/// meta is shared between the solids, so the (record, slot) partner
+/// relation is computed once (A-clone points — coincident copies) and
+/// translated per solid. A loose half with no partner maps to `None`
+/// (conservatively separated wherever captured).
 fn loose_partners<T: Decide>(
     open: &[OpenRecord<T>],
     red: &BooleanReduction<T>,

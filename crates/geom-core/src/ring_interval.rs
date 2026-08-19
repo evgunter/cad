@@ -562,7 +562,12 @@ mod tests {
         assert!(x.powi(0).contains(1.0) && x.powi(0).width() == 0.0);
         assert!(x.powi(1).lo() == 2.0 && x.powi(1).hi() == 3.0);
         assert!(x.powi(-2).contains(1.0 / 9.0) && x.powi(-2).contains(0.25));
-        // i32::MIN must not overflow the exponent.
-        assert!(!x.powi(i32::MIN).is_poison() || true);
+        // i32::MIN must not overflow the exponent: the magnitude goes
+        // through `unsigned_abs`, and the overflowed positive power is
+        // the honest `[MAX, +inf]` rather than poison, so its
+        // reciprocal is a finite underflowed bracket of zero.
+        let tiny = x.powi(i32::MIN);
+        assert!(!tiny.is_poison(), "{tiny:?}");
+        assert!(tiny.contains(0.0) && tiny.hi() < 1e-300, "{tiny:?}");
     }
 }

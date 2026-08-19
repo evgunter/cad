@@ -943,25 +943,16 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
                     return Err(EditError::UnresolvedInput { input });
                 }
             }
-            // Spec D3 carve-out (ruled): name refs (Declare pairs)
-            // must point at LIVE nodes at edit time — a never-existed
-            // id is a typo. They are not DAG edges: later deletes may
-            // strand them (N5), so this is the ONLY door that checks.
-            // (M6-5: a fillet's SELECTION carries name refs under the
-            // same carve-out, so `named_nodes` is the door for both.)
-            for n in node.named_nodes() {
-                if !new.nodes.contains_key(&n) {
-                    let name = match node {
-                        Node::Declare { pairs } => pairs
-                            .iter()
-                            .flat_map(|((a, b), _)| [a, b])
-                            .find(|x| x.node == n),
-                        Node::Fillet { selection, .. } => selection.iter().find(|x| x.node == n),
-                        _ => None,
-                    };
-                    if let Some(name) = name {
-                        return Err(EditError::DeclareNamesMissingNode { name: name.clone() });
-                    }
+            // Spec D3 carve-out (ruled): a payload's name refs must
+            // point at LIVE nodes at edit time — a never-existed id is
+            // a typo. They are not DAG edges: later deletes may strand
+            // them (N5), so this is the ONLY door that checks, for
+            // every payload that carries a name (`Node::payload_names`
+            // — Declare pairs, a fillet's selection under M6-5, a
+            // mate's two heads under A12).
+            for name in node.payload_names() {
+                if !new.nodes.contains_key(&name.node) {
+                    return Err(EditError::DeclareNamesMissingNode { name: name.clone() });
                 }
             }
             let id = RecipeNodeId(new.next_id);
@@ -1118,40 +1109,14 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             // One-shot rewrite of every EXACT reference (sites:
             // Declare pairs, fillet selections, appearance-store
             // keys). Zero sites = nothing to repair, refused.
+            // Every payload site, by the one list that says which
+            // payloads carry a name (`Node::payload_names`' twin): the
+            // rewrite reaches a mate's heads exactly as it reaches a
+            // Declare pair, and a fillet selection's GROWTH PATH (M6-5,
+            // ruled #217) re-canonicalizes there.
             let mut declare_sites = 0usize;
             for node in new.nodes.values_mut() {
-                match node {
-                    Node::Declare { pairs } => {
-                        for name in pairs.iter_mut().flat_map(|((a, b), _)| [a, b]) {
-                            if name == from {
-                                *name = to.clone();
-                                declare_sites += 1;
-                            }
-                        }
-                    }
-                    // The fillet selection's GROWTH PATH (M6-5,
-                    // ruled #217): a selection freezes, so the only
-                    // way it changes is an explicit Rebind. The
-                    // rewrite re-canonicalizes, because `to` may sort
-                    // elsewhere or already be present — a rebind onto
-                    // an already-selected edge SHRINKS the set by one
-                    // rather than duplicating it.
-                    Node::Fillet { selection, .. } => {
-                        let mut hits = 0usize;
-                        for name in selection.iter_mut() {
-                            if name == from {
-                                *name = to.clone();
-                                hits += 1;
-                            }
-                        }
-                        if hits > 0 {
-                            selection.sort();
-                            selection.dedup();
-                            declare_sites += hits;
-                        }
-                    }
-                    _ => {}
-                }
+                declare_sites += node.rebind_payload_names(from, to);
             }
             // Appearance keys are rebind sites (the attribute rides
             // the name — PR 7's store; also the spec D9 banked
