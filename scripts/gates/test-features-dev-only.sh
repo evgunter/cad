@@ -161,7 +161,10 @@ PY
     exit "$rc"
   fi
 
-  gate_ok "no [dependencies]/[build-dependencies] entry enables a test-only feature (test-support, test-*, *-testing) and no ordinary feature forwards to one — dev-dependencies are the only door (manifests scanned, not builds; see KNOWN GAPS)"
+  # Not gate_ok: its message says "source files", and this gate's unit
+  # is the manifest.
+  printf '%s OK: no [dependencies]/[build-dependencies]/[target.*.dependencies] entry enables a test-only feature (test-support, test-*, *-testing) and no ordinary feature forwards to one — dev-dependencies are the only door (%s manifests parsed, not builds; see KNOWN GAPS)\n' \
+    "$(gate_name)" "$GATE_SCAN_FILES"
 }
 
 # The subject is manifests, not `crates/*/src`, so the clean fixture is
