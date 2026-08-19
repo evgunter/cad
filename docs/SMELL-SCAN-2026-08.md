@@ -511,8 +511,9 @@ private with `symbol()`/`quantity()`/`factor()` accessors, and the only
 public sources of a row are `UNITS`, `unit_by_symbol`, and whatever hands
 one back.
 
-Three things that pass are worth recording, because each was a way the
-seal could have been cosmetic:
+Four things are worth recording — the first three because each was a way
+the seal could have been cosmetic, the fourth because it was measured
+wrong before the work started:
 
 - **The second mint.** `LengthUnit`/`AngleUnit` keep PUBLIC fields, and
   their `def()` was a public `const fn` — so `AngleUnit { symbol: "mm",
@@ -539,6 +540,11 @@ seal could have been cosmetic:
   FORMATTER surface, it cannot reach a `UnitDef` or a document, and it is
   filed here rather than fixed because closing it needs a
   `UnitDef → LengthUnit` conversion and six edits in a file #639 owns.
+- **In-crate code is not exempt.** `quantity/src/tests.rs` is a SIBLING
+  module of `units`, not an inner one, so the private fields are private
+  to it too; the first push was red on `clippy` for exactly that. Worth
+  remembering when estimating a sealing diff: "same crate" is not the
+  visibility boundary, "same module or below" is.
 
 | Concept | Copies | Anchor |
 |---|---|---|
