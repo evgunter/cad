@@ -54,14 +54,18 @@
 //! walling the whole certificate off the interval lane (M5-LOG PR 9c
 //! deviation 2).
 //!
-//! The bound is the **sole-bound `T: Bounds`** the discipline reserves
-//! for certification code: an operand enters as `[lo, hi]` and every
+//! The bound is the sole bound [`geom_core::CertifiedBounds`] — the pair
+//! of bracket doors, named, so certification code that reads both writes
+//! one bound rather than a compound one. Nothing here DECIDES; the
+//! discipline's compound-`Bounds` rule is about a parameter that decides
+//! *and* brackets, and this file has no decide half. An operand enters
+//! as `[lo, hi]` and every
 //! subsequent operation is ring arithmetic, so a widened operand widens
 //! the enclosure — which can only cost a refusal. At `f64` the bracket
 //! is the value, so this lane's numbers are what they were, up to the
 //! ring's outward rounding of the pad itself.
 
-use geom_core::{Bounds, CertifiedEnclosure, Point3, RingInterval, Vec3};
+use geom_core::{CertifiedBounds, CertifiedEnclosure, Point3, RingInterval, Vec3};
 use geom_surfaces::{NurbsSurface, Surface, SurfaceWindow};
 
 /// An axis-aligned ring box in ℝ³.
@@ -78,7 +82,7 @@ pub(crate) struct Box3 {
 impl Box3 {
     /// The box `[cx−r, cx+r] × …` around `c` — the caller's scalar
     /// crosses into the ring here (module docs' seam).
-    pub(crate) fn around<T: Bounds + CertifiedEnclosure>(c: Point3<T>, r: T) -> Self {
+    pub(crate) fn around<T: CertifiedBounds>(c: Point3<T>, r: T) -> Self {
         let g = pad_interval(r);
         Self {
             x: ring(c.x) + g,
@@ -88,7 +92,7 @@ impl Box3 {
     }
 
     /// The box spanned by two corners (componentwise hull).
-    pub(crate) fn between<T: Bounds + CertifiedEnclosure>(a: Point3<T>, b: Point3<T>) -> Self {
+    pub(crate) fn between<T: CertifiedBounds>(a: Point3<T>, b: Point3<T>) -> Self {
         Self {
             x: RingInterval::hull(ring(a.x), ring(b.x)),
             y: RingInterval::hull(ring(a.y), ring(b.y)),
@@ -106,7 +110,7 @@ impl Box3 {
     }
 
     /// Grow every side by `r` (the certified tube radius).
-    pub(crate) fn pad<T: Bounds + CertifiedEnclosure>(self, r: T) -> Self {
+    pub(crate) fn pad<T: CertifiedBounds>(self, r: T) -> Self {
         let g = pad_interval(r);
         Self {
             x: self.x + g,
@@ -223,11 +227,11 @@ fn cross3(a: [RingInterval; 3], b: [RingInterval; 3]) -> [RingInterval; 3] {
     ]
 }
 
-fn constv<T: Bounds + CertifiedEnclosure>(v: Vec3<T>) -> [RingInterval; 3] {
+fn constv<T: CertifiedBounds>(v: Vec3<T>) -> [RingInterval; 3] {
     [ring(v.x), ring(v.y), ring(v.z)]
 }
 
-fn subp<T: Bounds + CertifiedEnclosure>(b: Box3, p: Point3<T>) -> [RingInterval; 3] {
+fn subp<T: CertifiedBounds>(b: Box3, p: Point3<T>) -> [RingInterval; 3] {
     [b.x - ring(p.x), b.y - ring(p.y), b.z - ring(p.z)]
 }
 
@@ -252,7 +256,7 @@ fn norm_sq(q: [RingInterval; 3]) -> RingInterval {
 /// wanted to would have to land that conversion first, which is
 /// exactly the per-arm retirement rule (C12.1). [`Surface::Nurbs`] has
 /// no implicit form at all.
-pub(crate) fn implicit_enclosure<T: Bounds + CertifiedEnclosure>(
+pub(crate) fn implicit_enclosure<T: CertifiedBounds>(
     surface: &Surface<T>,
     b: Box3,
 ) -> RingInterval {
@@ -297,7 +301,7 @@ pub(crate) fn implicit_enclosure<T: Bounds + CertifiedEnclosure>(
 /// The enclosure of `∇f` ([`crate::implicit::implicit_gradient`]) over
 /// `b`. Same kind coverage and same reasons as
 /// [`implicit_enclosure`].
-pub(crate) fn implicit_gradient_enclosure<T: Bounds + CertifiedEnclosure>(
+pub(crate) fn implicit_gradient_enclosure<T: CertifiedBounds>(
     surface: &Surface<T>,
     b: Box3,
 ) -> [RingInterval; 3] {
@@ -335,7 +339,7 @@ pub(crate) fn implicit_gradient_enclosure<T: Bounds + CertifiedEnclosure>(
 /// docs). An enclosure excluding zero proves the solution set inside
 /// `b` is a graph over the `e` axis: one arc, and therefore exactly one
 /// component to select.
-pub(crate) fn graph_margin<T: Bounds + CertifiedEnclosure>(
+pub(crate) fn graph_margin<T: CertifiedBounds>(
     s1: &Surface<T>,
     s2: &Surface<T>,
     b: Box3,
@@ -356,11 +360,11 @@ pub(crate) fn graph_margin<T: Bounds + CertifiedEnclosure>(
 /// weights make `S` a convex combination of the local control points,
 /// which is exactly the rational hull property); the derivative box
 /// goes through the homogeneous quotient rule.
-pub(crate) struct NurbsBoxes<'a, T: Bounds + CertifiedEnclosure> {
+pub(crate) struct NurbsBoxes<'a, T: CertifiedBounds> {
     surface: &'a NurbsSurface<T>,
 }
 
-impl<'a, T: Bounds + CertifiedEnclosure> NurbsBoxes<'a, T> {
+impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// Wrap a surface.
     pub(crate) fn new(surface: &'a NurbsSurface<T>) -> Self {
         Self { surface }

@@ -890,7 +890,7 @@ impl<T: SpanLocate> NurbsSurface<T> {
     }
 }
 
-impl<T: geom_core::Bounds + geom_core::CertifiedEnclosure> NurbsSurface<T> {
+impl<T: geom_core::CertifiedBounds> NurbsSurface<T> {
     /// The control net lifted to ring points — the data-in shape of
     /// `geom_core::spline::compose::tensor` (M5 PR 7b): channel `d`,
     /// control index `i` in the row-major `iu·nv + iv` layout, as
