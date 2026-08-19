@@ -599,18 +599,19 @@ mod tests {
                 "{name} contributes no curved walk — it is no longer sweeping this lane"
             );
             for (fk, poly) in walks {
-                let off = entries_off_bbox(&poly, bbox(&poly));
-                assert!(
-                    off.is_empty(),
-                    "{name} face {fk:?}: {} of {} walk entries lie strictly inside the UV \
-                     bounding box. Offenders: {:?}",
-                    off.len(),
+                // Asserted through the production refusal, with the
+                // predicate consulted only for the diagnostic.
+                assert_eq!(
+                    require_swept_rectangle(fk, &poly, bbox(&poly)),
+                    Ok(()),
+                    "{name} face {fk:?}: of {} walk entries, these lie strictly inside \
+                     the UV bounding box: {:?}",
                     poly.len(),
-                    off.iter()
+                    entries_off_bbox(&poly, bbox(&poly))
+                        .iter()
                         .map(|&i| (poly[i].u, poly[i].v))
                         .collect::<Vec<_>>()
                 );
-                assert_eq!(require_swept_rectangle(fk, &poly, bbox(&poly)), Ok(()));
             }
         }
     }
