@@ -3296,7 +3296,7 @@ folding it into a box-soundness PR would widen the blast radius past what a
 reviewer of that diff could check.
 
 Settled by: deciding which lane owns the planar-face-on-curved-solid pair,
-then pinning it with a row that goes red if none of them does.
+then pinning it with a row that goes red if none of them does. **Scheduled as §D W2g.**
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18) — *"should be scheduled but i have
 no opinion on when"*. The jurisdiction call itself is part of the unit, not a
@@ -3341,7 +3341,8 @@ better covered than the first report of this claimed:
 `m5_pr12_fix_pass.rs:75` and `:96` pin 12- and 10-corner prism fillets.
 
 Settled by: stating the precondition at the mint site, or deriving the bit
-there as its siblings do. The second costs nothing and cannot rot.
+there as its siblings do. The second costs nothing and cannot rot. **Scheduled as
+§D H9**, whose row carries the whole-body-door sequencing caveat.
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18), **and the resolution is chosen**:
 *"deriving at mint makes sense"* — derive the bit at the corner sites as the
@@ -3374,7 +3375,8 @@ pointedly — **a section pair whose convexity differs between sections**
 traversal-following chart could plausibly twist.
 
 Settled by: lofting a convexity-flipping pair and a three-section curved-`v`
-loft, then re-running #619's own probe. Cheap; may find nothing.
+loft, then re-running #619's own probe. Cheap; may find nothing. **Scheduled as
+§D H10.**
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18) — worth a lane on its own terms:
 *"those tests are valuable even if they don't find anything today"*. Note
@@ -3467,6 +3469,8 @@ Good work for filling parallel capacity. None blocks anything.
 | **H6** ✅ #625 | **Euler postcondition 7-tuple → named struct** — unnamed positional, 16 sites, 6 files, all `cfg(debug_assertions)`. **FIXED by #625**: `ArenaDelta`, still debug-only, written sparsely over `..ArenaDelta::ZERO`. | S |
 | **H7** | **The chart lane's empty-tube acceptance row** — #617 fixed both SSI lanes but its red row covers ℝ³ only, so the chart lane's `account_chart_plane` refusal is asserted by construction and not by a fixture. Needs a NURBS wall whose true surface misses the cutting plane *inside* its own control-net hull slack (the M5 substrate wall's hull is tight exactly where the near-miss must sit), then the same two-run shape: certify-empty at a healthy floor, refuse at a clamped one. The narrowing is #617's, so this row closes it. | S–M |
 | **H8** | **Positional-census residue in `topo`** — the class H6 fixed, still live at three sites #625 deliberately did not touch. **Sharp end: `crates/topo/tests/review_m3_pr1.rs:34`**, whose `census` returns a positional 7-tuple in a **different component order** than `ArenaCounts` (`v, e, f, loops, shells, solids, rings` — and `rings` is not an arena length at all); `:286-299` then asserts a raw `.0`…`.6` arena delta for cross-shell `kfmrh` against `(0, 0, -1, 0, -1, 0, 1)`. Two positional orders for one vocabulary is S4's drift shape itself. Also `seqgen.rs:106`/`:137`: the Euler 6-vector travels as `[i64; 6]` indexed `0..5` into `Ledger { v, e, f, h, r, s }`, which sits twenty lines below `ep_vector` already carrying the names; and `euler.rs:2126`'s `snapshot` returns `[usize; 10]`. Fold in two whole-file finds from #625's review of `euler.rs`: the byte-identical 8-line parent-sense-inheritance comment and logic at `:1664` and `:1767` (a third copy in `mint_loop_and_face`'s rustdoc, `:1947`), and the stale user-visible message at `:762`, *"cross-shell kfmrh merges shells — deferred to M3"*, which the variant's own doc contradicts. **Sequencing is why these are a row and not a patch**: `seqgen.rs` is live in H3's lane, `:762` is S39/H2 territory, and `review_m3_pr1.rs` is a review-named suite that W3a combs per-suite. | S–M |
+| **H9** | **S50 — derive the corner patch's `sense` at the mint site.** `fillet/build.rs:692` and `fillet/surgery.rs:271` mint a bare unconditional `sense: true`; their blend and rim-band siblings in the same loops derive it from `link.convexity.blend_sense()`. Evan's verdict picks deriving over documenting the precondition — a derived bit cannot rot when the front-door gates change. **Sequencing:** `build.rs:692` sits in the whole-body door, which D3's experiment has shown is a retirement candidate, so scope to `surgery.rs:271` alone or wait on the retirement call — do not polish code that may be deleted (ordering rule 1). | XS–S |
+| **H10** | **S51 — loft's `v` direction is never varied.** Every S42 row lofts two sections at `v_degree = 1`, so `S_v` is constant along `v`; 27 of the 28 other `loft_body` call sites use `v_degree = 2`. Loft a section pair whose **convexity differs between sections** (bulge `−b` below, `+b` above) and a three-section curved-`v` loft, then re-run #619's probe. Extends `crates/sweep/tests/m5_s11_concave_sense.rs`, the constructor audit #619 folded the loft chapter into. Per Evan, "may find nothing" is **not** a reason to defer it. | S |
 
 ---
 
@@ -3480,6 +3484,7 @@ Good work for filling parallel capacity. None blocks anything.
 | **W2d** | **S6** — sweep helper unification (~230 token-identical lines) | **D3** | Must follow D3: S6 and S7 are in one crate and will collide. K-telemetry does **not** block it — both funnels already take the predicate name as a parameter. Retracted: `SweptSeg`, `strut_spec`, `full::build_lamina` and the `let _ = k;` inference are *not* duplication. |
 | **W2e** | **S5** — `splitting/` vs `boolean/` | — | The largest. Start with the narrowest, highest-value piece: the **forked sector predicates**, which are dimensionally identical line-for-line and split one K population 29:1, with the 64-sample tail the one reaching margin 0. The repo already forced the reverse fix once (`M3-LOG.md:264`). |
 | **W2f** | **S4** — the vocabulary mirrors, cheapest first | partly **W2c** | `BooleanOp` → `pub use topo::BooleanOp` + `serde(with)` (its constraint provably lapsed the day it was minted, and the technique is shipped); then units; then `ProgramStep`/`WireStep`, which is cheap in isolation but **blocked behind OnArc + RESPELL-TABLE** and crosses the same files. |
+| **W2g** | **S49** — the census's planar × planar skip is justified by a claim about solids | — | `census.rs:1359` skips on a **face** predicate (`a.planar && b.planar`) while `census.rs:1035` argues about planar-only **solids**; a cylinder's caps are planar faces on a non-planar solid. Structural because the repair is a **jurisdiction call** between this filter, the conformal arm and the confirm pass — deciding which owns a planar face on a curved solid, then pinning it with a row that goes red if none of them does. Not gated on D1–D4. The W1a implementer and its reviewer independently judged it too wide to fold into #620. | M |
 
 ---
 
