@@ -249,7 +249,7 @@ impl<T: Real> BooleanResult<T> {
 }
 
 /// A ∪* B (module docs; functional). Surface kinds are gated per arm,
-/// not wholesale — see `reduce::gate_planar`.
+/// not wholesale — see `reduce::gate_operand_kinds`.
 ///
 /// # Errors
 ///

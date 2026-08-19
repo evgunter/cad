@@ -245,6 +245,31 @@ impl Declared {
 /// that replaced it, and what each arm can and cannot certify is the
 /// module-docs envelope, stated rather than sampled). Total: every
 /// entity lands in exactly one bucket, so there is no refusal path.
+/// The exact sweeps' admission test for one edge, in ONE place.
+/// [`snapshot`] keeps an edge iff its carrier is a certified `Line`,
+/// and `line_bounded` — the planar × planar skip's premise — asks the
+/// same question of a whole face boundary. The two must not drift:
+/// if snapshot's rule widens and the skip's does not, the skip keeps
+/// firing on faces whose boundary is no longer in front of the
+/// sweeps, which is the UNSOUND direction. Sharing the predicate is
+/// what makes the coupling structural rather than remembered.
+///
+/// Snapshot drops one thing more than this models: a certified line
+/// edge whose endpoints do not resolve (tier 1 guarantees they do, so
+/// the skip's premise is not weakened by the difference in practice —
+/// but the difference is real, and it is here, not implied). Three
+/// further copies of the same match live outside the census
+/// (`merge_faces`, `validate`, `boolean::ops`); each answers its own
+/// question, not the snapshot's.
+fn edge_is_line<T: Real>(body: &Body<T>, ek: crate::entity::EdgeKey) -> bool {
+    body.edges
+        .get(ek)
+        .and_then(|e| body.curves.get(e.curve))
+        .and_then(CurveGeom::certified)
+        .map(geom_brep::EdgeCurve::carrier)
+        .is_some_and(|c| matches!(c, geom_curves::Curve3::Line { .. }))
+}
+
 fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
     let verts: Vec<(VertexKey, Point3<T>)> = body
         .vertices
@@ -253,13 +278,7 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
         .collect();
     let mut edges = Vec::new();
     for (key, edge) in body.edges.iter() {
-        let line = body
-            .curves
-            .get(edge.curve)
-            .and_then(CurveGeom::certified)
-            .map(geom_brep::EdgeCurve::carrier)
-            .is_some_and(|c| matches!(c, geom_curves::Curve3::Line { .. }));
-        if !line {
+        if !edge_is_line(body, key) {
             // A curved-carrier edge is outside the exact sweeps; its
             // contact obligations ride the face-granular records
             // (CurveContact's confirm pass) — no blanket refusal.
@@ -1004,11 +1023,14 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
 /// here instead of passing silently:
 ///
 /// 1. **Proximity** (the C9-ring conformal-rest / partial-embedding
-///    class): a pair of faces from DIFFERENT solids, at least one
-///    curved (F5: curved × planar included — a revolved cap embedded
-///    in a plate's slab leaves no vertex/line/planar evidence), not
+///    class): a pair of faces from DIFFERENT solids, not
 ///    vertex-adjacent, whose reach boxes cannot be definitely
-///    separated. Distinct-key value-equal carriers in conformal rest
+///    separated, and which the exact sweeps cannot see — every pair
+///    with a curved side (F5: curved × planar included, since a
+///    revolved cap embedded in a plate's slab leaves no
+///    vertex/line/planar evidence), PLUS planar × planar where either
+///    side has a curved boundary (§S49: an arc rim is not in the
+///    snapshot, so a cylinder's cap leaves nothing either). Distinct-key value-equal carriers in conformal rest
 ///    (the cradle witness), value-equal walls at gap zero
 ///    (boss-in-hole), and the embedded ball cap (the delta witness)
 ///    land here; the certified excluder this stands in for is the C9
@@ -1030,15 +1052,40 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
 ///
 /// Both arms clear a pair ONLY on a definitely-positive separation
 /// margin (`census_backstop_gap` / `census_backstop_containment` —
-/// metre coordinate differences); anything weaker refuses. Planar ×
-/// planar pairs are NOT backstopped: a solid bounded by planes has
-/// straight edges at its face junctions, so planar-only overlap and
-/// touch always leave the vertex/line/planar evidence the exact
-/// sweeps examine.
+/// metre coordinate differences); anything weaker refuses.
+///
+/// A planar × planar pair is skipped only when BOTH faces are bounded
+/// entirely by line edges (§S49). That — not the kind of solid the
+/// faces sit on — is what the skip's premise is about: [`snapshot`]
+/// admits line edges and drops every curved one, so a wholly
+/// line-bounded planar face has its whole boundary, every vertex AND
+/// every edge, in front of the exact sweeps. The premise is that
+/// nothing such a pair can do to the other is invisible — NOT that
+/// contact takes one of two shapes. It takes at least five, and each
+/// has a lane: coincident boundary vertices in [`sweep_vertex_vertex`],
+/// a vertex on the other boundary in [`sweep_vertex_edge`], collinear
+/// boundary overlap in [`ee_collinear_lane`], a boundary lying in the
+/// other face in [`sweep_vertex_face`] / [`ef_overlap_lane`], and a
+/// pierce in [`sweep_edge_face`]. A future reader deciding whether
+/// some OTHER face class may be skipped owes the same enumeration,
+/// not an appeal to the two obvious cases.
+///
+/// A planar face with a curved boundary — a cylinder's cap — is
+/// outside all of it: its rim is not in the snapshot, so no lane
+/// holds it, and a cap can rest on another face with nothing to see
+/// at vertex/line granularity. Such a pair is THIS arm's: the conformal
+/// arm takes same-carrier CURVED faces only, and the confirm pass
+/// takes declared pairs only, so the undeclared cap pair has no other
+/// home. Its plane is boxable ([`crate::boolean::boxes::FaceBoxRule`]
+/// hulls the boundary's certified edge reaches, arcs included), so
+/// this arm can clear the separated majority instead of refusing
+/// every one of them.
 ///
 /// **Jurisdiction, exactly** (a backstop refuses only what NO arm
-/// examines): same-`SurfaceKey` face pairs are the conformal arm's
-/// candidates and are skipped here; record-NAMED face pairs are the
+/// examines): same-`SurfaceKey` CURVED face pairs are the conformal
+/// arm's candidates and are skipped here — curved, because that arm
+/// groups [`Geo::curved_faces`], so a same-key PLANAR pair is not on
+/// its list and stays here; record-NAMED face pairs are the
 /// patch/curve certifier's (a cross-key record escalates loudly
 /// there — skipping it here loses no loudness); and a solid pair
 /// BRIDGED by any contact record (vv, v-on-f, curve, patch) is
@@ -1087,6 +1134,39 @@ fn sweep_cross_solid_backstop<T: Decide>(
             }
         }
         out
+    };
+    // Every boundary edge of `f` — outer loop and rings — passes
+    // [`edge_is_line`], the exact sweeps' own admission test. That is
+    // the property the planar × planar skip rests on: only a face
+    // whose whole boundary is admitted is in front of those sweeps.
+    // Anything unresolvable — a missing loop, an isolated-vertex
+    // boundary, an uncertified carrier — is not a line, so the face
+    // stays with this arm. `edge_is_line` carries the one way this
+    // is weaker than snapshot's admission (unresolvable endpoints).
+    let line_bounded = |f: FK| -> bool {
+        let Some(face) = body.get_face(f) else {
+            return false;
+        };
+        for &lk in core::iter::once(&face.outer).chain(&face.rings) {
+            let Some(loop_) = body.loops.get(lk) else {
+                return false;
+            };
+            let LoopBoundary::Cycle { first } = loop_.boundary else {
+                return false;
+            };
+            let Some(cycle) = body.loop_cycle(first) else {
+                return false;
+            };
+            for he in cycle {
+                let Some(hd) = body.half_edges.get(he) else {
+                    return false;
+                };
+                if !edge_is_line(body, hd.edge) {
+                    return false;
+                }
+            }
+        }
+        true
     };
     let hull = |pts: &[Point3<T>]| -> Option<(Point3<T>, Point3<T>)> {
         let mut it = pts.iter();
@@ -1255,10 +1335,11 @@ fn sweep_cross_solid_backstop<T: Decide>(
         }
     };
 
-    // Arm 1: cross-solid proximity — curved × curved AND (F5) curved
-    // × planar; planar × planar pairs stay with the exact sweeps
-    // (planar-only solids meet along line/vertex evidence: a solid
-    // bounded by planes has straight edges at its face junctions).
+    // Arm 1: cross-solid proximity — curved × curved, (F5) curved ×
+    // planar, and the planar × planar pairs the exact sweeps cannot
+    // see (§S49: a pair is theirs only when BOTH faces are wholly
+    // line-bounded, which is what puts a whole boundary in the
+    // snapshot — the module docs carry the argument).
     struct Reach<T: Real> {
         face: crate::entity::FaceKey,
         solid: crate::entity::SolidKey,
@@ -1268,6 +1349,9 @@ fn sweep_cross_solid_backstop<T: Decide>(
         boxed: Option<(Point3<T>, Point3<T>)>,
         verts: BTreeSet<VertexKey>,
         planar: bool,
+        /// Planar AND bounded entirely by line edges, so the exact
+        /// sweeps hold this face's whole boundary.
+        line_bounded: bool,
     }
     let mut reaches: Vec<Reach<T>> = Vec::new();
     let planar_keys: Vec<FaceKey> = geo.faces.iter().map(|f| f.key).collect();
@@ -1305,6 +1389,7 @@ fn sweep_cross_solid_backstop<T: Decide>(
             boxed,
             verts,
             planar,
+            line_bounded: planar && line_bounded(f),
         });
     }
     // The record-bridged solid pairs (doc comment): any record
@@ -1350,14 +1435,24 @@ fn sweep_cross_solid_backstop<T: Decide>(
             if a.solid == b.solid || !a.verts.is_disjoint(&b.verts) {
                 continue; // same instance / structural adjacency
             }
-            if a.planar && b.planar {
-                continue; // line/vertex evidence — the exact sweeps' pair
+            if a.planar && b.planar && a.line_bounded && b.line_bounded {
+                continue; // both boundaries in the snapshot — the exact sweeps' pair
             }
             let same_key = body
                 .get_face(a.face)
                 .zip(body.get_face(b.face))
                 .is_some_and(|(da, db)| da.surface == db.surface);
-            if same_key || declared.faces.contains(&(a.face, b.face)) {
+            // The conformal arm groups CURVED faces by carrier, so a
+            // same-key planar pair would be on no list at all; the
+            // deferral may only name an arm that takes the pair.
+            // The added conjunct is a TAUTOLOGY, deliberately: one
+            // surface key is one surface kind, and `planar` is
+            // derived from the kind, so `same_key` already implies
+            // `a.planar == b.planar`. It is written so the deferral
+            // cannot quietly start covering pairs the conformal arm
+            // never walks — which is what it did until §S49 narrowed
+            // the skip above and made a planar pair reach this line.
+            if (same_key && !a.planar && !b.planar) || declared.faces.contains(&(a.face, b.face)) {
                 continue; // the conformal arm's / the certifier's pair
             }
             let vf_deferred = (a.planar && planar_face_bridged(a.face, b.solid))
@@ -1400,9 +1495,10 @@ fn sweep_cross_solid_backstop<T: Decide>(
                 errors.push(ValidationError::CensusUndecidable {
                     a: EntityId::Face(a.face),
                     b: EntityId::Face(b.face),
-                    what: "cross-solid faces within reach (curved against curved or \
-                           planar) — the conformal-rest / proximity / partial-embedding \
-                           class the exclusion ring will examine",
+                    what: "cross-solid faces within reach, at least one of them with \
+                           a curved carrier or a curved boundary — the conformal-rest / \
+                           proximity / partial-embedding class the exclusion ring \
+                           will examine",
                 });
             }
         }

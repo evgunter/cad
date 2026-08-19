@@ -194,4 +194,56 @@ pub enum TessellateError {
         /// The face whose trim loop touches itself.
         face: FaceKey,
     },
+    /// A curved face's boundary walk does not trace its own UV
+    /// bounding rectangle: some walk entry lies strictly inside the
+    /// box, so the domain is notched / L-shaped rather than the swept
+    /// UV rectangle the `curved` lane's interior grid assumes.
+    ///
+    /// Valid input, unbuilt lane (D2 addendum row 2), NOT corruption.
+    /// The grid runs the open ranges `1..nu` × `1..nv` over the walk's
+    /// own bounding box, which is strictly interior **iff the polygon
+    /// IS that box**; on a notched domain the grid instead splits
+    /// boundary constraints and `inner_faces()` emits triangles
+    /// outside the face — a silently wrong mesh (a 3-D T-junction plus
+    /// ghost geometry), which is what this refusal replaces. It is the
+    /// `curved`-chart twin of [`Self::SelfTouchingTrimLoop`].
+    ///
+    /// No at-rest construction in tree mints a genuinely NOTCHED such
+    /// domain today: the boolean refuses `CurvedPierceUnsupported` and
+    /// `import_step`'s tier-3 gate refuses `NotIsoRectangle` (S28).
+    /// Both of those are *other modules'* limits; this arm is the
+    /// check at the site that makes the assumption.
+    ///
+    /// **Those gates are not why the arm stays quiet, and an earlier
+    /// form of this doc claimed otherwise.** Bodies whose walk lands
+    /// microscopically off their own UV box pass both gates freely and
+    /// reach this lane every day — a swept body plus
+    /// `topo::Body::split_edge`, or a STEP file stating one face
+    /// boundary as two collinear `EDGE_CURVE`s (what an exporter emits
+    /// whenever a vertex lands on that edge), either one placed
+    /// obliquely. An iso side carried by several edges is only
+    /// *analytically* straight, so on those an EXACT comparison
+    /// refused valid parts — measured false refusals at 1e-17 m
+    /// (issue #653). The comparison is therefore BANDED, in metres,
+    /// against the run's ε, and
+    /// [`Self::UnsupportedCurvedDomain::max_distance`] is what says
+    /// which side of that band a refusal came from.
+    UnsupportedCurvedDomain {
+        /// The offending face.
+        face: FaceKey,
+        /// How many walk entries lie strictly inside the UV bounding
+        /// box, by more than the band (≥ 1 when this fires).
+        off_bbox: usize,
+        /// The chart `(u, v)` of the first such entry — where to look.
+        first_uv: (f64, f64),
+        /// The largest distance FROM THE BOX, in metres, over those
+        /// entries: the chart's own lever arms applied to the UV gap.
+        ///
+        /// This is the number that makes the refusal actionable. A
+        /// feature-sized value (a keyway notch, a milled flat) means
+        /// re-author the part or wait for the lane; a value near ε
+        /// means the kernel handed this lane a domain it should have
+        /// kept rectangular, and is a bug report.
+        max_distance: f64,
+    },
 }
