@@ -1,37 +1,39 @@
-//! **The bracket accessors are not a laundering door around the
-//! decoration channel.**
+//! **The split between "carries a bracket" and "may enter certified
+//! code", executed at the seam where it matters.**
 //!
-//! `Interval` carries a domain violation in its IEEE 1788 decoration,
-//! not in its endpoints: the backend *clamps* a partially-out-of-domain
+//! `Interval` records a domain violation in its IEEE 1788 decoration, not
+//! in its endpoints: the backend *clamps* a partially-out-of-domain
 //! operand rather than failing, so `sqrt([−1, 4])` is `[0, 2]` with
-//! decoration `Trv` — finite, tight, and completely healthy-looking to
-//! anything that reads only two `f64`s. `Decide::sign_within` refuses
-//! it, but certification code does not decide: it crosses into the C9
-//! ring (`RingInterval`, two states and no decorations) through
-//! `Bounds`/`Enclosure`, and the ring can learn nothing the bracket does
-//! not say.
+//! decoration `Trv`. Two facts about that value have to coexist, and the
+//! whole point of the split is that they are different questions:
 //!
-//! So the refusal has to live in the accessors, and these rows are what
-//! make that behavioural. Each pairs the same computation on a **healthy**
-//! enclosure with the `Trv` one and demands that the healthy operand
-//! certify while the violated one refuses. The pairing is the point: an
-//! implementation that poisons everything passes the refusal half and
-//! fails the healthy half, and an implementation that launders passes the
-//! healthy half and fails the refusal half. Neither direction is
-//! satisfiable by weakening a bound.
+//! 1. **It is a sound bracket.** `[0, 2]` really does contain every value
+//!    the expression was defined on. Containment properties written
+//!    against [`Bounds`] hold for it and must keep holding —
+//!    `geom-curves`' F1 rows assert exactly this, on enclosures that are
+//!    `Trv` and even unbounded.
+//! 2. **It may not certify anything.** The bracket describes a
+//!    *different* expression from the one that was asked for, so nothing
+//!    that produces a certificate may consume it.
 //!
-//! The `Trv` fixture is deliberately *nonempty with finite endpoints*.
-//! NaI and the empty enclosure are stored with NaN bounds, so they
-//! surface poison however the accessors are written; they are pinned here
-//! too, as the control that says the fixture is the interesting case
-//! rather than the only case.
+//! `Bounds` answers (1) and never refuses. [`CertifiedEnclosure`] answers
+//! (2) and refuses below `Def`. These rows pin both halves, and pin that
+//! the three C9-ring crossings follow the second door rather than the
+//! first — which is the actual defect S41 found: they read the bracket,
+//! so a `Trv` enclosure crossed into `RingInterval` as a healthy bound.
+//!
+//! The sweeps are **paired**: each walks an operand across the domain
+//! boundary and requires refusal *iff* the decoration degraded, with
+//! non-vacuity assertions on both halves. A laundering implementation
+//! certifies the whole sweep and fails; an implementation that poisons
+//! indiscriminately refuses the whole sweep and fails too.
 
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::predicate::{Band, Decide, Indeterminate, MarginDiag};
 use geom_core::spline::{KnotVector, hull};
-use geom_core::{Bounds, Interval, Real, RingInterval};
+use geom_core::{Bounds, CertifiedEnclosure, Interval, Real, RingInterval};
 
 /// A domain violation with finite endpoints: `sqrt([−1, 4])` clamps to
 /// `[0, 2]` and records the violation only in the decoration.
@@ -39,8 +41,8 @@ fn trv() -> Interval {
     Interval::from_bounds(-1.0, 4.0).sqrt()
 }
 
-/// The same shape of value with nothing wrong with it — `sqrt([1, 4])`,
-/// which is `[1, 2]` at `Com`. The discriminating partner of [`trv`].
+/// The same shape of value with nothing wrong with it — `sqrt([1, 4])` is
+/// `[1, 2]` at `Com`. The discriminating partner of [`trv`].
 fn healthy() -> Interval {
     Interval::from_bounds(1.0, 4.0).sqrt()
 }
@@ -54,57 +56,85 @@ fn empty() -> Interval {
     Interval::from_bounds(-4.0, -1.0).sqrt()
 }
 
-/// Every enclosure whose decoration is below `Def`, by the name the
-/// failure message should carry.
-fn violated() -> [(&'static str, Interval); 3] {
-    [("Trv", trv()), ("NaI", nai()), ("Empty", empty())]
+fn band() -> Band {
+    Band::new(1e-9, 1e-8).unwrap()
 }
 
-/// The fixture is the case the finding is about, and not by accident:
-/// `Trv`, nonempty, finite endpoints, and refused by the decision door.
-/// If the backend ever stopped clamping — went empty instead — the rest
-/// of this suite would be pinning nothing, and this row says so first.
+/// The fixture is the case the split is about, and not by accident:
+/// `Trv`, nonempty, finite endpoints, refused by the decision door. If
+/// the backend ever stopped clamping — went empty instead — the rest of
+/// this suite would be pinning nothing, and this row says so first.
 #[test]
 fn the_trv_fixture_is_nonempty_with_finite_endpoints() {
-    let (lo_bits, hi_bits, dec) = trv().repr_bits();
-    assert_eq!(dec, 1, "fixture decoration is not Trv");
-    let (lo, hi) = (f64::from_bits(lo_bits), f64::from_bits(hi_bits));
+    let x = trv();
+    assert!(!x.is_certified(), "fixture is not domain-violated");
+    let (lo, hi) = (Bounds::lo(x), Bounds::hi(x));
     assert!(
         lo.is_finite() && hi.is_finite() && lo <= hi,
         "fixture is not a nonempty finite enclosure: [{lo}, {hi}]"
     );
     assert_eq!((lo, hi), (0.0, 2.0), "fixture is not the clamped sqrt");
-    // The decision door already refuses it; the bracket must agree.
-    let band = Band::new(1e-9, 1e-8).unwrap();
     assert!(matches!(
-        trv().sign_within(band),
+        x.sign_within(band()),
         Err(Indeterminate {
             margin: MarginDiag::Invalid,
             ..
         })
     ));
-    // And the healthy partner is genuinely healthy — `Com`, not merely
-    // "not Trv" — so the pairing below has a live positive half.
-    assert_eq!(healthy().repr_bits().2, 4, "control is not Com");
+    // And the healthy partner is genuinely certified, so the pairing
+    // below has a live positive half.
+    assert!(healthy().is_certified(), "control is not certified");
 }
 
-/// `Bounds`/`Enclosure` refuse below `Def`: both accessors NaN, so
-/// nothing downstream can read past the violation.
+/// **Half one of the split: `Bounds` never refuses.**
+///
+/// A `Trv` enclosure is still a sound bracket, so the bracket door
+/// reports its endpoints unchanged. This is not a tolerated weakness —
+/// it is the property `geom-curves`' F1 containment rows depend on, and
+/// making `Bounds` consult the decoration breaks them. This row is the
+/// local guard on that: it goes red the moment the bracket door starts
+/// answering the certification question.
 #[test]
-fn bracket_accessors_refuse_a_violated_decoration() {
-    for (tag, x) in violated() {
+fn the_bracket_door_reports_stored_endpoints_and_never_refuses() {
+    assert_eq!((Bounds::lo(trv()), Bounds::hi(trv())), (0.0, 2.0));
+    assert_eq!((Bounds::lo(healthy()), Bounds::hi(healthy())), (1.0, 2.0));
+    // Containment through `Bounds` holds for the violated value, which is
+    // the shape `geom-curves` asserts.
+    let (lo, hi) = (Bounds::lo(trv()), Bounds::hi(trv()));
+    for v in [0.0, 0.5, 1.0, 2.0] {
+        assert!(lo <= v && v <= hi, "Trv bracket must still contain {v}");
+    }
+    // NaI and empty are stored with NaN bounds, so they surface poison
+    // through the bracket on their own — no decoration read involved.
+    for (tag, x) in [("NaI", nai()), ("Empty", empty())] {
         assert!(
             Bounds::lo(x).is_nan() && Bounds::hi(x).is_nan(),
-            "{tag}: bracket survived as [{}, {}]",
-            Bounds::lo(x),
-            Bounds::hi(x)
+            "{tag}: expected NaN bracket from storage"
         );
     }
-    let ok = healthy();
+}
+
+/// **Half two: the certified door refuses below `Def`.**
+#[test]
+fn the_certified_door_refuses_a_violated_decoration() {
+    for (tag, x) in [("Trv", trv()), ("NaI", nai()), ("Empty", empty())] {
+        assert!(
+            x.certified_bracket().is_none(),
+            "{tag}: certified door admitted a domain violation"
+        );
+    }
     assert_eq!(
-        (Bounds::lo(ok), Bounds::hi(ok)),
-        (1.0, 2.0),
-        "a healthy enclosure must report its own endpoints unchanged"
+        healthy().certified_bracket(),
+        Some((1.0, 2.0)),
+        "a certified enclosure must hand over its own endpoints unchanged"
+    );
+    // `f64` has no domain-violation channel, so it always certifies —
+    // the lane's numbers are exactly what they were.
+    assert_eq!(2.5_f64.certified_bracket(), Some((2.5, 2.5)));
+    // The ring likewise: two states, no decorations.
+    assert_eq!(
+        RingInterval::from_bounds(-1.0, 1.0).certified_bracket(),
+        Some((-1.0, 1.0))
     );
 }
 
@@ -119,81 +149,76 @@ fn hull_bound(c: Interval) -> RingInterval {
 /// The seam, swept across the domain boundary rather than probed at one
 /// point: `sqrt([a, 4])` degrades exactly when `a < 0` forces a clamp,
 /// and the hull bound built from it must refuse on exactly that side.
-///
-/// This is the row that cannot be satisfied in the wrong direction. A
-/// laundering seam certifies the whole sweep; a seam that poisons
-/// indiscriminately refuses the whole sweep; only one that reads the
-/// decoration tracks the boundary. The final two assertions keep the
-/// sweep from going vacuous if the backend's domain handling changes.
 #[test]
 fn the_hull_bound_refuses_exactly_where_the_decoration_degrades() {
-    let mut certified = 0;
-    let mut refused = 0;
+    let (mut certified, mut refused) = (0, 0);
     for a in [-4.0, -1.0, -0.25, -1e-300, 0.0, 1e-300, 0.25, 1.0] {
         let c = Interval::from_bounds(a, 4.0).sqrt();
-        let degraded = c.repr_bits().2 < 2; // below `Def`
         let bound = hull_bound(c);
         assert_eq!(
             bound.is_poison(),
-            degraded,
-            "sqrt([{a}, 4]) has decoration {} but its hull bound is {bound:?}",
-            c.repr_bits().2
+            !c.is_certified(),
+            "sqrt([{a}, 4]) is {} but its hull bound is {bound:?}",
+            if c.is_certified() {
+                "certified"
+            } else {
+                "violated"
+            }
         );
-        if degraded {
-            refused += 1;
-        } else {
+        if c.is_certified() {
             certified += 1;
+        } else {
+            refused += 1;
         }
     }
     assert!(certified > 0, "sweep never certified: the row is vacuous");
     assert!(refused > 0, "sweep never refused: the row is vacuous");
 }
 
-/// The `Bounds`-extract → `Interval::from_bounds`-rebuild round trip the
-/// constructor's docs warn about cannot scrub a violation: the extract
-/// refuses first, so the rebuild is NaI and stays refused.
+/// **The crossing must follow the certified door, not the bracket door.**
+///
+/// This is the row that goes red if a crossing is ever re-bounded to
+/// plain [`Bounds`]. The fixture is chosen so the two doors give visibly
+/// different answers — bracket says `[0, 2]`, certified door says
+/// "refuse" — so the crossing's output identifies which one it consulted.
+/// A `Bounds`-bounded crossing reproduces the bracket answer exactly, and
+/// the assertion names that in its failure message rather than just
+/// reporting a boolean.
 #[test]
-fn the_round_trip_through_from_bounds_cannot_scrub_a_violation() {
-    let band = Band::new(1e-9, 1e-8).unwrap();
-    for (tag, x) in violated() {
-        let rebuilt = Interval::from_bounds(Bounds::lo(x), Bounds::hi(x));
-        assert!(
-            matches!(
-                rebuilt.sign_within(band),
-                Err(Indeterminate {
-                    margin: MarginDiag::Invalid,
-                    ..
-                })
-            ),
-            "{tag}: laundered by the round trip into {:?}",
-            rebuilt.repr_bits()
-        );
-    }
+fn the_crossing_follows_the_certified_door_not_the_bracket() {
+    let x = trv();
+    let bracket_answer = (Bounds::lo(x), Bounds::hi(x));
+    assert_eq!(bracket_answer, (0.0, 2.0), "fixture drifted");
+    assert!(x.certified_bracket().is_none(), "fixture drifted");
+
+    let bound = hull_bound(x);
+    assert!(
+        bound.is_poison(),
+        "the hull crossing reproduced the BRACKET answer {bracket_answer:?} \
+         as {bound:?} — it is reading `Bounds`, not `CertifiedEnclosure`. \
+         The crossing's bound must require the certified door."
+    );
 }
 
-/// Narrowing an enclosure by an independently known window must not
-/// resurrect poison as the window. `f64::max`/`min` return the non-NaN
-/// operand, so the naive spelling turns a poisoned bracket into `[−1, 1]`
-/// — sound-looking, and exactly the wide-but-accepted bound that makes a
-/// certification pass for no reason.
+/// The `Bounds`-extract → `Interval::from_bounds`-rebuild round trip the
+/// constructor's docs warn about is still a laundering door — and that is
+/// correct under the split, because `from_bounds` is the *driver's*
+/// constructor and the extract it consumes is the bracket door, which by
+/// design does not refuse. What closes the hole is that certification
+/// crossings no longer go through the bracket door at all. This row pins
+/// the warning as still true, so nobody reads the split as having fixed
+/// something it deliberately did not.
 #[test]
-fn clamping_a_poisoned_enclosure_yields_poison_not_the_window() {
-    assert!(RingInterval::poison().clamped_to(-1.0, 1.0).is_poison());
-    // The healthy half: a real narrowing still happens.
-    let narrowed = RingInterval::from_bounds(-3.0, 0.5).clamped_to(-1.0, 1.0);
-    assert!(!narrowed.is_poison());
-    assert_eq!((narrowed.lo(), narrowed.hi()), (-1.0, 0.5));
-    // A NaN window is poison too — it bounds nothing.
+fn the_from_bounds_round_trip_still_launders_and_is_still_only_for_the_driver() {
+    let rebuilt = Interval::from_bounds(Bounds::lo(trv()), Bounds::hi(trv()));
     assert!(
-        RingInterval::from_bounds(0.0, 1.0)
-            .clamped_to(f64::NAN, 1.0)
-            .is_poison()
+        rebuilt.is_certified(),
+        "the round trip is expected to scrub the decoration; if it no \
+         longer does, `from_bounds`' laundering warning needs rewriting"
     );
-    // And a window disjoint from the enclosure has no intersection to
-    // report, so it refuses rather than inverting.
-    assert!(
-        RingInterval::from_bounds(4.0, 5.0)
-            .clamped_to(-1.0, 1.0)
-            .is_poison()
-    );
+    // NaI and empty still cannot survive it: their brackets are NaN.
+    for (tag, x) in [("NaI", nai()), ("Empty", empty())] {
+        let r = Interval::from_bounds(Bounds::lo(x), Bounds::hi(x));
+        assert!(!r.is_certified(), "{tag}: rebuilt as certified");
+    }
 }

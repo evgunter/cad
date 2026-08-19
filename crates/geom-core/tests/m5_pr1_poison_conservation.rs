@@ -31,17 +31,6 @@
 
 use geom_core::{Band, Bounds, Decide, Indeterminate, Interval, MarginDiag, Real, Sign};
 
-/// The endpoints the backend actually STORED, read through the identity
-/// channel. [`Bounds`] deliberately refuses a decoration below `Def` and
-/// answers NaN, so a row whose subject is the *clamp itself* — "the
-/// bounds betray nothing; only the decoration does" — has to ask for the
-/// storage, while a row about what certification may consume asks
-/// `Bounds`.
-fn stored(x: Interval) -> (f64, f64) {
-    let (lo, hi, _) = x.repr_bits();
-    (f64::from_bits(lo), f64::from_bits(hi))
-}
-
 /// The fixed pure band used throughout (identical to `interval.rs`'s
 /// `band_1e9`): built via `Band::new`, so this file never touches the
 /// global tolerance and may hold many `#[test]`s.
@@ -94,7 +83,7 @@ fn the_poison_fixtures_are_what_they_claim_to_be() {
     assert!(empty().lo().is_nan() && empty().hi().is_nan());
     // The clamped one is the interesting fixture: healthy-looking bounds,
     // poisoned decoration.
-    assert_eq!(stored(clamped()), (0.0, 2.0));
+    assert_eq!((clamped().lo(), clamped().hi()), (0.0, 2.0));
     assert_poisoned("sqrt([-1, 4]) clamp", clamped());
     assert_poisoned("NaI", nai());
     assert_poisoned("Empty", empty());

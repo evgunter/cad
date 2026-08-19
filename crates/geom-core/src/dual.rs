@@ -1662,14 +1662,8 @@ mod tests {
             )
         }
 
-        /// The endpoints the backend actually STORED, read through the
-        /// identity channel rather than through [`Bounds`]. The two
-        /// differ exactly where these rows are pointed: `Bounds` refuses
-        /// a decoration below `Def` and reports NaN, so a row that means
-        /// to say "the clamp produced [0, 2] and recorded the violation
-        /// in the decoration" has to ask for the storage.
         fn bounds_of(x: Interval) -> (f64, f64) {
-            x.stored_bracket()
+            (x.lo(), x.hi())
         }
 
         /// The straddle convention: a value enclosure containing zero

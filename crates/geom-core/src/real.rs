@@ -495,14 +495,8 @@ pub trait Real:
 ///
 /// Poison surfaces honestly rather than narrowing: a poisoned `f64` yields
 /// NaN from both accessors, and the interval scalar yields NaN from both
-/// accessors for every shape its poison takes — the ill-formed interval
-/// (NaI), the empty one, and a *clamped* enclosure whose endpoints are
-/// finite but whose decoration records that the computation left its
-/// domain. The last is the one an implementor can get wrong by forwarding
-/// stored endpoints: the bracket is the only channel a consumer has, so
-/// what the accessors do not refuse cannot be refused anywhere
-/// downstream. Empty and NaI are deliberately indistinguishable through
-/// this trait:
+/// accessors for **both** the ill-formed interval (NaI) and the empty one.
+/// Empty and NaI are deliberately indistinguishable through this trait:
 /// IEEE 1788's canonical empty pair (+∞, −∞) would let `hi() ≤ ε` PASS for
 /// a poisoned-to-empty residual, and failing certification outranks
 /// representational honesty. A NaN bracket fails every downstream
@@ -557,10 +551,7 @@ impl Bounds for f64 {
 /// Identical to [`Bounds`]: `[lo(), hi()]` brackets every real number the
 /// value stands for, and **poison surfaces as NaN from both accessors**
 /// rather than narrowing — a NaN bracket fails every `residual <= eps`
-/// check loudly (D4 ¶2). Implementors owe that convention, including for
-/// poison their storage does not make visible: an enclosure carrying a
-/// domain violation in a side channel must refuse here even when its
-/// endpoints are finite.
+/// check loudly (D4 ¶2). Implementors owe that convention.
 ///
 /// # Style note (method-name shadowing)
 ///
@@ -588,6 +579,73 @@ impl<T: Bounds> Enclosure for T {
 
     fn hi(self) -> f64 {
         Bounds::hi(self)
+    }
+}
+
+/// **"May this value enter certified code?"** — the other half of what
+/// [`Bounds`] used to mean, given a name of its own.
+///
+/// [`Bounds`] and [`Enclosure`] answer *"what bracket does this value
+/// carry?"*: `[lo(), hi()]` is a superset of every real the value stands
+/// for, read off storage, and it stays a sound bracket even when the
+/// computation that produced it left a domain somewhere — interval
+/// arithmetic still brackets the values the expression *was* defined on.
+/// Certification asks a strictly stronger question: *was the expression
+/// defined on the whole input box?* A bracket can be sound and still fail
+/// that, and code that must not certify a domain violation needs to be
+/// able to tell.
+///
+/// So this trait is not "a better [`Enclosure`]" and does not replace it.
+/// It is the access-control half, split out, so that the two questions
+/// have separate doors and a caller has to say which one it is asking.
+/// It deliberately carries **one method and no supertrait**: a body that
+/// needs the raw bracket too says `T: Bounds + CertifiedEnclosure`, which
+/// is an honest inventory of the doors it uses. Making this a subtrait of
+/// [`Enclosure`] would re-bundle exactly what is being split, and would
+/// put a third `lo`/`hi` in scope wherever a compound bound is written —
+/// the ambiguity this module's style note already warns about for the
+/// [`Bounds`]/[`Enclosure`] pair.
+/// Certification entry points bound by `CertifiedEnclosure` cannot be
+/// handed a value that merely *has* a bracket; containment checks bounded
+/// by [`Bounds`] keep working on values certification would refuse, which
+/// is exactly right — a `Trv` enclosure still contains what it claims to.
+///
+/// # Implementors
+///
+/// - `f64` — always certified. The bracket is the value; a poisoned `f64`
+///   is NaN and surfaces as NaN through the bracket, which fails every
+///   downstream `residual ≤ ε` on its own (D4 ¶2). There is no separate
+///   domain-violation channel at `f64` to consult, so the accessor never
+///   refuses and this lane's numbers are exactly what they were.
+/// - [`crate::Interval`] — refuses below `Decoration::Def`, the same
+///   threshold [`crate::predicate::Decide::sign_within`] refuses at, and
+///   for the same reason.
+/// - [`crate::RingInterval`] — always certified. The ring has two states
+///   and no decorations: poison is NaN endpoints, which
+///   `RingInterval::from_bounds` already rejects.
+///
+/// **[`crate::Dual`] is deliberately absent**, as it is from [`Bounds`].
+/// Nothing in `src` needs a dual in certified code, and leaving the impl
+/// unwritten keeps *whether a dual may certify* an open question to be
+/// settled on its own evidence rather than one answered in passing here.
+pub trait CertifiedEnclosure: Copy {
+    /// The bracket, or `None` if this value carries a domain violation.
+    ///
+    /// `Some([lo, hi])` promises both things at once: the pair brackets
+    /// every real the value stands for **and** the computation behind it
+    /// was defined on the whole input box. `None` is the refusal, and it
+    /// is a refusal rather than a NaN bracket on purpose — NaN would be
+    /// indistinguishable from arithmetic poison and would travel silently
+    /// through `f64` combinators (`f64::max` returns the non-NaN operand),
+    /// whereas a `None` the caller must destructure cannot be ignored.
+    fn certified_bracket(self) -> Option<(f64, f64)>;
+}
+
+/// `f64` always certifies: it has no domain-violation channel to consult
+/// (see the trait docs).
+impl CertifiedEnclosure for f64 {
+    fn certified_bracket(self) -> Option<(f64, f64)> {
+        Some((self, self))
     }
 }
 

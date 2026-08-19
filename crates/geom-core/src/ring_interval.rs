@@ -172,8 +172,13 @@ impl RingInterval {
     /// summed).
     ///
     /// **Poison first**, and that is the whole reason this is a method
-    /// rather than the two-line spelling at each call site: `f64::max`
-    /// and `f64::min` return the *non*-NaN operand, so
+    /// rather than the two-line spelling at each call site. The hazard is
+    /// not about decorations and does not depend on the interval scalar
+    /// being in the build: NaI and the empty enclosure already surface as
+    /// NaN endpoints from storage, and `RingInterval` poison is NaN by
+    /// construction, so the swallow below is reachable in a plain `f64`
+    /// build too. `f64::max` and `f64::min` return the *non*-NaN operand,
+    /// so
     /// `from_bounds(x.lo().max(lo), x.hi().min(hi))` resurrects a
     /// poisoned enclosure as the window itself — a plausible, sound-
     /// looking bracket with no argument behind it, which is the
@@ -251,6 +256,16 @@ impl RingInterval {
         }
         let (a, b) = (self.lo.abs(), self.hi.abs());
         if a > b { a } else { b }
+    }
+}
+
+/// The ring always certifies: it has two states and no decorations, so
+/// there is no domain-violation channel to consult. Poison is NaN
+/// endpoints, which [`RingInterval::from_bounds`] already rejects
+/// downstream — the refusal is the bracket's, not a separate one.
+impl crate::real::CertifiedEnclosure for RingInterval {
+    fn certified_bracket(self) -> Option<(f64, f64)> {
+        Some((self.lo, self.hi))
     }
 }
 
