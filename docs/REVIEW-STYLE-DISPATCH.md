@@ -13,28 +13,14 @@ once, then point reviewers at it by path — do not paste it.**
 
 ---
 
-## 1. Why this exists (dispatcher context)
+## 1. The failure mode to avoid
 
-`docs/SMELL-SCAN-2026-08.md` §C established, from twenty structural scans and
-seven postmortem passes over the merged history, that this project's reviews
-are **exceptionally strong at soundness and structurally blind**. The same
-reviews that ran 8000-matrix SVD differentials, re-derived a meters conversion
-by hand, and found a certificate excluding true 2π by ~1111 widths produced
-**zero** findings on: a mode switch on `is_empty()`, a two-ε signature, a file
-holding four quadrature engines, three parallel CDT pipelines, a second surface
-enum, or a body-wide accessor in the wrong crate.
-
-The cause is not effort. It is that the protocol is **claims-driven**:
-reviewers falsify the claims they are handed, and they do it well. A code-free
-module, a 449-line accumulated header, and a duplicate type name across a
-façade **assert nothing**, so nothing points a reviewer at them.
-
-**The failure mode to avoid is turning the reviewer brief into a checklist.** Reviewers here answer the questions they are given. Ten crisp
-yes/no items will produce ten crisp ticks and no judgement. Every question
-in the reviewer brief is phrased to require taste, and its stance exists to make "I'm not
-sure, but this looks off" a *complete and welcome* review finding — which the
-adversarial-falsification lane, with its high confidence bar, actively
-discourages.
+**Do not turn the reviewer brief into a checklist.** Reviewers answer the
+questions they are given: ten crisp yes/no items will produce ten crisp ticks
+and no judgement. Every question in the brief is phrased to require taste, and
+its stance exists to make "I'm not sure, but this looks off" a *complete and
+welcome* finding — which the adversarial-falsification lane, with its high
+confidence bar, actively discourages.
 
 ---
 
