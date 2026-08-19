@@ -1,20 +1,15 @@
 # The style lane — dispatcher notes
 
-The reviewer's document is `docs/prompts/reviewer-style-lane.md`. **Read it once, then
-point reviewers at it by path — do not paste it.** Pasting produced six subtly
-different instruments in one wave, which is §S4's own shape applied to the
-review protocol, and it makes "which version did this review run?"
-unanswerable after the fact. A path makes the answer a commit.
+The reviewer's document is `docs/prompts/reviewer-style-lane.md`. **Read it
+once, then point reviewers at it by path — do not paste it.**
 
 **What a dispatch still owes, on top of the pointer:**
 
 - the explicit claims to falsify (`memories/orchestration-model.md`);
 - any per-lane emphasis — which questions carry this particular review, and
-  why. Pointing does not remove tailoring, it removes restating the invariant
-  part;
+  why;
 - a reminder that the report must name the questions exercised and carry the
-  confidence vocabulary. That is the read-verification: a report missing it
-  did not run the instrument.
+  confidence vocabulary.
 
 ---
 
