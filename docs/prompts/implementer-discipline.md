@@ -3,9 +3,6 @@
 **Read this in full before you start.** It is binding on every implementer
 lane, alongside the unit's own spec or brief.
 
-**If you ran anything locally, your report must say what and on which
-`CARGO_TARGET_DIR`.** CI speaks for itself on the PR; a local run does not.
-
 ---
 
 ## 1. Output discipline
@@ -30,10 +27,16 @@ silently.
 
 When you do run locally:
 
-- **Foreground, one at a time**, reading each result before the next. Never arm
-  waiters, monitors, or background chains for your own builds and tests. When
-  the build queue is busy, a blocking foreground wait is the correct state —
-  re-issue a timed-out call rather than parking.
+- **Prefer foreground, one at a time**, reading each result before the next.
+  Backgrounding a build or test is not forbidden, but treat it as risky:
+  harness bugs mean the completion notification often does not arrive, so a
+  backgrounded row can finish with nothing waking you.
+- **Never end your turn with background work still active.** That is the case
+  where a lost notification costs you everything — nobody is waiting, nothing
+  wakes, and the lane stalls completely rather than failing visibly. Finish or
+  abandon the background row first.
+- When the build queue is busy, a blocking foreground wait is the correct state
+  — re-issue a timed-out call rather than parking.
 - **Use your own `CARGO_TARGET_DIR`, never one shared with another lane.** A
   shared target directory clobbers across git worktrees and will serve you
   another lane's binary — observed twice in one wave, once reporting a test
