@@ -6,9 +6,10 @@
 //! All three operands are extrudes of pure POLYGON letterforms (an
 //! "H" on the xy plane extruded +z, a "T" on the yz plane extruded
 //! +x, a "C" on the zx plane extruded +y — all three letter boxes the
-//! same 3-unit height): every face a plane, every edge a line —
-//! `gate_planar` passes, no curved geometry near a boolean (round
-//! letterforms are the M5 upgrade). A×Z was probed (#91, 2026-07-25)
+//! same 3-unit height): every face a plane, every edge a line — the
+//! operand gate (`reduce::gate_operand_kinds`) passes and no curved
+//! geometry goes near a boolean at all (round letterforms are the M5
+//! upgrade). A×Z was probed (#91, 2026-07-25)
 //! and refused typed then — banked as the acceptance fixture for the
 //! cookie-cutter role resolver's vertex-only-probing gap, closed by
 //! #108; it now runs as its own tour stop (`az.rs`).

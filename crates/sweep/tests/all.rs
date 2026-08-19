@@ -176,6 +176,8 @@ mod revolve_partial;
 mod revolve_washer;
 #[path = "s16_box_soundness.rs"]
 mod s16_box_soundness;
+#[path = "s49_census_jurisdiction.rs"]
+mod s49_census_jurisdiction;
 
 /// Guards the `autotests = false` hazard: a suite file added to `tests/`
 /// but not declared above would silently stop being compiled and run.

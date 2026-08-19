@@ -152,7 +152,8 @@ impl ContactAcc {
 }
 
 /// The per-arm operand gate (M5 PR 9, C12.1 — the F5 planar-only gate
-/// retires PER C5 TABLE ARM, never wholesale). Face kinds with at
+/// retires PER C5 TABLE ARM, never wholesale). It is named for the
+/// kinds it admits, which are no longer only planar ones. Face kinds with at
 /// least one wired boolean arm pass here — `Plane`, `Cylinder` (the
 /// PR 5 conic arms), `Sphere` (the PR 7 cylinder×sphere SSI arm,
 /// structurally routed), and `Nurbs` (the plane×NURBS arm, routed
@@ -164,7 +165,10 @@ impl ContactAcc {
 /// pass (the crossing and split lanes handle all three); `Nurbs`
 /// operand edges refuse typed (rung-3 INPUT operands are not in the
 /// M5 envelope — rung-3 edges are what the zip MINTS).
-pub(super) fn gate_planar<T: Decide>(body: &Body<T>, operand: Operand) -> Result<(), BooleanError> {
+pub(super) fn gate_operand_kinds<T: Decide>(
+    body: &Body<T>,
+    operand: Operand,
+) -> Result<(), BooleanError> {
     for (face_key, face) in body.faces() {
         match body.get_surface(face.surface) {
             Some(
