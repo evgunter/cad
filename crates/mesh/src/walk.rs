@@ -526,13 +526,20 @@ fn closure_gap_is_noise(gap: f64, radius: f64, eps: f64) -> bool {
 /// column is `anchor` either way — so what it measures is **data
 /// quality**, which is what it was always really about.
 ///
-/// MEASURED (M8 census, 315 governed closures over the tour and the
-/// wild corpus; the instrumentation was temporary, the numbers are
-/// not): 266 gaps bitwise zero, the tour's worst 4.0e-15 rad (9 ulps
-/// at u ≈ π). Seven of the eight importable wild files are exact on
-/// every closure; all 18 nonzero gaps are in `nist_ftc_09`, 16 of them
-/// at just two values (3.5640e-9 and 8.4502e-9 rad) at one radius,
-/// 2.9718e-3 m = 0.117 inch.
+/// MEASURED (S22, re-run over the whole wild corpus and the mesh
+/// suite; the instrumentation was temporary, the numbers are not).
+/// **Wild: 125 governed closures per δ, 20 nonzero.** Eighteen are
+/// `nist_ftc_09`'s — sixteen at just two values (3.5640e-9 and
+/// 8.4502e-9 rad) at one radius, 2.9718e-3 m = 0.117 inch, plus two at
+/// ~2e-14 rad — and two are `stepcode/sg1-c5-214.stp`'s, at
+/// ~5.849e-13 rad on a 2.0e-2 m radius. Every other importable wild
+/// file is exact on every closure. **In-tree: 381 closures, 4
+/// nonzero**, all 1 ulp and all from the one obliquely-placed fixture.
+/// (The earlier M8 census reported "all 18 in one file"; it ran off
+/// the montage cell set, which excludes `sg1-c5-214` by licence.)
+/// Discrete values repeated at a single radius is one geometric
+/// feature instanced many times — walk length has nothing to do with
+/// it, and this is not accumulated error.
 ///
 /// TRACED. Those closures are hole generators whose two endpoints the
 /// FILE states non-co-azimuthally:
