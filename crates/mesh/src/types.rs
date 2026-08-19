@@ -198,4 +198,30 @@ pub enum TessellateError {
         /// The face whose trim loop touches itself.
         face: FaceKey,
     },
+    /// A curved face's boundary walk does not trace its own UV
+    /// bounding rectangle: some walk entry lies strictly inside the
+    /// box, so the domain is notched / L-shaped rather than the swept
+    /// UV rectangle the `curved` lane's interior grid assumes.
+    ///
+    /// Valid input, unbuilt lane (D2 addendum row 2), NOT corruption.
+    /// The grid runs the open ranges `1..nu` × `1..nv` over the walk's
+    /// own bounding box, which is strictly interior **iff the polygon
+    /// IS that box**; on a notched domain the grid instead splits
+    /// boundary constraints and `inner_faces()` emits triangles
+    /// outside the face — a silently wrong mesh (a 3-D T-junction plus
+    /// ghost geometry), which is what this refusal replaces. It is the
+    /// `curved`-chart twin of [`Self::SelfTouchingTrimLoop`].
+    ///
+    /// No sweep, boolean or import mints one today: the boolean
+    /// refuses `CurvedPierceUnsupported` and `import_step`'s tier-3
+    /// at-rest gate refuses `NotIsoRectangle` (S28). Both of those are
+    /// *other modules'* limits; this arm is the check at the site that
+    /// makes the assumption.
+    UnsupportedCurvedDomain {
+        /// The offending face.
+        face: FaceKey,
+        /// How many walk entries lie strictly inside the UV bounding
+        /// box (runtime-visible through `Debug`; ≥ 1 when this fires).
+        off_bbox: usize,
+    },
 }

@@ -2,10 +2,17 @@
 //! periodic unwrapping — turning a curved face's loop into a UV polygon
 //! whose sides are exactly straight (bitwise-constant u or v).
 //!
-//! Every curved M2 face is a swept UV rectangle whose boundary edges
-//! are iso-curves (extrude/revolve structure, PR 4/5): **rims** (circles
-//! around the surface axis, v = const) and **meridians** (u = const:
-//! struts/generators/profile copies/`Seam` edges). The walk classifies
+//! Every curved face this project's SWEEPS author is a swept UV
+//! rectangle whose boundary edges are iso-curves (extrude/revolve
+//! structure, PR 4/5): **rims** (circles around the surface axis,
+//! v = const) and **meridians** (u = const:
+//! struts/generators/profile copies/`Seam` edges). That is a fact
+//! about authoring, **not** about input — an iso-bounded domain need
+//! not be a rectangle (a keyway on a cylinder is bounded by lines and
+//! circles and is a U), and this walk handles such a loop perfectly
+//! well; it is [`crate::curved`]'s interior grid that needs the
+//! rectangle, and that lane checks it (S28,
+//! `TessellateError::UnsupportedCurvedDomain`). The walk classifies
 //! each traversal structurally, assigns the constant coordinate once
 //! per edge (never per point — so rectangle sides are bitwise straight
 //! and the CDT sees no sliver-generating wobble), and unwraps the
