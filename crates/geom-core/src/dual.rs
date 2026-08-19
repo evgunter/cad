@@ -1431,7 +1431,7 @@ mod tests {
     /// through the `libm` crate (D9). The census in `real.rs`
     /// (`libm_vs_std_divergence_census`) measures their divergence at
     /// ≤ 4 ulps over 20k samples and *asserts* that bound rather than
-    /// only reporting it — but its scope is `sin`/`cos` on [−1000, 1000]
+    /// only reporting it — but its scope is `sin`/`cos` over −1000..1000
     /// only. The other transcendentals compared here (`tan`, `asin`,
     /// `acos`, `atan`, `atan2`, `powi`) are unmeasured, and neither side
     /// promises a bound on any of them — so transcendental *value*
