@@ -42,7 +42,7 @@ When you do run locally:
   another lane's binary — observed twice in one wave, once reporting a test
   count from sources that were not yours, once behind a green claim over ten
   broken assertions. Confirm a `Compiling <crate>` line appears before trusting
-  any run. Delete your target dir when the lane is done; they run to several GB.
+  any run.
 - **A build is not a test.** `cargo build` cannot see a broken
   `assert!(msg.contains(…))`. A lane that rewrote text asserted anywhere and ran
   only builds has verified nothing about it.
