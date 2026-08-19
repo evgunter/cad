@@ -36,6 +36,8 @@ mod boxes;
 mod compose;
 #[path = "curvo_oracle.rs"]
 mod curvo_oracle;
+#[path = "decoration_ring_coords.rs"]
+mod decoration_ring_coords;
 #[path = "fit_certify.rs"]
 mod fit_certify;
 #[path = "fitting.rs"]
