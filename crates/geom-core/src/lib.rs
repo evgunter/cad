@@ -44,4 +44,7 @@ pub use predicate::{
 pub use real::{Bounds, CertifiedBounds, CertifiedEnclosure, Enclosure, Real};
 pub use ring_interval::RingInterval;
 pub use spline::{KnotVector, SpanLocate, SpanSet, SplineError};
-pub use tolerance::{Tolerance, ToleranceEnvError, ToleranceEnvErrorKind, ToleranceError};
+pub use tolerance::{
+    EpsilonSource, Tolerance, ToleranceEnvError, ToleranceEnvErrorKind, ToleranceError,
+    ToleranceReport,
+};

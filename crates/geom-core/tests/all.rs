@@ -36,6 +36,8 @@ mod ambiguity_k_env;
 mod band_tolerance;
 #[path = "decoration_seam.rs"]
 mod decoration_seam;
+#[path = "eps_provenance.rs"]
+mod eps_provenance;
 #[path = "flagged_census.rs"]
 mod flagged_census;
 #[path = "interval_band.rs"]
