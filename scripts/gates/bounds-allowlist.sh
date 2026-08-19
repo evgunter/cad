@@ -84,7 +84,10 @@
 # skipped by name. A name's definition is not a use of it, and the pair
 # has to be written literally exactly once for the alias to exist. This
 # skips two lines, not the file: any other compound bound in real.rs
-# still fires.
+# still fires, and the self-test PROVES it does — a third planted case
+# writes real.rs carrying both skipped definition lines and an ordinary
+# compound signature below them, and requires the gate to fire. Widening
+# the skip to a file-wide entry makes that case fail.
 # The match is order-insensitive: `Decide + Bounds` and `Bounds + Decide`
 # both fire, and the self-test plants both spellings.
 # KNOWN GAP: the match is line-based, so a bound broken across lines —
@@ -132,11 +135,29 @@ plant_bounds_first() {
   printf 'pub fn f<T: Bounds + Decide>(_t: T) {}\n' > "$1/crates/planted/src/lib.rs"
 }
 
+# The definition skip is NARROW, and this is what holds it narrow. The
+# fixture is real.rs itself, carrying BOTH the alias's two skipped
+# definition lines AND an ordinary compound bound in a signature below
+# them: the gate must still fire. Without this case the header's claim
+# that the skip costs only two lines is prose, and a future widening of
+# those `grep -v` filters — someone loosening them for a reformat — would
+# blind the gate to the very file that defines the rule with nothing
+# going red.
+plant_real_rs_signature() {
+  mkdir -p "$1/crates/geom-core/src"
+  {
+    printf 'pub trait CertifiedBounds: Bounds + CertifiedEnclosure {}\n'
+    printf 'impl<T: Bounds + CertifiedEnclosure> CertifiedBounds for T {}\n'
+    printf 'pub fn planted<T: Decide + Bounds>(_t: T) {}\n'
+  } > "$1/crates/geom-core/src/real.rs"
+}
+
 gate_selftest() {
   gate_selftest_clean
   gate_selftest_case "compound Bounds bound outside the ratified seams" plant_decide_first
   gate_selftest_case "compound Bounds bound outside the ratified seams" plant_bounds_first
-  printf '%s selftest OK: passes a clean fixture, fires on both operand orders\n' "$(gate_name)"
+  gate_selftest_case "compound Bounds bound outside the ratified seams" plant_real_rs_signature
+  printf '%s selftest OK: passes a clean fixture, fires on both operand orders, and fires on a compound bound in real.rs beside the skipped definition lines\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

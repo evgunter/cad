@@ -4353,6 +4353,15 @@ definition lines are skipped by name, since a name's definition is not a
 use of it — two lines, not the file, so any other compound bound in
 `real.rs` still fires.
 
+That last claim is **held by a test rather than by the header prose**,
+which is the shape this batch spent the day removing. A third planted
+case writes `real.rs` carrying both skipped definition lines *and* an
+ordinary `T: Decide + Bounds` signature below them, and requires the gate
+to fire; widening the skip into a file-wide allowlist entry makes that
+case fail (verified by mutation). So a future loosening of those filters
+— someone making them fuzzier to survive a reformat — cannot silently
+blind the gate to the file that defines the rule.
+
 ---
 
 # §A. Where I would start
