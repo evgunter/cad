@@ -14,10 +14,12 @@
 //! rectangle, and that lane checks it (S28,
 //! `TessellateError::UnsupportedCurvedDomain`). The walk classifies
 //! each traversal structurally, assigns the constant coordinate once
-//! per edge (never per point — so rectangle sides are bitwise straight
-//! and the CDT sees no sliver-generating wobble), and unwraps the
-//! periodic coordinate(s) by continuity (chord steps ≤ π/4 make branch
-//! choice unambiguous away from poles). One structural exception: a
+//! per ISO SIDE (never per point, and — since #653 — never per edge
+//! either, so a side carried by several edges is bitwise straight too
+//! and the CDT sees no sliver-generating wobble; see
+//! [`iso_side_starts`]), and unwraps the periodic coordinate(s) by
+//! continuity (chord steps ≤ π/4 make branch choice unambiguous away
+//! from poles). One structural exception: a
 //! rim-anchored loop's **final** meridian contains the loop's closing
 //! vertex, so its column takes the branch nearest the first polygon
 //! entry (`out[0].u`) rather than continuity — the right BRANCH by
@@ -277,8 +279,9 @@ impl Chart {
     }
 
     /// The (raw) v of a rim from its carrier circle's center and
-    /// radius — assigned once per edge so rim rows are bitwise
-    /// straight.
+    /// radius. One value per EDGE; a row carried by several edges is
+    /// then given the first one for all of them (`iso_side_starts`),
+    /// which is what makes the row bitwise straight.
     pub(crate) fn rim_v(&self, center: Point3<f64>, radius: f64) -> f64 {
         let h = (center - self.anchor).dot(self.axis);
         match self.kind {
@@ -493,6 +496,79 @@ fn closure_is_snappable(residue: f64, radius: f64, eps: f64) -> bool {
     residue * radius < eps
 }
 
+/// Which traversals OPEN an iso side, cyclically (issue #653).
+///
+/// An iso side of a curved face may be carried by SEVERAL edges — a
+/// vertex dropped on it by [`topo::Body::split_edge`], a boolean, or an
+/// exporter emitting two collinear `EDGE_CURVE`s (which is what every
+/// exporter emits when a vertex lands on that edge). Each such edge
+/// derives its own constant coordinate from its own mid-parameter
+/// point, so the side is straight only to ulps under a general rigid
+/// placement — analytically equal, bitwise equal only on axis-aligned
+/// dyadic fixtures. Grouping the edges into RUNS and giving each run
+/// ONE coordinate restores the bitwise-straight side, and with it the
+/// premise `curved`'s interior grid and its domain guard rest on.
+///
+/// # The test is structural, not a band
+///
+/// Two consecutive traversals belong to one iso side iff they are the
+/// same kind and their shared junction vertex is a REGULAR point of the
+/// chart. That is not an approximation:
+///
+/// - A point off the axis has exactly ONE azimuth, so two meridians
+///   meeting there are necessarily co-azimuthal — there is no such
+///   thing as a meridian-meridian corner away from the axis.
+/// - Two coaxial circles at different `v` are disjoint, so two rims
+///   meeting anywhere are necessarily co-`v`.
+///
+/// The only way consecutive same-kind traversals can be genuinely
+/// different sides is a CHART SINGULARITY at the junction — which is
+/// exactly the pole-fan corner the walk already emits two entries for,
+/// and exactly the π-apart wire-band case [`unwrap_tie`] exists for.
+///
+/// # One test for every singularity, including the one `poles()` omits
+///
+/// Every chart singularity lies ON THE AXIS: a sphere's poles, a cone's
+/// apex, and — not listed by [`Chart::poles`] — the axis point of a
+/// horn or spindle torus, where `major + minor·cos v` vanishes. So
+/// `radial(junction) > eps` covers all three with one comparison, and
+/// covers the torus's without teaching `poles()` a new case that would
+/// move the pole machinery's output elsewhere.
+///
+/// The bar is a LENGTH, as everywhere else in this module: within ε of
+/// the axis an azimuth carries no distinguishable direction, so the
+/// conservative answer — break the run, keep the per-edge coordinate —
+/// is the right one there.
+///
+/// # What this cannot change
+///
+/// On a loop whose every iso side is one edge, consecutive traversals
+/// always differ in kind or meet at a pole, so EVERY entry is `true`
+/// and every rule downstream is the one that ran before #653. That is
+/// why unsplit bodies mesh bitwise as they did.
+fn iso_side_starts(
+    travs: &[Trav],
+    chart: &Chart,
+    positions: &[Point3<f64>],
+    eps: f64,
+) -> Vec<bool> {
+    let m = travs.len();
+    (0..m)
+        .map(|k| {
+            if m < 2 {
+                return true;
+            }
+            let same_kind = matches!(
+                (&travs[(k + m - 1) % m].kind, &travs[k].kind),
+                (TravKind::Rim { .. }, TravKind::Rim { .. })
+                    | (TravKind::Meridian { .. }, TravKind::Meridian { .. })
+            );
+            let junction = positions[travs[k].ids[0] as usize];
+            !(same_kind && chart.radial(junction) > eps)
+        })
+        .collect()
+}
+
 pub(crate) fn loop_polygon(
     body: &Body<f64>,
     chart: &Chart,
@@ -503,14 +579,45 @@ pub(crate) fn loop_polygon(
     eps: f64,
 ) -> Result<Vec<UvPoint>, TessellateError> {
     let mut travs = traversals(body, chart, chords, face, lk)?;
-    // Anchor the walk at a rim if the loop has one.
-    if let Some(start) = travs
-        .iter()
-        .position(|t| matches!(t.kind, TravKind::Rim { .. }))
-    {
+    let m = travs.len();
+    // ISO-SIDE RUNS (#653): which traversals open a side, and so take
+    // a fresh constant coordinate rather than the running one.
+    let mut starts = iso_side_starts(&travs, chart, positions, eps);
+    let has_rim = travs.iter().any(|t| matches!(t.kind, TravKind::Rim { .. }));
+    // Anchor the walk at a rim if the loop has one — and, among rims,
+    // at one that OPENS its row, so that no run wraps past index 0.
+    // On an unsplit loop every rim opens its row and this is the
+    // `position(Rim)` it replaces, index for index.
+    let anchor_at = if has_rim {
+        (0..m)
+            .find(|&k| matches!(travs[k].kind, TravKind::Rim { .. }) && starts[k])
+            .or_else(|| {
+                travs
+                    .iter()
+                    .position(|t| matches!(t.kind, TravKind::Rim { .. }))
+            })
+    } else {
+        // No rim: the walk did not rotate before #653 and still does
+        // not on an unsplit loop, where `starts[0]` is already true.
+        (0..m).find(|&k| starts[k])
+    };
+    if let Some(start) = anchor_at {
         travs.rotate_left(start);
+        starts.rotate_left(start);
     }
-    let no_rim = !travs.iter().any(|t| matches!(t.kind, TravKind::Rim { .. }));
+    // Traversal 0 opens the walk whatever the cycle looked like: it has
+    // no predecessor to continue. (Only reachable as a `false` in the
+    // degenerate case where the whole loop is one cyclic run and no
+    // rotation could open it — then this is the pre-#653 behaviour for
+    // that one junction, which is no worse than before.)
+    if let Some(first) = starts.first_mut() {
+        *first = true;
+    }
+    // The LAST iso side of the walk — the one carrying the loop's
+    // closing meridian, and so the one the closure rule applies to.
+    // `m - 1` on an unsplit loop.
+    let closing_side = (0..m).rev().find(|&k| starts[k]).unwrap_or(0);
+    let no_rim = !has_rim;
     // The face's S10 orientation sense as a `±1` (module docs, the
     // pole-to-pole band). Read once here; consumed at exactly one site
     // below.
@@ -570,7 +677,6 @@ pub(crate) fn loop_polygon(
         None
     };
 
-    let m = travs.len();
     let mut out: Vec<UvPoint> = Vec::new();
     let mut prev_u = match &band_u {
         Some(us) => us[m - 1],
@@ -583,10 +689,29 @@ pub(crate) fn loop_polygon(
         let jpole = pole_v(jid);
         match cur.kind {
             TravKind::Rim { v_raw } => {
-                let v_edge = if chart.v_periodic() && k > 0 {
+                let v_own = if chart.v_periodic() && k > 0 {
                     unwrap_near(v_raw, prev_v)
                 } else {
                     v_raw
+                };
+                let v_edge = if starts[k] {
+                    v_own
+                } else {
+                    // Same iso side as the previous traversal: ONE row
+                    // for the whole side, bitwise (#653). The two
+                    // values are the same analytic v down two float
+                    // paths (two carrier circles' centres), so the
+                    // difference is a statement about the INPUT — the
+                    // detector below, in metres, is the only place the
+                    // project sees it, and it gates nothing.
+                    debug_assert!(
+                        closure_is_snappable((v_own - prev_v).abs(), chart.v_lever(), eps),
+                        "two edges of one rim row disagree by {} in v at a {} m/unit                          lever arm — {} m, over eps {eps}. The mesh does not depend                          on this (the row is the first edge's v either way); it says                          the two carrier circles are not the same circle.",
+                        (v_own - prev_v).abs(),
+                        chart.v_lever(),
+                        (v_own - prev_v).abs() * chart.v_lever()
+                    );
+                    prev_v
                 };
                 let ju = if k == 0 {
                     chart.u_of(positions[jid as usize])
@@ -617,16 +742,44 @@ pub(crate) fn loop_polygon(
             }
             TravKind::Meridian { u_raw } => {
                 let anchor = out.first().map_or(prev_u, |e| e.u);
-                let ut = match &band_u {
-                    Some(us) => us[k],
-                    // Final traversal: its column contains the loop's
-                    // closing vertex (`out[0]` lies on this meridian
-                    // plane), so the branch nearest the closing anchor
-                    // is exact by construction — continuity toward
-                    // `prev_u` would pick the wrong branch for wedge
-                    // angles θ > 3π/2 (the 2π − θ < π/2 shortcut).
-                    None if k == m - 1 => unwrap_near(u_raw, anchor),
-                    None => unwrap_tie(u_raw, prev_u, anchor),
+                let ut = if starts[k] {
+                    match &band_u {
+                        Some(us) => us[k],
+                        // Final iso side: its column contains the
+                        // loop's closing vertex (`out[0]` lies on this
+                        // meridian plane), so the branch nearest the
+                        // closing anchor is exact by construction —
+                        // continuity toward `prev_u` would pick the
+                        // wrong branch for wedge angles θ > 3π/2 (the
+                        // 2π − θ < π/2 shortcut). `closing_side` is
+                        // `m - 1` unless that side is carried by
+                        // several edges, in which case the rule belongs
+                        // to the side, not to its last edge.
+                        None if k == closing_side => unwrap_near(u_raw, anchor),
+                        None => unwrap_tie(u_raw, prev_u, anchor),
+                    }
+                } else {
+                    // Same iso side as the previous traversal: ONE
+                    // column for the whole side, bitwise (#653). This
+                    // is the substitution the loop closure makes at the
+                    // seam, one level over — the sub-edges are each
+                    // other's float-path twins the way the closure's
+                    // two paths are. The detector below measures the
+                    // gap in metres and gates nothing; a nonzero value
+                    // is a statement about the INPUT's coordinates.
+                    debug_assert!(
+                        closure_is_snappable(
+                            (unwrap_near(u_raw, prev_u) - prev_u).abs(),
+                            chart.radial(positions[jid as usize]),
+                            eps
+                        ),
+                        "two edges of one meridian column disagree by {} rad at radius                          {} m — {} m of arc, over eps {eps}. The mesh does not depend                          on this (the column is the first edge's either way); it says                          the source states one iso side's carriers off-axis.",
+                        (unwrap_near(u_raw, prev_u) - prev_u).abs(),
+                        chart.radial(positions[jid as usize]),
+                        (unwrap_near(u_raw, prev_u) - prev_u).abs()
+                            * chart.radial(positions[jid as usize])
+                    );
+                    prev_u
                 };
                 if let Some(vp) = jpole {
                     // Close the incoming column, open the outgoing one.
@@ -875,5 +1028,95 @@ mod tests {
     #[test]
     fn on_the_axis_every_residue_snaps() {
         assert!(closure_is_snappable(core::f64::consts::PI, 0.0, 1e-9));
+    }
+
+    // ---- iso-side runs (#653) -----------------------------------
+
+    fn trav(kind: TravKind, ids: &[u32]) -> Trav {
+        Trav {
+            ids: ids.to_vec(),
+            kind,
+        }
+    }
+
+    fn rim(ids: &[u32]) -> Trav {
+        trav(TravKind::Rim { v_raw: 0.0 }, ids)
+    }
+
+    fn meridian(ids: &[u32]) -> Trav {
+        trav(TravKind::Meridian { u_raw: 0.0 }, ids)
+    }
+
+    /// Positions for the rows below: id 0 is the chart's north pole,
+    /// id 1 the south pole, and ids 2.. are ordinary surface points.
+    fn unit_sphere_positions() -> Vec<Point3<f64>> {
+        vec![
+            Point3::new(0.0, 0.0, 1.0),
+            Point3::new(0.0, 0.0, -1.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(0.6, 0.8, 0.0),
+        ]
+    }
+
+    /// A loop whose every iso side is ONE edge — the shape every
+    /// unsplit body has — must open a side at every traversal, so
+    /// nothing downstream of `starts` can behave differently from the
+    /// pre-#653 walk.
+    #[test]
+    fn alternating_rims_and_meridians_open_a_side_every_time() {
+        let c = z_chart(ChartKind::Sphere { r: 1.0 });
+        let p = unit_sphere_positions();
+        let travs = vec![rim(&[2, 3]), meridian(&[3, 4]), rim(&[4, 2]), meridian(&[2, 2])];
+        assert_eq!(
+            iso_side_starts(&travs, &c, &p, 1e-9),
+            vec![true, true, true, true]
+        );
+    }
+
+    /// Two meridians meeting AWAY from the axis are one iso side: a
+    /// point off the axis has exactly one azimuth, so there is no such
+    /// thing as a meridian-meridian corner there.
+    #[test]
+    fn consecutive_meridians_off_the_axis_are_one_side() {
+        let c = z_chart(ChartKind::Sphere { r: 1.0 });
+        let p = unit_sphere_positions();
+        let travs = vec![rim(&[2, 3]), meridian(&[3, 4]), meridian(&[4, 2])];
+        assert_eq!(iso_side_starts(&travs, &c, &p, 1e-9), vec![true, true, false]);
+    }
+
+    /// A POLE junction is a corner, not one side — the fan the walk
+    /// emits two entries for, and `unwrap_tie`'s π-apart wire band.
+    /// The test that separates them is spatial and reads the point, so
+    /// it fires for a sphere's poles here and for a cone's apex or a
+    /// horn torus's axis point with no extra case.
+    #[test]
+    fn a_pole_junction_always_breaks_the_side() {
+        let c = z_chart(ChartKind::Sphere { r: 1.0 });
+        let p = unit_sphere_positions();
+        let travs = vec![meridian(&[2, 0]), meridian(&[0, 3]), meridian(&[3, 1])];
+        assert_eq!(iso_side_starts(&travs, &c, &p, 1e-9), vec![true, true, true]);
+    }
+
+    /// Rims run too: two coaxial circles at different `v` are
+    /// disjoint, so two rims that meet are necessarily co-`v`.
+    #[test]
+    fn consecutive_rims_off_the_axis_are_one_row() {
+        let c = z_chart(ChartKind::Cylinder { r: 1.0 });
+        let p = unit_sphere_positions();
+        let travs = vec![rim(&[2, 3]), rim(&[3, 4]), meridian(&[4, 2])];
+        assert_eq!(iso_side_starts(&travs, &c, &p, 1e-9), vec![true, false, true]);
+    }
+
+    /// The junction test is CYCLIC — traversal 0's predecessor is the
+    /// last one — which is what lets `loop_polygon` rotate the walk
+    /// onto a side that opens rather than into the middle of one.
+    #[test]
+    fn the_side_test_wraps_around_the_loop() {
+        let c = z_chart(ChartKind::Cylinder { r: 1.0 });
+        let p = unit_sphere_positions();
+        // ids[0] of traversal 0 is 2, shared with the last traversal.
+        let travs = vec![meridian(&[2, 3]), rim(&[3, 4]), meridian(&[4, 2])];
+        assert_eq!(iso_side_starts(&travs, &c, &p, 1e-9), vec![false, true, true]);
     }
 }
