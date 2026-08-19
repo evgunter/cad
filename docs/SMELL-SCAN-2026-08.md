@@ -79,6 +79,7 @@ cases. A finding is a *question worth answering*, not a defect.
 - [Tier 1 — architectural, load-bearing](#tier-1--architectural-load-bearing) (S1–S15)
 - [Tier 2 — significant](#tier-2--significant) (S16–S37)
 - [Tier 3 — real but lower stakes](#tier-3--real-but-lower-stakes) (S38–S48)
+- [Findings raised by the Wave-1 fix lanes](#findings-raised-by-the-wave-1-fix-lanes-2026-08-18) (S49–S51)
 - [§A. Where I would start](#a-where-i-would-start)
 - [§D. A schedule for fixes](#d-a-schedule-for-fixes)
 - [§C. Process observations](#c-process-observations)
@@ -3262,6 +3263,132 @@ bit-identity contract is allowed to say, not about trait ergonomics.
 IDs `S45`–`S48` are intentionally unallocated, so that items promoted
 out of the S35/S40 roll-ups during review can be given stable IDs
 without renumbering anything above.
+
+---
+
+# Findings raised by the Wave-1 fix lanes (2026-08-18)
+
+Three findings that the Wave-1 fix work turned up and that are **not**
+restatements of anything above. They are recorded here rather than in the
+tiers because their provenance matters: each was found by an implementer or
+reviewer working inside a specific fix, which is a different evidence base
+from the twenty structural scans.
+
+`S45`–`S48` stay reserved for their stated purpose (promotions out of the
+S35/S40 roll-ups), so these take fresh IDs.
+
+**All three carry blank verdicts. Per this document's own rule, none should
+be acted on until it has one.**
+
+## S49. The census's planar × planar skip is justified by a claim about solids
+
+- **Where**: `crates/topo/src/census.rs:1359` (the skip),
+  `crates/topo/src/census.rs:1035` (the justification it rests on)
+- **Importance**: high
+- **Confidence**: sure on the structure; unsure whether it is a live wrong
+  answer today
+- **Raised by**: the W1a fix lane (#620) and its reviewer, 2026-08-18
+
+Arm 1 of the instance census skips a pair when `a.planar && b.planar` — a
+predicate on the two **faces**. The reasoning it cites is about planar-only
+**solids**. A cylinder's two caps are planar faces on a non-planar solid, so
+the skip fires on pairs the justification does not cover.
+
+This is the same shape as S16's root cause, one level up: a premise that was
+true of the objects the gate originally admitted, still cited after the gate
+widened. It is recorded rather than fixed because the repair is a
+**jurisdiction call** between this filter, the conformal arm and the confirm
+pass — deciding which of the three owns a planar face on a curved solid.
+Both the implementer and the reviewer of #620 independently concluded that
+folding it into a box-soundness PR would widen the blast radius past what a
+reviewer of that diff could check.
+
+Settled by: deciding which lane owns the planar-face-on-curved-solid pair,
+then pinning it with a row that goes red if none of them does.
+
+**Verdict:** ACCEPTED (Evan, 2026-08-18) — *"should be scheduled but i have
+no opinion on when"*. The jurisdiction call itself is part of the unit, not a
+prerequisite decision: whoever takes it decides which of the three lanes owns
+a planar face on a curved solid, and says so in the code.
+
+## S50. Fillet corner patches mint `sense` bare, between siblings that derive it
+
+- **Where**: `crates/sweep/src/fillet/build.rs:692`,
+  `crates/sweep/src/fillet/surgery.rs:271`; the siblings at
+  `build.rs:647`, `surgery.rs:264` and `surgery.rs:277`;
+  `crates/sweep/src/fillet/battery.rs:80`
+- **Importance**: medium
+- **Confidence**: sure on the structure. **The live-wrong-answer reading was
+  raised and then refuted** — see below.
+- **Raised by**: the W1e lane's class sweep (#619); the live reading refuted
+  by its reviewer, both 2026-08-18
+
+Corner patches mint an unconditional `sense: true`. Blends and rim bands in
+the *same loops*, fifteen and forty-five lines away, consult
+`link.convexity.blend_sense()` — which is `matches!(self, Self::Convex)`, so
+a concave link yields `false`. A corner patch is a sphere patch, and at a
+concave corner the material lies outside it: the M5 S11 geometry exactly.
+Neither corner site states a precondition.
+
+**It is not a live defect.** Three typed front-door refusals block concave
+chains upstream of any corner minting: `build.rs:268` (`whole_body_links`
+rejects any non-`Convex` link — *"the corner ball is not a sphere octant
+there"*), `surgery.rs:177` (open chains — and corners derive **only** from
+`opens`, so this gate dominates `surgery.rs:271`), and `surgery.rs:401` (the
+closed-chain arm). `fillet_edges` routes to exactly those two doors.
+
+So what survives is a different finding from the one first written: **an
+invariant held at a distant front door and unstated at the mint site**, in a
+spot whose two nearest neighbours derive the same bit rather than assuming
+it. It becomes silently wrong the day concave chains land — which is
+scheduled work, not hypothetical.
+
+Coverage note, for whoever takes it: the only *surgery* fixture is `cube(l)`
+— eight corners, all convex (`m6_surgery.rs:334`). The **build** path is
+better covered than the first report of this claimed:
+`m5_pr12_fix_pass.rs:75` and `:96` pin 12- and 10-corner prism fillets.
+
+Settled by: stating the precondition at the mint site, or deriving the bit
+there as its siblings do. The second costs nothing and cannot rot.
+
+**Verdict:** ACCEPTED (Evan, 2026-08-18), **and the resolution is chosen**:
+*"deriving at mint makes sense"* — derive the bit at the corner sites as the
+sibling blend and rim-band sites already do, rather than documenting the
+precondition and leaving the bare `true` in place. A derived bit cannot rot
+when the front-door gates change; a stated precondition can.
+
+## S51. S42's verification never varies the loft's `v` direction
+
+- **Where**: `crates/sweep/tests/s42_loft_sense.rs` (every row),
+  `crates/sweep/src/loft.rs:30`
+- **Importance**: low to medium
+- **Confidence**: unsure — a coverage residual, not a defect claim
+- **Raised by**: the W1e reviewer, 2026-08-18, against #619
+
+#619 settled S42 for the two shapes S42 named, and added a tapered pair
+beyond them. But every row lofts **two** sections at `v_degree = 1`, so `S_v`
+is constant along `v` in all of them; 27 of the 28 other `loft_body` call
+sites in the workspace use `v_degree = 2`.
+
+S42's objection had two halves — *identical sections* and *the shape that did
+not break extrude*. The taper row answers the first. The **linear `v`** half
+is untouched, and it is where loft's argument (the skinned chart's normal
+follows the traversal) is actually load-bearing: a chart that cannot twist
+along `v` cannot exhibit the failure the argument rules out.
+
+The named untested shapes are a three-section curved-`v` loft, and — more
+pointedly — **a section pair whose convexity differs between sections**
+(bulge `−b` below, `+b` above), which is the one configuration where a
+traversal-following chart could plausibly twist.
+
+Settled by: lofting a convexity-flipping pair and a three-section curved-`v`
+loft, then re-running #619's own probe. Cheap; may find nothing.
+
+**Verdict:** ACCEPTED (Evan, 2026-08-18) — worth a lane on its own terms:
+*"those tests are valuable even if they don't find anything today"*. Note
+this makes the finding's own "may find nothing" explicitly **not** a reason
+to defer it: the rows are the deliverable, and pinning `sense` on a chart
+that can actually twist is worth having whether or not it is red on arrival.
 
 ---
 
