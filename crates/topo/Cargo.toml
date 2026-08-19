@@ -9,7 +9,6 @@ rust-version.workspace = true
 workspace = true
 
 [features]
-dbg-join = []
 # The differential suite's doors (M5 PR 8 fix pass): `sweep_traces`,
 # `PlantedDegradation`, and the pad-override knob are FAILURE-INJECTION /
 # instrumentation surface — test builds only. Enabled through the

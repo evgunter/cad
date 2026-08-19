@@ -18,10 +18,10 @@ use std::sync::Arc;
 
 use editor_core::{
     Alignment, AxisSense, CancelToken, ClusterMaintenance, ContactClass, DocEdit, DocRef,
-    DocumentId, EntityKind, EvalOptions, Evaluation, Frame, MateFrame, MatePrimitive, MateRole,
-    Node, NodeErrorKind, NodeResult, PartResolver, ProfileDoc, RecipeNodeId, ResolveFailure,
-    ResolveFault, RoleSeg, StableName, apply, clusters, content_pin, evaluate, load, product,
-    relative_freedom_components, save, solve_document,
+    DocumentId, EditError, EntityKind, EvalOptions, Evaluation, Frame, MateFrame, MatePrimitive,
+    MateRole, Node, NodeErrorKind, NodeResult, PartResolver, ProfileDoc, RecipeNodeId,
+    ResolveFailure, ResolveFault, RoleSeg, StableName, apply, clusters, content_pin, evaluate,
+    load, product, relative_freedom_components, save, solve_document,
 };
 use fixture::{desc, insert, len, square, step};
 
@@ -1162,6 +1162,272 @@ fn row6e_a_non_tree_mate_declares_rather_than_determining() {
         roles.role(made[1]),
         Some(MateRole::Declaring),
         "the loop closer solved nothing — R2-b verifies it"
+    );
+}
+
+// ---- Row 6f–6j: A12's repair path, and the three doors ----
+// ---- that keep a head honest                              ----
+
+/// A12: *"A dangling head (N5) contributes no edge until `Rebind`"* —
+/// the rebind of a stranded head IS the repair, and the reading edge
+/// comes back with it. Here the head is the document's ONLY reference
+/// to the stranded name, so the edit's own reference count is what
+/// decides whether the repair runs at all.
+#[test]
+fn row6f_rebind_repairs_a_mate_head_that_is_the_only_reference() {
+    let (doc, ids, _) = assembly("asm-r2a-rebind-only-ref", 3);
+    let (doc, mate_id) = mint(
+        doc,
+        DocEdit::InsertNode {
+            node: mate(
+                ids[0],
+                ids[1],
+                MatePrimitive::Coaxial,
+                AxisSense::Aligned,
+                z_up(),
+                z_up(),
+                Some(0.0),
+            ),
+        },
+    );
+    let (doc, _) = step(doc, DocEdit::DeleteNode { id: ids[1] });
+    assert_eq!(
+        editor_core::reading_edges(&doc),
+        vec![(mate_id, ids[0])],
+        "the stranded head contributes NO edge (N5)"
+    );
+    let applied = doc
+        .apply(&DocEdit::Rebind {
+            from: in_part(ids[1], RecipeNodeId(1)),
+            to: in_part(ids[2], RecipeNodeId(1)),
+        })
+        .expect("a mate head is a rebind site");
+    assert_eq!(
+        editor_core::reading_edges(&applied.doc),
+        vec![(mate_id, ids[0]), (mate_id, ids[2])],
+        "the repaired head reads through the instance it now names"
+    );
+    assert!(
+        applied.record.structural,
+        "a mate payload moved, so its content key moved with it"
+    );
+    assert!(
+        !matches!(
+            solve_document(&applied.doc).fault(mate_id),
+            Some(editor_core::MateFault::DanglingHead { .. })
+        ),
+        "and the solve no longer refuses the head"
+    );
+}
+
+/// The same repair with a `Declare` referencing the stranded name too:
+/// the declaration's rewrite is what makes the edit acceptable, so a
+/// mate head skipped here is skipped SILENTLY — the loud arm never
+/// fires.
+#[test]
+fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
+    let (doc, ids, _) = assembly("asm-r2a-rebind-with-declare", 3);
+    let (doc, mate_id) = mint(
+        doc,
+        DocEdit::InsertNode {
+            node: mate(
+                ids[0],
+                ids[1],
+                MatePrimitive::Coaxial,
+                AxisSense::Aligned,
+                z_up(),
+                z_up(),
+                Some(0.0),
+            ),
+        },
+    );
+    let (doc, declare_id) = mint(
+        doc,
+        DocEdit::InsertNode {
+            node: Node::Declare {
+                pairs: vec![(
+                    (
+                        in_part(ids[1], RecipeNodeId(1)),
+                        in_part(ids[0], RecipeNodeId(1)),
+                    ),
+                    ContactClass::Rest,
+                )],
+            },
+        },
+    );
+    let (doc, _) = step(doc, DocEdit::DeleteNode { id: ids[1] });
+    let applied = doc
+        .apply(&DocEdit::Rebind {
+            from: in_part(ids[1], RecipeNodeId(1)),
+            to: in_part(ids[2], RecipeNodeId(1)),
+        })
+        .expect("the declare pair alone makes this a rebind site");
+    let Some(Node::Declare { pairs }) = applied.doc.node(declare_id) else {
+        panic!("the declare is still there");
+    };
+    assert_eq!(
+        pairs[0].0.0,
+        in_part(ids[2], RecipeNodeId(1)),
+        "the declaration was rewritten"
+    );
+    assert_eq!(
+        editor_core::reading_edges(&applied.doc),
+        vec![(mate_id, ids[0]), (mate_id, ids[2])],
+        "and so was the mate head — one rebind repairs every site, or none of them"
+    );
+}
+
+/// The insert door's own claim (`Node::named_nodes`): a mate's two
+/// heads carry the `Declare` carve-out, so a head naming a node that
+/// never existed is a typo and is refused THERE — the only door that
+/// checks.
+#[test]
+fn row6h_the_insert_door_refuses_a_mate_head_naming_no_node() {
+    let (doc, ids, _) = assembly("asm-r2a-mate-insert-door", 1);
+    let ghost = RecipeNodeId(9_999);
+    let err = doc
+        .apply(&DocEdit::InsertNode {
+            node: mate(
+                ids[0],
+                ghost,
+                MatePrimitive::Coaxial,
+                AxisSense::Aligned,
+                z_up(),
+                z_up(),
+                Some(0.0),
+            ),
+        })
+        .expect_err("the head names no node");
+    assert!(
+        matches!(&err, EditError::DeclareNamesMissingNode { name } if name.node == ghost),
+        "{err:?}"
+    );
+}
+
+/// A saved file is DATA: a mate head naming an id past the mint counter
+/// is as corrupt as a `Declare` pair naming one, and worse to let in —
+/// `Rebind`'s source door refuses a never-minted id, so the document
+/// would load unrepairable.
+#[test]
+fn row6i_the_load_check_refuses_a_mate_head_past_the_mint_counter() {
+    let (doc, ids, _) = assembly("asm-r2a-mate-wire-id", 3);
+    let (doc, mate_id) = mint(
+        doc,
+        DocEdit::InsertNode {
+            node: mate(
+                ids[0],
+                ids[2],
+                MatePrimitive::Coaxial,
+                AxisSense::Aligned,
+                z_up(),
+                z_up(),
+                Some(0.0),
+            ),
+        },
+    );
+    let text = save(&doc, &[]).expect("saves");
+    // Doctored BY PATH, not by position: the `b` head of this mate,
+    // reached through the wire's own structure, so a fixture or
+    // field-order change breaks the probe instead of silently moving it
+    // onto an unrelated id.
+    let split = text.find('{').expect("the JSON body follows the header");
+    let (header, body) = text.split_at(split);
+    let mut wire: serde_json::Value = serde_json::from_str(body).expect("the body parses");
+    let head = &mut wire["snapshot"]["nodes"][mate_id.0.to_string()]["Mate"]["b"];
+    assert_eq!(
+        head["node"],
+        serde_json::json!(ids[2].0),
+        "the probe is aimed at the `b` head"
+    );
+    head["node"] = serde_json::json!(99);
+    let doctored = format!("{header}{wire}");
+    match load(&doctored) {
+        Err(editor_core::PersistError::Snapshot(editor_core::SnapshotError::IdBeyondCounter {
+            id,
+            ..
+        })) => assert_eq!(id, RecipeNodeId(99)),
+        other => panic!("expected IdBeyondCounter, got {other:?}"),
+    }
+}
+
+/// The name-level edit door (`apply_with_names`, PR 3's R6 obligation)
+/// reads a mate's heads under the rule it has always applied to a
+/// `Declare` pair: checkable exactly when the minting node evaluated
+/// `Ok`, deferred otherwise. An instance-qualified head the tables
+/// carry passes; a role the part's product does not have is refused
+/// there rather than at the solve.
+#[test]
+fn row6j_the_name_door_reads_a_mates_heads_like_a_declare_pair() {
+    let (doc, ids, store) = assembly("asm-r2a-mate-name-door", 2);
+    let ev = run(&doc, &opts(store));
+    assert!(
+        editor_core::apply_with_names(
+            &doc,
+            &DocEdit::InsertNode {
+                node: mate(
+                    ids[0],
+                    ids[1],
+                    MatePrimitive::Coaxial,
+                    AxisSense::Aligned,
+                    z_up(),
+                    z_up(),
+                    Some(0.0),
+                ),
+            },
+            &ev,
+        )
+        .is_ok(),
+        "the instance-qualified heads resolve in the instance's own table"
+    );
+    // The same head, wearing a role the part product has no entity for.
+    let bogus = StableName {
+        kind: EntityKind::Face,
+        node: ids[1],
+        path: vec![RoleSeg::InPart {
+            of: Box::new(StableName {
+                kind: EntityKind::Face,
+                node: RecipeNodeId(1),
+                path: vec![RoleSeg::Lateral(editor_core::ProfileEdgeRef {
+                    loop_index: 7,
+                    segment: 7,
+                })],
+            }),
+        }],
+    };
+    let Node::Mate {
+        a,
+        class,
+        alignment,
+        ..
+    } = mate(
+        ids[0],
+        ids[1],
+        MatePrimitive::Coaxial,
+        AxisSense::Aligned,
+        z_up(),
+        z_up(),
+        Some(0.0),
+    )
+    else {
+        panic!("the fixture builds a mate");
+    };
+    let err = editor_core::apply_with_names(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::Mate {
+                a,
+                b: bogus.clone(),
+                class,
+                alignment,
+            },
+        },
+        &ev,
+    )
+    .unwrap_err();
+    assert_eq!(
+        err,
+        EditError::NameUnresolvedInEvaluation { name: bogus },
+        "the mate head is checkable, so it is checked"
     );
 }
 
