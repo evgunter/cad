@@ -244,207 +244,27 @@ jobs:
       # either tree as non-triggering (its _is_docs).
       - name: prune local-only tooling (hosted CI may not depend on it)
         run: rm -rf local-scripts .claude
-      # Compound Bounds bounds (`T: Decide + Bounds`) are legal ONLY in
-      # the seams the 2026-07-29 amendment ratified (geom-core
-      # `real.rs`, Bounds scope rule): the C10 boolean-sweep driver
-      # lane in topo, the evaluation-service seam in editor-core,
-      # profile's pre-amendment fillet gate, and topo/props.rs — the
-      # M5 PR 11 certified-quadrature plumbing (Evan's lane-split
-      # ruling at that PR: certification is the bracket-carrying
-      # lanes' business, statically split from the dual lane through
-      # `PropsQuadLane`), and — since M5 PR 12 — the fillet-battery
-      # seam in sweep. That last one is an ORCHESTRATOR ruling
-      # (2026-08-03) applying the PR 11 precedent, flagged for
-      # retroactive Evan review per the self-merge convention: the battery's margins are certified metric quantities
-      # (sup-κ curvature hulls, blend setback bounds) reported as
-      # `f64` payloads, i.e. enclosure consumers of exactly the
-      # quadrature's class; and no dual-scalar path can reach it —
-      # `Bounds` is implemented only for `f64`, `Interval` and
-      # `Probe`, never for `Dual`, and the one wiring that calls
-      # fillets (editor-core's `wire_fillet`) sits under `evaluate<T>`,
-      # which is itself already `Bounds`-bounded and instantiated at
-      # `f64`/`Interval` only. With no dual lane to split, the
-      # `PropsQuadLane` static split would have had nothing on its
-      # refusing side, so the seam is ratified instead.
-      # geom-brep/src/{ssi.rs,ssi/certify.rs,pcurve_cache.rs} is the
-      # M6-2 SSI generic-T lift: the rung-3 certificate simultaneously
-      # DECIDES (its `ssi_*` funnel margins) and reads brackets into the
-      # C9 ring (its hull and tube limbs ARE ring enclosures), so
-      # `Decide + Bounds` is its honest signature — the same class as
-      # the quadrature seam, and unlike the fillet seam its refusing
-      # side is NOT empty: `PcurveFittedLane` splits f64/Probe/Interval
-      # (certified) from `Dual` (typed refusal, no bracket to offer).
-      # `ssi/enclose.rs` is deliberately absent — it decides nothing, so
-      # it takes the sole-bound `T: Bounds` the rule allows everywhere.
-      # geom-brep/src/edge_nurbs.rs is M7-8's plane × NURBS edge lane,
-      # the narrowest possible extension of that same seam: it DELEGATES
-      # to the already-listed `certify_rung3` door with a declared
-      # carrier instead of a marched one, inheriting the door's
-      # signature rather than widening anything. Its split is written in
-      # the same shape — `EdgeNurbsLane` splits f64/Probe/Interval
-      # (certified) from `Dual` (typed refusal) — and it is what keeps
-      # `Bounds` out of `topo`'s signatures.
-      # topo/src/chart_region.rs is M9-2 PR-1's chart-region overlap
-      # predicate (spec item 1; the PR 11 class, retroactive Evan
-      # review per the self-merge convention): it simultaneously
-      # DECIDES (its chart_region_* funnel margins) and reads
-      # exact-f64 STRUCTURE through the bracket — the C6 planar-trim
-      # inventory gate (a Harmonic trig channel is straight only when
-      # its bracket is a point at exactly 0.0, the props.rs
-      # rectangle-trim read) and the bit-identical-region fast path —
-      # so `Decide + Bounds` is its honest signature. No dual lane
-      # exists to split today (Bounds has no Dual impl, so the
-      # predicate is uninstantiable at duals); the PropsQuadLane-shape
-      # static lane is the stated obligation of its first
-      # Decide-generic consumer (M9-2 PR-2's census arms) — see the
-      # real.rs rule entry.
-      # Sole-bound `T: Bounds`
-      # (certification/driver code) is untouched by this check. A NEW
-      # file writing a compound Bounds bound fails here until it is
-      # ratified into the real.rs rule AND this allowlist.
-      # profile/src/path/arc_fillet.rs is the LIB-G2 PATHS arc-carrier
-      # fillet boundary (ruling LB3, 2026-08-08): the algebra forbids
-      # authoring a fillet's corner, so it DERIVES 0/1/2 corners from the
-      # two carriers and the S8 choice is over (corner, candidate) pairs —
-      # it decides (the carrier-meet and angular advance/reach gates) and
-      # reads the selection channel in one function, which is
-      # `Decide + Bounds` honestly, carrying sugar.rs's ratified
-      # justification verbatim: a representation-level choice between
-      # already-classified constructions, never a re-decision of geometry.
-      # Confined to this one file so path.rs itself stays bracket-free;
-      # fillet_select.rs is NOT listed (sole-bound `T: Bounds`).
+      # THE MIRRORED DISCIPLINE GATES live in exactly ONE home, under
+      # scripts/gates/, and both halves of CI call them: this job — one
+      # step per gate, keeping the step name failures are read by in the
+      # Actions UI — and local-scripts/ci-local.sh's `discipline` row.
+      # Each script carries its own ratified prose: the allowlist
+      # justifications are an append-only ledger of rulings, and a
+      # ledger kept in two places drifts (it did, in both directions).
+      # scripts/gates/lib.sh says why they cannot live under
+      # local-scripts/ (this job deletes that tree), and every gate has
+      # a `--selftest` that plants a synthetic violation and asserts it
+      # fires.
       - name: Bounds compound-bound allowlist (ratified 2026-07-29)
-        run: |
-          hits=$(grep -rnE '\+\s*(geom_core::)?Bounds\b' crates/*/src \
-            | grep -vE ':[0-9]+:\s*(//|///|//!)' \
-            | cut -d: -f1 | sort -u \
-            | grep -vE '^crates/topo/src/boolean/(boxes|mod|ops|reduce|rest)\.rs$' \
-            | grep -vE '^crates/topo/src/separation\.rs$' \
-            | grep -vE '^crates/topo/src/props\.rs$' \
-            | grep -vE '^crates/topo/src/chart_region\.rs$' \
-            | grep -vE '^crates/editor-core/src/eval/(mod|wire)\.rs$' \
-            | grep -vE '^crates/profile/src/path/arc_fillet\.rs$' \
-            | grep -vE '^crates/geom-brep/src/(pcurve_cache|ssi|ssi/certify|edge_nurbs)\.rs$' \
-            | grep -vE '^crates/sweep/src/fillet/(battery|build|surgery)\.rs$' || true)
-          if [ -n "$hits" ]; then
-            echo "$hits"
-            echo "::error::compound Bounds bound outside the ratified seams above — see geom-core/src/real.rs (Bounds scope rule); ratify before allowlisting"
-            exit 1
-          fi
-      # The SAME gate, over the compound bound's NAME (ASM-2A review
-      # MINOR-4). `editor_core::EvalScalar` is the evaluation-service
-      # bound — `Decide + ContentBits + Bounds + Send + Sync +
-      # PropsQuadLane` — declared once at the seam the rule above
-      # already ratifies, so `eval/parts.rs` names the requirement
-      # instead of restating `+ Bounds`. That is a naming, and it must
-      # stay one: the trait is `pub` (the integration suites need it),
-      # so without this step any file in any crate could acquire a
-      # compound Bounds bound invisibly to the grep above. Allowlist =
-      # exactly the seam real.rs already names, so the two steps agree
-      # about where the seam is; growing it needs the same ratification
-      # the Bounds allowlist does. Both bound positions are caught
-      # (`T: EvalScalar` and `+ EvalScalar`), comments stripped as above.
+        run: scripts/gates/bounds-allowlist.sh
       - name: EvalScalar allowlist (the Bounds gate, over the name)
-        run: |
-          hits=$(grep -rnE '(:|\+)\s*(editor_core::)?EvalScalar\b' crates/*/src \
-            | grep -vE ':[0-9]+:\s*(//|///|//!)' \
-            | cut -d: -f1 | sort -u \
-            | grep -vE '^crates/editor-core/src/eval/(mod|parts)\.rs$' || true)
-          if [ -n "$hits" ]; then
-            echo "$hits"
-            echo "::error::EvalScalar (a compound Bounds bound by another name) outside the evaluation-service seam — see geom-core/src/real.rs (Bounds scope rule) and editor-core/src/eval/mod.rs; ratify before allowlisting"
-            exit 1
-          fi
-      # Interval-square discipline tripwire — the rule lives HERE, and
-      # the kernel's comments point at this step. FOUR live bugs came
-      # from this one class: squaring via plain `x * x` treats the
-      # factors as independent, so a zero-straddling enclosure gets a
-      # spurious negative lower bound that poisons downstream
-      # sqrt/decoration. `Real::powi(2)` (inari `pown`) knows both
-      # factors are the same variable and returns the tight nonnegative
-      # enclosure with the decoration preserved. Squares of
-      # definitely-nonzero singletons (stored radii, bulges) may stay as
-      # `*`. Reviewing new geometry: this grep only sees `crates/*/src`,
-      # so also eyeball predicate-path diffs for `* self`, `x * x`, and
-      # `.dot(` on possibly-zero vectors. Comment lines are
-      # stripped (same as the Bounds step). Allowlist rationale, per file:
-      #  - geom-core real.rs / interval.rs / dual.rs / ring_interval.rs —
-      #    the scalar implementations themselves: `x * x` is definitional
-      #    (powi is BUILT from it) and their tests deliberately contrast
-      #    the plain product with the tight square;
-      #  - geom-core linalg/mat.rs — `rotation_about`'s evaluation order
-      #    is D9-ratified and doc'd in-file ("exactly as parenthesized");
-      #    tightening `t·x·x` to `t·x²` is a design change, not a cleanup
-      #    (the test hits are `r * r.transpose()` matrix products);
-      #  - geom-core linalg/svd.rs / lsq.rs — documented f64-only
-      #    selection lanes (lsq's hits are usize buffer sizing);
-      #  - geom-brep ssi/jet.rs / march.rs / system.rs — f64-only jet and
-      #    marcher numerics (finite differences, step control).
-      # NO AMBIENT ENVIRONMENT IN THE KERNEL. A runtime env read inside
-      # crates/*/src is a back channel: it changes shipped behaviour
-      # with no rebuild, no flag, and no call site to review. This gate
-      # exists because one had been live — `mesh::probe_stats::armed()`
-      # answered true for `NURBS_PROBE`, which switched on a 91-sample
-      # resampling of every emitted triangle (measured 7.9 s -> 19.8 s
-      # on the tour's release binary, same binary, same arguments) AND
-      # put an `assert!` in the tessellation path, so an environment
-      # variable converted `tessellate`'s typed error contract into a
-      # panic.
-      #
-      # The allowlist is the two RATIFIED knobs, both read once and
-      # documented where they are read:
-      #  - geom-core tolerance.rs — CAD_TOLERANCE_EPS, the eps matrix
-      #    this whole workflow is built on (a OnceLock, read at init);
-      #  - test-utils fuzz.rs — CAD_FUZZ_SEED / CAD_FUZZ_EFFORT, and
-      #    test-utils is a dev-only leaf no shipped build can reach.
-      #
-      # `env!` is deliberately NOT matched: it is compile-time, baked
-      # into the binary, and cannot be an ambient channel.
-      #
-      # Telemetry is the recurring offender, so it has a rule of its
-      # own: gate it behind a feature at the module boundary from the
-      # first commit, and arm it by an explicit call — never by the
-      # environment. Worked examples: `mesh::budget`, `mesh::probe_stats`.
+        run: scripts/gates/evalscalar-allowlist.sh
       - name: no ambient environment in the kernel
-        run: |
-          hits=$(grep -rPn '\benv::vars?(_os)?\s*\(' crates/*/src --include='*.rs' \
-            | grep -vE ':[0-9]+:\s*(//|///|//!)' \
-            | cut -d: -f1 | sort -u \
-            | grep -vE '^crates/geom-core/src/tolerance\.rs$' \
-            | grep -vE '^crates/test-utils/src/fuzz\.rs$' || true)
-          if [ -n "$hits" ]; then
-            echo "$hits"
-            echo "::error::a kernel crate reads the environment at runtime — that is a back channel into shipped code, changing behaviour with no rebuild and no call site to review (NURBS_PROBE was exactly this). Arm it by an explicit call and gate it behind a feature, or ratify this file into the allowlist."
-            exit 1
-          fi
+        run: scripts/gates/no-ambient-env.sh
       - name: interval-square powi(2) allowlist (ratified 2026-08-01)
-        run: |
-          hits=$(grep -rPn '\b([a-z_][a-z0-9_]*)\s*\*\s*\1\b' crates/*/src --include='*.rs' \
-            | grep -vE ':[0-9]+:\s*(//|///|//!)' \
-            | cut -d: -f1 | sort -u \
-            | grep -vE '^crates/geom-core/src/(real|interval|dual|ring_interval)\.rs$' \
-            | grep -vE '^crates/geom-core/src/linalg/(mat|svd|lsq)\.rs$' \
-            | grep -vE '^crates/geom-brep/src/ssi/(jet|march|system)\.rs$' || true)
-          if [ -n "$hits" ]; then
-            echo "$hits"
-            echo "::error::use powi(2): it is never wider than x*x and strictly tighter when the enclosure straddles zero; whether THIS enclosure can straddle zero is a global property of upstream callers that refactors change silently — four live bugs arrived exactly that way. Convert, or ratify this file into the allowlist."
-            exit 1
-          fi
-      # Evaluation-code discipline tripwire (see the `real.rs` module docs):
-      # a type parameter written `T: Real + PartialOrd` (or any other extra
-      # bound) is the escape hatch that lets generic evaluation code smuggle
-      # raw comparisons past the trait — it compiles at f64 and only dies at
-      # the interval instantiation. Fail if any `Real +` bound combination
-      # appears in crate sources. grep exits 1 (no match) on a clean tree —
-      # that is the PASS case; a match exits 0 and we fail loudly here. When
-      # a legitimate `Real +` combination first appears, refine this into an
-      # allowlist as a design decision — do not silently delete the check.
+        run: scripts/gates/interval-square-allowlist.sh
       - name: no extra bounds on Real
-        run: |
-          if grep -rnE '\bReal\s*\+' crates/*/src; then
-            echo "::error::found 'Real +' bound(s) above — evaluation-code discipline forbids extra bounds on scalar type parameters"
-            exit 1
-          fi
+        run: scripts/gates/no-extra-real-bounds.sh
       # Test-aggregation discipline: one [[test]] target per crate. Each
       # extra one is a full codegen+link of the ~40-rlib graph — 96% of
       # this workflow's build job, measured (bazel-verdict report). #179
@@ -469,63 +289,12 @@ jobs:
         run: |
           python3 scripts/check-interval-cfg-additive.py --selftest
           python3 scripts/check-interval-cfg-additive.py
-      # Bit-identity coincidence checking is RETIRED from production
-      # (M4 PR 5, NAMING-DESIGN N6; DESIGN.md roadmap; Evan, #53): the
-      # declared rung is GeomSource lookup, and the production-consumer
-      # allowlist is EMPTY. The remaining rows are NON-consumers:
-      #  - bit_identity.rs — the sanctioned seam itself;
-      #  - interval.rs — Interval::repr_bits over its OWN storage:
-      #    scalar plumbing (exact-representation access), never a
-      #    coincidence comparison;
-      #  - eval/memo.rs — HASHES exact bits into content keys (spec D4
-      #    "values AS BITS"): scalar plumbing, never a comparison;
-      #  - topo/source.rs — the cfg(debug_assertions)-gated
-      #    "records agree with bits" assertion (N6's
-      #    debug_assert!(same_source => eq_bits)); not in production
-      #    builds.
-      # The tripwire stays ARMED: any NEW file using the channel fails
-      # here — a new production consumer is a design regression against
-      # the ratified retirement (add nothing without a DESIGN.md
-      # revision). Comment lines are excluded (docs may name the
-      # channel; code may not use it unlisted).
       - name: bit-identity consumer tripwire (retirement landed, M4 PR 5)
-        run: |
-          if grep -rnE 'bit_identity::|repr_bits|eq_bits' crates/*/src \
-            | grep -vE '^crates/geom-core/src/bit_identity\.rs:' \
-            | grep -vE '^crates/geom-core/src/interval\.rs:' \
-            | grep -vE '^crates/topo/src/source\.rs:' \
-            | grep -vE '^crates/editor-core/src/eval/memo\.rs:' \
-            | grep -vE ':[0-9]+:\s*//'; then
-            echo "::error::bit-identity channel use above — the channel is RETIRED from production (M4 PR 5, N6); use GeomSource, or revise DESIGN.md before adding any consumer"
-            exit 1
-          fi
-      # source.rs must stay debug-only: its bit-channel calls may only
-      # appear inside cfg(debug_assertions) items (grep-level guard:
-      # the file declares the gate above each use).
+        run: scripts/gates/bit-identity-consumer.sh
       - name: bit-identity debug-only guard (topo/source.rs)
-        run: |
-          uses=$(grep -cE 'bit_identity::|eq_bits' crates/topo/src/source.rs || true)
-          gates=$(grep -c 'cfg(debug_assertions)' crates/topo/src/source.rs || true)
-          if [ "$uses" -gt 0 ] && [ "$gates" -eq 0 ]; then
-            echo "::error::topo/src/source.rs uses the bit channel without cfg(debug_assertions) gating — the retirement allows a debug assertion only"
-            exit 1
-          fi
-      # Complementary punning tripwire (M3 PR 4; Evan #53/#57/#58): the
-      # type-punning plumbing that lets generic code reach a scalar's
-      # bits (Any downcasts / TypeId dispatch) is sanctioned in exactly
-      # ONE seam — geom_core::bit_identity. Any other occurrence is a
-      # second bit channel and fails here. Callers (including the
-      # allowlisted consumers above) go through the door's public fns
-      # (repr_bits/eq_bits), which need no punning at the call site.
-      # Same M4 retirement schedule as above.
+        run: scripts/gates/bit-identity-debug-only.sh
       - name: bit-identity punning tripwire
-        run: |
-          if grep -rnE 'downcast_ref|downcast_mut|TypeId|core::any|std::any' crates/*/src \
-            | grep -vE '^crates/geom-core/src/bit_identity\.rs:' \
-            | grep -vE ':[0-9]+:\s*//'; then
-            echo "::error::bit-identity punning outside the sanctioned seam (geom-core/src/bit_identity.rs)"
-            exit 1
-          fi
+        run: scripts/gates/bit-identity-punning.sh
 
       # RENDER PROVENANCE (#221 follow-up). Every committed per-scene
       # PNG under demos/renders{,-freecad}/ must carry FreeCAD's
