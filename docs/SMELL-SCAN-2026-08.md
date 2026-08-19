@@ -4100,11 +4100,20 @@ profiles.
 `scripts/gates/test-features-dev-only.sh` fails if any non-dev dependency
 edge in **any** of the repo's 23 manifests — the kernel workspace, its root,
 and the excluded `demos/`, `tools/` and `interval-transcendentals/` roots —
-enables a feature named `test-support`, `test-*` or `*-testing`, or if an
-ordinary feature forwards to one. It parses with `tomllib` rather than
-grepping, for the reason `kernel-serde-free.sh` gives about dependency-entry
-spellings plus one of its own: `features = [...]` says nothing about which
-table it sits in, and the tables that matter nest.
+enables a feature named `test-support` or `*-testing`, or if an ordinary
+feature forwards to one. It parses with `tomllib` rather than grepping, for
+the reason `kernel-serde-free.sh` gives about dependency-entry spellings plus
+one of its own: `features = [...]` says nothing about which table it sits in,
+and the tables that matter nest.
+
+**What it claims is exactly what a manifest parser can support**, which took
+one more correction to get right. The header first said a test-only feature
+was reachable "ONLY through a dev-dependency edge" — an absolute this repo's
+own CI falsifies, since `scripts/doc-gate.sh` runs `cargo doc --workspace
+--all-features` and any command line can say `--features topo/test-support`.
+The gate constrains **manifests, not invocations**; that is now the first
+thing its header says, and it is the reason the facades need `#[doc(hidden)]`
+rather than a competing claim to it.
 
 **Its self-test is derived from ROUTES, not spellings**, and that is the
 part worth carrying forward. The first version enumerated the spellings its
@@ -4119,12 +4128,24 @@ clothes. The gate now enumerates the eight distinct ways a feature can be
 switched on for a non-dev edge (inline, workspace inheritance, `target.*`,
 `build-dependencies`, cross-crate forward, same-crate forward, a two-deep
 forward chain, and the weak `dep?/feat` spelling) and plants one case per
-route, with the sanctioned dev-dependency and workspace-inheritance shapes
-as the negative control. Both former defeats were also reproduced against
-the real manifests and watched firing there. This is the third gate in this
-batch whose self-test could not have found its own hole — the general rule
-is that **a self-test derived from the implementation can only confirm what
-the author already believed**.
+route. Both former defeats were also reproduced against the real manifests
+and watched firing there. This is the third gate in this batch whose
+self-test could not have found its own hole — the general rule is that **a
+self-test derived from the implementation can only confirm what the author
+already believed**.
+
+**The negative control does as much work as the positive cases.** Two later
+rounds each turned up a shape that is CORRECT code and that the gate
+reported: `[package.metadata.deb.dependencies]` (a packaging tool's own
+config, caught only because the walker had been made to trust the key name
+`dependencies` anywhere in the document — descent is now by the places cargo
+actually puts dependency tables, `target` and `workspace`), and `fuzz =
+["test-utils"]`, the valid slashless spelling for activating an optional
+dependency that happens to share a prefix with the naming convention. The
+`test-*` arm of the pattern is gone for that reason: `test-support` and
+`*-testing` are the two spellings the repo actually uses, and a wildcard that
+matches a real workspace member turns correct code red. Both shapes now sit
+in the clean fixture, so a future widening of either has to get past them.
 
 The lesson generalizes past this row: a safety property asserted in a
 comment three lines from the code that violates it had survived every other

@@ -1,6 +1,17 @@
 #!/usr/bin/env bash
-# test-features-dev-only.sh — a test-only cargo feature is reachable
-# ONLY through a dev-dependency edge.
+# test-features-dev-only.sh — no MANIFEST wires a test-only cargo
+# feature onto a non-dev dependency edge.
+#
+# WHAT THIS DOES NOT COVER: a build COMMAND may enable any feature it
+# likes (`--all-features`, `--features topo/test-support`). This gate
+# constrains the manifests, not the invocations — the repo's own rustdoc
+# gate runs `cargo doc --workspace --all-features`, which is precisely
+# why both `test_support` facades carry `#[doc(hidden)]`. An earlier
+# version of this header said a test-only feature was reachable "ONLY
+# through a dev-dependency edge", which is an absolute a manifest parser
+# cannot support and which this repo's own CI falsifies. (This is a
+# different axis from KNOWN GAPS #4, which is about whether the items
+# behind the feature are cfg-gated at all.)
 #
 # ONE home; ci.yml's "test-only features are dev-dependency-only" step
 # and local-scripts/ci-local.sh's discipline row both call this file.
@@ -28,8 +39,8 @@
 # ran.
 #
 # WHAT COUNTS AS TEST-ONLY: a feature named `test-support`, or one whose
-# name starts with `test-` or ends with `-testing`. A NAMING CONVENTION,
-# not a semantic test — see KNOWN GAPS.
+# name ends with `-testing`. The two spellings the repo actually uses,
+# and a NAMING CONVENTION rather than a semantic test — see KNOWN GAPS.
 #
 # WHY TOML PARSING AND NOT GREP, for the reason kernel-serde-free.sh
 # gives about spellings and one more of its own. A dependency entry has
@@ -82,9 +93,17 @@
 #      or `instrumentation` is invisible here. The gate enforces the
 #      convention the repo already uses; it cannot discover a feature's
 #      intent. A new test feature that does not match the pattern buys
-#      no protection — name it `*-testing` or `test-*`. (A mis-named one
-#      is still visible at review, which is why this is the gap the
-#      repo accepts.)
+#      no protection — name it `test-support` or `*-testing`. (A
+#      mis-named one is still visible at review, which is why this is
+#      the gap the repo accepts.)
+#
+#      DELIBERATELY NARROWED: the pattern was once `test-*` as well.
+#      That collides with `test-utils`, a real member of this
+#      workspace — `fuzz = ["test-utils"]` is the valid slashless
+#      spelling for activating an optional dependency, so a blanket
+#      `test-*` turns correct code into a red. Two exact spellings are
+#      also a more honest statement of the convention than a wildcard
+#      that no feature in the repo actually uses.
 #   2. DEFAULT FEATURES. A dependency whose OWN `default` list pulls in
 #      a test feature is reachable without naming it here — though a
 #      `default` that forwards to a test feature IS caught, by R5/R6, at
@@ -120,9 +139,12 @@ except ImportError:  # pragma: no cover - guarded, not silenced
 
 
 def is_test_feature(name):
-    return (name == "test-support"
-            or name.startswith("test-")
-            or name.endswith("-testing"))
+    # The two sanctioned spellings, and only those. A blanket `test-*`
+    # collided with `test-utils`, a real workspace member: `fuzz =
+    # ["test-utils"]` is the valid slashless spelling for activating an
+    # optional dependency, and reporting it as a forward to a test-only
+    # FEATURE would be a false red on correct code. See KNOWN GAPS #1.
+    return name == "test-support" or name.endswith("-testing")
 
 
 def manifests():
@@ -136,12 +158,22 @@ def manifests():
 
 
 def dep_tables(node, path=()):
-    """Every non-dev dependency table, at ANY depth.
+    """Every non-dev dependency table cargo actually reads.
 
-    Recursion is UNCONDITIONAL into nested tables. The first version
-    recursed only under `target`, which silently dropped
-    [workspace.dependencies] — route R2. `dev-dependencies` is the one
-    key never followed, at any depth: it is the sanctioned door.
+    Descent is by the places cargo puts dependency tables, NOT by key
+    name anywhere in the document:
+
+      root        -> `target` and `workspace`
+      target      -> any cfg spec (`target.'cfg(unix)'.dependencies`)
+
+    v1 recursed only under `target`, which silently dropped
+    `[workspace.dependencies]` — route R2. v2 fixed that by recursing
+    unconditionally, which bought R2 at the price of firing on any table
+    that merely happens to be spelled `dependencies`, such as
+    `[package.metadata.deb.dependencies]` — a tool's own config, not a
+    cargo edge, and a red with advice that makes no sense there.
+    `dev-dependencies` is skipped by key name before any descent, so it
+    is never followed at any depth: it is the sanctioned door.
     """
     if not isinstance(node, dict):
         return
@@ -152,7 +184,9 @@ def dep_tables(node, path=()):
             continue
         if key in ("dependencies", "build-dependencies"):
             yield ".".join(path + (key,)), value
-        else:
+        elif path == () and key in ("target", "workspace"):
+            yield from dep_tables(value, path + (key,))
+        elif path == ("target",):
             yield from dep_tables(value, path + (key,))
 
 
@@ -242,16 +276,24 @@ PY
 
   GATE_SCAN_NOUN="manifest"
   GATE_SCAN_FILES=$count
-  gate_ok "no non-dev dependency edge enables a test-only feature (test-support, test-*, *-testing) and no ordinary feature forwards to one — dev-dependencies are the only door (manifests parsed, not builds; see KNOWN GAPS)"
+  gate_ok "no manifest wires a test-only feature (test-support, *-testing) onto a non-dev dependency edge, and no ordinary feature forwards to one — manifests parsed, NOT build commands, which may enable any feature (see the header and KNOWN GAPS)"
 }
 
-# The subject is manifests, so the clean fixture is a miniature repo. It
-# plants the CORRECT shape deliberately — the same crate depended on
-# twice, plain under [dependencies] and featured under
-# [dev-dependencies], plus a self dev-dependency, plus an unfeatured
-# [workspace.dependencies] entry inherited with `workspace = true`. That
-# is the pattern `editor-core` and `topo` use; a gate that fired on it
-# would be unusable, which is what this negative control proves.
+# The subject is manifests, so the clean fixture is a miniature repo.
+# The NEGATIVE CONTROL is doing real work here — every shape in it is
+# correct code that a careless matcher reports as a violation, and two
+# of them are shapes this gate HAS reported:
+#
+#   - the sanctioned split: the same crate plain under [dependencies]
+#     and featured under [dev-dependencies], plus a self
+#     dev-dependency, plus an unfeatured [workspace.dependencies] entry
+#     inherited with `workspace = true` (what `editor-core` and `topo`
+#     do);
+#   - `[package.metadata.deb.dependencies]` carrying a test feature — a
+#     packaging tool's own config, not a cargo edge. v2 fired on it;
+#   - `fuzz = ["test-utils"]`, the valid slashless spelling for
+#     activating an optional dependency that happens to be named like a
+#     test feature. The `test-*` pattern fired on it.
 gate_plant_clean() {
   mkdir -p "$1/crates/lib" "$1/crates/app"
   cat > "$1/Cargo.toml" <<'EOF'
@@ -270,9 +312,11 @@ sweep-testing = []
 test-support = []
 interval = ["geom/interval"]
 default = ["interval"]
+fuzz = ["test-utils"]
 
 [dependencies]
 geom = { path = "../geom" }
+test-utils = { path = "../test-utils", optional = true }
 
 [dev-dependencies]
 lib = { path = ".", features = ["sweep-testing", "test-support"] }
@@ -280,6 +324,9 @@ EOF
   cat > "$1/crates/app/Cargo.toml" <<'EOF'
 [package]
 name = "app"
+
+[package.metadata.deb.dependencies]
+lib = { features = ["sweep-testing"] }
 
 [dependencies]
 lib = { workspace = true }
@@ -412,7 +459,7 @@ gate_selftest() {
   gate_selftest_case "forwards the ordinary feature 'interval'" plant_r6_same_crate_forward
   gate_selftest_case "forwards the ordinary feature 'middle'" plant_r7_chain
   gate_selftest_case "entry 'lib?/sweep-testing'" plant_r8_weak_forward
-  printf '%s selftest OK: passes a clean fixture using the sanctioned dev-dependency and workspace-inheritance shapes; fires on all eight routes (R1 inline, R2 workspace inheritance, R3 target.*, R4 build-dependencies, R5 cross-crate forward, R6 same-crate forward, R7 two-deep chain, R8 weak forward)\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture carrying the sanctioned dev-dependency and workspace-inheritance shapes, a [package.metadata.*.dependencies] table, and an optional-dependency activation named like a test feature; fires on all eight routes (R1 inline, R2 workspace inheritance, R3 target.*, R4 build-dependencies, R5 cross-crate forward, R6 same-crate forward, R7 two-deep chain, R8 weak forward)\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
