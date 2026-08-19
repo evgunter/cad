@@ -138,3 +138,73 @@ fn units_survive_inside_compound_expressions() {
     let twin = parse_expr("0.025 m + 0.0254 m", &params).unwrap();
     assert!(a.bit_eq(&twin));
 }
+
+/// **The display-unit vocabulary IS `quantity::UNITS`** — the row that
+/// goes red if editor-core ever holds a second opinion about it.
+///
+/// The loop is over the TABLE, not over a hand-written list of
+/// symbols, so a unit added to `quantity` is covered here the day it
+/// lands and a unit renamed there cannot leave a stale spelling behind
+/// in this crate. Each row is walked through every door that touches
+/// the display unit: construction (`literal_with_unit`), the wire
+/// (serialize → load), the read-back accessor, and the text parser —
+/// so a code↔row mapping that disagreed with the table, at any one of
+/// them, fails here. (Before this row only `mm`, `cm` and `in` were
+/// exercised at all; `m`, `deg` and `rad` had no round-trip anywhere.)
+#[test]
+fn every_row_of_the_closed_table_is_a_working_display_unit() {
+    assert_eq!(
+        quantity::UNITS.len(),
+        6,
+        "the closed table is six rows; a change here is a vocabulary change"
+    );
+    for row in quantity::UNITS {
+        let dim = match row.quantity {
+            quantity::UnitQuantity::Length => Dimension::Length,
+            quantity::UnitQuantity::Angle => Dimension::Angle,
+        };
+        // Construction stores the row and reads back the SAME row —
+        // symbol, quantity and factor, not just the symbol.
+        let e = Expr::literal_with_unit(1.0, dim, row)
+            .unwrap_or_else(|err| panic!("{} is a table row: {err:?}", row.symbol));
+        assert_eq!(
+            e.display_unit().expect("the authored unit is stored"),
+            row,
+            "{} read back as a different row",
+            row.symbol
+        );
+        // The wire carries the symbol and the load door resolves it
+        // back to the same row.
+        let json = serde_json::to_string(&e).unwrap();
+        assert!(
+            json.contains(&format!("\"unit\":\"{}\"", row.symbol)),
+            "{} is not on the wire under its own symbol: {json}",
+            row.symbol
+        );
+        let back: Expr = serde_json::from_str(&json).unwrap();
+        assert_eq!(
+            back.display_unit().expect("unit survives the load door"),
+            row,
+            "{} did not survive the wire",
+            row.symbol
+        );
+        // And the text parser reaches the same row from the suffix.
+        let parsed = parse_expr(&format!("1 {}", row.symbol), &no_params())
+            .unwrap_or_else(|err| panic!("`1 {}` must parse: {err:?}", row.symbol));
+        assert_eq!(parsed.dim(), dim, "{} parsed at the wrong dimension", row.symbol);
+        assert_eq!(
+            parsed.display_unit().expect("the parser stores the suffix"),
+            row,
+            "the parser reached a different row for {}",
+            row.symbol
+        );
+        // The canonical value is the decimal times the row's factor,
+        // one multiply (the parser's stated contract).
+        assert_eq!(
+            parsed.literal_value().unwrap().to_bits(),
+            (1.0_f64 * row.factor).to_bits(),
+            "{} did not land on one f64 multiply",
+            row.symbol
+        );
+    }
+}

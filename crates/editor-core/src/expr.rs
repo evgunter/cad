@@ -182,49 +182,49 @@ pub struct Expr {
 /// `Expr` by ~40 bytes and tripped `large_enum_variant` on
 /// `DocEdit::InsertNode`; the ROW is derivable from the identity, so
 /// the identity is what is stored — resolved back through
-/// [`Lit::unit_def`] at every read).
+/// [`Lit::unit_def`] at every read. That measurement is pinned by the
+/// `size_of::<Lit>()` assertion below.)
+///
+/// The identity is the row's POSITION in [`quantity::UNITS`], not a
+/// second spelling of the six units: every symbol is written once, in
+/// the table, and both directions here go through the table, so there
+/// is no mirror to hand-sync. A unit added, renamed or reordered in
+/// `quantity` reaches this crate with no edit.
+///
+/// The index carries **no compatibility contract**: it is never
+/// persisted (the wire stores the SYMBOL — `persist::wire`), never
+/// enters expression identity, keys or [`Expr::literal_bits`] (D7),
+/// and is minted afresh at every construction and load.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum UnitSym {
-    /// `quantity::MM`.
-    Mm,
-    /// `quantity::CM`.
-    Cm,
-    /// `quantity::M`.
-    M,
-    /// `quantity::IN`.
-    In,
-    /// `quantity::DEG`.
-    Deg,
-    /// `quantity::RAD`.
-    Rad,
-}
+pub(crate) struct UnitSym(u8);
+
+// The code is one byte, so the table it indexes must fit in one. Six
+// rows today; this goes red rather than truncating if that ever
+// changes by two orders of magnitude.
+const _: () = assert!(
+    quantity::UNITS.len() <= u8::MAX as usize,
+    "the display-unit code is one byte: this table has outgrown its code space"
+);
 
 impl UnitSym {
     /// The table row this code names.
     fn def(self) -> quantity::UnitDef {
-        match self {
-            Self::Mm => quantity::MM.def(),
-            Self::Cm => quantity::CM.def(),
-            Self::M => quantity::M.def(),
-            Self::In => quantity::IN.def(),
-            Self::Deg => quantity::DEG.def(),
-            Self::Rad => quantity::RAD.def(),
-        }
+        // Total: the index is minted only by `from_def`, as a position
+        // in the very table indexed here, so out of range is
+        // unconstructable.
+        quantity::UNITS[usize::from(self.0)]
     }
 
     /// The code for a table row, by symbol — `None` for a `UnitDef`
     /// outside the closed table (refused by the caller as an unknown
-    /// unit; the vocabulary stays closed).
+    /// unit; the vocabulary stays closed). Symbol-keyed, exactly as
+    /// [`quantity::unit_by_symbol`] and the wire door are.
     fn from_def(u: &quantity::UnitDef) -> Option<Self> {
-        match u.symbol {
-            "mm" => Some(Self::Mm),
-            "cm" => Some(Self::Cm),
-            "m" => Some(Self::M),
-            "in" => Some(Self::In),
-            "deg" => Some(Self::Deg),
-            "rad" => Some(Self::Rad),
-            _ => None,
-        }
+        quantity::UNITS
+            .iter()
+            .position(|row| row.symbol == u.symbol)
+            .and_then(|i| u8::try_from(i).ok())
+            .map(Self)
     }
 }
 
@@ -243,6 +243,21 @@ pub(crate) struct Lit {
     /// into quantity's closed table; `None` renders canonically).
     pub(crate) display_unit: Option<UnitSym>,
 }
+
+// PR #291 MAJOR-2, as a compile-time row rather than a remembered
+// measurement: `Lit` stores the one-byte CODE, never the row.
+// Inlining `quantity::UnitDef` (32 bytes) into this struct took it to
+// 40 and grew every `Expr` with it, tripping `large_enum_variant` on
+// `DocEdit::InsertNode`. Until now only a reviewer's measurement stood
+// between that and a repeat; this is the measurement, and re-inlining
+// the row — or any other growth of the literal payload — goes red
+// here at compile time. (`Expr` itself is not pinned: its size is the
+// largest `ExprKind` variant and moves for unrelated reasons. `Lit` is
+// where the regression would enter.)
+const _: () = assert!(
+    core::mem::size_of::<Lit>() == 16,
+    "a literal is one f64 plus a one-byte display-unit code (PR #291 MAJOR-2)"
+);
 
 impl Lit {
     /// The stored unit's table row, if any.
