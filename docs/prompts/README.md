@@ -13,6 +13,4 @@ text.
 | `implementer-discipline.md` | every implementer lane | `memories/orchestration-model.md` |
 
 **Scope: repo-general prompts only.** A program whose specs carry their own
-standing brief lines keeps them there — `docs/LIB-PYG1-SPEC.md` §0 and the
-ASM/TESS/MESH `## Standing brief lines` chains are tied to those programs'
-sequencing and are deliberately not folded in here.
+standing brief lines keeps them there.

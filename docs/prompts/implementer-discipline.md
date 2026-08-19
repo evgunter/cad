@@ -47,11 +47,25 @@ When you do run locally:
   `assert!(msg.contains(…))`. A lane that rewrote text asserted anywhere and ran
   only builds has verified nothing about it.
 
-## 3. k-lint
+## 3. Baselines, demos, and the status quo
 
-If the k-lint gate fires, do **not** change geometry to silence it. A fired lint
-is distribution evidence: re-derive the baseline per the K-REPORT runbook, or
-escalate to the orchestrator.
+**No baseline is a target to preserve.** A lint threshold, a committed render, a
+golden file, a test expectation — each exists to report what the kernel actually
+does. When one moves, the only question is whether the new behaviour is
+correct. "How do I get the old number back" is never the question, and a change
+whose justification is that output stayed identical has not been justified at
+all (`memories/output-stability-as-justification.md`).
+
+**k-lint.** If the gate fires, do **not** change geometry to silence it. A fired
+lint is distribution evidence: re-derive the baseline per the K-REPORT runbook,
+or escalate to the orchestrator.
+
+**Demos.** The tour and the wild corpus render what the kernel produces through
+the public API, from an outside consumer's seat — they are evidence, not
+decoration. A frame that changed is telling you the kernel changed. Never adjust
+a scene, tolerance, or camera to restore a frame. Decide whether the new output
+is right: if it is wrong, fix the kernel; if it is right, re-baseline and say in
+the PR what moved and why.
 
 ## 4. Comment style
 
