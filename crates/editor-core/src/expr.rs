@@ -186,10 +186,20 @@ pub struct Expr {
 /// `size_of::<Lit>()` assertion below.)
 ///
 /// The identity is the row's POSITION in [`quantity::UNITS`], not a
-/// second spelling of the six units: every symbol is written once, in
-/// the table, and both directions here go through the table, so there
-/// is no mirror to hand-sync. A unit added, renamed or reordered in
-/// `quantity` reaches this crate with no edit.
+/// second spelling of the six units: no unit symbol is written
+/// anywhere in this crate's `src`, and both directions here go
+/// through the table, so there is no mirror to hand-sync.
+///
+/// What that buys, exactly — the promise is narrower than "no edit
+/// anywhere", and this crate's own tests say so. A unit **reordered**
+/// in `quantity` reaches editor-core with no edit at all: nothing
+/// here, in `src` or in the suites, holds an opinion about the order.
+/// (It is not silent either — `quantity`'s own suite pins the six
+/// symbols IN ORDER, deliberately, so a reorder is a decision taken
+/// there rather than a surprise here.) A unit **added** or
+/// **renamed** needs no edit to this crate's `src`, but
+/// `tests/u8a_parse.rs` still enumerates the six symbols by hand in
+/// two proptest generators, so those go red and want an edit.
 ///
 /// The index carries **no compatibility contract**: it is never
 /// persisted (the wire stores the SYMBOL — `persist::wire`), never
@@ -199,8 +209,11 @@ pub struct Expr {
 pub(crate) struct UnitSym(u8);
 
 // The code is one byte, so the table it indexes must fit in one. Six
-// rows today; this goes red rather than truncating if that ever
-// changes by two orders of magnitude.
+// rows today; a table that grew past 255 rows fails the BUILD here.
+// Nothing would truncate without it — `from_def`'s `u8::try_from`
+// refuses — but that refusal would be the wrong answer: a symbol that
+// IS in the table, reported to the user as an unknown unit. Failing
+// the build is the only answer that is not fail-quiet.
 const _: () = assert!(
     quantity::UNITS.len() <= u8::MAX as usize,
     "the display-unit code is one byte: this table has outgrown its code space"
@@ -210,21 +223,57 @@ impl UnitSym {
     /// The table row this code names.
     fn def(self) -> quantity::UnitDef {
         // Total: the index is minted only by `from_def`, as a position
-        // in the very table indexed here, so out of range is
-        // unconstructable.
-        quantity::UNITS[usize::from(self.0)]
+        // in the very table indexed here, and the field is private to
+        // this module, so out of range is unconstructable — this is
+        // not `Span`'s shape (S14), where a `pub` type with a `pub`
+        // constructor made the invalid state reachable by misuse.
+        // Out of range would therefore be a kernel bug observable in a
+        // branch: D2 addendum row 4, `unreachable!` with a message
+        // rather than `index out of bounds: the len is 6 ...`.
+        let Some(row) = quantity::UNITS.get(usize::from(self.0)) else {
+            unreachable!(
+                "display-unit code {} is not a row of quantity::UNITS ({} rows)",
+                self.0,
+                quantity::UNITS.len()
+            )
+        };
+        *row
     }
 
     /// The code for a table row, by symbol — `None` for a `UnitDef`
     /// outside the closed table (refused by the caller as an unknown
     /// unit; the vocabulary stays closed). Symbol-keyed, exactly as
     /// [`quantity::unit_by_symbol`] and the wire door are.
+    ///
+    /// **Symbol-keyed means symbol-ONLY, and that is a live defect —
+    /// issue #650.** A caller-built [`quantity::UnitDef`] whose symbol
+    /// is a table symbol but whose `quantity` or `factor` is not the
+    /// table's own is silently replaced by the table row here, *after*
+    /// [`Expr::literal_with_unit`] has already checked `dim` against
+    /// the CALLER's `quantity` and thrown that row away. The guard is
+    /// therefore defeated in one direction: `UnitDef { symbol: "mm",
+    /// quantity: Angle, .. }` on an `Angle` literal is accepted, and
+    /// the resulting `Expr` serializes into a document that this
+    /// crate's own load door then refuses (`DisplayUnitMismatch`) — a
+    /// round-trip break, not merely a lenient input. Deliberately not
+    /// fixed here: it is a behaviour change, and #650 carries the
+    /// design question underneath it (whether `UnitDef`'s fields
+    /// should be `pub` at all, which would close it structurally).
     fn from_def(u: &quantity::UnitDef) -> Option<Self> {
-        quantity::UNITS
+        let i = quantity::UNITS
             .iter()
-            .position(|row| row.symbol == u.symbol)
-            .and_then(|i| u8::try_from(i).ok())
-            .map(Self)
+            .position(|row| row.symbol == u.symbol)?;
+        // The const assertion above bounds the table at 255 rows, so
+        // this conversion cannot refuse. If it ever did, the `None`
+        // would leave `from_def` reporting a symbol that IS in the
+        // table as an unknown unit — a fail-quiet mis-refusal the D2
+        // addendum rules out. Row 4: announce it.
+        let Ok(code) = u8::try_from(i) else {
+            unreachable!(
+                "quantity::UNITS is pinned to at most u8::MAX rows, yet row {i} has no one-byte code"
+            )
+        };
+        Some(Self(code))
     }
 }
 
@@ -248,12 +297,26 @@ pub(crate) struct Lit {
 // measurement: `Lit` stores the one-byte CODE, never the row.
 // Inlining `quantity::UnitDef` (32 bytes) into this struct took it to
 // 40 and grew every `Expr` with it, tripping `large_enum_variant` on
-// `DocEdit::InsertNode`. Until now only a reviewer's measurement stood
-// between that and a repeat; this is the measurement, and re-inlining
-// the row — or any other growth of the literal payload — goes red
-// here at compile time. (`Expr` itself is not pinned: its size is the
-// largest `ExprKind` variant and moves for unrelated reasons. `Lit` is
-// where the regression would enter.)
+// `DocEdit::InsertNode`.
+//
+// What this pin adds, stated precisely: the ORIGINAL detector is
+// still armed — `large_enum_variant` is default-on in clippy's `perf`
+// group and CI runs `cargo clippy --workspace --all-targets -D
+// warnings` — so a repeat was never entirely unguarded. What is
+// unguarded is the MARGIN. Whether a regrowth re-crosses that lint's
+// 200-byte threshold depends on `DocEdit`'s size, which nothing
+// tracks, and `Lit` is a struct, so it trips no enum lint on its own.
+// This assertion moves the guard onto the thing that actually
+// regressed, and makes it exact rather than threshold-dependent.
+//
+// It pins the PADDED size, and claims no more: re-inlining the row
+// goes red here, and so does any growth past 16 bytes, but the six
+// padding bytes beside the one-byte code are free (adding a
+// `[u8; 6]` field here still compiles).
+//
+// (`Expr` itself is not pinned: its size is the largest `ExprKind`
+// variant and moves for unrelated reasons. `Lit` is where the
+// regression would enter.)
 const _: () = assert!(
     core::mem::size_of::<Lit>() == 16,
     "a literal is one f64 plus a one-byte display-unit code (PR #291 MAJOR-2)"
