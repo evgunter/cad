@@ -36,18 +36,13 @@ pub enum Axis3 {
     Z,
 }
 
-/// The regularized boolean operations (F4; kernel semantics in M3's
-/// boolean pipeline, interpreted by PR 2).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
-pub enum BooleanOp {
-    /// Regularized union.
-    Union,
-    /// Regularized intersection.
-    Intersect,
-    /// Regularized difference (a minus b).
-    Subtract,
-}
+/// The regularized boolean operations, re-exported from the kernel
+/// (F4; ONE enum, defined lowest and re-exported upward, never a
+/// parallel enum). A recipe node's operation IS the kernel operation
+/// the evaluation service will run, so no conversion stands between
+/// authoring it and performing it. Its persisted bytes are this
+/// crate's, described by this module's `boolean_op_wire`.
+pub use topo::BooleanOp;
 
 /// A profile-program step's ARGUMENT ROLE — the closed per-verb enum
 /// that, with a loop and step index, addresses one expression inside a
@@ -558,6 +553,7 @@ pub enum Node<P> {
     /// recipe data ON the consuming boolean node).
     Boolean {
         /// The operation.
+        #[serde(with = "boolean_op_wire")]
         op: BooleanOp,
         /// Left operand.
         a: RecipeNodeId,
@@ -1183,6 +1179,63 @@ impl<P: PartialEq> Node<P> {
     }
 }
 
+/// The wire form of a [`Node::Boolean`]'s operation.
+///
+/// **Why this module exists instead of `#[derive(Serialize)]` on
+/// [`BooleanOp`].** Two ratified rules meet here and both are kept:
+///
+/// - the kernel crates gain NO serde dependency (the F3/G1 layering
+///   rule, workspace `Cargo.toml`) — persistence is editor-core's job;
+/// - the boolean vocabulary is ONE enum, defined lowest and
+///   re-exported upward, never a parallel enum — so a mirror enum
+///   carrying the derives is not available for this type.
+///
+/// A `with` module satisfies both: the type stays `topo::BooleanOp`
+/// everywhere, and only the BYTES are described here.
+///
+/// The wire spelling is a stable STRING, not a discriminant: a
+/// discriminant would silently re-map if a fourth operation ever
+/// landed between two existing ones, and a file would then read a
+/// different operation than it was written with. The table is
+/// EXHAUSTIVE in both directions — `BooleanOp` is closed, so an
+/// operation added to the kernel breaks this compile until it is
+/// given a spelling, and the spelling is pinned by test.
+pub(crate) mod boolean_op_wire {
+    use super::BooleanOp;
+    use serde::de::Error as _;
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    /// The stable wire spelling of an operation.
+    fn tag(op: BooleanOp) -> &'static str {
+        match op {
+            BooleanOp::Union => "Union",
+            BooleanOp::Intersect => "Intersect",
+            BooleanOp::Subtract => "Subtract",
+        }
+    }
+
+    pub(super) fn serialize<S: Serializer>(op: &BooleanOp, ser: S) -> Result<S::Ok, S::Error> {
+        ser.serialize_str(tag(*op))
+    }
+
+    /// # Errors
+    ///
+    /// A spelling this build has no operation for refuses TYPED rather
+    /// than resolving to some other operation.
+    pub(super) fn deserialize<'de, D: Deserializer<'de>>(de: D) -> Result<BooleanOp, D::Error> {
+        let spelling = String::deserialize(de)?;
+        [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract]
+            .into_iter()
+            .find(|op| tag(*op) == spelling)
+            .ok_or_else(|| {
+                D::Error::custom(format!(
+                    "unknown boolean operation '{spelling}' — a document spells `Union`, \
+                 `Intersect` or `Subtract`"
+                ))
+            })
+    }
+}
+
 /// The wire form of a [`Node::Declare`] payload's classes.
 ///
 /// **Why this module exists instead of `#[derive(Serialize)]` on
@@ -1192,8 +1245,8 @@ impl<P: PartialEq> Node<P> {
 ///   rule, workspace `Cargo.toml`) — persistence is editor-core's job;
 /// - the contact vocabulary is ONE enum, defined lowest and
 ///   re-exported upward, never a parallel enum (CONTACT-DESIGN C4's
-///   layering ruling, M9-1 PR-1) — so the mirror-enum pattern
-///   `BooleanOp` uses is not available for this type.
+///   layering ruling, M9-1 PR-1) — so a mirror enum carrying the
+///   derives is not available for this type.
 ///
 /// A `with` module satisfies both: the type stays `topo::ContactClass`
 /// everywhere, and only the BYTES are described here.

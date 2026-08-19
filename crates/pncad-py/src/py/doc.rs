@@ -311,11 +311,11 @@ impl Doc {
 
 /// Which Boolean the document layer performs.
 ///
-/// This is the DOCUMENT-layer `BooleanOp` (`pncad::document`), not the
-/// kernel's identically-named `topo::BooleanOp` that sits in the Rust
-/// prelude. LIB-LOG's U9 backlog note left the choice open; bindings
-/// speak the document vocabulary throughout (§L3), so the document
-/// one is what crosses.
+/// Rust has ONE `BooleanOp` — the kernel enum the recipe node carries
+/// — and this is its binding. The mirror exists because `#[pyclass]`
+/// cannot be attached to a type from another crate, so what crosses is
+/// a python-side copy plus [`BooleanOp::to_document`], whose match is
+/// exhaustive: a fourth operation breaks this compile.
 #[pyclass(eq, eq_int, module = "pncad", from_py_object)]
 #[derive(Clone, Copy, PartialEq)]
 pub(crate) enum BooleanOp {
