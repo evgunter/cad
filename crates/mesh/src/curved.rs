@@ -53,9 +53,12 @@ use crate::walk::{Chart, ChartKind, UvPoint, loop_polygon};
 
 /// The call's tolerance bundle: δ (the promise), δ_s = δ/2 (sizing),
 /// and the run's kernel ε — never sizing, and never a value the mesh
-/// carries: ε reaches exactly two decisions from here, pole/apex
-/// vertex identification in [`crate::walk`] and this lane's banded
-/// domain guard, and the second only chooses whether to REFUSE.
+/// carries. ε reaches three places from here and no more: pole/apex
+/// vertex identification in [`crate::walk`]; this lane's banded domain
+/// guard, which only chooses whether to REFUSE; and the per-triangle
+/// certificate assertion in [`crate::trimmed`]'s review probe, which
+/// is absent from a default build. None of them can move an emitted
+/// coordinate.
 pub(crate) struct Tol {
     /// The chordal tolerance δ.
     pub delta: f64,

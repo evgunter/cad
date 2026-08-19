@@ -2291,12 +2291,14 @@ work:**
 
 - **"`mesh` reads ε twice" is not literally true.** `mesh` calls
   `Tolerance::get()` **exactly once** (`tessellate.rs:43`) and threads
-  `eps: f64` down. What was true is that two structural decisions
-  *consumed* it — and since #648 there are three: pole/apex
-  identification (`walk`), `curved`'s banded swept-rectangle domain
-  guard, and the snap. Only the snap could move an emitted value, and
-  it is gone; the guard decides only whether a face is **refused**. So
-  today: one read, two consumers, neither able to change a value. The
+  `eps: f64` down. What was true is that several structural decisions
+  *consumed* it. At HEAD there are three, plus the snap that is now
+  gone: pole/apex identification (`walk`); `curved`'s banded
+  swept-rectangle domain guard (#648), which decides only whether a
+  face is **refused**; and the per-triangle certificate assertion in
+  `trimmed`'s review probe, absent from a default build. Only the snap
+  could move an emitted value. So today: **one read, three consumers,
+  none able to change a value.** The
   three stale *"ε is read once, for pole identification"* comments are
   corrected to say that rather than deleted — note that route (ii)
   alone would **not** have made the old wording true again, because
