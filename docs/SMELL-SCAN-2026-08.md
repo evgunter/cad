@@ -79,7 +79,7 @@ cases. A finding is a *question worth answering*, not a defect.
 - [Tier 1 — architectural, load-bearing](#tier-1--architectural-load-bearing) (S1–S15)
 - [Tier 2 — significant](#tier-2--significant) (S16–S37)
 - [Tier 3 — real but lower stakes](#tier-3--real-but-lower-stakes) (S38–S48)
-- [Findings raised by the Wave-1 fix lanes](#findings-raised-by-the-wave-1-fix-lanes-2026-08-18) (S49–S51)
+- [Findings raised by the Wave-1 fix lanes](#findings-raised-by-the-wave-1-fix-lanes-2026-08-18) (S49–S53)
 - [§A. Where I would start](#a-where-i-would-start)
 - [§D. A schedule for fixes](#d-a-schedule-for-fixes)
 - [§C. Process observations](#c-process-observations)
@@ -3357,6 +3357,53 @@ this makes the finding's own "may find nothing" explicitly **not** a reason
 to defer it: the rows are the deliverable, and pinning `sense` on a chart
 that can actually twist is worth having whether or not it is red on arrival.
 
+## S52. An in-crate test helper is invisible from `tests/`, so every integration suite mints its own
+
+- **Where**: `crates/topo/tests/m3_pr5_boolean_ops.rs` (a third copy of
+  `ArenaCounts`, field-for-field); `crates/sweep/tests/` (**six** private
+  `cube` fixtures, byte-identical bodies); the shipped counter-example is
+  `crates/profile/src/test_support.rs`
+- **Importance**: medium
+- **Confidence**: sure on the mechanism
+- **Raised by**: the H8 (#641) and H9 (#640) lanes and their reviewers,
+  2026-08-19
+
+Both lanes hit the same wall from opposite directions. A `#[cfg(test)]` or
+`pub(crate)` helper cannot be named from a `tests/` binary, which is a
+separate crate — so an integration suite that wants the vocabulary declares
+its own copy, and the copies drift. #641 collapsed the *in-crate* duplicate
+for free (one widened cfg) and left the `tests/` one standing; #640 put
+`sweep`'s shared fixture in a crate-root `#[cfg(test)]` module and left the
+six integration copies standing, for the same reason.
+
+This is S4's shape with a mechanical cause rather than an accretive one, and
+it is why "grep for the copy" keeps finding copies in `tests/`. The repo
+already has the remedy in one place: `crates/profile/src/test_support.rs` is
+a public module whose contents exist for tests to name.
+
+Settled by a single call: whether kernel crates may carry a public
+`test_support` module for this, and what may live in one. It is a
+public-surface decision, which is why neither lane made it.
+
+**Verdict:**
+
+## S53. Two `Ledger`s in one crate, with drifted field sets
+
+- **Where**: `crates/topo/src/seqgen.rs` (`Ledger { v, e, f, h, r, s }`),
+  `crates/topo/src/review_m1_pr3.rs` (`Ledger { v, e, f, r, s }`)
+- **Importance**: low
+- **Confidence**: sure it exists; unsure whether the missing `h` is a gap or
+  deliberate
+- **Raised by**: the H8 reviewer (#641), 2026-08-19
+
+Same name, same crate, one component apart. Pre-existing and outside H8's
+array/tuple class, so #641 left it alone. Either that suite does not track
+genus and the narrower ledger is correct — in which case the name is the
+problem — or it is a real gap in what it checks.
+
+**Verdict:**
+
+
 ---
 
 # §A. Where I would start
@@ -3441,7 +3488,7 @@ Good work for filling parallel capacity. None blocks anything.
 | **H5** | **S4 drift (b)** — `names/select.rs:319`'s `_ => Vec::new()`, the fail-quiet wildcard its three siblings forbid by comment. One function. | XS |
 | **H6** ✅ #625 | **Euler postcondition 7-tuple → named struct** — unnamed positional, 16 sites, 6 files, all `cfg(debug_assertions)`. **FIXED by #625**: `ArenaDelta`, still debug-only, written sparsely over `..ArenaDelta::ZERO`. | S |
 | **H7** | **The chart lane's empty-tube acceptance row** — #617 fixed both SSI lanes but its red row covers ℝ³ only, so the chart lane's `account_chart_plane` refusal is asserted by construction and not by a fixture. Needs a NURBS wall whose true surface misses the cutting plane *inside* its own control-net hull slack (the M5 substrate wall's hull is tight exactly where the near-miss must sit), then the same two-run shape: certify-empty at a healthy floor, refuse at a clamped one. The narrowing is #617's, so this row closes it. | S–M |
-| **H8** | **Positional-census residue in `topo`** — the class H6 fixed, still live at three sites #625 deliberately did not touch. **Sharp end: `crates/topo/tests/review_m3_pr1.rs:34`**, whose `census` returns a positional 7-tuple in a **different component order** than `ArenaCounts` (`v, e, f, loops, shells, solids, rings` — and `rings` is not an arena length at all); `:286-299` then asserts a raw `.0`…`.6` arena delta for cross-shell `kfmrh` against `(0, 0, -1, 0, -1, 0, 1)`. Two positional orders for one vocabulary is S4's drift shape itself. Also `seqgen.rs:106`/`:137`: the Euler 6-vector travels as `[i64; 6]` indexed `0..5` into `Ledger { v, e, f, h, r, s }`, which sits twenty lines below `ep_vector` already carrying the names; and `euler.rs:2126`'s `snapshot` returns `[usize; 10]`. Fold in two whole-file finds from #625's review of `euler.rs`: the byte-identical 8-line parent-sense-inheritance comment and logic at `:1664` and `:1767` (a third copy in `mint_loop_and_face`'s rustdoc, `:1947`), and the stale user-visible message at `:762`, *"cross-shell kfmrh merges shells — deferred to M3"*, which the variant's own doc contradicts. **Sequencing is why these are a row and not a patch**: `seqgen.rs` is live in H3's lane, `:762` is S39/H2 territory, and `review_m3_pr1.rs` is a review-named suite that W3a combs per-suite. | S–M |
+| **H8** ✅ **#641** | **Positional-census residue in `topo`** — every positional carrier of a named vocabulary in the crate now speaks named components. The four sites the row named, plus eight more of the same shape: the array sweep found two byte-identical twins, and the tuple sweep found six more. `reassembly.rs`'s duplicate was collapsed into `ArenaCounts` outright by widening one cfg. Parent-sense inheritance had **four** homes, not three, and now has one. Residue recorded as **S52**/**S53**. | S–M |
 | **H9** ✅ **#640** | **S50** — the corner patch's `sense` derives at both mint sites, through one helper shared by the two doors. Evan overrode the row's sequencing caveat: both sites, not `surgery.rs` alone. Successor finding — the rest of the corner construction (ball, feet, chart) is convex-hardcoded — filed as **#644**. | XS–S |
 | **H10** | **S51 — loft's `v` direction is never varied.** Every S42 row lofts two sections at `v_degree = 1`, so `S_v` is constant along `v`; 27 of the 28 other `loft_body` call sites use `v_degree = 2`. Loft a section pair whose **convexity differs between sections** (bulge `−b` below, `+b` above) and a three-section curved-`v` loft, then re-run #619's probe. Extends `crates/sweep/tests/m5_s11_concave_sense.rs`, the constructor audit #619 folded the loft chapter into. Per Evan, "may find nothing" is **not** a reason to defer it. | S |
 
