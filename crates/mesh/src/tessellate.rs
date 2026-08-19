@@ -33,8 +33,9 @@ use crate::types::{BoundaryPolyline, FacePatch, Mesh, TessellateError};
 /// [`TessellateError`] (closed enum): invalid δ, the `Nurbs`
 /// placeholder, described NURBS faces outside the trimmed-NURBS
 /// inventory (illegal-rational / C⁰-creased — `nurbs_cert`), unsupported
-/// carriers, rings on curved faces, empty loops, dangling keys,
-/// resolution overflow, certificate failure, CDT insertion failure.
+/// carriers, rings on curved faces, a curved face whose iso domain is
+/// not its own UV rectangle, empty loops, dangling keys, resolution
+/// overflow, certificate failure, CDT insertion failure.
 pub fn tessellate(body: &Body<f64>, chordal: f64) -> Result<Mesh, TessellateError> {
     if !(chordal.is_finite() && chordal > 0.0) {
         return Err(TessellateError::InvalidChordalTolerance { value: chordal });
@@ -120,8 +121,18 @@ pub fn tessellate(body: &Body<f64>, chordal: f64) -> Result<Mesh, TessellateErro
             Surface::Plane { .. } => tessellate_planar(body, fk, &chords, &positions)?,
             // Structural routing (M5 PR 11): a conic/B-spline trim
             // carrier means the face is not an iso-rectangle — the
-            // pcurve-driven trimmed lane takes it; iso boundaries keep
-            // the swept-rectangle walk.
+            // pcurve-driven trimmed lane takes it.
+            //
+            // The converse does NOT follow, and S28 is where that was
+            // established: this is a test on carrier KINDS, and iso
+            // carriers (`Line`, `Circle`) can bound a NON-rectangular
+            // domain — a keyway or milled flat on a cylinder is exactly
+            // that shape, and nothing on this path screens loop SHAPE.
+            // So an iso boundary reaching `tessellate_curved` is a
+            // routing decision, not a guarantee about the domain; the
+            // domain itself is checked there
+            // (`curved::require_swept_rectangle`, refusing
+            // [`TessellateError::UnsupportedCurvedDomain`]).
             _ if crate::trimmed::has_trim_carrier(body, fk)? => crate::trimmed::tessellate_trimmed(
                 body,
                 fk,

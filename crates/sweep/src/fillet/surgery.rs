@@ -109,6 +109,9 @@ struct Corner<T: Real> {
     /// The octant's chart (the F2 order-free pick, shared with the
     /// whole-body builder).
     surface: Surface<T>,
+    /// The convexity the three incident links agree on — the octant's
+    /// orientation bit, read exactly as a blend reads its own.
+    convexity: Convexity,
 }
 
 /// One closed (plane–sphere) chain resolved onto its supports.
@@ -268,7 +271,8 @@ pub(super) fn fillet_surgery<T: Decide + Bounds>(
         let fk = corner_faces[i];
         body.set_face_surface(fk, FaceSurface::New(c.surface.clone()))
             .map_err(op)?;
-        body.set_face_sense(fk, true).map_err(op)?;
+        body.set_face_sense(fk, c.convexity.blend_sense())
+            .map_err(op)?;
     }
     for (i, rim) in rims.iter().enumerate() {
         let fk = band_faces[i];
@@ -352,6 +356,7 @@ fn corner_plan<T: Decide + Bounds>(
         .map(|o| o.link)
         .filter(|l| l.start == vertex || l.end == vertex)
         .collect();
+    let convexity = super::build::corner_convexity(&links)?;
     let (u_ref, axis) = super::build::octant_chart(body, vertex, &faces, &links)?;
     Ok(Corner {
         vertex,
@@ -363,6 +368,7 @@ fn corner_plan<T: Decide + Bounds>(
             axis,
             u_ref,
         },
+        convexity,
     })
 }
 
@@ -1580,8 +1586,10 @@ fn attach_contact<T: Decide + Bounds>(
 mod tests {
     use geom_core::{Point3, Vec3};
 
-    use super::rim_trim_circles;
+    use super::super::battery::Convexity;
+    use super::{OpenLink, corner_plan, rim_trim_circles};
     use crate::fillet::blend::plane_sphere_blend;
+    use crate::fixtures::{R, all_links, cube};
 
     /// The F1 pin: trim selection is by SUPPORT KIND, never by slot.
     /// `classify_arm`'s `(Sphere, Plane)` arm swaps `trim_a`/`trim_b`
@@ -1622,5 +1630,49 @@ mod tests {
         // the selection retires: it would hand back the sphere trim.
         let blind = rim_trim_circles(&swapped, true).expect("circles");
         assert_eq!(blind.0.1, a.1.1, "slot-blind trim_a IS the sphere trim");
+    }
+
+    /// **The surgery corner takes its links' orientation bit too.**
+    /// `corner_plan` is the deepest point a concave chain can reach —
+    /// the open-chain door refuses one outright, and `fillet_surgery`
+    /// itself therefore cannot be driven concave at all.
+    ///
+    /// **The concave half of this probe is not a body.** The fixture
+    /// FALSIFIES the battery's stored verdict on a cube whose geometry
+    /// is untouched: a lie about a convex body, not a concave one, and
+    /// the only probe that reaches the derivation. What it pins is the
+    /// dependency — the octant reads the verdict and nothing else.
+    #[test]
+    fn a_corner_plan_takes_its_links_convexity() {
+        let body = cube();
+        let mut links = all_links(&body);
+        let v = links[0].start;
+        let opens: Vec<OpenLink<'_, f64>> = links.iter().map(|link| OpenLink { link }).collect();
+        let convex = corner_plan(&body, v, &opens, R).expect("the corner plans");
+        assert!(convex.convexity.blend_sense(), "a convex octant is outward");
+        for l in &mut links {
+            l.convexity = Convexity::Concave;
+        }
+        let opens: Vec<OpenLink<'_, f64>> = links.iter().map(|link| OpenLink { link }).collect();
+        let concave = corner_plan(&body, v, &opens, R).expect("the corner plans");
+        assert!(
+            !concave.convexity.blend_sense(),
+            "a concave octant's chart normal points into the material"
+        );
+    }
+
+    /// A corner whose incident links disagree on convexity is not a
+    /// ball octant: the plan refuses rather than picking one of three.
+    #[test]
+    fn a_corner_plan_whose_links_disagree_refuses() {
+        let body = cube();
+        let mut links = all_links(&body);
+        let v = links[0].start;
+        links[0].convexity = Convexity::Concave;
+        let opens: Vec<OpenLink<'_, f64>> = links.iter().map(|link| OpenLink { link }).collect();
+        assert!(
+            corner_plan(&body, v, &opens, R).is_err(),
+            "a mixed-convexity corner must refuse, not pick a link"
+        );
     }
 }

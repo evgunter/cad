@@ -2,10 +2,17 @@
 //! periodic unwrapping — turning a curved face's loop into a UV polygon
 //! whose sides are exactly straight (bitwise-constant u or v).
 //!
-//! Every curved M2 face is a swept UV rectangle whose boundary edges
-//! are iso-curves (extrude/revolve structure, PR 4/5): **rims** (circles
-//! around the surface axis, v = const) and **meridians** (u = const:
-//! struts/generators/profile copies/`Seam` edges). The walk classifies
+//! Every curved face this project's SWEEPS author is a swept UV
+//! rectangle whose boundary edges are iso-curves (extrude/revolve
+//! structure, PR 4/5): **rims** (circles around the surface axis,
+//! v = const) and **meridians** (u = const:
+//! struts/generators/profile copies/`Seam` edges). That is a fact
+//! about authoring, **not** about input — an iso-bounded domain need
+//! not be a rectangle (a keyway on a cylinder is bounded by lines and
+//! circles and is a U), and this walk handles such a loop perfectly
+//! well; it is [`crate::curved`]'s interior grid that needs the
+//! rectangle, and that lane checks it (S28,
+//! `TessellateError::UnsupportedCurvedDomain`). The walk classifies
 //! each traversal structurally, assigns the constant coordinate once
 //! per edge (never per point — so rectangle sides are bitwise straight
 //! and the CDT sees no sliver-generating wobble), and unwraps the
@@ -225,6 +232,29 @@ impl Chart {
                 let rho = (w - self.axis * h).norm();
                 h.atan2(rho - major)
             }
+        }
+    }
+
+    /// The v counterpart of [`Self::radial`]: `|∂S/∂v|`, the length
+    /// one unit of the chart's v coordinate displaces a point by.
+    ///
+    /// Constant per kind because v is either already a length
+    /// (cylinder — axial metres; cone — slant metres, both
+    /// `|∂S/∂v| = 1`) or an angle turning on a fixed radius (sphere —
+    /// latitude on `r`; torus — minor angle on `r`). u needs the point
+    /// because its lever arm is the *distance from the axis*, which
+    /// varies over a cone and a sphere; v's does not, so this takes
+    /// none.
+    ///
+    /// Together `(radial(p), v_lever())` convert a UV discrepancy into
+    /// metres, which is the only honest unit to compare against ε — the
+    /// same argument [`closure_is_snappable`] makes at the loop
+    /// closure, and the one `curved`'s domain guard now makes too.
+    pub(crate) fn v_lever(&self) -> f64 {
+        match self.kind {
+            ChartKind::Cylinder { .. } | ChartKind::Cone { .. } => 1.0,
+            ChartKind::Sphere { r } => r,
+            ChartKind::Torus { minor, .. } => minor,
         }
     }
 
