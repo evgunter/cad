@@ -35,6 +35,12 @@
 //! duplicate entry is what makes dangling null edges fall out of the
 //! generic run scan.
 //!
+//! The arm / wideness / subdivision-direction rungs this section
+//! derives are implemented ONCE, in [`crate::sector_shape`], and
+//! called from here and from the boolean lane's sector walk under each
+//! lane's own K names (smell scan S5). The derivation stays here; the
+//! code lives there.
+//!
 //! The subdivision direction need not be the exact bisector — ANY
 //! interior direction with both sub-angles < 180° is valid. We use:
 //! definite reflex ⇒ `−normalize(a + b)` (the true bisector of the
@@ -53,6 +59,7 @@ use super::rules;
 use super::{PlaneSide, SectorEntry, SectorEntryKind, SplitPlane, SplitReduceError};
 use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey, VertexKey};
+use crate::sector_shape::{SPLIT_SECTOR_PREDICATES, SectorShape, sector_shape};
 use crate::validate::decide;
 
 /// Resolves the sector face for the sector CW-after `he` (module docs:
@@ -68,11 +75,13 @@ use crate::validate::decide;
 /// normal, and the chart is the only orientation encoding they have.
 /// This is the splitting lane's chokepoint, the twin of the boolean's
 /// `boolean::sectors::sector_face`: `rules::apply_rule_a`'s
-/// `enters_material` call, the reflex/bisector algebra below, and the
-/// departure trileans all consume this value and are sense-invariant
-/// GIVEN it — they pair it with the STORED orbit order, which `revert`
-/// reverses together with the sense bit, so a second `sense_sign`
-/// factor at any of those sites would cancel this one.
+/// `enters_material` call, the sector-shape rungs (since S5 part 1 they
+/// are [`crate::sector_shape`], called below rather than written below),
+/// and the departure trileans all consume this value and are
+/// sense-invariant GIVEN it — they pair it with the STORED orbit
+/// order, which `revert` reverses together with the sense bit, so a
+/// second `sense_sign` factor at any of those sites would cancel this
+/// one.
 pub(super) fn sector_face<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
@@ -265,60 +274,31 @@ pub fn classify_neighborhood<T: Decide>(
         });
 
         // Wideness of the sector CW-after `he` (bounded by `he` and the
-        // next orbit edge): margin (b̂ × â)·n · arm = sin(interior
-        // angle) metered at the shorter bounding chord.
+        // next orbit edge), and the subdivision direction it implies:
+        // the three rungs are [`crate::sector_shape`] — ONE
+        // implementation, called from here and from the boolean lane's
+        // sector walk under each lane's own K names (smell scan S5).
+        // This is a call, not a copy. The derivation the
+        // module docs above carry — why convex subdivision, why the
+        // wideness trilean has no escalation cliff — is what that
+        // shared body implements.
         let next_he = orbit[(i + 1) % orbit.len()];
         let (_, dir_b, _) = chord(body, vertex, next_he)?;
         let (face, n_face, _) = sector_face(body, vertex, he)?;
         let sliver = |diag| SplitReduceError::SliverSector { vertex, face, diag };
-        let arm = dir_a.norm().min(dir_b.norm());
-        match decide("split_sector_arm", Margin::of(arm), band) {
-            Ok(Sign::Positive) => {}
-            Ok(_) => {
-                return Err(sliver(geom_core::Indeterminate {
-                    margin: geom_core::MarginDiag::Invalid,
-                    band,
-                    predicate: Some("split_sector_arm"),
-                }));
-            }
-            Err(diag) => return Err(sliver(diag)),
-        }
-        let (unit_a, unit_b) = (dir_a.normalize(), dir_b.normalize());
-        let reflex_margin = Margin::levered(unit_b.cross(unit_a).dot(n_face), arm);
-        let wide = match decide("split_sector_reflex", reflex_margin, band) {
-            Ok(Sign::Positive) => None, // convex: cone argument holds
-            // Definite reflex, θ ∈ (π, 2π): −(â + b̂) is the true
-            // bisector of the reflex span (the collapse â + b̂ → 0
-            // happens only at θ → π, which lands in the Zero band
-            // below, never here).
-            Ok(Sign::Negative) => Some(-((unit_a + unit_b).normalize())),
-            // sin θ coincident with zero (or in-band): θ is near π, 0,
-            // or 2π — disambiguate by the cosine (for unit chords sin
-            // and cos cannot both vanish, so this second margin is
-            // definite whenever the first is not).
-            Ok(Sign::Zero) | Err(_) => {
-                let straight_margin = Margin::levered(unit_a.dot(unit_b), arm);
-                match decide("split_sector_straight", straight_margin, band) {
-                    // θ ≈ π (straight): 90° into the interior is a
-                    // valid subdivision throughout the band.
-                    Ok(Sign::Negative) => Some(n_face.cross(unit_b)),
-                    // θ ≈ 0 or ≈ 2π. A one-edge orbit (strut vertex)
-                    // is the legitimate full-circle sector; a spike
-                    // corner between two distinct edges is
-                    // ill-conditioned geometry — escalate, never
-                    // guess an interior direction.
-                    Ok(Sign::Positive | Sign::Zero) if he == next_he => Some(n_face.cross(unit_b)),
-                    Ok(Sign::Positive | Sign::Zero) => {
-                        return Err(sliver(geom_core::Indeterminate {
-                            margin: geom_core::MarginDiag::Invalid,
-                            band,
-                            predicate: Some("split_sector_straight"),
-                        }));
-                    }
-                    Err(diag) => return Err(sliver(diag)),
-                }
-            }
-        };
+        let SectorShape {
+            arm,
+            bisector: wide,
+            ..
+        } = sector_shape(
+            dir_a,
+            dir_b,
+            n_face,
+            he == next_he,
+            SPLIT_SECTOR_PREDICATES,
+            band,
+        )
+        .map_err(sliver)?;
         if let Some(bisector) = wide {
             let margin = Margin::levered(bisector.dot(plane.normal), arm);
             let class = match decide("split_bisector_side", margin, band) {

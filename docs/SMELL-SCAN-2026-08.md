@@ -619,6 +619,44 @@ crate); (9) `profile::Step` re-parameterised — *"I would not do it."*
   `crates/topo/src/boolean/mod.rs:548`
 - **Confidence**: sure
 
+**PARTIALLY FIXED by #647 — the sector-predicate fork only.** The
+vertex-neighborhood sector-shape rungs — the metering arm, the wideness
+verdict, and the subdivision direction — are ONE implementation,
+`crates/topo/src/sector_shape.rs`, a top-level sibling of `boolean/` and
+`splitting/` that belongs to neither half and adds no dependency edge
+between them. Both lanes call it with their own `SectorPredicates`, so
+all six K names and every recorded margin are unchanged: 26541 recorded
+decisions across a boolean run and a plane-split run reproduce
+byte-identically, same order, one SHA-256. Two rows go red if a lane
+re-grows its own copy — one against a re-fork inside the shared body,
+one against a re-fork outside it (the outside guard walks the whole of
+`topo/src` at runtime, so a re-fork in a third file is caught too).
+
+*What that reproduction is and is not.* The regenerating probe,
+`crates/topo/tests/probe_s5_sectors.rs`, is **committed but not run by
+CI**: it is `#![cfg(feature = "probe")]`, and nothing in
+`.github/workflows/` runs `cargo test -p topo --features probe` — the
+K sweep runs `-p editor-core --features probe`. So it is a *reproducible
+hand-run* artifact, not a standing gate, and it can bit-rot green.
+`tests/probe_census.rs` and `tests/probe_f34_review.rs` are in exactly
+the same position, so this is a **class** (three uncompiled probe
+suites in `topo`), pre-existing and not created here. The standing gate
+over the same stream is CI's `k-lint`, which runs the full
+`scripts/k_probe_sweep.sh` at three ε and lints the fresh rows.
+
+**The rest of this finding stands.** Untouched: the `sector_face` twins,
+the two forked `chord` helpers (genuinely NOT identical — splitting's
+carries the C12.2 conic jet), the gate → sweep → array →
+reclassification → join pipeline duplication, and the wrong-way
+`splitting/join.rs` dependency with its `JoinLane::BoolPlanar`
+reciprocation. Deliberately left alone on the steelman's own reasoning:
+`SectorEntry` vs `BoolSector` (a CORRECT divergence) and the shared error
+variants (unification means an optional field on a public API re-exported
+into four crates). And #647 hands back, rather than answers, whether the
+two K names should become one population — with the evidence and the
+`M3-LOG.md:264` counter-precedent, **scheduled as issue #652** (the
+steelman's K table above is corrected there and here).
+
 Both carry a gate → vertex sweep → sector array → reclassification →
 join → finish pipeline. The halves drifted rather than unified:
 `SectorEntry`/`SectorEntryKind` vs `BoolSector`;
@@ -690,17 +728,37 @@ names.** `docs/predicate-dimension-audit.md:189` lists both families
 with the same dimension column — a systematic sweep that saw both and
 never noticed they were one population.
 
-*The K cost is measured, not hypothetical* (`m7-eps-1e-6.csv.gz`):
+*The K cost is measured, not hypothetical* (`m7-eps-1e-6.csv.gz`).
+**This table was CORRECTED on 2026-08-19 by #647's fix pass: the
+original read a minimum *signed* margin as if it were an absolute one.
+The corrected reading makes the case stronger, not weaker.** All six
+rows, recomputed:
 
-| predicate | samples | min margin |
-|---|---|---|
-| `bool_sector_arm` | 1880 | 4.11e-2 |
-| `split_sector_arm` | 64 | 1.95e-2 |
-| `bool_sector_reflex` | 1880 | −0.25 |
-| `split_sector_reflex` | 64 | **0** |
+| predicate | samples | signed margin range | outcome split |
+|---|---|---|---|
+| `bool_sector_arm` | 1880 | [4.11e-2, 1] | 1880 positive |
+| `split_sector_arm` | 64 | [1.95e-2, 0.941] | 64 positive |
+| `bool_sector_reflex` | 1880 | [−0.25, 1] | 418 positive, 8 negative, 1454 zero |
+| `split_sector_reflex` | 64 | **[0, 0]** | **64 zero** |
+| `bool_sector_straight` | 1454 | [−1, −4.11e-2] | 1454 negative |
+| `split_sector_straight` | 64 | [−0.941, −1.95e-2] | 64 negative |
 
-One geometric question, two populations at **29:1** — and the 64-sample
-tail is the one that actually reaches margin 0.
+One geometric question, two populations at **29:1**. What this passage
+originally concluded — *"the 64-sample tail is the one that actually
+reaches margin 0"* — is **wrong**: −0.25 and 0 were minimum SIGNED
+margins, and by minimum ABSOLUTE margin both reflex populations reach
+exactly 0, the boolean one **1454 times of 1880**.
+
+The real asymmetry is **coverage**, and it is sharper than the size
+ratio. **Every one of the 64 `split_sector_reflex` samples is exactly
+zero**, so the splitting lane's wideness name has NO corpus coverage of
+a definite convex-or-reflex verdict at all, while the boolean lane's has
+**426** (418 positive + 8 negative). The two names do not merely differ
+in population size — one of them is entirely degenerate on this corpus,
+and that was invisible while each name was read as a single number. That
+is a *coverage* argument for pooling the names, not just a bookkeeping
+one, and it is the form in which the question is handed back: **issue
+#652**.
 
 *The project already treats name/margin bijection as a correctness
 property, in one direction only.* `M3-LOG.md:264` records PR #55's
@@ -3168,6 +3226,8 @@ rather than this API's surface.
 | `step-import`'s `UnsupportedUnit`: "the subset covers unprefixed SI metre/radian/steradian only" | `units.rs` resolves all sixteen SI prefixes and `CONVERSION_BASED_UNIT` chains today | `step-import/error.rs:419` |
 | `props/quad.rs:42`: "the patch flux engine consumes this machinery at rest" | It runs a separate near-parallel copy; the claim reads as a stale justification for keeping S11's dead lane | `props/quad.rs:42` |
 | `assemble::build`'s doc: "the assembly both doors share verbatim" | Only one door remains, and `build_one_solid` is a one-line forward to it | `step-import/assemble.rs:810` |
+| `DESIGN.md`'s crate table, `topo` row: "the boolean engine and its splitting/census machinery (`topo::boolean`)" | The parenthetical module path is simply false and gets falser: `splitting` is `topo::splitting`, `census` is `topo::census`, and since #647 the shared sector rungs are `topo::sector_shape` — three crate-root siblings of `boolean`, not members of it. The prose ("the boolean engine and its splitting/census machinery") is a defensible reading of the ratified D-architecture; only the path is wrong. Recorded, NOT edited: `DESIGN.md` is the ratified contract and this needs Evan. Found by #647's style review | `DESIGN.md:1362` |
+| `docs/predicate-dimension-audit.md`'s per-row LINE ANCHORS, in a doc whose own header says "a row and its disposition entry must never disagree" | Verified stale: `validate.rs:1795` points at iso-adjacency prose while `tangent_second_order` is decided at `:2005`; `pcurve_cache.rs:1664` points at an arc construction while `pcurve_chart_radial_moving` is decided at `:3219`. Three more anchors are off by >200 lines and unverified. The audit's convention is that a single-line anchor names the *comparand construction*, a few lines above its `decide`, so a small offset is correct and only a large one is rot — which is why this needs a per-row read, not a script rewrite. #647 fixed the three defects it introduced in its own retarget (a dropped `bool_sector_within`, a one-line-short range, a range-less new row) and declined the sweep; the scan script it used is in its PR body | `predicate-dimension-audit.md` (75 anchored rows) |
 
 **Verdict:** ACCEPTED, WITH A SHARPENED READING (Evan, 2026-08-18). *"The
 stale claims should also be fixed carefully rather than just removed since they
@@ -3816,7 +3876,7 @@ Good work for filling parallel capacity. None blocks anything.
 | # | Item | Effort |
 |---|---|---|
 | **H1** ✅ #626 | **ci-local mirror parity** — **FIXED by #626**, extracted rather than synced (Evan, 2026-08-19). The eight mirrored gates of ci.yml's `discipline` job live once under `scripts/gates/`; both halves call the same script, ci.yml keeps one step per gate under today's names, and the ratified allowlist prose has one home. A ninth gate, `gate-roster.sh`, closes the level above: `ci-local.sh` runs the gate directory in a loop so it keeps no roster at all, and the gate checks ci.yml's named steps — the one roster that must be hand-written — against that directory, requiring a real invocation rather than a mention. It proves wiring, not execution: a step disabled by an `if:` condition still satisfies a grep, and the script header says so. Every gate runs a `--selftest` in both halves and fails loudly rather than passing green on a tree it could not scan. The `EvalScalar` and interval-square `powi(2)` gates now run locally too. Allowlist membership unchanged; the prose drift and the one disclosed behaviour fix are recorded in the PR. | S |
-| **H2** ✅ #635 | **S39 stale claims** — ten rows, each classified **benign rot** vs **lost invariant** *before* its sentence is touched. `enters.rs:14` is the (ii) candidate: the outward-normal property was devolved onto every caller with no type enforcing it. **FIXED by #635** — all ten rows were still live, each classified before its sentence was touched. One residue is deliberate and is Evan's: `enters.rs`'s prose now states that the sense correction is the caller's and that no type enforces it, but the TYPING fork (a `geom-brep`-side `OutwardNormal<T>` newtype, versus taking `(&Body, FaceKey)` and inverting the `geom-brep`/`topo` layering) was left unmade on purpose — the real exposure is three call sites, not the 36 first reported. | M |
+| **H2** ✅ #635 | **S39 stale claims** — twelve rows (two added by #647's style review: `DESIGN.md:1362`'s false `topo::boolean` path, and `predicate-dimension-audit.md`'s stale line anchors), each classified **benign rot** vs **lost invariant** *before* its sentence is touched. `enters.rs:14` is the (ii) candidate: the outward-normal property was devolved onto every caller with no type enforcing it. **FIXED by #635** — all ten rows were still live, each classified before its sentence was touched. One residue is deliberate and is Evan's: `enters.rs`'s prose now states that the sense correction is the caller's and that no type enforces it, but the TYPING fork (a `geom-brep`-side `OutwardNormal<T>` newtype, versus taking `(&Body, FaceKey)` and inverting the `geom-brep`/`topo` layering) was left unmade on purpose — the real exposure is three call sites, not the 36 first reported. | M |
 | **H3** ✅ #627 | **S40 residue** — start with the two that are not cosmetic: `emit_topo.rs:1266`'s unreachable fallback would mint `Seam{ae, ae}`, a well-formed name for the wrong thing; `seqgen.rs:853`'s discarded counter means the property suite cannot tell an all-skipped run from a full one. **FIXED by #627**: both behavioural rows plus the mechanical residue, and the review pass swept two siblings of the rows it names — `validate.rs`'s 31-of-59 Display list and `run_harmonic_checks`' doubled `reach`. S40's design-call rows (the `k_stats` shim, `WitnessSlot`, `props/curved.rs`'s NaN throws and doubled `Rim` direction, the `HashSet` paragraph) stay open there; two new stale claims went to S39 for **H2**. | S |
 | **H4** | **S37** — shipped-artifact naming: the STL header's `cad-kernel-m2`, `UnsupportedCurve.note`'s runtime-visible PR number, ~124 internal spec codes in public rustdoc and the Python stub. Evan: *"can be fixed earlier"* than S36. | S–M |
 | **H5** ✅ #632 | **S4 drift (b)** — `names/select.rs:319`'s `_ => Vec::new()`, the fail-quiet wildcard its three siblings forbid by comment. One function. **FIXED by #632**: `name_args` and its neighbour `side_of` now list all 40 `RoleSeg` variants explicitly, including the nested `Qualifier` inside the `Fragment` arm, so a future name-carrying variant breaks the compile instead of compiling in as "no arguments". No behaviour change. | XS |
@@ -3836,7 +3896,7 @@ Good work for filling parallel capacity. None blocks anything.
 | **W2b** | **S1 / S2** — `RingInterval`, and whether `Interval` becomes always-on | **D1**, **W1c** | Blast radius is **535 refs in 15 files**, not the ~600 sites this report first claimed; five files carry 60%. Build cost measured at ~zero. The real obstacle is the decoration seam (W1c), not licensing or build time. |
 | **W2c** | **S19** — the three big error catch-alls | **D2** | `AssemblyUnsupported` (146), `MissingEntity` (49), `SplitJoinError::Corrupt` (42). These *are* D9's only sanctioned option today, so D2 must land first or the work is undone. |
 | **W2d** | **S6** — sweep helper unification (~230 token-identical lines) | **D3** | Must follow D3: S6 and S7 are in one crate and will collide. K-telemetry does **not** block it — both funnels already take the predicate name as a parameter. Retracted: `SweptSeg`, `strut_spec`, `full::build_lamina` and the `let _ = k;` inference are *not* duplication. |
-| **W2e** | **S5** — `splitting/` vs `boolean/` | — | The largest. Start with the narrowest, highest-value piece: the **forked sector predicates**, which are dimensionally identical line-for-line and split one K population 29:1, with the 64-sample tail the one reaching margin 0. The repo already forced the reverse fix once (`M3-LOG.md:264`). |
+| **W2e** ✅ #647 (partial) | **S5** — `splitting/` vs `boolean/` | — | The largest. Started with the narrowest, highest-value piece: the **forked sector predicates**, which are dimensionally identical line-for-line and split one K population 29:1. **FIXED by #647**: one shared body in `topo::sector_shape`, both K name sets preserved, K stream reproduced byte-identically. The repo already forced the reverse fix once (`M3-LOG.md:264`), and whether the two names should now become ONE population is stated in #647 as an open question and scheduled as **issue #652**, not decided. The REST of S5 — `sector_face` twins, pipeline duplication, the wrong-way dependency — is still open and still the largest item here. |
 | **W2f** 🟡 | **S4** — the vocabulary mirrors, cheapest first | partly **W2c** | `BooleanOp` → `pub use topo::BooleanOp` + `serde(with)` (its constraint provably lapsed the day it was minted, and the technique is shipped); ~~then units~~ — **units DONE, #646**, which also enumerated the real duplicates the steelman had only counted; then `ProgramStep`/`WireStep`, which is cheap in isolation but **blocked behind OnArc + RESPELL-TABLE** and crosses the same files. **The row stays open**: `BooleanOp`, `ProgramStep`/`WireStep`, `SegTag` and the "no usable value" core are all untouched, and #646 filed **#650** (a pre-existing `literal_with_unit` round-trip break found beside the row, not fixed by it). |
 | **W2g** | **S49** — the census's planar × planar skip is justified by a claim about solids | — | `census.rs:1359` skips on a **face** predicate (`a.planar && b.planar`) while `census.rs:1035` argues about planar-only **solids**; a cylinder's caps are planar faces on a non-planar solid. Structural because the repair is a **jurisdiction call** between this filter, the conformal arm and the confirm pass — deciding which owns a planar face on a curved solid, then pinning it with a row that goes red if none of them does. Not gated on D1–D4. The W1a implementer and its reviewer independently judged it too wide to fold into #620. | M |
 
