@@ -45,9 +45,12 @@ fn fixture(name: &str) -> String {
     std::fs::read_to_string(p).unwrap()
 }
 
+/// One fixture's two δ rows: triangle count and validator verdict each.
+type Rows = Vec<(usize, Result<(), String>)>;
+
 /// Imports one fixture and tessellates it at two δ, returning the
 /// triangle count and the validator's verdict for each.
-fn meshed(name: &str) -> Vec<(usize, Result<(), String>)> {
+fn meshed(name: &str) -> Rows {
     let imported = import_step(&fixture(name), &ImportOptions::default())
         .unwrap_or_else(|e| panic!("{name} must import: {e:?}"));
     let StepImport::Solid { body, .. } = imported else {
@@ -74,37 +77,44 @@ fn meshed(name: &str) -> Vec<(usize, Result<(), String>)> {
 /// wobbling column makes the CDT emit.
 #[test]
 fn a_split_iso_side_meshes_watertight_under_an_oblique_placement() {
-    for name in [
+    // Imported and tessellated ONCE per fixture; every assertion below
+    // reads this table. `meshed` is two full `tessellate` runs, so a
+    // second call per fixture buys nothing but wall time.
+    let rows: Vec<(&str, Rows)> = [
         "plain_axis.step",
         "split_axis.step",
         "plain_oblique.step",
         "split_oblique.step",
-    ] {
-        for (i, (n, verdict)) in meshed(name).into_iter().enumerate() {
-            assert!(n > 0, "{name} row {i} meshed nothing");
-            assert_eq!(verdict, Ok(()), "{name} row {i} ({n} triangles)");
+    ]
+    .into_iter()
+    .map(|name| (name, meshed(name)))
+    .collect();
+    let counts = |name: &str| -> Vec<usize> {
+        rows.iter()
+            .find(|(n, _)| *n == name)
+            .map(|(_, r)| r.iter().map(|&(n, _)| n).collect())
+            .unwrap()
+    };
+
+    for (name, rs) in &rows {
+        for (i, (n, verdict)) in rs.iter().enumerate() {
+            assert!(*n > 0, "{name} row {i} meshed nothing");
+            assert_eq!(*verdict, Ok(()), "{name} row {i} ({n} triangles)");
         }
     }
     // The placement-invariance half, stated as a comparison rather
     // than as pinned constants so a δ or chord-policy change moves both
     // sides together.
-    let axis: Vec<usize> = meshed("split_axis.step").iter().map(|&(n, _)| n).collect();
-    let oblique: Vec<usize> = meshed("split_oblique.step")
-        .iter()
-        .map(|&(n, _)| n)
-        .collect();
+    let oblique = counts("split_oblique.step");
     assert_eq!(
-        axis, oblique,
+        counts("split_axis.step"),
+        oblique,
         "the same part, stated axis-aligned and obliquely, must mesh to the same size"
     );
     // And the split statement costs exactly the two extra boundary
     // vertices' worth of triangles over the unsplit one, not a sliver
     // on top of them.
-    let plain: Vec<usize> = meshed("plain_oblique.step")
-        .iter()
-        .map(|&(n, _)| n)
-        .collect();
-    for (p, o) in plain.iter().zip(&oblique) {
+    for (p, o) in counts("plain_oblique.step").iter().zip(&oblique) {
         assert_eq!(o - p, 2, "the split boundary costs 2 triangles, not 3");
     }
 }

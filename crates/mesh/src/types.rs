@@ -215,19 +215,27 @@ pub enum TessellateError {
     /// check at the site that makes the assumption.
     ///
     /// **Those gates are not why the arm stays quiet, and an earlier
-    /// form of this doc claimed otherwise.** Bodies whose walk lands
-    /// microscopically off their own UV box pass both gates freely and
-    /// reach this lane every day — a swept body plus
+    /// form of this doc claimed otherwise.** Bodies whose walk landed
+    /// microscopically off their own UV box passed both gates freely
+    /// and reached this lane every day — a swept body plus
     /// `topo::Body::split_edge`, or a STEP file stating one face
     /// boundary as two collinear `EDGE_CURVE`s (what an exporter emits
     /// whenever a vertex lands on that edge), either one placed
-    /// obliquely. An iso side carried by several edges is only
+    /// obliquely. An iso side carried by several edges was only
     /// *analytically* straight, so on those an EXACT comparison
     /// refused valid parts — measured false refusals at 1e-17 m
     /// (issue #653). The comparison is therefore BANDED, in metres,
     /// against the run's ε, and
     /// [`Self::UnsupportedCurvedDomain::max_distance`] is what says
     /// which side of that band a refusal came from.
+    ///
+    /// **#653's option 2 then fixed the wobble at its source**
+    /// (`walk::iso_side_starts`: one coordinate per iso side, not per
+    /// edge), so every walk this build produces sits on its box
+    /// bitwise and the band no longer separates anything in tree. It
+    /// is kept as a backstop — the argument for keeping it, and the
+    /// synthetic row that witnesses it, are at
+    /// `curved::entries_off_bbox`.
     UnsupportedCurvedDomain {
         /// The offending face.
         face: FaceKey,

@@ -46,7 +46,7 @@ fn diamond_profile() -> ProfileLoop<f64> {
 #[test]
 fn survives_wedge_angles_near_pi_and_extremes() {
     // θ near π is the half-period tie neighborhood; tiny and near-2π
-    // wedges stress the unwrap and the closure snap.
+    // wedges stress the unwrap and the loop closure.
     for theta in [0.05, PI / 2.0, PI - 0.01, PI, PI + 0.5, 2.0 * PI - 0.05] {
         let body = rev(washer_profile(), Revolution::Partial(theta));
         let v_exact = theta / 2.0 * 3.0; // (R2²−R1²)/2·h·θ = 3θ/2

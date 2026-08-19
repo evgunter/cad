@@ -294,12 +294,21 @@ const CORPUS: [(&str, Disposition); 58] = [
     ),
     // #653's import route: one D-prism, stated four ways. The two
     // `split_*` files state the cylindrical face's vertical boundary as
-    // two collinear `EDGE_CURVE`s (one more edge, same everything
-    // else), which is what every exporter emits when a vertex lands
-    // mid-side; the two `*_oblique` files place the part by a general
-    // rotation. Tessellating them is `split_iso_side.rs`'s row — here
-    // they are corpus like any other file, and their census is what
-    // says the extra edge is the ONLY difference.
+    // two collinear `EDGE_CURVE`s, which is what every exporter emits
+    // when a vertex lands mid-side; the two `*_oblique` files place the
+    // part by a general rotation. Tessellating them is
+    // `split_iso_side.rs`'s row — here they are corpus like any other
+    // file, and the census below is the pin that says the difference is
+    // exactly the split and nothing else.
+    //
+    // TWO slots move, necessarily: `Pass` is (solids, shells, faces,
+    // edges, vertices), and splitting one edge in two also mints the
+    // vertex between them — 6 edges/4 vertices becomes 7/5. Solids,
+    // shells and faces are identical, which is the part that matters:
+    // the importer did not merge the sub-edges back together (which
+    // would have shown as 6 edges) and did not adopt an extra face.
+    // The `*_oblique` rows equal their `*_axis` counterparts exactly,
+    // so the placement changes no count at all.
     (
         "tests/fixtures/split-iso/plain_axis.step",
         Pass(1, 1, 4, 6, 4),

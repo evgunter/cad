@@ -109,6 +109,18 @@
 //! this crate. Every face this build mints has `sense: true`, so that
 //! read is `· 1.0` and the mesh is bitwise unchanged.
 //!
+//! The walk assigns each iso side's constant coordinate once per ISO
+//! SIDE — not per point, and (since #653) not per edge either, so a
+//! side carried by several edges is bitwise straight too. It was per
+//! EDGE for a milestone, which left a multiply-carried side only
+//! ANALYTICALLY straight and, under a general rigid placement, ulps
+//! apart; `walk::iso_side_starts` groups the edges into runs and gives
+//! each run one coordinate. `curved`'s domain guard still bands its
+//! comparison in metres, now as a backstop rather than as the thing
+//! that keeps valid parts from being refused. A rim-anchored loop's
+//! closure is exact for a second, independent reason: it takes its
+//! column from the closing vertex itself (S22).
+//!
 //! Periodic charts are
 //! unwrapped by continuity along the walk (chord steps are capped at
 //! π/4, so branch choice is unambiguous); a full-2π patch traverses its

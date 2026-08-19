@@ -1,20 +1,38 @@
 #!/usr/bin/env python3
-"""Hand-authored AP214 fixtures for the S28 import residual.
+"""Hand-authored AP214 fixtures for issue #653's import route.
 
-Shape: a D-prism (half-disc cross-section, x >= 0, radius R, height H)
-with a rectangular notch milled into the curved side from the top --
-the keyway.  The OUTER CYLINDRICAL FACE therefore has a **U-shaped
-(notched) iso domain** in (u=theta, v=z): the bbox is
-[-pi/2, pi/2] x [0, H] but the sub-rectangle [t1, t2] x [z1, H] is
-NOT part of the face.
+Emits FOUR files into the directory given as argv[1], one per cell of a
+2x2 grid.  Both dimensions are load-bearing and neither is optional:
 
-`notch.step`  -- the notched solid (8 faces)
-`plain.step`  -- the same D-prism with no notch (4 faces), the control
+                     axis-aligned          obliquely placed
+    unsplit          plain_axis.step       plain_oblique.step
+    split            split_axis.step       split_oblique.step
+
+SHAPE.  A D-prism: half-disc cross-section (x >= XC, radius R, height
+H), four faces -- bottom half-disc, top half-disc, the chord plane, and
+the OUTER CYLINDRICAL FACE, whose iso domain in (u=theta, v=z) is the
+swept rectangle [-TC, TC] x [0, H].
+
+SPLIT.  In the `split_*` files the cylindrical face's vertical boundary
+at u = -TC is stated as TWO collinear `EDGE_CURVE`s meeting at a vertex
+at mid-height -- separate `LINE` carriers, adopted independently, which
+is what every exporter emits when a vertex lands mid-side.  That is the
+whole point of the family: the two sub-edges share no carrier identity,
+so the walk cannot group them by comparing carriers and #653's sameness
+test has to be geometric.
+
+OBLIQUE.  `ROT` is a general rotation about an irrational-ish axis,
+applied to every point and direction as they are written.  Axis-aligned
+the two sub-edges' `atan2`s land on the same bits by luck and the mesh
+comes out clean even on `main`; the oblique statement of the same part
+is what turns the defect on.  The pair is the control.
+
+Regenerate with `python3 generate.py <dir>`; the outputs are committed
+so the test row does not need a Python interpreter.
 """
 import math
 
-R, RHO, H, Z1 = 10.0, 6.0, 20.0, 12.0
-T1, T2 = -0.4, 0.4
+R, H = 10.0, 20.0
 XC = 3.0                      # the flat's offset from the axis
 TC = math.acos(XC / R)        # the segment's half-angle (< pi/2, so the
                               # face's u-span 2*TC stays clear of the
@@ -68,7 +86,7 @@ def fmt(v):
     return ",".join(num(c) for c in v)
 
 
-def build(notched, split=False):
+def build(split=False):
     s = Step()
     out = []
     # --- boilerplate ------------------------------------------------
@@ -110,22 +128,12 @@ def build(notched, split=False):
     vtx("P1", P(R, TC, 0))
     vtx("P2", P(R, -TC, H))
     vtx("P3", P(R, TC, H))
-    if notched:
-        vtx("A1", P(R, T1, H));   vtx("A2", P(R, T2, H))
-        vtx("B1", P(R, T1, Z1));  vtx("B2", P(R, T2, Z1))
-        vtx("C1", P(RHO, T1, H)); vtx("C2", P(RHO, T2, H))
-        vtx("D1", P(RHO, T1, Z1)); vtx("D2", P(RHO, T2, Z1))
 
     pos = {}   # vertex name -> 3-D point, for line directions
     if split:
         pos["M0"] = P(R, -TC, H / 2.0)
     pos["P0"] = P(R, -TC, 0); pos["P1"] = P(R, TC, 0)
     pos["P2"] = P(R, -TC, H); pos["P3"] = P(R, TC, H)
-    if notched:
-        pos["A1"] = P(R, T1, H); pos["A2"] = P(R, T2, H)
-        pos["B1"] = P(R, T1, Z1); pos["B2"] = P(R, T2, Z1)
-        pos["C1"] = P(RHO, T1, H); pos["C2"] = P(RHO, T2, H)
-        pos["D1"] = P(RHO, T1, Z1); pos["D2"] = P(RHO, T2, Z1)
 
     # --- edges ------------------------------------------------------
     E = {}
@@ -141,36 +149,16 @@ def build(notched, split=False):
         c = s.add("CIRCLE('',#%d,%s)" % (s.ax2((0, 0, z), (0, 0, 1), (1, 0, 0)), num(r)))
         E[name] = s.add("EDGE_CURVE('',#%d,#%d,#%d,.T.)" % (V[a], V[b], c))
 
-    if notched:
-        arc_edge("e1", "P0", "P1", R, 0)
-        line_edge("e2", "P1", "P0")
-        arc_edge("e3", "P2", "A1", R, H)
-        line_edge("e4", "A1", "C1")
-        arc_edge("e5", "C1", "C2", RHO, H)
-        line_edge("e6", "C2", "A2")
-        arc_edge("e7", "A2", "P3", R, H)
-        line_edge("e8", "P3", "P2")
-        line_edge("e9", "P0", "P2")
-        line_edge("e10", "P1", "P3")
-        line_edge("e11", "A1", "B1")
-        arc_edge("e12", "B1", "B2", R, Z1)
-        line_edge("e13", "A2", "B2")
-        line_edge("e14", "B1", "D1")
-        line_edge("e15", "B2", "D2")
-        arc_edge("e16", "D1", "D2", RHO, Z1)
-        line_edge("e17", "C1", "D1")
-        line_edge("e18", "C2", "D2")
+    arc_edge("e1", "P0", "P1", R, 0)
+    line_edge("e2", "P1", "P0")
+    arc_edge("e3", "P2", "P3", R, H)
+    line_edge("e8", "P3", "P2")
+    if split:
+        line_edge("e9a", "P0", "M0")
+        line_edge("e9b", "M0", "P2")
     else:
-        arc_edge("e1", "P0", "P1", R, 0)
-        line_edge("e2", "P1", "P0")
-        arc_edge("e3", "P2", "P3", R, H)
-        line_edge("e8", "P3", "P2")
-        if split:
-            line_edge("e9a", "P0", "M0")
-            line_edge("e9b", "M0", "P2")
-        else:
-            line_edge("e9", "P0", "P2")
-        line_edge("e10", "P1", "P3")
+        line_edge("e9", "P0", "P2")
+    line_edge("e10", "P1", "P3")
 
     # --- faces ------------------------------------------------------
     faces = []
@@ -188,40 +176,13 @@ def build(notched, split=False):
 
     tang = lambda t: (-math.sin(t), math.cos(t), 0.0)
 
-    if notched:
-        # F1 bottom half-disc, outward normal -z
-        face(plane((0, 0, 0), (0, 0, -1), (1, 0, 0)),
-             [("e1", "F"), ("e2", "F")])
-        # F2 top face (half-disc minus the notch's annular sector), +z
-        face(plane((0, 0, H), (0, 0, 1), (1, 0, 0)),
-             [("e3", "T"), ("e4", "T"), ("e5", "T"), ("e6", "T"), ("e7", "T"), ("e8", "T")])
-        # F3 chord plane x = 0, outward normal -x
-        face(plane((XC, 0, 0), (-1, 0, 0), (0, 0, 1)),
-             [("e9", "T"), ("e8", "F"), ("e10", "F"), ("e2", "T")])
-        # F4 THE OUTER CYLINDER -- U-shaped iso domain
-        face(cyl(R),
-             [("e1", "T"), ("e10", "T"), ("e7", "F"), ("e13", "T"),
-              ("e12", "F"), ("e11", "F"), ("e3", "F"), ("e9", "F")])
-        # F5 notch floor z = Z1, outward normal +z
-        face(plane((0, 0, Z1), (0, 0, 1), (1, 0, 0)),
-             [("e12", "T"), ("e15", "T"), ("e16", "F"), ("e14", "F")])
-        # F6 notch wall at theta = T1, outward normal +tangential(T1)
-        face(plane((0, 0, 0), tang(T1), (0, 0, 1)),
-             [("e17", "F"), ("e4", "F"), ("e11", "T"), ("e14", "T")])
-        # F7 notch wall at theta = T2, outward normal -tangential(T2)
-        face(plane((0, 0, 0), [-c for c in tang(T2)], (0, 0, 1)),
-             [("e15", "F"), ("e13", "F"), ("e6", "F"), ("e18", "T")])
-        # F8 notch inner cylinder r = RHO, outward normal +radial
-        face(cyl(RHO),
-             [("e16", "T"), ("e18", "F"), ("e5", "F"), ("e17", "T")])
-    else:
-        face(plane((0, 0, 0), (0, 0, -1), (1, 0, 0)), [("e1", "F"), ("e2", "F")])
-        face(plane((0, 0, H), (0, 0, 1), (1, 0, 0)), [("e3", "T"), ("e8", "T")])
-        chord_e9 = [("e9a", "T"), ("e9b", "T")] if split else [("e9", "T")]
-        cyl_e9 = [("e9b", "F"), ("e9a", "F")] if split else [("e9", "F")]
-        face(plane((XC, 0, 0), (-1, 0, 0), (0, 0, 1)),
-             chord_e9 + [("e8", "F"), ("e10", "F"), ("e2", "T")])
-        face(cyl(R), [("e1", "T"), ("e10", "T"), ("e3", "F")] + cyl_e9)
+    face(plane((0, 0, 0), (0, 0, -1), (1, 0, 0)), [("e1", "F"), ("e2", "F")])
+    face(plane((0, 0, H), (0, 0, 1), (1, 0, 0)), [("e3", "T"), ("e8", "T")])
+    chord_e9 = [("e9a", "T"), ("e9b", "T")] if split else [("e9", "T")]
+    cyl_e9 = [("e9b", "F"), ("e9a", "F")] if split else [("e9", "F")]
+    face(plane((XC, 0, 0), (-1, 0, 0), (0, 0, 1)),
+         chord_e9 + [("e8", "F"), ("e10", "F"), ("e2", "T")])
+    face(cyl(R), [("e1", "T"), ("e10", "T"), ("e3", "F")] + cyl_e9)
 
     s.lines[shell_slot] = "#%d = CLOSED_SHELL('',(%s));" % (
         shell, ",".join("#%d" % f for f in faces))
@@ -269,6 +230,6 @@ ROTM = (
 
 for tag, R_ in (("axis", None), ("oblique", ROTM)):
     globals()["ROT"] = R_
-    open("%s/plain_%s.step" % (d, tag), "w").write(build(False))
-    open("%s/split_%s.step" % (d, tag), "w").write(build(False, split=True))
+    open("%s/plain_%s.step" % (d, tag), "w").write(build())
+    open("%s/split_%s.step" % (d, tag), "w").write(build(split=True))
 print("ok")
