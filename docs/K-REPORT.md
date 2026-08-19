@@ -981,10 +981,28 @@ the six old names.
 bit-identical; only the `predicate` column changes, and only for these
 six values. Reproduced with the probe #647 left for exactly this —
 `cargo test -p topo --features probe --test all -- --nocapture
-probe_s5_sectors::sector_margin_stream | grep '^K '` on merge base and
-tip: 26 541 rows both sides, identical row-for-row after rewriting the
-six old names to the three new ones, and identical without any rewrite
-on the 23 987 rows that are not sector rungs.
+probe_s5_sectors::sector_margin_stream | grep '^K '` on merge base
+(`17b077f7`) and tip:
+
+| | merge base | tip |
+|---|--:|--:|
+| recorded rows | 26 541 | 26 541 |
+| rows that are NOT sector rungs | 26 121 | 26 121 — **byte-identical, no rewrite** |
+| sector-rung rows | 420 | 420 |
+| `bool_sector_arm` / `split_sector_arm` | 56 / 112 | `sector_arm` **168** |
+| `bool_sector_reflex` / `split_sector_reflex` | 56 / 112 | `sector_reflex` **168** |
+| `bool_sector_straight` / `split_sector_straight` | 56 / 28 | `sector_straight` **84** |
+
+Rewriting only the predicate column of the base stream
+(`s/^K (bool|split)_sector_(arm|reflex|straight)\|/K sector_\2|/`) makes
+the two files **identical**, SHA-256
+`7c0e4ee0efe0a60fb564bed3f049e2f097214c00c9bbd1dff8622065bee71aed`
+(the base stream unrewritten is
+`b1d84289d2f80db66be434b0c98451938628814b1a901336feec9e272dd8649f`).
+Order, margins, bands and outcomes are untouched; the merge is exactly a
+substitution on one column. `bool_sector_{coplanar,within}` and
+`split_sector_{coplanar,extent}` appear in both streams unchanged, as
+they should.
 
 **Disposition of `docs/k-report-data/`: LEFT AS WRITTEN.** The committed
 CSVs (`m4-`, `m5-`, `m7-`, and the M2-era `eps-*.csv`) are dated
