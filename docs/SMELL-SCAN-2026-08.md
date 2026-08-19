@@ -3648,11 +3648,14 @@ they are accepted, several are argued at length, and none has a lane, an
 owner, or a wave. Only S35's roll-up gets a Wave-3 row, and S35 is a different
 finding from its neighbours. Two of the unscheduled ones carry open questions
 that are Evan's rather than an agent's (S22's ε ambience and the mesh
-ε-vs-δ-vs-neither snap bar), and at least one is arguably a correctness item
-that never got a Wave-1 row (S28's `curved.rs` inserts grid points *after*
-constraints, the ordering `planar.rs:227` warns against — the postmortem
-established the warning was never a claim about `curved`, so whether `curved`
-is safe has genuinely never been asked). Scheduling these is outstanding.
+ε-vs-δ-vs-neither snap bar), and S28 turned out to hold a correctness question
+that never got a Wave-1 row: `curved.rs` inserts grid points *after*
+constraints, the ordering `planar::triangulate_chart`'s header warns against.
+**That half is settled by #648** — the ordering is inert, proven by execution —
+but settling it surfaced the premise actually carrying the lane: the grid runs
+over the walk polygon's *bounding box*, which is interior only if the domain is
+a rectangle, and nothing in production checks it. Scheduling the rest is
+outstanding.
 
 ## Wave 3 — last, deliberately.
 
