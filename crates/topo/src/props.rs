@@ -506,6 +506,38 @@ mod quad_lane {
             assert_eq!((ok.lo(), ok.hi()), (1.0, 2.0));
         }
 
+        /// Where a violated scalar would have to come FROM. Every
+        /// scalar this lane hands to `br` is either read straight off
+        /// the stored body or built from it by `dot`, `norm`,
+        /// `distance` and arithmetic — and none of those can
+        /// manufacture a domain violation: a norm is the square root of
+        /// a sum of squares, which is never partly negative, so it
+        /// certifies even where it is zero and the vector degenerate.
+        /// A `Trv` reaching `br` therefore has to have been STORED in
+        /// the body, not produced here. That is a property of the
+        /// arithmetic, not of any guard, so it is pinned rather than
+        /// assumed.
+        #[test]
+        fn the_lanes_own_arithmetic_cannot_manufacture_a_violation() {
+            use geom_core::Vec3;
+            let iv = geom_core::Interval::from_f64;
+            for v in [
+                Vec3::new(iv(0.0), iv(0.0), iv(0.0)),
+                Vec3::new(iv(-3.0), iv(4.0), iv(0.0)),
+                Vec3::new(
+                    geom_core::Interval::from_bounds(-1.0, 1.0),
+                    iv(0.0),
+                    iv(0.0),
+                ),
+            ] {
+                assert!(
+                    v.norm().certified_bracket().is_some(),
+                    "a norm certified nothing for {v:?}"
+                );
+                assert!(!br(v.norm()).is_poison());
+            }
+        }
+
         /// The seam is per scalar, not per channel: one violated
         /// coefficient poisons its own slot and leaves the rest intact,
         /// so the poison reaches the flux algebra where it is visible.
