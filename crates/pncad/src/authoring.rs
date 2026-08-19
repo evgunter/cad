@@ -18,9 +18,6 @@
 //! Before this seam existed, the demo corpus carried six
 //! near-identical `p2` helpers and four `validated` wrappers, one per
 //! scene. Those are now gone — deleted in favor of the forms below.
-//! A seventh function, `polygon`, lived here until LIB-RETTAIL; the
-//! comment where it stood records why it went.
-//!
 //! # What this seam does *not* yet do
 //!
 //! It offers an f64-first door; it does not by itself remove the
@@ -114,10 +111,10 @@ pub fn v3<T: Real>(x: f64, y: f64, z: f64) -> Vec3<T> {
     Vec3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z))
 }
 
-// REMOVED (LIB-RETTAIL, Evan's ruling on #413): the f64-first
+// REMOVED: the f64-first
 // `polygon(&[(f64, f64)]) -> ProfileLoop` door. It minted a raw vertex
 // table — zero bulges, no declared joints, no junction classification —
-// which is exactly the public authoring tier the ruling demotes. The
+// which is exactly the public authoring tier that is demoted. The
 // straight-segment table is said through the PATHS lattice instead
 // (`Open.at(p0)`, a `line_to` per vertex, `line_to(Start)` as the
 // seam), which refuses a within-band-tangent or cusped corner AT

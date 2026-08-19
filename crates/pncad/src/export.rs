@@ -1,4 +1,4 @@
-//! **The document layer's export door** (LIB-DOORS F2).
+//! **The document layer's export door**.
 //!
 //! `step_export::step_string` takes a kernel [`topo::Body`]; before
 //! this module, nothing curated accepted an EVALUATED body, so §L3's
@@ -7,7 +7,7 @@
 //! vocabulary: an [`Evaluation`] plus the [`RecipeNodeId`] whose value
 //! is to be exported.
 //!
-//! # Shape (a measured fork, reported in the LIB-DOORS PR)
+//! # Shape (a measured fork)
 //!
 //! A `pncad` FUNCTION taking `Evaluation` + node was chosen over a
 //! method on the bindings' body handle: the "which body does this
@@ -71,7 +71,7 @@ pub enum ExportError {
     },
     /// The body was denoted but the STEP writer refused it.
     Step(StepExportError),
-    /// The whole-document door's gather refused (ASM-ROOTS D-4): no
+    /// The whole-document door's gather refused: no
     /// body-denoting root, a failed root, or a kernel refusal while
     /// gathering.
     Product(ProductError),
@@ -159,7 +159,7 @@ pub fn step_for_node(
 
 /// Serializes the WHOLE DOCUMENT's product — the A10 gather of every
 /// body-denoting product root, in root-list order — as a STEP (AP214
-/// Part 21) exchange file (ASM-ROOTS D-4).
+/// Part 21) exchange file.
 ///
 /// This is the door that accepts what [`step_for_node`] refuses: a
 /// pattern's instances, a split's two halves, several disjoint tips.

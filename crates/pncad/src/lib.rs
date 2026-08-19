@@ -81,11 +81,11 @@
 // Module re-exports: the whole authoring surface, one hop away.
 // ---------------------------------------------------------------
 
-// NOT re-exported as a module (LB13): the document layer is exposed
+// NOT re-exported as a module: the document layer is exposed
 // through the curated `document` + `select` surfaces instead. Its
 // arena keys are body-lineage-scoped and must not leave editor-core
-// (G1), and a whole-crate re-export handed them out one hop past the
-// LIB-U5 seal. Kernel crates keep their module re-exports below —
+// (G1), and a whole-crate re-export would hand them out one hop past
+// that seal. Kernel crates keep their module re-exports below —
 // they carry geometry, not keys into a particular evaluation.
 /// B-rep geometry primitives: surface/curve kinds, pcurves, section
 /// classification. Mostly interior, but it owns error payload types
@@ -102,18 +102,17 @@ pub use geom_curves;
 pub use geom_surfaces;
 /// Certified tessellation and the mesh validation cross-checks.
 pub use mesh;
-// `profile` is NOT re-exported whole (LIB-RETTAIL, Evan's ruling on
-// #413): `pncad::profile::ProfileLoop::polygon` was the measured leak
-// of the raw authoring tier past the curated surface. `pub mod
-// profile` below is the narrowed replacement — the LB13 precedent,
-// applied to one nameability.
-/// The D6 API-boundary quantity layer (LIB-U8a): `Length`/`Angle`/
+// `profile` is NOT re-exported whole:
+// `pncad::profile::ProfileLoop::polygon` was the measured leak of the
+// raw authoring tier past the curated surface. `pub mod profile`
+// below is the narrowed replacement — a curated module in place of a
+// whole-crate re-export, applied to one nameability.
+/// The D6 API-boundary quantity layer: `Length`/`Angle`/
 /// `Count` newtypes, the unit table + constants (`25.0 * MM`), and
 /// the display formatter. NOTE: `quantity::Length` is the public
 /// quantity type; `geom_core::predicate::Margin<T>` is the
-/// kernel-internal classify-seam margin type (renamed from
-/// `Length<T>`, LB9) — different things, and only the former is
-/// prelude surface.
+/// kernel-internal classify-seam margin type — different things, and
+/// only the former is prelude surface.
 pub use quantity;
 /// STEP AP242 export.
 pub use step_export;
