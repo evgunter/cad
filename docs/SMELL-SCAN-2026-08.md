@@ -2454,9 +2454,11 @@ hand-rolled `if h.index() == meta.len()` dedup, add loop constraints,
 decide a `flip` from a shoelace sign, iterate `inner_faces()`, skip
 id-degenerate triangles, emit. Each differs: `curved` uses
 `can_add_constraint`+`add_constraint` and inserts grid points *after*
-constraints — **exactly what `planar.rs:229` warns is unsafe** — while
-`planar`/`trimmed` use `try_add_constraint` with crossing counts, and
-only `trimmed` classifies intermediate vertices.
+constraints (**not** the hazard `planar.rs:229` warns about — that
+warning guards planar's crossing bookkeeping, which `curved` does not
+build; settled below), while `planar`/`trimmed` use `try_add_constraint`
+with crossing counts, and only `trimmed` classifies intermediate
+vertices.
 
 What sharing exists is ad hoc: `trimmed` imports `classify_faces`/
 `edge_key`/`shoelace2` from `planar`, and both `trimmed` and
@@ -3638,6 +3640,16 @@ inside its own lane — while the lane that predates all three (`curved.rs`)
 still carries the ordering the warning describes. A fix that establishes an
 invariant needs an explicit sweep of sibling implementations as part of its
 **acceptance**, not just its own regression row.
+
+**The sweep was run (2026-08-19).** For `curved.rs` it came back CLEAR, and
+the clearance is itself the point: the ordering is inert there because
+`curved` builds no crossing bookkeeping for a split to corrupt — so what the
+sweep found was not a bug but an *unstated premise* doing the work
+(`curved`'s UV domain is its own bounding rectangle), which nothing checked.
+The sweep's product is therefore a pinned invariant rather than a fix. Read
+that as the general shape: a sibling that survives the sweep survives *for a
+reason*, and the reason is what has to be written down. S28 carries the
+detail.
 
 ## C11. Self-disclosed copies are invisible to everyone, and greppable
 

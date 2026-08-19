@@ -146,6 +146,23 @@ pub(crate) fn tessellate_curved(
             cdt.add_constraint(a, b);
         }
     }
+    // GRID AFTER CONSTRAINTS — and NOT the hazard
+    // `planar::triangulate_chart`'s header warns about (S28). That
+    // warning is a precondition of PLANAR's crossing bookkeeping: a
+    // vertex landing on a constraint splits it, and the two halves
+    // would be counted where the whole segment was. This lane keeps no
+    // such bookkeeping — `inner_faces()` emits every triangle — and
+    // spade re-flags BOTH halves of a split edge as constraints, so a
+    // split would corrupt nothing read here.
+    //
+    // What actually keeps the grid off the boundary is the swept-UV-
+    // rectangle contract (module docs): the walk's polygon IS its own
+    // bounding box, so `i` and `j` running the OPEN ranges below put
+    // every grid point strictly inside every constraint. That premise —
+    // not the ordering — is the thing to re-check if this lane is ever
+    // handed a face whose iso boundary is not a rectangle; the tests at
+    // the foot of this file pin it, including through a boolean cut,
+    // and show what a notched domain does instead.
     let (uspan, vspan) = (u1 - u0, v1 - v0);
     for j in 1..nv {
         #[allow(clippy::cast_precision_loss)]
@@ -239,5 +256,372 @@ fn grid_steps(
             let h = torus_grid_step(delta_s, major, minor).min(cap);
             Ok((ceil_count(uspan, h)?, ceil_count(vspan, h)?))
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    //! **S28 — why this lane's grid-after-constraints order is inert,
+    //! pinned so the next reader need not re-derive it.**
+    //!
+    //! `planar::triangulate_chart`'s header warns that a vertex landing
+    //! on a constraint splits it. That is a precondition of PLANAR's
+    //! crossing bookkeeping (PR #116's even-odd flood fill), written
+    //! five days after this file, and it was never a claim about this
+    //! lane: nothing here counts constraint traversals, and spade
+    //! re-flags both halves of a split edge.
+    //!
+    //! The premise that DOES carry this lane is the swept-UV-rectangle
+    //! contract: the boundary walk's polygon is its own bounding box,
+    //! so an interior grid over that box (`1..nu` × `1..nv`) can never
+    //! reach a constraint. The rows below pin the premise over every
+    //! chart this build authors — including a face produced by a
+    //! BOOLEAN cut, whose chart re-cut is what keeps it iso-rectangular
+    //! — and show, on a notched domain, exactly what the premise buys.
+
+    use super::*;
+    use geom_core::{Affine3, Point2, Tolerance, Vec2, Vec3};
+    use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile};
+    use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+
+    fn p2(x: f64, y: f64) -> Point2<f64> {
+        Point2::new(x, y)
+    }
+
+    fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
+        Profile::new(SketchPlane::xy(), loops)
+            .validate(Tolerance::get())
+            .unwrap()
+    }
+
+    fn axis_y() -> RevolveAxis<f64> {
+        RevolveAxis {
+            origin: p2(0.0, 0.0),
+            dir: Vec2::new(0.0, 1.0),
+        }
+    }
+
+    /// The indices of polygon entries that do NOT lie on the polygon's
+    /// own bounding rectangle — empty ⟺ the UV domain IS that
+    /// rectangle.
+    ///
+    /// Sufficient, and it is the shape that matters: a rectilinear
+    /// simple polygon has a re-entrant corner exactly when some vertex
+    /// sits strictly inside its bounding box, and a re-entrant corner
+    /// is what lets an interior grid point land on — or across — a
+    /// boundary constraint.
+    ///
+    /// The comparison is EXACT, never banded: the walk assigns each
+    /// side's constant coordinate once per edge, so a rectangle side is
+    /// bitwise straight (`walk` module docs) and a near-miss here would
+    /// itself be the finding.
+    fn entries_off_bbox(poly: &[(f64, f64)]) -> Vec<usize> {
+        let (mut u0, mut u1, mut v0, mut v1) = (f64::MAX, f64::MIN, f64::MAX, f64::MIN);
+        for &(u, v) in poly {
+            u0 = u0.min(u);
+            u1 = u1.max(u);
+            v0 = v0.min(v);
+            v1 = v1.max(v);
+        }
+        poly.iter()
+            .enumerate()
+            .filter(|&(_, &(u, v))| !(u == u0 || u == u1 || v == v0 || v == v1))
+            .map(|(i, _)| i)
+            .collect()
+    }
+
+    /// Every face this lane would take, walked to its UV polygon — the
+    /// `tessellate` prologue (mesh ids, then the chord pass) run for
+    /// the walk alone.
+    fn curved_walks(body: &Body<f64>) -> Vec<(FaceKey, Vec<(f64, f64)>)> {
+        let eps = Tolerance::get().eps;
+        let mut positions = Vec::new();
+        let mut vids = HashMap::new();
+        for (vk, v) in body.vertices() {
+            #[allow(clippy::cast_possible_truncation)]
+            vids.insert(vk, positions.len() as u32);
+            positions.push(*body.get_point(v.point).unwrap());
+        }
+        let (chords, _) =
+            crate::chords::compute_chords(body, 0.025, &vids, &mut positions).unwrap();
+        let mut out = Vec::new();
+        for (fk, face) in body.faces() {
+            if crate::trimmed::has_trim_carrier(body, fk).unwrap() {
+                continue;
+            }
+            let Some(chart) = Chart::of(body.get_surface(face.surface).unwrap()) else {
+                continue;
+            };
+            let poly =
+                loop_polygon(body, &chart, &chords, &positions, fk, face.outer, eps).unwrap();
+            out.push((fk, poly.iter().map(|e| (e.u, e.v)).collect()));
+        }
+        out
+    }
+
+    fn ball() -> Body<f64> {
+        let lp = ProfileLoop::new(vec![
+            ProfileVertex::new(p2(0.0, -1.0), 1.0),
+            ProfileVertex::new(p2(0.0, 1.0), 0.0),
+        ]);
+        revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
+            .unwrap()
+            .body
+    }
+
+    fn cone_body() -> Body<f64> {
+        let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(0.0, 1.0)]);
+        revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
+            .unwrap()
+            .body
+    }
+
+    fn washer() -> Body<f64> {
+        let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
+        revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
+            .unwrap()
+            .body
+    }
+
+    fn donut() -> Body<f64> {
+        let lp = ProfileLoop::new(vec![
+            ProfileVertex::new(p2(2.0, -0.5), 1.0),
+            ProfileVertex::new(p2(2.0, 0.5), 1.0),
+        ]);
+        revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
+            .unwrap()
+            .body
+    }
+
+    fn wedge(theta: f64) -> Body<f64> {
+        let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
+        revolve(&validated(vec![lp]), axis_y(), Revolution::Partial(theta))
+            .unwrap()
+            .body
+    }
+
+    fn rounded_prism() -> Body<f64> {
+        let b = core::f64::consts::FRAC_PI_8.tan();
+        let r = 0.5;
+        let v = |pos: Point2<f64>, bulge: f64| ProfileVertex::new(pos, bulge);
+        let mut lp = ProfileLoop::new(vec![
+            v(p2(r, 0.0), 0.0),
+            v(p2(2.0 - r, 0.0), b),
+            v(p2(2.0, r), 0.0),
+            v(p2(2.0, 2.0 - r), b),
+            v(p2(2.0 - r, 2.0), 0.0),
+            v(p2(r, 2.0), b),
+            v(p2(0.0, 2.0 - r), 0.0),
+            v(p2(0.0, r), b),
+        ]);
+        let n = lp.vertices().len();
+        lp = lp.with_tangent_joints((0..n).collect());
+        extrude(&validated(vec![lp]), Extrusion::Distance(1.0))
+            .unwrap()
+            .body
+    }
+
+    /// The die pip (`sweep`'s `m5_s13_pips` shape): a 4 × 4 × 1 slab
+    /// with a radius-0.5 ball subtracted 0.2 above its top face. The
+    /// cavity's two sphere faces are the only curved faces in this
+    /// crate's reach that a BOOLEAN produced rather than a sweep.
+    fn die_pip() -> Body<f64> {
+        let lp = <ProfileLoop<f64> as RawLoop<f64>>::polygon([
+            p2(0.0, 0.0),
+            p2(4.0, 0.0),
+            p2(4.0, 4.0),
+            p2(0.0, 4.0),
+        ]);
+        let slab = extrude(&validated(vec![lp]), Extrusion::Distance(1.0))
+            .unwrap()
+            .body;
+        let half = ProfileLoop::new(vec![
+            ProfileVertex::new(p2(0.0, -0.5), 1.0),
+            ProfileVertex::new(p2(0.0, 0.5), 0.0),
+        ]);
+        let ball = revolve(&validated(vec![half]), axis_y(), Revolution::Full)
+            .unwrap()
+            .body;
+        let ball =
+            topo::transform_rigid(&ball, &Affine3::translation(Vec3::new(2.0, 2.0, 1.2))).unwrap();
+        topo::boolean::subtract(&slab, &ball)
+            .expect("the die pip cuts")
+            .body()
+            .expect("a pip is a dent, not a void")
+            .body
+            .clone()
+    }
+
+    /// **The premise.** Every curved face this build can put in front of
+    /// [`tessellate_curved`] walks to a UV polygon that IS its own
+    /// bounding rectangle — which is what puts the interior grid
+    /// strictly inside every boundary constraint, and is therefore the
+    /// reason the grid-after-constraints order costs nothing here.
+    ///
+    /// The die pip is in the list on purpose (§C10, the sweep this
+    /// finding asks for): the boolean's chart re-cut is what keeps a
+    /// CUT sphere face iso-rectangular, and if that ever stops holding,
+    /// this row is where it surfaces — in the lane that would silently
+    /// mesh the bounding box.
+    #[test]
+    fn every_curved_walk_is_its_own_bounding_rectangle() {
+        let bodies: Vec<(&str, Body<f64>)> = vec![
+            ("ball", ball()),
+            ("cone", cone_body()),
+            ("washer", washer()),
+            ("donut", donut()),
+            ("wedge(pi/2)", wedge(core::f64::consts::FRAC_PI_2)),
+            ("wedge(pi)", wedge(core::f64::consts::PI)),
+            ("wedge(2pi - 0.05)", wedge(core::f64::consts::TAU - 0.05)),
+            ("rounded prism", rounded_prism()),
+            ("die pip (boolean cut)", die_pip()),
+        ];
+        let mut walked = 0;
+        for (name, body) in bodies {
+            for (fk, poly) in curved_walks(&body) {
+                walked += 1;
+                let off = entries_off_bbox(&poly);
+                assert!(
+                    off.is_empty(),
+                    "{name} face {fk:?}: {} of {} walk entries lie strictly inside the UV \
+                     bounding box, so the domain is not that box — the interior grid can \
+                     reach a boundary constraint and `inner_faces()` emits triangles \
+                     outside the face. Offenders: {:?}",
+                    off.len(),
+                    poly.len(),
+                    off.iter().map(|&i| poly[i]).collect::<Vec<_>>()
+                );
+            }
+        }
+        assert!(walked >= 14, "only {walked} curved faces walked");
+    }
+
+    /// The U-shaped domain the red rows use: `[0, 4] × [0, 4]` with
+    /// `[1, 3] × [2, 4]` bitten out of the top — every side iso, so
+    /// nothing upstream of this lane would reroute it.
+    fn notched_domain() -> Vec<(f64, f64)> {
+        vec![
+            (0.0, 0.0),
+            (4.0, 0.0),
+            (4.0, 4.0),
+            (3.0, 4.0),
+            (3.0, 2.0),
+            (1.0, 2.0),
+            (1.0, 4.0),
+            (0.0, 4.0),
+        ]
+    }
+
+    fn rectangle_domain() -> Vec<(f64, f64)> {
+        vec![(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]
+    }
+
+    /// The bite `notched_domain` takes out of its bounding box — the
+    /// region that is inside the box and OUTSIDE the face.
+    const NOTCH: [f64; 4] = [1.0, 3.0, 2.0, 4.0];
+
+    /// **RED half, part 1** (`REVIEW-STYLE-BRIEF` Q3): the predicate the
+    /// row above trusts detects the notch — it is not a tautology that
+    /// passes on everything.
+    #[test]
+    fn the_premise_predicate_detects_a_notched_domain() {
+        assert!(entries_off_bbox(&rectangle_domain()).is_empty());
+        assert_eq!(
+            entries_off_bbox(&notched_domain()),
+            vec![4, 5],
+            "the two re-entrant corners are the entries strictly inside the box"
+        );
+    }
+
+    /// **RED half, part 2.** What the premise actually buys, replayed
+    /// through this lane's own insertion order. On the rectangle the
+    /// grid touches nothing. On the notched domain it splits boundary
+    /// constraints, lands on a boundary VERTEX, and leaves triangles
+    /// inside the notch — i.e. outside the face — which is the silently
+    /// wrong mesh, not a refusal and not a panic.
+    #[test]
+    fn the_grid_reaches_the_boundary_exactly_when_the_premise_fails() {
+        let (splits, hits, outside) = replay(&rectangle_domain(), NOTCH);
+        assert_eq!(
+            (splits, hits),
+            (0, 0),
+            "on the swept rectangle the grid must not touch the boundary at all"
+        );
+        assert!(
+            outside > 0,
+            "sanity: the probe box IS inside the rectangle, so it must find triangles \
+             there — otherwise the `outside` counter below proves nothing"
+        );
+        let (splits, hits, outside) = replay(&notched_domain(), NOTCH);
+        assert!(
+            splits > 0,
+            "a notched domain must split boundary constraints"
+        );
+        assert!(
+            hits > 0,
+            "a notched domain must put a grid point on a boundary vertex"
+        );
+        assert!(
+            outside > 0,
+            "and `inner_faces()` must then emit triangles outside the face"
+        );
+    }
+
+    /// Replays this lane's order — boundary points, constraints, then a
+    /// 4 × 4 interior grid over the polygon's own bounding box — and
+    /// reports (constraint splits, grid points that landed on an
+    /// existing vertex, emitted triangles whose centroid falls in
+    /// `probe`).
+    fn replay(poly: &[(f64, f64)], probe: [f64; 4]) -> (usize, usize, usize) {
+        let mut cdt: ConstrainedDelaunayTriangulation<SpadePoint<f64>> =
+            ConstrainedDelaunayTriangulation::new();
+        let hs: Vec<_> = poly
+            .iter()
+            .map(|&(u, v)| cdt.insert(SpadePoint::new(u, v)).unwrap())
+            .collect();
+        for i in 0..hs.len() {
+            let (a, b) = (hs[i], hs[(i + 1) % hs.len()]);
+            if a != b && !cdt.exists_constraint(a, b) {
+                assert!(
+                    cdt.can_add_constraint(a, b),
+                    "the fixture must not self-cross"
+                );
+                cdt.add_constraint(a, b);
+            }
+        }
+        let (mut u0, mut u1, mut v0, mut v1) = (f64::MAX, f64::MIN, f64::MAX, f64::MIN);
+        for &(u, v) in poly {
+            u0 = u0.min(u);
+            u1 = u1.max(u);
+            v0 = v0.min(v);
+            v1 = v1.max(v);
+        }
+        let before = cdt.num_constraints();
+        let (mut hits, nu, nv) = (0usize, 4usize, 4usize);
+        for j in 1..nv {
+            #[allow(clippy::cast_precision_loss)]
+            let v = v0 + (v1 - v0) * (j as f64 / nv as f64);
+            for i in 1..nu {
+                #[allow(clippy::cast_precision_loss)]
+                let u = u0 + (u1 - u0) * (i as f64 / nu as f64);
+                let n = cdt.num_vertices();
+                if cdt.insert(SpadePoint::new(u, v)).unwrap().index() != n {
+                    hits += 1;
+                }
+            }
+        }
+        let mut outside = 0;
+        for f in cdt.inner_faces() {
+            let vs = f.vertices();
+            let (cu, cv) = (
+                vs.iter().map(|p| p.position().x).sum::<f64>() / 3.0,
+                vs.iter().map(|p| p.position().y).sum::<f64>() / 3.0,
+            );
+            if cu > probe[0] && cu < probe[1] && cv > probe[2] && cv < probe[3] {
+                outside += 1;
+            }
+        }
+        (cdt.num_constraints() - before, hits, outside)
     }
 }
