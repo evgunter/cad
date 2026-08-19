@@ -1245,3 +1245,60 @@ real call deleted), which is the technique worth carrying into the full
 instrument. One near-miss: a `grep -q` downstream of a pipe under
 `pipefail` measured at ~32% spurious failure under parallel load, caught
 by luck during wiring rather than by review.
+
+SMELL-SCAN wave 1b, second batch (2026-08-19, PRs #632 #633 #635 #636
+#637 and #639) — **NOT A/B ROWS, NOT SCOREBOARD ROWS, AND NO REVIEW
+ORDINAL CONSUMED**, on the same grounds as the first batch above: Evan's
+fable limit still stands, so the coin-flip draw was suspended rather than
+drawn and all six implementations and all six reviews ran opus. The
+review ordinal stays at 59. Per-unit outcomes live in the §D wave 1b and
+wave 2 tables of `docs/SMELL-SCAN-2026-08.md` and in the PRs.
+
+Same reduced instrument (style lane per `docs/REVIEW-STYLE-BRIEF.md`
+§2-3 plus a completeness-of-fix-and-best-way mandate, no adversarial
+falsification pass), with **one exception**: S49/#637 changes what a
+soundness backstop answers, so its reviewer was given seven explicit
+claims to falsify *in addition to* the style lane. That reviewer built
+five adversarial contact configurations and reproduced the implementer's
+measurement; the extra lane earned its cost on the one unit that was not
+stylistic.
+
+**Every one of the six came back a half-fix or worse on first pass** —
+six for six, against three for three in the first batch. Nine for nine
+across the wave. The reduced instrument is not finding less; a style
+lane that produces nothing is under-calibrated, and this is what
+calibrated looks like.
+
+What the batch says about sweeps, which is the finding underneath all
+six: **three lanes' sweeps failed on the same mechanism in one day** —
+the scan pattern could not see the shape it was hunting. #632's could
+not see match arms wrapped in `Some(…)`/`Ok(…)`; #635's could not see a
+claim that wrapped across a line break; #639's scanned *prefixed* codes
+(`LIB-*`, `Mn`, `PR n`) and so was blind to **bare** clause letters,
+leaving S37's own named example (`LIB-DOORS F5`) shipped in a Python
+docstring in a crate the PR reported at zero. In all three cases the
+missed instances were exactly the shape the pattern could not express,
+and in all three the PR body stated the sweep as verified. **A sweep's
+result is worth nothing without a statement of what its pattern cannot
+match.** Recommend that as a standing line in the style brief.
+
+Two further process facts:
+
+- **#639 shipped red and claimed green** — ten broken string assertions,
+  seven found by its reviewer and three more only when the implementer
+  ran `cargo test --workspace` instead of the crates it had edited. Two
+  contributing causes, one of them the orchestrator's: lanes shared one
+  `CARGO_TARGET_DIR`, which **clobbers across git worktrees** and served
+  at least two lanes results from another lane's binary (confirmed: the
+  same crate reported 156 tests on the shared dir and 155 on a dedicated
+  one, from identical sources). Per-lane target dirs are now mandatory,
+  and `Compiling <crate>` must be observed before a run is trusted. The
+  second cause is not excused by the first: two failures of one shape
+  were rationalized as load flakes instead of read as a class.
+- **A previous stale-claims sweep wrote a false claim.** #635 found that
+  `props/quad.rs:42`'s liveness sentence was authored 2026-08-05 by the
+  §7 stale-claims tranche, replacing two honest sentences with one naming
+  the wrong engine, and missing a third that contradicted it ten lines
+  away. A prose-hygiene pass can manufacture the defect it exists to
+  remove; that is the argument for #635's classify-before-you-touch
+  discipline being the permanent shape of this work, not a one-off.

@@ -2866,18 +2866,44 @@ be trimmed down to what's actually necessary."*
 
 - **Confidence**: sure
 
-| Claim | Reality | Anchor |
-|---|---|---|
-| `enters.rs` derives M3's whole sign chain from "every face's stored normal is the outward normal" and tells future callers to cite that sentence rather than introduce a fresh sign choice | `step-export/src/volume.rs:36` states flatly that since M5 S10 this "is no longer true" — the outward normal is `sense_sign · chart_normal`. Callers do pass sense-corrected normals, so the code is fine; the canonical statement is not | `geom-brep/enters.rs:14` |
-| `EulerOpError::CrossShell`'s `Display`: "cross-shell kfmrh merges shells — deferred to M3" | Its only firing site is `ring_move`, so the only user who can see this message is told about a different operator and a shipped milestone | `euler.rs:583` |
-| `euler_ring`'s module docs: "cross-shell is a typed error until M3" | Three hundred lines above the `kfmrh` doc describing the cross-shell fusion it now implements | `euler_ring.rs:126` |
-| `euler_kill`'s `mfkrh` docs describe a fresh `Placeholder` surface, a deterministic surface anchor and "ballast coordinates" | Machinery the code notes was retired when `mfkrh` grew its `FaceSurface` parameter | `euler_kill.rs:197` |
-| `Node::instantiate_part`: "none can in v1: `InterfaceCrossing` is uninhabited" | `InterfaceCrossing`'s own doc four hundred lines above: "**INHABITED as of ASM-R2b D-4**". `refactor.rs:82` repeats the stale claim | `node.rs:970` |
-| `run_iso_checks`' doc still claims the lane admits "exactly the non-rational described-NURBS chart" | M8-3 changed that. (The stranding half of this row is fixed by #627, which also MOVED the block — hence the new anchor) | `pcurve_cache.rs:2841` |
-| `Pcurve`'s type doc: "Two variants; the closed enum is the D3 shape" | Four variants — `Harmonic`, `Fitted`, `IsoLine`, `IsoArc`. Found by #627's reviewer; recorded here unclassified, because S39's discipline is to decide benign-rot vs lost-invariant before the sentence is touched | `pcurve_cache.rs:167` |
-| `step-import`'s `UnsupportedUnit`: "the subset covers unprefixed SI metre/radian/steradian only" | `units.rs` resolves all sixteen SI prefixes and `CONVERSION_BASED_UNIT` chains today | `step-import/error.rs:419` |
-| `props/quad.rs:42`: "the patch flux engine consumes this machinery at rest" | It runs a separate near-parallel copy; the claim reads as a stale justification for keeping S11's dead lane | `props/quad.rs:42` |
-| `assemble::build`'s doc: "the assembly both doors share verbatim" | Only one door remains, and `build_one_solid` is a one-line forward to it | `step-import/assemble.rs:810` |
+**FIXED by #635** (eleven rows: the ten tabulated here plus `pcurves.rs:91`,
+added by the S15 steelman). All eleven were still live — none had been closed
+incidentally by #617–#627 — and each was **classified before its sentence was
+touched**, which is what Evan's verdict below asks for. Ten were benign rot: in
+nearly every case the *authoritative* statement (the variant doc, the method
+rustdoc, `DESIGN.md`) was already correct and current, and only a summary or
+module-level restatement had rotted, so nothing was erased by correcting it.
+
+**One was a lost invariant, and it indicts the instrument.** `props/quad.rs:42`'s
+*"the patch flux engine consumes this machinery at rest"* was written on
+2026-08-05 **by a previous stale-claims sweep** — `git log -S` puts it in
+`e2222617`, whose message names its own "§7 stale-claims sweep tranche" — and it
+**replaced two honest sentences** (the parent said "no at-rest construction mints
+a stored B-spline pcurve yet … its consumers today are tests") with a false one
+naming the wrong engine. It also missed a third: the `weights != 1` refusal
+*inside the same function* still contradicted it, ten lines away, for two weeks.
+Repointed at the real blocker rather than deleted. Method note for the next
+sweep: this checkout is shallow, so `git blame` misattributes by ten days —
+`git log -S` is the instrument.
+
+Three process facts worth carrying, all from this lane:
+
+- A line-scoped `rg` cannot see a claim that **wraps across a line break**, which
+  is how two survivors escaped the first pass; #635's sweep now joins consecutive
+  comment lines into one logical string before matching. #632 failed the same way
+  on the same day (its pattern could not see match arms wrapped in
+  `Some(…)`/`Ok(…)`), and #639's could not see **bare** clause letters because it
+  scanned for prefixed codes.
+- Where the truth is "promised and never delivered", a flat present-tense sentence
+  is **worse than the stale claim**: it erases the only marker that something was
+  owed. #635's first pass did that to three schedules; **#638** now carries
+  curved-face containment and is cited from all four sites.
+- The `revolve` `MultipleAxisRuns` row nearly became a design escalation before the
+  ratified answer was found 150 lines below it in the same file
+  (`FullRevolveHoles`' Display: *"sweeps produce genus, never voids; voids are born
+  only from booleans"*). Q1 — grep the file you are in.
+
+Unclassified siblings went to **H15**; the `enters.rs` question is **D5**.
 
 **Verdict:** ACCEPTED, WITH A SHARPENED READING (Evan, 2026-08-18). *"The
 stale claims should also be fixed carefully rather than just removed since they
@@ -3278,34 +3304,53 @@ be acted on until it has one.**
 
 ## S49. The census's planar × planar skip is justified by a claim about solids
 
-- **Where**: `crates/topo/src/census.rs:1359` (the skip),
-  `crates/topo/src/census.rs:1035` (the justification it rests on)
-- **Importance**: high
-- **Confidence**: sure on the structure; unsure whether it is a live wrong
-  answer today
+- **Where**: `crates/topo/src/census.rs` (arm 1's skip and the justification it rests on)
 - **Raised by**: the W1a fix lane (#620) and its reviewer, 2026-08-18
+- **Scheduled as §D W2g.**
 
-Arm 1 of the instance census skips a pair when `a.planar && b.planar` — a
-predicate on the two **faces**. The reasoning it cites is about planar-only
-**solids**. A cylinder's two caps are planar faces on a non-planar solid, so
-the skip fires on pairs the justification does not cover.
+**FIXED by #637.** Arm 1 skipped a pair when `a.planar && b.planar` — a predicate
+on the two **faces** — while the reasoning it cited was about planar-only
+**solids**; a cylinder's caps are planar faces on a non-planar solid, so the skip
+fired on pairs the justification did not cover.
 
-This is the same shape as S16's root cause, one level up: a premise that was
-true of the objects the gate originally admitted, still cited after the gate
-widened. It is recorded rather than fixed because the repair is a
-**jurisdiction call** between this filter, the conformal arm and the confirm
-pass — deciding which of the three owns a planar face on a curved solid.
-Both the implementer and the reviewer of #620 independently concluded that
-folding it into a box-soundness PR would widen the blast radius past what a
-reviewer of that diff could check.
+**The jurisdiction call — arm 1 owns it**, and the other two lanes cannot take it
+structurally rather than by preference: `sweep_conformal_patches` iterates
+`curved_faces` only, and `snapshot` puts a face there iff its surface is not
+`Plane`, so a planar face is *absent from the collection*; the confirm pass is
+driven off declared records, and this class is the undeclared one.
 
-Settled by: deciding which lane owns the planar-face-on-curved-solid pair,
-then pinning it with a row that goes red if none of them does. **Scheduled as §D W2g.**
+**The real premise was about neither solids nor planarity.** `snapshot` keeps line
+edges and drops curved ones, so only a **wholly line-bounded** planar face has its
+whole boundary in front of the exact sweeps. The skip now tests that, a shared
+`edge_is_line` binds it to `snapshot` with the unsound drift direction stated (a
+widened `snapshot` alone would leave the skip firing on faces no longer covered),
+and the settlement row asserts the planar pair **by key** in the contact plane.
+Narrowing it exposed a second instance one line down: the same-`SurfaceKey`
+deferral named "the conformal arm's pair" while that arm walks curved faces only —
+now guarded, and provably behaviour-neutral because `same_key ⇒ a.planar ==
+b.planar`.
 
-**Verdict:** ACCEPTED (Evan, 2026-08-18) — *"should be scheduled but i have
-no opinion on when"*. The jurisdiction call itself is part of the unit, not a
-prerequisite decision: whoever takes it decides which of the three lanes owns
-a planar face on a curved solid, and says so in the code.
+**Not a live wrong answer, and the reason is an accident worth recording.** The
+*pair* was genuinely unowned; the *body* refused anyway via a neighbouring pair,
+because contact at a planar face is contact in its plane and every adjacent curved
+face reaches that plane by construction — an arc lies in two distinct planes only
+if it is a line, so a non-line-bounded planar face always has a curved neighbour
+whose sound box covers both the rim and the plan extent. Measured cap-to-cap: 15
+`CensusUndecidable` on wall pairs, **0** naming the cap pair. So A5's letter had a
+pair-granular hole whose loudness was supplied by another arm's box fatness —
+which is precisely why it was worth closing before #620's contemplated tightening
+removes that accident.
+
+The `gate_planar` → `gate_operand_kinds` rename went with it. Its first pass
+missed four sites **outside the workspace** — `demos/` is `exclude`d, so
+`cargo check` never compiled the files, one of which printed *"gate_planar refuses
+curved operands"* **to the user**. Lesson recorded: a rename spanning excluded
+members wants its own PR and its own `--manifest-path` check. Two residues are
+**H14**.
+
+**Verdict:** ACCEPTED (Evan, 2026-08-18) — *"should be scheduled but i have no
+opinion on when"*. The jurisdiction call was part of the unit, not a prerequisite
+decision, and #637 made it and argued it in the code.
 
 ## S50. Fillet corner patches mint `sense` bare, between siblings that derive it
 
@@ -3356,37 +3401,51 @@ when the front-door gates change; a stated precondition can.
 
 ## S51. S42's verification never varies the loft's `v` direction
 
-- **Where**: `crates/sweep/tests/s42_loft_sense.rs` (every row),
+- **Where**: `crates/sweep/tests/m5_s11_concave_sense.rs`,
   `crates/sweep/src/loft.rs:30`
-- **Importance**: low to medium
-- **Confidence**: unsure — a coverage residual, not a defect claim
 - **Raised by**: the W1e reviewer, 2026-08-18, against #619
 
-#619 settled S42 for the two shapes S42 named, and added a tapered pair
-beyond them. But every row lofts **two** sections at `v_degree = 1`, so `S_v`
-is constant along `v` in all of them; 27 of the 28 other `loft_body` call
-sites in the workspace use `v_degree = 2`.
+**VERIFIED by #636 — no defect.** Loft's `sense` derivation holds on every chart
+this lane could make twist. (The finding's original `**Where**` named
+`s42_loft_sense.rs`, which does not exist — #619 folded its S42 rows into the S11
+constructor audit.)
 
-S42's objection had two halves — *identical sections* and *the shape that did
-not break extrude*. The taper row answers the first. The **linear `v`** half
-is untouched, and it is where loft's argument (the skinned chart's normal
-follows the traversal) is actually load-bearing: a chart that cannot twist
-along `v` cannot exhibit the failure the argument rules out.
+Both prescribed shapes were built as named: a section pair whose **convexity
+differs between sections** (bulge `−b` below, `+b` above, flat at mid-height) and
+a **three-section `v_degree = 2`** loft. What the lane had to invent was the
+oracle: #619's probe compares against an extruded twin, these fixtures have none
+because their sections differ, and `point_in_solid` and the booleans still refuse
+a NURBS operand — so there was no shipped door. The replacement reads the body's
+**own level sets**: wall iso-curves at one `v`, closed into a planar ring,
+containment by crossing parity, level found by bisection. Its non-circularity is
+established by measurement, not argument — flipping *every* wall's `sense` leaves
+the oracle's verdicts bit-for-bit unchanged.
 
-The named untested shapes are a three-section curved-`v` loft, and — more
-pointedly — **a section pair whose convexity differs between sections**
-(bulge `−b` below, `+b` above), which is the one configuration where a
-traversal-following chart could plausibly twist.
+Two things the review changed, both worth keeping as lessons:
 
-Settled by: lofting a convexity-flipping pair and a three-section curved-`v`
-loft, then re-running #619's own probe. Cheap; may find nothing. **Scheduled as
-§D H10.**
+- **The guard was not the premise.** Bisection needs `height(t)` monotone; the
+  only guard was a proxy cosine `> 0.1`. A 120° elbow satisfies the guard at
+  `cos = 0.28` while **already non-monotone**, and the row passed by luck. The
+  shipped 90° fixture sat exactly on the boundary, pinned there by an anti-vacuity
+  assertion. Bisectability is now scanned directly. A doc claiming "preconditions
+  asserted, not assumed" is worth checking against which precondition actually
+  carries the result.
+- **Two rows were restatements.** `flipped_face_sense_for_tests` moves no
+  geometry, so the probe returns the identical point and exactly `−n`, and the
+  "flip inverts" assertion is the swapped tuple — algebraically the same statement
+  as the row beside it, at double the oracle cost. This lane's copy and **#619's
+  original** were both deleted, and the suite got *faster*.
+
+The parity walk declares itself against **§S17** with the three blocked reuse
+paths named (`point_in_loop` is `pub` but takes `(&Body, LoopKey, …, Band)`; the
+other two are private; and reusing a `Decide`-certified door would reintroduce
+#619's ε-fragility). #619's residual still stands: **no tier, prop or boolean in
+the kernel reads a lofted wall's sense**, so on these shapes these rows are the
+only thing pinning the bit. `sweep_body`'s helix rows are **H13**.
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18) — worth a lane on its own terms:
-*"those tests are valuable even if they don't find anything today"*. Note
-this makes the finding's own "may find nothing" explicitly **not** a reason
-to defer it: the rows are the deliverable, and pinning `sense` on a chart
-that can actually twist is worth having whether or not it is red on arrival.
+*"those tests are valuable even if they don't find anything today"*. That is why
+"may find nothing" was not a reason to defer, and the rows are the deliverable.
 
 ---
 
@@ -3441,6 +3500,7 @@ calls that no agent should make.
 | **D2** | **S43 — the bug-vs-invalid-state taxonomy.** D9 currently sanctions only "typed error where cheaply detectable, or documented garbage-out"; the kernel uses five idioms, two of them mutual negations. | **S19** (which it *generates* — ~239 of ~260 sites); resolves **S12**/**S14** residue | Restating D9 decides three findings at one stroke. Touching any error enum first means redoing it. |
 | **D3** | **S7 — run the one-line experiment.** Swap the arms at `fillet/build.rs:205`, `cargo test -p sweep --test all`. | **S6**, and all fillet work in **S36**/**S38** | **EXPERIMENT RUN 2026-08-18 — see S7's experiment entry.** The surgery succeeds on the cube and yields the same solid (identical census and coordinate set; volume one ulp apart). The two doors *are* redundant, so the decision is now purely retire-or-keep against a measured price: one naming test rewritten, two goldens regenerated, one FreeCAD acceptance re-run. |
 | **D4** | **S11's four undecided rows** — `Mat2`/`Affine2`, `PairSolve`, `hull.rs`'s non-rational unused half, the two inlined fillet helpers. | Cleanup in those files | Each is delete-or-keep. Cheap to answer, and answering stops anyone documenting them. **CHECKED 2026-08-18 (see S11's D4 entry): `hull.rs` should be struck — the deletion is really "retire the `sup_norm_bound*` API", whose rational limb is on the #390/#453 lane. `PairSolve`'s consuming unit (R2-b, #591) has merged without constructing it.** |
+| **D5** | **S39's `enters.rs` residue — should the outward-normal property be restored, or stay devolved?** `geom-brep/enters.rs:14` derived M3's whole sign chain from *"every face's stored normal is the outward normal"*; M5 S10 exchanged that deliberately (`DESIGN.md` records it) and `enters_material` now takes a bare `Vec3<T>` with the obligation devolved onto callers and no type enforcing it. **Correctly sized by #635's review**: the exposure is **two production callers** (`boolean/sectors.rs:304`, `splitting/rules.rs:200`) plus `enters_material_order2` at `splitting/neighborhood.rs:237`, which passes a *splitting plane's* normal where sense does not apply — not the 36 `sense_sign` sites first reported. Options: (a) leave as convention, (b) an `OutwardNormal<T>` newtype, (c) take `(&Body, FaceKey)`. #635's recommendation is **(b) or nothing** — (c) is the smaller diff but makes `geom-brep` depend on `topo`'s `Body`/`FaceKey`, inverting the layering for two call sites. | Nothing; it is a documented convention today | Cheap to answer, and it is the only S39 row whose disposition is a design question rather than a sentence. |
 
 ---
 
@@ -3452,7 +3512,7 @@ every other, so these can run as five concurrent lanes.
 | # | Finding | Effort | Note |
 |---|---|---|---|
 | **W1a** ✅ **#620** | **S16** — `boolean/boxes.rs`'s planar arm uses a bare vertex hull, but a cylinder's planar cap has a circular rim that bulges past its endpoints, so the box is not a superset and the BVH can prune a pair silently. | S–M | **Highest single-item value in the report.** The fix is already named in `PERF-SCAN-2026-08.md` Tier A finding 1, and `separation.rs` already contains the corrected planar rule. |
-| **W1b** ✅ #617 | **S23** — the SSI exhaustiveness sweep switches duty on `tubes.is_empty()`, so an all-seeds-fail run returns `Ok` *plus an exhaustiveness receipt* instead of `ExhaustivenessInconclusive`. | M | **FIXED by #617**: the duty is a stated parameter (seed/account entry points over a private `SweepDuty`), and a new row enters the all-seeds-fail mode the old row's premise excluded. Chart-lane twin of that row scheduled as **H7**. |
+| **W1b** ✅ #617 | **S23** — the SSI exhaustiveness sweep switches duty on `tubes.is_empty()`, so an all-seeds-fail run returns `Ok` *plus an exhaustiveness receipt* instead of `ExhaustivenessInconclusive`. | M | **FIXED by #617**: the duty is a stated parameter (seed/account entry points over a private `SweepDuty`), and a new row enters the all-seeds-fail mode the old row's premise excluded. Chart-lane twin of that row **closed by #633** (§D H7). |
 | **W1c** | **S41** — `Bounds for Interval` forwards `lo()`/`hi()` without consulting the decoration, and `bracket<E: Enclosure>` crosses operands into `RingInterval` by endpoints. A `Trv`-but-nonempty enclosure may be dropping a domain violation **today**. | S to test, ? to fix | Also the gating question for S1 — until this is settled, "swap `RingInterval` for `Interval`" is unsound. |
 | **W1d** ✅ #618 | **S4 drift (a)** — `Rebind`'s rewrite loop ends `_ => {}` and never reaches `Node::Mate`'s two `StableName`s, so a mate head is either falsely refused as `RebindNoReferences` or silently left dangling. Contradicts `ASSEMBLY-DESIGN.md:566`. | S | **FIXED — #618** (red-then-green, A12's reading edge asserted; two further mate-blind sites fixed with it). |
 | **W1e** ✅ #619 | **S42** — loft's `sense = true` is pinned only on `loft_prism`: no concave arcs, no holes, i.e. the shape that did not break extrude either. | S | **#619 — verified, no defect.** Concave-arc, holed and tapered fixtures pin the bit against the extruded twin, folded into the S11 constructor audit. |
@@ -3466,15 +3526,20 @@ Good work for filling parallel capacity. None blocks anything.
 | # | Item | Effort |
 |---|---|---|
 | **H1** ✅ #626 | **ci-local mirror parity** — **FIXED by #626**, extracted rather than synced (Evan, 2026-08-19). The eight mirrored gates of ci.yml's `discipline` job live once under `scripts/gates/`; both halves call the same script, ci.yml keeps one step per gate under today's names, and the ratified allowlist prose has one home. A ninth gate, `gate-roster.sh`, closes the level above: `ci-local.sh` runs the gate directory in a loop so it keeps no roster at all, and the gate checks ci.yml's named steps — the one roster that must be hand-written — against that directory, requiring a real invocation rather than a mention. It proves wiring, not execution: a step disabled by an `if:` condition still satisfies a grep, and the script header says so. Every gate runs a `--selftest` in both halves and fails loudly rather than passing green on a tree it could not scan. The `EvalScalar` and interval-square `powi(2)` gates now run locally too. Allowlist membership unchanged; the prose drift and the one disclosed behaviour fix are recorded in the PR. | S |
-| **H2** | **S39 stale claims** — ten rows, each classified **benign rot** vs **lost invariant** *before* its sentence is touched. `enters.rs:14` is the (ii) candidate: the outward-normal property was devolved onto every caller with no type enforcing it. | M |
+| **H2** ✅ #635 | **S39 stale claims** — **FIXED by #635.** All eleven rows were still live; each was classified **benign rot** vs **lost invariant** with evidence *before* its sentence was touched. Ten were rot — in nearly every case the authoritative statement (the variant doc, the method rustdoc, `DESIGN.md`) was already current and only a summary restatement had rotted. **One was a lost invariant, and recursively so**: `props/quad.rs:42`'s "the patch flux engine consumes this machinery at rest" was written 2026-08-05 **by a previous stale-claims sweep**, replacing two honest sentences with a false one and missing a third that still contradicts it ten lines away; repointed at the real blocker rather than deleted. Deleted schedules were replaced by **#638**, not dropped. `enters.rs` stays open for Evan — see the D5 row. | M |
 | **H3** ✅ #627 | **S40 residue** — start with the two that are not cosmetic: `emit_topo.rs:1266`'s unreachable fallback would mint `Seam{ae, ae}`, a well-formed name for the wrong thing; `seqgen.rs:853`'s discarded counter means the property suite cannot tell an all-skipped run from a full one. **FIXED by #627**: both behavioural rows plus the mechanical residue, and the review pass swept two siblings of the rows it names — `validate.rs`'s 31-of-59 Display list and `run_harmonic_checks`' doubled `reach`. S40's design-call rows (the `k_stats` shim, `WitnessSlot`, `props/curved.rs`'s NaN throws and doubled `Rim` direction, the `HashSet` paragraph) stay open there; two new stale claims went to S39 for **H2**. | S |
 | **H4** | **S37** — shipped-artifact naming: the STL header's `cad-kernel-m2`, `UnsupportedCurve.note`'s runtime-visible PR number, ~124 internal spec codes in public rustdoc and the Python stub. Evan: *"can be fixed earlier"* than S36. | S–M |
 | **H5** ✅ #632 | **S4 drift (b)** — **FIXED by #632**, on both axes rather than the reported one. `select::name_args`' `_ => Vec::new()` and its neighbour `side_of`'s `_ => None` now list all 18 and 27 no-argument variants explicitly, and `Fragment` destructures `Qualifier` as its three siblings do — the first pass copied the sibling doc sentence but dropped its "or `Qualifier`" clause, leaving the same fail-quiet one level down at the site being fixed, which the review caught. Measured by probe variant: a name-carrying `RoleSeg` breaks 4 builds before / 6 after, a name-carrying `Qualifier` 3 before / 5 after. Behaviour identical, verified variant-by-variant. The `RoleSeg` classification family is closed workspace-wide. | XS |
 | **H6** ✅ #625 | **Euler postcondition 7-tuple → named struct** — unnamed positional, 16 sites, 6 files, all `cfg(debug_assertions)`. **FIXED by #625**: `ArenaDelta`, still debug-only, written sparsely over `..ArenaDelta::ZERO`. | S |
-| **H7** | **The chart lane's empty-tube acceptance row** — #617 fixed both SSI lanes but its red row covers ℝ³ only, so the chart lane's `account_chart_plane` refusal is asserted by construction and not by a fixture. Needs a NURBS wall whose true surface misses the cutting plane *inside* its own control-net hull slack (the M5 substrate wall's hull is tight exactly where the near-miss must sit), then the same two-run shape: certify-empty at a healthy floor, refuse at a clamped one. The narrowing is #617's, so this row closes it. | S–M |
+| **H7** ✅ #633 | **The chart lane's empty-tube acceptance row** — **FIXED by #633**, closing #617's own narrowing. A new `hull_slack_wall` fixture puts the control net 0.05 m below the cutting plane while the true curve dips only to 0.002 m above it — a 25:1 hull-vs-truth gap, which is what drives the all-seeds-fail mode the M5 substrate wall cannot reach. Then #617's two-run shape: certify-empty at a 1e−3 floor, refuse `ExhaustivenessInconclusive` at 0.1. Red produced by reinstating the pre-#617 block verbatim (96 leaves in no bucket). Measured: the Ok/refuse transition sits between 9e−3 and 1e−2, so the two floors are an order of magnitude either side, and the row still goes red when the enclosure is degraded 8×. The review killed one assertion that could not go red; three further never-silence doors it found are scheduled as **H12**. | S–M |
 | **H8** | **Positional-census residue in `topo`** — the class H6 fixed, still live at three sites #625 deliberately did not touch. **Sharp end: `crates/topo/tests/review_m3_pr1.rs:34`**, whose `census` returns a positional 7-tuple in a **different component order** than `ArenaCounts` (`v, e, f, loops, shells, solids, rings` — and `rings` is not an arena length at all); `:286-299` then asserts a raw `.0`…`.6` arena delta for cross-shell `kfmrh` against `(0, 0, -1, 0, -1, 0, 1)`. Two positional orders for one vocabulary is S4's drift shape itself. Also `seqgen.rs:106`/`:137`: the Euler 6-vector travels as `[i64; 6]` indexed `0..5` into `Ledger { v, e, f, h, r, s }`, which sits twenty lines below `ep_vector` already carrying the names; and `euler.rs:2126`'s `snapshot` returns `[usize; 10]`. Fold in two whole-file finds from #625's review of `euler.rs`: the byte-identical 8-line parent-sense-inheritance comment and logic at `:1664` and `:1767` (a third copy in `mint_loop_and_face`'s rustdoc, `:1947`), and the stale user-visible message at `:762`, *"cross-shell kfmrh merges shells — deferred to M3"*, which the variant's own doc contradicts. **Sequencing is why these are a row and not a patch**: `seqgen.rs` is live in H3's lane, `:762` is S39/H2 territory, and `review_m3_pr1.rs` is a review-named suite that W3a combs per-suite. | S–M |
 | **H9** | **S50 — derive the corner patch's `sense` at the mint site.** `fillet/build.rs:692` and `fillet/surgery.rs:271` mint a bare unconditional `sense: true`; their blend and rim-band siblings in the same loops derive it from `link.convexity.blend_sense()`. Evan's verdict picks deriving over documenting the precondition — a derived bit cannot rot when the front-door gates change. **Sequencing:** `build.rs:692` sits in the whole-body door, which D3's experiment has shown is a retirement candidate, so scope to `surgery.rs:271` alone or wait on the retirement call — do not polish code that may be deleted (ordering rule 1). | XS–S |
-| **H10** | **S51 — loft's `v` direction is never varied.** Every S42 row lofts two sections at `v_degree = 1`, so `S_v` is constant along `v`; 27 of the 28 other `loft_body` call sites use `v_degree = 2`. Loft a section pair whose **convexity differs between sections** (bulge `−b` below, `+b` above) and a three-section curved-`v` loft, then re-run #619's probe. Extends `crates/sweep/tests/m5_s11_concave_sense.rs`, the constructor audit #619 folded the loft chapter into. Per Evan, "may find nothing" is **not** a reason to defer it. | S |
+| **H10** ✅ #636 | **S51 — loft's `v` direction is never varied.** **VERIFIED by #636 — no defect.** A convexity-flipping section pair (bulge `−b` below, `+b` above) and a three-section `v_degree = 2` loft both hold. #619's probe needs an extruded twin these fixtures do not have, and the booleans refuse a NURBS operand, so the lane built a **level-set oracle** — wall iso-curves closed into a planar ring, containment by crossing parity — whose non-circularity was confirmed by flipping every wall's `sense` and observing bit-identical verdicts. Its bisection premise is now guarded directly after the review showed a 120° elbow cleared the proxy guard while already non-monotone. Two restated flip rows deleted (this lane's and #619's) — algebraically equivalent to the assertion beside them — and the suite got *faster*. `sweep_body`'s helix rows remain unpinned and are scheduled as **H13**. | S |
+| **H11** | **#632's two residues.** (i) `resolve::apply_with_names`' `DocEdit` wildcard — correctly left alone (it covers the four appearance edits and `Rebind`'s source, which carry `StableName`s and are *deliberately* not resolve-checked), but that exemption is written nowhere, so whether it is policy or drift has no owner. (ii) The fix grew a **verbatim triplication**: `select.rs`'s 17-variant name-free list is byte-identical to `resolve/mod.rs`'s and `refactor.rs` carries a third. Every copy is compile-enforced, so this is churn rather than rot — collapsing it needs a shared classifier and `role.rs` has no `impl` block at all, which makes it S4/W2f's job, not a patch. | XS / S |
+| **H12** | **The SSI sweeps' other never-silence doors have no acceptance row in either lane.** Found by #633's review, which showed the sweep paragraph named one and there are four: `SsiError::CellBudget` / `SSI_MAX_CELLS`; `exhaust.rs:283-289`, `sweep_r3`'s `UnsupportedCertificate` poison arm; `exhaust.rs:434-439`, the chart lane's twin; and `ssi.rs:816-821`'s chart-speed guard on `speed <= 0.0 || is_nan` — **the very quantity #633's own floor translation rides on**. `rg 'ring-computable|enclosure poisoned|chart speed' crates/geom-brep/tests/` returns nothing. Also here: #617's remaining construction-only path, `pcurve_windows` returning empty for a *certified, pushed* branch, which needs a pcurve certifying all three limbs while poisoning every span hull. | S–M |
+| **H13** | **`sweep_body`'s helix rows have no orientation coverage, and #636's oracle cannot reach them.** `sweep/tests/m8_14_long_turn_sweep.rs:110` sweeps helices at ½, 1 and 2 turns — a non-planar path whose own header describes "near-antipodal frame roll", i.e. the hardest chart in the tree and where *"the skinned chart's normal follows the traversal"* carries the most weight. #636 covered the curved-path elbow and named this as **not** closed: its level-plane oracle trips its own precondition at both ends of a half turn (`cos ≈ 0.011`), so a new oracle is needed, not a new fixture. Also uncovered: `m7_skin_integral.rs:378`, `step-export/tests/common/mod.rs:482`. | M |
+| **H14** | **#637's two residues, both the same class one level up.** (i) **Arm 2's `bridged` skip** (`census.rs:1518-1520`) exempts a solid pair from the containment arm whenever ANY contact record links them, justified as "under the confirm pass's examination" — but the confirm pass validates the *records* and never asks about nesting, so one vertex-vertex record at a corner exempts the whole pair. Its own jurisdiction call, its own blast radius, and a live soundness hole of S49's exact shape. (ii) `splitting/rules.rs:268` is a third empty-outer-loop site of the item #620 recorded. Fold in `census.rs:1341-1348`: a face whose curved neighbour is a **placeholder NURBS** is dropped from the backstop entirely, unreachable only because nothing mints a reachable placeholder — protection by accident, which #637's own thesis says a backstop must not rest on. | M |
+| **H15** | **#635's unclassified siblings.** `mesh/src/planar.rs:63` derives an outward normal from the Newell cross-sum of the outer walk and asserts "this is the outward normal by construction" — same premise family as the `enters.rs` row, outside the swept set, and #635's reviewer could not convince itself either way. `validate.rs:426`'s "not enforced at M2" is a further undated scope claim nobody chased. `splitting/mod.rs:194`'s "unimplemented until SSI" is the revolve shape again, left because H7 was live in `ssi*` at the time. Each needs the S39 question asked: benign rot, or an invariant that was meant to hold? | S |
 
 ---
 
@@ -3488,7 +3553,7 @@ Good work for filling parallel capacity. None blocks anything.
 | **W2d** | **S6** — sweep helper unification (~230 token-identical lines) | **D3** | Must follow D3: S6 and S7 are in one crate and will collide. K-telemetry does **not** block it — both funnels already take the predicate name as a parameter. Retracted: `SweptSeg`, `strut_spec`, `full::build_lamina` and the `let _ = k;` inference are *not* duplication. |
 | **W2e** | **S5** — `splitting/` vs `boolean/` | — | The largest. Start with the narrowest, highest-value piece: the **forked sector predicates**, which are dimensionally identical line-for-line and split one K population 29:1, with the 64-sample tail the one reaching margin 0. The repo already forced the reverse fix once (`M3-LOG.md:264`). |
 | **W2f** | **S4** — the vocabulary mirrors, cheapest first | partly **W2c** | `BooleanOp` → `pub use topo::BooleanOp` + `serde(with)` (its constraint provably lapsed the day it was minted, and the technique is shipped); then units; then `ProgramStep`/`WireStep`, which is cheap in isolation but **blocked behind OnArc + RESPELL-TABLE** and crosses the same files. |
-| **W2g** | **S49** — the census's planar × planar skip is justified by a claim about solids | — | `census.rs:1359` skips on a **face** predicate (`a.planar && b.planar`) while `census.rs:1035` argues about planar-only **solids**; a cylinder's caps are planar faces on a non-planar solid. Structural because the repair is a **jurisdiction call** between this filter, the conformal arm and the confirm pass — deciding which owns a planar face on a curved solid, then pinning it with a row that goes red if none of them does. Not gated on D1–D4. The W1a implementer and its reviewer independently judged it too wide to fold into #620. | M |
+| **W2g** ✅ #637 | **S49** — the census's planar × planar skip is justified by a claim about solids | — | **FIXED by #637.** The jurisdiction call: **arm 1 owns it**, and the other two structurally cannot take it — `sweep_conformal_patches` iterates `curved_faces` only, so a planar face is absent from the collection, and the confirm pass is driven off declared records. The premise turned out to be about neither solids nor planarity: `snapshot` keeps line edges and drops curved ones, so only a **wholly line-bounded** planar face has its whole boundary in front of the exact sweeps. The skip tests that now, a shared `edge_is_line` binds it to `snapshot` with the unsound drift direction named, and the settlement row asserts the planar pair **by key** in the contact plane. **Not a live wrong answer** — the body refused via a neighbouring arm's fat box (15 undecidable, 0 naming the cap pair) — which is exactly why it was worth closing before #620's contemplated box tightening removes that accident. Two residues scheduled as **H14**. | M |
 
 ---
 
