@@ -319,7 +319,7 @@ pub(crate) struct Lit {
 // regression would enter.)
 const _: () = assert!(
     core::mem::size_of::<Lit>() == 16,
-    "a literal is one f64 plus a one-byte display-unit code (PR #291 MAJOR-2)"
+    "a literal is one f64 plus a one-byte display-unit code"
 );
 
 impl Lit {

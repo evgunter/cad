@@ -1,15 +1,15 @@
-//! The detect/declare protocol's value vocabulary (LIB-PYG5, audit
-//! G5): `FlushFinding` and its evidence enums, crossing Rust → Python.
+//! The detect/declare protocol's value vocabulary: `FlushFinding` and
+//! its evidence enums, crossing Rust → Python.
 //!
 //! A finding is a REPORT — `Evaluation.find_flush_candidates` answers
 //! with these values, the caller INSPECTS them, and `Node.declare` /
 //! `Doc.declare` / `Doc.declare_all` turn inspected findings into the
-//! shipped `Declare` vocabulary (SELECT-DESIGN §3; the no-fusion
-//! boundary is kept across the language boundary: no door here both
-//! detects and declares). The same value also rides the boolean's
+//! shipped `Declare` vocabulary. The no-fusion boundary is kept
+//! across the language boundary: no door here both detects and
+//! declares. The same value also rides the boolean's
 //! refusal MENU: an `EvaluationError` with `kind ==
 //! "undeclared_contact"` carries one as its `finding` attribute
-//! (register R3 — the recourse is in the error).
+//! — the recourse is in the error.
 //!
 //! The pair's names cross as the SAME opaque texts every other door
 //! speaks (`doc::name_text`) — the ordinal-28 contract: a name is an
@@ -36,7 +36,7 @@ pub(crate) enum PlaneRelation {
     Distinct,
 }
 
-/// The contact class a finding would verify as (CONTACT-DESIGN C4).
+/// The contact class a finding would verify as.
 #[pyclass(eq, eq_int, module = "pncad", from_py_object)]
 #[derive(Clone, Copy, PartialEq)]
 #[allow(
@@ -68,7 +68,7 @@ pub(crate) enum FlushRung {
 /// query's first node, `b` from its second); `relation` is the verify
 /// door's own verdict (`SameOpposite` = resting contact, opposed
 /// outward normals; `SameOriented` = flush walls, the merge-stage
-/// flavor); `class_` names the C4 contact class (trailing underscore:
+/// flavor); `class_` names the contact class (trailing underscore:
 /// `class` is a Python keyword — the `or_` precedent); `rung` says
 /// which ladder rung decided (`SharedSource` = syntactic recipe
 /// identity, `DecidedCoincident` = the geometric trilean).
@@ -98,11 +98,9 @@ pub(crate) fn plane_relation(rel: KPlaneRelation) -> PlaneRelation {
 /// `src/tests.rs` (`the_contact_class_mirror_matches_the_kernel`)
 /// enumerates the vocabulary this mirror claims to speak.
 ///
-/// **`Tangent` grew here when M9-1 made it authorable** (PR-1 added
-/// the class, PR-2 made a recipe able to declare one). It arrived one
-/// PR later than the alarm intended, because a wildcarded pin cannot
-/// fire on its own — which is the standing cost of the forced
-/// wildcard and the reason the pin lists variants explicitly now.
+/// A wildcarded pin cannot fire on its own when the kernel grows a
+/// class, which is the standing cost of the forced wildcard and the
+/// reason the pin lists the variants explicitly.
 pub(crate) fn contact_class(py: Python<'_>, class: s::ContactClass) -> PyResult<ContactClass> {
     match class {
         s::ContactClass::Rest => Ok(ContactClass::Rest),
@@ -152,7 +150,7 @@ impl FlushFinding {
         plane_relation(self.0.evidence.relation)
     }
 
-    /// The C4 contact class the pair would verify as.
+    /// The contact class the pair would verify as.
     #[getter]
     fn class_(&self, py: Python<'_>) -> PyResult<ContactClass> {
         contact_class(py, self.0.class)

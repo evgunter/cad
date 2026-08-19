@@ -169,7 +169,7 @@ fn the_acceptance_exports_parse_back_honestly_and_never_drift() {
         let (header, facets) = parse_binary_strict(&bytes);
         // ---- HEADER: constant expected bytes, zero-padded, never
         // "solid".
-        let expected = b"binary STL; CAD kernel M2 tessellation export";
+        let expected = b"binary STL; CAD kernel tessellation export";
         assert_eq!(
             &header[..expected.len()],
             expected,

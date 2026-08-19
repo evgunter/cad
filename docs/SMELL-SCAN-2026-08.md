@@ -3195,33 +3195,61 @@ suite, not a repo-wide rename pass.
   `crates/pncad/src/prelude.rs:56`
 - **Confidence**: sure
 
-`mesh`'s `UnsupportedCurve.note` is documented as carrying "the PR that
-lands it (**runtime-visible through Debug**; review m2)". Every ASCII
-STL this kernel writes says `solid cad-kernel-m2`, and the binary header
-reads `binary STL; CAD kernel M2 tessellation export` — baked into every
-exported file and therefore into byte-comparison goldens, with no way
-for a caller to set them, while the STEP writer takes product name and
-header fields as options.
+**FIXED by #639 (H4).** The scope held was *everything that leaves this
+repository*: bytes written into export files, strings that reach a caller at
+runtime, the Python package, and the rustdoc of the façade crate that is the
+library.
 
-Most consequentially, ~124 references to internal spec codes, PR
-numbers, milestone units and named rulings (`LIB-DOORS F5`,
-`ASM-R2a D-4`, `LB7`, `GQ5`, `#286`, "Evan's ruling on #413", "the
-ordinal-28 ruling") sit inside `///` and `//!` comments on the **public
-API surface** — text that ships to library users in rustdoc and in the
-Python stub. These name *when a decision was made*, not what the item
-does, and are unresolvable outside this repository. Several also record
-history the reader does not need ("an earlier revision of this comment
-claimed that, and it was false").
+**The shipped bytes.** The ASCII solid name is `cad-kernel` and the binary
+header `binary STL; CAD kernel tessellation export` — the milestone token
+only. **Q9 is untouched**; the placeholder is not a name proposal. **No new
+public API**: the finding's other half, that the STL header is not
+caller-settable while the STEP writer takes `product_name`, `author`,
+`organization` and `originating_system` as options, is a **residue for
+Evan**, because closing it is an API design call. The STEP side was checked
+and has no leak of its own — its defaults are `product_name: "part"` and
+empty fields, caller-supplied at every call site — so the asymmetry is
+purely that STL has no options struct. No byte-comparison golden moved,
+because there are none: the STL oracles compare exports to each other across
+ε rows and repeat runs, so they are header-blind. That blindness was itself
+the finding — the ASCII `solid` name had **zero test coverage anywhere**
+(`review_m2_pr7.rs:62` only checks `starts_with("solid ")`), so the PR adds
+a row pinning the exact opener and its matching `endsolid`.
+
+**The estimate was an order of magnitude low.** ~124 public-rustdoc spec
+codes were predicted; **~1189** is the measured count, obtained by walking
+each crate's `pub mod` tree from `lib.rs` and counting doc lines on publicly
+reachable items, with the reviewer's independent parse agreeing at 1188. The
+**~1115-line remainder sits entirely in `publish = false` kernel crates**
+— `topo` 300, `editor-core` 267, `geom-brep` 192, `geom-core` 107, the rest
+below 70 — and is **scheduled as §D H16/H17** together with the
+caller-settable-header residue. It is not a leak in S37's sense while nothing
+in the workspace publishes; it becomes one the day anything does. `pncad`,
+`pncad-py` and `stl` are at zero.
+
+**The class was wider than rustdoc.** The sweep ran over every string literal
+outside comments in every crate's `src`, through a tokenizer that follows
+`\`-continued multi-line literals: **63 runtime-visible hits across seven
+crates**, all `Display`/`Debug` text a library user reads. `UnsupportedCurve`'s
+own doc and the value in `trimmed.rs` that carried `M6-3`/`M5 PR 11`/`M7`
+into the runtime string are among them.
+
+**Two process facts this fix established**, both recorded in full in §C and
+not restated here: the sweep's pattern was blind in exactly the shape it was
+hunting, which left S37's own named example `LIB-DOORS F5` shipping in a live
+Python `__doc__` (**§C15**, third instance); and ten broken string assertions
+shipped under a green `cargo test` claim in the first version of the PR body
+(**§C17**).
 
 **Verdict:** ACCEPTED, AND SEPARABLE — CAN BE FIXED EARLIER (Evan,
 2026-08-18). *"The shipped artifact comments can be fixed earlier."*
 
-Distinguished from S36 deliberately: milestone naming **inside** test files is
-a backlog marker worth keeping until the suite is combed (S36), but milestone
-naming that **escapes into shipped output** — `solid cad-kernel-m2` in every
-STL, the PR number runtime-visible through `UnsupportedCurve.note`'s `Debug`,
-and ~124 internal spec codes in public rustdoc and the Python stub — carries no
-such signal and can go now.
+The S36 boundary held: milestone naming **inside** test files is a backlog
+marker kept until the suite is combed, and this lane left it alone —
+including `topo/src/contact.rs`'s `"the #256 ruling"` and
+`topo/src/review_m0_pr7.rs`. Non-public internal comments stay **W3b**; the
+plain-`//` residue there measures **473** workspace-wide.
+
 ## S38. Comments that argue rather than describe
 
 - **Confidence**: sure
@@ -4051,35 +4079,114 @@ problem — or it is a real gap in what it checks.
 
 ## S54. The "kept in step BY HAND" ladder, which the crate around it has twice repudiated by name
 
-- **Where**: `crates/editor-core/src/eval/wire.rs:686`; the two sites that cite
-  it as the anti-pattern they fixed, `crates/editor-core/src/names/flush.rs:37`
-  and `crates/editor-core/src/persist/check.rs:9`; same family at
+- **Where**: `crates/editor-core/src/eval/wire.rs` (`resolve_selection`,
+  `resolve_declarations`); the two sites that cited it as the anti-pattern
+  they fixed, `crates/editor-core/src/names/flush.rs:37` and
+  `crates/editor-core/src/persist/check.rs:9`; same family at
   `crates/profile/src/path/arc_fillet.rs:21` and
   `crates/pncad-py/src/tests.rs:245`
 - **Importance**: medium
 - **Confidence**: sure on the structure
 - **Raised by**: the detector #641 suggested, run 2026-08-19
 
-`resolve_fillet_selection`'s refusal ladder — NodeGone with the
-deleted-vs-foreign split, `Entry::Tied` → `Ambiguous` carrying the same
-`TieWitness` shape, absent → `Vanished` with the `NodeChanged` fallback — is
-duplicated from `resolve_declarations` under a rustdoc section headed **"# Kept
-in step with [`resolve_declarations`] BY HAND"**, closing *"If you change either
-ladder, change both."* The justification is honest and specific: the two differ
-in ARITY, and sharing would need a generic over "how to look a name up".
+**Verdict:** ACCEPTED (Evan, 2026-08-19) — "worth doing. Share it." Executed
+by **#670**, below.
 
-What makes it a finding rather than a documented trade is that **the same crate
-has twice ruled the other way and named this site while doing it**.
-`names/flush.rs` records #304 review MINOR-1 collapsing "a hand-mirrored constant
-here, the wire.rs *kept in step BY HAND* shape one parameter wide" into shared
-construction; `persist/check.rs` opens by contrasting itself with "two mirrored
-door sets kept in sync by a sweep" in favour of "code that is literally the same
-and cannot drift". The archetype both cite is still standing.
+**FIXED by #670.** The two doors now walk ONE ladder, a private
+`mod ladder` sited between them in `wire.rs`, and the "if you change either
+ladder, change both" warning is deleted rather than reworded. The shape that
+beat the arity objection is the one the finding's own steelman preferred:
+share the RUNGS, not the lookup. `Landing` (`Unique(EntityRef)` / `Tied(u32)`
+/ `Absent`) is what a table read produces; `live()` is rung 1 (`NodeGone` with
+the deleted-vs-foreign split) and hands back a `Live<'_>` token, which BOTH
+`landing()` and `resolve()` require; `resolve()` is rungs 2 and 3 (`Ambiguous`
+with the tie witness, `Vanished` with the `NodeChanged` fallback and
+`last_good: None`).
+No closure, no generic over "how to look a name up", one hop from either door.
 
-Two more of the family, unswept: `arc_fillet.rs` carries a ratified
-justification **verbatim** "because it is the same rule on the" other side, and
-`pncad-py/src/tests.rs` restates a table by hand — the family that already
-produced a live measured collision (`MODEL-AB-LOG.md:782`).
+Each door keeps exactly its own arity, which is what makes the shared version
+MORE legible than the duplication rather than less: the fillet door is now
+`live` → `landing(&live, target)` → `resolve` → the edge-kind refusal, six
+lines with
+every rung named against a 45-line inline ladder; the declare door reads its
+two tables into two landings, picks a side, and refuses `DeclareBothOperands`
+itself — the one refusal in that function that is not N5's, previously buried
+in a closure returning `Option<Result<…>>`. The declare door is a wash rather
+than an improvement on size, and its four-arm landing table is spelled out
+in full — the review caught the first version folding `(Absent, Absent)` into
+a fall-through plus a comment, which for a function whose whole job is which
+typed refusal comes out is the wrong direction.
+
+The rung ORDER, which was the residual hand-coupling a pieces-only extraction
+would have left, is enforced by the type system — and the review is why it
+actually is. The first version gated only `resolve()` on the `Live` token,
+which enforces rung 1 before rungs 2–3 but NOT before a door's own refusal,
+the case the finding used to motivate the order at all; the reviewer moved the
+declare door's side-picking ahead of rung 1 and it compiled clean with all 566
+tests green. Fixed by threading the token one step further: `landing()` takes
+`&Live` too, so no TABLE can be read before rung 1, and a refusal about what
+the tables say — `DeclareBothOperands` needs both landings — cannot be reached
+first. The same mutation is now a compile error. Threading the token also
+closes a second hand-coupling for free: `landing` and `resolve` can no longer
+be called for different names, so an `Ambiguous` payload's tie width is
+measured on the name the payload is built from, by construction.
+
+Worth recording for whoever revisits this: the inverted order was
+**unreachable through the document API**, which is why no pin could have
+caught it. A name present in an operand table was minted by an ancestor of
+that operand, so it cannot be stranded without the operand failing first —
+the reachable `NodeGone` case is a name minted by a node that is NOT an
+ancestor (the existing delete fixture). The type-level fix is therefore
+defensive, and correctly so: the claim in the module doc is now true rather
+than aspirational.
+
+Behaviour-identical, arm by arm, including payloads. The pins were checked for
+what they actually assert rather than assumed: `m6_5_selection_refusals.rs`
+pinned NodeGone/`NodeDeleted`, `Vanished`'s full payload, `Ambiguous` minus
+`tie.node`, plus the kind and empty refusals; `m4_pr5_declare.rs` pinned
+`Ambiguous`'s payload but `Vanished` by Debug SUBSTRING only, and neither door
+pinned the witness site. Both gaps are now closed (declare's `Vanished`
+asserts `last_good: None` and `RecipeEdit{NodeChanged}` typed; both doors
+assert `tie.node == name.node`). **`ForeignNode` stays an OPEN GAP**, unpinned at
+both doors and not closed here: the edit door refuses never-existed ids before
+evaluation, so the arm is reachable only across documents. Sharing the ladder
+does not narrow the gap — both doors still lack a pin — it only means the
+unpinned arm now has one implementation instead of two. Mutation-checked:
+flipping `tie.node` in the shared ladder fails a pin in BOTH suites, which is
+the property the duplication did not have.
+
+**RESIDUE, named and not folded: the crate's OTHER ladder.**
+`crates/editor-core/src/resolve/mod.rs`'s `resolve_impl` (rung 1 at :549–:560,
+the tie witness at :578–:587, the removal-edit helper at :535, the recipe-diff
+edit derivation at :1135) carries rung 1 as the SAME code —
+`doc.node(name.node).is_none()`, then `name.node.0 < doc.next_id` →
+`NodeDeleted` else `ForeignNode` — and builds the same `TieWitness`, with the
+"ids are never reused" sentence now appearing verbatim in three places. So the
+crate still has two ladders agreeing by hand, at coarser grain, and the
+unfolded one lives in the module whose whole job is resolution. They have
+already diverged in one respect worth naming, since it is exactly the drift
+this class predicts: `resolve_impl` sets `TieWitness.node` to the CARRYING
+node returned by its whole-evaluation lookup, while the mid-evaluation ladder
+sets it to the MINTING node (no carrying node exists for a single value's
+table) — origin/main's behaviour on both sides, preserved. Folding is
+cross-module and larger than one evaluation door; deliberately out of scope
+here, recorded in `wire.rs`'s `mod ladder` doc as well as here.
+
+**The two family members named above were deliberately NOT folded in**, and
+neither is this refactor. `arc_fillet.rs:21` restated the S8 justification and
+**miscited it** — it credited `sugar.rs`, which does not contain the paragraph
+and never did; `fillet_select.rs:16-18` does, and that module's header argues
+in as many words for the rule having one home ("the ladder is stated once …
+instead of the same paragraph twice"). The wrong pointer is the Q4 doc-rot
+case here, and it is fixed in this PR: the header now cites
+`crate::fillet_select` and says plainly that the restatement exists only
+because the CI-discipline allowlist line needs a purpose-matched sentence. The
+duplication itself is a paragraph, not code, and stays. `pncad-py/src/tests.rs:245` is
+the family's already-solved instance: the `[lints]` table CANNOT be shared
+(the crate cannot inherit `[workspace.lints]` — `unsafe_code = "forbid"`
+versus PyO3's generated `unsafe impl`), and the hand-restatement is already
+held by a test that breaks the build on drift. Duplication made incapable of
+drifting is the outcome, reached mechanically instead of structurally.
 
 **Method note, proposed not adopted.** #641's parent-sense row found its fourth
 copy through a comment whose only job was to explain that two spellings were one
@@ -4232,7 +4339,7 @@ Good work for filling parallel capacity. None blocks anything.
 | **H1** ✅ #626 | **ci-local mirror parity** — **FIXED by #626**, extracted rather than synced (Evan, 2026-08-19). The eight mirrored gates of ci.yml's `discipline` job live once under `scripts/gates/`; both halves call the same script, ci.yml keeps one step per gate under today's names, and the ratified allowlist prose has one home. A ninth gate, `gate-roster.sh`, closes the level above: `ci-local.sh` runs the gate directory in a loop so it keeps no roster at all, and the gate checks ci.yml's named steps — the one roster that must be hand-written — against that directory, requiring a real invocation rather than a mention. It proves wiring, not execution: a step disabled by an `if:` condition still satisfies a grep, and the script header says so. Every gate runs a `--selftest` in both halves and fails loudly rather than passing green on a tree it could not scan. The `EvalScalar` and interval-square `powi(2)` gates now run locally too. Allowlist membership unchanged; the prose drift and the one disclosed behaviour fix are recorded in the PR. | S |
 | **H2** ✅ #635 · **1 row reopened, unassigned** | **S39 stale claims** — **FIXED by #635** (eleven rows; #647's style review added two more afterwards; the `DESIGN.md` one is now closed, the `predicate-dimension-audit.md` anchors remain open in §S39). All eleven were still live; each was classified **benign rot** vs **lost invariant** with evidence *before* its sentence was touched. Ten were rot — in nearly every case the authoritative statement (the variant doc, the method rustdoc, `DESIGN.md`) was already current and only a summary restatement had rotted. **One was a lost invariant, and recursively so**: `props/quad.rs:42`'s "the patch flux engine consumes this machinery at rest" was written 2026-08-05 **by a previous stale-claims sweep**, replacing two honest sentences with a false one and missing a third that still contradicts it ten lines away; repointed at the real blocker rather than deleted. Deleted schedules were replaced by **#638**, not dropped. `enters.rs` stays open for Evan — see the D5 row. | M |
 | **H3** ✅ #627 | **S40 residue** — **FIXED by #627**: both behavioural rows — `emit_topo.rs`'s unreachable fallback, which would have minted `Seam{ae, ae}`, a well-formed name for the wrong thing, and `seqgen.rs`'s discarded counter, which left the property suite unable to tell an all-skipped run from a full one — plus the mechanical residue. The review pass swept two siblings of the rows it names (`validate.rs`'s 31-of-59 `Display` list, `run_harmonic_checks`' doubled `reach`). S40's design-call rows stay open there; two new stale claims went to S39 for **H2**. | S |
-| **H4** | **S37** — shipped-artifact naming: the STL header's `cad-kernel-m2`, `UnsupportedCurve.note`'s runtime-visible PR number, ~124 internal spec codes in public rustdoc and the Python stub. Evan: *"can be fixed earlier"* than S36. | S–M |
+| **H4** ✅ #639 | **S37 — shipped-artifact and public-surface naming. FIXED by #639.** The STL headers lose the milestone token to a neutral placeholder (`solid cad-kernel`; `binary STL; CAD kernel tessellation export`) with **Q9 untouched and no new public API** — the caller-settable header the finding contrasts with the STEP writer's options is left as a **residue for Evan**, since closing it is an API design call rather than hygiene — **scheduled as H16**. No golden moved, because there are none: the STL byte oracles compare exports to each other. The ASCII `solid` name turned out to have **zero coverage anywhere**, so the PR adds the row that pins it. The class sweep went past rustdoc into every string literal outside comments — **63 runtime-visible hits across seven crates**, `Display`/`Debug` text a library user reads. **The finding estimated ~124 public-rustdoc spec codes; the real number is ~1189**, measured by walking each crate's `pub mod` tree from `lib.rs`, and the reviewer's independent parse agrees at 1188 — so the line was held at *everything that leaves the repository*, and the **~1115-line remainder in `publish = false` kernel crates is scheduled as H17**. Two process facts belong on this row and are recorded in full elsewhere: the sweep's own blind spot, which left S37's named example `LIB-DOORS F5` shipping in a live Python `__doc__` (**§C15**, third instance), and the **ten broken string assertions that shipped under a green `cargo test` claim** in the first version of the PR body (**§C17**). One fact is this lane's own and is neither of those: **the class regenerates while a sweep is in flight**. `editor-core/src/expr.rs:322`'s static assert landed from another lane *after* the sweep ran, carrying `(PR #291 MAJOR-2)` in its message; it was caught only because the merge was re-scanned. A sweep of a naming class is therefore accurate as of its merge base, not as of its merge. | S–M |
 | **H5** ✅ #632 | **S4 drift (b)** — **FIXED by #632**, on both axes rather than the reported one. `select::name_args`' `_ => Vec::new()` and its neighbour `side_of`'s `_ => None` now list all 18 and 27 no-argument variants explicitly, and `Fragment` destructures `Qualifier` as its three siblings do — the first pass copied the sibling doc sentence but dropped its "or `Qualifier`" clause, leaving the same fail-quiet one level down at the site being fixed, which the review caught. Measured by probe variant: a name-carrying `RoleSeg` breaks 4 builds before / 6 after, a name-carrying `Qualifier` 3 before / 5 after. Behaviour identical, verified variant-by-variant. The `RoleSeg` classification family is closed workspace-wide. | XS |
 | **H6** ✅ #625 | **Euler postcondition 7-tuple → named struct** — **FIXED by #625**: the unnamed positional 7-tuple at 16 sites across 6 files is now `ArenaDelta`, still `cfg(debug_assertions)`, written sparsely over `..ArenaDelta::ZERO` so a mistyped field name fails to compile (a transposition across correct names still does not, which is why the conversion was checked component-by-component). The class survived at three further positional-census sites, scheduled as **H8**. | S |
 | **H7** ✅ #633 | **The chart lane's empty-tube acceptance row** — **FIXED by #633**, closing #617's own narrowing. A new `hull_slack_wall` fixture puts the control net 0.05 m below the cutting plane while the true curve dips only to 0.002 m above it — a 25:1 hull-vs-truth gap, which is what drives the all-seeds-fail mode the M5 substrate wall cannot reach. Then #617's two-run shape: certify-empty at a 1e−3 floor, refuse `ExhaustivenessInconclusive` at 0.1. Red produced by reinstating the pre-#617 block verbatim (96 leaves in no bucket). Measured: the Ok/refuse transition sits between 9e−3 and 1e−2, so the two floors are an order of magnitude either side, and the row still goes red when the enclosure is degraded 8×. The review killed one assertion that could not go red; three further never-silence doors it found are scheduled as **H12**. | S–M |
@@ -4244,6 +4351,8 @@ Good work for filling parallel capacity. None blocks anything.
 | **H13** | **`sweep_body`'s helix rows have no orientation coverage, and #636's oracle cannot reach them.** `sweep/tests/m8_14_long_turn_sweep.rs:110` sweeps helices at ½, 1 and 2 turns — a non-planar path whose own header describes "near-antipodal frame roll", i.e. the hardest chart in the tree and where *"the skinned chart's normal follows the traversal"* carries the most weight. #636 covered the curved-path elbow and named this as **not** closed: its level-plane oracle trips its own precondition at both ends of a half turn (`cos ≈ 0.011`), so a new oracle is needed, not a new fixture. Also uncovered: `m7_skin_integral.rs:378`, `step-export/tests/common/mod.rs:482`. | M |
 | **H14** | **#637's two residues, both the same class one level up.** (i) **Arm 2's `bridged` skip** (`census.rs:1518-1520`) exempts a solid pair from the containment arm whenever ANY contact record links them, justified as "under the confirm pass's examination" — but the confirm pass validates the *records* and never asks about nesting, so one vertex-vertex record at a corner exempts the whole pair. Its own jurisdiction call, its own blast radius, and a live soundness hole of S49's exact shape. (ii) `splitting/rules.rs:268` is a third empty-outer-loop site of the item #620 recorded. Fold in `census.rs:1341-1348`: a face whose curved neighbour is a **placeholder NURBS** is dropped from the backstop entirely, unreachable only because nothing mints a reachable placeholder — protection by accident, which #637's own thesis says a backstop must not rest on. | M |
 | **H15** | **#635's unclassified siblings.** `mesh/src/planar.rs:63` derives an outward normal from the Newell cross-sum of the outer walk and asserts "this is the outward normal by construction" — same premise family as the `enters.rs` row, outside the swept set, and #635's reviewer could not convince itself either way. `validate.rs:426`'s "not enforced at M2" is a further undated scope claim nobody chased. `splitting/mod.rs:194`'s "unimplemented until SSI" is the revolve shape again, left because H7 was live in `ssi*` at the time. Each needs the S39 question asked: benign rot, or an invariant that was meant to hold? | S |
+| **H16** | **The STL header is not caller-settable — #639's disclosed residue, unscheduled until now.** The asymmetry is concrete. `step_export::StepOptions` carries `product_name`, `author`, `organization` and `originating_system`; every call site supplies its own (`demos/tour` passes the scene label, the import round-trip suites pass the fixture name), and the defaults leak nothing — `product_name: "part"`, the other three empty. `stl` has **no options struct at all**: `ascii.rs`'s `NAME` and `binary.rs`'s `HEADER` are private `const`s, so the solid name and the 80-byte header are fixed at build time and no caller can reach them. #639 de-milestoned both but deliberately did **not** close this, because giving `stl` an options struct is **new public API and therefore Evan's call**, not a hygiene fix. **One courtesy to preserve when taking it:** `ascii.rs`'s doc says the name is *"constant in this build"* rather than "no caller input" — worded that way on purpose so that adding a caller-settable header does not falsify the sentence. Note also that the byte oracles are header-blind by construction (they compare exports to each other), so the only thing pinning either string is the pair of assertions #639 added — `export.rs`'s `NAME:` row for the ASCII opener and `endsolid` closer, and `review_m2_pr7.rs:172`'s `HEADER:` row for the binary bytes. Both must move with any change here. | S |
+| **H17** | **The rustdoc remainder S37 left behind — ~1115 lines across 130 files.** #639 held the line at *everything that leaves the repository* and stopped there; this is what stayed. **The scope call rests on a measurement, and the measurement is the point of this row**: S37 estimated **~124** public-rustdoc spec codes, and the real figure is **~1189** — an order of magnitude low — obtained by walking each crate's `pub mod` tree from `lib.rs` and counting doc lines on publicly reachable items, with #639's reviewer independently parsing 1188. **Do not re-measure; start where the density is.** By crate: `topo` 300, `editor-core` 267, `geom-brep` 192, `geom-core` 107, `sweep` 64, `geom-curves` 39, `mesh` 34, `profile` 29, `geom-surfaces` 28, `step-import` 27, `step-export` 20, `quantity` 5, `bvh` 3. Heaviest files: `topo/src/validate.rs` 60, `editor-core/src/persist/mod.rs` 42, `editor-core/src/eval/mod.rs` 41, `topo/src/boolean/mod.rs` 33, `geom-brep/src/pcurve_cache.rs` 31. Counted on the post-#654 tree; the figures drift by single digits as other lanes land, so treat them as a starting map, not a target. `pncad`, `pncad-py` and `stl` are at zero. **`publish = false` is why this can wait, not why it is fine**: no rustdoc in these crates reaches a library user today, and every line of it becomes a live leak the day anything publishes — which is a release-blocking dependency, not a nice-to-have. **The other half of the remainder is the same class in non-public comments**: **473** plain `//` lines carry a spec code workspace-wide, which is S38/**W3b**'s territory and must not be swept before the deletions above it land. The two halves are recorded together here so neither is invisible; whoever takes either should know the other exists. Method notes from #639, so this need not be rediscovered: the pattern must cover **bare** clause letters (`F5`, `G1`, `U7`, `R3`, `C4`, `S13`) as well as prefixed codes, and must follow `\`-continued multi-line literals. | M–L |
 
 ---
 

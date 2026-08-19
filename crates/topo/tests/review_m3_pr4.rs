@@ -561,15 +561,15 @@ fn nurbs_wall_boolean_surfaces_the_crossing_layer_refusal() {
     };
     let msg = format!("{err}");
     assert!(
-        msg.contains("PR 9c"),
-        "the refusal names the banked unit: {msg}"
+        msg.contains("fitted-chord join lane"),
+        "the refusal names the unwritten lane that blocks it: {msg}"
     );
     assert!(
         msg.contains("crossing layer"),
         "the refusal names the missing boolean piece: {msg}"
     );
     assert!(
-        msg.contains("PR 7b"),
+        msg.contains("already implemented at the INTERSECTION layer"),
         "the refusal is honest that the SECTION arm is already certified: {msg}"
     );
 }

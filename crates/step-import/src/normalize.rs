@@ -492,7 +492,7 @@ fn mint_band(
                     id: face_id,
                     what: "a seamless periodic band whose rim chain is not made of \
                            circles coaxial with the surface within the file's own \
-                           interpretation budget — outside the M7-5 band re-mint's \
+                           interpretation budget — outside the band re-mint's \
                            minted class (its winding read, splits and seam endpoints \
                            are exact only on coaxial rims); extending the band \
                            re-mint to this rim shape is the recourse",
