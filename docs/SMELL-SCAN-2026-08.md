@@ -3319,7 +3319,7 @@ Three process facts worth carrying, all from this lane:
   (`FullRevolveHoles`' Display: *"sweeps produce genus, never voids; voids are born
   only from booleans"*). Q1 — grep the file you are in.
 
-Unclassified siblings went to **H15**; the `enters.rs` question is **D5**.
+Unclassified siblings went to **H15**; the `enters.rs` question was **D5**, answered by #665 (the newtype).
 
 **Two rows were added after that fix**, both from #647's style review. The first
 needed Evan, because `DESIGN.md` is the ratified contract — he authorised the edit
@@ -3345,12 +3345,17 @@ record of the intended invariant.
 Two rows in this finding look like candidates for the second reading rather
 than the first:
 
-- **`enters.rs:14`** derives M3's entire sign chain from *"every face's stored
-  normal is the outward normal"* and instructs future callers to cite that
-  sentence. `step-export/src/volume.rs:36` says it has been false since M5 S10.
-  Callers currently pass sense-corrected normals, so the code works — but the
-  question the claim raises is whether the outward-normal property *should*
-  have been preserved rather than devolved onto every caller.
+- **`enters.rs:14`** ✅ **ANSWERED by #665 (D5, Evan's call).** It derived M3's
+  entire sign chain from *"every face's stored normal is the outward normal"*,
+  a claim `step-export/src/volume.rs:36` says has been false since M5 S10; the
+  code worked only because every caller remembered the `sense_sign` multiply.
+  The reading was **the second one** — an invariant that was meant to hold, not
+  a rotted sentence — and it is now held by `geom_brep::OutwardNormal<T>`,
+  whose only constructor takes the sense sign. The derivation opening states
+  that; the sentence *"the sense correction is the caller's, and no type
+  enforces it"* is gone, being false as of that PR. What #665 could NOT type
+  is recorded in its description; the same contract still lives untyped at two
+  further doors, scheduled as **D6**.
 - **`pcurves.rs:91`** (found by the S15 steelman, not the original scan) lists
   `merge_coplanar_faces` among ops that neither clear nor re-mint the pcurve
   cache. It **started re-minting on 2026-08-05**. Here the code moved in the
@@ -4261,13 +4266,13 @@ Two ordering rules govern the whole thing:
 
 ## Wave 0 — decisions (Evan). Nothing large should start before these.
 
-Cheap in wall-clock, enormous in what they unblock. All four are judgement
+Cheap in wall-clock, enormous in what they unblock. All six are judgement
 calls that no agent should make.
 
-**Status, 2026-08-19: three of the four are made.** D2 is ratified into
-`DESIGN.md`, D3 is retire, D4 is delete-with-execution-deferred. **D1 is the
-only Wave-0 decision still open**, and it is the one that gates the most: W2a
-entirely, and W2b jointly with W1c. The D1 pricing entry under S44 found that
+**Status, 2026-08-19: four of the six are made.** D2 is ratified into
+`DESIGN.md`, D3 is retire, D4 is delete-with-execution-deferred, D5 is the
+newtype (landed in #665). **D1 and D6 are open**, and D1 is the one that gates
+the most: W2a entirely, and W2b jointly with W1c. The D1 pricing entry under S44 found that
 the split costs nothing in `src`, so what is actually being decided is
 narrower than the trait question makes it sound — `evaluate<T>`'s bound
 requires `Bounds`, `Bounds` has no `Dual` impl, and therefore `ERROR-DESIGN`
@@ -4282,7 +4287,8 @@ reach `evaluate`* — the trait shape follows from the answer either way.
 | **D2** ✅ **RATIFIED 2026-08-19 (#628)** | **S43 — the bug-vs-invalid-state taxonomy.** D9 currently sanctions only "typed error where cheaply detectable, or documented garbage-out"; the kernel uses five idioms, two of them mutual negations. | **S19** (which it *generates* — ~239 of ~260 sites); resolves **S12**/**S14** residue | Restating D9 decides three findings at one stroke. Touching any error enum first means redoing it. **RATIFIED as the D2 addendum to D9 (`DESIGN.md:1118`); `unreachable` is out of the banned clippy family in both manifests.** The conversion it licenses is NOT done — the ~60 silent `if let Some` discards, idiom 2's `MissingEntity` router defects, and `AssemblyUnsupported`'s rename to `Unsupported*` all still stand, so **W2c is unblocked and unstarted**. |
 | **D3** ✅ **DECIDED 2026-08-19 — RETIRE** | **S7 — run the one-line experiment.** Swap the arms at `fillet/build.rs:205`, `cargo test -p sweep --test all`. | **S6**, and all fillet work in **S36**/**S38** | **EXPERIMENT RUN 2026-08-18 — see S7's experiment entry.** The surgery succeeds on the cube and yields the same solid (identical census and coordinate set; volume one ulp apart). The two doors *are* redundant, so the decision was purely retire-or-keep against a measured price. **DECIDED (Evan, 2026-08-19): retire the whole-body door.** Price accepted as measured: ~890 whole-body-exclusive lines deleted, one naming test rewritten (`the_whole_body_door_records_every_entity_it_mints`'s `supports` row — a by-design difference, so it is rewritten rather than deleted), two goldens regenerated, one FreeCAD acceptance re-run. **Sequencing:** #640 (H9) is editing `fillet/build.rs:692`, which sits inside the door being retired — the retirement must not race it, and it makes H9's `build.rs` half moot. W2d follows the retirement rather than running beside it. |
 | **D4** ✅ **DECIDED 2026-08-19 — DELETE, EXECUTION DEFERRED** | **S11's four undecided rows** — `Mat2`/`Affine2`, `PairSolve`, `hull.rs`'s non-rational unused half, the two inlined fillet helpers. | Cleanup in those files | Each is delete-or-keep. Cheap to answer, and answering stops anyone documenting them. **CHECKED 2026-08-18 (see S11's D4 entry): `hull.rs` should be struck — the deletion is really "retire the `sup_norm_bound*` API", whose rational limb is on the #390/#453 lane. `PairSolve`'s consuming unit (R2-b, #591) has merged without constructing it.** **DECIDED (Evan, 2026-08-19): delete, and the EXECUTION moves to the back of the queue** — see S11's D4 DECIDED entry. The decision is recorded now even though the work is deferred, because the reason D4 sat in Wave 0 was *"answering stops anyone documenting them"*, and a recorded verdict does that job on its own. |
-| **D5** | **S39's `enters.rs` residue — should the outward-normal property be restored, or stay devolved?** `geom-brep/enters.rs:14` derived M3's whole sign chain from *"every face's stored normal is the outward normal"*; M5 S10 exchanged that deliberately (`DESIGN.md` records it) and `enters_material` now takes a bare `Vec3<T>` with the obligation devolved onto callers and no type enforcing it. **Correctly sized by #635's review**: the exposure is **two production callers** (`boolean/sectors.rs:304`, `splitting/rules.rs:200`) plus `enters_material_order2` at `splitting/neighborhood.rs:237`, which passes a *splitting plane's* normal where sense does not apply — not the 36 `sense_sign` sites first reported. #635 left the derivation opening on `Face::sense_sign() * chart_normal(u, v)`, stating plainly that **the sense correction is the caller's and no type enforces it**, and left the typing fork unmade on purpose. Options: (a) leave as convention, (b) a `geom-brep`-side `OutwardNormal<T>` newtype minted only from a sense sign, (c) take `(&Body, FaceKey)`. #635's recommendation is **(b) or nothing** — (c) is the smaller diff but makes `geom-brep` depend on `topo`'s `Body`/`FaceKey`, inverting the layering for two call sites. | Nothing; it is a documented convention today | Cheap to answer, and it is the only S39 row whose disposition is a design question rather than a sentence. |
+| **D5** (this report's numbering; NOT `DESIGN.md`'s D5, which is persistent topological identity) ✅ **DECIDED 2026-08-19 — (b), THE NEWTYPE** · #665 | **S39's `enters.rs` residue — the outward-normal property, restored in the type.** **FIXED by #665.** Evan chose **(b)**; (a) and (c) rejected — (c) would invert the `geom-brep`/`topo` layering for two call sites. `geom_brep::OutwardNormal<T>` has a private field and exactly one constructor, `from_chart(chart_normal, sense: bool)`: no `new`, no `From<Vec3>`, no `Default`/`Deref`/`AsRef`, so a sense-uncorrected vector cannot reach `enters_material` at all. The constructor takes the **bit**, not a `T` sign, per S10's own contract that the flip is selected by a boolean and never by a numeric decision — which is what shrinks the residual obligation to *"you must write `false`"*. Two compile-fail probes (#665's 6 hazards, its reviewer's 17) refuse everything tried, including the `dir`/`outward_normal` swap that used to compile. **The part nobody predicted was the `order2` site.** `splitting/neighborhood.rs` was passing a SPLITTING PLANE's normal into a parameter named `outward_normal` — one parameter doing two jobs, told apart only by a comment in a different file — so under the newtype it could not honestly construct one. Resolved by naming the second job rather than weakening the first: a `ReferenceNormal<T>`, minted by `of_split_plane`, for a normal that DEFINES the Above/Below convention instead of carrying a face's sense; there is no conversion from it to an `OutwardNormal`. **The census also came out wrong twice, in the same direction**: the lane was briefed with one producer and found three (`boolean::sectors::sector_face`, `splitting::neighborhood::sector_face`, and the planar door, which grew a typed twin `reduce::face_outward_normal` that `face_plane` is now defined in terms of); the review then found the same contract living untyped in three more places, because a sweep for *callers of `enters_material`* structurally cannot see **a function taking an outward normal as a bare `Vec3` under a prose obligation**, which is D5's defect one level up. `sector_shape` was typed in #665; the other two are **D6**. | Nothing; it was a documented convention until #665 | Cheap to answer, and it was the only S39 row whose disposition was a design question rather than a sentence. |
+| **D6** | **D5's contract, still untyped at two more doors — schedule, not a sentence.** #665 typed `enters_material` and `sector_shape`; a differently-shaped sweep (grep `sense_sign`, grep "OUTWARD normal") found the identical *"the caller multiplies by `sense_sign` exactly once"* obligation alive in two functions the `enters_material` call graph does not reach. (i) **`merge_faces.rs:887` `loop_winding`** takes `normal: Vec3<T>` and its doc is verbatim the sentence D5 was opened to kill; its verdict picks outer-vs-ring loop roles and inverts on a reversed face, and its caller at `:963` hand-multiplies. (ii) **`solid_contain.rs:203` `face_plane`** is a same-named near-twin of `reduce::face_plane` with its own hand-multiply; exposure is low today (its one consumer is ray-crossing parity, blind to the sign) but its own doc says threading is *"what keeps the door's CONTRACT honest for the next consumer"* — and the two same-named doors have now **drifted in typing** because #665 typed one of them (`solid_contain.rs:330` is a third hand-multiply in that same file, and `join.rs:987` a fourth elsewhere). The question is whether `OutwardNormal` should reach these two, or whether the two `face_plane` doors should collapse into one. | Nothing; both work today | Small and mechanical, but leaving it half-typed is worse than either end: a reader of the typed door will assume the untyped twin is the same kind of thing. |
 
 ---
 
