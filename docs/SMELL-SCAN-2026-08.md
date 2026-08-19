@@ -2259,6 +2259,58 @@ catches `DimensionError` for a dimension mistake catches the wrong one.
 | `mesh` reads ε twice where the crate docs and `DESIGN.md` D4 say once — and the second read **snaps** a value | `walk.rs:730`, `walk.rs:496` | The mesh is a function of (body, δ, **ε**), not (body, δ) as the determinism/memo-key contract claims. F6 also bans "EPS snapping anywhere in the pipeline" |
 | `same_chart` decides chart identity by `core::ptr::eq` on two `&Body` | `chart_region.rs:394` | In a module whose premise is "structural identity, never numeric identity". A caller passing a clone silently drops to the weaker rung |
 
+**The `mesh` row is FIXED by #664 — route (ii), and the ε-vs-δ question
+it asked is moot.** That row only; every other row of this finding
+stands, the `CAD_TOLERANCE_EPS` ambience row emphatically included — it
+is an open design question, not a defect, and nothing here touches it.
+`walk`'s final meridian now takes its column from the loop's **closing
+vertex** (`walk::closing_column`) rather than from the meridian
+carrier's midpoint, so the two ends of the closing polygon side are the
+same `f64` rather than the same analytic azimuth down two float paths.
+The residue is **identically zero** on every governed closure —
+`loop_polygon` asserts it bitwise after the walk — the snap is deleted,
+and no ε-derived quantity can move a value the mesh emits. The
+comparison survives as a `debug_assert!` inside `closing_column`, where
+it gates nothing and therefore measures **data quality** (the
+`nist_ftc_09` 21 pm off-axis line endpoint) rather than a tolerance,
+which is what it was always really about. `closure_is_snappable` is
+kept — nothing snaps, so it is renamed `closure_gap_is_noise` — because
+it is the shape #653 needs one rung over.
+
+Measured A/B on current main (both trees release with
+`debug-assertions`, wild corpus through `import_step`, δ ∈ {5 mm,
+1 mm}, position bits and triangle indices hashed separately): **triangle
+indices bitwise identical in all 18 cells; vertex positions bitwise
+identical in 17 of 18**. `nist_ftc_09_asme1_rd.stp` — the file that
+motivated the ε bar — is byte-identical. The one differing cell is
+`stepcode/sg1-c5-214.stp`, positions only, at both δ, worst |Δ| =
+1.9e-14 m.
+
+**Two corrections to this finding as written, established by that
+work:**
+
+- **"`mesh` reads ε twice" is not literally true.** `mesh` calls
+  `Tolerance::get()` **exactly once** (`tessellate.rs:43`) and threads
+  `eps: f64` down. What was true is that two structural decisions
+  *consumed* it — and since #648 there are three: pole/apex
+  identification (`walk`), `curved`'s banded swept-rectangle domain
+  guard, and the snap. Only the snap could move an emitted value, and
+  it is gone; the guard decides only whether a face is **refused**. So
+  today: one read, two consumers, neither able to change a value. The
+  three stale *"ε is read once, for pole identification"* comments are
+  corrected to say that rather than deleted — note that route (ii)
+  alone would **not** have made the old wording true again, because
+  #648 had already added the third consumer.
+- **"All 18 nonzero residues sit in one wild file" was not true at
+  HEAD.** The eighteen are all `nist_ftc_09`'s and reproduce value for
+  value, but the wild total is **twenty**: `stepcode/sg1-c5-214.stp`
+  carries two, at 5.84920e-13 and 5.84865e-13 rad on a 2.0e-2 m radius.
+  It is excluded from the montage by **licence**
+  (`WILD-CORPUS-LICENSES.md` D2), not by capability, which is how a
+  census run off the montage cell set missed it. Wild total at HEAD:
+  125 governed closures per δ, 20 nonzero. In-tree: 381 closures, 4
+  nonzero, all 1 ulp and all from #648's one obliquely-placed fixture.
+
 **Verdict:** ACCEPTED WITH QUALIFICATIONS, row by row (Evan, 2026-08-18):
 
 - **`CAD_TOLERANCE_EPS`**: *"worth an investigation for good alternatives but I
@@ -2407,6 +2459,16 @@ vertex** rather than the carrier midpoint — exact whatever the skew, mutates n
 geometry (caveat: touches the anchor-branch choice tuned for wedge angles
 > 3π/2). **Route (ii) makes the residue identically zero and moots the ε-vs-δ
 question entirely.**
+
+**Route (ii) is what shipped (#664), and its caveat was false.**
+`unwrap_near(raw, prev)` returns the representative of `raw` nearest
+`prev`, so with `prev = anchor` the 2πk branch is *already* the
+anchor's; replacing the value with `anchor` changes only the residue
+inside that branch and cannot move the branch. Demonstrated by
+execution: reverting the substitution reds the two exactness rows and
+leaves both wedge-angle rows green. What #486 called a design
+conversation was a one-line substitution with no bearing on the tuning
+it was thought to touch.
 
 **On F6:** F6 bans ε snapping in the *boolean reduction/classification*
 pipeline. This snap is display/export-layer and moves no kernel entity, so it
@@ -2694,8 +2756,9 @@ a vertex lands on that edge), placed obliquely by its assembly
 placement, false-refused at **8.88e-18 m**.
 
 The fix measures the gap in metres against the same band the module
-already uses at the loop closure (`walk::closure_is_snappable`,
-`residue · radius < eps`): `Chart::radial` for u — the entry's own
+already uses at the loop closure (`walk::closure_gap_is_noise`,
+`gap · radius < eps` — `closure_is_snappable` until #664 deleted the
+snap and left the predicate as a diagnostic): `Chart::radial` for u — the entry's own
 distance from the chart axis, so a cone and a sphere get their varying
 lever arm — and the new `Chart::v_lever` for v. Over a 1524-row split ×
 oblique-placement sweep the **worst** wobble anywhere was 1.4985e-15 m,
@@ -3965,9 +4028,11 @@ Good work for filling parallel capacity. None blocks anything.
 every accepted finding. **S20–S22 and S24–S34 have no row anywhere in it** —
 they are accepted, several are argued at length, and none has a lane, an
 owner, or a wave. Only S35's roll-up gets a Wave-3 row, and S35 is a different
-finding from its neighbours. Two of the unscheduled ones carry open questions
-that are Evan's rather than an agent's (S22's ε ambience and the mesh
-ε-vs-δ-vs-neither snap bar), and S28 turned out to hold a correctness question
+finding from its neighbours. One of the unscheduled ones carries an open question
+that is Evan's rather than an agent's — S22's ε ambience. (S22's other
+one, the mesh snap's ε-vs-δ-vs-neither bar, is **closed by #664**: the
+answer was neither, and route (ii) removed the quantity the bar
+measured.) S28 turned out to hold a correctness question
 that never got a Wave-1 row: `curved.rs` inserts grid points *after*
 constraints, the ordering `planar::triangulate_chart`'s header warns against.
 **That half is settled by #648** — the ordering is inert, proven by execution —
@@ -4220,7 +4285,11 @@ pin still passes:
 
 - `survives_eps_row_bitwise_independence` pins *"ε is read once, for pole
   identification"*; #481 added a second structural ε read; the test passes
-  because only a **foreign STEP file** produces a nonzero residue.
+  because only a **foreign STEP file** produces a nonzero residue. (#664
+  removed that second read and corrected the comment — which by then had
+  to name a *third* consumer, #648's domain guard, rather than restore
+  the original wording. A stale claim does not become true again by
+  undoing the change that falsified it.)
 - `parallel_schedule_preserves_verdict_logs` pins **thread** confinement;
   ASM-2A broke **re-entrancy**.
 - Four process-isolated binaries pin the ε global's init discipline; none
