@@ -4059,7 +4059,7 @@ spellings of one rule is evidence the rule needs one home*. Run as
 `rg 'BY HAND|kept in (sync|step)|same rule as|mirrors the (implementation|logic|table)'`
 over `crates/*/src`, excluding the `bit-identical`/`endpoint-identical`
 vocabulary, which is D9's and fenced by [[output-stability-as-justification]].
-It found every site above. Adding it to `REVIEW-STYLE-BRIEF.md` §2 would be a
+It found every site above. Adding it to `docs/prompts/reviewer-style-lane.md` would be a
 Protocol v5 amendment and so **Evan's to ratify**, not adopted here.
 
 ## S55. `Enclosure` is a live trait with no consumer left
@@ -4529,7 +4529,7 @@ conclusion happened to survive; in all three the method did not.
 
 **Proposed in #666, awaiting Evan's sign-off** — it amends the review
 instrument, which is Protocol v5's territory. The rule text lives in
-`docs/REVIEW-STYLE-BRIEF.md`; it is not restated here, because two copies of
+`docs/prompts/reviewer-style-lane.md`; it is not restated here, because two copies of
 one rule is the shape this report exists to hunt.
 
 ## C16. A prose-hygiene pass can manufacture the defect it exists to remove

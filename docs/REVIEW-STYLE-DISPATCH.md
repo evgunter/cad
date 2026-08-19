@@ -1,6 +1,6 @@
 # The style lane — dispatcher notes
 
-The reviewer's document is `docs/REVIEW-STYLE-BRIEF.md`. **Read it once, then
+The reviewer's document is `docs/prompts/reviewer-style-lane.md`. **Read it once, then
 point reviewers at it by path — do not paste it.** Pasting produced six subtly
 different instruments in one wave, which is §S4's own shape applied to the
 review protocol, and it makes "which version did this review run?"

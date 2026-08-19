@@ -86,29 +86,17 @@ in git history and the M-logs, not here):
 - **State-sync PRs (Evan, #96)**: the orchestrator branch must not
   accumulate a large unmerged delta — open a docs-only PR to main at
   every pipeline seam.
-- **Every subagent spec header**: OUTPUT DISCIPLINE (≤~150 lines per
-  tool call, chunked reads, skeleton-first writes, reports ≤150 lines
-  — the 64k output limit kills agents that draft whole files in one
-  Write, and a transcript poisoned by it must be respawned FRESH, not
-  resumed) and the verbatim verification sentence: "run every
-  build/battery row as a synchronous FOREGROUND Bash call, one at a
-  time, reading each result before the next; NEVER arm waiters,
-  monitors, or background chains for your own builds/tests; when the
-  build-slot queue is busy, a BLOCKING foreground wait is the correct
-  state — re-issue a timed-out call rather than parking".
+- **Every implementer dispatch**: point the lane at
+  `docs/prompts/implementer-discipline.md` by path — output discipline,
+  the foreground-verification rule, per-lane target dirs, k-lint and
+  comment style live there. Read it once yourself; do not paste it.
 - **Reviews**: assign reviewers explicit claims to falsify, AND point
-  them at the style lane by path (`docs/REVIEW-STYLE-BRIEF.md` — read it
+  them at the style lane by path (`docs/prompts/reviewer-style-lane.md` — read it
   once yourself, do not paste it; dispatcher notes in
   `docs/REVIEW-STYLE-DISPATCH.md`) — the claims lane is
   strong on soundness and blind to structure; promote
   reviewer suites into CI after the fix pass
   ([[review-and-dependency-policy]]). Dual-review sampling per the A/B
   amendment in `docs/MODEL-AB-LOG.md`, which owns the ordinal.
-- **Two standing brief lines (Evan, 2026-08-08)**: (i) k-lint
-  discipline — "if the k-lint gate fires, do NOT change geometry to
-  silence it; a fired lint is distribution evidence — re-derive the
-  baseline per the K-REPORT runbook or escalate to the orchestrator";
-  (ii) comment style — comments state the INVARIANT, not the history:
-  no retired-type archaeology, no unit tags.
 
 Handing the session to a successor: [[orchestrator-switch-runbook]].
