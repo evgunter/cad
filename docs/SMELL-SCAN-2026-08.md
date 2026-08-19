@@ -2835,7 +2835,8 @@ be trimmed down to what's actually necessary."*
 | `euler_ring`'s module docs: "cross-shell is a typed error until M3" | Three hundred lines above the `kfmrh` doc describing the cross-shell fusion it now implements | `euler_ring.rs:126` |
 | `euler_kill`'s `mfkrh` docs describe a fresh `Placeholder` surface, a deterministic surface anchor and "ballast coordinates" | Machinery the code notes was retired when `mfkrh` grew its `FaceSurface` parameter | `euler_kill.rs:197` |
 | `Node::instantiate_part`: "none can in v1: `InterfaceCrossing` is uninhabited" | `InterfaceCrossing`'s own doc four hundred lines above: "**INHABITED as of ASM-R2b D-4**". `refactor.rs:82` repeats the stale claim | `node.rs:970` |
-| `pcurve_cache`'s stranded `run_iso_checks` doc still claims the lane admits "exactly the non-rational described-NURBS chart" | M8-3 changed that; the doc block is also attached to the *wrong function* (see S40) | `pcurve_cache.rs:2459` |
+| `run_iso_checks`' doc still claims the lane admits "exactly the non-rational described-NURBS chart" | M8-3 changed that. (The stranding half of this row is fixed by #627, which also MOVED the block — hence the new anchor) | `pcurve_cache.rs:2841` |
+| `Pcurve`'s type doc: "Two variants; the closed enum is the D3 shape" | Four variants — `Harmonic`, `Fitted`, `IsoLine`, `IsoArc`. Found by #627's reviewer; recorded here unclassified, because S39's discipline is to decide benign-rot vs lost-invariant before the sentence is touched | `pcurve_cache.rs:167` |
 | `step-import`'s `UnsupportedUnit`: "the subset covers unprefixed SI metre/radian/steradian only" | `units.rs` resolves all sixteen SI prefixes and `CONVERSION_BASED_UNIT` chains today | `step-import/error.rs:419` |
 | `props/quad.rs:42`: "the patch flux engine consumes this machinery at rest" | It runs a separate near-parallel copy; the claim reads as a stale justification for keeping S11's dead lane | `props/quad.rs:42` |
 | `assemble::build`'s doc: "the assembly both doors share verbatim" | Only one door remains, and `build_one_solid` is a one-line forward to it | `step-import/assemble.rs:810` |
@@ -2871,28 +2872,44 @@ of the two happened?**
 
 - **Confidence**: sure
 
-- **FIXED by #627.** `run_properties` now RETURNS the number of
-  roundtrips that executed, and the counter is asserted at the strength
-  the design supports. A single case may legitimately execute none (a
-  short decision vector may hold no roundtrip step, and the documented
-  irreversible-by-one-op kills are skipped by design), so the honest
-  statement is not per-case: the proptest test became a plain `#[test]`
-  around `proptest!`'s closure form, summing executions across the whole
-  run and asserting the total is non-zero once the run completes. The
-  deterministic issue-#60 case, whose final step IS a `kef` roundtrip,
-  asserts its own execution. Both go RED against a `roundtrip` forced to
-  skip everything.
+- **FIXED by #627.** `run_properties` now returns a tally — selections,
+  executions, skips, and the selections that could legally skip — and the
+  bar comes from the MECHANISM rather than from a measured total. Both
+  documented irreversible-by-one-op subcases live in `roundtrip`'s
+  `Kev`/`Kef` arms, so a selection on any other choice must execute; that
+  is asserted per step, and restated at run level as
+  `executed == selected - skipped`. The bar therefore rises with the run
+  (measured 339 selections, 335 executions, 4 skips against 47 skippable)
+  instead of sitting at a constant floor. The residual `executed > 0` is
+  labelled in the test for what it is — a collapse floor that the design
+  does not imply, since a run whose every selection landed on an
+  irreversible site would legally execute none. The proptest test became
+  a plain `#[test]` around `proptest!`'s closure form so the run-level
+  totals have somewhere to be checked; the deterministic issue-#60 case
+  asserts its own execution. RED evidence: forcing `roundtrip` to skip
+  everything, and separately forcing it to skip one non-`Kev`/`Kef`
+  choice (`MevLone`) — the second is the degradation a bare `> 0` floor
+  would have passed.
 - **FIXED by #627.** `powi_edges`' `|| true` row now asserts what the
   case is for: `x.powi(i32::MIN)` is not poison and is a finite
   underflowed bracket of zero. The overflowed positive power is the
   honest `[MAX, +inf]` (not poison), so its reciprocal has a positive
   subnormal upper bound rather than collapsing — which the old row could
   not have told apart from poison.
-- **FIXED by #627.** `every_error_displays` is exhaustive BY
-  CONSTRUCTION: a local `variant_index` matches `EulerOpError` with no
-  wildcard, so a new variant fails to compile until it is listed, and a
-  coverage array then stays red until a Display sample for it joins the
-  list. All 27 variants are sampled.
+- **FIXED by #627.** `every_error_displays` gets a local `variant_index`
+  that matches `EulerOpError` with no wildcard, so a new variant fails to
+  compile until an arm exists, and a coverage array then names the
+  variant whose Display sample is missing. All 27 variants are sampled.
+  One residual is stated in the test rather than papered over: the
+  variant COUNT is still hand-written, so a new variant given an arm but
+  no sample passes — closing that needs the count from the compiler
+  (`strum`'s `EnumCount` or the workspace's first proc-macro crate), and
+  neither is bought by a hygiene lane.
+- **FIXED by #627** (swept in the fix pass, same defect one file away):
+  `validate.rs`'s `errors_display_without_panicking` carried the same
+  claim — a hand-written `vec![…]` under a comment saying the exhaustive
+  Display match "already forces" the list — over 31 of `ValidationError`'s
+  59 variants. Same treatment, same stated residual; all 59 are sampled.
 - **FIXED by #627.** The seam-vertex parentage match now scrutinises
   the contact-record partners alongside the edge slices
   (`(a_edges, b_edges, partner_a_inner.as_ref(), partner_b_inner.as_ref())`),
@@ -2925,10 +2942,12 @@ of the two happened?**
   rejoined) off `germ_section_frame` and `type LooseMap`,
   `feed_stable_name`'s off `naming_key`, and `run_iso_checks`' off
   `run_iso_arc_checks`.
-- **FIXED by #627.** `remap_contacts` takes its two `KeyView`s by
-  reference like `remap_carried` already did, so `finish_fallback` binds
-  the pair once. The duplicate existed only because the first call
-  consumed them.
+- **FIXED by #627.** `KeyView` — a one-word enum whose by-value use is
+  exactly what forced the recompute — derives `Copy`, so `finish_fallback`
+  binds the pair once and no call site changes. The same shadow-and-
+  recompute shape was swept out of `pcurve_cache.rs`'s
+  `run_harmonic_checks`, which computed `let reach = t0.abs().max(t1.abs())`
+  twice in one body.
 - `WitnessSlot {}` is an empty struct occupying a field on every
   `NodeValue`, paired with a `NodeErrorKind::WitnessBifurcation`
   documented as never constructed (`eval/mod.rs:230`). **STILL OPEN** —
@@ -3280,7 +3299,7 @@ Good work for filling parallel capacity. None blocks anything.
 |---|---|---|
 | **H1** | **ci-local mirror parity** — the local mirror has no `EvalScalar` step and no interval-square `powi(2)` step; hosted has both. Decide add-or-document. (The `separation.rs` and dead-`test_support.rs` halves are fixed in this PR.) | S |
 | **H2** | **S39 stale claims** — nine rows, each classified **benign rot** vs **lost invariant** *before* its sentence is touched. `enters.rs:14` is the (ii) candidate: the outward-normal property was devolved onto every caller with no type enforcing it. | M |
-| **H3** ✅ #627 | **S40 residue** — start with the two that are not cosmetic: `emit_topo.rs:1266`'s unreachable fallback would mint `Seam{ae, ae}`, a well-formed name for the wrong thing; `seqgen.rs:853`'s discarded counter means the property suite cannot tell an all-skipped run from a full one. **FIXED by #627**: both behavioural rows plus the mechanical residue; S40's design-call rows (the `k_stats` shim, `WitnessSlot`, `props/curved.rs`'s NaN throws and doubled `Rim` direction, the `HashSet` paragraph) stay open there. | S |
+| **H3** ✅ #627 | **S40 residue** — start with the two that are not cosmetic: `emit_topo.rs:1266`'s unreachable fallback would mint `Seam{ae, ae}`, a well-formed name for the wrong thing; `seqgen.rs:853`'s discarded counter means the property suite cannot tell an all-skipped run from a full one. **FIXED by #627**: both behavioural rows plus the mechanical residue, and the review pass swept two siblings of the rows it names — `validate.rs`'s 31-of-59 Display list and `run_harmonic_checks`' doubled `reach`. S40's design-call rows (the `k_stats` shim, `WitnessSlot`, `props/curved.rs`'s NaN throws and doubled `Rim` direction, the `HashSet` paragraph) stay open there; two new stale claims went to S39 for **H2**. | S |
 | **H4** | **S37** — shipped-artifact naming: the STL header's `cad-kernel-m2`, `UnsupportedCurve.note`'s runtime-visible PR number, ~124 internal spec codes in public rustdoc and the Python stub. Evan: *"can be fixed earlier"* than S36. | S–M |
 | **H5** | **S4 drift (b)** — `names/select.rs:319`'s `_ => Vec::new()`, the fail-quiet wildcard its three siblings forbid by comment. One function. | XS |
 | **H6** | **Euler postcondition 7-tuple → named struct** — unnamed positional, 16 sites, 6 files, all `cfg(debug_assertions)`. Mechanical. | S |
