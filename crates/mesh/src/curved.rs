@@ -11,6 +11,7 @@
 //! it is not a property of iso-bounded input in general (a keyway is
 //! iso-bounded and is a U), so it is CHECKED here rather than assumed
 //! — [`TessellateError::UnsupportedCurvedDomain`], S28.
+//!
 //! Boundary polyline segments are inserted as CDT **constraints**, so
 //! the triangulation conforms to the shared chord segments in both
 //! adjacent faces (the watertightness guarantee).
