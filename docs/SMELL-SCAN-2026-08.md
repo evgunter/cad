@@ -79,7 +79,7 @@ cases. A finding is a *question worth answering*, not a defect.
 - [Tier 1 — architectural, load-bearing](#tier-1--architectural-load-bearing) (S1–S15)
 - [Tier 2 — significant](#tier-2--significant) (S16–S37)
 - [Tier 3 — real but lower stakes](#tier-3--real-but-lower-stakes) (S38–S48)
-- [Findings raised by the Wave-1 fix lanes](#findings-raised-by-the-wave-1-fix-lanes-2026-08-18) (S49–S55)
+- [Findings raised by the Wave-1 fix lanes](#findings-raised-by-the-wave-1-fix-lanes-2026-08-18) (S49–S56)
 - [§A. Where I would start](#a-where-i-would-start)
 - [§D. A schedule for fixes](#d-a-schedule-for-fixes)
 - [§C. Process observations](#c-process-observations)
@@ -3603,9 +3603,17 @@ in passing by a Wave-1 lane.
    `clamped_to`, a hand-rolled `if x.is_poison() { return x }`
    (`props/quad.rs`'s `sqrt_enclosure`), and audited raw `max` with a
    comment (`bvh/tree.rs:209-210`). Nothing prevents a fourth. Still
-   open; the *certified-door* half of the same shape now has one
-   spelling (`RingInterval::from_certified`, #671), but the clamping
-   half does not.
+   open, and **still unlinted** — but the *certified-door* half of the
+   same shape now has exactly one body: #671 both added
+   `RingInterval::from_certified` and collapsed onto it the two
+   byte-identical copies #643 had left behind (`geom-core`'s
+   `spline::hull::bracket` and `geom-brep`'s `ssi::enclose::ring`), which
+   are now one-line wrappers. The one deliberate non-copy is
+   `enclose.rs`'s `pad_interval`, which reads only the bracket's upper
+   end and is a different operation. The clamping half still has three
+   spellings and no gate; nothing prevents a fourth there, and nothing
+   mechanical would notice a fourth certified door either — the gate that
+   might have is **S56**.
 
 ## S42. Loft's `sense = true` derivation is untested against the shape that broke extrude
 
@@ -3872,9 +3880,11 @@ from the twenty structural scans.
 `S45`–`S48` stay reserved for their stated purpose (promotions out of the
 S35/S40 roll-ups), so these take fresh IDs.
 
-**All four carry blank verdicts. Per this document's own rule, none should
+**All carry blank verdicts. Per this document's own rule, none should
 be acted on until it has one.** (S49–S51 were raised 2026-08-18; **S55** was
-raised 2026-08-19 by the W1c lane, about that lane's own consequence.)
+raised 2026-08-19 by the W1c lane, about that lane's own consequence, and
+**S56** the same day by the S41 crossing lane, about the gate that could
+not see its own diff.)
 
 ## S49. The census's planar × planar skip is justified by a claim about solids
 
@@ -4245,6 +4255,87 @@ collapsing `CertifiedEnclosure` into `Enclosure` as a subtrait is exactly
 what produced the `E0034` ambiguity storm it backed out of.
 
 **Verdict:**
+
+## S56. The compound-`Bounds` gate is order-sensitive, so the spelling it exists to catch is invisible to it — and its own exemption rationale has already rotted
+
+- **Where**: `scripts/gates/bounds-allowlist.sh` (the regex, and the
+  header's `ssi/enclose.rs` paragraph); the three unlisted files
+  `crates/geom-brep/src/ssi/enclose.rs`,
+  `crates/geom-curves/src/nurbs.rs`, `crates/geom-surfaces/src/nurbs.rs`;
+  `crates/geom-core/src/real.rs:360-363` (the rule the gate enforces) and
+  `:602` (the doc that prescribes the unseeable spelling)
+- **Importance**: medium
+- **Confidence**: sure — the regex, the three files and the false header
+  sentence are all facts about the tree; what is *open* is what the rule
+  should say, not what the gate does
+- **Raised by**: the S41 crossing lane (#671), 2026-08-19, from its own
+  diff.
+
+The gate greps `\+\s*(geom_core::)?Bounds\b`. The `\+` is a **required
+prefix**: `Bounds` is only seen when something else precedes it. So
+
+- `T: Decide + Bounds` — **fires**
+- `T: CertifiedEnclosure + Bounds` — **fires**
+- `T: Bounds + CertifiedEnclosure` — **invisible**
+- `T: Bounds + Decide` — **invisible**
+
+The two orders are the same bound to the compiler. The gate answers a
+question about token order, not about the bound.
+
+**Three files carry the invisible spelling today and none is
+allowlisted.** `crates/geom-brep/src/ssi/enclose.rs` (ten
+signatures, pre-existing since #643), `crates/geom-curves/src/nurbs.rs`
+(two) and `crates/geom-surfaces/src/nurbs.rs` (one) — **the latter two
+added by #671 itself**, which wrote `T: Bounds + CertifiedEnclosure`
+because `real.rs:602` — `CertifiedEnclosure`'s own doc comment —
+**prescribes that exact string**: *"a body that needs the raw bracket too
+says `T: Bounds + CertifiedEnclosure`, which is an honest inventory of
+the doors it uses."* So the discipline's own documentation instructs
+writers to spell the bound in the one order its gate cannot see.
+The gate reports OK over all 282 files in `crates/*/src`.
+
+The sharpest part is not the miss but what the miss preserved. The
+gate's own header states the exemption:
+
+> `ssi/enclose.rs` is deliberately absent — it decides nothing, so it
+> takes the sole-bound `T: Bounds` the rule allows everywhere.
+
+**Since #643 that file has not taken a sole bound anywhere.** Every one
+of its bracket readers is `T: Bounds + CertifiedEnclosure`. The
+sentence is factually false, it has been false for the whole life of
+#643, and **the gate cannot detect that it changed**, because the very
+order-sensitivity above is what keeps the file quiet. A gate whose
+exemption rationale rots without the gate ever firing is worse than a
+gate with a known gap: the header is the artefact a reader trusts when
+deciding whether a file needs ratifying, and it is now wrong in the one
+file it names.
+
+**What this turns on, and why it is not answered here.** `real.rs:360-363`
+says code needing `Bounds` writes it as *"the parameter's **sole
+bound**"*, and that *"an extra bound tacked onto an evaluation type
+parameter is exactly the escape hatch the discipline's CI grep exists to
+catch"*. Read literally, `Bounds + CertifiedEnclosure` is a compound
+bound and the three files above need ratifying like every other seam in
+the allowlist. Read the other way, `CertifiedEnclosure` is not an escape
+hatch at all — it is the *narrowing* the discipline wants, `real.rs:602`
+prescribes exactly this pairing by name, and a rule that forces certified
+crossings through the allowlist would make the safe spelling the
+bureaucratic one. Those are different disciplines, and choosing between
+them amends a ratified rule (2026-07-29). **Evan's call**; the
+orchestrator is putting it to him.
+
+**Proposal, not a change** (recorded so the fix is not re-derived):
+the reviewer's regex is `(:|\+)\s*(geom_core::)?Bounds\s*\+|\+\s*(geom_core::)?Bounds\b`
+— catch `Bounds` on either side of a `+`. Whether it should be applied
+depends entirely on the answer above: under the second reading it would
+fire on three files that are *correct*, and the fix is the header
+sentence rather than the regex. Nothing here is fixed in #671
+deliberately — changing a ratified gate's semantics inside a lane whose
+mandate is the decoration seam is precisely the move S41's own history
+argues against.
+
+**Verdict:**
+
 
 ---
 
