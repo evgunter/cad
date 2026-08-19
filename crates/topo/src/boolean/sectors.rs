@@ -66,10 +66,9 @@ pub(super) struct BoolSector<T: geom_core::Real> {
     /// The sector's face and outward normal.
     pub face: FaceKey,
     /// The face's outward unit normal at the base vertex, minted once
-    /// in [`sector_face`] from the CHART normal and the face's
-    /// `sense_sign` (S10). Consumers pair it with the stored orbit
-    /// order and must NOT re-apply the sense — the type says the sense
-    /// is already in.
+    /// in [`sector_face`] from the CHART normal and the face's `sense`
+    /// bit (S10). Consumers pair it with the stored orbit order and
+    /// must NOT re-apply the sense — the type says the sense is in.
     pub normal: OutwardNormal<T>,
     /// The metering arm (shorter bounding chord, in meters).
     pub arm: T,
@@ -158,7 +157,7 @@ pub(super) fn build_sectors<T: Decide>(
         // The sense-invariance argument for the `normal` passed here is
         // NOT restated: it is the contract of `sector_shape`'s `normal`
         // parameter, which is the one place a caller has to read it.
-        // [`sector_face`] has already applied `sense_sign`.
+        // The value arrives typed, so it cannot be the wrong one.
         let SectorShape {
             arm,
             unit_own: u_end,
@@ -167,7 +166,7 @@ pub(super) fn build_sectors<T: Decide>(
         } = sector_shape(
             dir_end,
             dir_start,
-            normal.vec(),
+            normal,
             he == next_he,
             BOOL_SECTOR_PREDICATES,
             band,
@@ -219,11 +218,12 @@ pub(super) fn build_sectors<T: Decide>(
 /// convention the splitting lane's PR 5 sector machinery established.
 /// Kinds without a wired sector arm refuse typed (C12.1, per arm).
 ///
-/// **Every arm is multiplied by the face's `sense_sign`** (S10): all
-/// three read a chart normal and hand it back as the face's OUTWARD
-/// normal, and the chart is the only encoding of orientation they
-/// have, so the sense bit is authoritative here. The plane arm gets
-/// it through [`face_plane`]; the curved arms multiply in place.
+/// **Every arm folds in the face's `sense` bit** (S10) by minting an
+/// [`OutwardNormal`]: all three read a chart normal and hand it back
+/// as the face's OUTWARD normal, and the chart is the only encoding
+/// of orientation they have, so the sense bit is authoritative here.
+/// The plane arm gets it through [`face_outward_normal`]; the curved
+/// arms mint in place.
 ///
 /// This function is the chokepoint for the whole vertex-vertex lane.
 /// Everything downstream of [`BoolSector::normal`] — `within`,
@@ -261,7 +261,7 @@ pub(super) fn sector_face<T: Decide>(
     let face_data = body
         .get_face(face)
         .ok_or_else(|| corrupt(operand, vertex))?;
-    let sense = face_data.sense_sign::<T>();
+    let sense = face_data.sense;
     let surface = body
         .get_surface(face_data.surface)
         .ok_or_else(|| corrupt(operand, vertex))?;
@@ -463,7 +463,7 @@ mod tests {
     /// suspect side of ch. 15 erratum 4, resolved by derivation.
     #[test]
     fn mirror_check_side_codes() {
-        let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), 1.0);
+        let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
         let b = band();
         assert_eq!(
             side_code(Vec3::new(0.3, 0.0, -1.0), n, 1.0, b).unwrap(),
@@ -487,7 +487,7 @@ mod tests {
             start_edge: true,
             end_edge: true,
             face: FaceKey::default(),
-            normal: OutwardNormal::from_chart(Vec3::new(normal[0], normal[1], normal[2]), 1.0),
+            normal: OutwardNormal::from_chart(Vec3::new(normal[0], normal[1], normal[2]), true),
             arm: 1.0,
         }
     }

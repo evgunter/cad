@@ -236,12 +236,16 @@ pub(super) fn face_source<T: Decide>(
 /// [`crate::entity::Face::sense_sign`]: the chart is the only place
 /// orientation was ever encoded, so on a `sense: false` face the
 /// stored normal points INTO the material, and every consumer reading
-/// a material direction off it would answer backwards. The
-/// multiplication happens here, once, because this is the single door
-/// every planar boolean consumer walks through (`sector_face`,
-/// `plane_of`, this sweep, the pierce lane, the REST lane) —
-/// threading at the door is what lets those consumers stay
-/// orientation-blind.
+/// a material direction off it would answer backwards. The flip
+/// itself lives in [`face_outward_normal`], which this function is
+/// defined in terms of — one door for the planar boolean consumers
+/// (`sector_face`, `plane_of`, this sweep, the pierce lane, the REST
+/// lane), one flip, so those consumers stay orientation-blind.
+///
+/// "One door" is true of this module's consumers, not of the
+/// workspace: `solid_contain::face_plane`, `join.rs`'s
+/// `face_plane_normal` and `merge_faces.rs` each carry their own
+/// hand-multiply (smell-scan D6).
 ///
 /// Consumers that only compare the plane RESIDUAL `(p − o)·n̂` against
 /// Zero, or that hand the normal to a ray-parity test, are unaffected
@@ -250,24 +254,24 @@ pub(super) fn face_source<T: Decide>(
 /// read a MATERIAL side off the sign — `side_code`, the containment
 /// ray's `d·n̂` — are exactly the ones this fixes.
 pub(super) fn face_plane<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<PlaneDesc<T>> {
-    let f = body.get_face(face)?;
-    match body.get_surface(f.surface) {
-        Some(geom_surfaces::Surface::Plane { origin, .. }) => Some(PlaneDesc {
-            origin: *origin,
-            normal: face_outward_normal(body, face)?.vec(),
-        }),
-        _ => None,
-    }
+    let origin = match body.get_surface(body.get_face(face)?.surface) {
+        Some(geom_surfaces::Surface::Plane { origin, .. }) => *origin,
+        _ => return None,
+    };
+    Some(PlaneDesc {
+        origin,
+        normal: face_outward_normal(body, face)?.vec(),
+    })
 }
 
 /// The same door, typed: a planar face's outward normal as an
 /// [`OutwardNormal`], which is what the material-side consumers
 /// (`sector_face`, the pierce lane's `side_code`) actually want.
 ///
-/// INVARIANT: this is where the planar lane's `sense_sign` multiply
-/// lives — [`face_plane`] is defined in terms of it, so there is one
-/// multiply, not two that could drift. `None` for a non-planar face
-/// (the caller falls through to the curved arms).
+/// INVARIANT: this is where the planar lane's sense flip lives —
+/// [`face_plane`] is defined in terms of it, so there is one flip, not
+/// two that could drift. `None` for a non-planar face (the caller
+/// falls through to the curved arms).
 pub(super) fn face_outward_normal<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -275,7 +279,7 @@ pub(super) fn face_outward_normal<T: Decide>(
     let f = body.get_face(face)?;
     match body.get_surface(f.surface) {
         Some(geom_surfaces::Surface::Plane { normal, .. }) => {
-            Some(OutwardNormal::from_chart(*normal, f.sense_sign::<T>()))
+            Some(OutwardNormal::from_chart(*normal, f.sense))
         }
         _ => None,
     }

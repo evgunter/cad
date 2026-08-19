@@ -455,8 +455,8 @@ fn r7_enters_material_oblique_independent() {
     // normal is its negation — the two faces are the same chart read
     // through the two sense signs, which is the only way to mint one.
     let chart = Vec3::new(1.0 / 3.0, -2.0 / 3.0, 2.0 / 3.0);
-    let n = OutwardNormal::from_chart(chart, 1.0);
-    let n_rev = OutwardNormal::from_chart(chart, -1.0);
+    let n = OutwardNormal::from_chart(chart, true);
+    let n_rev = OutwardNormal::from_chart(chart, false);
     // A direction with negative component along n: into material.
     let into = Vec3::new(-1.0, 1.0, 0.5);
     assert!(into.dot(chart) < 0.0, "fixture sanity");

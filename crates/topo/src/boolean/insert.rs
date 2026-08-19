@@ -609,13 +609,13 @@ mod tests {
         // z×x = +y is uniquely within both.
         let (va, a_sectors) = sectors_of(
             &abody,
-            geom_brep::OutwardNormal::from_chart(geom_core::Vec3::new(0.0, 0.0, 1.0), 1.0),
+            geom_brep::OutwardNormal::from_chart(geom_core::Vec3::new(0.0, 0.0, 1.0), true),
             geom_core::Vec3::new(1.0, 0.0, 0.0),
             geom_core::Vec3::new(0.0, 1.0, 0.0),
         );
         let (vb, b_sectors) = sectors_of(
             &bbody,
-            geom_brep::OutwardNormal::from_chart(geom_core::Vec3::new(1.0, 0.0, 0.0), 1.0),
+            geom_brep::OutwardNormal::from_chart(geom_core::Vec3::new(1.0, 0.0, 0.0), true),
             geom_core::Vec3::new(0.0, 1.0, 0.0),
             geom_core::Vec3::new(0.0, 0.0, 1.0),
         );

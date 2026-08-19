@@ -71,7 +71,7 @@ use crate::validate::decide;
 /// normal every sector predicate meters through. Kinds the gate
 /// refuses are typed here too (unreachable post-gate).
 ///
-/// **Both arms fold in the face's `sense_sign`** (S10) by minting an
+/// **Both arms fold in the face's `sense` bit** (S10) by minting an
 /// [`OutwardNormal`]: each reads a chart normal and returns it as the
 /// face's OUTWARD normal, and the chart is the only orientation
 /// encoding they have.
@@ -101,7 +101,7 @@ pub(super) fn sector_face<T: Decide>(
     let face = body
         .get_face(face_key)
         .ok_or(SplitReduceError::CorruptOperand { vertex })?;
-    let sense = face.sense_sign::<T>();
+    let sense = face.sense;
     match body.get_surface(face.surface) {
         Some(geom_surfaces::Surface::Plane { normal, .. }) => {
             Ok((face_key, OutwardNormal::from_chart(*normal, sense), true))
@@ -307,7 +307,7 @@ pub fn classify_neighborhood<T: Decide>(
         } = sector_shape(
             dir_a,
             dir_b,
-            n_face.vec(),
+            n_face,
             he == next_he,
             SPLIT_SECTOR_PREDICATES,
             band,
