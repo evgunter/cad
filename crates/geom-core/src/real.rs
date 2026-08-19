@@ -609,9 +609,13 @@ impl<T: Bounds> Enclosure for T {
 /// It is the access-control half, split out, so that the two questions
 /// have separate doors and a caller has to say which one it is asking.
 /// It deliberately carries **one method and no supertrait**: a body that
-/// needs the raw bracket too holds both doors, and says so with the sole
-/// bound [`CertifiedBounds`] — an honest inventory of the doors it uses,
-/// written as one name. Making this a subtrait of
+/// needs the raw bracket too holds both doors, and says so with the
+/// **sole** bound [`CertifiedBounds`] — still an honest inventory of the
+/// doors it uses, which is the point of the alias: the inventory is
+/// spelled as one name rather than as a compound bound the
+/// compound-`Bounds` gate would have to special-case. Write
+/// `T: CertifiedBounds`, not `T: Bounds + CertifiedEnclosure`. Making
+/// this a subtrait of
 /// [`Enclosure`] would re-bundle exactly what is being split, and would
 /// put a third `lo`/`hi` in scope wherever a compound bound is written —
 /// the ambiguity this module's style note already warns about for the
