@@ -606,4 +606,17 @@ fn main() {
          + uv.json — sheet with demos/render-uv.sh",
         dumps.len()
     );
+    // The ε this whole tour was decided at, and WHERE IT CAME FROM
+    // (S22, 2026-08-19). ε is a declared run parameter, so a run says
+    // which one it used — a stale `CAD_TOLERANCE_EPS` in a shell
+    // changes what "coincident" means, and without this line nothing
+    // in the output would mention it (issues #415, #497).
+    //
+    // Reported at the END through the NON-committing door: asking is
+    // not deciding, so this cannot pre-empt a document that states its
+    // own ε. By now the first predicate has long since committed one.
+    match pncad::tolerance::committed_report() {
+        Some(report) => println!("{report}"),
+        None => println!("tolerance: never committed (no predicate ran)"),
+    }
 }

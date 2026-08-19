@@ -140,4 +140,5 @@ pub mod guide;
 pub mod prelude;
 pub mod profile;
 pub mod select;
+pub mod tolerance;
 pub mod workspace;

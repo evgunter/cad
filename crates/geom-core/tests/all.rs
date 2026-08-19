@@ -34,6 +34,8 @@
 mod ambiguity_k_env;
 #[path = "band_tolerance.rs"]
 mod band_tolerance;
+#[path = "eps_provenance.rs"]
+mod eps_provenance;
 #[path = "flagged_census.rs"]
 mod flagged_census;
 #[path = "interval_band.rs"]

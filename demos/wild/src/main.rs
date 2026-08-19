@@ -330,4 +330,13 @@ fn main() {
          with demos/render-wild.sh",
         WILD_CELLS.len()
     );
+    // The ε this corpus was adopted and tessellated at, and where it
+    // came from (S22, 2026-08-19) — the non-committing door, reported
+    // at the end. Worth more here than in the tour: the wild lane's
+    // refusal pins are ε-sensitive, so "which ε" is the first question
+    // a surprising row raises.
+    match pncad::tolerance::committed_report() {
+        Some(report) => println!("{report}"),
+        None => println!("tolerance: never committed (no predicate ran)"),
+    }
 }
