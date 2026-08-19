@@ -62,7 +62,12 @@ or escalate to the orchestrator.
 
 **Demos.** The tour and the wild corpus render what the kernel produces through
 the public API, from an outside consumer's seat — they are evidence, not
-decoration. A frame that changed is telling you the kernel changed. Never adjust
+decoration. **Write them the way a real user would**: the natural spelling of
+the task through the public doors, to the greatest extent possible. A demo that
+reaches past the API, hand-builds what a door should produce, or leans on a
+private path stops being evidence about the library and becomes evidence about
+itself — and it stops showing the friction a user would actually hit. A frame
+that changed is telling you the kernel changed. Never adjust
 a scene, tolerance, or camera to restore a frame. Decide whether the new output
 is right: if it is wrong, fix the kernel; if it is right, re-baseline and say in
 the PR what moved and why.
