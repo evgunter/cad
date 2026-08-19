@@ -477,6 +477,16 @@ pub trait Real:
 /// refusing dual impl — stated here so the obligation is on the
 /// record before the consumer lands.
 ///
+/// **Not an extension — a spelling.** The pair
+/// `Bounds + CertifiedEnclosure` — both bracket doors, no `Decide` — is
+/// spelled [`CertifiedBounds`] and is therefore a **sole** bound by
+/// construction, not an exception to this rule. It is outside the rule's
+/// class rather than carved out of it: the rule catches an evaluation or
+/// decision parameter that has also been handed bracket extraction, and
+/// both halves of that pair are bracket-side doors. Adding
+/// [`Decide`](crate::predicate::Decide) to
+/// it is a compound bound again, and still needs ratification.
+///
 /// # Semantics
 ///
 /// `[lo(), hi()]` brackets every real number the scalar stands for. For
@@ -581,6 +591,116 @@ impl<T: Bounds> Enclosure for T {
         Bounds::hi(self)
     }
 }
+
+/// **"May this value enter certified code?"** — the other half of what
+/// [`Bounds`] used to mean, given a name of its own.
+///
+/// [`Bounds`] and [`Enclosure`] answer *"what bracket does this value
+/// carry?"*: `[lo(), hi()]` is a superset of every real the value stands
+/// for, read off storage, and it stays a sound bracket even when the
+/// computation that produced it left a domain somewhere — interval
+/// arithmetic still brackets the values the expression *was* defined on.
+/// Certification asks a strictly stronger question: *was the expression
+/// defined on the whole input box?* A bracket can be sound and still fail
+/// that, and code that must not certify a domain violation needs to be
+/// able to tell.
+///
+/// So this trait is not "a better [`Enclosure`]" and does not replace it.
+/// It is the access-control half, split out, so that the two questions
+/// have separate doors and a caller has to say which one it is asking.
+/// It deliberately carries **one method and no supertrait**: a body that
+/// needs the raw bracket too holds both doors, and says so with the
+/// **sole** bound [`CertifiedBounds`] — still an honest inventory of the
+/// doors it uses, which is the point of the alias: the inventory is
+/// spelled as one name rather than as a compound bound the
+/// compound-`Bounds` gate would have to special-case. Write
+/// `T: CertifiedBounds`, not `T: Bounds + CertifiedEnclosure`. Making
+/// this a subtrait of
+/// [`Enclosure`] would re-bundle exactly what is being split, and would
+/// put a third `lo`/`hi` in scope wherever a compound bound is written —
+/// the ambiguity this module's style note already warns about for the
+/// [`Bounds`]/[`Enclosure`] pair.
+/// Certification entry points bound by `CertifiedEnclosure` cannot be
+/// handed a value that merely *has* a bracket; containment checks bounded
+/// by [`Bounds`] keep working on values certification would refuse, which
+/// is exactly right — a `Trv` enclosure still contains what it claims to.
+///
+/// # Implementors
+///
+/// - `f64` — always certified. The bracket is the value; a poisoned `f64`
+///   is NaN and surfaces as NaN through the bracket, which fails every
+///   downstream `residual ≤ ε` on its own (D4 ¶2). There is no separate
+///   domain-violation channel at `f64` to consult, so the accessor never
+///   refuses and this lane's numbers are exactly what they were.
+/// - [`crate::Interval`] — refuses below `Decoration::Def`, the same
+///   threshold [`crate::predicate::Decide::sign_within`] refuses at, and
+///   for the same reason.
+/// - [`crate::RingInterval`] — always certified. The ring has two states
+///   and no decorations: poison is NaN endpoints, which
+///   `RingInterval::from_bounds` already rejects.
+///
+/// **[`crate::Dual`] is deliberately absent**, as it is from [`Bounds`].
+/// Nothing in `src` needs a dual in certified code, and leaving the impl
+/// unwritten keeps *whether a dual may certify* an open question to be
+/// settled on its own evidence rather than one answered in passing here.
+pub trait CertifiedEnclosure: Copy {
+    /// The bracket, or `None` if this value carries a domain violation.
+    ///
+    /// `Some([lo, hi])` promises both things at once: the pair brackets
+    /// every real the value stands for **and** the computation behind it
+    /// was defined on the whole input box. `None` is the refusal, and it
+    /// is a refusal rather than a NaN bracket on purpose — NaN would be
+    /// indistinguishable from arithmetic poison and would travel silently
+    /// through `f64` combinators (`f64::max` returns the non-NaN operand),
+    /// whereas a `None` the caller must destructure cannot be ignored.
+    fn certified_bracket(self) -> Option<(f64, f64)>;
+}
+
+/// `f64` always certifies: it has no domain-violation channel to consult
+/// (see the trait docs).
+impl CertifiedEnclosure for f64 {
+    fn certified_bracket(self) -> Option<(f64, f64)> {
+        Some((self, self))
+    }
+}
+
+/// **Both bracket doors, for code that reads both** — the pair
+/// [`Bounds`] + [`CertifiedEnclosure`] under one name, so a body that
+/// needs the stored bracket *and* the fallible certified one writes a
+/// **sole** bound.
+///
+/// The two doors answer different questions — `[lo(), hi()]` is the
+/// bracket read off storage, `certified_bracket()` additionally promises
+/// the computation was defined on the whole input box — and certification
+/// code routinely asks both: it builds C9 ring enclosures through the
+/// certified door and reads raw endpoints for the containment and padding
+/// arithmetic around them. Spelling that `T: Bounds + CertifiedEnclosure`
+/// is honest but is a *compound* bound in every mechanical sense, and the
+/// compound-`Bounds` rule on [`Bounds`] exists to catch a specific thing
+/// this is not (see that rule's `CertifiedBounds` paragraph). Named, it
+/// is a sole bound by construction.
+///
+/// # What this is not
+///
+/// It is **not** a general-purpose "give me brackets" bound. A parameter
+/// that only needs to read endpoints says `T: Bounds`; one that only needs
+/// the certified door says `T: CertifiedEnclosure`. Reach for this name
+/// only when the body genuinely uses both, and it does not license adding
+/// bracket access to evaluation code that had none — the reason to hold
+/// brackets out of evaluation signatures is unchanged by giving the pair a
+/// shorter spelling.
+///
+/// It is **not** an escape from the compound-`Bounds` rule.
+/// `T: Decide + CertifiedBounds` is still a compound bound, still fires
+/// the gate, and still needs ratification — correctly so, because that is
+/// exactly the thing the rule targets: one parameter that both DECIDES and
+/// reads brackets. `geom_brep::ssi::certify`'s `probe_tube_chart` is that
+/// shape and stays allowlisted on its own justification.
+pub trait CertifiedBounds: Bounds + CertifiedEnclosure {}
+
+/// Every scalar with both doors has the pair; the alias adds no obligation
+/// an implementor must opt into.
+impl<T: Bounds + CertifiedEnclosure> CertifiedBounds for T {}
 
 /// Exponentiation by squaring over any [`Real`], the shared implementation
 /// of [`Real::powi`]: `n < 0` via the reciprocal of `base.powi(|n|)`,

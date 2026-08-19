@@ -4,8 +4,10 @@ use std::io::Write;
 
 use crate::{StlError, facets};
 
-/// The constant solid name (deterministic; no run-dependent content).
-const NAME: &str = "cad-kernel-m2";
+/// The solid name written into every ASCII export: constant in this
+/// build, with no run-dependent content, so identical meshes give
+/// byte-identical files.
+const NAME: &str = "cad-kernel";
 
 /// Writes `mesh` as ASCII STL: the standard `solid <name>` grammar
 /// with the constant name [`NAME`]. Every float is the **f32** value

@@ -41,7 +41,7 @@ pub use predicate::{
     Band, BandError, BandField, COINCIDENCE_RECOURSE, DEFAULT_K, Decide, Indeterminate,
     IndeterminatePayload, Margin, MarginDiag, Sign,
 };
-pub use real::{Bounds, Enclosure, Real};
+pub use real::{Bounds, CertifiedBounds, CertifiedEnclosure, Enclosure, Real};
 pub use ring_interval::RingInterval;
 pub use spline::{KnotVector, SpanLocate, SpanSet, SplineError};
 pub use tolerance::{

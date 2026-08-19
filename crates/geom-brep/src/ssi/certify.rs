@@ -108,7 +108,9 @@
 
 use geom_core::spline::compose::{self, CurveRingData, ImplicitSurface, tensor};
 use geom_core::spline::hull;
-use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, RingInterval, Sign, Vec3};
+use geom_core::{
+    Band, Bounds, CertifiedEnclosure, Decide, Margin, Point3, Real, RingInterval, Sign, Vec3,
+};
 use geom_curves::{NurbsCurve2, NurbsCurve3};
 use geom_surfaces::{NurbsSurface, Surface};
 
@@ -288,7 +290,7 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, f64), &
     const WIDENED: &str = "the analytic operand's structural parameters are not exact at this \
                            scalar — the ring composite's implicit form is f64 structure, and a \
                            widened operand is a family of surfaces, not the body's surface \
-                           (M6-2: refused rather than represented by a midpoint)";
+                           — refused rather than represented by a midpoint";
     match *s {
         Surface::Plane { origin, normal, .. } => {
             let (Some(point), Some(normal)) = (
@@ -342,13 +344,13 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, f64), &
         }
         Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) => {
             Err("no ring-computable meters composite for this surface kind \
-             (cone/torus need a certified root the C9 ring lacks)")
+             (cone/torus need a certified root the exact-arithmetic ring lacks)")
         }
     }
 }
 
 /// Limb 1 + limb 2 against one **analytic** operand.
-fn analytic_limbs<T: Decide + Bounds>(
+fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
     surface: &Surface<T>,
     band: Band,
@@ -408,7 +410,7 @@ fn analytic_limbs<T: Decide + Bounds>(
 
 /// Limb 1 + limb 2 against a **NURBS** operand, using the traced
 /// pcurve as the parameter map (module docs).
-fn nurbs_limbs<T: Decide + Bounds>(
+fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
     pcurve: &NurbsCurve2<T>,
     surface: &NurbsSurface<T>,
@@ -512,7 +514,7 @@ fn nurbs_limbs<T: Decide + Bounds>(
     let sup = tensor::surface_curve_residual(&sdata, &pdata, &cdata, &extra)
         .map_err(|_| SsiError::UnsupportedCertificate {
             what: "the tensor composite refused the carrier/pcurve pair (mismatched \
-                   channel counts or knot domains — the OQ4 identity is the entry \
+                   channel counts or knot domains — the shared-parameter identity is the entry \
                    requirement)",
         })?
         .sup_bound();
@@ -534,7 +536,9 @@ fn nurbs_limbs<T: Decide + Bounds>(
 /// The box chain covering a carrier: one padded box per span of the
 /// refined curve, from the span's control hull (exact containment for a
 /// non-rational curve — the convex-hull property).
-fn box_chain<T: Decide + Bounds>(carrier: &NurbsCurve3<T>) -> Vec<(Box3, Vec3<T>)> {
+fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
+    carrier: &NurbsCurve3<T>,
+) -> Vec<(Box3, Vec3<T>)> {
     let fine = refined(carrier);
     let coords = fine.ring_coords();
     let kv = fine.knots();
@@ -581,7 +585,7 @@ fn box_chain<T: Decide + Bounds>(carrier: &NurbsCurve3<T>) -> Vec<(Box3, Vec3<T>
 /// Returns the chain's smallest zero-free margin (dimensionless, the
 /// `sin θ` scale) and the box count; `None` when the chain is broken or
 /// an enclosure poisoned, which is a definite structural refusal.
-fn probe_tube_analytic<T: Decide + Bounds>(
+fn probe_tube_analytic<T: Decide + Bounds + CertifiedEnclosure>(
     chain: &[(Box3, Vec3<T>)],
     s1: &Surface<T>,
     s2: &Surface<T>,
@@ -618,7 +622,7 @@ fn probe_tube_analytic<T: Decide + Bounds>(
 /// zero-free enclosure of the component of `∇φ` transverse to the
 /// pcurve's own tangent proves the same thing the ℝ³ form proves: a
 /// graph, hence one arc.
-fn probe_tube_chart<T: Decide + Bounds>(
+fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
     pcurve: &NurbsCurve2<T>,
     surface: &NurbsSurface<T>,
     normal: Vec3<T>,
@@ -640,10 +644,15 @@ fn probe_tube_chart<T: Decide + Bounds>(
         let (v0, v1) = (hv.lo() - radius_uv.1, hv.hi() + radius_uv.1);
         let du = boxes.deriv_box(u0, u1, v0, v1, true);
         let dv = boxes.deriv_box(u0, u1, v0, v1, false);
+        // The plane equation is what the whole limb certifies, so the
+        // normal crosses through the CERTIFIED door: a component whose
+        // computation left its domain becomes poison and the
+        // transversality margin collapses to zero, rather than a
+        // zero-free enclosure of an equation nobody evaluated.
         let n = [
-            RingInterval::from_bounds(normal.x.lo(), normal.x.hi()),
-            RingInterval::from_bounds(normal.y.lo(), normal.y.hi()),
-            RingInterval::from_bounds(normal.z.lo(), normal.z.hi()),
+            RingInterval::from_certified(normal.x),
+            RingInterval::from_certified(normal.y),
+            RingInterval::from_certified(normal.z),
         ];
         let phi_u = n[0] * du.x + n[1] * du.y + n[2] * du.z;
         let phi_v = n[0] * dv.x + n[1] * dv.y + n[2] * dv.z;
@@ -712,7 +721,10 @@ fn zero_free_lower_bound(i: RingInterval) -> f64 {
 /// (spec §4's second state). Same chain limb 3 proved one-arc-ness on,
 /// so a cell inside one of these boxes is inside a region where the
 /// solution set is exactly the branch already found.
-pub(crate) fn tube_boxes<T: Decide + Bounds>(carrier: &NurbsCurve3<T>, radius: f64) -> Vec<Box3> {
+pub(crate) fn tube_boxes<T: Decide + Bounds + CertifiedEnclosure>(
+    carrier: &NurbsCurve3<T>,
+    radius: f64,
+) -> Vec<Box3> {
     box_chain(carrier)
         .into_iter()
         .map(|(b, _)| b.pad(radius))
@@ -733,7 +745,7 @@ pub(crate) fn tube_boxes<T: Decide + Bounds>(carrier: &NurbsCurve3<T>, radius: f
 /// margin is stated over (metres); `extent` is the caller's named
 /// feature extent, which sets the tube ladder's widest rung.
 #[allow(clippy::too_many_arguments)] // one parameter per named quantity
-pub(crate) fn certify_branch<T: Decide + Bounds>(
+pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
     pcurve_b: Option<&NurbsCurve2<T>>,
     a: &SsiOperand<'_, T>,
@@ -803,8 +815,8 @@ pub(crate) fn certify_branch<T: Decide + Bounds>(
             (SsiOperand::Nurbs(_), SsiOperand::Nurbs(_)) => {
                 return Err(SsiError::UnsupportedCertificate {
                     what: "NURBS × NURBS routes to the general rung but its uniqueness \
-                           tube is not implemented in this build (per-arm retirement, \
-                           C12.1)",
+                           tube is not implemented in this build (arms retire one at \
+                           a time, each with its proof)",
                 });
             }
         };
@@ -853,7 +865,113 @@ pub(crate) fn certify_branch<T: Decide + Bounds>(
 
 /// The witness of a rung-3 carrier: `carrier(mid)`, unchanged from M2
 /// (`WitnessMidpoint`; S2 stays discharged).
-pub(crate) fn witness<T: Decide + Bounds>(carrier: &NurbsCurve3<T>) -> Point3<T> {
+pub(crate) fn witness<T: Decide + Bounds + CertifiedEnclosure>(
+    carrier: &NurbsCurve3<T>,
+) -> Point3<T> {
     let (t0, t1) = carrier.domain();
     carrier.eval(T::from_f64(0.5 * (t0 + t1)))
+}
+
+#[cfg(test)]
+mod tests {
+    /// The chart tube's plane-normal crossing, at the `Interval` scalar.
+    ///
+    /// The three components of the plane normal enter the C9 ring through
+    /// their own brackets, and at `Interval` a bracket can be sound and
+    /// still inadmissible: `sqrt([−1, 4]) + 1` is `[1, 3]` with decoration
+    /// `Trv`. `RingInterval` has no decoration channel, so a normal that
+    /// cannot certify has to be refused at the crossing — otherwise the
+    /// transversality margin is a positive number computed from a plane
+    /// equation that was never evaluated where it was asked for.
+    #[cfg(feature = "interval")]
+    #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+    mod normal_crossing_tests {
+        use geom_core::spline::KnotVector;
+        use geom_core::{Interval, Point2, Point3, Real, Vec3};
+        use geom_curves::NurbsCurve2;
+        use geom_surfaces::NurbsSurface;
+
+        use super::super::probe_tube_chart;
+
+        fn iv(x: f64) -> Interval {
+            Interval::from_f64(x)
+        }
+
+        /// A domain violation whose bracket is finite AND strictly positive,
+        /// so the margin it produces is zero-free: the laundered answer is a
+        /// *usable* certificate, not an obvious refusal.
+        fn trv_pos() -> Interval {
+            Interval::from_bounds(-1.0, 4.0).sqrt() + iv(1.0)
+        }
+
+        fn linear_kv() -> KnotVector {
+            KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("valid knots")
+        }
+
+        /// `S(u, v) = (u, v, 0)` — a bilinear patch with `S_u = (1, 0, 0)`
+        /// and `S_v = (0, 1, 0)`, so `∇φ = (n·S_u, n·S_v) = (n.x, n.y)`.
+        fn unit_patch() -> NurbsSurface<Interval> {
+            NurbsSurface::new(
+                linear_kv(),
+                linear_kv(),
+                vec![
+                    Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+                    Point3::new(iv(0.0), iv(1.0), iv(0.0)),
+                    Point3::new(iv(1.0), iv(0.0), iv(0.0)),
+                    Point3::new(iv(1.0), iv(1.0), iv(0.0)),
+                ],
+                vec![1.0; 4],
+            )
+            .expect("valid patch")
+        }
+
+        /// A `u`-aligned pcurve, so the transverse chart direction is `e_v`
+        /// and the margin reads `n.y` alone.
+        fn u_line() -> NurbsCurve2<Interval> {
+            NurbsCurve2::new(
+                linear_kv(),
+                vec![Point2::new(iv(0.1), iv(0.5)), Point2::new(iv(0.9), iv(0.5))],
+                vec![1.0, 1.0],
+            )
+            .expect("valid pcurve")
+        }
+
+        /// The control: a certified normal produces the margin the geometry
+        /// implies, so the refusal row below is pinning a decoration read
+        /// and not a probe that fails on everything.
+        #[test]
+        fn a_certified_normal_produces_its_margin() {
+            let normal = Vec3::new(iv(0.0), iv(2.0), iv(0.0));
+            let (margin, boxes) = probe_tube_chart(&u_line(), &unit_patch(), normal, (0.01, 0.01))
+                .expect("the probe must reach a verdict");
+            assert!(margin > 0.0, "certified normal gave margin {margin}");
+            assert!(boxes > 0, "no span was probed: the row is vacuous");
+        }
+
+        /// The row S41 is about: the same geometry with the *same endpoints*
+        /// on `n.y`, differing only in the decoration, must not certify.
+        #[test]
+        fn a_violated_normal_cannot_certify() {
+            let n = trv_pos();
+            assert_eq!(
+                (geom_core::Bounds::lo(n), geom_core::Bounds::hi(n)),
+                (1.0, 3.0),
+                "fixture drifted"
+            );
+            assert!(
+                geom_core::CertifiedEnclosure::certified_bracket(n).is_none(),
+                "fixture drifted: it certifies"
+            );
+            let normal = Vec3::new(iv(0.0), n, iv(0.0));
+            let verdict = probe_tube_chart(&u_line(), &unit_patch(), normal, (0.01, 0.01));
+            let margin = verdict.map_or(0.0, |(m, _)| m);
+            assert_eq!(
+                margin, 0.0,
+                "a domain-violated plane normal produced transversality \
+                 margin {margin} — the crossing read the BRACKET door, so \
+                 the chart tube certifies uniqueness from a plane equation \
+                 that was clamped out of its own domain"
+            );
+        }
+    }
 }

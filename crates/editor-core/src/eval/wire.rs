@@ -678,28 +678,142 @@ fn wire_fillet<T: Decide + geom_core::Bounds>(
     Ok(OpOut::plain(ValuePayload::Body(Arc::new(out)), table))
 }
 
+/// The mid-evaluation N5 refusal ladder, shared by every door that
+/// resolves an AUTHORED name against the tables the run has built so
+/// far ([`resolve_selection`], [`resolve_declarations`]).
+///
+/// Mid-evaluation there is no prior run and no whole-evaluation
+/// index, so [`mod@crate::resolve`]'s full ladder does not apply:
+/// what is left is three rungs, in this order.
+///
+/// 1. [`ladder::live`] — the minting node must still be in the
+///    document. Ids are never reused, so an id below the mint counter
+///    was DELETED and one at/above it was never this document's
+///    (`ForeignNode`). This rung outranks every later refusal,
+///    including a door's own, and the [`ladder::Live`] token enforces
+///    that rather than asking for it: reading a table needs the token,
+///    so no refusal ABOUT the tables — the ladder's own rungs, or a
+///    door's, like the declare door's both-operands — can be reached
+///    before this one has passed.
+/// 2. [`ladder::Landing::Tied`] → `Ambiguous`. The tie row IS the
+///    ambiguity (N5), so the tied set expressed in names is the name
+///    itself, and the witness carries the multiplicity and the
+///    minting site.
+/// 3. [`ladder::Landing::Absent`] → `Vanished`, with the honest
+///    single-run fallback diagnosis: no prior run is consultable
+///    mid-evaluation, so `NodeChanged` names the minting node as the
+///    disagreement SITE, not a claim that an edit happened, and
+///    `last_good` is `None` because nothing was banked.
+///
+/// The refusals come out BOXED, which is how both doors' error
+/// variants carry a `ResolveError` anyway.
+///
+/// A door supplies [`ladder::Landing`]s — one per table it resolves
+/// through — and keeps its own arity: which table to consult, what a
+/// multi-table hit means, and what kind of entity it will accept are
+/// the door's business. Which typed refusal comes out is this
+/// module's, and has one home.
+///
+/// **Not shared with [`mod@crate::resolve`], yet.** That module's
+/// whole-evaluation ladder re-derives rung 1 from the same two facts
+/// (`doc.node(..).is_none()`, then the id against the mint counter)
+/// and builds the same [`crate::resolve::TieWitness`]. The two agree
+/// by hand across a module boundary, at coarser grain than the
+/// duplication this module retired; folding them is a larger change
+/// than one evaluation door, recorded as such and not attempted here.
+mod ladder {
+    use crate::names::{EntityRef, Entry, NameTable, StableName};
+    use crate::program::ProfileProgram;
+    use crate::resolve::{Diagnosis, RecipeEditRef, ResolveError, TieWitness};
+
+    /// Where a name landed in ONE table (rungs 2 and 3, as data).
+    pub(super) enum Landing {
+        /// Exactly one entity carries the name.
+        Unique(EntityRef),
+        /// The name is a tie row of this width.
+        Tied(u32),
+        /// This table does not carry the name.
+        Absent,
+    }
+
+    /// Proof that rung 1 passed: `name`'s minting node is live.
+    ///
+    /// Constructible only by [`live`], and required by BOTH [`landing`]
+    /// and [`resolve`]. That is what enforces the rung order rather
+    /// than documenting it: a door cannot read a table before the
+    /// `NodeGone` check, so a door's own refusal — which is a refusal
+    /// ABOUT what the tables say — cannot preempt rung 1 either. The
+    /// declare door needs two landings to know a name sits in both
+    /// operands, and it cannot have one without this token.
+    ///
+    /// Carrying the name also means [`landing`] and [`resolve`] cannot
+    /// disagree about WHICH name they are answering for: the tie width
+    /// in an `Ambiguous` payload is measured on the same name the
+    /// payload is built from, by construction.
+    pub(super) struct Live<'n>(&'n StableName);
+
+    /// Reads one table for the live name (N4: resolution IS this read).
+    pub(super) fn landing(live: &Live<'_>, table: &NameTable) -> Landing {
+        match table.lookup(live.0) {
+            Some(Entry::Unique(ent)) => Landing::Unique(*ent),
+            Some(Entry::Tied(ents)) => Landing::Tied(ents.len() as u32),
+            None => Landing::Absent,
+        }
+    }
+
+    /// Rung 1: `NodeGone` with the deleted-vs-foreign split.
+    pub(super) fn live<'n>(
+        name: &'n StableName,
+        doc: &crate::doc::Doc<ProfileProgram>,
+    ) -> Result<Live<'n>, Box<ResolveError>> {
+        if doc.node(name.node).is_some() {
+            return Ok(Live(name));
+        }
+        Err(Box::new(ResolveError::NodeGone {
+            name: name.clone(),
+            edit: if name.node.0 < doc.next_id {
+                RecipeEditRef::NodeDeleted { node: name.node }
+            } else {
+                RecipeEditRef::ForeignNode { node: name.node }
+            },
+        }))
+    }
+
+    /// Rungs 2 and 3: the entity, or the refusal its landing earns.
+    pub(super) fn resolve(
+        live: Live<'_>,
+        landing: Landing,
+    ) -> Result<EntityRef, Box<ResolveError>> {
+        let name = live.0;
+        match landing {
+            Landing::Unique(ent) => Ok(ent),
+            Landing::Tied(width) => Err(Box::new(ResolveError::Ambiguous {
+                name: name.clone(),
+                candidates: vec![name.clone()],
+                tie: TieWitness {
+                    node: name.node,
+                    at: name.clone(),
+                    width,
+                },
+            })),
+            Landing::Absent => Err(Box::new(ResolveError::Vanished {
+                name: name.clone(),
+                diagnosis: Diagnosis::RecipeEdit {
+                    edit: RecipeEditRef::NodeChanged { node: name.node },
+                },
+                last_good: None,
+            })),
+        }
+    }
+}
+
 /// Resolves a fillet's edge selection against the target's name table
 /// (M6-5). Single-operand, so simpler than
 /// [`resolve_declarations`] — but the refusal vocabulary is the SAME
-/// N5 trio, deliberately: the two sites answer the same question.
-///
-/// # Kept in step with [`resolve_declarations`] BY HAND
-///
-/// The ladder below — NodeGone (with the deleted-vs-foreign split)
-/// before lookup, `Entry::Tied` → `Ambiguous` carrying the same
-/// `TieWitness` shape, absent → `Vanished` with the honest
-/// `NodeChanged` fallback and `last_good: None` — is duplicated from
-/// [`resolve_declarations`], not shared with it. That is a deliberate
-/// trade and a standing hazard, so it is written down: the two differ
-/// in ARITY (two operand tables and a side-picking refusal there, one
-/// table and a kind refusal here), and the shared part is small enough
-/// that factoring it would mean a generic over "how to look a name up"
-/// — more indirection than the duplication costs today.
-///
-/// **If you change either ladder, change both.** The pins that would
-/// catch a drift are `m6_5_selection_refusals.rs` (this one) and
-/// `m4_pr5_declare.rs` (that one); they assert the same variants with
-/// the same payload shapes on purpose.
+/// N5 trio, deliberately: the two sites answer the same question, and
+/// they answer it through the same [`ladder`], which owns rung order
+/// and payload shapes. What stays here is this door's arity — one
+/// table — and its kind refusal: a selection names EDGES.
 ///
 /// The returned keys are in TARGET-ARENA order, not selection order,
 /// so the kernel sees the deterministic order every derived list in
@@ -709,62 +823,17 @@ fn resolve_selection(
     doc: &crate::doc::Doc<ProfileProgram>,
     target: &NameTable,
 ) -> Result<Vec<topo::EdgeKey>, NodeErrorKind> {
-    use crate::names::{EntityKey, Entry};
-    use crate::resolve::{Diagnosis, RecipeEditRef, ResolveError, TieWitness};
+    use crate::names::EntityKey;
 
     if selection.is_empty() {
         return Err(NodeErrorKind::FilletSelectionEmpty);
     }
     let mut keys = Vec::with_capacity(selection.len());
     for name in selection {
-        // NodeGone first (ids are never reused; below the mint counter
-        // ⇒ deleted, at/above ⇒ foreign) — resolve_declarations' order,
-        // verbatim.
-        if doc.node(name.node).is_none() {
-            let edit = if name.node.0 < doc.next_id {
-                RecipeEditRef::NodeDeleted { node: name.node }
-            } else {
-                RecipeEditRef::ForeignNode { node: name.node }
-            };
-            return Err(NodeErrorKind::FilletSelectionResolve {
-                error: Box::new(ResolveError::NodeGone {
-                    name: name.clone(),
-                    edit,
-                }),
-            });
-        }
-        let ent = match target.lookup(name) {
-            Some(Entry::Unique(ent)) => *ent,
-            Some(Entry::Tied(ents)) => {
-                return Err(NodeErrorKind::FilletSelectionResolve {
-                    error: Box::new(ResolveError::Ambiguous {
-                        name: name.clone(),
-                        candidates: vec![name.clone()],
-                        tie: TieWitness {
-                            node: name.node,
-                            at: name.clone(),
-                            width: ents.len() as u32,
-                        },
-                    }),
-                });
-            }
-            // Absent from the target's table: Vanished, with the
-            // honest single-run fallback diagnosis (no prior run is
-            // consultable mid-evaluation; `NodeChanged` names the
-            // minting node as the disagreement site, not a claim that
-            // an edit happened).
-            None => {
-                return Err(NodeErrorKind::FilletSelectionResolve {
-                    error: Box::new(ResolveError::Vanished {
-                        name: name.clone(),
-                        diagnosis: Diagnosis::RecipeEdit {
-                            edit: RecipeEditRef::NodeChanged { node: name.node },
-                        },
-                        last_good: None,
-                    }),
-                });
-            }
-        };
+        let refused = |error| NodeErrorKind::FilletSelectionResolve { error };
+        let live = ladder::live(name, doc).map_err(refused)?;
+        let landing = ladder::landing(&live, target);
+        let ent = ladder::resolve(live, landing).map_err(refused)?;
         let EntityKey::Edge(k) = ent.key else {
             return Err(NodeErrorKind::FilletSelectionKind {
                 name: Box::new(name.clone()),
@@ -864,12 +933,7 @@ fn wire_boolean<T: Decide + geom_core::Bounds>(
     }
     let body_a = body_operand(results, a)?;
     let body_b = body_operand(results, b)?;
-    let kernel_op = match op {
-        BooleanOp::Union => topo::BooleanOp::Union,
-        BooleanOp::Intersect => topo::BooleanOp::Intersect,
-        BooleanOp::Subtract => topo::BooleanOp::Subtract,
-    };
-    match topo::boolean_op_with(kernel_op, &body_a, &body_b, &kernel_decls, boolean_sweep)
+    match topo::boolean_op_with(op, &body_a, &body_b, &kernel_decls, boolean_sweep)
         .map_err(|err| refusal_menu(results, a, b, err))?
     {
         BooleanResult::Empty => Ok(OpOut::plain(
@@ -1023,75 +1087,46 @@ fn face_name<T: Decide>(
 /// carries it.
 ///
 /// **Twinned with [`resolve_selection`]** (M6-5): the fillet's
-/// selection resolves through the same N5 ladder, duplicated rather
-/// than shared. See that function's docs for why, and change both
-/// together.
+/// selection resolves through the same [`ladder`], which owns rung
+/// order and payload shapes. What stays here is this door's arity —
+/// TWO operand tables, so a name carried by both is unresolvable
+/// (`DeclareBothOperands`, ranked below the ladder's first rung) —
+/// and its pair vocabulary.
 fn resolve_declarations(
     pairs: &[((names::StableName, names::StableName), ContactClass)],
     doc: &crate::doc::Doc<ProfileProgram>,
     a_table: &NameTable,
     b_table: &NameTable,
 ) -> Result<BooleanDeclarations, NodeErrorKind> {
-    use crate::names::{EntityKey, Entry};
-    use crate::resolve::{Diagnosis, RecipeEditRef, ResolveError, TieWitness};
+    use crate::names::EntityKey;
+    use ladder::Landing;
     use topo::Operand;
 
     let resolve_one = |name: &names::StableName| -> Result<(Operand, EntityKey), NodeErrorKind> {
-        // NodeGone first (ids are never reused; below the mint
-        // counter ⇒ deleted, at/above ⇒ foreign).
-        if doc.node(name.node).is_none() {
-            let edit = if name.node.0 < doc.next_id {
-                RecipeEditRef::NodeDeleted { node: name.node }
-            } else {
-                RecipeEditRef::ForeignNode { node: name.node }
-            };
-            return Err(NodeErrorKind::DeclareResolve {
-                error: Box::new(ResolveError::NodeGone {
-                    name: name.clone(),
-                    edit,
-                }),
-            });
-        }
-        let hit = |table: &NameTable,
-                   op: Operand|
-         -> Option<Result<(Operand, EntityKey), NodeErrorKind>> {
-            match table.lookup(name) {
-                Some(Entry::Unique(ent)) => Some(Ok((op, ent.key))),
-                Some(Entry::Tied(ents)) => Some(Err(NodeErrorKind::DeclareResolve {
-                    error: Box::new(ResolveError::Ambiguous {
-                        name: name.clone(),
-                        candidates: vec![name.clone()],
-                        tie: TieWitness {
-                            node: name.node,
-                            at: name.clone(),
-                            width: ents.len() as u32,
-                        },
-                    }),
-                })),
-                None => None,
+        let refused = |error| NodeErrorKind::DeclareResolve { error };
+        // Rung 1 first, and not by convention: reading either table
+        // needs the token `live` returns, so a dead minting node
+        // refuses NodeGone before the side-picking below can run.
+        let live = ladder::live(name, doc).map_err(refused)?;
+        // Side-picking is this door's own. A name PRESENT in both
+        // operands (unique or tied, either counts as present) is not
+        // an N5 failure — it is this door declining to guess a side.
+        let (op, landing) = match (
+            ladder::landing(&live, a_table),
+            ladder::landing(&live, b_table),
+        ) {
+            // In neither table: the side is arbitrary, and rung 3
+            // refuses Vanished on the `Absent` carried through.
+            (Landing::Absent, Landing::Absent) => (Operand::B, Landing::Absent),
+            (Landing::Absent, b) => (Operand::B, b),
+            (a, Landing::Absent) => (Operand::A, a),
+            _ => {
+                return Err(NodeErrorKind::DeclareBothOperands {
+                    name: Box::new(name.clone()),
+                });
             }
         };
-        match (hit(a_table, Operand::A), hit(b_table, Operand::B)) {
-            (Some(_), Some(_)) => Err(NodeErrorKind::DeclareBothOperands {
-                name: Box::new(name.clone()),
-            }),
-            (Some(r), None) | (None, Some(r)) => r,
-            // Absent from both operand tables: Vanished, with the
-            // honest single-run fallback diagnosis (no prior run
-            // is consultable mid-evaluation; `NodeChanged` names
-            // the minting node as the disagreement site, not a
-            // claim an edit happened — same posture as the
-            // resolve ladder's total fallback).
-            (None, None) => Err(NodeErrorKind::DeclareResolve {
-                error: Box::new(ResolveError::Vanished {
-                    name: name.clone(),
-                    diagnosis: Diagnosis::RecipeEdit {
-                        edit: RecipeEditRef::NodeChanged { node: name.node },
-                    },
-                    last_good: None,
-                }),
-            }),
-        }
+        Ok((op, ladder::resolve(live, landing).map_err(refused)?.key))
     };
 
     let mut out = BooleanDeclarations::none();
@@ -1403,9 +1438,8 @@ pub(crate) const SWEEP_FRONTIER: &str = "a swept solid: the recipe's path operan
      a closed chain of two or more segments, even at the minimal \
      two-vertex circle — while §10.4's rigid-profile sweep needs the \
      path as ONE curve, so every recipe-expressible sweep waits on a \
-     joined-path composition lane (banked past M6); the swept BODY \
-     machinery itself is live since M6-3 — sweep::sweep_body at the \
-     library API";
+     joined-path composition lane; the swept BODY machinery itself is \
+     live — sweep::sweep_body at the library API";
 
 /// One section of a loft, taken from the RECIPE's own `f64`
 /// description rather than from the evaluated `T` payload.

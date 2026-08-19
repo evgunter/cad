@@ -50,6 +50,12 @@ self-intersection and to compute tolerance stackups.
 > deterministic, no hidden state. The B-rep is a derived value, never a
 > mutated-in-place object.
 
+**Not quite: there is one exception, and only one — ε.** No signature
+carries it and every predicate reads it, so a model is a pure function of
+its parameters *and* of ε, which is committed once per process before the
+first predicate and cannot be changed after (D4). Determinism is over the
+pair: the same parameters at the same ε give the same solid.
+
 Everything else follows from holding this invariant from day one:
 
 - **Error propagation** becomes "evaluate the same function with a different
@@ -1359,7 +1365,7 @@ Each layer depends only on the layers below it.
 | `geom-curves` / `geom-surfaces` | Analytic + NURBS types, evaluators, closest-point, curve×curve and curve×surface intersection |
 | `geom-brep` | The B-rep geometry layer: D2's intensional edge descriptions, certified carrier caches, the dihedral classification predicate, Newell face equations, pcurve caches |
 | `profile` | 2-D sketch profiles: the PATHS authoring algebra and the profile-program it records (PATHS-DESIGN, PROFILES-V2-DESIGN), lowering to the bulge-chain `Profile` and its trilean validation |
-| `topo` | Arenas, entities, Euler operators, validation (watertightness, orientation, Euler characteristic); the boolean engine and its splitting/census machinery (`topo::boolean`) |
+| `topo` | Arenas, entities, Euler operators, validation (watertightness, orientation, Euler characteristic); the boolean engine and its splitting/census machinery, which sit as sibling modules at the crate root rather than underneath `boolean` |
 | `sweep` | Solids from validated profiles: extrude, revolve, loft/skin; fillets |
 | `mesh` / `stl` | Tessellation (watertight triangle meshes from B-rep bodies); STL export (binary + ASCII) |
 | `step-export` / `step-import` | STEP (AP214) analytic-subset export, and import of that subset — import is LIVE as of M7 (own-corpus byte-identical round-trip, FreeCAD foreign corpus, wild corpus) |
@@ -1998,7 +2004,7 @@ not the modeling core. Candidates, all verified active unless noted:
 | Robust predicates | `robust` (georust) | MIT/Apache | candidate only — not a dependency; Shewchuk adaptive predicates, battle-tested via `geo`/`spade` |
 | Dual numbers / forward AD | `num-dual` (dev-only) | MIT/Apache | **Demoted at M0** (PR #10): its transcendentals route through std, not libm, so it cannot satisfy the value-channel bit-identity contract — duals are one in-house generic `Dual<T>` (f64 and Interval from the same code); num-dual serves as a dev-dependency derivative oracle in tests |
 | CDT / mesh refinement | `spade` | MIT/Apache | **Adopted** (M2, `mesh` crate). Delaunay + constrained + Ruppert refinement; meshing happens in UV space (our code). Sequential point-location insertion is the measured tessellation bottleneck (PERF-PLAN §2); exterior classification is OURS since #116 (even-odd flood fill), spade supplies the CDT only |
-| Serialization | `serde` + `serde_json` | MIT/Apache | **Adopted at M4 PR 6 (#112)** for persistence schema v1; the `float_roundtrip` feature is LOAD-BEARING (last-ulp parse drift caught day one); kernel crates stay serde-free (layering enforced by CI grep) |
+| Serialization | `serde` + `serde_json` | MIT/Apache | **Adopted at M4 PR 6 (#112)** for persistence schema v1; the `float_roundtrip` feature is LOAD-BEARING (last-ulp parse drift caught day one); kernel crates stay serde-free (`scripts/gates/kernel-serde-free.sh` parses every crate manifest and fails on a serde dependency entry; it checks the DEPENDENCY EDGE only, not transitive reach and not whether a kernel type is persisted, and `profile` is additionally sealed from inside by `profile/tests/seal.rs`). Where a kernel type must persist, its bytes are described above the boundary rather than by a mirror enum — ruled in `M9-1-SPEC.md:22` (CONTACT-DESIGN C4) and shipped in #552 |
 | 2-D polygon booleans | `i_overlay` | MIT/Apache | candidate only — not a dependency; robust integer-snapping booleans (now inside georust `geo`); useful for trim-loop ops in UV |
 | Display triangulation | `earcut` (georust) | MIT/Apache | candidate only — not a dependency; cheap ear-clipping for viz only |
 | Sketch constraints | `ezpz` (Zoo) | MIT | see Q3 |

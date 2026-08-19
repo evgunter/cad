@@ -1,4 +1,4 @@
-//! **Structural selectors, and the name doors they need** (LIB-U7).
+//! **Structural selectors, and the name doors they need**.
 //!
 //! A [`StableName`](editor_core::StableName) used to be write-only at
 //! this façade: the prelude handed you the type, and nothing to obtain
@@ -29,15 +29,14 @@
 //! name value ALONE is what makes a pattern reusable anywhere a name
 //! exists. Geometry is a FILTER at the materializer instead:
 //! [`select_where`] with a conjunction of [`GeomPred`] atoms
-//! (`docs/SELECT-DESIGN.md` §§1-2, ratified #286 — the LB7 deferral
-//! this discharges).
+//! (`docs/SELECT-DESIGN.md` §§1-2).
 //!
 //! The atoms split, and the split is the whole design:
 //!
 //! - **EXACT** — [`GeomPred::CurveKind`], [`GeomPred::SurfaceKind`],
 //!   [`GeomPred::AdjacentKinds`] read the carrier's enum TAG. No
-//!   funnel, no margin, no refusal: post-#256 the tag IS the semantic
-//!   kind, so these are total and trivially equivariant. Dressing a
+//!   funnel, no margin, no refusal: the tag IS the semantic kind, so
+//!   these are total and trivially equivariant. Dressing a
 //!   tag match as a decided predicate would be dimension-laundering in
 //!   the other direction.
 //! - **DECIDED** — [`GeomPred::DatumDistance`] is a real length
@@ -45,15 +44,15 @@
 //!   ([`SEL_DATUM_DISTANCE`]) with an honest margin, and an in-band
 //!   candidate REFUSES rather than being silently included or dropped.
 //!
-//! Position is datum-RELATIVE, never world-frame (GS-Q6): the datum is
+//! Position is datum-RELATIVE, never world-frame: the datum is
 //! a node reference like any other input, so the rule commutes with
 //! rigid motions — move the datum with the part and the selection is
-//! unchanged. Convexity is reserved and unbuilt (GS-Q2).
+//! unchanged. Convexity is reserved and unbuilt.
 //!
 //! ```
 //! use pncad::prelude::*;
 //!
-//! // v4 (LIB-SWITCH): the profile payload is its PROGRAM.
+//! // v4: the profile payload is its PROGRAM.
 //! let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
 //!     .expect("finite corners");
 //! let mut doc = Doc::<ProfileProgram>::empty_derived("select-example");
@@ -274,7 +273,7 @@
 //! assert!(!Selector::default().matches(&seam));
 //! ```
 
-//! # From a name to GEOMETRY (LIB-U5)
+//! # From a name to GEOMETRY
 //!
 //! A selection is only half a question. The other half — "so where
 //! IS the face I selected?" — used to have no answer at this façade:
@@ -282,9 +281,8 @@
 //! a coordinate meant unwrapping one into a `topo` arena key and
 //! indexing the body yourself. Arena keys are body-lineage-scoped and
 //! meaningful only against the evaluation that built them; the naming
-//! layer's own rule is that they never leave `editor-core` (G1), and
-//! LIBRARY-DESIGN §L3 names that laundering as the thing a consumer
-//! must never have to do.
+//! layer's own rule is that they never leave `editor-core`, and that
+//! laundering is exactly what a consumer must never have to do.
 //!
 //! **So they no longer leave.** `EntityRef` and `Entry` are gone from
 //! this surface, replaced by doors that speak names and answer with
@@ -294,8 +292,8 @@
 //!
 //! What comes back is a [`Pose`]: the carrier's own stored frame,
 //! copied out. A VALUE, never a verdict — no door here answers "is
-//! this face planar" or "is this edge convex" (LIB-LOG LB7 defers
-//! geometric predicates). And no convention is invented where the
+//! this face planar" or "is this edge convex" — geometric predicates
+//! are deferred. And no convention is invented where the
 //! model fixes none: **a NURBS face has no canonical frame, so
 //! [`face_frame`] refuses it** with `ReadbackError::NoCanonicalFrame`
 //! rather than nominating S(0,0) and a chart normal as though the
@@ -304,7 +302,7 @@
 //! ```
 //! use pncad::prelude::*;
 //!
-//! // v4 (LIB-SWITCH): the profile payload is its PROGRAM — a chain
+//! // v4: the profile payload is its PROGRAM — a chain
 //! // of Expr-bearing steps.
 //! let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
 //!     .expect("finite corners");
@@ -367,14 +365,14 @@
 //! ));
 //! ```
 
-//! # Detect / declare: flush contact as a conversation (LIB-SEL2)
+//! # Detect / declare: flush contact as a conversation
 //!
 //! Two bodies that touch face-to-face do not silently glue — the
-//! boolean REFUSES an undeclared coincidence (F6), and the recourse
+//! boolean REFUSES an undeclared coincidence, and the recourse
 //! menu has exactly two arms: declare the contact, or move the
-//! geometry. This is the declare arm's protocol (SELECT-DESIGN §3):
+//! geometry. This is the declare arm's protocol:
 //! [`find_flush_candidates`] REPORTS the flush pairs as
-//! [`FlushFinding`] values — the C4 verifier itself run in
+//! [`FlushFinding`] values — the contact verifier itself run in
 //! candidate-generation mode, so a finding can never disagree with
 //! the boolean's own verify-at-use — and [`declare`] /
 //! [`declare_all`] turn findings the caller has INSPECTED into the
@@ -391,7 +389,7 @@
 //!     (applied.doc, applied.record.minted.expect("a minted id"))
 //! };
 //! let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
-//! // v4 (LIB-SWITCH): the profile payload is its PROGRAM.
+//! // v4: the profile payload is its PROGRAM.
 //! let footprint = |x0: f64, y0: f64, x1: f64, y1: f64, z: f64| ProfileProgram {
 //!     plane: SketchPlane::from_frame(p3(0.0, 0.0, z), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0)),
 //!     loops: vec![
@@ -408,7 +406,7 @@
 //! let (doc, block) = insert(&doc, Node::Extrude { profile: pf2, distance: len(0.5) });
 //!
 //! // Undeclared, the union refuses — coincidence is never inferred
-//! // from values (the coincidence ladder's F6 rung).
+//! // from values (the coincidence ladder).
 //! let (undeclared, uni) = insert(
 //!     &doc,
 //!     Node::Boolean { op: BooleanOp::Union, a: base, b: block, declare: None },
@@ -417,7 +415,7 @@
 //! let Some(NodeResult::Failed(e)) = ev.nodes.get(&uni) else {
 //!     panic!("the undeclared union must refuse");
 //! };
-//! // The refusal IS the menu (register R3): it carries the candidate
+//! // The refusal IS the menu: it carries the candidate
 //! // declaration — the pair by stable name, with its relation — in
 //! // the detector's own value shape.
 //! let NodeErrorKind::UndeclaredContact { finding, .. } = &e.kind else {

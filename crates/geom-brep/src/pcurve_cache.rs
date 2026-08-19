@@ -729,22 +729,22 @@ impl core::fmt::Display for PcurveCertifyError {
             Self::UnsupportedChart { chart } => write!(
                 f,
                 "pcurve certification: no {chart}-chart lane covers this pcurve — every \
-                 analytic chart certifies its closed-form (Harmonic) classes since M6-3 \
-                 (walk row 4), a NURBS chart routes through its description-driven \
+                 analytic chart certifies its closed-form (Harmonic) classes, a NURBS \
+                 chart routes through its description-driven \
                  iso/fitted lanes instead of this door, and an image outside the chart's \
                  harmonic family belongs to the fitted lane where one exists"
             ),
             Self::UnsupportedCarrier => write!(
                 f,
                 "pcurve certification: a closed-form (Harmonic) chart image was offered for a \
-                 carrier with no {{1, cos, sin, t}} form. The general fitted/marched rung is \
-                 LIVE since M6-2 — store the chart image as Pcurve::Fitted and it certifies \
+                 carrier with no {{1, cos, sin, t}} form. The general fitted/marched rung \
+                 is live — store the chart image as Pcurve::Fitted and it certifies \
                  through the control-hull lane"
             ),
             Self::FittedLaneUnsupported { scalar } => write!(
                 f,
                 "pcurve certification: a fitted (rung-3) chart image has no certified lane at \
-                 the {scalar} scalar — its C2.2 bound is a C9-ring hull, and this scalar \
+                 the {scalar} scalar — its between-samples bound is an exact-arithmetic-ring hull, and this scalar \
                  carries no bracket to reach the ring with. Replay the body at f64, the \
                  telemetry probe, or the interval scalar to certify it"
             ),
@@ -761,7 +761,7 @@ impl core::fmt::Display for PcurveCertifyError {
             ),
             Self::FittedCertificate { limb, what, value } => write!(
                 f,
-                "pcurve certification: the fitted lane's C2 certificate refused{} — {what} \
+                "pcurve certification: the fitted lane's certificate refused{} — {what} \
                  (offending value {value:e} m)",
                 match limb {
                     Some(l) => format!(" at {}", l.name()),
@@ -792,7 +792,7 @@ impl core::fmt::Display for PcurveCertifyError {
             Self::TrimEscape => write!(
                 f,
                 "pcurve certification: the pcurve leaves its face's chart window — domain \
-                 validity is part of the certificate (C4)"
+                 validity is part of the certificate"
             ),
             Self::Escalated {
                 check,
@@ -959,7 +959,7 @@ pub trait PcurveFittedLane: Decide {
 /// carrier's own parameter (the OQ4 identity). A NURBS *mate* has no
 /// stored image to offer, so that pairing refuses typed inside the SSI
 /// door rather than being invented here.
-fn fitted_lane<T: Decide + geom_core::Bounds>(
+fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
     carrier: &Curve3<T>,
     t0: T,
     t1: T,
@@ -1131,7 +1131,7 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         E::TubeStraddles { margin, .. } => (
             Some(SsiLimb::Tube),
             "the uniqueness tube's transversality straddles zero (a genuine sliver of the \
-             operand pair — F6 says escalate, never desingularize)",
+             operand pair — escalate, never desingularize)",
             margin,
         ),
         E::FootPointInconclusive { last_distance, .. } => (
@@ -3020,7 +3020,7 @@ fn run_iso_checks<T: Decide>(
                 return Err(PcurveCertifyError::IsoUnsupported {
                     what: "a cap-class iso LINE over a non-Line carrier — an arc rim is \
                            minted as `Pcurve::IsoArc`, whose chart parameter is the \
-                           segment's rational-quadratic one (M8-3)",
+                           segment's rational-quadratic one",
                 });
             };
             let v_start = p0.y + pl.y * t0;

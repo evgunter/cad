@@ -18,7 +18,8 @@ use geom_surfaces::Surface;
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::fillet::build::fillet_edges;
-use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use sweep::test_support::cube;
+use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations, EdgeKey};
 
@@ -30,19 +31,6 @@ const R: f64 = 0.05;
 fn band() -> Band {
     let tol = Tolerance::get();
     Band::new(tol.eps, tol.k * tol.eps).unwrap()
-}
-
-fn cube(l: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(
-        [(0.0, 0.0), (l, 0.0), (l, l), (0.0, l)]
-            .into_iter()
-            .map(|(x, y)| ProfileVertex::new(Point2::new(x, y), 0.0))
-            .collect(),
-    );
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(l)).unwrap().body
 }
 
 fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {

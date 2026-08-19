@@ -166,7 +166,7 @@ impl core::fmt::Display for PlaneNurbsRefusal {
             Self::LaneUnsupported { scalar } => write!(
                 f,
                 "the plane × NURBS edge lane has no certified derivation at the {scalar} \
-                 scalar (no bracket, so the C9 ring the hull bounds live in is unreachable)"
+                 scalar (no bracket, so the exact-arithmetic ring the hull bounds live in is unreachable)"
             ),
             Self::FootPointInconclusive {
                 sample,
@@ -243,7 +243,7 @@ pub trait EdgeNurbsLane: Decide {
 /// pcurve lane: the NURBS wall is operand **b**, because
 /// `certify_branch` reads the chart image of `b`, and the image this
 /// lane derives is the carrier's foot path on the wall.
-fn lane<T: Decide + Bounds>(
+fn lane<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
     plane: &Surface<T>,
     wall: &NurbsSurface<T>,

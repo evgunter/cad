@@ -342,7 +342,7 @@ impl core::fmt::Display for SsiError {
                 f,
                 "ssi: transversality died along the candidate locus \
                  (sin θ = {sin_theta:e}, arm = {arm:e} m, σ₂ = {sigma_min:e}) — this is \
-                 the tangency regime (TangentIntersection, M5 PR 9), not a locus to \
+                 the tangency regime (TangentIntersection), not a locus to \
                  march through; separate the operands, declare the tangency, or lower \
                  the tolerance"
             ),
@@ -397,7 +397,7 @@ impl core::fmt::Display for SsiError {
                 "ssi: the uniqueness tube's transversality enclosure straddles zero \
                  over its {boxes}-box chain (margin {margin:e} m) — two branches pass \
                  within the band of each other, which is a genuine sliver of the \
-                 operand pair (F6), not a resolution to refine away"
+                 operand pair, not a resolution to refine away"
             ),
             Self::FootPointInconclusive { t, last_distance } => write!(
                 f,
@@ -426,7 +426,7 @@ impl core::fmt::Display for SsiError {
             Self::Escalated(diag) => write!(
                 f,
                 "ssi: a trace or certificate trilean escalated — an ill-conditioned \
-                 operand pair at this tolerance (F6): {diag}"
+                 operand pair at this tolerance: {diag}"
             ),
             Self::Band(e) => write!(f, "ssi: {e}"),
         }
@@ -1046,7 +1046,7 @@ pub fn trace_plane_nurbs_uncertified(
 ///
 /// As [`certify::certify_branch`].
 #[allow(clippy::too_many_arguments)] // one parameter per named quantity
-pub fn certify_rung3<T: geom_core::Decide + geom_core::Bounds>(
+pub fn certify_rung3<T: geom_core::Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
     pcurve_b: Option<&NurbsCurve2<T>>,
     a: &SsiOperand<'_, T>,

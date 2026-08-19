@@ -12,7 +12,7 @@ use crate::{
 
 #[test]
 fn the_unit_table_is_the_whole_closed_set_and_reads_as_data() {
-    let symbols: Vec<&str> = UNITS.iter().map(|u| u.symbol).collect();
+    let symbols: Vec<&str> = UNITS.iter().map(|u| u.symbol()).collect();
     assert_eq!(symbols, ["mm", "cm", "m", "in", "deg", "rad"]);
     assert_eq!(MM.factor, MILLI);
     assert_eq!(MILLI, 1e-3);
@@ -25,10 +25,10 @@ fn the_unit_table_is_the_whole_closed_set_and_reads_as_data() {
     // constant is its identity.
     assert_eq!(DEG.factor, 0.017_453_292_519_943_295_f64);
     let mm = unit_by_symbol("mm").expect("mm row");
-    assert_eq!(mm.quantity, UnitQuantity::Length);
-    assert_eq!(mm.factor, MILLI);
+    assert_eq!(mm.quantity(), UnitQuantity::Length);
+    assert_eq!(mm.factor(), MILLI);
     assert_eq!(
-        unit_by_symbol("deg").expect("deg row").quantity,
+        unit_by_symbol("deg").expect("deg row").quantity(),
         UnitQuantity::Angle
     );
     assert_eq!(unit_by_symbol("furlong"), None);
@@ -95,7 +95,7 @@ fn formatter_pins_the_spec_surface_shape() {
 fn parse_back(text: &str, expect_symbol_or_canonical: [&str; 2]) -> f64 {
     let (num, sym) = text.split_once(' ').expect("value then symbol");
     assert!(expect_symbol_or_canonical.contains(&sym), "suffix {sym:?}");
-    let factor = unit_by_symbol(sym).expect("table row").factor;
+    let factor = unit_by_symbol(sym).expect("table row").factor();
     let (mag, neg) = match num.strip_prefix('-') {
         Some(m) => (m, true),
         None => (num, false),
@@ -115,19 +115,19 @@ proptest! {
         unit_idx in 0usize..6,
     ) {
         let u = UNITS[unit_idx];
-        let (text, canonical) = match u.quantity {
+        let (text, canonical) = match u.quantity() {
             UnitQuantity::Length => (
-                fmt_length(value, crate::LengthUnit { symbol: u.symbol, factor: u.factor })
+                fmt_length(value, crate::LengthUnit { symbol: u.symbol(), factor: u.factor() })
                     .unwrap(),
                 "m",
             ),
             UnitQuantity::Angle => (
-                fmt_angle(value, crate::AngleUnit { symbol: u.symbol, factor: u.factor })
+                fmt_angle(value, crate::AngleUnit { symbol: u.symbol(), factor: u.factor() })
                     .unwrap(),
                 "rad",
             ),
         };
-        let back = parse_back(&text, [u.symbol, canonical]);
+        let back = parse_back(&text, [u.symbol(), canonical]);
         prop_assert_eq!(back.to_bits(), value.to_bits(), "text {:?}", text);
     }
 }
@@ -156,4 +156,25 @@ fn values_with_no_preimage_in_the_asked_unit_fall_back_to_canonical() {
         d = d.next_up();
     }
     panic!("no 2-ulp step found in 200k quotients — fallback untested");
+}
+
+/// The seal's own claim, as an assertion rather than as prose: the
+/// symbol DETERMINES the row. Every row a caller can obtain comes from
+/// the table, so resolving its symbol must return the same row — which
+/// is the premise `editor-core`'s symbol-only `UnitSym::from_def`
+/// lookup relies on (issue #650).
+///
+/// It goes red if the table ever gains two rows sharing a symbol, which
+/// is the one way a sealed `UnitDef` could still be ambiguous.
+#[test]
+fn the_symbol_determines_the_row() {
+    for row in UNITS {
+        let resolved = unit_by_symbol(row.symbol()).expect("a table row resolves by its symbol");
+        assert_eq!(
+            resolved,
+            row,
+            "unit_by_symbol({:?}) is not the row it came from",
+            row.symbol()
+        );
+    }
 }

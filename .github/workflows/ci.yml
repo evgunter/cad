@@ -279,6 +279,10 @@ jobs:
         run: |
           scripts/gates/no-ambient-env.sh --selftest
           scripts/gates/no-ambient-env.sh
+      - name: kernel crates are serde-free
+        run: |
+          scripts/gates/kernel-serde-free.sh --selftest
+          scripts/gates/kernel-serde-free.sh
       - name: interval-square powi(2) allowlist (ratified 2026-08-01)
         run: |
           scripts/gates/interval-square-allowlist.sh --selftest
@@ -323,6 +327,23 @@ jobs:
         run: |
           scripts/gates/bit-identity-punning.sh --selftest
           scripts/gates/bit-identity-punning.sh
+      # No MANIFEST wires a test-only cargo feature (`test-support`,
+      # `*-testing`) onto a non-dev dependency edge. Manifests, not
+      # invocations: a build command may enable any feature, which is
+      # why the two facades carry #[doc(hidden)] (the doc job below runs
+      # --all-features). topo's `sweep-testing`
+      # opens failure-injection doors and its manifest said so in prose;
+      # the prose was FALSE — sweep's `[dependencies]` topo edge carried
+      # the feature, cargo unified it across the graph, and a downstream
+      # crate compiled `--release` naming `topo::PlantedDegradation`.
+      # That sat in the tree undetected while every other gate in
+      # scripts/gates/ ran (S52).
+      # Parses the manifests with tomllib rather than grepping, because
+      # `features = [...]` says nothing about which table it is in.
+      - name: test-only features are dev-dependency-only
+        run: |
+          scripts/gates/test-features-dev-only.sh --selftest
+          scripts/gates/test-features-dev-only.sh
 
       # RENDER PROVENANCE (#221 follow-up). Every committed per-scene
       # PNG under demos/renders{,-freecad}/ must carry FreeCAD's

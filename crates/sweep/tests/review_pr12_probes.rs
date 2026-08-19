@@ -7,6 +7,7 @@ use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::fillet::battery::{FilletRequest, run_battery};
 use sweep::fillet::build::fillet_edges;
+use sweep::test_support::cube;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations, EdgeKey};
@@ -33,9 +34,6 @@ fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
 }
 fn all_edges(body: &Body<f64>) -> Vec<EdgeKey> {
     body.edges().map(|(k, _)| k).collect()
-}
-fn cube(l: f64) -> Body<f64> {
-    prism(&[(0.0, 0.0), (l, 0.0), (l, l), (0.0, l)], l)
 }
 fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
     let lp = ProfileLoop::new(vec![

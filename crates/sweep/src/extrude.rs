@@ -228,7 +228,7 @@ impl fmt::Display for ExtrudeError {
             ),
             Self::ObliqueExtrusion => f.write_str(
                 "extrusion vector has a definite in-plane component: oblique extrusion is \
-                 deferred past M2 (arc segments would sweep elliptic cylinders)",
+                 not supported (arc segments would sweep elliptic cylinders)",
             ),
             Self::ExtrusionEscalated { source } => {
                 write!(f, "extrusion-vector classification escalated: {source}")
