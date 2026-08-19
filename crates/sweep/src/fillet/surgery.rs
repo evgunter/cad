@@ -356,24 +356,7 @@ fn corner_plan<T: Decide + Bounds>(
         .map(|o| o.link)
         .filter(|l| l.start == vertex || l.end == vertex)
         .collect();
-    // The octant takes the same orientation bit as the blends that
-    // meet it: the ball centre lies on the material side exactly when
-    // the corner is convex, so the sphere chart's outward radial IS
-    // the solid's outward normal there and inverts with the corner.
-    // The three incident links must agree on that bit — a corner they
-    // disagree at is not a ball octant at all.
-    let mut convexity: Option<Convexity> = None;
-    for l in &links {
-        if *convexity.get_or_insert(l.convexity) != l.convexity {
-            return Err(unsupported(
-                "a corner's incident links disagree on convexity (the corner ball is \
-                 not a sphere octant there)",
-            ));
-        }
-    }
-    let Some(convexity) = convexity else {
-        return Err(unsupported("a corner has no requested incident link"));
-    };
+    let convexity = super::build::corner_convexity(&links)?;
     let (u_ref, axis) = super::build::octant_chart(body, vertex, &faces, &links)?;
     Ok(Corner {
         vertex,
@@ -1604,9 +1587,9 @@ mod tests {
     use geom_core::{Point3, Vec3};
 
     use super::super::battery::Convexity;
-    use super::super::build::fixtures::{R, all_links, cube};
     use super::{OpenLink, corner_plan, rim_trim_circles};
     use crate::fillet::blend::plane_sphere_blend;
+    use crate::fixtures::{R, all_links, cube};
 
     /// The F1 pin: trim selection is by SUPPORT KIND, never by slot.
     /// `classify_arm`'s `(Sphere, Plane)` arm swaps `trim_a`/`trim_b`
@@ -1650,10 +1633,15 @@ mod tests {
     }
 
     /// **The surgery corner takes its links' orientation bit too.**
-    /// `corner_plan` is the deepest point a concave chain can reach:
-    /// the open-chain door refuses one outright, so the plan is where
-    /// the derivation is pinned. Flip the stored verdict and the
-    /// octant's sense must flip with it.
+    /// `corner_plan` is the deepest point a concave chain can reach —
+    /// the open-chain door refuses one outright, and `fillet_surgery`
+    /// itself therefore cannot be driven concave at all.
+    ///
+    /// **The concave half of this probe is not a body.** The fixture
+    /// FALSIFIES the battery's stored verdict on a cube whose geometry
+    /// is untouched: a lie about a convex body, not a concave one, and
+    /// the only probe that reaches the derivation. What it pins is the
+    /// dependency — the octant reads the verdict and nothing else.
     #[test]
     fn a_corner_plan_takes_its_links_convexity() {
         let body = cube();

@@ -351,6 +351,38 @@ pub(super) fn octant_chart<T: Decide + Bounds>(
     Ok((n_a, axis))
 }
 
+/// The octant's ORIENTATION BIT at one trivalent corner, extracted so
+/// both assembly doors mint it from one implementation (the shape
+/// [`octant_chart`] already has).
+///
+/// A corner patch is a sphere about the rolling ball's rest centre and
+/// its chart normal is the outward radial, exactly as a blend's
+/// cylinder chart normal is. The centre lies on the material side
+/// precisely when the corner is convex, so the octant's sense is the
+/// same bit its blends take, off the same stored verdict
+/// ([`Convexity::blend_sense`]) — never a sampled normal.
+///
+/// `links` are the requested links already filtered to this corner.
+/// **Neither refusal below is a reachable door**: both assembly doors
+/// admit only convex chains, and a corner exists only where an open
+/// link terminates, so the links are always present and always agree.
+/// They are typed guards on the invariant those doors hold — kept so
+/// the bit cannot rot when a door moves, in the shape
+/// [`super::surgery`]'s closure guard uses.
+pub(super) fn corner_convexity<T: Real>(links: &[&Link<T>]) -> Result<Convexity, FilletError> {
+    let unsupported = |detail: &'static str| FilletError::AssemblyUnsupported { detail };
+    let mut convexity: Option<Convexity> = None;
+    for l in links {
+        if *convexity.get_or_insert(l.convexity) != l.convexity {
+            return Err(unsupported(
+                "a corner's incident links disagree on convexity (the corner ball is \
+                 not a sphere octant there)",
+            ));
+        }
+    }
+    convexity.ok_or_else(|| unsupported("a corner has no requested incident link"))
+}
+
 /// A planar face's OUTWARD normal: the stored plane normal folded
 /// through the stored sense bit (S10 category A — never sampled).
 pub(super) fn outward_of<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec3<T>> {
@@ -654,25 +686,13 @@ impl<T: Decide + Bounds> Plan<T> {
         // then chain into the octant's cycle with no geometry read.
         for (v, _, surface) in &corners {
             let mut directed: Vec<(usize, usize, usize)> = Vec::new();
-            let mut convexity: Option<Convexity> = None;
+            let mut incident: Vec<&Link<T>> = Vec::new();
             for link in links {
                 let at_start = link.start == *v;
                 if !at_start && link.end != *v {
                     continue;
                 }
-                // The octant takes the same orientation bit as the
-                // blends that meet it: the ball centre lies on the
-                // material side exactly when the corner is convex, so
-                // the sphere chart's outward radial IS the solid's
-                // outward normal there and inverts with the corner.
-                // The three incident links must agree on that bit — a
-                // corner they disagree at is not a ball octant at all.
-                if *convexity.get_or_insert(link.convexity) != link.convexity {
-                    return Err(unsupported(
-                        "a corner's incident links disagree on convexity (the corner ball \
-                         is not a sphere octant there)",
-                    ));
-                }
+                incident.push(link);
                 let (Some(a), Some(b), Some(arc)) = (
                     foot(*v, link.face_a),
                     foot(*v, link.face_b),
@@ -682,9 +702,8 @@ impl<T: Decide + Bounds> Plan<T> {
                 };
                 directed.push(if at_start { (b, a, arc) } else { (a, b, arc) });
             }
-            let (Some(&seed), Some(convexity)) =
-                (directed.first().filter(|_| directed.len() == 3), convexity)
-            else {
+            let convexity = corner_convexity(&incident)?;
+            let Some(&seed) = directed.first().filter(|_| directed.len() == 3) else {
                 return Err(unsupported("a corner does not have exactly three arcs"));
             };
             let mut verts = Vec::with_capacity(3);
@@ -1206,70 +1225,14 @@ impl<T: Decide + Bounds> Plan<T> {
     }
 }
 
-/// Fixtures shared by the fillet lane's in-crate pins: the mint sites
-/// they cover are private to their modules, so the pins cannot live in
-/// `tests/`.
-#[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used)]
-pub(super) mod fixtures {
-    use geom_core::{Band, Point2, Tolerance};
-    use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
-    use topo::{Body, EdgeKey};
-
-    use super::super::battery::{FilletRequest, Link, run_battery};
-    use crate::{Extrusion, extrude};
-
-    /// The cube's side, meters.
-    pub(crate) const L: f64 = 1.0;
-    /// The blend radius, meters.
-    pub(crate) const R: f64 = 0.1;
-
-    /// The eight-convex-corner fixture the surgery suite also uses.
-    pub(crate) fn cube() -> Body<f64> {
-        let lp = ProfileLoop::new(
-            [(0.0, 0.0), (L, 0.0), (L, L), (0.0, L)]
-                .into_iter()
-                .map(|(x, y)| ProfileVertex::new(Point2::new(x, y), 0.0))
-                .collect(),
-        );
-        let profile = Profile::new(SketchPlane::xy(), vec![lp])
-            .validate(Tolerance::get())
-            .unwrap();
-        extrude(&profile, Extrusion::Distance(L)).unwrap().body
-    }
-
-    /// Every edge of `body` resolved by the battery, in edge order —
-    /// the same list `whole_body_links` hands the plan.
-    pub(crate) fn all_links(body: &Body<f64>) -> Vec<Link<f64>> {
-        let tol = Tolerance::get();
-        let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
-        let verdict = run_battery(
-            &FilletRequest {
-                body,
-                edges,
-                radius: R,
-            },
-            Band::new(tol.eps, tol.k * tol.eps).unwrap(),
-        )
-        .expect("the battery resolves every edge of a cube");
-        let mut links: Vec<Link<f64>> = verdict
-            .chains
-            .iter()
-            .flat_map(|c| c.links.iter().cloned())
-            .collect();
-        links.sort_by_key(|l| l.edge);
-        links
-    }
-}
-
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use topo::Body;
 
     use super::super::battery::{Convexity, Link};
-    use super::fixtures::{R, all_links, cube};
     use super::{FaceKind, Plan};
+    use crate::fixtures::{R, all_links, cube};
 
     /// The corner octants' sense bits, in plan order.
     fn corner_senses(body: &Body<f64>, links: &[Link<f64>]) -> Vec<bool> {
@@ -1287,9 +1250,18 @@ mod tests {
     /// ball centre lies on the material side exactly when the corner
     /// is convex, so the sphere chart's outward radial is the solid's
     /// outward normal there and inverts with the corner — the same bit
-    /// a blend takes, from the same stored verdict. The front door
-    /// admits only convex links today, so this reaches the plan
-    /// directly: relax the door and the octants must follow.
+    /// a blend takes, from the same stored verdict.
+    ///
+    /// **The concave half of this probe is not a body.** No concave
+    /// corner can be built or admitted today, so the fixture instead
+    /// FALSIFIES the battery's stored verdict on a cube whose geometry
+    /// is untouched — a lie about a convex body, not a concave one.
+    /// It is the only probe that reaches the mint site, because
+    /// `whole_body_links` refuses a concave link at the door and
+    /// `Plan::derive` sits below it. What it pins is exactly the
+    /// dependency: the octant reads the verdict and nothing else, so
+    /// the day the door admits concave chains the octants follow
+    /// without a second edit.
     #[test]
     fn a_corner_octant_takes_its_links_sense() {
         let body = cube();
