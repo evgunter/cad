@@ -28,6 +28,8 @@ use geom_core::{Band, Decide, Margin, Sign};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, GeomRef, HalfEdgeKey, VertexKey};
+#[cfg(debug_assertions)]
+use crate::euler::ArenaDelta;
 use crate::euler::EulerOpError;
 use crate::geometry::{CurveKey, PointKey};
 use crate::provenance::Provenance;
@@ -276,7 +278,16 @@ impl<T: Decide> Body<T> {
         }
 
         #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(before, (0, 0, 0, 0, 2, 1, 1), "split_edge");
+        self.assert_euler_postcondition(
+            before,
+            ArenaDelta {
+                half_edges: 2,
+                edges: 1,
+                vertices: 1,
+                ..ArenaDelta::ZERO
+            },
+            "split_edge",
+        );
         Ok(SplitEdgeCreated {
             vertex: w,
             point,
