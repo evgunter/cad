@@ -1390,7 +1390,11 @@ Whether that is worth paying is a D9 question — which is the point.
 
 ## S13. Load-bearing invariants held by CI grep, allowlists, and a magic count
 
-- **Where**: `.github/workflows/ci.yml:322`, `:420`, `:444`,
+- **Where**: `scripts/gates/bounds-allowlist.sh`,
+  `scripts/gates/interval-square-allowlist.sh`,
+  `scripts/gates/no-extra-real-bounds.sh` (all three were inline in
+  `.github/workflows/ci.yml` at `:322`, `:420`, `:444` when this was
+  written; #626 moved them),
   `crates/geom-core/src/real.rs:348`,
   `crates/geom-core/tests/flagged_census.rs:20`
 - **Confidence**: sure
@@ -1432,11 +1436,14 @@ across crate boundaries, since sealing controls who may *implement*, not who may
 *name*. Nobody has written that down.
 
 *Two gates could not be types or lints at all.* The interval-square rule guards
-a **whole-program** property (`ci.yml:437`: *"whether THIS enclosure can
+a **whole-program** property (now
+`scripts/gates/interval-square-allowlist.sh`, `ci.yml:437` when this was
+written: *"whether THIS enclosure can
 straddle zero is a global property of upstream callers that refactors change
 silently"*), and the env ban has a measured receipt. And `EvalScalar` is
 evidence the encoded alternative was **tried and needed more grep, not less**:
-`ci.yml:354` — *"the trait is `pub`… so without this step any file in any crate
+now `scripts/gates/evalscalar-allowlist.sh`, `ci.yml:354` then — *"the trait is
+`pub`… so without this step any file in any crate
 could acquire a compound Bounds bound invisibly to the grep above."*
 
 *The brief's premise about `tools/k-lint` was wrong, and it matters.* `k-lint`
@@ -1446,11 +1453,21 @@ is a **CSV gate** over probe sweeps, not a source lint; it does not parse Rust.
 *What does not survive.* (1) **A lint/tool alternative was never evaluated** —
 the only mention is a one-line "optional escalation" in `M0-LOG.md:74`, dropped
 silently; no `dylint`, `clippy::disallowed*`, `clippy.toml` or proc-macro
-appears anywhere in the history. The record is silence, not rejection. (2) The
-dual-maintained allowlist is a **proven drift class**, and (3) the greps' own
-known defects go unfixed — the `x*x` lookahead fix has sat in a log since
-2026-08-04; `Real +` strips no comments while its four siblings do; only one of
-six has a self-test. The regex is also leaky both ways: it **cannot see**
+appears anywhere in the history. The record is silence, not rejection. (2)
+**FIXED by #626** — the dual-maintained allowlist was a **proven drift class**
+(a `separation.rs` entry hosted-only, a `test_support.rs` entry stale locally,
+a `chart_region.rs` entry before that, and two gates with no local mirror at
+all). It is no longer dual-maintained: every mirrored gate lives once under
+`scripts/gates/`, ci.yml's `discipline` job and `local-scripts/ci-local.sh`
+both call the same script, the ratified justifications have one home, and each
+gate carries a `--selftest` that plants a synthetic violation and asserts the
+gate fires — which also settles the "only one of six has a self-test" residue.
+(3) The greps' own remaining defects go unfixed, and #626 deliberately left
+every one of them alone — it moved the gates without changing a regex, a
+message's meaning, or an allowlist's membership. Still standing: the
+lint/`dylint`/proc-macro alternative in (1) is unevaluated; the `x*x` lookahead
+fix has sat in a log since 2026-08-04; `Real +` strips no comments while its
+siblings do; and the regex is leaky both ways — it **cannot see**
 `self.x * self.x`, and `linalg/vec.rs:311` contains exactly that shape in
 production generic-over-`Real` code.
 
@@ -3248,7 +3265,7 @@ Good work for filling parallel capacity. None blocks anything.
 
 | # | Item | Effort |
 |---|---|---|
-| **H1** | **ci-local mirror parity** — the local mirror has no `EvalScalar` step and no interval-square `powi(2)` step; hosted has both. Decide add-or-document. (The `separation.rs` and dead-`test_support.rs` halves are fixed in this PR.) | S |
+| **H1** ✅ #626 | **ci-local mirror parity** — **FIXED by #626**, extracted rather than synced (Evan, 2026-08-19). All eight mirrored gates of ci.yml's `discipline` job live once under `scripts/gates/`; both halves call the same script, ci.yml keeps one step per gate under today's names, the ratified allowlist prose has one home, and each gate gained a `--selftest`. The `EvalScalar` and interval-square `powi(2)` gates now run locally too. Allowlist membership is unchanged; the prose drift found while diffing the copies is recorded in the PR. | S |
 | **H2** | **S39 stale claims** — nine rows, each classified **benign rot** vs **lost invariant** *before* its sentence is touched. `enters.rs:14` is the (ii) candidate: the outward-normal property was devolved onto every caller with no type enforcing it. | M |
 | **H3** | **S40 residue** — start with the two that are not cosmetic: `emit_topo.rs:1266`'s unreachable fallback would mint `Seam{ae, ae}`, a well-formed name for the wrong thing; `seqgen.rs:853`'s discarded counter means the property suite cannot tell an all-skipped run from a full one. | S |
 | **H4** | **S37** — shipped-artifact naming: the STL header's `cad-kernel-m2`, `UnsupportedCurve.note`'s runtime-visible PR number, ~124 internal spec codes in public rustdoc and the Python stub. Evan: *"can be fixed earlier"* than S36. | S–M |
