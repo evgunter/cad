@@ -254,6 +254,29 @@ fn the_acceptance_exports_agree_are_honest_and_are_byte_identical() {
     let count = u32::from_le_bytes(a[80..84].try_into().unwrap()) as usize;
     assert_eq!(a.len(), 84 + count * 50, "HEADER: binary facet record size");
 
+    // ---- SOLID NAME: the ASCII writer's `solid <name>` opener is a
+    // SHIPPED byte string with no other coverage — the byte oracles
+    // above compare exports to each other, so a changed name is
+    // invisible to them. Pin the exact text, its input-independence,
+    // and that `endsolid` closes on the same name.
+    let ascii_a = String::from_utf8(ascii_of(by_name("l_prism"))).expect("NAME: ascii is utf-8");
+    let ascii_b = String::from_utf8(ascii_of(by_name("ball"))).expect("NAME: ascii is utf-8");
+    for (which, text) in [("l_prism", &ascii_a), ("ball", &ascii_b)] {
+        let first = text.lines().next().expect("NAME: ascii export is empty");
+        assert_eq!(
+            first, "solid cad-kernel",
+            "NAME: {which}: the shipped solid name"
+        );
+        let last = text
+            .lines()
+            .next_back()
+            .expect("NAME: ascii export is empty");
+        assert_eq!(
+            last, "endsolid cad-kernel",
+            "NAME: {which}: endsolid must close on the same name"
+        );
+    }
+
     // ---- BYTE-IDENTITY: repeat-call identity through the FULL
     // pipeline — rebuild the body, retessellate, rewrite; bytes must
     // match the first pipeline's output exactly.

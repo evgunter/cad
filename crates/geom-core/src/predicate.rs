@@ -762,7 +762,7 @@ impl fmt::Display for Indeterminate {
                 f,
                 " — it straddles a decision boundary or lies inside the ambiguity \
                  band; subdivide the parameter box for a tighter enclosure, or \
-                 {COINCIDENCE_RECOURSE} (D4, Q1)"
+                 {COINCIDENCE_RECOURSE} (D4)"
             ),
             // Poison explains WHY the sign is indeterminate, but the
             // user's levers at a coincidence site are unchanged — the
@@ -1210,7 +1210,7 @@ mod tests {
                  cannot be classified against the band (zero = 1e-9, escalate = 1e-8) \
                  — it straddles a decision boundary or lies inside the ambiguity \
                  band; subdivide the parameter box for a tighter enclosure, or \
-                 {COINCIDENCE_RECOURSE} (D4, Q1)"
+                 {COINCIDENCE_RECOURSE} (D4)"
             )
         );
     }

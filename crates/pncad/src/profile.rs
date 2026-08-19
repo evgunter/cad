@@ -8,9 +8,8 @@
 //!
 //! # The boundary this module draws
 //!
-//! Evan's ruling on #413 (LIB-RETTAIL): **raw `ProfileLoop`
-//! construction is kernel vocabulary and leaves the presented
-//! surface.** The types stay nameable — read-back hands back a
+//! **Raw `ProfileLoop` construction is kernel vocabulary and stays
+//! off the presented surface.** The types stay nameable — read-back hands back a
 //! `ProfileLoop`, `ProfileError` payloads carry `SegmentRef`s,
 //! `ValidatedProfile` is what every body operation consumes — but the
 //! minting doors go.
@@ -23,8 +22,8 @@
 //! EXCEPT `RawLoop`, so `pncad::profile::ProfileLoop::polygon(…)` does
 //! not resolve: the trait is not in scope and there is no path to it.
 //! (`pub use profile;` did resolve it — that is the measurement this
-//! narrowing answers, and it is the LB13 precedent: a curated module in
-//! place of a whole-crate re-export, aimed at one nameability.)
+//! narrowing answers: a curated module in place of a whole-crate
+//! re-export, aimed at one nameability.)
 //!
 //! What this module removes is the *authoring tier*: the named,
 //! documented, prelude-carried way to mint a loop from a coordinate
@@ -48,7 +47,7 @@
 //! binders, [`circle`], [`circle_split`].
 
 // The submodules a caller reaches for by path. `test_support` is gone
-// (LIB-RETTAIL) and `path`'s own root re-exports are already listed
+// and `path`'s own root re-exports are already listed
 // below, but the module hop is what the lattice's program vocabulary
 // (`profile::path::program::Step`) is spelled through.
 pub use ::profile::{k_stats, lift, path};
