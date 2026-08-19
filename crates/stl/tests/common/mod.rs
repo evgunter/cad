@@ -19,6 +19,39 @@ pub fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
         .unwrap()
 }
 
+/// An axis-aligned raw-extrude brick spanning `x × y × z`.
+///
+/// Its sketch plane is the world xy frame lifted to `z.0`, so the
+/// extrusion runs +z and the body is exactly the closed box.
+pub fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
+    let lp = ProfileLoop::polygon([
+        Point2::new(x.0, y.0),
+        Point2::new(x.1, y.0),
+        Point2::new(x.1, y.1),
+        Point2::new(x.0, y.1),
+    ]);
+    extrude(
+        &validated_on(
+            SketchPlane::from_frame(
+                Point3::new(0.0, 0.0, z.0),
+                Vec3::new(1.0, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+            ),
+            lp,
+        ),
+        Extrusion::Distance(z.1 - z.0),
+    )
+    .unwrap()
+    .body
+}
+
+/// [`validated`] on an explicit sketch plane rather than `xy`.
+fn validated_on(plane: SketchPlane<f64>, lp: ProfileLoop<f64>) -> ValidatedProfile<f64> {
+    Profile::new(plane, vec![lp])
+        .validate(Tolerance::get())
+        .unwrap()
+}
+
 pub fn axis_y() -> RevolveAxis<f64> {
     RevolveAxis {
         origin: p2(0.0, 0.0),
