@@ -342,7 +342,7 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, f64), &
         }
         Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) => {
             Err("no ring-computable meters composite for this surface kind \
-             (cone/torus need a certified root the C9 ring lacks)")
+             (cone/torus need a certified root the exact-arithmetic ring lacks)")
         }
     }
 }
@@ -512,7 +512,7 @@ fn nurbs_limbs<T: Decide + Bounds>(
     let sup = tensor::surface_curve_residual(&sdata, &pdata, &cdata, &extra)
         .map_err(|_| SsiError::UnsupportedCertificate {
             what: "the tensor composite refused the carrier/pcurve pair (mismatched \
-                   channel counts or knot domains — the OQ4 identity is the entry \
+                   channel counts or knot domains — the shared-parameter identity is the entry \
                    requirement)",
         })?
         .sup_bound();
@@ -803,8 +803,8 @@ pub(crate) fn certify_branch<T: Decide + Bounds>(
             (SsiOperand::Nurbs(_), SsiOperand::Nurbs(_)) => {
                 return Err(SsiError::UnsupportedCertificate {
                     what: "NURBS × NURBS routes to the general rung but its uniqueness \
-                           tube is not implemented in this build (per-arm retirement, \
-                           C12.1)",
+                           tube is not implemented in this build (arms retire one at \
+                           a time, each with its proof)",
                 });
             }
         };

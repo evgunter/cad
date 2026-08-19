@@ -1,14 +1,14 @@
 //! The binding error taxonomy.
 //!
-//! LIBRARY-DESIGN §L4: failures reach Python as **typed exceptions
-//! carrying the structured error, never strings**. That splits in two:
+//! Failures reach Python as **typed exceptions carrying the
+//! structured error, never strings**. That splits in two:
 //!
 //! * [`DimensionError`] — the boundary refusal a Python user can
 //!   provoke that the Rust surface refuses at COMPILE time
 //!   (`Length + Angle` is simply not an `impl` in `quantity`). Python
 //!   has no such static gate, so the illegal combination has to become
 //!   a runtime value; making it a STRUCTURED value rather than a
-//!   formatted string is what keeps §L4's promise.
+//!   formatted string is what keeps that promise.
 //! * [`ErrorClass`] — which typed Python exception a kernel refusal
 //!   becomes.
 //!
@@ -81,10 +81,9 @@ impl fmt::Display for DimensionError {
 
 impl core::error::Error for DimensionError {}
 
-// LIB-DOORS F5: the `LiteralRefusal`/`check_literal` pre-check that
-// used to live here is GONE. `Expr::literal`'s own error type
-// (`pncad::document::DimensionError`) is curated now, so the binding
-// matches the kernel's refusal instead of predicting it; the tag
+// The binding carries no literal pre-check of its own: `Expr::literal`'s
+// own error type (`pncad::document::DimensionError`) is curated, so the
+// binding matches the kernel's refusal instead of predicting it; the tag
 // mapping is `crate::tags::expr_dimension_error_tag`.
 
 /// Which typed Python exception a refusal becomes.

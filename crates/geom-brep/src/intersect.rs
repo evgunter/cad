@@ -218,8 +218,7 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
             note: "exact-degenerate cases only (apex-through lines/tangent/point, \
                    axis-normal Circle); generic tilt routes to the general rung \
                    PERMANENTLY (parabola and hyperbola are outside the conic \
-                   inventory by decision, not by omission); unimplemented until \
-                   the general rung covers it",
+                   inventory by decision, not by omission); unimplemented until SSI",
         },
         // ---- Rung 1, implemented (M5 S13): the closed-form Circle —
         // never a fitted chord (the die-pips premise). ----
@@ -245,8 +244,7 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
             note: "equal radii (structural/declared ONLY — never inferred from \
                    values) with intersecting axes split into two Ellipses \
                    (cylinder_cylinder_section); unequal, undeclared, or skew routes \
-                   to the general rung, unimplemented until the general rung \
-                   covers it",
+                   to the general rung, unimplemented until SSI",
         },
         // ---- Rung 3: quartic-and-worse loci; the general rung is not
         // ready until PR 7, so these refuse typed naming the routing.
@@ -256,7 +254,7 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
             note: "a plane×torus section is quartic (special Villarceau/profile \
                    circles are not classified here); this pair routes to the \
                    general rung with the ℝ³ IMPLICIT-PAIR trace shape, which \
-                   exists — but the torus's exact-arithmetic composite is quartic \
+                   exists — but the torus's exact-arithmetic composite is quartic (m⁴) \
                    and its exact conversion back to meters needs a certified root \
                    the ring does not have, so the arm stays refused until that \
                    conversion lands (arms retire one at a time, each with its \
@@ -267,7 +265,8 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
             implemented: false,
             note: "this pair routes to the general rung with the ℝ³ IMPLICIT-PAIR \
                    trace shape (the general-rung marcher); the cone's meters composite \
-                   needs a certified root the C9 ring lacks, so its certificate — \
+                   needs a certified root the exact-arithmetic ring lacks, so its \
+                   certificate — \
                    not its trace — is what is missing",
         },
         // ---- Rung 3, IMPLEMENTED (M5 PR 7): the ℝ³ implicit-pair
@@ -279,7 +278,7 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
             rung: Rung::General,
             implemented: true,
             note: "marched in ℝ³ on the IMPLICIT PAIR (2×3 SVD, Hoffmann §6.2) and \
-                   fitted, with the full three-limb C2 certificate and in-op \
+                   fitted, with the full three-limb certificate and in-op \
                    exhaustiveness (geom_brep::ssi::cylinder_sphere_ssi); the \
                    coaxial circle special case is not classified here — it is \
                    marched like any other configuration",
@@ -443,7 +442,7 @@ impl core::fmt::Display for SectionError {
             Self::Escalated(diag) => write!(
                 f,
                 "section: configuration trilean escalated — an ill-conditioned \
-                 operand pair at this tolerance (F6): {diag}"
+                 operand pair at this tolerance: {diag}"
             ),
             Self::RoutesToGeneralRung { pair, why } => {
                 write!(f, "section: {pair}: {why}")
@@ -833,7 +832,7 @@ pub fn cylinder_cylinder_section<T: Decide>(
             pair: "cylinder×cylinder",
             why: "radius equality is not structural/declared — never inferred from \
                   values (the coincidence ladder); the undeclared pair routes to the \
-                  general rung, unimplemented until the general rung covers it",
+                  general rung, unimplemented until SSI",
         });
     }
     // 2. Verify the declaration (declared ≠ unchecked).
@@ -903,8 +902,7 @@ pub fn cylinder_cylinder_section<T: Decide>(
                     return Err(SectionError::RoutesToGeneralRung {
                         pair: "cylinder×cylinder",
                         why: "skew axes have no conic section; this configuration routes \
-                              to the general rung, unimplemented until the general \
-                              rung covers it",
+                              to the general rung, unimplemented until SSI",
                     });
                 }
             }
@@ -1073,7 +1071,7 @@ pub fn plane_cone_section<T: Decide>(
                     why: "generic tilt routes to the general rung PERMANENTLY — the \
                           conic trio is outside the closed-form inventory by \
                           decision, and only an arm that adds parabola/hyperbola \
-                          moves it; unimplemented until the general rung covers it",
+                          moves it; unimplemented until SSI",
                 }),
             }
         }

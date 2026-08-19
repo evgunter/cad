@@ -1373,7 +1373,7 @@ fn sweep_cross_solid_backstop<T: Decide>(
                     b: EntityId::Face(b.face),
                     what: "a cross-solid face pair with a carrier kind that has no \
                            sound cheap reach bound (cone/torus/NURBS, or a planar \
-                           face with a non-conic curved boundary) — the C9 \
+                           face with a non-conic curved boundary) — the \
                            exclusion ring is the certified excluder",
                 });
                 continue;
@@ -1402,7 +1402,7 @@ fn sweep_cross_solid_backstop<T: Decide>(
                     b: EntityId::Face(b.face),
                     what: "cross-solid faces within reach (curved against curved or \
                            planar) — the conformal-rest / proximity / partial-embedding \
-                           class the C9 exclusion ring will examine",
+                           class the exclusion ring will examine",
                 });
             }
         }
@@ -1463,7 +1463,7 @@ fn sweep_cross_solid_backstop<T: Decide>(
                         b: EntityId::Solid(inner),
                         what: "a surface kind with no cheap sound box leaves the \
                                containing instance's extent unclaimable — the \
-                               same C6 interference class",
+                               same interference class",
                     });
                     continue;
                 };
@@ -1498,11 +1498,11 @@ fn sweep_cross_solid_backstop<T: Decide>(
                         a: EntityId::Solid(outer),
                         b: EntityId::Solid(inner),
                         what: if all_positive {
-                            "one instance's extent box inside another's — C6's \
+                            "one instance's extent box inside another's — the \
                              interference class (recorded gate-skips do not exist yet)"
                         } else {
                             "instance extent boxes not definitely separable from \
-                             containment — the same C6 interference class, in band"
+                             containment — the same interference class, in band"
                         },
                     });
                 }

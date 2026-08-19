@@ -921,8 +921,9 @@ impl core::fmt::Display for BooleanError {
                  kind in this build (the refusal retires one table arm at a time, \
                  never wholesale). Pairs involving this kind route per \
                  geom_brep::intersect::route; where a route is already implemented \
-                 at the INTERSECTION layer, what is missing here is the boolean's \
-                 own crossing layer for the kind — edge×face sweep events, curved \
+                 at the INTERSECTION layer (plane×NURBS), what is missing here is \
+                 the boolean's own crossing layer for the kind — edge×face sweep \
+                 events, curved \
                  trim containment, and the fitted chord join lane. The curved \
                  containment/pierce door covers the sphere half; the blocker is the \
                  fitted-chord join lane, which has no cyl×sphere azimuth-window \
@@ -976,9 +977,9 @@ impl core::fmt::Display for BooleanError {
                  (Plane, Sphere) only, and a cyl×sphere fitted-chord window has no \
                  window analog to read — and a NURBS face has no crossing layer. \
                  The refusal is UP FRONT and structural because the downstream \
-                 failure would be SILENT, not typed: with no crossings found the \
+                 failure is SILENT, not typed: with no crossings found the \
                  pipeline falls through to vertex-probed containment, and a curved \
-                 face can leave the other solid between its vertices with no vertex \
+                 face leaves the other solid between its vertices with no vertex \
                  noticing. Recourse: express the cut with cylindrical or spherical \
                  tooling, or wait on the join lane"
             ),
@@ -991,7 +992,7 @@ impl core::fmt::Display for BooleanError {
                  far the patch reaches past it, and no such argument has been written. \
                  Projection is not the obstacle: NurbsSurface::project is generic \
                  over any bracket-carrying scalar, so the Interval lane is \
-                 available. The class is gated HERE, typed and pinned, so a future \
+                 available. The class is re-gated HERE, typed and pinned, so a future \
                  NURBS body constructor cannot re-open the vertex-probe silence. \
                  Recourse: write the NURBS extent test, then retire this gate per \
                  class"
@@ -1055,8 +1056,8 @@ impl core::fmt::Display for BooleanError {
             } => write!(
                 f,
                 "boolean op: the declared {} contact between faces {:?} and {:?} is \
-                 contradicted by {} — every definite verdict wins over every declaration \
-                 (C4); {}{}",
+                 contradicted by {} — every definite verdict wins over every declaration; \
+                 {}{}",
                 declaration.class.name(),
                 declaration.a,
                 declaration.b,
@@ -1086,7 +1087,7 @@ impl core::fmt::Display for BooleanError {
                 "boolean_reduce: null-edge pairing mismatch at vertex pair \
                  ({a_vertex:?}, {b_vertex:?}): a surviving crossing-record pair is not \
                  cyclically adjacent in both neighborhoods (the 15.11 invariant's guarded \
-                 refusal, F12)"
+                 refusal)"
             ),
             Self::ClassificationInvariant { what } => {
                 write!(

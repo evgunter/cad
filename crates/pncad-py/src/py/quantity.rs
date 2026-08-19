@@ -1,4 +1,4 @@
-//! The §L4 typed quantities: `25 * mm` constructs a `Length`.
+//! The typed quantities: `25 * mm` constructs a `Length`.
 //!
 //! These mirror `crates/quantity` exactly — canonical metres and
 //! radians underneath, and the SAME infallible arithmetic
@@ -6,7 +6,7 @@
 //! division. `quantity` refuses everything else by having no `impl`
 //! for it; Python has no compile step to refuse at, so those cases
 //! become typed `DimensionError` raises here. That is the whole of
-//! §L4's "runtime checks live at the Rust boundary, once".
+//! the rule that runtime checks live at the Rust boundary, once.
 
 use pyo3::basic::CompareOp;
 use pyo3::prelude::*;

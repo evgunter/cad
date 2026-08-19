@@ -236,14 +236,14 @@ impl Alignment {
 /// **The A11 rule-4 recourse**, verbatim: what an author does about an
 /// under-determined tree mate.
 pub const UNDER_RECOURSE: &str = "add the complementary mate, or delete the mate if free relative \
-                                  motion was intended (A9 is relative freedom's home)";
+                                  motion was intended";
 
 /// **The v1 class restriction, named.** `Fit` is specified and not
 /// built; a mate cannot declare a designed clearance until the kernel
 /// variant lands with its first consumer, and AQ6 is where the
 /// cross-document detail is still open.
-pub const CLASS_DEFERRAL: &str = "v1 mates admit Rest and Tangent; AQ6's cross-document detail is \
-                                  undischarged";
+pub const CLASS_DEFERRAL: &str = "v1 mates admit Rest and Tangent; the cross-document detail of \
+                                  a designed clearance is undischarged";
 
 /// A typed mate refusal (D9: fail loud, never a guess). Every arm names
 /// its subject — the mate, the pair, the predicate, or the residual.

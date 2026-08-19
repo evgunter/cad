@@ -6,7 +6,7 @@
 //! is holding. The document layer is different — its arena keys
 //! (`EntityRef`, `EntityKey`, and the `topo` keys they wrap) are
 //! body-lineage-scoped, meaningful only against the evaluation that
-//! minted them, and `editor-core`'s own rule (G1) is that they never
+//! minted them, and `editor-core`'s own rule is that they never
 //! leave that crate. A whole-crate re-export of `editor_core` would
 //! hand them out anyway, one hop past the seal.
 //!
@@ -87,7 +87,7 @@ pub use editor_core::{
     SnapshotError, load, save,
 };
 
-// Document identity and content pins (ASSEMBLY-DESIGN A4).
+// Document identity and content pins.
 // `DocumentId` answers "which part" (authored at construction —
 // `DocumentId::derive` for deterministic callers, this crate's
 // `workspace::random_document_id` for interactive authoring);
@@ -104,15 +104,15 @@ pub use editor_core::{
 // through the document layer (the memo currency's substrate).
 pub use editor_core::ContentBits;
 
-// Explicit product roots (ASSEMBLY-DESIGN A10): the
-// ordered root list is read through `Doc::roots` and set through
+// Explicit product roots: the ordered root list is read through
+// `Doc::roots` and set through
 // `DocEdit::SetRoots`; `product` is the whole-document gather those
 // roots name, and `RootFault` is the shared invariant refusal both
 // the edit and persistence doors carry.
 pub use editor_core::{ProductError, RootFault, product};
 
-// Instantiated parts (ASSEMBLY-DESIGN A2/A3/A11). `Frame` is
-// the A11 cluster placement a document records per instantiate node
+// Instantiated parts. `Frame` is the cluster placement a document
+// records per instantiate node
 // (read through `Doc::placement`, written by `DocEdit::SetPlacement`);
 // `PartResolver` is the document seam evaluation crosses to reach a
 // referenced document, `ResolveFailure`/`ResolveFault` its classified
@@ -124,7 +124,7 @@ pub use editor_core::{
     Frame, PartFault, PartResolver, ResolveFailure, ResolveFault, product_named,
 };
 
-// Mates (ASSEMBLY-DESIGN A3/A11/A12): the declaration node's
+// Mates: the declaration node's
 // authored payload (`Alignment` over two `MateFrame`s, a
 // `MatePrimitive`, an `AxisSense`), the solve's per-node outcome
 // (`SolvedPoses`, `MateRole`, the residual `Subgroup`), the recorded
@@ -137,7 +137,7 @@ pub use editor_core::{
     relative_freedom_components, solve_document,
 };
 
-// Split and inline (ASSEMBLY-DESIGN A4): the first-class
+// Split and inline: the first-class
 // recorded refactorings. `split` cuts a closed node set out into a new
 // document (identity supplied by the caller — `DocumentId::derive` or
 // `workspace::random_document_id`) and leaves an instance behind;
@@ -153,12 +153,12 @@ pub use editor_core::{
     SplitOutcome, inline, split,
 };
 
-// The pin-update door (ASSEMBLY-DESIGN A13). `DocEdit`'s
+// The pin-update door. `DocEdit`'s
 // `UpdateReference` arm is the per-reference primitive;
 // `update_references` is the whole-document ELABORATION over it,
 // returning the ordinary edits and applying none of them (purity =
 // atomicity), and `UpdateError` is its typed refusal. `mixed_pins`
-// is A13 clause 3's multiplicity LINT — a report, never a gate:
+// is the multiplicity LINT — a report, never a gate:
 // one entry per referenced id carrying more than one pin
 // (`PinMultiplicity`), each pin listed with the nodes holding it
 // (`PinSites`). The store-facing convenience that computes the new

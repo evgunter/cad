@@ -333,7 +333,7 @@ impl core::fmt::Display for CertifyError {
                  {sample} against band [zero {:e}, escalate {:e}] — the surfaces \
                  under-determine the locus there (a G2 conventional join keeps its \
                  MappedCurve description BY THIS PREDICATE, D2's split); the same \
-                 margin one band-width away escalates as a sliver instead (F6); {}",
+                 margin one band-width away escalates as a sliver instead; {}",
                 band.zero(),
                 band.escalate(),
                 geom_core::COINCIDENCE_RECOURSE

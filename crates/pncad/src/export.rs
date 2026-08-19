@@ -1,7 +1,7 @@
 //! **The document layer's export door**.
 //!
 //! `step_export::step_string` takes a kernel [`topo::Body`]; before
-//! this module, nothing curated accepted an EVALUATED body, so §L3's
+//! this module, nothing curated accepted an EVALUATED body, so the
 //! one-shot journey ("build a bracket, export STEP") stopped at
 //! "measure". This door completes it in the document layer's own
 //! vocabulary: an [`Evaluation`] plus the [`RecipeNodeId`] whose value
@@ -13,7 +13,7 @@
 //! method on the bindings' body handle: the "which body does this
 //! node denote" unwrap then has ONE construction site, in Rust, and
 //! Rust document-layer consumers get the same door Python binds —
-//! §L3's "one semantics, two host languages".
+//! one semantics, two host languages.
 //!
 //! # Scope
 //!
@@ -157,7 +157,7 @@ pub fn step_for_node(
     step_string(body, options).map_err(ExportError::Step)
 }
 
-/// Serializes the WHOLE DOCUMENT's product — the A10 gather of every
+/// Serializes the WHOLE DOCUMENT's product — the gather of every
 /// body-denoting product root, in root-list order — as a STEP (AP214
 /// Part 21) exchange file.
 ///

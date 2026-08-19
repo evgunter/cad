@@ -83,9 +83,9 @@
 
 // NOT re-exported as a module: the document layer is exposed
 // through the curated `document` + `select` surfaces instead. Its
-// arena keys are body-lineage-scoped and must not leave editor-core
-// (G1), and a whole-crate re-export would hand them out one hop past
-// that seal. Kernel crates keep their module re-exports below —
+// arena keys are body-lineage-scoped and must not leave editor-core,
+// and a whole-crate re-export would hand them out one hop past that
+// seal. Kernel crates keep their module re-exports below —
 // they carry geometry, not keys into a particular evaluation.
 /// B-rep geometry primitives: surface/curve kinds, pcurves, section
 /// classification. Mostly interior, but it owns error payload types
@@ -128,8 +128,8 @@ pub use topo;
 
 // `bvh` is deliberately NOT re-exported: it is an interior
 // acceleration structure. No demo scene, no export corpus, and no
-// document-layer path names it — the measurement that decides this
-// per the U1 spec. Re-export it the day a consumer needs it.
+// document-layer path names it, and that measurement is what decides
+// the re-export. Re-export it the day a consumer needs it.
 
 pub mod authoring;
 pub mod closure;

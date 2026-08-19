@@ -129,7 +129,7 @@ pub use stl::{write_ascii, write_binary};
 // `GeomPred::DatumDistance` selection is written against, and
 // `select_where` takes a `ParamEnv`, so both are needed to write a
 // position filter at all.
-// `ParamName` and `DocParam` ride here since R1-PARAMS: they are what
+// `ParamName` and `DocParam` ride here because they are what
 // `DocEdit::SetDocParam` and `Expr::param` take, so a prelude user
 // could previously hold the param-editing doors and not open them —
 // the parametric flagship (`plate_param`, guide §3.2) imports both.

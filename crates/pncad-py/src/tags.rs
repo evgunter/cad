@@ -1,7 +1,6 @@
 //! Stable discriminant tags for the document layer's refusals.
 //!
-//! §L4 requires typed exceptions carrying the structured error, never
-//! strings. Neither [`EditError`] nor [`NodeErrorKind`] implements
+//! Typed exceptions carry the structured error, never strings. Neither [`EditError`] nor [`NodeErrorKind`] implements
 //! `Display`, and neither is re-exported with a field-level accessor
 //! set, so the SMALLEST faithful reading available to a scaffold is:
 //! the exception carries a stable **tag** — a discriminant name, which
@@ -133,7 +132,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::MetaNonFinite { .. } => "meta_non_finite",
         EditError::MetaNotSet { .. } => "meta_not_set",
         EditError::RebindMetadataCollision { .. } => "rebind_metadata_collision",
-        // The product-root invariants (ASM-ROOTS D-2) tag per FAULT,
+        // The product-root invariants tag per FAULT,
         // not per wrapper: which invariant broke is what a caller
         // branches on.
         EditError::Roots(fault) => root_fault_tag(fault),
@@ -144,9 +143,8 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::NonFinitePlacement { .. } => "non_finite_placement",
         EditError::UpdateOnNonInstance { .. } => "update_on_non_instance",
         EditError::PinUnchanged { .. } => "pin_unchanged",
-        // ASM-R2a: a mate's alignment is authored geometry, so the
-        // non-finite refusal is the placement one's sibling and tags
-        // beside it.
+        // A mate's alignment is authored geometry, so the non-finite
+        // refusal is the placement one's sibling and tags beside it.
         EditError::NonFiniteAlignment { .. } => "non_finite_alignment",
     }
 }
@@ -169,7 +167,7 @@ pub fn placement_rule_fault_tag(fault: &PlacementRuleFault) -> &'static str {
 }
 
 /// The stable tag for a frame-construction refusal
-/// (`geom_core::linalg::frame`'s U4b trio).
+/// (`geom_core::linalg::frame`'s constructors).
 ///
 /// `FrameError` implements `Display`, so the human message is the
 /// kernel's own prose and the tag is the branchable discriminant. The
@@ -233,7 +231,7 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::DeclareResolve { .. } => "declare_resolve",
         NodeErrorKind::DeclareBothOperands { .. } => "declare_both_operands",
         NodeErrorKind::DeclareUnsupportedPair { .. } => "declare_unsupported_pair",
-        // The refusal MENU (register R3, LIB-PYG5): the boolean's
+        // The refusal MENU: the boolean's
         // undeclared-contact refusal carrying the candidate
         // declaration; the `finding` payload crosses as a typed
         // attribute beside this tag.
@@ -242,11 +240,11 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::FilletSelectionKind { .. } => "fillet_selection_kind",
         NodeErrorKind::FilletSelectionEmpty => "fillet_selection_empty",
         NodeErrorKind::WitnessBifurcation { .. } => "witness_bifurcation",
-        // ASM-2A: the seam faults stay separable at the tag level —
+        // The seam faults stay separable at the tag level:
         // "the pin does not hold" and "the tolerances disagree" are
         // different recourses, so they are different tags.
         NodeErrorKind::Part { fault, .. } => part_fault_tag(fault),
-        // ASM-R2a: the mate solve's refusals tag per FAULT, the way
+        // The mate solve's refusals tag per FAULT, the way
         // the root invariants do — UNDER, CONTRADICTORY and a
         // dangling head carry different recourses, so a caller
         // branches on which one fired, not on "a mate failed".

@@ -559,7 +559,7 @@ impl fmt::Display for ProfileError {
             } => write!(
                 f,
                 "containment of loop {loop_index} in loop {against_loop}: every \
-                 candidate ray grazed — escalating rather than guessing (Q1)"
+                 candidate ray grazed — escalating rather than guessing"
             ),
             Self::Escalated { site, source } => {
                 write!(f, "validation escalated {site}: {source}")?;

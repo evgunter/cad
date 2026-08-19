@@ -41,7 +41,7 @@ from typing import Any, Final, Generic, Optional, TypeAlias, TypeVar, overload
 
 # --- errors -----------------------------------------------------------
 # Every subclass carries its refusal as ATTRIBUTES, never as parsed
-# prose (§L4).
+# prose.
 
 class PncadError(Exception):
     """Base class for every refusal this module raises."""
@@ -544,7 +544,7 @@ def circle_split(
 # --- document ---------------------------------------------------------
 
 class NodeId:
-    """A recipe node's identity. NOT an arena key (§L3)."""
+    """A recipe node's identity. NOT an arena key."""
 
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
@@ -845,7 +845,8 @@ class DocParam:
     # zero are the same parameter, and the hash folds `-0.0` to match.
 
 class DocEdit:
-    """A single edit — the G1 edit vocabulary (§L3)."""
+    """A single edit — the one edit vocabulary the GUI, the bindings and
+    headless tests all speak."""
 
     @staticmethod
     def insert_node(node: Node) -> DocEdit: ...
@@ -1173,7 +1174,7 @@ class PlaneRelation:
     Distinct: Final[PlaneRelation]
 
 class ContactClass:
-    """The C4 contact class a declaration asserts. v1 carries `Rest`
+    """The contact class a declaration asserts. v1 carries `Rest`
     (coincident planes) — the only demand-evidenced detector."""
 
     Rest: Final[ContactClass]

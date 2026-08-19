@@ -1118,7 +1118,7 @@ impl fmt::Display for ValidationError {
                  the surfaces DETERMINE the locus) but carries a conventional \
                  MappedCurve description — such edges must be described intrinsically \
                  as the TangentIntersection of their faces' surfaces (prefer-intrinsic \
-                 one order up, OQ7/C7; a G2 join is exempt by its zero-side \
+                 one order up; a G2 join is exempt by its zero-side \
                  second-order margin, never by a list)"
             ),
             Self::LoopRoleInverted { face, r#loop } => write!(
@@ -1151,7 +1151,7 @@ impl fmt::Display for ValidationError {
                 f,
                 "tier-3′ census: undeclared contact {contact:?} at {witness} — \
                  touching must be backed by a declared-contact record, never \
-                 blessed from discovery (F1/F2); {}",
+                 blessed from discovery; {}",
                 crate::contact::CONTACT_RECOURSE
             ),
             Self::ContactContradicted {
@@ -1163,7 +1163,7 @@ impl fmt::Display for ValidationError {
                 f,
                 "tier-3′ census: the declared {} contact between faces {:?} and {:?} is \
                  contradicted at {witness} by {} — every definite verdict wins over every \
-                 declaration (C4); {}{}",
+                 declaration; {}{}",
                 declaration.class.name(),
                 declaration.a,
                 declaration.b,
@@ -1200,7 +1200,7 @@ impl fmt::Display for ValidationError {
                 "tier-3′ census: the pair {a} / {b} cannot be examined or definitely \
                  cleared by any census arm ({what}) — refused as undecidable rather \
                  than silently not looked at; separate the bodies, or wait for the \
-                 named lane (the C9 exclusion ring for curved proximity; C6's \
+                 named lane (the exclusion ring for curved proximity; the \
                  recorded gate-skips for declared interference)"
             ),
             Self::DanglingTopology { from, to } => {
@@ -1363,17 +1363,17 @@ impl fmt::Display for ValidationError {
             Self::NullScaffoldShared { curve, edges } => write!(
                 f,
                 "null-scaffold curve entry {curve:?} is referenced by {edges} \
-                 edges (the F9 attribute is per-edge data — sharing is corrupt)"
+                 edges (the null-scaffold attribute is per-edge data — sharing is corrupt)"
             ),
             Self::LeakedNullFaceRecord { face } => write!(
                 f,
-                "null-face record outlives its face {face:?} (F9 record leak — \
+                "null-face record outlives its face {face:?} (record leak — \
                  face kills must remove the record)"
             ),
             Self::StaleNullFaceLoop { face, named_loop } => write!(
                 f,
                 "null-face record on face {face:?} names loop {named_loop:?}, \
-                 which does not resolve (F9 record leak — loop kills must \
+                 which does not resolve (record leak — loop kills must \
                  scrub records naming the loop)"
             ),
             Self::NullEdgeAtRest { edge } => write!(

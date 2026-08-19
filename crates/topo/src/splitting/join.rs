@@ -806,7 +806,7 @@ fn chord_spec<T: Decide>(
                     face,
                     what: "plane×sphere section tilted against the sphere chart's polar \
                            axis — the azimuth-anchored arc-side rule needs a polar \
-                           section (the S13 re-cut re-charts the operand; a tilted \
+                           section (the extent-certified re-cut re-charts the operand; a tilted \
                            residual configuration is a typed frontier)",
                 });
             }
@@ -1213,7 +1213,7 @@ fn bool_planar_chord_spec<T: Decide>(
             return Err(SplitJoinError::SectionInvariant {
                 face,
                 what: "boolean planar-side germ partner is neither a cylinder nor a sphere \
-                       (arm not wired, C12.1)",
+                       (arm not wired)",
             });
         }
     };
@@ -1280,7 +1280,7 @@ fn bool_planar_chord_spec<T: Decide>(
                     face,
                     what: "plane×sphere section tilted against the sphere chart's polar \
                            axis — the azimuth-anchored arc-side rule needs a polar \
-                           section (the S13 re-cut re-charts the operand; a tilted \
+                           section (the extent-certified re-cut re-charts the operand; a tilted \
                            residual configuration is a typed frontier)",
                 });
             }

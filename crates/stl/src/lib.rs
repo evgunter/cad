@@ -147,8 +147,8 @@ pub(crate) fn facets(mesh: &mesh::Mesh) -> Result<Vec<Facet>, StlError> {
             // The normal is computed from the f64 vertices — the
             // honest normal of the certified tessellation. Its
             // ORIENTATION comes from the triangle order and nothing
-            // else (S10 category B: outwardness is the mesh's
-            // guarantee, already sense-correct — module docs).
+            // else: outwardness is the mesh's guarantee, already
+            // sense-correct (module docs).
             // (Computing
             // it from the f32-narrowed vertices instead was tried and
             // rejected: apex-fan slivers become EXACTLY collinear

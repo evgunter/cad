@@ -1534,7 +1534,7 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                                             what: "two sphere boundaries meet (neither \
                                                    separated nor strictly nested) — the \
                                                    sphere×sphere germ arm (a closed-form \
-                                                   Circle, C5) has no join lane in this \
+                                                   Circle) has no join lane in this \
                                                    build",
                                         });
                                     }

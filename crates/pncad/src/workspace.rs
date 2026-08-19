@@ -11,7 +11,7 @@
 //! reconciliation — all exactly as at any other load), recomputes the
 //! canonical content pin, and refuses a moved pin typed
 //! ([`WorkspaceError::PinMismatch`]) — an assembly is a self-contained
-//! reproducible value (ASSEMBLY-DESIGN A4's Cargo.lock semantics), so
+//! reproducible value (Cargo.lock semantics), so
 //! an out-of-date pin is surfaced, never silently retargeted.
 //!
 //! The write side is MINIMAL: exactly what the split/
@@ -54,9 +54,9 @@ pub fn random_document_id() -> Result<DocumentId, WorkspaceError> {
 }
 
 /// The one recourse sentence a [`WorkspaceError::PinMismatch`] ends
-/// on, naming the edit that legitimately moves a pin (ASSEMBLY-DESIGN
-/// A4: "accept updated version" is a recorded `DocEdit` —
-/// `DocEdit::UpdateReference`; pins never move silently). Public so
+/// on, naming the edit that legitimately moves a pin ("accept updated
+/// version" is a recorded `DocEdit` — `DocEdit::UpdateReference`;
+/// pins never move silently). Public so
 /// callers can assert on it without restating
 /// prose.
 pub const PIN_MISMATCH_RECOURSE: &str = "the referenced document changed since this reference was pinned; if the new version is \
@@ -122,7 +122,7 @@ pub enum WorkspaceError {
     },
     /// The document loaded, but its recomputed content pin is not the
     /// pin the reference carries: the referenced document CHANGED
-    /// (ASSEMBLY-DESIGN A4). Recourse: [`PIN_MISMATCH_RECOURSE`].
+    /// Recourse: [`PIN_MISMATCH_RECOURSE`].
     PinMismatch {
         /// The reference's id.
         id: DocumentId,
@@ -413,7 +413,7 @@ impl Workspace {
     }
 }
 
-/// The document seam (ASSEMBLY-DESIGN A2/A4): a workspace
+/// The document seam: a workspace
 /// IS what an evaluation resolves references through.
 ///
 /// The verdict classification is this layer's because this layer is the
@@ -446,8 +446,7 @@ impl PartResolver for Workspace {
 
 /// "Update every reference to `id` in `doc` to whatever the store
 /// currently holds" — the workspace-layer convenience over the
-/// document layer's [`crate::document::update_references`]
-/// (ASSEMBLY-DESIGN A13 clause 2).
+/// document layer's [`crate::document::update_references`].
 ///
 /// The ONE thing this adds is the pin: the elaboration is pure and
 /// storeless by design, so somebody has to say which version "the new

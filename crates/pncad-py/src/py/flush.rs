@@ -9,7 +9,7 @@
 //! declares. The same value also rides the boolean's
 //! refusal MENU: an `EvaluationError` with `kind ==
 //! "undeclared_contact"` carries one as its `finding` attribute
-//! (register R3 — the recourse is in the error).
+//! — the recourse is in the error.
 //!
 //! The pair's names cross as the SAME opaque texts every other door
 //! speaks (`doc::name_text`) — the ordinal-28 contract: a name is an
@@ -36,7 +36,7 @@ pub(crate) enum PlaneRelation {
     Distinct,
 }
 
-/// The contact class a finding would verify as (CONTACT-DESIGN C4).
+/// The contact class a finding would verify as.
 #[pyclass(eq, eq_int, module = "pncad", from_py_object)]
 #[derive(Clone, Copy, PartialEq)]
 #[allow(
@@ -68,7 +68,7 @@ pub(crate) enum FlushRung {
 /// query's first node, `b` from its second); `relation` is the verify
 /// door's own verdict (`SameOpposite` = resting contact, opposed
 /// outward normals; `SameOriented` = flush walls, the merge-stage
-/// flavor); `class_` names the C4 contact class (trailing underscore:
+/// flavor); `class_` names the contact class (trailing underscore:
 /// `class` is a Python keyword — the `or_` precedent); `rung` says
 /// which ladder rung decided (`SharedSource` = syntactic recipe
 /// identity, `DecidedCoincident` = the geometric trilean).
@@ -150,7 +150,7 @@ impl FlushFinding {
         plane_relation(self.0.evidence.relation)
     }
 
-    /// The C4 contact class the pair would verify as.
+    /// The contact class the pair would verify as.
     #[getter]
     fn class_(&self, py: Python<'_>) -> PyResult<ContactClass> {
         contact_class(py, self.0.class)

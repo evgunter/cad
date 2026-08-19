@@ -397,7 +397,7 @@ impl core::fmt::Display for SsiError {
                 "ssi: the uniqueness tube's transversality enclosure straddles zero \
                  over its {boxes}-box chain (margin {margin:e} m) — two branches pass \
                  within the band of each other, which is a genuine sliver of the \
-                 operand pair (F6), not a resolution to refine away"
+                 operand pair, not a resolution to refine away"
             ),
             Self::FootPointInconclusive { t, last_distance } => write!(
                 f,
@@ -426,7 +426,7 @@ impl core::fmt::Display for SsiError {
             Self::Escalated(diag) => write!(
                 f,
                 "ssi: a trace or certificate trilean escalated — an ill-conditioned \
-                 operand pair at this tolerance (F6): {diag}"
+                 operand pair at this tolerance: {diag}"
             ),
             Self::Band(e) => write!(f, "ssi: {e}"),
         }

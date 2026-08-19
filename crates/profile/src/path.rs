@@ -936,7 +936,7 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 f,
                 "an arc leg's endpoints are within tolerance of each other (chord {chord:?} \
                  m): a leg spans a chord, and a closed carrier is a circle primitive, not a \
-                 chain leg (PATHS-DESIGN §6, PQ4)"
+                 chain leg"
             ),
             Self::ArcCenterNotEquidistant {
                 tip_radius,

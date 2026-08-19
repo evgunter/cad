@@ -44,10 +44,10 @@
 //!   ([`SEL_DATUM_DISTANCE`]) with an honest margin, and an in-band
 //!   candidate REFUSES rather than being silently included or dropped.
 //!
-//! Position is datum-RELATIVE, never world-frame (GS-Q6): the datum is
+//! Position is datum-RELATIVE, never world-frame: the datum is
 //! a node reference like any other input, so the rule commutes with
 //! rigid motions — move the datum with the part and the selection is
-//! unchanged. Convexity is reserved and unbuilt (GS-Q2).
+//! unchanged. Convexity is reserved and unbuilt.
 //!
 //! ```
 //! use pncad::prelude::*;
@@ -281,9 +281,8 @@
 //! a coordinate meant unwrapping one into a `topo` arena key and
 //! indexing the body yourself. Arena keys are body-lineage-scoped and
 //! meaningful only against the evaluation that built them; the naming
-//! layer's own rule is that they never leave `editor-core` (G1), and
-//! LIBRARY-DESIGN §L3 names that laundering as the thing a consumer
-//! must never have to do.
+//! layer's own rule is that they never leave `editor-core`, and that
+//! laundering is exactly what a consumer must never have to do.
 //!
 //! **So they no longer leave.** `EntityRef` and `Entry` are gone from
 //! this surface, replaced by doors that speak names and answer with
@@ -369,11 +368,11 @@
 //! # Detect / declare: flush contact as a conversation
 //!
 //! Two bodies that touch face-to-face do not silently glue — the
-//! boolean REFUSES an undeclared coincidence (F6), and the recourse
+//! boolean REFUSES an undeclared coincidence, and the recourse
 //! menu has exactly two arms: declare the contact, or move the
-//! geometry. This is the declare arm's protocol (SELECT-DESIGN §3):
+//! geometry. This is the declare arm's protocol:
 //! [`find_flush_candidates`] REPORTS the flush pairs as
-//! [`FlushFinding`] values — the C4 verifier itself run in
+//! [`FlushFinding`] values — the contact verifier itself run in
 //! candidate-generation mode, so a finding can never disagree with
 //! the boolean's own verify-at-use — and [`declare`] /
 //! [`declare_all`] turn findings the caller has INSPECTED into the
@@ -407,7 +406,7 @@
 //! let (doc, block) = insert(&doc, Node::Extrude { profile: pf2, distance: len(0.5) });
 //!
 //! // Undeclared, the union refuses — coincidence is never inferred
-//! // from values (the coincidence ladder's F6 rung).
+//! // from values (the coincidence ladder).
 //! let (undeclared, uni) = insert(
 //!     &doc,
 //!     Node::Boolean { op: BooleanOp::Union, a: base, b: block, declare: None },
@@ -416,7 +415,7 @@
 //! let Some(NodeResult::Failed(e)) = ev.nodes.get(&uni) else {
 //!     panic!("the undeclared union must refuse");
 //! };
-//! // The refusal IS the menu (register R3): it carries the candidate
+//! // The refusal IS the menu: it carries the candidate
 //! // declaration — the pair by stable name, with its relation — in
 //! // the detector's own value shape.
 //! let NodeErrorKind::UndeclaredContact { finding, .. } = &e.kind else {

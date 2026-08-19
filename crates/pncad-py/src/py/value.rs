@@ -11,8 +11,8 @@
 //! | `Split`        | full — `above` / `below` as optional bodies |
 //! | `Instances`    | full — a list of bodies |
 //! | `Datum`        | full — typed plane / axis / point with `Length` coordinates |
-//! | `Profile`      | KIND ONLY — LQ4 forbids shipping sketch geometry to Python before the v2 switch |
-//! | `Declarations` | KIND ONLY — SEL1/U5 owns the naming projection; deferred, not blocked |
+//! | `Profile`      | KIND ONLY — sketch geometry does not ship to Python before the v2 switch |
+//! | `Declarations` | KIND ONLY — the naming projection is deferred, not blocked |
 //!
 //! The two kind-only rows are SCOPE decisions, not capability limits.
 //! Being precise about which, because the distinction is load-bearing:
@@ -20,14 +20,13 @@
 //! * `ValidatedProfile::plane()`/`loops()` DO exist and `profile` is
 //!   wholesale re-exported — this very module's sibling uses
 //!   `pncad::profile` to build sketches. Projecting a profile back to
-//!   Python is therefore perfectly possible; it is **ruled out**, by
-//!   LQ4's "Python never ships the opaque-profile intermediate
-//!   state". Sketch read-back belongs to the unit that binds the v2
-//!   program representation, after SWITCH-E.
+//!   Python is therefore perfectly possible; it is **ruled out**:
+//!   Python never ships the opaque-profile intermediate state.
+//!   Sketch read-back belongs with the v2 program representation.
 //! * `StableName` is likewise prelude-curated with public fields, so
-//!   Declarations is reachable too. It is deferred because the naming
-//!   /selection projection is SEL1's subject, and binding a
-//!   provisional shape here would fork it.
+//!   Declarations is reachable too. It is deferred because the
+//!   naming/selection projection is a design subject of its own, and
+//!   binding a provisional shape here would fork it.
 //!
 //! Neither row is "no accessor exists"; an earlier revision of this
 //! comment claimed that, and it was false.
@@ -49,8 +48,8 @@ use pncad::topo;
 /// `kind`, `through` and `finding` are ALWAYS present on the
 /// exception — `None` where the reason has no failing kind, no
 /// poisoning ancestor, or no refusal-menu payload — so stub-guided
-/// code can read them without an `AttributeError` trap (the R1/R2
-/// NOTE on over-promising stubs).
+/// code can read them without an `AttributeError` trap — a stub that
+/// over-promises is worse than one that says `None`.
 fn eval_err(py: Python<'_>, message: impl Into<String>, reason: &str, node: NodeId) -> PyErr {
     let node = match node.into_pyobject(py) {
         Ok(bound) => bound.unbind().into_any(),
@@ -74,14 +73,13 @@ fn eval_err(py: Python<'_>, message: impl Into<String>, reason: &str, node: Node
 
 /// Raise `EvaluationError` for a node that ITSELF failed: the payload
 /// is the `NodeErrorKind`'s stable tag plus the node id; the message
-/// is the kernel error's own `Display` prose (F6, reopened on
-/// review — never a `Debug` dump).
+/// is the kernel error's own `Display` prose — never a `Debug` dump.
 fn node_failure(py: Python<'_>, node: NodeId, error: &d::NodeError) -> PyErr {
     let node_obj = match node.into_pyobject(py) {
         Ok(bound) => bound.unbind().into_any(),
         Err(failed) => return failed,
     };
-    // The refusal MENU (register R3, LIB-PYG5): an undeclared-contact
+    // The refusal MENU: an undeclared-contact
     // refusal carries its candidate declaration as a typed
     // `FlushFinding` on the exception — the same value shape
     // `Evaluation.find_flush_candidates` answers with, ready for
@@ -133,7 +131,7 @@ fn poisoning(py: Python<'_>, node: NodeId, through: NodeId, root: Option<&d::Nod
         ("through", through_obj),
         ("finding", py.None().into_any()),
     ];
-    // The message is the root cause's `Display` prose (F6): the node
+    // The message is the root cause's `Display` prose: the node
     // never ran, so the honest sentence names the ancestor's problem.
     let message = match root {
         Some(error) => {
@@ -186,7 +184,7 @@ impl MassProperties {
 
 /// A solid body — an OPAQUE handle.
 ///
-/// §L3 forbids arena keys crossing; a body crosses as a handle whose
+/// Arena keys never cross; a body crosses as a handle whose
 /// interior is reachable only through curated doors.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
@@ -478,7 +476,7 @@ impl Evaluation {
     }
 
     /// **Every edge name of `node`'s output body, as of THIS
-    /// evaluation** — the U7 materializer, crossing as text.
+    /// evaluation** — the name materializer, crossing as text.
     ///
     /// This is the door a `Node.fillet` selection comes through, and
     /// it MATERIALIZES rather than queries: it answers for the
@@ -674,9 +672,9 @@ fn export_err(py: Python<'_>, node: NodeId, err: &pncad::export::ExportError) ->
         E::NotABody { kind, .. } => {
             fields[3] = ("kind", PyString::new(py, kind).unbind().into_any());
         }
-        // `Product` is the WHOLE-DOCUMENT door's refusal (ASM-ROOTS
-        // D-4): it names product roots, not this call's node, so it
-        // adds no field here. The arm is spelled out because the match
+        // `Product` is the WHOLE-DOCUMENT door's refusal: it names
+        // product roots, not this call's node, so it adds no field
+        // here. The arm is spelled out because the match
         // is exhaustive on purpose — the tripwire, not a wildcard.
         E::UnknownNode { .. }
         | E::NodeFailed { .. }
@@ -688,7 +686,7 @@ fn export_err(py: Python<'_>, node: NodeId, err: &pncad::export::ExportError) ->
 }
 
 /// Parse a STEP text with the kernel's own importer and adopt its
-/// solid as an opaque `Body` handle — the §L3 journey's round-trip
+/// solid as an opaque `Body` handle — the one-shot journey's round-trip
 /// oracle ("the exported file PARSES"), bound so the Python suite can
 /// assert it without reaching past the module.
 #[pyfunction]

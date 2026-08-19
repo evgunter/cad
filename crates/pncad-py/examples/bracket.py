@@ -134,7 +134,7 @@ def main():
     assert abs(props.volume - expected) < 1e-15, (props.volume, expected)
 
     # Export STEP through the document layer (build -> measure ->
-    # export, the whole §L3 journey), then prove the file is real:
+    # export, the whole one-shot journey), then prove the file is real:
     # it exists, and the kernel's own importer parses it back to a
     # solid with the same volume.
     step = ev.step_string(lightened, product_name="bracket")

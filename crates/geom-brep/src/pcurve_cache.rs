@@ -736,7 +736,7 @@ impl core::fmt::Display for PcurveCertifyError {
             Self::FittedLaneUnsupported { scalar } => write!(
                 f,
                 "pcurve certification: a fitted (rung-3) chart image has no certified lane at \
-                 the {scalar} scalar — its C2.2 bound is a C9-ring hull, and this scalar \
+                 the {scalar} scalar — its between-samples bound is an exact-arithmetic-ring hull, and this scalar \
                  carries no bracket to reach the ring with. Replay the body at f64, the \
                  telemetry probe, or the interval scalar to certify it"
             ),
@@ -753,7 +753,7 @@ impl core::fmt::Display for PcurveCertifyError {
             ),
             Self::FittedCertificate { limb, what, value } => write!(
                 f,
-                "pcurve certification: the fitted lane's C2 certificate refused{} — {what} \
+                "pcurve certification: the fitted lane's certificate refused{} — {what} \
                  (offending value {value:e} m)",
                 match limb {
                     Some(l) => format!(" at {}", l.name()),
@@ -784,7 +784,7 @@ impl core::fmt::Display for PcurveCertifyError {
             Self::TrimEscape => write!(
                 f,
                 "pcurve certification: the pcurve leaves its face's chart window — domain \
-                 validity is part of the certificate (C4)"
+                 validity is part of the certificate"
             ),
             Self::Escalated {
                 check,
@@ -1118,7 +1118,7 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         E::TubeStraddles { margin, .. } => (
             Some(SsiLimb::Tube),
             "the uniqueness tube's transversality straddles zero (a genuine sliver of the \
-             operand pair — F6 says escalate, never desingularize)",
+             operand pair — escalate, never desingularize)",
             margin,
         ),
         E::FootPointInconclusive { last_distance, .. } => (

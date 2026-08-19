@@ -1,7 +1,7 @@
 //! The document surface: `Doc`, `DocEdit`, `Node`, `evaluate`.
 //!
-//! §L3: Python speaks Doc/DocEdit/evaluate/persist and **never an
-//! arena key**. The only identifier that crosses is [`NodeId`], a
+//! Python speaks Doc/DocEdit/evaluate/persist and **never an arena
+//! key**. The only identifier that crosses is [`NodeId`], a
 //! wrapper over `RecipeNodeId` — a recipe-level id, which is precisely
 //! the document layer's own public vocabulary, not a slotmap key.
 
@@ -19,9 +19,9 @@ fn edit_err(py: Python<'_>, err: &d::EditError) -> PyErr {
     typed_err(
         py,
         ErrorClass::Edit,
-        // `EditError` implements `Display` (LIB-DOORS F6, reopened on
-        // review): the human message is real prose; the machine
-        // payload is the `variant` tag (see `crate::tags`).
+        // `EditError` implements `Display`: the human message is real
+        // prose; the machine payload is the `variant` tag (see
+        // `crate::tags`).
         err.to_string(),
         &[("variant", PyString::new(py, tag).unbind().into_any())],
     )
@@ -74,9 +74,9 @@ fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
 ///
 /// The refusal is `Expr::literal`'s OWN error type, matched — not
 /// predicted: the binding carries no pre-check of its own, so it
-/// cannot drift from what the kernel refuses.
-/// The exception carries `kind` (the stable tag) AND
-/// `value`, the offending number — the kernel error deliberately
+/// cannot drift from what the kernel refuses. The exception carries
+/// `kind` (the stable tag) AND `value`, the offending number — the
+/// kernel error deliberately
 /// carries no float, but the boundary has it in hand.
 pub(crate) fn literal(py: Python<'_>, value: f64, dim: d::Dimension) -> PyResult<d::Expr> {
     d::Expr::literal(value, dim).map_err(|err| {
@@ -379,7 +379,7 @@ impl SketchPlane {
 
     /// The plane through `origin` spanned by `u` and `v`.
     ///
-    /// `origin` is dimensioned (`Length`s, §L4); `u` and `v` are
+    /// `origin` is dimensioned (`Length`s); `u` and `v` are
     /// dimensionless direction triples. Rigidity is the caller's
     /// unchecked convention — see the class docs.
     #[staticmethod]
@@ -527,7 +527,7 @@ impl Node {
     /// `elevation=` is the xy sugar — the world xy-plane, that far up
     /// z. The default is the xy-plane itself.
     ///
-    /// Coordinates arrive as typed `Length`s (§L4), so a bare number
+    /// Coordinates arrive as typed `Length`s, so a bare number
     /// is a boundary refusal rather than an ambiguous unit; they are
     /// the sketch's own (x, y), which `plane` maps into the world.
     ///
@@ -860,10 +860,10 @@ impl Node {
     /// A Boolean of two upstream solids.
     ///
     /// `declare` names a `Declare` node whose coincidence pairs this
-    /// boolean consumes — the DATA door for F5's declared contact.
+    /// boolean consumes — the DATA door for a declared contact.
     /// Without it the kernel never infers that two faces are the same
-    /// face, so operands that merely touch refuse — and since
-    /// register R3 the refusal is the typed MENU: an
+    /// face, so operands that merely touch refuse, and that refusal is
+    /// the typed MENU: an
     /// `EvaluationError` with `kind == "undeclared_contact"` whose
     /// `finding` attribute carries the candidate declaration. The
     /// protocol that fills this argument is
@@ -909,7 +909,7 @@ impl Node {
     /// whatever the count.
     ///
     /// `count` crosses as a plain `int`, the structural-slot exception
-    /// to §L4's typed quantities (`Node.loft`'s `v_degree` precedent):
+    /// to the typed quantities (`Node.loft`'s `v_degree` precedent):
     /// a Count is an integer in the kernel's own expression language,
     /// not a dimensioned measurement, and there is no `Count` quantity
     /// to wrap it in.
@@ -1009,7 +1009,7 @@ impl ParamName {
 /// A named parameter's declared dimension and exact stored value
 /// (guide §3.2): what `DocEdit.set_doc_param` writes.
 ///
-/// Continuous values arrive as typed quantities (§L4), so the
+/// Continuous values arrive as typed quantities, so the
 /// dimension is carried by the constructor rather than guessed from a
 /// bare float. A non-finite value is NOT pre-checked here — the edit
 /// door refuses it typed (`non_finite_doc_param`), fail-loud where
@@ -1099,12 +1099,11 @@ impl DocParam {
     }
 }
 
-/// A single edit to a document — the G1 edit vocabulary, which §L3
-/// names as the ONE API surface shared by the GUI, the bindings, macro
-/// recording and headless tests.
+/// A single edit to a document — the ONE API surface shared by the
+/// GUI, the bindings, macro recording and headless tests.
 ///
 /// Five edits are exposed today: `insert_node`, `delete_node`,
-/// `set_tolerance`, `set_doc_param` (R1-PARAMS) and
+/// `set_tolerance`, `set_doc_param` and
 /// `bind_count_param`, the structural-slot edit narrowed to the Count
 /// slot and a parameter reference. The remaining variants (continuous
 /// slot edits, re-witnessing, appearance, rebinds, expression paths)
