@@ -3,9 +3,8 @@
 **Read this in full before you start.** It is binding on every implementer
 lane, alongside the unit's own spec or brief.
 
-**Your final report must state what was verified and where** — the CI run, plus
-any local rows and the `CARGO_TARGET_DIR` they used. That is the
-read-verification: a report without it did not run this instrument.
+**If you ran anything locally, your report must say what and on which
+`CARGO_TARGET_DIR`.** CI speaks for itself on the PR; a local run does not.
 
 ---
 
@@ -14,15 +13,12 @@ read-verification: a report without it did not run this instrument.
 ≤~150 lines per tool call. Chunked reads. Skeleton-first writes, then fill.
 Final report ≤150 lines.
 
-The 64k output limit kills agents that draft a whole file in one `Write`, and a
-transcript poisoned that way must be respawned **fresh**, not resumed.
-
 ## 2. Verification
 
 **Hosted CI is the verification of record.** Push and let it run. It covers the
 full matrix — every eps and feature combination, the python suite, the gates,
 the render lanes — on hardware not shared with any other lane, and its result is
-a durable artifact you can cite. Cite the CI run when you report a lane green.
+a durable artifact.
 
 **Run builds or tests locally only when it is genuinely faster for
 development**: a tight edit-compile loop on one failing test, reproducing a
