@@ -4057,7 +4057,7 @@ absent and points at `seqgen::Ledger` for the running six-component ledger.
 is unambiguous, and it is the crate's canonical Euler ledger, cited by that
 name from the `seqgen` module docs and from `review_m1_pr4.rs`.
 
-**Verdict:** EXECUTED by #PRNUM (2026-08-19) — rename only, behaviour
+**Verdict:** EXECUTED by #673 (2026-08-19) — rename only, behaviour
 identical. Nothing further is owed here: adding `h` was considered and ruled
 out above, and renaming the `review_m1_pr3.rs` **file** is W3a's job, not a
 rename pass's.
