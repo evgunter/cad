@@ -117,8 +117,10 @@ amended:
   findings). REVIEW SCOPE WIDENS — SCORES ARE NOT COMPARABLE ACROSS
   THIS BOUNDARY.**
   1. **Review briefs now carry structural questions alongside the
-     claims to falsify**, per `docs/REVIEW-STYLE-BRIEF.md` (the brief
-     text; dispatchers paste its §2-3 verbatim): does this duplicate something (the self-declared-copy grep —
+     claims to falsify**, per `docs/prompts/reviewer-style-lane.md`
+     (the brief text; dispatchers point reviewers at it by path rather
+     than pasting it — see `docs/REVIEW-STYLE-DISPATCH.md`): does this
+     duplicate something (the self-declared-copy grep —
      "verbatim", "re-derived", "ported from"); does the acceptance row
      go red when the guarantee *degrades* or only when it is violated
      at a chosen fixture; did this PR invalidate a premise something
