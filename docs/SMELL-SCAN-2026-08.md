@@ -2872,20 +2872,21 @@ of the two happened?**
 
 - **Confidence**: sure
 
-- **FIXED by #627.** `run_properties` now returns a tally — selections,
+- **FIXED by #627.** `run_properties` returns a tally — selections,
   executions, skips, and the selections that could legally skip — and the
-  bar comes from the MECHANISM rather than from a measured total. Both
-  documented irreversible-by-one-op subcases live in `roundtrip`'s
-  `Kev`/`Kef` arms, so a selection on any other choice must execute; that
-  is asserted per step, and restated at run level as
-  `executed == selected - skipped`. The bar therefore rises with the run
-  (measured 339 selections, 335 executions, 4 skips against 47 skippable)
-  instead of sitting at a constant floor. The residual `executed > 0` is
-  labelled in the test for what it is — a collapse floor that the design
-  does not imply, since a run whose every selection landed on an
-  irreversible site would legally execute none. The proptest test became
-  a plain `#[test]` around `proptest!`'s closure form so the run-level
-  totals have somewhere to be checked; the deterministic issue-#60 case
+  check that carries the weight is PER STEP, not a total: both documented
+  irreversible-by-one-op subcases live in `roundtrip`'s `Kev`/`Kef` arms,
+  so a selection on any other choice must execute, and that is asserted
+  as each step happens. The run-level lines are labelled for what each
+  one is — `executed > 0` is the only one that can fail on its own, and
+  it is a collapse floor the design does not imply; the other two are
+  bookkeeping identities, one from how the tally accumulates and one
+  already guaranteed by the per-step assertion. No threshold is asserted
+  because there is no number to assert: proptest seeds from entropy, and
+  four consecutive runs gave 339/335/4/47, 331/325/6/43, 333/328/5/51 and
+  351/345/6/47 for selected/executed/skipped/skippable. The proptest test
+  became a plain `#[test]` around `proptest!`'s closure form so the
+  totals have somewhere to be recorded; the deterministic issue-#60 case
   asserts its own execution. RED evidence: forcing `roundtrip` to skip
   everything, and separately forcing it to skip one non-`Kev`/`Kef`
   choice (`MevLone`) — the second is the degradation a bare `> 0` floor
