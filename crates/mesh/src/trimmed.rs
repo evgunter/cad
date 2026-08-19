@@ -673,10 +673,9 @@ fn trim_frontier(
             return Ok(TessellateError::UnsupportedCurve {
                 edge: ek,
                 note: "conic/B-spline trim on a cone/sphere/torus chart — those charts \
-                       mint stored pcurves since M6-3, but the trimmed-face \
-                       tessellation lanes written are the cylinder chart's (M5 PR 11) \
-                       and the NURBS chart's (M7); the remaining analytic charts' \
-                       trimmed lanes are banked with their first construction",
+                       mint stored pcurves, but the only trimmed-face tessellation \
+                       lanes written are the cylinder chart's and the NURBS chart's; \
+                       the remaining analytic charts have no trimmed lane",
             });
         }
     }

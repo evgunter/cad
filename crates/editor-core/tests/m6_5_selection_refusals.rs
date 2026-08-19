@@ -306,6 +306,10 @@ fn a_tied_selection_name_refuses_ambiguous_with_its_witness() {
                 assert_eq!(candidates.as_slice(), std::slice::from_ref(&tied));
                 assert_eq!(tie.at, tied);
                 assert!(tie.width >= 2, "a tie has at least two candidates");
+                // Mid-evaluation the witness site IS the minting
+                // node: there is no evaluation-wide index to name a
+                // carrying node from.
+                assert_eq!(tie.node, tied.node);
             }
             other => panic!("expected Ambiguous, got {other:?}"),
         },

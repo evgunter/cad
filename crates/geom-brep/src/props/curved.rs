@@ -555,7 +555,9 @@ fn cylinder_boundary<T: Decide>(
             // direct key-free call keeps the typed refusal.
             Curve3::Ellipse { .. } => {
                 return Err(PropsError::NotIsoRectangle {
-                    what: "cylinder boundary carries an ellipse arc (curved cut) — route                            through topo::mass_properties, whose PR 11 quadrature lane                            consumes the stored pcurves this key-free pass cannot see",
+                    what: "cylinder boundary carries an ellipse arc (curved cut) — route \
+                           through topo::mass_properties, whose quadrature lane consumes \
+                           the stored pcurves this key-free pass cannot see",
                 });
             }
             Curve3::Nurbs(_) => return Err(PropsError::Unimplemented),
@@ -683,8 +685,8 @@ fn cone_boundary<T: Decide>(
                 return Err(PropsError::NotIsoRectangle {
                     what: "cone boundary carries an ellipse arc (a tilted-section cut) — the \
                            class has no cone-chart image at all (azimuth-non-harmonic, \
-                           M6-3, and no ring-computable fitted certificate either), so \
-                           the quadrature lane has nothing to consume",
+                           and no ring-computable fitted certificate either), so the \
+                           quadrature lane has nothing to consume",
                 });
             }
             Curve3::Nurbs(_) => return Err(PropsError::Unimplemented),

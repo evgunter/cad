@@ -40,7 +40,7 @@
 use geom_core::{Band, Decide, Margin, Sign};
 
 use super::plane_eq::PlaneEqError;
-use super::reduce::face_plane;
+use super::reduce::{face_outward_normal, face_plane};
 use super::sectors::{build_sectors, side_code};
 use super::tables::eq15_3_lump;
 use super::{
@@ -85,8 +85,13 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
     band: Band,
 ) -> Result<VtxFacOut<T>, BooleanError> {
     let vertex = contact.vertex;
-    let plane =
-        face_plane(pierced_body, contact.face).ok_or(BooleanError::ClassificationInvariant {
+    // Both halves of the pierced face's oriented datum, from the one
+    // door: `plane` for the plane algebra, `n_pierced` for the
+    // material-side verdicts, which take the typed normal so the
+    // `sense_sign` cannot be dropped on the way.
+    let (plane, n_pierced) = face_plane(pierced_body, contact.face)
+        .zip(face_outward_normal(pierced_body, contact.face))
+        .ok_or(BooleanError::ClassificationInvariant {
             what: "pierced face lost its plane",
         })?;
     let sectors = build_sectors(piercing_body, piercing, vertex, band)?;
@@ -94,22 +99,23 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
 
     // Entries = the bounds in orbit order (entry k = sector k's END
     // bound: real chord or subdivision bisector), classed against the
-    // pierced face's plane via the F3 primitive. `plane.normal` is the
-    // pierced face's OUTWARD normal (S10, threaded by `face_plane`) —
-    // In/Out here is a material verdict and reads backwards off a
-    // chart normal on a reversed face.
+    // pierced face's plane via the F3 primitive. `n_pierced` is the
+    // pierced face's OUTWARD normal (S10, minted by
+    // `face_outward_normal`) — In/Out here is a material verdict and
+    // would read backwards off a chart normal on a reversed face,
+    // which is why the primitive takes the typed one.
     let mut entries = Vec::with_capacity(n);
     for s in &sectors {
         entries.push(Entry {
             he: s.he,
             is_edge: s.end_edge,
-            class: side_code(s.end, plane.normal, s.arm, band)?,
+            class: side_code(s.end, n_pierced, s.arm, band)?,
         });
     }
 
     // Delta 2 (rule (a) analogue): coplanar sectors lump per Eq. 15.3.
     for (k, s) in sectors.iter().enumerate() {
-        let m = Margin::levered(s.normal.cross(plane.normal).norm(), s.arm);
+        let m = Margin::levered(s.normal.vec().cross(plane.normal).norm(), s.arm);
         match decide("bool_sector_coplanar", m, band) {
             Ok(Sign::Zero) => {}
             Ok(_) => continue,
@@ -457,7 +463,7 @@ fn pierce_germ_dir<T: Decide>(
     plane_normal: geom_core::Vec3<T>,
     band: Band,
 ) -> Result<geom_core::Vec3<T>, BooleanError> {
-    let int = s.normal.cross(plane_normal);
+    let int = s.normal.vec().cross(plane_normal);
     match decide("bool_germ_line", Margin::levered(int.norm(), s.arm), band) {
         Ok(Sign::Positive) => {}
         Ok(_) => {

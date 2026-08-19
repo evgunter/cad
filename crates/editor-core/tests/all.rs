@@ -52,6 +52,8 @@ mod asm_roots;
 mod asm_upd_pin_update;
 #[path = "asm_upd_schema_v10.rs"]
 mod asm_upd_schema_v10;
+#[path = "boolean_op_wire.rs"]
+mod boolean_op_wire;
 #[path = "lbret_schema_v8.rs"]
 mod lbret_schema_v8;
 #[path = "lib_doors_node_result.rs"]

@@ -1342,8 +1342,8 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                     operand: x_is,
                     face,
                     what: "a trimmed sphere face group — the extent certificate needs the \
-                           closed-group discipline (PR 9c), and no per-face chart-trim \
-                           extent exists",
+                           closed-group discipline, and no per-face chart-trim extent \
+                           exists",
                 });
             };
             let ball_box = bvh::Aabb {
@@ -1377,8 +1377,8 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                                     operand: x_is,
                                     face,
                                     what: "the sphere is exactly tangent to a plane face's \
-                                           carrier — a touching configuration (the M5 \
-                                           envelope's typed frontier)",
+                                           carrier — a touching configuration, the typed \
+                                           frontier of the supported envelope",
                                 });
                             }
                             Sign::Positive => {
@@ -1493,10 +1493,7 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                                 what: "the sphere's certified extent meets a cylinder \
                                        face's box — the cyl×sphere seam lane is not \
                                        wired (its fitted-chord window has no azimuth \
-                                       analog; Pcurve::Fitted and the SSI generic lift \
-                                       both landed at M6-2, so what is missing is the \
-                                       join lane itself, banked past M6), so nearness \
-                                       cannot be classified",
+                                       analog), so nearness cannot be classified",
                             });
                         }
                     }
@@ -1537,7 +1534,7 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                                             what: "two sphere boundaries meet (neither \
                                                    separated nor strictly nested) — the \
                                                    sphere×sphere germ arm (a closed-form \
-                                                   Circle, C5) has no join lane in this \
+                                                   Circle) has no join lane in this \
                                                    build",
                                         });
                                     }

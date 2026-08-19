@@ -285,7 +285,7 @@ fn sweep_r3(
             return Err(SsiError::UnsupportedCertificate {
                 what: "this surface kind has no ring-computable implicit \
                        enclosure, so its domain cannot be proved exhausted \
-                       (per-arm retirement, C12.1)",
+                       (arms retire one at a time, each with its proof)",
             });
         }
         Ok(excludes_zero(e1) || excludes_zero(e2))
