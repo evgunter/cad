@@ -236,7 +236,7 @@ const ENDPOINT_START_MAPPED_CURVE: &str = "mapped curve: geometry attachment gat
 /// Every committed STEP file, with the disposition measured at M7-7.
 /// Paths are relative to this crate's manifest directory (the `../`
 /// rows are `step-export`'s corpus, which this crate imports from).
-const CORPUS: [(&str, Disposition); 54] = [
+const CORPUS: [(&str, Disposition); 58] = [
     ("tests/fixtures/band/band_a.stp", Pass(1, 1, 2, 6, 4)),
     ("tests/fixtures/band/band_a180.stp", Pass(1, 1, 2, 6, 4)),
     ("tests/fixtures/band/band_b180.stp", Pass(1, 1, 2, 6, 4)),
@@ -291,6 +291,30 @@ const CORPUS: [(&str, Disposition); 54] = [
     (
         "tests/fixtures/freecad/twobody_importexport.step",
         Pass(2, 2, 8, 14, 10),
+    ),
+    // #653's import route: one D-prism, stated four ways. The two
+    // `split_*` files state the cylindrical face's vertical boundary as
+    // two collinear `EDGE_CURVE`s (one more edge, same everything
+    // else), which is what every exporter emits when a vertex lands
+    // mid-side; the two `*_oblique` files place the part by a general
+    // rotation. Tessellating them is `split_iso_side.rs`'s row — here
+    // they are corpus like any other file, and their census is what
+    // says the extra edge is the ONLY difference.
+    (
+        "tests/fixtures/split-iso/plain_axis.step",
+        Pass(1, 1, 4, 6, 4),
+    ),
+    (
+        "tests/fixtures/split-iso/plain_oblique.step",
+        Pass(1, 1, 4, 6, 4),
+    ),
+    (
+        "tests/fixtures/split-iso/split_axis.step",
+        Pass(1, 1, 4, 7, 5),
+    ),
+    (
+        "tests/fixtures/split-iso/split_oblique.step",
+        Pass(1, 1, 4, 7, 5),
     ),
     (
         "tests/fixtures/wild/adafruit/1982_MPR121.step",
