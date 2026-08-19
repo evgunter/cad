@@ -4471,13 +4471,15 @@ will under-report by exactly the margin its pattern cannot express, and will
 then state the shortfall as a verified negative. In all three cases the
 conclusion happened to survive; in all three the method did not.
 
-**Proposed as a standing rule in `docs/REVIEW-STYLE-BRIEF.md` §4** — *a sweep
-reported in a PR body must state the pattern it ran and what that pattern cannot
-match; a sweep whose blind spot is unstated is an unverified claim, not a
-negative result.* Drafted in the PR that carries this paragraph, **awaiting
+**Proposed as a standing line in `docs/REVIEW-STYLE-BRIEF.md` §3, Q1** — *when
+the PR body reports a sweep, ask what its pattern could not match; do not accept
+"swept clean" unless the sweep says what it was blind to, and run your own,
+shaped differently.* Drafted in the PR that carries this paragraph, **awaiting
 Evan's sign-off**: it amends the review instrument, which is Protocol v5's
-territory. The three lanes above each found their own blind spot within minutes
-once asked; none volunteered it.
+territory. It goes to the reviewer rather than the author deliberately — §3 is
+pasted verbatim into every dispatch, and in all three cases above it was a
+reviewer's differently-shaped grep that found the survivors, not the author
+looking harder at their own.
 
 ## C16. A prose-hygiene pass can manufacture the defect it exists to remove
 

@@ -194,16 +194,6 @@ that found the first. When a style finding is plausibly one of several:
   identical stale premise for the planar arm sat fifteen lines from the text it
   quoted.)
 
-**The sweep-blindness rule.** A sweep reported in a PR body must **state the
-pattern it ran and what that pattern cannot match**. A sweep whose blind spot is
-unstated is an unverified claim, not a negative result — and "swept clean" is
-the most expensive sentence in a fix pass, because it closes the question for
-every later reader.
-
-Two corollaries: a sweep is accurate as of its **merge base**, not its merge, so
-a long-running lane owes a re-sweep before merge; and where the sweep's own
-tooling was the defect, fix the instrument, not only the sites.
-
 **Calibration.** Expect findings counts to rise, and the docs column to widen
 downward. Per Protocol v5 that is the instrument changing, not implementation
 quality. A style lane producing nothing on most PRs is under-calibrated, not
