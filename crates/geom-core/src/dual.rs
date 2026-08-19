@@ -1669,8 +1669,7 @@ mod tests {
         /// to say "the clamp produced [0, 2] and recorded the violation
         /// in the decoration" has to ask for the storage.
         fn bounds_of(x: Interval) -> (f64, f64) {
-            let (lo, hi, _) = x.repr_bits();
-            (f64::from_bits(lo), f64::from_bits(hi))
+            x.stored_bracket()
         }
 
         /// The straddle convention: a value enclosure containing zero

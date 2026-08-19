@@ -852,9 +852,28 @@ mod tests {
     #[cfg(feature = "interval")]
     #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
     mod decoration_seam {
+        use geom_core::predicate::{Band, Decide, Indeterminate, MarginDiag};
         use geom_core::{Interval, Real};
 
         use super::{Box3, Point3, RingInterval, Surface, Vec3, implicit_enclosure};
+
+        /// One named entry point from an evaluation scalar into the ring.
+        type Crossing = (&'static str, fn(Interval) -> RingInterval);
+
+        /// Whether `c`'s decoration has fallen below `Def`, asked through
+        /// the public poison channel rather than by reading the decoration
+        /// itself: a [`MarginDiag::Invalid`] refusal is exactly the
+        /// sub-`Def` case, and the storage belongs to `geom-core`.
+        fn violated(c: Interval) -> bool {
+            let band = Band::new(1e-9, 1e-8).unwrap();
+            matches!(
+                c.sign_within(band),
+                Err(Indeterminate {
+                    margin: MarginDiag::Invalid,
+                    ..
+                })
+            )
+        }
 
         /// `sqrt([a, 4])`: `Trv` with finite endpoints when `a < 0` forces a
         /// clamp, `Com` otherwise.
@@ -890,7 +909,7 @@ mod tests {
         /// laundering answer, `always poison` the vacuous one.
         #[test]
         fn every_ring_crossing_refuses_exactly_where_the_decoration_degrades() {
-            let crossings: [(&str, fn(Interval) -> RingInterval); 3] = [
+            let crossings: [Crossing; 3] = [
                 ("implicit_enclosure", |c| {
                     implicit_enclosure(&sphere(c), unit_box())
                 }),
@@ -909,15 +928,15 @@ mod tests {
                 let (mut certified, mut refused) = (0, 0);
                 for a in [-4.0, -1.0, -0.25, -1e-300, 0.0, 1e-300, 0.25, 1.0] {
                     let c = operand(a);
-                    let degraded = c.repr_bits().2 < 2; // below `Def`
+                    let bad = violated(c);
                     let e = cross(c);
                     assert_eq!(
                         e.is_poison(),
-                        degraded,
-                        "{name}: sqrt([{a}, 4]) has decoration {} but crossed as {e:?}",
-                        c.repr_bits().2
+                        bad,
+                        "{name}: sqrt([{a}, 4]) is {} but crossed as {e:?}",
+                        if bad { "domain-violated" } else { "healthy" }
                     );
-                    if degraded {
+                    if bad {
                         refused += 1;
                     } else {
                         certified += 1;

@@ -209,6 +209,17 @@ impl Interval {
     /// healthy through two `f64` reads. Certification code consuming
     /// `[lo, hi]` — the C9 ring's `from_bounds`, every `T: Bounds`
     /// crossing — has no other channel to learn the difference.
+    /// The endpoints as the backend STORED them, decoration ignored —
+    /// the in-crate test channel for rows whose subject is the clamp
+    /// itself ("`sqrt([−1, 4])` produced `[0, 2]` and put the violation
+    /// in the decoration"). [`Bounds`] deliberately refuses to answer
+    /// that question below [`Decoration::Def`], and `repr_bits` is the
+    /// retired bit-identity channel, so neither can serve it.
+    #[cfg(test)]
+    pub(crate) fn stored_bracket(self) -> (f64, f64) {
+        (self.0.lo(), self.0.hi())
+    }
+
     fn certified_bracket(self) -> (f64, f64) {
         if self.0.decoration() < Decoration::Def {
             return (f64::NAN, f64::NAN);
@@ -840,7 +851,7 @@ mod tests {
     /// put the violation in the decoration") must read the storage, and a
     /// row about what certification may consume must read `Bounds`.
     fn stored(x: Interval) -> (f64, f64) {
-        (x.0.lo(), x.0.hi())
+        x.stored_bracket()
     }
 
     /// A named unary trait operation (for the monotonicity tables).
