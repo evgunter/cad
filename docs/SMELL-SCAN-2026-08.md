@@ -827,13 +827,25 @@ crate as *"the boolean engine and its splitting/census machinery"* — the
 ratified architecture names **one** engine with splitting subordinate.
 The code has two engines with the dependency running the other way.
 
-*Hidden costs:* merging the K names is a schema break in an append-only
-dataset (`K-REPORT.md:738` tracks a 233-name census); ~267 tests across
-36 files; open issue **#561** notes the Python refusal-tag *values* are
-pinned nowhere, so an enum reshape can silently change strings the
-Python surface exposes; and the sphere asymmetry forces a per-lane kind
-gate — so unification **converts** the `JoinLane` cost rather than
-eliminating it.
+*Hidden costs, as first scanned — two of the four are now settled and
+one was wrong.* (a) Merging the K names **was** a schema break in an
+append-only dataset (`K-REPORT.md`'s 233-name census); it was taken
+deliberately in #661 on Evan's ruling, and what the break actually cost
+is written up in that report's census note (2026-08-19) — six names
+out, three in, the committed CSVs left as the record, no row's meaning
+changed. (b) ~267 tests across 36 files: still standing, still the bulk
+of the remaining work. (c) Open issue **#561** — "the Python
+refusal-tag *values* are pinned nowhere, so an enum reshape can
+silently change strings the Python surface exposes" — was **checked
+against this change and does not apply**: `crates/pncad-py/src/tags.rs`
+maps kernel *enum variants*, contains no predicate name and no `sector`
+string, and pooling reshaped no enum. (The check did find a real K-name
+→ Python channel, `SelectRefusal.predicate`, and that was reported to
+#561, which is its home; no sector predicate reaches it.) So #561 is
+not a cost of the K-name half of S5, and the sentence above should not
+be read as saying it is. (d) The sphere asymmetry still forces a
+per-lane kind gate — unification **converts** the `JoinLane` cost
+rather than eliminating it.
 
 *Could not determine:* whether PR #62's implementer weighed extraction
 and rejected it — no spec was committed and the log is silent, so this
@@ -2703,7 +2715,7 @@ through the public entry point and `check_mesh`) shows nothing in tree
 refuses.
 
 **THE COMPARISON IS BANDED, IN METRES — the first form was exact and
-that was a FALSE PREMISE (issue #661).** #648's first pass compared the
+that was a FALSE PREMISE (issue #653).** #648's first pass compared the
 walk entry's coordinate to the box bitwise, justified in the code by
 *"`crate::walk` assigns each side's constant coordinate once per EDGE
 (never per point), so a rectangle side is bitwise straight."* That
@@ -2743,11 +2755,11 @@ entirely** — so the guard as it now ships changes no output anywhere in
 the sweep. Of the 119: 47 already refused for another reason (they go
 back to those errors), 1 previously meshed watertight (the regression,
 now clean again at 42 triangles), and **71 previously produced a
-silently non-watertight mesh and still do**. That last group is #661's
+silently non-watertight mesh and still do**. That last group is #653's
 other half and is a defect on main in its own right — banding does not
 and cannot catch it, because its off-box residual (≤1.5e-15 m) is the
 same phenomenon at the same scale as the counterexample's. The fix for
-those is #661's option 2 (have the walk snap co-azimuthal consecutive
+those is #653's option 2 (have the walk snap co-azimuthal consecutive
 meridians onto one column, as the loop-closure snap already does for
 the seam); it changes mesh output and belongs in its own PR with its
 own regression evidence.
@@ -4392,7 +4404,7 @@ guaranteed it ("assigned once per edge"). Adversarial review executed
 the counterexample in an afternoon: the mechanism guarantees the
 property only when a side is one edge, and every in-tree fixture and
 the whole wild corpus happened to satisfy that, so a green suite proved
-nothing. The refusal became a **false refusal** on valid parts (#661).
+nothing. The refusal became a **false refusal** on valid parts (#653).
 Two things generalise. A premise stated as *exact* is a claim about
 float representation, not about geometry, and needs a fixture that is
 adversarial to representation — an oblique placement and a subdivided

@@ -727,6 +727,15 @@ still the stale M4-era 1.5e-3 with ~102 advisory flags/run").
   which is exactly the property a threshold snapshot is supposed to
   have. Re-cutting the baseline on every main merge is neither the M4/M5
   precedent nor useful; re-cut it when the DISTRIBUTION moves.
+  **Drift since, in the other direction (2026-08-19).** #661 pooled the
+  six `bool_sector_*` / `split_sector_*` names into three
+  (`sector_{arm,reflex,straight}`), so a fresh sweep now also DROPS six
+  names where until then drift had only added them. The **233** below is
+  still the correct count for this committed snapshot, which still
+  contains all six; a sweep at today's main carries **231**. Margins,
+  bands, outcomes and order are untouched — only the `predicate` column,
+  and only for those six values. Full treatment: the census note
+  (2026-08-19) at the end of this report.
 
 | ε row | samples | zero | definite (ambient) | indet. | invalid | in (ε, Kε) |
 |-------|--------:|-----:|---------:|-------:|--------:|-----------:|
@@ -1018,10 +1027,30 @@ either lane's old one**, so the predicate column is self-dating: a row
 reading `bool_sector_arm` / `split_sector_arm` (etc.) is **pre-#652**
 data; a row reading `sector_arm` (etc.) is **post-#652**. No row in any
 committed file silently changes meaning, because no committed row is
-touched and no name is reused across the boundary. That is the reason
-the merge did not simply keep `bool_sector_*` — the 29:1 majority
-spelling would have been the cheap choice and would have made 1880
-pre-merge rows per ε indistinguishable from post-merge ones.
+touched and no name is reused across the boundary.
+
+That is the reason the merge did not simply keep `bool_sector_*`. The
+29:1 majority spelling was the cheap choice — three fewer rows to
+touch — and two things are wrong with it, in this order.
+
+1. **It would be an actively FALSE name, not merely an uninformative
+   one.** After pooling there is one population, so every
+   splitting-lane decision would be recorded under a name whose prefix
+   asserts `bool_`, on rows that carry nothing else to tell the lanes
+   apart. That argument does not depend on a count. *How many* rows it
+   would mislabel is a property of the corpus and not of the design,
+   and the two numbers in this report differ by an order of magnitude:
+   **64 of 1944** sector-arm samples in the M7 sweep (3.3% — the corpus
+   is boolean-heavy), but **112 of 168** — two thirds — in the S5
+   probe's fixture set, which is deliberately weighted to drive both
+   walks. Neither number bounds the next sweep's.
+2. **The era ambiguity**: 1880 pre-merge rows per ε would have become
+   indistinguishable from post-merge ones. That one bites only a
+   **cross-snapshot** comparison, since every committed file is dated by
+   filename and cut at a single head, so no one file mixes eras. But
+   cross-snapshot comparison is precisely what this report does — M4 →
+   M5 → M7 in nearly every table above — so it is not hypothetical
+   either.
 
 The **M3 addendum's inventory** (the `bool_*` and `split_*` bullet lists
 above) is likewise left as written: it is a dated 2026-07-23 record of the

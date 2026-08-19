@@ -30,6 +30,20 @@ telemetry is now complete); F6's residue and F7 together (the typed-
 margin fold-in — one quantity, the NURBS carrier's metric rate, that
 three sites had handled three different ways).
 
+**Known rot in the `file:line` column, recorded rather than swept
+here.** Every pointer in the ~230-row table below is hand-written, and
+no test, lint or CI row checks any of them: an edit to a cited file
+silently shifts every row below it. The two `splitting/rules.rs` rows
+were re-resolved in #661 because that PR moved them (+2 lines) — and
+re-resolving them showed the class in miniature: two of their four
+pointers had been exactly right on main and were moved by this PR, and
+the other two were **already stale by 3** before it. `DESIGN.md` cites
+this audit as the migration ledger, so the pointers are load-bearing
+for readers even though nothing enforces them. A sweep that re-resolves
+every row — or that replaces line numbers with grep-able predicate
+names, which do not move — is owed, and is not a side errand of
+whichever PR happens to touch a cited file: **it needs its own unit.**
+
 **Clause-(i) migration (the margin dimensional convention's typed
 seam — executed by the margin-migrate unit).**
 `geom_core::k_stats::decide` now takes a `Margin<T>` by signature;
@@ -218,8 +232,8 @@ all stored surface axes/normals/`u_ref` unit; `implicit_residual` is
 | splitting/neighborhood.rs:228–309 | split_conic_departure / split_bisector_side | tangent×extent projections; bisector·n̂ × arm | m | OK |
 | splitting/order.rs:73 | split_join_frame_arm | sin(member, plane normal) × points' spread (the member's in-plane fraction) | m | FIXED (was dimensionless schedule norm) |
 | splitting/order.rs:111 | split_join_order_u/v | coordinate difference (m) vs the EXACT bit-level band (deliberate total-order device, documented) | m | OK (note N6) |
-| splitting/rules.rs:130/149/197 | split_sector_extent / coplanar / enters arm | extent; sin×extent | m | OK |
-| splitting/rules.rs:174 | tangent_sector_osculation | κ(1/m) × face-extent²/2 | m | FLAG F11 |
+| splitting/rules.rs:132/151/202 | split_sector_extent / coplanar / enters arm | extent; sin×extent | m | OK |
+| splitting/rules.rs:179 | tangent_sector_osculation | κ(1/m) × face-extent²/2 | m | FLAG F11 |
 | splitting/join.rs:795/1261 | split_sphere_section_polar | sin(axes) × sphere radius | m | OK |
 | splitting/join.rs:883 | split_tangent_chord_forward | dimensionless param diff × ‖dir‖ | m | OK |
 | splitting/join.rs:973/1366 | split_arc_window (×5 each) | azimuth (rad) × chart radius | m | OK for cylinder; FLAG F8 for the sphere wall (arm R vs local R·cos lat) |
@@ -414,7 +428,7 @@ Flagged, NOT fixed here (dispositions):
   collision claim is STALE as of the F3+F4 unit — the loft-assembly
   lane merged. Deferred on the arm question alone, which is a design
   input, not a conflict.)
-- **F11** `tangent_sector_osculation` (rules.rs:174): sagitta model
+- **F11** `tangent_sector_osculation` (rules.rs:179): sagitta model
   κ·L²/2 metered at the WHOLE-FACE extent, squared, and invalid for
   κ·L ≳ 1 — over-refusal direction. Arm-policy question; own unit.
 - **F13** (added by the clause-(i) migration)

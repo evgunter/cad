@@ -111,36 +111,29 @@
 //!
 //! The three rungs emit `sector_arm`, `sector_reflex` and
 //! `sector_straight` — **one name each, spelled here, for both
-//! lanes**. Until #652 they were six: `bool_sector_*` from the boolean
-//! lane and `split_sector_*` from the splitting lane, handed in as a
-//! `SectorPredicates` parameter so that #647's merge of the two bodies
-//! could be K-neutral and the census question deferred rather than
-//! taken by an implementation unit. Evan ruled the two populations one
-//! (2026-08-19, #652), so the parameter is gone: there is nothing left
-//! for it to vary.
+//! lanes**. Until #652 they were six, `bool_sector_*` and
+//! `split_sector_*`, handed in as a `SectorPredicates` parameter so
+//! that #647's merge of the two bodies could be K-neutral; Evan ruled
+//! the two populations one (2026-08-19, #652), so the parameter is
+//! gone — there is nothing left for it to vary. **The evidence for
+//! that ruling, and the two-way precedent it weighed, live in
+//! `docs/K-REPORT.md`'s census note (2026-08-19)**, which is the
+//! decision's home and is not restated here. What binds code is two
+//! rules:
 //!
-//! Why pooling rather than lane attribution. Since #647 these are
-//! literally one implementation of one quantity, and the corpus shows
-//! the fork was costing COVERAGE rather than buying attribution: every
-//! one of the 64 `split_sector_reflex` samples in
-//! `docs/k-report-data/m7-eps-1e-6.csv.gz` is exactly zero, so the
-//! splitting lane's wideness name had no coverage of a definite
-//! convex-or-reflex verdict at all, while `bool_sector_reflex` had 426
-//! definite of 1880. Pooled, the rung is one population carrying those
-//! 426 instead of two of which one is entirely degenerate. The
-//! counter-precedent runs the other way and is real — `M3-LOG.md:264`
-//! records PR #55's review MINOR-1 forcing two margins that shared one
-//! K name to be SPLIT — but the in-tree precedent for sharing is in
-//! this very module pair: `bool_planar_chord_spec` and `chord_spec`
-//! deliberately share the one name `split_arc_window`.
-//!
-//! The pooled names are **new spellings, not either lane's old one**,
-//! and that is deliberate: it makes the era of a K row self-evident.
-//! A row reading `bool_sector_arm` or `split_sector_arm` anywhere in
-//! `docs/k-report-data/` is pre-#652 data; a row reading `sector_arm`
-//! is post. Those committed CSVs are dated snapshots and are left
-//! exactly as the sweep wrote them — see `docs/K-REPORT.md`'s census
-//! note (2026-08-19).
+//! - **Spelled here, nowhere else.** A lane that wants one of these
+//!   margins calls [`sector_shape`]; the guard row below reads every
+//!   `.rs` file under `topo/src` for the quoted form of these three
+//!   names and of the six retired ones.
+//! - **The pooled names are NEW spellings, not either lane's old one.**
+//!   Keeping the 29:1 majority `bool_sector_*` was the cheap choice and
+//!   fails on its own terms: post-merge, every splitting-lane decision
+//!   would be filed under a prefix that says `bool_` — an actively
+//!   FALSE lane label on rows carrying nothing else to distinguish
+//!   them. A fresh spelling also self-dates a K row, which matters
+//!   because the K report compares snapshots across milestones. Both
+//!   arguments are quantified in the census note; the CSVs under
+//!   `docs/k-report-data/` are left exactly as the sweep wrote them.
 //!
 //! # Naming
 //!
@@ -158,9 +151,10 @@ use crate::validate::decide;
 /// Rung 1's K name: the metering arm is positive.
 ///
 /// This and its two siblings are PRIVATE to this module. They are rows
-/// of the census in `docs/K-REPORT.md`, and the only way to emit one is
-/// to call [`sector_shape`] — a lane cannot import the name and
-/// re-implement the rung under it.
+/// of the census in `docs/K-REPORT.md`, and no other file can IMPORT
+/// one and re-implement the rung under it. Privacy stops the import,
+/// not a bare string literal; what stops that is the guard row
+/// `tests::the_rungs_are_decided_in_one_place` below.
 const SECTOR_ARM: &str = "sector_arm";
 
 /// Rung 2's K name: the corner is convex (`sin θ` levered at the arm).
@@ -402,14 +396,29 @@ mod tests {
     /// no file under `topo/src` may spell either set as a string
     /// literal. Re-forking the rungs means re-introducing a
     /// `decide("…_sector_arm", …)` somewhere, and that is exactly what
-    /// this reads for. (It looks for the QUOTED form, so prose that
-    /// mentions a predicate in backticks — including this module's own
-    /// docs, which name the retired spellings — is untouched.)
+    /// this reads for.
     ///
     /// The retired names are BUILT from the pooled ones rather than
-    /// written out, for two reasons: the check can then cover this file
-    /// too (a literal roster would be its own counter-example), and the
-    /// two sets cannot drift apart if a rung is ever renamed again.
+    /// written out, so the check covers this file like any other — a
+    /// literal roster would be its own first counter-example, which is
+    /// exactly how this row went red on its own module while being
+    /// written.
+    ///
+    /// **What the derivation does NOT buy, said plainly because the
+    /// obvious reading is the reverse of the truth.** It does not keep
+    /// the two rosters in step across a future rename; it is what
+    /// breaks them. Rename `SECTOR_ARM` and `retired` becomes
+    /// `"bool_<newname>"` / `"split_<newname>"`, strings that have
+    /// never existed anywhere, so the six genuinely retired spellings
+    /// stop being guarded — silently, with nothing going red. #652 is
+    /// itself the proof that renames happen. **Nothing in the tree
+    /// protects the retired set across one.** Those six spellings
+    /// survive only in prose (`docs/K-REPORT.md`'s census note, S5 of
+    /// `docs/SMELL-SCAN-2026-08.md`) and in the committed CSVs they
+    /// date. Whoever renames a rung next has to carry the old
+    /// spellings forward by hand — and has to assemble them from parts
+    /// the way this does, or this file becomes the counter-example
+    /// again.
     ///
     /// It walks the whole of `src/` at RUNTIME rather than
     /// `include_str!`ing the two lane files it happens to know about,
@@ -428,8 +437,15 @@ mod tests {
     /// branch on and nothing for that row to compare. It is gone
     /// rather than trivially green.
     ///
+    /// **The residue #647 shipped is closed.** Its third uncovered
+    /// case — a lane re-implementing the rungs while IMPORTING the
+    /// names, `decide(BOOL_SECTOR_PREDICATES.arm, …)`, which no string
+    /// search can see — cannot happen: the three consts are private to
+    /// this module, so no other file can name them at all.
+    ///
     /// **What this still does not cover** (stated plainly rather than
-    /// as one careful caveat that implies the rest is covered):
+    /// as one careful caveat that implies the rest is covered — four
+    /// shapes, two of them found in review of #661):
     ///
     /// 1. **A re-fork under FRESH names.** Out of reach by
     ///    construction; that one surfaces as new rows in the
@@ -440,12 +456,29 @@ mod tests {
     ///    `pub(crate)`, so a foreign crate would have to bypass it and
     ///    call `geom_core::k_stats::decide` directly — unlikely, but
     ///    not excluded by anything here.
+    /// 3. **A lane that CALLS [`sector_shape`] and then re-derives the
+    ///    verdict from what comes back.** `arm`, `unit_own` and
+    ///    `unit_next` are `pub(crate)` fields of [`SectorShape`], so a
+    ///    lane can recompute `sin θ` or its own bisector and act on
+    ///    that instead of on `bisector`. The rungs still fire exactly
+    ///    once each, from here, so the K stream stays byte-identical,
+    ///    the census shows nothing new, and no string search can see
+    ///    it. It is the closed residue's shape one level in: the names
+    ///    are no longer importable, but the rungs' INPUTS are.
+    /// 4. **A re-fork that decides with NO K name at all** — a raw
+    ///    comparison where a `decide` call belongs. Residue 1's
+    ///    mitigation cannot reach this one: new census rows are how a
+    ///    freshly-named re-fork surfaces, and this emits no row. What
+    ///    catches it is review, or a hole noticed later in the census.
     ///
-    /// The third residue #647 shipped — a lane re-implementing the
-    /// rungs while IMPORTING the names, `decide(BOOL_SECTOR_PREDICATES.arm,
-    /// …)`, which no string search can see — is **closed**: the three
-    /// consts are private to this module, so no other file can name
-    /// them at all.
+    /// **A permanent constraint on prose, not just on code.** The check
+    /// is textual and matches the QUOTED forms, so it is not only a
+    /// `decide` call that reds it: any doc comment anywhere under
+    /// `topo/src` that spells a retired name inside real quote marks —
+    /// documenting what was retired, say — fails this row. Backticks
+    /// are fine, and are what the module docs above use throughout.
+    /// That constraint is the price of the check being able to cover
+    /// its own home file, and it does not expire.
     #[test]
     fn the_rungs_are_decided_in_one_place() {
         let pooled = [SECTOR_ARM, SECTOR_REFLEX, SECTOR_STRAIGHT];

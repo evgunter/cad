@@ -35,9 +35,14 @@
 //! at two scales, and three plane splits of the notched block whose
 //! plane lands ON vertices (the splitting lane's sector walk only runs
 //! for ON vertices). Since #652 both lanes emit the SAME three names,
-//! so the roster below can no longer tell you which lane a row came
-//! from — the per-lane coverage claim is carried by the fixtures and
-//! by the recorded ORDER, not by the predicate column.
+//! so the predicate column can no longer tell you which lane a row came
+//! from — and the per-lane coverage claim is NOT left to the fixtures
+//! and the recorded order to carry by implication. The two lanes are
+//! recorded into two sinks, drained in order and printed as one stream
+//! (so the dump is byte-for-byte what it was when they shared a sink),
+//! and each of the three rungs is asserted to have fired in EACH lane.
+//! Delete the splitting fixtures and six assertions go red, exactly as
+//! they did when the six lane-prefixed names carried that job.
 #![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod common;
@@ -98,6 +103,14 @@ fn plane_y(c: f64) -> SplitPlane<Probe> {
 
 #[test]
 fn sector_margin_stream() {
+    // Recorded in TWO segments, boolean lane then splitting lane, so
+    // that per-lane participation can be asserted and not merely
+    // implied: since #652 the predicate column is lane-blind, and a
+    // pooled `seen[i] > 0` over three names is satisfied by the boolean
+    // fixtures alone. Draining and re-installing the sink between the
+    // two groups changes nothing about the rows or their order — the
+    // fixtures already ran in this order — so the printed stream is
+    // byte-identical to the single-sink version.
     k_stats::start_recording();
     for scale in [1e-3, 1.0] {
         let a1 = bx(scale, (0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
@@ -110,6 +123,9 @@ fn sector_margin_stream() {
         let b2 = bx(scale, (1.0, 2.0), (1.0, 2.0), (-1.0, 2.0));
         subtract(&a2, &b2).expect("pocket subtract");
     }
+    let bool_samples = k_stats::take_samples();
+
+    k_stats::start_recording();
     for c in [1.0, 1.5, 2.0] {
         let body = prism::<Probe>(NOTCHED, 3.0).body;
         // The result is not the point; the recorded decisions are. A
@@ -117,29 +133,38 @@ fn sector_margin_stream() {
         // plane and its margins are recorded either way.
         let _ = split(&body, &plane_y(c));
     }
-    let samples = k_stats::take_samples();
-    let mut seen = [0_usize; 3];
-    for s in &samples {
-        // Recorded ORDER is part of the claim: no sort.
-        println!(
-            "K {}|{:?}|{:?}|{:?}|{:?}",
-            s.predicate, s.outcome, s.margin, s.band_zero, s.band_escalate
-        );
-        for (i, name) in SECTOR_PREDICATES.iter().enumerate() {
-            if s.predicate == *name {
-                seen[i] += 1;
+    let split_samples = k_stats::take_samples();
+
+    let mut seen = [[0_usize; 3]; 2];
+    for (lane, samples) in [&bool_samples, &split_samples].into_iter().enumerate() {
+        for s in samples {
+            // Recorded ORDER is part of the claim: no sort.
+            println!(
+                "K {}|{:?}|{:?}|{:?}|{:?}",
+                s.predicate, s.outcome, s.margin, s.band_zero, s.band_escalate
+            );
+            for (i, name) in SECTOR_PREDICATES.iter().enumerate() {
+                if s.predicate == *name {
+                    seen[lane][i] += 1;
+                }
             }
         }
     }
-    // Without this the dump could "pass" while exercising neither
+    // Without these the dump could "pass" while exercising neither
     // lane's sector walk, and a diff of two empty streams proves
-    // nothing.
-    for (i, name) in SECTOR_PREDICATES.iter().enumerate() {
-        assert!(
-            seen[i] > 0,
-            "the fixtures recorded no `{name}` samples, so this probe is not \
-             covering the rung it exists for (recorded {} samples total)",
-            samples.len()
-        );
+    // nothing. Per-lane, not pooled: the whole point of the fixture set
+    // is that BOTH walks reach all three rungs, and after the name pool
+    // nothing else in this file can tell if one of them stopped.
+    for (lane, lane_name) in ["boolean", "splitting"].into_iter().enumerate() {
+        for (i, name) in SECTOR_PREDICATES.iter().enumerate() {
+            assert!(
+                seen[lane][i] > 0,
+                "the {lane_name} fixtures recorded no `{name}` samples, so this \
+                 probe is not covering the rung it exists for in that lane \
+                 (recorded: boolean {}, splitting {})",
+                bool_samples.len(),
+                split_samples.len()
+            );
+        }
     }
 }
