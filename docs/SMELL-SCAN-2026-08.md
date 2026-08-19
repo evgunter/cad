@@ -475,7 +475,7 @@ the table.
 | "which payloads carry a `StableName`" | 4 lists | `edit.rs:1096`, `node.rs:949`, `refactor.rs:801`, `resolve/mod.rs:911` |
 | "node has no usable value" | 5 typed + 1 stringly | `resolve/mod.rs:266`, `resolve/hit.rs:23`, `resolve/vdiff.rs:69`, `appearance.rs:172`, `names/geompred.rs:488` |
 | units | 7 spellings for 6 units | `quantity/src/units.rs:47`, `expr.rs:181`, `step-import/src/units.rs:76` |
-| Euler vector per op | 3 (prose, unnamed positional 7-tuple, `ep_vector`) + a 4th divergent `Ledger` | `euler.rs:857`, `euler.rs:1972`, `seqgen.rs:105` |
+| Euler vector per op | 3 (prose, arena delta, `ep_vector`) + a 4th divergent `Ledger`; the arena delta was an unnamed positional 7-tuple until **#NNN** made it `ArenaDelta` | `euler.rs:857`, `euler.rs:1972`, `seqgen.rs:105` |
 
 Two of these have **already drifted, observably**:
 
@@ -537,7 +537,7 @@ serde grep exists in `ci.yml` or `ci-local.sh`. The only mechanical check is
 | `StableName` payload lists | **SURVIVES** — see the confirmed drift below. |
 | "no usable value" | **SURVIVES IN PART** — the four enums have genuinely different membership and closure (`RunStatus` is serde-persisted), but all four embed the identical triple, and the stringly fifth is a real fail-quiet. |
 | units | **DOES NOT SURVIVE as counted** — `parse.rs` uses the shared table; `step-import`'s `UnitKind` is a *different vocabulary* (STEP `SI_UNIT` names). Real duplicates: two-and-a-half, one of them **measured and justified** (PR #291 MAJOR-2: inlining the 32-byte row grew every `Expr` by ~40 bytes). |
-| Euler vector | **SURVIVES IN PART** — the 6-vector and the 7 arena deltas are **different quantities**; Δh is not an arena count and cannot be derived from them. What survives: the 7-tuple is **unnamed and positional**, passed at 16 sites across 6 files, in a project whose ratified style is "named, never positional". |
+| Euler vector | **SURVIVES IN PART; the surviving part FIXED by #NNN.** The 6-vector and the 7 arena deltas are **different quantities** — Δh is not an arena count and cannot be derived from them — so they stay separate **by design**, and the three copies plus the divergent `Ledger` remain. What survived the steelman was the spelling: the delta was an **unnamed positional** 7-tuple at 16 sites across 6 files, against the ratified "named, never positional". It is now `ArenaDelta`, a named `#[cfg(debug_assertions)]` struct with the seven `ArenaCounts` field names; sites write only their nonzero components over `..ArenaDelta::ZERO`, so a mistyped component fails to compile. |
 
 *Drift (a) CONFIRMED, and it contradicts ratified design text.* `Rebind`'s
 rewrite loop ends `_ => {}` and never reaches `Node::Mate`'s two `StableName`s.
@@ -564,7 +564,7 @@ Caught by a reviewer, not a type. S4's failure mode, realised.
 *Ranked cheapest-to-hardest to act on:* (1) `BooleanOp` → import +
 `serde(with)`; (2) `name_args`' wildcard → exhaustive; (3) the `Mate` arms —
 small but a **behaviour** fix; (4) the Euler 7-tuple → named struct
-(debug-only); (5) units; (6) `ProgramStep`/`WireStep` — cheap in isolation,
+(debug-only) — **DONE, #NNN**; (5) units; (6) `ProgramStep`/`WireStep` — cheap in isolation,
 **expensive in sequence** (blocked behind OnArc + RESPELL-TABLE, and it
 crosses the same files); (7) the "no usable value" core (blocked by a
 persisted format); (8) `SegTag` (needs the workspace's first proc-macro
@@ -3253,7 +3253,7 @@ Good work for filling parallel capacity. None blocks anything.
 | **H3** | **S40 residue** — start with the two that are not cosmetic: `emit_topo.rs:1266`'s unreachable fallback would mint `Seam{ae, ae}`, a well-formed name for the wrong thing; `seqgen.rs:853`'s discarded counter means the property suite cannot tell an all-skipped run from a full one. | S |
 | **H4** | **S37** — shipped-artifact naming: the STL header's `cad-kernel-m2`, `UnsupportedCurve.note`'s runtime-visible PR number, ~124 internal spec codes in public rustdoc and the Python stub. Evan: *"can be fixed earlier"* than S36. | S–M |
 | **H5** | **S4 drift (b)** — `names/select.rs:319`'s `_ => Vec::new()`, the fail-quiet wildcard its three siblings forbid by comment. One function. | XS |
-| **H6** | **Euler postcondition 7-tuple → named struct** — unnamed positional, 16 sites, 6 files, all `cfg(debug_assertions)`. Mechanical. | S |
+| **H6** ✅ #NNN | **Euler postcondition 7-tuple → named struct** — unnamed positional, 16 sites, 6 files, all `cfg(debug_assertions)`. **FIXED by #NNN**: `ArenaDelta`, still debug-only, written sparsely over `..ArenaDelta::ZERO`. | S |
 
 ---
 

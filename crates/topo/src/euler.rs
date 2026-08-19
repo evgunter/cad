@@ -824,23 +824,56 @@ pub(crate) struct ArenaCounts {
     vertices: usize,
 }
 
+/// One operator's signed shift of the seven topology-arena lengths.
+///
+/// A different quantity from the six-component Euler vector
+/// `(v, e, f, h, r, s)`: Δh is a genus change, not an arena length,
+/// and cannot be derived from these seven.
+///
+/// Call sites name only the nonzero components and take the rest from
+/// [`ArenaDelta::ZERO`], so a site reads as the op's actual shift.
+#[cfg(debug_assertions)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ArenaDelta {
+    pub(crate) solids: isize,
+    pub(crate) shells: isize,
+    pub(crate) faces: isize,
+    pub(crate) loops: isize,
+    pub(crate) half_edges: isize,
+    pub(crate) edges: isize,
+    pub(crate) vertices: isize,
+}
+
+#[cfg(debug_assertions)]
+impl ArenaDelta {
+    /// The shift of an operator that mints and kills nothing.
+    pub(crate) const ZERO: Self = Self {
+        solids: 0,
+        shells: 0,
+        faces: 0,
+        loops: 0,
+        half_edges: 0,
+        edges: 0,
+        vertices: 0,
+    };
+}
+
 #[cfg(debug_assertions)]
 impl ArenaCounts {
-    /// The counts shifted by an op's Euler vector
-    /// `(Δsolids, Δshells, Δfaces, Δloops, Δhalf-edges, Δedges,
-    /// Δvertices)`. Deltas are signed since PR 3's kill-direction
-    /// components; an (impossible) underflow saturates to `usize::MAX`,
-    /// which the postcondition assert then reports loudly.
-    fn plus(self, delta: (isize, isize, isize, isize, isize, isize, isize)) -> Self {
+    /// The counts shifted by an op's arena delta. Components are
+    /// signed since PR 3's kill-direction ops; an (impossible)
+    /// underflow saturates to `usize::MAX`, which the postcondition
+    /// assert then reports loudly.
+    fn plus(self, delta: ArenaDelta) -> Self {
         let shift = |count: usize, d: isize| count.checked_add_signed(d).unwrap_or(usize::MAX);
         Self {
-            solids: shift(self.solids, delta.0),
-            shells: shift(self.shells, delta.1),
-            faces: shift(self.faces, delta.2),
-            loops: shift(self.loops, delta.3),
-            half_edges: shift(self.half_edges, delta.4),
-            edges: shift(self.edges, delta.5),
-            vertices: shift(self.vertices, delta.6),
+            solids: shift(self.solids, delta.solids),
+            shells: shift(self.shells, delta.shells),
+            faces: shift(self.faces, delta.faces),
+            loops: shift(self.loops, delta.loops),
+            half_edges: shift(self.half_edges, delta.half_edges),
+            edges: shift(self.edges, delta.edges),
+            vertices: shift(self.vertices, delta.vertices),
         }
     }
 }
@@ -924,7 +957,18 @@ impl<T: Decide> Body<T> {
         }
 
         #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(before, (1, 1, 1, 1, 0, 0, 1), "mvfs");
+        self.assert_euler_postcondition(
+            before,
+            ArenaDelta {
+                solids: 1,
+                shells: 1,
+                faces: 1,
+                loops: 1,
+                vertices: 1,
+                ..ArenaDelta::ZERO
+            },
+            "mvfs",
+        );
         Ok(MvfsCreated {
             solid,
             shell,
@@ -1018,7 +1062,16 @@ impl<T: Decide> Body<T> {
         }?;
 
         #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(before, (0, 0, 0, 0, 2, 1, 1), "mev");
+        self.assert_euler_postcondition(
+            before,
+            ArenaDelta {
+                half_edges: 2,
+                edges: 1,
+                vertices: 1,
+                ..ArenaDelta::ZERO
+            },
+            "mev",
+        );
         Ok(created)
     }
 
@@ -1152,7 +1205,17 @@ impl<T: Decide> Body<T> {
         }?;
 
         #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(before, (0, 0, 1, 1, 2, 1, 0), "mef");
+        self.assert_euler_postcondition(
+            before,
+            ArenaDelta {
+                faces: 1,
+                loops: 1,
+                half_edges: 2,
+                edges: 1,
+                ..ArenaDelta::ZERO
+            },
+            "mef",
+        );
         Ok(created)
     }
 
@@ -1975,7 +2038,7 @@ impl<T: Decide> Body<T> {
     pub(crate) fn assert_euler_postcondition(
         &self,
         before: ArenaCounts,
-        delta: (isize, isize, isize, isize, isize, isize, isize),
+        delta: ArenaDelta,
         op: &str,
     ) {
         debug_assert_eq!(
