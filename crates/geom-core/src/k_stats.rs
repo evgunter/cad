@@ -486,6 +486,18 @@ impl Bounds for Probe {
     }
 }
 
+/// `Probe` certifies exactly as `f64` does, and for the same reason: it
+/// IS an `f64` with a recorder attached, so it has no domain-violation
+/// channel to consult and the accessor never refuses. Anything else would
+/// make a `--features probe` build refuse where the `f64` build certifies,
+/// which is precisely the divergence D9 forbids of this scalar.
+#[cfg(feature = "probe")]
+impl crate::real::CertifiedEnclosure for Probe {
+    fn certified_bracket(self) -> Option<(f64, f64)> {
+        Some((self.0, self.0))
+    }
+}
+
 /// `Probe` locates spans through its `f64` (module docs of
 /// [`crate::spline::locate`]): it IS an `f64` with a recorder, and span
 /// selection is structure selection, not a recorded decision — no
