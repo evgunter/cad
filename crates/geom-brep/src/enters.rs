@@ -38,13 +38,20 @@
 //! sign convention of M3; consumers must cite it rather than introduce a
 //! fresh sign choice.
 //!
-//! **The sense correction is the caller's**, and no type enforces it:
-//! the `outward_normal` argument is a bare [`Vec3`], so a caller that
-//! reads a face's chart normal without multiplying by
-//! `Face::sense_sign()` gets a silently inverted verdict on every
-//! `sense == false` face. Callers that hold a face say at the call site
-//! which vector they are passing and where the sense was folded in
-//! (`topo::boolean::sectors::sector_face`, `splitting::rules`).
+//! **The sense correction is carried by the type.** The
+//! `outward_normal` argument is an [`OutwardNormal`], whose only
+//! constructor is [`OutwardNormal::from_chart`] — it cannot be called
+//! without naming a sense sign, so a raw chart normal cannot reach
+//! this predicate at all. What the mint sites still say at the call
+//! site is WHERE the sense came from (`Face::sense_sign`), not
+//! whether it was applied.
+//!
+//! A normal that **defines** a side convention rather than carrying
+//! one — a splitting plane's, an operation input belonging to no face
+//! and with no sense to fold in — is the separate [`ReferenceNormal`],
+//! which [`enters_material_order2`] takes. Until S39/D5 the two jobs
+//! shared one parameter named `outward_normal`, told apart only by
+//! prose.
 //!
 //! # Margin honesty (D4 ¶1)
 //!
@@ -57,7 +64,7 @@
 //! reclassification), against the run's linear band. This is the
 //! `classify_dihedral` pattern.
 
-use geom_core::{Band, Decide, Indeterminate, Margin, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Margin, Real, Sign, Vec3};
 
 /// The verdict of [`enters_material`]: where `dir` goes relative to the
 /// face's material.
@@ -72,11 +79,79 @@ pub enum EntersMaterial {
     Tangent,
 }
 
+/// A face's **outward normal** at a point: the unit vector pointing
+/// away from the solid's material (module docs for the derivation and
+/// for what the sign then means).
+///
+/// INVARIANT: the wrapped vector is `Face::sense_sign() *
+/// chart_normal(u, v)` (DESIGN "face orientation sense", M5 S10). The
+/// type has no general constructor — no `new`, no `From<Vec3>`, no
+/// public field — so the only way to obtain one is
+/// [`OutwardNormal::from_chart`], which cannot be written without
+/// naming a sense. A chart normal read off a `sense == false` face and
+/// handed on unmultiplied — the silent inversion this type exists to
+/// prevent — does not typecheck.
+#[derive(Clone, Copy, Debug)]
+pub struct OutwardNormal<T: Real>(Vec3<T>);
+
+impl<T: Real> OutwardNormal<T> {
+    /// Mints a face's outward normal from the surface's chart normal at
+    /// a point and the face's `sense_sign` (`+1` where `Face::sense` is
+    /// `true`, `−1` where it is `false`). The ONLY constructor: naming
+    /// the sense is the whole obligation, so it is a parameter rather
+    /// than a caller's remembered multiply.
+    #[must_use]
+    pub fn from_chart(chart_normal: Vec3<T>, sense_sign: T) -> Self {
+        Self(chart_normal * sense_sign)
+    }
+
+    /// The outward normal as a plain vector, for the orientation-blind
+    /// algebra downstream (cross products, wideness margins, sector
+    /// shape). Extraction is safe in the direction that matters: the
+    /// guard is on construction, and this cannot be run backwards.
+    #[must_use]
+    pub fn vec(self) -> Vec3<T> {
+        self.0
+    }
+}
+
+/// A **reference normal**: a normal that DEFINES an Above/Below
+/// convention rather than carrying one. An operation input — a
+/// splitting plane's normal — belongs to no face, has no
+/// `Face::sense` to fold in, and flipping it redefines the operation
+/// instead of contradicting a solid's material.
+///
+/// INVARIANT: an [`OutwardNormal`] widens into this type (a face's
+/// outward normal is a valid reference side); the converse does not
+/// exist. That asymmetry is the point — [`enters_material`]'s slot
+/// stays closed to unsensed vectors while
+/// [`enters_material_order2`], whose reference side is an operation
+/// input, can be given either.
+#[derive(Clone, Copy, Debug)]
+pub struct ReferenceNormal<T: Real>(Vec3<T>);
+
+impl<T: Real> ReferenceNormal<T> {
+    /// The normal of a **splitting plane** — the operation input that
+    /// defines which side is Above. Named for what it is so that a
+    /// caller holding a FACE's normal cannot reach for it by accident;
+    /// that caller mints an [`OutwardNormal`] and converts.
+    #[must_use]
+    pub fn of_split_plane(normal: Vec3<T>) -> Self {
+        Self(normal)
+    }
+}
+
+impl<T: Real> From<OutwardNormal<T>> for ReferenceNormal<T> {
+    fn from(n: OutwardNormal<T>) -> Self {
+        Self(n.vec())
+    }
+}
+
 /// **`enters_material`** — classifies `dir` against a face's material
 /// (module docs for the derivation; this is M3's F3 sign-chain
-/// primitive). `outward_normal` is the face's outward normal
-/// (unit; `Face::sense_sign() * chart_normal`, module docs — the
-/// caller applies the sense); `dir` need not be unit (it is normalized
+/// primitive). `outward_normal` is the face's outward normal, unit and
+/// [typed][`OutwardNormal`] — the sense is inside its constructor, not
+/// in this caller's memory; `dir` need not be unit (it is normalized
 /// here); `arm` is the caller-named lever arm in meters metering the
 /// angular margin; `band` is the run's linear band.
 ///
@@ -90,7 +165,7 @@ pub enum EntersMaterial {
 ///   sliver band or was poisoned (e.g. a zero `dir`).
 pub fn enters_material<T: Decide>(
     dir: Vec3<T>,
-    outward_normal: Vec3<T>,
+    outward_normal: OutwardNormal<T>,
     arm: T,
     band: Band,
 ) -> Result<EntersMaterial, Indeterminate> {
@@ -104,7 +179,7 @@ pub fn enters_material<T: Decide>(
             });
         }
     }
-    let margin = Margin::levered(dir.normalize().dot(outward_normal), arm);
+    let margin = Margin::levered(dir.normalize().dot(outward_normal.vec()), arm);
     Ok(match decide("enters_material", margin, band)? {
         Sign::Negative => EntersMaterial::Enters,
         Sign::Positive => EntersMaterial::Exits,
@@ -121,11 +196,12 @@ pub fn enters_material<T: Decide>(
 /// Inputs are the departing curve's jet at the tie point: `deriv2`
 /// the second derivative (raw carrier parameter), `speed_sq` =
 /// `‖deriv‖²` (normalizing the parameterization out — the margin is
-/// per arc length squared), `outward_normal` the reference side's
-/// unit normal — its one caller passes a SPLITTING PLANE's normal,
-/// which carries no face sense; a caller passing a FACE's normal owes
-/// the `sense_sign` multiply the module docs describe — `arm` the
-/// caller-named lever arm in meters. The
+/// per arc length squared), `reference_normal` the reference side's
+/// unit normal as a [`ReferenceNormal`] — its one caller passes a
+/// SPLITTING PLANE's normal, which defines the Above/Below convention
+/// and carries no face sense; a caller holding a FACE's normal mints
+/// an [`OutwardNormal`] and converts, so the sense is applied there —
+/// `arm` the caller-named lever arm in meters. The
 /// margin is the **displacement the curvature difference induces at
 /// the lever arm** (D4 ¶1, lever arm 1/κ discipline):
 /// `½ · (deriv2·n̂ / speed_sq) · arm²` — the curvature COMPARISON of
@@ -150,7 +226,7 @@ pub fn enters_material<T: Decide>(
 pub fn enters_material_order2<T: Decide>(
     deriv2: Vec3<T>,
     speed_sq: T,
-    outward_normal: Vec3<T>,
+    reference_normal: ReferenceNormal<T>,
     arm: T,
     band: Band,
 ) -> Result<EntersMaterial, Indeterminate> {
@@ -164,7 +240,7 @@ pub fn enters_material_order2<T: Decide>(
             });
         }
     }
-    let margin = Margin::sagitta(deriv2.dot(outward_normal) / speed_sq, arm);
+    let margin = Margin::sagitta(deriv2.dot(reference_normal.0) / speed_sq, arm);
     Ok(match decide("tangent_sector_order2", margin, band)? {
         Sign::Negative => EntersMaterial::Enters,
         Sign::Positive => EntersMaterial::Exits,
@@ -197,7 +273,9 @@ mod tests {
     /// exiting. Any global sign flip in the primitive flips both.
     #[test]
     fn mirror_check_bottom_face() {
-        let n_out = Vec3::new(0.0, 0.0, -1.0); // bottom face, material above
+        // Bottom face, material above: chart normal +z on a
+        // `sense == false` face — the sense is what makes it outward.
+        let n_out = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), -1.0);
         let up = Vec3::new(0.0, 0.0, 1.0);
         let e = enters_material(up, n_out, 1.0, band()).unwrap();
         assert_eq!(e, EntersMaterial::Enters);
@@ -209,7 +287,7 @@ mod tests {
     /// its normal component's sign, metered by the arm.
     #[test]
     fn tangent_and_oblique() {
-        let n_out = Vec3::new(0.0, 0.0, 1.0);
+        let n_out = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), 1.0);
         let t = enters_material(Vec3::new(1.0, 2.0, 0.0), n_out, 3.0, band()).unwrap();
         assert_eq!(t, EntersMaterial::Tangent);
         let o = enters_material(Vec3::new(1.0, 0.0, -1.0), n_out, 3.0, band()).unwrap();
@@ -220,8 +298,8 @@ mod tests {
     /// names the arm gate.
     #[test]
     fn collapsed_arm_escalates() {
-        let n_out = Vec3::new(0.0, 0.0, 1.0);
-        let err = enters_material(n_out, n_out, 0.0, band()).unwrap_err();
+        let n_out = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), 1.0);
+        let err = enters_material(n_out.vec(), n_out, 0.0, band()).unwrap_err();
         assert_eq!(err.predicate, Some("enters_material_arm"));
     }
 
@@ -229,7 +307,7 @@ mod tests {
     /// through the margin, never classifies.
     #[test]
     fn zero_dir_escalates() {
-        let n_out = Vec3::new(0.0, 0.0, 1.0);
+        let n_out = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), 1.0);
         let err = enters_material(Vec3::zero(), n_out, 1.0, band()).unwrap_err();
         assert_eq!(err.predicate, Some("enters_material"));
     }

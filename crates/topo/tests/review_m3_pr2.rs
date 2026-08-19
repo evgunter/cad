@@ -448,14 +448,18 @@ fn r6_band_honesty_both_sides_and_no_conscription() {
 /// in the chain flips these.
 #[test]
 fn r7_enters_material_oblique_independent() {
-    use geom_brep::{EntersMaterial, enters_material};
+    use geom_brep::{EntersMaterial, OutwardNormal, enters_material};
     let band = geom_core::Band::linear().unwrap();
-    // Face outward normal along (1,-2,2)/3; material fills the
-    // opposite half-space.
-    let n = Vec3::new(1.0 / 3.0, -2.0 / 3.0, 2.0 / 3.0);
+    // Chart normal along (1,-2,2)/3. On a `sense == true` face that IS
+    // the outward normal; on its `sense == false` twin the outward
+    // normal is its negation — the two faces are the same chart read
+    // through the two sense signs, which is the only way to mint one.
+    let chart = Vec3::new(1.0 / 3.0, -2.0 / 3.0, 2.0 / 3.0);
+    let n = OutwardNormal::from_chart(chart, 1.0);
+    let n_rev = OutwardNormal::from_chart(chart, -1.0);
     // A direction with negative component along n: into material.
     let into = Vec3::new(-1.0, 1.0, 0.5);
-    assert!(into.dot(n) < 0.0, "fixture sanity");
+    assert!(into.dot(chart) < 0.0, "fixture sanity");
     assert_eq!(
         enters_material(into, n, 2.0, band).unwrap(),
         EntersMaterial::Enters
@@ -467,14 +471,14 @@ fn r7_enters_material_oblique_independent() {
     // The rule-(a) reading: a coplanar face whose outward normal AGREES
     // with n_SP has its material below the plane ⇒ going up (+n_SP)
     // exits ⇒ sector reclassifies BELOW; disagreement ⇒ ABOVE. Both
-    // plane senses through the same primitive:
-    let n_sp = n; // coplanar: face normal = ±plane normal
+    // face senses through the same primitive:
+    let n_sp = chart; // coplanar: the split plane's normal, no sense
     assert_eq!(
         enters_material(n_sp, n, 1.0, band).unwrap(),
         EntersMaterial::Exits, // agree ⇒ Exits ⇒ rule (a) BELOW
     );
     assert_eq!(
-        enters_material(n_sp, -n, 1.0, band).unwrap(),
+        enters_material(n_sp, n_rev, 1.0, band).unwrap(),
         EntersMaterial::Enters, // oppose ⇒ Enters ⇒ rule (a) ABOVE
     );
 }

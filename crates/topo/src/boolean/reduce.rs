@@ -47,6 +47,7 @@
 //! - Sweep order (D9): direction A→B fully, then B→A; edges in arena
 //!   order, faces in arena snapshot order, worklist FIFO.
 
+use geom_brep::OutwardNormal;
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Sign};
 
 use super::boxes;
@@ -251,10 +252,31 @@ pub(super) fn face_source<T: Decide>(
 pub(super) fn face_plane<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<PlaneDesc<T>> {
     let f = body.get_face(face)?;
     match body.get_surface(f.surface) {
-        Some(geom_surfaces::Surface::Plane { origin, normal, .. }) => Some(PlaneDesc {
+        Some(geom_surfaces::Surface::Plane { origin, .. }) => Some(PlaneDesc {
             origin: *origin,
-            normal: *normal * f.sense_sign::<T>(),
+            normal: face_outward_normal(body, face)?.vec(),
         }),
+        _ => None,
+    }
+}
+
+/// The same door, typed: a planar face's outward normal as an
+/// [`OutwardNormal`], which is what the material-side consumers
+/// (`sector_face`, the pierce lane's `side_code`) actually want.
+///
+/// INVARIANT: this is where the planar lane's `sense_sign` multiply
+/// lives — [`face_plane`] is defined in terms of it, so there is one
+/// multiply, not two that could drift. `None` for a non-planar face
+/// (the caller falls through to the curved arms).
+pub(super) fn face_outward_normal<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+) -> Option<OutwardNormal<T>> {
+    let f = body.get_face(face)?;
+    match body.get_surface(f.surface) {
+        Some(geom_surfaces::Surface::Plane { normal, .. }) => {
+            Some(OutwardNormal::from_chart(*normal, f.sense_sign::<T>()))
+        }
         _ => None,
     }
 }

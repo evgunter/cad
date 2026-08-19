@@ -264,7 +264,7 @@ fn germ_dir<T: Decide>(
     sb: &BoolSector<T>,
     band: Band,
 ) -> Result<Vec3<T>, BooleanError> {
-    let int = sa.normal.cross(sb.normal);
+    let int = sa.normal.vec().cross(sb.normal.vec());
     let arm = sa.arm.min(sb.arm);
     match crate::validate::decide("bool_germ_line", Margin::levered(int.norm(), arm), band) {
         Ok(Sign::Positive) => {}
@@ -585,7 +585,7 @@ mod tests {
         // direction z×x = +y is uniquely within both — `germ_dir`
         // refuses coplanar sector pairs by design).
         let sectors_of = |body: &Body<f64>,
-                          normal: geom_core::Vec3<f64>,
+                          normal: geom_brep::OutwardNormal<f64>,
                           start: geom_core::Vec3<f64>,
                           end: geom_core::Vec3<f64>| {
             let (vk, v) = body.vertices().next().unwrap();
@@ -609,13 +609,13 @@ mod tests {
         // z×x = +y is uniquely within both.
         let (va, a_sectors) = sectors_of(
             &abody,
-            geom_core::Vec3::new(0.0, 0.0, 1.0),
+            geom_brep::OutwardNormal::from_chart(geom_core::Vec3::new(0.0, 0.0, 1.0), 1.0),
             geom_core::Vec3::new(1.0, 0.0, 0.0),
             geom_core::Vec3::new(0.0, 1.0, 0.0),
         );
         let (vb, b_sectors) = sectors_of(
             &bbody,
-            geom_core::Vec3::new(1.0, 0.0, 0.0),
+            geom_brep::OutwardNormal::from_chart(geom_core::Vec3::new(1.0, 0.0, 0.0), 1.0),
             geom_core::Vec3::new(0.0, 1.0, 0.0),
             geom_core::Vec3::new(0.0, 0.0, 1.0),
         );
