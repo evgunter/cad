@@ -79,7 +79,7 @@ cases. A finding is a *question worth answering*, not a defect.
 - [Tier 1 — architectural, load-bearing](#tier-1--architectural-load-bearing) (S1–S15)
 - [Tier 2 — significant](#tier-2--significant) (S16–S37)
 - [Tier 3 — real but lower stakes](#tier-3--real-but-lower-stakes) (S38–S48)
-- [Findings raised by the Wave-1 fix lanes](#findings-raised-by-the-wave-1-fix-lanes-2026-08-18) (S49–S53)
+- [Findings raised by the Wave-1 fix lanes](#findings-raised-by-the-wave-1-fix-lanes-2026-08-18) (S49–S54)
 - [§A. Where I would start](#a-where-i-would-start)
 - [§D. A schedule for fixes](#d-a-schedule-for-fixes)
 - [§C. Process observations](#c-process-observations)
@@ -3832,15 +3832,27 @@ for free (one widened cfg) and left the `tests/` one standing; #640 put
 six integration copies standing, for the same reason.
 
 This is S4's shape with a mechanical cause rather than an accretive one, and
-it is why "grep for the copy" keeps finding copies in `tests/`. The repo
-already has the remedy in one place: `crates/profile/src/test_support.rs` is
-a public module whose contents exist for tests to name.
+it is why "grep for the copy" keeps finding copies in `tests/`. **The precedent this finding first cited does not exist.** Both #641's PR body
+and the first draft of this row named `crates/profile/src/test_support.rs` as
+the shipped remedy. It was **retired** by LIB-RETTAIL/ONARC — `pncad/src/profile.rs:50`
+says so outright (*"`test_support` is gone"*), and the only other surviving
+mention is a history note in `scripts/gates/lib.sh` about an allowlist paragraph
+that went stale locally. A stale claim of S39's exact class, minted by this
+batch; it is corrected here rather than quietly dropped.
 
-Settled by a single call: whether kernel crates may carry a public
-`test_support` module for this, and what may live in one. It is a
-public-surface decision, which is why neither lane made it.
+**Verdict:** RULED (Evan, 2026-08-19): **kernel crates may carry their own test
+support, gated so it does not show up in release builds.**
 
-**Verdict:**
+With the `profile` precedent retired, the gate has to be chosen rather than
+copied. `#[cfg(test)]` cannot serve — that is the whole reason the copies exist,
+since a `tests/` binary is a separate crate — and `#[cfg(debug_assertions)]`,
+which #641 used to reach `ArenaCounts` from in-crate, breaks `cargo test
+--release`. On resolver 3 / edition 2024 the mechanism that satisfies the ruling
+is an off-by-default feature reached through a self-dev-dependency
+(`[dev-dependencies] topo = { path = ".", features = ["test-support"] }` with
+`#[cfg(any(test, feature = "test-support"))]` on the module): on when integration
+tests compile the library, off for every normal build and every downstream
+release. Unscheduled.
 
 ## S53. Two `Ledger`s in one crate, with drifted field sets
 
@@ -3858,6 +3870,49 @@ problem — or it is a real gap in what it checks.
 
 **Verdict:**
 
+## S54. The "kept in step BY HAND" ladder, which the crate around it has twice repudiated by name
+
+- **Where**: `crates/editor-core/src/eval/wire.rs:686`; the two sites that cite
+  it as the anti-pattern they fixed, `crates/editor-core/src/names/flush.rs:37`
+  and `crates/editor-core/src/persist/check.rs:9`; same family at
+  `crates/profile/src/path/arc_fillet.rs:21` and
+  `crates/pncad-py/src/tests.rs:245`
+- **Importance**: medium
+- **Confidence**: sure on the structure
+- **Raised by**: the detector #641 suggested, run 2026-08-19
+
+`resolve_fillet_selection`'s refusal ladder — NodeGone with the
+deleted-vs-foreign split, `Entry::Tied` → `Ambiguous` carrying the same
+`TieWitness` shape, absent → `Vanished` with the `NodeChanged` fallback — is
+duplicated from `resolve_declarations` under a rustdoc section headed **"# Kept
+in step with [`resolve_declarations`] BY HAND"**, closing *"If you change either
+ladder, change both."* The justification is honest and specific: the two differ
+in ARITY, and sharing would need a generic over "how to look a name up".
+
+What makes it a finding rather than a documented trade is that **the same crate
+has twice ruled the other way and named this site while doing it**.
+`names/flush.rs` records #304 review MINOR-1 collapsing "a hand-mirrored constant
+here, the wire.rs *kept in step BY HAND* shape one parameter wide" into shared
+construction; `persist/check.rs` opens by contrasting itself with "two mirrored
+door sets kept in sync by a sweep" in favour of "code that is literally the same
+and cannot drift". The archetype both cite is still standing.
+
+Two more of the family, unswept: `arc_fillet.rs` carries a ratified
+justification **verbatim** "because it is the same rule on the" other side, and
+`pncad-py/src/tests.rs` restates a table by hand — the family that already
+produced a live measured collision (`MODEL-AB-LOG.md:782`).
+
+**Method note, proposed not adopted.** #641's parent-sense row found its fourth
+copy through a comment whose only job was to explain that two spellings were one
+rule, which suggests a detector: *a comment that exists to reconcile two
+spellings of one rule is evidence the rule needs one home*. Run as
+`rg 'BY HAND|kept in (sync|step)|same rule as|mirrors the (implementation|logic|table)'`
+over `crates/*/src`, excluding the `bit-identical`/`endpoint-identical`
+vocabulary, which is D9's and fenced by [[output-stability-as-justification]].
+It found every site above. Adding it to `REVIEW-STYLE-BRIEF.md` §2 would be a
+Protocol v5 amendment and so **Evan's to ratify**, not adopted here.
+
+**Verdict:**
 
 ---
 
