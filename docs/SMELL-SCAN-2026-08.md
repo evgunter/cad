@@ -1457,14 +1457,26 @@ appears anywhere in the history. The record is silence, not rejection. (2)
 **FIXED by #626** — the dual-maintained allowlist was a **proven drift class**
 (a `separation.rs` entry hosted-only, a `test_support.rs` entry stale locally,
 a `chart_region.rs` entry before that, and two gates with no local mirror at
-all). It is no longer dual-maintained: every mirrored gate lives once under
-`scripts/gates/`, ci.yml's `discipline` job and `local-scripts/ci-local.sh`
-both call the same script, the ratified justifications have one home, and each
-gate carries a `--selftest` that plants a synthetic violation and asserts the
-gate fires — which also settles the "only one of six has a self-test" residue.
-(3) The greps' own remaining defects go unfixed, and #626 deliberately left
-every one of them alone — it moved the gates without changing a regex, a
-message's meaning, or an allowlist's membership. Still standing: the
+all). Nothing about these gates is maintained twice any more, at either level.
+The bodies: every mirrored gate lives once under `scripts/gates/`, ci.yml's
+`discipline` job and `local-scripts/ci-local.sh` both call the same script, and
+the ratified justifications have one home. The rosters: sharing the bodies
+would have left each half still naming its own gate list — the same defect one
+level up, and the one that let `EvalScalar` and the interval-square gate run
+hosted-only — so `gate-roster.sh` derives the roster from the directory and
+fails if the two halves run different sets, in either direction. Each gate also
+carries a `--selftest` (clean fixture must pass, planted violation must fire)
+which **both halves invoke before the real pass**, as the sibling python gate
+does; that settles the "only one of six has a self-test" residue, which a
+self-test nobody ran would not have. A gate that scans an empty or wrong tree
+now fails instead of reporting green.
+(3) The greps' own remaining defects go unfixed, and #626 left every one of
+them alone — it moved the gates without changing a regex, a message's meaning,
+or an allowlist's membership. Its one behaviour change is disclosed:
+`bit-identity-debug-only` used to exit **0** when `crates/topo/src/source.rs`
+was absent (both `grep -c` calls exit 2, the counts are empty, `[ "" -gt 0 ]`
+errors and reads as false), i.e. it reported green precisely when its subject
+had been renamed out from under it; it now fails loudly. Still standing: the
 lint/`dylint`/proc-macro alternative in (1) is unevaluated; the `x*x` lookahead
 fix has sat in a log since 2026-08-04; `Real +` strips no comments while its
 siblings do; and the regex is leaky both ways — it **cannot see**
@@ -3265,7 +3277,7 @@ Good work for filling parallel capacity. None blocks anything.
 
 | # | Item | Effort |
 |---|---|---|
-| **H1** ✅ #626 | **ci-local mirror parity** — **FIXED by #626**, extracted rather than synced (Evan, 2026-08-19). All eight mirrored gates of ci.yml's `discipline` job live once under `scripts/gates/`; both halves call the same script, ci.yml keeps one step per gate under today's names, the ratified allowlist prose has one home, and each gate gained a `--selftest`. The `EvalScalar` and interval-square `powi(2)` gates now run locally too. Allowlist membership is unchanged; the prose drift found while diffing the copies is recorded in the PR. | S |
+| **H1** ✅ #626 | **ci-local mirror parity** — **FIXED by #626**, extracted rather than synced (Evan, 2026-08-19). The eight mirrored gates of ci.yml's `discipline` job live once under `scripts/gates/`; both halves call the same script, ci.yml keeps one step per gate under today's names, and the ratified allowlist prose has one home. A ninth gate, `gate-roster.sh`, closes the level above: it derives the roster from the directory and fails if the two halves run different sets, so the hand-written step list cannot drift either. Every gate runs a `--selftest` in both halves and fails loudly rather than passing green on a tree it could not scan. The `EvalScalar` and interval-square `powi(2)` gates now run locally too. Allowlist membership unchanged; the prose drift and the one disclosed behaviour fix are recorded in the PR. | S |
 | **H2** | **S39 stale claims** — nine rows, each classified **benign rot** vs **lost invariant** *before* its sentence is touched. `enters.rs:14` is the (ii) candidate: the outward-normal property was devolved onto every caller with no type enforcing it. | M |
 | **H3** | **S40 residue** — start with the two that are not cosmetic: `emit_topo.rs:1266`'s unreachable fallback would mint `Seam{ae, ae}`, a well-formed name for the wrong thing; `seqgen.rs:853`'s discarded counter means the property suite cannot tell an all-skipped run from a full one. | S |
 | **H4** | **S37** — shipped-artifact naming: the STL header's `cad-kernel-m2`, `UnsupportedCurve.note`'s runtime-visible PR number, ~124 internal spec codes in public rustdoc and the Python stub. Evan: *"can be fixed earlier"* than S36. | S–M |
