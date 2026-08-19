@@ -4033,9 +4033,9 @@ problem — or it is a real gap in what it checks.
 - **Raised by**: the detector #641 suggested, run 2026-08-19
 
 **Verdict:** ACCEPTED (Evan, 2026-08-19) — "worth doing. Share it." Executed
-by **PR-NUMBER**, below.
+by **#670**, below.
 
-**FIXED by PR-NUMBER.** The two doors now walk ONE ladder, a private
+**FIXED by #670.** The two doors now walk ONE ladder, a private
 `mod ladder` sited between them in `wire.rs`, and the "if you change either
 ladder, change both" warning is deleted rather than reworded. The shape that
 beat the arity objection is the one the finding's own steelman preferred:
