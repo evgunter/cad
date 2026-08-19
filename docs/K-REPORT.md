@@ -1005,6 +1005,10 @@ the merge did not simply keep `bool_sector_*` — the 29:1 majority
 spelling would have been the cheap choice and would have made 1880
 pre-merge rows per ε indistinguishable from post-merge ones.
 
+The **M3 addendum's inventory** (the `bool_*` and `split_*` bullet lists
+above) is likewise left as written: it is a dated 2026-07-23 record of the
+crop M3 added, and it is accurate about that. Read alongside this note.
+
 **Still forked, and correctly so.** `bool_sector_{coplanar,within}`,
 `split_sector_{coplanar,extent}` are the `sector_face` twins and the
 face-extent arm — different quantities, still two implementations, the
