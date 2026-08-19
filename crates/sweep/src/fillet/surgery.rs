@@ -109,6 +109,9 @@ struct Corner<T: Real> {
     /// The octant's chart (the F2 order-free pick, shared with the
     /// whole-body builder).
     surface: Surface<T>,
+    /// The convexity the three incident links agree on — the octant's
+    /// orientation bit, read exactly as a blend reads its own.
+    convexity: Convexity,
 }
 
 /// One closed (plane–sphere) chain resolved onto its supports.
@@ -268,7 +271,8 @@ pub(super) fn fillet_surgery<T: Decide + Bounds>(
         let fk = corner_faces[i];
         body.set_face_surface(fk, FaceSurface::New(c.surface.clone()))
             .map_err(op)?;
-        body.set_face_sense(fk, true).map_err(op)?;
+        body.set_face_sense(fk, c.convexity.blend_sense())
+            .map_err(op)?;
     }
     for (i, rim) in rims.iter().enumerate() {
         let fk = band_faces[i];
@@ -352,6 +356,24 @@ fn corner_plan<T: Decide + Bounds>(
         .map(|o| o.link)
         .filter(|l| l.start == vertex || l.end == vertex)
         .collect();
+    // The octant takes the same orientation bit as the blends that
+    // meet it: the ball centre lies on the material side exactly when
+    // the corner is convex, so the sphere chart's outward radial IS
+    // the solid's outward normal there and inverts with the corner.
+    // The three incident links must agree on that bit — a corner they
+    // disagree at is not a ball octant at all.
+    let mut convexity: Option<Convexity> = None;
+    for l in &links {
+        if *convexity.get_or_insert(l.convexity) != l.convexity {
+            return Err(unsupported(
+                "a corner's incident links disagree on convexity (the corner ball is \
+                 not a sphere octant there)",
+            ));
+        }
+    }
+    let Some(convexity) = convexity else {
+        return Err(unsupported("a corner has no requested incident link"));
+    };
     let (u_ref, axis) = super::build::octant_chart(body, vertex, &faces, &links)?;
     Ok(Corner {
         vertex,
@@ -363,6 +385,7 @@ fn corner_plan<T: Decide + Bounds>(
             axis,
             u_ref,
         },
+        convexity,
     })
 }
 
@@ -1580,7 +1603,9 @@ fn attach_contact<T: Decide + Bounds>(
 mod tests {
     use geom_core::{Point3, Vec3};
 
-    use super::rim_trim_circles;
+    use super::super::battery::Convexity;
+    use super::super::build::fixtures::{R, all_links, cube};
+    use super::{OpenLink, corner_plan, rim_trim_circles};
     use crate::fillet::blend::plane_sphere_blend;
 
     /// The F1 pin: trim selection is by SUPPORT KIND, never by slot.
@@ -1622,5 +1647,44 @@ mod tests {
         // the selection retires: it would hand back the sphere trim.
         let blind = rim_trim_circles(&swapped, true).expect("circles");
         assert_eq!(blind.0.1, a.1.1, "slot-blind trim_a IS the sphere trim");
+    }
+
+    /// **The surgery corner takes its links' orientation bit too.**
+    /// `corner_plan` is the deepest point a concave chain can reach:
+    /// the open-chain door refuses one outright, so the plan is where
+    /// the derivation is pinned. Flip the stored verdict and the
+    /// octant's sense must flip with it.
+    #[test]
+    fn a_corner_plan_takes_its_links_convexity() {
+        let body = cube();
+        let mut links = all_links(&body);
+        let v = links[0].start;
+        let opens: Vec<OpenLink<'_, f64>> = links.iter().map(|link| OpenLink { link }).collect();
+        let convex = corner_plan(&body, v, &opens, R).expect("the corner plans");
+        assert!(convex.convexity.blend_sense(), "a convex octant is outward");
+        for l in &mut links {
+            l.convexity = Convexity::Concave;
+        }
+        let opens: Vec<OpenLink<'_, f64>> = links.iter().map(|link| OpenLink { link }).collect();
+        let concave = corner_plan(&body, v, &opens, R).expect("the corner plans");
+        assert!(
+            !concave.convexity.blend_sense(),
+            "a concave octant's chart normal points into the material"
+        );
+    }
+
+    /// A corner whose incident links disagree on convexity is not a
+    /// ball octant: the plan refuses rather than picking one of three.
+    #[test]
+    fn a_corner_plan_whose_links_disagree_refuses() {
+        let body = cube();
+        let mut links = all_links(&body);
+        let v = links[0].start;
+        links[0].convexity = Convexity::Concave;
+        let opens: Vec<OpenLink<'_, f64>> = links.iter().map(|link| OpenLink { link }).collect();
+        assert!(
+            corner_plan(&body, v, &opens, R).is_err(),
+            "a mixed-convexity corner must refuse, not pick a link"
+        );
     }
 }

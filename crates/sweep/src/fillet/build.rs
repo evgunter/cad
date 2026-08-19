@@ -654,10 +654,24 @@ impl<T: Decide + Bounds> Plan<T> {
         // then chain into the octant's cycle with no geometry read.
         for (v, _, surface) in &corners {
             let mut directed: Vec<(usize, usize, usize)> = Vec::new();
+            let mut convexity: Option<Convexity> = None;
             for link in links {
                 let at_start = link.start == *v;
                 if !at_start && link.end != *v {
                     continue;
+                }
+                // The octant takes the same orientation bit as the
+                // blends that meet it: the ball centre lies on the
+                // material side exactly when the corner is convex, so
+                // the sphere chart's outward radial IS the solid's
+                // outward normal there and inverts with the corner.
+                // The three incident links must agree on that bit — a
+                // corner they disagree at is not a ball octant at all.
+                if *convexity.get_or_insert(link.convexity) != link.convexity {
+                    return Err(unsupported(
+                        "a corner's incident links disagree on convexity (the corner ball \
+                         is not a sphere octant there)",
+                    ));
                 }
                 let (Some(a), Some(b), Some(arc)) = (
                     foot(*v, link.face_a),
@@ -668,7 +682,9 @@ impl<T: Decide + Bounds> Plan<T> {
                 };
                 directed.push(if at_start { (b, a, arc) } else { (a, b, arc) });
             }
-            let Some(&seed) = directed.first().filter(|_| directed.len() == 3) else {
+            let (Some(&seed), Some(convexity)) =
+                (directed.first().filter(|_| directed.len() == 3), convexity)
+            else {
                 return Err(unsupported("a corner does not have exactly three arcs"));
             };
             let mut verts = Vec::with_capacity(3);
@@ -689,7 +705,7 @@ impl<T: Decide + Bounds> Plan<T> {
                 verts,
                 edges: ring,
                 surface: surface.clone(),
-                sense: true,
+                sense: convexity.blend_sense(),
                 kind: FaceKind::Corner(*v),
             });
         }
@@ -1187,5 +1203,116 @@ impl<T: Decide + Bounds> Plan<T> {
             param_start: t0,
             param_end: t1,
         })
+    }
+}
+
+/// Fixtures shared by the fillet lane's in-crate pins: the mint sites
+/// they cover are private to their modules, so the pins cannot live in
+/// `tests/`.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+pub(super) mod fixtures {
+    use geom_core::{Band, Point2, Tolerance};
+    use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+    use topo::{Body, EdgeKey};
+
+    use super::super::battery::{FilletRequest, Link, run_battery};
+    use crate::{Extrusion, extrude};
+
+    /// The cube's side, meters.
+    pub(crate) const L: f64 = 1.0;
+    /// The blend radius, meters.
+    pub(crate) const R: f64 = 0.1;
+
+    /// The eight-convex-corner fixture the surgery suite also uses.
+    pub(crate) fn cube() -> Body<f64> {
+        let lp = ProfileLoop::new(
+            [(0.0, 0.0), (L, 0.0), (L, L), (0.0, L)]
+                .into_iter()
+                .map(|(x, y)| ProfileVertex::new(Point2::new(x, y), 0.0))
+                .collect(),
+        );
+        let profile = Profile::new(SketchPlane::xy(), vec![lp])
+            .validate(Tolerance::get())
+            .unwrap();
+        extrude(&profile, Extrusion::Distance(L)).unwrap().body
+    }
+
+    /// Every edge of `body` resolved by the battery, in edge order —
+    /// the same list `whole_body_links` hands the plan.
+    pub(crate) fn all_links(body: &Body<f64>) -> Vec<Link<f64>> {
+        let tol = Tolerance::get();
+        let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
+        let verdict = run_battery(
+            &FilletRequest {
+                body,
+                edges,
+                radius: R,
+            },
+            Band::new(tol.eps, tol.k * tol.eps).unwrap(),
+        )
+        .expect("the battery resolves every edge of a cube");
+        let mut links: Vec<Link<f64>> = verdict
+            .chains
+            .iter()
+            .flat_map(|c| c.links.iter().cloned())
+            .collect();
+        links.sort_by_key(|l| l.edge);
+        links
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use topo::Body;
+
+    use super::super::battery::{Convexity, Link};
+    use super::fixtures::{R, all_links, cube};
+    use super::{FaceKind, Plan};
+
+    /// The corner octants' sense bits, in plan order.
+    fn corner_senses(body: &Body<f64>, links: &[Link<f64>]) -> Vec<bool> {
+        let refs: Vec<&Link<f64>> = links.iter().collect();
+        Plan::derive(body, &refs, R)
+            .expect("the plan derives")
+            .faces
+            .iter()
+            .filter(|f| matches!(f.kind, FaceKind::Corner(_)))
+            .map(|f| f.sense)
+            .collect()
+    }
+
+    /// **The corner octant's sense is DERIVED, never assumed.** The
+    /// ball centre lies on the material side exactly when the corner
+    /// is convex, so the sphere chart's outward radial is the solid's
+    /// outward normal there and inverts with the corner — the same bit
+    /// a blend takes, from the same stored verdict. The front door
+    /// admits only convex links today, so this reaches the plan
+    /// directly: relax the door and the octants must follow.
+    #[test]
+    fn a_corner_octant_takes_its_links_sense() {
+        let body = cube();
+        let mut links = all_links(&body);
+        assert_eq!(corner_senses(&body, &links), vec![true; 8]);
+        for l in &mut links {
+            l.convexity = Convexity::Concave;
+        }
+        assert_eq!(corner_senses(&body, &links), vec![false; 8]);
+    }
+
+    /// A corner whose incident links disagree on convexity is not a
+    /// ball octant at all: the derivation refuses rather than picking
+    /// one of the three.
+    #[test]
+    fn a_corner_whose_links_disagree_refuses() {
+        let body = cube();
+        let mut links = all_links(&body);
+        links[0].convexity = Convexity::Concave;
+        let refs: Vec<&Link<f64>> = links.iter().collect();
+        assert!(
+            Plan::derive(&body, &refs, R).is_err(),
+            "a mixed-convexity corner must refuse, not pick a link"
+        );
     }
 }
