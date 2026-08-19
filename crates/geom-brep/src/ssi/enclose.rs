@@ -184,11 +184,12 @@ impl Box3 {
 /// computation left a domain has no way to say so once it is across.
 /// A refusing operand becomes ring poison, which fails every downstream
 /// test rather than shrinking a box.
+///
+/// The body is [`RingInterval::from_certified`]; this wrapper exists for
+/// the name at the call sites below, not for a second spelling of the
+/// door.
 fn ring<T: CertifiedEnclosure>(v: T) -> RingInterval {
-    match v.certified_bracket() {
-        Some((lo, hi)) => RingInterval::from_bounds(lo, hi),
-        None => RingInterval::poison(),
-    }
+    RingInterval::from_certified(v)
 }
 
 /// A symmetric pad of magnitude `r` — `[−r⁺, r⁺]` taken at the

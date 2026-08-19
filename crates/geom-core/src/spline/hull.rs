@@ -101,11 +101,12 @@ use crate::ring_interval::RingInterval;
 /// the whole input box. A coefficient that refuses becomes ring poison,
 /// exactly as a NaN or inverted bracket does, and poison propagates
 /// through every bound it participates in (module docs).
+///
+/// The body is [`RingInterval::from_certified`]; this wrapper exists for
+/// the name at the call sites below, not for a second spelling of the
+/// door.
 fn bracket<E: CertifiedEnclosure>(c: E) -> RingInterval {
-    match c.certified_bracket() {
-        Some((lo, hi)) => RingInterval::from_bounds(lo, hi),
-        None => RingInterval::poison(),
-    }
+    RingInterval::from_certified(c)
 }
 
 /// The coefficient index range whose basis functions are nonzero on
