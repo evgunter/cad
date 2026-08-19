@@ -526,9 +526,11 @@ mod tests {
     ///    construction; that one surfaces as new rows in the
     ///    `docs/K-REPORT.md` census, which is the mechanism that
     ///    already exists for it.
-    /// 2. **These six names spelled outside `topo/src`.** Another crate
-    ///    cannot reach `crate::validate::decide`, but the walk is
-    ///    scoped to this crate's `src/` and says so.
+    /// 2. **These six names spelled outside `topo/src`.** The walk is
+    ///    scoped to this crate. `crate::validate::decide` is
+    ///    `pub(crate)`, so a foreign crate would have to bypass it and
+    ///    call `geom_core::k_stats::decide` directly — unlikely, but
+    ///    not excluded by anything here.
     /// 3. **A lane re-implementing the rungs while IMPORTING the
     ///    names** — `decide(BOOL_SECTOR_PREDICATES.arm, …)`. The
     ///    consts are `pub(crate)`, so this unquoted path is *easier*
