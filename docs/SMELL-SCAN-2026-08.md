@@ -3080,33 +3080,63 @@ suite, not a repo-wide rename pass.
   `crates/pncad/src/prelude.rs:56`
 - **Confidence**: sure
 
-`mesh`'s `UnsupportedCurve.note` is documented as carrying "the PR that
-lands it (**runtime-visible through Debug**; review m2)". Every ASCII
-STL this kernel writes says `solid cad-kernel-m2`, and the binary header
-reads `binary STL; CAD kernel M2 tessellation export` — baked into every
-exported file and therefore into byte-comparison goldens, with no way
-for a caller to set them, while the STEP writer takes product name and
-header fields as options.
+**FIXED by #639 (H4).** The scope held was *everything that leaves this
+repository*: bytes written into export files, strings that reach a caller at
+runtime, the Python package, and the rustdoc of the façade crate that is the
+library.
 
-Most consequentially, ~124 references to internal spec codes, PR
-numbers, milestone units and named rulings (`LIB-DOORS F5`,
-`ASM-R2a D-4`, `LB7`, `GQ5`, `#286`, "Evan's ruling on #413", "the
-ordinal-28 ruling") sit inside `///` and `//!` comments on the **public
-API surface** — text that ships to library users in rustdoc and in the
-Python stub. These name *when a decision was made*, not what the item
-does, and are unresolvable outside this repository. Several also record
-history the reader does not need ("an earlier revision of this comment
-claimed that, and it was false").
+**The shipped bytes.** The ASCII solid name is `cad-kernel` and the binary
+header `binary STL; CAD kernel tessellation export` — the milestone token
+only. **Q9 is untouched**; the placeholder is not a name proposal. **No new
+public API**: the finding's other half, that the STL header is not
+caller-settable while the STEP writer takes `product_name`, `author`,
+`organization` and `originating_system` as options, is a **residue for
+Evan**, because closing it is an API design call. The STEP side was checked
+and has no leak of its own — its defaults are `product_name: "part"` and
+empty fields, caller-supplied at every call site — so the asymmetry is
+purely that STL has no options struct. No byte-comparison golden moved,
+because there are none: the STL oracles compare exports to each other across
+ε rows and repeat runs, so they are header-blind. That blindness was itself
+the finding — the ASCII `solid` name had **zero test coverage anywhere**
+(`review_m2_pr7.rs:62` only checks `starts_with("solid ")`), so the PR adds
+a row pinning the exact opener and its matching `endsolid`.
+
+**The estimate was an order of magnitude low.** ~124 public-rustdoc spec
+codes were predicted; **~1189** is the measured count, obtained by walking
+each crate's `pub mod` tree from `lib.rs` and counting doc lines on publicly
+reachable items, with the reviewer's independent parse agreeing at 1188. The
+**~1119-line remainder now sits entirely in `publish = false` kernel crates**
+— `topo` 306, `editor-core` 265, `geom-brep` 190, `geom-core` 107, the rest
+below 70 — and is a **residue needing its own scheduled unit**. It is not a
+leak in S37's sense while nothing in the workspace publishes; it becomes one
+the day anything does. `pncad`, `pncad-py` and `stl` are at zero.
+
+**The class was wider than rustdoc.** The sweep ran over every string literal
+outside comments in every crate's `src`, through a tokenizer that follows
+`\`-continued multi-line literals: **63 runtime-visible hits across seven
+crates**, all `Display`/`Debug` text a library user reads. `UnsupportedCurve`'s
+own doc and the value in `trimmed.rs` that carried `M6-3`/`M5 PR 11`/`M7`
+into the runtime string are among them.
+
+**Two process facts this fix established.** The first sweep matched
+**prefixed** codes (`LIB-*`, `ASM-*`, `Mn`, `PR n`, `#nnn`) and was blind to
+**bare** clause letters (`F5`, `G1`, `U7`, `R3`, `C4`, `S13`) — so S37's own
+named example, `LIB-DOORS F5`, was still shipping in a live Python `__doc__`
+in a crate the PR body reported at zero. That is **§C15's third instance**
+(#654). Separately, **ten broken string assertions shipped with a green
+`cargo test` claim in the PR body** — two seen and rationalised as load
+flakes, eight unseen because builds were run where tests were claimed. The
+reviewer caught them; the general lesson is **§C17** (#654).
 
 **Verdict:** ACCEPTED, AND SEPARABLE — CAN BE FIXED EARLIER (Evan,
 2026-08-18). *"The shipped artifact comments can be fixed earlier."*
 
-Distinguished from S36 deliberately: milestone naming **inside** test files is
-a backlog marker worth keeping until the suite is combed (S36), but milestone
-naming that **escapes into shipped output** — `solid cad-kernel-m2` in every
-STL, the PR number runtime-visible through `UnsupportedCurve.note`'s `Debug`,
-and ~124 internal spec codes in public rustdoc and the Python stub — carries no
-such signal and can go now.
+The S36 boundary held: milestone naming **inside** test files is a backlog
+marker kept until the suite is combed, and this lane left it alone —
+including `topo/src/contact.rs`'s `"the #256 ruling"` and
+`topo/src/review_m0_pr7.rs`. Non-public internal comments stay **W3b**; the
+plain-`//` residue there measures **476** workspace-wide.
+
 ## S38. Comments that argue rather than describe
 
 - **Confidence**: sure
@@ -3818,7 +3848,7 @@ Good work for filling parallel capacity. None blocks anything.
 | **H1** ✅ #626 | **ci-local mirror parity** — **FIXED by #626**, extracted rather than synced (Evan, 2026-08-19). The eight mirrored gates of ci.yml's `discipline` job live once under `scripts/gates/`; both halves call the same script, ci.yml keeps one step per gate under today's names, and the ratified allowlist prose has one home. A ninth gate, `gate-roster.sh`, closes the level above: `ci-local.sh` runs the gate directory in a loop so it keeps no roster at all, and the gate checks ci.yml's named steps — the one roster that must be hand-written — against that directory, requiring a real invocation rather than a mention. It proves wiring, not execution: a step disabled by an `if:` condition still satisfies a grep, and the script header says so. Every gate runs a `--selftest` in both halves and fails loudly rather than passing green on a tree it could not scan. The `EvalScalar` and interval-square `powi(2)` gates now run locally too. Allowlist membership unchanged; the prose drift and the one disclosed behaviour fix are recorded in the PR. | S |
 | **H2** ✅ #635 | **S39 stale claims** — ten rows, each classified **benign rot** vs **lost invariant** *before* its sentence is touched. `enters.rs:14` is the (ii) candidate: the outward-normal property was devolved onto every caller with no type enforcing it. **FIXED by #635** — all ten rows were still live, each classified before its sentence was touched. One residue is deliberate and is Evan's: `enters.rs`'s prose now states that the sense correction is the caller's and that no type enforces it, but the TYPING fork (a `geom-brep`-side `OutwardNormal<T>` newtype, versus taking `(&Body, FaceKey)` and inverting the `geom-brep`/`topo` layering) was left unmade on purpose — the real exposure is three call sites, not the 36 first reported. | M |
 | **H3** ✅ #627 | **S40 residue** — start with the two that are not cosmetic: `emit_topo.rs:1266`'s unreachable fallback would mint `Seam{ae, ae}`, a well-formed name for the wrong thing; `seqgen.rs:853`'s discarded counter means the property suite cannot tell an all-skipped run from a full one. **FIXED by #627**: both behavioural rows plus the mechanical residue, and the review pass swept two siblings of the rows it names — `validate.rs`'s 31-of-59 Display list and `run_harmonic_checks`' doubled `reach`. S40's design-call rows (the `k_stats` shim, `WitnessSlot`, `props/curved.rs`'s NaN throws and doubled `Rim` direction, the `HashSet` paragraph) stay open there; two new stale claims went to S39 for **H2**. | S |
-| **H4** | **S37** — shipped-artifact naming: the STL header's `cad-kernel-m2`, `UnsupportedCurve.note`'s runtime-visible PR number, ~124 internal spec codes in public rustdoc and the Python stub. Evan: *"can be fixed earlier"* than S36. | S–M |
+| **H4** ✅ #639 | **S37 — shipped-artifact and public-surface naming. FIXED by #639.** The STL headers lose the milestone token to a neutral placeholder (`solid cad-kernel`; `binary STL; CAD kernel tessellation export`) with **Q9 untouched and no new public API** — the caller-settable header the finding contrasts with the STEP writer's options is left as a **residue for Evan**, since closing it is an API design call rather than hygiene (STEP itself has no leak: its defaults are `product_name: "part"` and empty fields, caller-supplied at every site). No golden moved, because there are none: the STL byte oracles compare exports to each other. The ASCII `solid` name turned out to have **zero coverage anywhere**, so the PR adds the row that pins it. The class sweep went past rustdoc into every string literal outside comments — **63 runtime-visible hits across seven crates**, `Display`/`Debug` text a library user reads. **The finding estimated ~124 public-rustdoc spec codes; the real number is ~1189**, measured by walking each crate's `pub mod` tree from `lib.rs`, and the reviewer's independent parse agrees at 1188 — so the line was held at *everything that leaves the repository*, and the **~1119-line remainder in `publish = false` kernel crates is a residue needing its own scheduled unit**: not a leak while nothing publishes, and a leak the day anything does. Two process facts belong on this row. The first sweep matched **prefixed** codes only and was therefore blind to **bare** clause letters (`F5`, `G1`, `R3`, `C4`, `S13`), which left S37's own named example `LIB-DOORS F5` shipping in a live Python `__doc__` inside a crate the PR body reported at zero — §C15's third instance (#654). And **ten broken string assertions shipped with a green `cargo test` claim in the body**; the reviewer caught them, and the general lesson is §C17 (#654). | S–M |
 | **H5** ✅ #632 | **S4 drift (b)** — `names/select.rs:319`'s `_ => Vec::new()`, the fail-quiet wildcard its three siblings forbid by comment. One function. **FIXED by #632**: `name_args` and its neighbour `side_of` now list all 40 `RoleSeg` variants explicitly, including the nested `Qualifier` inside the `Fragment` arm, so a future name-carrying variant breaks the compile instead of compiling in as "no arguments". No behaviour change. | XS |
 | **H6** ✅ #625 | **Euler postcondition 7-tuple → named struct** — unnamed positional, 16 sites, 6 files, all `cfg(debug_assertions)`. **FIXED by #625**: `ArenaDelta`, still debug-only, written sparsely over `..ArenaDelta::ZERO`. | S |
 | **H7** ✅ #633 | **The chart lane's empty-tube acceptance row** — #617 fixed both SSI lanes but its red row covers ℝ³ only, so the chart lane's `account_chart_plane` refusal is asserted by construction and not by a fixture. Needs a NURBS wall whose true surface misses the cutting plane *inside* its own control-net hull slack (the M5 substrate wall's hull is tight exactly where the near-miss must sit), then the same two-run shape: certify-empty at a healthy floor, refuse at a clamped one. The narrowing is #617's, so this row closes it. **FIXED by #633**, tests only: `hull_slack_wall` is the fixture the row needed — a cubic × linear patch whose control net reaches 0.05 m past the cutting plane while the surface comes no closer than 0.002 m, a 25:1 hull-vs-truth gap that drives the sweep into the mode. The floor ordering that makes it work is a fact about lengths, not about ε. | S–M |
