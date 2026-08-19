@@ -2871,69 +2871,99 @@ of the two happened?**
 
 - **Confidence**: sure
 
-- `seqgen` maintains a `roundtrips` counter and ends with
-  `let _ = roundtrips;` under a comment describing an assertion that is
-  not there — so the property suite cannot distinguish a run where every
-  step was skipped from one where all roundtrips executed
-  (`seqgen.rs:853`).
-- `ring_interval.rs:551` asserts `!x.powi(i32::MIN).is_poison() || true`
-  — unconditionally true, testing nothing.
-- `every_error_displays` claims exhaustiveness "by compiler guidance"
-  that a hand-written array literal cannot have, and covers 16 of 27
-  variants (`euler.rs:3060`).
-- `name_boolean_vertices` still takes `_seam_set` "unused since M4 PR 5"
-  and the caller still builds and passes it; `a_faces`/`b_faces` are
-  sorted and deduped twice; guarded arms carry `unwrap_or_else`
-  fallbacks that are unreachable *and* would mint `Seam{ae, ae}` — a
-  well-formed name denoting the wrong thing — if they fired
-  (`emit_topo.rs:1133`, `:1266`, `:1283`).
-- `pncad-py/src/py/flush.rs:182`'s `growth_tripwire` is a byte-for-byte
-  copy of two functions ~100 lines above that were *already* exhaustive
-  matches over the kernel enum — the pattern was copied from
-  `py/select.rs`, where the inverse direction genuinely adds a check,
-  without noticing the direction was already right.
+- **FIXED by #NNN.** `run_properties` now RETURNS the number of
+  roundtrips that executed, and the counter is asserted at the strength
+  the design supports. A single case may legitimately execute none (a
+  short decision vector may hold no roundtrip step, and the documented
+  irreversible-by-one-op kills are skipped by design), so the honest
+  statement is not per-case: the proptest test became a plain `#[test]`
+  around `proptest!`'s closure form, summing executions across the whole
+  run and asserting the total is non-zero once the run completes. The
+  deterministic issue-#60 case, whose final step IS a `kef` roundtrip,
+  asserts its own execution. Both go RED against a `roundtrip` forced to
+  skip everything.
+- **FIXED by #NNN.** `powi_edges`' `|| true` row now asserts what the
+  case is for: `x.powi(i32::MIN)` is not poison and is a finite
+  underflowed bracket of zero. The overflowed positive power is the
+  honest `[MAX, +inf]` (not poison), so its reciprocal has a positive
+  subnormal upper bound rather than collapsing — which the old row could
+  not have told apart from poison.
+- **FIXED by #NNN.** `every_error_displays` is exhaustive BY
+  CONSTRUCTION: a local `variant_index` matches `EulerOpError` with no
+  wildcard, so a new variant fails to compile until it is listed, and a
+  coverage array then stays red until a Display sample for it joins the
+  list. All 27 variants are sampled.
+- **FIXED by #NNN.** The seam-vertex parentage match now scrutinises
+  the contact-record partners alongside the edge slices
+  (`(a_edges, b_edges, partner_a_inner.as_ref(), partner_b_inner.as_ref())`),
+  so the two arms that were `is_some()`-guarded and then
+  `unwrap_or_else`-defaulted bind their partner by pattern instead. The
+  fallbacks are gone with the guards, and every arm draws its A side
+  from an A-descended name and its B side from a B-descended one — so
+  `Seam{x, x}` has no arm left to come from. `_seam_set` is off the
+  signature and the call (the caller still builds `seam_set` for the
+  edge and fragment passes, which use it); the second `a_faces`/`b_faces`
+  sort+dedup is deleted, the first one already covered them.
+- **FIXED by #NNN.** Confirmed and removed. `select.rs`'s live
+  crossings go Python → kernel (`to_kernel`), so its tripwire's
+  kernel → Python match is the only exhaustiveness check over the kernel
+  enums there; `flush.rs`'s live `plane_relation`/`flush_rung` already
+  cross kernel → Python with no wildcard, so the copy checked nothing the
+  callable helpers did not. The helpers' own doc lines now state that
+  invariant.
 - `profile::k_stats` is a self-declared compatibility shim ("new code
   should reach for `geom_core::k_stats` directly") that all eight of the
   crate's own decision-making modules use in preference to the thing it
   forwards to — including modules written long after the unification it
-  describes (`profile/k_stats.rs:1`).
-- A refusal message in `boolean/ops.rs:1600` lost its line-continuation
-  backslashes and contains three ~40-space runs mid-sentence.
-- In `boolean/join.rs`, `loose_partners`' doc comment was merged into
-  `germ_section_frame`'s (so it documents the wrong function) and its
-  orphaned tail sits on `type LooseMap` 150 lines away. The same
-  stranding happened to `feed_stable_name`'s doc in `eval/mod.rs:1543`
-  and `run_iso_checks`' in `pcurve_cache.rs:2459`.
-- `finish_fallback` computes an identical `let (a_view, b_view) = match
-  kind {…}` twice in a row (`boolean/ops.rs:1944`).
+  describes (`profile/k_stats.rs:1`). **STILL OPEN** — retiring the shim
+  is structural, not residue.
+- **FIXED by #NNN.** The refusal message's line continuations are
+  restored; the runtime text is one clean sentence again (the acceptance
+  probe matches on `NON-PARALLEL`, which is unchanged).
+- **FIXED by #NNN.** All three stranded doc comments are reattached to
+  the item they describe: `loose_partners`' doc (head and orphaned tail
+  rejoined) off `germ_section_frame` and `type LooseMap`,
+  `feed_stable_name`'s off `naming_key`, and `run_iso_checks`' off
+  `run_iso_arc_checks`.
+- **FIXED by #NNN.** `remap_contacts` takes its two `KeyView`s by
+  reference like `remap_carried` already did, so `finish_fallback` binds
+  the pair once. The duplicate existed only because the first call
+  consumed them.
 - `WitnessSlot {}` is an empty struct occupying a field on every
   `NodeValue`, paired with a `NodeErrorKind::WitnessBifurcation`
-  documented as never constructed (`eval/mod.rs:230`).
-- `save` writes `drop(replay)` on a value about to go out of scope;
-  `member_of` lists a `Subgroup::Empty` arm an early return already made
-  unreachable (`persist/mod.rs:637`, `coset.rs:583`).
+  documented as never constructed (`eval/mod.rs:230`). **STILL OPEN** —
+  deleting either changes the eval value type.
+- **FIXED by #NNN.** `save`'s `drop(replay)` is gone. In `member_of`
+  the early `matches!(g, Subgroup::Empty)` return is folded INTO the
+  match as its own arm — the arm cannot simply be dropped from
+  `Subgroup::Se3 | Subgroup::Empty` without making the match
+  non-exhaustive, and moving the structural answer into it keeps one
+  place per variant.
 - `same_level`'s structurally-impossible arm manufactures its error by
   feeding `f64::NAN` into `classify` and letting the funnel escalate —
   a decision predicate used as a `throw`; `unreachable_zero` returns a
   4-tuple of NaNs into live flux arithmetic (`props/curved.rs:350`,
-  `:1090`).
+  `:1090`). **STILL OPEN** — D2 (bug-vs-invalid-state) territory, gated
+  on Wave 0.
 - `Rim` stores the same traversal direction twice (`d_u: T` and
   `d_u_sign: Sign`), and the exact one is compared through the tolerance
   funnel — subtracting two exactly-±1 values and banding a result that
-  is always 0 or ±2 (`props/curved.rs:330`, `:384`).
-- The `dbg-join` cargo feature exists for exactly one `eprintln!` block
-  (`topo/Cargo.toml:12`).
+  is always 0 or ±2 (`props/curved.rs:330`, `:384`). **STILL OPEN** —
+  which of the two representations is authoritative is a design call.
+- **FIXED by #NNN.** Removed, with its `eprintln!` block. Nothing in
+  CI, `scripts/`, `local-scripts/` or any manifest enabled it; the only
+  other mention was a history note in `review_s1_probes.rs`, reworded so
+  it no longer names a feature that is gone.
 - `crate docs` devote a paragraph to defending the single `HashSet` that
   violates D9's determinism rule, concluding "a `SecondaryMap` would be
   both cheaper and consistent with the rule" — for a set used at three
-  sites (`topo/src/lib.rs:60`).
+  sites (`topo/src/lib.rs:60`). **STILL OPEN** — a D9 determinism design
+  call, and the comment itself is W3b's pass.
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18). *"The residue stuff should also be
-fixed."* Note two rows are not purely cosmetic: `emit_topo.rs:1266`'s
-unreachable `unwrap_or_else` would mint `Seam{ae, ae}` — a well-formed name
-denoting the wrong thing — if it ever fired, and `seqgen.rs:853`'s discarded
-counter means the property suite cannot distinguish an all-skipped run from a
-fully-exercised one.
+fixed."* Scoped by Evan on 2026-08-19 to the two behavioural rows plus the
+unambiguously mechanical residue; the rows marked STILL OPEN above are design
+calls or belong to later waves and were deliberately left.
 ## S41. The `Enclosure` seam launders `Interval` decorations, possibly today
 
 - **Where**: `crates/geom-core/src/spline/hull.rs:98`,
@@ -3250,7 +3280,7 @@ Good work for filling parallel capacity. None blocks anything.
 |---|---|---|
 | **H1** | **ci-local mirror parity** — the local mirror has no `EvalScalar` step and no interval-square `powi(2)` step; hosted has both. Decide add-or-document. (The `separation.rs` and dead-`test_support.rs` halves are fixed in this PR.) | S |
 | **H2** | **S39 stale claims** — nine rows, each classified **benign rot** vs **lost invariant** *before* its sentence is touched. `enters.rs:14` is the (ii) candidate: the outward-normal property was devolved onto every caller with no type enforcing it. | M |
-| **H3** | **S40 residue** — start with the two that are not cosmetic: `emit_topo.rs:1266`'s unreachable fallback would mint `Seam{ae, ae}`, a well-formed name for the wrong thing; `seqgen.rs:853`'s discarded counter means the property suite cannot tell an all-skipped run from a full one. | S |
+| **H3** ✅ #NNN | **S40 residue** — start with the two that are not cosmetic: `emit_topo.rs:1266`'s unreachable fallback would mint `Seam{ae, ae}`, a well-formed name for the wrong thing; `seqgen.rs:853`'s discarded counter means the property suite cannot tell an all-skipped run from a full one. **FIXED by #NNN**: both behavioural rows plus the mechanical residue; S40's design-call rows (the `k_stats` shim, `WitnessSlot`, `props/curved.rs`'s NaN throws and doubled `Rim` direction, the `HashSet` paragraph) stay open there. | S |
 | **H4** | **S37** — shipped-artifact naming: the STL header's `cad-kernel-m2`, `UnsupportedCurve.note`'s runtime-visible PR number, ~124 internal spec codes in public rustdoc and the Python stub. Evan: *"can be fixed earlier"* than S36. | S–M |
 | **H5** | **S4 drift (b)** — `names/select.rs:319`'s `_ => Vec::new()`, the fail-quiet wildcard its three siblings forbid by comment. One function. | XS |
 | **H6** | **Euler postcondition 7-tuple → named struct** — unnamed positional, 16 sites, 6 files, all `cfg(debug_assertions)`. Mechanical. | S |
