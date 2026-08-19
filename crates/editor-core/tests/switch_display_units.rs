@@ -191,7 +191,12 @@ fn every_row_of_the_closed_table_is_a_working_display_unit() {
         // And the text parser reaches the same row from the suffix.
         let parsed = parse_expr(&format!("1 {}", row.symbol), &no_params())
             .unwrap_or_else(|err| panic!("`1 {}` must parse: {err:?}", row.symbol));
-        assert_eq!(parsed.dim(), dim, "{} parsed at the wrong dimension", row.symbol);
+        assert_eq!(
+            parsed.dim(),
+            dim,
+            "{} parsed at the wrong dimension",
+            row.symbol
+        );
         assert_eq!(
             parsed.display_unit().expect("the parser stores the suffix"),
             row,
