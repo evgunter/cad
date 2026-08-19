@@ -3925,7 +3925,7 @@ duplicate for free and left the `tests/` one standing; #640 put `sweep`'s
 shared fixture in a crate-root `#[cfg(test)]` module and left the six
 integration copies standing, for the same reason.
 
-**EXECUTED for `topo` and `sweep` by #657.** Each crate gained a
+**EXECUTED for `topo` and `sweep` by #668.** Each crate gained a
 `test_support` module behind an **off-by-default cargo feature reached
 through a self dev-dependency** (`[features] test-support = []`,
 `[dev-dependencies] <crate> = { path = ".", features = ["test-support"] }`),
@@ -3956,7 +3956,7 @@ as the shipped remedy; the file was retired by LIB-RETTAIL/ONARC and
 `pncad/src/profile.rs:50` says so outright. But the *mechanism* was never
 retired — `profile`'s shim used this exact feature + self-dev-dependency
 wiring, and `topo`'s live `sweep-testing` feature still does. The file is
-gone; the pattern is repo-native, and #657 only applies it to a second
+gone; the pattern is repo-native, and #668 only applies it to a second
 purpose.
 
 **Why not a `tests/common` module instead.** Both crates aggregate their
@@ -3970,7 +3970,7 @@ reach. The gate puts one definition where both sides can name it.
 
 **Verdict:** RULED (Evan, 2026-08-19): **kernel crates may carry their own
 test support, gated so it does not show up in release builds.** Executed by
-#657 for `topo` and `sweep`. Deliberately not extended further: other crates
+#668 for `topo` and `sweep`. Deliberately not extended further: other crates
 carry the same shape (`crates/mesh/tests/`, `crates/stl/tests/`,
 `crates/step-export/tests/` and `crates/editor-core/tests/` each repeat local
 body builders, the last two already through tests-side shared modules) and
