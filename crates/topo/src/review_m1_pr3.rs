@@ -110,9 +110,13 @@ fn assert_err_unchanged(
     assert_eq!(snapshot(body), before, "body changed on Err");
 }
 
-/// The Euler–Poincaré ledger, read off the body.
+/// The five Euler–Poincaré components genus is derived FROM, counted
+/// off the body. Genus itself is deliberately NOT a field: it is the
+/// quantity under test here, and carrying it would make [`genus`]
+/// tautological. (The crate's running six-component ledger, which does
+/// track `h`, is [`crate::seqgen::Ledger`].)
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-struct Ledger {
+struct GenusInputs {
     v: i64,
     e: i64,
     f: i64,
@@ -120,8 +124,8 @@ struct Ledger {
     s: i64,
 }
 
-fn ledger(body: &Body<f64>) -> Ledger {
-    Ledger {
+fn genus_inputs(body: &Body<f64>) -> GenusInputs {
+    GenusInputs {
         v: body.vertices().count() as i64,
         e: body.edges().count() as i64,
         f: body.faces().count() as i64,
@@ -131,7 +135,7 @@ fn ledger(body: &Body<f64>) -> Ledger {
 }
 
 /// Derived genus: v − e + f − r = 2(s − h)  ⇒  h = s − (v−e+f−r)/2.
-fn genus(l: Ledger) -> i64 {
+fn genus(l: GenusInputs) -> i64 {
     let x = l.v - l.e + l.f - l.r;
     assert_eq!(x.rem_euclid(2), 0, "E–P parity violated: {l:?}");
     l.s - x / 2
@@ -145,9 +149,9 @@ fn starts(body: &Body<f64>, he: HalfEdgeKey) -> Vec<VertexKey> {
         .collect()
 }
 
-fn check(body: &Body<f64>, expect: Ledger, h: i64) {
+fn check(body: &Body<f64>, expect: GenusInputs, h: i64) {
     assert_eq!(validate(body), Ok(()));
-    let l = ledger(body);
+    let l = genus_inputs(body);
     assert_eq!(l, expect);
     assert_eq!(genus(l), h);
 }
@@ -217,7 +221,7 @@ fn build_box(body: &mut Body<f64>) -> BoxBuilt {
     let f_left = mef(body, e_dd.he_minus, f_front.he_plus);
     check(
         body,
-        Ledger {
+        GenusInputs {
             v: 8,
             e: 12,
             f: 6,
@@ -272,8 +276,8 @@ struct HoleBuilt {
 /// Carve an n-gon hole from face `f_from` (strut planted at the start
 /// vertex of `at`) through to face `f_to`. `rim_pts` are the n rim
 /// coordinates on the from-plane; `drop_pts` the n far-plane points.
-/// Ledger is asserted after EVERY operator against the caller's
-/// running expectation (`start`, mutated in place).
+/// [`GenusInputs`] are asserted after EVERY operator against the
+/// caller's running expectation (`l`, mutated in place).
 // Promotion adaptation (lint only, reviewer's signature kept verbatim):
 // the shipped crate denies clippy::too_many_arguments at 8/7.
 #[allow(clippy::too_many_arguments)]
@@ -284,7 +288,7 @@ fn carve_hole(
     f_to: FaceKey,
     rim_pts: &[Point3<f64>],
     drop_pts: &[Point3<f64>],
-    l: &mut Ledger,
+    l: &mut GenusInputs,
     h: i64,
 ) -> HoleBuilt {
     let n = rim_pts.len() as i64;
@@ -476,7 +480,7 @@ fn independent_genus_one_and_two_builds_with_hand_ledger() {
     let pt = Point3::new;
     let mut body = Body::<f64>::new();
     let b = build_box(&mut body);
-    let mut l = Ledger {
+    let mut l = GenusInputs {
         v: 8,
         e: 12,
         f: 6,
@@ -501,7 +505,7 @@ fn independent_genus_one_and_two_builds_with_hand_ledger() {
     );
     assert_eq!(
         l,
-        Ledger {
+        GenusInputs {
             v: 14,
             e: 21,
             f: 9,
@@ -566,7 +570,7 @@ fn independent_genus_one_and_two_builds_with_hand_ledger() {
     // Hand ledger, genus 2: v−e+f−r = 22−33+13−4 = −2 = 2(1−2).
     assert_eq!(
         l,
-        Ledger {
+        GenusInputs {
             v: 22,
             e: 33,
             f: 13,
@@ -616,7 +620,7 @@ fn independent_genus_one_and_two_builds_with_hand_ledger() {
     let birth = body.provenance(EntityId::Loop(hole2.plug.ring)).cloned();
     body.ring_move(hole2.plug.ring, b.f_right.face).unwrap();
     assert_eq!(validate(&body), Ok(()));
-    assert_eq!(ledger(&body), l);
+    assert_eq!(genus_inputs(&body), l);
     assert_eq!(
         body.get_face(b.f_right.face).unwrap().rings,
         vec![hole2.plug.ring]
@@ -671,7 +675,7 @@ fn independent_genus_one_and_two_builds_with_hand_ledger() {
     // Replay determinism of the whole genus-2 history, kills included.
     let mut body2 = Body::<f64>::new();
     let b2 = build_box(&mut body2);
-    let mut l2 = Ledger {
+    let mut l2 = GenusInputs {
         v: 8,
         e: 12,
         f: 6,
@@ -1214,10 +1218,10 @@ fn mekr_joins_two_independent_rings_and_then_the_outer() {
         body.get_face(seed.face).unwrap().rings,
         vec![ring_a.ring, ring_b.ring]
     );
-    let l = ledger(&body);
+    let l = genus_inputs(&body);
     assert_eq!(
         l,
-        Ledger {
+        GenusInputs {
             v: 4,
             e: 1,
             f: 1,
@@ -1252,8 +1256,8 @@ fn mekr_joins_two_independent_rings_and_then_the_outer() {
     );
     assert_eq!(body.half_edge_end(join.he_plus), Some(strut_b.vertex));
     assert_eq!(
-        ledger(&body),
-        Ledger {
+        genus_inputs(&body),
+        GenusInputs {
             v: 4,
             e: 2,
             f: 1,
@@ -1284,10 +1288,10 @@ fn mekr_joins_two_independent_rings_and_then_the_outer() {
             seg.vertex,     // seg.he_minus: v1 → v0
         ]
     );
-    let l = ledger(&body);
+    let l = genus_inputs(&body);
     assert_eq!(
         l,
-        Ledger {
+        GenusInputs {
             v: 4,
             e: 3,
             f: 1,
@@ -1893,7 +1897,7 @@ fn failing_ring_ops_leave_lineage_pure() {
     let build = |inject: bool| -> (Body<f64>, Vec<String>) {
         let mut body = Body::<f64>::new();
         let b = build_box(&mut body);
-        let mut l = Ledger {
+        let mut l = GenusInputs {
             v: 8,
             e: 12,
             f: 6,
