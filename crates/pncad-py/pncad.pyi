@@ -551,7 +551,7 @@ class NodeId:
     def __hash__(self) -> int: ...
 
 class BooleanOp:
-    """The DOCUMENT-layer Boolean operator."""
+    """The regularized Boolean operator."""
 
     Union: Final[BooleanOp]
     Intersect: Final[BooleanOp]
