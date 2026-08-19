@@ -168,6 +168,8 @@ use crate::entity::{
 };
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::provenance::Provenance;
+#[cfg(debug_assertions)]
+use crate::test_support::ArenaCounts;
 
 /// How a face-minting operator obtains the new face's surface (M2 PR 3
 /// — the sweep supplies each face's surface explicitly; op parameters,
@@ -811,22 +813,6 @@ impl fmt::Display for EulerOpError {
 }
 
 impl std::error::Error for EulerOpError {}
-
-/// The seven topology-arena lengths. Captured for the debug
-/// postcondition's Euler-vector check, and compared directly by the
-/// in-crate test oracles — hence the `test` arm on the gate, which
-/// compiles the type into `cargo test --release` too.
-#[cfg(any(debug_assertions, test))]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct ArenaCounts {
-    solids: usize,
-    shells: usize,
-    faces: usize,
-    loops: usize,
-    half_edges: usize,
-    edges: usize,
-    vertices: usize,
-}
 
 /// One operator's signed shift of the seven topology-arena lengths.
 ///
@@ -2006,21 +1992,6 @@ impl<T: Decide> Body<T> {
         }
         if let Some(he) = self.get_half_edge_mut(b) {
             he.prev = a;
-        }
-    }
-
-    /// Captures the topology-arena lengths for the debug postcondition
-    /// and for the in-crate test oracles.
-    #[cfg(any(debug_assertions, test))]
-    pub(crate) fn arena_counts(&self) -> ArenaCounts {
-        ArenaCounts {
-            solids: self.solids.len(),
-            shells: self.shells.len(),
-            faces: self.faces.len(),
-            loops: self.loops.len(),
-            half_edges: self.half_edges.len(),
-            edges: self.edges.len(),
-            vertices: self.vertices.len(),
         }
     }
 

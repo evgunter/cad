@@ -1232,7 +1232,7 @@ mod tests {
 
     use super::super::battery::{Convexity, Link};
     use super::{FaceKind, Plan};
-    use crate::fixtures::{R, all_links, cube};
+    use crate::test_support::{L, R, all_links, cube};
 
     /// The corner octants' sense bits, in plan order.
     fn corner_senses(body: &Body<f64>, links: &[Link<f64>]) -> Vec<bool> {
@@ -1264,7 +1264,7 @@ mod tests {
     /// without a second edit.
     #[test]
     fn a_corner_octant_takes_its_links_sense() {
-        let body = cube();
+        let body = cube(L);
         let mut links = all_links(&body);
         assert_eq!(corner_senses(&body, &links), vec![true; 8]);
         for l in &mut links {
@@ -1278,7 +1278,7 @@ mod tests {
     /// one of the three.
     #[test]
     fn a_corner_whose_links_disagree_refuses() {
-        let body = cube();
+        let body = cube(L);
         let mut links = all_links(&body);
         links[0].convexity = Convexity::Concave;
         let refs: Vec<&Link<f64>> = links.iter().collect();

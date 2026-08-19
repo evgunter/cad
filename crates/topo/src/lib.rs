@@ -177,6 +177,10 @@ pub(crate) mod seqgen;
 pub mod source;
 pub mod split;
 pub mod splitting;
+// The gate is the module's own subject — see its docs for why
+// `cfg(test)` cannot serve and what each arm buys.
+#[cfg(any(debug_assertions, test, feature = "test-support"))]
+pub mod test_support;
 #[cfg(test)]
 mod tier3_tests;
 pub mod transform;

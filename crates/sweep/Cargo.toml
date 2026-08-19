@@ -9,6 +9,14 @@ rust-version.workspace = true
 workspace = true
 
 [features]
+# Makes `test_support` — the fixtures this crate's tests build on —
+# nameable from this crate's `tests/` binaries. A `tests/` file is a
+# SEPARATE crate, so it can name neither a `#[cfg(test)]` item nor a
+# `pub(crate)` one; without this feature every suite mints its own copy
+# of the fixture and the copies drift (S52). Off by default and enabled
+# only through the self-dev-dependency below, so it is on exactly for
+# this crate's own tests and off for every normal build.
+test-support = []
 # Forwards geom-core's certified interval scalar so the sweep operations
 # run at `Interval` — exercised by the feature-gated test files in CI's
 # interval lane.
@@ -44,6 +52,12 @@ profile = { path = "../profile" }
 topo = { path = "../topo", features = ["sweep-testing"] }
 
 [dev-dependencies]
+# Self dev-dependency: turns `test-support` on for THIS crate's own
+# integration tests without exposing it to production dependents.
+# Dev-dependencies are not in any consumer's build graph and are not
+# built by `cargo build [--release]`, so this is the only edge that
+# ever enables the feature.
+sweep = { path = ".", features = ["test-support"] }
 # Watertightness backstop for the fillet acceptance row (M5 PR 12): the
 # rounded die is tessellated and `mesh::validate::check_mesh`ed. `mesh`
 # dev-depends on `sweep` in turn; cargo permits cycles that run through

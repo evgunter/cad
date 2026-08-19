@@ -15,6 +15,14 @@ workspace = true
 # self-dev-dependency below (and consumers' dev-dependencies), so no
 # production dependent can reach an injector.
 sweep-testing = []
+# Makes `test_support` — the vocabulary this crate's own `tests/`
+# binaries need — nameable from those binaries. A `tests/` file is a
+# SEPARATE crate, so it can name neither a `#[cfg(test)]` item nor a
+# `pub(crate)` one; without this feature every suite mints its own copy
+# of the vocabulary and the copies drift (S52). Off by default and
+# enabled only through the self-dev-dependency below, so it is on
+# exactly for this crate's own tests and off for every normal build.
+test-support = []
 # Forwards geom-core's certified interval scalar so `Body<Interval>` is
 # instantiable — exercised by `tests/interval_body.rs` in CI's interval
 # lane (Q1's pure-replay model: same topology keys, interval geometry).
@@ -44,9 +52,12 @@ slotmap = { workspace = true }
 # what keeps it off every shipped build path.
 test-utils = { path = "../test-utils" }
 proptest = { workspace = true }
-# Self dev-dependency: turns `sweep-testing` on for THIS crate's own
-# integration tests without exposing it to production dependents.
-topo = { path = ".", features = ["sweep-testing"] }
+# Self dev-dependency: turns `sweep-testing` and `test-support` on for
+# THIS crate's own integration tests without exposing either to
+# production dependents. Dev-dependencies are not in any consumer's
+# build graph and are not built by `cargo build [--release]`, so this is
+# the only edge that ever enables them.
+topo = { path = ".", features = ["sweep-testing", "test-support"] }
 # Downstream export/tessellation consumers, dev-only (M5 S1): the
 # glued-union acceptance rows pin watertight STL + STEP export of the
 # REST-zip results (dev-dependency cycles are cargo-legal and never

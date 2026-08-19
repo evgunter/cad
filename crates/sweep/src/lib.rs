@@ -121,13 +121,14 @@
 //! every decision under its predicate name.
 
 pub mod extrude;
-/// Bodies shared by this crate's in-crate pins (test builds only).
-#[cfg(test)]
-pub(crate) mod fixtures;
+// The gate is the module's own subject — see its docs for why
+// `cfg(test)` cannot serve and what each arm buys.
 pub mod loft;
 pub mod readback;
 pub mod revolve;
 pub mod skin;
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_support;
 
 pub use extrude::{ExtrudeError, Extruded, Extrusion, extrude};
 pub use loft::{LoftError, Lofted, loft_body, sweep_body};
