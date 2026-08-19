@@ -7,7 +7,7 @@
 //! History note (the review's F1 probe, not runnable against HEAD):
 //! at the S1 merge-base the declared crosslap union refused
 //! `JoinDesync { what: "every chord arc separates a loose scaffolding
-//! pair" }`, and the `dbg-join` germ dump showed the root cause the
+//! pair" }`, and a loose-germ dump showed the root cause the
 //! branch claims — one seam segment's two end records carrying
 //! DIFFERENT face-pair meta (e.g. `(A:side, B:bottom)` vs
 //! `(A:bottom, B:notchwall)`) because a REST germ direction lies in

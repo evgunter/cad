@@ -2013,7 +2013,6 @@ fn run_harmonic_checks<T: Decide>(
     let d_a = image_form.a - carrier_form.a;
     let d_b = image_form.b - carrier_form.b;
     let d_l = image_form.l - carrier_form.l;
-    let reach = t0.abs().max(t1.abs());
     // **The snap slack.** Check 1's winding trilean classifies
     // `|pa.x|·r`, `|pb.x|·r` and `|pl.x − β|·r` as Zero anywhere inside
     // the band, so `certify` admits pcurves in an ε-shell OUTSIDE the
@@ -2456,14 +2455,6 @@ fn run_fitted_checks<T: PcurveFittedLane>(
     })
 }
 
-/// **The iso lane's five checks** (M6-3), same fixed order as the
-/// closed-form lane's. What differs: check 1 admits exactly the
-/// non-rational described-NURBS chart, and check 4's sup bound is the
-/// boundary-row control-difference hull
-/// ([`EnvelopeStatement::MapResidualIsoHull`]) with the banded
-/// axis/side/domain snap slacks folded in — the cylinder lane's
-/// winding-snap idiom transposed. Every slack is exactly zero on the
-/// minted path (the builder mints exact `0`/`1` chart values).
 /// **The ARC-RIM iso class** (M8-3) — certification of a
 /// [`Pcurve::IsoArc`], to the same bar as every other minted pcurve.
 ///
@@ -2837,6 +2828,14 @@ fn side_of<T: Decide>(
     })
 }
 
+/// **The iso lane's five checks** (M6-3), same fixed order as the
+/// closed-form lane's. What differs: check 1 admits exactly the
+/// non-rational described-NURBS chart, and check 4's sup bound is the
+/// boundary-row control-difference hull
+/// ([`EnvelopeStatement::MapResidualIsoHull`]) with the banded
+/// axis/side/domain snap slacks folded in — the cylinder lane's
+/// winding-snap idiom transposed. Every slack is exactly zero on the
+/// minted path (the builder mints exact `0`/`1` chart values).
 #[allow(clippy::too_many_lines)] // one check sequence, kept whole like its two siblings
 #[allow(clippy::too_many_arguments)] // one parameter per named quantity (the siblings' shape)
 fn run_iso_checks<T: Decide>(

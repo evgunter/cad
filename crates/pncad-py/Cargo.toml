@@ -46,7 +46,6 @@ unwrap_used = "warn"
 expect_used = "warn"
 todo = "warn"
 unimplemented = "warn"
-unreachable = "warn"
 dbg_macro = "warn"
 
 [features]

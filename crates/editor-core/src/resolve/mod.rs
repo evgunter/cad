@@ -900,8 +900,11 @@ pub fn rebind_suggestions<T: Decide>(eval: &Evaluation<T>, name: &StableName) ->
 /// whose nodes are unevaluated, failed, or poisoned in `eval` are
 /// not checkable here and defer to evaluation-time resolution.
 ///
-/// Checked sites: `InsertNode(Declare)` pairs and `Rebind`'s target.
-/// Every other edit validates exactly as [`crate::edit::apply`].
+/// Checked sites: the name-carrying payload of an `InsertNode`
+/// ([`crate::node::Node::payload_names`] — Declare pairs, a fillet's
+/// selection, a mate's two heads) and `Rebind`'s target. Every other
+/// edit validates exactly as [`crate::edit::apply`]. `Rebind`'s SOURCE
+/// is deliberately unchecked: it is the stranded name being repaired.
 ///
 /// # Errors
 ///
@@ -914,12 +917,9 @@ pub fn apply_with_names<T: Decide>(
     eval: &Evaluation<T>,
 ) -> Result<crate::edit::Applied<ProfileProgram>, crate::edit::EditError> {
     use crate::edit::{DocEdit, EditError};
-    use crate::node::Node;
     let mut names: Vec<&StableName> = Vec::new();
     match edit {
-        DocEdit::InsertNode {
-            node: Node::Declare { pairs },
-        } => names.extend(pairs.iter().flat_map(|((a, b), _)| [a, b])),
+        DocEdit::InsertNode { node } => names.extend(node.payload_names()),
         DocEdit::Rebind { to, .. } => names.push(to),
         _ => {}
     }
