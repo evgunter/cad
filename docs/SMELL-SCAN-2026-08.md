@@ -2871,7 +2871,7 @@ of the two happened?**
 
 - **Confidence**: sure
 
-- **FIXED by #NNN.** `run_properties` now RETURNS the number of
+- **FIXED by #627.** `run_properties` now RETURNS the number of
   roundtrips that executed, and the counter is asserted at the strength
   the design supports. A single case may legitimately execute none (a
   short decision vector may hold no roundtrip step, and the documented
@@ -2882,18 +2882,18 @@ of the two happened?**
   deterministic issue-#60 case, whose final step IS a `kef` roundtrip,
   asserts its own execution. Both go RED against a `roundtrip` forced to
   skip everything.
-- **FIXED by #NNN.** `powi_edges`' `|| true` row now asserts what the
+- **FIXED by #627.** `powi_edges`' `|| true` row now asserts what the
   case is for: `x.powi(i32::MIN)` is not poison and is a finite
   underflowed bracket of zero. The overflowed positive power is the
   honest `[MAX, +inf]` (not poison), so its reciprocal has a positive
   subnormal upper bound rather than collapsing — which the old row could
   not have told apart from poison.
-- **FIXED by #NNN.** `every_error_displays` is exhaustive BY
+- **FIXED by #627.** `every_error_displays` is exhaustive BY
   CONSTRUCTION: a local `variant_index` matches `EulerOpError` with no
   wildcard, so a new variant fails to compile until it is listed, and a
   coverage array then stays red until a Display sample for it joins the
   list. All 27 variants are sampled.
-- **FIXED by #NNN.** The seam-vertex parentage match now scrutinises
+- **FIXED by #627.** The seam-vertex parentage match now scrutinises
   the contact-record partners alongside the edge slices
   (`(a_edges, b_edges, partner_a_inner.as_ref(), partner_b_inner.as_ref())`),
   so the two arms that were `is_some()`-guarded and then
@@ -2904,7 +2904,7 @@ of the two happened?**
   signature and the call (the caller still builds `seam_set` for the
   edge and fragment passes, which use it); the second `a_faces`/`b_faces`
   sort+dedup is deleted, the first one already covered them.
-- **FIXED by #NNN.** Confirmed and removed. `select.rs`'s live
+- **FIXED by #627.** Confirmed and removed. `select.rs`'s live
   crossings go Python → kernel (`to_kernel`), so its tripwire's
   kernel → Python match is the only exhaustiveness check over the kernel
   enums there; `flush.rs`'s live `plane_relation`/`flush_rung` already
@@ -2917,15 +2917,15 @@ of the two happened?**
   forwards to — including modules written long after the unification it
   describes (`profile/k_stats.rs:1`). **STILL OPEN** — retiring the shim
   is structural, not residue.
-- **FIXED by #NNN.** The refusal message's line continuations are
+- **FIXED by #627.** The refusal message's line continuations are
   restored; the runtime text is one clean sentence again (the acceptance
   probe matches on `NON-PARALLEL`, which is unchanged).
-- **FIXED by #NNN.** All three stranded doc comments are reattached to
+- **FIXED by #627.** All three stranded doc comments are reattached to
   the item they describe: `loose_partners`' doc (head and orphaned tail
   rejoined) off `germ_section_frame` and `type LooseMap`,
   `feed_stable_name`'s off `naming_key`, and `run_iso_checks`' off
   `run_iso_arc_checks`.
-- **FIXED by #NNN.** `remap_contacts` takes its two `KeyView`s by
+- **FIXED by #627.** `remap_contacts` takes its two `KeyView`s by
   reference like `remap_carried` already did, so `finish_fallback` binds
   the pair once. The duplicate existed only because the first call
   consumed them.
@@ -2933,7 +2933,7 @@ of the two happened?**
   `NodeValue`, paired with a `NodeErrorKind::WitnessBifurcation`
   documented as never constructed (`eval/mod.rs:230`). **STILL OPEN** —
   deleting either changes the eval value type.
-- **FIXED by #NNN.** `save`'s `drop(replay)` is gone. In `member_of`
+- **FIXED by #627.** `save`'s `drop(replay)` is gone. In `member_of`
   the early `matches!(g, Subgroup::Empty)` return is folded INTO the
   match as its own arm — the arm cannot simply be dropped from
   `Subgroup::Se3 | Subgroup::Empty` without making the match
@@ -2950,7 +2950,7 @@ of the two happened?**
   funnel — subtracting two exactly-±1 values and banding a result that
   is always 0 or ±2 (`props/curved.rs:330`, `:384`). **STILL OPEN** —
   which of the two representations is authoritative is a design call.
-- **FIXED by #NNN.** Removed, with its `eprintln!` block. Nothing in
+- **FIXED by #627.** Removed, with its `eprintln!` block. Nothing in
   CI, `scripts/`, `local-scripts/` or any manifest enabled it; the only
   other mention was a history note in `review_s1_probes.rs`, reworded so
   it no longer names a feature that is gone.
@@ -3280,7 +3280,7 @@ Good work for filling parallel capacity. None blocks anything.
 |---|---|---|
 | **H1** | **ci-local mirror parity** — the local mirror has no `EvalScalar` step and no interval-square `powi(2)` step; hosted has both. Decide add-or-document. (The `separation.rs` and dead-`test_support.rs` halves are fixed in this PR.) | S |
 | **H2** | **S39 stale claims** — nine rows, each classified **benign rot** vs **lost invariant** *before* its sentence is touched. `enters.rs:14` is the (ii) candidate: the outward-normal property was devolved onto every caller with no type enforcing it. | M |
-| **H3** ✅ #NNN | **S40 residue** — start with the two that are not cosmetic: `emit_topo.rs:1266`'s unreachable fallback would mint `Seam{ae, ae}`, a well-formed name for the wrong thing; `seqgen.rs:853`'s discarded counter means the property suite cannot tell an all-skipped run from a full one. **FIXED by #NNN**: both behavioural rows plus the mechanical residue; S40's design-call rows (the `k_stats` shim, `WitnessSlot`, `props/curved.rs`'s NaN throws and doubled `Rim` direction, the `HashSet` paragraph) stay open there. | S |
+| **H3** ✅ #627 | **S40 residue** — start with the two that are not cosmetic: `emit_topo.rs:1266`'s unreachable fallback would mint `Seam{ae, ae}`, a well-formed name for the wrong thing; `seqgen.rs:853`'s discarded counter means the property suite cannot tell an all-skipped run from a full one. **FIXED by #627**: both behavioural rows plus the mechanical residue; S40's design-call rows (the `k_stats` shim, `WitnessSlot`, `props/curved.rs`'s NaN throws and doubled `Rim` direction, the `HashSet` paragraph) stay open there. | S |
 | **H4** | **S37** — shipped-artifact naming: the STL header's `cad-kernel-m2`, `UnsupportedCurve.note`'s runtime-visible PR number, ~124 internal spec codes in public rustdoc and the Python stub. Evan: *"can be fixed earlier"* than S36. | S–M |
 | **H5** | **S4 drift (b)** — `names/select.rs:319`'s `_ => Vec::new()`, the fail-quiet wildcard its three siblings forbid by comment. One function. | XS |
 | **H6** | **Euler postcondition 7-tuple → named struct** — unnamed positional, 16 sites, 6 files, all `cfg(debug_assertions)`. Mechanical. | S |
