@@ -69,8 +69,33 @@ fn print_dump_hashes() {
 fn survives_eps_row_bitwise_independence() {
     // Re-exec this test binary under each ε row and compare full dump
     // hashes: the mesh must be bitwise a function of (body, δ) alone.
-    // (ε is read once, for pole identification; across sane rows the
-    // identification must not flip for these bodies.)
+    //
+    // What ε is allowed to do in `mesh`, precisely — this comment used
+    // to say "read once, for pole identification", which stopped being
+    // true and stayed on the page (S22's own lesson). `mesh` calls
+    // `Tolerance::get()` exactly once (`tessellate.rs`) and threads the
+    // value down to three places: pole/apex vertex identification
+    // (`walk`); the banded swept-rectangle domain guard (`curved`,
+    // #648), which only decides whether a face is REFUSED; and the
+    // per-triangle certificate assertion in `trimmed`'s review probe,
+    // absent from a default build.
+    //
+    // What that buys, stated honestly: NO CONSUMER SNAPS A VALUE. The
+    // one that did — the loop-closure snap — is gone (S22, route (ii));
+    // the closing column is now the closing vertex's own azimuth, so
+    // the residue it snapped is identically zero. It does NOT buy "ε
+    // cannot move an emitted coordinate": pole/apex identification is a
+    // CLASSIFICATION, and flipping it substitutes the pole's exact v
+    // for `chart.v_of(p)` and emits two `pole: true` entries instead of
+    // one — both of which reach the UV polygon, the bounding box, the
+    // interior grid and the pole fan. Its ε-dependence is structural.
+    // What this row demonstrates is that it is UNEXERCISED: over these
+    // bodies, at these three ε rows, the classification does not move,
+    // so the mesh is bitwise a function of (body, δ). A body with a
+    // near-pole vertex would be a different question. Nothing in the
+    // tree has one, and whether one is REACHABLE is not established:
+    // `revolve` would very likely refuse the sliver, STEP import is the
+    // plausible route in. Unexercised, not proven impossible.
     let exe = std::env::current_exe().unwrap();
     let mut hashes = Vec::new();
     for row in ["1e-6", "1e-9", "1e-12"] {

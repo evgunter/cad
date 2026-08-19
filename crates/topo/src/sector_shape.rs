@@ -144,6 +144,7 @@
 //! the next orbit chord (the CCW-**first** bound, splitting's `dir_b`,
 //! the boolean's `dir_start`).
 
+use geom_brep::OutwardNormal;
 use geom_core::{Band, Decide, Indeterminate, Margin, MarginDiag, Real, Sign, Vec3};
 
 use crate::validate::decide;
@@ -184,12 +185,13 @@ pub(crate) struct SectorShape<T: Real> {
 ///
 /// `dir_own` and `dir_next` are the bounding chords **scaled to their
 /// edges' honest extents** — their norms are the arm's raw material and
-/// their directions the bounds. `normal` is the sector face's OUTWARD
-/// normal at the base vertex (chart normal × `sense_sign`, applied once
-/// by each lane's `sector_face`; this function must not re-apply it —
-/// the bounds come from the STORED orbit order, which `revert` reverses
-/// in the same breath as the sense bit, so a second factor would
-/// double-count and read every convex corner as reflex).
+/// their directions the bounds. `normal` is the sector face's
+/// [`OutwardNormal`] at the base vertex, minted by each lane's
+/// `sector_face`; the type carries the obligation that used to be a
+/// sentence here. This function must not re-apply the sense — the
+/// bounds come from the STORED orbit order, which `revert` reverses in
+/// the same breath as the sense bit, so a second factor would
+/// double-count and read every convex corner as reflex.
 /// `full_circle` says the two bounds are the SAME orbit half-edge (a
 /// strut vertex), which is what makes a θ ≈ 0 / ≈ 2π reading
 /// legitimate rather than a spike.
@@ -205,7 +207,7 @@ pub(crate) struct SectorShape<T: Real> {
 pub(crate) fn sector_shape<T: Decide>(
     dir_own: Vec3<T>,
     dir_next: Vec3<T>,
-    normal: Vec3<T>,
+    normal: OutwardNormal<T>,
     full_circle: bool,
     band: Band,
 ) -> Result<SectorShape<T>, Indeterminate> {
@@ -220,7 +222,8 @@ pub(crate) fn sector_shape<T: Decide>(
     // convex; negative ⇒ reflex; zero-band ⇒ disambiguate by cosine
     // (for unit bounds sin and cos cannot both vanish, so the second
     // margin is definite whenever the first is not).
-    let reflex_margin = Margin::levered(unit_next.cross(unit_own).dot(normal), arm);
+    let n = normal.vec();
+    let reflex_margin = Margin::levered(unit_next.cross(unit_own).dot(n), arm);
     let bisector = match decide(SECTOR_REFLEX, reflex_margin, band) {
         Ok(Sign::Positive) => None,
         // Definite reflex, θ ∈ (π, 2π). `unit_own + unit_next` is the
@@ -241,10 +244,10 @@ pub(crate) fn sector_shape<T: Decide>(
             match decide(SECTOR_STRAIGHT, straight_margin, band) {
                 // θ ≈ π: 90° into the interior is valid throughout the
                 // band.
-                Ok(Sign::Negative) => Some(normal.cross(unit_next)),
+                Ok(Sign::Negative) => Some(n.cross(unit_next)),
                 // θ ≈ 0 or ≈ 2π on a one-edge orbit: the legitimate
                 // full-circle sector, same device.
-                Ok(Sign::Positive | Sign::Zero) if full_circle => Some(normal.cross(unit_next)),
+                Ok(Sign::Positive | Sign::Zero) if full_circle => Some(n.cross(unit_next)),
                 // A spike corner between two distinct edges: refuse,
                 // never guess an interior direction.
                 Ok(Sign::Positive | Sign::Zero) => return Err(invalid(band, SECTOR_STRAIGHT)),
@@ -317,7 +320,8 @@ mod tests {
         next: Vec3<f64>,
         full_circle: bool,
     ) -> Result<SectorShape<f64>, Indeterminate> {
-        sector_shape(own, next, v(0.0, 0.0, 1.0), full_circle, band())
+        let n = OutwardNormal::from_chart(v(0.0, 0.0, 1.0), true);
+        sector_shape(own, next, n, full_circle, band())
     }
 
     /// A right-angle corner (θ = 90°, `sin θ` = +1) is convex: no

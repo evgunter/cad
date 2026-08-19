@@ -15,7 +15,8 @@ use geom_core::{Affine3, Band, Point2, Tolerance, Vec2, Vec3};
 use geom_surfaces::Surface;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::fillet::build::fillet_edges;
-use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use sweep::test_support::cube;
+use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations, EdgeKey};
 
@@ -39,19 +40,6 @@ fn band() -> Band {
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
-}
-
-fn cube(l: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(
-        [(0.0, 0.0), (l, 0.0), (l, l), (0.0, l)]
-            .into_iter()
-            .map(|(x, y)| ProfileVertex::new(p2(x, y), 0.0))
-            .collect(),
-    );
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(l)).unwrap().body
 }
 
 fn ball_poled(r: f64, c: Vec3<f64>, pole: Vec3<f64>) -> Body<f64> {

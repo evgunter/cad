@@ -1,22 +1,22 @@
-//! The workspace store — read side only (ASM-1 D-5).
+//! The workspace store — read side only.
 //!
 //! A workspace is a directory of `*.pncad` save files. [`Workspace::open`]
 //! scans it, reading each file's `id:` header line (never the body —
-//! that is the header's whole purpose, spec D-6) into an id → path
+//! that is the header's whole purpose) into an id → path
 //! map; a duplicate id is a typed refusal naming both paths, because
 //! identity is the store's uniqueness invariant (construction does
-//! not enforce it — spec D-1). [`Workspace::resolve`] takes a
+//! not enforce it). [`Workspace::resolve`] takes a
 //! [`DocRef`], loads the named document through the full v5 door
 //! sequence ([`crate::document::load`]: validation, replay, ambient-ε
 //! reconciliation — all exactly as at any other load), recomputes the
 //! canonical content pin, and refuses a moved pin typed
 //! ([`WorkspaceError::PinMismatch`]) — an assembly is a self-contained
-//! reproducible value (ASSEMBLY-DESIGN A4's Cargo.lock semantics), so
+//! reproducible value (Cargo.lock semantics), so
 //! an out-of-date pin is surfaced, never silently retargeted.
 //!
-//! The write side is MINIMAL (ASM-4 D-1): exactly what the split/
+//! The write side is MINIMAL: exactly what the split/
 //! inline refactorings need — [`Workspace::create`] mints a new save
-//! file from a `Doc` (the id is the caller's, per ASM-1 D-1:
+//! file from a `Doc` (the id is the caller's:
 //! [`DocumentId::derive`] for deterministic callers,
 //! [`random_document_id`] for interactive authoring), and
 //! [`Workspace::resave`] rewrites an existing document's file by id.
@@ -36,7 +36,7 @@ use crate::document::{
 };
 
 /// Mints a fresh random [`DocumentId`] from OS randomness — the
-/// interactive-authoring constructor (ASM-1 D-1). It lives HERE, in
+/// interactive-authoring constructor. It lives HERE, in
 /// the document layer, so the kernel stays
 /// deterministic-by-construction: corpus and demo regeneration use
 /// [`DocumentId::derive`] and never touch ambient randomness.
@@ -54,10 +54,10 @@ pub fn random_document_id() -> Result<DocumentId, WorkspaceError> {
 }
 
 /// The one recourse sentence a [`WorkspaceError::PinMismatch`] ends
-/// on, naming the edit that legitimately moves a pin (ASSEMBLY-DESIGN
-/// A4: "accept updated version" is a recorded `DocEdit` —
-/// `DocEdit::UpdateReference`, landed by ASM-UPD; pins never move
-/// silently). Public so callers can assert on it without restating
+/// on, naming the edit that legitimately moves a pin ("accept updated
+/// version" is a recorded `DocEdit` — `DocEdit::UpdateReference`;
+/// pins never move silently). Public so
+/// callers can assert on it without restating
 /// prose.
 pub const PIN_MISMATCH_RECOURSE: &str = "the referenced document changed since this reference was pinned; if the new version is \
      intended, record the \"accept updated version\" edit (DocEdit::UpdateReference, or \
@@ -78,7 +78,7 @@ pub enum WorkspaceError {
     },
     /// Two files in the workspace claim the same document id — the
     /// store's uniqueness invariant, refused naming BOTH paths so the
-    /// fix is mechanical (spec D-5).
+    /// fix is mechanical.
     DuplicateId {
         /// The contested id.
         id: DocumentId,
@@ -122,7 +122,7 @@ pub enum WorkspaceError {
     },
     /// The document loaded, but its recomputed content pin is not the
     /// pin the reference carries: the referenced document CHANGED
-    /// (ASSEMBLY-DESIGN A4). Recourse: [`PIN_MISMATCH_RECOURSE`].
+    /// Recourse: [`PIN_MISMATCH_RECOURSE`].
     PinMismatch {
         /// The reference's id.
         id: DocumentId,
@@ -148,7 +148,7 @@ pub enum WorkspaceError {
         message: String,
     },
     /// [`update_to_store`] found the store's current pin, and the
-    /// document-layer elaboration refused it (ASM-UPD D-2): the id is
+    /// document-layer elaboration refused it: the id is
     /// referenced nowhere, or every reference already names that pin.
     /// The store did its part; the refusal is about the ASSEMBLY.
     Update {
@@ -208,8 +208,8 @@ impl core::fmt::Display for WorkspaceError {
 
 impl core::error::Error for WorkspaceError {}
 
-/// An opened workspace: the scanned id → path map (read side only,
-/// spec D-5; module docs).
+/// An opened workspace: the scanned id → path map (read side only;
+/// module docs).
 #[derive(Debug, Clone)]
 pub struct Workspace {
     /// The scanned directory.
@@ -309,7 +309,7 @@ impl Workspace {
     }
 
     /// The pin the store's CURRENT content for `id` hashes to — the
-    /// version an update would move a reference onto (ASM-UPD D-2).
+    /// version an update would move a reference onto.
     /// Distinct from [`Workspace::resolve`] by exactly one thing: no
     /// expected pin is supplied, so there is nothing to disagree with.
     ///
@@ -324,7 +324,7 @@ impl Workspace {
     }
 
     /// The shared read: locate, load through the full door sequence,
-    /// and pin the REPLAYED document (ASM-1 D-3: the pin is of the
+    /// and pin the REPLAYED document (the pin is of the
     /// canonical form of current state — never the raw snapshot, never
     /// file bytes; a save carrying a non-empty log must pin its
     /// replayed result).
@@ -351,8 +351,8 @@ impl Workspace {
         Ok((path, loaded.doc, pin))
     }
 
-    /// Creates a new save file for `doc` in the workspace (ASM-4 D-1:
-    /// split's write side) and returns its path. The file is named
+    /// Creates a new save file for `doc` in the workspace (split's
+    /// write side) and returns its path. The file is named
     /// `{id}.pncad` — a pure function of the identity, so two split
     /// runs write byte-identical stores (D9). A duplicate id refuses
     /// exactly as the scan does, naming the file that already claims
@@ -387,7 +387,7 @@ impl Workspace {
     }
 
     /// Rewrites the save file of an EXISTING document with `doc`'s
-    /// current state (ASM-4 D-1: the remainder's write side). The id
+    /// current state (the remainder's write side). The id
     /// must already be in the store — this door never creates — and
     /// the file keeps its scanned path, so references by id stay
     /// valid while the content (and therefore the pin) moves.
@@ -413,7 +413,7 @@ impl Workspace {
     }
 }
 
-/// The document seam (ASM-2A D-3; ASSEMBLY-DESIGN A2/A4): a workspace
+/// The document seam: a workspace
 /// IS what an evaluation resolves references through.
 ///
 /// The verdict classification is this layer's because this layer is the
@@ -426,7 +426,7 @@ impl PartResolver for Workspace {
         Workspace::resolve(self, doc_ref).map_err(|e| ResolveFailure {
             fault: match &e {
                 WorkspaceError::PinMismatch { .. } => ResolveFault::PinMismatch,
-                // A2's ε seam, observed exactly where ASM-1's load door
+                // The ε seam, observed exactly where the load door
                 // already refuses it: one process, one ε, so a document
                 // recording a different one cannot be evaluated at all.
                 WorkspaceError::Load { error, .. }
@@ -446,8 +446,7 @@ impl PartResolver for Workspace {
 
 /// "Update every reference to `id` in `doc` to whatever the store
 /// currently holds" — the workspace-layer convenience over the
-/// document layer's [`crate::document::update_references`] (ASM-UPD
-/// D-2; ASSEMBLY-DESIGN A13 clause 2).
+/// document layer's [`crate::document::update_references`].
 ///
 /// The ONE thing this adds is the pin: the elaboration is pure and
 /// storeless by design, so somebody has to say which version "the new

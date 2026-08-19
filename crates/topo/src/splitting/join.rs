@@ -763,7 +763,8 @@ fn chord_spec<T: Decide>(
                 return Err(SplitJoinError::SectionInvariant {
                     face,
                     what: "tangent plane×sphere germ pair under a minted section chord — a \
-                           touching configuration (the M5 envelope's typed frontier)",
+                           touching configuration, the typed frontier of the \
+                           supported envelope",
                 });
             }
             geom_brep::PlaneSphereSection::Empty => {
@@ -805,7 +806,7 @@ fn chord_spec<T: Decide>(
                     face,
                     what: "plane×sphere section tilted against the sphere chart's polar \
                            axis — the azimuth-anchored arc-side rule needs a polar \
-                           section (the S13 re-cut re-charts the operand; a tilted \
+                           section (the extent-certified re-cut re-charts the operand; a tilted \
                            residual configuration is a typed frontier)",
                 });
             }
@@ -1212,7 +1213,7 @@ fn bool_planar_chord_spec<T: Decide>(
             return Err(SplitJoinError::SectionInvariant {
                 face,
                 what: "boolean planar-side germ partner is neither a cylinder nor a sphere \
-                       (arm not wired, C12.1)",
+                       (arm not wired)",
             });
         }
     };
@@ -1243,7 +1244,8 @@ fn bool_planar_chord_spec<T: Decide>(
                 return Err(SplitJoinError::SectionInvariant {
                     face,
                     what: "tangent plane×sphere germ pair in the boolean zip — a touching \
-                           configuration (the M5 envelope's typed frontier)",
+                           configuration, the typed frontier of the supported \
+                           envelope",
                 });
             }
             geom_brep::PlaneSphereSection::Empty => {
@@ -1278,7 +1280,7 @@ fn bool_planar_chord_spec<T: Decide>(
                     face,
                     what: "plane×sphere section tilted against the sphere chart's polar \
                            axis — the azimuth-anchored arc-side rule needs a polar \
-                           section (the S13 re-cut re-charts the operand; a tilted \
+                           section (the extent-certified re-cut re-charts the operand; a tilted \
                            residual configuration is a typed frontier)",
                 });
             }
@@ -1338,7 +1340,7 @@ fn bool_planar_chord_spec<T: Decide>(
                 return Err(SplitJoinError::SectionInvariant {
                     face,
                     what: "tangent plane×cylinder germ pair in the boolean zip — a touching \
-                       configuration (the M5 envelope's typed frontier)",
+                       configuration, the typed frontier of the supported envelope",
                 });
             }
             geom_brep::PlaneCylinderSection::Empty => {
@@ -1796,8 +1798,8 @@ fn run_azimuth_window<T: Decide>(
             chart_azimuth_range(&pcurve, t0, t1).ok_or(SplitJoinError::SectionInvariant {
                 face,
                 what: "a run edge's chart image is FITTED (rung-3) — this window rule reads \
-                       a closed-form azimuth, and the fitted-chord join lane is banked past \
-                       M6",
+                       a closed-form azimuth, and the fitted-chord join lane is not \
+                       written",
             })?;
         acc = Some(match acc {
             None => (lo, hi),

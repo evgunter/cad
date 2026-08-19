@@ -1,6 +1,6 @@
 //! The PATHS profile-authoring lattice, bound state-for-state.
 //!
-//! LIBRARY-DESIGN §L4: the lattice renders as DISTINCT classes, each
+//! The lattice renders as DISTINCT classes, each
 //! exposing only its state's legal continuations, so an off-lattice
 //! call is an `AttributeError` — the runtime shadow of the Rust
 //! typestate's E0599. There are no `isinstance` ladders and no runtime

@@ -232,7 +232,7 @@ impl core::fmt::Display for PropsError {
             }
             Self::NotIsoRectangle { what } => write!(
                 f,
-                "integral properties: face boundary outside the M2 iso-rectangle inventory ({what})"
+                "integral properties: face boundary outside the iso-rectangle inventory ({what})"
             ),
             Self::NappeSpanning => f.write_str("integral properties: cone face spans both nappes"),
             Self::DegenerateFace => write!(

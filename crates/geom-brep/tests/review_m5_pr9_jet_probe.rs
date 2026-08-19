@@ -182,7 +182,9 @@ fn second_order_margin_scales_with_the_lever_arm_squared() {
     // escalates); arm=sqrt(K/2)*~: margin above escalate (definite).
     let kappa = 4.0 * b.zero();
     let d2 = Vec3::new(0.0, kappa, 0.0);
-    let n = Vec3::new(0.0, 1.0, 0.0);
+    // The reference side is a split plane's normal — the convention,
+    // not a face's sense.
+    let n = geom_brep::ReferenceNormal::of_split_plane(Vec3::new(0.0, 1.0, 0.0));
     let small = enters_material_order2(d2, 1.0, n, 1.0, b);
     assert!(
         small.is_err(),

@@ -34,11 +34,11 @@ pub use crate::authoring::{p2, p3, real, v2, v3, validated};
 // tolerance ε as the coincidence threshold, K·ε as the escalation
 // threshold — which is what every kernel operation builds internally.
 pub use geom_core::{Affine3, Band, BandError, Mat3, Point2, Point3, Real, Tolerance, Vec2, Vec3};
-// The D6 quantity layer (LIB-U8a): value types, unit constants
+// The D6 quantity layer: value types, unit constants
 // (`25.0 * MM`), and the display formatter. NAME DISCIPLINE: this
 // `Length` is the API-boundary quantity newtype; the kernel-internal
 // classify-seam margin type is `geom_core::predicate::Margin<T>`
-// (renamed from `Length<T>`, LB9), which has never been prelude
+// (renamed from `Length<T>`), which has never been prelude
 // surface and must not become it. Scope: the prelude carries the
 // value types + the six unit constants + the formatter; the unit
 // TABLE itself and the prefix data (`UNITS`, `unit_by_symbol`,
@@ -50,7 +50,7 @@ pub use quantity::{
 };
 
 // --- 2. Profile authoring -------------------------------------
-// NAMEABLE, NOT MINTABLE (LIB-RETTAIL, Evan's ruling on #413):
+// NAMEABLE, NOT MINTABLE:
 // `ProfileLoop` and `ProfileVertex` stay here because read-back hands
 // them back, `ProfileError` payloads point into them, and `validated`
 // takes a `Vec<ProfileLoop>` — a prelude user must be able to name what
@@ -62,13 +62,13 @@ pub use ::profile::{
     ArcSweep, FilletLegShape, Profile, ProfileError, ProfileLoop, ProfileVertex, SegmentKind,
     SketchPlane, ValidatedLoop, ValidatedProfile, bulge_from_center, bulge_from_via,
 };
-// The PATHS authoring algebra (LIB-U2), with the LIB-G1 vocabulary
-// growth: `circle` (the one-step closed-carrier program form) and the
+// The PATHS authoring algebra: `circle` (the one-step closed-carrier
+// program form) and the
 // §2c spec modes the one `arc_to(spec)` leg and the fused fillet
 // family dispatch through (`Bulge`/`Via`/`Center`/`Radius`/`Sweep`/
 // `ArcLen` + the `ArcSide` bit), with the states an arc arrival can
 // leave the chain in.
-// `ClosedLoop` and `circle_split` joined this group in LIB-PYG1: a
+// `ClosedLoop` and `circle_split` belong to this group because a
 // closing verb RETURNS a `ClosedLoop`, so a prelude user could hold
 // the value and not name its type; and `circle_split` is the
 // declared-subdivision carrier the boss corpus authors with (the
@@ -92,7 +92,7 @@ pub use sweep::{
 // matches on a curved-Boolean refusal needs it in the same breath as
 // the error itself (see `crate::closure`).
 pub use geom_brep::SurfaceKind;
-// `PlaneRelation` rides here since LIB-SEL2: it is the verdict a
+// `PlaneRelation` rides here because it is the verdict a
 // `FlushFinding`'s evidence carries (SameOpposite = resting contact,
 // SameOriented = flush walls), so code inspecting findings names it.
 pub use topo::{
@@ -117,16 +117,16 @@ pub use step_import::{ImportOptions, StepImportError, import_step};
 pub use stl::{write_ascii, write_binary};
 
 // --- 8. The document layer ------------------------------------
-// `parse_expr` is the expression TEXT door (LIB-U8a): the checking
+// `parse_expr` is the expression TEXT door: the checking
 // parser whose every reduction runs the Expr smart constructors.
-// The v4 program vocabulary (LIB-SWITCH): the profile payload is the
+// The v4 program vocabulary: the profile payload is the
 // Expr-bearing `ProfileProgram`, curated through the ONE document
-// surface (LB13's `crate::document`). `Datum` and `ParamEnv` ride
-// here since LIB-SEL1: a datum node is the frame a
-// `GeomPred::DatumDistance` selection is written against (GS-Q6), and
+// surface (`crate::document`). `Datum` and `ParamEnv` ride here
+// because a datum node is the frame a
+// `GeomPred::DatumDistance` selection is written against, and
 // `select_where` takes a `ParamEnv`, so both are needed to write a
 // position filter at all.
-// `ParamName` and `DocParam` ride here since R1-PARAMS: they are what
+// `ParamName` and `DocParam` ride here because they are what
 // `DocEdit::SetDocParam` and `Expr::param` take, so a prelude user
 // could previously hold the param-editing doors and not open them —
 // the parametric flagship (`plate_param`, guide §3.2) imports both.
@@ -139,13 +139,13 @@ pub use crate::document::{
 pub use editor_core::StableName;
 
 // --- 9. Names: obtain them, inspect them, select them ---------
-// LIB-U7. `StableName` was in group 8 from the start, with no door to
-// obtain or read a value of it: the naming table, the whole-body
+// `StableName` sits in group 8 with no door there to obtain or read a
+// value of it: the naming table, the whole-body
 // materializers and the key→name inversions all stayed one crate
 // away, so a prelude user could hold the type and do nothing with it.
 // These are that door, curated as one group in `crate::select` (whose
 // module docs carry the worked examples).
-// The LIB-SEL2 detect/declare protocol rides in this group too: the
+// The detect/declare protocol rides in this group too: the
 // findings vocabulary, the detector, and the declare sugar (the
 // worked example is in `crate::select`'s module docs).
 pub use crate::select::{

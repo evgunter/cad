@@ -293,7 +293,7 @@ pub fn tangent_locus_relation<T: Decide>(
     if !tangent_certificate_lane(carrier, s1, s2) {
         return Err(ContactRefusal::NotCertifiable {
             what: "the (carrier kind, surface-kind pair) triple is outside the jet \
-                   certificate's span-bound lane (C3's order-k boundary)",
+                   certificate's span-bound lane (the order-k boundary)",
         });
     }
     let bounds =

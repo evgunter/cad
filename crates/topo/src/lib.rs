@@ -177,6 +177,49 @@ pub(crate) mod seqgen;
 pub mod source;
 pub mod split;
 pub mod splitting;
+// Existence and visibility are two questions, gated separately; the
+// module's own docs are the statement of both. EXISTENCE: the items
+// must be compiled wherever any of their three consumers is — the
+// debug postcondition, the in-crate oracles, and this crate's `tests/`
+// binaries through the feature.
+#[cfg(any(debug_assertions, test, feature = "test-support"))]
+// `doc(hidden)` for the same reason as the door below. This module is
+// the ONLY private module of the crate that a doc build renders — not
+// because `--document-private-items` shows everything private, but
+// because the others (`fixtures`, `seqgen`, `tier3_tests`) are
+// `#[cfg(test)]` and do not exist in a doc build at all, while this one
+// exists whenever `debug_assertions` does.
+#[doc(hidden)]
+mod test_support_impl;
+// VISIBILITY: the only reason to export them is a test naming them from
+// another crate, so the public door opens on the test arms alone —
+// `topo::test_support` does not resolve in a plain build of any profile.
+#[cfg(any(test, feature = "test-support"))]
+// `doc(hidden)` because this repo's own rustdoc gate (scripts/doc-gate.sh)
+// runs `--all-features`, which turns `test-support` ON: without this the
+// gate would publish, as public API, a module whose first line says it is
+// not one. Hiding it keeps the rendered docs and the door's own claim
+// saying the same thing. It hides nothing from a test — `doc(hidden)` is
+// a rustdoc directive, not a visibility one.
+#[doc(hidden)]
+pub mod test_support {
+    //! The public door onto [`crate::test_support_impl`], open exactly
+    //! when a test needs to name its contents from another crate. That
+    //! module's docs state both gates and why they differ.
+    use geom_core::Real;
+
+    use crate::body::Body;
+    pub use crate::test_support_impl::ArenaCounts;
+
+    /// The topology-arena lengths of `body`. A free function because
+    /// `Body::arena_counts` is `pub(crate)` — an inherent method's
+    /// reach follows its own visibility, not its module's, so making
+    /// that one `pub` would be public API on [`Body`] in every profile.
+    /// This lives behind the door instead.
+    pub fn arena_counts<T: Real>(body: &Body<T>) -> ArenaCounts {
+        body.arena_counts()
+    }
+}
 #[cfg(test)]
 mod tier3_tests;
 pub mod transform;

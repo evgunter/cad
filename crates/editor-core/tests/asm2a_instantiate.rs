@@ -495,7 +495,7 @@ fn row4_set_placement_moves_undoes_and_refuses() {
             assert!(determinant < 0.0);
             let rendered = e.to_string();
             assert!(
-                rendered.contains("equivariance audit") && rendered.contains("R4"),
+                rendered.contains("admitted only behind the equivariance audit"),
                 "the refusal names the prerequisite: {rendered}"
             );
         }

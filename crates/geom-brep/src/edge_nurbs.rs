@@ -166,7 +166,7 @@ impl core::fmt::Display for PlaneNurbsRefusal {
             Self::LaneUnsupported { scalar } => write!(
                 f,
                 "the plane × NURBS edge lane has no certified derivation at the {scalar} \
-                 scalar (no bracket, so the C9 ring the hull bounds live in is unreachable)"
+                 scalar (no bracket, so the exact-arithmetic ring the hull bounds live in is unreachable)"
             ),
             Self::FootPointInconclusive {
                 sample,

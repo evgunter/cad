@@ -147,7 +147,7 @@ pub(super) fn apply_rule_a<T: Decide>(
         // coplanar with the split plane, so a parallel local normal is
         // a **tangent contact** — C7 territory, refused typed (never
         // marched into); the arm for that pair moves at M5 PR 9.
-        let parallel_margin = Margin::levered(n_face.cross(plane.normal).norm(), extent);
+        let parallel_margin = Margin::levered(n_face.vec().cross(plane.normal).norm(), extent);
         match decide("split_sector_coplanar", parallel_margin, band) {
             Ok(Sign::Zero) => {
                 if !is_plane {
@@ -191,14 +191,17 @@ pub(super) fn apply_rule_a<T: Decide>(
         // Part 2, the material sense — the F3 primitive with
         // dir = +n_SP (module docs): Exits ⇒ material Below.
         //
-        // Exactly one of the two vectors carries an orientation (S10).
-        // `n_face` is the FACE's outward normal, already multiplied by
-        // its `sense_sign` in `sector_face` — this is a material-side
-        // verdict and inverts on a reversed face read off the chart.
-        // `plane.normal` is the SPLIT PLANE's: an operation input that
-        // DEFINES the Above/Below convention, belonging to no face and
-        // carrying no sense to thread (likewise the parallelism margin
-        // above, which is a magnitude in any case).
+        // Exactly one of the two vectors carries an orientation (S10),
+        // and the types say which. `n_face` is the FACE's
+        // outward normal, an `OutwardNormal` minted from chart × sense
+        // in `sector_face` — this is a material-side verdict and
+        // inverts on a reversed face read off the chart, so the
+        // primitive refuses anything else in that slot. `plane.normal`
+        // is the SPLIT PLANE's: an operation input that DEFINES the
+        // Above/Below convention, belonging to no face and carrying no
+        // sense to thread, which is why it travels as a bare vector in
+        // the `dir` slot (likewise the parallelism margin above, which
+        // is a magnitude in any case).
         let class = match enters_material(plane.normal, n_face, extent, band) {
             Ok(EntersMaterial::Exits) => PlaneSide::Below,
             Ok(EntersMaterial::Enters) => PlaneSide::Above,

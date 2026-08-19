@@ -458,7 +458,7 @@ impl fmt::Display for RevolveError {
                 "full revolve of a holed profile would enclose an inner void shell, and sweeps \
                  produce genus, never voids (the sweeps-vs-voids invariant); voids are born \
                  only from booleans — revolve the solid profile and subtract the hole body \
-                 (topo::subtract, M3), or use a partial revolve",
+                 (topo::subtract), or use a partial revolve",
             ),
             Self::CosurfaceEscalated {
                 loop_index,

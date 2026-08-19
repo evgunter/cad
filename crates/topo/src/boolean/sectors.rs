@@ -40,10 +40,10 @@
 //! identical / identical-reversed region cases); touch-only sharing of
 //! a single bound is NOT overlap.
 
-use geom_brep::{EntersMaterial, enters_material};
+use geom_brep::{EntersMaterial, OutwardNormal, enters_material};
 use geom_core::{Band, Decide, Margin, Sign, Vec3};
 
-use super::reduce::face_plane;
+use super::reduce::face_outward_normal;
 use super::{BooleanError, Operand, SideCode};
 use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey, VertexKey};
@@ -65,11 +65,11 @@ pub(super) struct BoolSector<T: geom_core::Real> {
     pub end_edge: bool,
     /// The sector's face and outward normal.
     pub face: FaceKey,
-    /// The face's outward unit normal at the base vertex — the CHART
-    /// normal times the face's `sense_sign` (S10), applied once in
-    /// [`sector_face`]. Consumers pair it with the stored orbit order
-    /// and must NOT re-apply the sense.
-    pub normal: Vec3<T>,
+    /// The face's outward unit normal at the base vertex, minted once
+    /// in [`sector_face`] from the CHART normal and the face's `sense`
+    /// bit (S10). Consumers pair it with the stored orbit order and
+    /// must NOT re-apply the sense — the type says the sense is in.
+    pub normal: OutwardNormal<T>,
     /// The metering arm (shorter bounding chord, in meters).
     pub arm: T,
 }
@@ -158,7 +158,7 @@ pub(super) fn build_sectors<T: Decide>(
         // The sense-invariance argument for the `normal` passed here is
         // NOT restated: it is the contract of `sector_shape`'s `normal`
         // parameter, which is the one place a caller has to read it.
-        // [`sector_face`] has already applied `sense_sign`.
+        // The value arrives typed, so it cannot be the wrong one.
         let SectorShape {
             arm,
             unit_own: u_end,
@@ -212,11 +212,12 @@ pub(super) fn build_sectors<T: Decide>(
 /// convention the splitting lane's PR 5 sector machinery established.
 /// Kinds without a wired sector arm refuse typed (C12.1, per arm).
 ///
-/// **Every arm is multiplied by the face's `sense_sign`** (S10): all
-/// three read a chart normal and hand it back as the face's OUTWARD
-/// normal, and the chart is the only encoding of orientation they
-/// have, so the sense bit is authoritative here. The plane arm gets
-/// it through [`face_plane`]; the curved arms multiply in place.
+/// **Every arm folds in the face's `sense` bit** (S10) by minting an
+/// [`OutwardNormal`]: all three read a chart normal and hand it back
+/// as the face's OUTWARD normal, and the chart is the only encoding
+/// of orientation they have, so the sense bit is authoritative here.
+/// The plane arm gets it through [`face_outward_normal`]; the curved
+/// arms mint in place.
 ///
 /// This function is the chokepoint for the whole vertex-vertex lane.
 /// Everything downstream of [`BoolSector::normal`] — `within`,
@@ -231,7 +232,7 @@ pub(super) fn sector_face<T: Decide>(
     operand: Operand,
     vertex: VertexKey,
     he: HalfEdgeKey,
-) -> Result<(FaceKey, Vec3<T>), BooleanError> {
+) -> Result<(FaceKey, OutwardNormal<T>), BooleanError> {
     let mate = body.mate(he).ok_or_else(|| corrupt(operand, vertex))?;
     let parent = body
         .get_half_edge(mate)
@@ -241,8 +242,8 @@ pub(super) fn sector_face<T: Decide>(
         .get_loop(parent)
         .ok_or_else(|| corrupt(operand, vertex))?
         .face;
-    if let Some(plane) = face_plane(body, face) {
-        return Ok((face, plane.normal)); // outward: `face_plane` folded the sense in
+    if let Some(n) = face_outward_normal(body, face) {
+        return Ok((face, n)); // the planar door mints it from chart × sense
     }
     let p = *body
         .get_point(
@@ -254,7 +255,7 @@ pub(super) fn sector_face<T: Decide>(
     let face_data = body
         .get_face(face)
         .ok_or_else(|| corrupt(operand, vertex))?;
-    let sense = face_data.sense_sign::<T>();
+    let sense = face_data.sense;
     let surface = body
         .get_surface(face_data.surface)
         .ok_or_else(|| corrupt(operand, vertex))?;
@@ -262,11 +263,12 @@ pub(super) fn sector_face<T: Decide>(
         geom_surfaces::Surface::Cylinder { origin, axis, .. } => {
             let w = p - *origin;
             let radial = w - *axis * w.dot(*axis);
-            Ok((face, radial.normalize() * sense))
+            Ok((face, OutwardNormal::from_chart(radial.normalize(), sense)))
         }
-        geom_surfaces::Surface::Sphere { center, .. } => {
-            Ok((face, (p - *center).normalize() * sense))
-        }
+        geom_surfaces::Surface::Sphere { center, .. } => Ok((
+            face,
+            OutwardNormal::from_chart((p - *center).normalize(), sense),
+        )),
         s => Err(BooleanError::CurvedBooleanUnsupported {
             operand,
             face,
@@ -289,7 +291,7 @@ fn invalid_escalation(band: Band, predicate: &'static str) -> BooleanError {
 /// applied (module docs; the 15.7 sign resolution).
 pub(super) fn side_code<T: Decide>(
     dir: Vec3<T>,
-    face_normal: Vec3<T>,
+    face_normal: OutwardNormal<T>,
     arm: T,
     band: Band,
 ) -> Result<SideCode, BooleanError> {
@@ -330,8 +332,8 @@ pub(super) fn within<T: Decide>(
     strict: bool,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let c1 = Margin::levered(s.start.cross(dir).dot(s.normal), s.arm);
-    let c2 = Margin::levered(dir.cross(s.end).dot(s.normal), s.arm);
+    let c1 = Margin::levered(s.start.cross(dir).dot(s.normal.vec()), s.arm);
+    let c2 = Margin::levered(dir.cross(s.end).dot(s.normal.vec()), s.arm);
     let t1 =
         decide("bool_sector_within", c1, band).map_err(|diag| BooleanError::Escalated { diag })?;
     let t2 =
@@ -395,7 +397,7 @@ pub(super) fn pair_search<T: Decide>(
     let mut records = Vec::new();
     for (i, sa) in a_sectors.iter().enumerate() {
         for (j, sb) in b_sectors.iter().enumerate() {
-            let int = sa.normal.cross(sb.normal);
+            let int = sa.normal.vec().cross(sb.normal.vec());
             let arm = sa.arm.min(sb.arm);
             let coplanar = match decide(
                 "bool_faces_parallel",
@@ -455,7 +457,7 @@ mod tests {
     /// suspect side of ch. 15 erratum 4, resolved by derivation.
     #[test]
     fn mirror_check_side_codes() {
-        let n = Vec3::new(0.0, 0.0, 1.0);
+        let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
         let b = band();
         assert_eq!(
             side_code(Vec3::new(0.3, 0.0, -1.0), n, 1.0, b).unwrap(),
@@ -479,7 +481,7 @@ mod tests {
             start_edge: true,
             end_edge: true,
             face: FaceKey::default(),
-            normal: Vec3::new(normal[0], normal[1], normal[2]),
+            normal: OutwardNormal::from_chart(Vec3::new(normal[0], normal[1], normal[2]), true),
             arm: 1.0,
         }
     }

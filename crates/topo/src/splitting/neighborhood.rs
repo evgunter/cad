@@ -52,6 +52,7 @@
 //! both take the duplicate path — the deliberate, documented posture
 //! for this one predicate (the decisive side verdicts stay strict).
 
+use geom_brep::OutwardNormal;
 use geom_core::{Band, Decide, Margin, Sign, Vec3};
 use slotmap::SecondaryMap;
 
@@ -70,9 +71,10 @@ use crate::validate::decide;
 /// normal every sector predicate meters through. Kinds the gate
 /// refuses are typed here too (unreachable post-gate).
 ///
-/// **Both arms are multiplied by the face's `sense_sign`** (S10):
-/// each reads a chart normal and returns it as the face's OUTWARD
-/// normal, and the chart is the only orientation encoding they have.
+/// **Both arms fold in the face's `sense` bit** (S10) by minting an
+/// [`OutwardNormal`]: each reads a chart normal and returns it as the
+/// face's OUTWARD normal, and the chart is the only orientation
+/// encoding they have.
 /// This is the splitting lane's chokepoint, the twin of the boolean's
 /// `boolean::sectors::sector_face`: `rules::apply_rule_a`'s
 /// `enters_material` call, the sector-shape rungs (since S5 part 1 they
@@ -86,7 +88,7 @@ pub(super) fn sector_face<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
     he: HalfEdgeKey,
-) -> Result<(FaceKey, Vec3<T>, bool), SplitReduceError> {
+) -> Result<(FaceKey, OutwardNormal<T>, bool), SplitReduceError> {
     let corrupt = SplitReduceError::CorruptOperand { vertex };
     let mate = body
         .mate(he)
@@ -99,9 +101,11 @@ pub(super) fn sector_face<T: Decide>(
     let face = body
         .get_face(face_key)
         .ok_or(SplitReduceError::CorruptOperand { vertex })?;
-    let sense = face.sense_sign::<T>();
+    let sense = face.sense;
     match body.get_surface(face.surface) {
-        Some(geom_surfaces::Surface::Plane { normal, .. }) => Ok((face_key, *normal * sense, true)),
+        Some(geom_surfaces::Surface::Plane { normal, .. }) => {
+            Ok((face_key, OutwardNormal::from_chart(*normal, sense), true))
+        }
         Some(geom_surfaces::Surface::Cylinder { origin, axis, .. }) => {
             let p = *body
                 .get_point(
@@ -112,7 +116,11 @@ pub(super) fn sector_face<T: Decide>(
                 .ok_or(SplitReduceError::CorruptOperand { vertex })?;
             let w = p - *origin;
             let radial = w - *axis * w.dot(*axis);
-            Ok((face_key, radial.normalize() * sense, false))
+            Ok((
+                face_key,
+                OutwardNormal::from_chart(radial.normalize(), sense),
+                false,
+            ))
         }
         Some(s) => Err(SplitReduceError::CurvedBooleanUnsupported {
             face: face_key,
@@ -243,10 +251,16 @@ pub fn classify_neighborhood<T: Decide>(
                 // for rule (b)'s adjudication (never guess); in-band
                 // escalates (F6 — an osculating pair is a sliver).
                 Ok(Sign::Zero) => {
+                    // The reference side here is the SPLIT PLANE's
+                    // normal: an operation input that DEFINES
+                    // Above/Below, belonging to no face and with no
+                    // `sense_sign` to fold in. Its type says so —
+                    // `enters_material`'s face slot would not accept
+                    // it, and this slot does not accept a bare vector.
                     match geom_brep::enters_material_order2(
                         deriv2,
                         speed_sq,
-                        plane.normal,
+                        geom_brep::ReferenceNormal::of_split_plane(plane.normal),
                         dir_a.norm(),
                         band,
                     ) {

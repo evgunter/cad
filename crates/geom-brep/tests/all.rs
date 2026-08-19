@@ -30,6 +30,8 @@
 // the lint gate for every suite module included below.
 #![allow(clippy::duplicate_mod)]
 
+#[path = "decoration_plane_mint.rs"]
+mod decoration_plane_mint;
 #[path = "imported_chart_arc_rim.rs"]
 mod imported_chart_arc_rim;
 #[path = "intersect_table.rs"]

@@ -32,6 +32,8 @@
 
 #[path = "boxes.rs"]
 mod boxes;
+#[path = "decoration_ring_coords.rs"]
+mod decoration_ring_coords;
 #[path = "m5_pr7_ders3.rs"]
 mod m5_pr7_ders3;
 #[path = "m5_pr7_surface_projection.rs"]

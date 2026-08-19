@@ -183,7 +183,7 @@ impl core::fmt::Display for ChartRegionError {
                 f,
                 "chart-region: no structural chart identity ({detail}) — a declared \
                  (rung-3) pair escalates: two descriptions of one locus may differ \
-                 as charts (C2), so no chart-space overlap test exists for it"
+                 as charts, so no chart-space overlap test exists for it"
             ),
             Self::NonPlanarTrim {
                 face,
@@ -420,7 +420,7 @@ fn same_chart<T: Decide + Bounds>(
             } else {
                 Err(ChartRegionError::ChartDivergence {
                     detail: "same GeomSource with non-bit-identical descriptions — \
-                             N6 violated (forged or corrupted source attachment)",
+                             the same-source theorem violated (forged or corrupted source attachment)",
                 })
             }
         }
