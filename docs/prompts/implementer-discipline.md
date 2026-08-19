@@ -1,9 +1,7 @@
 # Implementer discipline — standing lane obligations
 
 **Read this in full before you start.** It is binding on every implementer
-lane, alongside the unit's own spec or brief. Your dispatcher points you here
-rather than reproducing it, so that every lane runs the same rules and a
-changed rule is a commit rather than a differently-worded paste.
+lane, alongside the unit's own spec or brief.
 
 **Your final report must state which build and test rows you actually ran, and
 on which `CARGO_TARGET_DIR`.** That is the read-verification: a report without

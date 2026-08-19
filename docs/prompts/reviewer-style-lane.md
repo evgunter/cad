@@ -1,10 +1,7 @@
 # The style lane — reviewer brief
 
 **Read this in full before you start.** It is the standing second half of every
-review, alongside the claims to falsify you were handed. The dispatcher points
-you here rather than pasting it, so that every reviewer runs the same
-instrument and a changed instrument is a commit rather than a differently-worded
-paste.
+review, alongside the claims to falsify you were handed.
 
 **Your report must name which of the questions below you actually exercised, and
 must carry the `sure` / `likely` / `unsure` confidence vocabulary.** That is how
