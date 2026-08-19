@@ -59,8 +59,8 @@ cost — measured, not vibed ("with actual random numbers").
 
 - **Protocol v5 (Evan, 2026-08-18)** — full text in the log:
   reviews gain a STYLE LANE alongside the claims to falsify
-  (brief text: `docs/REVIEW-STYLE-BRIEF.md`, pasted verbatim into
-  dispatches), and a disclosed deviation that is not an improvement
+  (brief text: `docs/REVIEW-STYLE-BRIEF.md`, which dispatches point at
+  by path rather than pasting), and a disclosed deviation that is not an improvement
   owes a concretely scheduled followup before merge. **Seam: review
   figures are not comparable across 2026-08-18** — the instrument
   changed, so expect findings counts to rise without any change in

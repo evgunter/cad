@@ -1,43 +1,21 @@
 # The style lane — reviewer brief
 
-**Status: the standing second half of every review brief, alongside the
-claims to falsify** (`memories/orchestration-model.md`: *"assign reviewers
-explicit claims to falsify"*). Ratified by Evan 2026-08-18; recorded as
-Protocol v5 in `docs/MODEL-AB-LOG.md`, which is the normative source for
-the review protocol.
+**Read this in full before you start.** It is the standing second half of every
+review, alongside the claims to falsify you were handed. The dispatcher points
+you here rather than pasting it, so that every reviewer runs the same
+instrument and a changed instrument is a commit rather than a differently-worded
+paste.
 
-**Dispatchers: paste §2 and §3 into the review brief verbatim.** §1 and §4
-are for you, not for the reviewer.
+**Your report must name which of the questions below you actually exercised, and
+must carry the `sure` / `likely` / `unsure` confidence vocabulary.** That is how
+a skipped read is visible in the output rather than invisible.
 
----
-
-## 1. Why this exists (dispatcher context)
-
-`docs/SMELL-SCAN-2026-08.md` §C established, from twenty structural scans and
-seven postmortem passes over the merged history, that this project's reviews
-are **exceptionally strong at soundness and structurally blind**. The same
-reviews that ran 8000-matrix SVD differentials, re-derived a meters conversion
-by hand, and found a certificate excluding true 2π by ~1111 widths produced
-**zero** findings on: a mode switch on `is_empty()`, a two-ε signature, a file
-holding four quadrature engines, three parallel CDT pipelines, a second surface
-enum, or a body-wide accessor in the wrong crate.
-
-The cause is not effort. It is that the protocol is **claims-driven**:
-reviewers falsify the claims they are handed, and they do it well. A code-free
-module, a 449-line accumulated header, and a duplicate type name across a
-façade **assert nothing**, so nothing points a reviewer at them.
-
-**The failure mode to avoid when using this document is turning it into a
-checklist.** Reviewers here answer the questions they are given. Ten crisp
-yes/no items will produce ten crisp ticks and no judgement. Every question
-below is phrased to require taste, and §2's stance exists to make "I'm not
-sure, but this looks off" a *complete and welcome* review finding — which the
-adversarial-falsification lane, with its high confidence bar, actively
-discourages.
+Dispatcher-facing material — why this lane exists, how to calibrate it, and how
+to dispatch it — is in `docs/REVIEW-STYLE-DISPATCH.md`.
 
 ---
 
-## 2. The stance (paste this)
+## 1. The stance
 
 You are also reviewing for **things that look off**. This is a different job
 from falsifying the claims, with a different standard, and the difference is
@@ -64,7 +42,7 @@ deliberate:
 
 ---
 
-## 3. The questions (paste this)
+## 2. The questions
 
 Not a checklist. These are directions to point your attention; the useful
 answer to most of them, most of the time, is nothing.
@@ -170,7 +148,7 @@ largest file you touched and read it end to end.
 
 ---
 
-## 4. What to do with the findings (dispatcher)
+## 3. What your findings must look like
 
 **Output**: a `## Style` section in the review, separate from MAJOR/MINOR/NOTE.
 Each finding: one or more `file:line`, two-to-five sentences, and an explicit
@@ -194,14 +172,3 @@ that found the first. When a style finding is plausibly one of several:
   identical stale premise for the planar arm sat fifteen lines from the text it
   quoted.)
 
-**Calibration.** Expect findings counts to rise, and the docs column to widen
-downward. Per Protocol v5 that is the instrument changing, not implementation
-quality. A style lane producing nothing on most PRs is under-calibrated, not
-clean — though that expectation is inferred from the scan's hit rate on merged
-code, not measured on single diffs, so revisit it after a few rows.
-
-**What this lane must not become.** A second amnesty channel. §C2/§C7 found
-that disclosure currently functions as immunity — a disclosed deviation scores
-as a *positive* on the "silent devs" column with no counter-metric asking
-whether it was acceptable. Q6 exists to close that; do not let a `## Style`
-section become the place where known problems go to be recorded and forgotten.
