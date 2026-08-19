@@ -787,6 +787,63 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
     );
 }
 
+/// The same door, same obligation, for the OTHER payloads that carry a
+/// name. A fillet's selection is checkable exactly when a `Declare`
+/// pair is — the minting node evaluated `Ok` — so a typo role on an
+/// evaluated node is refused here rather than surviving to the fillet's
+/// own resolution.
+#[test]
+fn apply_with_names_checks_a_fillet_selection_under_the_same_rule() {
+    let doc = ProfileDoc::empty_derived("m4_pr4_resolve_fillet_door");
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let ev = run(&doc, None);
+    let rim = name1(
+        EntityKind::Edge,
+        a,
+        RoleSeg::RimEdge(
+            CapEnd::Top,
+            editor_core::ProfileEdgeRef {
+                loop_index: 0,
+                segment: 0,
+            },
+        ),
+    );
+    assert!(
+        apply_with_names(
+            &doc,
+            &DocEdit::InsertNode {
+                node: Node::fillet(a, len(0.1), vec![rim.clone()])
+            },
+            &ev,
+        )
+        .is_ok(),
+        "a selection the tables carry passes"
+    );
+    let bogus = name1(
+        EntityKind::Edge,
+        a,
+        RoleSeg::RimEdge(
+            CapEnd::Top,
+            editor_core::ProfileEdgeRef {
+                loop_index: 7,
+                segment: 7,
+            },
+        ),
+    );
+    let err = apply_with_names(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::fillet(a, len(0.1), vec![bogus.clone()]),
+        },
+        &ev,
+    )
+    .unwrap_err();
+    assert_eq!(
+        err,
+        editor_core::EditError::NameUnresolvedInEvaluation { name: bogus }
+    );
+}
+
 // ---- Review Finding 2: suggestions are structural wraps only, ----
 // ---- kind-filtered (adopted reviewer probe, inverted to a pin) ----
 

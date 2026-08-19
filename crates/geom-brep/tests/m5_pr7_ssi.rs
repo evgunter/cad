@@ -558,12 +558,22 @@ fn a_single_seeded_march_finds_only_one_of_the_two_loops() {
     );
 }
 
+/// The planted fixture with the accounting floor clamped far above any
+/// certifiable tube radius: cells along the locus can be neither
+/// excluded nor accounted, so the operation refuses instead of
+/// reporting an intersection it cannot prove complete.
+///
+/// **The name states only what the row checks.** It was
+/// `..._even_though_branches_were_found`, whose premise the body never
+/// verifies and structurally cannot: the row only ever holds an `Err`,
+/// and a refusal carries no branch count. Branch-found and branch-free
+/// runs reach the identical refusal, so from inside this row the
+/// premise is not merely unchecked but undecidable — the reason the
+/// all-seeds-fail mode needed its own fixture rather than a widening of
+/// this one (see
+/// [`an_unseeded_run_refuses_typed_rather_than_receipting_an_unprovable_domain`]).
 #[test]
-fn the_floor_clamped_variant_refuses_typed_even_though_branches_were_found() {
-    // Same fixture, accounting floor clamped far above any certifiable
-    // tube radius: cells along the locus can be neither excluded nor
-    // accounted, so the operation refuses instead of reporting an
-    // intersection it cannot prove complete.
+fn the_floor_clamped_planted_fixture_refuses_typed() {
     let (s, c) = (sphere(), threaded_cylinder());
     // One loop's neighbourhood: the row is about the floor, not about
     // finding both components, and a rung-3 op is not cheap.
@@ -589,9 +599,124 @@ fn the_floor_clamped_variant_refuses_typed_even_though_branches_were_found() {
         // At the finest ε the fit budget fires before any branch is
         // fitted, so the floor never gets its turn. Both are typed
         // refusals of the same operation and neither is silence, which
-        // is the property this row exists to hold.
-        SsiError::FitSampleBudget { .. } => {}
+        // is the property this row exists to hold — but a run that
+        // stands down from the floor claim SAYS SO, by name, the way
+        // every other ε stand-down in this file does. A silent accept
+        // here is a row that passes without entering its own mode.
+        SsiError::FitSampleBudget { samples, budget } => {
+            println!(
+                "SKIPPED (the floor-clamped refusal, eps = {:e}): the fit budget ({samples} of {budget} \
+                 samples) refused before any branch was fitted, so THIS RUN ASSERTS \
+                 NEITHER that the clamped floor refuses NOR what its refusal says — \
+                 only that the operation did not go silent",
+                eps()
+            );
+        }
         other => panic!("expected the exhaustiveness refusal, got {other}"),
+    }
+}
+
+/// **The mode the row above cannot reach**: no branch is found at all,
+/// so the accounting pass runs on an *empty* tube set.
+///
+/// The fixture is a near-miss pair — a cylinder whose wall clears the
+/// unit sphere by 1 mm, so the locus is genuinely **empty** — run
+/// TWICE, at two accounting floors.
+///
+/// 1. **At a healthy floor** the enclosures separate the two surfaces
+///    and the run certifies the domain empty: `Ok`, with **zero
+///    branches** and **zero accounted cells**, off a seed set that is
+///    not itself empty. That is this row pinning its own mode. The
+///    subdivision seeds, every seeded march fails to refine (there is
+///    no root to refine onto), and no uniqueness tube is ever banked.
+/// 2. **At a floor clamped two orders above the clearance** the same
+///    seeding and the same marching happen — `floor_scale` feeds
+///    `SsiDomain::floor` and nothing else, while the seed floor is a
+///    fraction of the extent — so the accounting call is reached with
+///    that same empty tube set, and now no enclosure at the floor can
+///    separate the surfaces either. Nothing is proved about the domain,
+///    so nothing may be claimed about it: the operation refuses.
+///
+/// Run 1 is what keeps run 2 honest. Post-fix a branch-FOUND run and a
+/// branch-FREE run produce the identical `ExhaustivenessInconclusive`,
+/// so without run 1 a fixture that drifted into finding a branch would
+/// leave this row green as a second copy of the row above. Run 1 goes
+/// red the moment that drift happens.
+///
+/// An `Ok` from run 2 is precisely the silent incompleteness this
+/// module exists to prevent: zero branches reported *together with* an
+/// exhaustiveness receipt.
+#[test]
+fn an_unseeded_run_refuses_typed_rather_than_receipting_an_unprovable_domain() {
+    let s = sphere();
+    // |d − r| = 1 + clearance > 1: the wall clears the unit sphere, so
+    // the pair does not intersect at all. The clearance sits above the
+    // escalation threshold at every battery ε, so the within-pair
+    // tangency trilean passes and the run reaches the subdivision.
+    let clearance = 1.0e-3;
+    assert!(
+        clearance > band().escalate(),
+        "the fixture's clearance must be a definite sign at this ε"
+    );
+    let c = Surface::Cylinder {
+        origin: Point3::new(1.5 + clearance, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius: 0.5,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    // `floor_m` is the accounting floor in meters, at every ε.
+    let domain = |floor_m: f64| SsiDomain {
+        center: Point3::new(1.0, 0.0, 0.0),
+        half_extent: 0.2,
+        extent: 0.4,
+        eps: eps(),
+        floor_scale: floor_m / eps(),
+    };
+
+    // ---- Run 1, the MODE PIN: a floor an order finer than the
+    // clearance, where the enclosures do separate the surfaces.
+    let out = ssi::cylinder_sphere_ssi(&c, &s, domain(1.0e-4), band())
+        .expect("MODE: the near-miss domain certifies empty at a healthy floor");
+    assert_eq!(
+        out.branches.len(),
+        0,
+        "MODE: the pair does not intersect, so nothing may be certified — and a \
+         banked tube would take the accounting call out of the mode this row exists \
+         to cover: {:?}",
+        out.exhaustiveness
+    );
+    assert!(
+        out.seeds > 0,
+        "MODE: the subdivision must actually SEED here — a run with no seeds would \
+         reach the accounting call by a different road than the all-seeds-fail one"
+    );
+    assert_eq!(
+        out.exhaustiveness.accounted, 0,
+        "MODE: no tube exists, so no cell can have been accounted by one: {:?}",
+        out.exhaustiveness
+    );
+    let e = out.exhaustiveness;
+    assert_eq!(
+        e.examined,
+        e.excluded + e.accounted + e.refined,
+        "MODE RECEIPT: the receipt must add up even on the empty domain: {e:?}"
+    );
+
+    // ---- Run 2, the CLAIM: the same seeding, the same empty tube set,
+    // a floor no enclosure can beat.
+    match ssi::cylinder_sphere_ssi(&c, &s, domain(0.1), band()) {
+        Err(SsiError::ExhaustivenessInconclusive {
+            cell_width, floor, ..
+        }) => {
+            assert!(cell_width <= floor, "{cell_width} vs {floor}");
+        }
+        Err(other) => panic!("expected the exhaustiveness refusal, got {other}"),
+        Ok(out) => panic!(
+            "SILENT: an unprovable domain returned Ok with {} branches \
+             and an exhaustiveness receipt {:?}",
+            out.branches.len(),
+            out.exhaustiveness
+        ),
     }
 }
 
@@ -874,6 +999,14 @@ fn shape_iii_the_wall_cut_certifies_all_three_limbs_and_refuses_a_corrupted_pcur
         out.branches.len(),
         1,
         "SUBSTRATE: one open branch, edge to edge"
+    );
+    // The receipt identity, on the chart lane's own accounting pass:
+    // every leaf excluded or accounted, every interior node split.
+    let e = out.exhaustiveness;
+    assert_eq!(
+        e.examined,
+        e.excluded + e.accounted + e.refined,
+        "SUBSTRATE RECEIPT: the receipt must add up: {e:?}"
     );
     let b = &out.branches[0];
     let cert = &b.certificate;

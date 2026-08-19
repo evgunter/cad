@@ -846,19 +846,64 @@ mod tests {
     /// make/kill roundtrip instead of a plain op).
     type Decision = (u32, u32, u32);
 
-    fn run_properties(decisions: &[Decision]) -> Result<(), TestCaseError> {
+    /// What one decision vector did to property (c): how many steps the
+    /// mode roll SELECTED for a roundtrip, how many of those executed,
+    /// and how many were skipped as documented irreversible-by-one-op
+    /// kills. `skippable` counts the selections that could legally skip
+    /// at all — see [`RoundtripTally::skippable`].
+    #[derive(Clone, Copy, Default)]
+    struct RoundtripTally {
+        selected: usize,
+        executed: usize,
+        skipped: usize,
+        /// Selections on `Kev`/`Kef`. The two documented irreversible
+        /// subcases both live in those two arms of [`roundtrip`], so a
+        /// selection on any other choice MUST execute — which is what
+        /// bounds the skip count against the run rather than against a
+        /// measured constant.
+        skippable: usize,
+    }
+
+    impl RoundtripTally {
+        fn add(&mut self, other: Self) {
+            self.selected += other.selected;
+            self.executed += other.executed;
+            self.skipped += other.skipped;
+            self.skippable += other.skippable;
+        }
+    }
+
+    /// Runs properties (a)–(d) over one decision vector and returns what
+    /// it did to property (c).
+    fn run_properties(decisions: &[Decision]) -> Result<RoundtripTally, TestCaseError> {
         let mut body = Body::<f64>::new();
         let mut ledger = Ledger::default();
         let mut counter = 0_u32;
-        let mut roundtrips = 0_usize;
+        let mut tally = RoundtripTally::default();
         for &(d1, d2, d3) in decisions {
             let Some(choice) = choose_op(&body, d1, d2) else {
                 return Err(TestCaseError::fail("no applicable op (kernel bug)"));
             };
             if d3 % 4 == 0 {
                 // Property (c): op ∘ exact inverse nets nothing.
+                tally.selected += 1;
+                if matches!(choice, OpChoice::Kev(_) | OpChoice::Kef(_)) {
+                    tally.skippable += 1;
+                }
                 if roundtrip(&mut body, choice, &mut counter) == RoundtripOutcome::Done {
-                    roundtrips += 1;
+                    tally.executed += 1;
+                } else {
+                    // Both documented irreversible subcases sit in
+                    // `roundtrip`'s `Kev`/`Kef` arms. A skip anywhere
+                    // else is property (c) quietly ceasing to run, not
+                    // a case the design excuses.
+                    prop_assert!(
+                        matches!(choice, OpChoice::Kev(_) | OpChoice::Kef(_)),
+                        "roundtrip skipped {:?}, which has no documented \
+                         irreversible-by-one-op subcase",
+                        choice
+                    );
+                    tally.skipped += 1;
                 }
                 // The ledger is unchanged by a balanced pair.
             } else {
@@ -879,31 +924,80 @@ mod tests {
         // Property (d): everything built can be killed back to nothing;
         // arenas AND provenance maps end empty (asserted inside).
         teardown(&mut body);
-        // Keep shrunk cases meaningful: at least the trivial sequence
-        // exercised something.
-        let _ = roundtrips;
-        Ok(())
+        Ok(tally)
     }
 
-    proptest! {
-        #![proptest_config(ProptestConfig {
-            cases: 48,
-            ..ProptestConfig::default()
-        })]
-
-        /// Properties (a)–(d) over random valid op sequences (module
-        /// docs): tier-1 validity after every op, the E–P ledger at
-        /// every step, make/kill roundtrips at random points, and full
-        /// teardown to empty arenas + empty provenance maps.
-        #[test]
-        fn random_op_sequences_hold_all_properties(
-            decisions in proptest::collection::vec(
+    /// Properties (a)–(d) over random valid op sequences (module
+    /// docs): tier-1 validity after every op, the E–P ledger at
+    /// every step, make/kill roundtrips at random points, and full
+    /// teardown to empty arenas + empty provenance maps.
+    ///
+    /// How much of property (c) ran is checked, and the check is
+    /// per-step: the two documented irreversible-by-one-op subcases
+    /// live in [`roundtrip`]'s `Kev`/`Kef` arms only, so a selection on
+    /// any other choice must execute, and `run_properties` asserts
+    /// exactly that as each step happens. **That per-step assertion is
+    /// the whole of the bar.**
+    ///
+    /// The totals below are two different things, and the difference
+    /// matters more than either:
+    ///
+    /// - `executed > 0` is the only one that can fail on its own, and
+    ///   it is a COLLAPSE FLOOR, not a bar. It is not implied by the
+    ///   design — a run whose every selection landed on an irreversible
+    ///   site would legally execute none — but such a run tested
+    ///   nothing and should say so rather than pass green.
+    /// - `executed + skipped == selected` and `skipped <= skippable`
+    ///   are BOOKKEEPING IDENTITIES. The first follows from how the
+    ///   tally is accumulated, the second from the per-step assertion
+    ///   that has already run. Neither can independently go red; they
+    ///   are here to state the shape of the tally for a reader, and
+    ///   nothing more.
+    ///
+    /// No numeric threshold is asserted, because there is no number to
+    /// assert: proptest seeds its RNG from entropy, so every run draws a
+    /// fresh sample. Four consecutive runs gave 339/335/4/47,
+    /// 331/325/6/43, 333/328/5/51 and 351/345/6/47 for
+    /// selected/executed/skipped/skippable — a threshold would have
+    /// pinned that spread, not a property.
+    #[test]
+    fn random_op_sequences_hold_all_properties() {
+        let tally = std::cell::Cell::new(RoundtripTally::default());
+        proptest!(
+            ProptestConfig {
+                cases: 48,
+                ..ProptestConfig::default()
+            },
+            |(decisions in proptest::collection::vec(
                 (any::<u32>(), any::<u32>(), any::<u32>()),
                 1..48,
-            )
-        ) {
-            run_properties(&decisions)?;
-        }
+            ))| {
+                let mut total = tally.get();
+                total.add(run_properties(&decisions)?);
+                tally.set(total);
+            }
+        );
+        let t = tally.get();
+        // The only run-level check that can fail on its own.
+        assert!(
+            t.executed > 0,
+            "no make/kill roundtrip executed across the whole run: \
+             property (c) went untested",
+        );
+        // Bookkeeping identities (see the doc): the first is how the
+        // tally is accumulated, the second is what the per-step
+        // assertion has already guaranteed. Stated, not relied on.
+        assert_eq!(
+            t.executed + t.skipped,
+            t.selected,
+            "every selected step either roundtripped or skipped",
+        );
+        assert!(
+            t.skipped <= t.skippable,
+            "{} skips against {} selections that could legally skip",
+            t.skipped,
+            t.skippable,
+        );
     }
 
     /// Issue #60, distilled: the shrunken proptest vector whose final
@@ -943,7 +1037,9 @@ mod tests {
             (1666265687, 2248595257, 94376607),
             (2980353478, 2061075975, 2860288224),
         ];
-        run_properties(&decisions).unwrap();
+        // The vector's final step IS a kef roundtrip, so this run pins
+        // that the roundtrip machinery executes rather than skipping.
+        assert!(run_properties(&decisions).unwrap().executed > 0);
     }
 
     #[test]

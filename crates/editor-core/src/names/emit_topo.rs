@@ -744,7 +744,6 @@ pub(crate) fn name_boolean<T: Decide>(
         &inv_vertices,
         a,
         b,
-        &seam_set,
         &inc,
         bnd,
     )?;
@@ -1129,8 +1128,6 @@ fn name_boolean_vertices<T: Decide>(
     inv_vertices: &BTreeMap<VertexKey, VertexKey>,
     a: &OperandCtx<'_, T>,
     b: &OperandCtx<'_, T>,
-    // Unused since M4 PR 5: the vertex pass trusts Seam NAMES (zip-listed and derived alike).
-    _seam_set: &BTreeSet<EdgeKey>,
     inc: &Incidence,
     bnd: geom_core::Band,
 ) -> Result<(), NamingError> {
@@ -1263,37 +1260,39 @@ fn name_boolean_vertices<T: Decide>(
         from_tie |= partner_a.as_ref().is_some_and(|u| u.tied);
         let partner_b_inner: Option<StableName> = partner_b.map(|u| u.name);
         let partner_a_inner: Option<StableName> = partner_a.map(|u| u.name);
-        a_faces.sort_unstable();
-        a_faces.dedup();
-        b_faces.sort_unstable();
-        b_faces.dedup();
         seam_lines.sort_unstable();
         seam_lines.dedup();
-        let pair = match (a_edges.as_slice(), b_edges.as_slice()) {
-            ([ae], [be]) => (ae.clone(), be.clone()),
+        // The A side of the pair is always an A-descended name and the
+        // B side always a B-descended one: every arm draws its two
+        // components from different sources, so `Seam{x, x}` — a
+        // well-formed name for the wrong thing — has no arm to come
+        // from. The contact-record partners are bound in the
+        // scrutinee, not guarded and unwrapped, so the compiler
+        // carries that.
+        let pair = match (
+            a_edges.as_slice(),
+            b_edges.as_slice(),
+            partner_a_inner.as_ref(),
+            partner_b_inner.as_ref(),
+        ) {
+            ([ae], [be], _, _) => (ae.clone(), be.clone()),
             // A pure seam-junction vertex (M4 PR 5: declared merges
             // can consume every operand-descended edge at a crossing
             // vertex): the incident seam edges' face parents determine
             // it when they agree on ONE (A, B) pair.
-            ([], []) if a_faces.len() == 1 && b_faces.len() == 1 => {
+            ([], [], _, _) if a_faces.len() == 1 && b_faces.len() == 1 => {
                 (a_faces[0].clone(), b_faces[0].clone())
             }
-            ([ae], []) if b_faces.len() == 1 => (ae.clone(), b_faces[0].clone()),
-            ([], [be]) if a_faces.len() == 1 => (a_faces[0].clone(), be.clone()),
-            ([ae], []) if partner_b_inner.is_some() => (
-                ae.clone(),
-                partner_b_inner.clone().unwrap_or_else(|| ae.clone()),
-            ),
-            ([], [be]) if partner_a_inner.is_some() => (
-                partner_a_inner.clone().unwrap_or_else(|| be.clone()),
-                be.clone(),
-            ),
+            ([ae], [], _, _) if b_faces.len() == 1 => (ae.clone(), b_faces[0].clone()),
+            ([], [be], _, _) if a_faces.len() == 1 => (a_faces[0].clone(), be.clone()),
+            ([ae], [], _, Some(pb)) => (ae.clone(), pb.clone()),
+            ([], [be], Some(pa), _) => (pa.clone(), be.clone()),
             // A seam JUNCTION (M4 PR 5: declared merges can consume
             // every operand-descended edge at a crossing): the vertex
             // where k ≥ 2 seam LINES meet. Its name is the sorted
             // path of the lines' Seam segments — deterministic, and
             // unique per line set (straight lines meet once).
-            ([], []) if seam_lines.len() >= 2 => {
+            ([], [], _, _) if seam_lines.len() >= 2 => {
                 let mut segs: Vec<RoleSeg> = seam_lines
                     .iter()
                     .map(|(fa, fb)| RoleSeg::Seam {

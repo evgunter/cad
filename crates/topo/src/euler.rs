@@ -3123,15 +3123,63 @@ mod tests {
         assert_eq!(deep_snapshot(&with_errs), deep_snapshot(&without_errs));
     }
 
+    /// Display smoke test, one sample per [`EulerOpError`] variant.
+    ///
+    /// What the compiler enforces: `variant_index` matches the enum with
+    /// NO wildcard arm, so a new variant fails to build until an arm
+    /// exists for it, and the coverage assertion then names the variant
+    /// whose sample is missing.
+    ///
+    /// What it does NOT enforce: `VARIANTS` is hand-written, so a new
+    /// variant given an arm but no sample still passes. Closing that
+    /// needs the variant count from the compiler — `strum`'s `EnumCount`
+    /// derive or the workspace's first proc-macro crate — and neither is
+    /// bought here. When you add an arm, its index is the new
+    /// `VARIANTS - 1`.
     #[test]
     fn every_error_displays() {
-        // Exhaustive Display smoke test (one per variant; a new variant
-        // extends this list by compiler guidance at the match in
-        // Display).
+        const VARIANTS: usize = 27;
+        fn variant_index(e: &EulerOpError) -> usize {
+            match e {
+                EulerOpError::Certification { .. } => 0,
+                EulerOpError::DescriptionNotAdjacent { .. } => 1,
+                EulerOpError::StaleKey { .. } => 2,
+                EulerOpError::StaleGeometry { .. } => 3,
+                EulerOpError::FanStartMismatch { .. } => 4,
+                EulerOpError::FanOrbitBroken { .. } => 5,
+                EulerOpError::NotSameLoop { .. } => 6,
+                EulerOpError::LoopCycleBroken { .. } => 7,
+                EulerOpError::LoopNotEmpty { .. } => 8,
+                EulerOpError::LoopNotCycle { .. } => 9,
+                EulerOpError::NotSameEdge { .. } => 10,
+                EulerOpError::UnclaimedHalfEdge { .. } => 11,
+                EulerOpError::SelfLoopEdge { .. } => 12,
+                EulerOpError::OrbitBroken { .. } => 13,
+                EulerOpError::EmptyAnchorsCollide { .. } => 14,
+                EulerOpError::SameLoop { .. } => 15,
+                EulerOpError::NotSameFace { .. } => 16,
+                EulerOpError::RingIsOuter { .. } => 17,
+                EulerOpError::SameFace { .. } => 18,
+                EulerOpError::CrossShell { .. } => 19,
+                EulerOpError::FaceHasRings { .. } => 20,
+                EulerOpError::SolidNotSingleShell { .. } => 21,
+                EulerOpError::ShellNotSingleFace { .. } => 22,
+                EulerOpError::NullScaffoldCurve { .. } => 23,
+                EulerOpError::SplitParamNotInterior { .. } => 24,
+                EulerOpError::SplitParamEscalated { .. } => 25,
+                EulerOpError::CrossSolid { .. } => 26,
+            }
+        }
         let he = HalfEdgeKey::default();
         let lp = LoopKey::default();
         let fc = FaceKey::default();
+        let ek = EdgeKey::default();
+        let vk = VertexKey::default();
         let errors = [
+            EulerOpError::Certification {
+                error: CertifyError::Unimplemented,
+            },
+            EulerOpError::DescriptionNotAdjacent { edge: ek },
             EulerOpError::StaleKey {
                 key: EntityId::HalfEdge(he),
             },
@@ -3145,9 +3193,13 @@ mod tests {
             EulerOpError::LoopNotEmpty { r#loop: lp },
             EulerOpError::LoopNotCycle { r#loop: lp },
             EulerOpError::NotSameEdge { he1: he, he2: he },
-            EulerOpError::EmptyAnchorsCollide {
-                vertex: VertexKey::default(),
+            EulerOpError::UnclaimedHalfEdge { he, edge: ek },
+            EulerOpError::SelfLoopEdge {
+                edge: ek,
+                vertex: vk,
             },
+            EulerOpError::OrbitBroken { he },
+            EulerOpError::EmptyAnchorsCollide { vertex: vk },
             EulerOpError::SameLoop { r#loop: lp },
             EulerOpError::NotSameFace {
                 target: lp,
@@ -3157,10 +3209,38 @@ mod tests {
             EulerOpError::SameFace { face: fc },
             EulerOpError::CrossShell { f1: fc, f2: fc },
             EulerOpError::FaceHasRings { face: fc },
+            EulerOpError::SolidNotSingleShell {
+                solid: SolidKey::default(),
+                shells: 2,
+            },
+            EulerOpError::ShellNotSingleFace {
+                shell: ShellKey::default(),
+                faces: 2,
+            },
+            EulerOpError::NullScaffoldCurve {
+                curve: CurveKey::default(),
+            },
+            EulerOpError::SplitParamNotInterior { edge: ek },
+            EulerOpError::SplitParamEscalated {
+                edge: ek,
+                diag: geom_core::Indeterminate {
+                    margin: geom_core::MarginDiag::Value(5e-9),
+                    band: Band::new(1e-9, 1e-8).unwrap(),
+                    predicate: Some("split_edge_param_interior"),
+                },
+            },
+            EulerOpError::CrossSolid { f1: fc, f2: fc },
         ];
-        for error in errors {
-            assert!(!error.to_string().is_empty());
+        let mut covered = [false; VARIANTS];
+        for error in &errors {
+            assert!(!error.to_string().is_empty(), "{error:?}");
+            covered[variant_index(error)] = true;
         }
+        assert!(
+            covered.iter().all(|&c| c),
+            "every EulerOpError variant needs a Display sample; missing index {:?}",
+            covered.iter().position(|&c| !c),
+        );
     }
 
     /// S6 (two-tolerance, D4 ¶1 addendum): both `split_edge`

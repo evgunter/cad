@@ -1,13 +1,25 @@
 #!/usr/bin/env bash
-# gate-roster.sh — ci.yml names a step for every gate in this directory.
+# gate-roster.sh — ci.yml WIRES a step for every gate in this directory.
 # ONE home; ci.yml's "gate roster parity (ci.yml names every gate)" step
 # runs it, and local-scripts/ci-local.sh reaches it through the loop
 # that runs this whole directory. It gates itself along with its
 # siblings.
 #
-# THE INVARIANT: for every executable gate in `scripts/gates/`,
-# `.github/workflows/ci.yml` both self-tests it and runs it — and it
-# invokes no `scripts/gates/` path that does not exist.
+# WHAT THIS PROVES: for every executable gate in `scripts/gates/`,
+# `.github/workflows/ci.yml` contains a `--selftest` call and a real
+# call — and it names no `scripts/gates/` path that does not exist. That
+# is a claim about WIRING, not about EXECUTION.
+#
+# WHAT THIS DOES NOT PROVE: that the gate ever runs on a runner. The
+# matcher is textual and cannot see YAML semantics, so a step carrying
+# `if: false` (or any condition that evaluates false, including a
+# `needs.filter` output) keeps its `run:` line, satisfies this gate, and
+# is skipped by Actions. Job-level `if:` on `discipline` itself is the
+# same hole one level up. Deciding whether a step actually executes
+# needs the workflow's own semantics, which a grep does not have and
+# which is not worth a YAML evaluator here — so the hole is named rather
+# than papered over. A gate silenced that way is visible as a skipped
+# step in the Actions UI, which is the compensating control.
 #
 # WHY ONLY ci.yml. The local half runs this directory in a LOOP
 # (`for g in scripts/gates/*.sh`), so it has no roster of its own to
@@ -90,7 +102,7 @@ gate() {
 
   [ "$rc" -eq 0 ] || exit 1
   GATE_SCAN_FILES=${#roster[@]}
-  printf '%s OK: ci.yml names a self-tested step for all %s gates in scripts/gates/\n' \
+  printf '%s OK: ci.yml wires a self-tested step for all %s gates in scripts/gates/ (wiring, not execution — see the header on `if:`)\n' \
     "$(gate_name)" "${#roster[@]}"
 }
 
