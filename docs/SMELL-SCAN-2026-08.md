@@ -4007,18 +4007,32 @@ release. Unscheduled.
 ## S53. Two `Ledger`s in one crate, with drifted field sets
 
 - **Where**: `crates/topo/src/seqgen.rs` (`Ledger { v, e, f, h, r, s }`),
-  `crates/topo/src/review_m1_pr3.rs` (`Ledger { v, e, f, r, s }`)
+  `crates/topo/src/review_m1_pr3.rs` (now `GenusInputs { v, e, f, r, s }`)
 - **Importance**: low
-- **Confidence**: sure it exists; unsure whether the missing `h` is a gap or
-  deliberate
+- **Confidence**: sure it exists; the missing `h` is deliberate, settled below
 - **Raised by**: the H8 reviewer (#641), 2026-08-19
 
-Same name, same crate, one component apart. Pre-existing and outside H8's
-array/tuple class, so #641 left it alone. Either that suite does not track
-genus and the narrower ledger is correct — in which case the name is the
-problem — or it is a real gap in what it checks.
+Same name, same crate, one component apart — and the two are not the same
+kind of thing. `seqgen`'s `Ledger` is the **running** Euler count the
+sequence generator carries forward and checks against independently counted
+arenas after every op, so `h` is one of the things it carries. The suite's
+five-field type is a **census genus is derived FROM**: `genus` solves
+`v − e + f − r = 2(s − h)` for `h`, and `check` asserts that derived value
+against the expected one.
 
-**Verdict:**
+**The narrower field set is correct and deliberate** (checked 2026-08-19):
+`h` is the quantity under test, and tracking it as a field would make the
+assertion tautological. So the name was the entire finding, and the fix is a
+rename. The suite's type is now `GenusInputs`, whose doc states why genus is
+absent and points at `seqgen::Ledger` for the running six-component ledger.
+`seqgen`'s keeps the name `Ledger`: with one such type left in the crate it
+is unambiguous, and it is the crate's canonical Euler ledger, cited by that
+name from the `seqgen` module docs and from `review_m1_pr4.rs`.
+
+**Verdict:** EXECUTED by #PRNUM (2026-08-19) — rename only, behaviour
+identical. Nothing further is owed here: adding `h` was considered and ruled
+out above, and renaming the `review_m1_pr3.rs` **file** is W3a's job, not a
+rename pass's.
 
 ## S54. The "kept in step BY HAND" ladder, which the crate around it has twice repudiated by name
 
