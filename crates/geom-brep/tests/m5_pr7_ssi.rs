@@ -646,6 +646,11 @@ fn the_floor_clamped_planted_fixture_refuses_typed() {
 /// An `Ok` from run 2 is precisely the silent incompleteness this
 /// module exists to prevent: zero branches reported *together with* an
 /// exhaustiveness receipt.
+///
+/// **This row covers the ℝ³ lane only.** The chart lane reaches the
+/// same empty tube set by its own road, off a fixture this pair of
+/// surfaces cannot express, and has its own row:
+/// [`an_unseeded_chart_run_refuses_typed_rather_than_receipting_an_unprovable_domain`].
 #[test]
 fn an_unseeded_run_refuses_typed_rather_than_receipting_an_unprovable_domain() {
     let s = sphere();
@@ -1008,6 +1013,17 @@ fn shape_iii_the_wall_cut_certifies_all_three_limbs_and_refuses_a_corrupted_pcur
         e.excluded + e.accounted + e.refined,
         "SUBSTRATE RECEIPT: the receipt must add up: {e:?}"
     );
+    // Both terminal states, as the ℝ³ receipt block demands of its own
+    // lane: an identity over three counters also adds up when one of
+    // them is zero, so the identity alone never proves the chart
+    // lane's tube arm ran. `accounted > 0` is the assertion that a
+    // `pcurve_windows` rectangle was banked AND consumed by
+    // `UvRect::contained_in` — the one step of the accounting ladder
+    // the ℝ³ rows cannot cover for this lane.
+    assert!(
+        e.excluded > 0 && e.accounted > 0,
+        "SUBSTRATE RECEIPT: both terminal states must be exercised: {e:?}"
+    );
     let b = &out.branches[0];
     let cert = &b.certificate;
     assert_eq!(cert.samples, CERT_SAMPLES, "SUBSTRATE: the PR 6 schedule");
@@ -1311,6 +1327,180 @@ fn oq4_the_two_pcurves_share_the_carriers_own_parameter() {
         (a1.x - a0.x).abs() > 0.5,
         "the wall pcurve must span its chart"
     );
+}
+
+// ---------------------------------------------------------------------
+// The chart lane's empty-tube accounting
+// ---------------------------------------------------------------------
+
+/// A NURBS wall whose true surface **misses the cutting plane inside its
+/// own control-net hull slack**.
+///
+/// Cubic in `u`, linear in `v` (a straight extrusion along `y`), so the
+/// signed height above the plane `z = 0` is the section's own Bézier
+/// polynomial in `u` alone. Its height control values are
+/// `[0.158, −0.05, −0.05, 0.158]`: the control net reaches **0.05 m
+/// below** the plane while the curve itself dips only to
+/// `(0.158 − 3·0.05)/4 = 0.002 m` **above** it. The hull says the wall
+/// may touch the plane; the surface does not.
+///
+/// That 25:1 gap between hull and truth is the whole fixture, and both
+/// halves of it are asserted in the row below rather than trusted here.
+/// The chart lane's exclusion rule reads a first-order box — midpoint
+/// value ⊕ derivative hull × half-width, and the height derivative's
+/// hull is `3·(0.158 + 0.05) = 0.624` — so a cell over the near miss
+/// stays unexcludable until it narrows past `2·0.002/0.624 ≈ 6.4e−3` in
+/// `u`, and is excluded once it does. The seed floor sits above that
+/// width and the healthy accounting floor below it, which is what puts
+/// the two runs on opposite sides of one enclosure.
+///
+/// [`certifiable_wall`] cannot serve: it genuinely meets its plane, and
+/// its hull is tight exactly where the near miss would have to sit.
+fn hull_slack_wall() -> NurbsSurface<f64> {
+    let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let cols = [(0.0, 0.158), (0.35, -0.05), (0.70, -0.05), (1.05, 0.158)];
+    let mut control = Vec::with_capacity(8);
+    for (x, z) in cols {
+        control.push(Point3::new(x, 0.0, z));
+        control.push(Point3::new(x, 0.8, z));
+    }
+    NurbsSurface::new(ku, kv, control, vec![1.0; 8]).unwrap()
+}
+
+/// The plane [`hull_slack_wall`] grazes without touching: `z = 0`.
+fn grazing_plane() -> Surface<f64> {
+    Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        normal: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    }
+}
+
+/// **The chart lane's twin of
+/// [`an_unseeded_run_refuses_typed_rather_than_receipting_an_unprovable_domain`]**:
+/// no branch is found at all, so the accounting pass runs on an *empty*
+/// tube set — the ℝ⁴ arm's own road into the mode, not the ℝ³ one's.
+///
+/// [`hull_slack_wall`] misses its plane by 0.002 m while its control
+/// net crosses the plane by 0.05 m. The subdivision's enclosures are
+/// first-order boxes over that net, so cells straddling the near miss
+/// survive exclusion all the way down to the seed floor, and every seed
+/// the subdivision then hands the marcher refuses to refine onto a
+/// locus that does not exist. All seeds fail, no tube is banked, and
+/// the accounting call is reached with `&[]`.
+///
+/// Run twice, at two accounting floors, in the ℝ³ row's shape:
+///
+/// 1. **At a healthy floor** the enclosures do separate wall from plane
+///    and the run certifies the chart empty: `Ok`, zero branches, zero
+///    accounted cells, off a seed set that is not empty. That `Ok` is
+///    also the *certified* form of this fixture's premise — the sweep
+///    proved every leaf solution-free by interval arithmetic, which the
+///    sampled clearance above cannot do.
+/// 2. **At a floor two orders coarser** the seeding and the marching
+///    are unchanged — `floor_scale` feeds `SsiDomain::floor` and
+///    nothing else, while the seed floor is a fraction of the extent —
+///    so the accounting call is provably reached with that same empty
+///    tube set, and now no enclosure at the floor separates the
+///    surfaces either. Nothing is proved about the domain, so nothing
+///    may be claimed about it: the operation refuses.
+///
+/// Run 1 is what keeps run 2 honest. A branch-found run and a
+/// branch-free run reach the identical `ExhaustivenessInconclusive`, so
+/// a refusal-only row whose fixture drifted into finding a branch would
+/// stay green as a second spelling of the floor-clamped row rather than
+/// covering this mode at all.
+///
+/// Neither run depends on ε: `floor_scale` is stated as `floor_m / ε`,
+/// the seed floor is a fraction of the extent, and the clearance is
+/// checked against the resolved band.
+#[test]
+fn an_unseeded_chart_run_refuses_typed_rather_than_receipting_an_unprovable_domain() {
+    let (p, w) = (grazing_plane(), hull_slack_wall());
+
+    // ---- The fixture's two halves, asserted rather than described.
+    // The hull must CROSS the plane, or nothing survives exclusion and
+    // there are no seeds to fail; the surface must MISS it, or a branch
+    // is found and the tube set is not empty. Both are this row's
+    // premise, and either one drifting takes the run out of its mode.
+    let dip = w
+        .control()
+        .iter()
+        .map(|c| c.z)
+        .fold(f64::INFINITY, f64::min);
+    assert!(
+        dip < 0.0,
+        "FIXTURE: the control net must reach below the plane: {dip:e}"
+    );
+    let mut clearance = f64::INFINITY;
+    for i in 0..=512 {
+        for j in 0..=4 {
+            let q = w.eval(f64::from(i) / 512.0, f64::from(j) / 4.0);
+            clearance = clearance.min(q.z);
+        }
+    }
+    assert!(
+        clearance > definitely_positive(),
+        "FIXTURE: the true surface must miss the plane by a definite margin at this \
+         tolerance — sampled clearance {clearance:e} against a net dipping to {dip:e}"
+    );
+
+    // `floor_m` is the accounting floor in meters, at every ε.
+    let domain = |floor_m: f64| SsiDomain {
+        center: Point3::new(0.5, 0.4, 0.0),
+        half_extent: 2.0,
+        extent: 3.0,
+        eps: eps(),
+        floor_scale: floor_m / eps(),
+    };
+
+    // ---- Run 1, the MODE PIN: a floor fine enough that the first-order
+    // enclosures resolve the near miss.
+    let out = ssi::plane_nurbs_ssi(&p, &w, domain(1.0e-3), band())
+        .expect("MODE: the near-miss wall certifies its chart empty at a healthy floor");
+    assert_eq!(
+        out.branches.len(),
+        0,
+        "MODE: the wall does not meet the plane, so nothing may be certified — and a \
+         banked tube would take the accounting call out of the mode this row exists \
+         to cover: {:?}",
+        out.exhaustiveness
+    );
+    assert!(
+        out.seeds > 0,
+        "MODE: the subdivision must actually SEED here — the hull slack is what keeps \
+         cells alive to the seed floor, and a run with no seeds would reach the \
+         accounting call by a different road than the all-seeds-fail one"
+    );
+    assert_eq!(
+        out.exhaustiveness.accounted, 0,
+        "MODE: no tube exists, so no cell can have been accounted by one: {:?}",
+        out.exhaustiveness
+    );
+    let e = out.exhaustiveness;
+    assert_eq!(
+        e.examined,
+        e.excluded + e.accounted + e.refined,
+        "MODE RECEIPT: the receipt must add up even on the empty domain: {e:?}"
+    );
+
+    // ---- Run 2, the CLAIM: the same seeding, the same empty tube set,
+    // a floor no enclosure can beat.
+    match ssi::plane_nurbs_ssi(&p, &w, domain(0.1), band()) {
+        Err(SsiError::ExhaustivenessInconclusive {
+            cell_width, floor, ..
+        }) => {
+            assert!(cell_width <= floor, "{cell_width} vs {floor}");
+        }
+        Err(other) => panic!("expected the exhaustiveness refusal, got {other}"),
+        Ok(out) => panic!(
+            "SILENT: an unprovable chart domain returned Ok with {} branches \
+             and an exhaustiveness receipt {:?}",
+            out.branches.len(),
+            out.exhaustiveness
+        ),
+    }
 }
 
 // ---------------------------------------------------------------------
