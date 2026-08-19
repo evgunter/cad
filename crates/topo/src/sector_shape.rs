@@ -27,11 +27,13 @@
 //!    guessed; the same reading on a one-edge orbit (a strut vertex) is
 //!    the legitimate full-circle sector and takes the same 90° device.
 //!
-//! Full derivations — why convex subdivision beats the paper's
-//! complement-and-negate, why the wideness trilean has no escalation
-//! cliff, why the duplicate entry is what makes dangling null edges fall
-//! out of the generic run scan — stay in
-//! `splitting::neighborhood`'s module docs, which own them.
+//! The three items above are the CONTRACT — what each rung decides and
+//! what it returns. The **derivations** — why convex subdivision beats
+//! the paper's complement-and-negate, why the wideness trilean has no
+//! escalation cliff, why the duplicate entry is what makes dangling
+//! null edges fall out of the generic run scan — stay in
+//! `splitting::neighborhood`'s module docs, which own them, and are not
+//! restated here.
 //!
 //! # Why the code is here and not in either lane
 //!
@@ -46,6 +48,64 @@
 //! `crate::validate::decide`), so sharing here adds no dependency edge
 //! between the halves and no public API.
 //!
+//! **The alternative considered and rejected: `geom-brep`.** The body
+//! is pure vector algebra over [`Vec3`], [`Band`] and a name — no
+//! `Body`, no arena keys — and `geom-brep` already hosts exactly this
+//! shape (`enters_material` is a named K predicate consumed by both
+//! lanes, and [`geom_brep::edge_extent`], the arm's source, is already
+//! there). It sits BELOW both halves, so it is strictly more neutral
+//! than the crate root. Two things ruled it out, and only one of them
+//! is permanent:
+//!
+//! - **Permanent:** it would promote an internal algebra to public API
+//!   in a crate re-exported into four others, for no consumer outside
+//!   `topo`.
+//! - **Transient, and recorded as such:** `crates/geom-brep/src/` was
+//!   held by an in-flight lane (#639) that the S5 sector unit was told
+//!   not to collide with. That is a scheduling fact with an expiry, not
+//!   an architectural argument, and it is not a reason to keep the code
+//!   here once #639 has landed.
+//!
+//! **Re-open trigger.** If the `sector_face` twins (still forked in
+//! both lanes — the rest of S5) are ever unified and want the same
+//! treatment, that is a real second consumer, and `geom-brep` is where
+//! this placement should be re-opened. Absent that consumer, the crate
+//! root holds: it is defensible on the merits above, not merely on the
+//! transient reason.
+//!
+//! # Which scalars the argument-order equality is proven for
+//!
+//! Two of the six rungs changed argument order when the lanes merged:
+//! the reflex bisector's `â + b̂` (the boolean wrote `b̂ + â`) and the
+//! straight rung's `â · b̂` (the boolean wrote `b̂ · â`). Bit-identity
+//! under that swap is what makes the merge K-neutral, so it is worth
+//! being exact about which scalars it is PROVEN for — the kernel is
+//! generic over [`Real`], and the proof is not.
+//!
+//! - **`f64`, and the recording scalar `geom_core::k_stats::Probe`
+//!   (an `f64` newtype): proven.** [`Vec3::dot`] is the fixed
+//!   association `((x·x′) + (y·y′)) + (z·z′)`, so swapping the
+//!   arguments commutes each product and permutes nothing in the sum;
+//!   IEEE `*` and `+` are commutative on `f64` at every finite input,
+//!   ±0 included. `geom_core`'s `dot_symmetry_bit_exact` proptest pins
+//!   it (over `1.0e-3..1.0e3`, so 0, −0, inf and subnormals are argued
+//!   rather than sampled), and the 26541-sample K stream reproduced in
+//!   the unit's PR runs at `Probe`. The one f64 gap is NaN, whose
+//!   payload propagation is not specified bitwise — and a NaN chord
+//!   cannot reach these two rungs, since it fails the arm rung above.
+//! - **`geom_core::Interval`: NOT proven.** It is also a [`Decide`]
+//!   scalar and it is live for both lanes (`topo/tests/interval_body.rs`,
+//!   `m3_pr3_split.rs`, `m3_pr4_boolean.rs`), and its `Add`/`Mul`
+//!   delegate to the enclosure backend, whose bit-level commutativity
+//!   is asserted NOWHERE in-tree. The equality is expected — a rounded
+//!   endpoint of a symmetric operation is a symmetric function of the
+//!   operands — but expected is not pinned. Closing it needs a
+//!   `Vec3<Interval>` analogue of `dot_symmetry_bit_exact` in
+//!   `geom-core`; until that exists, the interval lane's sector margins
+//!   are equal by argument, not by proof. Nothing here is broken by
+//!   that: a divergence would be an enclosure differing in its last
+//!   bit, not a verdict changing.
+//!
 //! # Two K names for one margin
 //!
 //! The predicate NAMES stay per-lane and bit-for-bit unchanged —
@@ -56,8 +116,11 @@
 //! the name as a parameter, so the emitted stream is exactly what each
 //! lane emitted before. The same device already carries
 //! `bool_planar_chord_spec` and `chord_spec` under one shared name.
-//! Whether the two populations SHOULD be one is a live open question,
-//! recorded with its evidence in the PR that created this module.
+//! Whether the two populations SHOULD be one is a live open question —
+//! evidence, costs and the `M3-LOG.md:264` counter-precedent in **issue
+//! #652**, which is where it is scheduled. Nothing in this module has
+//! to change either way: the name set is already a parameter, so the
+//! decision is entirely about the census.
 //!
 //! # Naming
 //!
@@ -137,11 +200,11 @@ pub(crate) struct SectorShape<T: Real> {
 /// # Errors
 ///
 /// [`Indeterminate`], named by the rung that produced it: a `decide`
-/// escalation verbatim, or a [`MarginDiag::Invalid`] diagnostic when a
-/// definite verdict is one this predicate does not admit (non-positive
-/// arm; a spike between distinct edges). Each lane wraps this in its
-/// own error type — the two wrappings are the only thing that was ever
-/// genuinely per-lane here.
+/// escalation passed through unchanged, or a [`MarginDiag::Invalid`]
+/// diagnostic when a definite verdict is one this predicate does not
+/// admit (non-positive arm; a spike between distinct edges). Each lane
+/// wraps this in its own error type — the two wrappings are the only
+/// thing that was ever genuinely per-lane here.
 pub(crate) fn sector_shape<T: Decide>(
     dir_own: Vec3<T>,
     dir_next: Vec3<T>,
@@ -166,14 +229,18 @@ pub(crate) fn sector_shape<T: Decide>(
         Ok(Sign::Positive) => None,
         // Definite reflex, θ ∈ (π, 2π). `unit_own + unit_next` is the
         // splitting lane's spelling and `unit_next + unit_own` the
-        // boolean's; IEEE addition is commutative, so this is
-        // bit-identical to both. (The collapse â + b̂ → 0 happens only
-        // at θ → π, which lands in the Zero band below, never here.)
+        // boolean's; `Add` is componentwise, so this is bit-identical
+        // to both at every scalar whose addition is bitwise commutative
+        // — see the module docs on WHICH scalars that is proven for
+        // (`f64`/`Probe` yes, `Interval` expected but unpinned). (The
+        // collapse â + b̂ → 0 happens only at θ → π, which lands in the
+        // Zero band below, never here.)
         Ok(Sign::Negative) => Some(-((unit_own + unit_next).normalize())),
         Ok(Sign::Zero) | Err(_) => {
             // Likewise `unit_own.dot(unit_next)` vs the boolean's
             // `unit_next.dot(unit_own)`: componentwise products, same
-            // summation order, bit-identical.
+            // summation order — bit-identical under the same scalar
+            // scope as above, not for every `T: Real` unconditionally.
             let straight_margin = Margin::levered(unit_own.dot(unit_next), arm);
             match decide(names.straight, straight_margin, band) {
                 // θ ≈ π: 90° into the interior is valid throughout the
@@ -199,6 +266,18 @@ pub(crate) fn sector_shape<T: Decide>(
 
 /// The diagnostic for a definite verdict this predicate does not admit
 /// — spelled identically in both lanes before the merge.
+///
+/// **This is a THIRD byte-identical copy in `topo/src`**, and naming
+/// that is the point of this comment. `census.rs:377` and
+/// `boolean/contain.rs:155` already carry the same four-line body;
+/// `boolean/sectors.rs`'s `invalid_escalation` is a fourth spelling
+/// that wraps the same value into `BooleanError`; and roughly sixty
+/// further sites across four crates construct `Indeterminate {
+/// margin: MarginDiag::Invalid, .. }` inline. The home is
+/// `impl Indeterminate` in `geom-core/src/predicate.rs:724`. Unifying
+/// it is a public-API addition plus a four-crate sweep — deliberately
+/// not folded into the S5 sector unit, and recorded here so the next
+/// pass finds the home rather than the method (smell scan C12).
 fn invalid(band: Band, predicate: &'static str) -> Indeterminate {
     Indeterminate {
         margin: MarginDiag::Invalid,
@@ -235,6 +314,18 @@ mod tests {
                 && (got.z - want.z).abs() < 1e-15,
             "direction {got:?} is not {want:?}"
         );
+    }
+
+    /// Which RUNG of `names` a refusal is named by, as a position in
+    /// [`SectorPredicates`] — 0 arm, 1 reflex, 2 straight. The point of
+    /// returning a position rather than comparing strings is in
+    /// `both_lanes_decide_the_same_shape`'s error arm.
+    fn rung_of(names: SectorPredicates, predicate: Option<&'static str>) -> usize {
+        let p = predicate.expect("every sector-shape refusal names its rung");
+        [names.arm, names.reflex, names.straight]
+            .iter()
+            .position(|n| *n == p)
+            .unwrap_or_else(|| panic!("`{p}` is not a rung of {names:?}"))
     }
 
     fn shape(
@@ -390,7 +481,22 @@ mod tests {
                 (Err(b), Err(s)) => {
                     assert_eq!(b.margin, s.margin);
                     assert_eq!(b.band, s.band);
-                    // The names are the ONE sanctioned difference.
+                    // The names are the ONE sanctioned difference —
+                    // and only the STRING may differ. Both lanes must
+                    // have refused at the SAME RUNG. `assert_ne!` on
+                    // the strings alone is satisfied by any two
+                    // distinct names, so it cannot see a body that
+                    // refuses at the arm rung for one lane and the
+                    // straight rung for the other: the margins are
+                    // both `Invalid`, the bands are equal, and the
+                    // names differ. Position can see it.
+                    assert_eq!(
+                        rung_of(BOOL_SECTOR_PREDICATES, b.predicate),
+                        rung_of(SPLIT_SECTOR_PREDICATES, s.predicate),
+                        "the lanes refused at DIFFERENT rungs: {:?} vs {:?}",
+                        b.predicate,
+                        s.predicate,
+                    );
                     assert_ne!(b.predicate, s.predicate);
                 }
                 other => panic!("outcome kind diverged between the lanes: {other:?}"),
@@ -399,19 +505,38 @@ mod tests {
     }
 
     /// **The anti-re-fork row.** The six sector-shape K names are
-    /// decided HERE and nowhere else: neither lane's neighborhood file
-    /// may spell one as a string literal again. Re-forking the rungs
-    /// means re-introducing a `decide("…_sector_arm", …)` into one of
-    /// those files, and that is exactly what this reads for. (It looks
+    /// decided HERE and nowhere else in this crate: no other file under
+    /// `topo/src` may spell one as a string literal. Re-forking the
+    /// rungs means re-introducing a `decide("…_sector_arm", …)`
+    /// somewhere, and that is exactly what this reads for. (It looks
     /// for the QUOTED form, so prose that mentions a predicate in
     /// backticks is untouched.)
     ///
-    /// It goes red on a re-fork that keeps the names — the case where
-    /// the K stream still looks plausible, so nothing else would catch
-    /// it. A re-fork under FRESH names is out of its reach by
-    /// construction; that one surfaces as new rows in the
-    /// `docs/K-REPORT.md` census, which is the mechanism that already
-    /// exists for it.
+    /// It walks the whole of `src/` at RUNTIME rather than
+    /// `include_str!`ing the two lane files it happens to know about,
+    /// so a re-fork that grows in a third file — a new module under
+    /// `boolean/` or `splitting/`, or a fresh crate-root sibling — is
+    /// caught too, and the guard does not need editing when a lane is
+    /// split across more files.
+    ///
+    /// **What it still does not cover** (stated plainly rather than as
+    /// one careful caveat that implies the rest is covered):
+    ///
+    /// 1. **A re-fork under FRESH names.** Out of reach by
+    ///    construction; that one surfaces as new rows in the
+    ///    `docs/K-REPORT.md` census, which is the mechanism that
+    ///    already exists for it.
+    /// 2. **These six names spelled outside `topo/src`.** Another crate
+    ///    cannot reach `crate::validate::decide`, but the walk is
+    ///    scoped to this crate's `src/` and says so.
+    /// 3. **A lane re-implementing the rungs while IMPORTING the
+    ///    names** — `decide(BOOL_SECTOR_PREDICATES.arm, …)`. The
+    ///    consts are `pub(crate)`, so this unquoted path is *easier*
+    ///    than it was before the merge, and no string search can see
+    ///    it. The row that does see it is
+    ///    `both_lanes_decide_the_same_shape` only if the copy is inside
+    ///    this module; a copy outside it is caught by nothing here, and
+    ///    is the residue this unit ships.
     #[test]
     fn the_rungs_are_decided_in_one_place() {
         let names = [
@@ -422,30 +547,72 @@ mod tests {
             SPLIT_SECTOR_PREDICATES.reflex,
             SPLIT_SECTOR_PREDICATES.straight,
         ];
-        for (file, src) in [
-            ("boolean/sectors.rs", include_str!("boolean/sectors.rs")),
-            (
-                "splitting/neighborhood.rs",
-                include_str!("splitting/neighborhood.rs"),
-            ),
-        ] {
+        let src = src_root();
+        let home = src.join("sector_shape.rs");
+        let mut files = Vec::new();
+        collect_rs(&src, &mut files);
+        // The walk must be reading what it thinks it is: a broken or
+        // empty walk would otherwise pass by finding nothing.
+        assert!(
+            files.contains(&home) && files.len() > 20,
+            "the walk of {src:?} found {} file(s) and {}the home module \
+             — it is not reading topo/src",
+            files.len(),
+            if files.contains(&home) { "" } else { "not " }
+        );
+        for path in &files {
+            if path == &home {
+                continue;
+            }
+            let text = std::fs::read_to_string(path).expect("a readable source file");
             for name in names {
                 assert!(
-                    !src.contains(&format!("\"{name}\"")),
-                    "{file} names the sector-shape predicate `{name}` again — the rungs \
+                    !text.contains(&format!("\"{name}\"")),
+                    "{} names the sector-shape predicate `{name}` again — the rungs \
                      have been re-forked out of sector_shape.rs (smell scan S5). Call \
-                     `sector_shape` with the lane's `SectorPredicates` instead."
+                     `sector_shape` with the lane's `SectorPredicates` instead.",
+                    path.display()
                 );
             }
         }
         // The guard earns its line only if the strings it looks for are
         // reachable at all: they must all be spelled HERE.
-        let here = include_str!("sector_shape.rs");
+        let here = std::fs::read_to_string(&home).expect("the home module is readable");
         for name in names {
             assert!(
                 here.contains(&format!("\"{name}\"")),
                 "`{name}` is not spelled in this module"
             );
+        }
+    }
+
+    /// This crate's `src/`, resolved for both ways the suite runs: a
+    /// plain `cargo test` (where the baked-in `CARGO_MANIFEST_DIR` is
+    /// the tree that is here) and a nextest ARCHIVE replayed on a
+    /// different runner (where that absolute path need not exist, but
+    /// `--workspace-remap` has pointed the per-test cwd at the crate
+    /// root).
+    fn src_root() -> std::path::PathBuf {
+        let baked = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        if baked.is_dir() {
+            return baked;
+        }
+        let cwd = std::env::current_dir()
+            .expect("a working directory")
+            .join("src");
+        assert!(cwd.is_dir(), "neither {baked:?} nor {cwd:?} is topo's src/");
+        cwd
+    }
+
+    /// Every `.rs` file under `dir`, recursively.
+    fn collect_rs(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+        for entry in std::fs::read_dir(dir).expect("a readable source directory") {
+            let path = entry.expect("a readable directory entry").path();
+            if path.is_dir() {
+                collect_rs(&path, out);
+            } else if path.extension().is_some_and(|e| e == "rs") {
+                out.push(path);
+            }
         }
     }
 }

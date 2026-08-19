@@ -18,6 +18,16 @@
 //! claim — a reordering of decisions shows up even when the multiset is
 //! preserved — so the rows are NOT sorted.
 //!
+//! **NOT run by CI, and not a gate.** `#![cfg(feature = "probe")]`
+//! means the default rows do not even type-check this file, and nothing
+//! in `.github/workflows/` runs `cargo test -p topo --features probe`
+//! (the K sweep runs `-p editor-core --features probe`). So this is a
+//! reproducible HAND-RUN artifact: it can bit-rot green, and a claim
+//! that leans on it must say so. `tests/probe_census.rs` and
+//! `tests/probe_f34_review.rs` are in the same position — a class, not
+//! this suite's peculiarity. The standing gate over the same telemetry
+//! is CI's `k-lint`, which runs `scripts/k_probe_sweep.sh` at three ε.
+//!
 //! The fixtures are chosen to drive BOTH lanes: two boolean subtracts at
 //! two scales (the `bool_sector_*` rungs) and three plane splits of the
 //! notched block whose plane lands ON vertices (the `split_sector_*`

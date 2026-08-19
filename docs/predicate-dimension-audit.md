@@ -186,7 +186,7 @@ all stored surface axes/normals/`u_ref` unit; `implicit_residual` is
 | boolean/reduce.rs:548–802 | bool_vertex_face_side / circle & line clearances | plane residuals, /2r residual extremes, sagitta dips | m | OK |
 | boolean/rest.rs:399/413 | bool_join_nearest | distances | m | OK |
 | boolean/rest.rs:405/406 | bool_join_facing | unit dir · chord | m | FIXED (was bare cosine) |
-| boolean/sectors.rs:341–432 | bool_dir_* / bool_faces_parallel / side_code | sin/cos × sector arm (arm = shorter bounding chord, m; every caller passes unit dirs — verified) | m | OK |
+| boolean/sectors.rs:341–432 | bool_sector_within / bool_dir_* / bool_faces_parallel / side_code | sin/cos × sector arm (arm = shorter bounding chord, m; every caller passes unit dirs — verified) | m | OK |
 | boolean/solid_contain.rs:438 | bool_wall_trim_period | (τ−width)·radius | m | OK |
 | boolean/solid_contain.rs:462 | bool_wall_trim (cone term) | (cosΔ−cos h)·radius — effective arm sin(h)·r, collapses for narrow windows | m | FLAG F8 |
 | boolean/solid_contain.rs:538/562/587 | bool_point_in_solid_plane | plane residual; /2r linearizations | m | OK |
@@ -211,11 +211,11 @@ all stored surface axes/normals/`u_ref` unit; `implicit_residual` is
 | validate.rs:1795 | tangent_second_order | κ_rel × arm²/2 | m | OK |
 | validate.rs:2030 | bool_ring_run_winding | (outward · Newell sum) / loop perimeter | m | FIXED (F4) |
 | validate.rs:2014 | positive_volume | volume/surface-area (the documented dimensional fix) | m | OK |
-| sector_shape.rs | bool_sector_arm/reflex/straight **and** split_sector_arm/reflex/straight | arm = shorter bounding chord (m); sin/cos × arm | m | OK — ONE implementation since the S5 sector-predicate unit; the two name sets are the same computation on the same quantity, which is why this is one row |
+| sector_shape.rs:203–260 | bool_sector_arm/reflex/straight **and** split_sector_arm/reflex/straight | arm = shorter bounding chord (m); sin/cos × arm | m | OK — ONE implementation since the S5 sector-predicate unit; the two name sets are the same computation on the same quantity, which is why this is one row |
 | splitting/classify.rs:81–286 | split_vertex_side / conic lane | plane residual; rooted amplitude; (rad)×minor semi-axis | m | OK |
 | splitting/containment.rs:179/192/219/233 | point_in_loop boundary/side/advance | distances; m²/m advance | m | OK |
 | splitting/containment.rs:203 | point_in_loop_arm | sin(member, plane normal) × loop extent (the member's in-plane fraction) | m | FIXED (was dimensionless schedule norm) |
-| splitting/neighborhood.rs:226–300 | split_conic_departure / split_bisector_side | tangent×extent projections; bisector·n̂ × arm | m | OK |
+| splitting/neighborhood.rs:226–307 | split_conic_departure / split_bisector_side | tangent×extent projections; bisector·n̂ × arm | m | OK |
 | splitting/order.rs:73 | split_join_frame_arm | sin(member, plane normal) × points' spread (the member's in-plane fraction) | m | FIXED (was dimensionless schedule norm) |
 | splitting/order.rs:111 | split_join_order_u/v | coordinate difference (m) vs the EXACT bit-level band (deliberate total-order device, documented) | m | OK (note N6) |
 | splitting/rules.rs:130/149/197 | split_sector_extent / coplanar / enters arm | extent; sin×extent | m | OK |

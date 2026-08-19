@@ -75,9 +75,10 @@ use crate::validate::decide;
 /// normal, and the chart is the only orientation encoding they have.
 /// This is the splitting lane's chokepoint, the twin of the boolean's
 /// `boolean::sectors::sector_face`: `rules::apply_rule_a`'s
-/// `enters_material` call, the reflex/bisector algebra below, and the
-/// departure trileans all consume this value and are sense-invariant
-/// GIVEN it — they pair it with the STORED orbit order, which `revert`
+/// `enters_material` call, the sector-shape rungs (since S5 part 1 they
+/// are [`crate::sector_shape`], called below rather than written below),
+/// and the departure trileans all consume this value and are
+/// sense-invariant GIVEN it — they pair it with the STORED orbit order, which `revert`
 /// reverses together with the sense bit, so a second `sense_sign`
 /// factor at any of those sites would cancel this one.
 pub(super) fn sector_face<T: Decide>(
@@ -273,9 +274,10 @@ pub fn classify_neighborhood<T: Decide>(
 
         // Wideness of the sector CW-after `he` (bounded by `he` and the
         // next orbit edge), and the subdivision direction it implies:
-        // the three rungs are [`crate::sector_shape`], shared verbatim
-        // with the boolean lane's sector walk and called here under
-        // THIS lane's K names (smell scan S5). The derivation the
+        // the three rungs are [`crate::sector_shape`] — ONE
+        // implementation, called from here and from the boolean lane's
+        // sector walk under each lane's own K names (smell scan S5).
+        // This is a call, not a copy. The derivation the
         // module docs above carry — why convex subdivision, why the
         // wideness trilean has no escalation cliff — is what that
         // shared body implements.

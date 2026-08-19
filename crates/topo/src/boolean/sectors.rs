@@ -149,14 +149,15 @@ pub(super) fn build_sectors<T: Decide>(
         let (face, normal) = sector_face(body, operand, vertex, he)?;
         // The three sector-shape rungs — metering arm, wideness, and
         // the subdivision direction (PR 2's derivation: the cone
-        // argument needs < 180°) — are [`crate::sector_shape`], shared
-        // verbatim with the splitting lane's neighborhood walk under
-        // THIS lane's K names (smell scan S5). Sense-invariant as
-        // called: the bounds come from the STORED orbit order, which
-        // `revert` reverses in the same breath as it flips the sense
-        // bit, so both factors change sign and the product does not —
-        // applying `sense_sign` here on top of [`sector_face`]'s would
-        // double-count and read every convex corner as reflex.
+        // argument needs < 180°) — are [`crate::sector_shape`]: ONE
+        // implementation, called from here and from the splitting
+        // lane's neighborhood walk under each lane's own K names
+        // (smell scan S5). This is a call, not a copy.
+        //
+        // The sense-invariance argument for the `normal` passed here is
+        // NOT restated: it is the contract of `sector_shape`'s `normal`
+        // parameter, which is the one place a caller has to read it.
+        // [`sector_face`] has already applied `sense_sign`.
         let SectorShape {
             arm,
             unit_own: u_end,
