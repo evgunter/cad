@@ -52,7 +52,9 @@ use crate::node::RecipeNodeId;
 
 use super::geompred::{self, GeomPred, SelectRefusal};
 use super::interrogate;
-use super::role::{CapEnd, EntityKind, MeridianEnd, RimSupport, RoleSeg, SplitHalf, StableName};
+use super::role::{
+    CapEnd, EntityKind, MeridianEnd, Qualifier, RimSupport, RoleSeg, SplitHalf, StableName,
+};
 use super::table::{EntityRef, Entry};
 
 /// The op group a [`RoleSeg`] belongs to — the enum's own documented
@@ -272,8 +274,8 @@ impl SegTag {
 
 /// The end/side tag a segment carries, if any. The match is
 /// EXHAUSTIVE on purpose (the `walk_names` rule): a future
-/// [`RoleSeg`] variant carrying an end, half or rim support must be
-/// classified here or the compile breaks.
+/// [`RoleSeg`] or [`Qualifier`] variant carrying an end, half or rim
+/// support must be classified here or the compile breaks.
 fn side_of(seg: &RoleSeg) -> Option<Side> {
     match seg {
         RoleSeg::Cap(e) | RoleSeg::RimEdge(e, _) | RoleSeg::CapVertex(e, _) => Some(Side::Cap(*e)),
@@ -301,7 +303,7 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         | RoleSeg::FromB(_)
         | RoleSeg::Seam { .. }
         | RoleSeg::Merged(_)
-        | RoleSeg::Fragment(_)
+        | RoleSeg::Fragment(Qualifier::SideOf(_) | Qualifier::OrderAlong { .. })
         | RoleSeg::FromTarget(_)
         | RoleSeg::BlendFace(_)
         | RoleSeg::CornerFace(_)
@@ -324,8 +326,8 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
 /// stored in). [`RoleSeg::Fragment`]'s [`Qualifier`](super::Qualifier)
 /// carries verdicts rather than a role argument and contributes none.
 /// The match is EXHAUSTIVE on purpose (the `walk_names` rule): a
-/// future [`RoleSeg`] variant embedding names must be classified here
-/// or the compile breaks.
+/// future [`RoleSeg`] or [`Qualifier`] variant embedding names must be
+/// classified here or the compile breaks.
 fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
     match seg {
         RoleSeg::FromA(n)
@@ -350,7 +352,7 @@ fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
         RoleSeg::CornerArc { vertex, edge } => vec![vertex, edge],
         RoleSeg::Merged(set) | RoleSeg::BandFace(set) => set.iter().collect(),
         // A verdict qualifier, not a role argument (see the doc note).
-        RoleSeg::Fragment(_) => Vec::new(),
+        RoleSeg::Fragment(Qualifier::SideOf(_) | Qualifier::OrderAlong { .. }) => Vec::new(),
         // Name-free segments (kept explicit — see the doc note).
         RoleSeg::OutputBody
         | RoleSeg::Cap(_)
