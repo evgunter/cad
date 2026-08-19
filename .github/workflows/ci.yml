@@ -323,6 +323,19 @@ jobs:
         run: |
           scripts/gates/bit-identity-punning.sh --selftest
           scripts/gates/bit-identity-punning.sh
+      # A test-only cargo feature (`test-support`, `*-testing`) may be
+      # reached ONLY through a dev-dependency. topo's `sweep-testing`
+      # opens failure-injection doors and its manifest said so in prose;
+      # the prose was FALSE — sweep's `[dependencies]` topo edge carried
+      # the feature, cargo unified it across the graph, and a downstream
+      # crate compiled `--release` naming `topo::PlantedDegradation`.
+      # That sat in the tree undetected with ten gates running (S52).
+      # Parses the manifests with tomllib rather than grepping, because
+      # `features = [...]` says nothing about which table it is in.
+      - name: test-only features are dev-dependency-only
+        run: |
+          scripts/gates/test-features-dev-only.sh --selftest
+          scripts/gates/test-features-dev-only.sh
 
       # RENDER PROVENANCE (#221 follow-up). Every committed per-scene
       # PNG under demos/renders{,-freecad}/ must carry FreeCAD's

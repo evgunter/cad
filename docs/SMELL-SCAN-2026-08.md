@@ -3954,8 +3954,29 @@ the same manifest — and the wiring the retired `profile` shim used — so
   because nothing in it has a non-test consumer. `cube` took the side
   length its callers were passing, and all six `tests/` copies collapsed to
   it. The seventh `cube` in `crates/sweep/tests/m6_surgery_interval.rs`
-  stays: it builds a `Body<Interval>` through `RawLoop::polygon`, a
-  different fixture with the same name.
+  stays, and the first draft of this row justified that wrongly — it
+  called it "a different fixture with the same name". It is the **same**
+  fixture one scalar up: `RawLoop::polygon` is `new` with every bulge
+  zero, so it is the same four-corner loop, same `SketchPlane::xy()`,
+  same `Tolerance::get()`, same `Extrusion::Distance`, differing only in
+  `Interval` vs `f64`. Collapsing it needs `cube<T: Real>` — a
+  generalization, not a deduplication, which is the real reason it is
+  out of scope. Filed at #672.
+
+**Two follow-on corrections the execution forced.** (1) `scripts/doc-gate.sh`
+runs `cargo doc --workspace --all-features` as a **required** CI row, which
+turns `test-support` on — so the repo's own gate would have published, as
+public API, a module whose first line says it is not one. Both facades are
+`#[doc(hidden)]`; verified against a clean `target/doc`, neither crate's
+rendered index lists `test_support` any more (`topo`'s private
+`test_support_impl` still appears, correctly, as one of the private modules
+`--document-private-items` renders). (2) `topo` now has **three** homes for
+test vocabulary — `src/fixtures.rs` (`#[cfg(test)]`), `src/test_support_impl.rs`,
+and `tests/common/mod.rs` — so `test_support_impl`'s docs carry the routing
+rule for all three and the other two point at it: **an item lives at the
+narrowest home all of its consumers can reach**, which makes `tests/common`
+the default and this module the exception for items the library itself also
+names.
 
 **The gate was proved, not asserted.** A throwaway downstream crate that
 path-depends on both and names `topo::test_support` / `sweep::test_support`
@@ -3965,6 +3986,37 @@ the real downstream case, stronger than a symbol grep, since an
 uninstantiated generic leaves no symbol either way. `cargo test --release -p
 topo -p sweep` passes, which is the row that rules out
 `#[cfg(debug_assertions)]`.
+
+**And the precedent it was modelled on was leaking.** Checking the
+mechanism instead of citing it found that `crates/sweep/Cargo.toml:52`
+carried `topo = { path = "../topo", features = ["sweep-testing"] }` in
+**`[dependencies]`**, three lines under a comment reading *"Dev-dependencies
+are the only place it is on"* — and `topo`'s own manifest claimed *"no
+production dependent can reach an injector."* Both were false. Cargo unifies
+features across a build graph, so that one edge turned `topo`'s
+**failure-injection** doors on for every production dependent of `sweep`:
+measured, a downstream crate compiled `--release` naming
+`topo::PlantedDegradation` and `topo::sweep_traces::<f64>`, and
+`crates/pncad/Cargo.toml` depends on both. #668 moved the featured edge to
+`[dev-dependencies]` (the plain edge stays), which `sweep`'s non-test code
+builds fine without, and the same probe now fails with `E0425` in **both**
+profiles.
+
+**The invariant is now a gate, not a sentence.**
+`scripts/gates/test-features-dev-only.sh` fails if any
+`[dependencies]`, `[build-dependencies]` or `[target.*.dependencies]`
+entry anywhere in the workspace enables a feature named `test-support`,
+`test-*` or `*-testing`, or if an ordinary feature forwards to one
+(`prod = ["topo/sweep-testing"]`). It parses the manifests with
+`tomllib` rather than grepping, because `features = [...]` says nothing
+about which table it sits in and `[target.'cfg(unix)'.dependencies]`
+nests. Its self-test plants five evasions including the live one, and it
+was written **before** the fix so it could be watched going red on the
+tree and green after. Its `KNOWN GAPS` block names what it cannot do —
+chiefly that it enforces a naming convention, not a semantic notion of
+"test-only". The lesson generalizes past this row: a safety property
+asserted in a comment three lines from the code that violates it had
+survived ten gates.
 
 **This row's own "the precedent does not exist" claim was half wrong, and is
 corrected here.** Both #641's PR body and the first draft of this row named
@@ -3988,11 +4040,16 @@ reach. The gate puts one definition where both sides can name it.
 
 **Verdict:** RULED (Evan, 2026-08-19): **kernel crates may carry their own
 test support, gated so it does not show up in release builds.** Executed by
-#668 for `topo` and `sweep`. Deliberately not extended further: other crates
-carry the same shape (`crates/mesh/tests/`, `crates/stl/tests/`,
-`crates/step-export/tests/` and `crates/editor-core/tests/` each repeat local
-body builders, the last two already through tests-side shared modules) and
-are unscheduled.
+#668 for `topo` and `sweep` — and the class is **not** gone. #668 collapsed
+the one copy that was field-for-field identical to `ArenaCounts`; what
+survives is filed as **#672** rather than left as the word "unscheduled":
+two spellings of the arena census inside `topo` alone (`ArenaCounts`, 7
+topology arenas, against `src/fixtures.rs:104`'s `ArenaSnapshot`, 10 —
+this is the PR that consolidated the census), four more `Census` structs
+in `crates/topo/tests/` with genuinely drifted field sets (4, 3, 7-with-`rings`,
+8-with-`shell_refs`), byte-identical `brick` fixtures in `crates/stl/tests/`,
+and local body builders in `crates/mesh/tests/`, `crates/step-export/tests/`
+and `crates/editor-core/tests/`. Per Q6 that is disclosure, not a schedule.
 
 ## S53. Two `Ledger`s in one crate, with drifted field sets
 

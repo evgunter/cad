@@ -188,6 +188,13 @@ mod test_support_impl;
 // another crate, so the public door opens on the test arms alone —
 // `topo::test_support` does not resolve in a plain build of any profile.
 #[cfg(any(test, feature = "test-support"))]
+// `doc(hidden)` because this repo's own rustdoc gate (scripts/doc-gate.sh)
+// runs `--all-features`, which turns `test-support` ON: without this the
+// gate would publish, as public API, a module whose first line says it is
+// not one. Hiding it keeps the rendered docs and the door's own claim
+// saying the same thing. It hides nothing from a test — `doc(hidden)` is
+// a rustdoc directive, not a visibility one.
+#[doc(hidden)]
 pub mod test_support {
     //! The public door onto [`crate::test_support_impl`], open exactly
     //! when a test needs to name its contents from another crate. That

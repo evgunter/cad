@@ -121,13 +121,17 @@
 //! every decision under its predicate name.
 
 pub mod extrude;
-// The gate is the module's own subject — see its docs for why
-// `cfg(test)` cannot serve and what each arm buys.
 pub mod loft;
 pub mod readback;
 pub mod revolve;
 pub mod skin;
+// The gate is the module's own subject — see its docs for why
+// `cfg(test)` cannot serve and what each arm buys. `doc(hidden)`
+// because this repo's rustdoc gate runs `--all-features`, which turns
+// `test-support` ON: without it the gate would publish, as public API, a
+// module whose docs say it is not one.
 #[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
 pub mod test_support;
 
 pub use extrude::{ExtrudeError, Extruded, Extrusion, extrude};

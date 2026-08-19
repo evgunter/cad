@@ -45,19 +45,31 @@ geom-core = { path = "../geom-core" }
 geom-curves = { path = "../geom-curves" }
 geom-surfaces = { path = "../geom-surfaces" }
 profile = { path = "../profile" }
-# `sweep-testing` for the same reason editor-core's dev-dependency
-# carries it: several suites here run the §4.4 differential pair and
-# name `SweepStrategy::Idealized`, which is reference surface gated out
-# of production builds. Dev-dependencies are the only place it is on.
-topo = { path = "../topo", features = ["sweep-testing"] }
+# PLAIN edge — no features. This entry carried `features =
+# ["sweep-testing"]` until S52 measured what that did: cargo unifies
+# features across a build graph, so the featured edge turned topo's
+# FAILURE-INJECTION doors on for every production dependent of `sweep`,
+# and a downstream crate compiled `--release` naming
+# `topo::PlantedDegradation`. The comment here claimed the opposite at
+# the time. `scripts/gates/test-features-dev-only.sh` now enforces it.
+topo = { path = "../topo" }
 
 [dev-dependencies]
 # Self dev-dependency: turns `test-support` on for THIS crate's own
-# integration tests without exposing it to production dependents.
-# Dev-dependencies are not in any consumer's build graph and are not
-# built by `cargo build [--release]`, so this is the only edge that
-# ever enables the feature.
+# integration tests without exposing it to production dependents. A
+# dev-dependency is in no consumer's build graph, and a flagless
+# `cargo build [--release]` does not build test targets, so this is the
+# only edge that ever enables the feature. (`cargo build --all-targets`
+# DOES build them, and cargo then unifies the feature into the lib
+# artifact of that same invocation — an explicit test-inclusive build,
+# not a production one.)
 sweep = { path = ".", features = ["test-support"] }
+# `sweep-testing` for the same reason editor-core's dev-dependency
+# carries it: several suites here run the §4.4 differential pair and
+# name `SweepStrategy::Idealized`, which is reference surface gated out
+# of production builds. Dev-dependencies are the only place it is on —
+# gated, not asserted.
+topo = { path = "../topo", features = ["sweep-testing"] }
 # Watertightness backstop for the fillet acceptance row (M5 PR 12): the
 # rounded die is tessellated and `mesh::validate::check_mesh`ed. `mesh`
 # dev-depends on `sweep` in turn; cargo permits cycles that run through

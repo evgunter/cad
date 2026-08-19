@@ -41,6 +41,34 @@
 //! here is compiled at all. `cargo test --release` satisfies `test` —
 //! which is why `debug_assertions` alone cannot serve as the existence
 //! gate.
+//!
+//! # Which home a new test item goes in (this crate has three)
+//!
+//! Stated here because this is the module the gate's argument lives in;
+//! the other two point at this paragraph rather than restating it. The
+//! question that routes an item is **who needs to name it**:
+//!
+//! - **The library itself needs it** (a debug assert, an in-crate
+//!   oracle) *and* a `tests/` binary does — **here**. That is the only
+//!   case that needs the split gate, because the item must exist more
+//!   widely than it is exported. [`ArenaCounts`] is the whole
+//!   population today.
+//! - **Only the crate's own `mod tests` needs it** — `src/fixtures.rs`,
+//!   which is plain `#[cfg(test)]` (and so is not linkable from here:
+//!   it does not exist in the doc build). It costs a
+//!   `tests/` binary nothing because it is not compiled for one, and it
+//!   needs no feature. Do not move an item here just to share it with
+//!   `tests/`: a `tests/` binary cannot name it.
+//! - **Only `tests/` binaries need it, and the library never does** —
+//!   `tests/common/mod.rs`, which is compiled into the test binary
+//!   itself. Nothing in the library pays for it and no feature is
+//!   involved, so this is the cheapest home and the right default for
+//!   test-only scaffolding. The geometric cube lives there for exactly
+//!   this reason.
+//!
+//! The rule in one line: **an item lives at the narrowest of the three
+//! that all of its consumers can reach.** Reaching for this module when
+//! `tests/common` would do widens the library for nothing.
 
 use geom_core::Real;
 
