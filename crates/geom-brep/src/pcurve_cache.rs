@@ -2013,7 +2013,6 @@ fn run_harmonic_checks<T: Decide>(
     let d_a = image_form.a - carrier_form.a;
     let d_b = image_form.b - carrier_form.b;
     let d_l = image_form.l - carrier_form.l;
-    let reach = t0.abs().max(t1.abs());
     // **The snap slack.** Check 1's winding trilean classifies
     // `|pa.x|·r`, `|pb.x|·r` and `|pl.x − β|·r` as Zero anywhere inside
     // the band, so `certify` admits pcurves in an ε-shell OUTSIDE the

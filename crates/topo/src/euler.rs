@@ -3058,10 +3058,18 @@ mod tests {
     }
 
     /// Display smoke test, one sample per [`EulerOpError`] variant.
-    /// Exhaustive BY CONSTRUCTION: `variant_index` matches the enum
-    /// with no wildcard, so a new variant does not compile until it is
-    /// listed there, and the coverage assertion then stays red until a
-    /// sample for it joins `errors`.
+    ///
+    /// What the compiler enforces: `variant_index` matches the enum with
+    /// NO wildcard arm, so a new variant fails to build until an arm
+    /// exists for it, and the coverage assertion then names the variant
+    /// whose sample is missing.
+    ///
+    /// What it does NOT enforce: `VARIANTS` is hand-written, so a new
+    /// variant given an arm but no sample still passes. Closing that
+    /// needs the variant count from the compiler — `strum`'s `EnumCount`
+    /// derive or the workspace's first proc-macro crate — and neither is
+    /// bought here. When you add an arm, its index is the new
+    /// `VARIANTS - 1`.
     #[test]
     fn every_error_displays() {
         const VARIANTS: usize = 27;
@@ -3164,7 +3172,8 @@ mod tests {
         }
         assert!(
             covered.iter().all(|&c| c),
-            "every EulerOpError variant needs a Display sample",
+            "every EulerOpError variant needs a Display sample; missing index {:?}",
+            covered.iter().position(|&c| !c),
         );
     }
 

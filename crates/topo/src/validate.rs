@@ -4028,9 +4028,93 @@ mod tests {
 
     #[test]
     fn errors_display_without_panicking() {
-        // One instance of every variant (closed enum — a new variant
-        // must be added here, which the exhaustive-Display match already
-        // forces at compile time).
+        // One sample per `ValidationError` variant.
+        //
+        // What the compiler enforces: `variant_index` matches the enum
+        // with NO wildcard arm, so a new variant fails to build until an
+        // arm exists for it, and the coverage assertion then names the
+        // variant whose sample is missing.
+        //
+        // What it does NOT enforce: `VARIANTS` is hand-written, so a new
+        // variant given an arm but no sample still passes. Closing that
+        // needs the variant count from the compiler — `strum`'s
+        // `EnumCount` derive or the workspace's first proc-macro crate —
+        // and neither is bought here. When you add an arm, its index is
+        // the new `VARIANTS - 1`.
+        const VARIANTS: usize = 59;
+        fn variant_index(e: &ValidationError) -> usize {
+            match e {
+                ValidationError::Band { .. } => 0,
+                ValidationError::DanglingDescription { .. } => 1,
+                ValidationError::UncertifiableSurface { .. } => 2,
+                ValidationError::EdgeCertification { .. } => 3,
+                ValidationError::DescriptionNotAdjacent { .. } => 4,
+                ValidationError::PlanarFaceResidual { .. } => 5,
+                ValidationError::PlanarFaceEscalated { .. } => 6,
+                ValidationError::PlanarBoundaryResidual { .. } => 7,
+                ValidationError::PlanarBoundaryEscalated { .. } => 8,
+                ValidationError::SliverDihedral { .. } => 9,
+                ValidationError::TransverseNotIntrinsic { .. } => 10,
+                ValidationError::TangentNotIntrinsic { .. } => 11,
+                ValidationError::LoopRoleInverted { .. } => 12,
+                ValidationError::CurvedSenseInverted { .. } => 13,
+                ValidationError::NegativeVolume => 14,
+                ValidationError::VolumeUncomputable { .. } => 15,
+                ValidationError::Pcurve { .. } => 16,
+                ValidationError::UndeclaredContact { .. } => 17,
+                ValidationError::StaleContactDeclaration { .. } => 18,
+                ValidationError::ContactContradicted { .. } => 19,
+                ValidationError::CensusEscalated { .. } => 20,
+                ValidationError::CensusUnsupported { .. } => 21,
+                ValidationError::CensusUndecidable { .. } => 22,
+                ValidationError::DanglingTopology { .. } => 23,
+                ValidationError::DanglingGeometry { .. } => 24,
+                ValidationError::NextPrevMismatch { .. } => 25,
+                ValidationError::LoopCycleOverrun { .. } => 26,
+                ValidationError::ParentLoopMismatch { .. } => 27,
+                ValidationError::UnreachableHalfEdge { .. } => 28,
+                ValidationError::EdgeHalvesIdentical { .. } => 29,
+                ValidationError::EdgeSlotBackpointerMismatch { .. } => 30,
+                ValidationError::HalfEdgeUnclaimed { .. } => 31,
+                ValidationError::HalfEdgeMultiplyClaimed { .. } => 32,
+                ValidationError::EdgeNotAntiparallel { .. } => 33,
+                ValidationError::EmanatingStartMismatch { .. } => 34,
+                ValidationError::EmptyLoopVertexWithEmanating { .. } => 35,
+                ValidationError::LoneVertexWithIncidence { .. } => 36,
+                ValidationError::VertexOrbitOverrun { .. } => 37,
+                ValidationError::OrbitForeignMember { .. } => 38,
+                ValidationError::SplitVertexOrbit { .. } => 39,
+                ValidationError::OuterListedAsRing { .. } => 40,
+                ValidationError::BackPointerMismatch { .. } => 41,
+                ValidationError::OrphanEntity { .. } => 42,
+                ValidationError::MultiplyOwned { .. } => 43,
+                ValidationError::OrphanGeometry { .. } => 44,
+                ValidationError::SolidWithoutShells { .. } => 45,
+                ValidationError::ShellWithoutFaces { .. } => 46,
+                ValidationError::EdgeAcrossShells { .. } => 47,
+                ValidationError::ComponentEulerViolation { .. } => 48,
+                ValidationError::MissingProvenance { .. } => 49,
+                ValidationError::LeakedProvenance { .. } => 50,
+                ValidationError::ScaffoldingEmptyLoop { .. } => 51,
+                ValidationError::ScaffoldingStrutVertex { .. } => 52,
+                ValidationError::ShellDisconnected { .. } => 53,
+                ValidationError::NullScaffoldShared { .. } => 54,
+                ValidationError::LeakedNullFaceRecord { .. } => 55,
+                ValidationError::StaleNullFaceLoop { .. } => 56,
+                ValidationError::NullEdgeAtRest { .. } => 57,
+                ValidationError::NullFaceAtRest { .. } => 58,
+            }
+        }
+        fn band_error() -> geom_core::BandError {
+            geom_core::Band::new(1.0, 0.0).unwrap_err()
+        }
+        fn indeterminate() -> Indeterminate {
+            Indeterminate {
+                margin: geom_core::MarginDiag::Value(5e-9),
+                band: geom_core::Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("validate_probe"),
+            }
+        }
         let t = pillow();
         let he = t.hes_a[0];
         let v = t.vertices[0];
@@ -4127,12 +4211,109 @@ mod tests {
                 shell: t.shell,
                 components: 2,
             },
+            ValidationError::Band {
+                error: band_error(),
+            },
+            ValidationError::DanglingDescription {
+                from: GeomRef::Point(t.points[0]),
+                to: GeomRef::Point(t.points[0]),
+            },
+            ValidationError::UncertifiableSurface { face: t.face_a },
+            ValidationError::EdgeCertification {
+                edge: e,
+                error: CertifyError::Unimplemented,
+            },
+            ValidationError::DescriptionNotAdjacent { edge: e },
+            ValidationError::PlanarFaceResidual {
+                face: t.face_a,
+                vertex: v,
+            },
+            ValidationError::PlanarFaceEscalated {
+                face: t.face_a,
+                vertex: v,
+                cause: indeterminate(),
+            },
+            ValidationError::PlanarBoundaryResidual {
+                face: t.face_a,
+                edge: e,
+            },
+            ValidationError::PlanarBoundaryEscalated {
+                face: t.face_a,
+                edge: e,
+                cause: indeterminate(),
+            },
+            ValidationError::SliverDihedral {
+                edge: e,
+                cause: indeterminate(),
+            },
+            ValidationError::TransverseNotIntrinsic { edge: e },
+            ValidationError::TangentNotIntrinsic { edge: e },
+            ValidationError::LoopRoleInverted {
+                face: t.face_a,
+                r#loop: t.loop_a,
+            },
+            ValidationError::CurvedSenseInverted { face: t.face_a },
+            ValidationError::NegativeVolume,
+            ValidationError::VolumeUncomputable {
+                source: crate::props::MassPropsError::Band {
+                    error: band_error(),
+                },
+            },
+            ValidationError::Pcurve {
+                finding: crate::pcurves::PcurveMintError::Corrupt,
+            },
+            ValidationError::UndeclaredContact {
+                contact: CensusContact::VertexVertex { a: v, b: v },
+                witness: "witness".to_string(),
+            },
+            ValidationError::StaleContactDeclaration {
+                declaration: StaleDeclaration::VertexVertex { a: v, b: v },
+            },
+            ValidationError::ContactContradicted {
+                declaration: DeclaredContact {
+                    a: t.face_a,
+                    b: t.face_b,
+                    class: crate::ContactClass::Rest,
+                },
+                witness: "witness".to_string(),
+                margin: indeterminate(),
+                steer: None,
+            },
+            ValidationError::CensusEscalated {
+                cause: indeterminate(),
+            },
+            ValidationError::CensusUnsupported {
+                entity: EntityId::Face(t.face_a),
+            },
+            ValidationError::CensusUndecidable {
+                a: EntityId::Face(t.face_a),
+                b: EntityId::Face(t.face_a),
+                what: "what",
+            },
+            ValidationError::NullScaffoldShared {
+                curve: CurveKey::default(),
+                edges: 2,
+            },
+            ValidationError::LeakedNullFaceRecord { face: t.face_a },
+            ValidationError::StaleNullFaceLoop {
+                face: t.face_a,
+                named_loop: t.loop_a,
+            },
+            ValidationError::NullEdgeAtRest { edge: e },
+            ValidationError::NullFaceAtRest { face: t.face_a },
         ];
+        let mut covered = [false; VARIANTS];
         for err in &all {
             // Display and Error are wired up; content is human-oriented.
             assert!(!err.to_string().is_empty());
             let _: &dyn std::error::Error = err;
+            covered[variant_index(err)] = true;
         }
+        assert!(
+            covered.iter().all(|&c| c),
+            "every ValidationError variant needs a Display sample; missing index {:?}",
+            covered.iter().position(|&c| !c),
+        );
     }
 
     // ------------------------------------------------------------------
