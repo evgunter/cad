@@ -151,10 +151,11 @@ not schedules. Flag any deviation that is disclosed but unscheduled.
 
 **A claim resting on a measurement is the same shape.** What it owes is a
 mechanical guard — something that goes red when the number stops being true —
-or a written reason it cannot have one. *"Unguardable, and here is why"* is a
-complete answer and usually the right one; a timing cannot be pinned by a
-compile-time assert, and most of the value is in having written that down.
-(#651.)
+or a scheduled register that re-measures it (`ci.yml`'s `rebuild latency
+(reporting)` is one), or a written reason it can have neither. That reason
+goes **at the claim site**, not only in a PR body: *"unguardable, and here is
+why"* is complete where nothing computes with the number, and is a deferral
+owing a schedule where something does. (#651.)
 
 ### Q7. Is this how you would have done it?
 

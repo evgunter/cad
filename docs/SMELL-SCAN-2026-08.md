@@ -4446,9 +4446,10 @@ still-passing test reads as **evidence the invariant holds**.
 
 **The weaker case — no pin at all — is #651**, raised by the style review of
 #646. The rule it produced is in `docs/REVIEW-STYLE-BRIEF.md` §Q6 (a
-measured claim owes a mechanical guard or a written reason it cannot have
-one); the classification sweep is a comment on #651, and is not repeated
-here.
+measured claim owes a mechanical guard, a scheduled register that
+re-measures it, or a written reason at the claim site that it can have
+neither); the classification sweep is a comment on #651, and is not
+repeated here.
 
 ---
 
