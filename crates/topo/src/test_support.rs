@@ -26,6 +26,11 @@
 //!   debug-only. One gate for one item: the counts exist wherever any
 //!   of their three consumers do.
 //!
+//! **Not public API.** The `debug_assertions` arm makes this module
+//! nameable from a downstream *debug* build; nothing outside this crate
+//! may rely on that, since the same reference does not resolve in
+//! release.
+//!
 //! `cargo build --release` satisfies none of the three arms (no
 //! `debug_assertions`, no `test`, and the feature is off by default
 //! and reachable only through a dev-dependency), so this module is
