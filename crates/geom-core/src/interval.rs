@@ -200,7 +200,7 @@ impl Interval {
     /// The one spelling of that threshold. Both doors that turn an enclosure
     /// into a commitment ask through this: [`Decide::sign_within`], which
     /// will not branch on an uncertified value, and
-    /// [`CertifiedEnclosure::certified_bracket`], which will not hand one to
+    /// [`crate::CertifiedEnclosure::certified_bracket`], which will not hand one to
     /// certification arithmetic. They are the same question — *may this
     /// decide anything?* — and they must not be able to drift apart.
     ///
@@ -499,7 +499,7 @@ impl Bounds for Interval {
 /// does ([`Interval::is_certified`]).
 ///
 /// This is the seam the C9 ring reads an evaluation scalar through, and
-/// it is the *only* channel available there: [`RingInterval`] has two
+/// it is the *only* channel available there: [`crate::RingInterval`] has two
 /// states and no decorations, so whatever the accessor does not refuse
 /// cannot be refused anywhere downstream. A `Trv` enclosure with finite
 /// endpoints — `sqrt([−1, 4])` clamping to `[0, 2]` — is the case that

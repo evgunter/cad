@@ -52,8 +52,9 @@
 //!   rule, whose enclosure belongs with the consumer that owns the
 //!   homogeneous form.
 //! - **No comparisons on a generic scalar.** The coefficient type is
-//!   read only through [`Enclosure`] — two `f64` accessors — so nothing
-//!   here can accidentally decide anything about an evaluation scalar.
+//!   read only through [`CertifiedEnclosure`] — one fallible bracket
+//!   accessor — so nothing here can accidentally decide anything about an
+//!   evaluation scalar.
 //!
 //! # Poison (fail-loud, D4 ¶2)
 //!
@@ -94,7 +95,7 @@ use crate::ring_interval::RingInterval;
 
 /// Reads a coefficient's bracket into the ring.
 ///
-/// The bound is [`CertifiedEnclosure`], not [`Enclosure`]: a hull bound
+/// The bound is [`CertifiedEnclosure`], not [`crate::Enclosure`]: a hull bound
 /// is a *certificate*, so a coefficient that merely carries a bracket is
 /// not enough — the computation behind it must also have been defined on
 /// the whole input box. A coefficient that refuses becomes ring poison,
