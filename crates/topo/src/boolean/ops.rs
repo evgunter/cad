@@ -1100,20 +1100,20 @@ pub(super) fn remap_contacts<T: Real>(
     let face = |view: &KeyView<'_>, f: FaceKey| desc.live_face(body, view.face(f)?);
     let mut out = ContactRecords::default();
     for c in &contacts.vv {
-        if let (Some(a), Some(b)) = (vert(&a_view, c.a), vert(&b_view, c.b))
+        if let (Some(a), Some(b)) = (vert(a_view, c.a), vert(b_view, c.b))
             && a != b
         {
             out.vv.push(VvContact { a, b });
         }
     }
     for c in &contacts.a_on_b {
-        if let (Some(vertex), Some(face)) = (vert_strict(&a_view, c.vertex), face(&b_view, c.face))
+        if let (Some(vertex), Some(face)) = (vert_strict(a_view, c.vertex), face(b_view, c.face))
         {
             out.a_on_b.push(VfContact { vertex, face });
         }
     }
     for c in &contacts.b_on_a {
-        if let (Some(vertex), Some(face)) = (vert_strict(&b_view, c.vertex), face(&a_view, c.face))
+        if let (Some(vertex), Some(face)) = (vert_strict(b_view, c.vertex), face(a_view, c.face))
         {
             out.b_on_a.push(VfContact { vertex, face });
         }
@@ -1142,9 +1142,9 @@ pub(super) fn remap_contacts<T: Real>(
     };
     for c in &contacts.curves {
         if let (Some(face_a), Some(face_b), Some(witness)) = (
-            face(&a_view, c.face_a),
-            face(&b_view, c.face_b),
-            live_edge(&a_view, c.witness),
+            face(a_view, c.face_a),
+            face(b_view, c.face_b),
+            live_edge(a_view, c.witness),
         ) {
             out.curves.push(CurveContact {
                 face_a,
@@ -1154,7 +1154,7 @@ pub(super) fn remap_contacts<T: Real>(
         }
     }
     for c in &contacts.patches {
-        if let (Some(face_a), Some(face_b)) = (face(&a_view, c.face_a), face(&b_view, c.face_b)) {
+        if let (Some(face_a), Some(face_b)) = (face(a_view, c.face_a), face(b_view, c.face_b)) {
             out.patches.push(PatchContact { face_a, face_b });
         }
     }
