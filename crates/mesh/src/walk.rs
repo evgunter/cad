@@ -678,8 +678,13 @@ pub(crate) fn loop_polygon(
     };
 
     let mut out: Vec<UvPoint> = Vec::new();
+    // The value the FINAL traversal will emit, so the pole entry that
+    // closes it at `k == 0` carries that column and not a neighbour's:
+    // on a pole-to-pole band the last traversal takes its run's
+    // column, which is the run START's band value (`m - 1` on an
+    // unsplit loop, where every side is one edge).
     let mut prev_u = match &band_u {
-        Some(us) => us[m - 1],
+        Some(us) => us[closing_side],
         None => f64::NAN,
     };
     let mut prev_v = f64::NAN;
@@ -1067,7 +1072,12 @@ mod tests {
     fn alternating_rims_and_meridians_open_a_side_every_time() {
         let c = z_chart(ChartKind::Sphere { r: 1.0 });
         let p = unit_sphere_positions();
-        let travs = vec![rim(&[2, 3]), meridian(&[3, 4]), rim(&[4, 2]), meridian(&[2, 2])];
+        let travs = vec![
+            rim(&[2, 3]),
+            meridian(&[3, 4]),
+            rim(&[4, 2]),
+            meridian(&[2, 2]),
+        ];
         assert_eq!(
             iso_side_starts(&travs, &c, &p, 1e-9),
             vec![true, true, true, true]
@@ -1082,7 +1092,10 @@ mod tests {
         let c = z_chart(ChartKind::Sphere { r: 1.0 });
         let p = unit_sphere_positions();
         let travs = vec![rim(&[2, 3]), meridian(&[3, 4]), meridian(&[4, 2])];
-        assert_eq!(iso_side_starts(&travs, &c, &p, 1e-9), vec![true, true, false]);
+        assert_eq!(
+            iso_side_starts(&travs, &c, &p, 1e-9),
+            vec![true, true, false]
+        );
     }
 
     /// A POLE junction is a corner, not one side — the fan the walk
@@ -1094,8 +1107,17 @@ mod tests {
     fn a_pole_junction_always_breaks_the_side() {
         let c = z_chart(ChartKind::Sphere { r: 1.0 });
         let p = unit_sphere_positions();
-        let travs = vec![meridian(&[2, 0]), meridian(&[0, 3]), meridian(&[3, 1])];
-        assert_eq!(iso_side_starts(&travs, &c, &p, 1e-9), vec![true, true, true]);
+        // A pole-to-pole band: two meridians, both junctions a pole.
+        let travs = vec![meridian(&[1, 2, 0]), meridian(&[0, 3, 1])];
+        assert_eq!(iso_side_starts(&travs, &c, &p, 1e-9), vec![true, true]);
+        // ... and the same two meridians with a vertex dropped on the
+        // FIRST one are one side across that vertex and two sides
+        // across each pole.
+        let split = vec![meridian(&[1, 2]), meridian(&[2, 0]), meridian(&[0, 3, 1])];
+        assert_eq!(
+            iso_side_starts(&split, &c, &p, 1e-9),
+            vec![true, false, true]
+        );
     }
 
     /// Rims run too: two coaxial circles at different `v` are
@@ -1105,7 +1127,10 @@ mod tests {
         let c = z_chart(ChartKind::Cylinder { r: 1.0 });
         let p = unit_sphere_positions();
         let travs = vec![rim(&[2, 3]), rim(&[3, 4]), meridian(&[4, 2])];
-        assert_eq!(iso_side_starts(&travs, &c, &p, 1e-9), vec![true, false, true]);
+        assert_eq!(
+            iso_side_starts(&travs, &c, &p, 1e-9),
+            vec![true, false, true]
+        );
     }
 
     /// The junction test is CYCLIC — traversal 0's predecessor is the
@@ -1117,6 +1142,9 @@ mod tests {
         let p = unit_sphere_positions();
         // ids[0] of traversal 0 is 2, shared with the last traversal.
         let travs = vec![meridian(&[2, 3]), rim(&[3, 4]), meridian(&[4, 2])];
-        assert_eq!(iso_side_starts(&travs, &c, &p, 1e-9), vec![false, true, true]);
+        assert_eq!(
+            iso_side_starts(&travs, &c, &p, 1e-9),
+            vec![false, true, true]
+        );
     }
 }
