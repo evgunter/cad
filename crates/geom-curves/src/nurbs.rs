@@ -1145,7 +1145,7 @@ macro_rules! nurbs_curve {
 nurbs_curve!(NurbsCurve2, Point2, Vec2, x, y);
 nurbs_curve!(NurbsCurve3, Point3, Vec3, x, y, z);
 
-impl<T: Bounds> NurbsCurve3<T> {
+impl<T: Bounds + geom_core::CertifiedEnclosure> NurbsCurve3<T> {
     /// The control coordinates lifted to ring points — the data-in
     /// shape of `geom_core::spline::compose` (M5 PR 4): channel `d`,
     /// point `i`, as `[x, y, z]` channels of ring enclosures. Pair with
@@ -1164,27 +1164,21 @@ impl<T: Bounds> NurbsCurve3<T> {
         let lift = |f: fn(&Point3<T>) -> T| -> Vec<RingInterval> {
             self.control
                 .iter()
-                .map(|p| {
-                    let c = f(p);
-                    RingInterval::from_bounds(c.lo(), c.hi())
-                })
+                .map(|p| RingInterval::from_certified(f(p)))
                 .collect()
         };
         vec![lift(|p| p.x), lift(|p| p.y), lift(|p| p.z)]
     }
 }
 
-impl<T: Bounds> NurbsCurve2<T> {
+impl<T: Bounds + geom_core::CertifiedEnclosure> NurbsCurve2<T> {
     /// The 2-D counterpart of [`NurbsCurve3::ring_coords`]: `[x, y]`
     /// channels of ring enclosures, through the same bracket seam.
     pub fn ring_coords(&self) -> Vec<Vec<RingInterval>> {
         let lift = |f: fn(&Point2<T>) -> T| -> Vec<RingInterval> {
             self.control
                 .iter()
-                .map(|p| {
-                    let c = f(p);
-                    RingInterval::from_bounds(c.lo(), c.hi())
-                })
+                .map(|p| RingInterval::from_certified(f(p)))
                 .collect()
         };
         vec![lift(|p| p.x), lift(|p| p.y)]

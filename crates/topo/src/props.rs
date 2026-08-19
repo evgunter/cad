@@ -448,7 +448,7 @@ mod quad_lane {
     // this module is the certified lanes' plumbing and never
     // instantiates for duals — the split is enforced by
     // [`super::PropsQuadLane`]'s explicit impls.
-    use geom_core::{Band, Bounds, Decide, Point3, Tolerance};
+    use geom_core::{Band, Bounds, CertifiedEnclosure, Decide, Point3, Tolerance};
     use geom_curves::Curve3;
     use geom_surfaces::Surface;
 
@@ -464,15 +464,67 @@ mod quad_lane {
     /// Bracket a scalar through its [`Bounds`] accessors (infallible:
     /// only bracket-carrying scalars reach this module — the static
     /// lane split above).
-    fn br<T: Bounds>(x: T) -> RingInterval {
-        RingInterval::from_bounds(x.lo(), x.hi())
+    fn br<T: CertifiedEnclosure>(x: T) -> RingInterval {
+        RingInterval::from_certified(x)
+    }
+
+    /// The scalar bracket seam, at the `Interval` scalar.
+    ///
+    /// A bracket can be sound and still inadmissible: `sqrt([−1, 4]) + 1`
+    /// is `[1, 3]` with decoration `Trv`. `RingInterval` has no
+    /// decoration channel, so the quadrature lane's scalars have to be
+    /// refused HERE or a certified flux enclosure gets built from a
+    /// quantity that was clamped out of its own domain.
+    #[cfg(all(test, feature = "interval"))]
+    mod bracket_seam_tests {
+        use geom_core::{Bounds, CertifiedEnclosure, Interval, Real};
+
+        use super::{br, chan};
+
+        /// Finite, strictly positive, and unable to certify — the case
+        /// where the laundered answer is a *usable* number.
+        fn trv_pos() -> Interval {
+            Interval::from_bounds(-1.0, 4.0).sqrt() + Interval::from_f64(1.0)
+        }
+
+        #[test]
+        fn the_fixture_is_a_finite_bracket_that_cannot_certify() {
+            let x = trv_pos();
+            assert_eq!((Bounds::lo(x), Bounds::hi(x)), (1.0, 3.0));
+            assert!(x.certified_bracket().is_none());
+        }
+
+        #[test]
+        fn br_refuses_a_violated_scalar() {
+            let r = br(trv_pos());
+            assert!(
+                r.is_poison(),
+                "a domain-violated scalar crossed into the ring as {r:?} —                  the bracket door does not read decorations, so the                  quadrature lane certifies a flux built from it"
+            );
+            // Non-vacuity: a certified scalar crosses with its endpoints.
+            let ok = br(Interval::from_bounds(1.0, 4.0).sqrt());
+            assert_eq!((ok.lo(), ok.hi()), (1.0, 2.0));
+        }
+
+        /// The seam is per scalar, not per channel: one violated
+        /// coefficient poisons its own slot and leaves the rest intact,
+        /// so the poison reaches the flux algebra where it is visible.
+        #[test]
+        fn chan_poisons_only_the_violated_coefficient() {
+            let one = Interval::from_f64(1.0);
+            let c = chan(one, trv_pos(), one, one).expect("channel builds");
+            assert!(c.ca.is_poison(), "the violated coefficient survived");
+            for (tag, r) in [("c0", c.c0), ("cb", c.cb), ("cl", c.cl)] {
+                assert!(!r.is_poison(), "{tag} poisoned a certified coefficient");
+            }
+        }
     }
 
     /// `(cos t₀, sin t₀)` enclosure at the carrier-interval start,
     /// recovered algebraically from the carrier frame and the interval
     /// start's VERTEX point (within the run's ε of the carrier, D4 ¶2
     /// — the ε rides into the bracket as an explicit pad).
-    fn trig_at_start<T: Decide + Bounds>(
+    fn trig_at_start<T: Decide + Bounds + CertifiedEnclosure>(
         carrier: &Curve3<T>,
         p: Point3<T>,
         eps: f64,
@@ -524,7 +576,12 @@ mod quad_lane {
     }
 
     /// One channel of a stored harmonic pcurve, bracketed.
-    fn chan<T: Decide + Bounds>(c0: T, ca: T, cb: T, cl: T) -> Result<HarmChan, PropsError> {
+    fn chan<T: Decide + Bounds + CertifiedEnclosure>(
+        c0: T,
+        ca: T,
+        cb: T,
+        cl: T,
+    ) -> Result<HarmChan, PropsError> {
         Ok(HarmChan {
             c0: br(c0),
             ca: br(ca),
@@ -539,7 +596,7 @@ mod quad_lane {
     /// cone/sphere/torus charts MINT stored pcurves since M6-3 (walk
     /// row 4) but their chart-normal flux algebra is not written —
     /// they refuse typed naming that true blocker.
-    pub(super) fn cut_face<T: Decide + Bounds>(
+    pub(super) fn cut_face<T: Decide + Bounds + CertifiedEnclosure>(
         body: &Body<T>,
         surface: &Surface<T>,
         outer: &[LoopEdge<T>],
@@ -619,7 +676,7 @@ mod quad_lane {
     /// cut-loft unit's). The traversal's shoelace sign IS the S10
     /// orientation input — winding-derived end to end, like the
     /// cylinder lane; no sense bit is read.
-    fn nurbs_face<T: Decide + Bounds>(
+    fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
         body: &Body<T>,
         payload: &std::sync::Arc<geom_surfaces::NurbsSurface<T>>,
         outer: &[LoopEdge<T>],
@@ -777,7 +834,7 @@ mod quad_lane {
 
     /// The vertex POINT at a half-edge's carrier-interval start (its
     /// edge's `he_plus` start vertex).
-    fn start_point<T: Decide + Bounds>(
+    fn start_point<T: Decide + Bounds + CertifiedEnclosure>(
         body: &Body<T>,
         he: HalfEdgeKey,
         forward: bool,
