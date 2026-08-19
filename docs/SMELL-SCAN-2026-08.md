@@ -4423,86 +4423,92 @@ what produced the `E0034` ambiguity storm it backed out of.
 
 **Verdict:**
 
-## S56. The compound-`Bounds` gate is order-sensitive, so the spelling it exists to catch is invisible to it — and its own exemption rationale has already rotted
+## S56. FIXED by #676 — the compound-`Bounds` gate was order-sensitive, so half the spellings it forbids were invisible to it
 
-- **Where**: `scripts/gates/bounds-allowlist.sh` (the regex, and the
-  header's `ssi/enclose.rs` paragraph); the three unlisted files
-  `crates/geom-brep/src/ssi/enclose.rs`,
-  `crates/geom-curves/src/nurbs.rs`, `crates/geom-surfaces/src/nurbs.rs`;
-  `crates/geom-core/src/real.rs:360-363` (the rule the gate enforces) and
-  `:602` (the doc that prescribes the unseeable spelling)
+- **Where**: `scripts/gates/bounds-allowlist.sh` (the matcher, the
+  header's `ssi/enclose.rs` paragraph, and `plant`);
+  `crates/geom-brep/src/ssi/enclose.rs`, `crates/geom-curves/src/nurbs.rs`,
+  `crates/geom-surfaces/src/nurbs.rs`; `crates/geom-core/src/real.rs` (the
+  `Bounds` scope rule, and `CertifiedEnclosure`'s doc)
 - **Importance**: medium
-- **Confidence**: sure — the regex, the three files and the false header
-  sentence are all facts about the tree; what is *open* is what the rule
-  should say, not what the gate does
+- **Confidence**: sure — reproduced by planting both spellings
 - **Raised by**: the S41 crossing lane (#671), 2026-08-19, from its own
-  diff.
+  diff; found by that lane's adversarial reviewer.
 
-The gate greps `\+\s*(geom_core::)?Bounds\b`. The `\+` is a **required
-prefix**: `Bounds` is only seen when something else precedes it. So
+The gate grepped `\+\s*(geom_core::)?Bounds\b`. The `\+` was a **required
+prefix**, so `Bounds` was only seen when something else preceded it:
+`T: Decide + Bounds` fired, `T: Bounds + Decide` did not. The two orders
+are the same bound to the compiler; the gate answered a question about
+token order. Its `plant()` planted only the spelling its author had in
+mind, so the self-test could not have caught it.
 
-- `T: Decide + Bounds` — **fires**
-- `T: CertifiedEnclosure + Bounds` — **fires**
-- `T: Bounds + CertifiedEnclosure` — **invisible**
-- `T: Bounds + Decide` — **invisible**
+**Three files carried the invisible spelling**, none allowlisted:
+`ssi/enclose.rs` (ten signatures, since #643), `geom-curves/src/nurbs.rs`
+(two) and `geom-surfaces/src/nurbs.rs` (one), the latter two from #671
+itself. That was not carelessness: `CertifiedEnclosure`'s own doc comment
+**prescribed the exact string** `T: Bounds + CertifiedEnclosure` as *"an
+honest inventory of the doors it uses"* — the discipline's documentation
+was instructing authors into the one order its gate could not see.
 
-The two orders are the same bound to the compiler. The gate answers a
-question about token order, not about the bound.
+Worse than the miss was what the miss preserved. The gate header claimed
+`ssi/enclose.rs` *"takes the sole-bound `T: Bounds` the rule allows
+everywhere"* — false since #643, and undetectable precisely because the
+order-sensitivity kept the file quiet.
 
-**Three files carry the invisible spelling today and none is
-allowlisted.** `crates/geom-brep/src/ssi/enclose.rs` (ten
-signatures, pre-existing since #643), `crates/geom-curves/src/nurbs.rs`
-(two) and `crates/geom-surfaces/src/nurbs.rs` (one) — **the latter two
-added by #671 itself**, which wrote `T: Bounds + CertifiedEnclosure`
-because `real.rs:602` — `CertifiedEnclosure`'s own doc comment —
-**prescribes that exact string**: *"a body that needs the raw bracket too
-says `T: Bounds + CertifiedEnclosure`, which is an honest inventory of
-the doors it uses."* So the discipline's own documentation instructs
-writers to spell the bound in the one order its gate cannot see.
-The gate reports OK over all 282 files in `crates/*/src`.
+**Verdict — Evan's ruling, 2026-08-19: `Bounds + CertifiedEnclosure` is
+not a compound bound in the rule's sense, and the resolution is an alias,
+not an exception to the matcher.**
 
-The sharpest part is not the miss but what the miss preserved. The
-gate's own header states the exemption:
+The rule exists to catch **an evaluation or decision parameter that has
+also been handed bracket extraction** — one parameter wearing two hats.
+That is why every allowlist entry is justified with the same sentence
+shape: *it simultaneously DECIDES and reads brackets*. `Bounds` is a
+subtrait of `Real`, so `T: Bounds` alone already carries the evaluation
+ops; an **extra** bound means the parameter does something beyond reading
+brackets, and in every ratified exception that something is `Decide`.
+`Bounds + CertifiedEnclosure` has no decide half — `enclose.rs` contains
+**zero** occurrences of `Decide` — and both halves are bracket-side
+doors: stored endpoints, and the fallible bracket that refuses below
+`Decoration::Def`. It was never the rule's class.
 
-> `ssi/enclose.rs` is deliberately absent — it decides nothing, so it
-> takes the sole-bound `T: Bounds` the rule allows everywhere.
+A regex carve-out was rejected because it makes the rule un-statable
+(*compound bounds are forbidden, except this pair*) and the next pair
+needs another carve-out, invisible from the code. So the pair is named:
+`geom_core::CertifiedBounds`, with a blanket impl, and the sites write
+the **sole** bound `T: CertifiedBounds`. The honest inventory is kept —
+it is now spelled as one name rather than as a compound the gate must
+special-case. `Decide + CertifiedBounds` is still a compound bound and
+still fires, which is correct: that genuinely is an evaluation parameter
+with brackets.
 
-**Since #643 that file has not taken a sole bound anywhere.** Every one
-of its bracket readers is `T: Bounds + CertifiedEnclosure`. The
-sentence is factually false, it has been false for the whole life of
-#643, and **the gate cannot detect that it changed**, because the very
-order-sensitivity above is what keeps the file quiet. A gate whose
-exemption rationale rots without the gate ever firing is worse than a
-gate with a known gap: the header is the artefact a reader trusts when
-deciding whether a file needs ratifying, and it is now wrong in the one
-file it names.
+**Executed by #676.** All thirteen non-deciding signatures converted
+across the three files. `ssi/certify.rs` and `topo/props.rs` were **not**
+converted — every one of their sites is `Decide + Bounds +
+CertifiedEnclosure`, genuinely decides and brackets, and they stay
+allowlisted on their existing justifications. The matcher is now
+order-insensitive, its header's `enclose.rs` paragraph says what is now
+true (sole-bound `CertifiedBounds`, still deciding nothing), and `plant`
+plants **each order as its own case**, since a single fixture carrying
+both would still fire if only one spelling matched. Matcher, alias and
+conversion landed together: the matcher fix alone turns CI red on
+`enclose.rs`, the lesson #668's gate work learned.
 
-**What this turns on, and why it is not answered here.** `real.rs:360-363`
-says code needing `Bounds` writes it as *"the parameter's **sole
-bound**"*, and that *"an extra bound tacked onto an evaluation type
-parameter is exactly the escape hatch the discipline's CI grep exists to
-catch"*. Read literally, `Bounds + CertifiedEnclosure` is a compound
-bound and the three files above need ratifying like every other seam in
-the allowlist. Read the other way, `CertifiedEnclosure` is not an escape
-hatch at all — it is the *narrowing* the discipline wants, `real.rs:602`
-prescribes exactly this pairing by name, and a rule that forces certified
-crossings through the allowlist would make the safe spelling the
-bureaucratic one. Those are different disciplines, and choosing between
-them amends a ratified rule (2026-07-29). **Evan's call**; the
-orchestrator is putting it to him.
+Two residues are now stated in the gate header rather than left to be
+found: the match is **line-based**, so a bound broken across lines
+(`T: Bounds` ending one line, `+ Foo` beginning the next) escapes it, and
+closing that needs a parser rather than a grep; and the alias's own two
+definition lines are skipped by name, since a name's definition is not a
+use of it — two lines, not the file, so any other compound bound in
+`real.rs` still fires.
 
-**Proposal, not a change** (recorded so the fix is not re-derived):
-the reviewer's regex is `(:|\+)\s*(geom_core::)?Bounds\s*\+|\+\s*(geom_core::)?Bounds\b`
-— catch `Bounds` on either side of a `+`. Whether it should be applied
-depends entirely on the answer above: under the second reading it would
-fire on three files that are *correct*, and the fix is the header
-sentence rather than the regex. Nothing here is fixed in #671
-deliberately — changing a ratified gate's semantics inside a lane whose
-mandate is the decoration seam is precisely the move S41's own history
-argues against.
-
-**Verdict:**
-
+That last claim is **held by a test rather than by the header prose**,
+which is the shape this batch spent the day removing. A third planted
+case writes `real.rs` carrying both skipped definition lines *and* an
+ordinary `T: Decide + Bounds` signature below them, and requires the gate
+to fire; widening the skip into a file-wide allowlist entry makes that
+case fail (verified by mutation). So a future loosening of those filters
+— someone making them fuzzier to survive a reformat — cannot silently
+blind the gate to the file that defines the rule.
 
 ---
 
