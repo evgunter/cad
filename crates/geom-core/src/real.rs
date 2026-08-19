@@ -672,9 +672,9 @@ impl CertifiedEnclosure for f64 {
 /// certified door and reads raw endpoints for the containment and padding
 /// arithmetic around them. Spelling that `T: Bounds + CertifiedEnclosure`
 /// is honest but is a *compound* bound in every mechanical sense, and the
-/// compound-`Bounds` rule below exists to catch a specific thing this is
-/// not (see the rule's `CertifiedBounds` paragraph). Named, it is a sole
-/// bound by construction.
+/// compound-`Bounds` rule on [`Bounds`] exists to catch a specific thing
+/// this is not (see that rule's `CertifiedBounds` paragraph). Named, it
+/// is a sole bound by construction.
 ///
 /// # What this is not
 ///
