@@ -449,8 +449,10 @@ mod tests {
     #[test]
     fn the_rungs_are_decided_in_one_place() {
         let pooled = [SECTOR_ARM, SECTOR_REFLEX, SECTOR_STRAIGHT];
-        // `"bool_sector_arm"`, `"split_sector_arm"`, … — assembled, not
-        // spelled, so this file is subject to the check like any other.
+        // The retired six, each WITH its surrounding quotes — assembled
+        // rather than spelled, so this file is subject to the check like
+        // any other. (Writing them out here would make this comment the
+        // guard's own first counter-example, which it briefly was.)
         let retired: Vec<String> = ["bool", "split"]
             .iter()
             .flat_map(|lane| pooled.iter().map(move |rung| format!("\"{lane}_{rung}\"")))
