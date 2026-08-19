@@ -29,11 +29,15 @@ fn dump(body: &Body<f64>) -> String {
     format!("{body:?}")
 }
 
-/// A body's counts through the public iterators. Six arena lengths
-/// plus `rings`, which is NOT an arena length: it is the ring count
-/// summed over the faces.
+/// The Euler-Poincare probe's counts through the public iterators: six
+/// arena lengths plus `rings`, which is NOT an arena length — it is the
+/// ring count summed over the faces.
+///
+/// Not `topo::test_support::ArenaCounts` for that reason, and because
+/// `rings` is the `r` of the `v - e + f - r` characteristic this suite
+/// is built on, which no arena census carries.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct Census {
+struct EulerCensus {
     vertices: usize,
     edges: usize,
     faces: usize,
@@ -43,11 +47,11 @@ struct Census {
     rings: usize,
 }
 
-/// One step's signed shift of a [`Census`]. Sites name only the nonzero
+/// One step's signed shift of an [`EulerCensus`]. Sites name only the nonzero
 /// components and take the rest from the derived zero, which cannot
 /// drift out of step with the field list.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-struct CensusDelta {
+struct EulerCensusDelta {
     vertices: isize,
     edges: isize,
     faces: isize,
@@ -57,8 +61,8 @@ struct CensusDelta {
     rings: isize,
 }
 
-fn census(body: &Body<f64>) -> Census {
-    Census {
+fn census(body: &Body<f64>) -> EulerCensus {
+    EulerCensus {
         vertices: body.vertices().count(),
         edges: body.edges().count(),
         faces: body.faces().count(),
@@ -69,11 +73,11 @@ fn census(body: &Body<f64>) -> Census {
     }
 }
 
-impl Census {
+impl EulerCensus {
     /// This census minus `before`, component by component.
-    fn minus(self, before: Self) -> CensusDelta {
+    fn minus(self, before: Self) -> EulerCensusDelta {
         let d = |after: usize, before: usize| after as isize - before as isize;
-        CensusDelta {
+        EulerCensusDelta {
             vertices: d(self.vertices, before.vertices),
             edges: d(self.edges, before.edges),
             faces: d(self.faces, before.faces),
@@ -326,7 +330,7 @@ fn cross_shell_kfmrh_connected_sum_and_genus_addition() {
     let after = census(&body);
     assert_eq!(
         after.minus(before),
-        CensusDelta {
+        EulerCensusDelta {
             faces: -1,
             shells: -1,
             rings: 1,

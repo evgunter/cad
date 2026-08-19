@@ -81,7 +81,13 @@ use crate::body::Body;
 /// integration test oracles.
 /// A different quantity from the six-component Euler vector
 /// `(v, e, f, h, r, s)`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+///
+/// The crate's single spelling of the topology census: the test-only
+/// `ArenaSnapshot` (`crate::fixtures`, not linked because it is
+/// `#[cfg(test)]` and absent from a doc build) holds one of these
+/// alongside the three geometry-arena lengths rather than restating
+/// the seven.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ArenaCounts {
     /// Solids in the body.
     pub solids: usize,

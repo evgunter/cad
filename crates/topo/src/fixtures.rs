@@ -49,6 +49,7 @@ use crate::euler::{MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
 use crate::euler_ring::{KemrResult, KfmrhResult};
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::provenance::Provenance;
+use crate::test_support_impl::ArenaCounts;
 
 /// The fixture provenance (all fixture entities share it).
 pub(crate) fn prov() -> Provenance {
@@ -80,25 +81,22 @@ pub(crate) fn test_surface(_anchor: Point3<f64>) -> geom_surfaces::Surface<f64> 
     geom_surfaces::Surface::nurbs_placeholder()
 }
 
-/// A deep, order-sensitive snapshot of a body: one line per arena entry
-/// (all ten arenas, in slot-index order) carrying the **full payload**
-/// plus the entity's D5 provenance record.
+/// All ten arena lengths of a body: the seven topology arenas, held as
+/// the crate's one [`ArenaCounts`], plus the three geometry arenas.
+/// The "body unchanged" snapshot of the atomicity tests, and the delta
+/// base of the operator count checks.
 ///
-/// All ten arena lengths of a body — the seven topology arenas plus
-/// the three geometry arenas. The "body unchanged" snapshot of the
-/// atomicity tests, and the delta base of the operator count checks.
+/// The topology half is *not* restated here: an `ArenaSnapshot` is an
+/// [`ArenaCounts`] extended by geometry, and the seven have exactly one
+/// producer ([`Body::arena_counts`]), shared with the debug
+/// postcondition that checks them against each operator's declared
+/// delta.
 ///
 /// A different quantity from [`crate::euler::ArenaDelta`]: these are
 /// counts, not shifts, and they include geometry.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct ArenaSnapshot {
-    pub solids: usize,
-    pub shells: usize,
-    pub faces: usize,
-    pub loops: usize,
-    pub half_edges: usize,
-    pub edges: usize,
-    pub vertices: usize,
+    pub counts: ArenaCounts,
     pub points: usize,
     pub curves: usize,
     pub surfaces: usize,
@@ -107,19 +105,17 @@ pub(crate) struct ArenaSnapshot {
 /// Captures every arena length of `body`.
 pub(crate) fn arena_snapshot(body: &Body<f64>) -> ArenaSnapshot {
     ArenaSnapshot {
-        solids: body.solids().count(),
-        shells: body.shells().count(),
-        faces: body.faces().count(),
-        loops: body.loops().count(),
-        half_edges: body.half_edges().count(),
-        edges: body.edges().count(),
-        vertices: body.vertices().count(),
+        counts: body.arena_counts(),
         points: body.points().count(),
         curves: body.curves().count(),
         surfaces: body.surfaces().count(),
     }
 }
 
+/// A deep, order-sensitive snapshot of a body: one line per arena entry
+/// (all ten arenas, in slot-index order) carrying the **full payload**
+/// plus the entity's D5 provenance record.
+///
 /// For atomicity and lineage-purity tests where counts-only comparison
 /// is too weak: two snapshots compare equal iff the bodies are
 /// key-for-key, field-for-field, provenance-for-provenance identical.

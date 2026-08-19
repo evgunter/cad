@@ -1085,6 +1085,7 @@ mod tests {
         ArenaSnapshot, arena_snapshot, deep_snapshot, ops_cube, ops_holed_box, prov,
     };
     use crate::iso::{canonical_form, isomorphic};
+    use crate::test_support_impl::ArenaCounts;
     use crate::validate::validate;
 
     fn p(x: f64) -> Point3<f64> {
@@ -1288,9 +1289,12 @@ mod tests {
         assert_eq!(
             after,
             ArenaSnapshot {
-                half_edges: before.half_edges - 2,
-                edges: before.edges - 1,
-                vertices: before.vertices - 1,
+                counts: ArenaCounts {
+                    half_edges: before.counts.half_edges - 2,
+                    edges: before.counts.edges - 1,
+                    vertices: before.counts.vertices - 1,
+                    ..before.counts
+                },
                 points: before.points - 1,
                 curves: before.curves - 1,
                 ..before
@@ -1904,7 +1908,10 @@ mod tests {
         assert_eq!(
             after,
             ArenaSnapshot {
-                faces: before_counts.faces + 1,
+                counts: ArenaCounts {
+                    faces: before_counts.counts.faces + 1,
+                    ..before_counts.counts
+                },
                 surfaces: before_counts.surfaces + 1,
                 ..before_counts
             }

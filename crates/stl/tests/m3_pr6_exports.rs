@@ -17,41 +17,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Point3, Tolerance, Vec3};
 use mesh::validate::{check_mesh, signed_volume};
-use profile::RawLoop;
-use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
-use sweep::{Extrusion, extrude};
-use topo::{Body, BooleanResult, mass_properties, union, validate_pseudomanifold};
+use topo::{BooleanResult, mass_properties, union, validate_pseudomanifold};
 
-fn validated(plane: SketchPlane<f64>, lp: ProfileLoop<f64>) -> ValidatedProfile<f64> {
-    Profile::new(plane, vec![lp])
-        .validate(Tolerance::get())
-        .unwrap()
-}
-
-/// An axis-aligned raw-extrude brick.
-fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
-    let lp = ProfileLoop::polygon([
-        Point2::new(x.0, y.0),
-        Point2::new(x.1, y.0),
-        Point2::new(x.1, y.1),
-        Point2::new(x.0, y.1),
-    ]);
-    extrude(
-        &validated(
-            SketchPlane::from_frame(
-                Point3::new(0.0, 0.0, z.0),
-                Vec3::new(1.0, 0.0, 0.0),
-                Vec3::new(0.0, 1.0, 0.0),
-            ),
-            lp,
-        ),
-        Extrusion::Distance(z.1 - z.0),
-    )
-    .unwrap()
-    .body
-}
+mod common;
+use common::brick;
 
 fn stl_dir() -> String {
     let dir = std::env::var("REVIEW_STL_DIR").unwrap_or_else(|_| {
