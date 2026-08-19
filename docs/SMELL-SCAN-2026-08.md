@@ -3958,11 +3958,21 @@ release. Unscheduled.
 - **Raised by**: the H8 reviewer (#641), 2026-08-19
 
 Same name, same crate, one component apart. Pre-existing and outside H8's
-array/tuple class, so #641 left it alone. Either that suite does not track
-genus and the narrower ledger is correct — in which case the name is the
-problem — or it is a real gap in what it checks.
+array/tuple class, so #641 left it alone.
 
-**Verdict:**
+**CHECKED (2026-08-19), and the finding is half wrong: the narrower ledger is
+correct, and `h`'s absence is the point.** `review_m1_pr3.rs` is the genus-1 /
+genus-2 build, and it *derives* the genus from the five components it tracks —
+`fn genus(l: Ledger)` computes `h = s − (v−e+f−r)/2` from Euler–Poincaré, and
+`check(body, expect, h)` asserts the derived value against the expected one.
+Carrying `h` as a tracked field would make that assertion tautological, so the
+field set is deliberate and load-bearing rather than drifted.
+
+What survives is only the **name**: two structurally different types called
+`Ledger` in one crate, where the reader's expectation that they mean the same
+thing is exactly wrong. A rename, not a repair.
+
+**Verdict:** the finding is narrowed to the collision. Unscheduled.
 
 ## S54. The "kept in step BY HAND" ladder, which the crate around it has twice repudiated by name
 
@@ -4046,6 +4056,16 @@ question is which of these it is, and they have different answers:
 
 Deciding this was out of #643's scope — removing or re-scoping a public
 trait is design content, and the lane's mandate was the decoration seam.
+
+**Verdict: DEFERRED (Evan, 2026-08-19), pending the `Bounds` narrow-vs-broad
+split.** This question is downstream of that one, not independent of it:
+`Enclosure` and `CertifiedEnclosure` already *are* a narrow/broad pair in
+miniature, so whatever the split settles will either give `Enclosure` a job or
+subsume it. Deciding it first would prejudge the larger question from the
+smaller one. Whoever takes the split should absorb this row rather than treat it
+as separate work — and should weigh #643's evidence in the other direction, that
+collapsing the two vocabularies into a supertrait produced an `E0034` ambiguity
+storm across `ssi/certify.rs` and was backed out.
 Note that (2) is not obviously right even on its own terms: the ring is a
 genuine second implementor, and #643's own experience is evidence *for*
 keeping the two vocabularies separate rather than merging them, since
