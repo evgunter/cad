@@ -811,7 +811,7 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             Self::SameCarrierJunction { margin } => write!(
                 f,
                 "this junction joins two pieces of the SAME carrier (identity margin \
-                 {margin:?} m): carrier identity is not tangency (#101) — extend the leg \
+                 {margin:?} m): carrier identity is not tangency — extend the leg \
                  instead of minting a collinear/cocircular neighbor"
             ),
             Self::NoCornerForFillet { reason, radius } => {

@@ -292,7 +292,7 @@ impl fmt::Display for NoCornerReason {
 const FILLET_TURN_INBAND_RECOURSE: &str = "this corner is degenerate at any precision you could care about, and which kind is below \
      the tolerance: if the legs run smoothly into each other, keep them and declare the \
      tangency (the joint's index in the loop's tangent_joints); if they double back, that is a cusp and the \
-     kernel refuses it (#131); otherwise move the geometry so a real corner exists (or lower \
+     kernel refuses it; otherwise move the geometry so a real corner exists (or lower \
      the tolerance)";
 
 /// The recourse for a corner that admits no tangent circle of the
@@ -544,7 +544,7 @@ impl fmt::Display for ProfileError {
             ),
             Self::MultipleOuterLoops { outer_loops } => write!(
                 f,
-                "profile has {} outer boundaries {:?}; one face region per profile at M2",
+                "profile has {} outer boundaries {:?}; one face region per profile",
                 outer_loops.len(),
                 outer_loops
             ),

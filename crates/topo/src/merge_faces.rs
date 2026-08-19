@@ -227,9 +227,8 @@ impl core::fmt::Display for MergeCoplanarError {
                 f,
                 "merge_coplanar_faces: killing shared edge {edge:?} would close the \
                  curved cosurface run's full chart period — outside the merge's \
-                 inventory at M5 (C12.5: sub-period re-merges commit; full closures \
-                 stay in their cut-carrying canonical form and are recorded as a loud \
-                 skip)"
+                 inventory: sub-period re-merges commit, full closures stay in their \
+                 cut-carrying canonical form and are recorded as a loud skip"
             ),
             Self::Op { error } => write!(f, "merge_coplanar_faces: {error}"),
             Self::InvalidDeclaration { surface, what } => write!(

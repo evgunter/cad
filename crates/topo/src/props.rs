@@ -516,8 +516,8 @@ mod quad_lane {
             Curve3::Nurbs(_) => Err(PropsError::QuadratureUnsupported {
                 what: "B-spline trim carrier on an ANALYTIC chart's quadrature lane — \
                        the cut-loft class (a loft wall cut by a plane/cylinder), which \
-                       needs the edge×NURBS-face boolean layer (M5 PR 9c item 5, \
-                       banked); described-NURBS faces with iso-line pcurves route to \
+                       needs the edge×NURBS-face boolean layer that is not \
+                       written; described-NURBS faces with iso-line pcurves route to \
                        the patch engine instead",
             }),
         }
@@ -554,9 +554,9 @@ mod quad_lane {
         let Surface::Cylinder { origin, radius, .. } = surface else {
             return Err(PropsError::QuadratureUnsupported {
                 what: "conic trim on a cone/sphere/torus chart — those charts mint stored \
-                       pcurves since M6-3 (walk row 4), but this lane's chart-normal \
-                       flux algebra is the cylinder chart's (M5 PR 11); the other \
-                       analytic charts' closed-form flux is its own banked lane",
+                       pcurves, but this lane's chart-normal flux algebra is the \
+                       cylinder chart's; the other analytic charts' closed-form flux \
+                       has no lane",
             });
         };
         let eps = Tolerance::get().eps;

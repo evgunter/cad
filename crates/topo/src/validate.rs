@@ -1187,7 +1187,7 @@ impl fmt::Display for ValidationError {
             Self::CensusUnsupported { entity } => write!(
                 f,
                 "tier-3′ census: {entity} is outside the census's certifiable \
-                 inventory — the census admits every carrier kind (M9-2), but \
+                 inventory — the census admits every carrier kind, but \
                  this record or conformal candidate has no certifier lane \
                  (exact-constant-arm charts, the Rest carrier ladder and the \
                  jet schedule are the certified set; the inf-stretch-bounds \
