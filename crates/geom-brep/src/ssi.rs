@@ -657,8 +657,8 @@ pub fn cylinder_sphere_ssi(
     let sys = ImplicitPairR3 { a, b };
     let slab = domain.slab();
 
-    // ---- seeds: the subdivision, with no tubes ----
-    let (_, seeds) = exhaust::sweep_r3(a, b, slab, &[], domain.seed_floor())?;
+    // ---- seeds: the subdivision, asked for its seeding duty ----
+    let seeds = exhaust::seed_r3(a, b, slab, domain.seed_floor())?;
     let seed_count = seeds.len() as u32;
 
     // ---- march, fit, certify ----
@@ -707,8 +707,10 @@ pub fn cylinder_sphere_ssi(
         branches.push(branch);
     }
 
-    // ---- accounting: the same subdivision, now with the tubes ----
-    let (exhaustiveness, _) = exhaust::sweep_r3(a, b, slab, &tubes, domain.floor())?;
+    // ---- accounting: the same subdivision, asked for its proof duty.
+    // An empty `tubes` here means nothing was found, so nothing is
+    // proved. ----
+    let exhaustiveness = exhaust::account_r3(a, b, slab, &tubes, domain.floor())?;
     Ok(SsiOutcome {
         branches,
         exhaustiveness,
@@ -820,8 +822,7 @@ pub fn plane_nurbs_ssi(
     }
 
     // ---- seeds ----
-    let (_, seeds) =
-        exhaust::sweep_chart_plane(wall, p0, normal, root, &[], domain.seed_floor() / speed)?;
+    let seeds = exhaust::seed_chart_plane(wall, p0, normal, root, domain.seed_floor() / speed)?;
     let seed_count = seeds.len() as u32;
 
     let v_ref = normal.cross(u_ref);
@@ -862,8 +863,8 @@ pub fn plane_nurbs_ssi(
         branches.push(branch);
     }
 
-    let (exhaustiveness, _) =
-        exhaust::sweep_chart_plane(wall, p0, normal, root, &tubes, domain.floor() / speed)?;
+    let exhaustiveness =
+        exhaust::account_chart_plane(wall, p0, normal, root, &tubes, domain.floor() / speed)?;
     Ok(SsiOutcome {
         branches,
         exhaustiveness,
@@ -892,6 +893,11 @@ fn pcurve_windows(p: &NurbsCurve2<f64>, pad_u: f64, pad_v: f64) -> Vec<UvRect> {
         let hu = geom_core::spline::hull::span_hull(kv, &coords[0], span);
         let hv = geom_core::spline::hull::span_hull(kv, &coords[1], span);
         if hu.is_poison() || hv.is_poison() {
+            // A window this pass cannot bound is not banked. Dropping
+            // it only ever SHRINKS the accounted set, so the accounting
+            // pass gets strictly harder: the failure direction is the
+            // typed refusal, never a false `Ok`. A tube is a claim, and
+            // an unbounded hull supports none.
             continue;
         }
         out.push(UvRect {

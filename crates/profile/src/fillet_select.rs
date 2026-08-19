@@ -64,7 +64,7 @@ use geom_core::Bounds;
 /// intersection — the S8 reachability rows pin this). No K-funnel
 /// entry, no escalation arm, no error. It compares the f64
 /// **diagnostic channel** (the enclosure's lower bound at interval
-/// scalars — the same channel `FilletLegDegenerate`'s leg naming uses):
+/// scalars — the error payloads' messages-only channel):
 /// a representation-level choice between two already-classified
 /// constructions, never a re-decision of geometry. Each lane's pick is
 /// deterministic, and the lanes agree whenever the survivors' setback

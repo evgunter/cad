@@ -220,6 +220,8 @@ use crate::body::Body;
 use crate::entity::{
     EdgeKey, EntityId, FaceKey, HalfEdgeKey, Loop, LoopBoundary, LoopKey, ShellKey, VertexKey,
 };
+#[cfg(debug_assertions)]
+use crate::euler::ArenaDelta;
 use crate::euler::EulerOpError;
 use crate::geometry::{CurveKey, SurfaceKey};
 use crate::provenance::Provenance;
@@ -526,7 +528,16 @@ impl<T: Decide> Body<T> {
         }
 
         #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(before, (0, 0, 0, 1, -2, -1, 0), "kemr");
+        self.assert_euler_postcondition(
+            before,
+            ArenaDelta {
+                loops: 1,
+                half_edges: -2,
+                edges: -1,
+                ..ArenaDelta::ZERO
+            },
+            "kemr",
+        );
         Ok(KemrResult {
             ring,
             killed_edge: edge,
@@ -602,7 +613,16 @@ impl<T: Decide> Body<T> {
         }?;
 
         #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(before, (0, 0, 0, -1, 2, 1, 0), "mekr");
+        self.assert_euler_postcondition(
+            before,
+            ArenaDelta {
+                loops: -1,
+                half_edges: 2,
+                edges: 1,
+                ..ArenaDelta::ZERO
+            },
+            "mekr",
+        );
         Ok(created)
     }
 
@@ -794,9 +814,16 @@ impl<T: Decide> Body<T> {
         self.assert_euler_postcondition(
             before,
             if killed_shell.is_some() {
-                (0, -1, -1, 0, 0, 0, 0)
+                ArenaDelta {
+                    shells: -1,
+                    faces: -1,
+                    ..ArenaDelta::ZERO
+                }
             } else {
-                (0, 0, -1, 0, 0, 0, 0)
+                ArenaDelta {
+                    faces: -1,
+                    ..ArenaDelta::ZERO
+                }
             },
             "kfmrh",
         );
@@ -906,7 +933,7 @@ impl<T: Decide> Body<T> {
         }
 
         #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(before, (0, 0, 0, 0, 0, 0, 0), "ring_move");
+        self.assert_euler_postcondition(before, ArenaDelta::ZERO, "ring_move");
         Ok(())
     }
 
