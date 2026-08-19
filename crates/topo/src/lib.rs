@@ -164,9 +164,12 @@ mod review_m1_pr3;
 mod review_m1_pr4;
 #[cfg(test)]
 mod review_m1_pr5_internal;
-/// The shared vertex-neighborhood sector-shape predicates — a
-/// top-level sibling of `boolean/` and `splitting/` on purpose:
-/// both lanes ask this question, so neither hosts it (S5).
+// The shared vertex-neighborhood sector-shape predicates — a
+// top-level sibling of `boolean/` and `splitting/` on purpose:
+// both lanes ask this question, so neither hosts it (S5). A
+// non-doc comment deliberately: an outer `///` here would merge
+// into the module's own `//!` docs and make rustdoc resolve their
+// intra-doc links in THIS module's scope instead of that one's.
 pub(crate) mod sector_shape;
 pub mod separation;
 #[cfg(test)]

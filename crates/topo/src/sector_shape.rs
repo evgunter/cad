@@ -4,7 +4,7 @@
 //!
 //! # What the question is
 //!
-//! Both the splitting lane ([`crate::splitting::neighborhood`]) and the
+//! Both the splitting lane (`splitting::neighborhood`) and the
 //! boolean lane ([`crate::boolean::sectors`]) walk a vertex orbit and,
 //! for the sector CW-after orbit half-edge `he`, must answer three
 //! things about the corner bounded by `he`'s own outgoing chord and the
@@ -31,7 +31,7 @@
 //! complement-and-negate, why the wideness trilean has no escalation
 //! cliff, why the duplicate entry is what makes dangling null edges fall
 //! out of the generic run scan — stay in
-//! [`crate::splitting::neighborhood`]'s module docs, which own them.
+//! `splitting::neighborhood`'s module docs, which own them.
 //!
 //! # Why the code is here and not in either lane
 //!
