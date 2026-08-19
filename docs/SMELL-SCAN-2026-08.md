@@ -523,12 +523,43 @@ Two of these have **already drifted, observably**:
   exact fail-quiet wildcard the others forbid — and disagrees on
   `Fragment(SideOf)`.
 
-The tell that these are accretion rather than principle: `BooleanOp` is
-**mirrored** from the kernel while `ContactClass` is **imported**, each
-documented at length as correct, under the identical constraint (kernel
-crates take no serde dependency). The `#[serde(with)]` module written
-for the second demonstrates the first was never necessary
-(`node.rs:43`, `node.rs:1120`).
+**The `BooleanOp` mirror is FIXED by #642.** It was the tell that these
+copies are accretion rather than principle — one vocabulary **mirrored**
+from the kernel while its neighbour `ContactClass` was **imported**, both
+documented at length as correct under the identical constraint. There is
+now one `BooleanOp`: `editor-core` re-exports `topo`'s and describes only
+its BYTES, and the identity `From` match in `eval/wire.rs` is gone.
+`topo` gained no serde dependency — the layering the mirror was minted to
+respect is intact, and is now the thing a gate checks.
+
+Byte-preservation was **proved, not asserted**: the whole model corpus
+was `save()`d before and after and compared with `cmp` (389 741 B, 48
+boolean operations — identical), and the three wire pins were written and
+run green against unmodified `main` **first**, so they pin today's format
+rather than describe the new one. The move of the modules under
+`persist/` was re-proved the same way.
+
+Two things a future reader will want, neither of which this finding
+predicted:
+
+- **The read direction could not be made compiler-exhaustive.** Safe Rust
+  cannot tie an array literal to a variant list without a proc macro, and
+  the workspace has none — so an operation added to the write table but
+  missed in the read table would serialize fine and refuse on READ: a
+  document this build wrote and could not load. The gap is closed **at
+  the write door** instead. `serialize` round-trips the spelling through
+  `untag` before writing and refuses typed if it does not come back, so
+  the unloadable document is never created. Where a mirror's cost was
+  paid in hand-syncing, an import's residual cost is paid here, and it
+  is smaller and it is loud.
+- **The technique now has a home.** `#[serde(with)]` modules for kernel
+  types live under `editor-core/src/persist/kernel_wire/` — one doc for
+  the technique, including the rule that a module's CASING is not a style
+  choice but whatever its type's bytes already are (`BooleanOp` is
+  capitalised *because* it replaced a derive; `ContactClass` is lowercase
+  because it never had one). Previously the two copies sat at the bottom
+  of a 1,320-line `node.rs` with a near-word-for-word duplicated doc, and
+  the queued rows below would have made copies three and four.
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18). "Oh boy, good findings — these
 look like they'll be a lot of work to fix but definitely worth it."
@@ -540,25 +571,47 @@ avoidable at least once. Includes verifying the two observed drifts.
 the `BooleanOp`/`ContactClass` tell was wrong in a way that makes the finding
 *stronger*.**
 
-*The corrected tell.* `BooleanOp` was **never a serde decision**. PR #81 (M4
-PR 1) forbade `editor-core` from depending on `topo` **at all** — that is why
-the enum was minted locally. `git log -S` shows the dependency was added the
-**same day** (`baec1fd9`, M4 PR 2). The mirror has outlived its reason by four
-weeks, and `BooleanOp`'s rustdoc **defends nothing**; the only place it is
-characterised as a deliberate pattern is inside `ContactClass`'s doc, written
-by a different author three weeks later. Meanwhile `ContactClass` **was**
-ruled: `M9-1-SPEC.md:22` — *"never a parallel enum… One enum, defined lowest,
-re-exported upward"* — and PR #552 states the collision explicitly and resolves
-it with `#[serde(with)]`. That technique **did not exist as a repo idiom** when
-`BooleanOp` (2026-07-23) or `WireStep` (2026-08-09) were written; it was
-invented 2026-08-16. Ordinary accretion — but the project's own most recent
-ratification now points at the collapse.
+*The corrected tell — acted on, FIXED by #642.* The steelman's finding was
+that `BooleanOp` was **never a serde decision**: PR #81 (M4 PR 1) forbade
+`editor-core` from depending on `topo` **at all**, which is why the enum was
+minted locally, and `git log -S` showed the dependency arriving the **same
+day** (`baec1fd9`, M4 PR 2). The mirror had outlived its reason by four weeks
+and its rustdoc defended nothing; the only text calling it a deliberate
+pattern sat inside `ContactClass`'s doc, written by a different author three
+weeks later. `ContactClass` meanwhile **was** ruled — `M9-1-SPEC.md:22`,
+*"never a parallel enum… One enum, defined lowest, re-exported upward"* — and
+#552 resolved the same collision with `#[serde(with)]`, a technique that did
+not exist as a repo idiom when `BooleanOp` (2026-07-23) or `WireStep`
+(2026-08-09) were written.
+
+#642 collapsed it, and the collapse cost less than the row implied: the
+`From` pair it removed had already become the identity, so **no conversion
+had to be preserved anywhere** — the recipe node's operation now IS the
+kernel operation the evaluator runs. Two things the row did not anticipate
+turned up in the vocabulary sweep and are worth carrying to the remaining
+mirrors: the split had also cost a **hole in the public prelude** (a curated
+paragraph explaining why `pncad::prelude` could not carry `BooleanOp`, since
+two types cannot share one name) and a **defensive alias at a call site**
+(`demos/tour`'s `BooleanOp as NodeBooleanOp`). A mirror's price is not only
+the hand-syncing; check `WireStep` and `SegTag` for the same downstream
+surface tax before pricing them.
 
 *Also corrected:* `RoleSeg` is **not** a kernel enum — it lives at
 `editor-core/src/names/role.rs:226`. Both ends of that chain are editor-core.
-And `DESIGN.md:1914`'s *"(layering enforced by CI grep)"* is **stale**: no
-serde grep exists in `ci.yml` or `ci-local.sh`. The only mechanical check is
-`profile/tests/seal.rs:87`, covering `profile` only.
+And `DESIGN.md:1914`'s *"(layering enforced by CI grep)"* was **stale** — no
+serde grep existed in `ci.yml` or `ci-local.sh`, the only mechanical check
+being `profile/tests/seal.rs:87`, covering `profile` only. **FIXED by #642**,
+which put a real gate behind the claim (`scripts/gates/kernel-serde-free.sh`)
+and rewrote the DESIGN.md row to say what that gate proves and what it does
+not. The gate's own history is the lesson: its first version WAS a grep, and
+the reviewer falsified it twice — `serde.workspace = true` (the dotted form
+already used for `edition`/`license`/`rust-version` in `topo`'s own manifest)
+and `ser = { package = "serde" }` both walked past it and it reported OK.
+Worse, its self-test planted only the one spelling its regex was written for,
+so it could never have found its own hole. It is now a TOML parse over the
+resolved package name of every dependency entry, self-testing five spellings
+plus a negative control. A gate that scans a hand-shaped surface with a
+hand-shaped matcher is S4's failure mode wearing an enforcement badge.
 
 | Row | Verdict |
 |---|---|
@@ -601,7 +654,10 @@ existing 28 — latent memo collision, a hit would serve wrong geometry**"*.
 Caught by a reviewer, not a type. S4's failure mode, realised.
 
 *Ranked cheapest-to-hardest to act on:* (1) `BooleanOp` → import +
-`serde(with)`; (2) `name_args`' wildcard → exhaustive; (3) the `Mate` arms —
+`serde(with)` — **DONE, #642** (cheaper than listed: the `From` pair was
+already the identity, so nothing had to be preserved; dearer in one place
+the ranking could not see — the read direction needs a run-time write-door
+check, because safe Rust cannot make it exhaustive); (2) `name_args`' wildcard → exhaustive; (3) the `Mate` arms —
 small but a **behaviour** fix; (4) the Euler 7-tuple → named struct
 (debug-only) — **DONE, #625**; (5) units — **DONE, #646** (and smaller than
 listed: the only unforced `src` copy was inside one file; the residue it
@@ -3897,7 +3953,7 @@ Good work for filling parallel capacity. None blocks anything.
 | **W2c** | **S19** — the three big error catch-alls | **D2** | `AssemblyUnsupported` (146), `MissingEntity` (49), `SplitJoinError::Corrupt` (42). These *are* D9's only sanctioned option today, so D2 must land first or the work is undone. |
 | **W2d** | **S6** — sweep helper unification (~230 token-identical lines) | **D3** | Must follow D3: S6 and S7 are in one crate and will collide. K-telemetry does **not** block it — both funnels already take the predicate name as a parameter. Retracted: `SweptSeg`, `strut_spec`, `full::build_lamina` and the `let _ = k;` inference are *not* duplication. |
 | **W2e** ✅ #647 (partial) | **S5** — `splitting/` vs `boolean/` | — | The largest. Started with the narrowest, highest-value piece: the **forked sector predicates**, which are dimensionally identical line-for-line and split one K population 29:1. **FIXED by #647**: one shared body in `topo::sector_shape`, both K name sets preserved, K stream reproduced byte-identically. The repo already forced the reverse fix once (`M3-LOG.md:264`), and whether the two names should now become ONE population is stated in #647 as an open question and scheduled as **issue #652**, not decided. The REST of S5 — `sector_face` twins, pipeline duplication, the wrong-way dependency — is still open and still the largest item here. |
-| **W2f** 🟡 | **S4** — the vocabulary mirrors, cheapest first | partly **W2c** | `BooleanOp` → `pub use topo::BooleanOp` + `serde(with)` (its constraint provably lapsed the day it was minted, and the technique is shipped); ~~then units~~ — **units DONE, #646**, which also enumerated the real duplicates the steelman had only counted; then `ProgramStep`/`WireStep`, which is cheap in isolation but **blocked behind OnArc + RESPELL-TABLE** and crosses the same files. **The row stays open**: `BooleanOp`, `ProgramStep`/`WireStep`, `SegTag` and the "no usable value" core are all untouched, and #646 filed **#650** (a pre-existing `literal_with_unit` round-trip break found beside the row, not fixed by it). |
+| **W2f** 🟡 | **S4** — the vocabulary mirrors, cheapest first | partly **W2c** | **`BooleanOp` DONE, #642** — one enum, defined lowest, re-exported upward, with its bytes described above the layering boundary; `topo` gained no serde dependency and the persisted format is byte-identical (corpus capture + pins written against `main` first). It also gave the technique a home (`persist/kernel_wire/`) that the remaining rows land in rather than copying, and put a real gate behind DESIGN.md's stale *"enforced by CI grep"* claim. **`units` DONE, #646**, which also enumerated the real duplicates the steelman had only counted, and filed **#650** (a pre-existing `literal_with_unit` round-trip break found beside the row, not fixed by it). **The row stays open** on: `ProgramStep`/`WireStep` — cheap in isolation but **blocked behind OnArc + RESPELL-TABLE**, and it crosses the same files; `SegTag`; and the "no usable value" core. Carry forward from #642: a mirror's price includes downstream API surface (the split had cost a hole in `pncad::prelude` and a defensive alias in `demos/tour`), so price those two for it too. |
 | **W2g** | **S49** — the census's planar × planar skip is justified by a claim about solids | — | `census.rs:1359` skips on a **face** predicate (`a.planar && b.planar`) while `census.rs:1035` argues about planar-only **solids**; a cylinder's caps are planar faces on a non-planar solid. Structural because the repair is a **jurisdiction call** between this filter, the conformal arm and the confirm pass — deciding which owns a planar face on a curved solid, then pinning it with a row that goes red if none of them does. Not gated on D1–D4. The W1a implementer and its reviewer independently judged it too wide to fold into #620. | M |
 
 ---
