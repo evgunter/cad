@@ -123,18 +123,33 @@ fn two_solid_source(dx: f64) -> topo::Body<f64> {
     a
 }
 
-/// The census a graft is compared by: every arena's size.
-fn census(b: &topo::Body<f64>) -> [usize; 8] {
-    [
-        b.solids().count(),
-        b.shells().count(),
-        b.faces().count(),
-        b.edges().count(),
-        b.vertices().count(),
-        b.points().count(),
-        b.surfaces().count(),
-        b.solids().map(|(_, s)| s.shells.len()).sum(),
-    ]
+/// The census a graft is compared by: every arena's size, plus
+/// `shell_refs` — not an arena length, but the shell references summed
+/// over the solids, which is what proves the shells landed in the
+/// right solids.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Census {
+    solids: usize,
+    shells: usize,
+    faces: usize,
+    edges: usize,
+    vertices: usize,
+    points: usize,
+    surfaces: usize,
+    shell_refs: usize,
+}
+
+fn census(b: &topo::Body<f64>) -> Census {
+    Census {
+        solids: b.solids().count(),
+        shells: b.shells().count(),
+        faces: b.faces().count(),
+        edges: b.edges().count(),
+        vertices: b.vertices().count(),
+        points: b.points().count(),
+        surfaces: b.surfaces().count(),
+        shell_refs: b.solids().map(|(_, s)| s.shells.len()).sum(),
+    }
 }
 
 /// **The D-1 equivalence.** Grafting an N-solid source is N sequential

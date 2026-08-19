@@ -101,24 +101,95 @@ pub(crate) enum OpChoice {
 }
 
 impl OpChoice {
-    /// The op's Euler vector `(Δv, Δe, Δf, Δh, Δr, Δs)` (Mäntylä
-    /// Table 9.1, our per-op docs).
-    pub(crate) fn ep_vector(&self) -> [i64; 6] {
+    /// The op's Euler vector (Mäntylä Table 9.1, our per-op docs).
+    pub(crate) fn ep_vector(&self) -> EulerVector {
         match self {
-            Self::Mvfs => [1, 0, 1, 0, 0, 1],
-            Self::MevLone(_) | Self::MevFan(..) => [1, 1, 0, 0, 0, 0],
-            Self::MefChords(..) | Self::MefLone(_) => [0, 1, 1, 0, 0, 0],
-            Self::Kemr(..) => [0, -1, 0, 0, 1, 0],
-            Self::Mekr(_) => [0, 1, 0, 0, -1, 0],
-            Self::Kfmrh(..) => [0, 0, -1, 1, 1, 0],
-            Self::Mfkrh(_) => [0, 0, 1, -1, -1, 0],
-            Self::Kev(_) => [-1, -1, 0, 0, 0, 0],
-            Self::Kef(_) => [0, -1, -1, 0, 0, 0],
-            Self::Kvfs(_) => [-1, 0, -1, 0, 0, -1],
+            Self::Mvfs => EulerVector {
+                v: 1,
+                f: 1,
+                s: 1,
+                ..EulerVector::ZERO
+            },
+            Self::MevLone(_) | Self::MevFan(..) => EulerVector {
+                v: 1,
+                e: 1,
+                ..EulerVector::ZERO
+            },
+            Self::MefChords(..) | Self::MefLone(_) => EulerVector {
+                e: 1,
+                f: 1,
+                ..EulerVector::ZERO
+            },
+            Self::Kemr(..) => EulerVector {
+                e: -1,
+                r: 1,
+                ..EulerVector::ZERO
+            },
+            Self::Mekr(_) => EulerVector {
+                e: 1,
+                r: -1,
+                ..EulerVector::ZERO
+            },
+            Self::Kfmrh(..) => EulerVector {
+                f: -1,
+                h: 1,
+                r: 1,
+                ..EulerVector::ZERO
+            },
+            Self::Mfkrh(_) => EulerVector {
+                f: 1,
+                h: -1,
+                r: -1,
+                ..EulerVector::ZERO
+            },
+            Self::Kev(_) => EulerVector {
+                v: -1,
+                e: -1,
+                ..EulerVector::ZERO
+            },
+            Self::Kef(_) => EulerVector {
+                e: -1,
+                f: -1,
+                ..EulerVector::ZERO
+            },
+            Self::Kvfs(_) => EulerVector {
+                v: -1,
+                f: -1,
+                s: -1,
+                ..EulerVector::ZERO
+            },
             // NOT an Euler operator: pure reparenting, zero vector.
-            Self::RingMove(..) => [0, 0, 0, 0, 0, 0],
+            Self::RingMove(..) => EulerVector::ZERO,
         }
     }
+}
+
+/// One operator's signed Euler–Poincaré shift `(Δv, Δe, Δf, Δh, Δr, Δs)`.
+///
+/// The same six components as the running [`Ledger`], carried as a
+/// shift rather than a count. Call sites name only the nonzero
+/// components and take the rest from [`EulerVector::ZERO`], so a site
+/// reads as the op's actual shift.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct EulerVector {
+    pub v: i64,
+    pub e: i64,
+    pub f: i64,
+    pub h: i64,
+    pub r: i64,
+    pub s: i64,
+}
+
+impl EulerVector {
+    /// The shift of an op that changes no component.
+    pub(crate) const ZERO: Self = Self {
+        v: 0,
+        e: 0,
+        f: 0,
+        h: 0,
+        r: 0,
+        s: 0,
+    };
 }
 
 /// The running Euler–Poincaré ledger `(v, e, f, h, r, s)`.
@@ -134,13 +205,13 @@ pub(crate) struct Ledger {
 
 impl Ledger {
     /// Adds an op's Euler vector.
-    pub(crate) fn apply(&mut self, delta: [i64; 6]) {
-        self.v += delta[0];
-        self.e += delta[1];
-        self.f += delta[2];
-        self.h += delta[3];
-        self.r += delta[4];
-        self.s += delta[5];
+    pub(crate) fn apply(&mut self, delta: EulerVector) {
+        self.v += delta.v;
+        self.e += delta.e;
+        self.f += delta.f;
+        self.h += delta.h;
+        self.r += delta.r;
+        self.s += delta.s;
     }
 
     /// Checks the ledger against the body: v/e/f/s are arena counts, r

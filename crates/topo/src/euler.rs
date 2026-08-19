@@ -1661,19 +1661,8 @@ impl<T: Decide> Body<T> {
         // Minting order (documented on `mef`): surface (for New),
         // curve, edge, loop, face, he_plus, he_minus.
         let provenance = Provenance::Mef { site };
-        let surface = self.mint_face_surface(surface, inherit_surface);
-        // Parent-sense inheritance (M5 S12 — the S11 banked hazard):
-        // a fragment carved off the old face on the SAME surface is the
-        // same surface region with the same material side, so it takes
-        // the parent's bit; a genuinely NEW (or foreign `Shared`)
-        // surface is not this face's region at all and the mint's
-        // `true` stands, exactly as before. Key equality, never a
-        // numeric compare.
-        let sense = if surface == inherit_surface {
-            inherit_sense
-        } else {
-            true
-        };
+        let (surface, sense) =
+            self.mint_face_surface_and_sense(surface, inherit_surface, inherit_sense);
         let curve = self.add_curve(certified);
         let edge = self.mint_edge(curve, &provenance);
         let (new_loop, new_face) = self.mint_loop_and_face(surface, sense, shell_key, &provenance);
@@ -1764,19 +1753,8 @@ impl<T: Decide> Body<T> {
         // Same minting order as Chords: surface (for New), curve,
         // edge, loop, face, he_plus, he_minus.
         let provenance = Provenance::Mef { site };
-        let surface = self.mint_face_surface(surface, inherit_surface);
-        // Parent-sense inheritance (M5 S12 — the S11 banked hazard):
-        // a fragment carved off the old face on the SAME surface is the
-        // same surface region with the same material side, so it takes
-        // the parent's bit; a genuinely NEW (or foreign `Shared`)
-        // surface is not this face's region at all and the mint's
-        // `true` stands, exactly as before. Key equality, never a
-        // numeric compare.
-        let sense = if surface == inherit_surface {
-            inherit_sense
-        } else {
-            true
-        };
+        let (surface, sense) =
+            self.mint_face_surface_and_sense(surface, inherit_surface, inherit_sense);
         let curve = self.add_curve(certified);
         let edge = self.mint_edge(curve, &provenance);
         let (new_loop, new_face) = self.mint_loop_and_face(surface, sense, shell_key, &provenance);
@@ -1897,6 +1875,31 @@ impl<T: Decide> Body<T> {
         }
     }
 
+    /// The new face's surface key and material side when an operator
+    /// carves a region off a parent face.
+    ///
+    /// A fragment that lands on the parent's OWN surface is a piece of
+    /// the parent's region — the same surface with the same material
+    /// side — so it takes the parent's [`crate::entity::Face::sense`].
+    /// A `New` (or foreign `Shared`) surface is not this face's region
+    /// at all, and the mint's `true` stands; the caller then attaches
+    /// the honest bit through [`crate::Body::set_face_sense`], as the
+    /// sweep constructors do. Key equality, never a numeric compare.
+    pub(crate) fn mint_face_surface_and_sense(
+        &mut self,
+        spec: FaceSurface<T>,
+        inherit_surface: SurfaceKey,
+        inherit_sense: bool,
+    ) -> (SurfaceKey, bool) {
+        let surface = self.mint_face_surface(spec, inherit_surface);
+        let sense = if surface == inherit_surface {
+            inherit_sense
+        } else {
+            true
+        };
+        (surface, sense)
+    }
+
     /// Mints an edge with provisional half-edge slots (the halves are
     /// minted next by [`Body::mint_halves`], which patches the slots).
     pub(crate) fn mint_edge(&mut self, curve: CurveKey, provenance: &Provenance) -> EdgeKey {
@@ -1945,22 +1948,10 @@ impl<T: Decide> Body<T> {
     /// face's shell. The loop's boundary anchor is provisional; the
     /// caller re-anchors it after the splice.
     ///
-    /// **`sense` is the caller's inheritance decision** (M5 S12, closing
-    /// the S11 banked hazard). `mef` still has no *material-side*
-    /// knowledge of its own — it sees two chords, not a profile — but it
-    /// knows one thing exactly and structurally: whether the new face
-    /// lands on the OLD FACE'S surface. When it does, the new face is a
-    /// fragment of the old face's region — the same surface with the
-    /// same material side — and takes the parent's
-    /// [`crate::entity::Face::sense`]; when the caller supplies a `New`
-    /// or foreign `Shared` surface the new face is a different region
-    /// and the mint's `true` stands (the caller then attaches the honest
-    /// bit through [`crate::Body::set_face_sense`], as the sweep
-    /// constructors do). Before S12 every re-mint stamped `true`
-    /// unconditionally, so a boolean split of a `sense: false` wall
-    /// silently reset the bit on its fragments — unreachable while
-    /// curved subtract/intersect refused at the front door, and fixed
-    /// HERE, in the same unit that opens them.
+    /// **`sense` is the caller's inheritance decision**, taken by
+    /// [`Body::mint_face_surface_and_sense`], which owns the rule.
+    /// `mef` has no *material-side* knowledge of its own — it sees two
+    /// chords, not a profile.
     fn mint_loop_and_face(
         &mut self,
         surface: SurfaceKey,
@@ -1982,7 +1973,7 @@ impl<T: Decide> Body<T> {
         );
         let new_face = self.add_face(
             Face {
-                sense,   // inherited iff the surface is (fn docs, S12)
+                sense,   // inherited iff the surface is (fn docs)
                 surface, // shared with the old face (M1 geometry policy)
                 outer: new_loop,
                 rings: vec![],
@@ -2115,28 +2106,11 @@ mod tests {
     use geom_core::Point3;
 
     use super::*;
-    use crate::fixtures::{NgonPillow, deep_snapshot, pillow, prov};
+    use crate::fixtures::{NgonPillow, arena_snapshot, deep_snapshot, pillow, prov};
     use crate::validate::validate;
 
     fn p(x: f64) -> Point3<f64> {
         Point3::new(x, 0.0, 0.0)
-    }
-
-    /// All ten arena lengths — the atomicity tests' "body unchanged"
-    /// snapshot (topology and geometry alike).
-    fn snapshot(body: &Body<f64>) -> [usize; 10] {
-        [
-            body.solids().count(),
-            body.shells().count(),
-            body.faces().count(),
-            body.loops().count(),
-            body.half_edges().count(),
-            body.edges().count(),
-            body.vertices().count(),
-            body.points().count(),
-            body.curves().count(),
-            body.surfaces().count(),
-        ]
     }
 
     /// Runs `op` on `body`, asserts it fails with exactly `expected`,
@@ -2147,11 +2121,15 @@ mod tests {
         expected: &EulerOpError,
         op: impl FnOnce(&mut Body<f64>) -> EulerOpError,
     ) {
-        let counts_before = snapshot(body);
+        let counts_before = arena_snapshot(body);
         let probe = body.half_edges().next().map(|(k, he)| (k, he.clone()));
         let err = op(body);
         assert_eq!(&err, expected);
-        assert_eq!(snapshot(body), counts_before, "arena counts changed on Err");
+        assert_eq!(
+            arena_snapshot(body),
+            counts_before,
+            "arena counts changed on Err"
+        );
         if let Some((key, before)) = probe {
             let after = body
                 .get_half_edge(key)
