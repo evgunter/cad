@@ -29,26 +29,67 @@ fn dump(body: &Body<f64>) -> String {
     format!("{body:?}")
 }
 
-/// Arena census (v, e, f, loops, shells, solids) through public
-/// iterators, plus ring count summed over faces.
-fn census(body: &Body<f64>) -> (usize, usize, usize, usize, usize, usize, usize) {
-    let rings = body.faces().map(|(_, f)| f.rings.len()).sum();
-    (
-        body.vertices().count(),
-        body.edges().count(),
-        body.faces().count(),
-        body.loops().count(),
-        body.shells().count(),
-        body.solids().count(),
-        rings,
-    )
+/// A body's counts through the public iterators. Six arena lengths
+/// plus `rings`, which is NOT an arena length: it is the ring count
+/// summed over the faces.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Census {
+    vertices: usize,
+    edges: usize,
+    faces: usize,
+    loops: usize,
+    shells: usize,
+    solids: usize,
+    rings: usize,
+}
+
+/// One step's signed shift of a [`Census`]. Sites name only the nonzero
+/// components and take the rest from the derived zero, which cannot
+/// drift out of step with the field list.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct CensusDelta {
+    vertices: isize,
+    edges: isize,
+    faces: isize,
+    loops: isize,
+    shells: isize,
+    solids: isize,
+    rings: isize,
+}
+
+fn census(body: &Body<f64>) -> Census {
+    Census {
+        vertices: body.vertices().count(),
+        edges: body.edges().count(),
+        faces: body.faces().count(),
+        loops: body.loops().count(),
+        shells: body.shells().count(),
+        solids: body.solids().count(),
+        rings: body.faces().map(|(_, f)| f.rings.len()).sum(),
+    }
+}
+
+impl Census {
+    /// This census minus `before`, component by component.
+    fn minus(self, before: Self) -> CensusDelta {
+        let d = |after: usize, before: usize| after as isize - before as isize;
+        CensusDelta {
+            vertices: d(self.vertices, before.vertices),
+            edges: d(self.edges, before.edges),
+            faces: d(self.faces, before.faces),
+            loops: d(self.loops, before.loops),
+            shells: d(self.shells, before.shells),
+            solids: d(self.solids, before.solids),
+            rings: d(self.rings, before.rings),
+        }
+    }
 }
 
 /// Euler-Poincare characteristic v - e + f - r over the whole body
 /// (valid single-solid probe: chi = sum over shells of 2(1 - g)).
 fn chi(body: &Body<f64>) -> isize {
-    let (v, e, f, _, _, _, r) = census(body);
-    v as isize - e as isize + f as isize - r as isize
+    let c = census(body);
+    c.vertices as isize - c.edges as isize + c.faces as isize - c.rings as isize
 }
 
 /// Plants a detached closed box component on `face` of a tier-2 body:
@@ -283,18 +324,14 @@ fn cross_shell_kfmrh_connected_sum_and_genus_addition() {
     let fused = body.kfmrh(seed.face, inner).unwrap();
     assert_eq!(fused.killed_shell, Some(shells[1]));
     let after = census(&body);
-    // (v, e, f, loops, shells, solids, rings): f -1, shells -1, r +1.
     assert_eq!(
-        (
-            after.0 as isize - before.0 as isize,
-            after.1 as isize - before.1 as isize,
-            after.2 as isize - before.2 as isize,
-            after.3 as isize - before.3 as isize,
-            after.4 as isize - before.4 as isize,
-            after.5 as isize - before.5 as isize,
-            after.6 as isize - before.6 as isize,
-        ),
-        (0, 0, -1, 0, -1, 0, 1),
+        after.minus(before),
+        CensusDelta {
+            faces: -1,
+            shells: -1,
+            rings: 1,
+            ..Default::default()
+        },
         "cross-shell kfmrh arena delta"
     );
     // Connected sum: chi1 + chi2 - 2 = 2, genus 0, one shell, tier 2.

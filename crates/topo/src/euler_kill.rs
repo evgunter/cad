@@ -1021,20 +1021,11 @@ impl<T: Decide> Body<T> {
 
         // ---- Mutation (infallible from here on). ----
         // Minting order (documented above): surface (for New), face.
-        let surface = self.mint_face_surface(surface, inherit_surface);
-        // Parent-sense inheritance (M5 S12, the same rule as `mef`'s
-        // `mint_loop_and_face`): a ring promoted onto the OLD FACE'S
-        // surface is a region of that same face, so it carries the same
-        // material side; a `New`/foreign `Shared` surface is a different
-        // region and keeps the mint's `true`.
-        //
-        // `surface != inherit_surface || inherit_sense` is the terser
-        // spelling of `mef`'s `if surface == inherit_surface {
-        // inherit_sense } else { true }` (euler.rs) — same truth table,
-        // written inline because there is a single `Face` literal here.
+        let (surface, sense) =
+            self.mint_face_surface_and_sense(surface, inherit_surface, inherit_sense);
         let face = self.add_face(
             Face {
-                sense: surface != inherit_surface || inherit_sense,
+                sense,
                 surface,
                 outer: ring,
                 rings: vec![],
@@ -1090,7 +1081,9 @@ mod tests {
     use super::*;
     use crate::entity::{Edge, HalfEdge, Loop, Shell, Vertex};
     use crate::euler::{MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
-    use crate::fixtures::{deep_snapshot, ops_cube, ops_holed_box, prov};
+    use crate::fixtures::{
+        ArenaSnapshot, arena_snapshot, deep_snapshot, ops_cube, ops_holed_box, prov,
+    };
     use crate::iso::{canonical_form, isomorphic};
     use crate::validate::validate;
 
@@ -1110,22 +1103,6 @@ mod tests {
         let err = op(body);
         assert_eq!(&err, expected);
         assert_eq!(deep_snapshot(body), before, "body changed on Err");
-    }
-
-    /// All ten arena lengths, for delta checks.
-    fn counts(body: &Body<f64>) -> [usize; 10] {
-        [
-            body.solids().count(),
-            body.shells().count(),
-            body.faces().count(),
-            body.loops().count(),
-            body.half_edges().count(),
-            body.edges().count(),
-            body.vertices().count(),
-            body.points().count(),
-            body.curves().count(),
-            body.surfaces().count(),
-        ]
     }
 
     /// mvfs + mev(Lone): the segment body.
@@ -1171,7 +1148,7 @@ mod tests {
         assert_eq!(validate(&body), Ok(()));
 
         // E–P vector (−1, 0, −1, 0, 0, −1): everything is gone.
-        assert_eq!(counts(&body), [0; 10]);
+        assert_eq!(arena_snapshot(&body), ArenaSnapshot::default());
         // Killed keys are exactly mvfs's mints, and they are dead.
         assert_eq!(result.killed_solid, seed.solid);
         assert_eq!(result.killed_shell, seed.shell);
@@ -1301,27 +1278,23 @@ mod tests {
             fresh.mvfs(p(0.0)).unwrap();
             canonical_form(&fresh)
         };
-        let before = counts(&body);
+        let before = arena_snapshot(&body);
         let result = body.kev(seg.he_plus).unwrap();
         assert_eq!(validate(&body), Ok(()));
 
         // E–P vector (−1, −1, 0, 0, 0, 0): −1 vertex, −1 edge, −2 halves
         // (plus the reaped point and curve).
-        let after = counts(&body);
+        let after = arena_snapshot(&body);
         assert_eq!(
             after,
-            [
-                before[0],
-                before[1],
-                before[2],
-                before[3],
-                before[4] - 2,
-                before[5] - 1,
-                before[6] - 1,
-                before[7] - 1,
-                before[8] - 1,
-                before[9],
-            ]
+            ArenaSnapshot {
+                half_edges: before.half_edges - 2,
+                edges: before.edges - 1,
+                vertices: before.vertices - 1,
+                points: before.points - 1,
+                curves: before.curves - 1,
+                ..before
+            }
         );
         // The far vertex died; the loop is empty at the survivor; the
         // survivor is lone again (emanating None).
@@ -1646,7 +1619,7 @@ mod tests {
         // half in the NEW loop: exact undo.
         let (mut body, _seed, seg, split) = ops_pillow();
         let before = canonical_form(&body);
-        let before_counts = counts(&body);
+        let before_counts = arena_snapshot(&body);
         // Split the new face (loop [he_minus, seg.he_plus]) between its
         // two vertices.
         let cut = body
@@ -1659,7 +1632,7 @@ mod tests {
         assert_eq!(validate(&body), Ok(()));
 
         // E–P vector (0, −1, −1, 0, 0, 0) relative to the pre-mef state.
-        assert_eq!(counts(&body), before_counts);
+        assert_eq!(arena_snapshot(&body), before_counts);
         assert_eq!(result.killed_face, cut.face);
         assert_eq!(result.killed_loop, cut.r#loop);
         assert_eq!(result.killed_edge, cut.edge);
@@ -1756,7 +1729,7 @@ mod tests {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(p(0.0)).unwrap();
         let before = canonical_form(&body);
-        let before_counts = counts(&body);
+        let before_counts = arena_snapshot(&body);
         let circ = body
             .mef_chord(MefSite::Lone {
                 r#loop: seed.r#loop,
@@ -1764,7 +1737,7 @@ mod tests {
             .unwrap();
         let result = body.kef(circ.he_minus).unwrap();
         assert_eq!(validate(&body), Ok(()));
-        assert_eq!(counts(&body), before_counts);
+        assert_eq!(arena_snapshot(&body), before_counts);
         assert_eq!(result.killed_face, circ.face);
         assert_eq!(result.killed_loop, circ.r#loop);
         assert_eq!(
@@ -1921,27 +1894,20 @@ mod tests {
         // log): promoting an empty ring yields a face whose outer loop
         // is an empty loop — and the body validates.
         let (mut body, split, kill) = pillow_with_empty_ring();
-        let before_counts = counts(&body);
+        let before_counts = arena_snapshot(&body);
         let created = body.mfkrh_plug(kill.ring).unwrap();
         assert_eq!(validate(&body), Ok(()));
 
         // E–P vector (0, 0, +1, −1, −1, 0): +1 face, +1 surface, all
         // else unchanged.
-        let after = counts(&body);
+        let after = arena_snapshot(&body);
         assert_eq!(
             after,
-            [
-                before_counts[0],
-                before_counts[1],
-                before_counts[2] + 1,
-                before_counts[3],
-                before_counts[4],
-                before_counts[5],
-                before_counts[6],
-                before_counts[7],
-                before_counts[8],
-                before_counts[9] + 1,
-            ]
+            ArenaSnapshot {
+                faces: before_counts.faces + 1,
+                surfaces: before_counts.surfaces + 1,
+                ..before_counts
+            }
         );
         // The promoted loop survives with its key, now the outer loop of
         // the new face.
@@ -2076,7 +2042,7 @@ mod tests {
         );
         body.kvfs(t.seed.solid).unwrap();
         assert_eq!(validate(&body), Ok(()));
-        assert_eq!(counts(&body), [0; 10]);
+        assert_eq!(arena_snapshot(&body), ArenaSnapshot::default());
     }
 
     // ------------------------------------------------------------------
