@@ -58,6 +58,8 @@ use geom_core::Real;
 
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, LoopKey, VertexKey};
+#[cfg(debug_assertions)]
+use crate::euler::ArenaDelta;
 use crate::euler::{EulerOpError, MevCreated, MevSite};
 use crate::provenance::Provenance;
 
@@ -233,7 +235,16 @@ impl<T: geom_core::Decide> Body<T> {
         };
 
         #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(before, (0, 0, 0, 0, 2, 1, 1), "mev_null");
+        self.assert_euler_postcondition(
+            before,
+            ArenaDelta {
+                half_edges: 2,
+                edges: 1,
+                vertices: 1,
+                ..ArenaDelta::ZERO
+            },
+            "mev_null",
+        );
         Ok(created)
     }
 }
