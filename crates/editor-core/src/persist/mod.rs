@@ -634,7 +634,6 @@ pub fn save(
             .map_err(|error| PersistError::EditReplay { index, error })?
             .doc;
     }
-    drop(replay);
     let body = SerBody { snapshot, edits };
     let json = serde_json::to_string_pretty(&body).map_err(|e| PersistError::Serialize {
         message: e.to_string(),

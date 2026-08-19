@@ -1540,8 +1540,6 @@ where
     h.finish()
 }
 
-/// Feeds a [`StableName`] structurally into the content key (names
-/// are float-free by construction — pure tags and integers).
 /// The recursive naming key (issue #95 disposition 2; see
 /// [`NamingKey`]): the node's own content key plus every input's
 /// (id, naming key) pair, in input order — ids INCLUDED, which is
@@ -1795,6 +1793,8 @@ fn contact_class_tag(class: topo::ContactClass) -> u8 {
     }
 }
 
+/// Feeds a [`StableName`] structurally into the content key (names
+/// are float-free by construction — pure tags and integers).
 fn feed_stable_name(h: &mut KeyHasher, name: &StableName) {
     use crate::names::EntityKind;
     h.write_tag(match name.kind {

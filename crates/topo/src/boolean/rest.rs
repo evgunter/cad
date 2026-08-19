@@ -288,8 +288,8 @@ pub(super) fn try_rest_union<T: Decide + Bounds>(
     let mut contacts = remap_contacts(
         &body,
         &contacts,
-        KeyView::Direct,
-        KeyView::Graft(&graft),
+        &KeyView::Direct,
+        &KeyView::Graft(&graft),
         &desc,
     );
     remap_carried(

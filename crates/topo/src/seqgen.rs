@@ -846,7 +846,11 @@ mod tests {
     /// make/kill roundtrip instead of a plain op).
     type Decision = (u32, u32, u32);
 
-    fn run_properties(decisions: &[Decision]) -> Result<(), TestCaseError> {
+    /// Runs properties (a)–(d) over one decision vector and returns how
+    /// many make/kill roundtrips actually EXECUTED — the roundtrip
+    /// steps that were not one of the documented irreversible-by-one-op
+    /// kills (module docs), i.e. the steps that tested property (c).
+    fn run_properties(decisions: &[Decision]) -> Result<usize, TestCaseError> {
         let mut body = Body::<f64>::new();
         let mut ledger = Ledger::default();
         let mut counter = 0_u32;
@@ -879,31 +883,40 @@ mod tests {
         // Property (d): everything built can be killed back to nothing;
         // arenas AND provenance maps end empty (asserted inside).
         teardown(&mut body);
-        // Keep shrunk cases meaningful: at least the trivial sequence
-        // exercised something.
-        let _ = roundtrips;
-        Ok(())
+        Ok(roundtrips)
     }
 
-    proptest! {
-        #![proptest_config(ProptestConfig {
-            cases: 48,
-            ..ProptestConfig::default()
-        })]
-
-        /// Properties (a)–(d) over random valid op sequences (module
-        /// docs): tier-1 validity after every op, the E–P ledger at
-        /// every step, make/kill roundtrips at random points, and full
-        /// teardown to empty arenas + empty provenance maps.
-        #[test]
-        fn random_op_sequences_hold_all_properties(
-            decisions in proptest::collection::vec(
+    /// Properties (a)–(d) over random valid op sequences (module
+    /// docs): tier-1 validity after every op, the E–P ledger at
+    /// every step, make/kill roundtrips at random points, and full
+    /// teardown to empty arenas + empty provenance maps.
+    ///
+    /// Property (c) only runs on roundtrip steps that are not one of
+    /// the documented irreversible-by-one-op kills, and a single case
+    /// may legitimately have none — so the executed count is summed
+    /// over the whole run and asserted once. A run in which every
+    /// roundtrip was skipped never tested property (c), and says so
+    /// here instead of passing green.
+    #[test]
+    fn random_op_sequences_hold_all_properties() {
+        let executed = std::cell::Cell::new(0_usize);
+        proptest!(
+            ProptestConfig {
+                cases: 48,
+                ..ProptestConfig::default()
+            },
+            |(decisions in proptest::collection::vec(
                 (any::<u32>(), any::<u32>(), any::<u32>()),
                 1..48,
-            )
-        ) {
-            run_properties(&decisions)?;
-        }
+            ))| {
+                executed.set(executed.get() + run_properties(&decisions)?);
+            }
+        );
+        assert!(
+            executed.get() > 0,
+            "no make/kill roundtrip executed across the whole run: \
+             property (c) went untested",
+        );
     }
 
     /// Issue #60, distilled: the shrunken proptest vector whose final
@@ -943,7 +956,9 @@ mod tests {
             (1666265687, 2248595257, 94376607),
             (2980353478, 2061075975, 2860288224),
         ];
-        run_properties(&decisions).unwrap();
+        // The vector's final step IS a kef roundtrip, so this run pins
+        // that the roundtrip machinery executes rather than skipping.
+        assert!(run_properties(&decisions).unwrap() > 0);
     }
 
     #[test]

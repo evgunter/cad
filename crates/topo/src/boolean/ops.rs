@@ -513,8 +513,8 @@ fn boolean_op_recut<T: Decide + Bounds>(
     let mut contacts = remap_contacts(
         &body,
         &contacts,
-        KeyView::Direct,
-        KeyView::Graft(&fin.graft),
+        &KeyView::Direct,
+        &KeyView::Graft(&fin.graft),
         &desc,
     );
     remap_carried(
@@ -1074,8 +1074,8 @@ impl Descendants {
 pub(super) fn remap_contacts<T: Real>(
     body: &Body<T>,
     contacts: &ContactRecords,
-    a_view: KeyView<'_>,
-    b_view: KeyView<'_>,
+    a_view: &KeyView<'_>,
+    b_view: &KeyView<'_>,
     desc: &Descendants,
 ) -> ContactRecords {
     // v-v pairs chase through zip fusions (a fused vertex's partner
@@ -1597,7 +1597,11 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                             return Err(BooleanError::FallbackExtentUnsupported {
                                 operand: x_is,
                                 face,
-                                what: "one sphere group escapes through NON-PARALLEL plane                                        faces — a single re-chart cannot make every section                                        polar, and multi-chart re-cutting is not built;                                        refused whole rather than metering one cap and                                        dropping the other",
+                                what: "one sphere group escapes through NON-PARALLEL \
+                                       plane faces — a single re-chart cannot make \
+                                       every section polar, and multi-chart \
+                                       re-cutting is not built; refused whole rather \
+                                       than metering one cap and dropping the other",
                             });
                         }
                     }
@@ -1883,8 +1887,8 @@ fn fallback<T: Decide>(
             let mut contacts = remap_contacts(
                 &body,
                 &red.contacts,
-                KeyView::Direct,
-                KeyView::Graft(&graft),
+                &KeyView::Direct,
+                &KeyView::Graft(&graft),
                 &desc,
             );
             remap_carried(
@@ -1945,11 +1949,7 @@ fn finish_fallback<T: Decide>(
         BooleanResultKind::OperandA => (KeyView::Direct, KeyView::Absent),
         _ => (KeyView::Absent, KeyView::Direct),
     };
-    let mut contacts = remap_contacts(&body, contacts, a_view, b_view, &desc);
-    let (a_view, b_view) = match kind {
-        BooleanResultKind::OperandA => (KeyView::Direct, KeyView::Absent),
-        _ => (KeyView::Absent, KeyView::Direct),
-    };
+    let mut contacts = remap_contacts(&body, contacts, &a_view, &b_view, &desc);
     remap_carried(&mut contacts, &body, decls, &a_view, &b_view, &desc);
     gate(&body)?;
     let naming = match kind {
@@ -2173,15 +2173,15 @@ mod tests {
         let out = remap_contacts(
             &body,
             &contacts,
-            KeyView::Direct,
-            KeyView::Direct,
+            &KeyView::Direct,
+            &KeyView::Direct,
             &Descendants::default(),
         );
         assert!(out.a_on_b.is_empty());
         // With the row: the record survives, renamed to the survivor.
         let mut desc = Descendants::default();
         desc.faces.insert(dead_face, live_face);
-        let out = remap_contacts(&body, &contacts, KeyView::Direct, KeyView::Direct, &desc);
+        let out = remap_contacts(&body, &contacts, &KeyView::Direct, &KeyView::Direct, &desc);
         assert_eq!(out.a_on_b.len(), 1);
         assert_eq!(out.a_on_b[0].face, live_face);
         assert_eq!(out.a_on_b[0].vertex, live_vertex);
@@ -2202,7 +2202,7 @@ mod tests {
         };
         let mut desc = Descendants::default();
         desc.vertices.insert(dead_vertex, live_vertex);
-        let out = remap_contacts(&body, &contacts, KeyView::Direct, KeyView::Direct, &desc);
+        let out = remap_contacts(&body, &contacts, &KeyView::Direct, &KeyView::Direct, &desc);
         assert!(out.vv.is_empty(), "fused-into-one pair is consumed");
     }
 }
