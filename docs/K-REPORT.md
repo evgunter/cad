@@ -1019,7 +1019,12 @@ snapshots of a stated head — "these rows are what the script wrote, no
 rename" is already the standing rule for them (M7 addendum), and the
 k-lint gate reads a *fresh* sweep, never these files, so nothing breaks
 by leaving them. Regenerating them would be worse than useless: it would
-destroy the historical record to make it agree with a name.
+destroy the historical record to make it agree with a name. A map of
+that directory — the four eras, the two rules that govern it, and which
+of the eleven names matching `grep sector` belong to which — now sits
+at `docs/k-report-data/README.md`, so a reader who arrives at the CSVs
+by grep does not have to reach section nine of this report to date a
+row.
 
 **How a future reader knows which era a row belongs to** — the one
 sentence this note exists for. The pooled names are **new spellings, not
