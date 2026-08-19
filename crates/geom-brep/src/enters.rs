@@ -49,9 +49,10 @@
 //! A normal that **defines** a side convention rather than carrying
 //! one — a splitting plane's, an operation input belonging to no face
 //! and with no sense to fold in — is the separate [`ReferenceNormal`],
-//! which [`enters_material_order2`] takes. Until S39/D5 the two jobs
-//! shared one parameter named `outward_normal`, told apart only by
-//! prose.
+//! which [`enters_material_order2`] takes. They are two types because
+//! they are two claims: one asserts a face's material side, the other
+//! declares the operation's convention, and only the first has a sense
+//! to get wrong.
 //!
 //! # Margin honesty (D4 ¶1)
 //!

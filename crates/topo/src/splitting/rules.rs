@@ -190,7 +190,7 @@ pub(super) fn apply_rule_a<T: Decide>(
         // dir = +n_SP (module docs): Exits ⇒ material Below.
         //
         // Exactly one of the two vectors carries an orientation (S10),
-        // and since D5 the types say which. `n_face` is the FACE's
+        // and the types say which. `n_face` is the FACE's
         // outward normal, an `OutwardNormal` minted from chart × sense
         // in `sector_face` — this is a material-side verdict and
         // inverts on a reversed face read off the chart, so the
