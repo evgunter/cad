@@ -1915,6 +1915,7 @@ dependencies = [
  "mesh",
  "profile",
  "proptest",
+ "sweep",
  "topo",
 ]
 

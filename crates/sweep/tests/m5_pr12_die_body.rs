@@ -11,32 +11,16 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
-use profile::RawLoop;
 
 use geom_brep::EdgeGeometry;
-use geom_core::{Band, Point2, Tolerance};
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use geom_core::{Band, Tolerance};
 use sweep::fillet::{FilletError, Filleted, fillet_edges};
-use sweep::{Extrusion, extrude};
+use sweep::test_support::cube;
 use topo::{Body, EdgeKey, FaceKey};
 
 fn band() -> Band {
     let tol = Tolerance::get();
     Band::new(tol.eps, tol.k * tol.eps).unwrap()
-}
-
-/// An `l × l × l` box at the origin.
-fn cube(l: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(
-        [(0.0, 0.0), (l, 0.0), (l, l), (0.0, l)]
-            .into_iter()
-            .map(|(x, y)| ProfileVertex::new(Point2::new(x, y), 0.0))
-            .collect(),
-    );
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(l)).unwrap().body
 }
 
 fn all_edges(body: &Body<f64>) -> Vec<EdgeKey> {

@@ -2,6 +2,11 @@
 //! scalar lane (`f64`, `Dual`, `Interval` — every `Decide` scalar), and
 //! the intersection-upgrade pass. Used by `geometric_cube.rs` and the
 //! interval lane in `interval_body.rs`.
+//!
+//! Compiled into the test binary, not the library: the cheapest of this
+//! crate's three homes for test vocabulary, and the right one whenever
+//! the library itself never names the item. `topo`'s
+//! `src/test_support_impl.rs` docs give the rule for all three.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(dead_code)] // each integration test uses the subset it needs
