@@ -104,7 +104,7 @@ impl core::fmt::Display for ComposeError {
                     f,
                     "compose: a shared-parameter composite needs one knot domain, \
                      got [{}, {}] and [{}, {}] — refit the pair on one \
-                     parameterization (the OQ4 identity) before composing",
+                     parameterization (the shared-parameter identity) before composing",
                     a.0, a.1, b.0, b.1
                 )
             }

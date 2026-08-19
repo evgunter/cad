@@ -227,9 +227,8 @@ impl core::fmt::Display for MergeCoplanarError {
                 f,
                 "merge_coplanar_faces: killing shared edge {edge:?} would close the \
                  curved cosurface run's full chart period — outside the merge's \
-                 inventory at M5 (C12.5: sub-period re-merges commit; full closures \
-                 stay in their cut-carrying canonical form and are recorded as a loud \
-                 skip)"
+                 inventory: sub-period re-merges commit, full closures stay in their \
+                 cut-carrying canonical form and are recorded as a loud skip"
             ),
             Self::Op { error } => write!(f, "merge_coplanar_faces: {error}"),
             Self::InvalidDeclaration { surface, what } => write!(
@@ -652,7 +651,7 @@ impl<T: Decide> Body<T> {
                 debug_assert!(
                     crate::source::plane_bits_agree(o1, n1, o2, n2, false)
                         && crate::source::vec3_bits_agree(u1, u2),
-                    "N6 theorem violated: same-source surface descriptions disagree \
+                    "same-source theorem violated: same-source surface descriptions disagree \
                      bitwise (kernel bug: a source survived a geometric rewrite)"
                 );
             }

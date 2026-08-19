@@ -82,7 +82,7 @@ impl core::fmt::Display for NamingError {
             Self::Duplicate { name } => write!(
                 f,
                 "the name {name:?} was minted twice — names alias silently only over the \
-                 kernel's dead body (N1)"
+                 kernel's dead body"
             ),
             Self::Unnamed { kind, body } => write!(
                 f,
@@ -174,7 +174,7 @@ pub(crate) fn name_pattern<T: geom_core::Real>(
                 super::table::Entry::Unique(e) => {
                     if e.body != 0 {
                         return Err(NamingError::Emission {
-                            what: "pattern of a multi-OUTPUT-BODY master — deferred (typed, R7); multi-SOLID masters are admitted",
+                            what: "pattern of a multi-OUTPUT-BODY master — deferred (typed); multi-SOLID masters are admitted",
                         });
                     }
                     t.insert(wrapped, ent(iu, e.key))?;
@@ -182,7 +182,7 @@ pub(crate) fn name_pattern<T: geom_core::Real>(
                 super::table::Entry::Tied(es) => {
                     if es.iter().any(|e| e.body != 0) {
                         return Err(NamingError::Emission {
-                            what: "pattern of a multi-OUTPUT-BODY master — deferred (typed, R7); multi-SOLID masters are admitted",
+                            what: "pattern of a multi-OUTPUT-BODY master — deferred (typed); multi-SOLID masters are admitted",
                         });
                     }
                     t.insert_tied(wrapped, es.iter().map(|e| ent(iu, e.key)).collect())?;
@@ -254,7 +254,7 @@ pub(crate) fn name_placed_union<T: geom_core::Real>(
             };
             if rows.iter().any(|e| e.body != 0) {
                 return Err(NamingError::Emission {
-                    what: "placed union of a multi-OUTPUT-BODY prototype — deferred (typed, R7); multi-SOLID prototypes are admitted",
+                    what: "placed union of a multi-OUTPUT-BODY prototype — deferred (typed); multi-SOLID prototypes are admitted",
                 });
             }
             let moved: Vec<EntityRef> = rows

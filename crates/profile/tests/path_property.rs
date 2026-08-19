@@ -204,15 +204,16 @@ fn turn_zero_refuses_toward_tangent() {
 }
 
 #[test]
-fn turn_pi_refuses_as_cusp_naming_131() {
+fn turn_pi_refuses_as_cusp_naming_the_absent_declaration_door() {
     let leg = Open.at(p2(0.0, 0.0)).line_to(p2(2.0, 0.0)).unwrap();
     let err = leg.turn(std::f64::consts::PI).unwrap_err();
     assert!(matches!(err, PathError::JunctionCusp { .. }));
-    // §4 item 1: the refusal names #131 as the (absent) front door —
-    // pinned here, not just carried in prose.
+    // The refusal must say that no declaration door for cusps exists,
+    // so the caller does not go looking for one — pinned here, not
+    // just carried in prose.
     assert!(
-        err.to_string().contains("#131"),
-        "cusp refusal must name #131: {err}"
+        err.to_string().contains("no declaration door for cusps"),
+        "cusp refusal must say the declaration door does not exist: {err}"
     );
 }
 
