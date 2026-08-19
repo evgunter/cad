@@ -80,7 +80,7 @@
 //! are bit-identical on every conforming platform, and every reduction
 //! order in this module is the written one.
 
-use crate::real::Enclosure;
+use crate::real::{CertifiedEnclosure, Enclosure};
 
 /// One representable step down; `next_down(-inf) = -inf`, the correct
 /// lower bound for an already-unbounded side.
@@ -151,6 +151,37 @@ impl RingInterval {
             return Self::poison();
         }
         Self { lo, hi }
+    }
+
+    /// Reads a scalar's bracket into the ring through the **certified**
+    /// door, poisoning a scalar that may not certify.
+    ///
+    /// This is the C9 ring's one body for a lane scalar taken whole.
+    /// Every crossing S41 names reaches it: five call it directly, and
+    /// the rest go through `geom-core`'s own `spline::hull::bracket` and
+    /// `geom-brep`'s `ssi::enclose::ring`, which are one-line wrappers
+    /// over it. (A crossing that reads only *one* end of the bracket,
+    /// such as a symmetric pad built from `hi`, is a different operation
+    /// and spells its own refusal.) It is a method rather than the
+    /// three-line spelling at each call site
+    /// for the same reason [`Self::clamped_to`] is: the hazard is the
+    /// bracket door, which never refuses. `Interval` records a domain
+    /// violation in its decoration, not its endpoints — `sqrt([−1, 4])`
+    /// is `[0, 2]` at `Trv` — and the ring has two states and no
+    /// decoration channel. Whatever is built from the crossing is a
+    /// certificate, so a scalar that carries a sound bracket its
+    /// computation is not entitled to must become poison here, where the
+    /// decoration is still readable, rather than a plausible bound
+    /// nothing downstream can question.
+    ///
+    /// [`Bounds::lo`](crate::Bounds::lo)/[`hi`](crate::Bounds::hi) into
+    /// [`Self::from_bounds`] is the *driver's* spelling and stays
+    /// available: reading a bracket is not certifying it.
+    pub fn from_certified<T: CertifiedEnclosure>(x: T) -> Self {
+        match x.certified_bracket() {
+            Some((lo, hi)) => Self::from_bounds(lo, hi),
+            None => Self::poison(),
+        }
     }
 
     /// The smallest enclosure containing both arguments. Poison in
