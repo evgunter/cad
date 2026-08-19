@@ -140,11 +140,15 @@ impl Interval {
     /// Half-unbounded enclosures (`[0, +∞]`) are valid and carry
     /// decoration [`Decoration::Dac`] (`Com` requires boundedness).
     ///
-    /// **Laundering warning.** A [`Bounds`]-extract → `from_bounds`-rebuild
-    /// round trip mid-pipeline discards the decoration history: a `Trv`
-    /// (domain-violated) enclosure re-enters as a fresh `Com`, scrubbed of
-    /// its poison — the one genuine laundering door around the decoration
-    /// channel. `from_bounds` exists to materialize the driver's parameter
+    /// **Scope, not a laundering door.** A [`Bounds`]-extract →
+    /// `from_bounds`-rebuild round trip cannot scrub poison: the extract
+    /// refuses below [`Decoration::Def`] and yields NaN
+    /// ([`Interval::certified_bracket`]), which rebuilds as NaI, so a
+    /// domain-violated enclosure re-enters poisoned rather than as a
+    /// fresh `Com`. What the round trip still discards is *history above*
+    /// that threshold — a `Def` enclosure re-enters as `Com`, losing the
+    /// record that continuity or boundedness was not established.
+    /// `from_bounds` exists to materialize the driver's parameter
     /// sub-boxes; it is never for reconstructing values that came out of
     /// [`Bounds`] mid-computation.
     pub fn from_bounds(lo: f64, hi: f64) -> Self {
@@ -181,6 +185,35 @@ impl Interval {
             Decoration::Com => 4,
         };
         (self.0.lo().to_bits(), self.0.hi().to_bits(), dec)
+    }
+
+    /// The bracket as [`Bounds`]/[`crate::Enclosure`] owe it: the exact
+    /// endpoints when the decoration certifies the computation was
+    /// **defined on the whole input box**, NaN otherwise.
+    ///
+    /// The threshold is [`Decoration::Def`], the same one
+    /// [`Decide::sign_within`] refuses below, because the two accessors
+    /// answer the same question in different currencies: a decoration
+    /// below `Def` means some operand went outside its domain and the
+    /// backend *clamped* rather than failed, so the surviving endpoints
+    /// enclose the clamped expression and not the one that was asked
+    /// for. They are not a bracket of any real number the value stands
+    /// for, and the trait contract is that such a value surfaces as NaN
+    /// rather than narrowing to something plausible.
+    ///
+    /// This is what keeps the bracket accessors from being a laundering
+    /// door around the decoration channel. `Trv`-with-finite-endpoints
+    /// is the case that needs it: NaI and the empty enclosure are stored
+    /// with NaN bounds already, so they surface poison whatever this
+    /// does, while a clamped `sqrt([−1, 4]) = [0, 2]` looks perfectly
+    /// healthy through two `f64` reads. Certification code consuming
+    /// `[lo, hi]` — the C9 ring's `from_bounds`, every `T: Bounds`
+    /// crossing — has no other channel to learn the difference.
+    fn certified_bracket(self) -> (f64, f64) {
+        if self.0.decoration() < Decoration::Def {
+            return (f64::NAN, f64::NAN);
+        }
+        (self.0.lo(), self.0.hi())
     }
 }
 
@@ -429,11 +462,21 @@ impl Real for Interval {
     }
 }
 
-/// Bound extraction (certification/driver scope — see [`Bounds`]):
-/// the enclosure's exact endpoints. Poison surfaces honestly: NaI **and**
-/// the empty enclosure both yield NaN from both accessors, so either
-/// bracket fails every downstream `residual ≤ ε` certification loudly
-/// (D4 ¶2) — `NaN ≤ ε` is false under every comparison direction.
+/// Bound extraction (certification/driver scope — see [`Bounds`]): the
+/// enclosure's exact endpoints when its decoration is [`Decoration::Def`]
+/// or better, and NaN from **both** accessors otherwise
+/// ([`Interval::certified_bracket`] carries the argument). Poison
+/// therefore surfaces honestly through all three of its shapes — NaI, the
+/// empty enclosure, and the case only the decoration knows about, a
+/// clamped `Trv` result with perfectly finite endpoints — and any of them
+/// fails every downstream `residual ≤ ε` certification loudly (D4 ¶2):
+/// `NaN ≤ ε` is false under every comparison direction.
+///
+/// The bracket is the **only** channel the C9 ring
+/// ([`crate::RingInterval`], two states and no decorations) can read an
+/// enclosure through, so the refusal has to happen here: a `T: Bounds`
+/// operand crossing into the ring through `RingInterval::from_bounds`
+/// carries exactly what these two accessors say and nothing else.
 ///
 /// The empty enclosure deliberately does NOT surface as IEEE 1788's
 /// canonical reversed pair (+∞, −∞): that pair's *upper* accessor is −∞,
@@ -450,11 +493,11 @@ impl Real for Interval {
 /// trait.)
 impl Bounds for Interval {
     fn lo(self) -> f64 {
-        self.0.lo()
+        self.certified_bracket().0
     }
 
     fn hi(self) -> f64 {
-        self.0.hi()
+        self.certified_bracket().1
     }
 }
 
@@ -463,9 +506,10 @@ impl Bounds for Interval {
 /// see [`crate::spline::locate`]'s module docs). Sound because every
 /// span's polynomial extension agrees with the curve on the span
 /// itself, so hulling the per-span interval evaluations over the box
-/// contains the true image. Poison (NaI/empty) surfaces NaN brackets
-/// and lands on the first span deterministically — the poisoned `t`
-/// then propagates through the evaluation arithmetic as a value.
+/// contains the true image. Poison — NaI, empty, or any decoration below
+/// [`Decoration::Def`] — surfaces NaN brackets and lands on the first
+/// span deterministically; the poisoned `t` then propagates through the
+/// evaluation arithmetic as a value.
 impl crate::spline::SpanLocate for Interval {
     fn locate_spans(self, knots: &crate::spline::KnotVector) -> crate::spline::SpanSet {
         // `span_range` now answers in validated spans, which is exactly
@@ -789,6 +833,16 @@ mod tests {
         Interval::from_bounds(lo, hi)
     }
 
+    /// The endpoints the backend actually STORED — not what [`Bounds`]
+    /// reports. The two part company exactly at the clamping rows below:
+    /// `Bounds` refuses a decoration under `Def` and answers NaN, so a
+    /// row whose subject IS the clamp ("sqrt([−1, 4]) produced [0, 2] and
+    /// put the violation in the decoration") must read the storage, and a
+    /// row about what certification may consume must read `Bounds`.
+    fn stored(x: Interval) -> (f64, f64) {
+        (x.0.lo(), x.0.hi())
+    }
+
     /// A named unary trait operation (for the monotonicity tables).
     type UnaryOp = fn(Interval) -> Interval;
 
@@ -961,13 +1015,13 @@ mod tests {
     fn sqrt_domain_table() {
         // Fully in-domain (0 included): tight, decoration intact.
         let x = iv(0.0, 4.0).sqrt();
-        assert_eq!((x.lo(), x.hi()), (0.0, 2.0));
+        assert_eq!(stored(x), (0.0, 2.0));
         assert_eq!(x.0.decoration(), Decoration::Com);
 
         // Partially out of domain: CLAMPS to [0, 2] — a plausible
         // enclosure — and records the violation only in the decoration.
         let clamped = iv(-1.0, 4.0).sqrt();
-        assert_eq!((clamped.lo(), clamped.hi()), (0.0, 2.0));
+        assert_eq!(stored(clamped), (0.0, 2.0));
         assert_eq!(clamped.0.decoration(), Decoration::Trv);
 
         // Fully out of domain: empty.
@@ -1027,7 +1081,7 @@ mod tests {
     #[test]
     fn trv_clamp_survives_zero_exponent_and_still_refuses() {
         let x = iv(-1.0, 4.0).sqrt().powi(0);
-        assert_eq!((x.lo(), x.hi()), (1.0, 1.0));
+        assert_eq!(stored(x), (1.0, 1.0));
         assert_eq!(x.0.decoration(), Decoration::Trv);
 
         let band = band_1e9();
@@ -1111,12 +1165,12 @@ mod tests {
 
         // sqrt([-1, 4]) clamps to [0, 2] with decoration Trv.
         let clamped = iv(-1.0, 4.0).sqrt();
-        assert_eq!((clamped.lo(), clamped.hi()), (0.0, 2.0));
+        assert_eq!(stored(clamped), (0.0, 2.0));
 
         // Push it decisively positive: [1, 3] — by value alone this
         // would classify Positive (lo = 1 ≫ escalate = 1e-8)...
         let shifted = clamped + Interval::one();
-        assert_eq!((shifted.lo(), shifted.hi()), (1.0, 3.0));
+        assert_eq!(stored(shifted), (1.0, 3.0));
         assert_eq!(shifted.0.decoration(), Decoration::Trv);
 
         // ...but the decoration says the domain was violated upstream,
@@ -1265,14 +1319,14 @@ mod tests {
 
         // abs factor: the value's own decoration rides on the factor.
         let factor = trv_value.abs_sign_factor();
-        assert_eq!((factor.lo(), factor.hi()), (1.0, 1.0));
+        assert_eq!(stored(factor), (1.0, 1.0));
         assert_eq!(factor.0.decoration(), Decoration::Trv);
         let factor = clean.abs_sign_factor();
         assert_eq!(factor.0.decoration(), Decoration::Com);
         // Straddle keeps a clean input's decoration too (the hull is a
         // convention, not a domain violation).
         let factor = iv(-1.0, 2.0).abs_sign_factor();
-        assert_eq!((factor.lo(), factor.hi()), (-1.0, 1.0));
+        assert_eq!(stored(factor), (-1.0, 1.0));
         assert_eq!(factor.0.decoration(), Decoration::Com);
         // Poison shapes: NaI in, NaI out; empty in, empty out.
         assert!(Interval::from_f64(f64::NAN).abs_sign_factor().0.is_nai());
@@ -1282,7 +1336,7 @@ mod tests {
 
         // min_deriv: a Trv value on either side caps the selected tangent.
         let selected = trv_value.min_deriv(tangent, iv(10.0, 11.0), iv(9.0, 9.0));
-        assert_eq!((selected.lo(), selected.hi()), (3.0, 3.0));
+        assert_eq!(stored(selected), (3.0, 3.0));
         assert_eq!(selected.0.decoration(), Decoration::Trv);
         // Clean separation keeps the chosen tangent's decoration.
         let selected = clean.min_deriv(tangent, iv(10.0, 11.0), iv(9.0, 9.0));
@@ -1292,7 +1346,7 @@ mod tests {
         // a Trv tangent hulled with a Com one yields Trv.
         let trv_tangent = iv(-1.0, 4.0).sqrt();
         let hulled = clean.min_deriv(trv_tangent, iv(1.0, 3.0), tangent);
-        assert_eq!((hulled.lo(), hulled.hi()), (0.0, 3.0));
+        assert_eq!(stored(hulled), (0.0, 3.0));
         assert_eq!(hulled.0.decoration(), Decoration::Trv);
         let hulled = clean.min_deriv(tangent, iv(1.0, 3.0), tangent);
         assert_eq!(hulled.0.decoration(), Decoration::Com);

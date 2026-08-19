@@ -838,4 +838,107 @@ mod tests {
         assert!((l.x.hi() - 1.0).abs() < 1e-15 && (r.x.lo() - 1.0).abs() < 1e-15);
         assert!(l.width() < b.width());
     }
+
+    /// **The M6-2 seam refuses a violated decoration.**
+    ///
+    /// `ring<T: Bounds>` is the only door an evaluation scalar has into the
+    /// C9 ring here, and the ring has two states and no decorations — so an
+    /// `Interval` operand carrying a domain violation in its decoration,
+    /// with finite endpoints, must arrive as poison or not at all. These
+    /// rows sweep the operand across the domain boundary rather than probing
+    /// one fixture: the enclosure must refuse on exactly the side where the
+    /// decoration degrades, which no uniformly-poisoning and no laundering
+    /// implementation can satisfy.
+    #[cfg(feature = "interval")]
+    #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+    mod decoration_seam {
+        use geom_core::{Interval, Real};
+
+        use super::{Box3, Point3, RingInterval, Surface, Vec3, implicit_enclosure};
+
+        /// `sqrt([a, 4])`: `Trv` with finite endpoints when `a < 0` forces a
+        /// clamp, `Com` otherwise.
+        fn operand(a: f64) -> Interval {
+            Interval::from_bounds(a, 4.0).sqrt()
+        }
+
+        fn h(x: f64) -> Interval {
+            Interval::from_f64(x)
+        }
+
+        fn unit_box() -> Box3 {
+            Box3 {
+                x: RingInterval::from_bounds(0.1, 0.9),
+                y: RingInterval::from_bounds(-0.4, 0.3),
+                z: RingInterval::from_bounds(-0.2, 0.7),
+            }
+        }
+
+        /// A sphere whose centre carries `c` in x — the operand reaches
+        /// `implicit_enclosure` through `subp`, the same `ring` helper every
+        /// other entry point uses.
+        fn sphere(c: Interval) -> Surface<Interval> {
+            Surface::Sphere {
+                center: Point3::new(c, h(0.0), h(0.0)),
+                radius: h(1.0),
+                axis: Vec3::new(h(0.0), h(0.0), h(1.0)),
+                u_ref: Vec3::new(h(1.0), h(0.0), h(0.0)),
+            }
+        }
+
+        /// Each entry point, swept: `certified == degraded` would be the
+        /// laundering answer, `always poison` the vacuous one.
+        #[test]
+        fn every_ring_crossing_refuses_exactly_where_the_decoration_degrades() {
+            let crossings: [(&str, fn(Interval) -> RingInterval); 3] = [
+                ("implicit_enclosure", |c| {
+                    implicit_enclosure(&sphere(c), unit_box())
+                }),
+                ("Box3::around", |c| {
+                    Box3::around(Point3::new(c, h(0.0), h(0.0)), h(0.5)).x
+                }),
+                ("Box3::between", |c| {
+                    Box3::between(
+                        Point3::new(c, h(0.0), h(0.0)),
+                        Point3::new(h(3.0), h(0.0), h(0.0)),
+                    )
+                    .x
+                }),
+            ];
+            for (name, cross) in crossings {
+                let (mut certified, mut refused) = (0, 0);
+                for a in [-4.0, -1.0, -0.25, -1e-300, 0.0, 1e-300, 0.25, 1.0] {
+                    let c = operand(a);
+                    let degraded = c.repr_bits().2 < 2; // below `Def`
+                    let e = cross(c);
+                    assert_eq!(
+                        e.is_poison(),
+                        degraded,
+                        "{name}: sqrt([{a}, 4]) has decoration {} but crossed as {e:?}",
+                        c.repr_bits().2
+                    );
+                    if degraded {
+                        refused += 1;
+                    } else {
+                        certified += 1;
+                    }
+                }
+                assert!(certified > 0, "{name}: sweep never certified — vacuous");
+                assert!(refused > 0, "{name}: sweep never refused — vacuous");
+            }
+        }
+
+        /// A radius is read at its UPPER end only (`pad_interval`), so it is
+        /// the one crossing where forwarding a single endpoint could have
+        /// been thought safe. It is not: the pad is a widening derived from a
+        /// quantity whose computation left its domain.
+        #[test]
+        fn a_violated_radius_poisons_the_pad() {
+            let c = Point3::new(h(0.0), h(0.0), h(0.0));
+            let bad = Box3::around(c, operand(-1.0));
+            assert!(bad.x.is_poison() && bad.y.is_poison() && bad.z.is_poison());
+            let good = Box3::around(c, operand(1.0));
+            assert!(!good.x.is_poison(), "the healthy half must still build");
+        }
+    }
 }

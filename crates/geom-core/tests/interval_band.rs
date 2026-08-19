@@ -22,6 +22,17 @@
 
 use geom_core::{Band, Bounds, Decide, Indeterminate, Interval, MarginDiag, Real, Sign, Tolerance};
 
+/// The endpoints the backend actually STORED, read through the identity
+/// channel. [`Bounds`] deliberately refuses a decoration below `Def` and
+/// answers NaN, so a row whose subject is the *clamp itself* — "the
+/// bounds betray nothing; only the decoration does" — has to ask for the
+/// storage, while a row about what certification may consume asks
+/// `Bounds`.
+fn stored(x: Interval) -> (f64, f64) {
+    let (lo, hi, _) = x.repr_bits();
+    (f64::from_bits(lo), f64::from_bits(hi))
+}
+
 #[test]
 fn interval_classification_tracks_the_global_tolerance() {
     let band = Band::linear().expect("the run's eps is sane, so K*eps cannot overflow");
@@ -82,7 +93,10 @@ fn interval_classification_tracks_the_global_tolerance() {
     // enclosure dipping below zero clamps (plausible bounds!) but must
     // never branch.
     let clamped = Interval::from_bounds(-eps, eps).sqrt();
-    assert!(clamped.lo() >= 0.0, "clamped enclosure looks plausible");
+    assert!(
+        stored(clamped).0 >= 0.0,
+        "clamped enclosure looks plausible in storage"
+    );
     assert_eq!(
         clamped.sign_within(band),
         Err(Indeterminate {

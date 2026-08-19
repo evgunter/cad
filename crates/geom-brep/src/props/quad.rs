@@ -177,7 +177,7 @@ fn cos_step(s: f64) -> RingInterval {
     let s4 = s2.sqr();
     let lo = pt(1.0) - s2 / pt(2.0) + s4 / pt(24.0) - s4 * s2 / pt(720.0);
     let hi = lo + s4.sqr() / pt(40_320.0);
-    RingInterval::from_bounds(lo.lo().max(-1.0), hi.hi().min(1.0))
+    RingInterval::from_bounds(lo.lo(), hi.hi()).clamped_to(-1.0, 1.0)
 }
 
 /// Enclosure of `sin s` for an EXACT step `s`, |s| ≤ 1.5: the degree-9
@@ -196,11 +196,11 @@ fn sin_step(s: f64) -> RingInterval {
     let a7 = a5 * a2;
     let lo = a1 - a3 / pt(6.0) + a5 / pt(120.0) - a7 / pt(5040.0);
     let hi = lo + a7 * a2 / pt(362_880.0);
-    let (l, h) = (lo.lo().max(-1.0), hi.hi().min(1.0));
+    let unit = RingInterval::from_bounds(lo.lo(), hi.hi()).clamped_to(-1.0, 1.0);
     if s >= 0.0 {
-        RingInterval::from_bounds(l, h)
+        unit
     } else {
-        RingInterval::from_bounds(-h, -l)
+        RingInterval::from_bounds(-unit.hi(), -unit.lo())
     }
 }
 
@@ -214,7 +214,7 @@ fn rotate(
     ch: RingInterval,
     sh: RingInterval,
 ) -> (RingInterval, RingInterval) {
-    let clamp = |x: RingInterval| RingInterval::from_bounds(x.lo().max(-1.0), x.hi().min(1.0));
+    let clamp = |x: RingInterval| x.clamped_to(-1.0, 1.0);
     (clamp(c * ch - s * sh), clamp(s * ch + c * sh))
 }
 
@@ -241,7 +241,7 @@ fn trig_at(base: (RingInterval, RingInterval), off: f64) -> (RingInterval, RingI
         k += 1;
     }
     let (mut c, mut s) = (cos_step(seed), sin_step(seed));
-    let clamp = |x: RingInterval| RingInterval::from_bounds(x.lo().max(-1.0), x.hi().min(1.0));
+    let clamp = |x: RingInterval| x.clamped_to(-1.0, 1.0);
     for _ in 0..k {
         // Double angle; `sqr` keeps the squares tight (the
         // interval-square rule).

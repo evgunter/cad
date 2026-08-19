@@ -471,6 +471,16 @@ mod dual_interval {
 
     use super::*;
 
+    /// The endpoints the backend actually STORED, read through the
+    /// identity channel. [`Bounds`] refuses a decoration below `Def` and
+    /// answers NaN, so a row whose subject is a capped-but-plausible
+    /// tangent must ask for the storage; a row about what certification
+    /// may consume asks `Bounds`.
+    fn stored(x: Interval) -> (f64, f64) {
+        let (lo, hi, _) = x.repr_bits();
+        (f64::from_bits(lo), f64::from_bits(hi))
+    }
+
     /// Section 1, interval half: the same generic stackup at
     /// Dual<Interval> over theta-boxes — the deriv enclosure must bracket
     /// the analytic derivative at every theta in the box (away from the
@@ -661,12 +671,10 @@ mod dual_interval {
                     margin: MarginDiag::Invalid,
                     ..
                 })
-            ) && m.deriv.lo() == 5.0
-                && m.deriv.hi() == 5.0,
-            "Trv VALUE must cap the selected tangent's decoration: {:?} [{},{}]",
+            ) && stored(m.deriv) == (5.0, 5.0),
+            "Trv VALUE must cap the selected tangent's decoration: {:?} {:?}",
             m.deriv.sign_within(band),
-            m.deriv.lo(),
-            m.deriv.hi()
+            stored(m.deriv)
         );
     }
 

@@ -166,6 +166,27 @@ impl RingInterval {
         }
     }
 
+    /// The intersection with the window `[lo, hi]` — narrowing an
+    /// enclosure by a fact known independently of the arithmetic that
+    /// produced it (`cos` lies in `[−1, 1]` however the series was
+    /// summed).
+    ///
+    /// **Poison first**, and that is the whole reason this is a method
+    /// rather than the two-line spelling at each call site: `f64::max`
+    /// and `f64::min` return the *non*-NaN operand, so
+    /// `from_bounds(x.lo().max(lo), x.hi().min(hi))` resurrects a
+    /// poisoned enclosure as the window itself — a plausible, sound-
+    /// looking bracket with no argument behind it, which is the
+    /// laundering D4 ¶2 exists to prevent. A poisoned enclosure, a NaN
+    /// window, and a window disjoint from the enclosure all yield
+    /// poison.
+    pub fn clamped_to(self, lo: f64, hi: f64) -> Self {
+        if self.is_poison() || lo.is_nan() || hi.is_nan() {
+            return Self::poison();
+        }
+        Self::from_bounds(self.lo.max(lo), self.hi.min(hi))
+    }
+
     /// The exact zero enclosure `[0, 0]`.
     pub fn zero() -> Self {
         Self { lo: 0.0, hi: 0.0 }

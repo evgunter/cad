@@ -495,8 +495,14 @@ pub trait Real:
 ///
 /// Poison surfaces honestly rather than narrowing: a poisoned `f64` yields
 /// NaN from both accessors, and the interval scalar yields NaN from both
-/// accessors for **both** the ill-formed interval (NaI) and the empty one.
-/// Empty and NaI are deliberately indistinguishable through this trait:
+/// accessors for every shape its poison takes — the ill-formed interval
+/// (NaI), the empty one, and a *clamped* enclosure whose endpoints are
+/// finite but whose decoration records that the computation left its
+/// domain. The last is the one an implementor can get wrong by forwarding
+/// stored endpoints: the bracket is the only channel a consumer has, so
+/// what the accessors do not refuse cannot be refused anywhere
+/// downstream. Empty and NaI are deliberately indistinguishable through
+/// this trait:
 /// IEEE 1788's canonical empty pair (+∞, −∞) would let `hi() ≤ ε` PASS for
 /// a poisoned-to-empty residual, and failing certification outranks
 /// representational honesty. A NaN bracket fails every downstream
@@ -551,7 +557,10 @@ impl Bounds for f64 {
 /// Identical to [`Bounds`]: `[lo(), hi()]` brackets every real number the
 /// value stands for, and **poison surfaces as NaN from both accessors**
 /// rather than narrowing — a NaN bracket fails every `residual <= eps`
-/// check loudly (D4 ¶2). Implementors owe that convention.
+/// check loudly (D4 ¶2). Implementors owe that convention, including for
+/// poison their storage does not make visible: an enclosure carrying a
+/// domain violation in a side channel must refuse here even when its
+/// endpoints are finite.
 ///
 /// # Style note (method-name shadowing)
 ///
