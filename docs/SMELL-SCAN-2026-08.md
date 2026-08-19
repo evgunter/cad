@@ -1463,8 +1463,10 @@ The bodies: every mirrored gate lives once under `scripts/gates/`, ci.yml's
 the ratified justifications have one home. The rosters: sharing the bodies
 would have left each half still naming its own gate list — the same defect one
 level up, and the one that let `EvalScalar` and the interval-square gate run
-hosted-only — so `gate-roster.sh` derives the roster from the directory and
-fails if the two halves run different sets, in either direction. Each gate also
+hosted-only — so the local half now runs the gate DIRECTORY in a loop, leaving
+it no roster to drift, and `gate-roster.sh` checks the one hand-written roster
+that has to exist (ci.yml's named steps, since the Actions UI reads failures by
+step name) against that same directory, in both directions. Each gate also
 carries a `--selftest` (clean fixture must pass, planted violation must fire)
 which **both halves invoke before the real pass**, as the sibling python gate
 does; that settles the "only one of six has a self-test" residue, which a
@@ -3277,7 +3279,7 @@ Good work for filling parallel capacity. None blocks anything.
 
 | # | Item | Effort |
 |---|---|---|
-| **H1** ✅ #626 | **ci-local mirror parity** — **FIXED by #626**, extracted rather than synced (Evan, 2026-08-19). The eight mirrored gates of ci.yml's `discipline` job live once under `scripts/gates/`; both halves call the same script, ci.yml keeps one step per gate under today's names, and the ratified allowlist prose has one home. A ninth gate, `gate-roster.sh`, closes the level above: it derives the roster from the directory and fails if the two halves run different sets, so the hand-written step list cannot drift either. Every gate runs a `--selftest` in both halves and fails loudly rather than passing green on a tree it could not scan. The `EvalScalar` and interval-square `powi(2)` gates now run locally too. Allowlist membership unchanged; the prose drift and the one disclosed behaviour fix are recorded in the PR. | S |
+| **H1** ✅ #626 | **ci-local mirror parity** — **FIXED by #626**, extracted rather than synced (Evan, 2026-08-19). The eight mirrored gates of ci.yml's `discipline` job live once under `scripts/gates/`; both halves call the same script, ci.yml keeps one step per gate under today's names, and the ratified allowlist prose has one home. A ninth gate, `gate-roster.sh`, closes the level above: `ci-local.sh` runs the gate directory in a loop so it keeps no roster at all, and the gate checks ci.yml's named steps — the one roster that must be hand-written — against that directory, requiring a real invocation rather than a mention. Every gate runs a `--selftest` in both halves and fails loudly rather than passing green on a tree it could not scan. The `EvalScalar` and interval-square `powi(2)` gates now run locally too. Allowlist membership unchanged; the prose drift and the one disclosed behaviour fix are recorded in the PR. | S |
 | **H2** | **S39 stale claims** — nine rows, each classified **benign rot** vs **lost invariant** *before* its sentence is touched. `enters.rs:14` is the (ii) candidate: the outward-normal property was devolved onto every caller with no type enforcing it. | M |
 | **H3** | **S40 residue** — start with the two that are not cosmetic: `emit_topo.rs:1266`'s unreachable fallback would mint `Seam{ae, ae}`, a well-formed name for the wrong thing; `seqgen.rs:853`'s discarded counter means the property suite cannot tell an all-skipped run from a full one. | S |
 | **H4** | **S37** — shipped-artifact naming: the STL header's `cad-kernel-m2`, `UnsupportedCurve.note`'s runtime-visible PR number, ~124 internal spec codes in public rustdoc and the Python stub. Evan: *"can be fixed earlier"* than S36. | S–M |

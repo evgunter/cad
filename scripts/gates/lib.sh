@@ -103,20 +103,11 @@ gate_plant_clean() {
   printf 'pub fn identity(x: f64) -> f64 { x }\n' > "$1/crates/clean/src/lib.rs"
 }
 
-# gate_selftest WANT PLANTER [ARGS...] — two fixtures, both required:
-#
-#  NEGATIVE CONTROL: the clean fixture must PASS. Without it a positive
-#  result proves nothing — a gate that fires on everything would pass a
-#  plant-only self-test.
-#  POSITIVE: the same fixture plus one planted violation must FAIL with
-#  a message containing WANT.
-#
-# The gate body is unparameterised apart from its root, so both cases
-# exercise the real regex, the real allowlist, and the scan-target guard.
-gate_selftest() {
-  local want=$1; shift
+# gate_selftest_clean — the NEGATIVE CONTROL. Without it a positive
+# result proves nothing: a gate that fires on everything would pass a
+# plant-only self-test.
+gate_selftest_clean() {
   local tmp out
-
   tmp=$(mktemp -d)
   gate_plant_clean "$tmp"
   if ! out=$(cd "$tmp" && gate 2>&1); then
@@ -125,21 +116,37 @@ gate_selftest() {
     exit 1
   fi
   rm -rf "$tmp"
+}
 
+# gate_selftest_case WANT PLANTER [ARGS...] — one positive case: the
+# clean fixture plus whatever PLANTER writes must FAIL with a message
+# containing WANT. The gate body is unparameterised apart from its root,
+# so every case exercises the real matcher and the scan-target guard.
+gate_selftest_case() {
+  local want=$1; shift
+  local tmp out
   tmp=$(mktemp -d)
   gate_plant_clean "$tmp"
   "$@" "$tmp"
   if out=$(cd "$tmp" && gate 2>&1); then
     rm -rf "$tmp"
-    printf 'SELFTEST FAILED: the gate PASSED on a planted violation\n%s\n' "$out" >&2
+    printf 'SELFTEST FAILED: the gate PASSED on a planted violation (%s)\n%s\n' "$1" "$out" >&2
     exit 1
   fi
   rm -rf "$tmp"
   case "$out" in
     *"$want"*) ;;
-    *) printf 'SELFTEST FAILED: the gate fired with an unexpected message:\n%s\n' "$out" >&2
+    *) printf 'SELFTEST FAILED (%s): the gate fired with an unexpected message:\n%s\n' "$1" "$out" >&2
        exit 1 ;;
   esac
+}
+
+# The default self-test: one clean fixture, one planted violation. A
+# gate with more than one known evasion overrides this and calls
+# gate_selftest_case once per case.
+gate_selftest() {
+  gate_selftest_clean
+  gate_selftest_case "$@"
   printf '%s selftest OK: passes a clean fixture, fires on a planted violation\n' "$(gate_name)"
 }
 

@@ -169,41 +169,25 @@ run_row_if() {
 }
 
 # --- discipline (evaluation-code): the mirrored tripwire gates ---
-# EVERY gate below has exactly ONE home, under scripts/gates/, and
-# ci.yml's `discipline` job runs the SAME scripts — one step per gate,
-# same step names. The ratified allowlist prose lives WITH each gate;
-# read the script before touching a membership.
+# EVERY gate has exactly ONE home, under scripts/gates/, and this
+# function runs the WHOLE DIRECTORY — so there is no local roster to
+# drift, and adding a gate here takes nothing but dropping the file in.
+# ci.yml cannot do the same (the Actions UI reads failures by step name,
+# so each gate needs its own named step), which leaves exactly one
+# hand-written roster in the repo; `gate-roster.sh` is the gate that
+# checks it against this directory. The ratified allowlist prose lives
+# WITH each gate — read the script before touching a membership.
 #
-# The list itself is checked, not trusted: `gate-roster.sh` derives the
-# roster from scripts/gates/ and fails if this function and ci.yml run
-# different sets. That is deliberate — sharing the gate BODIES still
-# left each half naming its own gates, which is the same defect one
-# level up (`EvalScalar` and the interval-square gate ran hosted-only
-# for months). Adding a gate means dropping a file in scripts/gates/ and
-# wiring it into BOTH halves; the roster gate fails until you do.
-#
-# Each gate runs its `--selftest` first, as the sibling python gates do:
-# a guard that has never been shown to fire is not a guard.
+# `lib.sh` is sourced, not run, and is mode 0644: the -x test skips it.
+# Each gate runs its `--selftest` first, as the sibling python gate
+# does — a guard that has never been shown to fire is not a guard.
 discipline() {
-  local rc=0
-  scripts/gates/gate-roster.sh --selftest || rc=1
-  scripts/gates/gate-roster.sh || rc=1
-  scripts/gates/no-extra-real-bounds.sh --selftest || rc=1
-  scripts/gates/no-extra-real-bounds.sh || rc=1
-  scripts/gates/bounds-allowlist.sh --selftest || rc=1
-  scripts/gates/bounds-allowlist.sh || rc=1
-  scripts/gates/evalscalar-allowlist.sh --selftest || rc=1
-  scripts/gates/evalscalar-allowlist.sh || rc=1
-  scripts/gates/bit-identity-consumer.sh --selftest || rc=1
-  scripts/gates/bit-identity-consumer.sh || rc=1
-  scripts/gates/bit-identity-debug-only.sh --selftest || rc=1
-  scripts/gates/bit-identity-debug-only.sh || rc=1
-  scripts/gates/bit-identity-punning.sh --selftest || rc=1
-  scripts/gates/bit-identity-punning.sh || rc=1
-  scripts/gates/no-ambient-env.sh --selftest || rc=1
-  scripts/gates/no-ambient-env.sh || rc=1
-  scripts/gates/interval-square-allowlist.sh --selftest || rc=1
-  scripts/gates/interval-square-allowlist.sh || rc=1
+  local rc=0 g
+  for g in scripts/gates/*.sh; do
+    [ -x "$g" ] || continue
+    "$g" --selftest || rc=1
+    "$g" || rc=1
+  done
   # Test-aggregation discipline: one [[test]] target per crate. Mirrors
   # ci.yml's step of the same name, calling the SAME script — see its
   # header for why this is a gate (per-test-binary codegen+link was 96%

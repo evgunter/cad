@@ -308,7 +308,9 @@ opt-level knob. The knobs this table is about are `ci.yml:514-515`
 `build-interval` only, keep the debuginfo knobs, keep opt-2 on `build`,
 and rewrite the now-false rationale comment. D9-safe by the repo's own
 ratified reasoning (`ci.yml:405-408`, `ci.yml:1015-1017`: "the D9
-bit-exactness pins hold at any opt level — opt never moves rounding").
+bit-exactness pins hold at any opt level — opt never moves rounding" —
+both renumbered by #626, and both already misaimed: the quoted sentence
+is at `ci.yml:1141-1142`, in neither range).
 Effort S.
 
 **Estimated:** `build-interval` 569 s → ~170 s; **−6.7 min billed per
@@ -612,7 +614,9 @@ Effort M (refcounts) / S (the allocation).
 
 #### 10. CI: shard the default archive build
 
-`ci.yml:341-478`. 19 test binaries at ~20 s each of codegen+link, fully
+`ci.yml:341-478` — renumbered by #626, and already misaimed: that span
+is the `discipline` job, while the `build` job this item is about is
+`ci.yml:431-572`. 19 test binaries at ~20 s each of codegen+link, fully
 independent, executing on a 2-vCPU runner. `ci.yml:96-106` establishes
 that 8-vCPU runners are not landable (`evgunter/cad` is User-owned;
 larger runners need an org), so more cores can only come from more

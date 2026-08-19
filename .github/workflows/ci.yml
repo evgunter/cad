@@ -254,13 +254,15 @@ jobs:
       # scripts/gates/lib.sh says why they cannot live under
       # local-scripts/ (this job deletes that tree).
       #
-      # The hand-written list of steps below is itself checked: the
-      # roster gate derives the roster from scripts/gates/ and fails if
-      # either half runs a different set, so a gate added to one half
-      # and forgotten in the other cannot ride. Each step runs the
-      # gate's `--selftest` first — a guard that has never been shown to
-      # fire is not a guard.
-      - name: gate roster parity (both halves run the same set)
+      # This job is the ONLY hand-written gate roster in the repo, and
+      # it is checked rather than trusted: local-scripts/ci-local.sh
+      # runs scripts/gates/ in a loop, so it has no list to drift, and
+      # the roster gate below fails unless ci.yml names a step for every
+      # gate in that directory. A gate added to the directory and
+      # forgotten here cannot ride. Each step runs the gate's
+      # `--selftest` first — a guard that has never been shown to fire
+      # is not a guard, and the roster gate enforces that too.
+      - name: gate roster parity (ci.yml names every gate)
         run: |
           scripts/gates/gate-roster.sh --selftest
           scripts/gates/gate-roster.sh
