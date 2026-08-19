@@ -27,6 +27,18 @@
 # is on the resolved PACKAGE NAME of every entry in every dependency
 # table, `target.*` included.
 #
+# KNOWN GAPS, left open deliberately so a bypass hunt starts here rather
+# than from scratch:
+#  - the matcher is `serde` or a `serde_`-prefixed name, so a HYPHENATED
+#    serde-family crate under a `package =` rename (`serde-value`,
+#    `erased-serde`) passes. Not widened, because none of them can supply
+#    `#[derive(Serialize)]` without serde itself — the rule this gate
+#    exists to protect stays unbreakable.
+#  - only `crates/*/Cargo.toml` is read, so a manifest nested deeper is
+#    unscanned. Consistent rather than silently zero: the scan-target
+#    guard counts at the same depth, so a workspace that moved its
+#    crates fails the guard instead of reporting a hollow OK.
+#
 # WHAT THIS DOES NOT PROVE: that no kernel TYPE is persisted. Types
 # defined in the kernel are persisted every day — the document layer
 # describes their bytes itself, in `#[serde(with)]` modules that live
