@@ -4316,17 +4316,34 @@ reach. The gate puts one definition where both sides can name it.
 
 **Verdict:** RULED (Evan, 2026-08-19): **kernel crates may carry their own
 test support, gated so it does not show up in release builds.** Executed by
-#668 for `topo` and `sweep` — and the class is **not** gone. #668 collapsed
-the one copy that was field-for-field identical to `ArenaCounts`; what
-survives is filed as **#672** rather than left as the word "unscheduled":
-two spellings of the arena census inside `topo` alone (`ArenaCounts`, 7
-topology arenas, against `src/fixtures.rs:104`'s `ArenaSnapshot`, 10 — the
-same seven, same order, **plus** points/curves/surfaces, so a strict
-superset; this is the PR that consolidated the census), four more `Census` structs
-in `crates/topo/tests/` with genuinely drifted field sets (4, 3, 7-with-`rings`,
-8-with-`shell_refs`), byte-identical `brick` fixtures in `crates/stl/tests/`,
-and local body builders in `crates/mesh/tests/`, `crates/step-export/tests/`
-and `crates/editor-core/tests/`. Per Q6 that is disclosure, not a schedule.
+#668 for `topo` and `sweep`, whose residue was filed as **#672** rather than
+left as the word "unscheduled" (Q6: disclosure is not a schedule).
+
+**#672's `topo`/`stl` half is closed; two rows of it are not.** Closed:
+`src/fixtures.rs`'s `ArenaSnapshot` no longer restates the seven — it
+**holds** an `ArenaCounts` beside the three geometry-arena lengths, so the
+crate has one topology census with one producer, `Body::arena_counts()`,
+which the D1 debug postcondition already cross-checks against each
+operator's declared `ArenaDelta`. `crates/topo/tests/m3_pr4_boolean.rs`'s
+3-field `Census` is gone: its only use was the "operands untouched" check,
+which now runs over all seven arenas rather than a three-component sample of
+them — a deliberate **strengthening**, not a rewrite. The other three
+`tests/` copies are **not** the arena vocabulary and keep distinct types
+that now say so: `SideCensus` (`m3_pr3_split.rs`) is a four-arena projection
+whose six expectations are hand-derived for exactly those four;
+`EulerCensus`/`EulerCensusDelta` (`review_m3_pr1.rs`) carries `rings`, the
+`r` of `v − e + f − r`, which is summed over faces and is no arena length;
+`GraftCensus` (`graft_disjoint.rs`) carries `shell_refs`, summed over
+solids, likewise. Four identically-named types for four different quantities
+was itself the drift. `crates/stl/tests/`'s two byte-identical `brick`
+fixtures now share `tests/common`, which is the routing rule's default home:
+nothing in the `stl` library names `brick`, so no crate-level facility is
+warranted.
+
+Still open under #672: `crates/sweep/tests/m6_surgery_interval.rs`'s `cube`,
+which needs `cube<T: Real>(l: T) -> Body<T>` — a generalization, not a
+deduplication — and the local body builders in `crates/mesh/tests/`,
+`crates/step-export/tests/` and `crates/editor-core/tests/`.
 
 ## S53. Two `Ledger`s in one crate, with drifted field sets
 
