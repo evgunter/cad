@@ -13,7 +13,10 @@
 //! sectors[k+1].end` — the shared-bound chain the reclassification
 //! neighbor propagation walks. Wide (≥ 180°) sectors are convexly
 //! subdivided at an interior direction (PR 2's derivation: the cone
-//! argument needs < 180°), pushed as two chained entries.
+//! argument needs < 180°), pushed as two chained entries. The arm /
+//! wideness / subdivision-direction rungs themselves are
+//! [`crate::sector_shape`] — one implementation, shared with the
+//! splitting lane, called here under this lane's K names.
 //!
 //! # Side codes (the F3 chain — the 15.7 sign resolution)
 //!
@@ -44,6 +47,7 @@ use super::reduce::face_plane;
 use super::{BooleanError, Operand, SideCode};
 use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey, VertexKey};
+use crate::sector_shape::{BOOL_SECTOR_PREDICATES, SectorShape, sector_shape};
 use crate::validate::decide;
 
 /// One (convex) sector of a vertex neighborhood.
@@ -143,37 +147,30 @@ pub(super) fn build_sectors<T: Decide>(
         let dir_end = chord(he)?; // this entry's own chord = CCW-last
         let dir_start = chord(next_he)?; // next chord = CCW-first
         let (face, normal) = sector_face(body, operand, vertex, he)?;
-        let arm = dir_end.norm().min(dir_start.norm());
-        match decide("bool_sector_arm", Margin::of(arm), band) {
-            Ok(Sign::Positive) => {}
-            Ok(_) => return Err(invalid_escalation(band, "bool_sector_arm")),
-            Err(diag) => return Err(BooleanError::Escalated { diag }),
-        }
-        let (u_end, u_start) = (dir_end.normalize(), dir_start.normalize());
-        // Wideness (PR 2's derivation): sin θ = (start × end)·n metered
-        // at the arm; positive ⇒ convex; negative ⇒ reflex; zero-band ⇒
-        // disambiguate by cosine. Sense-invariant as written: the
-        // bounds come from the STORED orbit order, which `revert`
-        // reverses in the same breath as it flips the sense bit, so
-        // both factors change sign and the product does not — applying
-        // `sense_sign` here on top of `sector_face`'s would
+        // The three sector-shape rungs — metering arm, wideness, and
+        // the subdivision direction (PR 2's derivation: the cone
+        // argument needs < 180°) — are [`crate::sector_shape`], shared
+        // verbatim with the splitting lane's neighborhood walk under
+        // THIS lane's K names (smell scan S5). Sense-invariant as
+        // called: the bounds come from the STORED orbit order, which
+        // `revert` reverses in the same breath as it flips the sense
+        // bit, so both factors change sign and the product does not —
+        // applying `sense_sign` here on top of [`sector_face`]'s would
         // double-count and read every convex corner as reflex.
-        let reflex_margin = Margin::levered(u_start.cross(u_end).dot(normal), arm);
-        let bisec = match decide("bool_sector_reflex", reflex_margin, band) {
-            Ok(Sign::Positive) => None,
-            Ok(Sign::Negative) => Some(-((u_start + u_end).normalize())),
-            Ok(Sign::Zero) | Err(_) => {
-                let straight_margin = Margin::levered(u_start.dot(u_end), arm);
-                match decide("bool_sector_straight", straight_margin, band) {
-                    Ok(Sign::Negative) => Some(normal.cross(u_start)),
-                    Ok(Sign::Positive | Sign::Zero) if he == next_he => Some(normal.cross(u_start)),
-                    Ok(Sign::Positive | Sign::Zero) => {
-                        return Err(invalid_escalation(band, "bool_sector_straight"));
-                    }
-                    Err(diag) => return Err(BooleanError::Escalated { diag }),
-                }
-            }
-        };
+        let SectorShape {
+            arm,
+            unit_own: u_end,
+            unit_next: u_start,
+            bisector: bisec,
+        } = sector_shape(
+            dir_end,
+            dir_start,
+            normal,
+            he == next_he,
+            BOOL_SECTOR_PREDICATES,
+            band,
+        )
+        .map_err(|diag| BooleanError::Escalated { diag })?;
         match bisec {
             None => sectors.push(BoolSector {
                 he,

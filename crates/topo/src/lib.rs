@@ -164,6 +164,10 @@ mod review_m1_pr3;
 mod review_m1_pr4;
 #[cfg(test)]
 mod review_m1_pr5_internal;
+/// The shared vertex-neighborhood sector-shape predicates — a
+/// top-level sibling of `boolean/` and `splitting/` on purpose:
+/// both lanes ask this question, so neither hosts it (S5).
+pub(crate) mod sector_shape;
 pub mod separation;
 #[cfg(test)]
 pub(crate) mod seqgen;
