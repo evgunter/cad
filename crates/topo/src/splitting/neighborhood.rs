@@ -78,9 +78,10 @@ use crate::validate::decide;
 /// `enters_material` call, the sector-shape rungs (since S5 part 1 they
 /// are [`crate::sector_shape`], called below rather than written below),
 /// and the departure trileans all consume this value and are
-/// sense-invariant GIVEN it — they pair it with the STORED orbit order, which `revert`
-/// reverses together with the sense bit, so a second `sense_sign`
-/// factor at any of those sites would cancel this one.
+/// sense-invariant GIVEN it — they pair it with the STORED orbit
+/// order, which `revert` reverses together with the sense bit, so a
+/// second `sense_sign` factor at any of those sites would cancel this
+/// one.
 pub(super) fn sector_face<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,

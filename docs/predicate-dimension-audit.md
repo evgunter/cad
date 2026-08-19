@@ -215,7 +215,7 @@ all stored surface axes/normals/`u_ref` unit; `implicit_residual` is
 | splitting/classify.rs:81–286 | split_vertex_side / conic lane | plane residual; rooted amplitude; (rad)×minor semi-axis | m | OK |
 | splitting/containment.rs:179/192/219/233 | point_in_loop boundary/side/advance | distances; m²/m advance | m | OK |
 | splitting/containment.rs:203 | point_in_loop_arm | sin(member, plane normal) × loop extent (the member's in-plane fraction) | m | FIXED (was dimensionless schedule norm) |
-| splitting/neighborhood.rs:227–308 | split_conic_departure / split_bisector_side | tangent×extent projections; bisector·n̂ × arm | m | OK |
+| splitting/neighborhood.rs:228–309 | split_conic_departure / split_bisector_side | tangent×extent projections; bisector·n̂ × arm | m | OK |
 | splitting/order.rs:73 | split_join_frame_arm | sin(member, plane normal) × points' spread (the member's in-plane fraction) | m | FIXED (was dimensionless schedule norm) |
 | splitting/order.rs:111 | split_join_order_u/v | coordinate difference (m) vs the EXACT bit-level band (deliberate total-order device, documented) | m | OK (note N6) |
 | splitting/rules.rs:130/149/197 | split_sector_extent / coplanar / enters arm | extent; sin×extent | m | OK |

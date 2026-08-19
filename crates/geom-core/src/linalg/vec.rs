@@ -161,12 +161,12 @@ impl<T: Real> Vec3<T> {
     /// Which scalars those are, stated rather than assumed: `f64` (IEEE
     /// `*` and `+` commute at every finite input, ±0 included; NaN
     /// payload propagation is unspecified) and the `f64`-carrier
-    /// scalars over it, such as `k_stats::Probe`. `dot_symmetry_bit_
-    /// exact` below pins it there, sampling `1.0e-3..1.0e3` — so 0, −0,
-    /// inf and subnormals are covered by the argument, not by the
-    /// proptest. It is **not** pinned for `Interval`, whose `Mul`/`Add`
-    /// delegate to the enclosure backend: expected to hold, asserted
-    /// nowhere in-tree. A caller relying on bit equality at an
+    /// scalars over it, such as `k_stats::Probe`. The
+    /// `dot_symmetry_bit_exact` proptest below pins it there, sampling
+    /// `1.0e-3..1.0e3` — so 0, −0, inf and subnormals are covered by
+    /// the argument, not by the proptest. It is **not** pinned for
+    /// `Interval`, whose `Mul`/`Add` delegate to the enclosure backend:
+    /// expected to hold, asserted nowhere in-tree. A caller relying on bit equality at an
     /// enclosure scalar owes that assertion.
     pub fn dot(self, rhs: Self) -> T {
         self.x * rhs.x + self.y * rhs.y + self.z * rhs.z
