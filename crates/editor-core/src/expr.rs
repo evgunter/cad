@@ -114,6 +114,12 @@ pub enum DimensionError {
     /// A persisted display-unit symbol outside quantity's closed table
     /// (the load door's strict-vocabulary refusal; the wire form stores
     /// the symbol as text).
+    ///
+    /// Raised at exactly one place — `persist::wire`'s rebuild, where
+    /// the symbol arrives as a STRING out of a file and
+    /// `quantity::unit_by_symbol` can genuinely fail. Construction
+    /// cannot raise it: since #650 sealed `quantity::UnitDef`, every
+    /// row a caller can hold is a table row.
     UnknownDisplayUnit {
         /// The unrecognized symbol.
         symbol: String,
@@ -186,20 +192,29 @@ pub struct Expr {
 /// `size_of::<Lit>()` assertion below.)
 ///
 /// The identity is the row's POSITION in [`quantity::UNITS`], not a
-/// second spelling of the six units: no unit symbol is written
+/// second spelling of the six units: no unit symbol is written as CODE
 /// anywhere in this crate's `src`, and both directions here go
 /// through the table, so there is no mirror to hand-sync.
 ///
 /// What that buys, exactly — the promise is narrower than "no edit
-/// anywhere", and this crate's own tests say so. A unit **reordered**
-/// in `quantity` reaches editor-core with no edit at all: nothing
-/// here, in `src` or in the suites, holds an opinion about the order.
-/// (It is not silent either — `quantity`'s own suite pins the six
-/// symbols IN ORDER, deliberately, so a reorder is a decision taken
-/// there rather than a surprise here.) A unit **added** or
-/// **renamed** needs no edit to this crate's `src`, but
-/// `tests/u8a_parse.rs` still enumerates the six symbols by hand in
-/// two proptest generators, so those go red and want an edit.
+/// anywhere", and this crate's own tests say so. Re-checked against the
+/// suites as they stand:
+///
+/// * **Reordered** in `quantity`: no edit at all, in `src` or in the
+///   suites. Nothing here holds an opinion about the order —
+///   `switch_display_units.rs`'s wire golden deliberately compares
+///   membership as a SET so that stays true. (It is not silent either:
+///   `quantity`'s own suite pins the six symbols IN ORDER, so a reorder
+///   is a decision taken there rather than a surprise here.)
+/// * **Added**: no edit to `src`. In the suites,
+///   `switch_display_units.rs`'s wire golden goes red — deliberately,
+///   so a new unit cannot land unpinned. `tests/u8a_parse.rs`'s two
+///   proptest generators enumerate the six symbols by hand and do NOT
+///   go red; they silently under-cover, so they want an edit that
+///   nothing announces.
+/// * **Renamed**: no edit to `src`. `u8a_parse.rs`'s generators go red
+///   (the old symbol stops parsing), and so do
+///   `switch_display_units.rs`'s golden and its `table_row` fixtures.
 ///
 /// The index carries **no compatibility contract**: it is never
 /// persisted (the wire stores the SYMBOL — `persist::wire`), never
@@ -211,9 +226,9 @@ pub(crate) struct UnitSym(u8);
 // The code is one byte, so the table it indexes must fit in one. Six
 // rows today; a table that grew past 255 rows fails the BUILD here.
 // Nothing would truncate without it — `from_def`'s `u8::try_from`
-// refuses — but that refusal would be the wrong answer: a symbol that
-// IS in the table, reported to the user as an unknown unit. Failing
-// the build is the only answer that is not fail-quiet.
+// refuses — but that refusal is an `unreachable!`, i.e. a crash rather
+// than a wrong answer. Failing the BUILD is the only answer that is
+// neither.
 const _: () = assert!(
     quantity::UNITS.len() <= u8::MAX as usize,
     "the display-unit code is one byte: this table has outgrown its code space"
@@ -240,53 +255,49 @@ impl UnitSym {
         *row
     }
 
-    /// The code for a table row, by symbol — `None` for a `UnitDef`
-    /// outside the closed table (refused by the caller as an unknown
-    /// unit; the vocabulary stays closed). Symbol-keyed, exactly as
-    /// [`quantity::unit_by_symbol`] and the wire door are.
+    /// The code for a table row, by symbol — TOTAL, exactly as
+    /// [`Self::def`] is total in the other direction.
     ///
     /// **Symbol-keyed is sufficient because the symbol DETERMINES the
-    /// row (issue #650, closed structurally).** [`quantity::UnitDef`]
-    /// is sealed: private fields, no public constructor, and the
-    /// `LengthUnit::def` / `AngleUnit::def` mints that build
-    /// [`quantity::UNITS`] are `pub(crate)` to `quantity`. Every
-    /// `UnitDef` a caller can hold is therefore a COPY OF A TABLE ROW,
-    /// so matching on `symbol` alone selects the row the caller
-    /// already had — there is nothing else in it to disagree with.
+    /// row (issue #650, closed structurally).** Every `UnitDef` a
+    /// caller can hold is a COPY OF A TABLE ROW — the seal, and why no
+    /// whole-row re-check was added here, are stated once on
+    /// [`quantity::UnitDef`]'s rustdoc. So matching on `symbol` alone
+    /// selects the row the caller already had, and it always finds one.
     ///
-    /// Before the seal this was a live defect: `UnitDef { symbol:
-    /// "mm", quantity: Angle, .. }` was constructible from outside,
-    /// [`Expr::literal_with_unit`] checked `dim` against the CALLER's
-    /// `quantity` and then threw that row away for the table's,
-    /// producing an `Expr` that serialized into a document this
-    /// crate's own load door refused (`DisplayUnitMismatch`) — a
-    /// round-trip break. The row is now unrepresentable rather than
-    /// refused, which is why no whole-row re-check was added here: a
-    /// check for a state the type system excludes is dead code
-    /// pretending to be a guard.
+    /// Both impossible branches take D2 addendum row 4, the same answer
+    /// [`Self::def`] takes for its unconstructable index: a check for a
+    /// state the type system excludes is dead code pretending to be a
+    /// guard, so the state is announced as a kernel bug rather than
+    /// carried as a typed refusal a caller could believe in.
     ///
-    /// The `None` arm survives, and is reachable ONLY through
-    /// `quantity`'s `units-testing` mint (`UnitDef::mint_untabled`,
-    /// `#[doc(hidden)]`, dev-dependencies only) — it is the door that
-    /// keeps the closed vocabulary closed, and
-    /// `switch_display_units.rs`'s off-table rows are the reason it is
-    /// not dead. From production surface it cannot fire: that is the
-    /// seal working, not the branch being pointless.
-    fn from_def(u: &quantity::UnitDef) -> Option<Self> {
-        let i = quantity::UNITS
+    /// [`DimensionError::UnknownDisplayUnit`] is NOT dead — it is
+    /// raised by `persist::wire`, where a display-unit SYMBOL arrives
+    /// as a string out of a file and `quantity::unit_by_symbol` really
+    /// can fail. That is the one reachable, input-driven off-table
+    /// case, and it keeps its typed refusal (D2 addendum row 1). What
+    /// went away is the CONSTRUCTION site of that variant, which could
+    /// only fire for a `UnitDef` no caller can build.
+    fn from_def(u: &quantity::UnitDef) -> Self {
+        let Some(i) = quantity::UNITS
             .iter()
-            .position(|row| row.symbol() == u.symbol())?;
+            .position(|row| row.symbol() == u.symbol())
+        else {
+            unreachable!(
+                "display unit {:?} is not a row of quantity::UNITS ({} rows), yet UnitDef is \
+                 sealed and every row a caller can hold is a copy of one",
+                u.symbol(),
+                quantity::UNITS.len()
+            )
+        };
         // The const assertion above bounds the table at 255 rows, so
-        // this conversion cannot refuse. If it ever did, the `None`
-        // would leave `from_def` reporting a symbol that IS in the
-        // table as an unknown unit — a fail-quiet mis-refusal the D2
-        // addendum rules out. Row 4: announce it.
+        // this conversion cannot refuse either — same row 4.
         let Ok(code) = u8::try_from(i) else {
             unreachable!(
                 "quantity::UNITS is pinned to at most u8::MAX rows, yet row {i} has no one-byte code"
             )
         };
-        Some(Self(code))
+        Self(code)
     }
 }
 
@@ -462,10 +473,9 @@ impl Expr {
                 literal: dim,
             });
         }
-        // The closed-vocabulary door: only table rows have codes.
-        let sym = UnitSym::from_def(&unit).ok_or_else(|| DimensionError::UnknownDisplayUnit {
-            symbol: unit.symbol().to_string(),
-        })?;
+        // Total since the #650 seal: a `UnitDef` is a table row, so
+        // it has a code (see `UnitSym::from_def`).
+        let sym = UnitSym::from_def(&unit);
         // Run literal()'s refusal doors, then attach the unit.
         let mut e = Self::literal(value, dim)?;
         if let ExprKind::Literal(ref mut lit) = e.kind {

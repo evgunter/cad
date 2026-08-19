@@ -21,6 +21,14 @@ fn table_row(symbol: &str) -> quantity::UnitDef {
     quantity::unit_by_symbol(symbol).unwrap_or_else(|| panic!("{symbol} is a table row"))
 }
 
+/// The literal dimension a table row's quantity implies.
+fn dim_of(row: quantity::UnitDef) -> Dimension {
+    match row.quantity() {
+        quantity::UnitQuantity::Length => Dimension::Length,
+        quantity::UnitQuantity::Angle => Dimension::Angle,
+    }
+}
+
 /// The §4g acceptance ladder, end to end on one literal.
 #[test]
 fn twenty_five_mm_round_trips_value_and_unit() {
@@ -126,6 +134,54 @@ fn wire_door_refuses_unknown_units_and_omits_absent_ones() {
     assert_eq!(back.display_unit(), None);
 }
 
+/// **The LOAD door refuses a TABLED symbol carried on the wrong
+/// dimension** — `{"dim":"Angle","unit":"mm"}`, a pairing no row of the
+/// table exists for.
+///
+/// Since #650 sealed `quantity::UnitDef` this is the
+/// production-realistic route to a corrupt document: no caller can
+/// build the mismatched row any more, but a hand-edited or
+/// externally-produced `.cad` file can still carry the pairing, and
+/// this is the door that has to refuse it — the "file they cannot
+/// open" #650 described, arriving from the only direction still open.
+///
+/// Its sibling above covers the unknown-SYMBOL arm and
+/// `a_display_unit_is_accepted_exactly_on_its_own_dimension` covers the
+/// CONSTRUCTOR arm. Neither reaches this one, which is exactly the
+/// shape #646 and #650 both recorded as the reason the original defect
+/// hid: the refusal reads as covered because a DIFFERENT construction
+/// site is covered.
+#[test]
+fn wire_door_refuses_a_tabled_unit_on_the_wrong_dimension() {
+    for (json, unit_dim, literal_dim) in [
+        (
+            r#"{"Literal":{"value":0.5,"dim":"Angle","unit":"mm"}}"#,
+            "Length",
+            "Angle",
+        ),
+        (
+            r#"{"Literal":{"value":0.5,"dim":"Length","unit":"deg"}}"#,
+            "Angle",
+            "Length",
+        ),
+        (
+            r#"{"Literal":{"value":0.5,"dim":"Scalar","unit":"mm"}}"#,
+            "Length",
+            "Scalar",
+        ),
+    ] {
+        let err = serde_json::from_str::<Expr>(json)
+            .expect_err("a tabled unit on the wrong dimension must refuse");
+        let text = err.to_string();
+        assert!(
+            text.contains("DisplayUnitMismatch")
+                && text.contains(&format!("unit: {unit_dim}"))
+                && text.contains(&format!("literal: {literal_dim}")),
+            "the refusal must name the pair it read, got {text}"
+        );
+    }
+}
+
 /// A unit-bearing literal inside a COMPOUND expression keeps its unit
 /// through the wire, and the compound's identity stays display-blind.
 #[test]
@@ -146,37 +202,34 @@ fn units_survive_inside_compound_expressions() {
     assert!(a.bit_eq(&twin));
 }
 
-/// **The display-unit vocabulary IS `quantity::UNITS`** — the row that
-/// goes red if editor-core ever holds a second opinion about it.
+/// **The display-unit vocabulary IS `quantity::UNITS`** — one loop over
+/// the table carrying every row through every door that touches the
+/// display unit: construction (`literal_with_unit`), the read-back
+/// accessor, the text parser, and the wire in both directions AND as
+/// exact bytes.
 ///
-/// The loop is over the TABLE, not over a hand-written list of
-/// symbols, so a unit added to `quantity` is covered here the day it
-/// lands and a unit renamed there cannot leave a stale spelling behind
-/// in this crate. Each row is walked through every door that touches
-/// the display unit: construction (`literal_with_unit`), the wire
-/// (serialize → load), the read-back accessor, and the text parser —
-/// so a code↔row mapping that disagreed with the table, at any one of
-/// them, fails here.
+/// The loop is over the TABLE, not a hand-written list of symbols, so a
+/// unit added to `quantity` is covered here the day it lands and a unit
+/// renamed there cannot leave a stale spelling behind in this crate.
+/// [`UNIT_WIRE_GOLDEN`] is the one hand-written list; the membership
+/// assertion at the end holds it to the table's contents, as a SET —
+/// `UnitSym`'s rustdoc promises that a REORDER in `quantity` needs no
+/// edit here, and an order-sensitive comparison would falsify it.
 ///
-/// What it newly covers, stated exactly: `m`, `deg` and `rad` DO have
-/// a round-trip elsewhere — `u8a_parse.rs`'s `fmt_parse_round_trip`
-/// rows carry all six through fmt → parse → eval with a bit-exact
-/// value and dimension. What none of the six but `mm`, `cm` and `in`
-/// had was coverage of the **`display_unit()` door**: the stored code
-/// resolving back to its own table row, through construction, the
-/// wire and the parser. That is what this row adds.
+/// What it newly covers, stated exactly: `m`, `deg` and `rad` DO have a
+/// round-trip elsewhere — `u8a_parse.rs`'s `fmt_parse_round_trip` rows
+/// carry all six through fmt → parse → eval with a bit-exact value and
+/// dimension. What none of the six but `mm`, `cm` and `in` had was the
+/// **`display_unit()` door**: the stored code resolving back to its own
+/// table row, through construction, the wire and the parser. That, and
+/// the exact bytes, are what this row adds.
 ///
-/// There is deliberately no `UNITS.len() == 6` assertion here: it
-/// would make an ADDED unit fail this row before the loop covered it,
-/// which is the opposite of table-driven. The vocabulary is pinned
-/// once, in `quantity`'s own suite.
+/// There is deliberately no `UNITS.len() == 6` assertion: the
+/// vocabulary is pinned once, in `quantity`'s own suite.
 #[test]
 fn every_row_of_the_closed_table_is_a_working_display_unit() {
     for row in quantity::UNITS {
-        let dim = match row.quantity() {
-            quantity::UnitQuantity::Length => Dimension::Length,
-            quantity::UnitQuantity::Angle => Dimension::Angle,
-        };
+        let dim = dim_of(row);
         // Construction stores the row and reads back the SAME row —
         // symbol, quantity and factor, not just the symbol.
         // 2.5, not 1: `1.0 * f == f` bitwise, so a probe of 1 cannot
@@ -191,22 +244,9 @@ fn every_row_of_the_closed_table_is_a_working_display_unit() {
             "{} read back as a different row",
             row.symbol()
         );
-        // The wire carries the symbol and the load door resolves it
-        // back to the same row.
-        let json = serde_json::to_string(&e).unwrap();
-        assert!(
-            json.contains(&format!("\"unit\":\"{}\"", row.symbol())),
-            "{} is not on the wire under its own symbol: {json}",
-            row.symbol()
-        );
-        let back: Expr = serde_json::from_str(&json).unwrap();
-        assert_eq!(
-            back.display_unit().expect("unit survives the load door"),
-            row,
-            "{} did not survive the wire",
-            row.symbol()
-        );
-        // And the text parser reaches the same row from the suffix.
+        // The text parser reaches the same row from the suffix, and
+        // the canonical value is the decimal times the row's factor,
+        // one multiply (the parser's stated contract).
         let parsed = parse_expr(&format!("2.5 {}", row.symbol()), &no_params())
             .unwrap_or_else(|err| panic!("`2.5 {}` must parse: {err:?}", row.symbol()));
         assert_eq!(
@@ -221,179 +261,57 @@ fn every_row_of_the_closed_table_is_a_working_display_unit() {
             "the parser reached a different row for {}",
             row.symbol()
         );
-        // The canonical value is the decimal times the row's factor,
-        // one multiply (the parser's stated contract).
         assert_eq!(
             parsed.literal_value().unwrap().to_bits(),
             (2.5_f64 * row.factor()).to_bits(),
             "{} did not land on one f64 multiply",
             row.symbol()
         );
+        // The wire, to the byte. The seal changed how a `UnitDef`'s
+        // symbol is READ on the write side (`u.symbol` → `u.symbol()`)
+        // and nothing else on this path, so these bytes are the claim
+        // "byte-identical" made checkable.
+        let golden = golden_wire_form(row.symbol());
+        let bytes = serde_json::to_vec(&parsed).expect("a literal serializes");
+        assert_eq!(
+            bytes,
+            golden.as_bytes(),
+            "{}: wire bytes moved — got {}",
+            row.symbol(),
+            String::from_utf8_lossy(&bytes)
+        );
+        // The load door resolves the symbol back to the same row, and
+        // re-serializes to the same bytes: a fixed point, not a
+        // one-way match.
+        let back: Expr = serde_json::from_slice(&bytes).expect("the load door accepts them");
+        assert_eq!(
+            back.display_unit().expect("unit survives the load door"),
+            row,
+            "{} did not survive the wire",
+            row.symbol()
+        );
+        assert_eq!(serde_json::to_vec(&back).unwrap(), golden.as_bytes());
     }
+    // The golden and the table agree on MEMBERSHIP (not on order), so
+    // an added unit fails here rather than going silently unpinned.
+    let mut pinned = UNIT_WIRE_GOLDEN.map(|(s, _)| s).to_vec();
+    let mut tabled = quantity::UNITS
+        .iter()
+        .map(|u| u.symbol())
+        .collect::<Vec<_>>();
+    pinned.sort_unstable();
+    tabled.sort_unstable();
+    assert_eq!(pinned, tabled, "the golden must cover exactly the table");
 }
 
-/// The closed-vocabulary door **refuses** a `UnitDef` that is not a
-/// table row: `UnitSym::from_def`'s `None` arm, raised by
-/// `literal_with_unit` as `UnknownDisplayUnit`.
+/// The exact wire bytes of `2.5 <symbol>` for every row of the closed
+/// table, in both directions — the byte pin folded into the loop above.
 ///
-/// This branch had no coverage at all before #646. The only tested
-/// `UnknownDisplayUnit` is the WIRE door's own
-/// (`wire_door_refuses_unknown_units_and_omits_absent_ones`), built
-/// from `quantity::unit_by_symbol` — a different construction site —
-/// which is exactly why the refusal read as covered. Mutating
-/// `from_def` to `.position(...).or(Some(0))`, so every off-table
-/// `UnitDef` silently becomes `mm` and the refusal is dead code,
-/// leaves the whole editor-core battery green without this row.
-///
-/// **Why the rows are minted, not built.** Issue #650 sealed
-/// `quantity::UnitDef`: private fields, no public constructor, and
-/// `LengthUnit::def` / `AngleUnit::def` demoted to `pub(crate)`. An
-/// off-table row is therefore unrepresentable from production surface
-/// — which is the fix, and which would also make this refusal
-/// untestable if that were the whole story. `mint_untabled` is
-/// `quantity`'s `units-testing` door (`#[doc(hidden)]`, turned on only
-/// through dev-dependencies, `topo`'s `sweep-testing` shape): it hands
-/// the test the one thing no caller can build, so the door that
-/// refuses it stays proven rather than merely believed.
-#[test]
-fn a_unit_outside_the_closed_table_is_refused_rather_than_mapped() {
-    let furlong =
-        quantity::UnitDef::mint_untabled("furlong", quantity::UnitQuantity::Length, 201.168);
-    match Expr::literal_with_unit(1.0, Dimension::Length, furlong) {
-        Err(DimensionError::UnknownDisplayUnit { symbol }) => {
-            assert_eq!(symbol, "furlong", "the refusal names the symbol it read")
-        }
-        other => panic!("an off-table unit must be refused, got {other:?}"),
-    }
-    // The table is DATA and its symbols are case-sensitive: "MM" is
-    // not a row of it, however plausible it looks.
-    let shouty = quantity::UnitDef::mint_untabled("MM", quantity::UnitQuantity::Length, 1e-3);
-    assert!(
-        matches!(
-            Expr::literal_with_unit(1.0, Dimension::Length, shouty),
-            Err(DimensionError::UnknownDisplayUnit { .. })
-        ),
-        "symbols are case-sensitive data, not a fuzzy match"
-    );
-}
-
-/// **Issue #650: `literal_with_unit` never STORES a row that
-/// disagrees with the literal's dimension.**
-///
-/// The defect was a caller-built `UnitDef` whose `symbol` named a
-/// table row but whose `quantity` was a different quantity. It
-/// defeated the dimension guard because the guard read the CALLER's
-/// `quantity` and `from_def` then threw that row away for the table's,
-/// which was never re-checked — producing an `Expr` that serialized
-/// into a document editor-core's own load door refused
-/// (`DisplayUnitMismatch`): a round-trip break, not a rejected call.
-///
-/// It is closed STRUCTURALLY. `quantity::UnitDef` is sealed (private
-/// fields, no public constructor, `LengthUnit::def`/`AngleUnit::def`
-/// demoted to `pub(crate)`), so the mismatched row is unrepresentable
-/// and no whole-row re-check was added here — a check for a state the
-/// type system excludes is dead code pretending to be a guard. The
-/// unrepresentability itself is pinned where a doctest actually runs,
-/// on `quantity::UnitDef`'s rustdoc (`compile_fail` blocks in a
-/// LIBRARY crate; doctests on an integration-test item never run).
-/// `quantity`'s test-only mint deliberately cannot rebuild the row
-/// either — it panics on a tabled symbol — so the defect has no door
-/// left, not even in test builds.
-///
-/// What is left for THIS crate to pin is the property the seal is
-/// supposed to deliver, stated over the whole cross-product rather
-/// than at one fixture: for every table row and every dimension,
-/// `literal_with_unit` either refuses or stores THAT row, and the
-/// stored row's quantity always agrees with the literal's dimension.
-/// It goes red if the guard at `expr.rs` is dropped, if `from_def`
-/// starts selecting a different row, or if a future table gains two
-/// rows sharing a symbol.
-#[test]
-fn a_stored_display_unit_always_agrees_with_the_literal_dimension() {
-    let dims = [
-        Dimension::Length,
-        Dimension::Angle,
-        Dimension::Scalar,
-        Dimension::Count,
-    ];
-    let mut agreed = 0_u32;
-    let mut refused = 0_u32;
-    for r in quantity::UNITS {
-        let row_dim = match r.quantity() {
-            quantity::UnitQuantity::Length => Dimension::Length,
-            quantity::UnitQuantity::Angle => Dimension::Angle,
-        };
-        for dim in dims {
-            match Expr::literal_with_unit(2.5, dim, r) {
-                Ok(e) => {
-                    assert_eq!(
-                        dim,
-                        row_dim,
-                        "{} was accepted on a {dim:?} literal",
-                        r.symbol()
-                    );
-                    let stored = e.display_unit().expect("an accepted unit is stored");
-                    // No substitution: the row that went in is the row
-                    // that came out, all three fields.
-                    assert_eq!(stored, r, "{} was replaced by another row", r.symbol());
-                    // And the stored row agrees with the dimension it
-                    // now travels with — the #650 property, read off
-                    // the STORED row rather than the caller's.
-                    let stored_dim = match stored.quantity() {
-                        quantity::UnitQuantity::Length => Dimension::Length,
-                        quantity::UnitQuantity::Angle => Dimension::Angle,
-                    };
-                    assert_eq!(
-                        stored_dim,
-                        e.dim(),
-                        "{} is stored on a {:?} literal — #650 is back",
-                        stored.symbol(),
-                        e.dim()
-                    );
-                    agreed += 1;
-                }
-                Err(DimensionError::DisplayUnitMismatch { .. }) => {
-                    assert_ne!(
-                        dim,
-                        row_dim,
-                        "{} must not refuse its own dimension",
-                        r.symbol()
-                    );
-                    refused += 1;
-                }
-                other => panic!("{} on {dim:?} gave {other:?}", r.symbol()),
-            }
-        }
-    }
-    // The counts are the shape of the cross-product, so a table that
-    // silently stopped being exercised cannot pass as green.
-    assert_eq!(
-        agreed,
-        quantity::UNITS.len() as u32,
-        "one dimension per row accepts"
-    );
-    assert_eq!(
-        refused,
-        (quantity::UNITS.len() * (dims.len() - 1)) as u32,
-        "every other dimension refuses"
-    );
-}
-
-/// **Wire byte-identity across the #650 seal, as bytes rather than as
-/// an argument.**
-///
-/// The seal changed how a `UnitDef`'s symbol is READ (`u.symbol` →
-/// `u.symbol()`) on the wire's write side (`persist::wire`), and
-/// nothing else on that path: `Lit` still stores the one-byte
-/// `UnitSym` code, the wire still carries the SYMBOL, and the load
-/// door still resolves it through `quantity::unit_by_symbol`. This row
-/// pins the resulting bytes for every row of the closed table, exactly,
-/// so "byte-identical" is a checked claim.
-///
-/// These literals are the ones the golden `.cad` documents embed
-/// (`tests/golden/v*.cad` carry `"unit": "mm"`), so those files are the
-/// same evidence at document scale; this row is the same evidence at
-/// the scale the change actually touched.
+/// Derived from the factors rather than blessed from a run, and they
+/// passed first try, which is a small extra check on the float
+/// rendering. The golden `.cad` documents (`tests/golden/v*.cad`) carry
+/// a `"unit": "mm"` literal each and are the same evidence at document
+/// scale — for one of these six rows at one value.
 const UNIT_WIRE_GOLDEN: [(&str, &str); 6] = [
     (
         "mm",
@@ -421,33 +339,79 @@ const UNIT_WIRE_GOLDEN: [(&str, &str); 6] = [
     ),
 ];
 
+fn golden_wire_form(symbol: &str) -> &'static str {
+    UNIT_WIRE_GOLDEN
+        .into_iter()
+        .find(|(s, _)| *s == symbol)
+        .unwrap_or_else(|| panic!("{symbol} has no pinned wire form"))
+        .1
+}
+
+/// **Issue #650's property, over the whole cross-product: a display
+/// unit is accepted exactly on its OWN dimension and refused on every
+/// other.**
+///
+/// #650 was a caller-built `UnitDef` whose `symbol` named a table row
+/// but whose `quantity` was not that row's. It is closed STRUCTURALLY —
+/// the seal, and why no whole-row re-check was added, live on
+/// `quantity::UnitDef`'s rustdoc, pinned there by `compile_fail`
+/// doctests in a LIBRARY crate (doctests on an integration-test item
+/// never run).
+///
+/// What is left for THIS crate to pin is the guard the seal leaves
+/// standing, stated over 6 rows × 4 dimensions rather than at one
+/// fixture. The complementary half — an ACCEPTED row is stored
+/// unsubstituted, all three fields — belongs to
+/// `every_row_of_the_closed_table_is_a_working_display_unit` and is not
+/// restated here. Counts are asserted, so a table that quietly stopped
+/// being exercised cannot pass as green.
 #[test]
-fn the_display_unit_wire_form_is_byte_for_byte_what_it_was() {
-    for (symbol, golden) in UNIT_WIRE_GOLDEN {
-        // Authored through the TEXT parser, the door a user reaches.
-        let e = parse_expr(&format!("2.5 {symbol}"), &no_params())
-            .unwrap_or_else(|err| panic!("`2.5 {symbol}` must parse: {err:?}"));
-        let bytes = serde_json::to_vec(&e).expect("a literal serializes");
-        assert_eq!(
-            bytes,
-            golden.as_bytes(),
-            "{symbol}: wire bytes moved — got {}",
-            String::from_utf8_lossy(&bytes)
-        );
-        // And the same bytes come back out of the load door unchanged,
-        // so the identity is a fixed point, not a one-way match.
-        let back: Expr = serde_json::from_slice(&bytes).expect("the load door accepts them");
-        assert_eq!(serde_json::to_vec(&back).unwrap(), golden.as_bytes());
-        assert_eq!(back.display_unit().expect("unit survives").symbol(), symbol);
+fn a_display_unit_is_accepted_exactly_on_its_own_dimension() {
+    let dims = [
+        Dimension::Length,
+        Dimension::Angle,
+        Dimension::Scalar,
+        Dimension::Count,
+    ];
+    let mut accepted = 0_u32;
+    let mut refused = 0_u32;
+    for r in quantity::UNITS {
+        let row_dim = dim_of(r);
+        for dim in dims {
+            match Expr::literal_with_unit(2.5, dim, r) {
+                Ok(_) => {
+                    assert_eq!(
+                        dim,
+                        row_dim,
+                        "{} was accepted on a {dim:?} literal",
+                        r.symbol()
+                    );
+                    accepted += 1;
+                }
+                Err(DimensionError::DisplayUnitMismatch { unit, literal }) => {
+                    assert_ne!(
+                        dim,
+                        row_dim,
+                        "{} must not refuse its own dimension",
+                        r.symbol()
+                    );
+                    // The refusal reports the pair it actually read,
+                    // not a fixed string.
+                    assert_eq!((unit, literal), (row_dim, dim));
+                    refused += 1;
+                }
+                other => panic!("{} on {dim:?} gave {other:?}", r.symbol()),
+            }
+        }
     }
-    // The table and the golden agree on membership, so an ADDED unit
-    // fails here rather than being silently unpinned.
     assert_eq!(
-        UNIT_WIRE_GOLDEN.map(|(s, _)| s).to_vec(),
-        quantity::UNITS
-            .iter()
-            .map(|u| u.symbol())
-            .collect::<Vec<_>>(),
-        "the golden must cover exactly the closed table"
+        accepted,
+        quantity::UNITS.len() as u32,
+        "one dimension per row accepts"
+    );
+    assert_eq!(
+        refused,
+        (quantity::UNITS.len() * (dims.len() - 1)) as u32,
+        "every other dimension refuses"
     );
 }

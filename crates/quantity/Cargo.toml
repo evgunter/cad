@@ -7,19 +7,6 @@ rust-version.workspace = true
 [lints]
 workspace = true
 
-[features]
-# The unit table is SEALED (issue #650): `UnitDef`'s fields are private
-# and the `LengthUnit::def` / `AngleUnit::def` mints are `pub(crate)`,
-# so the only rows a caller can hold are the table's own. That makes an
-# off-table row unrepresentable — and therefore makes the downstream
-# doors that REFUSE one (editor-core's `UnitSym::from_def` `None` arm)
-# unreachable, hence untestable, unless something can still mint one.
-# `UnitDef::mint_untabled` is that something: `#[doc(hidden)]`,
-# test-builds only, enabled through the self-dev-dependency below and
-# consumers' dev-dependencies, so no production dependent can reach it.
-# Same shape and same reason as `topo`'s `sweep-testing` doors.
-units-testing = []
-
 # LIB-U8a: the D6 API-boundary quantity layer — newtypes (Length/Angle/
 # Count), the unit table + constants, and the display formatter. It sits
 # BELOW editor-core on purpose: the expression text parser (editor-core)
@@ -29,6 +16,3 @@ units-testing = []
 
 [dev-dependencies]
 proptest = { workspace = true }
-# Self-dev-dependency: turns the test-only mint on for THIS crate's own
-# suite without ever turning it on for a dependent's production build.
-quantity = { path = ".", features = ["units-testing"] }

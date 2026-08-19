@@ -507,13 +507,14 @@ document editor-core's own load door refused — a round-trip break, not a
 bad call. #650 offered a two-line whole-row check; the fix taken instead
 is D2-addendum-shaped: **make the row unrepresentable**, so there is no
 state for a check to catch. `quantity::UnitDef`'s three fields are
-private with `symbol()`/`quantity()`/`factor()` accessors, and the only
-public sources of a row are `UNITS`, `unit_by_symbol`, and whatever hands
-one back.
+private with `symbol()`/`quantity()`/`factor()` accessors, there is no
+constructor at all, and the only sources of a row are `UNITS`,
+`unit_by_symbol`, and whatever hands one back.
 
-Four things are worth recording — the first three because each was a way
-the seal could have been cosmetic, the fourth because it was measured
-wrong before the work started:
+Five things are worth recording — two because each was a way the seal
+could have been cosmetic, one because the seal's own cleanup was nearly
+missed, one because the residual was measured wrong before the work
+started, and one because sealing MOVED where the coverage gap lives:
 
 - **The second mint.** `LengthUnit`/`AngleUnit` keep PUBLIC fields, and
   their `def()` was a public `const fn` — so `AngleUnit { symbol: "mm",
@@ -523,23 +524,58 @@ wrong before the work started:
   is the S4 lesson applied to a CONSTRUCTOR rather than a vocabulary:
   counting the copies of a spelling is not the same as counting the doors
   that can mint one.
-- **The refusal that the seal would have killed.** `UnitSym::from_def`'s
-  `None` arm (#646's newly-covered branch) is unreachable once no caller
-  can build an off-table row, and an untestable refusal rots. `quantity`
-  grows a `units-testing` feature (`topo`'s `sweep-testing` shape,
-  dev-dependencies only) exposing `UnitDef::mint_untabled`, which
-  **panics on a tabled symbol** — so it opens exactly the off-table case
-  the refusal needs and cannot rebuild #650's row even inside a test
-  build.
+- **The refusal the seal killed, and the apparatus that nearly outlived
+  it.** `UnitSym::from_def`'s `None` arm — #646's newly-covered branch —
+  is unreachable once no caller can build an off-table row. The first
+  pass kept it and built the scaffolding to reach it: a `units-testing`
+  cargo feature, a `#[doc(hidden)]` mint, a self-dev-dependency, an
+  explicit dev-dependency in `editor-core`, and two tests. Review
+  observed that **the same `impl` block was answering one question two
+  ways** — `UnitSym::def`'s unconstructable index takes D2 addendum row
+  4 (`unreachable!`) with the argument stated out loud, while
+  `from_def`'s equally unconstructable row kept a typed refusal. Evan
+  ruled it (2026-08-19): *"we definitely should not have any checks for
+  states the type system excludes."* `from_def` is now total, the whole
+  apparatus is deleted, and `DimensionError::UnknownDisplayUnit` keeps
+  its ONE reachable raiser: `persist::wire`, where the symbol arrives as
+  a string out of a file. **The general lesson for a sealing diff:
+  sealing a type makes some downstream refusals unreachable, and the
+  cost of keeping one testable is a cargo feature plus two dependency
+  edges — price that before paying it, and check whether a neighbouring
+  function in the same block already answered the question.**
 - **`pncad-py` is NOT in the blast radius**, contrary to the count this
   work was scoped from. Its six `self.0.symbol`/`self.0.factor` reads are
   on `LengthUnit`/`AngleUnit`, whose fields stay public — so #639's live
   diff on that file was never touched. The residual is that those two
-  typed views are still openly constructible: `fmt_length(x, LengthUnit
-  { symbol: "deg", .. })` renders a mislabelled string. That is a
-  FORMATTER surface, it cannot reach a `UnitDef` or a document, and it is
-  filed here rather than fixed because closing it needs a
-  `UnitDef → LengthUnit` conversion and six edits in a file #639 owns.
+  typed views are still openly constructible, and **this note first
+  scoped it wrong in two directions; corrected here and filed as
+  #669.** It is not formatter-only and it is not a display string: (a)
+  `fmt.rs`'s own pin is `parse(fmt(x, unit))`, so `fmt_length(0.025,
+  LengthUnit { symbol: "deg", factor: 1e-3 })` → `Ok("25 deg")` is
+  parser input BY DESIGN and `25 deg` parses to an Angle literal that
+  enters an `Expr` and a document; (b) `25.0 * LengthUnit { symbol:
+  "mm", factor: 1.0 }` is a 25-METRE `Length` labelled `mm`, via
+  `impl Mul`/`in_unit` — a wrong VALUE at the D6 boundary. Five public
+  entry points trust the caller's `symbol`/`factor`, not the one this
+  note named. **Scheduled at #669**, not #639 (which is the S37
+  de-milestoning lane and will not close it); closing it needs a
+  `UnitDef → LengthUnit` conversion plus edits in the file #639 owns,
+  which is why the two lanes were confused. The lesson for a sealing
+  diff: seal the ROW and the residue moves to the VIEW of the row —
+  the dimension stays typed, the symbol and factor go free, and that
+  asymmetry is invisible unless the residual is executed rather than
+  reasoned about.
+- **Sealing moves the coverage gap to the load door.** With construction
+  closed by the type, the only production-realistic route to a corrupt
+  document is a `.cad` file carrying a TABLED symbol on the wrong
+  dimension — `{"dim":"Angle","unit":"mm"}`. Nothing tested that:
+  editor-core's suite covered the unknown-SYMBOL arm and the CONSTRUCTOR
+  arm, which is precisely the shape #646 and #650 both recorded as the
+  reason the original defect hid ("the refusal reads as covered because
+  a different construction site is covered"). A row was added. Generalise:
+  after a seal, re-ask the coverage question at every door the sealed
+  value can still ARRIVE at from outside the process — deserialization
+  first.
 - **In-crate code is not exempt.** `quantity/src/tests.rs` is a SIBLING
   module of `units`, not an inner one, so the private fields are private
   to it too; the first push was red on `clippy` for exactly that. Worth
@@ -669,7 +705,7 @@ hand-shaped matcher is S4's failure mode wearing an enforcement badge.
 | `RoleSeg` arg sites | **SURVIVED IN PART; FIXED by #632.** The four answer four genuinely different questions and *should* differ — what survived was the fourth site's wildcard, now closed. |
 | `StableName` payload lists | **SURVIVES** — see the confirmed drift below. |
 | "no usable value" | **SURVIVES IN PART** — the four enums have genuinely different membership and closure (`RunStatus` is serde-persisted), but all four embed the identical triple, and the stringly fifth is a real fail-quiet. |
-| units | **DOES NOT SURVIVE as counted; the residue FIXED by #646.** `parse.rs` uses the shared table; `step-import`'s `UnitKind` is a *different vocabulary* (STEP `SI_UNIT` names). Real duplicates: two-and-a-half, one of them **measured and justified** (PR #291 MAJOR-2: inlining the 32-byte row grew every `Expr` by ~40 bytes). #646 enumerated the two-and-a-half the steelman never named — (1) `expr.rs`'s `UnitSym` enum + its `def()` map, the measured one; (½) that file's *second* table, `from_def`'s six string literals, which the measurement never covered; (2) `pncad-py`'s six module bindings + stub lines, forced by PyO3 — and dissolved (1) and (½) together by making the code an INDEX into `quantity::UNITS`. The code is still one byte, so the measurement stands, and it now has a mechanical guard (a `size_of::<Lit>()` assertion) rather than only clippy's threshold-dependent `large_enum_variant`. (2) is untouched: forced — **and unpinned**, its stub pinned only at one of six names. A residue in `expr.rs` was filed rather than fixed: #650, `literal_with_unit` checks the caller's `UnitDef.quantity` and then stores the table's, so a mismatched pair builds an `Expr` the load door refuses. **#650 is now CLOSED STRUCTURALLY, not by a check** (see the `units`/#650 note below): `quantity::UnitDef` is sealed — private fields, no public constructor, and `LengthUnit::def`/`AngleUnit::def` demoted to `pub(crate)` because a public `def()` on a still-public-fielded typed view was a *second* mint for the same illegal row. The vocabulary count is unchanged by that; what changed is that the shared table is now the ONLY source of a row, which is the property S4 was arguing for all along. |
+| units | **DOES NOT SURVIVE as counted; the residue FIXED by #646.** `parse.rs` uses the shared table; `step-import`'s `UnitKind` is a *different vocabulary* (STEP `SI_UNIT` names). Real duplicates: two-and-a-half, one of them **measured and justified** (PR #291 MAJOR-2: inlining the 32-byte row grew every `Expr` by ~40 bytes). #646 enumerated the two-and-a-half the steelman never named — (1) `expr.rs`'s `UnitSym` enum + its `def()` map, the measured one; (½) that file's *second* table, `from_def`'s six string literals, which the measurement never covered; (2) `pncad-py`'s six module bindings + stub lines, forced by PyO3 — and dissolved (1) and (½) together by making the code an INDEX into `quantity::UNITS`. The code is still one byte, so the measurement stands, and it now has a mechanical guard (a `size_of::<Lit>()` assertion) rather than only clippy's threshold-dependent `large_enum_variant`. (2) is untouched: forced — **and unpinned**, its stub pinned only at one of six names. A residue in `expr.rs` was filed rather than fixed: #650, `literal_with_unit` checks the caller's `UnitDef.quantity` and then stores the table's, so a mismatched pair builds an `Expr` the load door refuses. **#650 is now CLOSED STRUCTURALLY, not by a check** (see the `units`/#650 note below): `quantity::UnitDef` is sealed — private fields, no constructor at all, and `LengthUnit::def`/`AngleUnit::def` demoted to `pub(crate)` because a public `def()` on a still-public-fielded typed view was a *second* mint for the same illegal row. The vocabulary count is unchanged by that; what changed is that the shared table is now the ONLY source of a row, which is the property S4 was arguing for all along. |
 | Euler vector | **SURVIVES IN PART; FIXED by #625 and #641.** The 6-vector and the 7 arena deltas are **different quantities** — Δh is not an arena count and cannot be derived from them — so they stay separate **by design**. What survived the steelman was the spelling, and it is now closed on both halves: #625 made the delta `ArenaDelta`, and #641 named every remaining positional carrier in the crate, collapsed `reassembly.rs`'s duplicate into `ArenaCounts` outright, and gave the parent-sense rule one home. The class was **four positional orders for one vocabulary inside a single crate** — S4's drift shape reachable without crossing a crate boundary at all — of which three were byte-identical to `ArenaCounts` and differed only in being separately declared. Residue: one copy is blocked purely by the `tests/`-is-another-crate boundary (**S52**), and the two drifted `Ledger`s are **S53**. Neither mechanism catches a transposition across correct names, which is why both conversions were checked component-by-component. |
 
 *Drift (a) CONFIRMED, and it contradicts ratified design text.* Note the

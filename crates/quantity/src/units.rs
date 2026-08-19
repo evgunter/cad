@@ -44,30 +44,37 @@ pub enum UnitQuantity {
 /// One row of the unit table: a display/parse symbol, the quantity it
 /// measures, and the exact factor into canonical units.
 ///
-/// **SEALED — a `UnitDef` is a row of [`UNITS`], not a triple of
-/// three independent fields (issue #650).** The fields are private and
-/// there is no public constructor, so the only values of this type a
-/// caller can hold are copies of the table's own rows: [`UNITS`]
-/// itself, [`unit_by_symbol`], and whatever hands one back
-/// (`Expr::display_unit`). The `LengthUnit::def` / `AngleUnit::def`
-/// views that BUILD the table are `pub(crate)` for the same reason —
-/// `LengthUnit`'s fields are public, so a public `def()` would be a
-/// second mint that could stamp any symbol onto any quantity.
+/// **SEALED — a `UnitDef` is a row of [`UNITS`], not a triple of three
+/// independent fields (issue #650).** The fields are private and there
+/// is no constructor at all — not a public one, not a `#[doc(hidden)]`
+/// test-only one. The only values of this type a caller can hold are
+/// copies of the table's own rows: [`UNITS`] itself, [`unit_by_symbol`],
+/// and whatever hands one back (`Expr::display_unit`). The
+/// `LengthUnit::def` /
+/// `AngleUnit::def` views that BUILD the table are `pub(crate)` for
+/// the same reason — `LengthUnit`'s fields are public, so a public
+/// `def()` would be a second mint that could stamp any symbol onto any
+/// quantity.
 ///
-/// The invariant this buys, which downstream crates rely on: **the
-/// symbol determines the other two fields.** A row whose `symbol` is
+/// **The invariant this buys, which downstream crates rely on: the
+/// symbol DETERMINES the other two fields.** A row whose `symbol` is
 /// `"mm"` and whose `quantity` is `Angle` is not merely refused, it is
-/// unrepresentable — which is what closes #650, where a caller-built
-/// mismatched row defeated `Expr::literal_with_unit`'s dimension guard
-/// and produced an `Expr` that serialized into a document editor-core's
-/// own load door then rejected. D2 addendum: the answer chosen is
-/// "make the illegal state unrepresentable", not row 1's typed error,
-/// because the input was never legitimate in the first place.
+/// unrepresentable. That is what closes #650, where such a row defeated
+/// `Expr::literal_with_unit`'s dimension guard — the guard read the
+/// CALLER's `quantity`, then stored the table's row unchecked — and
+/// produced an `Expr` that serialized into a document editor-core's own
+/// load door then refused (`DisplayUnitMismatch`): a round-trip break,
+/// not a rejected call. D2 addendum: the answer chosen is "make the
+/// illegal state unrepresentable", not row 1's typed error, because the
+/// input was never legitimate in the first place.
+///
+/// **This rustdoc is the one home of that narrative.** Everything else
+/// that touches the seal points here rather than restating it.
 ///
 /// The seal is a claim about what COMPILES, so it is pinned by rows
 /// that must fail to compile. These are library doctests — they run
-/// under `cargo test -p quantity --doc`, so undoing the seal turns
-/// them red rather than merely dating a comment.
+/// under `cargo test -p quantity --doc`, so undoing the seal turns them
+/// red rather than merely dating a comment.
 ///
 /// #650's literal counterexample no longer builds:
 ///
@@ -98,14 +105,16 @@ pub enum UnitQuantity {
 /// A `compile_fail` row proves only that the snippet does not build,
 /// not that it fails for the intended reason — a typo would pass it
 /// just as well. Each block above therefore has its legal twin here,
-/// differing from it by exactly the illegal step: every path, name and
-/// type used above compiles, so what those blocks pin is the seal and
-/// nothing else.
+/// differing from it by exactly the illegal step:
 ///
 /// ```
-/// // Twin of blocks 1 and 2: the row and the enum variant exist, and
-/// // every field is READABLE through its accessor.
-/// let mm = quantity::unit_by_symbol("mm").expect("mm is a table row");
+/// // Twin of blocks 1 and 2: the path `quantity::UnitDef` names this
+/// // exported type, the row and the enum variant exist, and every
+/// // field is READABLE through its accessor. Naming the type binds
+/// // the twin to it, so a rename or an un-export reddens here rather
+/// // than quietly satisfying the `compile_fail` blocks for the wrong
+/// // reason.
+/// let mm: quantity::UnitDef = quantity::unit_by_symbol("mm").expect("mm is a table row");
 /// assert_eq!(mm.symbol(), "mm");
 /// assert_eq!(mm.quantity(), quantity::UnitQuantity::Length);
 /// assert_eq!(mm.factor(), quantity::MILLI);
@@ -139,54 +148,30 @@ impl UnitDef {
     pub const fn factor(&self) -> f64 {
         self.factor
     }
-
-    /// Mint a row for a symbol the table does NOT contain —
-    /// `units-testing` only, never production surface.
-    ///
-    /// The seal makes every off-table row unrepresentable, which is
-    /// the point; but the doors that REFUSE one still exist downstream
-    /// (editor-core's `UnitSym::from_def` returns `None` for a symbol
-    /// outside [`UNITS`], raised as
-    /// `DimensionError::UnknownDisplayUnit`), and a refusal nobody can
-    /// reach is a refusal nobody can test. This is the test-only door
-    /// that keeps those refusals proven — the same shape as `topo`'s
-    /// `sweep-testing` injectors, enabled through dev-dependencies so
-    /// no production dependent can reach it.
-    ///
-    /// **It is deliberately narrower than "arbitrary row".** It
-    /// PANICS on a symbol that IS in the table, because that is
-    /// exactly issue #650's shape — a row whose symbol names a table
-    /// entry but whose `quantity` or `factor` is not that entry's, the
-    /// row that defeated `literal_with_unit`'s dimension guard. #650
-    /// is closed by making that row unrepresentable, so a test-only
-    /// door that could rebuild it would reopen the defect inside every
-    /// test build and let a regression hide behind "well, only the
-    /// mint can do it". Off-table symbols are a different class: the
-    /// vocabulary is closed against them by a RUNTIME refusal, and
-    /// that refusal is what wants a test.
-    ///
-    /// # Panics
-    ///
-    /// If `symbol` is one of [`UNITS`]' own symbols.
-    #[cfg(feature = "units-testing")]
-    #[doc(hidden)]
-    pub fn mint_untabled(symbol: &'static str, quantity: UnitQuantity, factor: f64) -> Self {
-        assert!(
-            unit_by_symbol(symbol).is_none(),
-            "mint_untabled is for symbols OUTSIDE the table; {symbol:?} is a table row, and a \
-             tabled symbol carrying a different quantity or factor is issue #650's own \
-             counterexample — sealed unrepresentable on purpose"
-        );
-        Self {
-            symbol,
-            quantity,
-            factor,
-        }
-    }
 }
 
 /// A length unit — a typed view of a [`UnitDef`] row, so `25.0 * MM`
 /// can only build a [`crate::Length`] (never an angle).
+///
+/// **NOT sealed, and asymmetrically so — issue #669.** [`UnitDef`]'s
+/// rows are sealed; a *view* of one is not. The DIMENSION is typed and
+/// enforced (this type builds a `Length`, full stop); the `symbol` and
+/// the `factor` are free, and every public entry point that takes one
+/// trusts them: [`crate::fmt_length`] / [`crate::fmt_angle`],
+/// [`crate::Length::in_unit`] / [`crate::Angle::in_unit`], and the
+/// `Mul` impls.
+///
+/// The consequence is a wrong VALUE, not a mislabelled string:
+/// `25.0 * LengthUnit { symbol: "mm", factor: 1.0 }` is 25 METRES
+/// carrying the label `mm`, at the D6 typed-units boundary. And it does
+/// reach a document: `fmt.rs`'s stated pin is `parse(fmt(x, unit))`, so
+/// `fmt_length(0.025, LengthUnit { symbol: "deg", factor: 1e-3 })` —
+/// `Ok("25 deg")` — is parser input by design, and `25 deg` parses to
+/// an [`crate::Angle`] literal that enters an `Expr` and a document.
+///
+/// #669 is the schedule: seal these two the way [`UnitDef`] was sealed,
+/// which needs a `UnitDef → LengthUnit` conversion and edits in
+/// `pncad-py`. Not done here because #650's fix did not require it.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LengthUnit {
     /// The surface symbol.
@@ -196,6 +181,9 @@ pub struct LengthUnit {
 }
 
 /// An angle unit — the typed view for [`crate::Angle`] construction.
+///
+/// **NOT sealed — issue #669**, for the reason and with the
+/// consequences on [`LengthUnit`].
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct AngleUnit {
     /// The surface symbol.
