@@ -583,6 +583,31 @@ crate); (9) `profile::Step` re-parameterised — *"I would not do it."*
   `crates/topo/src/boolean/mod.rs:548`
 - **Confidence**: sure
 
+**PARTIALLY FIXED by #647 — the sector-predicate fork only.** The
+vertex-neighborhood sector-shape rungs — the metering arm, the wideness
+verdict, and the subdivision direction — are ONE implementation,
+`crates/topo/src/sector_shape.rs`, a top-level sibling of `boolean/` and
+`splitting/` that belongs to neither half and adds no dependency edge
+between them. Both lanes call it with their own `SectorPredicates`, so
+all six K names and every recorded margin are unchanged: 26541 recorded
+decisions across a boolean run and a plane-split run reproduce
+byte-identically, same order, one SHA-256 (`probe_s5_sectors`, the
+committed probe that regenerates the stream). Two rows go red if a lane
+re-grows its own copy — one against a re-fork inside the shared body,
+one against a re-fork outside it.
+
+**The rest of this finding stands.** Untouched: the `sector_face` twins,
+the two forked `chord` helpers (genuinely NOT identical — splitting's
+carries the C12.2 conic jet), the gate → sweep → array →
+reclassification → join pipeline duplication, and the wrong-way
+`splitting/join.rs` dependency with its `JoinLane::BoolPlanar`
+reciprocation. Deliberately left alone on the steelman's own reasoning:
+`SectorEntry` vs `BoolSector` (a CORRECT divergence) and the shared error
+variants (unification means an optional field on a public API re-exported
+into four crates). And #647 hands back, rather than answers, whether the
+two K names should become one population — with the evidence and the
+`M3-LOG.md:264` counter-precedent.
+
 Both carry a gate → vertex sweep → sector array → reclassification →
 join → finish pipeline. The halves drifted rather than unified:
 `SectorEntry`/`SectorEntryKind` vs `BoolSector`;
@@ -3482,7 +3507,7 @@ Good work for filling parallel capacity. None blocks anything.
 | **W2b** | **S1 / S2** — `RingInterval`, and whether `Interval` becomes always-on | **D1**, **W1c** | Blast radius is **535 refs in 15 files**, not the ~600 sites this report first claimed; five files carry 60%. Build cost measured at ~zero. The real obstacle is the decoration seam (W1c), not licensing or build time. |
 | **W2c** | **S19** — the three big error catch-alls | **D2** | `AssemblyUnsupported` (146), `MissingEntity` (49), `SplitJoinError::Corrupt` (42). These *are* D9's only sanctioned option today, so D2 must land first or the work is undone. |
 | **W2d** | **S6** — sweep helper unification (~230 token-identical lines) | **D3** | Must follow D3: S6 and S7 are in one crate and will collide. K-telemetry does **not** block it — both funnels already take the predicate name as a parameter. Retracted: `SweptSeg`, `strut_spec`, `full::build_lamina` and the `let _ = k;` inference are *not* duplication. |
-| **W2e** | **S5** — `splitting/` vs `boolean/` | — | The largest. Start with the narrowest, highest-value piece: the **forked sector predicates**, which are dimensionally identical line-for-line and split one K population 29:1, with the 64-sample tail the one reaching margin 0. The repo already forced the reverse fix once (`M3-LOG.md:264`). |
+| **W2e** ✅ #647 (partial) | **S5** — `splitting/` vs `boolean/` | — | The largest. Started with the narrowest, highest-value piece: the **forked sector predicates**, which are dimensionally identical line-for-line and split one K population 29:1. **FIXED by #647**: one shared body in `topo::sector_shape`, both K name sets preserved, K stream reproduced byte-identically. The repo already forced the reverse fix once (`M3-LOG.md:264`), and whether the two names should now become ONE population is stated in #647 as an open question, not decided. The REST of S5 — `sector_face` twins, pipeline duplication, the wrong-way dependency — is still open and still the largest item here. |
 | **W2f** | **S4** — the vocabulary mirrors, cheapest first | partly **W2c** | `BooleanOp` → `pub use topo::BooleanOp` + `serde(with)` (its constraint provably lapsed the day it was minted, and the technique is shipped); then units; then `ProgramStep`/`WireStep`, which is cheap in isolation but **blocked behind OnArc + RESPELL-TABLE** and crosses the same files. |
 | **W2g** | **S49** — the census's planar × planar skip is justified by a claim about solids | — | `census.rs:1359` skips on a **face** predicate (`a.planar && b.planar`) while `census.rs:1035` argues about planar-only **solids**; a cylinder's caps are planar faces on a non-planar solid. Structural because the repair is a **jurisdiction call** between this filter, the conformal arm and the confirm pass — deciding which owns a planar face on a curved solid, then pinning it with a row that goes red if none of them does. Not gated on D1–D4. The W1a implementer and its reviewer independently judged it too wide to fold into #620. | M |
 
