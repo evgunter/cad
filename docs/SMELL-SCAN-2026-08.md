@@ -2333,8 +2333,10 @@ exact `v` for `Chart::v_of` and emits two polygon entries instead of
 one, both of which reach the bbox, the interior grid and the pole fan.
 Its ε-dependence is structural and **unexercised by the in-tree
 corpus** — nothing in tree puts a non-pole vertex within a suite ε row
-of a pole, and no kernel constructor mints one — not absent. Both
-surviving copies of the sentence now say that.) The
+of a pole — which is not the same as absent, and reachability is *not*
+established either way (`revolve` would very likely refuse the sliver;
+STEP import is the plausible route in). Both surviving copies of the
+sentence now say that.) The
 comparison survives as a `debug_assert!` inside `closing_column`, where
 it gates nothing and therefore measures **data quality** (the
 `nist_ftc_09` 21 pm off-axis line endpoint) rather than a tolerance,

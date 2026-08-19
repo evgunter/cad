@@ -92,9 +92,10 @@ fn survives_eps_row_bitwise_independence() {
     // What this row demonstrates is that it is UNEXERCISED: over these
     // bodies, at these three ε rows, the classification does not move,
     // so the mesh is bitwise a function of (body, δ). A body with a
-    // near-pole vertex would be a different question, and nothing in
-    // the tree mints one (`revolve` refuses the sliver; STEP import is
-    // the plausible route in).
+    // near-pole vertex would be a different question. Nothing in the
+    // tree has one, and whether one is REACHABLE is not established:
+    // `revolve` would very likely refuse the sliver, STEP import is the
+    // plausible route in. Unexercised, not proven impossible.
     let exe = std::env::current_exe().unwrap();
     let mut hashes = Vec::new();
     for row in ["1e-6", "1e-9", "1e-12"] {

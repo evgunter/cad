@@ -70,10 +70,11 @@ use crate::walk::{Chart, ChartKind, UvPoint, gap_is_noise, loop_polygon};
 /// hence this lane's interior grid and the pole fan's triangles. So an
 /// ε that flipped that classification WOULD move emitted coordinates.
 /// What is true is that nothing in the tree flips it: no in-tree body
-/// puts a non-pole vertex within any of the suite's ε rows of a pole,
-/// and none of the kernel's own constructors can mint one (`revolve`
-/// refuses that sliver; a STEP import is the plausible route in). The
-/// ε-dependence here is structural and UNEXERCISED, not absent.
+/// puts a non-pole vertex within any of the suite's ε rows of a pole.
+/// Whether one is REACHABLE is not established — `revolve` would very
+/// likely refuse such a sliver, and a STEP import is the plausible
+/// route in — so the ε-dependence here is structural and UNEXERCISED,
+/// which is not the same as absent or unreachable.
 pub(crate) struct Tol {
     /// The chordal tolerance δ.
     pub delta: f64,
