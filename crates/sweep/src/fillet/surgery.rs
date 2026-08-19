@@ -1589,7 +1589,7 @@ mod tests {
     use super::super::battery::Convexity;
     use super::{OpenLink, corner_plan, rim_trim_circles};
     use crate::fillet::blend::plane_sphere_blend;
-    use crate::fixtures::{R, all_links, cube};
+    use crate::test_support::{L, R, all_links, cube};
 
     /// The F1 pin: trim selection is by SUPPORT KIND, never by slot.
     /// `classify_arm`'s `(Sphere, Plane)` arm swaps `trim_a`/`trim_b`
@@ -1644,7 +1644,7 @@ mod tests {
     /// dependency — the octant reads the verdict and nothing else.
     #[test]
     fn a_corner_plan_takes_its_links_convexity() {
-        let body = cube();
+        let body = cube(L);
         let mut links = all_links(&body);
         let v = links[0].start;
         let opens: Vec<OpenLink<'_, f64>> = links.iter().map(|link| OpenLink { link }).collect();
@@ -1665,7 +1665,7 @@ mod tests {
     /// ball octant: the plan refuses rather than picking one of three.
     #[test]
     fn a_corner_plan_whose_links_disagree_refuses() {
-        let body = cube();
+        let body = cube(L);
         let mut links = all_links(&body);
         let v = links[0].start;
         links[0].convexity = Convexity::Concave;

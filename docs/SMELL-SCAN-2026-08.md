@@ -4140,45 +4140,193 @@ orientation-free by construction and so cannot inherit the bit it is testing.
 
 ## S52. An in-crate test helper is invisible from `tests/`, so every integration suite mints its own
 
-- **Where**: `crates/topo/tests/m3_pr5_boolean_ops.rs` (a third copy of
-  `ArenaCounts`, field-for-field); `crates/sweep/tests/` (**six** private
-  `cube` fixtures, byte-identical bodies); the shipped counter-example is
-  `crates/profile/src/test_support.rs`
+- **Where**: `crates/topo/src/test_support_impl.rs`,
+  `crates/sweep/src/test_support.rs` (both new); the copies collapsed
+  were `crates/topo/tests/m3_pr5_boolean_ops.rs`'s `Census` and the
+  six private `cube`s in `crates/sweep/tests/`
 - **Importance**: medium
 - **Confidence**: sure on the mechanism
 - **Raised by**: the H8 (#641) and H9 (#640) lanes and their reviewers,
   2026-08-19
 
-Both lanes hit the same wall from opposite directions. A `#[cfg(test)]` or
-`pub(crate)` helper cannot be named from a `tests/` binary, which is a
-separate crate — so an integration suite that wants the vocabulary declares
-its own copy, and the copies drift. #641 collapsed the *in-crate* duplicate
-for free (one widened cfg) and left the `tests/` one standing; #640 put
-`sweep`'s shared fixture in a crate-root `#[cfg(test)]` module and left the
-six integration copies standing, for the same reason.
+Both lanes hit the same wall from opposite directions. A `#[cfg(test)]`
+or `pub(crate)` helper cannot be named from a `tests/` binary, which is a
+separate crate — so an integration suite that wants the vocabulary
+declares its own copy, and the copies drift. #641 collapsed the *in-crate*
+duplicate for free and left the `tests/` one standing; #640 put `sweep`'s
+shared fixture in a crate-root `#[cfg(test)]` module and left the six
+integration copies standing, for the same reason.
 
-This is S4's shape with a mechanical cause rather than an accretive one, and
-it is why "grep for the copy" keeps finding copies in `tests/`. **The precedent this finding first cited does not exist.** Both #641's PR body
-and the first draft of this row named `crates/profile/src/test_support.rs` as
-the shipped remedy. It was **retired** by LIB-RETTAIL/ONARC — `pncad/src/profile.rs:50`
-says so outright (*"`test_support` is gone"*), and the only other surviving
-mention is a history note in `scripts/gates/lib.sh` about an allowlist paragraph
-that went stale locally. A stale claim of S39's exact class, minted by this
-batch; it is corrected here rather than quietly dropped.
+**EXECUTED for `topo` and `sweep` by #668, on a mechanism that is
+repo-native rather than newly established.** The gate is an
+**off-by-default cargo feature reached through a self dev-dependency**
+(`[features] test-support = []`, `[dev-dependencies] <crate> = { path =
+".", features = ["test-support"] }`), on exactly when the crate's own tests
+compile the library and off for every other build. That is the wiring
+`topo`'s live **`sweep-testing`** feature already uses one screen away in
+the same manifest — and the wiring the retired `profile` shim used — so
+#668 applies an existing in-crate pattern to a second purpose.
 
-**Verdict:** RULED (Evan, 2026-08-19): **kernel crates may carry their own test
-support, gated so it does not show up in release builds.**
+**Existence and visibility are gated separately**, which is what keeps
+"not public API" true in every profile:
 
-With the `profile` precedent retired, the gate has to be chosen rather than
-copied. `#[cfg(test)]` cannot serve — that is the whole reason the copies exist,
-since a `tests/` binary is a separate crate — and `#[cfg(debug_assertions)]`,
-which #641 used to reach `ArenaCounts` from in-crate, breaks `cargo test
---release`. On resolver 3 / edition 2024 the mechanism that satisfies the ruling
-is an off-by-default feature reached through a self-dev-dependency
-(`[dev-dependencies] topo = { path = ".", features = ["test-support"] }` with
-`#[cfg(any(test, feature = "test-support"))]` on the module): on when integration
-tests compile the library, off for every normal build and every downstream
-release. Unscheduled.
+- `topo` — `ArenaCounts` and `Body::arena_counts()` moved into a private
+  `test_support_impl` whose **existence** gate is `any(debug_assertions,
+  test, feature = "test-support")`, the union of the type's three
+  consumers (the D1 debug postcondition is a real one), replacing #641's
+  `any(debug_assertions, test)`. The **visibility** gate on the public
+  `test_support` facade is `any(test, feature = "test-support")` alone, so
+  `topo::test_support` resolves in no plain build of either profile.
+  `Body::arena_counts()` stays `pub(crate)` — an inherent method's reach
+  follows its own visibility, not its module's — and the facade carries a
+  free `arena_counts(&body)` for cross-crate readers. The integration
+  `Census` copy is gone.
+- `sweep` — `fixtures.rs` became `test_support.rs` under `any(test,
+  feature = "test-support")`, where existence and visibility coincide
+  because nothing in it has a non-test consumer. `cube` took the side
+  length its callers were passing, and all six `tests/` copies collapsed to
+  it. The seventh `cube` in `crates/sweep/tests/m6_surgery_interval.rs`
+  stays, and the first draft of this row justified that wrongly — it
+  called it "a different fixture with the same name". It is the **same**
+  fixture one scalar up: `RawLoop::polygon` is `new` with every bulge
+  zero, so it is the same four-corner loop, same `SketchPlane::xy()`,
+  same `Tolerance::get()`, same `Extrusion::Distance`, differing only in
+  `Interval` vs `f64`. Collapsing it needs `cube<T: Real>` — a
+  generalization, not a deduplication, which is the real reason it is
+  out of scope. Filed at #672.
+
+**Two follow-on corrections the execution forced.** (1) `scripts/doc-gate.sh`
+runs `cargo doc --workspace --all-features` as a **required** CI row, which
+turns `test-support` on — so the repo's own gate would have published, as
+public API, a module whose first line says it is not one. Both facades are
+`#[doc(hidden)]`, and so is the private `test_support_impl` behind them —
+which turned out to be the **only** private module of `topo` a doc build
+renders at all, not because `--document-private-items` shows everything
+private but because the crate's other private modules (`fixtures`, `seqgen`,
+`tier3_tests`) are `#[cfg(test)]` and do not exist in a doc build, while that
+one exists whenever `debug_assertions` does. Verified against a wiped
+`target/doc`: zero `test_support` references in either crate's `index.html`
+or `all.html`, no generated module page, and no `ArenaCounts` page anywhere
+in the doc tree. (2) `topo` now has **three** homes for
+test vocabulary — `src/fixtures.rs` (`#[cfg(test)]`), `src/test_support_impl.rs`,
+and `tests/common/mod.rs` — so `test_support_impl`'s docs carry the routing
+rule for all three and the other two point at it: **an item lives at the
+narrowest home all of its consumers can reach**, which makes `tests/common`
+the default and this module the exception for items the library itself also
+names.
+
+**The gate was proved, not asserted.** A throwaway downstream crate that
+path-depends on both and names `topo::test_support` / `sweep::test_support`
+fails with `error[E0433]: cannot find test_support` for both crates in
+**both profiles** — `cargo build --release` and `cargo build` alike. That is
+the real downstream case, stronger than a symbol grep, since an
+uninstantiated generic leaves no symbol either way. `cargo test --release -p
+topo -p sweep` passes, which is the row that rules out
+`#[cfg(debug_assertions)]`.
+
+**And the precedent it was modelled on was leaking.** Checking the
+mechanism instead of citing it found that `crates/sweep/Cargo.toml:52`
+carried `topo = { path = "../topo", features = ["sweep-testing"] }` in
+**`[dependencies]`**, three lines under a comment reading *"Dev-dependencies
+are the only place it is on"* — and `topo`'s own manifest claimed *"no
+production dependent can reach an injector."* Both were false. Cargo unifies
+features across a build graph, so that one edge turned `topo`'s
+**failure-injection** doors on for every production dependent of `sweep`:
+measured, a downstream crate compiled `--release` naming
+`topo::PlantedDegradation` and `topo::sweep_traces::<f64>`, and
+`crates/pncad/Cargo.toml` depends on both. #668 moved the featured edge to
+`[dev-dependencies]` (the plain edge stays), which `sweep`'s non-test code
+builds fine without, and the same probe now fails with `E0425` in **both**
+profiles.
+
+**The invariant is now a gate, not a sentence.**
+`scripts/gates/test-features-dev-only.sh` fails if any non-dev dependency
+edge in **any** of the repo's 23 manifests — the kernel workspace, its root,
+and the excluded `demos/`, `tools/` and `interval-transcendentals/` roots —
+enables a feature named `test-support` or `*-testing`, or if an ordinary
+feature forwards to one. It parses with `tomllib` rather than grepping, for
+the reason `kernel-serde-free.sh` gives about dependency-entry spellings plus
+one of its own: `features = [...]` says nothing about which table it sits in,
+and the tables that matter nest.
+
+**What it claims is exactly what a manifest parser can support**, which took
+one more correction to get right. The header first said a test-only feature
+was reachable "ONLY through a dev-dependency edge" — an absolute this repo's
+own CI falsifies, since `scripts/doc-gate.sh` runs `cargo doc --workspace
+--all-features` and any command line can say `--features topo/test-support`.
+The gate constrains **manifests, not invocations**; that is now the first
+thing its header says, and it is the reason the facades need `#[doc(hidden)]`
+rather than a competing claim to it.
+
+**Its self-test is derived from ROUTES, not spellings**, and that is the
+part worth carrying forward. The first version enumerated the spellings its
+author had thought of, passed its own self-test, and was then defeated twice
+inside its claimed scope — by `[workspace.dependencies]` + `workspace = true`
+(a traversal bug that *read* as covered: the walker recursed only under the
+key `target`, so the root manifest was scanned but never descended into),
+and by a same-crate forward `interval = ["test-support"]`, which has no
+slash and so slipped a check that required one, while the pass message
+claimed to cover it. Both are the live leak's own semantics in different
+clothes. The gate now enumerates the eight distinct ways a feature can be
+switched on for a non-dev edge (inline, workspace inheritance, `target.*`,
+`build-dependencies`, cross-crate forward, same-crate forward, a two-deep
+forward chain, and the weak `dep?/feat` spelling) and plants one case per
+route. Both former defeats were also reproduced against the real manifests
+and watched firing there. This is the third gate in this batch whose
+self-test could not have found its own hole — the general rule is that **a
+self-test derived from the implementation can only confirm what the author
+already believed**.
+
+**The negative control does as much work as the positive cases.** Two later
+rounds each turned up a shape that is CORRECT code and that the gate
+reported: `[package.metadata.deb.dependencies]` (a packaging tool's own
+config, caught only because the walker had been made to trust the key name
+`dependencies` anywhere in the document — descent is now by the places cargo
+actually puts dependency tables, `target` and `workspace`), and `fuzz =
+["test-utils"]`, the valid slashless spelling for activating an optional
+dependency that happens to share a prefix with the naming convention. The
+`test-*` arm of the pattern is gone for that reason: `test-support` and
+`*-testing` are the two spellings the repo actually uses, and a wildcard that
+matches a real workspace member turns correct code red. Both shapes now sit
+in the clean fixture, so a future widening of either has to get past them.
+
+The lesson generalizes past this row: a safety property asserted in a
+comment three lines from the code that violates it had survived every other
+gate in the directory.
+
+**This row's own "the precedent does not exist" claim was half wrong, and is
+corrected here.** Both #641's PR body and the first draft of this row named
+`crates/profile/src/test_support.rs` as the shipped remedy; that **file** was
+indeed retired by LIB-RETTAIL/ONARC, and `pncad/src/profile.rs:50` says so
+outright. The correction then over-reached: the **mechanism** was never
+retired. `profile`'s shim used this exact feature + self-dev-dependency
+wiring, and `crates/topo/Cargo.toml` still declares it today at the
+`sweep-testing` feature and its self dev-dependency, with a comment saying
+what it is for. Searching for the pattern *by module name* found the deleted
+file and missed the live wiring — the same failure mode S39 catalogues.
+
+**Why not a `tests/common` module instead.** Both crates aggregate their
+suites into one `tests/all.rs` binary, so a tests-side shared module *is*
+reachable across suites (`topo/tests/common` and `step-export/tests/common`
+already work that way). It cannot serve either case here: `topo`'s
+`ArenaCounts` is one type the *library* also uses, so a tests-side copy is
+still a copy; and `sweep`'s `cube` is named by in-crate pins in
+`fillet/surgery.rs` and `fillet/build.rs`, which a `tests/` module cannot
+reach. The gate puts one definition where both sides can name it.
+
+**Verdict:** RULED (Evan, 2026-08-19): **kernel crates may carry their own
+test support, gated so it does not show up in release builds.** Executed by
+#668 for `topo` and `sweep` — and the class is **not** gone. #668 collapsed
+the one copy that was field-for-field identical to `ArenaCounts`; what
+survives is filed as **#672** rather than left as the word "unscheduled":
+two spellings of the arena census inside `topo` alone (`ArenaCounts`, 7
+topology arenas, against `src/fixtures.rs:104`'s `ArenaSnapshot`, 10 — the
+same seven, same order, **plus** points/curves/surfaces, so a strict
+superset; this is the PR that consolidated the census), four more `Census` structs
+in `crates/topo/tests/` with genuinely drifted field sets (4, 3, 7-with-`rings`,
+8-with-`shell_refs`), byte-identical `brick` fixtures in `crates/stl/tests/`,
+and local body builders in `crates/mesh/tests/`, `crates/step-export/tests/`
+and `crates/editor-core/tests/`. Per Q6 that is disclosure, not a schedule.
 
 ## S53. Two `Ledger`s in one crate, with drifted field sets
 

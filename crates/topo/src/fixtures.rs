@@ -2,7 +2,10 @@
 //! through the raw builder (insert with provisional null keys, then
 //! patch — see the builder notes in [`crate::body`]).
 //!
-//! Test-only (`#[cfg(test)]` at the declaration site). Three families:
+//! Test-only (`#[cfg(test)]` at the declaration site), so a `tests/`
+//! binary cannot name any of it. This is one of three homes for test
+//! vocabulary in this crate; `src/test_support_impl.rs`'s docs give the
+//! rule for which one a new item belongs in. Three families:
 //!
 //! - [`ngon_pillow`] — the minimal *closed* body family: two n-gon faces
 //!   glued along an n-cycle of edges ("pillow"). `n = 2` is the digon
@@ -42,10 +45,11 @@ use crate::entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, HalfEdge, HalfEdgeKey, Loop, LoopBoundary, LoopKey,
     Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
-use crate::euler::{ArenaCounts, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
+use crate::euler::{MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
 use crate::euler_ring::{KemrResult, KfmrhResult};
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::provenance::Provenance;
+use crate::test_support_impl::ArenaCounts;
 
 /// The fixture provenance (all fixture entities share it).
 pub(crate) fn prov() -> Provenance {

@@ -1080,11 +1080,12 @@ mod tests {
 
     use super::*;
     use crate::entity::{Edge, HalfEdge, Loop, Shell, Vertex};
-    use crate::euler::{ArenaCounts, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
+    use crate::euler::{MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
     use crate::fixtures::{
         ArenaSnapshot, arena_snapshot, deep_snapshot, ops_cube, ops_holed_box, prov,
     };
     use crate::iso::{canonical_form, isomorphic};
+    use crate::test_support_impl::ArenaCounts;
     use crate::validate::validate;
 
     fn p(x: f64) -> Point3<f64> {
