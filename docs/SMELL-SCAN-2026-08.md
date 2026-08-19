@@ -4069,14 +4069,16 @@ ladder, change both" warning is deleted rather than reworded. The shape that
 beat the arity objection is the one the finding's own steelman preferred:
 share the RUNGS, not the lookup. `Landing` (`Unique(EntityRef)` / `Tied(u32)`
 / `Absent`) is what a table read produces; `live()` is rung 1 (`NodeGone` with
-the deleted-vs-foreign split) and hands back a `Live<'_>` token; `resolve()`
-takes that token plus a landing and is rungs 2 and 3 (`Ambiguous` with the tie
-witness, `Vanished` with the `NodeChanged` fallback and `last_good: None`).
+the deleted-vs-foreign split) and hands back a `Live<'_>` token, which BOTH
+`landing()` and `resolve()` require; `resolve()` is rungs 2 and 3 (`Ambiguous`
+with the tie witness, `Vanished` with the `NodeChanged` fallback and
+`last_good: None`).
 No closure, no generic over "how to look a name up", one hop from either door.
 
 Each door keeps exactly its own arity, which is what makes the shared version
 MORE legible than the duplication rather than less: the fillet door is now
-`live` → `landing(target)` → `resolve` → the edge-kind refusal, six lines with
+`live` → `landing(&live, target)` → `resolve` → the edge-kind refusal, six
+lines with
 every rung named against a 45-line inline ladder; the declare door reads its
 two tables into two landings, picks a side, and refuses `DeclareBothOperands`
 itself — the one refusal in that function that is not N5's, previously buried
