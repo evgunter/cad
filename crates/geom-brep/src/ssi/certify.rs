@@ -882,6 +882,7 @@ pub(crate) fn witness<T: Decide + Bounds + CertifiedEnclosure>(
 /// transversality margin is a positive number computed from a plane
 /// equation that was never evaluated where it was asked for.
 #[cfg(all(test, feature = "interval"))]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod normal_crossing_tests {
     use geom_core::spline::KnotVector;
     use geom_core::{Interval, Point2, Point3, Real, Vec3};

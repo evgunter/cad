@@ -476,6 +476,7 @@ mod quad_lane {
     /// refused HERE or a certified flux enclosure gets built from a
     /// quantity that was clamped out of its own domain.
     #[cfg(all(test, feature = "interval"))]
+    #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
     mod bracket_seam_tests {
         use geom_core::{Bounds, CertifiedEnclosure, Interval, Real};
 

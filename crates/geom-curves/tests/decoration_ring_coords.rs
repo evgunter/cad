@@ -16,7 +16,7 @@
 //! per coefficient rather than per carrier.
 
 #![cfg(feature = "interval")]
-#![allow(clippy::unwrap_used, clippy::panic)]
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::spline::KnotVector;
 use geom_core::{Bounds, CertifiedEnclosure, Interval, Real};

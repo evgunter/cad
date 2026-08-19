@@ -17,7 +17,7 @@
 //! own crossing now refuses.
 
 #![cfg(feature = "interval")]
-#![allow(clippy::unwrap_used, clippy::panic)]
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_brep::{NewellError, newell_plane};
 use geom_core::predicate::Band;
