@@ -169,7 +169,7 @@ pub fn oriented_plane_eq_verdict<T: Decide>(
         #[cfg(debug_assertions)]
         debug_assert!(
             crate::source::plane_bits_agree(p1.origin, p1.normal, p2.origin, p2.normal, opposite),
-            "N6 theorem violated: same-source descriptions disagree bitwise (kernel bug: \
+            "same-source theorem violated: same-source descriptions disagree bitwise (kernel bug: \
              a source survived a geometric rewrite)"
         );
         // Rung 1 is syntactic: nothing was measured, so nothing is

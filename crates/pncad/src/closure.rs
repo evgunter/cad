@@ -114,13 +114,9 @@
 //!    directly. If the bindings unit ever exposes migrations, this is
 //!    the decision to revisit.
 //!
-//! **Retired (#234):** `editor_core`'s `DuplicateName` — the error of
-//! `NameTable::insert`/`insert_tied` — used to be a second exception:
-//! a `pub` type in a *private* module, obtainable and matchable but
-//! with no writable path from anywhere, its own crate included. The
-//! U1 audit read that as a kernel wart no façade could fix, and it was
-//! right that no FAÇADE could: the missing line was in `editor_core`,
-//! which now re-exports the type at its root. `pncad::select` carries
+//! `editor_core`'s `DuplicateName` — the error of
+//! `NameTable::insert`/`insert_tied` — is NOT an exception: it is
+//! re-exported at `editor_core`'s root, and `pncad::select` carries
 //! it beside `NameTable`, so the façade route exists too.
 //!
 //! The remaining exception does not involve `bvh` (nothing in any

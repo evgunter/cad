@@ -52,6 +52,15 @@ pub enum FmtQuantityError {
 /// Formats a canonical-METERS value in `unit` (module docs; the pin:
 /// the text parses back to `meters`' exact bits).
 ///
+/// **`unit` is TRUSTED, not checked — issue #669.**
+/// [`crate::LengthUnit`] is a typed view of a unit table row but is not
+/// sealed the way [`crate::UnitDef`] is: its `symbol` and `factor` are
+/// public and independent, so `fmt_length(0.025, LengthUnit { symbol:
+/// "deg", factor: 1e-3 })` renders `"25 deg"`. Under this module's own
+/// `parse(fmt(x, unit))` pin that string is parser input, and it parses
+/// to an ANGLE. Pass a unit constant or a row obtained from
+/// [`crate::unit_by_symbol`]; do not assemble one.
+///
 /// # Errors
 ///
 /// [`FmtQuantityError::NonFinite`] when `meters` is NaN or ±∞.
@@ -61,6 +70,8 @@ pub fn fmt_length(meters: f64, unit: LengthUnit) -> Result<String, FmtQuantityEr
 
 /// Formats a canonical-RADIANS value in `unit` (module docs; the pin:
 /// the text parses back to `radians`' exact bits).
+///
+/// `unit` is TRUSTED, not checked — see [`fmt_length`] and issue #669.
 ///
 /// # Errors
 ///

@@ -109,6 +109,16 @@
 //! this crate. Every face this build mints has `sense: true`, so that
 //! read is `· 1.0` and the mesh is bitwise unchanged.
 //!
+//! The walk assigns each iso side's constant coordinate once per EDGE
+//! rather than per point, so a side carried by ONE edge is bitwise
+//! straight — and a side carried by several is only analytically
+//! straight, each sub-edge deriving the column from its own carrier
+//! point (issue #653; `walk`'s header states it, and `curved`'s domain
+//! guard bands its comparison in metres because of it). The one
+//! unconditional exception is a rim-anchored loop's closure, which
+//! takes its column from the closing vertex itself and so is bitwise
+//! vertical at no tolerance (S22).
+//!
 //! Periodic charts are
 //! unwrapped by continuity along the walk (chord steps are capped at
 //! π/4, so branch choice is unambiguous); a full-2π patch traverses its
