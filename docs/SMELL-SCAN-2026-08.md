@@ -4238,6 +4238,70 @@ what produced the `E0034` ambiguity storm it backed out of.
 
 ---
 
+## S56. FIXED by #676 — the compound-`Bounds` gate could not see half the spellings it forbids
+
+- **Where**: `scripts/gates/bounds-allowlist.sh` (the matcher, its header
+  and its `plant`), `crates/geom-core/src/real.rs` (the `Bounds` scope
+  rule), `crates/geom-brep/src/ssi/enclose.rs`
+- **Importance**: medium
+- **Confidence**: sure — reproduced by planting both spellings
+- **Raised by**: #671's adversarial reviewer, 2026-08-19.
+
+The gate matched `\+\s*(geom_core::)?Bounds\b`, so the `+` was a
+**required prefix**: `T: Decide + Bounds` fired and `T: Bounds + Decide`
+was invisible. Its `plant()` planted only the spelling its author had in
+mind, so the self-test could not catch it. The order-insensitive matcher
+finds one file the old one did not — `geom-brep/src/ssi/enclose.rs`,
+carrying `T: Bounds + CertifiedEnclosure` since #643 — and the gate
+header simultaneously asserted of that same file that it "takes the
+sole-bound `T: Bounds` the rule allows everywhere," which had been false
+since #643 and which the gate could not detect.
+
+**Evan's ruling (2026-08-19): an alias, not an exception to the matcher.**
+A regex carve-out for `Bounds + CertifiedEnclosure` makes the rule
+un-statable — *compound bounds are forbidden, except this pair* — and the
+next pair needs another carve-out, invisible from the code. The rule
+exists to catch **an evaluation or decision parameter that has also been
+handed bracket extraction**: one parameter wearing two hats, which in
+every ratified exception is `Decide` plus brackets. `Bounds` is a
+subtrait of `Real`, so `T: Bounds` alone already carries the evaluation
+ops; the extra bound is the signal. `Bounds + CertifiedEnclosure` has no
+decide half — both are bracket-side doors, stored endpoints and the
+fallible bracket that refuses below `Decoration::Def` — so it is outside
+the rule's class rather than carved out of it.
+
+So `geom_core::CertifiedBounds` names the pair, with a blanket impl, and
+the sites write the **sole** bound `T: CertifiedBounds`. `enclose.rs`
+contains zero occurrences of `Decide`; all ten of its signatures
+converted. `ssi/certify.rs` did **not** convert: `probe_tube_chart` is
+`Decide + Bounds + CertifiedEnclosure`, genuinely decides and brackets,
+and stays allowlisted on its existing justification.
+`Decide + CertifiedBounds` is still a compound bound and still fires,
+which is correct.
+
+The matcher, the alias and the conversion landed together: the matcher
+fix **alone** turns CI red on `enclose.rs`, the lesson #668's gate work
+learned. Verified in that order — with the fixed matcher and the
+unconverted file the gate fails naming `enclose.rs`; after the conversion
+it passes over all 282 files.
+
+Two residues are now stated in the gate header rather than left to be
+found: the match is **line-based**, so a bound broken across lines
+(`T: Bounds` ending one line, `+ Foo` beginning the next) escapes it and
+closing that needs a parser rather than a grep; and the alias's own two
+definition lines are skipped by name, since a name's definition is not a
+use of it.
+
+**Still open**: #671 is unmerged at the time of writing and adds two more
+files carrying the invisible spelling with no `Decide` —
+`geom-curves/src/nurbs.rs` and `geom-surfaces/src/nurbs.rs`. They are
+`CertifiedBounds` conversions of exactly this shape and are owed when it
+lands; until then the gate on the merged tree will name them.
+
+**Verdict:** fixed.
+
+---
+
 # §A. Where I would start
 
 Not a recommendation about what to *do* — the report proposes no fixes —

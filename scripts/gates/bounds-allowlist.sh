@@ -34,8 +34,14 @@
 # the quadrature seam, and unlike the fillet seam its refusing
 # side is NOT empty: `PcurveFittedLane` splits f64/Probe/Interval
 # (certified) from `Dual` (typed refusal, no bracket to offer).
-# `ssi/enclose.rs` is deliberately absent — it decides nothing, so
-# it takes the sole-bound `T: Bounds` the rule allows everywhere.
+# `ssi/enclose.rs` is deliberately absent, and still decides nothing —
+# it holds both BRACKET doors (stored endpoints, plus the fallible
+# certified bracket that refuses below `Decoration::Def`) and no
+# `Decide`. That pair is spelled `geom_core::CertifiedBounds`, so the
+# file takes a SOLE bound and is outside this check's class rather than
+# carved out of it. `Decide + CertifiedBounds` would be a compound bound
+# again and would fire here, which is right: that is a parameter that
+# decides AND brackets.
 # geom-brep/src/edge_nurbs.rs is M7-8's plane × NURBS edge lane,
 # the narrowest possible extension of that same seam: it DELEGATES
 # to the already-listed `certify_rung3` door with a declared
@@ -73,6 +79,18 @@
 # already-classified constructions, never a re-decision of geometry.
 # Confined to this one file so path.rs itself stays bracket-free;
 # fillet_select.rs is NOT listed (sole-bound `T: Bounds`).
+# `geom_core::CertifiedBounds`'s own two DEFINITION lines — the trait
+# declaration and its blanket impl, in geom-core/src/real.rs — are
+# skipped by name. A name's definition is not a use of it, and the pair
+# has to be written literally exactly once for the alias to exist. This
+# skips two lines, not the file: any other compound bound in real.rs
+# still fires.
+# The match is order-insensitive: `Decide + Bounds` and `Bounds + Decide`
+# both fire, and the self-test plants both spellings.
+# KNOWN GAP: the match is line-based, so a bound broken across lines —
+# `T: Bounds` ending one line and `+ Foo` beginning the next — is
+# invisible to it. Stated rather than left to be discovered; closing it
+# needs a parser, not a grep.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -80,8 +98,10 @@ set -euo pipefail
 gate() {
   gate_require_crate_sources
   local hits
-  hits=$(grep -rnE '\+\s*(geom_core::)?Bounds\b' crates/*/src \
+  hits=$(grep -rnE '(\+\s*(geom_core::)?Bounds\b)|(\b(geom_core::)?Bounds\s*\+)' crates/*/src \
     | grep -vE ':[0-9]+:\s*(//|///|//!)' \
+    | grep -vE ':[0-9]+:(pub )?trait CertifiedBounds:' \
+    | grep -vE ':[0-9]+:impl<T: Bounds \+ CertifiedEnclosure> CertifiedBounds for T ' \
     | cut -d: -f1 | sort -u \
     | grep -vE '^crates/topo/src/boolean/(boxes|mod|ops|reduce|rest)\.rs$' \
     | grep -vE '^crates/topo/src/separation\.rs$' \
@@ -99,10 +119,25 @@ gate() {
   gate_ok "no compound Bounds bound outside the ratified seams"
 }
 
-plant() {
+# The two operand orders are SEPARATE cases, planted one at a time: a
+# single fixture carrying both would still fire if only one spelling
+# matched, which is exactly the blindness being guarded against.
+plant_decide_first() {
   mkdir -p "$1/crates/planted/src"
   printf 'pub fn f<T: Decide + Bounds>(_t: T) {}\n' > "$1/crates/planted/src/lib.rs"
 }
 
+plant_bounds_first() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn f<T: Bounds + Decide>(_t: T) {}\n' > "$1/crates/planted/src/lib.rs"
+}
+
+gate_selftest() {
+  gate_selftest_clean
+  gate_selftest_case "compound Bounds bound outside the ratified seams" plant_decide_first
+  gate_selftest_case "compound Bounds bound outside the ratified seams" plant_bounds_first
+  printf '%s selftest OK: passes a clean fixture, fires on both operand orders\n' "$(gate_name)"
+}
+
 gate_parse_args "$@"
-gate_main "compound Bounds bound outside the ratified seams" plant
+gate_main "compound Bounds bound outside the ratified seams" plant_decide_first

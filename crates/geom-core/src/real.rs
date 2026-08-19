@@ -477,6 +477,16 @@ pub trait Real:
 /// refusing dual impl — stated here so the obligation is on the
 /// record before the consumer lands.
 ///
+/// **Not an extension — a spelling.** The pair
+/// `Bounds + CertifiedEnclosure` — both bracket doors, no `Decide` — is
+/// spelled [`CertifiedBounds`] and is therefore a **sole** bound by
+/// construction, not an exception to this rule. It is outside the rule's
+/// class rather than carved out of it: the rule catches an evaluation or
+/// decision parameter that has also been handed bracket extraction, and
+/// both halves of that pair are bracket-side doors. Adding
+/// [`Decide`](crate::predicate::Decide) to
+/// it is a compound bound again, and still needs ratification.
+///
 /// # Semantics
 ///
 /// `[lo(), hi()]` brackets every real number the scalar stands for. For
@@ -599,8 +609,9 @@ impl<T: Bounds> Enclosure for T {
 /// It is the access-control half, split out, so that the two questions
 /// have separate doors and a caller has to say which one it is asking.
 /// It deliberately carries **one method and no supertrait**: a body that
-/// needs the raw bracket too says `T: Bounds + CertifiedEnclosure`, which
-/// is an honest inventory of the doors it uses. Making this a subtrait of
+/// needs the raw bracket too holds both doors, and says so with the sole
+/// bound [`CertifiedBounds`] — an honest inventory of the doors it uses,
+/// written as one name. Making this a subtrait of
 /// [`Enclosure`] would re-bundle exactly what is being split, and would
 /// put a third `lo`/`hi` in scope wherever a compound bound is written —
 /// the ambiguity this module's style note already warns about for the
@@ -648,6 +659,44 @@ impl CertifiedEnclosure for f64 {
         Some((self, self))
     }
 }
+
+/// **Both bracket doors, for code that reads both** — the pair
+/// [`Bounds`] + [`CertifiedEnclosure`] under one name, so a body that
+/// needs the stored bracket *and* the fallible certified one writes a
+/// **sole** bound.
+///
+/// The two doors answer different questions — `[lo(), hi()]` is the
+/// bracket read off storage, `certified_bracket()` additionally promises
+/// the computation was defined on the whole input box — and certification
+/// code routinely asks both: it builds C9 ring enclosures through the
+/// certified door and reads raw endpoints for the containment and padding
+/// arithmetic around them. Spelling that `T: Bounds + CertifiedEnclosure`
+/// is honest but is a *compound* bound in every mechanical sense, and the
+/// compound-`Bounds` rule below exists to catch a specific thing this is
+/// not (see the rule's `CertifiedBounds` paragraph). Named, it is a sole
+/// bound by construction.
+///
+/// # What this is not
+///
+/// It is **not** a general-purpose "give me brackets" bound. A parameter
+/// that only needs to read endpoints says `T: Bounds`; one that only needs
+/// the certified door says `T: CertifiedEnclosure`. Reach for this name
+/// only when the body genuinely uses both, and it does not license adding
+/// bracket access to evaluation code that had none — the reason to hold
+/// brackets out of evaluation signatures is unchanged by giving the pair a
+/// shorter spelling.
+///
+/// It is **not** an escape from the compound-`Bounds` rule.
+/// `T: Decide + CertifiedBounds` is still a compound bound, still fires
+/// the gate, and still needs ratification — correctly so, because that is
+/// exactly the thing the rule targets: one parameter that both DECIDES and
+/// reads brackets. `geom_brep::ssi::certify`'s `probe_tube_chart` is that
+/// shape and stays allowlisted on its own justification.
+pub trait CertifiedBounds: Bounds + CertifiedEnclosure {}
+
+/// Every scalar with both doors has the pair; the alias adds no obligation
+/// an implementor must opt into.
+impl<T: Bounds + CertifiedEnclosure> CertifiedBounds for T {}
 
 /// Exponentiation by squaring over any [`Real`], the shared implementation
 /// of [`Real::powi`]: `n < 0` via the reciprocal of `base.powi(|n|)`,
