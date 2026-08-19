@@ -80,6 +80,12 @@ proptest = { workspace = true }
 topo = { path = "../topo", features = ["sweep-testing"] }
 # M5 PR 11: the corpus curved documents gain tessellation columns.
 mesh = { path = "../mesh" }
+# Issue #650: `quantity::UnitDef` is sealed, so an off-table row is
+# unrepresentable from production surface — and `UnitSym::from_def`'s
+# `None` arm, the door that refuses one, is reachable only through
+# quantity's test-only mint. Dev-dependencies are the only place that
+# feature turns on (see quantity's manifest).
+quantity = { path = "../quantity", features = ["units-testing"] }
 
 # ONE test binary for the whole suite (see tests/all.rs). Each extra test
 # target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.

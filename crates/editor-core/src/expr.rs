@@ -245,24 +245,37 @@ impl UnitSym {
     /// unit; the vocabulary stays closed). Symbol-keyed, exactly as
     /// [`quantity::unit_by_symbol`] and the wire door are.
     ///
-    /// **Symbol-keyed means symbol-ONLY, and that is a live defect —
-    /// issue #650.** A caller-built [`quantity::UnitDef`] whose symbol
-    /// is a table symbol but whose `quantity` or `factor` is not the
-    /// table's own is silently replaced by the table row here, *after*
-    /// [`Expr::literal_with_unit`] has already checked `dim` against
-    /// the CALLER's `quantity` and thrown that row away. The guard is
-    /// therefore defeated in one direction: `UnitDef { symbol: "mm",
-    /// quantity: Angle, .. }` on an `Angle` literal is accepted, and
-    /// the resulting `Expr` serializes into a document that this
-    /// crate's own load door then refuses (`DisplayUnitMismatch`) — a
-    /// round-trip break, not merely a lenient input. Deliberately not
-    /// fixed here: it is a behaviour change, and #650 carries the
-    /// design question underneath it (whether `UnitDef`'s fields
-    /// should be `pub` at all, which would close it structurally).
+    /// **Symbol-keyed is sufficient because the symbol DETERMINES the
+    /// row (issue #650, closed structurally).** [`quantity::UnitDef`]
+    /// is sealed: private fields, no public constructor, and the
+    /// `LengthUnit::def` / `AngleUnit::def` mints that build
+    /// [`quantity::UNITS`] are `pub(crate)` to `quantity`. Every
+    /// `UnitDef` a caller can hold is therefore a COPY OF A TABLE ROW,
+    /// so matching on `symbol` alone selects the row the caller
+    /// already had — there is nothing else in it to disagree with.
+    ///
+    /// Before the seal this was a live defect: `UnitDef { symbol:
+    /// "mm", quantity: Angle, .. }` was constructible from outside,
+    /// [`Expr::literal_with_unit`] checked `dim` against the CALLER's
+    /// `quantity` and then threw that row away for the table's,
+    /// producing an `Expr` that serialized into a document this
+    /// crate's own load door refused (`DisplayUnitMismatch`) — a
+    /// round-trip break. The row is now unrepresentable rather than
+    /// refused, which is why no whole-row re-check was added here: a
+    /// check for a state the type system excludes is dead code
+    /// pretending to be a guard.
+    ///
+    /// The `None` arm survives, and is reachable ONLY through
+    /// `quantity`'s `units-testing` mint (`UnitDef::mint_untabled`,
+    /// `#[doc(hidden)]`, dev-dependencies only) — it is the door that
+    /// keeps the closed vocabulary closed, and
+    /// `switch_display_units.rs`'s off-table rows are the reason it is
+    /// not dead. From production surface it cannot fire: that is the
+    /// seal working, not the branch being pointless.
     fn from_def(u: &quantity::UnitDef) -> Option<Self> {
         let i = quantity::UNITS
             .iter()
-            .position(|row| row.symbol == u.symbol)?;
+            .position(|row| row.symbol() == u.symbol())?;
         // The const assertion above bounds the table at 255 rows, so
         // this conversion cannot refuse. If it ever did, the `None`
         // would leave `from_def` reporting a symbol that IS in the
@@ -439,7 +452,7 @@ impl Expr {
         dim: Dimension,
         unit: quantity::UnitDef,
     ) -> Result<Self, DimensionError> {
-        let unit_dim = match unit.quantity {
+        let unit_dim = match unit.quantity() {
             quantity::UnitQuantity::Length => Dimension::Length,
             quantity::UnitQuantity::Angle => Dimension::Angle,
         };
@@ -451,7 +464,7 @@ impl Expr {
         }
         // The closed-vocabulary door: only table rows have codes.
         let sym = UnitSym::from_def(&unit).ok_or_else(|| DimensionError::UnknownDisplayUnit {
-            symbol: unit.symbol.to_string(),
+            symbol: unit.symbol().to_string(),
         })?;
         // Run literal()'s refusal doors, then attach the unit.
         let mut e = Self::literal(value, dim)?;

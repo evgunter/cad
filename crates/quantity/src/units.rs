@@ -43,14 +43,132 @@ pub enum UnitQuantity {
 
 /// One row of the unit table: a display/parse symbol, the quantity it
 /// measures, and the exact factor into canonical units.
+///
+/// **SEALED — a `UnitDef` is a row of [`UNITS`], not a triple of
+/// three independent fields (issue #650).** The fields are private and
+/// there is no public constructor, so the only values of this type a
+/// caller can hold are copies of the table's own rows: [`UNITS`]
+/// itself, [`unit_by_symbol`], and whatever hands one back
+/// (`Expr::display_unit`). The `LengthUnit::def` / `AngleUnit::def`
+/// views that BUILD the table are `pub(crate)` for the same reason —
+/// `LengthUnit`'s fields are public, so a public `def()` would be a
+/// second mint that could stamp any symbol onto any quantity.
+///
+/// The invariant this buys, which downstream crates rely on: **the
+/// symbol determines the other two fields.** A row whose `symbol` is
+/// `"mm"` and whose `quantity` is `Angle` is not merely refused, it is
+/// unrepresentable — which is what closes #650, where a caller-built
+/// mismatched row defeated `Expr::literal_with_unit`'s dimension guard
+/// and produced an `Expr` that serialized into a document editor-core's
+/// own load door then rejected. D2 addendum: the answer chosen is
+/// "make the illegal state unrepresentable", not row 1's typed error,
+/// because the input was never legitimate in the first place.
+///
+/// The seal is a claim about what COMPILES, so it is pinned by rows
+/// that must fail to compile. These are library doctests — they run
+/// under `cargo test -p quantity --doc`, so undoing the seal turns
+/// them red rather than merely dating a comment.
+///
+/// #650's literal counterexample no longer builds:
+///
+/// ```compile_fail
+/// let bogus = quantity::UnitDef {
+///     symbol: "mm",
+///     quantity: quantity::UnitQuantity::Angle,
+///     factor: 1.0,
+/// };
+/// ```
+///
+/// Nor does the struct-update escape from a real row:
+///
+/// ```compile_fail
+/// let mm = quantity::unit_by_symbol("mm").unwrap();
+/// let bogus = quantity::UnitDef { quantity: quantity::UnitQuantity::Angle, ..mm };
+/// ```
+///
+/// Nor the route through the typed views, whose own fields are still
+/// public — an [`AngleUnit`] with any symbol builds fine, but `def()`
+/// is `pub(crate)`, so it is not a second mint. Closing that one is
+/// what makes the seal a seal rather than a rename:
+///
+/// ```compile_fail
+/// let bogus = quantity::AngleUnit { symbol: "mm", factor: 1.0 }.def();
+/// ```
+///
+/// The reads all still work, through the accessors:
+///
+/// ```
+/// let mm = quantity::unit_by_symbol("mm").expect("mm is a table row");
+/// assert_eq!(mm.symbol(), "mm");
+/// assert_eq!(mm.quantity(), quantity::UnitQuantity::Length);
+/// assert_eq!(mm.factor(), quantity::MILLI);
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct UnitDef {
+    symbol: &'static str,
+    quantity: UnitQuantity,
+    factor: f64,
+}
+
+impl UnitDef {
     /// The surface symbol (`"mm"`), as parsed and as displayed.
-    pub symbol: &'static str,
+    pub const fn symbol(&self) -> &'static str {
+        self.symbol
+    }
+
     /// The quantity this unit measures.
-    pub quantity: UnitQuantity,
+    pub const fn quantity(&self) -> UnitQuantity {
+        self.quantity
+    }
+
     /// Canonical units (meters/radians) per one of this unit.
-    pub factor: f64,
+    pub const fn factor(&self) -> f64 {
+        self.factor
+    }
+
+    /// Mint a row for a symbol the table does NOT contain —
+    /// `units-testing` only, never production surface.
+    ///
+    /// The seal makes every off-table row unrepresentable, which is
+    /// the point; but the doors that REFUSE one still exist downstream
+    /// (editor-core's `UnitSym::from_def` returns `None` for a symbol
+    /// outside [`UNITS`], raised as
+    /// `DimensionError::UnknownDisplayUnit`), and a refusal nobody can
+    /// reach is a refusal nobody can test. This is the test-only door
+    /// that keeps those refusals proven — the same shape as `topo`'s
+    /// `sweep-testing` injectors, enabled through dev-dependencies so
+    /// no production dependent can reach it.
+    ///
+    /// **It is deliberately narrower than "arbitrary row".** It
+    /// PANICS on a symbol that IS in the table, because that is
+    /// exactly issue #650's shape — a row whose symbol names a table
+    /// entry but whose `quantity` or `factor` is not that entry's, the
+    /// row that defeated `literal_with_unit`'s dimension guard. #650
+    /// is closed by making that row unrepresentable, so a test-only
+    /// door that could rebuild it would reopen the defect inside every
+    /// test build and let a regression hide behind "well, only the
+    /// mint can do it". Off-table symbols are a different class: the
+    /// vocabulary is closed against them by a RUNTIME refusal, and
+    /// that refusal is what wants a test.
+    ///
+    /// # Panics
+    ///
+    /// If `symbol` is one of [`UNITS`]' own symbols.
+    #[cfg(feature = "units-testing")]
+    #[doc(hidden)]
+    pub fn mint_untabled(symbol: &'static str, quantity: UnitQuantity, factor: f64) -> Self {
+        assert!(
+            unit_by_symbol(symbol).is_none(),
+            "mint_untabled is for symbols OUTSIDE the table; {symbol:?} is a table row, and a \
+             tabled symbol carrying a different quantity or factor is issue #650's own \
+             counterexample — sealed unrepresentable on purpose"
+        );
+        Self {
+            symbol,
+            quantity,
+            factor,
+        }
+    }
 }
 
 /// A length unit — a typed view of a [`UnitDef`] row, so `25.0 * MM`
@@ -73,8 +191,12 @@ pub struct AngleUnit {
 }
 
 impl LengthUnit {
-    /// This unit as a table row.
-    pub const fn def(self) -> UnitDef {
+    /// This unit as a table row — `pub(crate)`: this is the mint that
+    /// BUILDS [`UNITS`], and `LengthUnit`'s own fields are public, so
+    /// a public `def()` would re-open the [`UnitDef`] seal by letting
+    /// a caller stamp any symbol onto `Length` (issue #650). Callers
+    /// outside the crate reach a row through [`unit_by_symbol`].
+    pub(crate) const fn def(self) -> UnitDef {
         UnitDef {
             symbol: self.symbol,
             quantity: UnitQuantity::Length,
@@ -84,8 +206,9 @@ impl LengthUnit {
 }
 
 impl AngleUnit {
-    /// This unit as a table row.
-    pub const fn def(self) -> UnitDef {
+    /// This unit as a table row — `pub(crate)` for the reason on
+    /// [`LengthUnit::def`].
+    pub(crate) const fn def(self) -> UnitDef {
         UnitDef {
             symbol: self.symbol,
             quantity: UnitQuantity::Angle,
