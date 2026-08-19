@@ -170,3 +170,5 @@ fn every_suite_file_is_aggregated() {
 mod probe_census;
 #[path = "probe_f34_review.rs"]
 mod probe_f34_review;
+#[path = "probe_s5_sectors.rs"]
+mod probe_s5_sectors;
