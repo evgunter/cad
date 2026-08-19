@@ -323,7 +323,7 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
 /// A segment's sub-NAME arguments, in declaration order (the set-
 /// valued variants [`RoleSeg::Merged`] and [`RoleSeg::BandFace`]
 /// contribute their members in the canonical name order they are
-/// stored in). [`RoleSeg::Fragment`]'s [`Qualifier`](super::Qualifier)
+/// stored in). [`RoleSeg::Fragment`]'s [`Qualifier`]
 /// carries verdicts rather than a role argument and contributes none.
 /// The match is EXHAUSTIVE on purpose (the `walk_names` rule): a
 /// future [`RoleSeg`] or [`Qualifier`] variant embedding names must be
