@@ -2490,7 +2490,7 @@ outside the face: a silently wrong mesh, neither a typed refusal nor a
 panic, and `tessellate` does not run `check_mesh`.
 
 **#648 makes it a refusal**: `curved::require_swept_rectangle` runs the
-exact, O(n) off-bounding-box predicate on the walk polygon and returns
+O(n) off-bounding-box predicate on the walk polygon and returns
 `TessellateError::UnsupportedCurvedDomain` — D2 addendum row 2 (valid
 input, unbuilt lane), the `curved`-chart twin of `trimmed`'s
 `SelfTouchingTrimLoop` and the structural sibling of `RingOnCurvedFace`
@@ -2500,6 +2500,73 @@ partial-revolve sphere band, and the boolean-cut die pip, at two δ,
 through the public entry point and `check_mesh`) shows nothing in tree
 refuses.
 
+**THE COMPARISON IS BANDED, IN METRES — the first form was exact and
+that was a FALSE PREMISE (issue #653).** #648's first pass compared the
+walk entry's coordinate to the box bitwise, justified in the code by
+*"`crate::walk` assigns each side's constant coordinate once per EDGE
+(never per point), so a rectangle side is bitwise straight."* That
+holds only when the side IS one edge. An iso side carried by two or
+more edges has each sub-edge derive its own column from `mid_azimuth`
+→ `Chart::u_of` — an `atan2` of a **different point of the same
+carrier**. Analytically equal; bitwise equal on axis-aligned dyadic
+fixtures, which is why every in-tree fixture and the whole wild corpus
+passed; ulps apart under a general rigid placement.
+
+Adversarial review executed the counterexample: a frustum wedge
+(`revolve` of a trapezoid through π/2) with its first boundary edge
+split twice via the public `topo::Body::split_edge`, then placed by an
+oblique rigid map. Pre-#648 it meshed 42 triangles `check_mesh`-clean;
+the exact form refused it `UnsupportedCurvedDomain { off_bbox: 1 }` on
+an entry **6.245e-17 m** off its own box — 1.6e7 inside ε = 1e-9. The
+same shape is reachable with **no kernel mutator at all**: a
+hand-authored STEP D-prism stating one cylindrical face's vertical
+boundary as two collinear `EDGE_CURVE`s (what every exporter emits when
+a vertex lands on that edge), placed obliquely by its assembly
+placement, false-refused at **8.88e-18 m**.
+
+The fix measures the gap in metres against the same band the module
+already uses at the loop closure (`walk::closure_is_snappable`,
+`residue · radius < eps`): `Chart::radial` for u — the entry's own
+distance from the chart axis, so a cone and a sphere get their varying
+lever arm — and the new `Chart::v_lever` for v. Over a 1524-row split ×
+oblique-placement sweep the **worst** wobble anywhere was 1.4985e-15 m,
+6.7e5 inside ε, while a genuine re-entrant corner is a feature width
+off the box (the notch fixture's is 1 m). Fifteen orders of magnitude
+separate the two populations; the band is not a calibration.
+
+**Sweep A/B, 1524 `tessellate` calls (split × 3 placements × 15
+bodies).** Exact form: 119 guard refusals. Banded form: **0**, and the
+per-row status is **identical to a build with the guard removed
+entirely** — so the guard as it now ships changes no output anywhere in
+the sweep. Of the 119: 47 already refused for another reason (they go
+back to those errors), 1 previously meshed watertight (the regression,
+now clean again at 42 triangles), and **71 previously produced a
+silently non-watertight mesh and still do**. That last group is #653's
+other half and is a defect on main in its own right — banding does not
+and cannot catch it, because its off-box residual (≤1.5e-15 m) is the
+same phenomenon at the same scale as the counterexample's. The fix for
+those is #653's option 2 (have the walk snap co-azimuthal consecutive
+meridians onto one column, as the loop-closure snap already does for
+the seam); it changes mesh output and belongs in its own PR with its
+own regression evidence.
+
+**Payload.** `off_bbox: usize` alone could not tell the two apart — it
+read `1` for a one-corner keyway and `1` for a 6e-17 m wobble, the same
+message for *"re-author your part"* and *"kernel bug, file it."* The
+variant now also carries the first offending `(u, v)` and the maximum
+distance from the box **in metres**, which is the number that
+classifies the refusal. S19's postmortem lesson, applied: *a refusal
+the suite proves unreachable gets reviewed for reachability, never for
+diagnosability.* Note also that had the original sweep printed margins
+instead of pass/fail, the exactness claim would have been visibly
+fragile before it shipped.
+
+**Classification re-examined, not merely asserted.** D2 addendum row 2
+(`Unsupported*`: valid input, lane not built) is right for the intended
+target — a keyway. It was *wrong* for what the exact guard actually
+fired on, because the lane **is** built for a wobbling frustum. Banding
+is what makes row 2 correct rather than aspirational.
+
 **IMPORT RESIDUAL — CLOSED BY REFUSAL, not pending.** The settling
 experiment ran (hand-authored STEP solids, notched and un-notched
 cylindrical faces, through `step-import` → `tessellate` → `check_mesh`).
@@ -2508,6 +2575,13 @@ tier-3 at-rest volume gate refuses it — `PropsError::NotIsoRectangle`
 from `du_of_rims` (`geom-brep/src/props/curved.rs`), surfaced as
 `ValidationError::VolumeUncomputable` and then
 `StepImportError::TierInvalid`. **So the defect was never live.**
+
+That conclusion holds for a *notched* face and only for one. It is not
+why the arm stays quiet in general: a face whose walk lands
+microscopically off its own box passes the tier-3 gate freely — the
+split-boundary D-prism above imports, adopts and reaches this lane
+without complaint — so the gate never screened that population at all.
+The exact comparison, not the gate, is what fired on them.
 
 The finding is what that reveals, and it *strengthens* the guard rather
 than retiring it: the mesher was protected **transitively, by another
@@ -3742,6 +3816,21 @@ What the sweep actually found was an *unstated premise* doing the work
 a sibling that survives the sweep survives *for a reason*, and **the reason
 is either enforced or it is the next defect** — writing it down is the
 minimum, not the deliverable. S28 carries the detail.
+
+**And the reason has to be right.** #648's first pass wrote the premise
+down as an *exact* property and cited the mechanism that supposedly
+guaranteed it ("assigned once per edge"). Adversarial review executed
+the counterexample in an afternoon: the mechanism guarantees the
+property only when a side is one edge, and every in-tree fixture and
+the whole wild corpus happened to satisfy that, so a green suite proved
+nothing. The refusal became a **false refusal** on valid parts (#653).
+Two things generalise. A premise stated as *exact* is a claim about
+float representation, not about geometry, and needs a fixture that is
+adversarial to representation — an oblique placement and a subdivided
+edge, not another shape. And a sweep that records pass/fail where it
+could record **margins** discards the evidence that would have shown
+the claim was fragile; #648's payload now carries the margin for the
+same reason.
 
 **A second class the same review named, swept in #648.** *"Sweep a list of
 bodies, assert a global count"* has the same hole as a global floor:

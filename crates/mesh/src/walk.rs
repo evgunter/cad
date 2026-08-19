@@ -235,6 +235,29 @@ impl Chart {
         }
     }
 
+    /// The v counterpart of [`Self::radial`]: `|∂S/∂v|`, the length
+    /// one unit of the chart's v coordinate displaces a point by.
+    ///
+    /// Constant per kind because v is either already a length
+    /// (cylinder — axial metres; cone — slant metres, both
+    /// `|∂S/∂v| = 1`) or an angle turning on a fixed radius (sphere —
+    /// latitude on `r`; torus — minor angle on `r`). u needs the point
+    /// because its lever arm is the *distance from the axis*, which
+    /// varies over a cone and a sphere; v's does not, so this takes
+    /// none.
+    ///
+    /// Together `(radial(p), v_lever())` convert a UV discrepancy into
+    /// metres, which is the only honest unit to compare against ε — the
+    /// same argument [`closure_is_snappable`] makes at the loop
+    /// closure, and the one `curved`'s domain guard now makes too.
+    pub(crate) fn v_lever(&self) -> f64 {
+        match self.kind {
+            ChartKind::Cylinder { .. } | ChartKind::Cone { .. } => 1.0,
+            ChartKind::Sphere { r } => r,
+            ChartKind::Torus { minor, .. } => minor,
+        }
+    }
+
     /// Whether v is a periodic coordinate (torus minor angle).
     pub(crate) fn v_periodic(&self) -> bool {
         matches!(self.kind, ChartKind::Torus { .. })
