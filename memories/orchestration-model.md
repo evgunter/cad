@@ -88,8 +88,8 @@ in git history and the M-logs, not here):
   every pipeline seam.
 - **Every implementer dispatch**: point the lane at
   `docs/prompts/implementer-discipline.md` by path — output discipline,
-  the foreground-verification rule, per-lane target dirs, k-lint and
-  comment style live there. Read it once yourself; do not paste it.
+  CI-first verification (local runs are an iteration tool, not the
+  record), per-lane target dirs, k-lint and comment style live there. Read it once yourself; do not paste it.
 - **Reviews**: assign reviewers explicit claims to falsify, AND point
   them at the style lane by path (`docs/prompts/reviewer-style-lane.md` — read it
   once yourself, do not paste it; dispatcher notes in
