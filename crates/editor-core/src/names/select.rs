@@ -52,7 +52,9 @@ use crate::node::RecipeNodeId;
 
 use super::geompred::{self, GeomPred, SelectRefusal};
 use super::interrogate;
-use super::role::{CapEnd, EntityKind, MeridianEnd, RimSupport, RoleSeg, SplitHalf, StableName};
+use super::role::{
+    CapEnd, EntityKind, MeridianEnd, Qualifier, RimSupport, RoleSeg, SplitHalf, StableName,
+};
 use super::table::{EntityRef, Entry};
 
 /// The op group a [`RoleSeg`] belongs to — the enum's own documented
@@ -270,7 +272,10 @@ impl SegTag {
     }
 }
 
-/// The end/side tag a segment carries, if any.
+/// The end/side tag a segment carries, if any. The match is
+/// EXHAUSTIVE on purpose (the `walk_names` rule): a future
+/// [`RoleSeg`] or [`Qualifier`] variant carrying an end, half or rim
+/// support must be classified here or the compile breaks.
 fn side_of(seg: &RoleSeg) -> Option<Side> {
     match seg {
         RoleSeg::Cap(e) | RoleSeg::RimEdge(e, _) | RoleSeg::CapVertex(e, _) => Some(Side::Cap(*e)),
@@ -284,15 +289,45 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         | RoleSeg::CrossingVertex { side: s, .. }
         | RoleSeg::OnToolVertex { side: s, .. } => Some(Side::Split(*s)),
         RoleSeg::BandTrim { support, .. } => Some(Side::Rim(*support)),
-        _ => None,
+        // Side-free segments (kept explicit — see the doc note).
+        RoleSeg::OutputBody
+        | RoleSeg::Lateral(_)
+        | RoleSeg::LateralEdge(_)
+        | RoleSeg::Band(_)
+        | RoleSeg::BandRim(_)
+        | RoleSeg::BandRimPi(_)
+        | RoleSeg::BandPi(_)
+        | RoleSeg::Pole(_)
+        | RoleSeg::AxisEdge(_)
+        | RoleSeg::FromA(_)
+        | RoleSeg::FromB(_)
+        | RoleSeg::Seam { .. }
+        | RoleSeg::Merged(_)
+        | RoleSeg::Fragment(Qualifier::SideOf(_) | Qualifier::OrderAlong { .. })
+        | RoleSeg::FromTarget(_)
+        | RoleSeg::BlendFace(_)
+        | RoleSeg::CornerFace(_)
+        | RoleSeg::TrimEdge { .. }
+        | RoleSeg::FootVertex { .. }
+        | RoleSeg::CornerArc { .. }
+        | RoleSeg::BandFace(_)
+        | RoleSeg::BandFoot(_)
+        | RoleSeg::BandCross(_)
+        | RoleSeg::BandCut(_)
+        | RoleSeg::BandSlit(_)
+        | RoleSeg::InPart { .. }
+        | RoleSeg::Instance { .. } => None,
     }
 }
 
 /// A segment's sub-NAME arguments, in declaration order (the set-
 /// valued variants [`RoleSeg::Merged`] and [`RoleSeg::BandFace`]
 /// contribute their members in the canonical name order they are
-/// stored in). [`RoleSeg::Fragment`]'s [`Qualifier`](super::Qualifier)
+/// stored in). [`RoleSeg::Fragment`]'s [`Qualifier`]
 /// carries verdicts rather than a role argument and contributes none.
+/// The match is EXHAUSTIVE on purpose (the `walk_names` rule): a
+/// future [`RoleSeg`] or [`Qualifier`] variant embedding names must be
+/// classified here or the compile breaks.
 fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
     match seg {
         RoleSeg::FromA(n)
@@ -316,7 +351,26 @@ fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
         RoleSeg::FootVertex { vertex, support } => vec![vertex, support],
         RoleSeg::CornerArc { vertex, edge } => vec![vertex, edge],
         RoleSeg::Merged(set) | RoleSeg::BandFace(set) => set.iter().collect(),
-        _ => Vec::new(),
+        // A verdict qualifier, not a role argument (see the doc note).
+        RoleSeg::Fragment(Qualifier::SideOf(_) | Qualifier::OrderAlong { .. }) => Vec::new(),
+        // Name-free segments (kept explicit — see the doc note).
+        RoleSeg::OutputBody
+        | RoleSeg::Cap(_)
+        | RoleSeg::Lateral(_)
+        | RoleSeg::RimEdge(..)
+        | RoleSeg::LateralEdge(_)
+        | RoleSeg::CapVertex(..)
+        | RoleSeg::Band(_)
+        | RoleSeg::BandRim(_)
+        | RoleSeg::BandRimPi(_)
+        | RoleSeg::BandPi(_)
+        | RoleSeg::Meridian(..)
+        | RoleSeg::MeridianVertex(..)
+        | RoleSeg::RevolveCap(_)
+        | RoleSeg::Pole(_)
+        | RoleSeg::AxisEdge(_)
+        | RoleSeg::SplitBody(_)
+        | RoleSeg::SectionFace { .. } => Vec::new(),
     }
 }
 

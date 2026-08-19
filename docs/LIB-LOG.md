@@ -971,3 +971,21 @@ banked (opus ×3). Everything scheduled is done — remaining
 register items need Evan (enclosing-tangency vocabulary, Wave 0
 D1-D4, Q9) or another program (G8 kernel gap, G2 sweep/tube),
 or a #614 routing.
+
+**Resting-state correction (2026-08-18, prompted by Evan's
+pickup-path question)**: the entry above under-enumerates. The
+DISPATCHABLE-NOW column is not empty — it has one item:
+**G11 (mesh/tessellation door from Python)** — blocks no audit
+row but completes the guide's ladder (steps 4-5: tessellate +
+mesh-vs-exact cross-check); register category B names it; a
+banked LIB-12 slot (opus) covers its draw; no design conversation
+needed (the Rust mesh door exists — this is a bindings unit of
+the PYG-family shape). Also dispatchable when wanted, smaller:
+the **evaluate-memo door** (PYPU's banked finding — evaluate
+takes no prior, so memoized recompute is unobservable from
+Python; a small additive door) and **die_tool's Python
+re-authoring** (banked behind its Revolve/datum half). The full
+pickup map for a cold successor: this log's tail + the residual
+register (category B self-enforcing via the audit test) +
+memories/MEMORY.md. Correction recorded rather than edited in
+place — the log is append-only by convention.
