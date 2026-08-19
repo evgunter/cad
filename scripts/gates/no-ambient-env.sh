@@ -14,12 +14,54 @@
 # variable converted `tessellate`'s typed error contract into a
 # panic.
 #
+# WHEN AN AMBIENT CHANNEL IS NOT THAT (S22, ruled 2026-08-19).
+# The indictment above is the rule, and it is not discharged by a
+# variable being USEFUL — that argument would have saved
+# NURBS_PROBE too. A channel escapes it only when all four hold:
+#
+#  1. CONTRACT-RATIFIED. The value is a named parameter of the
+#     ratified model contract, not an implementation switch. The
+#     model is a pure function of (parameter vector, eps); eps is
+#     in that signature, and a probe's sampling density is not.
+#  2. COMMIT-ONCE, IMMUTABLE. One get_or_init, and no API to
+#     change it afterwards — so "shipped behaviour with no call
+#     site to review" is bounded to a single decision made before
+#     the first predicate runs, not a switch flipped under one.
+#  3. REPORTED. The committed value AND ITS PROVENANCE are
+#     visible in the run's output, so "no call site to review"
+#     does not mean "nobody can tell". A channel that fails this
+#     one is indistinguishable from NURBS_PROBE from outside.
+#  4. RECONCILED. A more authoritative source either wins or
+#     refuses — the ambient value is a BOOTSTRAP, never the last
+#     word.
+#
+# NURBS_PROBE had none of the four. It also failed a fifth thing
+# these two do not: it changed the TYPED ERROR CONTRACT, putting
+# an assert! in a path whose refusals are values.
+#
 # The allowlist is the two RATIFIED knobs, both read once and
 # documented where they are read:
 #  - geom-core tolerance.rs — CAD_TOLERANCE_EPS, the eps matrix
-#    this whole workflow is built on (a OnceLock, read at init);
+#    this whole workflow is built on (a OnceLock, read at init).
+#    Rows 1, 2 and 4 have always held: eps is D4's declared run
+#    parameter; the OnceLock is the only thing STRUCTURALLY
+#    enforcing one eps per process (which is why S22 kept it
+#    rather than threading eps to the predicate funnels); and a
+#    loaded document's recorded eps outranks an unread env value,
+#    with a disagreement refusing as ToleranceConflict. Row 3 was
+#    the one it FAILED, and that gap is the whole content of
+#    issues #415 and #497 — a stale value in a shell changed what
+#    "coincident" means with no output line saying so. It is
+#    closed now: EpsilonSource records which channel committed the
+#    value, and Tolerance::report / committed_report render it,
+#    exposed as `pncad::tolerance` and printed by the demo runs.
+#    So this entry is an INSTANCE OF THE RULE ABOVE, not an
+#    exemption from it — the escape-hatch sentence in the error
+#    message below means "argue the four rows", nothing weaker.
 #  - test-utils fuzz.rs — CAD_FUZZ_SEED / CAD_FUZZ_EFFORT, and
 #    test-utils is a dev-only leaf no shipped build can reach.
+#    This one is discharged by REACHABILITY before the four rows
+#    are reached: there is no shipped behaviour to change.
 #
 # `env!` is deliberately NOT matched: it is compile-time, baked
 # into the binary, and cannot be an ambient channel.
