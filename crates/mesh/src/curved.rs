@@ -557,7 +557,10 @@ mod tests {
         vec![
             ("ball", ball()),
             ("sphere band (pi/2)", sphere_band(pi / 2.0)),
-            ("sphere band (2pi - 0.08)", sphere_band(core::f64::consts::TAU - 0.08)),
+            (
+                "sphere band (2pi - 0.08)",
+                sphere_band(core::f64::consts::TAU - 0.08),
+            ),
             ("cone", cone_body()),
             ("mirror nappe (pi + 0.05)", mirror_nappe(pi + 0.05)),
             ("washer", washer()),
@@ -602,7 +605,9 @@ mod tests {
                      bounding box. Offenders: {:?}",
                     off.len(),
                     poly.len(),
-                    off.iter().map(|&i| (poly[i].u, poly[i].v)).collect::<Vec<_>>()
+                    off.iter()
+                        .map(|&i| (poly[i].u, poly[i].v))
+                        .collect::<Vec<_>>()
                 );
                 assert_eq!(require_swept_rectangle(fk, &poly, bbox(&poly)), Ok(()));
             }
