@@ -2465,6 +2465,30 @@ What sharing exists is ad hoc: `trimmed` imports `classify_faces`/
 `tessellate` import the tolerance bundle `Tol` from `curved`. The common
 code lives in whichever lane happened to grow it first.
 
+**ORDERING HAZARD SETTLED by #648 — and only that half; the three
+parallel pipelines stand.** `curved`'s grid-after-constraints order is
+**inert**, established by execution rather than by reading. spade splits a
+constraint an inserted point lands on and re-flags **both halves** as
+constraints, giving the new vertex the next handle index — so nothing
+`curved` reads is corrupted, and the bookkeeping the `planar` warning
+protects does not exist in this lane at all. What was actually carrying
+`curved` is a different, unstated premise: its grid runs the OPEN ranges
+`1..nu` × `1..nv` over the walk polygon's own bounding box, which is strictly
+interior **iff the polygon IS that box** (the swept-UV-rectangle contract).
+Nothing checked that, and the router screens carrier KINDS, not loop SHAPE.
+#648 pins it — over every chart this build authors and over the
+boolean-cut die pip, whose chart re-cut is what keeps a CUT face
+iso-rectangular — with red siblings showing that a notched domain splits
+constraints and leaves `inner_faces()` triangles outside the face: a
+silently wrong mesh, neither a typed refusal nor a panic. Every attempt to
+author such a domain through the public boolean refused TYPED
+(`CurvedPierceUnsupported`). **Residue, `unsure`:** import is not covered —
+`step-import` puts no structural restriction on a cylindrical face's bound,
+so a keyway/milled-flat part would reach this lane; the settling experiment
+is a hand-authored STEP file with one U-bounded cylindrical face through
+`step-import` → `tessellate` → `check_mesh`, and the fix if it confirms is a
+typed `Unsupported*` refusal (D9 row 2), not a change to the ordering.
+
 **Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
 baffle me with how they ever happened." Postmortem pass commissioned.
 **Postmortem (2026-08-18). The warning postdates the lane it appears to
