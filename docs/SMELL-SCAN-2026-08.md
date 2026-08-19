@@ -539,16 +539,20 @@ serde grep exists in `ci.yml` or `ci-local.sh`. The only mechanical check is
 | units | **DOES NOT SURVIVE as counted** — `parse.rs` uses the shared table; `step-import`'s `UnitKind` is a *different vocabulary* (STEP `SI_UNIT` names). Real duplicates: two-and-a-half, one of them **measured and justified** (PR #291 MAJOR-2: inlining the 32-byte row grew every `Expr` by ~40 bytes). |
 | Euler vector | **SURVIVES IN PART; the surviving part FIXED by #625.** The 6-vector and the 7 arena deltas are **different quantities** — Δh is not an arena count and cannot be derived from them — so they stay separate **by design**, and the three copies plus the divergent `Ledger` remain. What survived the steelman was the spelling: the delta was an **unnamed positional** 7-tuple at 16 sites across 6 files, against the ratified "named, never positional". It is now `ArenaDelta`, a named `#[cfg(debug_assertions)]` struct with the seven `ArenaCounts` field names; sites write only their nonzero components over `..ArenaDelta::ZERO`, so a mistyped field name fails to compile (a transposition across correct names still does not, which is why the conversion was checked component-by-component). |
 
-*Drift (a) CONFIRMED, and it contradicts ratified design text.* `Rebind`'s
-rewrite loop ends `_ => {}` and never reaches `Node::Mate`'s two `StableName`s.
-Two bad outcomes: if a mate head is the only reference, the rebind returns
-`RebindNoReferences` — a **loud but false** refusal; if a `Declare` also
-references it, the mate is **silently left dangling**. `ASSEMBLY-DESIGN.md:566`
-states *"A dangling head (N5) contributes no edge until `Rebind`"* — that
-repair path does not exist. A third site is also mate-blind
-(`resolve/mod.rs:911`). **No issue is filed.** Note the contrast in the same
-file: `refactor::remap_node` **is** wildcard-free and **does** handle `Mate` —
-the exhaustive sites stayed in sync; the wildcard sites did not.
+*Drift (a) CONFIRMED, and it contradicts ratified design text.* Note the
+contrast in the same file: `refactor::remap_node` **is** wildcard-free and
+**does** handle `Mate` — the exhaustive sites stayed in sync; the wildcard sites
+did not. **FIXED by #618**, which took that lesson as its shape:
+`Node::payload_names` and its rewriting twin are the one answer to which
+payloads carry a `StableName`, both list the nameless variants rather than
+wildcarding them (a future name-carrying variant breaks the compile — verified
+by a reviewer's probe variant, `E0004`), and the `Rebind` loop, the insert door,
+the split's and inline's re-anchoring, edit-time name resolution and the load
+check all read them. The sweep found two further mate-blind sites of the same
+shape: the insert door silently ADMITTED a mate head naming no node, and
+`persist/check.rs` never id-checked mate heads against the mint counter — a
+file that got one in could previously be opened and salvaged by deleting the
+mate, and now refuses to load at all.
 
 *Drift (b) CONFIRMED with a qualification:* the `Fragment(SideOf)` disagreement
 is **documented and intentional**. The drift is narrower — the fourth site uses
@@ -3237,7 +3241,7 @@ every other, so these can run as five concurrent lanes.
 | **W1a** | **S16** — `boolean/boxes.rs`'s planar arm uses a bare vertex hull, but a cylinder's planar cap has a circular rim that bulges past its endpoints, so the box is not a superset and the BVH can prune a pair silently. | S–M | **Highest single-item value in the report.** The fix is already named in `PERF-SCAN-2026-08.md` Tier A finding 1, and `separation.rs` already contains the corrected planar rule. |
 | **W1b** ✅ #617 | **S23** — the SSI exhaustiveness sweep switches duty on `tubes.is_empty()`, so an all-seeds-fail run returns `Ok` *plus an exhaustiveness receipt* instead of `ExhaustivenessInconclusive`. | M | **FIXED by #617**: the duty is a stated parameter (seed/account entry points over a private `SweepDuty`), and a new row enters the all-seeds-fail mode the old row's premise excluded. Chart-lane twin of that row scheduled as **H7**. |
 | **W1c** | **S41** — `Bounds for Interval` forwards `lo()`/`hi()` without consulting the decoration, and `bracket<E: Enclosure>` crosses operands into `RingInterval` by endpoints. A `Trv`-but-nonempty enclosure may be dropping a domain violation **today**. | S to test, ? to fix | Also the gating question for S1 — until this is settled, "swap `RingInterval` for `Interval`" is unsound. |
-| **W1d** | **S4 drift (a)** — `Rebind`'s rewrite loop ends `_ => {}` and never reaches `Node::Mate`'s two `StableName`s, so a mate head is either falsely refused as `RebindNoReferences` or silently left dangling. Contradicts `ASSEMBLY-DESIGN.md:566`. | S | Needs a red-then-green test and an A12 read. No issue is filed. |
+| **W1d** ✅ #618 | **S4 drift (a)** — `Rebind`'s rewrite loop ends `_ => {}` and never reaches `Node::Mate`'s two `StableName`s, so a mate head is either falsely refused as `RebindNoReferences` or silently left dangling. Contradicts `ASSEMBLY-DESIGN.md:566`. | S | **FIXED — #618** (red-then-green, A12's reading edge asserted; two further mate-blind sites fixed with it). |
 | **W1e** | **S42** — loft's `sense = true` is pinned only on `loft_prism`: no concave arcs, no holes, i.e. the shape that did not break extrude either. | S | Loft a concave-arc section pair and a holed one, run the S11 union check. Cheap; may find nothing. |
 
 ---

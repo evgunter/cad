@@ -1,5 +1,7 @@
-//! Persistence, schema v5 (M4 PR 6's format; four ratified clean
-//! breaks since — see [`SCHEMA_VERSION`]).
+//! Persistence: the ratified text format of M4 PR 6, at the schema
+//! version [`SCHEMA_VERSION`] names. Every bump since v1 is a ratified
+//! CLEAN BREAK — an older file refuses typed, naming
+//! [`REGENERATE_RECOURSE`], and the migration table stays empty.
 //!
 //! # Schema history
 //!
