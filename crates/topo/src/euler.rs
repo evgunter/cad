@@ -781,7 +781,7 @@ impl fmt::Display for EulerOpError {
             ),
             Self::NullScaffoldCurve { curve } => write!(
                 f,
-                "curve {curve:?} is M3 null-edge scaffolding (no carrier by \
+                "curve {curve:?} is null-edge scaffolding (no carrier by \
                  type); the operation requires a certified carrier"
             ),
             // Definite at ANY magnitude (a parameter far outside the

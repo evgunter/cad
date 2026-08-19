@@ -385,14 +385,40 @@ fn declare_resolution_failures_are_typed_n5_errors() {
     ghost.path = vec![RoleSeg::Cap(CapEnd::Top), RoleSeg::Cap(CapEnd::Top)]; // …not any more
     let (doc, decl) = insert(
         base.clone(),
-        Node::declare_rest(vec![(ghost, fname(b, RoleSeg::Cap(CapEnd::Top)))]),
+        Node::declare_rest(vec![(ghost.clone(), fname(b, RoleSeg::Cap(CapEnd::Top)))]),
     );
     let (doc, u) = boolean_with(doc, decl);
-    let k = failed_kind(&run(&doc), u);
-    assert!(
-        k.contains("DeclareResolve") && k.contains("Vanished"),
-        "{k}"
-    );
+    let ev = run(&doc);
+    match ev.nodes.get(&u) {
+        Some(NodeResult::Failed(e)) => match &e.kind {
+            NodeErrorKind::DeclareResolve { error } => match error.as_ref() {
+                editor_core::resolve::ResolveError::Vanished {
+                    name,
+                    diagnosis,
+                    last_good,
+                } => {
+                    assert_eq!(name, &ghost);
+                    // The mid-evaluation payload, pinned: nothing is
+                    // banked to compare against, so the diagnosis
+                    // names the MINTING NODE as the disagreement site
+                    // rather than claiming an edit happened.
+                    assert!(last_good.is_none(), "no prior run is consultable mid-eval");
+                    assert!(
+                        matches!(
+                            diagnosis,
+                            editor_core::resolve::Diagnosis::RecipeEdit {
+                                edit: editor_core::resolve::RecipeEditRef::NodeChanged { node },
+                            } if *node == ghost.node
+                        ),
+                        "{diagnosis:?}"
+                    );
+                }
+                other => panic!("expected Vanished, got {other:?}"),
+            },
+            other => panic!("expected DeclareResolve, got {other:?}"),
+        },
+        other => panic!("expected Failed, got {other:?}"),
+    }
 
     // Out-of-vocabulary: a cross-operand vertex pair (the pipeline
     // discovers cross contacts itself; v1 refuses the declaration).
@@ -626,6 +652,10 @@ fn declare_doors_both_operands_node_gone_and_ambiguous() {
                     assert_eq!(candidates, &vec![tied.clone()]);
                     assert!(tie.width >= 2, "recorded tie width, got {}", tie.width);
                     assert_eq!(tie.at, tied);
+                    // Mid-evaluation the witness site IS the minting
+                    // node: there is no evaluation-wide index to name
+                    // a carrying node from.
+                    assert_eq!(tie.node, tied.node);
                 }
                 other => panic!("expected Ambiguous, got {other:?}"),
             },

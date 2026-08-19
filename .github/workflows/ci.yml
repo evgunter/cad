@@ -279,6 +279,10 @@ jobs:
         run: |
           scripts/gates/no-ambient-env.sh --selftest
           scripts/gates/no-ambient-env.sh
+      - name: kernel crates are serde-free
+        run: |
+          scripts/gates/kernel-serde-free.sh --selftest
+          scripts/gates/kernel-serde-free.sh
       - name: interval-square powi(2) allowlist (ratified 2026-08-01)
         run: |
           scripts/gates/interval-square-allowlist.sh --selftest
