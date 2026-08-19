@@ -872,103 +872,106 @@ pub(crate) fn witness<T: Decide + Bounds + CertifiedEnclosure>(
     carrier.eval(T::from_f64(0.5 * (t0 + t1)))
 }
 
-/// The chart tube's plane-normal crossing, at the `Interval` scalar.
-///
-/// The three components of the plane normal enter the C9 ring through
-/// their own brackets, and at `Interval` a bracket can be sound and
-/// still inadmissible: `sqrt([−1, 4]) + 1` is `[1, 3]` with decoration
-/// `Trv`. `RingInterval` has no decoration channel, so a normal that
-/// cannot certify has to be refused at the crossing — otherwise the
-/// transversality margin is a positive number computed from a plane
-/// equation that was never evaluated where it was asked for.
-#[cfg(all(test, feature = "interval"))]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod normal_crossing_tests {
-    use geom_core::spline::KnotVector;
-    use geom_core::{Interval, Point2, Point3, Real, Vec3};
-    use geom_curves::NurbsCurve2;
-    use geom_surfaces::NurbsSurface;
+#[cfg(test)]
+mod tests {
+    /// The chart tube's plane-normal crossing, at the `Interval` scalar.
+    ///
+    /// The three components of the plane normal enter the C9 ring through
+    /// their own brackets, and at `Interval` a bracket can be sound and
+    /// still inadmissible: `sqrt([−1, 4]) + 1` is `[1, 3]` with decoration
+    /// `Trv`. `RingInterval` has no decoration channel, so a normal that
+    /// cannot certify has to be refused at the crossing — otherwise the
+    /// transversality margin is a positive number computed from a plane
+    /// equation that was never evaluated where it was asked for.
+    #[cfg(feature = "interval")]
+    #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+    mod normal_crossing_tests {
+        use geom_core::spline::KnotVector;
+        use geom_core::{Interval, Point2, Point3, Real, Vec3};
+        use geom_curves::NurbsCurve2;
+        use geom_surfaces::NurbsSurface;
 
-    use super::probe_tube_chart;
+        use super::super::probe_tube_chart;
 
-    fn iv(x: f64) -> Interval {
-        Interval::from_f64(x)
-    }
+        fn iv(x: f64) -> Interval {
+            Interval::from_f64(x)
+        }
 
-    /// A domain violation whose bracket is finite AND strictly positive,
-    /// so the margin it produces is zero-free: the laundered answer is a
-    /// *usable* certificate, not an obvious refusal.
-    fn trv_pos() -> Interval {
-        Interval::from_bounds(-1.0, 4.0).sqrt() + iv(1.0)
-    }
+        /// A domain violation whose bracket is finite AND strictly positive,
+        /// so the margin it produces is zero-free: the laundered answer is a
+        /// *usable* certificate, not an obvious refusal.
+        fn trv_pos() -> Interval {
+            Interval::from_bounds(-1.0, 4.0).sqrt() + iv(1.0)
+        }
 
-    fn linear_kv() -> KnotVector {
-        KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("valid knots")
-    }
+        fn linear_kv() -> KnotVector {
+            KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("valid knots")
+        }
 
-    /// `S(u, v) = (u, v, 0)` — a bilinear patch with `S_u = (1, 0, 0)`
-    /// and `S_v = (0, 1, 0)`, so `∇φ = (n·S_u, n·S_v) = (n.x, n.y)`.
-    fn unit_patch() -> NurbsSurface<Interval> {
-        NurbsSurface::new(
-            linear_kv(),
-            linear_kv(),
-            vec![
-                Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-                Point3::new(iv(0.0), iv(1.0), iv(0.0)),
-                Point3::new(iv(1.0), iv(0.0), iv(0.0)),
-                Point3::new(iv(1.0), iv(1.0), iv(0.0)),
-            ],
-            vec![1.0; 4],
-        )
-        .expect("valid patch")
-    }
+        /// `S(u, v) = (u, v, 0)` — a bilinear patch with `S_u = (1, 0, 0)`
+        /// and `S_v = (0, 1, 0)`, so `∇φ = (n·S_u, n·S_v) = (n.x, n.y)`.
+        fn unit_patch() -> NurbsSurface<Interval> {
+            NurbsSurface::new(
+                linear_kv(),
+                linear_kv(),
+                vec![
+                    Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+                    Point3::new(iv(0.0), iv(1.0), iv(0.0)),
+                    Point3::new(iv(1.0), iv(0.0), iv(0.0)),
+                    Point3::new(iv(1.0), iv(1.0), iv(0.0)),
+                ],
+                vec![1.0; 4],
+            )
+            .expect("valid patch")
+        }
 
-    /// A `u`-aligned pcurve, so the transverse chart direction is `e_v`
-    /// and the margin reads `n.y` alone.
-    fn u_line() -> NurbsCurve2<Interval> {
-        NurbsCurve2::new(
-            linear_kv(),
-            vec![Point2::new(iv(0.1), iv(0.5)), Point2::new(iv(0.9), iv(0.5))],
-            vec![1.0, 1.0],
-        )
-        .expect("valid pcurve")
-    }
+        /// A `u`-aligned pcurve, so the transverse chart direction is `e_v`
+        /// and the margin reads `n.y` alone.
+        fn u_line() -> NurbsCurve2<Interval> {
+            NurbsCurve2::new(
+                linear_kv(),
+                vec![Point2::new(iv(0.1), iv(0.5)), Point2::new(iv(0.9), iv(0.5))],
+                vec![1.0, 1.0],
+            )
+            .expect("valid pcurve")
+        }
 
-    /// The control: a certified normal produces the margin the geometry
-    /// implies, so the refusal row below is pinning a decoration read
-    /// and not a probe that fails on everything.
-    #[test]
-    fn a_certified_normal_produces_its_margin() {
-        let normal = Vec3::new(iv(0.0), iv(2.0), iv(0.0));
-        let (margin, boxes) = probe_tube_chart(&u_line(), &unit_patch(), normal, (0.01, 0.01))
-            .expect("the probe must reach a verdict");
-        assert!(margin > 0.0, "certified normal gave margin {margin}");
-        assert!(boxes > 0, "no span was probed: the row is vacuous");
-    }
+        /// The control: a certified normal produces the margin the geometry
+        /// implies, so the refusal row below is pinning a decoration read
+        /// and not a probe that fails on everything.
+        #[test]
+        fn a_certified_normal_produces_its_margin() {
+            let normal = Vec3::new(iv(0.0), iv(2.0), iv(0.0));
+            let (margin, boxes) = probe_tube_chart(&u_line(), &unit_patch(), normal, (0.01, 0.01))
+                .expect("the probe must reach a verdict");
+            assert!(margin > 0.0, "certified normal gave margin {margin}");
+            assert!(boxes > 0, "no span was probed: the row is vacuous");
+        }
 
-    /// The row S41 is about: the same geometry with the *same endpoints*
-    /// on `n.y`, differing only in the decoration, must not certify.
-    #[test]
-    fn a_violated_normal_cannot_certify() {
-        let n = trv_pos();
-        assert_eq!(
-            (geom_core::Bounds::lo(n), geom_core::Bounds::hi(n)),
-            (1.0, 3.0),
-            "fixture drifted"
-        );
-        assert!(
-            geom_core::CertifiedEnclosure::certified_bracket(n).is_none(),
-            "fixture drifted: it certifies"
-        );
-        let normal = Vec3::new(iv(0.0), n, iv(0.0));
-        let verdict = probe_tube_chart(&u_line(), &unit_patch(), normal, (0.01, 0.01));
-        let margin = verdict.map_or(0.0, |(m, _)| m);
-        assert_eq!(
-            margin, 0.0,
-            "a domain-violated plane normal produced transversality \
-             margin {margin} — the crossing read the BRACKET door, so \
-             the chart tube certifies uniqueness from a plane equation \
-             that was clamped out of its own domain"
-        );
+        /// The row S41 is about: the same geometry with the *same endpoints*
+        /// on `n.y`, differing only in the decoration, must not certify.
+        #[test]
+        fn a_violated_normal_cannot_certify() {
+            let n = trv_pos();
+            assert_eq!(
+                (geom_core::Bounds::lo(n), geom_core::Bounds::hi(n)),
+                (1.0, 3.0),
+                "fixture drifted"
+            );
+            assert!(
+                geom_core::CertifiedEnclosure::certified_bracket(n).is_none(),
+                "fixture drifted: it certifies"
+            );
+            let normal = Vec3::new(iv(0.0), n, iv(0.0));
+            let verdict = probe_tube_chart(&u_line(), &unit_patch(), normal, (0.01, 0.01));
+            let margin = verdict.map_or(0.0, |(m, _)| m);
+            assert_eq!(
+                margin, 0.0,
+                "a domain-violated plane normal produced transversality \
+                 margin {margin} — the crossing read the BRACKET door, so \
+                 the chart tube certifies uniqueness from a plane equation \
+                 that was clamped out of its own domain"
+            );
+        }
     }
 }
