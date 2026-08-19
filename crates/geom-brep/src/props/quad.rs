@@ -47,9 +47,12 @@
 //!   tensor Newton–Cotes rule over knot-span rectangles), not this
 //!   Green-form boundary integral. The consumer that would use it is
 //!   the fitted-boundary Green lane, blocked on a construction that
-//!   mints a fitted pcurve on an analytic chart at rest — named at
-//!   `topo::props`' `QuadratureUnsupported` refusal, which is the one
-//!   place that schedule lives.
+//!   mints a fitted pcurve on an analytic chart at rest — the blocker
+//!   `topo::props`' `QuadratureUnsupported` refusal names. That is a
+//!   CONDITION, not a date: the lane is a deliberate frontier whose
+//!   consumer lands with whichever banked construction (the marched
+//!   join windows, the edge×NURBS-face boolean layer) first produces
+//!   one, and its callers until then are tests.
 //!
 //! # The rule and its remainder
 //!
@@ -700,10 +703,15 @@ impl DerivLadder {
 /// smoothness-free first-order hull rule `h·hull(f)` — both sound, so
 /// the total is an enclosure at every resolution.
 ///
-/// At-rest B-spline pcurves exist since M6-3 (the loft walls' exact
-/// iso lines; general spline images remain the SSI trace's);
-/// rational pcurves refuse typed — a rational derivative is not a
-/// control-coefficient convexity fact.
+/// **No at-rest construction mints a stored B-spline pcurve**, so this
+/// lane's callers today are tests (module docs). What M6-3 added on
+/// loft walls is `Pcurve::IsoLine` — an exact straight line in UV, not
+/// a spline — which this integrand does not take; a spline chart image
+/// is the SSI trace's `Pcurve::Fitted`, and the construction that first
+/// stores one at rest brings this lane's consumer with it. The
+/// weights-not-1 refusal below says the same thing. Rational pcurves
+/// refuse typed — a rational derivative is not a control-coefficient
+/// convexity fact.
 ///
 /// # Errors
 ///

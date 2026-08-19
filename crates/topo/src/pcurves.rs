@@ -84,15 +84,20 @@
 //! ## Stale rows: which ops maintain this map, and which do not
 //!
 //! Read this before storing a cache from a new call site. Three
-//! postures exist, and an op has exactly one of them.
+//! postures exist, and they classify **the op a consumer calls**, not
+//! every primitive that op uses internally: an op may drive `split_edge`
+//! or a bare Euler run in its own interior and still MAINTAIN, so long
+//! as it re-mints before it hands the body back.
 //!
 //! **Maintains the map** — runs [`mint_pcurves`] on the result, and
-//! that pass CLEARS the map before re-minting: the splitting lane (on
-//! each side it produces), the boolean pipeline (on the finished body),
-//! [`crate::Body::merge_coplanar_faces`] (on the staged result before
-//! commit, and only when the input carried caches), and
-//! [`crate::transform`]
-//! (which re-derives when the operand carried caches).
+//! that pass CLEARS the map before re-minting. In this crate: the
+//! splitting lane (on each side it produces), the boolean pipeline (on
+//! the finished body), [`crate::Body::merge_coplanar_faces`] (on the
+//! staged result before commit, and only when the input carried
+//! caches), and [`crate::transform`] (which re-derives when the operand
+//! carried caches). **Downstream crates hold the same posture and are
+//! part of the list**: `sweep`'s loft, fillet build and fillet surgery,
+//! and `step_import`'s assembly all re-mint on the body they return.
 //!
 //! **Transfers the map** — the graft (`boolean::combine`, and
 //! [`crate::graft_disjoint`] through it) remaps each row onto the
@@ -100,21 +105,23 @@
 //! graft walk did not reach, which is exactly the staleness test.
 //!
 //! **Neither clears nor re-mints** — the Euler operators, the kill ops,
-//! ring surgery, [`crate::Body::split_edge`]. These are the ops the
-//! stale-row consequence below is about.
+//! ring surgery, [`crate::Body::split_edge`]. These are primitives, and
+//! they are what the stale-row consequence below is about.
 //!
 //! The consequence is bounded but real: a `SecondaryMap` row outlives
 //! its key until the slot is reused, so surgery on a body that already
 //! carries caches can leave a row attached to a half-edge that no
 //! longer means what the cache says (or, once a slot is recycled, to a
-//! different half-edge entirely). No ship path reaches that state —
-//! every op that produces a body a consumer holds is in one of the two
-//! lists above — and the tier-3 pcurve pass
-//! catches it LOUD if it ever happens: a stale row re-certifies against
-//! the current carrier/surface/window and fails, or breaks its face
-//! loop's continuity. So the posture is fail-loud, not silent-wrong —
-//! but an op that starts mutating already-minted bodies must either
-//! clear the map or re-mint, and should say which in its own docs.
+//! different half-edge entirely). The lists above are a survey, not an
+//! enforced invariant — nothing in the type system stops a new op from
+//! returning a body with stale rows, and the survey can only be as
+//! current as its last reading. What makes that bounded rather than
+//! dangerous is the backstop: the tier-3 pcurve pass catches a stale
+//! row LOUD — it re-certifies against the current
+//! carrier/surface/window and fails, or breaks its face loop's
+//! continuity. So the posture is fail-loud, not silent-wrong — but an
+//! op that mutates an already-minted body must either clear the map or
+//! re-mint before returning, and should say which in its own docs.
 
 use geom_brep::{
     ChartWindow, Pcurve, PcurveCache, PcurveCertifyError, PcurveFittedLane, chart_pcurve,

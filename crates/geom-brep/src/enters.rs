@@ -122,7 +122,10 @@ pub fn enters_material<T: Decide>(
 /// the second derivative (raw carrier parameter), `speed_sq` =
 /// `‖deriv‖²` (normalizing the parameterization out — the margin is
 /// per arc length squared), `outward_normal` the reference side's
-/// unit normal, `arm` the caller-named lever arm in meters. The
+/// unit normal — its one caller passes a SPLITTING PLANE's normal,
+/// which carries no face sense; a caller passing a FACE's normal owes
+/// the `sense_sign` multiply the module docs describe — `arm` the
+/// caller-named lever arm in meters. The
 /// margin is the **displacement the curvature difference induces at
 /// the lever arm** (D4 ¶1, lever arm 1/κ discipline):
 /// `½ · (deriv2·n̂ / speed_sq) · arm²` — the curvature COMPARISON of

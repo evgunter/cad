@@ -379,8 +379,8 @@ pub enum ValidationError {
     /// teeth to the boundary *between* vertices — an honestly certified
     /// arc bulging off its face's plane is a face-boundary defect even
     /// though every vertex residual passes. (Curved-face boundary
-    /// containment stays deferred — [`validate_geometric`]'s
-    /// not-yet-checked list.)
+    /// containment is not checked: [`validate_geometric`]'s
+    /// not-yet-checked list, tracked at #638.)
     PlanarBoundaryResidual {
         /// The planar face whose boundary leaves its plane.
         face: FaceKey,
@@ -1610,8 +1610,8 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///    ([`ValidationError::PlanarBoundaryResidual`] /
 ///    [`ValidationError::PlanarBoundaryEscalated`]; plus face first,
 ///    then the minus face when distinct; first failing sample, one
-///    error per edge–face pair). Curved-face containment stays
-///    deferred (M3 — the not-yet-checked list).
+///    error per edge–face pair). Curved-face containment is NOT
+///    checked (the not-yet-checked list below; #638).
 ///
 /// **Coarse gate** (the pass-11 philosophy): the geometric passes run
 /// only when tiers 1–2 are clean — structural defects void geometric
@@ -1637,7 +1637,7 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///   dihedral pass (check 4) classifies the *tangent-plane* wedge
 ///   only: unsigned, so it sees a sliver but not a lamina.
 /// - **Face-boundary containment on curved surfaces** (a face's loops
-///   actually bounding a region of its surface).
+///   actually bounding a region of its surface) — tracked at #638.
 ///   The **planar** case is now covered between vertices by check 5
 ///   (sample containment against adjacent planar faces), and its
 ///   orientation half by check 6 (loop-role winding against the
@@ -1877,8 +1877,8 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     //    face's surface when that surface is a plane — the
     //    between-vertices counterpart of check 3 (plus face first, then
     //    the minus face when distinct; first failing sample, one error
-    //    per edge-face pair). Curved-face containment stays deferred
-    //    (M3, pcurves — the not-yet-checked list).
+    //    per edge-face pair). Curved-face containment is NOT checked
+    //    (`validate_geometric`'s not-yet-checked list; #638).
     //
     // S10 CATEGORY C, both: neither reads a face orientation at all.
     // Check 4 takes the two SURFACES (never the faces) and classifies
