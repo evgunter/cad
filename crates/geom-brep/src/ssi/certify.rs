@@ -108,7 +108,9 @@
 
 use geom_core::spline::compose::{self, CurveRingData, ImplicitSurface, tensor};
 use geom_core::spline::hull;
-use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, RingInterval, Sign, Vec3};
+use geom_core::{
+    Band, Bounds, CertifiedEnclosure, Decide, Margin, Point3, Real, RingInterval, Sign, Vec3,
+};
 use geom_curves::{NurbsCurve2, NurbsCurve3};
 use geom_surfaces::{NurbsSurface, Surface};
 
@@ -348,7 +350,7 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, f64), &
 }
 
 /// Limb 1 + limb 2 against one **analytic** operand.
-fn analytic_limbs<T: Decide + Bounds>(
+fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
     surface: &Surface<T>,
     band: Band,
@@ -408,7 +410,7 @@ fn analytic_limbs<T: Decide + Bounds>(
 
 /// Limb 1 + limb 2 against a **NURBS** operand, using the traced
 /// pcurve as the parameter map (module docs).
-fn nurbs_limbs<T: Decide + Bounds>(
+fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
     pcurve: &NurbsCurve2<T>,
     surface: &NurbsSurface<T>,
@@ -534,7 +536,9 @@ fn nurbs_limbs<T: Decide + Bounds>(
 /// The box chain covering a carrier: one padded box per span of the
 /// refined curve, from the span's control hull (exact containment for a
 /// non-rational curve — the convex-hull property).
-fn box_chain<T: Decide + Bounds>(carrier: &NurbsCurve3<T>) -> Vec<(Box3, Vec3<T>)> {
+fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
+    carrier: &NurbsCurve3<T>,
+) -> Vec<(Box3, Vec3<T>)> {
     let fine = refined(carrier);
     let coords = fine.ring_coords();
     let kv = fine.knots();
@@ -581,7 +585,7 @@ fn box_chain<T: Decide + Bounds>(carrier: &NurbsCurve3<T>) -> Vec<(Box3, Vec3<T>
 /// Returns the chain's smallest zero-free margin (dimensionless, the
 /// `sin θ` scale) and the box count; `None` when the chain is broken or
 /// an enclosure poisoned, which is a definite structural refusal.
-fn probe_tube_analytic<T: Decide + Bounds>(
+fn probe_tube_analytic<T: Decide + Bounds + CertifiedEnclosure>(
     chain: &[(Box3, Vec3<T>)],
     s1: &Surface<T>,
     s2: &Surface<T>,
@@ -618,7 +622,7 @@ fn probe_tube_analytic<T: Decide + Bounds>(
 /// zero-free enclosure of the component of `∇φ` transverse to the
 /// pcurve's own tangent proves the same thing the ℝ³ form proves: a
 /// graph, hence one arc.
-fn probe_tube_chart<T: Decide + Bounds>(
+fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
     pcurve: &NurbsCurve2<T>,
     surface: &NurbsSurface<T>,
     normal: Vec3<T>,
@@ -712,7 +716,10 @@ fn zero_free_lower_bound(i: RingInterval) -> f64 {
 /// (spec §4's second state). Same chain limb 3 proved one-arc-ness on,
 /// so a cell inside one of these boxes is inside a region where the
 /// solution set is exactly the branch already found.
-pub(crate) fn tube_boxes<T: Decide + Bounds>(carrier: &NurbsCurve3<T>, radius: f64) -> Vec<Box3> {
+pub(crate) fn tube_boxes<T: Decide + Bounds + CertifiedEnclosure>(
+    carrier: &NurbsCurve3<T>,
+    radius: f64,
+) -> Vec<Box3> {
     box_chain(carrier)
         .into_iter()
         .map(|(b, _)| b.pad(radius))
@@ -733,7 +740,7 @@ pub(crate) fn tube_boxes<T: Decide + Bounds>(carrier: &NurbsCurve3<T>, radius: f
 /// margin is stated over (metres); `extent` is the caller's named
 /// feature extent, which sets the tube ladder's widest rung.
 #[allow(clippy::too_many_arguments)] // one parameter per named quantity
-pub(crate) fn certify_branch<T: Decide + Bounds>(
+pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
     pcurve_b: Option<&NurbsCurve2<T>>,
     a: &SsiOperand<'_, T>,
@@ -853,7 +860,9 @@ pub(crate) fn certify_branch<T: Decide + Bounds>(
 
 /// The witness of a rung-3 carrier: `carrier(mid)`, unchanged from M2
 /// (`WitnessMidpoint`; S2 stays discharged).
-pub(crate) fn witness<T: Decide + Bounds>(carrier: &NurbsCurve3<T>) -> Point3<T> {
+pub(crate) fn witness<T: Decide + Bounds + CertifiedEnclosure>(
+    carrier: &NurbsCurve3<T>,
+) -> Point3<T> {
     let (t0, t1) = carrier.domain();
     carrier.eval(T::from_f64(0.5 * (t0 + t1)))
 }

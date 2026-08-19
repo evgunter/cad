@@ -177,7 +177,7 @@ fn cos_step(s: f64) -> RingInterval {
     let s4 = s2.sqr();
     let lo = pt(1.0) - s2 / pt(2.0) + s4 / pt(24.0) - s4 * s2 / pt(720.0);
     let hi = lo + s4.sqr() / pt(40_320.0);
-    RingInterval::from_bounds(lo.lo().max(-1.0), hi.hi().min(1.0))
+    RingInterval::from_bounds(lo.lo(), hi.hi()).clamped_to(-1.0, 1.0)
 }
 
 /// Enclosure of `sin s` for an EXACT step `s`, |s| ≤ 1.5: the degree-9
@@ -196,11 +196,11 @@ fn sin_step(s: f64) -> RingInterval {
     let a7 = a5 * a2;
     let lo = a1 - a3 / pt(6.0) + a5 / pt(120.0) - a7 / pt(5040.0);
     let hi = lo + a7 * a2 / pt(362_880.0);
-    let (l, h) = (lo.lo().max(-1.0), hi.hi().min(1.0));
+    let unit = RingInterval::from_bounds(lo.lo(), hi.hi()).clamped_to(-1.0, 1.0);
     if s >= 0.0 {
-        RingInterval::from_bounds(l, h)
+        unit
     } else {
-        RingInterval::from_bounds(-h, -l)
+        RingInterval::from_bounds(-unit.hi(), -unit.lo())
     }
 }
 
@@ -214,7 +214,7 @@ fn rotate(
     ch: RingInterval,
     sh: RingInterval,
 ) -> (RingInterval, RingInterval) {
-    let clamp = |x: RingInterval| RingInterval::from_bounds(x.lo().max(-1.0), x.hi().min(1.0));
+    let clamp = |x: RingInterval| x.clamped_to(-1.0, 1.0);
     (clamp(c * ch - s * sh), clamp(s * ch + c * sh))
 }
 
@@ -241,7 +241,7 @@ fn trig_at(base: (RingInterval, RingInterval), off: f64) -> (RingInterval, RingI
         k += 1;
     }
     let (mut c, mut s) = (cos_step(seed), sin_step(seed));
-    let clamp = |x: RingInterval| RingInterval::from_bounds(x.lo().max(-1.0), x.hi().min(1.0));
+    let clamp = |x: RingInterval| x.clamped_to(-1.0, 1.0);
     for _ in 0..k {
         // Double angle; `sqr` keeps the squares tight (the
         // interval-square rule).
@@ -266,6 +266,12 @@ fn trig_over(base: (RingInterval, RingInterval), off: f64, d: f64) -> (RingInter
         return (full, full);
     }
     let at = trig_at(base, off);
+    // The `.max`/`.min` below are NOT the poison-swallowing shape
+    // `RingInterval::clamped_to` exists for: `d` is a finite nonnegative
+    // f64 by the guard above, so this ring arithmetic cannot produce
+    // poison and there is no NaN for `f64::max` to absorb. `base` is the
+    // operand that can be poison, and it reaches only `trig_at`/`rotate`,
+    // which clamp through `clamped_to`.
     let ch = {
         let lo = (pt(1.0) - pt(d).sqr() / pt(2.0)).lo().max(-1.0);
         RingInterval::from_bounds(lo, 1.0)
@@ -326,6 +332,9 @@ fn harmonic_edge_integral(e: &TrimEdgeQ, pieces: usize, radius: RingInterval) ->
     // (a cursor march would amplify it by ~e^span).
     // Per-piece spread: midpoint ± h/2 (the interval rotation of
     // `trig_over`, midpoint-anchored).
+    // `h` is finite by the `span`/`pieces` guard above, so — as in
+    // `trig_over` — the `.max`/`.min` here operate on poison-free ring
+    // arithmetic and are not the `clamped_to` hazard.
     let h2 = h * 0.5;
     let spread_c = if h2 <= 1.5 {
         RingInterval::from_bounds((pt(1.0) - pt(h2).sqr() / pt(2.0)).lo().max(-1.0), 1.0)
@@ -841,6 +850,9 @@ fn rv_dot(a: RVec3, b: RVec3) -> RingInterval {
 /// go through [`RingInterval::sqr`]) clamps to zero, the safe
 /// direction for a magnitude.
 fn sqrt_enclosure(x: RingInterval) -> RingInterval {
+    // The early-out is what makes the `.max(0.0)` clamps below safe: past
+    // it the endpoints are non-NaN, so no `f64::max` can absorb poison
+    // into a plausible magnitude. Callers do pass poisonable sums.
     if x.is_poison() {
         return x;
     }

@@ -52,8 +52,9 @@
 //!   rule, whose enclosure belongs with the consumer that owns the
 //!   homogeneous form.
 //! - **No comparisons on a generic scalar.** The coefficient type is
-//!   read only through [`Enclosure`] — two `f64` accessors — so nothing
-//!   here can accidentally decide anything about an evaluation scalar.
+//!   read only through [`CertifiedEnclosure`] — one fallible bracket
+//!   accessor — so nothing here can accidentally decide anything about an
+//!   evaluation scalar.
 //!
 //! # Poison (fail-loud, D4 ¶2)
 //!
@@ -89,14 +90,22 @@
 //! it evaluates against, one statement apart.
 
 use super::knots::{KnotVector, Span};
-use crate::real::Enclosure;
+use crate::real::CertifiedEnclosure;
 use crate::ring_interval::RingInterval;
 
-/// Reads a coefficient's bracket into the ring. A NaN bracket (the
-/// poison convention shared by [`Enclosure`] implementors) becomes ring
-/// poison; an inverted bracket does too.
-fn bracket<E: Enclosure>(c: E) -> RingInterval {
-    RingInterval::from_bounds(c.lo(), c.hi())
+/// Reads a coefficient's bracket into the ring.
+///
+/// The bound is [`CertifiedEnclosure`], not [`crate::Enclosure`]: a hull bound
+/// is a *certificate*, so a coefficient that merely carries a bracket is
+/// not enough — the computation behind it must also have been defined on
+/// the whole input box. A coefficient that refuses becomes ring poison,
+/// exactly as a NaN or inverted bracket does, and poison propagates
+/// through every bound it participates in (module docs).
+fn bracket<E: CertifiedEnclosure>(c: E) -> RingInterval {
+    match c.certified_bracket() {
+        Some((lo, hi)) => RingInterval::from_bounds(lo, hi),
+        None => RingInterval::poison(),
+    }
 }
 
 /// The coefficient index range whose basis functions are nonzero on
@@ -123,7 +132,7 @@ fn span_indices(kv: &KnotVector, coeff_len: usize, span: Span) -> Option<(usize,
 /// at construction. The result is the polynomial's bound on
 /// `[u_span, u_{span+1}]` only — outside it the span's polynomial
 /// extension is unbounded by anything here.
-pub fn span_hull<E: Enclosure>(kv: &KnotVector, coeffs: &[E], span: Span) -> RingInterval {
+pub fn span_hull<E: CertifiedEnclosure>(kv: &KnotVector, coeffs: &[E], span: Span) -> RingInterval {
     let Some((first, last)) = span_indices(kv, coeffs.len(), span) else {
         return RingInterval::poison();
     };
@@ -148,7 +157,7 @@ pub fn span_hull<E: Enclosure>(kv: &KnotVector, coeffs: &[E], span: Span) -> Rin
 /// Computed span-wise rather than coefficient-wise on purpose — it is
 /// the same value, and it keeps this function's answer definitionally
 /// equal to the granular form subdivision consumers use.
-pub fn domain_hull<E: Enclosure>(kv: &KnotVector, coeffs: &[E]) -> RingInterval {
+pub fn domain_hull<E: CertifiedEnclosure>(kv: &KnotVector, coeffs: &[E]) -> RingInterval {
     if coeffs.len() != kv.control_count() {
         return RingInterval::poison();
     }
@@ -193,7 +202,7 @@ fn span_weights_positive(kv: &KnotVector, weights: &[f64], span: Span) -> bool {
 /// partition of unity, so the value is still a convex combination of
 /// the control values. A non-positive, non-finite, or miscounted weight
 /// is poison.
-pub fn span_hull_rational<E: Enclosure>(
+pub fn span_hull_rational<E: CertifiedEnclosure>(
     kv: &KnotVector,
     coeffs: &[E],
     weights: &[f64],
@@ -208,7 +217,7 @@ pub fn span_hull_rational<E: Enclosure>(
 /// Whole-domain enclosure of a rational scalar spline: the hull over
 /// spans of [`span_hull_rational`]. Poison if any span's weights fail
 /// the precondition.
-pub fn domain_hull_rational<E: Enclosure>(
+pub fn domain_hull_rational<E: CertifiedEnclosure>(
     kv: &KnotVector,
     coeffs: &[E],
     weights: &[f64],
@@ -249,7 +258,7 @@ pub fn domain_hull_rational<E: Enclosure>(
 ///
 /// Fixed association (D9): `(c_{i+1} − c_i) · p / Δu`, exactly as
 /// parenthesized.
-fn deriv_coeff<E: Enclosure>(kv: &KnotVector, coeffs: &[E], i: usize) -> RingInterval {
+fn deriv_coeff<E: CertifiedEnclosure>(kv: &KnotVector, coeffs: &[E], i: usize) -> RingInterval {
     let p = kv.degree();
     let u = kv.knots();
     // Indexing justified by the caller's range check: i + 1 ≤
@@ -273,7 +282,10 @@ fn deriv_coeff<E: Enclosure>(kv: &KnotVector, coeffs: &[E], i: usize) -> RingInt
 /// zero, and hulling it yields poison.
 ///
 /// See the module docs for why the rational case is not here.
-pub fn derivative_coeffs<E: Enclosure>(kv: &KnotVector, coeffs: &[E]) -> Vec<RingInterval> {
+pub fn derivative_coeffs<E: CertifiedEnclosure>(
+    kv: &KnotVector,
+    coeffs: &[E],
+) -> Vec<RingInterval> {
     if coeffs.len() != kv.control_count() || coeffs.len() < 2 {
         return vec![RingInterval::poison()];
     }
@@ -294,7 +306,7 @@ pub fn derivative_coeffs<E: Enclosure>(kv: &KnotVector, coeffs: &[E]) -> Vec<Rin
 /// The range is nonempty for every [`Span`]: `first = s − p < s = last`
 /// because `KnotVector::clamped` refuses degree 0. It is the `Span`'s
 /// own window minus its top end.
-pub fn derivative_span_hull<E: Enclosure>(
+pub fn derivative_span_hull<E: CertifiedEnclosure>(
     kv: &KnotVector,
     coeffs: &[E],
     span: Span,
@@ -317,7 +329,10 @@ pub fn derivative_span_hull<E: Enclosure>(
 
 /// Enclosure of the derivative over the whole domain: the hull of all
 /// derivative coefficients.
-pub fn derivative_domain_hull<E: Enclosure>(kv: &KnotVector, coeffs: &[E]) -> RingInterval {
+pub fn derivative_domain_hull<E: CertifiedEnclosure>(
+    kv: &KnotVector,
+    coeffs: &[E],
+) -> RingInterval {
     let qs = derivative_coeffs(kv, coeffs);
     let mut acc = RingInterval::poison();
     for (n, q) in qs.iter().enumerate() {
@@ -337,20 +352,24 @@ pub fn derivative_domain_hull<E: Enclosure>(kv: &KnotVector, coeffs: &[E]) -> Ri
 /// Returns `NaN` for every poison path, which fails that comparison
 /// under every direction (D4 ¶2). The value is an upper bound on the
 /// true supremum, never an approximation of it.
-pub fn sup_norm_bound_span<E: Enclosure>(kv: &KnotVector, coeffs: &[E], span: Span) -> f64 {
+pub fn sup_norm_bound_span<E: CertifiedEnclosure>(
+    kv: &KnotVector,
+    coeffs: &[E],
+    span: Span,
+) -> f64 {
     span_hull(kv, coeffs, span).mag()
 }
 
 /// A certified upper bound on `|f|` over the whole domain. See
 /// [`sup_norm_bound_span`].
-pub fn sup_norm_bound<E: Enclosure>(kv: &KnotVector, coeffs: &[E]) -> f64 {
+pub fn sup_norm_bound<E: CertifiedEnclosure>(kv: &KnotVector, coeffs: &[E]) -> f64 {
     domain_hull(kv, coeffs).mag()
 }
 
 /// The rational counterpart of [`sup_norm_bound`]: an upper bound on
 /// `|f|` over the whole domain of a rational scalar spline, `NaN` unless
 /// every weight satisfies the positivity precondition.
-pub fn sup_norm_bound_rational<E: Enclosure>(
+pub fn sup_norm_bound_rational<E: CertifiedEnclosure>(
     kv: &KnotVector,
     coeffs: &[E],
     weights: &[f64],
