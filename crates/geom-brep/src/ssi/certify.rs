@@ -288,7 +288,7 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, f64), &
     const WIDENED: &str = "the analytic operand's structural parameters are not exact at this \
                            scalar — the ring composite's implicit form is f64 structure, and a \
                            widened operand is a family of surfaces, not the body's surface \
-                           (M6-2: refused rather than represented by a midpoint)";
+                           — refused rather than represented by a midpoint";
     match *s {
         Surface::Plane { origin, normal, .. } => {
             let (Some(point), Some(normal)) = (

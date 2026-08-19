@@ -798,7 +798,7 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 "this junction reverses onto the incoming direction (turn margin {margin:?} m \
                  on a {arm:?} m arm): a cusp, which the material-wedge invariant refuses in \
                  any solid built from such a profile — there is no declaration door for cusps \
-                 (#131 is the tabled front door that does not exist yet); move the geometry"
+                 — move the geometry"
             ),
             Self::TangentLineClose { margin } => write!(
                 f,

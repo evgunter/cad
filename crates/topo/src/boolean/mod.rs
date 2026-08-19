@@ -1002,15 +1002,15 @@ impl core::fmt::Display for BooleanError {
                 what,
             } => write!(
                 f,
-                "boolean fallback: the curved-extent scan (M5 S13) cannot certify the \
+                "boolean fallback: the curved-extent scan cannot certify the \
                  no-crossings configuration at face {face:?} of operand {operand:?}: \
                  {what}. The vertex-probed answer a curved boundary defeats is never \
-                 given (the S12 finding's silence stays closed); refused typed instead"
+                 given; refused typed instead"
             ),
             Self::Pcurves { source } => write!(
                 f,
                 "boolean: the result's pcurve mint pass refused (curved results carry \
-                 certified per-half-edge pcurves at rest, M5 PR 9): {source}"
+                 certified per-half-edge pcurves at rest): {source}"
             ),
             Self::Escalated { diag } => write!(
                 f,
@@ -1150,8 +1150,7 @@ impl core::fmt::Display for BooleanError {
                 f,
                 "boolean op: kernel invariant violated — this is a bug in the kernel, not in \
                  your geometry: {which} failed (got {got}, bound {bound}); no such body is \
-                 returned. Please report it, with the model that produced it (the ledger's \
-                 invariant/debt tracking lane — the issue #214 pattern)"
+                 returned. Please report it, with the model that produced it"
             ),
             Self::UnrepresentableResult => write!(
                 f,

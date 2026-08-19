@@ -551,7 +551,7 @@ impl fmt::Display for ProfileError {
             Self::NestingTooDeep { loop_index, depth } => write!(
                 f,
                 "loop {loop_index} nests at depth {depth}; only outer boundaries \
-                 (depth 0) and holes (depth 1) are supported at M2"
+                 (depth 0) and holes (depth 1) are supported"
             ),
             Self::RayCastingExhausted {
                 loop_index,

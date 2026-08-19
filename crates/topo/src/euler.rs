@@ -759,7 +759,7 @@ impl fmt::Display for EulerOpError {
             Self::CrossShell { f1, f2 } => write!(
                 f,
                 "faces {f1:?} and {f2:?} lie in different shells \
-                 (cross-shell kfmrh merges shells — deferred to M3)"
+                 (cross-shell kfmrh merges shells, which this door does not do)"
             ),
             Self::FaceHasRings { face } => write!(
                 f,
@@ -778,7 +778,7 @@ impl fmt::Display for EulerOpError {
             ),
             Self::NullScaffoldCurve { curve } => write!(
                 f,
-                "curve {curve:?} is M3 null-edge scaffolding (no carrier by \
+                "curve {curve:?} is null-edge scaffolding (no carrier by \
                  type); the operation requires a certified carrier"
             ),
             // Definite at ANY magnitude (a parameter far outside the

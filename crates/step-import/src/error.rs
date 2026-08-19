@@ -315,7 +315,7 @@ impl fmt::Display for StepImportError {
                 f,
                 "step import: entity #{id} declares unit {found} — the subset covers \
                  unprefixed SI metre/radian/steradian only (a foreign unit context is \
-                 the M7-2 ladder, refused rather than guessed)"
+                 outside the subset, refused rather than guessed)"
             ),
             Self::NothingToImport => f.write_str(
                 "step import: the data section carries no MANIFOLD_SOLID_BREP and no \

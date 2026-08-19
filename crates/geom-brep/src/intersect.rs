@@ -833,7 +833,7 @@ pub fn cylinder_cylinder_section<T: Decide>(
             pair: "cylinder×cylinder",
             why: "radius equality is not structural/declared — never inferred from \
                   values (the coincidence ladder); the undeclared pair routes to the \
-                  general rung, unimplemented until SSI (M5 PR 7)",
+                  general rung, unimplemented until the general rung covers it",
         });
     }
     // 2. Verify the declaration (declared ≠ unchecked).
@@ -903,7 +903,8 @@ pub fn cylinder_cylinder_section<T: Decide>(
                     return Err(SectionError::RoutesToGeneralRung {
                         pair: "cylinder×cylinder",
                         why: "skew axes have no conic section; this configuration routes \
-                              to the general rung, unimplemented until SSI (M5 PR 7)",
+                              to the general rung, unimplemented until the general \
+                              rung covers it",
                     });
                 }
             }

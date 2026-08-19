@@ -3003,7 +3003,7 @@ fn run_iso_checks<T: Decide>(
                 return Err(PcurveCertifyError::IsoUnsupported {
                     what: "a cap-class iso LINE over a non-Line carrier — an arc rim is \
                            minted as `Pcurve::IsoArc`, whose chart parameter is the \
-                           segment's rational-quadratic one (M8-3)",
+                           segment's rational-quadratic one",
                 });
             };
             let v_start = p0.y + pl.y * t0;

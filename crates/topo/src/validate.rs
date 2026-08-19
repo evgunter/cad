@@ -1065,7 +1065,7 @@ impl fmt::Display for ValidationError {
                 f,
                 "face {face:?}'s surface is the Nurbs PLACEHOLDER (mvfs's all-poison \
                  'no description yet' state) — uncertifiable at rest; attach the real \
-                 surface. A described NURBS surface passes this check since M6-3"
+                 surface. A described NURBS surface passes this check"
             ),
             Self::EdgeCertification { edge, error } => {
                 write!(f, "edge {edge:?} failed re-certification at rest: {error}")
@@ -1379,12 +1379,12 @@ impl fmt::Display for ValidationError {
             Self::NullEdgeAtRest { edge } => write!(
                 f,
                 "edge {edge:?} is null-edge scaffolding at rest (tier 2 bans \
-                 unconsumed M3 surgery transients)"
+                 unconsumed surgery transients)"
             ),
             Self::NullFaceAtRest { face } => write!(
                 f,
                 "face {face:?} carries a null-face record at rest (tier 2 bans \
-                 unconsumed M3 surgery transients)"
+                 unconsumed surgery transients)"
             ),
             Self::Pcurve { finding } => write!(f, "tier 3: {finding}"),
         }
