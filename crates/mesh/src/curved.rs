@@ -52,13 +52,16 @@ use crate::types::TessellateError;
 use crate::walk::{Chart, ChartKind, UvPoint, loop_polygon};
 
 /// The call's tolerance bundle: δ (the promise), δ_s = δ/2 (sizing),
-/// and the run's kernel ε (pole identification only — never sizing).
+/// and the run's kernel ε — never sizing, and never a value the mesh
+/// carries: ε reaches exactly two decisions from here, pole/apex
+/// vertex identification in [`crate::walk`] and this lane's banded
+/// domain guard, and the second only chooses whether to REFUSE.
 pub(crate) struct Tol {
     /// The chordal tolerance δ.
     pub delta: f64,
     /// The sizing target δ_s = δ/2.
     pub delta_s: f64,
-    /// The kernel ε (pole/apex vertex identification).
+    /// The kernel ε (pole/apex identification; the domain guard's band).
     pub eps: f64,
 }
 
@@ -270,7 +273,7 @@ pub(crate) fn tessellate_curved(
 /// exact form refused a domain that IS the swept rectangle.
 ///
 /// So the entry's distance from the box is measured the way
-/// [`crate::walk`]'s loop-closure snap measures its residue: through
+/// [`crate::walk`]'s closure detector measures its gap: through
 /// the chart's own lever arms ([`Chart::radial`] for u — the point's
 /// distance from the axis — and [`Chart::v_lever`] for v), against the
 /// run's `eps`. The band admits ulp wobble on a straight side and

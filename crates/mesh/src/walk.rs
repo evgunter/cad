@@ -24,14 +24,18 @@
 //! construction for every wedge angle (continuity would pick the wrong
 //! one for θ > 3π/2, where the complement 2π − θ < π/2 is closer).
 //!
-//! Branch choice being exact does not make the closure exact to the
-//! last bit, and the difference took a defect to notice: the branch is
-//! discrete, while the residue within it is a float quantity that
-//! imported geometry can make nonzero. Measured, it usually IS zero —
-//! 266 of 315 closures across the tour and the wild corpus close
-//! bitwise, and the tour's worst is 9 ulps — but see `loop_polygon`'s
-//! closure block for the exception class, its traced cause, and why
-//! the snap bar is a length rather than an angle.
+//! That final column is taken from `out[0].u` ITSELF, not merely from
+//! the branch nearest it, so a rim-anchored loop closes **bitwise**:
+//! the closing polygon side is exactly vertical by construction, at no
+//! tolerance. It did not always. The column used to come from the
+//! meridian carrier's MIDPOINT (`mid_azimuth`) — the same analytic
+//! azimuth down a different float path — and the gap between the two
+//! was closed by an ε-scaled snap. Imported geometry can make that gap
+//! nonzero (it is source-coordinate rounding, not accumulation), which
+//! is what made a tolerance look necessary. Taking the vertex's own
+//! value makes the quantity identically zero instead, and the
+//! comparison survives inside [`closing_column`] as a `debug_assert!`
+//! measuring the INPUT's quality rather than a bar the mesh depends on.
 //!
 //! Pole handling (chart singularities; the surface's `normal` is never
 //! sampled): a pole/apex is always an edge **endpoint** (valence 2). A
@@ -248,8 +252,8 @@ impl Chart {
     ///
     /// Together `(radial(p), v_lever())` convert a UV discrepancy into
     /// metres, which is the only honest unit to compare against ε — the
-    /// same argument [`closure_is_snappable`] makes at the loop
-    /// closure, and the one `curved`'s domain guard now makes too.
+    /// argument `curved`'s domain guard makes, and the one
+    /// [`closure_gap_is_noise`] makes for the closure detector.
     pub(crate) fn v_lever(&self) -> f64 {
         match self.kind {
             ChartKind::Cylinder { .. } | ChartKind::Cone { .. } => 1.0,
@@ -473,26 +477,101 @@ fn unwrap_tie(raw: f64, prev: f64, anchor: f64) -> f64 {
     }
 }
 
-/// Walks a curved face's loop into its UV polygon (module docs: the
-/// classification, unwrapping, pole, and disambiguation rules).
-/// The loop-closure bar: may a residue of `residue` radians at
-/// `radius` metres from the chart axis be snapped onto its column?
+/// Is an azimuth `gap` of this many radians, at `radius` metres from
+/// the chart axis, float noise rather than a defect in the geometry?
 ///
-/// One predicate so the assertion and the snap cannot drift apart.
-/// They did, in the form this replaces: both read a bare `residue <
-/// 1e-9`, so exceeding it disabled BOTH — the debug build screamed
-/// while release silently declined to snap and shipped the unsnapped
-/// polygon on.
+/// `gap * radius` is the arc length the two azimuths disagree by, and
+/// `eps` is the length this module already measures against. At
+/// `radius == 0` the azimuth carries no length at all, so every gap is
+/// noise — the correct limit, and reached here without a special case
+/// or a division.
 ///
-/// `residue * radius` is the arc length the snap moves the polygon
-/// side by, and `eps` is the length this module already measures
-/// against. At `radius == 0` the azimuth carries no length at all, so
-/// every residue is snappable — the correct limit, and reached here
-/// without a special case or a division.
-fn closure_is_snappable(residue: f64, radius: f64, eps: f64) -> bool {
-    residue * radius < eps
+/// **A diagnostic, not a decision.** Nothing in the walk's output
+/// depends on it: the loop closure is exact by construction and the
+/// only caller is [`closing_column`]'s `debug_assert!`. It is kept
+/// because that assertion is this project's one detector for a class
+/// of defective source coordinates, and because it is the shape issue
+/// #653 needs one level over — for consecutive sub-edges of a single
+/// iso side, which are each other's float-path twins the way the
+/// closure's two paths were.
+fn closure_gap_is_noise(gap: f64, radius: f64, eps: f64) -> bool {
+    gap * radius < eps
 }
 
+/// The column of a rim-anchored loop's FINAL meridian: the closing
+/// `anchor` (`out[0].u`) itself, bitwise.
+///
+/// `out[0]` lies on this meridian's plane by construction, so its
+/// azimuth IS this column's — the exact value, whatever skew the
+/// source geometry carries. Returning it verbatim makes the loop close
+/// bitwise (`loop_polygon` asserts that after the walk) and the
+/// closing polygon side exactly vertical before the CDT sees it as a
+/// constraint.
+///
+/// The BRANCH rule is unchanged and is why `anchor` rather than
+/// `prev_u` is the input at all: continuity toward `prev_u` picks the
+/// wrong 2πk for wedge angles θ > 3π/2 (the 2π − θ < π/2 shortcut).
+/// `unwrap_near(u_raw, anchor)` — what this used to return — selects
+/// `anchor`'s branch and then differs from `anchor` only WITHIN it, so
+/// dropping it cannot change which branch is taken. It drops exactly
+/// the float difference an ε-scaled snap used to absorb after the
+/// walk, and with it this crate's second structural read of ε (S22).
+///
+/// # The retained detector
+///
+/// `u_raw` is [`mid_azimuth`]: the same analytic azimuth reached from
+/// the carrier MIDPOINT. Analytically `carrier == anchor`; a gap
+/// between them is a statement about the INPUT, and this assertion is
+/// the only place the project ever sees it. It gates nothing — the
+/// column is `anchor` either way — so what it measures is **data
+/// quality**, which is what it was always really about.
+///
+/// MEASURED (M8 census, 315 governed closures over the tour and the
+/// wild corpus; the instrumentation was temporary, the numbers are
+/// not): 266 gaps bitwise zero, the tour's worst 4.0e-15 rad (9 ulps
+/// at u ≈ π). Seven of the eight importable wild files are exact on
+/// every closure; all 18 nonzero gaps are in `nist_ftc_09`, 16 of them
+/// at just two values (3.5640e-9 and 8.4502e-9 rad) at one radius,
+/// 2.9718e-3 m = 0.117 inch.
+///
+/// TRACED. Those closures are hole generators whose two endpoints the
+/// FILE states non-co-azimuthally:
+///
+/// ```text
+/// p0 = (-3.1330000001, +0.0896, -4.2499999992) inch
+/// p1 = (-3.1330000000,  0.0,    -4.2500000000) inch
+/// ```
+///
+/// The line runs along the hole axis and should hold x and z fixed;
+/// the file's ~10-digit coordinates differ in the last one. That is
+/// 21.4 pm PERPENDICULAR to the axis, subtending 7.2e-9 rad at
+/// r = 2.9718e-3 m — and the gap is half that spread, because `anchor`
+/// reads a vertex azimuth while `u_raw` reads the midpoint's.
+///
+/// THE BAR IS SPATIAL, NOT ANGULAR, and that trace is why: the angle
+/// is displacement / radius, so a fixed coordinate-rounding error in
+/// the source produces a LARGER angle on a SMALLER feature. A
+/// scale-free radian constant (this once read `< 1e-9`) necessarily
+/// mis-ranks small features — it flagged the 0.117-inch holes while
+/// passing the same physical error elsewhere. In metres the invariant
+/// quantity shows: 21 pm, 1.6e6x inside that file's own ε.
+fn closing_column(u_raw: f64, anchor: f64, radius: f64, eps: f64) -> f64 {
+    let carrier = unwrap_near(u_raw, anchor);
+    let gap = (carrier - anchor).abs();
+    debug_assert!(
+        closure_gap_is_noise(gap, radius, eps),
+        "the closing meridian's carrier-midpoint azimuth {carrier} and its closing \
+         vertex's {anchor} disagree by {gap} rad at radius {radius} m — {} m of arc, \
+         over eps {eps}. The mesh does not depend on this (the column is the vertex's \
+         own azimuth either way); it says the SOURCE states one line's endpoints \
+         off-axis.",
+        gap * radius
+    );
+    anchor
+}
+
+/// Walks a curved face's loop into its UV polygon (module docs: the
+/// classification, unwrapping, pole, and disambiguation rules).
 pub(crate) fn loop_polygon(
     body: &Body<f64>,
     chart: &Chart,
@@ -619,13 +698,19 @@ pub(crate) fn loop_polygon(
                 let anchor = out.first().map_or(prev_u, |e| e.u);
                 let ut = match &band_u {
                     Some(us) => us[k],
-                    // Final traversal: its column contains the loop's
-                    // closing vertex (`out[0]` lies on this meridian
-                    // plane), so the branch nearest the closing anchor
-                    // is exact by construction — continuity toward
-                    // `prev_u` would pick the wrong branch for wedge
-                    // angles θ > 3π/2 (the 2π − θ < π/2 shortcut).
-                    None if k == m - 1 => unwrap_near(u_raw, anchor),
+                    // Final traversal: the closing column is the
+                    // closing vertex's own azimuth, exactly (see
+                    // `closing_column` for the branch rule it keeps,
+                    // the snap it replaces, and the detector it
+                    // retains). The lever arm is `out[0]`'s, the same
+                    // point the assertion is about.
+                    None if k == m - 1 => closing_column(
+                        u_raw,
+                        anchor,
+                        out.first()
+                            .map_or(0.0, |e| chart.radial(positions[e.id as usize])),
+                        eps,
+                    ),
                     None => unwrap_tie(u_raw, prev_u, anchor),
                 };
                 if let Some(vp) = jpole {
@@ -682,96 +767,30 @@ pub(crate) fn loop_polygon(
             }
         }
     }
-    // Closure: if the walk ends in a meridian, the first entry is that
-    // column's junction. `out[0].u` and the final column are the same
-    // analytic azimuth reached through two float paths (vertex atan2 vs
-    // carrier-midpoint atan2), so they disagree only by accumulated
-    // rounding. Snap onto the column so the polygon side is bitwise
-    // straight; a residue too large to snap SAFELY is the structural
-    // defect, and in release the unsnapped self-crossing polygon is
-    // refused by the CDT constraint pre-check (typed `Triangulation`
-    // error).
+    // CLOSURE, exact by construction. If the walk ends in a meridian,
+    // `out[0]` is that column's junction — and `closing_column` took
+    // the column from `out[0].u` itself, so the two agree bitwise and
+    // the closing polygon side is exactly vertical.
     //
-    // THE BAR IS SPATIAL, NOT ANGULAR. This used to read `residue <
-    // 1e-9` — a bare radian constant, unrelated to `eps` and to the
-    // model's size, calibrated on an observed ≲1e-12 rad across the
-    // scenes that existed then. `nist_ftc_09_asme1_rd.stp` closes at
-    // 3.56e-9 rad and tripped it, having silently skipped the snap in
-    // release for as long as that lane ran with assertions compiled
-    // out (assert and snap read the same constant, so exceeding it
-    // disabled both — the shape `closure_is_snappable` now forecloses).
+    // WHAT THIS REPLACES (S22, and the ε-vs-δ question it asked). The
+    // column used to come from the carrier midpoint, so the closing
+    // side's two ends were one analytic azimuth down two float paths;
+    // the difference was SNAPPED away here when `residue * radius <
+    // eps`. That snap was this crate's second structural read of ε,
+    // and it made the mesh a function of (body, δ, ε) against `lib.rs`
+    // and D9's claim of (body, δ). Whether the bar should have been ε
+    // or δ is moot: taking the vertex's own azimuth one level up makes
+    // the residue identically zero.
     //
-    // MEASURED (M8 census, 315 governed closures over the tour and the
-    // wild corpus; instrumentation was temporary, the numbers are not):
-    //
-    //   tour, 202 closures — 171 bitwise EXACT, worst 4.0e-15 rad (9
-    //     ulps at u ≈ π), worst arc 4.7e-16 m.
-    //   wild, 113 closures — 95 bitwise exact. SEVEN of the eight
-    //     importable files are exact on every closure. All 18 nonzero
-    //     residues are in `nist_ftc_09`, and 16 of those sit at just
-    //     two values (3.5640e-9 and 8.4502e-9 rad), eight apiece, all
-    //     at one radius: 2.9718e-3 m = exactly 0.117 inch.
-    //
-    // So "exact by construction" is the RULE, not an approximation —
-    // and the exception is not accumulated error. Discrete values
-    // repeated eight times at a single radius is one geometric feature
-    // instanced eight times; walk length has nothing to do with it.
-    //
-    // THE MECHANISM, traced. Those closures are hole generators whose
-    // two endpoints the FILE states non-co-azimuthally. One of them:
-    //
-    //   p0 = (-3.1330000001, +0.0896, -4.2499999992) inch
-    //   p1 = (-3.1330000000,  0.0,    -4.2500000000) inch
-    //
-    // The line runs along the hole's axis and should hold x and z
-    // fixed; the file's ~10-decimal-digit coordinates differ in the
-    // last one. That is 21.4 pm of displacement PERPENDICULAR to the
-    // axis, which at r = 2.9718e-3 m subtends 7.2e-9 rad — and the
-    // residue is half that spread (3.564e-9), because `out[0].u` reads
-    // a vertex azimuth while the column reads the carrier MIDPOINT's.
-    //
-    // That is the whole case for measuring in metres. The angle is
-    // `displacement / radius`, so a fixed coordinate-rounding error in
-    // the source produces a LARGER angle on a SMALLER feature: a
-    // scale-free angular bar necessarily mis-ranks small features, and
-    // flags the 0.117-inch holes while passing the same physical error
-    // elsewhere. The spatial bar sees the invariant quantity — 21 pm,
-    // 1.6e6x inside this file's own ε — whatever the radius.
-    //
-    // TWO ROUTES TO ACTUAL EXACTNESS, neither taken here, both real:
-    //   (a) adoption-side — re-mint such a line onto a single azimuth
-    //       at import, the normalization class `StructureNormalization`
-    //       already exists for. The move is 21 pm. Caveat: vertices are
-    //       shared, so an azimuth snap for one cylinder perturbs the
-    //       vertex its other faces see (still far inside ε).
-    //   (b) kernel-side — have the FINAL meridian take its column from
-    //       the closing vertex rather than the carrier midpoint, which
-    //       is exact whatever the skew. `mid_azimuth` exists to dodge
-    //       apex/pole endpoints, but `out[0]` is by construction a
-    //       non-degenerate entry. Touches the anchor-branch choice
-    //       (tuned for wedge angles > 3π/2), so it is a design
-    //       conversation, not a tidy-up.
-    //
-    // u is an azimuth, so a residue is only as big as its lever arm:
-    // `r·δu` is the arc length it displaces the polygon side by, and
-    // `eps` is the length the rest of this function already measures
-    // against (the junction merge above). Comparing the two in metres
-    // is the dimensionally honest test; comparing radians to a
-    // hard-coded angle was not a test of anything. At r → 0 the
-    // azimuth carries no length at all and `eps/r → ∞` accepts freely,
-    // which is the correct limit rather than a special case.
+    // Asserted, not assumed — a walk that stopped closing bitwise
+    // would otherwise be silent, and silence is how the old bar's
+    // release behaviour went unnoticed for a milestone.
     if !no_rim && matches!(travs[m - 1].kind, TravKind::Meridian { .. }) && !out.is_empty() {
-        let residue = (out[0].u - prev_u).abs();
-        let radius = chart.radial(positions[out[0].id as usize]);
-        debug_assert!(
-            closure_is_snappable(residue, radius, eps),
-            "loop closure residue {residue} rad at radius {radius} m displaces the \
-             side by {} m, over eps {eps}",
-            residue * radius
+        debug_assert_eq!(
+            out[0].u, prev_u,
+            "a rim-anchored loop must close BITWISE: the final meridian's column is \
+             the closing vertex's own azimuth, so these are the same f64"
         );
-        if closure_is_snappable(residue, radius, eps) {
-            out[0].u = prev_u;
-        }
     }
     Ok(out)
 }
@@ -839,21 +858,21 @@ mod tests {
         }
     }
 
-    /// The bar is SPATIAL. The residue that falsified the old bare-radian
+    /// The bar is SPATIAL. The gap that falsified the old bare-radian
     /// form — `nist_ftc_09_asme1_rd.stp` closes at 3.56e-9 rad, over the
-    /// old 1e-9 constant — snaps at any real lever arm, and only fails to
-    /// at an absurd one.
+    /// old 1e-9 constant — reads as noise at any real lever arm, and
+    /// only fails to at an absurd one.
     #[test]
     fn the_closure_bar_is_spatial_not_angular() {
         let eps = 3.38e-5;
-        let residue = 3.56e-9;
+        let gap = 3.56e-9;
         assert!(
-            closure_is_snappable(residue, 0.05, eps),
+            closure_gap_is_noise(gap, 0.05, eps),
             "3.56e-9 rad at 50 mm displaces ~1.8e-10 m — far under eps"
         );
         assert!(
-            !closure_is_snappable(residue, 1e5, eps),
-            "the same residue must NOT pass at a 100 km lever arm"
+            !closure_gap_is_noise(gap, 1e5, eps),
+            "the same gap must NOT pass at a 100 km lever arm"
         );
     }
 
@@ -862,18 +881,67 @@ mod tests {
     #[test]
     fn the_closure_bar_tightens_as_the_lever_arm_grows() {
         let eps = 1e-5;
-        let residue = 1e-6;
-        assert!(closure_is_snappable(residue, 1.0, eps), "1e-6 m < eps");
+        let gap = 1e-6;
+        assert!(closure_gap_is_noise(gap, 1.0, eps), "1e-6 m < eps");
         assert!(
-            !closure_is_snappable(residue, 100.0, eps),
+            !closure_gap_is_noise(gap, 100.0, eps),
             "1e-4 m > eps — the same angle, ten thousand times the arc"
         );
     }
 
-    /// On the axis the azimuth carries no length, so every residue
-    /// snaps. Must be a plain comparison, not a NaN or a division.
+    /// On the axis the azimuth carries no length, so every gap is
+    /// noise. Must be a plain comparison, not a NaN or a division.
     #[test]
-    fn on_the_axis_every_residue_snaps() {
-        assert!(closure_is_snappable(core::f64::consts::PI, 0.0, 1e-9));
+    fn on_the_axis_every_gap_is_noise() {
+        assert!(closure_gap_is_noise(core::f64::consts::PI, 0.0, 1e-9));
+    }
+
+    /// **THE REGRESSION ROW for the closing column** (S22). It must
+    /// return the anchor ITSELF, bitwise — not merely the 2πk branch
+    /// nearest it. Reverting to `unwrap_near(u_raw, anchor)` lands in
+    /// the same branch, so no branch-level or approximate test can see
+    /// the difference; only an exact comparison can, and that exactness
+    /// is the whole point (it is what makes the loop closure identically
+    /// zero and the ε snap unnecessary).
+    ///
+    /// Both halves are pinned: the column is `anchor` to the last bit,
+    /// AND the value the revert would produce sits in `anchor`'s own
+    /// branch, so the wedge rule for θ > 3π/2 is untouched. The raws
+    /// are a whole number of turns from the anchor plus a hair inside
+    /// the branch — the shape imported geometry produces.
+    #[test]
+    fn the_closing_column_is_the_anchor_bitwise_and_in_its_branch() {
+        let mut skewed = 0_u32;
+        for anchor in [0.0, 0.7, -2.4, core::f64::consts::PI, 5.9] {
+            for turns in [-2.0_f64, -1.0, 0.0, 1.0, 2.0] {
+                for ulps in [0.0_f64, 1.0, -1.0, 4096.0, -4096.0] {
+                    let raw = anchor + turns * TAU + ulps * f64::EPSILON;
+                    let carrier = unwrap_near(raw, anchor);
+                    assert!(
+                        (carrier - anchor).abs() < TAU / 2.0,
+                        "the replaced form already selects the anchor's branch \
+                         (anchor {anchor}, turns {turns}, ulps {ulps})"
+                    );
+                    // eps/radius chosen so the detector stays quiet: the
+                    // widest skew here is ~9.1e-13 rad, 9.1e-13 m of arc.
+                    let column = closing_column(raw, anchor, 1.0, 1e-9);
+                    assert_eq!(
+                        column, anchor,
+                        "the closing column must be the anchor bitwise \
+                         (anchor {anchor}, turns {turns}, ulps {ulps})"
+                    );
+                    if carrier != anchor {
+                        skewed += 1;
+                    }
+                }
+            }
+        }
+        // Non-vacuity: the replaced form really does differ from the
+        // anchor on this fixture, so the row above is a live comparison
+        // rather than an accident of exact arithmetic.
+        assert!(
+            skewed >= 20,
+            "fixture must exercise real skews; only {skewed} rows differed"
+        );
     }
 }
