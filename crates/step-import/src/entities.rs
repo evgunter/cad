@@ -1355,7 +1355,7 @@ impl<'a> Resolver<'a> {
                        promotes certified planes and cylinders, and rings on promoted \
                        planes import; the kernel has no volume construction for a \
                        curved face with rings) or a seamless periodic band on a chart \
-                       the M7-5 band re-mint does not cover (cylinder and torus bands \
+                       the band re-mint does not cover (cylinder and torus bands \
                        normalize; a cone or sphere-zone band would take the same \
                        seam-generator re-mint, extended to its chart)",
             });

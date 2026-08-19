@@ -1117,13 +1117,17 @@ fn shape_iii_the_wall_cut_certifies_all_three_limbs_and_refuses_a_corrupted_pcur
     }
 }
 
-/// The C5 table's plane×NURBS row, read the way a caller reads it. Pure
-/// table lookup — no geometry, no ε — so it is stated whether or not
+/// The routing table's plane×NURBS row, read the way a caller reads it.
+/// Pure table lookup — no geometry, no ε — so it is stated whether or not
 /// the wall fixture fitted at this ε.
 fn assert_c5_plane_nurbs_retired() {
     let r = geom_brep::route(geom_brep::SurfaceKind::Plane, geom_brep::SurfaceKind::Nurbs);
-    assert!(r.implemented, "TABLE: plane×NURBS is retired");
-    assert!(r.note.contains("RETIRED 2026-07-31"), "TABLE: {}", r.note);
+    assert!(r.implemented, "TABLE: plane×NURBS is implemented");
+    assert!(
+        r.note.contains("certifies the whole chain"),
+        "TABLE: the note must claim the FULL certificate, not a partial one: {}",
+        r.note
+    );
     assert!(
         r.note.contains("Bernstein composition"),
         "TABLE: {}",
@@ -1567,17 +1571,18 @@ fn the_c5_table_retires_the_arm_whose_proof_is_complete() {
         assert!(r.implemented, "{a:?}×{b:?} should be retired by PR 7");
         assert!(r.note.contains("IMPLICIT PAIR"), "{}", r.note);
     }
-    // Retired by PR 7b: the ℝ⁴ arm, all three limbs, and the note
-    // records the retirement and its date (C12.1: WITH its proof).
+    // The ℝ⁴ arm is live with all three limbs, and the note claims the
+    // FULL certificate rather than a partial one — an arm goes
+    // implemented only WITH its proof.
     for (a, b) in [
         (SurfaceKind::Plane, SurfaceKind::Nurbs),
         (SurfaceKind::Nurbs, SurfaceKind::Plane),
     ] {
         let r = route(a, b);
         assert_eq!(r.rung, Rung::General);
-        assert!(r.implemented, "{a:?}×{b:?} retired by PR 7b");
+        assert!(r.implemented, "{a:?}×{b:?} is implemented");
         assert!(r.note.contains("PARAMETRIC PAIR"), "{}", r.note);
-        assert!(r.note.contains("RETIRED 2026-07-31"), "{}", r.note);
+        assert!(r.note.contains("certifies the whole chain"), "{}", r.note);
         assert!(r.note.contains("Bernstein composition"), "{}", r.note);
     }
     // Everything else on the general rung still refuses, and now names

@@ -1,14 +1,14 @@
 //! The binding error taxonomy.
 //!
-//! LIBRARY-DESIGN §L4: failures reach Python as **typed exceptions
-//! carrying the structured error, never strings**. That splits in two:
+//! Failures reach Python as **typed exceptions carrying the
+//! structured error, never strings**. That splits in two:
 //!
 //! * [`DimensionError`] — the boundary refusal a Python user can
 //!   provoke that the Rust surface refuses at COMPILE time
 //!   (`Length + Angle` is simply not an `impl` in `quantity`). Python
 //!   has no such static gate, so the illegal combination has to become
 //!   a runtime value; making it a STRUCTURED value rather than a
-//!   formatted string is what keeps §L4's promise.
+//!   formatted string is what keeps that promise.
 //! * [`ErrorClass`] — which typed Python exception a kernel refusal
 //!   becomes.
 //!
@@ -36,7 +36,7 @@ pub const fn dimension_tag(dim: Dimension) -> &'static str {
     }
 }
 
-/// The canonical unit a [`Dimension`] is stored in (GQ5: metres and
+/// The canonical unit a [`Dimension`] is stored in (metres and
 /// radians underneath), or `None` for the dimensionless kinds.
 pub const fn canonical_unit(dim: Dimension) -> Option<&'static str> {
     match dim {
@@ -81,10 +81,9 @@ impl fmt::Display for DimensionError {
 
 impl core::error::Error for DimensionError {}
 
-// LIB-DOORS F5: the `LiteralRefusal`/`check_literal` pre-check that
-// used to live here is GONE. `Expr::literal`'s own error type
-// (`pncad::document::DimensionError`) is curated now, so the binding
-// matches the kernel's refusal instead of predicting it; the tag
+// The binding carries no literal pre-check of its own: `Expr::literal`'s
+// own error type (`pncad::document::DimensionError`) is curated, so the
+// binding matches the kernel's refusal instead of predicting it; the tag
 // mapping is `crate::tags::expr_dimension_error_tag`.
 
 /// Which typed Python exception a refusal becomes.
@@ -108,21 +107,21 @@ pub enum ErrorClass {
     /// A value the expression layer refused (non-finite literal, a
     /// count written as continuous, ...).
     Literal,
-    /// A save or load the persistence doors refused (LIB-DOORS F1).
+    /// A save or load the persistence doors refused.
     Persist,
-    /// An export the document-layer door refused (LIB-DOORS F2).
+    /// An export the document-layer door refused.
     Export,
     /// A STEP text the importer refused, or one that parsed to a
     /// non-solid (the export test oracle's refusal class).
     StepImport,
     /// Geometry the PATHS authoring algebra refused at the call site
     /// (junction checks, `NoCornerForFillet`, the tangent-line close,
-    /// ...) — LIB-PYG1.
+    /// ...).
     Path,
     /// A selection query refused (an in-band decided margin, a tied
-    /// name whose candidates disagree, a non-datum reference, ...) —
-    /// LIB-PYSEL. The Python class keeps the Rust type's own name:
-    /// the refusal IS `SelectRefusal`, crossing.
+    /// name whose candidates disagree, a non-datum reference, ...).
+    /// The Python class keeps the Rust type's own name: the refusal
+    /// IS `SelectRefusal`, crossing.
     Select,
     /// A frame the linear-algebra constructors refused: a direction
     /// that was not DEFINITELY usable (coincident points, a roll

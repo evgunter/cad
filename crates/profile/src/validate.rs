@@ -292,7 +292,7 @@ impl fmt::Display for NoCornerReason {
 const FILLET_TURN_INBAND_RECOURSE: &str = "this corner is degenerate at any precision you could care about, and which kind is below \
      the tolerance: if the legs run smoothly into each other, keep them and declare the \
      tangency (the joint's index in the loop's tangent_joints); if they double back, that is a cusp and the \
-     kernel refuses it (#131); otherwise move the geometry so a real corner exists (or lower \
+     kernel refuses it; otherwise move the geometry so a real corner exists (or lower \
      the tolerance)";
 
 /// The recourse for a corner that admits no tangent circle of the
@@ -544,14 +544,14 @@ impl fmt::Display for ProfileError {
             ),
             Self::MultipleOuterLoops { outer_loops } => write!(
                 f,
-                "profile has {} outer boundaries {:?}; one face region per profile at M2",
+                "profile has {} outer boundaries {:?}; one face region per profile",
                 outer_loops.len(),
                 outer_loops
             ),
             Self::NestingTooDeep { loop_index, depth } => write!(
                 f,
                 "loop {loop_index} nests at depth {depth}; only outer boundaries \
-                 (depth 0) and holes (depth 1) are supported at M2"
+                 (depth 0) and holes (depth 1) are supported"
             ),
             Self::RayCastingExhausted {
                 loop_index,
@@ -559,7 +559,7 @@ impl fmt::Display for ProfileError {
             } => write!(
                 f,
                 "containment of loop {loop_index} in loop {against_loop}: every \
-                 candidate ray grazed — escalating rather than guessing (Q1)"
+                 candidate ray grazed — escalating rather than guessing"
             ),
             Self::Escalated { site, source } => {
                 write!(f, "validation escalated {site}: {source}")?;

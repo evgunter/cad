@@ -1,7 +1,7 @@
 //! The document surface: `Doc`, `DocEdit`, `Node`, `evaluate`.
 //!
-//! §L3: Python speaks Doc/DocEdit/evaluate/persist and **never an
-//! arena key**. The only identifier that crosses is [`NodeId`], a
+//! Python speaks Doc/DocEdit/evaluate/persist and **never an arena
+//! key**. The only identifier that crosses is [`NodeId`], a
 //! wrapper over `RecipeNodeId` — a recipe-level id, which is precisely
 //! the document layer's own public vocabulary, not a slotmap key.
 
@@ -19,15 +19,15 @@ fn edit_err(py: Python<'_>, err: &d::EditError) -> PyErr {
     typed_err(
         py,
         ErrorClass::Edit,
-        // `EditError` implements `Display` (LIB-DOORS F6, reopened on
-        // review): the human message is real prose; the machine
-        // payload is the `variant` tag (see `crate::tags`).
+        // `EditError` implements `Display`: the human message is real
+        // prose; the machine payload is the `variant` tag (see
+        // `crate::tags`).
         err.to_string(),
         &[("variant", PyString::new(py, tag).unbind().into_any())],
     )
 }
 
-/// Raise `EditError` for a declare-sugar refusal (LIB-PYG5).
+/// Raise `EditError` for a declare-sugar refusal.
 ///
 /// `DeclareError` carries no `Display`; the per-arm prose is
 /// hand-written here and the machine payload is the stable tag
@@ -73,11 +73,10 @@ fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
 /// Build a dimensioned literal expression, refusing at the boundary.
 ///
 /// The refusal is `Expr::literal`'s OWN error type, matched — not
-/// predicted: the pre-check this function used to carry (LIB-U9S's F5
-/// workaround, from before the façade curated `DimensionError`) is
-/// gone, so the binding cannot drift from what the kernel refuses.
-/// The exception keeps U9S's payload: `kind` (the stable tag) AND
-/// `value`, the offending number — the kernel error deliberately
+/// predicted: the binding carries no pre-check of its own, so it
+/// cannot drift from what the kernel refuses. The exception carries
+/// `kind` (the stable tag) AND `value`, the offending number — the
+/// kernel error deliberately
 /// carries no float, but the boundary has it in hand.
 pub(crate) fn literal(py: Python<'_>, value: f64, dim: d::Dimension) -> PyResult<d::Expr> {
     d::Expr::literal(value, dim).map_err(|err| {
@@ -109,9 +108,9 @@ pub(crate) fn literal(py: Python<'_>, value: f64, dim: d::Dimension) -> PyResult
 /// and code that reads inside a name is code this crate will break.
 /// The supported operations are equality, ordering, storage, and
 /// handing it back to [`Node::fillet`]. Narrowing a set of names is a
-/// SELECTOR's job — `Evaluation.select` / `select_where` (LIB-PYSEL),
+/// SELECTOR's job — `Evaluation.select` / `select_where`,
 /// which answer in this same alphabet; the binding is the one
-/// licensed reader of the text (the ordinal-28 ruling).
+/// licensed reader of the text.
 ///
 /// # Why this encoding
 ///
@@ -189,7 +188,7 @@ pub(crate) struct Doc {
 impl Doc {
     /// An empty document.
     ///
-    /// Identity note (ASM-1 D-7): the Python surface gains no
+    /// Identity note: the Python surface gains no
     /// identity door in this unit — every `Doc()` carries the same
     /// label-derived placeholder id (deterministic, so Python-driven
     /// saves stay reproducible). The id/pin/workspace doors are a
@@ -235,7 +234,7 @@ impl Doc {
     /// Declare ONE inspected finding: insert a `Declare` node with
     /// its pair and return the node's id, for `Node.boolean`'s
     /// `declare=` input — the detect/declare protocol's declare arm
-    /// (SELECT-DESIGN §3; LIB-PYG5). Sugar over the same vocabulary
+    /// (SELECT-DESIGN §3). Sugar over the same vocabulary
     /// `Node.declare` constructs; nothing here detects — findings
     /// reach this door as VALUES the caller already inspected (the
     /// ruled no-fusion boundary).
@@ -289,7 +288,7 @@ impl Doc {
     }
 
     /// Serialize this document to the persistence text format
-    /// (LIB-DOORS F1; the schema-v4 doors, via the curated façade).
+    /// (the schema-v4 doors, via the curated façade).
     ///
     /// The Python wrapper holds only the CURRENT document — its edit
     /// history lives in the Rust values it discarded — so the file is
@@ -400,7 +399,7 @@ impl SketchPlane {
 
     /// The plane through `origin` spanned by `u` and `v`.
     ///
-    /// `origin` is dimensioned (`Length`s, §L4); `u` and `v` are
+    /// `origin` is dimensioned (`Length`s); `u` and `v` are
     /// dimensionless direction triples. Rigidity is the caller's
     /// unchecked convention — see the class docs.
     #[staticmethod]
@@ -548,7 +547,7 @@ impl Node {
     /// `elevation=` is the xy sugar — the world xy-plane, that far up
     /// z. The default is the xy-plane itself.
     ///
-    /// Coordinates arrive as typed `Length`s (§L4), so a bare number
+    /// Coordinates arrive as typed `Length`s, so a bare number
     /// is a boundary refusal rather than an ambiguous unit; they are
     /// the sketch's own (x, y), which `plane` maps into the world.
     ///
@@ -881,16 +880,16 @@ impl Node {
     /// A Boolean of two upstream solids.
     ///
     /// `declare` names a `Declare` node whose coincidence pairs this
-    /// boolean consumes — the DATA door for F5's declared contact.
+    /// boolean consumes — the DATA door for a declared contact.
     /// Without it the kernel never infers that two faces are the same
-    /// face, so operands that merely touch refuse — and since
-    /// register R3 the refusal is the typed MENU: an
+    /// face, so operands that merely touch refuse, and that refusal is
+    /// the typed MENU: an
     /// `EvaluationError` with `kind == "undeclared_contact"` whose
     /// `finding` attribute carries the candidate declaration. The
     /// protocol that fills this argument is
     /// `Evaluation.find_flush_candidates` → inspect → `Node.declare`
     /// (or the `Doc.declare`/`Doc.declare_all` sugar) → this
-    /// `declare=` (LIB-PYG5, audit G5).
+    /// `declare=`.
     #[staticmethod]
     #[pyo3(signature = (op, a, b, declare=None))]
     fn boolean(op: BooleanOp, a: &NodeId, b: &NodeId, declare: Option<NodeId>) -> Self {
@@ -930,7 +929,7 @@ impl Node {
     /// whatever the count.
     ///
     /// `count` crosses as a plain `int`, the structural-slot exception
-    /// to §L4's typed quantities (`Node.loft`'s `v_degree` precedent):
+    /// to the typed quantities (`Node.loft`'s `v_degree` precedent):
     /// a Count is an integer in the kernel's own expression language,
     /// not a dimensioned measurement, and there is no `Count` quantity
     /// to wrap it in.
@@ -1030,7 +1029,7 @@ impl ParamName {
 /// A named parameter's declared dimension and exact stored value
 /// (guide §3.2): what `DocEdit.set_doc_param` writes.
 ///
-/// Continuous values arrive as typed quantities (§L4), so the
+/// Continuous values arrive as typed quantities, so the
 /// dimension is carried by the constructor rather than guessed from a
 /// bare float. A non-finite value is NOT pre-checked here — the edit
 /// door refuses it typed (`non_finite_doc_param`), fail-loud where
@@ -1120,12 +1119,11 @@ impl DocParam {
     }
 }
 
-/// A single edit to a document — the G1 edit vocabulary, which §L3
-/// names as the ONE API surface shared by the GUI, the bindings, macro
-/// recording and headless tests.
+/// A single edit to a document — the ONE API surface shared by the
+/// GUI, the bindings, macro recording and headless tests.
 ///
 /// Five edits are exposed today: `insert_node`, `delete_node`,
-/// `set_tolerance`, `set_doc_param` (R1-PARAMS) and
+/// `set_tolerance`, `set_doc_param` and
 /// `bind_count_param`, the structural-slot edit narrowed to the Count
 /// slot and a parameter reference. The remaining variants (continuous
 /// slot edits, re-witnessing, appearance, rebinds, expression paths)
@@ -1215,7 +1213,7 @@ impl DocEdit {
     }
 }
 
-/// A loaded document (LIB-DOORS F1): what the persistence door
+/// A loaded document: what the persistence door
 /// answered — the snapshot as saved, the replayed current state, and
 /// how many recorded edits the replay ran.
 #[pyclass(frozen, module = "pncad")]
@@ -1259,7 +1257,7 @@ impl Loaded {
     }
 }
 
-/// Parse, validate, and replay a saved document (LIB-DOORS F1).
+/// Parse, validate, and replay a saved document.
 ///
 /// Every refusal is a typed `PersistError` carrying the arm's stable
 /// `variant` tag — bad header, unknown schema, unparseable body, a
