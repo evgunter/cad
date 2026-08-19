@@ -3432,10 +3432,12 @@ So the repair is the split, not a refusal bolted onto `Bounds`:
   `Decoration::Def` — the same threshold `sign_within` uses, now spelled
   once as `Interval::is_certified` and called by both doors. `f64` and
   `RingInterval` always certify (neither has a domain-violation channel).
-  It carries **no supertrait**: a body needing both doors writes
-  `T: Bounds + CertifiedEnclosure`, which is an honest inventory, and a
-  subtrait would put a third `lo`/`hi` in scope wherever a compound bound
-  is written.
+  `k_stats::Probe` certifies too, for the `f64` reason — it is an `f64`
+  with a recorder, and refusing there would make a `--features probe`
+  build diverge from the `f64` build. It carries **no supertrait**: a body
+  needing both doors writes `T: Bounds + CertifiedEnclosure`, which is an
+  honest inventory, and a subtrait would put a third `lo`/`hi` in scope
+  wherever a compound bound is written.
 - The three crossings require `CertifiedEnclosure`, so a `Trv` enclosure
   cannot reach `RingInterval::from_bounds` through them at all.
 
