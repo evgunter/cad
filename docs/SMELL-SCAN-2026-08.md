@@ -498,6 +498,90 @@ re-crosses that lint's 200-byte threshold depends on `DocEdit`'s size,
 which nothing tracks, and `Lit` is a struct, so it trips no enum lint
 alone.)
 
+**`units` follow-up — #650 CLOSED by sealing, not by a check (this PR).**
+#646 left one residue on the same row: `Expr::literal_with_unit`
+validated the CALLER's `UnitDef.quantity` and then stored the table row
+found by symbol, never re-checking, so a caller-built `UnitDef { symbol:
+"mm", quantity: Angle, .. }` built an `Expr` that serialized into a
+document editor-core's own load door refused — a round-trip break, not a
+bad call. #650 offered a two-line whole-row check; the fix taken instead
+is D2-addendum-shaped: **make the row unrepresentable**, so there is no
+state for a check to catch. `quantity::UnitDef`'s three fields are
+private with `symbol()`/`quantity()`/`factor()` accessors, there is no
+constructor at all, and the only sources of a row are `UNITS`,
+`unit_by_symbol`, and whatever hands one back.
+
+Five things are worth recording — two because each was a way the seal
+could have been cosmetic, one because the seal's own cleanup was nearly
+missed, one because the residual was measured wrong before the work
+started, and one because sealing MOVED where the coverage gap lives:
+
+- **The second mint.** `LengthUnit`/`AngleUnit` keep PUBLIC fields, and
+  their `def()` was a public `const fn` — so `AngleUnit { symbol: "mm",
+  factor: 1.0 }.def()` rebuilt #650's exact counterexample with `UnitDef`
+  sealed. Sealing `UnitDef` alone would have renamed the hole. `def()` is
+  now `pub(crate)`; the public route to a row is `unit_by_symbol`. This
+  is the S4 lesson applied to a CONSTRUCTOR rather than a vocabulary:
+  counting the copies of a spelling is not the same as counting the doors
+  that can mint one.
+- **The refusal the seal killed, and the apparatus that nearly outlived
+  it.** `UnitSym::from_def`'s `None` arm — #646's newly-covered branch —
+  is unreachable once no caller can build an off-table row. The first
+  pass kept it and built the scaffolding to reach it: a `units-testing`
+  cargo feature, a `#[doc(hidden)]` mint, a self-dev-dependency, an
+  explicit dev-dependency in `editor-core`, and two tests. Review
+  observed that **the same `impl` block was answering one question two
+  ways** — `UnitSym::def`'s unconstructable index takes D2 addendum row
+  4 (`unreachable!`) with the argument stated out loud, while
+  `from_def`'s equally unconstructable row kept a typed refusal. Evan
+  ruled it (2026-08-19): *"we definitely should not have any checks for
+  states the type system excludes."* `from_def` is now total, the whole
+  apparatus is deleted, and `DimensionError::UnknownDisplayUnit` keeps
+  its ONE reachable raiser: `persist::wire`, where the symbol arrives as
+  a string out of a file. **The general lesson for a sealing diff:
+  sealing a type makes some downstream refusals unreachable, and the
+  cost of keeping one testable is a cargo feature plus two dependency
+  edges — price that before paying it, and check whether a neighbouring
+  function in the same block already answered the question.**
+- **`pncad-py` is NOT in the blast radius**, contrary to the count this
+  work was scoped from. Its six `self.0.symbol`/`self.0.factor` reads are
+  on `LengthUnit`/`AngleUnit`, whose fields stay public — so #639's live
+  diff on that file was never touched. The residual is that those two
+  typed views are still openly constructible, and **this note first
+  scoped it wrong in two directions; corrected here and filed as
+  #669.** It is not formatter-only and it is not a display string: (a)
+  `fmt.rs`'s own pin is `parse(fmt(x, unit))`, so `fmt_length(0.025,
+  LengthUnit { symbol: "deg", factor: 1e-3 })` → `Ok("25 deg")` is
+  parser input BY DESIGN and `25 deg` parses to an Angle literal that
+  enters an `Expr` and a document; (b) `25.0 * LengthUnit { symbol:
+  "mm", factor: 1.0 }` is a 25-METRE `Length` labelled `mm`, via
+  `impl Mul`/`in_unit` — a wrong VALUE at the D6 boundary. Five public
+  entry points trust the caller's `symbol`/`factor`, not the one this
+  note named. **Scheduled at #669**, not #639 (which is the S37
+  de-milestoning lane and will not close it); closing it needs a
+  `UnitDef → LengthUnit` conversion plus edits in the file #639 owns,
+  which is why the two lanes were confused. The lesson for a sealing
+  diff: seal the ROW and the residue moves to the VIEW of the row —
+  the dimension stays typed, the symbol and factor go free, and that
+  asymmetry is invisible unless the residual is executed rather than
+  reasoned about.
+- **Sealing moves the coverage gap to the load door.** With construction
+  closed by the type, the only production-realistic route to a corrupt
+  document is a `.cad` file carrying a TABLED symbol on the wrong
+  dimension — `{"dim":"Angle","unit":"mm"}`. Nothing tested that:
+  editor-core's suite covered the unknown-SYMBOL arm and the CONSTRUCTOR
+  arm, which is precisely the shape #646 and #650 both recorded as the
+  reason the original defect hid ("the refusal reads as covered because
+  a different construction site is covered"). A row was added. Generalise:
+  after a seal, re-ask the coverage question at every door the sealed
+  value can still ARRIVE at from outside the process — deserialization
+  first.
+- **In-crate code is not exempt.** `quantity/src/tests.rs` is a SIBLING
+  module of `units`, not an inner one, so the private fields are private
+  to it too; the first push was red on `clippy` for exactly that. Worth
+  remembering when estimating a sealing diff: "same crate" is not the
+  visibility boundary, "same module or below" is.
+
 | Concept | Copies | Anchor |
 |---|---|---|
 | profile `Step` verbs | `profile::Step` / `ProgramStep` / `WireStep` / `StepArg` / content-key tag table — **5**, across 3 crates | `program.rs:64`, `persist/wire.rs:255`, `profile/src/path/program.rs:190` |
@@ -621,7 +705,7 @@ hand-shaped matcher is S4's failure mode wearing an enforcement badge.
 | `RoleSeg` arg sites | **SURVIVED IN PART; FIXED by #632.** The four answer four genuinely different questions and *should* differ — what survived was the fourth site's wildcard, now closed. |
 | `StableName` payload lists | **SURVIVES** — see the confirmed drift below. |
 | "no usable value" | **SURVIVES IN PART** — the four enums have genuinely different membership and closure (`RunStatus` is serde-persisted), but all four embed the identical triple, and the stringly fifth is a real fail-quiet. |
-| units | **DOES NOT SURVIVE as counted; the residue FIXED by #646.** `parse.rs` uses the shared table; `step-import`'s `UnitKind` is a *different vocabulary* (STEP `SI_UNIT` names). Real duplicates: two-and-a-half, one of them **measured and justified** (PR #291 MAJOR-2: inlining the 32-byte row grew every `Expr` by ~40 bytes). #646 enumerated the two-and-a-half the steelman never named — (1) `expr.rs`'s `UnitSym` enum + its `def()` map, the measured one; (½) that file's *second* table, `from_def`'s six string literals, which the measurement never covered; (2) `pncad-py`'s six module bindings + stub lines, forced by PyO3 — and dissolved (1) and (½) together by making the code an INDEX into `quantity::UNITS`. The code is still one byte, so the measurement stands, and it now has a mechanical guard (a `size_of::<Lit>()` assertion) rather than only clippy's threshold-dependent `large_enum_variant`. (2) is untouched: forced — **and unpinned**, its stub pinned only at one of six names. A residue in `expr.rs` is filed rather than fixed: #650, `literal_with_unit` checks the caller's `UnitDef.quantity` and then stores the table's, so a mismatched pair builds an `Expr` the load door refuses. |
+| units | **DOES NOT SURVIVE as counted; the residue FIXED by #646.** `parse.rs` uses the shared table; `step-import`'s `UnitKind` is a *different vocabulary* (STEP `SI_UNIT` names). Real duplicates: two-and-a-half, one of them **measured and justified** (PR #291 MAJOR-2: inlining the 32-byte row grew every `Expr` by ~40 bytes). #646 enumerated the two-and-a-half the steelman never named — (1) `expr.rs`'s `UnitSym` enum + its `def()` map, the measured one; (½) that file's *second* table, `from_def`'s six string literals, which the measurement never covered; (2) `pncad-py`'s six module bindings + stub lines, forced by PyO3 — and dissolved (1) and (½) together by making the code an INDEX into `quantity::UNITS`. The code is still one byte, so the measurement stands, and it now has a mechanical guard (a `size_of::<Lit>()` assertion) rather than only clippy's threshold-dependent `large_enum_variant`. (2) is untouched: forced — **and unpinned**, its stub pinned only at one of six names. A residue in `expr.rs` was filed rather than fixed: #650, `literal_with_unit` checks the caller's `UnitDef.quantity` and then stores the table's, so a mismatched pair builds an `Expr` the load door refuses. **#650 is now CLOSED STRUCTURALLY, not by a check** (see the `units`/#650 note below): `quantity::UnitDef` is sealed — private fields, no constructor at all, and `LengthUnit::def`/`AngleUnit::def` demoted to `pub(crate)` because a public `def()` on a still-public-fielded typed view was a *second* mint for the same illegal row. The vocabulary count is unchanged by that; what changed is that the shared table is now the ONLY source of a row, which is the property S4 was arguing for all along. |
 | Euler vector | **SURVIVES IN PART; FIXED by #625 and #641.** The 6-vector and the 7 arena deltas are **different quantities** — Δh is not an arena count and cannot be derived from them — so they stay separate **by design**. What survived the steelman was the spelling, and it is now closed on both halves: #625 made the delta `ArenaDelta`, and #641 named every remaining positional carrier in the crate, collapsed `reassembly.rs`'s duplicate into `ArenaCounts` outright, and gave the parent-sense rule one home. The class was **four positional orders for one vocabulary inside a single crate** — S4's drift shape reachable without crossing a crate boundary at all — of which three were byte-identical to `ArenaCounts` and differed only in being separately declared. Residue: one copy is blocked purely by the `tests/`-is-another-crate boundary (**S52**), and the two drifted `Ledger`s are **S53**. Neither mechanism catches a transposition across correct names, which is why both conversions were checked component-by-component. |
 
 *Drift (a) CONFIRMED, and it contradicts ratified design text.* Note the
@@ -662,7 +746,8 @@ check, because safe Rust cannot make it exhaustive); (2) `name_args`' wildcard �
 small but a **behaviour** fix; (4) the Euler 7-tuple → named struct
 (debug-only) — **DONE, #625**; (5) units — **DONE, #646** (and smaller than
 listed: the only unforced `src` copy was inside one file; the residue it
-found and filed rather than fixed is #650); (6) `ProgramStep`/`WireStep` — cheap in isolation,
+found and filed rather than fixed, #650, is now **DONE** too — sealed
+rather than checked); (6) `ProgramStep`/`WireStep` — cheap in isolation,
 **expensive in sequence** (blocked behind OnArc + RESPELL-TABLE, and it
 crosses the same files); (7) the "no usable value" core (blocked by a
 persisted format); (8) `SegTag` (needs the workspace's first proc-macro
@@ -4486,15 +4571,26 @@ versus PyO3's generated `unsafe impl`), and the hand-restatement is already
 held by a test that breaks the build on drift. Duplication made incapable of
 drifting is the outcome, reached mechanically instead of structurally.
 
-**Method note, proposed not adopted.** #641's parent-sense row found its fourth
-copy through a comment whose only job was to explain that two spellings were one
-rule, which suggests a detector: *a comment that exists to reconcile two
-spellings of one rule is evidence the rule needs one home*. Run as
-`rg 'BY HAND|kept in (sync|step)|same rule as|mirrors the (implementation|logic|table)'`
-over `crates/*/src`, excluding the `bit-identical`/`endpoint-identical`
-vocabulary, which is D9's and fenced by [[output-stability-as-justification]].
-It found every site above. Adding it to `docs/prompts/reviewer-style-lane.md` would be a
-Protocol v5 amendment and so **Evan's to ratify**, not adopted here.
+**Method note — RATIFIED (Evan, 2026-08-19) and applied.** #641's parent-sense
+row found its fourth copy through a comment whose only job was to explain that
+two spellings were one rule, which suggested a detector: *a comment that exists
+to reconcile two spellings of one rule is evidence the rule needs one home, and
+it is usually the only evidence, because the code compiles either way.*
+
+It is now a bullet under **Q2** in `docs/prompts/reviewer-style-lane.md`. Two
+things were corrected before it landed. The first draft was a fixed phrase list,
+which is the checklist failure that document's own §1 warns against — so the
+**question** is the instrument and the pattern is demoted to a cheap first pass.
+And the pattern itself was too narrow (Evan): it is now case-insensitive and
+covers the hand-sync, `duplicated from`, `not shared with`, `restated` and
+`change both` phrasings, the last of which is the strongest signal in the
+`wire.rs` ladder and which the original would have missed.
+
+Its own limits are stated where it is used: it misses phrasings nobody has
+written yet, and it over-fires on prose about a *user* authoring something by
+hand. Run over `crates/*/src` at ratification it named `arc_fillet.rs` and
+`pncad-py/src/tests.rs` — the two family members S54 records — and no longer
+names `wire.rs`, because #670 removed the ladder that motivated it.
 
 ## S55. `Enclosure` is a live trait with no consumer left
 
@@ -4536,6 +4632,16 @@ question is which of these it is, and they have different answers:
 
 Deciding this was out of #643's scope — removing or re-scoping a public
 trait is design content, and the lane's mandate was the decoration seam.
+
+**Verdict: DEFERRED (Evan, 2026-08-19), pending the `Bounds` narrow-vs-broad
+split.** This question is downstream of that one, not independent of it:
+`Enclosure` and `CertifiedEnclosure` already *are* a narrow/broad pair in
+miniature, so whatever the split settles will either give `Enclosure` a job or
+subsume it. Deciding it first would prejudge the larger question from the
+smaller one. Whoever takes the split should absorb this row rather than treat it
+as separate work — and should weigh #643's evidence in the other direction, that
+collapsing the two vocabularies into a supertrait produced an `E0034` ambiguity
+storm across `ssi/certify.rs` and was backed out.
 Note that (2) is not obviously right even on its own terms: the ring is a
 genuine second implementor, and #643's own experience is evidence *for*
 keeping the two vocabularies separate rather than merging them, since
@@ -4633,6 +4739,60 @@ blind the gate to the file that defines the rule.
 
 ---
 
+## S56. "This face's domain is an iso-rectangle" is re-derived per consumer, in three representations, and no two agree on what it means
+
+- **Where**: `crates/geom-brep/src/props/curved.rs:421` (`du_of_rims` /
+  `props_du_consistent`), `crates/mesh/src/curved.rs`
+  (`require_swept_rectangle` / `entries_off_bbox`, added by #648),
+  `crates/geom-brep/src/props/curved.rs` (`torus()`'s `props_rim_level`)
+- **Importance**: high
+- **Confidence**: sure
+- **Raised by**: the #649 investigation and its boolean-door probe, 2026-08-19
+
+Three consumers need the same property and each derives it independently, from
+different data, to different strengths:
+
+| Consumer | Derived from | Strength |
+|---|---|---|
+| `props`' closed form (cylinder/cone/sphere) | rim structure — per-group **span sums** | **unsound**: sums are a consequence of rectangularity, not equivalent to it (**#649**) |
+| `props`' closed form (torus) | rim **levels** — every rim at an end of the anchor meridian's `[v0,v1]` | sound, and the only arm the #649 probe could not break |
+| `mesh`'s curved lane | the walked **UV polygon** vs its own bounding box | sound for shape, but sees the wobble of **#653** as well |
+
+The three do not agree, they cannot be compared, and the disagreement is
+load-bearing rather than cosmetic: the torus arm is the only one that is right,
+and it is right by accident of a periodicity constraint rather than by anyone
+deciding this is how the property should be tested.
+
+The cost of the fragmentation is already paid twice. **#649** is a wrong
+certified volume with `pad = 0.0` on three of the four kinds. And until #648
+the mesher had no check at all — it was protected *transitively*, by `props`'
+inability to measure the same faces, which is the kind of protection a later
+milestone deletes without noticing.
+
+**Verdict:** ACCEPTED (Evan, 2026-08-19), **and the resolution is chosen: it
+should be ONE named predicate.**
+
+Notes for whoever takes it, so the unit does not quietly become four:
+
+- **The predicate belongs on the face**, derived from rim structure, and the
+  right rule is the torus's: `w(v)` changes only at a rim level, so *every rim
+  at one of the two extreme v-levels* forces `w ≡ du`, which is exactly what
+  `area = r·du·(hi−lo)` assumes. Sufficient, and possibly slightly stricter
+  than necessary — an interior level with matching `+`/`−` groups would leave
+  `w` unchanged — which is the right direction for a precondition.
+- **It subsumes #649's fix.** Do not do them separately: the level rule *is*
+  the sound predicate, and landing it anywhere other than the one home
+  re-creates this finding.
+- **The mesher's check is two questions wearing one coat.** `entries_off_bbox`
+  answers *"is this domain a rectangle"* (this finding) **and** *"did the walk
+  produce a consistent polygon"* (**#653**'s ulp wobble). Once the face-level
+  predicate exists, the first question moves to it and only the second stays in
+  `mesh` — which is also the cleaner statement of what #653 is about.
+- **Ask whether it is a tier property.** Three consumers sharing one
+  precondition is an argument for refusing such a body once at `validate`
+  rather than at each door. Not decided here.
+
+---
 # §A. Where I would start
 
 Not a recommendation about what to *do* — the report proposes no fixes —
@@ -4751,7 +4911,7 @@ Good work for filling parallel capacity. None blocks anything.
 | **W2c** | **S19** — the three big error catch-alls | **D2** | `AssemblyUnsupported` (146), `MissingEntity` (49), `SplitJoinError::Corrupt` (42). These *are* D9's only sanctioned option today, so D2 must land first or the work is undone. |
 | **W2d** | **S6** — sweep helper unification (~230 token-identical lines) | **D3** | Must follow D3: S6 and S7 are in one crate and will collide. K-telemetry does **not** block it — both funnels already take the predicate name as a parameter. Retracted: `SweptSeg`, `strut_spec`, `full::build_lamina` and the `let _ = k;` inference are *not* duplication. |
 | **W2e** ✅ #647 (partial) | **S5** — `splitting/` vs `boolean/` | — | The largest. Started with the narrowest, highest-value piece: the **forked sector predicates**, which are dimensionally identical line-for-line and split one K population 29:1. **FIXED by #647**: one shared body in `topo::sector_shape`, both K name sets preserved, K stream reproduced byte-identically. The repo already forced the reverse fix once (`M3-LOG.md:264`), and whether the two names should now become ONE population is stated in #647 as an open question and scheduled as **issue #652**, not decided. The REST of S5 — `sector_face` twins, pipeline duplication, the wrong-way dependency — is still open and still the largest item here. |
-| **W2f** ✅ #642, #646 (partial) | **S4** — the vocabulary mirrors, cheapest first | partly **W2c** | **`BooleanOp` DONE, #642** — one enum, defined lowest, re-exported upward, with its bytes described above the layering boundary; `topo` gained no serde dependency and the persisted format is byte-identical (corpus capture + pins written against `main` first). It also gave the technique a home (`persist/kernel_wire/`) that the remaining rows land in rather than copying, and put a real gate behind DESIGN.md's stale *"enforced by CI grep"* claim. **`units` DONE, #646**, which also enumerated the real duplicates the steelman had only counted, and filed **#650** (a pre-existing `literal_with_unit` round-trip break found beside the row, not fixed by it). **The row stays open** on: `ProgramStep`/`WireStep` — cheap in isolation but **blocked behind OnArc + RESPELL-TABLE**, and it crosses the same files; `SegTag`; and the "no usable value" core. Carry forward from #642: a mirror's price includes downstream API surface (the split had cost a hole in `pncad::prelude` and a defensive alias in `demos/tour`), so price those two for it too. |
+| **W2f** ✅ #642, #646 (partial) | **S4** — the vocabulary mirrors, cheapest first | partly **W2c** | **`BooleanOp` DONE, #642** — one enum, defined lowest, re-exported upward, with its bytes described above the layering boundary; `topo` gained no serde dependency and the persisted format is byte-identical (corpus capture + pins written against `main` first). It also gave the technique a home (`persist/kernel_wire/`) that the remaining rows land in rather than copying, and put a real gate behind DESIGN.md's stale *"enforced by CI grep"* claim. **`units` DONE, #646**, which also enumerated the real duplicates the steelman had only counted, and filed **#650** (a pre-existing `literal_with_unit` round-trip break found beside the row, not fixed by it); **#650 is now CLOSED** — sealed, not checked. **The row stays open** on: `ProgramStep`/`WireStep` — cheap in isolation but **blocked behind OnArc + RESPELL-TABLE**, and it crosses the same files; `SegTag`; and the "no usable value" core. Carry forward from #642: a mirror's price includes downstream API surface (the split had cost a hole in `pncad::prelude` and a defensive alias in `demos/tour`), so price those two for it too. |
 | **W2g** ✅ #637 | **S49** — the census's planar × planar skip is justified by a claim about solids | — | **FIXED by #637.** The jurisdiction call: **arm 1 owns it**, and the other two structurally cannot take it — `sweep_conformal_patches` iterates `curved_faces` only, so a planar face is absent from the collection, and the confirm pass is driven off declared records. The premise turned out to be about neither solids nor planarity: `snapshot` keeps line edges and drops curved ones, so only a **wholly line-bounded** planar face has its whole boundary in front of the exact sweeps. The skip tests that now, a shared `edge_is_line` binds it to `snapshot` with the unsound drift direction named, and the settlement row asserts the planar pair **by key** in the contact plane. **Not a live wrong answer** — the body refused via a neighbouring arm's fat box (15 undecidable, 0 naming the cap pair) — which is exactly why it was worth closing before #620's contemplated box tightening removes that accident. Two residues scheduled as **H14**. | M |
 
 ---
