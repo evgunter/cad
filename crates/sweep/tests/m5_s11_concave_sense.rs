@@ -35,14 +35,17 @@
 
 mod revolve_common;
 
-use core::f64::consts::{FRAC_PI_8, PI};
+use core::f64::consts::{FRAC_PI_2, FRAC_PI_8, PI};
 use profile::RawLoop;
 
 use geom_core::{Affine3, Band, Point3, Tolerance, Vec3};
 use geom_surfaces::Surface;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use revolve_common::{assert_all_tiers, axis_y, p2, validated};
-use sweep::{Extrusion, Lofted, Revolution, Section, extrude, loft_body, revolve};
+use sweep::{
+    Extrusion, Lofted, Revolution, Section, SketchSegment, extrude, loft_body, revolve,
+    segment_curve, sweep_body,
+};
 use topo::boolean::{SolidContainment, point_in_solid};
 use topo::{Body, FaceKey};
 
@@ -844,23 +847,60 @@ fn a_lofted_operand_refuses_the_union_check_typed() {
 /// ~2e-4 of it — two decades under the probe steps below.
 const LEVEL_SAMPLES: usize = 64;
 
-/// The height of the level set at `v`-fraction `t`, read off one wall.
-fn level_z(lofted: &Lofted<f64>, t: f64) -> f64 {
-    wall_outward_at(&lofted.body, lofted.side_faces[0][0], 0.5, t)
-        .0
-        .z
+/// The chord from the bottom level to the top one, which every level
+/// plane's normal must face along for a level to be bisectable.
+fn stack_axis(lofted: &Lofted<f64>) -> Vec3<f64> {
+    let first = lofted.side_faces[0][0];
+    wall_outward_at(&lofted.body, first, 0.5, 1.0).0
+        - wall_outward_at(&lofted.body, first, 0.5, 0.0).0
+}
+
+/// The PLANE of the level set at `v`-fraction `t`: a point on it, and
+/// the unit normal oriented along the stack. Read off one mid-`u`
+/// sample per wall — the level set is planar (asserted on the full
+/// sample in `level_set`), so the wall midpoints fix its plane and the
+/// bisection below need not pay for a whole polyline per step.
+fn level_plane(lofted: &Lofted<f64>, axis: Vec3<f64>, t: f64) -> (Point3<f64>, Vec3<f64>) {
+    let walls = &lofted.side_faces[0];
+    let ring: Vec<Point3<f64>> = walls
+        .iter()
+        .map(|&fk| wall_outward_at(&lofted.body, fk, 0.5, t).0)
+        .collect();
+    // Newell over the ring: robust to any one sample being near-collinear
+    // with its neighbours, which three picked points are not.
+    let mut n = Vec3::new(0.0, 0.0, 0.0);
+    for i in 0..ring.len() {
+        let (a, b) = (ring[i], ring[(i + 1) % ring.len()]);
+        n = n + Vec3::new(
+            (a.y - b.y) * (a.z + b.z),
+            (a.z - b.z) * (a.x + b.x),
+            (a.x - b.x) * (a.y + b.y),
+        );
+    }
+    let n = n.normalize();
+    // Orient along the stack, so the signed distance below falls as the
+    // level rises past a query point.
+    let along = if n.dot(axis) < 0.0 { -1.0 } else { 1.0 };
+    assert!(
+        (n.dot(axis) * along) / axis.norm() > 0.1,
+        "the level plane at v-fraction {t} must face along the stack for the \
+         level to be bisectable: cos = {}",
+        n.dot(axis) * along / axis.norm()
+    );
+    (ring[0], n * along)
 }
 
 /// The body's own level set at `v`-fraction `t`: one closed polyline
 /// per loop, walls in traversal order, sampled off the shipped charts.
 ///
-/// PRECONDITION, asserted rather than assumed: the level set lies in a
-/// horizontal plane. It does for every fixture here — the sections are
-/// parallel horizontal planes and no weight varies along `v`, so
-/// `z(u, v)` collapses to `z(v)` — and the day that stops holding the
-/// polyline stops being a cross-section and the oracle means nothing.
+/// PRECONDITION, asserted rather than assumed: the level set is PLANAR.
+/// It is for every fixture here — each is a stack of rigid copies of
+/// one profile, and the copies' motion carries the whole ring — and
+/// the day that stops holding, the polyline stops being a
+/// cross-section and the oracle means nothing.
 fn level_set(lofted: &Lofted<f64>, t: f64) -> Vec<Vec<Point3<f64>>> {
-    let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
+    let (origin, n) = level_plane(lofted, stack_axis(lofted), t);
+    let mut worst = 0.0_f64;
     let mut loops = Vec::with_capacity(lofted.side_faces.len());
     for walls in &lofted.side_faces {
         let mut poly = Vec::with_capacity(walls.len() * LEVEL_SAMPLES);
@@ -869,31 +909,43 @@ fn level_set(lofted: &Lofted<f64>, t: f64) -> Vec<Vec<Point3<f64>>> {
                 #[allow(clippy::cast_precision_loss)]
                 let su = i as f64 / LEVEL_SAMPLES as f64;
                 let p = wall_outward_at(&lofted.body, fk, su, t).0;
-                lo = lo.min(p.z);
-                hi = hi.max(p.z);
+                worst = worst.max((p - origin).dot(n).abs());
                 poly.push(p);
             }
         }
         loops.push(poly);
     }
     assert!(
-        hi - lo < 1e-9,
-        "the level set at v-fraction {t} must be horizontal for its polyline to \
-         be a cross-section: z spans {lo}..{hi}"
+        worst < 1e-9,
+        "the level set at v-fraction {t} must be planar for its polyline to be \
+         a cross-section: off-plane by {worst}"
     );
     loops
 }
 
-/// Crossing parity against a level set: the material side of a closed
-/// planar curve, which is defined without any orientation at all — a
-/// hole loop needs no special case, its crossings simply cancel the
-/// plate's.
-fn level_set_contains(loops: &[Vec<Point3<f64>>], q: Point3<f64>) -> bool {
+/// Crossing parity against a level set, in the level plane's own
+/// frame: the material side of a closed planar curve, which is defined
+/// without any orientation at all — a hole loop needs no special case,
+/// its crossings simply cancel the plate's.
+fn level_set_contains(
+    loops: &[Vec<Point3<f64>>],
+    plane: (Point3<f64>, Vec3<f64>),
+    q: Point3<f64>,
+) -> bool {
+    let (origin, n) = plane;
+    let e1 = if n.x.abs() < 0.9 {
+        Vec3::new(1.0, 0.0, 0.0).cross(n).normalize()
+    } else {
+        Vec3::new(0.0, 1.0, 0.0).cross(n).normalize()
+    };
+    let e2 = n.cross(e1);
+    let uv = |p: Point3<f64>| ((p - origin).dot(e1), (p - origin).dot(e2));
+    let (qx, qy) = uv(q);
     let mut crossings = 0usize;
     for poly in loops {
         for i in 0..poly.len() {
-            let (a, b) = (poly[i], poly[(i + 1) % poly.len()]);
-            if (a.y > q.y) != (b.y > q.y) && a.x + (q.y - a.y) / (b.y - a.y) * (b.x - a.x) > q.x {
+            let (a, b) = (uv(poly[i]), uv(poly[(i + 1) % poly.len()]));
+            if (a.1 > qy) != (b.1 > qy) && a.0 + (qy - a.1) / (b.1 - a.1) * (b.0 - a.0) > qx {
                 crossings += 1;
             }
         }
@@ -901,26 +953,31 @@ fn level_set_contains(loops: &[Vec<Point3<f64>>], q: Point3<f64>) -> bool {
     crossings % 2 == 1
 }
 
-/// **The level-set oracle**: is `q` inside the lofted solid? The level
-/// height rises with `v`, so the level set holding `q` is found by
-/// bisection and the caller never needs to know how `v` maps to `z`.
-/// Above the top cap or below the bottom one is `Out` by construction.
+/// **The level-set oracle**: is `q` inside the stacked solid? The
+/// signed distance to the level plane falls as the level rises past
+/// `q`, so `q`'s own level set is found by bisection and the caller
+/// never needs to know how `v` maps to space. Past either cap is `Out`
+/// by construction.
 fn loft_contains(lofted: &Lofted<f64>, q: Point3<f64>) -> SolidContainment {
-    let (z0, z1) = (level_z(lofted, 0.0), level_z(lofted, 1.0));
-    assert!(z0 < z1, "the stack rises with v: {z0}..{z1}");
-    if q.z <= z0 || q.z >= z1 {
+    let axis = stack_axis(lofted);
+    let height = |t: f64| {
+        let (p, n) = level_plane(lofted, axis, t);
+        (q - p).dot(n)
+    };
+    if height(0.0) <= 0.0 || height(1.0) >= 0.0 {
         return SolidContainment::Out;
     }
     let (mut lo, mut hi) = (0.0_f64, 1.0_f64);
-    for _ in 0..60 {
+    for _ in 0..40 {
         let mid = (lo + hi) * 0.5;
-        if level_z(lofted, mid) < q.z {
+        if height(mid) > 0.0 {
             lo = mid;
         } else {
             hi = mid;
         }
     }
-    if level_set_contains(&level_set(lofted, (lo + hi) * 0.5), q) {
+    let t = (lo + hi) * 0.5;
+    if level_set_contains(&level_set(lofted, t), level_plane(lofted, axis, t), q) {
         SolidContainment::In
     } else {
         SolidContainment::Out
@@ -1110,4 +1167,66 @@ fn the_level_set_oracle_agrees_with_the_extruded_twin() {
              {inside} in, {outside} out"
         );
     }
+}
+
+/// **The same chart, swept along a curved path.** `sweep_body` is
+/// `loft_body`'s assembly over `sweep_places`' frames, so it mints
+/// wall senses by the same traversal argument — and its charts turn
+/// hardest in the tree: the elbow's stations rotate a quarter turn
+/// about the path's axis, so one wall's `S_v` sweeps 90°. Nothing
+/// anywhere asked whether a swept wall faces out; this row asks it
+/// with the probe and the oracle the loft rows above use.
+///
+/// The fixture is `m7_skin_integral`'s elbow — a square section of
+/// half-width ¼ swept along a quarter circle of radius 3 through nine
+/// stations at `v_degree = 3` — which is the tree's only curved-path
+/// caller. It is re-typed rather than shared: that suite is a skin
+/// integrality pin in another file, and `all.rs` requires each
+/// aggregated file to behave as it did when it was its own crate root.
+#[test]
+fn a_curved_path_swept_body_faces_out_along_the_whole_turn() {
+    let place = Affine3::rotation_about_axis(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        -FRAC_PI_2,
+    );
+    let path = segment_curve(
+        0,
+        SketchSegment::Arc {
+            a: p2(0.0, 0.0),
+            b: p2(3.0, 3.0),
+            bulge: FRAC_PI_8.tan(),
+        },
+        place,
+    )
+    .expect("the elbow path is a well-formed quarter arc");
+    let h = 0.25;
+    let profile = vec![ProfileLoop::polygon([
+        p2(-h, -h),
+        p2(h, -h),
+        p2(h, h),
+        p2(-h, h),
+    ])];
+    let swept =
+        sweep_body::<f64>(&profile, Affine3::identity(), &path, 9, 3).expect("the elbow sweeps");
+    assert_eq!(topo::validate(&swept.body), Ok(()), "tier 1");
+    assert_eq!(topo::validate_closed(&swept.body), Ok(()), "tier 2");
+
+    // ANTI-VACUITY: the turn has to reach the chart. One wall's normal
+    // at the two ends of `v` is a quarter turn apart — a straight path
+    // would hold it fixed and this would read cos = 1.
+    let wall = swept.side_faces[0][0];
+    let n0 = wall_outward_at(&swept.body, wall, 0.5, 0.0).1;
+    let n1 = wall_outward_at(&swept.body, wall, 0.5, 1.0).1;
+    assert!(
+        n0.dot(n1).abs() < 0.05,
+        "the elbow must turn the chart normal a quarter turn along v: cos = {}",
+        n0.dot(n1)
+    );
+
+    let samples = along_v();
+    let oracle = |q| loft_contains(&swept, q);
+    let probes = assert_walls_face_out(&swept, &oracle, &samples, 0.05, 4);
+    assert_eq!(probes, 4 * samples.len(), "every wall at every level");
+    assert_flip_inverts(&swept, &samples, 0.05);
 }
