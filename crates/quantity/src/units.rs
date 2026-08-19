@@ -95,13 +95,27 @@ pub enum UnitQuantity {
 /// let bogus = quantity::AngleUnit { symbol: "mm", factor: 1.0 }.def();
 /// ```
 ///
-/// The reads all still work, through the accessors:
+/// A `compile_fail` row proves only that the snippet does not build,
+/// not that it fails for the intended reason — a typo would pass it
+/// just as well. Each block above therefore has its legal twin here,
+/// differing from it by exactly the illegal step: every path, name and
+/// type used above compiles, so what those blocks pin is the seal and
+/// nothing else.
 ///
 /// ```
+/// // Twin of blocks 1 and 2: the row and the enum variant exist, and
+/// // every field is READABLE through its accessor.
 /// let mm = quantity::unit_by_symbol("mm").expect("mm is a table row");
 /// assert_eq!(mm.symbol(), "mm");
 /// assert_eq!(mm.quantity(), quantity::UnitQuantity::Length);
 /// assert_eq!(mm.factor(), quantity::MILLI);
+/// assert_eq!(quantity::UnitQuantity::Angle, quantity::UnitQuantity::Angle);
+///
+/// // Twin of block 3: the typed view with those exact field values
+/// // BUILDS — its fields are public. Only `.def()` is out of reach,
+/// // which is the whole of what block 3 pins.
+/// let view = quantity::AngleUnit { symbol: "mm", factor: 1.0 };
+/// assert_eq!(view.symbol, "mm");
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct UnitDef {
