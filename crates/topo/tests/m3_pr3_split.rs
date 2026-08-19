@@ -65,16 +65,21 @@ fn body_of<T: geom_core::Real>(part: &SplitPart<T>) -> &Body<T> {
 }
 
 /// The four arena lengths a split side is pinned by.
+///
+/// Deliberately a projection, not `topo::test_support::ArenaCounts`:
+/// the six expectations below are hand-derived for exactly these four,
+/// so pinning the other three arenas would be three new claims per
+/// site rather than the same claim spelled once.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct Census {
+struct SideCensus {
     shells: usize,
     faces: usize,
     edges: usize,
     vertices: usize,
 }
 
-fn census<T: geom_core::Real>(b: &Body<T>) -> Census {
-    Census {
+fn census<T: geom_core::Real>(b: &Body<T>) -> SideCensus {
+    SideCensus {
         shells: b.shells().count(),
         faces: b.faces().count(),
         edges: b.edges().count(),
@@ -224,7 +229,7 @@ fn generic_plane_asymmetric() {
     // pentagon prism (V10 E15 F7). One shell each.
     assert_eq!(
         census(below),
-        Census {
+        SideCensus {
             shells: 1,
             faces: 6,
             edges: 12,
@@ -233,7 +238,7 @@ fn generic_plane_asymmetric() {
     );
     assert_eq!(
         census(above),
-        Census {
+        SideCensus {
             shells: 1,
             faces: 7,
             edges: 15,
@@ -300,7 +305,7 @@ fn vertex_grazing_plane() {
     // Below = quad prism; above = triangle prism.
     assert_eq!(
         census(below),
-        Census {
+        SideCensus {
             shells: 1,
             faces: 6,
             edges: 12,
@@ -309,7 +314,7 @@ fn vertex_grazing_plane() {
     );
     assert_eq!(
         census(above),
-        Census {
+        SideCensus {
             shells: 1,
             faces: 5,
             edges: 9,
@@ -560,7 +565,7 @@ fn ring_rehoming_genus_one() {
     // slab V8 E12 F6.
     assert_eq!(
         census(above),
-        Census {
+        SideCensus {
             shells: 1,
             faces: 6,
             edges: 12,
@@ -631,7 +636,7 @@ fn interval_lane_acceptance() {
     assert_eq!(validate_closed(below), Ok(()));
     assert_eq!(
         census(below),
-        Census {
+        SideCensus {
             shells: 1,
             faces: 6,
             edges: 12,
@@ -640,7 +645,7 @@ fn interval_lane_acceptance() {
     );
     assert_eq!(
         census(above),
-        Census {
+        SideCensus {
             shells: 1,
             faces: 7,
             edges: 15,

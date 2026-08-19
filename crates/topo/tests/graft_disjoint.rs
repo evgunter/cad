@@ -123,12 +123,17 @@ fn two_solid_source(dx: f64) -> topo::Body<f64> {
     a
 }
 
-/// The census a graft is compared by: every arena's size, plus
-/// `shell_refs` — not an arena length, but the shell references summed
-/// over the solids, which is what proves the shells landed in the
-/// right solids.
+/// The census a graft is compared by: the arena sizes a transplant can
+/// move, plus `shell_refs` — not an arena length, but the shell
+/// references summed over the solids, which is what proves the shells
+/// landed in the right solids.
+///
+/// Not `topo::test_support::ArenaCounts`: that carries the seven
+/// topology arenas and nothing else, while a graft is pinned by the
+/// geometry arenas it copies and by `shell_refs`, which no arena
+/// census can express.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct Census {
+struct GraftCensus {
     solids: usize,
     shells: usize,
     faces: usize,
@@ -139,8 +144,8 @@ struct Census {
     shell_refs: usize,
 }
 
-fn census(b: &topo::Body<f64>) -> Census {
-    Census {
+fn census(b: &topo::Body<f64>) -> GraftCensus {
+    GraftCensus {
         solids: b.solids().count(),
         shells: b.shells().count(),
         faces: b.faces().count(),
