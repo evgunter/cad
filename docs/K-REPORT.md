@@ -727,6 +727,15 @@ still the stale M4-era 1.5e-3 with ~102 advisory flags/run").
   which is exactly the property a threshold snapshot is supposed to
   have. Re-cutting the baseline on every main merge is neither the M4/M5
   precedent nor useful; re-cut it when the DISTRIBUTION moves.
+  **Drift since, in the other direction (2026-08-19).** #661 pooled the
+  six `bool_sector_*` / `split_sector_*` names into three
+  (`sector_{arm,reflex,straight}`), so a fresh sweep now also DROPS six
+  names where until then drift had only added them. The **233** below is
+  still the correct count for this committed snapshot, which still
+  contains all six; a sweep at today's main carries **231**. Margins,
+  bands, outcomes and order are untouched — only the `predicate` column,
+  and only for those six values. Full treatment: the census note
+  (2026-08-19) at the end of this report.
 
 | ε row | samples | zero | definite (ambient) | indet. | invalid | in (ε, Kε) |
 |-------|--------:|-----:|---------:|-------:|--------:|-----------:|
@@ -941,3 +950,118 @@ the row to advisory in both wirings with a recorded justification.
 move** — it destroys precisely the evidence the row exists to collect.
 The CLI prints this on every failure; the three exit voices are pinned
 by `tools/k-lint/tests/cli_contract.rs`.
+
+## Census note (2026-08-19): the sector rungs are ONE population (#652)
+
+Not a sweep and not a threshold change — a **name merge**, recorded here
+because the census is the thing it changes.
+
+Six K names became three. `bool_sector_{arm,reflex,straight}` (boolean
+lane) and `split_sector_{arm,reflex,straight}` (splitting lane) are, since
+#647, literally one implementation of one quantity —
+`crates/topo/src/sector_shape.rs`, called from both lanes, with the name
+set handed in as a parameter precisely so this decision could be taken
+separately. It is taken: **pool them** (Evan, 2026-08-19, issue #652).
+They now emit `sector_arm`, `sector_reflex`, `sector_straight`.
+
+**Why, in one line that is not tidiness.** Coverage. Recomputed from
+`m7-eps-1e-6.csv.gz`: all 64 `split_sector_reflex` samples are exactly
+zero, so the splitting lane's wideness name had **no** corpus coverage of
+a definite convex-or-reflex verdict, while `bool_sector_reflex` had 426
+(418 positive + 8 negative) of 1880. Pooling gives the rung one
+population with those 426 rather than two of which one is degenerate.
+The precedent runs both ways and both directions are now on the record:
+`docs/archive/M3-LOG.md:264` (PR #55 review MINOR-1) forced two margins
+under one name to be **split**; `bool_planar_chord_spec` and `chord_spec`
+deliberately **share** `split_arc_window`. This is the first time one
+margin under two names was examined.
+
+**Effect on the census count.** The M7 baseline's **233 distinct
+predicate names** (`docs/k-report-data/m7-eps-*.csv.gz`, verified 233 at
+all three ε rows) becomes **230** for any sweep cut after this change:
+six names out, three in, nothing else touched. Main has since also added
+`path_junction_turn` (recorded above), so a fresh sweep at this tip
+carries **231**. No other predicate's name, margin, band or outcome
+changes. The M7 addendum's own "233" is left as written — it describes
+the committed snapshot, which still says 233 because it still contains
+the six old names.
+
+**Effect on the emitted stream.** Margins, order, bands and outcomes are
+bit-identical; only the `predicate` column changes, and only for these
+six values. Reproduced with the probe #647 left for exactly this —
+`cargo test -p topo --features probe --test all -- --nocapture
+probe_s5_sectors::sector_margin_stream | grep '^K '` on merge base
+(`17b077f7`) and tip:
+
+| | merge base | tip |
+|---|--:|--:|
+| recorded rows | 26 541 | 26 541 |
+| rows that are NOT sector rungs | 26 121 | 26 121 — **byte-identical, no rewrite** |
+| sector-rung rows | 420 | 420 |
+| `bool_sector_arm` / `split_sector_arm` | 56 / 112 | `sector_arm` **168** |
+| `bool_sector_reflex` / `split_sector_reflex` | 56 / 112 | `sector_reflex` **168** |
+| `bool_sector_straight` / `split_sector_straight` | 56 / 28 | `sector_straight` **84** |
+
+Rewriting only the predicate column of the base stream
+(`s/^K (bool|split)_sector_(arm|reflex|straight)\|/K sector_\2|/`) makes
+the two files **identical**, SHA-256
+`7c0e4ee0efe0a60fb564bed3f049e2f097214c00c9bbd1dff8622065bee71aed`
+(the base stream unrewritten is
+`b1d84289d2f80db66be434b0c98451938628814b1a901336feec9e272dd8649f`).
+Order, margins, bands and outcomes are untouched; the merge is exactly a
+substitution on one column. `bool_sector_{coplanar,within}` and
+`split_sector_{coplanar,extent}` appear in both streams unchanged, as
+they should.
+
+**Disposition of `docs/k-report-data/`: LEFT AS WRITTEN.** The committed
+CSVs (`m4-`, `m5-`, `m7-`, and the M2-era `eps-*.csv`) are dated
+snapshots of a stated head — "these rows are what the script wrote, no
+rename" is already the standing rule for them (M7 addendum), and the
+k-lint gate reads a *fresh* sweep, never these files, so nothing breaks
+by leaving them. Regenerating them would be worse than useless: it would
+destroy the historical record to make it agree with a name. A map of
+that directory — the four eras, the two rules that govern it, and which
+of the eleven names matching `grep sector` belong to which — now sits
+at `docs/k-report-data/README.md`, so a reader who arrives at the CSVs
+by grep does not have to reach section nine of this report to date a
+row.
+
+**How a future reader knows which era a row belongs to** — the one
+sentence this note exists for. The pooled names are **new spellings, not
+either lane's old one**, so the predicate column is self-dating: a row
+reading `bool_sector_arm` / `split_sector_arm` (etc.) is **pre-#652**
+data; a row reading `sector_arm` (etc.) is **post-#652**. No row in any
+committed file silently changes meaning, because no committed row is
+touched and no name is reused across the boundary.
+
+That is the reason the merge did not simply keep `bool_sector_*`. The
+29:1 majority spelling was the cheap choice — three fewer rows to
+touch — and two things are wrong with it, in this order.
+
+1. **It would be an actively FALSE name, not merely an uninformative
+   one.** After pooling there is one population, so every
+   splitting-lane decision would be recorded under a name whose prefix
+   asserts `bool_`, on rows that carry nothing else to tell the lanes
+   apart. That argument does not depend on a count. *How many* rows it
+   would mislabel is a property of the corpus and not of the design,
+   and the two numbers in this report differ by an order of magnitude:
+   **64 of 1944** sector-arm samples in the M7 sweep (3.3% — the corpus
+   is boolean-heavy), but **112 of 168** — two thirds — in the S5
+   probe's fixture set, which is deliberately weighted to drive both
+   walks. Neither number bounds the next sweep's.
+2. **The era ambiguity**: 1880 pre-merge rows per ε would have become
+   indistinguishable from post-merge ones. That one bites only a
+   **cross-snapshot** comparison, since every committed file is dated by
+   filename and cut at a single head, so no one file mixes eras. But
+   cross-snapshot comparison is precisely what this report does — M4 →
+   M5 → M7 in nearly every table above — so it is not hypothetical
+   either.
+
+The **M3 addendum's inventory** (the `bool_*` and `split_*` bullet lists
+above) is likewise left as written: it is a dated 2026-07-23 record of the
+crop M3 added, and it is accurate about that. Read alongside this note.
+
+**Still forked, and correctly so.** `bool_sector_{coplanar,within}`,
+`split_sector_{coplanar,extent}` are the `sector_face` twins and the
+face-extent arm — different quantities, still two implementations, the
+rest of smell-scan S5. Pooling does not reach them.

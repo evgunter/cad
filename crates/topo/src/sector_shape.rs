@@ -75,7 +75,8 @@
 //!
 //! # Which scalars the argument-order equality is proven for
 //!
-//! Two of the six rungs changed argument order when the lanes merged:
+//! Two of the three rungs changed argument order when the lanes
+//! merged:
 //! the reflex bisector's `â + b̂` (the boolean wrote `b̂ + â`) and the
 //! straight rung's `â · b̂` (the boolean wrote `b̂ · â`). Bit-identity
 //! under that swap is what makes the merge K-neutral, so it is worth
@@ -106,21 +107,33 @@
 //!   that: a divergence would be an enclosure differing in its last
 //!   bit, not a verdict changing.
 //!
-//! # Two K names for one margin
+//! # One K name per rung
 //!
-//! The predicate NAMES stay per-lane and bit-for-bit unchanged —
-//! `docs/K-REPORT.md` is an append-only census and merging names is a
-//! schema break, not this module's call. The lane hands its
-//! [`SectorPredicates`] in; the funnel
-//! ([`crate::validate::decide`] → [`geom_core::k_stats::decide`]) takes
-//! the name as a parameter, so the emitted stream is exactly what each
-//! lane emitted before. The same device already carries
-//! `bool_planar_chord_spec` and `chord_spec` under one shared name.
-//! Whether the two populations SHOULD be one is a live open question —
-//! evidence, costs and the `M3-LOG.md:264` counter-precedent in **issue
-//! #652**, which is where it is scheduled. Nothing in this module has
-//! to change either way: the name set is already a parameter, so the
-//! decision is entirely about the census.
+//! The three rungs emit `sector_arm`, `sector_reflex` and
+//! `sector_straight` — **one name each, spelled here, for both
+//! lanes**. Until #652 they were six, `bool_sector_*` and
+//! `split_sector_*`, handed in as a `SectorPredicates` parameter so
+//! that #647's merge of the two bodies could be K-neutral; Evan ruled
+//! the two populations one (2026-08-19, #652), so the parameter is
+//! gone — there is nothing left for it to vary. **The evidence for
+//! that ruling, and the two-way precedent it weighed, live in
+//! `docs/K-REPORT.md`'s census note (2026-08-19)**, which is the
+//! decision's home and is not restated here. What binds code is two
+//! rules:
+//!
+//! - **Spelled here, nowhere else.** A lane that wants one of these
+//!   margins calls [`sector_shape`]; the guard row below reads every
+//!   `.rs` file under `topo/src` for the quoted form of these three
+//!   names and of the six retired ones.
+//! - **The pooled names are NEW spellings, not either lane's old one.**
+//!   Keeping the 29:1 majority `bool_sector_*` was the cheap choice and
+//!   fails on its own terms: post-merge, every splitting-lane decision
+//!   would be filed under a prefix that says `bool_` — an actively
+//!   FALSE lane label on rows carrying nothing else to distinguish
+//!   them. A fresh spelling also self-dates a K row, which matters
+//!   because the K report compares snapshots across milestones. Both
+//!   arguments are quantified in the census note; the CSVs under
+//!   `docs/k-report-data/` are left exactly as the sweep wrote them.
 //!
 //! # Naming
 //!
@@ -136,37 +149,21 @@ use geom_core::{Band, Decide, Indeterminate, Margin, MarginDiag, Real, Sign, Vec
 
 use crate::validate::decide;
 
-/// The three K predicate names one lane spells for the sector-shape
-/// question — the rungs of [`sector_shape`], in the order it climbs
-/// them.
+/// Rung 1's K name: the metering arm is positive.
 ///
-/// Names are per-lane and load-bearing: they are rows of the
-/// append-only census in `docs/K-REPORT.md`. A new lane must add new
-/// names, never reuse another lane's.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct SectorPredicates {
-    /// Rung 1: the metering arm is positive.
-    pub arm: &'static str,
-    /// Rung 2: the corner is convex (`sin θ` levered at the arm).
-    pub reflex: &'static str,
-    /// Rung 3: the straight/spike disambiguation (`cos θ` levered at
-    /// the arm), reached only when rung 2 is not definitely signed.
-    pub straight: &'static str,
-}
+/// This and its two siblings are PRIVATE to this module. They are rows
+/// of the census in `docs/K-REPORT.md`, and no other file can IMPORT
+/// one and re-implement the rung under it. Privacy stops the import,
+/// not a bare string literal; what stops that is the guard row
+/// `tests::the_rungs_are_decided_in_one_place` below.
+const SECTOR_ARM: &str = "sector_arm";
 
-/// The boolean lane's names (`boolean/sectors.rs`).
-pub(crate) const BOOL_SECTOR_PREDICATES: SectorPredicates = SectorPredicates {
-    arm: "bool_sector_arm",
-    reflex: "bool_sector_reflex",
-    straight: "bool_sector_straight",
-};
+/// Rung 2's K name: the corner is convex (`sin θ` levered at the arm).
+const SECTOR_REFLEX: &str = "sector_reflex";
 
-/// The splitting lane's names (`splitting/neighborhood.rs`).
-pub(crate) const SPLIT_SECTOR_PREDICATES: SectorPredicates = SectorPredicates {
-    arm: "split_sector_arm",
-    reflex: "split_sector_reflex",
-    straight: "split_sector_straight",
-};
+/// Rung 3's K name: the straight/spike disambiguation (`cos θ` levered
+/// at the arm), reached only when rung 2 is not definitely signed.
+const SECTOR_STRAIGHT: &str = "sector_straight";
 
 /// What the sector-shape rungs decided about one corner.
 #[derive(Clone, Copy, Debug)]
@@ -212,13 +209,12 @@ pub(crate) fn sector_shape<T: Decide>(
     dir_next: Vec3<T>,
     normal: OutwardNormal<T>,
     full_circle: bool,
-    names: SectorPredicates,
     band: Band,
 ) -> Result<SectorShape<T>, Indeterminate> {
     let arm = dir_own.norm().min(dir_next.norm());
-    match decide(names.arm, Margin::of(arm), band) {
+    match decide(SECTOR_ARM, Margin::of(arm), band) {
         Ok(Sign::Positive) => {}
-        Ok(_) => return Err(invalid(band, names.arm)),
+        Ok(_) => return Err(invalid(band, SECTOR_ARM)),
         Err(diag) => return Err(diag),
     }
     let (unit_own, unit_next) = (dir_own.normalize(), dir_next.normalize());
@@ -228,7 +224,7 @@ pub(crate) fn sector_shape<T: Decide>(
     // margin is definite whenever the first is not).
     let n = normal.vec();
     let reflex_margin = Margin::levered(unit_next.cross(unit_own).dot(n), arm);
-    let bisector = match decide(names.reflex, reflex_margin, band) {
+    let bisector = match decide(SECTOR_REFLEX, reflex_margin, band) {
         Ok(Sign::Positive) => None,
         // Definite reflex, θ ∈ (π, 2π). `unit_own + unit_next` is the
         // splitting lane's spelling and `unit_next + unit_own` the
@@ -245,7 +241,7 @@ pub(crate) fn sector_shape<T: Decide>(
             // summation order — bit-identical under the same scalar
             // scope as above, not for every `T: Real` unconditionally.
             let straight_margin = Margin::levered(unit_own.dot(unit_next), arm);
-            match decide(names.straight, straight_margin, band) {
+            match decide(SECTOR_STRAIGHT, straight_margin, band) {
                 // θ ≈ π: 90° into the interior is valid throughout the
                 // band.
                 Ok(Sign::Negative) => Some(n.cross(unit_next)),
@@ -254,7 +250,7 @@ pub(crate) fn sector_shape<T: Decide>(
                 Ok(Sign::Positive | Sign::Zero) if full_circle => Some(n.cross(unit_next)),
                 // A spike corner between two distinct edges: refuse,
                 // never guess an interior direction.
-                Ok(Sign::Positive | Sign::Zero) => return Err(invalid(band, names.straight)),
+                Ok(Sign::Positive | Sign::Zero) => return Err(invalid(band, SECTOR_STRAIGHT)),
                 Err(diag) => return Err(diag),
             }
         }
@@ -319,26 +315,13 @@ mod tests {
         );
     }
 
-    /// Which RUNG of `names` a refusal is named by, as a position in
-    /// [`SectorPredicates`] — 0 arm, 1 reflex, 2 straight. The point of
-    /// returning a position rather than comparing strings is in
-    /// `both_lanes_decide_the_same_shape`'s error arm.
-    fn rung_of(names: SectorPredicates, predicate: Option<&'static str>) -> usize {
-        let p = predicate.expect("every sector-shape refusal names its rung");
-        [names.arm, names.reflex, names.straight]
-            .iter()
-            .position(|n| *n == p)
-            .unwrap_or_else(|| panic!("`{p}` is not a rung of {names:?}"))
-    }
-
     fn shape(
         own: Vec3<f64>,
         next: Vec3<f64>,
         full_circle: bool,
-        names: SectorPredicates,
     ) -> Result<SectorShape<f64>, Indeterminate> {
         let n = OutwardNormal::from_chart(v(0.0, 0.0, 1.0), true);
-        sector_shape(own, next, n, full_circle, names, band())
+        sector_shape(own, next, n, full_circle, band())
     }
 
     /// A right-angle corner (θ = 90°, `sin θ` = +1) is convex: no
@@ -347,13 +330,7 @@ mod tests {
     fn convex_corner_needs_no_subdivision() {
         // own = +y (CCW-last), next = +x (CCW-first): the sector sweeps
         // +x → +y CCW around +z, so (b̂ × â)·n = (x̂ × ŷ)·ẑ = +1.
-        let s = shape(
-            v(0.0, 3.0, 0.0),
-            v(2.0, 0.0, 0.0),
-            false,
-            BOOL_SECTOR_PREDICATES,
-        )
-        .unwrap();
+        let s = shape(v(0.0, 3.0, 0.0), v(2.0, 0.0, 0.0), false).unwrap();
         assert!(s.bisector.is_none());
         assert_eq!(s.arm, 2.0);
         assert_dir(s.unit_own, v(0.0, 1.0, 0.0));
@@ -365,13 +342,7 @@ mod tests {
     #[test]
     fn reflex_corner_subdivides_at_the_reflex_bisector() {
         // own = +x, next = +y: (ŷ × x̂)·ẑ = −1 ⇒ reflex.
-        let s = shape(
-            v(1.0, 0.0, 0.0),
-            v(0.0, 1.0, 0.0),
-            false,
-            SPLIT_SECTOR_PREDICATES,
-        )
-        .unwrap();
+        let s = shape(v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0), false).unwrap();
         let b = s.bisector.expect("a reflex corner subdivides");
         assert!(bits_eq(b, -(v(1.0, 1.0, 0.0).normalize())));
         // The sector sweeps +y → +x the LONG way; the bisector is
@@ -383,13 +354,7 @@ mod tests {
     /// the cosine rung and subdivides 90° into the interior.
     #[test]
     fn straight_corner_subdivides_ninety_degrees_in() {
-        let s = shape(
-            v(1.0, 0.0, 0.0),
-            v(-1.0, 0.0, 0.0),
-            false,
-            BOOL_SECTOR_PREDICATES,
-        )
-        .unwrap();
+        let s = shape(v(1.0, 0.0, 0.0), v(-1.0, 0.0, 0.0), false).unwrap();
         // n × b̂ = ẑ × (−x̂) = −ŷ.
         assert_dir(
             s.bisector.expect("a straight corner subdivides"),
@@ -401,14 +366,9 @@ mod tests {
     /// cosine rung — it is ill-conditioned, not a full circle.
     #[test]
     fn spike_between_distinct_edges_refuses_named() {
-        let e = shape(
-            v(1.0, 0.0, 0.0),
-            v(1.0, 0.0, 0.0),
-            false,
-            SPLIT_SECTOR_PREDICATES,
-        )
-        .expect_err("a spike has no valid interior direction");
-        assert_eq!(e.predicate, Some("split_sector_straight"));
+        let e = shape(v(1.0, 0.0, 0.0), v(1.0, 0.0, 0.0), false)
+            .expect_err("a spike has no valid interior direction");
+        assert_eq!(e.predicate, Some("sector_straight"));
         assert_eq!(e.margin, MarginDiag::Invalid);
     }
 
@@ -418,13 +378,7 @@ mod tests {
     /// for the wrong reason.
     #[test]
     fn strut_full_circle_subdivides() {
-        let s = shape(
-            v(1.0, 0.0, 0.0),
-            v(1.0, 0.0, 0.0),
-            true,
-            SPLIT_SECTOR_PREDICATES,
-        )
-        .unwrap();
+        let s = shape(v(1.0, 0.0, 0.0), v(1.0, 0.0, 0.0), true).unwrap();
         assert_dir(
             s.bisector.expect("a strut vertex subdivides"),
             v(0.0, 1.0, 0.0),
@@ -434,87 +388,41 @@ mod tests {
     /// A collapsed bounding chord fails the arm rung, named.
     #[test]
     fn degenerate_arm_refuses_named() {
-        let e = shape(
-            v(1.0, 0.0, 0.0),
-            v(0.0, 0.0, 0.0),
-            false,
-            BOOL_SECTOR_PREDICATES,
-        )
-        .expect_err("a collapsed chord cannot meter the corner");
-        assert_eq!(e.predicate, Some("bool_sector_arm"));
+        let e = shape(v(1.0, 0.0, 0.0), v(0.0, 0.0, 0.0), false)
+            .expect_err("a collapsed chord cannot meter the corner");
+        assert_eq!(e.predicate, Some("sector_arm"));
         assert_eq!(e.margin, MarginDiag::Invalid);
     }
 
-    /// **The anti-fork row.** One geometric question, two K names: the
-    /// two lanes' name sets must differ ONLY in the strings they emit.
-    /// Every input shape — convex, reflex, straight, spike, strut,
-    /// degenerate arm — runs under both name sets and the results must
-    /// be BIT-identical, with escalations differing only in
-    /// `predicate`.
+    /// **The anti-re-fork row.** The three sector-shape K names are
+    /// decided HERE and nowhere else in this crate, and the six
+    /// per-lane names they replaced (#652) are decided NOWHERE at all:
+    /// no file under `topo/src` may spell either set as a string
+    /// literal. Re-forking the rungs means re-introducing a
+    /// `decide("…_sector_arm", …)` somewhere, and that is exactly what
+    /// this reads for.
     ///
-    /// It goes red the moment anything inside [`sector_shape`] branches
-    /// on WHICH lane is asking (a `names.arm == "…"` test, a lane flag,
-    /// a per-lane band or arm) — the shape a re-fork takes from the
-    /// inside. The complementary guard against a re-fork from the
-    /// OUTSIDE is `the_rungs_are_decided_in_one_place`.
-    #[test]
-    fn both_lanes_decide_the_same_shape() {
-        let cases: [(Vec3<f64>, Vec3<f64>, bool); 6] = [
-            (v(0.0, 3.0, 0.0), v(2.0, 0.0, 0.0), false),
-            (v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0), false),
-            (v(1.0, 0.0, 0.0), v(-1.0, 0.0, 0.0), false),
-            (v(1.0, 0.0, 0.0), v(1.0, 0.0, 0.0), false),
-            (v(1.0, 0.0, 0.0), v(1.0, 0.0, 0.0), true),
-            (v(1.0, 0.0, 0.0), v(0.0, 0.0, 0.0), false),
-        ];
-        for (own, next, full_circle) in cases {
-            match (
-                shape(own, next, full_circle, BOOL_SECTOR_PREDICATES),
-                shape(own, next, full_circle, SPLIT_SECTOR_PREDICATES),
-            ) {
-                (Ok(b), Ok(s)) => {
-                    assert_eq!(b.arm.to_bits(), s.arm.to_bits());
-                    assert!(bits_eq(b.unit_own, s.unit_own));
-                    assert!(bits_eq(b.unit_next, s.unit_next));
-                    match (b.bisector, s.bisector) {
-                        (None, None) => {}
-                        (Some(bb), Some(sb)) => assert!(bits_eq(bb, sb)),
-                        other => panic!("wideness diverged between the lanes: {other:?}"),
-                    }
-                }
-                (Err(b), Err(s)) => {
-                    assert_eq!(b.margin, s.margin);
-                    assert_eq!(b.band, s.band);
-                    // The names are the ONE sanctioned difference —
-                    // and only the STRING may differ. Both lanes must
-                    // have refused at the SAME RUNG. `assert_ne!` on
-                    // the strings alone is satisfied by any two
-                    // distinct names, so it cannot see a body that
-                    // refuses at the arm rung for one lane and the
-                    // straight rung for the other: the margins are
-                    // both `Invalid`, the bands are equal, and the
-                    // names differ. Position can see it.
-                    assert_eq!(
-                        rung_of(BOOL_SECTOR_PREDICATES, b.predicate),
-                        rung_of(SPLIT_SECTOR_PREDICATES, s.predicate),
-                        "the lanes refused at DIFFERENT rungs: {:?} vs {:?}",
-                        b.predicate,
-                        s.predicate,
-                    );
-                    assert_ne!(b.predicate, s.predicate);
-                }
-                other => panic!("outcome kind diverged between the lanes: {other:?}"),
-            }
-        }
-    }
-
-    /// **The anti-re-fork row.** The six sector-shape K names are
-    /// decided HERE and nowhere else in this crate: no other file under
-    /// `topo/src` may spell one as a string literal. Re-forking the
-    /// rungs means re-introducing a `decide("…_sector_arm", …)`
-    /// somewhere, and that is exactly what this reads for. (It looks
-    /// for the QUOTED form, so prose that mentions a predicate in
-    /// backticks is untouched.)
+    /// The retired names are BUILT from the pooled ones rather than
+    /// written out, so the check covers this file like any other — a
+    /// literal roster would be its own first counter-example, which is
+    /// exactly how this row went red on its own module while being
+    /// written.
+    ///
+    /// **What the derivation does NOT buy, said plainly because the
+    /// obvious reading is the reverse of the truth.** It does not keep
+    /// the two rosters in step across a future rename; it is what
+    /// breaks them. Rename `SECTOR_ARM` and `retired` becomes
+    /// `"bool_<newname>"` / `"split_<newname>"`, strings that have
+    /// never existed anywhere, so the six genuinely retired spellings
+    /// stop being guarded — silently, with nothing going red. #652 is
+    /// itself the proof that renames happen. **Nothing in the tree
+    /// protects the retired set across one.** Those six spellings
+    /// survive only in prose (`docs/K-REPORT.md`'s census note, S5 of
+    /// `docs/SMELL-SCAN-2026-08.md`) and in the committed CSVs they
+    /// date. Whoever renames a rung next has to carry the old
+    /// spellings forward by hand — and has to assemble them from parts
+    /// the way this does, or this file becomes the counter-example
+    /// again.
     ///
     /// It walks the whole of `src/` at RUNTIME rather than
     /// `include_str!`ing the two lane files it happens to know about,
@@ -523,36 +431,69 @@ mod tests {
     /// caught too, and the guard does not need editing when a lane is
     /// split across more files.
     ///
-    /// **What it still does not cover** (stated plainly rather than as
-    /// one careful caveat that implies the rest is covered):
+    /// **What replaced the second guard.** Before #652 this row had a
+    /// sibling, `both_lanes_decide_the_same_shape`, which ran every
+    /// input shape under both lanes' name sets and demanded
+    /// bit-identical results — the guard against a re-fork from INSIDE
+    /// the shared body (`names.arm == "…"`, a lane flag, a per-lane
+    /// band). Pooling deleted its subject: [`sector_shape`] no longer
+    /// takes a lane parameter, so there is nothing for the body to
+    /// branch on and nothing for that row to compare. It is gone
+    /// rather than trivially green.
+    ///
+    /// **The residue #647 shipped is closed.** Its third uncovered
+    /// case — a lane re-implementing the rungs while IMPORTING the
+    /// names, `decide(BOOL_SECTOR_PREDICATES.arm, …)`, which no string
+    /// search can see — cannot happen: the three consts are private to
+    /// this module, so no other file can name them at all.
+    ///
+    /// **What this still does not cover** (stated plainly rather than
+    /// as one careful caveat that implies the rest is covered — four
+    /// shapes, two of them found in review of #661):
     ///
     /// 1. **A re-fork under FRESH names.** Out of reach by
     ///    construction; that one surfaces as new rows in the
     ///    `docs/K-REPORT.md` census, which is the mechanism that
     ///    already exists for it.
-    /// 2. **These six names spelled outside `topo/src`.** The walk is
+    /// 2. **These names spelled outside `topo/src`.** The walk is
     ///    scoped to this crate. `crate::validate::decide` is
     ///    `pub(crate)`, so a foreign crate would have to bypass it and
     ///    call `geom_core::k_stats::decide` directly — unlikely, but
     ///    not excluded by anything here.
-    /// 3. **A lane re-implementing the rungs while IMPORTING the
-    ///    names** — `decide(BOOL_SECTOR_PREDICATES.arm, …)`. The
-    ///    consts are `pub(crate)`, so this unquoted path is *easier*
-    ///    than it was before the merge, and no string search can see
-    ///    it. The row that does see it is
-    ///    `both_lanes_decide_the_same_shape` only if the copy is inside
-    ///    this module; a copy outside it is caught by nothing here, and
-    ///    is the residue this unit ships.
+    /// 3. **A lane that CALLS [`sector_shape`] and then re-derives the
+    ///    verdict from what comes back.** `arm`, `unit_own` and
+    ///    `unit_next` are `pub(crate)` fields of [`SectorShape`], so a
+    ///    lane can recompute `sin θ` or its own bisector and act on
+    ///    that instead of on `bisector`. The rungs still fire exactly
+    ///    once each, from here, so the K stream stays byte-identical,
+    ///    the census shows nothing new, and no string search can see
+    ///    it. It is the closed residue's shape one level in: the names
+    ///    are no longer importable, but the rungs' INPUTS are.
+    /// 4. **A re-fork that decides with NO K name at all** — a raw
+    ///    comparison where a `decide` call belongs. Residue 1's
+    ///    mitigation cannot reach this one: new census rows are how a
+    ///    freshly-named re-fork surfaces, and this emits no row. What
+    ///    catches it is review, or a hole noticed later in the census.
+    ///
+    /// **A permanent constraint on prose, not just on code.** The check
+    /// is textual and matches the QUOTED forms, so it is not only a
+    /// `decide` call that reds it: any doc comment anywhere under
+    /// `topo/src` that spells a retired name inside real quote marks —
+    /// documenting what was retired, say — fails this row. Backticks
+    /// are fine, and are what the module docs above use throughout.
+    /// That constraint is the price of the check being able to cover
+    /// its own home file, and it does not expire.
     #[test]
     fn the_rungs_are_decided_in_one_place() {
-        let names = [
-            BOOL_SECTOR_PREDICATES.arm,
-            BOOL_SECTOR_PREDICATES.reflex,
-            BOOL_SECTOR_PREDICATES.straight,
-            SPLIT_SECTOR_PREDICATES.arm,
-            SPLIT_SECTOR_PREDICATES.reflex,
-            SPLIT_SECTOR_PREDICATES.straight,
-        ];
+        let pooled = [SECTOR_ARM, SECTOR_REFLEX, SECTOR_STRAIGHT];
+        // The retired six, each WITH its surrounding quotes — assembled
+        // rather than spelled, so this file is subject to the check like
+        // any other. (Writing them out here would make this comment the
+        // guard's own first counter-example, which it briefly was.)
+        let retired: Vec<String> = ["bool", "split"]
+            .iter()
+            .flat_map(|lane| pooled.iter().map(move |rung| format!("\"{lane}_{rung}\"")))
+            .collect();
         let src = src_root();
         let home = src.join("sector_shape.rs");
         let mut files = Vec::new();
@@ -567,16 +508,25 @@ mod tests {
             if files.contains(&home) { "" } else { "not " }
         );
         for path in &files {
+            let text = std::fs::read_to_string(path).expect("a readable source file");
+            for name in &retired {
+                assert!(
+                    !text.contains(name.as_str()),
+                    "{} decides the RETIRED per-lane sector predicate {name} — #652 \
+                     pooled the six lane names into three. Call `sector_shape`, which \
+                     spells the pooled name itself.",
+                    path.display()
+                );
+            }
             if path == &home {
                 continue;
             }
-            let text = std::fs::read_to_string(path).expect("a readable source file");
-            for name in names {
+            for name in pooled {
                 assert!(
                     !text.contains(&format!("\"{name}\"")),
                     "{} names the sector-shape predicate `{name}` again — the rungs \
                      have been re-forked out of sector_shape.rs (smell scan S5). Call \
-                     `sector_shape` with the lane's `SectorPredicates` instead.",
+                     `sector_shape` instead.",
                     path.display()
                 );
             }
@@ -584,7 +534,7 @@ mod tests {
         // The guard earns its line only if the strings it looks for are
         // reachable at all: they must all be spelled HERE.
         let here = std::fs::read_to_string(&home).expect("the home module is readable");
-        for name in names {
+        for name in pooled {
             assert!(
                 here.contains(&format!("\"{name}\"")),
                 "`{name}` is not spelled in this module"

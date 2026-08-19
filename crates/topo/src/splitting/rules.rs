@@ -125,8 +125,10 @@ pub(super) fn apply_rule_a<T: Decide>(
         let (face, n_face, is_plane) = sector_face(body, vertex, entries[k].he)?;
         let sliver = |diag| SplitReduceError::SliverSector { vertex, face, diag };
         let extent = face_extent(body, vertex, face)?;
-        // Distinct K name from neighborhood.rs's `split_sector_arm`
+        // Distinct K name from the shared sector rungs' `sector_arm`
         // (the shorter-chord arm): this margin is the FACE extent.
+        // Still lane-prefixed, and correctly so — the boolean lane has
+        // no counterpart to it, so #652's pooling does not reach it.
         match decide("split_sector_extent", Margin::of(extent), band) {
             Ok(Sign::Positive) => {}
             Ok(_) => {

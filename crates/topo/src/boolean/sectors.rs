@@ -47,7 +47,7 @@ use super::reduce::face_outward_normal;
 use super::{BooleanError, Operand, SideCode};
 use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey, VertexKey};
-use crate::sector_shape::{BOOL_SECTOR_PREDICATES, SectorShape, sector_shape};
+use crate::sector_shape::{SectorShape, sector_shape};
 use crate::validate::decide;
 
 /// One (convex) sector of a vertex neighborhood.
@@ -151,8 +151,9 @@ pub(super) fn build_sectors<T: Decide>(
         // the subdivision direction (PR 2's derivation: the cone
         // argument needs < 180°) — are [`crate::sector_shape`]: ONE
         // implementation, called from here and from the splitting
-        // lane's neighborhood walk under each lane's own K names
-        // (smell scan S5). This is a call, not a copy.
+        // lane's neighborhood walk, under the one pooled set of K names
+        // (smell scan S5; #652 pooled them). This is a call, not a
+        // copy.
         //
         // The sense-invariance argument for the `normal` passed here is
         // NOT restated: it is the contract of `sector_shape`'s `normal`
@@ -163,15 +164,8 @@ pub(super) fn build_sectors<T: Decide>(
             unit_own: u_end,
             unit_next: u_start,
             bisector: bisec,
-        } = sector_shape(
-            dir_end,
-            dir_start,
-            normal,
-            he == next_he,
-            BOOL_SECTOR_PREDICATES,
-            band,
-        )
-        .map_err(|diag| BooleanError::Escalated { diag })?;
+        } = sector_shape(dir_end, dir_start, normal, he == next_he, band)
+            .map_err(|diag| BooleanError::Escalated { diag })?;
         match bisec {
             None => sectors.push(BoolSector {
                 he,

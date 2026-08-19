@@ -761,18 +761,42 @@ crate); (9) `profile::Step` re-parameterised — *"I would not do it."*
   `crates/topo/src/boolean/mod.rs:548`
 - **Confidence**: sure
 
-**PARTIALLY FIXED by #647 — the sector-predicate fork only.** The
-vertex-neighborhood sector-shape rungs — the metering arm, the wideness
-verdict, and the subdivision direction — are ONE implementation,
-`crates/topo/src/sector_shape.rs`, a top-level sibling of `boolean/` and
-`splitting/` that belongs to neither half and adds no dependency edge
-between them. Both lanes call it with their own `SectorPredicates`, so
-all six K names and every recorded margin are unchanged: 26541 recorded
-decisions across a boolean run and a plane-split run reproduce
-byte-identically, same order, one SHA-256. Two rows go red if a lane
-re-grows its own copy — one against a re-fork inside the shared body,
-one against a re-fork outside it (the outside guard walks the whole of
-`topo/src` at runtime, so a re-fork in a third file is caught too).
+**PARTIALLY FIXED by #647 and #661 — the sector-predicate fork only.**
+The vertex-neighborhood sector-shape rungs — the metering arm, the
+wideness verdict, and the subdivision direction — are ONE
+implementation, `crates/topo/src/sector_shape.rs`, a top-level sibling
+of `boolean/` and `splitting/` that belongs to neither half and adds no
+dependency edge between them.
+
+*#647 merged the BODIES, K-neutrally.* Both lanes called it with their
+own `SectorPredicates`, so all six K names and every recorded margin
+were unchanged: 26541 recorded decisions across a boolean run and a
+plane-split run reproduced byte-identically, same order, one SHA-256.
+
+*#661 merged the NAMES* (Evan's ruling on **issue #652**, 2026-08-19,
+now closed: *"go for the pool, it's internal tooling so a schema break
+really doesn't matter"*). `bool_sector_{arm,reflex,straight}` and
+`split_sector_{arm,reflex,straight}` became
+`sector_{arm,reflex,straight}` — six census names to three, 233 → 230
+for a sweep cut after it. The `SectorPredicates` parameter had nothing
+left to vary and is gone, which also closes the residue #647 shipped (a
+lane could have imported the name consts and re-implemented a rung under
+them; the consts are now private to the module). The margins, bands,
+outcomes and recorded order are untouched — only the `predicate` column
+changes, and only for those six values. The committed CSVs under
+`docs/k-report-data/` are left exactly as the sweep wrote them; because
+the pooled names are NEW spellings rather than the 29:1-majority
+`bool_sector_*`, the predicate column self-dates every row and no
+committed row silently changes meaning (`docs/K-REPORT.md`, census note
+2026-08-19).
+
+One row goes red if a lane re-grows its own copy: the outside guard
+walks the whole of `topo/src` at runtime, so a re-fork in a third file
+is caught too, and it now also fails on any reappearance of the six
+retired lane names. Its sibling — the inside guard, which ran every
+shape under both name sets — was deleted with its subject rather than
+left trivially green: there is no lane parameter left for the body to
+branch on.
 
 *What that reproduction is and is not.* The regenerating probe,
 `crates/topo/tests/probe_s5_sectors.rs`, is **committed but not run by
@@ -794,10 +818,12 @@ reclassification → join pipeline duplication, and the wrong-way
 reciprocation. Deliberately left alone on the steelman's own reasoning:
 `SectorEntry` vs `BoolSector` (a CORRECT divergence) and the shared error
 variants (unification means an optional field on a public API re-exported
-into four crates). And #647 hands back, rather than answers, whether the
+into four crates). #647 handed back, rather than answered, whether the
 two K names should become one population — with the evidence and the
-`M3-LOG.md:264` counter-precedent, **scheduled as issue #652** (the
-steelman's K table above is corrected there and here).
+`M3-LOG.md:264` counter-precedent, scheduled as issue #652 (the
+steelman's K table above is corrected there and here). **#652 is
+answered and closed: pool** (#661). The decisive evidence was coverage,
+not size — see the K table below.
 
 Both carry a gate → vertex sweep → sector array → reclassification →
 join → finish pipeline. The halves drifted rather than unified:
@@ -825,8 +851,9 @@ same wide/reflex convex-subdivision algebra, with the predicates
 **forked rather than shared** — `bool_sector_arm`/`split_sector_arm`,
 `bool_sector_reflex`/`split_sector_reflex`,
 `bool_sector_straight`/`split_sector_straight`. K-telemetry therefore
-sees two populations for one question, and any future tolerance tuning
-has to be done twice.
+saw two populations for one question, and any future tolerance tuning
+had to be done twice. (Both halves of that are now fixed: #647 the
+bodies, #661 the names.)
 
 (Note: `split.rs` is *not* part of this. `Body::split_edge` is an Euler
 mid-edge split, a genuinely different job — only the name collides with
@@ -899,17 +926,23 @@ a definite convex-or-reflex verdict at all, while the boolean lane's has
 in population size — one of them is entirely degenerate on this corpus,
 and that was invisible while each name was read as a single number. That
 is a *coverage* argument for pooling the names, not just a bookkeeping
-one, and it is the form in which the question is handed back: **issue
-#652**.
+one, and it is the form in which the question was handed back (**issue
+#652**) — and the form in which it was answered. Pooled, the rung is one
+population carrying those 426 definite verdicts instead of two of which
+one is entirely degenerate.
 
 *The project already treats name/margin bijection as a correctness
 property, in one direction only.* `M3-LOG.md:264` records PR #55's
 review MINOR-1: two margins sharing one K name **had to be split** by
-reviewer instruction. One margin under two names has never been
-examined. And the counter-precedent exists in-tree:
+reviewer instruction. One margin under two names had never been
+examined — until #652, which examined it and merged. The
+counter-precedent exists in-tree and is what #652 leaned on:
 `bool_planar_chord_spec` and `chord_spec` deliberately **share** the K
 name `split_arc_window`, documented as *"same margins, same predicate
-names"*.
+names"*. Both directions are now on the record, together with the test
+that picks between them: whether the two names are the same computation
+of the same quantity — which the split case was not, and this one
+provably is.
 
 *The wrong-way dependency is now bidirectional in fact.* A K predicate
 literally named `bool_between_arc_window` is decided at
@@ -935,13 +968,25 @@ crate as *"the boolean engine and its splitting/census machinery"* — the
 ratified architecture names **one** engine with splitting subordinate.
 The code has two engines with the dependency running the other way.
 
-*Hidden costs:* merging the K names is a schema break in an append-only
-dataset (`K-REPORT.md:738` tracks a 233-name census); ~267 tests across
-36 files; open issue **#561** notes the Python refusal-tag *values* are
-pinned nowhere, so an enum reshape can silently change strings the
-Python surface exposes; and the sphere asymmetry forces a per-lane kind
-gate — so unification **converts** the `JoinLane` cost rather than
-eliminating it.
+*Hidden costs, as first scanned — two of the four are now settled and
+one was wrong.* (a) Merging the K names **was** a schema break in an
+append-only dataset (`K-REPORT.md`'s 233-name census); it was taken
+deliberately in #661 on Evan's ruling, and what the break actually cost
+is written up in that report's census note (2026-08-19) — six names
+out, three in, the committed CSVs left as the record, no row's meaning
+changed. (b) ~267 tests across 36 files: still standing, still the bulk
+of the remaining work. (c) Open issue **#561** — "the Python
+refusal-tag *values* are pinned nowhere, so an enum reshape can
+silently change strings the Python surface exposes" — was **checked
+against this change and does not apply**: `crates/pncad-py/src/tags.rs`
+maps kernel *enum variants*, contains no predicate name and no `sector`
+string, and pooling reshaped no enum. (The check did find a real K-name
+→ Python channel, `SelectRefusal.predicate`, and that was reported to
+#561, which is its home; no sector predicate reaches it.) So #561 is
+not a cost of the K-name half of S5, and the sentence above should not
+be read as saying it is. (d) The sphere asymmetry still forces a
+per-lane kind gate — unification **converts** the `JoinLane` cost
+rather than eliminating it.
 
 *Could not determine:* whether PR #62's implementer weighed extraction
 and rejected it — no spec was committed and the log is silent, so this
@@ -4999,7 +5044,7 @@ Good work for filling parallel capacity. None blocks anything.
 | **W2b** | **S1 / S2** — `RingInterval`, and whether `Interval` becomes always-on. The inherited five-crossing sub-unit is **DISCHARGED by #671** and no longer part of this row. | **D1**, **W1c** | Blast radius is **535 refs in 15 files**, not the ~600 sites this report first claimed; five files carry 60%. Build cost measured at ~zero. The decoration seam is **partly** cleared: #643 split `Bounds` from `CertifiedEnclosure` and converted the three crossings S41 named, so `Bounds::lo`/`hi` is now reliably a *bracket* at all 535 refs. **#671 closed the remaining five**, so `Bounds::lo`/`hi` is a bracket at every one of the 535 refs and no crossing in the workspace reaches the ring through it. It also retired this row's sizing estimate: the conversion needed **no** caller widening at all — zero ripple, `--workspace --all-targets --features interval` unchanged — because each crossing's lane is already statically split at a concrete scalar. |
 | **W2c** | **S19** — the three big error catch-alls | **D2** | `AssemblyUnsupported` (146), `MissingEntity` (49), `SplitJoinError::Corrupt` (42). These *are* D9's only sanctioned option today, so D2 must land first or the work is undone. |
 | **W2d** | **S6** — sweep helper unification (~230 token-identical lines) | **D3** | Must follow D3: S6 and S7 are in one crate and will collide. K-telemetry does **not** block it — both funnels already take the predicate name as a parameter. Retracted: `SweptSeg`, `strut_spec`, `full::build_lamina` and the `let _ = k;` inference are *not* duplication. |
-| **W2e** ✅ #647 (partial) | **S5** — `splitting/` vs `boolean/` | — | The largest. Started with the narrowest, highest-value piece: the **forked sector predicates**, which are dimensionally identical line-for-line and split one K population 29:1. **FIXED by #647**: one shared body in `topo::sector_shape`, both K name sets preserved, K stream reproduced byte-identically. The repo already forced the reverse fix once (`M3-LOG.md:264`), and whether the two names should now become ONE population is stated in #647 as an open question and scheduled as **issue #652**, not decided. The REST of S5 — `sector_face` twins, pipeline duplication, the wrong-way dependency — is still open and still the largest item here. |
+| **W2e** ✅ #647 + #661 (partial) | **S5** — `splitting/` vs `boolean/` | — | The largest. Started with the narrowest, highest-value piece: the **forked sector predicates**, which are dimensionally identical line-for-line and split one K population 29:1. **FIXED by #647**: one shared body in `topo::sector_shape`, both K name sets preserved, K stream reproduced byte-identically. #647 left the census question open (`M3-LOG.md:264` had forced the reverse fix once) and scheduled it as **issue #652**; **Evan ruled POOL and #661 merged the names** — `sector_{arm,reflex,straight}`, 233 → 230 census names, `SectorPredicates` deleted, committed CSVs left as the historical record with the new spellings self-dating every row. #652 CLOSED. The REST of S5 — `sector_face` twins, pipeline duplication, the wrong-way dependency — is still open and still the largest item here. |
 | **W2f** ✅ #642, #646 (partial) | **S4** — the vocabulary mirrors, cheapest first | partly **W2c** | **`BooleanOp` DONE, #642** — one enum, defined lowest, re-exported upward, with its bytes described above the layering boundary; `topo` gained no serde dependency and the persisted format is byte-identical (corpus capture + pins written against `main` first). It also gave the technique a home (`persist/kernel_wire/`) that the remaining rows land in rather than copying, and put a real gate behind DESIGN.md's stale *"enforced by CI grep"* claim. **`units` DONE, #646**, which also enumerated the real duplicates the steelman had only counted, and filed **#650** (a pre-existing `literal_with_unit` round-trip break found beside the row, not fixed by it); **#650 is now CLOSED** — sealed, not checked. **The row stays open** on: `ProgramStep`/`WireStep` — cheap in isolation but **blocked behind OnArc + RESPELL-TABLE**, and it crosses the same files; `SegTag`; and the "no usable value" core. Carry forward from #642: a mirror's price includes downstream API surface (the split had cost a hole in `pncad::prelude` and a defensive alias in `demos/tour`), so price those two for it too. |
 | **W2g** ✅ #637 | **S49** — the census's planar × planar skip is justified by a claim about solids | — | **FIXED by #637.** The jurisdiction call: **arm 1 owns it**, and the other two structurally cannot take it — `sweep_conformal_patches` iterates `curved_faces` only, so a planar face is absent from the collection, and the confirm pass is driven off declared records. The premise turned out to be about neither solids nor planarity: `snapshot` keeps line edges and drops curved ones, so only a **wholly line-bounded** planar face has its whole boundary in front of the exact sweeps. The skip tests that now, a shared `edge_is_line` binds it to `snapshot` with the unsound drift direction named, and the settlement row asserts the planar pair **by key** in the contact plane. **Not a live wrong answer** — the body refused via a neighbouring arm's fat box (15 undecidable, 0 naming the cap pair) — which is exactly why it was worth closing before #620's contemplated box tightening removes that accident. Two residues scheduled as **H14**. | M |
 

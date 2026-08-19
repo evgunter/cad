@@ -60,7 +60,7 @@ use super::rules;
 use super::{PlaneSide, SectorEntry, SectorEntryKind, SplitPlane, SplitReduceError};
 use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey, VertexKey};
-use crate::sector_shape::{SPLIT_SECTOR_PREDICATES, SectorShape, sector_shape};
+use crate::sector_shape::{SectorShape, sector_shape};
 use crate::validate::decide;
 
 /// Resolves the sector face for the sector CW-after `he` (module docs:
@@ -291,8 +291,8 @@ pub fn classify_neighborhood<T: Decide>(
         // next orbit edge), and the subdivision direction it implies:
         // the three rungs are [`crate::sector_shape`] — ONE
         // implementation, called from here and from the boolean lane's
-        // sector walk under each lane's own K names (smell scan S5).
-        // This is a call, not a copy. The derivation the
+        // sector walk, under the one pooled set of K names (smell scan
+        // S5; #652 pooled them). This is a call, not a copy. The derivation the
         // module docs above carry — why convex subdivision, why the
         // wideness trilean has no escalation cliff — is what that
         // shared body implements.
@@ -304,15 +304,7 @@ pub fn classify_neighborhood<T: Decide>(
             arm,
             bisector: wide,
             ..
-        } = sector_shape(
-            dir_a,
-            dir_b,
-            n_face,
-            he == next_he,
-            SPLIT_SECTOR_PREDICATES,
-            band,
-        )
-        .map_err(sliver)?;
+        } = sector_shape(dir_a, dir_b, n_face, he == next_he, band).map_err(sliver)?;
         if let Some(bisector) = wide {
             let margin = Margin::levered(bisector.dot(plane.normal), arm);
             let class = match decide("split_bisector_side", margin, band) {
