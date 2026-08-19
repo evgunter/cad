@@ -121,6 +121,9 @@
 //! every decision under its predicate name.
 
 pub mod extrude;
+/// Bodies shared by this crate's in-crate pins (test builds only).
+#[cfg(test)]
+pub(crate) mod fixtures;
 pub mod loft;
 pub mod readback;
 pub mod revolve;
