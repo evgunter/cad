@@ -225,8 +225,8 @@ fn assert_typed_refusal<T: Decide>(op: BoolOp<T>, a: &Body<T>, b: &Body<T>) -> S
 /// membership of the facing half's start vertex in the solid's F9
 /// side sets), plus the slot lock (same face pair + same direction at
 /// matched slots) and the (d, -d) strut opposite-sense claim.
-/// Returns (anti, same, unresolvable) germ counts.
-fn sense_census(op: topo::BooleanOp, a: &Body<f64>, b: &Body<f64>) -> (u32, u32, u32) {
+/// Returns the germ counts by how the two sides' senses relate.
+fn sense_census(op: topo::BooleanOp, a: &Body<f64>, b: &Body<f64>) -> SenseCensus {
     let red = topo::boolean_reduce_declared(op, a, b, &flush_declarations(a, b)).unwrap();
     // Edge keys are body-lineage-scoped (F9): the pair's a_edge must be
     // resolved among A-operand records only (keys can collide across
@@ -238,24 +238,26 @@ fn sense_census(op: topo::BooleanOp, a: &Body<f64>, b: &Body<f64>) -> (u32, u32,
             .expect("pair record references a minted null edge")
     };
     let side_sets = |op: topo::Operand| {
-        let mut ins = std::collections::BTreeSet::new();
-        let mut outs = std::collections::BTreeSet::new();
+        let mut below = std::collections::BTreeSet::new();
+        let mut above = std::collections::BTreeSet::new();
         for r in red.null_edges_of(op) {
-            ins.insert(r.attr.below_end);
-            outs.insert(r.attr.above_end);
+            below.insert(r.attr.below_end);
+            above.insert(r.attr.above_end);
         }
-        (ins, outs)
+        Sets { below, above }
     };
     let (a_sets, b_sets) = (side_sets(topo::Operand::A), side_sets(topo::Operand::B));
-    type Sets = (
-        std::collections::BTreeSet<topo::VertexKey>,
-        std::collections::BTreeSet<topo::VertexKey>,
-    );
+    /// The solid's F9 side sets: the start vertices seen below and
+    /// above each null edge.
+    struct Sets {
+        below: std::collections::BTreeSet<topo::VertexKey>,
+        above: std::collections::BTreeSet<topo::VertexKey>,
+    }
     let sense = |body: &Body<f64>, sets: &Sets, r: &topo::BoolNullEdgeRecord<f64>, i: usize| {
         let start = body.get_half_edge(r.germs[i].he).unwrap().start;
-        if sets.0.contains(&start) {
+        if sets.below.contains(&start) {
             Some(true)
-        } else if sets.1.contains(&start) {
+        } else if sets.above.contains(&start) {
             Some(false)
         } else {
             None // is_up here would be a JoinDesync
@@ -290,7 +292,19 @@ fn sense_census(op: topo::BooleanOp, a: &Body<f64>, b: &Body<f64>) -> (u32, u32,
             }
         }
     }
-    (anti, same, unres)
+    SenseCensus {
+        anti,
+        same,
+        unresolvable: unres,
+    }
+}
+
+/// Germ counts by how the A-side and B-side senses relate at a slot.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct SenseCensus {
+    anti: u32,
+    same: u32,
+    unresolvable: u32,
 }
 
 /// The sense theorem across lanes: the cross-solid anti-correlation
@@ -315,17 +329,49 @@ fn b_sense_theorem_census() {
         // Transversal lanes: STRICT anti-correlation.
         let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
         let b = brick::<f64>((1.0, 3.0), (1.0, 3.0), (1.0, 3.0));
-        assert_eq!(sense_census(op, &a, &b), (12, 0, 0), "two-brick {op:?}");
+        assert_eq!(
+            sense_census(op, &a, &b),
+            SenseCensus {
+                anti: 12,
+                same: 0,
+                unresolvable: 0
+            },
+            "two-brick {op:?}"
+        );
         let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
         let b = brick::<f64>((0.75, 1.25), (0.75, 1.25), (1.5, 2.5));
-        assert_eq!(sense_census(op, &a, &b), (8, 0, 0), "pocket {op:?}");
+        assert_eq!(
+            sense_census(op, &a, &b),
+            SenseCensus {
+                anti: 8,
+                same: 0,
+                unresolvable: 0
+            },
+            "pocket {op:?}"
+        );
         let a = tprism::<f64>(&sq, 0.0, 2.0, shear);
         let b = tprism::<f64>(&pil, 1.5, 2.5, shear);
-        assert_eq!(sense_census(op, &a, &b), (8, 0, 0), "sheared {op:?}");
+        assert_eq!(
+            sense_census(op, &a, &b),
+            SenseCensus {
+                anti: 8,
+                same: 0,
+                unresolvable: 0
+            },
+            "sheared {op:?}"
+        );
         // Coplanar-cap lane: anti-correlation holds here too.
         let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0));
         let b = brick::<f64>((1.0, 3.0), (1.0, 3.0), (0.0, 1.0));
-        assert_eq!(sense_census(op, &a, &b), (12, 0, 0), "fig151 {op:?}");
+        assert_eq!(
+            sense_census(op, &a, &b),
+            SenseCensus {
+                anti: 12,
+                same: 0,
+                unresolvable: 0
+            },
+            "fig151 {op:?}"
+        );
     }
 }
 

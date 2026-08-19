@@ -11,11 +11,15 @@
 //! # Derivation (first principles, under OUR ratified convention)
 //!
 //! Ratified (M1, `topo::entity` module docs): outer loops run
-//! counterclockwise viewed from outside, equivalently **every face's
-//! stored normal is the outward normal** — it points away from the
-//! solid's material. (TOG 1986 §2/§6.1 states the same convention,
-//! which is why the book's rule (a) happens to be printed right for us;
-//! we still derive rather than copy.)
+//! counterclockwise viewed from outside, equivalently **every face has
+//! an outward normal** — the one pointing away from the solid's
+//! material, which the loop winding is tied to. That normal is
+//! `Face::sense_sign() * chart_normal(u, v)` (DESIGN "face orientation
+//! sense", ratified M5 S10): the surface's stored chart normal is the
+//! outward normal only where `Face::sense` is `true`. (TOG 1986
+//! §2/§6.1 states the same interior-left convention, which is why the
+//! book's rule (a) happens to be printed right for us; we still derive
+//! rather than copy.)
 //!
 //! Take a point on a face and a direction `dir`. Decompose `dir` against
 //! the outward normal `n`: the component `dot(dir, n)·n` is the part of
@@ -33,6 +37,14 @@
 //! with **negative ⇒ into material**. That single sentence is the entire
 //! sign convention of M3; consumers must cite it rather than introduce a
 //! fresh sign choice.
+//!
+//! **The sense correction is the caller's**, and no type enforces it:
+//! the `outward_normal` argument is a bare [`Vec3`], so a caller that
+//! reads a face's chart normal without multiplying by
+//! `Face::sense_sign()` gets a silently inverted verdict on every
+//! `sense == false` face. Callers that hold a face say at the call site
+//! which vector they are passing and where the sense was folded in
+//! (`topo::boolean::sectors::sector_face`, `splitting::rules`).
 //!
 //! # Margin honesty (D4 ¶1)
 //!
@@ -62,8 +74,9 @@ pub enum EntersMaterial {
 
 /// **`enters_material`** — classifies `dir` against a face's material
 /// (module docs for the derivation; this is M3's F3 sign-chain
-/// primitive). `outward_normal` is the face's stored outward normal
-/// (unit, conventional); `dir` need not be unit (it is normalized
+/// primitive). `outward_normal` is the face's outward normal
+/// (unit; `Face::sense_sign() * chart_normal`, module docs — the
+/// caller applies the sense); `dir` need not be unit (it is normalized
 /// here); `arm` is the caller-named lever arm in meters metering the
 /// angular margin; `band` is the run's linear band.
 ///
@@ -109,7 +122,10 @@ pub fn enters_material<T: Decide>(
 /// the second derivative (raw carrier parameter), `speed_sq` =
 /// `‖deriv‖²` (normalizing the parameterization out — the margin is
 /// per arc length squared), `outward_normal` the reference side's
-/// unit normal, `arm` the caller-named lever arm in meters. The
+/// unit normal — its one caller passes a SPLITTING PLANE's normal,
+/// which carries no face sense; a caller passing a FACE's normal owes
+/// the `sense_sign` multiply the module docs describe — `arm` the
+/// caller-named lever arm in meters. The
 /// margin is the **displacement the curvature difference induces at
 /// the lever arm** (D4 ¶1, lever arm 1/κ discipline):
 /// `½ · (deriv2·n̂ / speed_sq) · arm²` — the curvature COMPARISON of

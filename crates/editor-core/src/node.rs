@@ -1036,8 +1036,9 @@ impl<P> Node<P> {
     /// Builds a [`Node::InstantiatePart`] with the EMPTY interface
     /// record — the authoring constructor. A non-empty record is
     /// mintable only by the refactoring that observed declarations
-    /// crossing a cut (none can in v1: [`InterfaceCrossing`] is
-    /// uninhabited).
+    /// crossing a cut, which reaches it through
+    /// [`Node::instantiate_part_with`]: an authored instance crosses
+    /// nothing.
     pub fn instantiate_part(doc_ref: crate::ident::DocRef) -> Self {
         Self::instantiate_part_with(doc_ref, InterfaceRecord::default())
     }

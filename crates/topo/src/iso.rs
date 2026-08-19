@@ -52,12 +52,13 @@
 //!   solids happen to sit in different arena order, a false negative is
 //!   possible. Per-shell the encoding is genuinely canonical.
 //! - **Geometry payloads other than vertex points are ignored** —
-//!   curve/surface payloads AND their sharing patterns. At M1 they are
-//!   `Placeholder` ballast whose anchors are construction-history
-//!   artifacts (`mef` shares the parent's surface, `mfkrh` must mint a
-//!   fresh one), so including them would make legitimate
-//!   `kfmrh ∘ mfkrh` roundtrips compare unequal. Real geometry
-//!   comparison is an M2+ tolerance question (D4), never bit equality.
+//!   curve/surface payloads AND their sharing patterns. Which surface
+//!   key a face carries is a construction-history artifact (`mef`
+//!   shares the parent's; `mfkrh` takes whichever `FaceSurface` arm the
+//!   caller names, and cannot restore the key `kfmrh` reaped), so
+//!   including them would make legitimate `kfmrh ∘ mfkrh` roundtrips
+//!   compare unequal. Real geometry comparison is a tolerance question
+//!   (D4), never bit equality.
 //! - **Edge intrinsic direction (`he_plus` vs `he_minus`) is ignored**:
 //!   it is a stored representation bit that kill∘make roundtrips
 //!   legitimately flip (`mev` always re-mints old → new), and at M1 no

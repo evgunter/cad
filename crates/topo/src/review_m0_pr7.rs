@@ -271,7 +271,7 @@ fn bbox<T: Real>(body: &Body<T>) -> Option<(Point3<T>, Point3<T>)> {
 /// down the containment spine, walking loop cycles by hand. Note the
 /// signature: T: Real is still REQUIRED to name Body<T> at all, even
 /// though no scalar is touched.
-fn spine_census<T: Real>(body: &Body<T>) -> (usize, usize, usize, usize) {
+fn spine_census<T: Real>(body: &Body<T>) -> SpineCensus {
     let mut shells = 0;
     let mut faces = 0;
     let mut loops = 0;
@@ -312,7 +312,23 @@ fn spine_census<T: Real>(body: &Body<T>) -> (usize, usize, usize, usize) {
             }
         }
     }
-    (shells, faces, loops, half_edge_slots)
+    SpineCensus {
+        shells,
+        faces,
+        loops,
+        half_edge_slots,
+    }
+}
+
+/// What a spine walk counts. `half_edge_slots` is not an arena length:
+/// it counts the slots the loop walks visit, so a half-edge in two
+/// loops (there are none in a coherent body) would count twice.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct SpineCensus {
+    shells: usize,
+    faces: usize,
+    loops: usize,
+    half_edge_slots: usize,
 }
 
 #[test]
@@ -321,7 +337,15 @@ fn generic_bbox_and_scalar_free_spine_census() {
     let bb = bbox(&c.body).expect("lone edge has vertices");
     assert_eq!((bb.0.x, bb.0.y, bb.0.z), (0.0, 0.0, 0.0));
     assert_eq!((bb.1.x, bb.1.y, bb.1.z), (1.0, 0.0, 0.0));
-    assert_eq!(spine_census(&c.body), (1, 1, 1, 2));
+    assert_eq!(
+        spine_census(&c.body),
+        SpineCensus {
+            shells: 1,
+            faces: 1,
+            loops: 1,
+            half_edge_slots: 2,
+        }
+    );
 }
 
 // ---------------------------------------------------------------------
