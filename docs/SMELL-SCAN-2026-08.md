@@ -486,11 +486,11 @@ Two of these have **already drifted, observably**:
   {}`); `refactor::payload_names` returns names only for those two. A
   mate head is validated at insertion, documented as repairable, and
   silently not rewritten.
-- Three of the four `RoleSeg` sites carry comments insisting the match
-  is exhaustive "so a future variant must be classified here or the
-  compile breaks". `select::name_args` ends in `_ => Vec::new()` — the
-  exact fail-quiet wildcard the others forbid — and disagrees on
-  `Fragment(SideOf)`.
+- **FIXED by #632.** Three of the four `RoleSeg` sites carried comments
+  insisting the match is exhaustive "so a future variant must be classified
+  here or the compile breaks"; `select::name_args` was the fourth and
+  wildcarded. All four are now exhaustive on both the `RoleSeg` and the
+  `Qualifier` axis.
 
 The tell that these are accretion rather than principle: `BooleanOp` is
 **mirrored** from the kernel while `ContactClass` is **imported**, each
@@ -534,7 +534,7 @@ serde grep exists in `ci.yml` or `ci-local.sh`. The only mechanical check is
 | profile `Step` verbs | **SURVIVES** — `WireStep`/`WireTarget`/`WireArcData` are field-for-field mirrors differing in **nothing**. Only `WireSide`/`WireWinding` wrap kernel-foreign types (two two-variant tags), plus `SketchPlane<f64>` needing `WirePlacement`. The scheduled RESPELL-TABLE unit does **not** reach these. |
 | `RoleSeg` → `SegTag` | **SURVIVES IN PART** — three of four links are compile-enforced and the python lane runs in CI. Genuine gaps: the `.pyi`'s 40 members are **unpinned** (`test_stubs.py` parses only top-level names, never class bodies), and the py mirror is **forced by the orphan rule** — not collapsible, only generatable. |
 | node kinds (~10 tables) | **DOES NOT SURVIVE as stated** — 10 operations over a 12-variant sum type is the design working. Re-scoped to *wildcard* arms it survives: `node.rs` 9, `eval/mod.rs` 5, `resolve/mod.rs` 4, `edit.rs` 3, `refactor.rs` 3, `persist/check.rs` 2. |
-| `RoleSeg` arg sites | **SURVIVES IN PART** — the four answer four genuinely different questions and *should* differ. What survives is exact: three carry "exhaustive on purpose or the compile breaks", the fourth ends `_ => Vec::new()` with no note saying why it is exempt. |
+| `RoleSeg` arg sites | **SURVIVED IN PART; FIXED by #632.** The four answer four genuinely different questions and *should* differ — what survived was the fourth site's wildcard, now closed. |
 | `StableName` payload lists | **SURVIVES** — see the confirmed drift below. |
 | "no usable value" | **SURVIVES IN PART** — the four enums have genuinely different membership and closure (`RunStatus` is serde-persisted), but all four embed the identical triple, and the stringly fifth is a real fail-quiet. |
 | units | **DOES NOT SURVIVE as counted** — `parse.rs` uses the shared table; `step-import`'s `UnitKind` is a *different vocabulary* (STEP `SI_UNIT` names). Real duplicates: two-and-a-half, one of them **measured and justified** (PR #291 MAJOR-2: inlining the 32-byte row grew every `Expr` by ~40 bytes). |
@@ -555,10 +555,14 @@ shape: the insert door silently ADMITTED a mate head naming no node, and
 file that got one in could previously be opened and salvaged by deleting the
 mate, and now refuses to load at all.
 
-*Drift (b) CONFIRMED with a qualification:* the `Fragment(SideOf)` disagreement
-is **documented and intentional**. The drift is narrower — the fourth site uses
-the exact fail-quiet wildcard its three siblings prohibit, without saying it is
-exempt. A future variant carrying sub-names compiles in as "no arguments".
+*Drift (b) CONFIRMED, and **FIXED by #632*** — see the §D H5 row for what the
+fix covered and what its review caught. The `Fragment(SideOf)` disagreement is
+**documented and intentional** and was preserved. Two residues went to §D:
+`resolve::apply_with_names`' `DocEdit` wildcard, correctly left alone but
+unscheduled until now, and a verbatim triplication of the name-free variant
+list that the fix grew (`select.rs`, `resolve/mod.rs`, `refactor.rs` — every
+copy compile-enforced, so churn rather than rot, and collapsing it needs a home
+`role.rs` does not have).
 
 *One confirmation this report did not cite: the hand-synced tag table has
 already produced a live measured bug.* `MODEL-AB-LOG.md:782` — *"**MAJOR-1 =
@@ -567,7 +571,7 @@ existing 28 — latent memo collision, a hit would serve wrong geometry**"*.
 Caught by a reviewer, not a type. S4's failure mode, realised.
 
 *Ranked cheapest-to-hardest to act on:* (1) `BooleanOp` → import +
-`serde(with)`; (2) `name_args`' wildcard → exhaustive; (3) the `Mate` arms —
+`serde(with)`; (2) `name_args`' wildcard → exhaustive — **DONE, #632**; (3) the `Mate` arms —
 small but a **behaviour** fix; (4) the Euler 7-tuple → named struct
 (debug-only) — **DONE, #625**; (5) units; (6) `ProgramStep`/`WireStep` — cheap in isolation,
 **expensive in sequence** (blocked behind OnArc + RESPELL-TABLE, and it
@@ -3465,7 +3469,7 @@ Good work for filling parallel capacity. None blocks anything.
 | **H2** | **S39 stale claims** — ten rows, each classified **benign rot** vs **lost invariant** *before* its sentence is touched. `enters.rs:14` is the (ii) candidate: the outward-normal property was devolved onto every caller with no type enforcing it. | M |
 | **H3** ✅ #627 | **S40 residue** — start with the two that are not cosmetic: `emit_topo.rs:1266`'s unreachable fallback would mint `Seam{ae, ae}`, a well-formed name for the wrong thing; `seqgen.rs:853`'s discarded counter means the property suite cannot tell an all-skipped run from a full one. **FIXED by #627**: both behavioural rows plus the mechanical residue, and the review pass swept two siblings of the rows it names — `validate.rs`'s 31-of-59 Display list and `run_harmonic_checks`' doubled `reach`. S40's design-call rows (the `k_stats` shim, `WitnessSlot`, `props/curved.rs`'s NaN throws and doubled `Rim` direction, the `HashSet` paragraph) stay open there; two new stale claims went to S39 for **H2**. | S |
 | **H4** | **S37** — shipped-artifact naming: the STL header's `cad-kernel-m2`, `UnsupportedCurve.note`'s runtime-visible PR number, ~124 internal spec codes in public rustdoc and the Python stub. Evan: *"can be fixed earlier"* than S36. | S–M |
-| **H5** | **S4 drift (b)** — `names/select.rs:319`'s `_ => Vec::new()`, the fail-quiet wildcard its three siblings forbid by comment. One function. | XS |
+| **H5** ✅ #632 | **S4 drift (b)** — **FIXED by #632**, on both axes rather than the reported one. `select::name_args`' `_ => Vec::new()` and its neighbour `side_of`'s `_ => None` now list all 18 and 27 no-argument variants explicitly, and `Fragment` destructures `Qualifier` as its three siblings do — the first pass copied the sibling doc sentence but dropped its "or `Qualifier`" clause, leaving the same fail-quiet one level down at the site being fixed, which the review caught. Measured by probe variant: a name-carrying `RoleSeg` breaks 4 builds before / 6 after, a name-carrying `Qualifier` 3 before / 5 after. Behaviour identical, verified variant-by-variant. The `RoleSeg` classification family is closed workspace-wide. | XS |
 | **H6** ✅ #625 | **Euler postcondition 7-tuple → named struct** — unnamed positional, 16 sites, 6 files, all `cfg(debug_assertions)`. **FIXED by #625**: `ArenaDelta`, still debug-only, written sparsely over `..ArenaDelta::ZERO`. | S |
 | **H7** | **The chart lane's empty-tube acceptance row** — #617 fixed both SSI lanes but its red row covers ℝ³ only, so the chart lane's `account_chart_plane` refusal is asserted by construction and not by a fixture. Needs a NURBS wall whose true surface misses the cutting plane *inside* its own control-net hull slack (the M5 substrate wall's hull is tight exactly where the near-miss must sit), then the same two-run shape: certify-empty at a healthy floor, refuse at a clamped one. The narrowing is #617's, so this row closes it. | S–M |
 | **H8** | **Positional-census residue in `topo`** — the class H6 fixed, still live at three sites #625 deliberately did not touch. **Sharp end: `crates/topo/tests/review_m3_pr1.rs:34`**, whose `census` returns a positional 7-tuple in a **different component order** than `ArenaCounts` (`v, e, f, loops, shells, solids, rings` — and `rings` is not an arena length at all); `:286-299` then asserts a raw `.0`…`.6` arena delta for cross-shell `kfmrh` against `(0, 0, -1, 0, -1, 0, 1)`. Two positional orders for one vocabulary is S4's drift shape itself. Also `seqgen.rs:106`/`:137`: the Euler 6-vector travels as `[i64; 6]` indexed `0..5` into `Ledger { v, e, f, h, r, s }`, which sits twenty lines below `ep_vector` already carrying the names; and `euler.rs:2126`'s `snapshot` returns `[usize; 10]`. Fold in two whole-file finds from #625's review of `euler.rs`: the byte-identical 8-line parent-sense-inheritance comment and logic at `:1664` and `:1767` (a third copy in `mint_loop_and_face`'s rustdoc, `:1947`), and the stale user-visible message at `:762`, *"cross-shell kfmrh merges shells — deferred to M3"*, which the variant's own doc contradicts. **Sequencing is why these are a row and not a patch**: `seqgen.rs` is live in H3's lane, `:762` is S39/H2 territory, and `review_m3_pr1.rs` is a review-named suite that W3a combs per-suite. | S–M |
