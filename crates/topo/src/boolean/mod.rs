@@ -1275,8 +1275,8 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds>(
     pad_override: Option<f64>,
 ) -> Result<(SweepTrace, SweepTrace), BooleanError> {
     let band = Band::linear()?;
-    reduce::gate_planar(a_operand, Operand::A)?;
-    reduce::gate_planar(b_operand, Operand::B)?;
+    reduce::gate_operand_kinds(a_operand, Operand::A)?;
+    reduce::gate_operand_kinds(b_operand, Operand::B)?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
 
@@ -1333,8 +1333,8 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
     validate_declarations(a_operand, b_operand, decls)?;
     verify_declared_contacts(a_operand, b_operand, decls, band)?;
     let declared = DeclaredPairs::build(decls);
-    reduce::gate_planar(a_operand, Operand::A)?;
-    reduce::gate_planar(b_operand, Operand::B)?;
+    reduce::gate_operand_kinds(a_operand, Operand::A)?;
+    reduce::gate_operand_kinds(b_operand, Operand::B)?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
 

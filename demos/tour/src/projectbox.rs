@@ -8,9 +8,11 @@
 //! contacts runs once, on the FINAL body, in `crate::run_body`).
 //!
 //! Square-only honesty: real enclosures want ROUND bosses and drilled
-//! pilot holes — cylindrical boolean operands are M5 (`gate_planar`
-//! refuses curved operands today); everything here is square and says
-//! so. Coordinates follow the #91 design rule: no two operand planes
+//! pilot holes; this chain does not attempt them, and says so. Not
+//! because a blanket gate forbids curved operands — the operand gate
+//! (`topo`'s `reduce::gate_operand_kinds`) admits `Cylinder` and
+//! `Sphere` faces; the curved refusals live per C5 arm, at the sites
+//! that exercise one. Everything here is square. Coordinates follow the #91 design rule: no two operand planes
 //! coincide anywhere in the chain (all features offset in 1/16 steps).
 //!
 //! Retires the abstract `openbox` stop (this is the cavity story with
@@ -96,8 +98,9 @@ pub fn stop() -> (Stop, pncad::topo::Body<f64>) {
     let note = format!(
         "15 sequential boolean nodes on ONE part (subtract -> 6 tunnel subtracts -> \
          4 boss unions -> 4 pocket subtracts), volume matching the dyadic oracle \
-         after every op (observed bit-exact, gated 1e-9), final V = {vol}; square-only honesty: round bosses/pilot holes are M5 \
-         (gate_planar refuses curved operands); no two operand planes coincide \
+         after every op (observed bit-exact, gated 1e-9), final V = {vol}; square-only honesty: round bosses/pilot holes are not \
+         attempted here (curved operands are gated per C5 arm, not by a blanket \
+         operand gate); no two operand planes coincide \
          anywhere in the chain (the #91 design rule)"
     );
     let s = Stop {
