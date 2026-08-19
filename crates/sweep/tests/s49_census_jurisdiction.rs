@@ -82,6 +82,26 @@ fn is_planar(body: &Body<f64>, f: FaceKey) -> bool {
         .is_some_and(|s| matches!(s, Surface::Plane { .. }))
 }
 
+/// The planar faces whose plane is `z = h`. In these fixtures that is
+/// exactly the two faces in contact, so a row can name the pair it
+/// means instead of accepting any planar refusal.
+fn faces_in_plane(body: &Body<f64>, h: f64) -> Vec<FaceKey> {
+    body.faces()
+        .filter(|(_, f)| match body.get_surface(f.surface) {
+            Some(Surface::Plane { origin, normal, .. }) => {
+                normal.x.abs() < 1e-12 && normal.y.abs() < 1e-12 && (origin.z - h).abs() < 1e-12
+            }
+            _ => false,
+        })
+        .map(|(k, _)| k)
+        .collect()
+}
+
+/// Does some refusal name exactly the unordered pair `want`?
+fn names_pair(pairs: &[(FaceKey, FaceKey)], want: (FaceKey, FaceKey)) -> bool {
+    pairs.iter().any(|&(a, b)| (a, b) == want || (b, a) == want)
+}
+
 /// Every `CensusUndecidable` naming a pair of PLANAR faces. The only
 /// planar faces in these fixtures are the caps, and a same-solid pair
 /// never reaches the arm, so such a finding IS the cross-solid cap
@@ -118,19 +138,29 @@ fn a_cap_pair_in_rest_is_examined_by_the_proximity_arm() {
         let body = assembly(&cylinder(0.0, 0.0), &cylinder(1.0, turn));
         let errors = validate_pseudomanifold(&body, &ContactRecords::default())
             .expect_err("two solids in undeclared rest must never clear");
+        let caps = faces_in_plane(&body, 1.0);
+        assert_eq!(
+            caps.len(),
+            2,
+            "turn {turn}: expected two caps at z = 1: {caps:?}"
+        );
+        let want = (caps[0], caps[1]);
         let pairs = planar_pair_refusals(&body, &errors);
         assert!(
-            !pairs.is_empty(),
-            "turn {turn}: the proximity arm must name the cap pair, got {errors:?}"
+            names_pair(&pairs, want),
+            "turn {turn}: the proximity arm must name the cap pair {want:?} in the \
+             contact plane — the other three cross-solid cap pairs are two metres \
+             away and clear on a definite margin; planar refusals were {pairs:?}, \
+             all findings {errors:?}"
         );
     }
 }
 
 /// The other direction, so the row above cannot pass by refusing
-/// everything: the same two cylinders a clear metre apart validate
-/// with no findings at all - the caps are boxable, so the arm CLEARS
-/// them on a definite gap rather than refusing every cap pair it now
-/// examines.
+/// everything: the same two cylinders with a 2 m gap between the
+/// facing caps (`z = 1` against `z = 3`) validate with no findings at
+/// all - the caps are boxable, so the arm CLEARS them on a definite
+/// margin rather than refusing every cap pair it now examines.
 #[test]
 fn cylinders_apart_still_clear_at_their_caps() {
     let body = assembly(&cylinder(0.0, 0.0), &cylinder(3.0, 60.0));
@@ -175,8 +205,15 @@ fn a_cap_resting_on_a_line_bounded_face_is_examined_too() {
     let body = assembly(&brick(0.0, 1.0), &cylinder(1.0, 0.0));
     let errors = validate_pseudomanifold(&body, &ContactRecords::default())
         .expect_err("two solids in undeclared rest must never clear");
+    let touching = faces_in_plane(&body, 1.0);
+    assert_eq!(
+        touching.len(),
+        2,
+        "expected the cap and the face it rests on: {touching:?}"
+    );
+    let want = (touching[0], touching[1]);
     assert!(
-        !planar_pair_refusals(&body, &errors).is_empty(),
-        "the proximity arm must name the cap x face pair, got {errors:?}"
+        names_pair(&planar_pair_refusals(&body, &errors), want),
+        "the proximity arm must name the cap x face pair {want:?}, got {errors:?}"
     );
 }
