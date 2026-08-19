@@ -50,6 +50,12 @@ self-intersection and to compute tolerance stackups.
 > deterministic, no hidden state. The B-rep is a derived value, never a
 > mutated-in-place object.
 
+**Not quite: there is one exception, and only one — ε.** No signature
+carries it and every predicate reads it, so a model is a pure function of
+its parameters *and* of ε, which is committed once per process before the
+first predicate and cannot be changed after (D4). Determinism is over the
+pair: the same parameters at the same ε give the same solid.
+
 Everything else follows from holding this invariant from day one:
 
 - **Error propagation** becomes "evaluate the same function with a different
@@ -1359,7 +1365,7 @@ Each layer depends only on the layers below it.
 | `geom-curves` / `geom-surfaces` | Analytic + NURBS types, evaluators, closest-point, curve×curve and curve×surface intersection |
 | `geom-brep` | The B-rep geometry layer: D2's intensional edge descriptions, certified carrier caches, the dihedral classification predicate, Newell face equations, pcurve caches |
 | `profile` | 2-D sketch profiles: the PATHS authoring algebra and the profile-program it records (PATHS-DESIGN, PROFILES-V2-DESIGN), lowering to the bulge-chain `Profile` and its trilean validation |
-| `topo` | Arenas, entities, Euler operators, validation (watertightness, orientation, Euler characteristic); the boolean engine and its splitting/census machinery (`topo::boolean`) |
+| `topo` | Arenas, entities, Euler operators, validation (watertightness, orientation, Euler characteristic); the boolean engine and its splitting/census machinery, which sit as sibling modules at the crate root rather than underneath `boolean` |
 | `sweep` | Solids from validated profiles: extrude, revolve, loft/skin; fillets |
 | `mesh` / `stl` | Tessellation (watertight triangle meshes from B-rep bodies); STL export (binary + ASCII) |
 | `step-export` / `step-import` | STEP (AP214) analytic-subset export, and import of that subset — import is LIVE as of M7 (own-corpus byte-identical round-trip, FreeCAD foreign corpus, wild corpus) |
