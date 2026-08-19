@@ -22,10 +22,22 @@
 //! **The third verb** (the loft section at the end) is the same audit
 //! with the opposite verdict: loft's skinned chart follows the profile
 //! traversal instead of an unconditional radial, so a concave arc and
-//! a hole loop stay `sense: true` and are still honest. Those rows
+//! a hole loop stay `sense: true` and are still honest. Its prism rows
 //! loft THIS FILE'S fixtures — `notched_loops`, `holed_loops` — and
 //! check the orientation against the extruded twin the rows above
 //! verify, so the two chapters cannot drift apart.
+//!
+//! **Charts that turn** close that chapter. A section pair skinned at
+//! `v_degree = 1` is a ruling, and a ruling cannot twist, so the prism
+//! rows cannot exercise the half of loft's argument that is about `v`.
+//! The rows after them stack shapes that can: a pair whose convexity
+//! FLIPS between the sections, a three-section curved-`v` dogleg, and
+//! `sweep_body`'s quarter-turn elbow. None of those has an extruded
+//! twin, so their oracle is the body's own LEVEL SETS — the walls'
+//! iso-curves at one `v`, closed into a planar ring and decided by
+//! crossing parity, which reads positions and no orientation bit at
+//! all. That oracle is checked against the twin's door on the prisms,
+//! where both are valid.
 //!
 //! **Tolerance shape**: structural (the S10 posture) — the bit is a
 //! `bool` selected from stored `Sign`s; numeric assertions are against
@@ -866,8 +878,12 @@ fn level_plane(lofted: &Lofted<f64>, axis: Vec3<f64>, t: f64) -> (Point3<f64>, V
         .iter()
         .map(|&fk| wall_outward_at(&lofted.body, fk, 0.5, t).0)
         .collect();
-    // Newell over the ring: robust to any one sample being near-collinear
-    // with its neighbours, which three picked points are not.
+    // Newell over the ring, rather than three picked points, so no one
+    // near-collinear sample can decide the normal. Hand-rolled rather
+    // than `geom_brep::newell_plane`: that door certifies planarity
+    // against the running ε, and an oracle whose validity moves with ε
+    // is the trap #619 fell into. The planarity precondition here is a
+    // fixed geometric bound, checked in `level_set`.
     let mut n = Vec3::new(0.0, 0.0, 0.0);
     for i in 0..ring.len() {
         let (a, b) = (ring[i], ring[(i + 1) % ring.len()]);
@@ -933,12 +949,7 @@ fn level_set_contains(
     q: Point3<f64>,
 ) -> bool {
     let (origin, n) = plane;
-    let e1 = if n.x.abs() < 0.9 {
-        Vec3::new(1.0, 0.0, 0.0).cross(n).normalize()
-    } else {
-        Vec3::new(0.0, 1.0, 0.0).cross(n).normalize()
-    };
-    let e2 = n.cross(e1);
+    let (e1, e2) = n.orthonormal_basis();
     let uv = |p: Point3<f64>| ((p - origin).dot(e1), (p - origin).dot(e2));
     let (qx, qy) = uv(q);
     let mut crossings = 0usize;
