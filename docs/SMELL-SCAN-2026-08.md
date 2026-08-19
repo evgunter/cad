@@ -3454,13 +3454,31 @@ in passing by a Wave-1 lane.
 
 **What it raised.**
 
-1. **The class is wider than three.** Four further `T: Bounds` →
-   `RingInterval::from_bounds` crossings were found and deliberately left:
-   `ssi/certify.rs:644-646` (the normal), `geom-curves/src/nurbs.rs:1169`
-   and `:1186`, `geom-surfaces/src/nurbs.rs:912`, and
-   `topo/src/props.rs:468` (`br`). Each would need its caller's `T` bound
-   widened, rippling through three more crates; none is covered by the
-   settled scope of #643. They are the natural next unit.
+1. **The class is wider than three, and this finding is therefore only
+   PARTLY CLOSED.** #643 fixed the three crossings named above. Five more
+   `T: Bounds` → `RingInterval::from_bounds` crossings exist and were
+   deliberately left, in four crates:
+
+   | site | what crosses |
+   |---|---|
+   | `geom-brep/src/ssi/certify.rs:644-646` | the surface normal's three components |
+   | `geom-curves/src/nurbs.rs:1169` | `NurbsCurve3` control-hull coefficients |
+   | `geom-curves/src/nurbs.rs:1186` | `NurbsCurve2` control-hull coefficients |
+   | `geom-surfaces/src/nurbs.rs:912` | `NurbsSurface` control-net coefficients |
+   | `topo/src/props.rs:468` (`br`) | the harmonic channels' scalars |
+
+   **Reachability was NOT established for any of them.** They were found by
+   grepping `RingInterval::from_bounds` across `crates/*/src` and reading
+   the surrounding bound; **no `Trv` fixture was constructed and pushed
+   through any of the five**, which is the only thing that would settle it
+   — and is exactly the step that turned this finding itself from *unsure*
+   into confirmed. So the honest status is **unknown, not benign**: each is
+   the same shape as the three that *were* confirmed to launder, and none
+   has been shown either to launder or to be unreachable.
+
+   They were deferred on size, not on safety: each needs its caller's `T`
+   bound widened, rippling through three more crates, which is W2b's scale
+   rather than a Wave-1 lane's. Scheduled on the **W2b** row.
 2. **A pre-existing hazard, independent of this fix**: `f64::max` and
    `f64::min` return the **non**-NaN operand, so the idiom
    `from_bounds(x.lo().max(-1.0), x.hi().min(1.0))` turns a poisoned
@@ -3732,7 +3750,7 @@ without renumbering anything above.
 
 # Findings raised by the Wave-1 fix lanes (2026-08-18)
 
-Three findings that the Wave-1 fix work turned up and that are **not**
+Four findings that the Wave-1 fix work turned up and that are **not**
 restatements of anything above. They are recorded here rather than in the
 tiers because their provenance matters: each was found by an implementer or
 reviewer working inside a specific fix, which is a different evidence base
@@ -3741,8 +3759,9 @@ from the twenty structural scans.
 `S45`–`S48` stay reserved for their stated purpose (promotions out of the
 S35/S40 roll-ups), so these take fresh IDs.
 
-**All three carry blank verdicts. Per this document's own rule, none should
-be acted on until it has one.**
+**All four carry blank verdicts. Per this document's own rule, none should
+be acted on until it has one.** (S49–S51 were raised 2026-08-18; **S55** was
+raised 2026-08-19 by the W1c lane, about that lane's own consequence.)
 
 ## S49. The census's planar × planar skip is justified by a claim about solids
 
@@ -3914,6 +3933,54 @@ orientation-free by construction and so cannot inherit the bit it is testing.
 *"those tests are valuable even if they don't find anything today"*. That is why
 "may find nothing" was not a reason to defer, and the rows are the deliverable.
 
+## S55. `Enclosure` is a live trait with no consumer left
+
+- **Where**: `crates/geom-core/src/real.rs` (the trait, and its blanket
+  `impl<T: Bounds> Enclosure for T`), `crates/geom-core/src/lib.rs` (the
+  export), `crates/geom-core/src/ring_interval.rs` (the direct impl)
+- **Importance**: low
+- **Confidence**: sure — this is a fact about the tree, not a judgement
+- **Raised by**: the W1c fix lane (#643), 2026-08-19, as a direct
+  consequence of its own change.
+
+`Enclosure` existed for exactly one reason, stated in its own docs: the C9
+ring is not an evaluation scalar, so it cannot implement `Real` and
+therefore cannot implement `Bounds`, and `Enclosure` was the smaller trait
+`f64`, `Interval` and `RingInterval` could all meet at. Its only generic
+consumer was `geom_core::spline::hull` — every `hull` entry point took
+`E: Enclosure`.
+
+**#643 moved all of `hull` to `CertifiedEnclosure`**, because a hull bound
+is a certificate and a coefficient that merely carries a bracket is not
+enough. `hull` now reads no raw brackets at all. So the trait, its blanket
+impl over `T: Bounds`, its direct `RingInterval` impl and its public
+export all remain, and **nothing in `crates/*/src` is generic over it any
+more**.
+
+This is S11's genre one step sideways: not machinery with no *producer*
+but machinery with no *consumer*, still exported as public API. The
+question is which of these it is, and they have different answers:
+
+1. **It still earns its keep as the meeting point** — the vocabulary that
+   says "these three types all carry a bracket" is worth naming even if no
+   generic body currently quantifies over it, and the next certification
+   helper will want it.
+2. **It is now `Bounds` wearing a second name** — the blanket impl means
+   every `Bounds` type is one automatically, `RingInterval` is the only
+   type that is one *without* being a `Bounds` type, and a trait whose
+   entire remaining content is "`Bounds`, or the ring" could be spelled at
+   the one site that needs it.
+
+Deciding this was out of #643's scope — removing or re-scoping a public
+trait is design content, and the lane's mandate was the decoration seam.
+Note that (2) is not obviously right even on its own terms: the ring is a
+genuine second implementor, and #643's own experience is evidence *for*
+keeping the two vocabularies separate rather than merging them, since
+collapsing `CertifiedEnclosure` into `Enclosure` as a subtrait is exactly
+what produced the `E0034` ambiguity storm it backed out of.
+
+**Verdict:**
+
 ---
 
 # §A. Where I would start
@@ -3992,7 +4059,7 @@ every other, so these can run as five concurrent lanes.
 |---|---|---|---|
 | **W1a** ✅ **#620** | **S16 — face-box soundness** — **FIXED by #620**, unified rather than patched: one `FaceBoxRule` (plus an `EdgeBoxRule` for the curve half) states which surface kinds have a cheap sound box and by what construction, and `separation.rs`'s divergent copy is deleted. The reported planar arm was one of four instances; the sweep found a fourth in `census.rs`'s containment arm, where two vertex hulls meant any body between a curved solid's inscribed hull and its true wall was **silently cleared**. Also fixed two dropped-poison folds (`f64::min` returns the non-NaN operand, so poison could *shrink* a box). Raised **S49**, **S50** and **S51** on the way. | S–M |
 | **W1b** ✅ #617 | **S23 — the exhaustiveness sweep's silent degrade** — **FIXED by #617**: the subdivision's duty is a stated parameter (seed/account entry points over a private `SweepDuty`) rather than a condition read off `tubes.is_empty()`, so an all-seeds-fail run refuses `ExhaustivenessInconclusive` instead of returning `Ok` plus a receipt. Its red row covered ℝ³ only; the chart-lane twin is **closed by #633** (§D H7). | M |
-| **W1c** | **S41 — FIXED by #643.** It *was* dropping the violation, at three crossings rather than two (`Box3::around` was not in the finding). The repair is the **split**, not a refusal on `Bounds`: `Bounds` keeps "carries a bracket" and `CertifiedEnclosure` carries "may enter certified code", refusing below `Decoration::Def`; the three crossings require the latter. The first attempt made `Bounds` itself refuse and broke three `geom-curves` containment rows that assert a `Trv` (and unbounded) enclosure still contains its pointwise value — which is what proved the two meanings cannot share an accessor. | landed | **W2b/S1 may now rely on this**: `Bounds::lo`/`hi` is a *bracket* at all 535 refs — endpoints as stored, never refusing, so containment properties written against it hold for degraded enclosures — while any site that must not certify a domain violation takes `CertifiedEnclosure` and gets a refusal instead of a plausible bound. Swapping `RingInterval` for `Interval` no longer risks laundering **through these three crossings**; S41 lists four more of the same class, in `ssi/certify.rs`, `geom-curves`, `geom-surfaces` and `topo::props`, which W2b must convert or account for. |
+| **W1c** | **S41 — FIXED by #643.** It *was* dropping the violation, at three crossings rather than two (`Box3::around` was not in the finding). The repair is the **split**, not a refusal on `Bounds`: `Bounds` keeps "carries a bracket" and `CertifiedEnclosure` carries "may enter certified code", refusing below `Decoration::Def`; the three crossings require the latter. The first attempt made `Bounds` itself refuse and broke three `geom-curves` containment rows that assert a `Trv` (and unbounded) enclosure still contains its pointwise value — which is what proved the two meanings cannot share an accessor. | landed | **W2b/S1 may now rely on this**: `Bounds::lo`/`hi` is a *bracket* at all 535 refs — endpoints as stored, never refusing, so containment properties written against it hold for degraded enclosures — while any site that must not certify a domain violation takes `CertifiedEnclosure` and gets a refusal instead of a plausible bound. Swapping `RingInterval` for `Interval` no longer risks laundering **through these three crossings**; S41 lists **five** more of the same class, in `ssi/certify.rs`, `geom-curves` (two), `geom-surfaces` and `topo::props`, whose reachability was **not** established — scheduled as a named sub-unit on the **W2b** row. |
 | **W1d** ✅ #618 | **S4 drift (a) — `Rebind` never reached `Node::Mate`** — **FIXED by #618** (red-then-green, A12's reading edge asserted). The fix took the drift's own lesson as its shape: `Node::payload_names` and its rewriting twin are now the one answer to which payloads carry a `StableName`, and both **list the nameless variants** rather than wildcarding them, so a future name-carrying variant breaks the compile — verified by a reviewer's probe variant (`E0004`). The sweep found two further mate-blind sites, including an insert door that silently admitted a mate head naming no node. | S |
 | **W1e** ✅ #619 | **S42 — loft's `sense = true` was pinned only on the shape that did not break extrude** — **VERIFIED by #619, no defect.** Concave-arc, holed and tapered fixtures pin the bit against the extruded twin, folded into the S11 constructor audit. Two residuals outlived it: **no tier, prop or boolean in the kernel reads a lofted wall's sense**, and every row lofted at `v_degree = 1` so no chart could twist — raised as **S51** and closed by #636 (§D H10). | S |
 
@@ -4027,7 +4094,7 @@ Good work for filling parallel capacity. None blocks anything.
 | # | Finding | Gate | Note |
 |---|---|---|---|
 | **W2a** | **S3** — lane-trait collapse, or its dissolution | **D1** | The steelman has a working `geom-core` design (compiled, cross-crate, stable): one trait + a rank-2 job callback, 16 impls → 2. Three confirmed defects go with it (`PcurveFittedLane`'s pure-indirection `Option`, `lane_name()` 6/8 dead, `ChartRegionLane`'s collapsing `Option<Result>`). |
-| **W2b** | **S1 / S2** — `RingInterval`, and whether `Interval` becomes always-on | **D1**, **W1c** | Blast radius is **535 refs in 15 files**, not the ~600 sites this report first claimed; five files carry 60%. Build cost measured at ~zero. The real obstacle is the decoration seam (W1c), not licensing or build time. |
+| **W2b** | **S1 / S2** — `RingInterval`, and whether `Interval` becomes always-on. **Carries a named sub-unit inherited from W1c: convert or account for the five remaining `T: Bounds` → `RingInterval::from_bounds` crossings** — `geom-brep/src/ssi/certify.rs:648-650`, `geom-curves/src/nurbs.rs:1169` and `:1186`, `geom-surfaces/src/nurbs.rs:912`, `topo/src/props.rs:468`. | **D1**, **W1c** | Blast radius is **535 refs in 15 files**, not the ~600 sites this report first claimed; five files carry 60%. Build cost measured at ~zero. The decoration seam is **partly** cleared: #643 split `Bounds` from `CertifiedEnclosure` and converted the three crossings S41 named, so `Bounds::lo`/`hi` is now reliably a *bracket* at all 535 refs. The five above are the same shape as the three that were **confirmed to launder**, and **their reachability was never established** — #643 found them by grep and pushed no `Trv` fixture through any of them. Treat them as unknown, not benign: the first task here is the fixture, which is what turned S41 itself from *unsure* into confirmed. Each needs its caller's `T` widened across three more crates, which is why it is sized here and not in W1c. |
 | **W2c** | **S19** — the three big error catch-alls | **D2** | `AssemblyUnsupported` (146), `MissingEntity` (49), `SplitJoinError::Corrupt` (42). These *are* D9's only sanctioned option today, so D2 must land first or the work is undone. |
 | **W2d** | **S6** — sweep helper unification (~230 token-identical lines) | **D3** | Must follow D3: S6 and S7 are in one crate and will collide. K-telemetry does **not** block it — both funnels already take the predicate name as a parameter. Retracted: `SweptSeg`, `strut_spec`, `full::build_lamina` and the `let _ = k;` inference are *not* duplication. |
 | **W2e** ✅ #647 (partial) | **S5** — `splitting/` vs `boolean/` | — | The largest. Started with the narrowest, highest-value piece: the **forked sector predicates**, which are dimensionally identical line-for-line and split one K population 29:1. **FIXED by #647**: one shared body in `topo::sector_shape`, both K name sets preserved, K stream reproduced byte-identically. The repo already forced the reverse fix once (`M3-LOG.md:264`), and whether the two names should now become ONE population is stated in #647 as an open question and scheduled as **issue #652**, not decided. The REST of S5 — `sector_face` twins, pipeline duplication, the wrong-way dependency — is still open and still the largest item here. |
