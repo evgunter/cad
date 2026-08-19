@@ -1080,7 +1080,7 @@ mod tests {
 
     use super::*;
     use crate::entity::{Edge, HalfEdge, Loop, Shell, Vertex};
-    use crate::euler::{MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
+    use crate::euler::{ArenaCounts, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
     use crate::fixtures::{
         ArenaSnapshot, arena_snapshot, deep_snapshot, ops_cube, ops_holed_box, prov,
     };
@@ -1288,9 +1288,12 @@ mod tests {
         assert_eq!(
             after,
             ArenaSnapshot {
-                half_edges: before.half_edges - 2,
-                edges: before.edges - 1,
-                vertices: before.vertices - 1,
+                counts: ArenaCounts {
+                    half_edges: before.counts.half_edges - 2,
+                    edges: before.counts.edges - 1,
+                    vertices: before.counts.vertices - 1,
+                    ..before.counts
+                },
                 points: before.points - 1,
                 curves: before.curves - 1,
                 ..before
@@ -1904,7 +1907,10 @@ mod tests {
         assert_eq!(
             after,
             ArenaSnapshot {
-                faces: before_counts.faces + 1,
+                counts: ArenaCounts {
+                    faces: before_counts.counts.faces + 1,
+                    ..before_counts.counts
+                },
                 surfaces: before_counts.surfaces + 1,
                 ..before_counts
             }
