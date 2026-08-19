@@ -75,13 +75,14 @@
 //! crossing the cut (a product's name table deliberately carries no
 //! root body rows, so the wrapped body name could never resolve).
 //!
-//! # Interface records (the R2 hook)
+//! # Interface records
 //!
-//! Every mate edge crossing the cut becomes the remainder instance's
-//! [`crate::InterfaceRecord`] — vacuously none in v1, where no mate
-//! vocabulary exists ([`crate::InterfaceCrossing`] is uninhabited), so
-//! the split mints the instance with the EMPTY record. The type is in
-//! the format now so R2 extends it instead of retrofitting it.
+//! Every mate EDGE whose two ends land on opposite sides of the cut
+//! becomes one [`crate::InterfaceCrossing::Mate`] entry in the
+//! remainder instance's [`crate::InterfaceRecord`] (ASM-R2b D-4, the
+//! hook ASM-4 left). A mate that is not an edge between two instances
+//! contributes nothing however its names fall, and a split that
+//! crosses no mate edge mints the EMPTY record.
 //!
 //! # Determinism (D6/D9)
 //!

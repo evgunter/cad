@@ -47,7 +47,7 @@
 //! the surface-composed pcurve and the carrier cache, on the shared
 //! [`crate::CERT_SAMPLES`] schedule, plus a **between-samples envelope**
 //! whose own statement the certificate NAMES
-//! ([`PcurveCertificate::statement`]), because the two lanes do not
+//! ([`PcurveCertificate::statement`]), because the lanes do not
 //! bound the same thing. For the closed-form lane, and for a fitted
 //! image on a NURBS chart, the envelope bounds *that same displacement*
 //! over the whole span. For a fitted image on a periodic ANALYTIC chart
@@ -164,9 +164,9 @@ use crate::ssi::{SsiCertificate, SsiLimb, SsiOperand};
 /// A pcurve: the 2-D chart image of an edge's carrier, parameterized by
 /// **the carrier's own parameter** (module docs).
 ///
-/// Two variants; the closed enum is the D3 shape.
+/// Four variants; the closed enum is the D3 shape.
 ///
-/// # Why there are two, and what separates them
+/// # What separates them
 ///
 /// [`Pcurve::Harmonic`] is the closed-form image of the C5 table's
 /// (chart, carrier) pairs: exact in the four-dimensional space
@@ -185,6 +185,14 @@ use crate::ssi::{SsiCertificate, SsiLimb, SsiOperand};
 /// [`PcurveCertificate::statement`] for exactly which sup-norm each
 /// lane bounds, and [`PcurveFittedLane`] for which scalars can derive
 /// it at all.
+///
+/// [`Pcurve::IsoLine`] (M6-3) and [`Pcurve::IsoArc`] (M8-3) are the two
+/// NURBS-chart boundary rungs: both images are exactly straight in UV,
+/// and they are separate variants because their MOVING CHANNEL differs
+/// — `IsoLine`'s is the carrier's own parameter, `IsoArc`'s is the
+/// chart's rational-quadratic Bézier parameter, related to the arc
+/// angle by a transcendental piecewise map. Each variant's own docs
+/// carry the derivation.
 ///
 /// **The `Arc` and the missing `Copy` (M6-2).** `Fitted` carries a
 /// whole spline, so [`Pcurve`] and [`PcurveCache`] are `Clone` and not
@@ -801,10 +809,10 @@ impl core::fmt::Display for PcurveCertifyError {
 
 impl std::error::Error for PcurveCertifyError {}
 
-/// **Which sup-norm a certificate's envelope bounds.** The two pcurve
-/// lanes discharge C2.2 by different mechanisms over different
-/// quantities, and a certificate that did not say which would be a
-/// number without a statement.
+/// **Which sup-norm a certificate's envelope bounds.** The pcurve lanes
+/// discharge C2.2 by different mechanisms over different quantities,
+/// and a certificate that did not say which would be a number without a
+/// statement.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EnvelopeStatement {
     /// `sup |S(P(t)) − C(t)|`, by the closed-form harmonic algebra —
@@ -835,14 +843,19 @@ pub enum EnvelopeStatement {
     /// certified at the [`CERT_SAMPLES`] schedule, as
     /// [`PcurveCertificate::max_residual`] records.
     OnLocusHull,
-    /// `sup |S(P(t)) − C(t)|` for a [`Pcurve::IsoLine`] on a
-    /// **non-rational NURBS chart** (M6-3), by the boundary-row
+    /// `sup |S(P(t)) − C(t)|` for the two NURBS-chart boundary rungs —
+    /// [`Pcurve::IsoLine`] (M6-3) and [`Pcurve::IsoArc`] (M8-3, whose
+    /// chart column is rational by construction) — by the boundary-row
     /// **control-difference hull**: the traversed iso is a boundary
     /// row of the chart's own control net (a copy, no arithmetic —
     /// `crate::nurbs_iso`), so `S ∘ P` and the carrier-side comparison
     /// live in the same spline space and the partition-of-unity hull
     /// `sup |Σ Nᵢ·Δcᵢ| ≤ max |Δcᵢ|` bounds their difference over the
-    /// whole domain — nothing sampled. The banded axis/side/domain
+    /// whole domain — nothing sampled. The hull needs the two curves to
+    /// share a spline space and (when rational) strictly positive
+    /// weights, not a non-rational chart; M8-3 moved that hypothesis
+    /// from a blanket chart-level gate to the class arms that use it.
+    /// The banded axis/side/domain
     /// snap slacks (the trilean-admitted ε-shell around the exact
     /// axis-aligned family, metered through the chart's
     /// derivative-net stretch bounds) are folded in explicitly,
@@ -2829,9 +2842,13 @@ fn side_of<T: Decide>(
 }
 
 /// **The iso lane's five checks** (M6-3), same fixed order as the
-/// closed-form lane's. What differs: check 1 admits exactly the
-/// non-rational described-NURBS chart, and check 4's sup bound is the
-/// boundary-row control-difference hull
+/// closed-form lane's. What differs: check 1 admits any described-NURBS
+/// chart — the blanket non-rational gate it used to carry came off in
+/// M8-3, which moved the rationality hypothesis into the class arms of
+/// check 4, where it is load-bearing per class (the seam class needs
+/// strictly positive weights and one shared spline space; the rim class
+/// still needs weights of exactly 1, for linear precision). Check 4's
+/// sup bound is the boundary-row control-difference hull
 /// ([`EnvelopeStatement::MapResidualIsoHull`]) with the banded
 /// axis/side/domain snap slacks folded in — the cylinder lane's
 /// winding-snap idiom transposed. Every slack is exactly zero on the

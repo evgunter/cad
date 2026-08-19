@@ -759,7 +759,8 @@ impl fmt::Display for EulerOpError {
             Self::CrossShell { f1, f2 } => write!(
                 f,
                 "faces {f1:?} and {f2:?} lie in different shells \
-                 (cross-shell kfmrh merges shells — deferred to M3)"
+                 (ring_move reparents a ring within one shell only; \
+                 cross-shell face merging is kfmrh's shell-fusion form)"
             ),
             Self::FaceHasRings { face } => write!(
                 f,
