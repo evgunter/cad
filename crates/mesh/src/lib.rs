@@ -193,6 +193,17 @@
 //! mesh bytes vary run to run, violating D9. Upstream a `Vec`/
 //! `BTreeSet` fix and `[patch.crates-io]` it first.
 //!
+//! **Nothing here has a mechanical guard, and nothing can** (§Q6 of
+//! `docs/REVIEW-STYLE-BRIEF.md`): every figure above is a wall-clock
+//! timing on a named box, so no row in the tree can go red when one
+//! stops being true. That is not hypothetical — the "~10⁴× more CDT
+//! time" this section used to claim was wrong by ~150× **on its own
+//! datapoints**, for three milestones, and what caught it was a scan run
+//! for another reason. What re-checks these numbers is the perf lane's
+//! periodic re-measurement, which is real (it produced the corrections
+//! above) but unscheduled. Read them as dated observations, not as
+//! premises to compute with.
+//!
 //! # Scalar policy (judgment call, reported in the PR)
 //!
 //! This crate is **f64-only**: it takes `&Body<f64>` and performs raw

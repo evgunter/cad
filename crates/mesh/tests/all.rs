@@ -56,6 +56,8 @@ mod newell_probes;
 mod prisms;
 #[path = "probe_review.rs"]
 mod probe_review;
+#[path = "profile_overrides.rs"]
+mod profile_overrides;
 #[path = "review_m2_pr6_cert_oracle.rs"]
 mod review_m2_pr6_cert_oracle;
 #[path = "review_m2_pr6_checkmesh_audit.rs"]
