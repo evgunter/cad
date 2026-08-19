@@ -236,7 +236,7 @@ const ENDPOINT_START_MAPPED_CURVE: &str = "mapped curve: geometry attachment gat
 /// Every committed STEP file, with the disposition measured at M7-7.
 /// Paths are relative to this crate's manifest directory (the `../`
 /// rows are `step-export`'s corpus, which this crate imports from).
-const CORPUS: [(&str, Disposition); 54] = [
+const CORPUS: [(&str, Disposition); 58] = [
     ("tests/fixtures/band/band_a.stp", Pass(1, 1, 2, 6, 4)),
     ("tests/fixtures/band/band_a180.stp", Pass(1, 1, 2, 6, 4)),
     ("tests/fixtures/band/band_b180.stp", Pass(1, 1, 2, 6, 4)),
@@ -291,6 +291,39 @@ const CORPUS: [(&str, Disposition); 54] = [
     (
         "tests/fixtures/freecad/twobody_importexport.step",
         Pass(2, 2, 8, 14, 10),
+    ),
+    // #653's import route: one D-prism, stated four ways. The two
+    // `split_*` files state the cylindrical face's vertical boundary as
+    // two collinear `EDGE_CURVE`s, which is what every exporter emits
+    // when a vertex lands mid-side; the two `*_oblique` files place the
+    // part by a general rotation. Tessellating them is
+    // `split_iso_side.rs`'s row — here they are corpus like any other
+    // file, and the census below is the pin that says the difference is
+    // exactly the split and nothing else.
+    //
+    // TWO slots move, necessarily: `Pass` is (solids, shells, faces,
+    // edges, vertices), and splitting one edge in two also mints the
+    // vertex between them — 6 edges/4 vertices becomes 7/5. Solids,
+    // shells and faces are identical, which is the part that matters:
+    // the importer did not merge the sub-edges back together (which
+    // would have shown as 6 edges) and did not adopt an extra face.
+    // The `*_oblique` rows equal their `*_axis` counterparts exactly,
+    // so the placement changes no count at all.
+    (
+        "tests/fixtures/split-iso/plain_axis.step",
+        Pass(1, 1, 4, 6, 4),
+    ),
+    (
+        "tests/fixtures/split-iso/plain_oblique.step",
+        Pass(1, 1, 4, 6, 4),
+    ),
+    (
+        "tests/fixtures/split-iso/split_axis.step",
+        Pass(1, 1, 4, 7, 5),
+    ),
+    (
+        "tests/fixtures/split-iso/split_oblique.step",
+        Pass(1, 1, 4, 7, 5),
     ),
     (
         "tests/fixtures/wild/adafruit/1982_MPR121.step",

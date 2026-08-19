@@ -83,6 +83,8 @@ mod review_r1_tier_gate_probes;
 mod roundtrip;
 #[path = "rw2_probes.rs"]
 mod rw2_probes;
+#[path = "split_iso_side.rs"]
+mod split_iso_side;
 #[path = "tier_gate.rs"]
 mod tier_gate;
 #[path = "wild.rs"]

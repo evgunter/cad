@@ -12,11 +12,15 @@
 //! so it is CHECKED here rather than assumed —
 //! [`TessellateError::UnsupportedCurvedDomain`], S28.
 //!
-//! The check is BANDED, in metres, not exact: an iso side carried by
-//! more than one edge is only *analytically* straight, because each
-//! sub-edge derives the side's constant coordinate from its own
-//! carrier point (issue #653). Exactness there was a claim, it was
-//! false, and it false-refused valid parts — see `entries_off_bbox`.
+//! The check is BANDED, in metres, not exact. It had to be: an iso
+//! side carried by more than one edge used to be only *analytically*
+//! straight, because each sub-edge derived the side's constant
+//! coordinate from its own carrier point (issue #653). Exactness there
+//! was a claim, it was false, and it false-refused valid parts. #653's
+//! option 2 then made the claim true at the source
+//! (`walk::iso_side_starts`), so the band separates nothing in tree any
+//! more and is kept as a backstop with a synthetic witness — the whole
+//! argument is at `entries_off_bbox`.
 //!
 //! Boundary polyline segments are inserted as CDT **constraints**, so
 //! the triangulation conforms to the shared chord segments in both
@@ -197,13 +201,13 @@ pub(crate) fn tessellate_curved(
     // ranges below put every grid point strictly inside every
     // constraint BECAUSE `require_swept_rectangle` above has already
     // established that the boundary polygon IS this box — to within
-    // the ε band it measures against, which is the honest statement
-    // (issue #653: a multiply-carried iso side is analytically, not
-    // bitwise, straight, and the residual ulps are what make the CDT
-    // emit slivers on such a side; that is a defect on main in its own
-    // right and is #653's to fix, not this guard's). The premise, not
-    // the ordering, is what carries the argument — which is why it is
-    // now a refusal rather than a comment. (The hazard
+    // the ε band it measures against, which is the honest statement of
+    // what the GUARD proves. Since #653 the walk proves more: every
+    // iso side gets one coordinate however many edges carry it, so the
+    // polygon is its own box bitwise and the residual ulps that used to
+    // make the CDT emit slivers here are gone at the source. The
+    // premise, not the ordering, is what carries the argument — which
+    // is why it is a refusal rather than a comment. (The hazard
     // `planar::triangulate_chart`'s header warns about is a
     // precondition of PLANAR's crossing bookkeeping, which this lane
     // does not build; S28 in `docs/SMELL-SCAN-2026-08.md` is the one
@@ -275,34 +279,44 @@ pub(crate) fn tessellate_curved(
 /// lets an interior grid point land on — or across — a boundary
 /// constraint.
 ///
-/// **THE COMPARISON IS BANDED, IN METRES, AND MUST BE.** An earlier
-/// form of this function compared exactly, on the premise that
-/// [`crate::walk`] assigns each side's constant coordinate once per
-/// EDGE so a rectangle side is bitwise straight. That premise is FALSE
-/// (issue #653): "once per edge" makes a side bitwise straight only
-/// when the side IS one edge. An iso side carried by two or more edges
-/// — every exporter emits one the moment a vertex lands mid-side, and
-/// [`topo::Body::split_edge`] mints one directly — has each sub-edge
-/// derive its own column from `mid_azimuth` → [`Chart::u_of`], an
-/// `atan2` of a DIFFERENT point of the same carrier. Those agree
-/// analytically and agree bitwise on axis-aligned dyadic fixtures, but
-/// under a general rigid placement they differ by ulps: a split
-/// frustum wedge, placed obliquely, put an entry 1.249e-16 rad —
-/// 6.2e-17 m of arc on its 0.5 m lever — off its own box, and the
-/// exact form refused a domain that IS the swept rectangle.
+/// **THE COMPARISON IS BANDED, IN METRES, AND IS NOW A BACKSTOP.** An
+/// earlier form compared exactly, on the premise that [`crate::walk`]
+/// makes every rectangle side bitwise straight. That premise was FALSE
+/// when #648 relied on it: the walk assigned the constant coordinate
+/// once per EDGE, which makes a side bitwise straight only when the
+/// side IS one edge, and an iso side carried by two or more edges had
+/// each sub-edge derive its own column from an `atan2` of a DIFFERENT
+/// point of the same carrier — analytically equal, ulps apart under a
+/// general rigid placement. A split frustum wedge, placed obliquely,
+/// put an entry 6.2e-17 m off its own box and the exact form refused a
+/// domain that IS the swept rectangle.
 ///
-/// So the entry's distance from the box is measured through the chart's
+/// **#653 made the premise true**: `walk::iso_side_starts` groups the
+/// sub-edges into runs and gives each run one coordinate, so every
+/// walk this build produces sits on its box BITWISE. The band did not
+/// become wrong, it became a backstop — and the honest consequence is
+/// that it lost its live evidence. No in-tree fixture needs it, and
+/// `a_split_then_placed_swept_face_is_not_refused` (#648's own
+/// regression row) no longer discriminates banded from exact. The row
+/// that does is synthetic and labelled as such:
+/// `the_band_admits_a_sub_eps_entry_that_the_exact_form_refuses`.
+///
+/// It is kept rather than reverted because the direction of a wrong
+/// answer is asymmetric here: this guard REFUSES, so an over-tight
+/// comparison rejects a valid part, while an over-loose one lets
+/// through a wobble six orders of magnitude smaller than the feature it
+/// would have to be confused with.
+///
+/// The entry's distance from the box is measured through the chart's
 /// own lever arms ([`Chart::radial`] for u — the point's distance from
 /// the axis — and [`Chart::v_lever`] for v), against the run's `eps`,
 /// by calling [`crate::walk::gap_is_noise`] — the crate's ONE ε band,
-/// which the loop-closure detector also calls. It used to be spelled
+/// which the walk's three detectors also call. It used to be spelled
 /// out again here; two spellings of one predicate is how the two halves
-/// of a rule drift apart. The band admits ulp wobble on a straight side and
-/// nothing else, and the two populations do not come close to
-/// touching: over the PR's 1524-row split × placement sweep the worst
-/// wobble anywhere was 1.4985e-15 m — 6.7e5 inside ε = 1e-9 — while a
-/// genuine re-entrant corner (a keyway, a milled flat) is a FEATURE
-/// width off the box, six or more orders of magnitude OUTSIDE it.
+/// of a rule drift apart. The band admits ulp wobble on a straight side
+/// and nothing else: a genuine re-entrant corner (a keyway, a milled
+/// flat) is a FEATURE width off the box, six or more orders of
+/// magnitude outside ε.
 ///
 /// It takes the caller's own bounding box rather than recomputing one,
 /// so the rectangle it checks is exactly the box the interior grid
@@ -370,9 +384,59 @@ fn entries_off_bbox(
 /// happens to need the same rectangle. Both can move without a line
 /// changing in `mesh`; this cannot.
 ///
+/// **With one qualification `mesh` now owes itself.**
+/// `walk::iso_side_starts` (#653) is a line IN `mesh` that can defeat
+/// this check, because it collapses consecutive same-kind traversals
+/// onto one coordinate on a premise `walk::classify` never verifies:
+/// that every boundary edge is an iso-curve of the chart. Where that
+/// premise fails — an obliquely-cut SPHERE face, whose every plane
+/// section is a `Circle` and so is not diverted to the trimmed lane —
+/// the collapse can turn a polygon this guard would have REFUSED into
+/// one that is its own bounding rectangle and is admitted. Two
+/// upstream gates keep it unreachable today (`topo::boolean` refuses
+/// the tilted plane × sphere section typed; `import_step`'s tier-3
+/// `props::curved::sphere_boundary` admits only coaxial rims and
+/// centre-centred great circles), which is the same shape as the
+/// sentence above rather than an exception to it. Stated in full,
+/// with what would harden it, at `walk::iso_side_starts`.
+///
 /// **The bar is spatial** ([`entries_off_bbox`]): comparing exactly
 /// produced FALSE REFUSALS on bodies whose domain is the swept
 /// rectangle to within an ulp (issue #653).
+///
+/// **#653 removed the band's live evidence, and the band is kept
+/// anyway.** `walk` now assigns one coordinate per ISO SIDE rather than
+/// per edge, so every walk entry this build produces sits on its box
+/// **bitwise**: the banded and exact forms agree everywhere the suite
+/// looks, and what the band guards is asserted directly upstream by
+/// `a_multiply_carried_iso_side_is_bitwise_straight_and_meshes_watertight`
+/// (`== 0.0`). So the band's own red-when-reverted row had to be
+/// SYNTHETIC —
+/// `the_band_admits_a_sub_eps_entry_that_the_exact_form_refuses` — and
+/// [`entries_off_bbox`] states why keeping it is the right call. What a
+/// reader must NOT do is read
+/// `a_split_then_placed_swept_face_is_not_refused` as evidence about
+/// the band: since #653 that row is evidence about the invariant.
+///
+/// **A class note, because this fix invalidated more than one
+/// sentence** (§C13's `face_box` precedent). Every doc in `crates/mesh`
+/// that argued a tolerance from a MEASURED number measured a
+/// population #653 has eliminated, and no convention covers those
+/// sentences. The two that argued from a NUMBER were
+/// `entries_off_bbox`'s 1.4985e-15 m and `the_band_separates_…`'s
+/// hardcoded copy of it; both now derive their live half from the tree
+/// and label the sweep figure as historical. **The rule: a measured
+/// constant in this crate is re-derivable from the tree, or it says it
+/// is not.**
+///
+/// The sweep for the weaker form — prose asserting the per-edge
+/// premise without a number — took five more sites, in three files:
+/// this module's header, the interior-grid comment in
+/// [`tessellate_curved`], [`entries_off_bbox`],
+/// `TessellateError::UnsupportedCurvedDomain`'s doc in `types.rs`, and
+/// `mesh/lib.rs`'s crate header. Only two of those are in the file the
+/// guard lives in, which is the §C10 point: a claim lives wherever it
+/// was written down.
 fn require_swept_rectangle(
     fk: FaceKey,
     poly: &[UvPoint],
@@ -713,6 +777,228 @@ mod tests {
         ]
     }
 
+    /// Every edge of `body` split at `fracs` of its own parameter
+    /// range, then the whole body placed by an oblique rigid map —
+    /// #653's two ingredients, applied to a fixture wholesale.
+    ///
+    /// One body per (edge, fracs) pair, because splitting every edge of
+    /// one body at once would also change which faces are adjacent to
+    /// which and stop being a controlled comparison.
+    ///
+    /// Returns `(placed bodies, skipped edges)`. **The skips are
+    /// returned rather than `continue`d silently**: an edge that drops
+    /// out here is an edge the row above never covers, and a helper
+    /// that swallows them lets a fixture stop contributing without any
+    /// row going red. The caller asserts the skip list is empty.
+    fn split_each_edge_then_place(
+        body: &Body<f64>,
+        fracs: &[f64],
+    ) -> (Vec<(usize, Body<f64>)>, Vec<String>) {
+        // Deliberately irrational-ish (see `split_and_placed_frustum_wedge`):
+        // an axis-aligned or dyadic placement keeps the sub-edge
+        // azimuths bitwise equal and the rows below go green for the
+        // wrong reason.
+        let irr = Vec3::new(0.317_8_f64, 0.941_2, -0.110_9);
+        let irr = irr * (1.0 / irr.norm());
+        let placement = Affine3::from_parts(
+            Affine3::rotation_about_axis(Point3::origin(), irr, 1.0 / 3.0).linear,
+            Vec3::new(0.117, -0.339_1, 5.001_7),
+        );
+        let (mut out, mut skipped) = (Vec::new(), Vec::new());
+        for (i, ek) in body.edges().map(|(k, _)| k).enumerate() {
+            let Some(curve) = body
+                .get_edge(ek)
+                .and_then(|e| body.get_curve_geom(e.curve))
+                .and_then(|g| g.certified())
+            else {
+                skipped.push(format!("edge {i}: no certified curve geometry"));
+                continue;
+            };
+            let (t0, t1) = curve.params();
+            let mut b = body.clone();
+            let mut failed = None;
+            for &f in fracs {
+                // Not `ok &= …`: the second split of a failed first is
+                // meaningless, and the first failure is the reportable
+                // one.
+                if let Err(e) = b.split_edge(ek, t0 + (t1 - t0) * f) {
+                    failed = Some(format!("edge {i} @{f}: split_edge {e:?}"));
+                    break;
+                }
+            }
+            if let Some(why) = failed {
+                skipped.push(why);
+                continue;
+            }
+            match topo::transform_rigid(&b, &placement) {
+                Ok(placed) => out.push((i, placed)),
+                Err(e) => skipped.push(format!("edge {i}: transform_rigid {e:?}")),
+            }
+        }
+        (out, skipped)
+    }
+
+    /// The largest distance, in metres, from any walk entry to its own
+    /// face's UV bounding box, over every curved face of `body`.
+    ///
+    /// **It calls [`entries_off_bbox`] with `eps = 0.0` rather than
+    /// re-deriving the distance.** `gap_is_noise` is a strict `<`, so a
+    /// zero band admits nothing and every entry comes back carrying the
+    /// distance production measures, in production's own per-axis
+    /// spelling. There is one spelling of this metric in the crate and
+    /// it is the one that ships; a hand transcription in a test goes
+    /// stale the moment the kernel's changes.
+    fn worst_entry_off_box(body: &Body<f64>) -> f64 {
+        let mut worst: f64 = 0.0;
+        for (_, poly, levers) in curved_walks(body) {
+            for (_, d) in entries_off_bbox(&poly, &levers, bbox(&poly), 0.0) {
+                worst = worst.max(d);
+            }
+        }
+        worst
+    }
+
+    /// **THE #653 ROW.** An iso side carried by several edges is
+    /// bitwise straight, and the mesh over it is watertight — for
+    /// every chart class, under an oblique placement, with every edge
+    /// of every fixture split in turn.
+    ///
+    /// **The assertion is `== 0.0`, and that is the point.** Before
+    /// this fix each sub-edge derived its own constant coordinate from
+    /// its own `mid_azimuth` point, so the side's entries landed
+    /// ULPS apart and the polygon was not its own bounding rectangle
+    /// to the last bit. Under an oblique placement that produced two
+    /// consequences: the exact form of [`entries_off_bbox`] refused
+    /// valid parts (the row above), and — the live defect — the CDT
+    /// saw a sliver-generating wobble and emitted a **silently
+    /// non-watertight** mesh, `NonManifoldEdge` under
+    /// [`crate::validate::check_mesh`] while `tessellate` returned
+    /// `Ok`. A banded margin cannot separate those from the correct
+    /// case (measured: the two populations interleave at ~1e-16 m), so
+    /// the columns are fixed at the source instead and the residue is
+    /// **identically zero**, asserted here rather than inferred.
+    ///
+    /// Reverting `walk::iso_side_starts` to `vec![true; m]` turns both
+    /// halves red.
+    ///
+    /// # The floor is PER FIXTURE, and derived, not pinned
+    ///
+    /// `every_curved_walk_is_its_own_bounding_rectangle` two hundred
+    /// lines down argues the case (§C10): a global floor lets a fixture
+    /// that stopped contributing hide behind its siblings. So this row
+    /// asserts, per fixture and per split pattern, that the number of
+    /// placed bodies EQUALS the fixture's edge count — every edge
+    /// participates — and that `split_each_edge_then_place` skipped
+    /// nothing. That floor derives itself from the fixture list, so
+    /// adding a fixture cannot silently shrink the sweep, which a
+    /// transcribed total (§C14) cannot promise.
+    ///
+    /// The totals are still REPORTED (in the failure message and by
+    /// the two constants below) because a reader wants the scale; they
+    /// are not what the row rests on.
+    ///
+    /// # What this row cannot see (§C15)
+    ///
+    /// - **Trim-carrier faces.** `curved_walks` skips them exactly as
+    ///   the router does, and `crate::trimmed` runs its own walk. An
+    ///   iso side carried by several edges on a TRIMMED face is not
+    ///   covered here or anywhere.
+    /// - **Bodies `revolve` refuses at construction** — horn and
+    ///   spindle tori, and every profile that fails its checks. The
+    ///   chart classes below are the constructible ones, which is not
+    ///   the same as all of them.
+    /// - **Rim runs from DISTINCT carrier circles.** This is the real
+    ///   gap. `split_edge` keeps ONE carrier, so the two sub-edges of a
+    ///   split rim read the same centre and radius and agree bitwise
+    ///   even WITHOUT the fix: the Rim arm of `iso_side_starts` is
+    ///   executed on every rim split here and can never differ. So the
+    ///   swept sibling ships with no red-when-reverted evidence — only
+    ///   the meridian half has any. What would mint it is two
+    ///   independently stated co-`v` `CIRCLE`s, which is a STEP
+    ///   authoring job (the fixture generator in
+    ///   `crates/step-import/tests/fixtures/split-iso/` is the obvious
+    ///   place); §C10's sweep entry records it as scheduled work.
+    #[test]
+    fn a_multiply_carried_iso_side_is_bitwise_straight_and_meshes_watertight() {
+        // Single and double splits: two sub-edges and three, the second
+        // being what `split_and_placed_frustum_wedge` mints.
+        const PATTERNS: [&[f64]; 2] = [&[0.5], &[0.312_9, 0.156_45]];
+        let (mut checked, mut refused) = (0usize, 0usize);
+        let (mut crooked, mut dirty): (Vec<String>, Vec<String>) = (Vec::new(), Vec::new());
+        for (name, body) in fixtures() {
+            let edges = body.edges().count();
+            let mut here = 0usize;
+            for fracs in PATTERNS {
+                let (placed, skipped) = split_each_edge_then_place(&body, fracs);
+                assert!(
+                    skipped.is_empty(),
+                    "{name} @{fracs:?}: the sweep dropped edges silently — {skipped:?}"
+                );
+                assert_eq!(
+                    placed.len(),
+                    edges,
+                    "{name} @{fracs:?}: every one of the fixture's {edges} edges must \
+                     produce a split, placed body"
+                );
+                for (i, placed) in placed {
+                    let worst = worst_entry_off_box(&placed);
+                    if worst != 0.0 {
+                        crooked.push(format!("{name} edge {i} @{fracs:?}: {worst} m"));
+                    }
+                    // A typed refusal is not a counterexample: a few of
+                    // these exceed the chord certificate at this δ and
+                    // refuse identically before and after. What must
+                    // never happen is `Ok` plus a dirty mesh — the #653
+                    // defect's signature.
+                    match crate::tessellate(&placed, 0.1) {
+                        Ok(mesh) => {
+                            checked += 1;
+                            here += 1;
+                            if let Err(e) = crate::validate::check_mesh(&mesh) {
+                                dirty.push(format!("{name} edge {i} @{fracs:?}: {e:?}"));
+                            }
+                        }
+                        Err(_) => refused += 1,
+                    }
+                }
+            }
+            assert!(
+                here > 0,
+                "{name} contributed no meshed configuration at all — it is in the \
+                 fixture list but exercises nothing"
+            );
+        }
+        // Both halves reported together: reverting the fix makes the
+        // first list long and the second non-empty, and a reader of the
+        // failure should see the whole population, not its first member.
+        assert!(
+            crooked.is_empty() && dirty.is_empty(),
+            "of {checked} meshed configurations ({refused} refused typed): \
+             {} have a walk entry off their own UV box {crooked:?}; \
+             {} meshed non-watertight {dirty:?}",
+            crooked.len(),
+            dirty.len()
+        );
+        // Reported, not rested on: the per-fixture floors above are
+        // what fail when the sweep shrinks. This line exists so the
+        // scale is visible without running the row.
+        assert_eq!(
+            (checked, refused),
+            (TOTAL_MESHED, TOTAL_REFUSED),
+            "the sweep's totals moved; if a fixture was added or removed this is the \
+             one line to update, and the per-fixture floors above are the guarantee"
+        );
+    }
+
+    /// The #653 row's totals, measured. They are asserted so that a
+    /// change in the fixture list is VISIBLE rather than silent — the
+    /// row's actual guarantee is its per-fixture floor, not these.
+    const TOTAL_MESHED: usize = 254;
+    /// Typed refusals in the same sweep: `CertificateExceeded` on
+    /// bodies whose split geometry exceeds the chord certificate at
+    /// δ = 0.1, identically before and after #653.
+    const TOTAL_REFUSED: usize = 4;
+
     /// **The premise, swept.** Every curved face this build can put in
     /// front of [`tessellate_curved`] walks to a UV polygon that IS its
     /// own bounding rectangle, so [`require_swept_rectangle`] admits it
@@ -826,45 +1112,139 @@ mod tests {
         );
     }
 
+    /// **THE BAND'S WITNESS.** A sub-ε off-box entry must be ADMITTED,
+    /// and the exact comparison this replaced must refuse the same
+    /// entry — passed through [`entries_off_bbox`] itself, not
+    /// compared as two literals.
+    ///
+    /// This row exists because #653 removed the band's live evidence.
+    /// Every walk this build produces now sits on its box bitwise, so
+    /// the banded and exact forms agree on every real fixture and
+    /// `a_split_then_placed_swept_face_is_not_refused` — #648's own
+    /// regression row — no longer discriminates between them. A guard
+    /// with no red-when-reverted row is a guard nobody is testing, so
+    /// the witness is synthetic and says so: the fixture is one
+    /// rectangle vertex nudged strictly inside the box by a few ulps of
+    /// its own coordinate, which is the exact shape a multiply-carried
+    /// iso side produced before #653.
+    ///
+    /// The nudge is derived from the tree (`next_up` on the fixture's
+    /// own coordinate), not transcribed from a sweep — see the doc on
+    /// `require_swept_rectangle` for why measured constants are not
+    /// allowed to be the argument here any more.
+    #[test]
+    fn the_band_admits_a_sub_eps_entry_that_the_exact_form_refuses() {
+        let fk = fixtures()
+            .into_iter()
+            .next()
+            .and_then(|(_, b)| b.faces().next().map(|(fk, _)| fk))
+            .unwrap();
+        // The rectangle with a MID-SIDE vertex pulled a few ulps inside
+        // the box — the shape a multiply-carried iso side produced
+        // before #653, where the second sub-edge's column missed the
+        // first's by the last bits of an `atan2`. A nudged CORNER would
+        // not do: it still sits on the box's other axis and
+        // `entries_off_bbox` takes the nearer of the two.
+        // `unit_levers` makes UV units metres, so the wobble reads
+        // straight off the coordinates.
+        let mut inside = 4.0_f64;
+        for _ in 0..4 {
+            inside = f64::from_bits(inside.to_bits() - 1);
+        }
+        let poly = uv(&[
+            (0.0, 0.0),
+            (4.0, 0.0),
+            (inside, 2.0),
+            (4.0, 4.0),
+            (0.0, 4.0),
+        ]);
+        let levers = unit_levers(poly.len());
+        let b = bbox(&poly);
+        let wobble = 4.0 - inside;
+        assert!(
+            wobble > 0.0 && wobble < eps(),
+            "fixture: {wobble} m must be a sub-eps nudge"
+        );
+
+        // The EXACT form. `gap_is_noise` is a strict `<`, so `eps = 0`
+        // bands nothing at all and every entry comes back — the ones
+        // ON the box at distance 0.0. Dropping those reproduces the
+        // pre-band comparison exactly, and it sees the nudged entry:
+        // one off-box vertex, at index 2, `wobble` metres out.
+        let exact: Vec<_> = entries_off_bbox(&poly, &levers, b, 0.0)
+            .into_iter()
+            .filter(|&(_, d)| d > 0.0)
+            .collect();
+        assert_eq!(
+            exact,
+            vec![(2, wobble)],
+            "the exact form refuses this entry"
+        );
+
+        // The band admits it, and so does the production refusal.
+        assert!(
+            entries_off_bbox(&poly, &levers, b, eps()).is_empty(),
+            "a {wobble} m wobble is float noise, not a re-entrant corner"
+        );
+        assert_eq!(
+            require_swept_rectangle(fk, &poly, &levers, b, eps()),
+            Ok(()),
+            "the banded guard must not refuse a rectangle that is straight to ulps"
+        );
+    }
+
     /// **THE MARGIN — the whole argument for banding in one row.**
     ///
     /// Between what the band must admit and what it must refuse there
-    /// are fifteen orders of magnitude, so no calibration question
-    /// arises:
+    /// are orders of magnitude, so no calibration question arises:
     ///
     /// - a genuine re-entrant corner sits a FEATURE width off the box.
     ///   The notch fixture's corners are 1 m off; the shallowest
     ///   keyway anyone machines is millimetres. Refused.
-    /// - the ulp wobble of a multiply-carried iso side is the last
-    ///   bits of an `atan2`. Over the 1524-row split × placement sweep
-    ///   in the PR, the WORST such entry anywhere measured 1.4985e-15
-    ///   m (the counterexample below is 6.245e-17 m). Admitted.
+    /// - the wobble of a multiply-carried iso side was the last bits of
+    ///   an `atan2` — an ULP of a UV coordinate, which is what the
+    ///   fixture below computes from the tree rather than quoting.
+    ///   Admitted.
     ///
-    /// ε = 1e-9 m sits between them with 6.7e5 of headroom over the
-    /// worst wobble measured and 1e9 under the notch. This row pins
-    /// that the band is placed on the ε scale and not on either
-    /// population's scale, so a future ε change is visible here rather
-    /// than silently re-classifying parts.
+    /// ε = 1e-9 m sits between them. This row pins that the band is
+    /// placed on the ε scale and not on either population's scale, so a
+    /// future ε change is visible here rather than silently
+    /// re-classifying parts.
+    ///
+    /// **On the number that used to be here.** This row read
+    /// `wobble = 1.4985e-15`, the worst entry over the PR's 1524-row
+    /// split × placement sweep. That sweep is not in the tree and its
+    /// population no longer exists — #653 eliminated it — so the
+    /// constant could not be re-derived by anyone reading this, which
+    /// is §C13's `face_box` shape exactly. It is kept below only as a
+    /// labelled historical upper bound, and the live half of the
+    /// argument is an ulp the row computes for itself.
     #[test]
-    fn the_band_separates_a_feature_from_an_ulp_by_fifteen_orders_of_magnitude() {
+    fn the_band_separates_a_feature_from_an_ulp_by_orders_of_magnitude() {
         let e = eps();
         let notch = uv(&notched_domain());
         let corner = entries_off_bbox(&notch, &unit_levers(notch.len()), bbox(&notch), e);
         assert_eq!(corner.len(), 2);
         let feature = corner.iter().map(|&(_, d)| d).fold(0.0_f64, f64::max);
-        // The worst wobble the exact form refused anywhere in the PR's
-        // sweep, in metres — not the counterexample's, which is 24x
-        // smaller: the band has to clear the whole population.
-        let wobble = 1.498_5e-15;
+        // The admit side, derived here rather than quoted: one ulp of a
+        // UV coordinate at the notch fixture's own scale. Unit levers,
+        // so this is metres.
+        let ulp = f64::from_bits(4.0_f64.to_bits() + 1) - 4.0;
         assert!(
-            wobble < e && e < feature,
-            "the band must sit strictly between the worst ulp wobble ({wobble} m) and \
-             a feature-sized notch ({feature} m); eps = {e}"
+            ulp < e && e < feature,
+            "the band must sit strictly between an ulp of a UV coordinate ({ulp} m) \
+             and a feature-sized notch ({feature} m); eps = {e}"
         );
         assert!(
-            feature / wobble > 1e14,
+            feature / ulp > 1e14,
             "the two populations must be separated by orders of magnitude, not tuning"
         );
+        // HISTORICAL, not re-derivable from this tree: the worst such
+        // entry over the pre-#653 sweep in the PR was 1.4985e-15 m,
+        // 6.7e5 inside eps. Recorded as the upper bound the band was
+        // actually shown to clear, and NOT asserted from — the
+        // population it came from is gone.
+        assert!(1.498_5e-15_f64 < e);
     }
 
     /// The counterexample body: a frustum wedge (`revolve` of a
@@ -924,33 +1304,31 @@ mod tests {
     /// inside ε. The domain IS the swept rectangle; the exact test was
     /// measuring float noise.
     ///
-    /// **This row goes red if the band is removed from
-    /// [`entries_off_bbox`]** — that is what it is for.
+    /// **This row no longer goes red if the band is removed** — it did
+    /// when it was written, and #653's walk fix is what changed that:
+    /// the three sub-edges now share one column bitwise, so `worst`
+    /// below is exactly `0.0` and an exact comparison would admit this
+    /// body too. Kept as the pre-guard triangle count's pin and as the
+    /// oblique-placement fixture; the band's own case is argued in
+    /// [`require_swept_rectangle`].
     #[test]
     fn a_split_then_placed_swept_face_is_not_refused() {
         let body = split_and_placed_frustum_wedge();
-        // The margin, measured through the production path rather than
-        // asserted from the issue: every walk entry is inside the band
-        // by orders of magnitude, and the worst one is reported.
-        let mut worst: f64 = 0.0;
         for (fk, poly, levers) in curved_walks(&body) {
-            let b = bbox(&poly);
-            for (e, &(lu, lv)) in poly.iter().zip(&levers) {
-                let d = ((e.u - b.0).abs() * lu)
-                    .min((e.u - b.1).abs() * lu)
-                    .min((e.v - b.2).abs() * lv)
-                    .min((e.v - b.3).abs() * lv);
-                worst = worst.max(d);
-            }
             assert_eq!(
-                require_swept_rectangle(fk, &poly, &levers, b, eps()),
+                require_swept_rectangle(fk, &poly, &levers, bbox(&poly), eps()),
                 Ok(()),
                 "face {fk:?} of the split+placed wedge is the swept rectangle"
             );
         }
-        assert!(
-            worst < 1e-12,
-            "the worst entry is float noise, not a notch: {worst} m off the box"
+        // The residue, measured through the production path rather than
+        // asserted from the issue.
+        let worst = worst_entry_off_box(&body);
+        assert_eq!(
+            worst, 0.0,
+            "since #653 the three sub-edges share one column bitwise, so this \
+             body's walk IS its bounding rectangle exactly — {worst} m off the \
+             box means the iso-side runs stopped working"
         );
 
         let mesh = crate::tessellate(&body, 0.1).expect("must not refuse");

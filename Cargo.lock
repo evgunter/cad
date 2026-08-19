@@ -1886,6 +1886,7 @@ dependencies = [
  "geom-core",
  "geom-curves",
  "geom-surfaces",
+ "mesh",
  "profile",
  "step-export",
  "sweep",

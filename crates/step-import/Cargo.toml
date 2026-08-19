@@ -57,6 +57,13 @@ step-export = { path = "../step-export" }
 sweep = { path = "../sweep" }
 # review-probe only
 profile = { path = "../profile" }
+# #653's import route: a face whose iso side the FILE states as two
+# collinear EDGE_CURVEs must still mesh watertight, which only the
+# mesher can say. Dev-only, same posture as step-export and sweep
+# above -- nothing in the import path consumes the mesher, and the
+# edge runs import -> tessellate, the direction the pipeline already
+# has (`mesh` does not depend on this crate).
+mesh = { path = "../mesh" }
 
 # The single aggregated test binary (see tests/all.rs header). `autotests
 # = false` above means this is the ONLY test target: a suite file not
