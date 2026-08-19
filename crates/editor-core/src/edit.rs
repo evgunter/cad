@@ -757,8 +757,7 @@ impl core::fmt::Display for EditError {
             Self::ImproperPlacement { node, determinant } => write!(
                 f,
                 "edit: the placement frame for node {} is improper (determinant {determinant}); \
-                 mirrored placements are admitted only behind the equivariance audit, which is \
-                 R4's named prerequisite",
+                 mirrored placements are admitted only behind the equivariance audit",
                 node.0
             ),
             Self::NonFinitePlacement { node } => write!(

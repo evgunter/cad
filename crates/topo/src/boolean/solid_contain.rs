@@ -178,7 +178,7 @@ impl core::fmt::Display for PointInSolidError {
                      sphere surface do not close on each other, so the group covers less \
                      than the whole chart and this door cannot say where its boundary \
                      runs. This arm is \
-                     STRUCTURAL (an exact-f64 scan of the loop's edge descriptions, C6): it \
+                     STRUCTURAL (an exact-f64 scan of the loop's edge descriptions): it \
                      has no in-band twin and does not move with ε — tightening or loosening \
                      the tolerance changes nothing here. Recourse: the trimmed-sphere chart \
                      window (the cylinder arm's exact azimuth/latitude analogue) lands with \

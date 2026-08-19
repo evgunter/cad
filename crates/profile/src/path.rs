@@ -798,7 +798,7 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 "this junction reverses onto the incoming direction (turn margin {margin:?} m \
                  on a {arm:?} m arm): a cusp, which the material-wedge invariant refuses in \
                  any solid built from such a profile — there is no declaration door for cusps \
-                 (#131 is the tabled front door that does not exist yet); move the geometry"
+                 — move the geometry"
             ),
             Self::TangentLineClose { margin } => write!(
                 f,
@@ -811,7 +811,7 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             Self::SameCarrierJunction { margin } => write!(
                 f,
                 "this junction joins two pieces of the SAME carrier (identity margin \
-                 {margin:?} m): carrier identity is not tangency (#101) — extend the leg \
+                 {margin:?} m): carrier identity is not tangency — extend the leg \
                  instead of minting a collinear/cocircular neighbor"
             ),
             Self::NoCornerForFillet { reason, radius } => {
@@ -936,7 +936,7 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 f,
                 "an arc leg's endpoints are within tolerance of each other (chord {chord:?} \
                  m): a leg spans a chord, and a closed carrier is a circle primitive, not a \
-                 chain leg (PATHS-DESIGN §6, PQ4)"
+                 chain leg"
             ),
             Self::ArcCenterNotEquidistant {
                 tip_radius,

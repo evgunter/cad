@@ -19,7 +19,7 @@ pyo3::create_exception!(
     pyo3::exceptions::PyException,
     "Base class for every refusal this module raises.\n\n\
      Every subclass carries its refusal as ATTRIBUTES (LIBRARY-DESIGN \
-     §L4: typed exceptions carrying the structured error, never \
+     typed exceptions carrying the structured error, never \
      strings). The message is for humans; the attributes are the \
      contract."
 );
@@ -192,7 +192,7 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     value::register(m)?;
 
     // Schema/provenance surface: the version the persistence doors
-    // speak (LIB-DOORS F1 — `Doc.save`/`load` are bound now).
+    // speak, behind `Doc.save`/`load`.
     let meta = PyDict::new(py);
     meta.set_item("f64_only", true)?;
     meta.set_item("abi3", "py38")?;
