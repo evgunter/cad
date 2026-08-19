@@ -2564,14 +2564,178 @@ hand-rolled `if h.index() == meta.len()` dedup, add loop constraints,
 decide a `flip` from a shoelace sign, iterate `inner_faces()`, skip
 id-degenerate triangles, emit. Each differs: `curved` uses
 `can_add_constraint`+`add_constraint` and inserts grid points *after*
-constraints — **exactly what `planar.rs:229` warns is unsafe** — while
-`planar`/`trimmed` use `try_add_constraint` with crossing counts, and
-only `trimmed` classifies intermediate vertices.
+constraints (**not** the hazard `planar::triangulate_chart`'s header
+warns about — that warning guards planar's crossing bookkeeping, which
+`curved` does not build; settled below), while `planar`/`trimmed` use
+`try_add_constraint` with crossing counts, and only `trimmed` classifies
+intermediate vertices.
 
 What sharing exists is ad hoc: `trimmed` imports `classify_faces`/
 `edge_key`/`shoelace2` from `planar`, and both `trimmed` and
 `tessellate` import the tolerance bundle `Tol` from `curved`. The common
 code lives in whichever lane happened to grow it first.
+
+**ORDERING HAZARD SETTLED by #648, and the premise under it is now a
+GUARD — but only that half; the three parallel pipelines stand.**
+`curved`'s grid-after-constraints order is **inert**, established by
+execution rather than by reading. spade splits a constraint an inserted
+point lands on and re-flags **both halves** as constraints, giving the
+new vertex the next handle index — so nothing `curved` reads is
+corrupted, and the bookkeeping the `planar` warning protects does not
+exist in this lane at all. (#648 pins both spade facts as a row;
+`spade` is a caret requirement, so a 2.x bump would otherwise move them
+with nothing red.)
+
+What was actually carrying `curved` is a different, unstated premise:
+its grid runs the OPEN ranges `1..nu` × `1..nv` over the walk polygon's
+own bounding box, which is strictly interior **iff the polygon IS that
+box** (the swept-UV-rectangle contract). Nothing checked it, and the
+router screens carrier KINDS, not loop SHAPE — `Circle` is a distinct
+`Curve3` variant from `Ellipse`, so a keyway's own carriers (axial
+lines, iso circles) are all invisible to `has_trim_carrier`, and an
+un-notched cylindrical face carried entirely by `Line` + `Circle` was
+executed all the way into `tessellate_curved`. On a notched domain the
+grid splits boundary constraints and `inner_faces()` leaves triangles
+outside the face: a silently wrong mesh, neither a typed refusal nor a
+panic, and `tessellate` does not run `check_mesh`.
+
+**#648 makes it a refusal**: `curved::require_swept_rectangle` runs the
+O(n) off-bounding-box predicate on the walk polygon and returns
+`TessellateError::UnsupportedCurvedDomain` — D2 addendum row 2 (valid
+input, unbuilt lane), the `curved`-chart twin of `trimmed`'s
+`SelfTouchingTrimLoop` and the structural sibling of `RingOnCurvedFace`
+sixty lines above it, whose stated reason is this very contract. The
+sweep (every chart this build authors, both hardest-walk shapes, a
+partial-revolve sphere band, and the boolean-cut die pip, at two δ,
+through the public entry point and `check_mesh`) shows nothing in tree
+refuses.
+
+**THE COMPARISON IS BANDED, IN METRES — the first form was exact and
+that was a FALSE PREMISE (issue #653).** #648's first pass compared the
+walk entry's coordinate to the box bitwise, justified in the code by
+*"`crate::walk` assigns each side's constant coordinate once per EDGE
+(never per point), so a rectangle side is bitwise straight."* That
+holds only when the side IS one edge. An iso side carried by two or
+more edges has each sub-edge derive its own column from `mid_azimuth`
+→ `Chart::u_of` — an `atan2` of a **different point of the same
+carrier**. Analytically equal; bitwise equal on axis-aligned dyadic
+fixtures, which is why every in-tree fixture and the whole wild corpus
+passed; ulps apart under a general rigid placement.
+
+Adversarial review executed the counterexample: a frustum wedge
+(`revolve` of a trapezoid through π/2) with its first boundary edge
+split twice via the public `topo::Body::split_edge`, then placed by an
+oblique rigid map. Pre-#648 it meshed 42 triangles `check_mesh`-clean;
+the exact form refused it `UnsupportedCurvedDomain { off_bbox: 1 }` on
+an entry **6.245e-17 m** off its own box — 1.6e7 inside ε = 1e-9. The
+same shape is reachable with **no kernel mutator at all**: a
+hand-authored STEP D-prism stating one cylindrical face's vertical
+boundary as two collinear `EDGE_CURVE`s (what every exporter emits when
+a vertex lands on that edge), placed obliquely by its assembly
+placement, false-refused at **8.88e-18 m**.
+
+The fix measures the gap in metres against the same band the module
+already uses at the loop closure (`walk::closure_is_snappable`,
+`residue · radius < eps`): `Chart::radial` for u — the entry's own
+distance from the chart axis, so a cone and a sphere get their varying
+lever arm — and the new `Chart::v_lever` for v. Over a 1524-row split ×
+oblique-placement sweep the **worst** wobble anywhere was 1.4985e-15 m,
+6.7e5 inside ε, while a genuine re-entrant corner is a feature width
+off the box (the notch fixture's is 1 m). Fifteen orders of magnitude
+separate the two populations; the band is not a calibration.
+
+**Sweep A/B, 1524 `tessellate` calls (split × 3 placements × 15
+bodies).** Exact form: 119 guard refusals. Banded form: **0**, and the
+per-row status is **identical to a build with the guard removed
+entirely** — so the guard as it now ships changes no output anywhere in
+the sweep. Of the 119: 47 already refused for another reason (they go
+back to those errors), 1 previously meshed watertight (the regression,
+now clean again at 42 triangles), and **71 previously produced a
+silently non-watertight mesh and still do**. That last group is #653's
+other half and is a defect on main in its own right — banding does not
+and cannot catch it, because its off-box residual (≤1.5e-15 m) is the
+same phenomenon at the same scale as the counterexample's. The fix for
+those is #653's option 2 (have the walk snap co-azimuthal consecutive
+meridians onto one column, as the loop-closure snap already does for
+the seam); it changes mesh output and belongs in its own PR with its
+own regression evidence.
+
+**Payload.** `off_bbox: usize` alone could not tell the two apart — it
+read `1` for a one-corner keyway and `1` for a 6e-17 m wobble, the same
+message for *"re-author your part"* and *"kernel bug, file it."* The
+variant now also carries the first offending `(u, v)` and the maximum
+distance from the box **in metres**, which is the number that
+classifies the refusal. S19's postmortem lesson, applied: *a refusal
+the suite proves unreachable gets reviewed for reachability, never for
+diagnosability.* Note also that had the original sweep printed margins
+instead of pass/fail, the exactness claim would have been visibly
+fragile before it shipped.
+
+**Classification re-examined, not merely asserted.** D2 addendum row 2
+(`Unsupported*`: valid input, lane not built) is right for the intended
+target — a keyway. It was *wrong* for what the exact guard actually
+fired on, because the lane **is** built for a wobbling frustum. Banding
+is what makes row 2 correct rather than aspirational.
+
+**IMPORT RESIDUAL — CLOSED BY REFUSAL, not pending.** The settling
+experiment ran (hand-authored STEP solids, notched and un-notched
+cylindrical faces, through `step-import` → `tessellate` → `check_mesh`).
+A U-bounded cylindrical face never reaches this lane: `import_step`'s
+tier-3 at-rest volume gate refuses it — `PropsError::NotIsoRectangle`
+from `du_of_rims` (`geom-brep/src/props/curved.rs`), surfaced as
+`ValidationError::VolumeUncomputable` and then
+`StepImportError::TierInvalid`. **So the defect was never live.**
+
+That conclusion holds for a *notched* face and only for one. It is not
+why the arm stays quiet in general: a face whose walk lands
+microscopically off its own box passes the tier-3 gate freely — the
+split-boundary D-prism above imports, adopts and reaches this lane
+without complaint — so the gate never screened that population at all.
+The exact comparison, not the gate, is what fired on them.
+
+The finding is what that reveals, and it *strengthens* the guard rather
+than retiring it: the mesher was protected **transitively, by another
+module's inability**. `du_of_rims` exists because props' volume closed
+form needs the face's iso-parameter rectangle (`cylinder()` computes
+`area = radius · du · (hi − lo)`) — the SAME premise `curved` depends
+on, checked by a DIFFERENT subsystem for its own reason.
+`mesh::tessellate` is public, takes any `Body<f64>`, and asserted
+nothing. If the volume quadrature ever grows a general trimmed-face
+path — exactly the kind of capability a later milestone adds — the
+`NotIsoRectangle` refusal disappears and `tessellate_curved` starts
+silently emitting wrong meshes **with no code change in `mesh` at
+all**. The guard converts *"protected by another module's limitation"*
+into *"checked where the assumption is made."*
+
+Severity if the gate ever moves is not a corner case: a keyway is the
+standard torque-transmitting feature on a shaft, and milled flats,
+D-shafts, snap-ring groove walls and cross-drilled bosses are the same
+class. The damage is honest and bounded — a wrong STL (keyway skinned
+over, so a printed or CAM'd part has no keyway), a wrong render, and a
+wrong mesh-derived `signed_volume`. The exact B-rep volume is
+unaffected, because `mass_properties` is the very thing that refuses.
+
+**Two items belonging to other units, recorded not fixed.**
+
+- **The existing gate is MIS-CLASSED against the D2 addendum.**
+  `topo/src/validate.rs:537` documents `VolumeUncomputable` as *"At rest
+  every M2-constructible body computes; this is corruption surfaced
+  loudly, not an exemption"* — row-1 framing, now falsified by an
+  executed counterexample. An imported keyed shaft is not corruption; it
+  is valid input the kernel has not built yet (row 2). The user-visible
+  consequence today is that the kernel refuses a keyway-bearing shaft
+  with an error that reads *"your file is corrupt."*
+  `PropsError::NotIsoRectangle`'s own doc is already row-2 language
+  (*"outside the M2 iso-rectangle inventory"*); it is topo's wrapper
+  that mis-frames it.
+- **An `unsure` lead in props, derived from code and not executed.**
+  `du_of_rims` compares per-group SPAN SUMS, so a plus/cross-shaped iso
+  domain whose arm width is exactly half the u-extent could make all
+  four rim groups total the same `du` — passing `props_du_consistent`
+  while being flagrantly non-rectangular, and `area = radius · du ·
+  (hi − lo)` would then be wrong. That would be a silently wrong
+  CERTIFIED volume, not merely a wrong mesh. Dispatched separately.
+  #648's guard catches its mesh half regardless.
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
 baffle me with how they ever happened." Postmortem pass commissioned.
@@ -2579,12 +2743,15 @@ baffle me with how they ever happened." Postmortem pass commissioned.
 indict.**
 
 `planar.rs` and `curved.rs` were born together in PR #39 (M2 PR 6), already
-divergent; `trimmed.rs` arrived two milestones later. The warning at
-`planar.rs:227` was written **five days after `curved.rs`**, by PR #116, as a
-*local precondition of that PR's new even-odd flood fill* (*"would invalidate
-the crossing bookkeeping built below"*). So it was never a claim about
-`curved`, which has no crossing bookkeeping — and still inserts its grid after
-constraining.
+divergent; `trimmed.rs` arrived two milestones later. The warning in
+`planar::triangulate_chart`'s header (named by symbol, not by line — the three
+citations of it in this document had drifted to three different line numbers)
+was written **five days after `curved.rs`**, by PR #116, as a *local
+precondition of that PR's new even-odd flood fill* (*"would invalidate the
+crossing bookkeeping built below"*). So it was never a claim about `curved`,
+which has no crossing bookkeeping — and still inserts its grid after
+constraining, now behind an explicit domain check rather than an unstated
+premise.
 
 The third author read `planar` and reused it (`trimmed.rs:104` imports
 `classify_faces`/`edge_key`/`shoelace2`); neither #116 nor #157 touches or
@@ -3834,12 +4001,50 @@ asks a structural question directly.
 
 ## C10. Cross-lane invariants do not propagate; only imports do
 
-`planar.rs:229`'s warning, PR #116's pre-scan, and PR #157's
-`SelfTouchingTrimLoop` are **three encounters with one hazard**, each closed
-inside its own lane — while the lane that predates all three (`curved.rs`)
-still carries the ordering the warning describes. A fix that establishes an
-invariant needs an explicit sweep of sibling implementations as part of its
-**acceptance**, not just its own regression row.
+`planar::triangulate_chart`'s header warning, PR #116's pre-scan, and PR
+#157's `SelfTouchingTrimLoop` are **three encounters with one hazard**, each
+closed inside its own lane — while the lane that predates all three
+(`curved.rs`) still carries the ordering the warning describes. A fix that
+establishes an invariant needs an explicit sweep of sibling implementations as
+part of its **acceptance**, not just its own regression row.
+
+**The sweep was run (2026-08-19).** For `curved.rs` the *ordering* came back
+CLEAR — the ordering is inert there because `curved` builds no crossing
+bookkeeping for a split to corrupt — but the clearance is not where it ended.
+What the sweep actually found was an *unstated premise* doing the work
+(`curved`'s UV domain is its own bounding rectangle), which nothing checked;
+#648 turned it into a typed refusal
+(`TessellateError::UnsupportedCurvedDomain`). Read that as the general shape:
+a sibling that survives the sweep survives *for a reason*, and **the reason
+is either enforced or it is the next defect** — writing it down is the
+minimum, not the deliverable. S28 carries the detail.
+
+**And the reason has to be right.** #648's first pass wrote the premise
+down as an *exact* property and cited the mechanism that supposedly
+guaranteed it ("assigned once per edge"). Adversarial review executed
+the counterexample in an afternoon: the mechanism guarantees the
+property only when a side is one edge, and every in-tree fixture and
+the whole wild corpus happened to satisfy that, so a green suite proved
+nothing. The refusal became a **false refusal** on valid parts (#653).
+Two things generalise. A premise stated as *exact* is a claim about
+float representation, not about geometry, and needs a fixture that is
+adversarial to representation — an oblique placement and a subdivided
+edge, not another shape. And a sweep that records pass/fail where it
+could record **margins** discards the evidence that would have shown
+the claim was fragile; #648's payload now carries the margin for the
+same reason.
+
+**A second class the same review named, swept in #648.** *"Sweep a list of
+bodies, assert a global count"* has the same hole as a global floor:
+`curved.rs`'s row asserted `walked >= 14` against 20 actual walks, so the
+boolean-cut die pip — the fixture the row exists for — could have dropped out
+through either of `curved_walks`'s two silent `continue`s and left the row
+green. Fixed to per-fixture participation. The two siblings the reviewer
+named, `crates/mesh/tests/review_m2_pr6_walk_shapes.rs` and
+`crates/mesh/tests/revolves.rs`, were checked and are **clear**: both assert
+inside the loop (per-θ `check_mesh_acceptance` / `signed_volume > 0`), so a
+fixture that stopped contributing cannot hide behind its siblings. Neither
+carries an accumulated counter.
 
 ## C11. Self-disclosed copies are invisible to everyone, and greppable
 
