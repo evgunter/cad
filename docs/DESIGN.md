@@ -1108,10 +1108,89 @@ topology change is stated, not emergent.
   (a ring on a genus-0 component is a Jordan curve, so cross-component
   moves re-partition into legal pieces; non-separating rings force
   g ≥ 1). A firing postcondition is therefore a kernel bug by
-  definition. Corrupt in-crate states get typed errors where cheaply
-  detectable, or documented garbage-out in release — never a hang;
-  every traversal is bounded.)*
+  definition. What the kernel then DOES about such a state is the D2
+  addendum below — which supersedes this footnote's original
+  "typed errors where cheaply detectable, or documented garbage-out in
+  release". The bounded-traversal half stands: never a hang; every
+  traversal is bounded.)*
 - Essentially no unsafe Rust outside vetted dependencies.
+
+**D2 addendum — the bug-vs-invalid-state taxonomy (PROPOSED
+2026-08-19, pending Evan's sign-off; Wave 0 decision D2 of
+`SMELL-SCAN-2026-08.md` §D, raised by S43).**
+
+*Why:* the kernel had **five** answers to "this state can only be a
+bug", two of them mutual negations — `crates/topo` discards a missed
+Euler precondition silently ~60 times (blessed by the footnote above),
+while `geom-curves` argues in its own prose that silent discard is the
+wrong direction and a bare index panic is the right one (PR #447, never
+brought back to D9). Both cited "fail loud". The rule below picks one.
+
+**Silent discard is never an answer.** A state that cannot occur is
+announced, not swallowed.
+
+| # | State class | Mechanism |
+|---|---|---|
+| 1 | Reachable by input, **invalid** | typed error |
+| 2 | Reachable by input, **valid but unbuilt** | typed `Unsupported*` error |
+| 3 | **Value-domain degeneracy** | poison — NaN / empty |
+| 4 | **Kernel bug**, observable in a branch | `unreachable!` |
+| 5 | **Kernel bug**, detectable only by re-derivation | `debug_assert` |
+
+*Row 1 absorbs the terminal indeterminates.* An `Indeterminate` whose
+`MarginDiag` is `Value` (f64 margin in the ambiguity band) or an
+`Enclosure` lying wholly inside a sliver band is a statement about the
+input, and reaches the user through `COINCIDENCE_RECOURSE`. **But the
+axis is curable-vs-terminal, not bug-vs-invalid**: `predicate.rs:617`
+records that a straddling `Enclosure` is generally *curable* by
+subdivision, and `MarginDiag::Invalid` splits again (a `Trv`
+domain-clamp may cure as the violating sub-box shrinks; a NaI never
+does). Q1's subdivision driver is **not built** — every reference to it
+is a doc comment — so today every indeterminate is terminal and row 1
+is complete. **When that driver lands, a curable indeterminate must
+unwind to it and must not be reported as invalid input.** This sentence
+exists so that arrival does not reopen the question.
+
+*Row 2 is a naming rule, not a new mechanism.* `Unsupported*` means
+"valid input, the kernel has not built this yet" and nothing else —
+which makes the frontier inventory grep-able. The convention is already
+dominant (13 distinct variant names in `src`); `AssemblyUnsupported` is
+renamed to match. A macro (`not_implemented!`) was considered and
+**rejected**: these refusals are reachable by valid user input and must
+stay recoverable, so a panicking macro would convert a user-facing
+frontier into a crash. Where a frontier branch genuinely cannot be
+reached it is row 4, with a message.
+
+*Row 3 is unchanged and is stated here only because it is neither a
+typed error nor a panic:* poison flows through **values**, never
+through decisions (Q1 residue, M0 close). `sup_norm_bound` returning
+NaN on every poison path is the pattern.
+
+*Rows 4 and 5 split on **re-derivation**, not on cost.* `unreachable!`
+is for an invariant the code can simply *observe* — the ~60
+`if let Some` sites whose own comment already reads "the lookups cannot
+fail" (`euler.rs:950`). `debug_assert` is for a check that *re-derives*
+the invariant: `assert_euler_postcondition` runs arena deltas plus a
+full tier-1 validate, O(body). Cost correlates, but re-derivation is
+the line that does not wobble.
+
+*The headline bullet survives untouched.* "The kernel never panics on
+any input" stays literally true: `unreachable!` is by construction not
+input-reachable, which is exactly what the M1 soundness argument above
+establishes.
+
+*Boundary rule.* `pncad-py` re-types at the FFI edge — anything the
+Python layer can trigger is validated into a typed error before the
+kernel call, so an `unreachable!` never crosses into a
+`PanicException`.
+
+*Implementation consequence, not yet applied:* `Cargo.toml`'s clippy
+block lists `unreachable = "warn"` alongside `panic` / `todo` /
+`unimplemented`, and the comment above it states the superseded rule
+verbatim. Adopting this addendum means moving `unreachable` out of that
+family and rewriting that comment; `panic`, `todo` and `unimplemented`
+stay banned. The ~60 `crates/topo` discard sites and idiom 2's
+`MissingEntity` router defects then convert to row 4.
 
 **Replay with kills (M1, pinned in PRs #20/#23):** the determinism
 contract holds with destructive operators in the history. Identical
