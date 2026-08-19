@@ -461,9 +461,14 @@ mod quad_lane {
         ((x.lo() + x.hi()) * 0.5, (x.hi() - x.lo()) * 0.5)
     }
 
-    /// Bracket a scalar through its [`Bounds`] accessors (infallible:
-    /// only bracket-carrying scalars reach this module — the static
-    /// lane split above).
+    /// Bracket a scalar into the C9 ring through the **certified** door.
+    ///
+    /// Fallible, which is the whole point: the static lane split above
+    /// guarantees only that a *bracket-carrying* scalar reaches this
+    /// module, and a sound bracket can still be inadmissible —
+    /// `sqrt([−1, 4]) + 1` is `[1, 3]` at `Trv`. Such a scalar becomes
+    /// ring poison here rather than a plausible bound nothing downstream
+    /// can question. See `bracket_seam_tests` below.
     fn br<T: CertifiedEnclosure>(x: T) -> RingInterval {
         RingInterval::from_certified(x)
     }

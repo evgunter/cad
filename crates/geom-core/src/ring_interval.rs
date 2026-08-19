@@ -156,8 +156,13 @@ impl RingInterval {
     /// Reads a scalar's bracket into the ring through the **certified**
     /// door, poisoning a scalar that may not certify.
     ///
-    /// This is the C9 ring's one entry point for a lane scalar, and it
-    /// is a method rather than the three-line spelling at each call site
+    /// This is the C9 ring's entry point for a lane scalar taken whole —
+    /// `geom-core`'s own `spline::hull::bracket` and `geom-brep`'s
+    /// `ssi::enclose::ring` are thin wrappers over it, and the eight
+    /// crossings S41 names call it directly. (A crossing that reads only
+    /// *one* end of the bracket, such as a symmetric pad built from `hi`,
+    /// is a different shape and spells its own refusal.) It is a method
+    /// rather than the three-line spelling at each call site
     /// for the same reason [`Self::clamped_to`] is: the hazard is the
     /// bracket door, which never refuses. `Interval` records a domain
     /// violation in its decoration, not its endpoints — `sqrt([−1, 4])`
