@@ -62,11 +62,13 @@
 //! loudness backstop for the classes no arm can examine yet (the
 //! C9-ring conformal-rest / partial-embedding class; C6's
 //! interference class, representable only through recorded
-//! gate-skips that do not exist yet). Planar-only solids always meet
-//! along line/vertex evidence the sweeps examine, so nothing in the
-//! inter-instance touching/overlap space validates silently; a
-//! caller assembling instances at rest runs THAT gate with its
-//! declaration records.
+//! gate-skips that do not exist yet). A pair of PLANAR faces is left
+//! to the sweeps only when both are bounded entirely by line edges,
+//! which is what puts a whole boundary in front of them — so an
+//! arc-bounded planar face (a cylinder's cap) is backstopped like a
+//! curved one, and nothing in the inter-instance touching/overlap
+//! space validates silently; a caller assembling instances at rest
+//! runs THAT gate with its declaration records.
 
 use crate::body::Body;
 use crate::boolean::BooleanError;
