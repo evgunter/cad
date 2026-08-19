@@ -17,9 +17,11 @@
 //!
 //! This module therefore takes a compound `Decide + Bounds`: it
 //! DECIDES (the carrier-meet and angular advance/reach gates) and reads
-//! the selection channel, in that order. It carries `sugar.rs`'s
-//! ratified justification verbatim, because it is the same rule on the
-//! same channel: **a representation-level choice between
+//! the selection channel, in that order. The justification is
+//! [`crate::fillet_select`]'s, which is where the S8 rule has its one
+//! home — restated here only because this file's allowlist line needs
+//! a purpose-matched sentence of its own; the rule itself is the same
+//! rule on the same channel: **a representation-level choice between
 //! already-classified constructions, never a re-decision of geometry**
 //! (M5 S8; the ruling's "plain deterministic selection rule, not a Q1
 //! predicate" — no funnel entry, no escalation arm, no error). The

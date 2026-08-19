@@ -690,8 +690,11 @@ fn wire_fillet<T: Decide + geom_core::Bounds>(
 ///    document. Ids are never reused, so an id below the mint counter
 ///    was DELETED and one at/above it was never this document's
 ///    (`ForeignNode`). This rung outranks every later refusal,
-///    including a door's own; the [`ladder::Live`] token is the only
-///    way to reach the rungs below, so no door can invert the order.
+///    including a door's own, and the [`ladder::Live`] token enforces
+///    that rather than asking for it: reading a table needs the token,
+///    so no refusal ABOUT the tables — the ladder's own rungs, or a
+///    door's, like the declare door's both-operands — can be reached
+///    before this one has passed.
 /// 2. [`ladder::Landing::Tied`] → `Ambiguous`. The tie row IS the
 ///    ambiguity (N5), so the tied set expressed in names is the name
 ///    itself, and the witness carries the multiplicity and the
@@ -710,6 +713,14 @@ fn wire_fillet<T: Decide + geom_core::Bounds>(
 /// multi-table hit means, and what kind of entity it will accept are
 /// the door's business. Which typed refusal comes out is this
 /// module's, and has one home.
+///
+/// **Not shared with [`mod@crate::resolve`], yet.** That module's
+/// whole-evaluation ladder re-derives rung 1 from the same two facts
+/// (`doc.node(..).is_none()`, then the id against the mint counter)
+/// and builds the same [`crate::resolve::TieWitness`]. The two agree
+/// by hand across a module boundary, at coarser grain than the
+/// duplication this module retired; folding them is a larger change
+/// than one evaluation door, recorded as such and not attempted here.
 mod ladder {
     use crate::names::{EntityRef, Entry, NameTable, StableName};
     use crate::program::ProfileProgram;
@@ -726,13 +737,24 @@ mod ladder {
     }
 
     /// Proof that rung 1 passed: `name`'s minting node is live.
-    /// Constructible only by [`live`], so [`resolve`] cannot be
-    /// reached before the `NodeGone` check that outranks it.
+    ///
+    /// Constructible only by [`live`], and required by BOTH [`landing`]
+    /// and [`resolve`]. That is what enforces the rung order rather
+    /// than documenting it: a door cannot read a table before the
+    /// `NodeGone` check, so a door's own refusal — which is a refusal
+    /// ABOUT what the tables say — cannot preempt rung 1 either. The
+    /// declare door needs two landings to know a name sits in both
+    /// operands, and it cannot have one without this token.
+    ///
+    /// Carrying the name also means [`landing`] and [`resolve`] cannot
+    /// disagree about WHICH name they are answering for: the tie width
+    /// in an `Ambiguous` payload is measured on the same name the
+    /// payload is built from, by construction.
     pub(super) struct Live<'n>(&'n StableName);
 
-    /// Reads one table (N4: resolution IS this read).
-    pub(super) fn landing(table: &NameTable, name: &StableName) -> Landing {
-        match table.lookup(name) {
+    /// Reads one table for the live name (N4: resolution IS this read).
+    pub(super) fn landing(live: &Live<'_>, table: &NameTable) -> Landing {
+        match table.lookup(live.0) {
             Some(Entry::Unique(ent)) => Landing::Unique(*ent),
             Some(Entry::Tied(ents)) => Landing::Tied(ents.len() as u32),
             None => Landing::Absent,
@@ -810,7 +832,8 @@ fn resolve_selection(
     for name in selection {
         let refused = |error| NodeErrorKind::FilletSelectionResolve { error };
         let live = ladder::live(name, doc).map_err(refused)?;
-        let ent = ladder::resolve(live, ladder::landing(target, name)).map_err(refused)?;
+        let landing = ladder::landing(&live, target);
+        let ent = ladder::resolve(live, landing).map_err(refused)?;
         let EntityKey::Edge(k) = ent.key else {
             return Err(NodeErrorKind::FilletSelectionKind {
                 name: Box::new(name.clone()),
@@ -1081,16 +1104,20 @@ fn resolve_declarations(
 
     let resolve_one = |name: &names::StableName| -> Result<(Operand, EntityKey), NodeErrorKind> {
         let refused = |error| NodeErrorKind::DeclareResolve { error };
-        // Rung 1 first: a dead minting node refuses NodeGone whatever
-        // the tables say, so the side-picking below never preempts it.
+        // Rung 1 first, and not by convention: reading either table
+        // needs the token `live` returns, so a dead minting node
+        // refuses NodeGone before the side-picking below can run.
         let live = ladder::live(name, doc).map_err(refused)?;
         // Side-picking is this door's own. A name PRESENT in both
         // operands (unique or tied, either counts as present) is not
         // an N5 failure — it is this door declining to guess a side.
         let (op, landing) = match (
-            ladder::landing(a_table, name),
-            ladder::landing(b_table, name),
+            ladder::landing(&live, a_table),
+            ladder::landing(&live, b_table),
         ) {
+            // In neither table: the side is arbitrary, and rung 3
+            // refuses Vanished on the `Absent` carried through.
+            (Landing::Absent, Landing::Absent) => (Operand::B, Landing::Absent),
             (Landing::Absent, b) => (Operand::B, b),
             (a, Landing::Absent) => (Operand::A, a),
             _ => {
@@ -1099,8 +1126,6 @@ fn resolve_declarations(
                 });
             }
         };
-        // Absent from both operand tables lands here as `Absent`, and
-        // the ladder's rung 3 turns it into Vanished.
         Ok((op, ladder::resolve(live, landing).map_err(refused)?.key))
     };
 

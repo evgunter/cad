@@ -4049,16 +4049,37 @@ No closure, no generic over "how to look a name up", one hop from either door.
 Each door keeps exactly its own arity, which is what makes the shared version
 MORE legible than the duplication rather than less: the fillet door is now
 `live` → `landing(target)` → `resolve` → the edge-kind refusal, six lines with
-every rung named; the declare door reads its two tables into two landings,
-picks a side, and refuses `DeclareBothOperands` itself — the one refusal in
-that function that is not N5's.
+every rung named against a 45-line inline ladder; the declare door reads its
+two tables into two landings, picks a side, and refuses `DeclareBothOperands`
+itself — the one refusal in that function that is not N5's, previously buried
+in a closure returning `Option<Result<…>>`. The declare door is a wash rather
+than an improvement on size, and its four-arm landing table is spelled out
+in full — the review caught the first version folding `(Absent, Absent)` into
+a fall-through plus a comment, which for a function whose whole job is which
+typed refusal comes out is the wrong direction.
 
 The rung ORDER, which was the residual hand-coupling a pieces-only extraction
-would have left, is enforced by the type system: `Live` is constructible only
-by `live()`, so no door can reach rungs 2–3 before the `NodeGone` check that
-outranks them (including outranking a door's own refusal — the declare door
-asked its side question before rung 1 would have changed one input's answer,
-so the order is kept and stated). Nothing is left to keep in step by hand.
+would have left, is enforced by the type system — and the review is why it
+actually is. The first version gated only `resolve()` on the `Live` token,
+which enforces rung 1 before rungs 2–3 but NOT before a door's own refusal,
+the case the finding used to motivate the order at all; the reviewer moved the
+declare door's side-picking ahead of rung 1 and it compiled clean with all 566
+tests green. Fixed by threading the token one step further: `landing()` takes
+`&Live` too, so no TABLE can be read before rung 1, and a refusal about what
+the tables say — `DeclareBothOperands` needs both landings — cannot be reached
+first. The same mutation is now a compile error. Threading the token also
+closes a second hand-coupling for free: `landing` and `resolve` can no longer
+be called for different names, so an `Ambiguous` payload's tie width is
+measured on the name the payload is built from, by construction.
+
+Worth recording for whoever revisits this: the inverted order was
+**unreachable through the document API**, which is why no pin could have
+caught it. A name present in an operand table was minted by an ancestor of
+that operand, so it cannot be stranded without the operand failing first —
+the reachable `NodeGone` case is a name minted by a node that is NOT an
+ancestor (the existing delete fixture). The type-level fix is therefore
+defensive, and correctly so: the claim in the module doc is now true rather
+than aspirational.
 
 Behaviour-identical, arm by arm, including payloads. The pins were checked for
 what they actually assert rather than assumed: `m6_5_selection_refusals.rs`
@@ -4067,20 +4088,41 @@ pinned NodeGone/`NodeDeleted`, `Vanished`'s full payload, `Ambiguous` minus
 `Ambiguous`'s payload but `Vanished` by Debug SUBSTRING only, and neither door
 pinned the witness site. Both gaps are now closed (declare's `Vanished`
 asserts `last_good: None` and `RecipeEdit{NodeChanged}` typed; both doors
-assert `tie.node == name.node`). `ForeignNode` stays unpinned at both doors —
-the edit door refuses never-existed ids before evaluation, so it is reachable
-only across documents; that is a real gap, unchanged by this PR, and it is now
-a gap in ONE arm of ONE ladder instead of two. Mutation-checked: flipping
-`tie.node` in the shared ladder fails a pin in BOTH suites, which is the
-property the duplication did not have.
+assert `tie.node == name.node`). **`ForeignNode` stays an OPEN GAP**, unpinned at
+both doors and not closed here: the edit door refuses never-existed ids before
+evaluation, so the arm is reachable only across documents. Sharing the ladder
+does not narrow the gap — both doors still lack a pin — it only means the
+unpinned arm now has one implementation instead of two. Mutation-checked:
+flipping `tie.node` in the shared ladder fails a pin in BOTH suites, which is
+the property the duplication did not have.
+
+**RESIDUE, named and not folded: the crate's OTHER ladder.**
+`crates/editor-core/src/resolve/mod.rs`'s `resolve_impl` (rung 1 at :549–:560,
+the tie witness at :578–:587, the removal-edit helper at :535, the recipe-diff
+edit derivation at :1135) carries rung 1 as the SAME code —
+`doc.node(name.node).is_none()`, then `name.node.0 < doc.next_id` →
+`NodeDeleted` else `ForeignNode` — and builds the same `TieWitness`, with the
+"ids are never reused" sentence now appearing verbatim in three places. So the
+crate still has two ladders agreeing by hand, at coarser grain, and the
+unfolded one lives in the module whose whole job is resolution. They have
+already diverged in one respect worth naming, since it is exactly the drift
+this class predicts: `resolve_impl` sets `TieWitness.node` to the CARRYING
+node returned by its whole-evaluation lookup, while the mid-evaluation ladder
+sets it to the MINTING node (no carrying node exists for a single value's
+table) — origin/main's behaviour on both sides, preserved. Folding is
+cross-module and larger than one evaluation door; deliberately out of scope
+here, recorded in `wire.rs`'s `mod ladder` doc as well as here.
 
 **The two family members named above were deliberately NOT folded in**, and
-neither is this refactor. `arc_fillet.rs:21` restates `fillet_select.rs`'s
-ratified justification in prose — the RULE already has one home (that module's
-header says so in as many words: "giving the rule one home means the ladder is
-stated once … instead of the same paragraph twice"), so what is duplicated is
-the paragraph, not the code, and the open question is whether the allowlist
-line should cite it instead of restating it. `pncad-py/src/tests.rs:245` is
+neither is this refactor. `arc_fillet.rs:21` restated the S8 justification and
+**miscited it** — it credited `sugar.rs`, which does not contain the paragraph
+and never did; `fillet_select.rs:16-18` does, and that module's header argues
+in as many words for the rule having one home ("the ladder is stated once …
+instead of the same paragraph twice"). The wrong pointer is the Q4 doc-rot
+case here, and it is fixed in this PR: the header now cites
+`crate::fillet_select` and says plainly that the restatement exists only
+because the CI-discipline allowlist line needs a purpose-matched sentence. The
+duplication itself is a paragraph, not code, and stays. `pncad-py/src/tests.rs:245` is
 the family's already-solved instance: the `[lints]` table CANNOT be shared
 (the crate cannot inherit `[workspace.lints]` — `unsafe_code = "forbid"`
 versus PyO3's generated `unsafe impl`), and the hand-restatement is already
