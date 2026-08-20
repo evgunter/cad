@@ -1,6 +1,6 @@
-//! ASM-R2a acceptance — the mate solve (spec `docs/ASM-R2A-SPEC.md`).
+//! ASM-R2a acceptance — the mate solve.
 //!
-//! Rows 1–7 of the spec's acceptance list; row 8 is CI's clippy lanes.
+//! Rows 1–7 of the unit's acceptance list; row 8 is CI's clippy lanes.
 //! Everything here runs on a STUB resolver, the substrate ASM-2A D-3
 //! established for this layer.
 //!

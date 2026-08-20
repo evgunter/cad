@@ -2,7 +2,7 @@
 //! wired into any enum) and [`NurbsCurve3`] (the [`crate::curves::Curve3::Nurbs`]
 //! payload), M5 PR 3.
 //!
-//! # Data model (binding conventions, `docs/M5-PR3-SPEC.md`)
+//! # Data model (binding conventions)
 //!
 //! Knots, weights, and degree are **f64 structure** (C6); control
 //! points are the only generically-typed data. Construction is

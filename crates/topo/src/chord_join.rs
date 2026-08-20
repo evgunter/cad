@@ -44,8 +44,8 @@
 //!
 //! # Why the code is here and not in either lane
 //!
-//! It was born inside one half **by instruction**, not by drift:
-//! `M3-PLAN.md:230` (RATIFIED #42) item 5 said *"Ch. 14 join reused
+//! It was born inside one half **by instruction**, not by drift: the
+//! M3 plan (RATIFIED #42) item 5 said *"Ch. 14 join reused
 //! with A↔B correspondence disambiguation"*, and ch. 14's join is the
 //! split lane's. So the boolean joining imported [`ChordJoiner`],
 //! [`CutOutcome`], [`SectionCtx`], [`face_azimuth_window`] and

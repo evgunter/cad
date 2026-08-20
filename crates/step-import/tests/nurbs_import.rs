@@ -1,4 +1,4 @@
-//! **M7-3 acceptance: NURBS-face import** (`docs/M7-3-SPEC.md` §2).
+//! **M7-3 acceptance: NURBS-face import.**
 //!
 //! The committed non-rational loft (`loft_prism`) runs the FULL row-1
 //! and fixed-point obligations through `roundtrip.rs` (it joined
@@ -205,8 +205,8 @@ fn rational_props_posture(body: &topo::Body<f64>, who: &str) -> Option<topo::Mas
 /// each rational quadrature is the expensive thing in this class, and
 /// the three rows paid for ten between them where five state the same
 /// facts. Authorship is kept, which is this project's convention for
-/// adopted review probes (`docs/M7-LOG.md`, M7-1's "adopted BY MERGE
-/// with authorship kept"):
+/// adopted review probes (M7-1's "adopted BY MERGE with authorship
+/// kept"):
 ///
 /// * **the reversed-DATA arm is RW2 probe 1's** — the blinded review
 ///   of PR #353 (`rw2_probes.rs`), which re-imported the same export

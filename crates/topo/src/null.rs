@@ -1,5 +1,5 @@
 //! Null-entity scaffolding: typed attributes and the null-edge lane
-//! (M3 PR 1, fork F9 of `docs/M3-PLAN.md`).
+//! (M3 PR 1, fork F9).
 //!
 //! Ch. 14/15's splitting and boolean pipelines manufacture **null
 //! entities** — zero-length edges and two-loop "null faces" holding
@@ -214,8 +214,6 @@ impl<T: geom_core::Decide> Body<T> {
                 let plan = self.mev_fan_plan(he1, he2)?;
                 let point = plan.p_old; // bitwise coincident copy
                 self.mev_fan_execute(
-                    he1,
-                    he2,
                     plan,
                     point,
                     crate::euler::MevCurveMint::Null(new_side),
