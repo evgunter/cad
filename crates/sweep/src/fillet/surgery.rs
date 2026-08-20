@@ -13,17 +13,17 @@
 //! # What the surgery does, per chain kind
 //!
 //! **Open chains** (plane–plane links, the box edges): every open
-//! chain must be a single link terminating at trivalent corners whose
-//! THREE incident edges are all requested — the sphere-octant
-//! configuration, exactly as the whole-body door, but reached in
-//! place. Per support face: one strut `mev` per boundary vertex (to
-//! the corner ball's foot on that face) and one trimline `mef` per
-//! blended edge carve the face into the SHRUNK face plus one strip per
-//! edge — the shrunk face keeps its `FaceKey`, its surface, its sense
-//! bit (S12 parent-sense inheritance) **and its rings**, which is the
-//! ring carry-through the whole-body rebuild could not do. Then per
-//! edge one `kef` merges the two strips across the dying sharp edge;
-//! per corner three arc `mef`s split the corner triangles off, two
+//! chain must be a single link terminating at trivalent corners
+//! whose THREE incident edges are all requested — the sphere-octant
+//! configuration, reached in place. Per support face: one strut
+//! `mev` per boundary vertex (to the corner ball's foot on that
+//! face) and one trimline `mef` per blended edge carve the face
+//! into the SHRUNK face plus one strip per edge — the shrunk face
+//! keeps its `FaceKey`, its surface, its sense bit (S12
+//! parent-sense inheritance) **and its rings**, which is what
+//! carries a face's rings through the fillet. Then per edge one
+//! `kef` merges the two strips across the dying sharp edge; per
+//! corner three arc `mef`s split the corner triangles off, two
 //! `kef`s and one `kev` fuse them into the octant and retire the
 //! struts and the sharp vertex.
 //!
@@ -106,8 +106,8 @@ struct Corner<T: Real> {
     faces: Vec<FaceKey>,
     /// The corner ball's centre.
     center: Point3<T>,
-    /// The octant's chart (the F2 order-free pick, shared with the
-    /// whole-body builder).
+    /// The octant's chart (the order-free pick,
+    /// [`super::build::octant_chart`]).
     surface: Surface<T>,
     /// The convexity the three incident links agree on — the octant's
     /// orientation bit, read exactly as a blend reads its own.
@@ -141,10 +141,10 @@ struct RimCarrier<T: Real> {
     plus_on_plane: bool,
 }
 
-/// **The surgery front door + construction** — called by
-/// [`super::build::fillet_edges`] AFTER the battery, for every request
-/// that is not the whole-body case. The verdict's chains are the
-/// input; nothing re-derives what the battery already resolved.
+/// **The assembly front door + construction** — called by
+/// [`super::build::fillet_edges`] AFTER the battery, for every
+/// request. The verdict's chains are the input; nothing re-derives
+/// what the battery already resolved.
 pub(super) fn fillet_surgery<T: Decide + Bounds>(
     source: &Body<T>,
     verdict: &BatteryVerdict<T>,
@@ -328,8 +328,7 @@ fn vertex_edges_of<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Option<Vec<E
 }
 
 /// The corner ball and octant chart at one fully-requested trivalent
-/// vertex — the same closed forms and the same F2 order-free chart
-/// pick as the whole-body builder ([`super::build`]).
+/// vertex ([`super::build::octant_chart`] picks the chart).
 fn corner_plan<T: Decide + Bounds>(
     body: &Body<T>,
     vertex: VertexKey,
@@ -1476,8 +1475,8 @@ fn loop_walk_face<T: Decide>(
 
 /// The prefer-intrinsic upgrade for one new edge: rebuild the exact
 /// carrier and describe it as the tangential contact locus of its two
-/// adjacent faces' surfaces (the whole-body builder's final pass,
-/// generalized to the rim arcs' stored carriers).
+/// adjacent faces' surfaces — over the rim arcs' stored carriers as
+/// well as over the straight trimlines.
 fn attach_contact<T: Decide + Bounds>(
     body: &mut Body<T>,
     edge: EdgeKey,
