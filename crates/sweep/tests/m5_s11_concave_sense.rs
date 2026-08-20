@@ -49,12 +49,17 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+mod common;
 mod revolve_common;
 
 use core::f64::consts::{FRAC_PI_2, FRAC_PI_8, PI};
 use profile::RawLoop;
 
-use geom::{NurbsSurface, Surface};
+use common::orient::{
+    along_v, assert_walls_face_out, loft_contains, wall_outward, wall_outward_at,
+};
+use common::quad;
+use geom::Surface;
 use geom_core::{Affine3, Band, Point3, Tolerance, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use revolve_common::{assert_all_tiers, axis_y, p2, validated};
@@ -527,54 +532,6 @@ fn assert_rational_volume(row: &str, body: &Body<f64>, want: f64) {
     }
 }
 
-/// A lofted wall's skinned chart and the knot parameters that
-/// FRACTIONAL chart coordinates name on it. Fractions rather than knot
-/// values, so walls with different spans are sampled on the same level
-/// set of `v`.
-fn chart_at(body: &Body<f64>, face: FaceKey, su: f64, sv: f64) -> (&NurbsSurface<f64>, f64, f64) {
-    let f = body.get_face(face).expect("wall face resolves");
-    let Some(Surface::Nurbs(s)) = body.get_surface(f.surface) else {
-        panic!("a lofted wall carries a skinned NURBS chart");
-    };
-    let (u0, u1) = s.knots_u().domain();
-    let (v0, v1) = s.knots_v().domain();
-    (s, u0 + (u1 - u0) * su, v0 + (v1 - v0) * sv)
-}
-
-/// One lofted wall's POSITION at fractional chart coordinates.
-///
-/// The level-set oracle's hot path reads this and never
-/// `wall_outward_at`, which is what makes its independence from the
-/// datum under test structural rather than conventional: it has no
-/// access to a `sense`, a winding or a normal to be circular with.
-/// It also keeps `normalize()` — poison on a degenerate jet — out of a
-/// path that only ever wants `S(u, v)`.
-fn wall_point_at(body: &Body<f64>, face: FaceKey, su: f64, sv: f64) -> Point3<f64> {
-    let (s, u, v) = chart_at(body, face, su, sv);
-    s.eval(u, v)
-}
-
-/// One lofted wall's point and the OUTWARD normal it claims: the
-/// shipped surface's `S_u × S_v` with the stored `sense` folded in.
-fn wall_outward_at(body: &Body<f64>, face: FaceKey, su: f64, sv: f64) -> (Point3<f64>, Vec3<f64>) {
-    let f = body.get_face(face).expect("wall face resolves");
-    let (s, u, v) = chart_at(body, face, su, sv);
-    let jet = s.ders(u, v);
-    (
-        s.eval(u, v),
-        jet.du.cross(jet.dv).normalize() * f.sense_sign::<f64>(),
-    )
-}
-
-/// One lofted wall's mid-chart point and outward normal.
-fn wall_outward(body: &Body<f64>, face: FaceKey) -> (Point3<f64>, Vec3<f64>) {
-    wall_outward_at(body, face, 0.5, 0.5)
-}
-
-/// A MATERIAL-SIDE oracle: where a query point lies relative to the
-/// solid, decided without reading any face's `sense`.
-type Oracle<'a> = dyn Fn(Point3<f64>) -> SolidContainment + 'a;
-
 /// The extruded twin as an oracle — legitimate only where the loft IS
 /// that prism: identical sections, `v` linear.
 fn twin_oracle(twin: &Body<f64>) -> impl Fn(Point3<f64>) -> SolidContainment + '_ {
@@ -584,59 +541,6 @@ fn twin_oracle(twin: &Body<f64>) -> impl Fn(Point3<f64>) -> SolidContainment + '
 /// The one sample a `v`-linear wall needs: `S_v` is constant along `v`
 /// there, so mid-chart stands for every level set.
 const MID_CHART: [(f64, f64); 1] = [(0.5, 0.5)];
-
-/// Step `delta` off a wall both ways along its claimed outward normal
-/// and ask the oracle. Returns `(inward_side, outward_side)` — a
-/// flipped `sense` swaps them, which is what makes the pair two-sided.
-fn probe_sides(
-    oracle: &Oracle<'_>,
-    p: Point3<f64>,
-    outward: Vec3<f64>,
-    delta: f64,
-) -> (SolidContainment, SolidContainment) {
-    (oracle(p - outward * delta), oracle(p + outward * delta))
-}
-
-/// The orientation claim, wall by wall and sample by sample. The
-/// ORIENTATION assertion runs first and is what a wrong bit trips; the
-/// `sense = true` value pin follows it, so a production flip reports
-/// the material-side failure rather than a stored-value mismatch.
-///
-/// Returns the number of (wall, sample) probes run.
-fn assert_walls_face_out(
-    lofted: &Lofted<f64>,
-    oracle: &Oracle<'_>,
-    samples: &[(f64, f64)],
-    delta: f64,
-    expect: usize,
-) -> usize {
-    let mut n = 0;
-    let mut probes = 0;
-    for (li, walls) in lofted.side_faces.iter().enumerate() {
-        for (si, &fk) in walls.iter().enumerate() {
-            for &(su, sv) in samples {
-                let (p, outward) = wall_outward_at(&lofted.body, fk, su, sv);
-                let (inward_side, outward_side) = probe_sides(oracle, p, outward, delta);
-                assert_eq!(
-                    (inward_side, outward_side),
-                    (SolidContainment::In, SolidContainment::Out),
-                    "loop {li} segment {si} at chart ({su}, {sv}) = {p:?}: the wall \
-                     claims {outward:?} is outward, so the oracle must read material \
-                     against it and void along it"
-                );
-                probes += 1;
-            }
-            assert!(
-                lofted.body.get_face(fk).unwrap().sense,
-                "loop {li} segment {si}: the honest orientation above is the one \
-                 loft encodes as sense = true"
-            );
-            n += 1;
-        }
-    }
-    assert_eq!(n, expect, "every wall of the fixture was probed");
-    probes
-}
 
 /// **Loft's concave arc wall.** The shape that broke extrude, lofted:
 /// each wall's sense-signed chart normal points out of the material as
@@ -853,221 +757,6 @@ fn a_lofted_operand_refuses_the_union_check_typed() {
 // against #619's twin oracle on the prism, where both are valid.
 // =====================================================================
 
-/// Samples per wall on a level-set polyline. The worst-curved wall in
-/// this file is the holed plate's hole (radius 1, half a turn per
-/// wall): 64 chords put the polyline ≈ 3.3e-4 off it, and every
-/// fixture's actual chord error is MEASURED against a fixed bound in
-/// `level_set` rather than argued here.
-const LEVEL_SAMPLES: usize = 64;
-
-/// The chord from the bottom level to the top one, which orients
-/// every level plane's normal.
-fn stack_axis(lofted: &Lofted<f64>) -> Vec3<f64> {
-    let first = lofted.side_faces[0][0];
-    wall_point_at(&lofted.body, first, 0.5, 1.0) - wall_point_at(&lofted.body, first, 0.5, 0.0)
-}
-
-/// The PLANE of the level set at `v`-fraction `t`: a point on it, and
-/// the unit normal oriented along the stack. Read off one mid-`u`
-/// sample per wall — the level set is planar (asserted on the full
-/// sample in `level_set`), so the wall midpoints fix its plane and the
-/// bisection below need not pay for a whole polyline per step.
-fn level_plane(lofted: &Lofted<f64>, axis: Vec3<f64>, t: f64) -> (Point3<f64>, Vec3<f64>) {
-    let walls = &lofted.side_faces[0];
-    let ring: Vec<Point3<f64>> = walls
-        .iter()
-        .map(|&fk| wall_point_at(&lofted.body, fk, 0.5, t))
-        .collect();
-    // Newell over the ring, rather than three picked points, so no one
-    // near-collinear sample can decide the normal. Hand-rolled rather
-    // than `geom_brep::newell_plane`: that door certifies planarity
-    // against the running ε, and an oracle whose validity moves with ε
-    // is the trap #619 fell into. The planarity precondition here is a
-    // fixed geometric bound, checked in `level_set`.
-    let mut n = Vec3::new(0.0, 0.0, 0.0);
-    for i in 0..ring.len() {
-        let (a, b) = (ring[i], ring[(i + 1) % ring.len()]);
-        n = n + Vec3::new(
-            (a.y - b.y) * (a.z + b.z),
-            (a.z - b.z) * (a.x + b.x),
-            (a.x - b.x) * (a.y + b.y),
-        );
-    }
-    let n = n.normalize();
-    // Orient along the stack, consistently across levels. Newell's
-    // sign follows the ring's traversal, so a plane whose normal is
-    // near-perpendicular to the chord cannot be oriented reliably at
-    // all — that is what this guard is for. It is NOT the bisection's
-    // precondition; `loft_contains` checks that one directly.
-    let along = if n.dot(axis) < 0.0 { -1.0 } else { 1.0 };
-    assert!(
-        (n.dot(axis) * along) / axis.norm() > 0.1,
-        "the level plane at v-fraction {t} must be orientable against the \
-         stacking chord: cos = {}",
-        n.dot(axis) * along / axis.norm()
-    );
-    (ring[0], n * along)
-}
-
-/// The body's own level set at `v`-fraction `t`: one closed polyline
-/// per loop, walls in traversal order, sampled off the shipped charts.
-///
-/// Two PRECONDITIONS, asserted rather than assumed, because the oracle
-/// is worthless without them:
-///
-/// - the level set is **planar**, or the polyline is not a
-///   cross-section of anything. It is for every fixture here — each is
-///   a stack of rigid copies of one profile, and the copies' motion
-///   carries the whole ring;
-/// - the polyline's **chord error** stays far under the probe steps,
-///   or parity answers about the polyline stop being answers about the
-///   solid. Estimated per wall from consecutive triples: on a circle
-///   of radius `R` sampled at angular step `θ` the middle sample sits
-///   `R(1 − cos θ)` off its neighbours' chord, four times the chord's
-///   own sagitta `R(1 − cos θ/2)`. Wall JUNCTIONS are excluded — a
-///   profile corner is a real corner, not sampling error.
-fn level_set(lofted: &Lofted<f64>, t: f64) -> Vec<Vec<Point3<f64>>> {
-    let (origin, n) = level_plane(lofted, stack_axis(lofted), t);
-    let (mut off_plane, mut chord_err) = (0.0_f64, 0.0_f64);
-    let mut loops = Vec::with_capacity(lofted.side_faces.len());
-    for walls in &lofted.side_faces {
-        let mut poly = Vec::with_capacity(walls.len() * LEVEL_SAMPLES);
-        for &fk in walls {
-            let run = poly.len();
-            for i in 0..LEVEL_SAMPLES {
-                #[allow(clippy::cast_precision_loss)]
-                let su = i as f64 / LEVEL_SAMPLES as f64;
-                let p = wall_point_at(&lofted.body, fk, su, t);
-                off_plane = off_plane.max((p - origin).dot(n).abs());
-                poly.push(p);
-            }
-            for i in run + 1..poly.len() - 1 {
-                let mid = poly[i - 1] + (poly[i + 1] - poly[i - 1]) * 0.5;
-                chord_err = chord_err.max((poly[i] - mid).norm() * 0.25);
-            }
-        }
-        loops.push(poly);
-    }
-    assert!(
-        off_plane < 1e-9,
-        "the level set at v-fraction {t} must be planar for its polyline to be \
-         a cross-section: off-plane by {off_plane}"
-    );
-    assert!(
-        chord_err < 1e-3,
-        "the level polyline at v-fraction {t} must track its iso-curves far \
-         inside the probe steps (smallest 0.02): chord error {chord_err}"
-    );
-    loops
-}
-
-/// Crossing parity against a level set, in the level plane's own
-/// frame: the material side of a closed planar curve, which is defined
-/// without any orientation at all — a hole loop needs no special case,
-/// its crossings simply cancel the plate's.
-///
-/// **A DECLARED COPY** (report §S17; this is the outermost of the
-/// ray-parity implementations it tracks). Reuse is blocked in every
-/// direction: `topo::splitting::containment::point_in_loop` is public
-/// but takes `(&Body, LoopKey)` and walks the B-rep, so it cannot
-/// consume a sampled polyline; `chart_region::point_in_polygon`,
-/// `profile::validate::point_in_loop` and the shared walk the first
-/// two now share (`topo::ray_parity::ray_verdict`, `pub(crate)`) are
-/// private to their crates; and any `Decide`-certified door — which
-/// the shared walk is — would tie this oracle's validity to the
-/// running ε, which is the fragility #619 was faulted for.
-fn level_set_contains(
-    loops: &[Vec<Point3<f64>>],
-    plane: (Point3<f64>, Vec3<f64>),
-    q: Point3<f64>,
-) -> bool {
-    let (origin, n) = plane;
-    let (e1, e2) = n.orthonormal_basis();
-    let uv = |p: Point3<f64>| ((p - origin).dot(e1), (p - origin).dot(e2));
-    let (qx, qy) = uv(q);
-    let mut crossings = 0usize;
-    for poly in loops {
-        for i in 0..poly.len() {
-            let (a, b) = (uv(poly[i]), uv(poly[(i + 1) % poly.len()]));
-            if (a.1 > qy) != (b.1 > qy) && a.0 + (qy - a.1) / (b.1 - a.1) * (b.0 - a.0) > qx {
-                crossings += 1;
-            }
-        }
-    }
-    crossings % 2 == 1
-}
-
-/// Levels the bisection's premise is checked on. Coarse: it must
-/// catch a fan that folds back, not resolve one.
-const MONOTONE_SCAN: usize = 64;
-
-/// **The level-set oracle**: is `q` inside the stacked solid? `q`'s
-/// height above the level plane falls as the level rises past it, so
-/// `q`'s own level set is found by bisection and the caller never
-/// needs to know how `v` maps to space. Past either cap is `Out` by
-/// construction.
-///
-/// PRECONDITION, asserted rather than assumed, and asserted DIRECTLY:
-/// `height` must be monotone. `level_plane`'s orientability guard is a
-/// weaker and different condition — measured on the elbow, a 120° turn
-/// clears it at `cos = 0.28` while `height` has already stopped being
-/// monotone — so guarding that instead would leave a body whose level
-/// is ambiguous answering from whichever root the bisection lands on.
-/// A post-condition cannot substitute: every spurious root satisfies
-/// `height ≈ 0`, and which root was found is exactly what is at stake.
-/// The scan is a scan — it certifies at its own resolution, and it
-/// fires rather than lies.
-fn loft_contains(lofted: &Lofted<f64>, q: Point3<f64>) -> SolidContainment {
-    let axis = stack_axis(lofted);
-    let height = |t: f64| {
-        let (p, n) = level_plane(lofted, axis, t);
-        (q - p).dot(n)
-    };
-    #[allow(clippy::cast_precision_loss)]
-    let scan: Vec<f64> = (0..=MONOTONE_SCAN)
-        .map(|i| height(i as f64 / MONOTONE_SCAN as f64))
-        .collect();
-    for (i, w) in scan.windows(2).enumerate() {
-        assert!(
-            w[1] < w[0],
-            "the level height must fall monotonically along v for a query \
-             point's level to be well defined: at step {i} of {MONOTONE_SCAN} \
-             it rises, {} then {}",
-            w[0],
-            w[1]
-        );
-    }
-    if scan[0] <= 0.0 || scan[MONOTONE_SCAN] >= 0.0 {
-        return SolidContainment::Out;
-    }
-    let (mut lo, mut hi) = (0.0_f64, 1.0_f64);
-    for _ in 0..40 {
-        let mid = (lo + hi) * 0.5;
-        if height(mid) > 0.0 {
-            lo = mid;
-        } else {
-            hi = mid;
-        }
-    }
-    let t = (lo + hi) * 0.5;
-    if level_set_contains(&level_set(lofted, t), level_plane(lofted, axis, t), q) {
-        SolidContainment::In
-    } else {
-        SolidContainment::Out
-    }
-}
-
-/// The chart grid the twisting fixtures are probed on: three columns
-/// across `u` at five levels along `v`. Mid-chart alone cannot see a
-/// twist — it is one level set of a chart that has many.
-fn along_v() -> Vec<(f64, f64)> {
-    let vs = [0.05, 0.25, 0.5, 0.75, 0.95];
-    [0.25, 0.5, 0.75]
-        .into_iter()
-        .flat_map(|u| vs.map(|v| (u, v)))
-        .collect()
-}
-
 /// The convexity-FLIPPING section: the audit's rectangle with both the
 /// bottom and the top edge bowed, the bulge signs taken from `sign`.
 /// `flipping_loops(1.0)` bows the bottom edge INTO the region and the
@@ -1131,8 +820,7 @@ fn a_convexity_flipping_loft_faces_out_at_every_level() {
 
     let samples = along_v();
     let oracle = |q| loft_contains(&lofted, q);
-    let probes = assert_walls_face_out(&lofted, &oracle, &samples, 0.02, 4);
-    assert_eq!(probes, 4 * samples.len(), "every wall at every level");
+    assert_walls_face_out(&lofted, &oracle, &samples, 0.02, 4);
 }
 
 /// **A three-section curved-`v` loft.** The notched region stacked
@@ -1167,8 +855,7 @@ fn a_three_section_curved_v_loft_faces_out_at_every_level() {
 
     let samples = along_v();
     let oracle = |q| loft_contains(&lofted, q);
-    let probes = assert_walls_face_out(&lofted, &oracle, &samples, 0.02, 4);
-    assert_eq!(probes, 4 * samples.len(), "every wall at every level");
+    assert_walls_face_out(&lofted, &oracle, &samples, 0.02, 4);
 }
 
 /// **The level-set oracle agrees with the extruded twin.** The two
@@ -1264,12 +951,7 @@ fn a_curved_path_swept_body_faces_out_along_the_whole_turn() {
     )
     .expect("the elbow path is a well-formed quarter arc");
     let h = 0.25;
-    let profile = vec![ProfileLoop::polygon([
-        p2(-h, -h),
-        p2(h, -h),
-        p2(h, h),
-        p2(-h, h),
-    ])];
+    let profile = quad([(-h, -h), (h, -h), (h, h), (-h, h)]);
     let swept =
         sweep_body::<f64>(&profile, Affine3::identity(), &path, 9, 3).expect("the elbow sweeps");
     assert_eq!(topo::validate(&swept.body), Ok(()), "tier 1");
@@ -1289,6 +971,5 @@ fn a_curved_path_swept_body_faces_out_along_the_whole_turn() {
 
     let samples = along_v();
     let oracle = |q| loft_contains(&swept, q);
-    let probes = assert_walls_face_out(&swept, &oracle, &samples, 0.05, 4);
-    assert_eq!(probes, 4 * samples.len(), "every wall at every level");
+    assert_walls_face_out(&swept, &oracle, &samples, 0.05, 4);
 }
