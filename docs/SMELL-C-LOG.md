@@ -156,6 +156,7 @@ Both surviving lanes were resumed from transcript rather than restarted fresh:
 their accumulated design state (C-b's placement decision, C-c's merge-conflict
 resolutions across 11 dependents) is exactly the kind the death-recovery rule
 says is worth a replay.
+| **C-R8** | **`docs/DESIGN.md:1132`'s stale crate name**, inside the **ratified D2 addendum's** rationale. C-c left it deliberately: the merge ruling authorised the crate-table row and the line-369 pointer *and nothing else*, and it would not edit ratified text without cover. | **Authorise the rename in place.** It is the same mechanical consequence as the crate-table row — `geom-curves` becomes the merged crate's name, the D2 argument itself is untouched. The sentence's claim is unaffected; only the name it uses is stale. Folded into #705's fix pass rather than pushed under the running reviewers. | Evan, 2026-08-20 |
 
 ---
 
@@ -196,4 +197,28 @@ not a question the standing brief asks.
 
 ## Landings
 
-*(none yet — #702 is green and in style review)*
+*(none merged yet)*
+
+| PR | unit | state |
+|---|---|---|
+| **#702** | C-a / S24 | green; style review returned a **MAJOR** and both of Evan's questions as **No** — in its fix pass (C-R5/6/7) |
+| **#705** | C-c / S31 | green (35 success, 1 conditional skip), 268 files; adversarial + style reviews running. Fix pass owes C-R8's `DESIGN.md:1132` rename. |
+| **smellc/s30-mesh-instrument** | C-b / S30 | resumed after the restart; no PR yet |
+
+## Follow-ups this track raised about itself
+
+- **The gating paragraph is landing state too.** #698's *"six of these are
+  edge-free and could start today"* list names findings by name, so a landing
+  that leaves the §D table but stays in the paragraph makes the paragraph
+  false. This is now part of the recording convention rather than something the
+  orchestrator patches afterwards.
+- **A long unit has no natural seam and will not invent one.** C-b lost nothing
+  to the restart only because the orchestrator committed its tree for it. The
+  implementer discipline already says *commit and push after every coherent
+  unit*, and C-b's brief pointed at it — so the gap is not the rule. Briefs for
+  large units should name where the seams are.
+- **The confessed-copy grep is known-blind, and now measurably so.** C-c found
+  `removal_pass_bound` — two line-for-line identical bodies — matching **none**
+  of Q1's self-declaration vocabulary, because neither copy confessed. It was
+  found by reading. Q1's own instrument caveat (*the question is the
+  instrument*) has its worked example now.
