@@ -63,7 +63,7 @@ pub mod solve;
 
 pub use coset::{Coset, Subgroup};
 pub use solve::{
-    ClusterMaintenance, MateRole, PairSolve, SolvedPoses, clusters, gauge_of, reading_edges,
+    ClusterMaintenance, MateRole, SolvedPoses, clusters, gauge_of, reading_edges,
     relative_freedom_components, solve_document,
 };
 

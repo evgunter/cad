@@ -136,9 +136,10 @@ sentence is *for*.
 **Track D was constituted 2026-08-20** while this track's lanes were running,
 and it overlaps Track C at three points that must not be rediscovered:
 
-- **D7 is gated on #702** (this track's C-a) — its `PairSolve` deletion waits on
-  `mate.rs`, `mate/solve.rs` and the `lib.rs` re-export block C-a is editing.
-  Landing #702 promptly is therefore a Track D unblock, not only a Track C one.
+- **D7 was gated on #702** (this track's C-a) — its `PairSolve` deletion waited
+  on `mate.rs`, `mate/solve.rs` and the `lib.rs` re-export block C-a was
+  editing. Both have since merged: #702 on 2026-08-20, and the deletion as
+  **#735**.
 - **Track D owns `sweep/` for the duration** (D1/D2 in `extrude`, `revolve/`,
   `fillet/`; D8 in `skin.rs`). **C-e / H13** edits `sweep/tests/` only, which is
   disjoint from all four, but H13's oracle is *about* skinning orientation and
