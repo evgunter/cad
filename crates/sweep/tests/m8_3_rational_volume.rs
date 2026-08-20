@@ -127,7 +127,9 @@ fn stack(z: [f64; 3]) -> Vec<Affine3<f64>> {
 /// quadrature over it. Under nextest's process-per-test isolation
 /// there is no cache between them, so every ε row paid that
 /// build-plus-quadrature twice (measured 21.4 s + 37.0 s at the
-/// default ε, 862 s + 837 s at ε=1e-12). The oracle side — one
+/// default ε, 862 s + 837 s at ε=1e-12 — a dated test-cost-audit
+/// reading that nothing re-takes, and that no assertion here reads:
+/// it bought a merge that has already happened). The oracle side — one
 /// `extrude` and its closed-form props — costs ~0.03 s, so folding
 /// the bracket in here is free and the duplicate build is gone.
 ///
