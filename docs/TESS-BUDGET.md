@@ -67,7 +67,7 @@ sizing the lane already performed. Both run in ~4 s over the whole tour
 in release.
 
 The committed baseline is `docs/tess-budget-data/tess-budget-baseline.csv`
-(1025 face rows, cut at the head this document was written against,
+(1,049 face rows, cut at the head this document was written against,
 WITH the resampling pass — its `worst_dev` column is where the
 total-slack figures below come from). CI runs the sweep
 `--sizing-only` and gates on REGRESSION against it: a scene's mesh
@@ -90,38 +90,72 @@ re-derived (spec D-4) so BOTH regression kinds stay visible:
   COUNTERFACTUAL. `patch_cells / grid_cells` is the **held** span
   gain; a silent revert to whole-patch sizing multiplies `grid_cells`
   by it, which fires the triangle gate and the slack gate both.
-* `span_cells` — **identically `grid_cells`.** `grid_cells /
-  span_cells` is the **agreement** column and it is 1.00 by
-  arithmetic, not by check: both numbers are the same `band_schedule`
-  sum (`Σ nuc·nvc`, accumulated in the loop that emits the
-  candidates), so neither counts a realised candidate and the column
-  cannot detect the drift it was once described as detecting. Kept
-  because the committed baseline and `tess-lint` read it by position.
+* `span_cells` — **removed.** It was identically `grid_cells` (the
+  same `band_schedule` sum, `Σ nuc·nvc`), so the **agreement** ratio
+  built on it was 1.00 by arithmetic rather than by check, and neither
+  of its two numbers counted a realised candidate. It is gone rather
+  than re-derived — see "Why there is no realisation column", below.
 * `opt_cells`, `span_opt_cells` — as before (cheapest split under the
   whole-patch bound / per cell). `grid_cells / span_opt_cells` is the
   gate's per-face recoverable-slack ratio, now carrying the split
   factor PLUS the banding and malign-snap forfeits, summed.
 
-What guards `band_schedule` itself, given that the agreement column
-guards nothing: (i) the per-triangle certificate —
+What guards `band_schedule` itself: (i) the per-triangle certificate —
 `NurbsCellGrid::cert` reads the raw per-cell bounds independent of the
 schedule, so an undersizing bug ends in refinement then a typed
 refusal, and is falsified per-triangle under the `budget` feature's
 deviation mode; (ii) this gate's growth rules against the committed
 baseline; (iii) the committed render cells. **The stated blind spot: a
 schedule bug that makes the grid COARSER while still certifying is
-invisible to the growth-only gate, and `agree` cannot see it either** —
-accepted because the certificate is the guarantee, and recorded here
-so nobody mistakes `agree = 1.00` for more than it is.
+invisible to a growth-only gate** — accepted because the certificate
+is the guarantee, and recorded here so the gate is not read as more
+than it is.
 
-**A REAL agreement check is owed and unscheduled.** It means counting
-something the lane realises independently of the schedule sum, which
-is a CSV schema change plus a re-cut baseline — a unit, not a patch.
-Until it exists, read `agree` as a placeholder column.
+## Why there is no realisation column
 
-The report prints `held / agree / split / total`; `tess-lint`'s gate
-rules are unchanged in shape (triangle growth, per-face recoverable
-slack growth, vanished scenes).
+The removed column was described as verifying the lane's REALISATION
+of the schedule — candidate generation, dedup, counting. It never did.
+The question the removal answers is not "how do we make that number
+real" but "is a realisation check worth having", and the answer is no,
+for four reasons that are about the check rather than about its cost:
+
+1. **A realisation ratio cannot see the blind spot named above.** That
+   blind spot is a SCHEDULE bug. A realisation ratio divides what the
+   lane built by what the schedule asked for, so a wrong schedule
+   moves both sides together and the ratio stays where it was. The
+   paragraph above is not the specification for such a check; it is
+   the reason the check is not the guard, and it already names the
+   three things that are.
+
+2. **Both directions of a genuine realisation failure are already
+   caught, by instruments that read the mesh rather than a predicted
+   count.** Realise the grid COARSER than the schedule asked and the
+   triangles are larger than the cell bound admits, so the
+   per-triangle certificate — computed from the realised triangle —
+   refuses. Realise it DENSER (a dedup that stops deduping, a band
+   emitted twice) and the triangle count grows, which is the gate's
+   first rule. The realised total is already a column (`triangles`)
+   and is already compared against the committed baseline.
+
+3. **The ratio would have no principled target, so its tolerance
+   could only be read off the baseline.** `per_cell_candidates` states
+   the mismatch itself: a shared cut line carries the union of BOTH
+   adjacent bands' column points, candidates outside the trim box are
+   dropped, and the end columns of each band are excluded. A realised
+   point count is therefore a function of band structure and trim box
+   that equals neither `Σ nuc·nvc` nor any other stated value. Any
+   tolerance on it would have to be widened until today's sweep went
+   green — which is the objection this document already makes to
+   absolute thresholds, one level down.
+
+4. **Nothing consumed it.** The gate reads triangle counts and
+   `grid_cells / span_opt_cells`; the agreement ratio reached one
+   printed figure and one report column and decided nothing.
+
+`grid_cells` remains and is still the schedule's own sum; what it is
+is stated where it is declared. The report prints `held / split /
+total`; `tess-lint`'s gate rules are unchanged in shape (triangle
+growth, per-face recoverable slack growth, vanished scenes).
 
 ## What the four numbers meant (pre-fix record)
 
