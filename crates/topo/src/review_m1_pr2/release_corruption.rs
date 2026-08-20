@@ -4,12 +4,18 @@
 //! Evan's request (PR #17 thread).
 //!
 //! Tier-1-INVALID bodies fed into the operators. Contract: typed errors
-//! or garbage bodies -- never a panic, never a hang. Run this under BOTH
-//! profiles; the garbage-success cases are meaningful in --release
-//! (debug builds fire the postcondition assert on them -- see the
+//! or garbage bodies -- never a panic, never a hang. The debug-vs-release
+//! expectations are split with `cfg(debug_assertions)` guards, so neither
+//! profile alone covers this file and BOTH have to run it: the
+//! garbage-success cases are meaningful only in --release (debug builds
+//! fire the postcondition assert on them -- see the
 //! debug_postcondition_fires_on_corrupt_input test, which documents that
-//! tension). The debug-vs-release expectations are split with
-//! `cfg(debug_assertions)` guards so the suite is green in both.
+//! tension).
+//!
+//! Both are gated. The debug rows ride the standard nextest matrix; the
+//! release rows are the `corrupt input (release profile)` job in
+//! `.github/workflows/ci.yml`, which is the only release-profile test
+//! invocation the kernel workspace has and exists for this file.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

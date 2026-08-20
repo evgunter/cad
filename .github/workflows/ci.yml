@@ -667,6 +667,74 @@ jobs:
       - name: run archived tests
         run: ${{ matrix.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', matrix.eps) || '' }} cargo nextest run --archive-file nextest-default.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2
 
+  # THE RELEASE-PROFILE ROW. crates/topo/src/review_m1_pr2/
+  # release_corruption.rs feeds tier-1-INVALID bodies to the Euler
+  # operators and pins D9's disposition for them: typed errors or garbage
+  # bodies, never a panic, never a hang. Its debug and its release
+  # expectations are DIFFERENT ASSERTIONS behind `cfg(debug_assertions)`,
+  # so the archive matrix above cannot cover the file: that matrix is the
+  # dev profile at opt-2 with debug-assertions ON, and of the file's six
+  # rows one does not exist under them and one is a sixth of its size.
+  #
+  #   * `foreign_parent_loop_garbage_in_garbage_out_release` is
+  #     `#[cfg(not(debug_assertions))]`, and is the only executable check
+  #     of the ratified garbage-out contract — the op returns Ok on
+  #     corruption its preconditions cannot see, without panicking or
+  #     hanging, and `validate` then reports the wreckage. Off this job
+  #     it is not merely unrun but never COMPILED (clippy is a debug pass
+  #     too), so it can rot into a build error with the gate green.
+  #   * `large_torn_body_terminates_quickly` builds 3000 struts here and
+  #     500 under debug-assertions, where the per-op postcondition sweep
+  #     makes the construction loop quadratic. The bounded-walk case the
+  #     gate actually sees is 6x larger in this job.
+  #
+  # The remaining rows are profile-independent and are covered twice.
+  #
+  # SCOPED to one crate's lib unittests, deliberately, not a release
+  # build of the workspace: `-p topo --lib` compiles topo's closure plus
+  # its dev-dependencies and links one binary. The rows themselves
+  # execute in milliseconds — the compile IS the cost of this job.
+  #
+  # Gated on topo being in the change closure, read off PKGS rather than
+  # through a new ci-filter.py signal: topo is the crate the suite lives
+  # in, and every crate whose movement can reach it puts it in the
+  # closure by construction. `tier == 'all'` is honoured separately so
+  # the job still runs in the one case where the member scan bails and
+  # leaves PKGS empty.
+  release-corruption:
+    name: corrupt input (release profile)
+    runs-on: ubuntu-latest
+    needs: filter
+    if: >-
+      needs.filter.outputs.run_build == 'true' &&
+      (needs.filter.outputs.tier == 'all' ||
+      contains(needs.filter.outputs.pkgs, 'topo'))
+    steps:
+      - uses: actions/checkout@v4
+      # STRUCTURAL — see the full note on the `filter` job above.
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      # Its own cache key: release artifacts share no fingerprint with
+      # the dev-profile jobs, so one shared entry would only thrash.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: topo-release
+      - name: corrupt-input suite, release profile
+        run: |
+          set -o pipefail
+          cargo test --release -p topo --lib -- review_m1_pr2::release_corruption \
+            | tee release-corruption.log
+          # A name filter that matches NOTHING exits 0 — which is the
+          # exact silence this job exists to remove. So assert the
+          # selection is non-empty, and that the release-only
+          # garbage-out row is in it. Rename either and this is the
+          # line that tells you to come here.
+          passed=$(sed -n 's/^test result: ok\. \([0-9]\{1,\}\) passed.*/\1/p' release-corruption.log)
+          echo "release-profile rows run: ${passed:-0}"
+          test "${passed:-0}" -gt 0
+          grep -q 'garbage_in_garbage_out_release \.\.\. ok' release-corruption.log
+
   # BUILD job, interval features — the ONE genuinely different build
   # graph in the matrix. Owns the interval clippy pass and the interval
   # doc-tests (both need this graph compiled anyway), then archives the
