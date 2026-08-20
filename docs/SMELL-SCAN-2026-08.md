@@ -8209,42 +8209,55 @@ rather than one keeps the box intact if the constant is ever split in
 two. The `k-lint` shape the finding held up is the model, and the
 argument now lives at the constant, which is the claim site.
 
-**The class check found the second instance pinned by accident, and
-the first attempt at boxing it reproduced S73's own defect with the
-sign flipped.** `SPLIT_SCAN_DECADES` / `SPLIT_SCAN_STEPS`
-(`tools/tess-meter/src/lib.rs`) were **not** pinned by nothing:
-`a_ruled_wall_pays_for_its_flat_direction` constrained them, but
-**non-monotonically** — green at 5 steps, red at 9, 17, 33 and 65,
-green again at 161 — because the objective is a step function of the
-aspect ratio and the pin was an accident of whether the scan's lattice
-held a sample near the argmax. #783's first replacement pinned the
-answer (`cells <= 4911`, argmax at `10^-3.7`) and inherited exactly
-that: the review measured `S = 1000` reddening it **while returning a
-strictly better 4,844 cells**, so a row written to demonstrate a box
-went red on an improvement.
+**The class check reached a bigger result than the box it was sent
+for: these constants are not boxable, and the reason is a property of
+the quantity rather than of any attempt at it.**
+`SPLIT_SCAN_DECADES` / `SPLIT_SCAN_SAMPLES` (`tools/tess-meter/src/lib.rs`;
+the second was `SPLIT_SCAN_STEPS` until a naming pass renamed it) were
+**not** *"pinned by nothing"* as this finding said —
+`a_ruled_wall_pays_for_its_flat_direction` constrained them
+**non-monotonically**, green at 5 samples, red at 9/17/33/65, green at
+161, which is an accident of whether the scan's lattice held a point
+near the argmax.
 
-**What landed instead pins the RELATION.** The test computes its own
-reference optimum — a dense 12-decade / 240,001-sample scan of the same
-certificate constraint, written from the constraint rather than from
-the optimizer's parameters — and asserts the shipped scan is within
-**5%** of it over a five-bound family (a ruled wall, isotropic, mildly
-anisotropic, cross-term-only, unit). The reference is recomputed every
-run, so a cheaper grid can only move the measured excess DOWN.
-Measured on this tree: **4.4643%** at the shipped `(8, 321)`, pinned at
-5% with 12% of headroom. Every coarsening or widening reds (`S` = 5 →
-44.06%, 65 → 6.14%, 161 → 5.31%; `D` = 2 → 13.72%, 12 → 6.42%, 16 →
-5.31%, 24 → 8.08%, 40 → 6.14%) and **every refinement stays green**
-(`S` = 200, 250, 322, 333, 400, 500, 641, 700, 1000, 1500, 2000, 3201,
-32001 — 3.46% down to 0.02%). Stated exactly, because the tempting
-version is false: a finer scan's samples are a superset only when
-`S − 1` is a multiple of 320, so refinement is monotone **in fact and
-not by proof**, and the thirteen rows are the evidence. The
-pre-existing `h_u >= 1.0` assertion, which was the accidental pin and
-reds on the same improvements, is replaced by a claim about the
-divisions rather than the argmax. The unguarded side — nothing stops
-the pair being made needlessly fine — is stated at the site with its
-reason (cost only, and the available guard is a wall-clock bound, which
-this document already records as a smell).
+**Two attempts to replace that accident with a box both failed, the
+second under independent verification.** The first pinned the answer
+and its argmax and reproduced the original defect with the sign
+flipped — it reds on refinements that IMPROVE the number. The second
+pinned the answer's distance to a denser reference, and an independent
+lane scanned **every** sample count in 322..2000 and found the
+counterexample two steps from the shipped value: **323 samples, a
+strict refinement, 5.24% against a 5% pin.** The same verification
+found the row's oracle guard vacuous (the shipped sample set is a
+strict subset of the reference's, so *reference ≤ shipped* held by
+construction, and replacing the reference with the subject itself left
+the row green at 0.00%) and the tolerance fitted to its five-member
+family — a sixth ordinary member puts the shipped pair at **5.88%**.
+
+**The first-principles fact, measured.** The worst relative excess
+moves ~4 percentage points between ADJACENT sample counts (321: 5.88%,
+322: 3.64%, 323: 5.24%, 324: 1.79%, 325: 3.94%) and does not converge
+(2,000 samples is still 0.79%). **The quantity is discontinuous in the
+parameter it would be pinned against**, so no tolerance on it can
+admit every refinement and exclude every degradation: both attempts
+failed for this reason, wearing different clothes. What landed is
+therefore **Q6's third option — a written reason, at the claim site,
+carrying the measurement and `323` as its witness** — and the row that
+survives is the divisions pin on the ruled wall, which the verification
+judged a real property rather than a second accidental pin.
+
+**The result worth more than the box, and the answer to "what
+resolution guarantee do these constants provide":** a resolution in
+**aspect ratio**, and no bound on the answer. The discontinuity is the
+two `ceil`s, not the scan — the same worst excess computed without
+them moves by hundredths of a point across the same neighbours (0.017%,
+0.083%, 0.011%, 0.030%) and falls smoothly with resolution (65
+samples: 1.82%; 200: 0.096%; 1,000: 0.0034%). The `ceil` quantisation
+sits on top and is not these constants' to control. A guard on the
+continuous quantity is possible and is not written, because it measures
+something the columns do not report; a guard on the cell count is not
+possible at all. **Nobody should re-attempt the third box**, and the
+claim site now says why.
 
 **Verdict:**
 
@@ -9793,14 +9806,24 @@ is why they are scheduled (**D64**) rather than left in a PR body.
   `tess_lint::parse` never reads it, so genuine deviation drift parses
   as *"not resampled"*: a skip. F6 put that absence in the type; it did
   not make the two states distinguishable, and the CSV already can.
-- **(c) `SPLIT_SCAN_DECADES` / `SPLIT_SCAN_STEPS` have a test and no
-  register.** CI runs a real `--sizing-only` sweep and lints it on
-  every merge, and that register **cannot** see a degraded scan: a
-  worse scan RAISES `span_opt_cells`, which LOWERS the recoverable
-  slack, and the gate fires only on growth. #783's derivations row is
-  the only thing between that pair and silence. Whether a scheduled
-  re-measure is owed on top — Q6's second option — is the question;
-  the row belongs to whoever also owns `ci.yml`.
+- **(c) `SPLIT_SCAN_DECADES` / `SPLIT_SCAN_SAMPLES` have neither a
+  guard nor a register, and the guard is impossible while the register
+  is merely absent.** The cell-count excess these constants produce is
+  **discontinuous in the constants** (~4 points between adjacent
+  sample counts — S73's record, with `323` as the witness), so a
+  tolerance on it cannot be written; #783 records that as Q6's written
+  reason at the claim site. The register is the part still open, and
+  the part CI cannot supply as it stands: a real `--sizing-only` sweep
+  is linted on every merge, and that gate **structurally cannot** see a
+  degraded scan, because a worse scan RAISES `span_opt_cells`, which
+  LOWERS the recoverable slack, and the gate fires only on growth. So
+  the constants are watched by one divisions pin and nothing else.
+  **What a register could measure is not the cell count**: the same
+  excess without the two `ceil`s is continuous, falls smoothly with
+  resolution, and depends only on the sampling step and the range —
+  i.e. on exactly what these constants set. Whoever takes this owns
+  `ci.yml` and should decide between a scheduled re-measure of that
+  continuous quantity and an explicit "unwatched, and here is why".
 - **(d) `k-lint`'s other three constants are unpinned, and one sweep
   shape is unswept.** `PROXIMITY_FACTOR`, `EPS_COUPLED_FLOOR_RATIO` and
   `AMBIENT_BAND_MIN` were disclosed by #783 as outside its sweep, and

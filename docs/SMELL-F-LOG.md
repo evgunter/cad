@@ -578,17 +578,24 @@ sweep — the CI gate's own) parses to `None` rather than to a float.
 by bisection on `4f959cb4`, not transcribed) into `[1.04, 1.06)`, on
 both rules it governs.
 
-**Class check taken, and taken twice.** `tess-meter`'s
-`SPLIT_SCAN_DECADES` / `SPLIT_SCAN_STEPS` were pinned
-*non-monotonically* — green at 5 steps, red at 9/17/33/65, green at 161
-— i.e. by an accident of sample placement, which is not a box. **The
-first replacement reproduced that defect with the sign flipped** (it
-pinned the answer, and the style review measured `S = 1000` reddening it
-while returning a strictly better result — F-R7). What landed pins the
-**relation**: the test computes its own dense reference optimum and
-asserts the shipped scan is within 5% of it over a five-bound family, so
-a cheaper grid can only move the number down. Verified both ways —
-every coarsening and widening reds, and thirteen refinements stay green.
+**Class check taken, and it ended somewhere better than the box it was
+sent for.** `tess-meter`'s `SPLIT_SCAN_DECADES` / `SPLIT_SCAN_SAMPLES`
+were pinned *non-monotonically* — an accident of sample placement, not
+a box. **Two replacements failed, the second under independent
+verification** (F-R14): the first pinned the answer and reds on
+improvements; the second pinned the answer's distance to a reference,
+and the verifier scanned every sample count in 322..2000 and found
+`323` — two steps above shipped, a strict refinement, 5.24% against a
+5% pin — plus an oracle guard that stayed green when its reference was
+replaced by its own subject, plus a tolerance fitted to its family (an
+ordinary sixth member puts shipped at 5.88%). **The first-principles
+fact is that the excess moves ~4 points between ADJACENT sample counts
+and does not converge**, so no tolerance on it can work. What landed is
+Q6's written reason at the claim site, carrying the measurement and its
+witness — and the finding that these constants guarantee a resolution
+in *aspect ratio* and no bound on the answer at all, because the
+discontinuity is the two `ceil`s and not the scan. The divisions pin on
+the ruled wall survives; the verification judged it a real property.
 
 **Two new findings: S119 / D63** (`k-lint` scores a `NaN` margin CLEAN
 — S73's part one in the sibling instrument) and **S120 / D64** (four
