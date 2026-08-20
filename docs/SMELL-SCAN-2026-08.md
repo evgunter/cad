@@ -4804,62 +4804,113 @@ ordering was never re-examined against either.
 existing implementation of the same pipeline **in that same PR**, or it
 protects only the code that already knew.
 
-## S29. Sizing and certification vocabulary has fragmented across five modules
+## S29. Mechanical half FIXED by #803 — the sizing vocabulary has one home and one word per quantity; the sizing POLICY is still unstated and is a separate design PR
 
-- **Where**: `crates/mesh/src/nurbs_cert.rs:356`,
-  `crates/mesh/src/curved.rs:226`, `crates/mesh/src/chords.rs:63`,
-  `crates/mesh/src/trimmed.rs:112`, `crates/mesh/src/budget.rs:555`
-- **Confidence**: sure
+- **Where**: `crates/mesh/src/sizing.rs` (new), and
+  `crates/mesh/src/{chords,curved,nurbs_cert,trimmed,tessellate}.rs`,
+  `tools/tess-meter/src/lib.rs`
+- **C-R2 split this lane.** #803 is the mechanical half only. *Stating*
+  the sizing policy is a design act; it goes out as its own PR and waits
+  for Evan's sign-off. Until then the class complaint this finding
+  raised — *N well-defended deviations read as N decisions when they are
+  one undecided question* — **still stands** for `SAFE_ASPECT`,
+  `MAX_GRID_RETRIES`'s value, `RATIONAL_CERT_SPLITS`, the sphere
+  margin's value, δ_s = δ/2 and the 12-vs-6 sample-density split. See
+  also **S116(h)**, which is that half and not this one.
 
-"How fine should this be" is answered by `sagitta_angle`, `ellipse_step`,
-`torus_grid_step`, `ceil_count`, a per-chart `grid_steps`,
-`NurbsFaceBound::grid_steps` + `NurbsCellGrid::band_schedule` +
-`row_bound`, `uniform_candidates`/`per_cell_candidates`, and
-`divisions`/`best_split_steps` — the last a 321-sample scan over 16
-decades of aspect ratio.
+**The recorded population was a snapshot, and wrong in both
+directions.** Measured on `origin/main@d4e38059` by data flow (seed on
+the sizing target in a parameter list, close over the call graph) plus a
+call-site census of every step/count producer across `crates`, `tools`
+and `demos` — an instrument shaped differently from the finding's list.
 
-The constants are magic and mostly self-admitted: `SAFE_ASPECT = 5.0`
-whose own doc says the derived line is √15 ≈ 3.87 and the gap is held by
-"measured margin"; a bare `1.25` sphere fudge; `MAX_GRID_RETRIES = 6`
-("was 4"); `RATIONAL_CERT_SPLITS = 16`; `DEV_SAMPLES = 6` vs the probe's
-`12`; `SPLIT_SCAN_DECADES = 8` / `SPLIT_SCAN_STEPS = 321`; a π/4 cap;
-δ_s = δ/2. Each is justified by a paragraph, but nothing says what the
-sizing *policy* is — and `trimmed`'s refinement backstop exists precisely
-because the schedule cannot be trusted to hit its own target.
+* **Three of the eight named constants and two of the nine named entry
+  points had already left the crate.** `DEV_SAMPLES`,
+  `SPLIT_SCAN_DECADES`, `SPLIT_SCAN_STEPS`, `divisions` and
+  `best_split_steps` moved to `tools/tess-meter` when #709 landed S30.
+  The finding's `crates/mesh/src/budget.rs:555` citation no longer
+  resolves — the file is 307 lines.
+* **The remaining vocabulary is wider than the list.** Unnamed by it:
+  `chords::nurbs_chord_count`, `chords::nurbs_tighten`,
+  `NurbsCellGrid::row_bound`, `trimmed::uniform_candidates`, the inline
+  cylinder sizing at `trimmed.rs`, `curved::pole_columns` (which the
+  finding itself recorded arriving after the fact, in #684), and an
+  **unnamed inline step formula** inside `nurbs_chord_count` that was
+  `ellipse_step`'s formula spelled a second time.
 
-**Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
-baffle me with how they ever happened." Postmortem pass commissioned.
-**Postmortem (2026-08-18).** The vocabulary accreted one certified-face class
-at a time, and the newest constants came from **measured falsification rather
-than derivation** — PR #594 records six schedule variants implemented and
-killed by the tour before the landed one, with `SAFE_ASPECT` chosen as the
-value that survived. `MAX_GRID_RETRIES`'s *"was 4"* comment is literally the
-deviation ledger inlined into the source.
+**What #803 did.** One module, `crate::sizing`, owns the vocabulary and
+its module doc fixes one word per quantity: a **target** (δ_s — one of
+them, `sizing_target(δ)`, carried by `Tol`, which moved out of `curved`);
+a **step** (an `f64` parameter increment); a **count** (a `usize`
+division count, always `ceil_count(span, step)` or a rule applied to
+one). The doc states the enforced rule as one sentence — *"step" names
+an `f64` increment and nothing else; a `usize` count is never called a
+step, and neither is a sample count* — rather than as a suffix
+convention, because a suffix convention would have been false at
+`pole_columns` and `cap_angular` the moment it was written. Under it:
+`sagitta_angle` → `sagitta_step` (it was a step named "angle");
+`curved::grid_steps` → `grid_counts` (it returned counts, and shared its
+name with `NurbsFaceBound::grid_steps`, which returns steps — a collision
+that had already made one `nurbs_cert` doc sentence ambiguous);
+`MAX_STEPS` → `MAX_COUNT` (it capped a count); `BandDivisions` →
+`BandCounts` (a third word for the same thing);
+`tess_meter::SPLIT_SCAN_STEPS` → `SPLIT_SCAN_SAMPLES` (they are samples).
+Three literal `FRAC_PI_4` spellings and two ways of comparing against
+them became `MAX_ANGULAR_STEP` + `cap_angular`; two spellings of the
+second-derivative step formula became `curvature_step`; the bare `1.25`
+became `SPHERE_SIZING_MARGIN` with its argument moved to a doc.
+`tess_meter::divisions` stays a second spelling **deliberately** — a
+different cargo root, `f64`, refuses nothing — and its doc now says the
+different *name* is the tell. `MAX_GRID_RETRIES`'s *"was 4"* comment,
+which this finding named as the deviation ledger inlined into the
+source, was rewritten as the invariant.
 
-**FLAGGED AND DEFERRED — by the author, deliberately, into an open design
-conversation.** #594's deviations name both headline constants: *"`SAFE_ASPECT
-= 5` is a MEASURED constant, above the derived certifies-under-delta line
-(sqrt(15) ~ 3.87); the (3.87, 5] gap is held by measured margin"*. The
-**policy** question was routed out rather than answered — *"the aspect-policy
-question stays open"*, with PR #568 and `docs/TESS-SPLIT-SPEC.md` as the
-designated venue, still unexecuted.
+**Proof, and its exact limits.** No meshing decision moved: every
+arithmetic expression is preserved operation-for-operation. Two oracles,
+base vs head as worktrees, separate target dirs. **Naming the trees:**
+oracle 1 was run at `1a94204d` vs `2e9206a1` (whose difference is exactly
+this PR's code) and **re-derived** at `90b5e178` (`main` after an
+unrelated `crates/sweep` landing) vs this PR's tip; both identical, and
+the re-derivation also shows `main`'s own output over these rows did not
+move between those two `main` commits. Oracle 2 ran once, at `1a94204d`
+vs `2e9206a1`; the only `crates/mesh`/`tools` delta from there to the tip
+is comments, checked mechanically. (1)
+f64-bitwise `dump()` hashes — positions' `to_bits`, triangle indices,
+boundary polylines — over 17 bodies × 8 deltas = **136 rows, all
+identical**, including the trimmed lane's split-cylinder halves and two
+NURBS bodies. (2) The whole `demos/tour` output (52 STL + 52 STEP + 1049
+UV SVGs + `scenes.json` + `uv.json`, 59 MB) and the whole `demos/wild`
+output (8 imported third-party STEP bodies): `diff -r` clean. **What
+neither reaches**: the tour STLs are f32, so oracle 2 proves structure
+and f32 geometry, not f64 identity (oracle 1 owns that claim, over its
+136 rows); refusal paths no in-tree body reaches have no byte-identity
+oracle, only the typed-refusal tests; and the doc-only edits have none at
+all.
 
-*Lesson:* reporting each magic constant as its own honestly-argued deviation is
-a **substitute** for stating the policy, not a step toward it — N well-defended
-deviations read as N decisions when they are one undecided question.
+**C-R4, preserved because the row that carried it is gone.** §D's C3 row
+once routed this finding's policy question to `docs/TESS-SPLIT-SPEC.md`
+and PR #568. That was wrong and was corrected in the row on 2026-08-19,
+before this lane opened: both #568 and TESS-SPLIT-SPEC are scoped
+**entirely** to the NURBS per-cell step derivation in `nurbs_cert`, so
+`curved::grid_steps` (now `grid_counts`) never had a venue. **Stated
+exactly, because "nothing is ratified" would be too wide**: exactly one
+sizing question has a ratified answer — `docs/TESS-BUDGET.md`'s *split
+schedule's aspect policy*, A = 16, ratified 2026-08-16 on #568 and still
+unexecuted. It rules where the NURBS split schedule takes its point on
+the certified ellipse and **nothing else**: not δ_s = δ/2, not the
+sphere margin, not `SAFE_ASPECT`, not the retry or refinement budgets,
+and not the analytic charts at all. Those are what the C-R2 design PR
+has to speak to, and they have no venue.
 
-**The vocabulary grew again (2026-08-19, PR #684).** `curved::grid_steps` now
-carries a sixth rule: `pole_columns`, a floor on the u step count when the
-boundary walk carries a chart singularity (issue #678 — `nu == 2` meshes a pole
-fan silently non-manifold). Two things to record honestly. It is a
-**correctness** floor, not another tuning constant, and the routed-out design
-conversation does **not** cover it: #568 and `docs/TESS-SPLIT-SPEC.md` are
-scoped entirely to the NURBS **per-cell** schedule (`nurbs_cert`'s
-`grid_steps`, certified cells, the first fundamental form), and nothing open
-covers `curved::grid_steps`. But it lands squarely on this smell's *class*
-complaint anyway: with no stated sizing policy, rule six arrives as one more
-locally-argued decision in a module that already has five, and the reader still
-has to read all six to know what the schedule promises.
+**Residue filed as §D row C23**: `nurbs_cert::RATIONAL_CERT_SPLITS` and
+`geom::curves`' `RATIONAL_METER_SPLITS` are one refinement schedule
+hand-synced across a crate boundary.
+
+*Lesson kept from the original text:* reporting each magic constant as
+its own honestly-argued deviation is a **substitute** for stating the
+policy, not a step toward it. Unifying the vocabulary does not change
+that; it only makes the six locally-argued rules legible as six.
+
 
 ## S30. FIXED by #709 — the kernel crate carried 1,060 lines of instrument, because "is it gated?" was the only question anyone asked of it
 
@@ -10122,7 +10173,7 @@ to make and record.
 The 2026-08-19 statement of this paragraph is superseded: every gate it
 named has since fallen. **A1 (#682), A3 (issue #678, landed as #684), #690
 and #692 are all merged**, and **#705** merged the two geometry crates into
-one `geom`. So C1's one remaining member (H13), C3's S29, C4 in full,
+one `geom`. So C1's one remaining member (H13), C4 in full,
 C5's S28 half,
 C7 and C10 are edge-free and takeable today. (**C9 — the `agreement`
 column — is FIXED by #738**, which deleted it rather than re-deriving
@@ -10131,7 +10182,7 @@ observation. **C15** and **C17** are new, both filed by #738's review,
 and both collide the same way — **§C15** and **§C17** are process
 observations with nothing to do with either row. The convention is
 #731's and it is the only thing separating them: a bare `CNN` is a §D
-schedule row, a `§CNN` is a §C observation.) **C13, C14 and C16 are this PR's own filed rows**, all three edge-free, with the caveat that **C13 and C14 want a plan signed off by Evan before implementation**, being cross-crate public-API changes with a design element rather than cleanups. **C16 is displaced and the displacement is the record, not an error:** C-R20 assigned it **C11**, and #714's fix pass landed a `C11` of its own first — `main`'s C11 stands and C16 is confirmed. Row numbers on this track are assigned by the orchestrator and **a number is not owned until it is on `main`**, so a lane mints against the merged tree rather than against an assignment. **C12** has since arrived with #731, so the table now reads **C1–C8, C10–C17** with no hole at all — C9 is the only number missing and it is missing because it landed.
+schedule row, a `§CNN` is a §C observation.) **C13, C14 and C16 are this PR's own filed rows**, all three edge-free, with the caveat that **C13 and C14 want a plan signed off by Evan before implementation**, being cross-crate public-API changes with a design element rather than cleanups. **C16 is displaced and the displacement is the record, not an error:** C-R20 assigned it **C11**, and #714's fix pass landed a `C11` of its own first — `main`'s C11 stands and C16 is confirmed. Row numbers on this track are assigned by the orchestrator and **a number is not owned until it is on `main`**, so a lane mints against the merged tree rather than against an assignment. **C12** has since arrived with #731, so the table read **C1–C8, C10–C17** with no hole at all — C9 the only number missing, and missing because it landed. **Re-derived at #803's merge, since a landing leaves this paragraph too:** the table reads **C1–C8, C10–C19, C21, C23**. Two numbers are absent and they are absent for different reasons — **C9** landed, and **C20** has never been assigned on `main` at all, so it is a gap and not a reservation. That is exactly the state C-R20 forbids a lane to read as an invitation: a taker asks for a number rather than filling the hole.
 
 **C11 joined 2026-08-19**, as A2/#714's own two residues (§D ordering rule 3),
 and it is edge-free in the same sense C9 is: its #727 half is a **decision**
@@ -10150,15 +10201,16 @@ last**: it touches ~130 files and would conflict with every open lane.
 written proposal rather than a lane. **The binding constraint on the rest is
 capacity and the width-1 build mutex, not dependency.**
 
-**S31, S24 and S30 are FIXED** by #705, #702 and #709 — and a landing leaves
-this paragraph as well as the table, which is why this paragraph is
-rewritten rather than appended to.
+**S31, S24 and S30 are FIXED** by #705, #702 and #709, and **S29's
+mechanical half by #803** (its policy half is a design PR, not a row) —
+and a landing leaves this paragraph as well as the table, which is why
+this paragraph is rewritten rather than appended to.
 
 | # | Work | Why it is here rather than in a track |
 |---|---|---|
 | **C1** | **H13** — a lane's own residue: `sweep_body`'s helix rows with no orientation coverage. (**H12**, the SSI sweeps' other never-silence doors, left this row **FIXED by #734**; **H14**, #637's two jurisdiction residues, left it **FIXED by #737**; **H15**, #635's unclassified siblings, left it **FIXED by #775** — three sites as recorded, twenty as they existed.) | Small on its own; it is the clearest instance of ordering rule 3. |
 | **C2** | **H17** — S37's rustdoc remainder, ~1115 lines across 130 files. (Both other members have landed. **H11**, #632's residues, is **FIXED by #731** — the residues were two as recorded and ten as they existed; see S4's drift (b) for the seven further fail-quiet classifications in the same crate, **§C15** for what each sweep could not match, and **C12** for what #731 filed rather than fixed. **H16**, the STL header not being caller-settable while `StepOptions` carries `product_name`, is **FIXED by #732**.) | H17 is large and mechanical. |
-| **C3** | **S27, S29** — `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block; and the sizing vocabulary fragmented across five modules with self-admitted magic constants. (S30, the mesh crate's 1,060 lines of instrument, was the third member and is FIXED by #709.) **S29 is NOT blocked on a design conversation — corrected 2026-08-19.** This row previously said its policy question was routed to `docs/TESS-SPLIT-SPEC.md` and PR #568. #684's review checked: both are scoped **entirely to the NURBS per-cell schedule** (`nurbs_cert`'s `grid_steps`, certified cells, the first fundamental form — TESS-SPLIT-SPEC's D-1 replaces the AM-GM grouping, with `leaf_a f2` as its poster child). **Nothing in either covers analytic-chart sizing**, so `curved::grid_steps` has no venue at all — and #684 has since added a sixth rule to it. S29's own lesson applies to that: *N well-defended deviations read as N decisions when they are one undecided question.* S27 touches `props/`, so it must follow **A2** (#714) **and #723**, which re-opens the same file on the same closed forms — see the gating note above; S29 is edge-free. |
+| **C3** | **S27** — `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block. (Both other members have landed. S30, the mesh crate's 1,060 lines of instrument, is **FIXED by #709**; **S29**, the sizing vocabulary fragmented across five modules, had its mechanical half **FIXED by #803** — its *policy* half is open and is a design PR under **C-R2**, not a schedule row, and S116(h) is that half.) S27 touches `props/`, so it must follow **A2** (#714) **and #723**, which re-opens the same file on the same closed forms — see the gating note above. |
 | **C4** | **S32, S33** — `Surface`'s one-partial-per-call API, which is what created the shadow surface enum in SSI; and neither geometry enum being able to lift itself to another scalar. (S31, the `geom-curves`/`geom-surfaces` split, was the third member and is FIXED by #705.) | **S32 is now additionally gated on #705's merge**: the enum and its NURBS payload are one crate's two modules, so a `SurfaceJet` door at the enum no longer crosses a crate boundary. **S33 is coloured by D1**: several of its ~14 hand-written ladders exist only to reach `Dual`, and what `Bounds for Dual` changes there is written in S44's **D1 DECIDED** block. |
 | **C5** | **S26, S28's duplication half** — the certified area enclosure that is never metered against anything (`area.width()` appears nowhere in the file); and the three tessellation lanes that remain three pipelines now that #648/#674 have settled their ordering and column questions. (**S24 left this row FIXED by #702.**) | S26 was explicitly deferred in writing by #472 — *"metering against `area.lo()` … deserves its own proposal with re-measured floors"* — so it is a proposal, not a patch. S28's duplication half must follow **A3**. |
 | **C6** | **W2f remainder / S4** — `ProgramStep`/`WireStep`, `SegTag`, and the "no usable value" core. | Each is blocked on something real: the first behind OnArc + RESPELL-TABLE and crossing the same files, the second needs the workspace's first proc-macro crate, the third by a persisted format. |
@@ -10175,6 +10227,7 @@ rewritten rather than appended to.
 | **C18** | **Three residues of H12's own enumeration, left open by #734** — a tests-only unit, so all three are coverage or prose, none a source change. **(a) The four Account-duty cells of the sweeps' never-silence grid have no acceptance row.** The grid is thirteen, not the nine #734 first claimed: the cell budget and both enclosure-poison arms sit in `exhaust.rs`'s ONE shared recursion, which runs under both values of `SweepDuty` on separate calls with separate floors, so **duty is an axis** — and it is the axis S23's own bug lived on. Three cells had rows before #734 and five more do now, all five under the **seeding** duty, because seeding runs first on both lanes. The residue is {cell budget, poison arm} × {ℝ³, chart} under **Account**. **What was tried and did not reach them, so the next taker does not repeat it:** the accounting floor is routinely orders finer than the seeding one (measured on the substrate wall, `8.8e-10` against `2.1e-2` in chart units), so the road looks open — but at `floor_scale` of 0, 1e-12 and 1e-9 both lanes' fixtures still terminate `Ok`, because exclusion and the banked tubes between them resolve every cell above any floor. What is needed is a fixture leaving a region neither excluded nor accounted at every width, and that is a new fixture, not a new assertion. **(b) The macro blind spot on #734's population sweep is open.** The 1-vs-3 containment measurement rests on `plane_nurbs_ssi` having exactly the callers a whole-tree name grep finds; a caller reaching it through a macro-generated path would not be matched. There is no such macro in this workspace to the lane's knowledge, and the reviewer did not close it either — but it is the one declared blind spot on the measurement and it should not live only in a PR body. **(c) `m5_pr7_ssi.rs`'s header claims the battery runs it "at the interval scalar", and the interval CI leg runs only the set difference of the two nextest lists** — so rows present in both configs never run there, and every row in that file is. A coverage claim about the file, false as the workflow stands; either the claim goes or the selection does, and which is a question for whoever owns the interval leg. | **C-R19 tier one — a lane takes it.** No design fork: (a) is test coverage needing a fixture whose non-existence is established rather than assumed, (b) is a sweep widened or a blind spot restated, (c) is one sentence corrected against one workflow file. Nothing here is a kernel change — H12's only source-side residue is **issue #762** (the chart-speed guard's `+∞` hole), which is deliberately NOT part of this row. |
 | **C19** | **`step-import/src/assemble.rs`'s `build`/`build_one_solid` pair — #635's residue B, and DEAD CODE rather than a stale claim.** `build(&[SolidSpec])` has exactly one caller, `build_one_solid`, which always passes a one-element slice; the multi-solid door retired with M8 instancing (a `SolidSpec`'s maps are keyed by file entity ids, so two copies in one arena would collide id for id). **The distinction is this row's content.** #635 named it under *"Still not swept, and why"*, and #775 — the lane that swept the rest of that list — established that its **prose is TRUE today**: `assemble.rs:817` already says *"One door reaches it today … The multi-solid door retired with M8 instancing"*. So there is nothing here for a stale-claims pass to fix, which is exactly why **C-R6 does not reach it**: C-R6 fixes in-crate members of the *class*, and this is not a member of the class. A reader who arrives assuming another stale-claim site re-derives that for nothing. | **C-R19 tier one — a lane takes it.** ~10 lines: fold `build`'s loop into `build_one_solid` and keep the retirement reason at the surviving door. No design element, no public API (`build_one_solid` is `pub(crate)`, `build` private), one crate, edge-free. Not taken by #775 because `step-import` is outside that lane's scope column and the change is code, not prose — the lane asked for this number rather than taking one (**C-R20/C-R21**). Fold into whoever next opens `step-import`; **C8** already routes two `step-import` rows the same way. |
 | **C21** | **Two measured populations from #775's sweeps, neither read per item — and one of them has already hidden a live member.** **(a) I1's 102 live-scope hits**: comment clauses carrying a milestone token with a live-scope marker in the 40 characters before it, workspace-wide, of 2,206 such clauses. The class is *"an `at M<n>` scope label whose milestone has shipped and whose substance may or may not still be true"* — mostly benign, individually cheap, and only decidable by reading the code each one describes. **(b) I3's 411 fan-in variants**: typed refusals whose ONE rustdoc and ONE `Display` arm must cover N > 1 construction sites. Fan-in is a *necessary condition* for the defect it found, not the defect — separating the real ones needs a per-variant read. **What makes this a row and not a note:** bucket (a) is where `geom-brep/src/edge_geometry.rs:285` sat — a **public enum variant doc** whose prediction had come true the other way — and it survived **all four** of #775's instruments, then went undetected until a style reviewer read for it by hand. I1 bucketed it *historical* because its live-scope marker follows the milestone token (*"SSI arrives (M3+)"*) instead of preceding it. **A population that has already concealed one live member is not a backlog; it is an unread result**, and calling it *"named as a population"* was the same sentence as *"recorded as a pickup"* (Q6). | **C-R19 tier: the MIDDLE one — a plan goes to Evan before implementation, not a patch.** A per-item read of 513 items is not a patch, and the design element is the triage itself: how to decide these without committing **§C16**'s move — a prose-hygiene pass that launders a guess into an assertion, which is exactly what bulk-rewriting 102 dated scope labels would be. #775 declined the rewrite on that ground and was right to; declining the rewrite is not the same as declining the schedule, and this row is the schedule. Whoever takes it starts from the two instruments' stated selection rules — **each dropped `edge_geometry.rs:285` by its rule, not by its regex** — because the triage design has to survive the same failure. Both instruments' patterns are written out in #775's body. |
+| **C23** | **One rational refinement schedule, hand-synced across a crate boundary.** `mesh::nurbs_cert::RATIONAL_CERT_SPLITS = 16` and `geom::curves`' `RATIONAL_METER_SPLITS = 16` are the same schedule — every nonempty span of every direction split into this many equal pieces before the hull assembly — and the `mesh` copy's own doc names the other as its precedent (*"the `RATIONAL_METER_SPLITS = 16` precedent of `geom::curves`' rational speed meter, mirrored"*), which makes this S4's dominant shape: one vocabulary, N hand-synced copies, with the copy **declaring itself** and being left anyway. `geom` is already a dependency of `mesh` and the constant is private there, so the mechanical move is one `pub` and one import. Found by #803's census; deliberately not taken by it. | **C-R19 tier: the MIDDLE one — a plan goes to Evan before implementation, not a patch.** Sharing the constant is not an encoding change: it **binds two independently-argued schedules to move together**, and the two arguments are different (a speed meter's scan resolution against a certificate assembly's cell size). Whoever takes it decides whether they are one quantity or two that happen to be 16, and records that — the third option, a shared constant with a doc saying the two consumers may diverge, is the worst of both. Neither value may move while deciding: `geom`'s own tests warn that `RATIONAL_METER_SPLITS` cannot be changed freely. |
 
 **Three ownership changes made to this table from outside the track (2026-08-20,
 Track E), stated here rather than only in Track E so this table is not read as
@@ -11424,7 +11477,7 @@ seam whose whole purpose is that widening it requires ratification. Track E's
 | **F4** | **Guards whose failure mode is their pass condition** — four instances bound by one missing idiom rather than by files. The spent-graft hammer row lacks the `oks > 0` its twin has, and `ci.yml` cites it by name (**S76**); a fuzz corpus is built entirely behind `if let Ok` with no floor (**S78**); a floor row matches into a `println!("SKIPPED")` arm and returns green (**S84**); a new differential test compares an expression against itself (**S91**). | S76, S78, S84, S91 | `topo/src/review_d18.rs`, `sweep/tests/review_d2_adv_probes.rs`, `geom-brep/tests/*`, `geom-core/src/spline/knots.rs` | **ACCEPTED** on all four | **ADVERSARIAL** for S76 and S78 (each is a guard on a soundness contract); style for S84, S91 |
 | **F5** | **Two scraped-source registries of "what is a public mutation door", both classifying by `body.contains("literal")`** — so a comment satisfies the guard. The undisclosed string-match blind spot is the sharper half. | **S92** | `topo/src/review_m1_pr5_internal.rs`, `topo/src/pcurves.rs` | **ACCEPTED** | style |
 | **F6** | **`tess-lint` resolves broken measurements in the cannot-fire direction**: `ratio` returns `1.0` on a non-positive denominator or non-finite numerator and feeds `recoverable()`; `GROWTH_TOLERANCE = 1.05` is unpinned. **Part two of the finding — the positional-ordinal join — is already Track C's row C15 (#746) and is NOT this track's.** | **S73**, parts 1 and 3 | `tools/tess-lint/src/lib.rs` | **ACCEPTED IN PART** — parts 1 and 3 only | style |
-| **F7** | **Assertions that cannot go red, sorted.** The roll-up is **three dispositions, not one**: *(a)* genuinely vacuous assertions in shipped test files — a normal fix lane, cheap and edge-free; *(b)* hand-run diff artefacts whose comparison no longer exists (`probe_s5_sectors.rs` has no runner and says so in the file; `review_m6_5_pr2_sweep_probes.rs`'s printed hash; `review_d8_consumer_differential.rs`'s pinned seeds) — **C23's class, and §A2 already routes them to the test-suite-cost sweep**; *(c)* equal-by-construction asserts in `demos/`, which go to **Track G**. **The skip-reads-as-a-pass shape is deliberately NOT here** — Evan ruled it un-rolled-up (C21), because a floor concedes the skip and *whether the test should skip at all* comes first. **Do not re-propose the floors.** | **S110** (10 members, enumerated) | six crates' `tests/`, plus `memories/test-suite-cost.md` | **ACCEPTED, SORT REQUIRED** — the sort is above and is the row's first deliverable | style |
+| **F7** | **Assertions that cannot go red, sorted.** The roll-up is **three dispositions, not one**: *(a)* genuinely vacuous assertions in shipped test files — a normal fix lane, cheap and edge-free; *(b)* hand-run diff artefacts whose comparison no longer exists (`probe_s5_sectors.rs` has no runner and says so in the file; `review_m6_5_pr2_sweep_probes.rs`'s printed hash; `review_d8_consumer_differential.rs`'s pinned seeds) — **§C23's class, and §A2 already routes them to the test-suite-cost sweep**; *(c)* equal-by-construction asserts in `demos/`, which go to **Track G**. **The skip-reads-as-a-pass shape is deliberately NOT here** — Evan ruled it un-rolled-up (C21), because a floor concedes the skip and *whether the test should skip at all* comes first. **Do not re-propose the floors.** | **S110** (10 members, enumerated) | six crates' `tests/`, plus `memories/test-suite-cost.md` | **ACCEPTED, SORT REQUIRED** — the sort is above and is the row's first deliverable | style |
 | **F8** | **D44 and D45**, placed by Track E's lane E-b out of D23. **D44:** the *executed* probe-suite set has no floor — `k_probe_sweep.sh` filters to two suites, so CI runs **2 of 16** and 14 are type-checked and never run; `editor-core/tests/m5_pr5_corpus_probe.rs` carries a plain non-`#[ignore]`d test that **has never run in CI**. Every document's *"thirteen of the fourteen"* came from reading `-p editor-core` out of the invocation instead of the filter out of the command. **D45:** a REPORT-ONLY survey's stated scan base does not warrant its counts — three of six wrong-when-written enumerations live in documents that *do* name a base and are wrong there. | D44, D45 | `scripts/k_probe_sweep.sh` (**neither of E-a's two files — sequence it beside D22**), `docs/` | **ACCEPTED** | style |
 
 **Not in Track F, and each for a reason:** S60 is Track C's **C5** and wants a
@@ -11617,10 +11670,13 @@ now landed under #755. S116(m)(n)(o) are E-a's.
 
 **Already fixed or already owned, do not staff:** **S115(a) is FIXED** —
 `57843d45` deleted the `agreement` ratio and `span_cells` from both tools, and
-`span_cells` returns zero hits workspace-wide; it also removes C23's sharpest
+`span_cells` returns zero hits workspace-wide; it also removes §C23's sharpest
 example. **S115(b) and S116(l)** are Track C's row **C17**, which already rules
 them *"a plan before implementation, not a patch"*. **S113(c)** is S89.
-**S116(h)** is S29 / Track C's **C3**; **S116(g)** is S28 / Track C's **C5**.
+**S116(h)** is S29's **policy** half — the half #803 deliberately did not
+take, and which C-R2 routes to its own design PR rather than to a
+schedule row; S29's mechanical half is FIXED and has left **C3**.
+**S116(g)** is S28 / Track C's **C5**.
 
 ---
 
