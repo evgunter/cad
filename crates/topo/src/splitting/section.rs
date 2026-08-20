@@ -92,7 +92,7 @@ pub fn plane_section<T: geom_core::Decide>(
         }
         let (u, v) = match (u_ref, v_ref) {
             (Some(u), Some(v)) => (u, v),
-            _ => return Err(SplitError::Join(super::join::SplitJoinError::Corrupt)),
+            _ => return Err(SplitError::Join(crate::chord_join::SplitJoinError::Corrupt)),
         };
         let uv = points
             .iter()

@@ -79,7 +79,7 @@ use slotmap::SecondaryMap;
 
 pub use containment::{LoopContainment, PointInLoopError, point_in_loop};
 pub use finish::{SplitFinishError, SplitNaming, SplitPart, SplitResult};
-pub use join::{ArcWindowCase, SplitJoinError};
+pub use crate::chord_join::{ArcWindowCase, SplitJoinError};
 pub use neighborhood::classify_neighborhood;
 pub use section::{Section, SectionPolygon, plane_section};
 
@@ -495,7 +495,7 @@ pub(crate) fn split_scratch<T: geom_core::Decide>(
     (
         SplitReduction<T>,
         Vec<join::CompletedSection>,
-        join::FragmentRows,
+        crate::chord_join::FragmentRows,
     ),
     SplitError,
 > {

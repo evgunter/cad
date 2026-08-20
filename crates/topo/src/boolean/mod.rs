@@ -91,7 +91,7 @@ use crate::entity::{EdgeKey, FaceKey, ShellKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::merge_faces::MergeCoplanarError;
 use crate::revert::RevertError;
-use crate::splitting::join::SplitJoinError;
+use crate::chord_join::SplitJoinError;
 use crate::validate::ValidationError;
 
 pub use carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation, carrier_eq};

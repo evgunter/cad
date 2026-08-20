@@ -133,6 +133,11 @@ pub mod body;
 pub mod boolean;
 pub(crate) mod census;
 pub mod chart_region;
+// The shared chord-join core — ch. 14's `join`/`cut` mechanics and the
+// section-chord geometry, a top-level sibling of `boolean/` and
+// `splitting/` for the reason its own docs give (S5). Non-doc comment
+// for the same rustdoc reason as the sector modules below.
+pub(crate) mod chord_join;
 pub mod contact;
 pub mod entity;
 pub mod euler;
