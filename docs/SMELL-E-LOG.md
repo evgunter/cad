@@ -431,7 +431,7 @@ placed. Reissued:
 | D69–D70 | **D86–D87** | E-m |
 | D61–D62 | **D88–D89** | E-h — D88 is `merge_faces.rs:766`'s `unwrap_or_default` discard |
 
-Next unassigned in Track E's block: **D90**.
+Next unassigned in Track E's block: **D92**.
 re-issued — a number that has appeared in a lane's report, even as *unused*, is
 cheaper to skip than to explain.
 
@@ -996,6 +996,59 @@ ways to succeed and they look identical in a diff** — the value carries the
 fact, or the fact stops being checked. Only the first is what the row asked for,
 and the PR body cannot tell them apart because in both cases the branch is
 simply gone.
+
+### #768's two reviewers disagreed, and 3,125 cases settled it (2026-08-20)
+
+The style lane returned **D27 NOT CLEARED** on its lead finding: that
+`octant_chart`'s deleted `continue` refused *a link whose two supports are not
+among the corner's three faces*, and that `CornerFaces::third`'s totality
+swallowed the refusal. I forwarded it to the adversarial lane as the highest-value
+thing left on the PR. **It refuted it.**
+
+The old lookup was `faces.iter().find(|f| **f != l.face_a && **f != l.face_b)`.
+When both supports are strangers, every orbit face differs from both, so `find`
+returns `faces[0]` — **exactly** what `third(a, b)` returns. `third` *is* that
+`find`, unrolled, with `f2` as the total fallback. An exhaustive differential over
+a 5-key alphabet, 3 orbit slots × 2 query keys, **3,125 cases**: 2960/2960
+agreements wherever the old `find` answered; **zero `None` cases over three
+distinct faces**, so the `continue` was **dead** for the same structural reason
+`third` is total; and all 165 `None` cases have a **duplicated orbit**, which
+`CornerFaces::admit` now refuses up front where the old code merely stepped past
+it. **Detection went up.**
+
+**What survives of the style finding is a real, pre-existing gap** — `octant_chart`
+never verifies `faces.contains(l.face_a)` — unchanged by #768, taken as **D90**,
+and made *cheaper* by it. The style lane's guess that a bad chart would surface
+downstream as a late `Op`/`Certify` is probably wrong: the sphere case is a
+reparameterization, same point set.
+
+**The adversarial lane then found four things nobody had**, three of them in the
+half the style lane had verified rather than attacked: `CornerLinks::seed` takes
+its `vertex` **on faith**, contradicting the module's own *"no constructor that
+takes the underlying data on faith"* — demonstrated by planting a token seeded
+with a link touching **neither end** of the vertex and watching `corner_plan`
+plan a corner from it. The guard has a **fourth escape**, a **child module**
+`admit/inner.rs`, which is *inside* the privacy boundary and *invisible* to the
+`include_str!` scan — planted, guard stayed green. `CornerFaces::admit`'s
+distinctness check is **dead and untested**: planted `if false`, all ten lib tests
+pass. And the `unreachable!` count is **22 → 23 code sites**, not "unchanged at
+23", because the base's `build.rs` token was **prose inside a doc comment** — a
+number E-k's decision row will read.
+
+*Two things worth keeping about how this resolved.*
+
+**A disagreement between reviewers is not a tie to be split.** The style lane's
+reading was careful, plausible, and explicitly hedged on reachability; the
+adversarial lane's was decisive because it **ran the two functions against each
+other over the whole input space** rather than reasoning about them. Where a
+claim is decidable by execution, the lane that executes wins and the other's
+uncertainty is not evidence against it.
+
+**The style lane's other findings were unaffected by being wrong about the lead**
+— D29's sweep not running its own disclosed pattern inside its own crate, the
+3.6× prose growth, three present-tense citations of a deleted symbol. A refuted
+headline does not discredit a report, and treating it that way would have cost
+three real findings.
 
 ---
 
