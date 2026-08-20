@@ -11,11 +11,17 @@
 //!   weighted choice driven entirely by the caller's decision integers
 //!   (proptest's seeded values). No ambient randomness: the same body
 //!   and decisions always pick the same op (D9-style determinism, which
-//!   also makes proptest shrinking meaningful). Since the PR 5 review,
-//!   the catalog includes the non-Euler `ring_move` — all **eleven**
-//!   public mutators are fuzzed, because ring_move is the demotion
-//!   claim's least obvious tier-1 preserver (separating-curve argument,
-//!   `crate::euler_ring`).
+//!   also makes proptest shrinking meaningful). The catalog is the ten
+//!   Euler operators plus the structural non-operator mutators that
+//!   mint or kill through the same postcondition: `ring_move` (the
+//!   demotion claim's least obvious tier-1 preserver — separating-curve
+//!   argument, `crate::euler_ring`) and `split_edge` (whose Euler
+//!   vector IS `mev`'s, so nothing but a catalog row distinguishes the
+//!   randomised sites it reaches — struts, self-loop digons — from the
+//!   ones `mev` already covers; `crate::split` calls exactly those
+//!   coincidence cases delicate). The catalog is not an inventory of
+//!   the public mutation surface and does not claim to be: it is the
+//!   ops whose sites this walk can enumerate.
 //! - [`apply`] — execute a choice (coordinates for the vertex-minting
 //!   ops come from a caller-owned counter, so every vertex gets distinct
 //!   coordinates and canonical forms are sharp).
@@ -68,10 +74,11 @@
 // Test-support code: panicking is a test's failure mechanism (L5).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::Point3;
+use geom_brep::EdgeCurveSpec;
+use geom_core::{Band, Decide, Point3, Sign};
 
 use crate::body::Body;
-use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, SolidKey};
+use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, SolidKey};
 use crate::euler::{MefSite, MevSite};
 use crate::euler_ring::MekrSite;
 use crate::iso::canonical_form;
@@ -93,11 +100,14 @@ pub(crate) enum OpChoice {
     Kef(HalfEdgeKey),
     Kvfs(SolidKey),
     /// The non-Euler public mutator (`ring_move(ring, to_face)`).
-    /// Included so the fuzz lane exercises all **eleven** public
-    /// mutators — ring_move's tier-1 preservation is the demotion
-    /// claim's least obvious case (the separating-curve argument; see
-    /// its docs in `crate::euler_ring`).
+    /// ring_move's tier-1 preservation is the demotion claim's least
+    /// obvious case (the separating-curve argument; see its docs in
+    /// `crate::euler_ring`).
     RingMove(LoopKey, FaceKey),
+    /// `split_edge(edge, t)` at [`SPLIT_FRACTION`] of the edge's own
+    /// certified interval — derived from the body, so the choice stays
+    /// `Copy`/`Eq` and the site stays deterministic.
+    SplitEdge(EdgeKey),
 }
 
 impl OpChoice {
@@ -110,7 +120,9 @@ impl OpChoice {
                 s: 1,
                 ..Default::default()
             },
-            Self::MevLone(_) | Self::MevFan(..) => EulerVector {
+            // `split_edge` shares this arm because it shares the
+            // vector: an edge split IS a mev applied mid-edge.
+            Self::MevLone(_) | Self::MevFan(..) | Self::SplitEdge(_) => EulerVector {
                 v: 1,
                 e: 1,
                 ..Default::default()
@@ -281,6 +293,12 @@ pub(crate) fn choose_op(body: &Body<f64>, d1: u32, d2: u32) -> Option<OpChoice> 
         // candidates exist whenever any face carries a ring, which kemr
         // (always-on weight) produces steadily.
         (w(2, 1), ring_move_candidates(body)),
+        // `split_edge` is make-direction (mev's vector), so it is
+        // weighted out once the body stops growing. Candidates exist
+        // whenever any edge does, which is nearly always — modest
+        // weight keeps it from crowding out the sites only the other
+        // make ops reach.
+        (w(3, 0), split_edge_candidates(body)),
         (w(2, 6), kev_candidates(body)),
         (w(2, 6), kef_candidates(body)),
         // kvfs candidates are rare (a solid must be exactly skeletal),
@@ -461,6 +479,98 @@ fn ring_move_candidates(body: &Body<f64>) -> Vec<OpChoice> {
     out
 }
 
+/// Every edge whose carrier [`split_site`] admits: the curve entry
+/// must be certified (null scaffolding has nothing to split) and must
+/// still describe the edge's current endpoints. A certified interval
+/// is forward by construction, so an interior fraction of it is
+/// definitely interior on both sides.
+fn split_edge_candidates(body: &Body<f64>) -> Vec<OpChoice> {
+    body.edges()
+        .map(|(e, _)| e)
+        .filter(|e| split_site(body, *e).is_some())
+        .map(OpChoice::SplitEdge)
+        .collect()
+}
+
+/// `edge`'s split parameter together with the
+/// parent's OWN spec, rebuilt from the certified curve — `None` when
+/// the edge is not splittable.
+///
+/// **Why the re-certification.** This lane fuzzes STRUCTURE: the
+/// fan-rebasing ops (`mev`'s fan site, `kev`'s fan merge) move a run
+/// of half-edges onto a different vertex without re-describing the
+/// survivors' carriers, so an edge's stored curve is routinely stale
+/// against its own endpoints. Tier 1 does not constrain that and the
+/// isomorphism oracle ignores carriers, but `split_edge` certifies
+/// both children against the CURRENT endpoint points and refuses.
+/// So the candidate test re-derives the parent's certificate against
+/// those points — the door tier 3 uses — rather than trusting the
+/// attach-time one. Its consequence is a real coverage limit, stated
+/// where it is caused: only carrier-coherent edges are ever split
+/// here.
+///
+/// **Why the spec comes back with it.** `split_edge` is the only
+/// catalog member that REPLACES existing geometry rather than only
+/// minting: the parent survives as the first child, carrying the
+/// `[t₀, t]` restriction. `kev` undoes the topology and leaves that
+/// restriction on an edge spanning the whole original again, so the
+/// captured spec is what completes the inverse — exactly, for any
+/// carrier (the self-loop circles `mef_chord` mints included), which
+/// a `line_between` guess would not be.
+/// Where in an edge's interval a split lands. **Not the midpoint.**
+/// Every point this generator mints sits on the counter lattice
+/// `(n, 0.5, 0.25)`, so the midpoint of the chord from `n` to `n + 2`
+/// is vertex `n + 1`'s own point: a midpoint split would manufacture
+/// coordinate-coincident vertices, which `mef_chord` then refuses on
+/// the zero-length chord (`IntervalNotForward`) and which sit inside
+/// the isomorphism oracle's documented twin blind spot. `(√5 − 1)/2`
+/// is irrational, so no split lands on the lattice, and two splits of
+/// different intervals cannot land on each other.
+const SPLIT_FRACTION: f64 = 0.618_033_988_749_895;
+
+fn split_site(body: &Body<f64>, edge: EdgeKey) -> Option<(f64, EdgeCurveSpec<f64>)> {
+    let edge_data = body.get_edge(edge)?;
+    let hp = edge_data.he_plus;
+    let start = body.get_half_edge(hp)?.start;
+    let end = body.half_edge_end(hp)?;
+    let p0 = *body.get_point(body.get_vertex(start)?.point)?;
+    let p1 = *body.get_point(body.get_vertex(end)?.point)?;
+    let curve = body.get_curve_geom(edge_data.curve)?.certified()?;
+    let band = Band::linear().ok()?;
+    curve
+        .recertify(p0, p1, |k| body.get_surface(k).cloned(), band)
+        .ok()?;
+    let (t0, t1) = curve.params();
+    let t = SPLIT_FRACTION.mul_add(t1 - t0, t0);
+    // The generator's OTHER coordinate-distinctness hazard, and the
+    // reason this is a filter rather than an assertion: a split point
+    // is derived from GEOMETRY, not from the counter, so two edges
+    // over the same pair of points mint the same point — two
+    // self-loops at one vertex (identical `self_loop_circle_at`
+    // circles), or two parallel edges over one vertex pair. The
+    // separation must be DEFINITE, not merely bitwise: two such splits
+    // land one ulp apart, and `mef_chord` then refuses their chord as
+    // an unmeterable zero-length carrier. Same metering the chord
+    // sugar uses, so a candidate that passes here cannot poison one.
+    let minted = curve.carrier().eval(t);
+    if body
+        .vertices()
+        .filter_map(|(_, v)| body.get_point(v.point))
+        .any(|p| !matches!(p.distance(minted).sign_within(band), Ok(Sign::Positive)))
+    {
+        return None;
+    }
+    Some((
+        t,
+        EdgeCurveSpec {
+            description: *curve.description(),
+            carrier: curve.carrier().clone(),
+            param_start: t0,
+            param_end: t1,
+        },
+    ))
+}
+
 fn kev_candidates(body: &Body<f64>) -> Vec<OpChoice> {
     body.half_edges()
         .filter(|&(he, he_data)| body.half_edge_end(he) != Some(he_data.start))
@@ -576,6 +686,10 @@ pub(crate) fn apply(body: &mut Body<f64>, choice: OpChoice, counter: &mut u32) {
         OpChoice::RingMove(ring, to_face) => {
             body.ring_move(ring, to_face).unwrap();
         }
+        OpChoice::SplitEdge(e) => {
+            let (t, _) = split_site(body, e).expect("a split candidate has a splittable carrier");
+            body.split_edge(e, t).unwrap();
+        }
     }
 }
 
@@ -639,6 +753,17 @@ pub(crate) fn roundtrip(
             let old_face = body.get_loop(ring).expect("ring resolves").face;
             body.ring_move(ring, to_face).unwrap();
             body.ring_move(ring, old_face).unwrap();
+        }
+        OpChoice::SplitEdge(e) => {
+            // Two-op inverse, and the second op is not bookkeeping:
+            // `split_edge` replaces the parent's description with the
+            // `[t₀, t]` child, so `kev` restores the topology and the
+            // re-attach restores the geometry (see `split_site`).
+            let (t, spec) =
+                split_site(body, e).expect("a split candidate has a splittable carrier");
+            let created = body.split_edge(e, t).unwrap();
+            body.kev(created.he_minus).unwrap();
+            body.set_edge_curve(e, spec).unwrap();
         }
         // ---- kill ∘ make: the re-make site is derived pre-kill. ----
         OpChoice::Kemr(he1, he2) => {

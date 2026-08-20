@@ -1310,6 +1310,7 @@ fn seqgen_generates_every_op_kind_and_every_site_shape() {
         "kfmrh",
         "mfkrh",
         "ring_move",
+        "split_edge",
         "kev",
         "kef",
         "kvfs",
@@ -1391,9 +1392,8 @@ fn seqgen_generates_every_op_kind_and_every_site_shape() {
                 OpChoice::Kev(_) => "kev",
                 OpChoice::Kef(_) => "kef",
                 OpChoice::Kvfs(_) => "kvfs",
-                // Added at PR 5's fix pass with the ring_move seqgen
-                // row (the coverage floor extends to all 11 mutators).
                 OpChoice::RingMove(..) => "ring_move",
+                OpChoice::SplitEdge(_) => "split_edge",
             });
             apply(&mut body, choice, &mut counter);
             assert_eq!(
