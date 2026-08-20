@@ -361,10 +361,17 @@ fn target_slots(t: &ProgramTarget, out: &mut Vec<StepArg>) {
     }
 }
 
-/// The argument roles of one chain step, enumeration order = the
-/// step's own field order (deterministic; pinned by tests).
 /// The argument roles of one arc spec; `second` selects the arrival
-/// (spec₂) role twins so a fused step's two specs never collide.
+/// (spec₂) role twins.
+///
+/// The twins cover the positional roles only. `Bulge`, `Sweep` and
+/// `ArcLen` have none, because none of them is an arrival mode (§2c:
+/// `family::ArrivalSpec` is implemented for `Radius`, `Via` and
+/// `Center` alone), so no recording surface can put one in second
+/// position. Enumeration stays total over the data type regardless,
+/// and for a HAND-BUILT step whose two specs are the SAME one of
+/// those three the reused role addresses the incoming spec's argument
+/// twice and the arrival's not at all — issue #829.
 fn spec_slots(spec: &ProgramArcData, second: bool, out: &mut Vec<StepArg>) {
     use ProgramArcData as S;
     use StepArg as A;
@@ -375,15 +382,7 @@ fn spec_slots(spec: &ProgramArcData, second: bool, out: &mut Vec<StepArg>) {
             target_slots(target, out);
             out.push(A::Bulge);
         }
-        // Three modes have no spec-2 role twin — `Bulge`, `Sweep` and
-        // `ArcLen` — because none of them is an arrival mode (§2c:
-        // `ArrivalSpec` is implemented for `Radius`, `Via` and
-        // `Center` only), so no recording surface can put one in
-        // second position. Enumeration stays total over the data type
-        // regardless, and for a HAND-BUILT step whose two specs are
-        // the SAME one of those three the role it reuses addresses the
-        // incoming spec's argument twice and the arrival's not at all
-        // — issue #829.
+        // No `Bulge2`: see the twin note above.
         (S::Bulge { target, .. }, true) => {
             target2_slots(target, out);
             out.push(A::Bulge);
@@ -419,6 +418,8 @@ fn target2_slots(t: &ProgramTarget, out: &mut Vec<StepArg>) {
     }
 }
 
+/// The argument roles of one chain step, enumeration order = the
+/// step's own field order (deterministic; pinned by tests).
 fn step_slots(step: &ProgramStep, out: &mut Vec<StepArg>) {
     use ProgramStep as P;
     use StepArg as A;
