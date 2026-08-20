@@ -64,11 +64,13 @@ anything from a transcript.
 
 ### Live at handoff — these were in flight and are not reassigned
 
-| unit | PR | what it still needs |
+**All three closed before the session ended. Nothing is left live.**
+
+| unit | PR | outcome |
 |---|---|---|
-| **C-q / C10** | **#801** | Combined fix pass for **two adversarial MAJORs + twelve style findings**. MAJOR 1 falsified the PR's headline claim (see *"The oracle I called the right shape"* above); the title, two tree sites and three record sites all still carry it. MAJOR 2 (turbofish) is **fixed**. Needs: the MAJOR 1 restatement, the upstream probe added to `seal-oracle.sh`, a stale-body sweep, a re-merge (it has a `SMELL-SCAN` conflict), and a **first-ever valid CI run** — `get_check_runs` on its heads has returned `total_count: 0` throughout. |
-| **C-g / S32** | **#804** | **MERGED** `df81969a`. Adversarial **CLEARED**; style's twelve all addressed. Row **C24** filed; §D now reads **C2–C26**, no duplicate. |
-| **C-j follow-up** | **#816** | Rows **C22** and **C26** being written, then CI, then it merges. |
+| **C-q / C10** | **#801** | **MERGED** `3ddd6011`. Adversarial CLEARED after breaking the PR's headline claim; style CLEARED after a detached-rustdoc blocker. `local-scripts/seal-oracle.sh` is **in the tree and runs from a fresh clone**. Five `FIXED by #801` records; **C10 has left §D**. |
+| **C-g / S32** | **#804** | **MERGED** `df81969a`. `## S32. FIXED IN PART by #804 — the API half; the "second surface enum" half was FALSE`. Row **C24** filed. |
+| **C-j follow-up** | **#816** | **MERGED** `8ad21239`. Rows **C22** and **C26** filed; the prose sweep #803 never ran. |
 
 **If a review lane returns after this session ends**, its findings are in
 `~/.local/share/cad-work/{adv,sty}-8NN-findings.md` — **container-local, and the
@@ -2389,6 +2391,40 @@ scoping question.** The reviewers asked it every time.
 **Rule taken:** when a ruling *cites* a line as an exemplar, the orchestrator
 reads that line before the ruling lands. A quote can be verbatim and still be
 about something else.
+
+### Session 2 close — what landed, and the one number that describes it
+
+**Ten units merged**: #731 (H11), #732 (H16), #734 (H12), #737 (H14), #738 (C9),
+#775 (H15), #779 (H13), #801 (C10), #803 (S29 mechanical), #804 (S32), plus
+#816's follow-up and the orchestrator's own #745 / #754 / #812 / #819.
+
+**§D's Track C table went from C1–C21-with-holes to C2–C26 with two holes**, and
+both holes are legible: **C1** and **C9** landed and left. C22 is a re-issued
+reservation that says so; C24 is filed; C10 left with #801.
+
+*The number that describes this session:* **every unit was returned NOT CLEARED
+on its first review, and every single defect was a claim wider than its
+evidence** — not one shipped wrong answer among them. H11's two residues were
+ten. H12's nine cells were thirteen. H15's three rows were twenty-three. C10's
+~96 lines were 263. S29's five modules were wrong in *both* directions. A cosine
+measured at one level was reported "at every level". A seal oracle that tested
+one direction read as universal. **The code was fine; the sentences about it were
+not.**
+
+*And the orchestrator was not exempt.* Four of my own claims were corrected by
+lanes or reviewers this session — #636 overstated by one notch, C-R22's ground
+falsified, C-R24's exemplar pointing at the wrong match arm, and a ruling
+recorded without the conditions that made it conditional. **In every case a lane
+or reviewer asked the scoping question I had not.** That is the system working,
+and it is the strongest argument in this log for keeping two lanes on the units
+that carry risk.
+
+*The last unit is a fair summary of the whole track.* #801 was cleared by two
+reviewers, then its own lane re-read its fix and found **three more defects,
+including a silent skip in exactly the direction its own prose called unsafe** —
+and stated the lesson better than I could: **writing "fails loudly" and not
+planting the failure is the same defect as a sweep without its blind spot
+stated.**
 
 ### Reviewers age out of their own tree, twice now — and it is not their error
 
