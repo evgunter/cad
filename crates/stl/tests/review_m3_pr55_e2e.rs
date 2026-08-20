@@ -144,5 +144,5 @@ fn die_from_raw_extrudes_watertight_stl() {
     std::fs::create_dir_all(&dir).unwrap();
     let path = format!("{dir}/die21.stl");
     let mut file = std::fs::File::create(&path).unwrap();
-    stl::write_binary(&mesh, &mut file).unwrap();
+    stl::write_binary(&mesh, &stl::BinaryOptions::default(), &mut file).unwrap();
 }
