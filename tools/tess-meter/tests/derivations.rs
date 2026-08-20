@@ -127,56 +127,136 @@ fn a_ruled_wall_pays_for_its_flat_direction() {
         "expected the ruled wall's split slack to be several-fold, got {:.2}x",
         lane / best
     );
+    // Asserted on the DIVISIONS, not on `h_u` itself. The objective is
+    // a step function of the aspect ratio, so which sample wins is a
+    // property of the scan's lattice: refining the scan moves the
+    // winning `h_u` between 1.02 and 0.34 while the answer improves,
+    // and an `h_u >= 1.0` line therefore reds on scans that are
+    // strictly better. What is stable — and what the finding is about
+    // — is that the cheapest split spends an order of magnitude fewer
+    // divisions on the flat direction than the lane does.
+    let (best_u, lane_u) = (divisions(1.0, hu), divisions(1.0, b.steps.0));
     assert!(
-        hu >= 1.0,
-        "the cheapest split should stop dividing the FLAT direction, got h_u = {hu:e}"
+        best_u * 10.0 <= lane_u,
+        "the cheapest split should barely divide the FLAT direction: \
+         {best_u} divisions against the lane's {lane_u}"
     );
 }
 
-/// **The scan's two constants, boxed by the answer they produce.**
-/// `SPLIT_SCAN_DECADES` and `SPLIT_SCAN_STEPS` are the entire
-/// resolution of [`best_split_steps`], and nothing else reads them, so
-/// a wrong pair is invisible from the outside: the optimizer still
-/// returns a grid, and the grid still certifies — it is merely not the
-/// cheapest one, which makes the `split` column, and the lint's slack
-/// denominator with it, wrong in the direction that flatters the
-/// shipped schedule.
+/// A reference optimum for the same constraint, computed HERE and at
+/// a resolution the shipped scan does not have: 12 decades of aspect
+/// ratio at 240,001 samples, against `SPLIT_SCAN_DECADES = 8` at 321.
 ///
-/// The ruled wall pins both from both directions, because its optimum
-/// is INTERIOR and narrow: the cheapest split sits at
-/// `h_v / h_u = 10^-3.7`, about 4.3 decades inside the scanned range,
-/// and costs 4,911 cells.
+/// **Written from the certificate rather than from the optimizer's
+/// parameters**, so that it can disagree with `best_split_steps`
+/// instead of restating it: the constraint
+/// `muu·h_u² + 2·muv·h_u·h_v + mvv·h_v² ≤ δ_s` is homogeneous of
+/// degree 2, so at a fixed aspect `t = h_v/h_u` it fixes `h_u`, and
+/// the cost is the same `divisions` product the crate's columns are
+/// counted with. It is deliberately crude — a dense scan, no
+/// cleverness — because its only job is to be a better answer than
+/// the shipped one, not a faster one.
+fn reference_best_cells(b: Bound, du: f64, dv: f64, delta_s: f64) -> f64 {
+    const DECADES: f64 = 12.0;
+    const STEPS: usize = 240_001;
+    // The lane's own grid is admissible too, exactly as in
+    // `best_split_steps`: the reference must never be worse than what
+    // the optimizer is allowed to fall back on.
+    let mut best = divisions(du, b.steps.0) * divisions(dv, b.steps.1);
+    for k in 0..STEPS {
+        #[allow(clippy::cast_precision_loss)]
+        let f = k as f64 / (STEPS - 1) as f64;
+        let t = 10.0f64.powf(DECADES * f.mul_add(2.0, -1.0));
+        let q = b.mvv.mul_add(t * t, 2.0f64.mul_add(b.muv * t, b.muu));
+        if q > 0.0 {
+            let hu = (delta_s / q).sqrt();
+            best = best.min(divisions(du, hu) * divisions(dv, t * hu));
+        }
+    }
+    best
+}
+
+/// **`SPLIT_SCAN_DECADES` and `SPLIT_SCAN_STEPS`, pinned by the
+/// RELATION they exist to hold, not by the answer they happen to
+/// produce.** They are the whole resolution of [`best_split_steps`]
+/// and nothing else reads them, so a wrong pair is invisible from
+/// outside: the optimizer still returns a grid, and the grid still
+/// certifies — it is merely not the cheapest one, which makes the
+/// `split` column, and `tess-lint`'s slack denominator with it, wrong
+/// in the direction that flatters the shipped schedule. CI's own
+/// register cannot see that: a worse scan RAISES `span_opt_cells`,
+/// which LOWERS the recoverable slack, and that gate fires only on
+/// growth.
 ///
-/// * Too NARROW a range clamps the optimum onto the boundary — at 2
-///   decades the winner is `10^-1.94` and costs 5,472 cells.
-/// * Too COARSE a scan steps over it — at 65 steps the winner is
-///   `10^-2.75` and costs 4,977, and 40 decades at the same step
-///   count is coarse in exactly the same way.
-/// * REFINING it cannot red this row, which is what makes the box a
-///   box and not a freeze: with the range unchanged a finer scan's
-///   samples are a superset, so its answer is never worse. A 100×
-///   refinement finds 4,813 cells at `10^-3.6825` — the shipped pair
-///   is within 2.0% of it, and that is the resolution claim stated as
-///   a measurement rather than as an argument.
+/// **Why a relation and not a cell count.** The objective is a step
+/// function of the aspect ratio, so which sample wins depends on
+/// whether the scan's lattice happens to contain a point near the
+/// argmax — `S = 322` is finer than 321 and lands worse; `S = 1000`
+/// is finer still and lands better. Pinning the shipped answer, or
+/// its argmax, freezes a lattice and reds on refinements that
+/// IMPROVE the number. Pinning the distance to a reference cannot:
+/// the reference is recomputed here at every run, so a scan that
+/// finds a cheaper grid only moves the measured excess DOWN.
 ///
-/// Measured at 8 decades / 321 steps. A moved number here is a
-/// changed optimizer, not a flaky row: re-derive it and say what
-/// moved, exactly as a moved lint baseline is re-cut rather than
-/// silenced.
+/// **The number.** Worst excess over the family below, on this tree:
+/// **4.4643%** at the shipped `(8, 321)`. Pinned at **5%** — 12% of
+/// headroom, `k-lint`'s posture for a measured floor. Measured
+/// against it: every coarsening or widening reds
+/// (`S = 5` → 44.06%, `S = 65` → 6.14%, `S = 161` → 5.31%,
+/// `D = 2` → 13.72%, `D = 12` → 6.42%, `D = 16` → 5.31%,
+/// `D = 24` → 8.08%, `D = 40` → 6.14%) and every refinement stays
+/// green (`S` = 200 → 3.46%, 250 → 2.46%, 322 → 3.64%, 333 → 0.79%,
+/// 400 → 3.05%, 500 → 1.95%, 641 → 2.06%, 700 → 1.66%, 1000 → 1.12%,
+/// 1500 → 0.62%, 2000 → 0.63%, 3201 → 0.61%, 32001 → 0.02%).
+///
+/// **Stated exactly, because the tempting version is false**: a finer
+/// scan's samples are a superset of the shipped one's only when
+/// `S - 1` is a multiple of 320, so refinement is not monotone by
+/// PROOF. The thirteen rows above are the evidence that it is
+/// monotone in fact, and they are what a reader should re-run rather
+/// than an argument they should re-read.
+///
+/// **One side only, deliberately.** This guards the direction a
+/// number can be made to lie in — a scan too coarse or too narrow to
+/// find the optimum. Nothing here stops the pair being made
+/// needlessly FINE, which costs sweep time and no accuracy; the
+/// available guard for that is a wall-clock bound, which this repo
+/// has already recorded as a smell rather than a gate.
 #[test]
-fn the_split_scan_reaches_the_ruled_walls_interior_optimum() {
-    let b = bound(0.0, 2.4, 51.3, 1e-3);
-    let (cells, hu, hv) = best_split_steps(b, 1.0, 1.0, 1e-3);
-    let aspect = (hv / hu).log10();
-    assert!(
-        (-3.75..=-3.65).contains(&aspect),
-        "the scan no longer lands on the interior optimum: h_v/h_u = 10^{aspect:.4} \
-         (expected ~10^-3.7) — the range is too narrow or the step is too coarse"
-    );
-    assert!(
-        cells <= 4911.0,
-        "the scan's answer got worse: {cells} cells (was 4911 at 8 decades / 321 steps)"
-    );
+fn the_split_scan_stays_within_five_percent_of_the_constrained_optimum() {
+    /// `(name, muu, muv, mvv)` — the ruled wall #320 is about, plus the
+    /// degenerate corners the closed-form optimum does not exist at.
+    const FAMILY: [(&str, f64, f64, f64); 5] = [
+        ("ruled wall", 0.0, 2.4, 51.3),
+        ("isotropic", 10.0, 0.0, 10.0),
+        ("mildly anisotropic", 0.1, 0.0, 50.0),
+        ("cross term only", 0.0, 5.0, 0.0),
+        ("unit", 1.0, 1.0, 1.0),
+    ];
+    const TOLERANCE: f64 = 1.05;
+    for (name, muu, muv, mvv) in FAMILY {
+        let b = bound(muu, muv, mvv, 1e-3);
+        let shipped = best_split_cells(b, 1.0, 1.0, 1e-3);
+        let reference = reference_best_cells(b, 1.0, 1.0, 1e-3);
+        // The ORACLE's own guard, without which the row below passes
+        // for free: a reference that stopped being the better answer
+        // — degenerating to the lane fallback, say — would satisfy
+        // any tolerance at all.
+        assert!(
+            reference <= shipped,
+            "the reference stopped being the better answer on the {name}: \
+             {reference} against the scan's {shipped}"
+        );
+        assert!(
+            shipped <= reference * TOLERANCE,
+            "the split scan is more than {:.0}% off the constrained optimum on the \
+             {name}: {shipped} cells against the reference's {reference} \
+             ({:.4}% excess) — the scan's range or its step count no longer \
+             resolves this bound's optimum",
+            100.0 * (TOLERANCE - 1.0),
+            100.0 * (shipped / reference - 1.0)
+        );
+    }
 }
 
 /// The empty-tail arm and the filled arm must agree about the row's
