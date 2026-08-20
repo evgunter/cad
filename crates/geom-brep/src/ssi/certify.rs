@@ -878,6 +878,60 @@ pub(crate) fn witness<T: Decide + Bounds + CertifiedEnclosure>(
 
 #[cfg(test)]
 mod tests {
+    /// **The tube ladder's floor is the run band's own ε, exactly.**
+    ///
+    /// A degradation row, not a violation row. Every other statement
+    /// about a uniqueness tube — that it has positive headroom, that it
+    /// covers ≥ 1 box, that the accounting terminated — gets *easier*
+    /// as the floor drops, so none of them can see the failure this one
+    /// is for: a ladder floored at a tolerance finer than the run's
+    /// certifies a THINNER tube on a pair where the honest answer is
+    /// [`SsiError::CertificateLimb`] on limb 3. The uniqueness theorem
+    /// shipped under the same `SsiCertificate` type is then weaker than
+    /// the band it is stated in, and nothing else goes red.
+    #[allow(clippy::unwrap_used, clippy::panic)]
+    #[test]
+    fn the_tube_ladders_floor_is_the_run_bands_own_epsilon() {
+        use super::{SSI_TUBE_RADIUS, SSI_TUBE_RADIUS_MAX, tube_ladder};
+        use geom_core::Band;
+
+        for zero in [1.0e-3_f64, 1.0e-6, 1.0e-9, 1.0e-12] {
+            let band = Band::new(zero, 10.0 * zero).unwrap();
+            let floor = SSI_TUBE_RADIUS * zero;
+            // An extent chosen so the floor BINDS: the ladder's last
+            // possible rung is below it, so the row is about where the
+            // ladder stops rather than about it running out of rungs.
+            let extent = 1.0e6 * zero;
+            let rungs: Vec<f64> = tube_ladder(extent, band).collect();
+            assert!(
+                !rungs.is_empty(),
+                "the ladder must offer a rung at {zero:e}"
+            );
+            assert!(
+                rungs.iter().all(|r| *r >= floor),
+                "a rung below the run band's floor {floor:e}: {rungs:?}"
+            );
+            let last = *rungs.last().unwrap();
+            assert!(
+                last * 0.5 < floor,
+                "the ladder stopped at {last:e} m with room above the floor {floor:e} m \
+                 — it is floored at some other tolerance"
+            );
+            // An extent whose WIDEST rung is already under the floor
+            // offers nothing at all: limb 3 refuses rather than proving
+            // one-arc-ness over a tube thinner than the carrier's own
+            // certified residual.
+            assert!(
+                tube_ladder(floor, band).next().is_none(),
+                "a tube at the floor's own scale must not be certifiable"
+            );
+            assert!(
+                (rungs[0] - SSI_TUBE_RADIUS_MAX * extent).abs() <= f64::EPSILON * extent,
+                "the widest rung is the named fraction of the extent"
+            );
+        }
+    }
+
     /// The chart tube's plane-normal crossing, at the `Interval` scalar.
     ///
     /// The three components of the plane normal enter the C9 ring through
