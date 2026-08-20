@@ -3376,22 +3376,55 @@ mutation table overstated how much of that it had fixed** — the style reviewer
 falsified it by running it. Three genuine widenings left the whole suite green,
 because nothing in the suite mixed a declined finding with a refuted one, which
 is the exact case the `all` exists to exclude. The fix pass added that fixture
-(one touching pair and one gapped pair in a single gate run) and re-ran the
-battery honestly:
+(one touching pair and one gapped pair in a single gate run); an orchestrator
+verification pass then re-ran the corrected table independently, reproduced five
+of six rows exactly, and found a **second** dead arm. Both are below, measured
+at the final head:
 
 | mutation | rows red |
 | --- | --- |
-| the split's `all` → `any` | 3 |
-| the split never fires | 2 |
-| the census arm relabelled `Refuted` | 3 |
-| `class_admission(Tangent)` → `Mints` | 1 |
-| the mint door's reason hard-coded instead of table-sourced | 1 |
-| widening `CensusUnsupported { entity: Face(_) }` to any entity | **0 — unguarded, stated** |
+| the split's `all` → `any` | 4 |
+| the split never fires | 3 |
+| the census arm relabelled `Refuted` | 4 |
+| `class_admission(Tangent)` → `Mints` | 3 |
+| the mint door's `why` replaced with ANOTHER class's reason | 2 |
+| the mint door's `why` replaced with a LITERAL COPY of the same class's reason | **0** |
+| `CensusUnsupported { entity: Face(_) }` widened to any entity | **0** |
+| the `StaleContactDeclaration` arm relabelled `Declined` | **0** |
+| dropping the split's `!findings.is_empty()` conjunct | **0** |
 
-The last is a real hole with a reason: no fixture produces a `CensusUnsupported`
-on a non-`Face` entity, and one cannot be attributed to a declaration anyway
-(there is no face key to match), so the pattern is structural rather than
-observably load-bearing. The first pass's other reported mutation — dropping the
+**The holes found are four, not one** — the first pass's text called its single
+disclosure *"the hole"*, which claims a completed search it had not done:
+
+1. *The literal-copy `why`.* The row pins the string VALUE, so a hard-coded copy
+   of the same class's sentence — the exact drift the table exists to prevent —
+   is observationally identical to sourcing it, and no row can separate them
+   while only ONE class is in the `NoAtRestRecord` state. The fix pass made the
+   row **self-arming** instead: it loops the roster's non-minting classes and
+   requires each to render its own distinct reason, so a copy fails the day a
+   second such class lands, without anyone remembering to return.
+2. *The entity widening.* No fixture produces a `CensusUnsupported` on a
+   non-`Face` entity, and one could not be attributed to a declaration anyway —
+   there is no face key to match on.
+3. *The dead `StaleContactDeclaration` arm* — the verifier's find, and the
+   serious one, because its `Refuted` label can be flipped to `Declined` with
+   nothing going red, which would promote a REFUTED declaration into the
+   frontier arm and report it as unrefuted. Probed rather than assumed: the
+   whole route is closed because every `PatchContact` the gate sees is one
+   `mint` made (a declared flush union carries none — measured), every minted
+   record is cross-instance since a same-instance mate refuses `SelfMate`, and
+   for a cross-instance pair the chart door DIVERGES rather than answering
+   `Empty`. So the arm's unreachability is a consequence of the very frontier
+   this finding is about; it is now stated **at the site**, with what makes it
+   live — the same census chart rung that closes `Uncertified`, whose landing
+   owes this arm an acceptance row.
+4. *The `!findings.is_empty()` conjunct*, defensibly: the kernel contract
+   forbids a refusal with no finding, and the code says so where it is written.
+
+The irony belongs in the record rather than being quietly fixed: the first pass
+scheduled `step-import/recognize.rs:126` under #711 for being *"unfalsifiable by
+execution"* while shipping a second instance of exactly that inside the function
+it had just rewritten. The first pass's other reported mutation — dropping the
 `mate.is_some()` conjunct — is no longer expressible: the variant carries the
 declaration.
 
@@ -3407,9 +3440,11 @@ documented unreachable — the claim site now cites the issue — and
 it binds and no longer of v1 as a whole.
 
 *Lesson:* a boundary encoded as a predicate is still a boundary the caller may
-not consult, and a mutation table is evidence only for the mutations someone
-actually ran — the reviewer's ability to falsify this one by running it is why
-it is stated here as measured rather than as claimed.
+not consult; a mutation table is evidence only for the mutations someone
+actually ran, and *"the hole is X"* claims a search that *"the holes I found
+are X"* does not. Both corrections came from someone re-running the table
+rather than reading it, twice — which is the only reason either is in this
+record as measured rather than as claimed.
 
 ## S25. FIXED by #692 — two ε vocabularies flowed through SSI with nothing reconciling them
 
