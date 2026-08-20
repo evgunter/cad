@@ -1,4 +1,4 @@
-//! ASM-4 acceptance — split and inline (docs/ASM-4-SPEC.md).
+//! ASM-4 acceptance — split and inline.
 //!
 //! The kernel-layer rows: everything reachable with a stub resolver.
 //! The document-layer rows — the workspace write side, duplicate-id at

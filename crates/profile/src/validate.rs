@@ -260,7 +260,7 @@ pub enum NoCornerReason {
     /// Tangent circles of radius `r` exist, but every one of them
     /// touches a leg **past the corner** — the arc would round a corner
     /// the legs do not actually reach (the branch rule's corner-side
-    /// extent test, `docs/M5-S2-SPEC.md` §1).
+    /// extent test).
     NoCornerSideCandidate,
 }
 
@@ -586,8 +586,8 @@ impl fmt::Display for ProfileError {
                 // fillet predicate renders the SAME recourse sentence as
                 // its definite refusal — one message and one recourse per
                 // user situation below eps_input, the margin riding the
-                // payload (D4 ¶1 addendum; docs/M5-S6-SPEC.md's shape,
-                // composed from these shared carriers).
+                // payload (D4 ¶1 addendum; M5 S6's shape, composed
+                // from these shared carriers).
                 if matches!(site, EscalationSite::Fillet) {
                     match source.predicate {
                         Some("fillet_corner_turn") => {

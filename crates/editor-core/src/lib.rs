@@ -4,9 +4,9 @@
 //!
 //! Born in M4 PR 1 under the ratified M4-PLAN forks: F1 (restrictive
 //! dimension lattice), F4 (node vocabulary), F7 (expression AST with no
-//! conditionals — total by construction) — see `docs/M4-PR1-SPEC.md`
-//! (D1–D9, binding). This crate holds NO geometry evaluation (PR 2) and NO
-//! name resolution (PR 3/4) in its document layer; persistence
+//! conditionals — total by construction). This crate holds NO geometry
+//! evaluation (PR 2) and NO name resolution (PR 3/4) in its document
+//! layer; persistence
 //! (schema v1) arrived in M4 PR 6 as [`persist`].
 //!
 //! Layering (M4 PR 2 spec D1, G1): editor-core sits ABOVE the kernel —
