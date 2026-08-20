@@ -49,6 +49,7 @@ pub use geompred::{
 pub use interrogate::{
     Denotation, InterrogateError, denotation, edge_frame, face_frame, vertex_position,
 };
+pub(crate) use role::name_free_seg;
 pub use role::{
     CapEnd, EntityKind, MeridianEnd, ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport,
     RolePath, RoleSeg, SideVerdict, SplitHalf, StableName,
