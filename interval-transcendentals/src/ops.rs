@@ -1,5 +1,16 @@
-//! Endpoint-exact operations (no rounding, hence no pads): abs, min, max,
-//! floor, copysign-style sign transfer, plus the interval hull.
+//! Endpoint-exact operations (no rounding, hence no pads): `abs`, `min`,
+//! `max`, `floor`, plus the two set operations `hull` and `intersection`.
+//!
+//! **`copysign` is deliberately NOT here**, though the kernel's `Real`
+//! surface has one. Sign transfer on an interval is not endpoint
+//! selection: a `sign` operand that CONTAINS zero has no sign to
+//! transfer, and the answer is a hull of `±|self|` whose decoration is
+//! capped at `Def`. That reasoning, and the signed-zero handling that
+//! goes with it, live where the trait is implemented —
+//! `crates/geom-core/src/interval.rs` — built out of `abs`, `hull` and
+//! negation from this module. Whether it belongs down here instead is
+//! part of the open `RingInterval`-vs-`Interval` question and is not
+//! settled by moving it.
 
 use crate::interval::{DInterval, Decoration};
 
