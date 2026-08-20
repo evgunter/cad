@@ -72,7 +72,7 @@ superseded for Track C by this table.
 | lane | finding | scope | gate | review |
 |---|---|---|---|---|
 | **C-a** | **S24** — the assembly gate's success path is documented unreachable | `editor-core/src/{assembly,mate}.rs` | none | style |
-| **C-b** | **S30** — ~1,050 lines of instrument in the mesh hot loop | `mesh/src/{budget,probe_stats,trimmed,chords}.rs`, the feature matrix, the CI row, `memories/telemetry-gating.md` | none (disjoint from #684's `curved.rs`) | **adversarial** + style |
+| **C-b** | **S30** — ~1,050 lines of instrument in the mesh hot loop | `mesh/src/{budget,probe_stats,trimmed,chords}.rs`, the feature matrix, the CI row | none (disjoint from #684's `curved.rs`) | **adversarial** + style |
 | **C-c** | **S31** — the crate split that buys nothing | `geom-curves/`, `geom-surfaces/`, new `geom/`, 11 dependents, `step-export/src/writer.rs` | none | **adversarial** + style |
 | **C-d** | **H12** — the SSI sweeps' other never-silence doors have no acceptance row | `geom-brep/tests/` | #692 | style |
 | **C-e** | **H13** — `sweep_body`'s helix rows have no orientation coverage | `sweep/tests/{m8_14_long_turn_sweep,m7_skin_integral}.rs`, `step-export/tests/common/mod.rs` | none | **adversarial** + style — #636's level-plane oracle trips its own precondition here (`cos ≈ 0.011`), so this needs a *new* oracle, and the oracle carries the soundness |
@@ -406,6 +406,33 @@ its keep: run a background waiter's detection expression *once in the
 foreground* before arming it, because a catch-all arm converts a permanent error
 into silent eternal waiting. Recorded as an instance rather than a new rule —
 the rule already exists and is correct.
+
+### A fence in a brief that pointed at a file that did not exist
+
+C-b's brief carried a hard fence: *"`memories/telemetry-gating.md` names
+`mesh::budget` as the worked example of the gating rule. If the module moves,
+**the memory moves with it in the same PR**, or the memory's pointer is dead the
+moment you land."*
+
+**The memory had been deleted from main two days earlier** — `dd6d199`,
+2026-08-18, *"cut unnecessary and harmful prescriptions from the orchestrator
+reading path"*, verified. The orchestrator wrote the fence by copying a citation
+out of S30's own body without checking it resolved; the smell scan's citation
+was stale as of that commit, not as of the PR.
+
+The lane checked instead of complying, said so, and made the right call
+downstream of it: the *rule* is not homeless (`scripts/gates/no-ambient-env.sh`
+carries it, enforced), so it updated that gate's worked-example pointer and
+wrote **no new memory** — per `memories/cad-working-style.md`'s criteria, "the
+meter moved to `tools/tess-meter`" is a fact git and two crates' module docs
+already state. What earned a place was the placement *rule*, which went into the
+existing `memories/tessellation-budget.md`.
+
+*Generalisable, and it is this track's own failure mode pointed at itself:* **a
+brief is a claim site too.** The fence was written with the same confidence as
+the rest of the brief and was false on the day it was written. Two further
+stale citations of the deleted memory survive at `SMELL-SCAN:3225` and in this
+log's own roster row (now fixed) — the class, not the instance.
 
 ---
 
