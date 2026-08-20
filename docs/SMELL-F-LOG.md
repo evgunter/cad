@@ -69,7 +69,12 @@ makes two edits to `docs/SMELL-SCAN-2026-08.md` in its own PR:
    done. Version control keeps the original; leaving it in place makes a
    closed finding read as open.
 2. the unit's **row leaves §D's Track F table**, per §D's own *live rows
-   only* rule.
+   only* rule — **but a row that carries evidence the finding's record does not
+   is relocated, not deleted** (F-R11). Schedule rows accumulate re-derivations,
+   counts and narratives that were never folded back into the finding; striking
+   such a row silently destroys the best evidence for the thing being closed.
+   Before deleting a row, read it for anything the finding's own text does not
+   say, and move that into the record.
 
 **Conflicts in that file are expected and survivable**, and there are
 three live orchestrators editing it. Resolve by merging `origin/main` —
@@ -387,6 +392,68 @@ all"*.
 | # | Ruling |
 |---|---|
 | **F-R7** | **The `tess-meter` box reds on a refinement that improves the answer.** Holding `SPLIT_SCAN_DECADES = 8.0`, **S=1000 fails while returning 4844 cells — strictly better than the shipped 4911**; S=322 fails `cells <= 4911` at 4987. The green step counts are exactly the lattices containing exponent `-3.7`; the reds are the ones that do not. So the row pins the constants to **a sample lattice, not a resolution**, and its failure message — *"the range is too narrow or the step is too coarse"* — is wrong in the surprising cases, because those step counts are **finer**. The unit's own defence, *"refinement cannot red it, deliberately"*, is **false**: the superset argument holds only when `S-1` is a multiple of 320. **Direction ruled, shape left to the lane: pin the RELATION, not the answer** — a test that computes its own reference refinement and asserts the shipped pair is within a stated tolerance is monotone-safe by construction. **"No honest box exists" is a passing answer**, recorded at the claim site per Q6; *making it worse than the non-monotone pin it replaced* is the one outcome the row cannot ship. Riding with it: the *"within 2.0%"* figure is **2.04%** on the reviewer's measurement and rests on an unstated choice of denominator. |
+
+### #791 (F-e / S59) — style lane, 2026-08-20: **NOT CLEARED**, and **G4 is cleared to proceed**
+
+**The headline number survived a hostile re-derivation.** The reviewer re-derived
+the zero **independently on `origin/main`** — 122 raw hits old, 123 new, the one
+added line a **leading** `///`, so the leading-only stripper is *correct* here
+rather than a second bug carrying the claim — and post-strip file sets are
+byte-identical at 19 files. The enumeration of `CertifiedBounds` uses is
+exhaustive and all are sole bounds. **The zero is honest.** The reviewer also
+reverted the matcher and ran each planter **alone**: all three new positives fail
+separately, so the self-test cases are individually load-bearing rather than
+load-bearing as a set.
+
+**Track G's G4 may proceed on the strength of this PR** — the ruling's
+precondition, that `real.rs`'s sentence be true, is met in both operand orders.
+**With one correction G4 must carry: the widened matcher fires on nothing G4
+actually writes, so a green gate there is not ratification evidence.**
+
+| # | Ruling |
+|---|---|
+| **F-R10** | **The gate is blind to the two edits that would defeat it.** *(a)* The `trait CertifiedBounds:` definition skip is anchored on the **name**, so `pub trait CertifiedBounds: Decide + Bounds + CertifiedEnclosure {}` is **silently skipped** — planted, exit 0. That is the single edit that would turn every sole-bound site in the tree into a decide-and-bracket parameter at a stroke, and it is **undisclosed**. *(b)* The direct S59 successor — `trait Bracket: Bounds + CertifiedEnclosure` used as `Decide + Bracket` — is invisible, and neither it nor its mitigation is in the gap list. The unit's own argument was that *"an enumerating matcher is blind to the next alias the day it is written"*; **a name-shaped matcher is blind to the next alias that does not carry the name.** Not a reason to return to a list — a reason the gap list must say it. *(c)* **A hole in the self-test itself:** deleting `(\w+::)*` from the right of `+` leaves `--selftest` **green** while `Decide + geom_core::CertifiedBounds` goes blind — *a spelling the tree already uses*; the mirror group on the left is dead code. The mutation check covered the matcher wholesale and missed a mutation **inside** it. |
+| **F-R11** | **Striking a row deleted the evidence, and the defect is in this track's convention rather than in the lane's judgement.** Removing the F1 row from §D removed the E-g `admit.rs` narrative — the gate's strongest single piece of evidence — with no relocation. The *Recording convention* says a row leaves §D when it lands and says nothing about a row that **carries evidence the finding's record does not**. **Amended below.** Version control keeping something is not the same as a reader finding it. |
+
+**A third thing, small and sharp.** The gate header grew **131 → 168 lines** — and
+**S116(m), live in this same document**, measures a 130-line header as *"past the
+point where the rule is findable."* The unit grew a header past a threshold the
+scan records, in the file the scan records it about. That is not a lapse of care;
+it is what happens when a finding's own document is 12,000 lines and its
+neighbours are unreadable from inside a lane.
+
+### #788 (F-a / S92) — style lane, 2026-08-20: **NOT CLEARED**
+
+**What it confirmed, by running rather than reasoning.** The reviewer re-planted
+`plant_s92_door` on the PR head and got **both guards red**; `code_only` flips
+exactly that door's two needles and no live door's; with `code_only` bypassed,
+all six `a_mention_is_not_a_call` spellings go red. Every count re-derived. The
+unit's correction of its own record-edit gap was read as honest rather than
+retitled-around.
+
+| # | Ruling |
+|---|---|
+| **F-R8** | **The defect is reproduced one layer down, in the same file, by code the fix did not touch.** `public_fns`/`matching` carves the body that `code_only` then blanks — and **its own lexing is strictly weaker**: `'"'` reads as a string opener, block comments do not nest, raw strings are unknown. *Those are the exact three constructs `code_only` was written for.* Demonstrated: a door body containing `'"'` makes `public_fns` **lose the door entirely and corrupt the next one**. The row that should catch it, `a_call_is_still_a_call`, tests `code_only` **in isolation and never through the pipeline**. Not live today (161 = 161 over `topo/src`) — luck, not a guard. **Direction ruled, shape left to the lane: one home for *read Rust source past comments and literals*.** The unit argued exactly that for the door set — *"a guard against duplication should not be the next copy of its own walk"* — then left two lexers in one file with different competence. Riding with it: `br"x\"` **over-strips and erases a real call**; `char_literal_len`'s escape loop starts one byte past the escape (`'\''` short, `'\\'` returns `None`); and *"over-stripping is loud"* is true of the tier-1 guard and **false of the pcurve one**, where a door that stops reading as minting passes **silently**. |
+| **F-R9** | **The argument for staying textual does not exist in the tree.** A string-match classifier was replaced by a better string-match classifier, and three of the four disclosed blind spots are artefacts of reading text that a parser dissolves rather than documents. **The deliverable is the argument, not a particular answer:** if textual is right — build cost, `memories/review-and-dependency-policy.md`'s dependency-age rule, a guard that must run without compiling the crate — it goes **at the site**, because a reader today cannot learn why. If a parser is right, that is a **dependency decision and a design question** → a PR asking Evan, not an addition. **What the row cannot ship is the choice made silently for a third time.** |
+
+**Two lessons, and the second is about this document.**
+
+**A disclosed blind spot list is a claim about a population.** The unit disclosed
+its blind spots honestly and dispositioned seven class members. The reviewer's
+**differently-shaped** sweep found **two more that none of the unit's six
+patterns could reach**, because `include_str!` is the blind spelling
+(`profile/tests/seal.rs`, `editor-core/tests/schema_ledger.rs`). So **S117's
+"seven" was a floor presented as an enumeration** — the same shape as D45, one
+track over, and the reason the style brief asks not merely for a sweep but for
+*what the pattern could not match*, run **shaped differently** by someone else.
+
+**One wrong number reached four documents before anyone recomputed it.** The
+class disposition says "four" in the PR body while naming three, "four" at S92,
+and "three" at D61 and in this log — and `face_normal.rs` was excluded *for a
+reason untrue of it* (it greps **code fragments**, not string literals, so the
+blanker serves it as shipped). A count copied between records is not four
+independent statements; it is one statement with three echoes, and this
+document's own §C13 is what it becomes.
 
 **The lesson, which outlives the row.** S73's whole subject is *an instrument
 whose failure mode is its pass condition*. The fix for it minted **an instrument
