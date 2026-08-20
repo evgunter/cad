@@ -9569,7 +9569,67 @@ Beyond S64, S67, S74 and S98:
   full producer/consumer census this row asks for — three emitters,
   five readers, field by field, each disagreement with both sides'
   `file:line` — and stopped there rather than inventing a schema; the
-  census is that PR's report and the design conversation is Evan's.
+  census is that PR's report.
+
+  **The question this row was going to ask was mis-framed, and Evan
+  refused the framing** (2026-08-20): *"the inconsistencies seem like
+  they're a problem with not having shared render code or something, and
+  that seems unifiable without writing the demos to match a specific
+  schema?"* He is right, and the correction is most of the answer.
+
+  **A schema is powerless against the sharpest item.** `render.py:51`
+  and `render_freecad.py:105` are two independent implementations of
+  *what `up: "y"` means* — one mapping world→display
+  (`(x,y,z) ↦ (x,−z,y)`), one display→world (`(a,b,c) ↦ (a,c,−b)`),
+  neither citing the other, exact inverses by coincidence. A schema
+  declares `up: "y" | "z"` and says **nothing** about the transform. The
+  same holds for the defaulting: both readers walk `bodies`, `stl`,
+  `color`, `name`, `view` independently, which is *why* `transparency`
+  is defaulted twice and `montage` is `.get(…, True)`-defaulted twice.
+  **The duplication is in the READERS**, and one shared reader module
+  closes those four with no schema, no serde types and no new crate
+  dependency edge.
+
+  **The framing error underneath: `demos/*.py` are not demos.** The
+  demos are the Rust that drives the kernel through its public API —
+  that is the evidence about what using this library is like.
+  `memories/demo-purpose.md`'s *"write it the way a user would"* governs
+  **that**, not the harness we use to look at the output. So the tension
+  the question was built on — that unifying moves *a demo* toward
+  *a demo with a schema library* — does not apply to the readers at all.
+  A user wiring two renderers would share the camera code.
+
+  **What is left is the EMITTER half, and it is small.** The tour writes
+  `transparency` and a `String` `step`; the wild generator omits the
+  field and writes `null`. Sharing a Rust type there **would** need a
+  dependency edge from `demos/wild` to `demos/tour` or to a third crate
+  — and *that* is a genuine demo-purpose question, because two
+  independent example programs sharing a type is itself a claim about
+  how a user works. It is answerable in a sentence and does not need a
+  four-option fork.
+
+  **ANSWERED (Evan, 2026-08-20). No shared type; the two emitters line
+  up by agreeing, not by being made to agree.** Verbatim: *"seems fine
+  to make the two renders line up 'coincidentally' on step and
+  transparency. sharing for just those two fields is overengineered even
+  ignoring the realism concern."* So the wild emitter writes the same
+  field set the tour does, independently, and **no dependency edge is
+  created between `demos/wild`, `demos/tour` or a third crate.** Note
+  what the ruling does *not* say: it is not *"leave them disagreeing"*.
+  The disagreement goes away; the mechanism that would enforce its
+  absence does not get built, because two fields do not pay for a shared
+  type — and that holds **even setting the demo-realism argument
+  aside**, which is the stronger form of the answer and the one that
+  makes it a cost judgement rather than a doctrine.
+
+  **S114(c) is closed as a design question in full.** What remains is
+  ordinary work, scheduled as §D's **G11**: one home for the `View.up`
+  convention deriving both directions, one shared manifest walk for the
+  two Python readers, the eight unread `uv.json` fields deleted, and the
+  wild emitter's field set brought level with the tour's. **No schema,
+  no serde types, no new crate edge** — the instrument the original
+  question proposed was aimed at the emitters when the duplication was
+  in the readers.
   Two things did NOT wait for it, because they are wrong under every
   schema anyone might pick: **(h)** above (a guard against a state no
   producer emits), and the two sync claims at
@@ -12170,6 +12230,7 @@ tessellation pin are red on main).
 | **G7** | **The `Step` vocabulary was unified inside `profile` only** — of the three cross-crate copies, one breaks loudly and two go silently short. S4 named five copies across three crates; one crate was swept. **Partly collides with Track E's E-e** (`editor-core/src/eval/`) — sequence after it. | **S106** | `profile/src/path/program.rs`, `editor-core/src/{program,persist/wire,eval/mod}.rs` | **ACCEPTED** | style |
 | **G8** | **`face_normal.rs`'s one-door module names three flip sites: one does not flip, and at least five that do are unlisted.** The enumeration repair is style — but the sub-question it parks (*is `chord_join`'s missing flip a defect, given it feeds `point_in_loop` for ring re-homing?*) is a **correctness** question and must be a separate adversarial unit, not folded into a doc edit. Overlaps the standing open decision **D6**, whose stated sweep shape is `grep sense_sign`. | **S67** | `topo/src/face_normal.rs` (docs), `topo/src/chord_join.rs` (the real question) | **ACCEPTED**, with the routing caveat | style + one **ADVERSARIAL** sub-unit |
 | **G9** | **Two operand gates with different admitted kind sets and a doc that describes only one** (S95), and **`chord_join`'s top-level-sibling placement argument contradicted by its own imports from `splitting/`** (S96). S96's imports reach `splitting/rules.rs`, which is Track C's — **confirm with Track C before touching it**. | S95, S96 | `topo/src/boolean/{ops,reduce}.rs`, `topo/src/chord_join.rs` | **ACCEPTED** on both | style; S95 escalates only if the drift ever admits a kind |
+| **G11** | **The demo manifest inconsistencies are duplicated READER code.** From S114(c), **closed as a design question by Evan 2026-08-20** — the schema framing was refused and the emitter half ruled *no shared type*. Four pieces, none a schema: **(i)** one home for the `View.up` convention, deriving world→display and display→world from it, so `render.py:51` and `render_freecad.py:105` cannot drift — they are exact inverses today **by coincidence of two independently-written idioms, checked by nothing**, and either is individually "fixable" by someone reading only one; **(ii)** one shared manifest walk for the two Python readers, which is what makes `transparency` and `montage` get defaulted twice; **(iii)** the eight `uv.json` fields written and read by nothing, deleted; **(iv)** the wild emitter's field set brought level with the tour's, **by agreeing rather than by a shared type**. `demos/*.py` are the render harness, not demos — `memories/demo-purpose.md` governs the Rust that drives the kernel, not the tooling that looks at its output. | **S114(c)** | `demos/render.py`, `demos/render_freecad.py`, `demos/wild/src/main.rs`, `demos/tour/src/uvdump.rs` | **RULED — closed** | style |
 | **G10** | **Prose describing a world the code has left** — eight members, the cleanest class in Tier 3, scattered by file. Three of them (`geom-brep/props/curved.rs`, `geom-brep/src/ssi/`) are **Track C's and must be left**; the rest are free. | **S112** | scattered; the free members only | **ACCEPTED** | style |
 | **D79** | **`lily.rs`, read end to end for the first time — six members, no owner.** Raised by #787's review over free ground §B2 had flagged as the scan's highest-yield unread file: an orphaned comment block whose live number is wrong (38° vs 28.6°), a shadow tuple vector algebra beside `Vec3` (whose *reason* is issue **#796**), two carrier extractors with different rigor plus a partly-vacuous agreement check, an existential-over-two cap assert, an unchecked arity beside a hard `== 8`, and 41% comment with a 137-line header. **All six sit inside `mod review_probes`' orbit, which no gate runs (S129, #782)** — so the row's first question is whether it waits on that or precedes it. | **S130** | `demos/tour/src/lily.rs` | proposed: **ACCEPT**, after or with S129 | style |
 
