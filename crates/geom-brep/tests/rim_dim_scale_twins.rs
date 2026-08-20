@@ -1,5 +1,13 @@
-//! Dimensional-metering pins for `du_of_rims`' rim-level grouping
-//! (the #89 in-band-landing retirement).
+//! Dimensional-metering pins for the two rim-level predicates:
+//! `du_of_rims`' grouping (`props_rim_level_group` — the #89
+//! in-band-landing retirement) and, since S58/#714, the iso-rectangle
+//! predicate itself (`props_rim_level`).
+//!
+//! Both decide a difference of `RimLevel`s, and a `RimLevel` carries
+//! its own dimension per surface kind, so both are exposed to exactly
+//! the #89 mistake. #89 was found on a mm-scale import fixture and
+//! nowhere else, which is why these pins are scale twins rather than
+//! single rows.
 //!
 //! The defect (M7, found as the project's first in-band K landing —
 //! `props_rim_level_group` margin `5.590169943747308e-7` inside
@@ -27,6 +35,13 @@
 //! - the margin scales LINEARLY with model scale (mm twin vs metre
 //!   twin, ratio exactly 1000): the scale-quadratic area comparand
 //!   would answer 1e6 here.
+//!
+//! The `props_rim_level` rows below do the same three things for the
+//! predicate S58 generalised to all four kinds, on the two kinds whose
+//! metering choice is NEW there — a cone (bare `Length` levels) and a
+//! sphere (`Unit(sin v, 0)` levered at the radius) — plus the row that
+//! says what the band means: an interior rim inside the band is
+//! ACCEPTED and one outside it is REFUSED, so ε buys a real length.
 
 #![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -168,4 +183,246 @@ fn rim_group_margin_scales_linearly_with_model_scale() {
         "margin must scale linearly with the model: ratio {ratio:e} (an \
          area-dimensioned comparand answers 1e6 here)"
     );
+}
+
+// ---------------------------------------------------------------------
+// `props_rim_level` — the S58 iso-rectangle predicate (#714)
+// ---------------------------------------------------------------------
+
+/// `cone_patch`'s cone, with an L-shaped domain: the bottom rim runs
+/// `u ∈ [0, u1]` at slant `va`, an INTERIOR rim at slant `vm` steps
+/// out to `u2`, and the top rim at `vb` returns. The interior rim is
+/// what `props_rim_level` refuses, and its margin is the quantity
+/// these rows are about: the SLANT SEPARATION from the nearer extreme,
+/// bare — a length already, never `× arm`.
+fn cone_interior_rim(scale: f64, vm_frac: f64) -> (Surface<Probe>, Vec<LoopEdge<Probe>>) {
+    let half_angle = 0.5_f64.atan();
+    let (sin_a, cos_a) = half_angle.sin_cos();
+    let surface = Surface::Cone {
+        apex: p(0.0, 0.0, 0.0),
+        axis: v3(0.0, 0.0, 1.0),
+        half_angle: Probe(half_angle),
+        u_ref: v3(1.0, 0.0, 0.0),
+    };
+    let (va, vb) = (scale / cos_a, 2.0 * scale / cos_a);
+    let vm = va + vm_frac * (vb - va);
+    let (u1, u2) = (0.6_f64, 1.2_f64);
+    let gen_dir = |u: f64| v3(u.cos() * sin_a, u.sin() * sin_a, cos_a);
+    let rim = |v: f64, t0: f64, t1: f64, forward: bool, tags: (u32, u32)| LoopEdge {
+        carrier: Curve3::Circle {
+            center: p(0.0, 0.0, v * cos_a),
+            axis: v3(0.0, 0.0, 1.0),
+            radius: Probe(v * sin_a),
+            u_ref: v3(1.0, 0.0, 0.0),
+        },
+        t0: Probe(t0),
+        t1: Probe(t1),
+        forward,
+        start: tags.0,
+        end: tags.1,
+    };
+    let meridian = |u: f64, t0: f64, t1: f64, forward: bool, tags: (u32, u32)| LoopEdge {
+        carrier: Curve3::Line {
+            origin: p(0.0, 0.0, 0.0),
+            dir: gen_dir(u),
+        },
+        t0: Probe(t0),
+        t1: Probe(t1),
+        forward,
+        start: tags.0,
+        end: tags.1,
+    };
+    let edges = vec![
+        rim(va, 0.0, u1, true, (0, 1)),
+        meridian(u1, va, vm, true, (1, 2)),
+        rim(vm, u1, u2, true, (2, 3)),
+        meridian(u2, vm, vb, true, (3, 4)),
+        rim(vb, 0.0, u2, false, (4, 5)),
+        meridian(0.0, va, vb, false, (5, 0)),
+    ];
+    (surface, edges)
+}
+
+/// The same L, on a sphere of radius `scale`: rims at latitudes
+/// `va`/`vm`/`vb`, meridian sides as great circles through the poles.
+/// Sphere levels are latitude SINES carried as `RimLevel::Unit(s, 0)`,
+/// so the predicate's margin is `|Δ sin v| × R` — the AXIAL separation
+/// of the two rim planes.
+fn sphere_interior_rim(scale: f64, vm_frac: f64) -> (Surface<Probe>, Vec<LoopEdge<Probe>>) {
+    let surface = Surface::Sphere {
+        center: p(0.0, 0.0, 0.0),
+        radius: Probe(scale),
+        axis: v3(0.0, 0.0, 1.0),
+        u_ref: v3(1.0, 0.0, 0.0),
+    };
+    let (va, vb) = (0.2_f64, 0.8_f64);
+    let vm = va + vm_frac * (vb - va);
+    let (u1, u2) = (0.6_f64, 1.2_f64);
+    let rim = |v: f64, t0: f64, t1: f64, forward: bool, tags: (u32, u32)| LoopEdge {
+        carrier: Curve3::Circle {
+            center: p(0.0, 0.0, scale * v.sin()),
+            axis: v3(0.0, 0.0, 1.0),
+            radius: Probe(scale * v.cos()),
+            u_ref: v3(1.0, 0.0, 0.0),
+        },
+        t0: Probe(t0),
+        t1: Probe(t1),
+        forward,
+        start: tags.0,
+        end: tags.1,
+    };
+    let meridian = |u: f64, t0: f64, t1: f64, forward: bool, tags: (u32, u32)| LoopEdge {
+        carrier: Curve3::Circle {
+            center: p(0.0, 0.0, 0.0),
+            axis: v3(u.sin(), -u.cos(), 0.0),
+            radius: Probe(scale),
+            u_ref: v3(u.cos(), u.sin(), 0.0),
+        },
+        t0: Probe(t0),
+        t1: Probe(t1),
+        forward,
+        start: tags.0,
+        end: tags.1,
+    };
+    let edges = vec![
+        rim(va, 0.0, u1, true, (0, 1)),
+        meridian(u1, va, vm, true, (1, 2)),
+        rim(vm, u1, u2, true, (2, 3)),
+        meridian(u2, vm, vb, true, (3, 4)),
+        rim(vb, 0.0, u2, false, (4, 5)),
+        meridian(0.0, va, vb, false, (5, 0)),
+    ];
+    (surface, edges)
+}
+
+/// Runs the closed form at `Probe` and returns the definite-nonzero
+/// `props_rim_level` margins (absolute), plus whether it refused.
+fn rim_level_margins(surface: &Surface<Probe>, edges: &[LoopEdge<Probe>]) -> (Vec<f64>, bool) {
+    k_stats::start_recording();
+    let got = curved_face(surface, edges, Probe(1.0), band());
+    let samples = k_stats::take_samples();
+    let margins = samples
+        .iter()
+        .filter(|s| s.predicate == "props_rim_level")
+        .map(|s| s.margin.abs())
+        .filter(|m| *m != 0.0)
+        .collect();
+    (margins, got.is_err())
+}
+
+/// **Cone, mm scale.** The predicate's margin IS the slant separation
+/// of the interior rim from the nearer extreme — a LENGTH, bare, with
+/// no `× arm` anywhere. #89's mistake here would multiply it by the
+/// rim radius (~5e-4 m at this scale) and land a 2.2e-4 m separation
+/// at 1e-7 m, deep inside `Band { 1e-7, 1e-6 }`.
+#[test]
+fn mm_scale_cone_rim_level_margin_is_the_slant_separation() {
+    let scale = 1e-3;
+    let (surface, edges) = cone_interior_rim(scale, 0.5);
+    let (margins, refused) = rim_level_margins(&surface, &edges);
+    assert!(refused, "the interior rim must be refused");
+    let cos_a = 0.5_f64.atan().cos();
+    let expect = 0.5 * scale / cos_a; // half the slant extent
+    assert!(
+        margins
+            .iter()
+            .any(|m| ((m - expect) / expect).abs() < 1e-12),
+        "no margin is the slant separation {expect:e}: {margins:?}"
+    );
+    assert!(
+        margins.iter().all(|m| *m > 1e-6),
+        "every decided margin must clear the ε = 1e-7 escalation \
+         threshold at mm scale: {margins:?}"
+    );
+}
+
+/// **Cone, scale twins.** A point deviation scales LINEARLY with the
+/// model. An arm-multiplied comparand answers 1e6 here.
+#[test]
+fn cone_rim_level_margin_scales_linearly_with_model_scale() {
+    let (mm, _) = rim_level_margins(
+        &cone_interior_rim(1e-3, 0.5).0,
+        &cone_interior_rim(1e-3, 0.5).1,
+    );
+    let (m, _) = rim_level_margins(
+        &cone_interior_rim(1.0, 0.5).0,
+        &cone_interior_rim(1.0, 0.5).1,
+    );
+    let ratio = m[0] / mm[0];
+    assert!(
+        (ratio / 1e3 - 1.0).abs() < 1e-12,
+        "margin must scale linearly with the model: ratio {ratio:e}"
+    );
+}
+
+/// **Sphere, mm scale and scale twins.** Sphere levels are latitude
+/// sines, so the metering is `|Δ sin v| × R`: the AXIAL separation of
+/// the two rim planes, a length, linear in scale.
+///
+/// **What this pin does NOT claim.** The axial separation is not the
+/// point deviation between the two rim CIRCLES — that is the chord
+/// `R·√((Δ sin v)² + (Δ cos v)²)`, whose second component the
+/// `Unit(s, 0)` representation drops — so the lever UNDERSTATES toward
+/// the poles, in the ACCEPTING direction. That is already recorded, as
+/// **note N7** of `docs/predicate-dimension-audit.md`, against the
+/// grouping predicate; these rows say it now also holds of the
+/// refusing one, because S58 gave `props_rim_level` the same sphere
+/// representation. It is the file's convention, not something S58
+/// introduced (`min_max`, `require_extent` and `s_f_from_rim` all
+/// meter sines at the radius), and the torus — a full `Unit(sin, cos)`
+/// pair — has the exact expression. N7's disposition is unchanged
+/// here: typed-margin conversation input.
+#[test]
+fn mm_scale_sphere_rim_level_margin_is_the_axial_separation() {
+    let scale = 1e-3;
+    let (surface, edges) = sphere_interior_rim(scale, 0.5);
+    let (margins, refused) = rim_level_margins(&surface, &edges);
+    assert!(refused, "the interior rim must be refused");
+    let (va, vb) = (0.2_f64, 0.8_f64);
+    let vm = 0.5 * (va + vb);
+    let expect = (vm.sin() - va.sin()).abs().min((vb.sin() - vm.sin()).abs()) * scale;
+    assert!(
+        margins
+            .iter()
+            .any(|m| ((m - expect) / expect).abs() < 1e-12),
+        "no margin is the axial rim separation {expect:e}: {margins:?}"
+    );
+    assert!(
+        margins.iter().all(|m| *m > 1e-6),
+        "every decided margin must clear the ε = 1e-7 escalation \
+         threshold at mm scale: {margins:?}"
+    );
+
+    let (m, _) = rim_level_margins(
+        &sphere_interior_rim(1.0, 0.5).0,
+        &sphere_interior_rim(1.0, 0.5).1,
+    );
+    let ratio = m[0] / margins[0];
+    assert!(
+        (ratio / 1e3 - 1.0).abs() < 1e-12,
+        "margin must scale linearly with the model: ratio {ratio:e}"
+    );
+}
+
+/// **What ε buys, in metres.** The band is what separates an interior
+/// rim that is a real notch from one that is a wobble, and because the
+/// comparand is a length that separation is a DISTANCE, not a
+/// coordinate. A mm-scale cone whose interior rim sits 1e-9 m from the
+/// bottom extreme — inside `Band { zero 1e-7 }` — must MEASURE; the
+/// same rim at 1e-5 m must REFUSE. Get the dimension wrong and both
+/// rows move together, which is exactly how #89 went unnoticed.
+#[test]
+fn an_interior_rim_inside_the_band_measures_and_outside_it_refuses() {
+    let scale = 1e-3;
+    let cos_a = 0.5_f64.atan().cos();
+    let slant_extent = scale / cos_a; // vb − va
+    for (offset, want_refusal) in [(1e-9_f64, false), (1e-5_f64, true)] {
+        let (surface, edges) = cone_interior_rim(scale, offset / slant_extent);
+        let (_, refused) = rim_level_margins(&surface, &edges);
+        assert_eq!(
+            refused, want_refusal,
+            "an interior rim {offset:e} m from the extreme: refused = {refused}, \
+             wanted {want_refusal} (Band {{ zero 1e-7, escalate 1e-6 }})"
+        );
+    }
 }
