@@ -379,7 +379,7 @@ impl<T: Decide + Bounds> RequestedBoundary<T> {
 }
 
 #[cfg(test)]
-#[allow(clippy::panic)]
+#[allow(clippy::expect_used, clippy::panic)]
 mod tests {
     use topo::FaceKey;
 

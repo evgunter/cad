@@ -120,9 +120,10 @@ pub struct Filleted<T: Real> {
 /// [`FilletError::BodyNotIntact`] when the body does not hold together
 /// where the plan reads it;
 /// [`FilletError::RingClearance`] when a carried-through ring does not
-/// clear a trimline; [`FilletError::Op`] when an Euler operator
-/// refuses; [`FilletError::Certify`] when a blend description does not
-/// certify as stored.
+/// clear a trimline; [`FilletError::Op`], carrying the operator's own
+/// typed refusal, when an Euler operator refuses;
+/// [`FilletError::Certify`], carrying the pass's own typed refusal,
+/// when the result's pcurve caches cannot be re-minted.
 pub fn fillet_edges<T: Decide + Bounds>(
     body: &Body<T>,
     edges: &[EdgeKey],

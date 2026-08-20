@@ -1265,8 +1265,9 @@ in two — partitioned **41 row 2**, **49 row 1** and **18 row 4**. Row 2
 is four variants that each name the class they refuse (chain, run-out,
 stored geometry, body), plus the corner CONFIGURATION refusals routed
 into the existing `FilletCornerUnsupported`; row 1 is
-`BodyNotIntact`/`EmptyChain`/`RepeatedEdge`, and every payload that
-names an entity is `topo::EntityId`, not a second spelling of it.
+`BodyNotIntact`/`RepeatedEdge` (and `EmptyChain`, until D27 dissolved
+it — below), and every payload that names an entity is
+`topo::EntityId`, not a second spelling of it.
 
 **The 18 is a bounded claim, and the bound is the interesting part.**
 Every key an `unreachable!` there dereferences is minted by an operator
@@ -1286,14 +1287,31 @@ classification. The open question is **S14** — a public door that can
 leave a body tier-1-invalid, and slotmap keys that resolve to *live but
 wrong* entities rather than dangling.
 
-*One state this taxonomy does not contain, found by executing it.*
-`FilletError::EmptyChain` is not reachable by input (the battery seeds
-every chain with a link) and not locally provable (the emptiness is a
-property of the verdict handed in), so it is neither row 1 nor row 4.
-It is filed under row 1 today, failing that row's own definition.
-`SMELL-SCAN-2026-08.md`'s **D27** carries it, together with the
-front-door invariants whose absence as *types* is why the surgery has
-such states at all.
+*The one state this taxonomy did not contain — CLOSED by D27, and the
+five rows stand unamended.* `FilletError::EmptyChain` was not reachable
+by input (the battery seeds every chain with a link) and not locally
+provable (the emptiness was a property of the verdict handed in), so it
+was neither row 1 nor row 4, and it sat under row 1 failing that row's
+own definition. **The disposition is that a state which is neither is a
+state that should not be representable.** `Chain` now holds its first
+link in its own field, `walk_chains` mints it from the seed link it
+already had, and the variant is gone — the taxonomy did not need a
+sixth row, the type needed a constructor that could not spell the
+state. The same move retired the front-door invariants the surgery was
+carrying as prose: `crates/sweep/src/fillet/admit.rs` mints one value
+per admitted clause, and the helpers that used to re-refuse a state
+their caller had already excluded now take the value and have no branch
+to write. **Nothing there became an `unreachable!`** — a refusal that a
+deep helper cannot justify is moved to the door that decides it, not
+converted into a panic.
+
+*The general rule this settles, for the next site that meets it.* When
+a state is neither reachable by input nor locally provable, the first
+question is whether the type that carries it can stop representing it.
+Only if it cannot is the state a taxonomy question at all. `EmptyChain`
+could, and `S14`'s graft class — a state a public door genuinely
+produces — cannot, which is why that one is still open and this one is
+not.
 
 *Still outstanding:* **discard sites elsewhere in `crates/topo`**,
 which the three-module census never counted and this addendum has
