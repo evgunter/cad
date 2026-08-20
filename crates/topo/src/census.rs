@@ -1044,8 +1044,10 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
 ///    closure's own comment says why the arithmetic, and only the
 ///    arithmetic, is separate). A kind with no cheap sound box refuses
 ///    WITHOUT a distance test rather than under-claiming its reach. A
-///    planar face vf-NAMED by the other solid's records defers to the
-///    confirm pass (the declared boss-on-plate class).
+///    planar face vf-NAMED by a record whose vertex is on the OTHER
+///    FACE OF THIS PAIR defers to the confirm pass (the declared
+///    boss-on-plate class) — the record has to name both sides of the
+///    pair it defers.
 /// 2. **Instance containment** (C6's interference class): one solid's
 ///    vertex-extent box inside another's REACH box (the containing
 ///    side must be a superset; the contained side is a subset of its
@@ -1091,12 +1093,31 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
 /// groups [`Geo::curved_faces`], so a same-key PLANAR pair is not on
 /// its list and stays here; record-NAMED face pairs are the
 /// patch/curve certifier's (a cross-key record escalates loudly
-/// there — skipping it here loses no loudness); and a solid pair
-/// BRIDGED by any contact record (vv, v-on-f, curve, patch) is
-/// under the confirm pass's examination — its records either
-/// confirm (the declared touching class) or error as
-/// stale/contradicted, so the containment arm defers to that
-/// verdict rather than double-refusing a certified assembly.
+/// there — skipping it here loses no loudness). Every deferral above
+/// names an arm that asks the SAME question about the SAME pair; that
+/// is the bar a deferral has to clear, and it is what makes a skip
+/// something other than a silent not-examine (A5's letter).
+///
+/// **Contact records do not license a deferral in arm 2, and this is
+/// the one place the rule had to be derived rather than inherited.**
+/// The four record kinds each state one coincidence — vv a coincident
+/// vertex pair, v-on-f a vertex resting in a face's region, `curves` a
+/// tangent locus along one witness edge, `patches` a conformal region
+/// overlap — and the confirm pass asks exactly that of each: is THIS
+/// coincidence geometrically real. Arm 2's question is different in
+/// kind: where does one instance sit relative to another. No record
+/// type in [`crate::boolean::ContactRecords`] states a placement
+/// relation, so no set of them can answer it, and the confirm pass
+/// never asks. A solid pair carrying records is therefore examined
+/// here exactly like a pair carrying none.
+///
+/// The unsound direction is a deferral keyed on *whether* records
+/// exist: a truthful declaration then switches the containment
+/// examination off, and an instance embedded in another's material
+/// validates clean — which it did, until §H14. The vocabulary that
+/// WOULD license a skip here is C6's recorded gate-skips, which are a
+/// statement about placement and do not exist yet; when they do, the
+/// deferral they license is keyed on the gate-skip, not on contact.
 fn sweep_cross_solid_backstop<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -1377,13 +1398,24 @@ fn sweep_cross_solid_backstop<T: Decide>(
         .chain(planar_keys.iter().map(|f| (f, true)))
     {
         // A placeholder surface is "no description yet" (mid-surgery
-        // scaffolding): there is no geometry to be within reach OF,
-        // and a body carrying one never reaches 3′ (the tier-3 local
-        // battery refuses it first) — excluded from the backstop.
+        // scaffolding): there is no geometry to be within reach OF, so
+        // this arm has nothing to test the face with. It REFUSES
+        // rather than skips. A body carrying one cannot reach here —
+        // `validate_pseudomanifold` runs the census only when
+        // `tier3_local_checks` is empty, and that battery's check 1
+        // pushes `UncertifiableSurface` for every placeholder face —
+        // so this arm is unreachable today and the refusal costs
+        // nothing. It is written as a refusal because the alternative
+        // is a silent skip whose soundness lives entirely in another
+        // function's ordering: if that gate ever admits a placeholder,
+        // a skip here goes quiet and a refusal here stays loud.
         if matches!(
             body.get_face(f).and_then(|d| body.surfaces.get(d.surface)),
             Some(geom::Surface::Nurbs(p)) if p.is_placeholder()
         ) {
+            errors.push(ValidationError::CensusUnsupported {
+                entity: EntityId::Face(f),
+            });
             continue;
         }
         let Some(solid) = solid_of(f) else { continue };
@@ -1407,43 +1439,27 @@ fn sweep_cross_solid_backstop<T: Decide>(
             line_bounded: planar && line_bounded(f),
         });
     }
-    // The record-bridged solid pairs (doc comment): any record
-    // linking a vertex/face of one solid to a vertex/face of another
-    // puts that PAIR under the confirm pass's jurisdiction.
-    let vertex_solid = |v: VertexKey| -> Option<SolidKey> {
-        geo.vertex_faces
-            .get(&v)
-            .and_then(|fs| fs.iter().next())
-            .and_then(|&f| solid_of(f))
-    };
-    let mut bridged: BTreeSet<(SolidKey, SolidKey)> = BTreeSet::new();
-    let mut bridge = |sa: Option<SolidKey>, sb: Option<SolidKey>| {
-        if let (Some(sa), Some(sb)) = (sa, sb) {
-            bridged.insert((sa, sb));
-            bridged.insert((sb, sa));
-        }
-    };
-    for &(va, vb) in &declared.vv {
-        bridge(vertex_solid(va), vertex_solid(vb));
-    }
-    for &(v, f) in &declared.vf {
-        bridge(vertex_solid(v), solid_of(f));
-    }
-    for &(fa, fb) in &declared.faces {
-        bridge(solid_of(fa), solid_of(fb));
-    }
-
     // The vf-record deferral for the curved × planar arm (F5): a
-    // planar face NAMED by a v-on-f record whose vertex belongs to
-    // the other solid is the declared interface the confirm pass and
-    // the exact sweeps examine (the boss-on-plate acceptance class) —
-    // its curved neighbours defer to that verdict; a bogus record
-    // still errors there as stale, so nothing blesses silently.
-    let planar_face_bridged = |f_planar: FK, other: SolidKey| -> bool {
+    // planar face NAMED by a v-on-f record is the declared interface
+    // the confirm pass and the exact sweeps examine (the boss-on-plate
+    // acceptance class), so the face on the other side of THAT
+    // interface defers to that verdict; a bogus record still errors
+    // there as stale, so nothing blesses silently.
+    //
+    // The record's vertex must be a boundary vertex of the other face
+    // of the pair, not merely a vertex of the other SOLID. The finding
+    // being deferred is about the face pair, so the record that defers
+    // it has to name both of its sides. A solid-granular test lets one
+    // declared interface silence every other face of the same solid
+    // against `f_planar` — including a face resting on it somewhere
+    // else with no vertex evidence of its own, which is the class this
+    // arm exists for. Widening this back to the solid is the UNSOUND
+    // direction.
+    let planar_face_bridged = |f_planar: FK, other: &BTreeSet<VertexKey>| -> bool {
         declared
             .vf
             .iter()
-            .any(|&(v, vf)| vf == f_planar && vertex_solid(v) == Some(other))
+            .any(|&(v, vf)| vf == f_planar && other.contains(&v))
     };
     for (i, a) in reaches.iter().enumerate() {
         for b in &reaches[i + 1..] {
@@ -1470,8 +1486,8 @@ fn sweep_cross_solid_backstop<T: Decide>(
             if (same_key && !a.planar && !b.planar) || declared.faces.contains(&(a.face, b.face)) {
                 continue; // the conformal arm's / the certifier's pair
             }
-            let vf_deferred = (a.planar && planar_face_bridged(a.face, b.solid))
-                || (b.planar && planar_face_bridged(b.face, a.solid));
+            let vf_deferred = (a.planar && planar_face_bridged(a.face, &b.verts))
+                || (b.planar && planar_face_bridged(b.face, &a.verts));
             if vf_deferred {
                 continue; // the declared interface — confirm pass's pair
             }
@@ -1564,9 +1580,11 @@ fn sweep_cross_solid_backstop<T: Decide>(
     let solids: Vec<_> = solid_boxes.iter().collect();
     for (i, &(&sa, (alo, ahi))) in solids.iter().enumerate() {
         for &(&sb, (blo, bhi)) in solids.iter().skip(i + 1) {
-            if bridged.contains(&(sa, sb)) {
-                continue; // under the confirm pass's jurisdiction
-            }
+            // No deferral on records here, deliberately (arm 2's docs
+            // carry the argument): every record in `ContactRecords`
+            // states one coincidence, and this arm's question is where
+            // one instance sits relative to another. A pair carrying
+            // records is examined exactly like a pair carrying none.
             for (outer, inner, ilo, ihi) in [(sa, sb, blo, bhi), (sb, sa, alo, ahi)] {
                 let Some((olo, ohi)) = solid_reach.get(&outer).copied().flatten() else {
                     errors.push(ValidationError::CensusUndecidable {

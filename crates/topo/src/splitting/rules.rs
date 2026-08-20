@@ -256,29 +256,58 @@ pub(super) fn apply_rule_b(
 /// farthest distance from the base vertex to any vertex of the face's
 /// loops — the largest displacement a normal-angle error can induce
 /// across this face (D4 ¶1's "face extent" arm, computed, named).
+///
+/// The arm must be an OVER-estimate of that displacement: it divides
+/// out of the caller's angular residuals ([`Margin::levered`]), so an
+/// under-claimed arm shrinks the margin and makes a face that is not
+/// parallel to the split plane likelier to decide `Zero` — a wrong
+/// answer, not a loud one. Two loop shapes have to be read with that
+/// in mind rather than walked past:
+///
+/// - A [`LoopBoundary::Empty`] **ring** is an isolated vertex, and
+///   that vertex is part of the face's boundary — it contributes its
+///   own distance like any other boundary vertex.
+/// - A [`LoopBoundary::Empty`] **outer** loop means the face has no
+///   outer boundary at all, so its locus is unbounded and no finite
+///   arm over-estimates anything. That is refused, not measured.
+///   `validate_closed`'s tier-2 check 1 rejects every empty loop, so a
+///   validated operand cannot carry one; the boolean's own operand
+///   gates (`gate_operand_kinds`, `gate_maximal_faces`) do not run
+///   that check, which is why the refusal is here rather than assumed.
+///
+/// [`LoopBoundary::Empty`]: crate::entity::LoopBoundary::Empty
+/// [`Margin::levered`]: geom_core::Margin::levered
 pub(crate) fn face_extent<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
     face: FaceKey,
 ) -> Result<T, SplitReduceError> {
+    use crate::entity::LoopBoundary;
     let corrupt = || SplitReduceError::CorruptOperand { vertex };
-    let p_base = *body
-        .get_point(body.get_vertex(vertex).ok_or_else(corrupt)?.point)
-        .ok_or_else(corrupt)?;
+    let point_of = |v: VertexKey| -> Result<geom_core::Point3<T>, SplitReduceError> {
+        Ok(*body
+            .get_point(body.get_vertex(v).ok_or_else(corrupt)?.point)
+            .ok_or_else(corrupt)?)
+    };
+    let p_base = point_of(vertex)?;
     let face_data = body.get_face(face).ok_or_else(corrupt)?;
     let mut extent = T::zero();
-    let loops = core::iter::once(face_data.outer).chain(face_data.rings.iter().copied());
+    let outer = face_data.outer;
+    let loops = core::iter::once(outer).chain(face_data.rings.iter().copied());
     for loop_key in loops {
         let loop_data = body.get_loop(loop_key).ok_or_else(corrupt)?;
-        let crate::entity::LoopBoundary::Cycle { first } = loop_data.boundary else {
-            continue; // an empty loop contributes no extent
+        let first = match loop_data.boundary {
+            LoopBoundary::Cycle { first } => first,
+            // An unbounded face has no finite lever arm (docs above).
+            LoopBoundary::Empty { .. } if loop_key == outer => return Err(corrupt()),
+            LoopBoundary::Empty { vertex: lone } => {
+                extent = extent.max((point_of(lone)? - p_base).norm());
+                continue;
+            }
         };
         for he in body.loop_cycle(first).ok_or_else(corrupt)? {
             let start = body.get_half_edge(he).ok_or_else(corrupt)?.start;
-            let p = *body
-                .get_point(body.get_vertex(start).ok_or_else(corrupt)?.point)
-                .ok_or_else(corrupt)?;
-            extent = extent.max((p - p_base).norm());
+            extent = extent.max((point_of(start)? - p_base).norm());
         }
     }
     Ok(extent)
