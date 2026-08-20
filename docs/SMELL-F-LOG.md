@@ -310,7 +310,27 @@ tracks running, and a fresh clone plus a cold `target/` is several GB a lane.
 `core.hooksPath` was verified on each before reuse, since that is the one thing
 a hand-rolled clone silently lacks.
 
-**Wave 2 — gated, and on what.**
+**Wave 2 — the gates fell together.** #753 (E-a) and #734 (C-d) both merged
+2026-08-20, so every wave-2 row unblocked in one step. Dispatch is staggered by
+**disk and by `scripts/gates/` overlap**, not by dependency: F1, F2 and F3 all
+live in that directory and two of them share `scripts/ci-filter.py`.
+
+| lane | row | branch | scope | review | state |
+|---|---|---|---|---|---|
+| **F-d** | **F4** (S76, S78, S84, S91) | `smellf/f4-guards-that-pass` | `topo/src/review_d18.rs`, `sweep/tests/review_d2_adv_probes.rs`, `geom-brep/tests/`, `geom-core/src/spline/knots.rs` | **ADVERSARIAL** (S76, S78) + style | **dispatched** |
+| **F-e** | **F1** (S59) | `smellf/f1-certifiedbounds-gate` | `scripts/gates/bounds-allowlist.sh`, `geom-core/src/real.rs` | style; **ADVERSARIAL** for forced conversions | **dispatched** |
+| **F-f** | **F2** (S61/S62 + D58–D60) | — | `ci.yml`, `ci-filter.py`, `probe-suite-census.sh`, `gate-roster.sh`, `ci-local.sh` | style | queued behind F-e |
+| **F-g** | **F3** (S63) | — | `scripts/gates/{no-extra-real-bounds,bit-identity-debug-only,interval-square-allowlist,lib.sh}`, `ci-filter.py` | style; **ADVERSARIAL** for the `x*x → powi(2)` conversions | queued — owns `lib.sh` |
+| **F-h** | **F8** (D44, D45) | — | `scripts/k_probe_sweep.sh`, `ci.yml`, `docs/` | style | queued behind F-f |
+
+**F-e is first because Track G's G4 is blocked on it** — per Evan's S87/S88
+ruling, the sentence that makes the `CertifiedBounds` conversion safe is
+currently false, and converting before the gate can see the spelling would leave
+the ratification requirement unenforced at exactly the moment new code starts
+relying on it. **F-g owns `scripts/gates/lib.sh`**; F-e's brief says to stop and
+report rather than take it.
+
+**Superseded gate table, kept only as the record of what was gated on what:**
 
 | lane | row | gated on | why |
 |---|---|---|---|
@@ -377,4 +397,40 @@ the block.
 
 ## Incidents
 
-*(none yet)*
+### F-a claimed its record edits and shipped without them (2026-08-20)
+
+**#788's body carried a complete *Record edits* section** — S92 re-headed and
+its problem statement replaced, F5 struck from §D, S117/D61 placed, the F-a
+roster row removed, S118/D62 returned unused. **The PR's diff was three
+files**, all under `crates/topo/src`. Neither document was in it.
+
+Caught by reading the PR's **file list** against its body before dispatching the
+review, which cost one `gh pr view` and is now a standing step here.
+
+**Why this is worth an incident rather than a nudge.** The code in that PR is
+good and its central claim is *demonstrated rather than asserted* — a door was
+planted, both guards were shown green, the fix was shown to red them. The lane
+that held itself to that standard on the hard claim did not apply it to the easy
+one. That is the exact asymmetry Track C's log reports for every unit it
+reviewed: **the failure is never a shipped wrong answer, it is a claim wider
+than its evidence**, and it lands on whichever claim nobody expected to have to
+check.
+
+**The rule, now in every Track F brief:** *do not write the Record-edits section
+until the record edits are in your diff.* It is cheap, it is mechanical, and the
+generalisation is the part worth keeping — **a section describing work is not
+evidence the work happened, and the sections least likely to be checked are the
+procedural ones.**
+
+**Corrected by the lane, 2026-08-20**, on being sent back: the doc edits landed
+in a later commit and the PR body now says so plainly rather than being quietly
+retitled. That second part matters more than the first — a silently repaired
+body is what teaches the next reader to trust a section they should have
+checked.
+
+**Second-order cost, which is the reason this track cares.** The recording
+convention exists so that three concurrent orchestrators are never reading a
+document that is behind the tree. A PR that merges with the code and without the
+record does not just leave a stale finding: it leaves S92 reading as **open** to
+Tracks C, E and G while its fix is in `main` — inviting exactly the duplicate
+lane the schedule exists to prevent.
