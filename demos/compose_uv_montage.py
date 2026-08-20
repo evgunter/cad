@@ -68,17 +68,51 @@ LEGEND = [
 ]
 
 
-def legend_colors_in_emitter(emitter=None):
-    """Which LEGEND swatch colors appear as stroke literals in uvdump.rs.
+def _hex(color):
+    """`#abc` and `#AABBCC` are the same color; compare colors, not spellings."""
+    c = color.lstrip("#").lower()
+    return "".join(ch * 2 for ch in c) if len(c) == 3 else c
 
-    Read rather than asked for in a comment: this legend mirrors six
-    separate literals in another language in another file, and smell-scan
-    S114(c) named it as the one mirror here that nothing verified while
-    the cell SIZE was verified hard (`ROOT_RE` and the CELL_W/CELL_H
-    refusal below).
+
+def emitter_colors(emitter=None):
+    """(every stroke literal, the pcurve-FORM palette) in uvdump.rs.
+
+    The form palette is the `const COLOR_*` block — one entry per
+    `Pcurve` form, which is exactly what this legend enumerates.
     """
     src = (emitter or EMITTER).read_text()
-    return {color for color, _, _ in LEGEND if f'"{color}"' in src}
+    strokes = {_hex(c) for c in re.findall(r'"(#[0-9a-fA-F]{3,6})"', src)}
+    forms = {
+        _hex(c) for c in re.findall(r'const COLOR_\w+: &str = "(#[0-9a-fA-F]{3,6})"', src)
+    }
+    return strokes, forms
+
+
+def legend_agrees_with_emitter(emitter=None):
+    """Both directions of the legend/emitter mirror. Returns (unused, unlisted).
+
+    Read rather than asked for in a comment: this legend mirrors literals
+    in another language in another file, and smell-scan S114(c) named it
+    as the one mirror here that nothing verified while the cell SIZE was
+    verified hard (`ROOT_RE` and the CELL_W/CELL_H refusal below).
+
+    - `unused` — legend swatches the emitter never strokes. That is the
+      one that had already drifted: a grey `#777777` swatch for "derived",
+      while a derived pcurve is dashed in its own FORM's color.
+    - `unlisted` — pcurve-form colors the emitter defines and the legend
+      omits, so a fourth form cannot be added silently.
+
+    **Blind spot, stated.** The reverse direction covers the `const
+    COLOR_*` palette only, NOT every stroke in the file: `#b8b8b8` (cell
+    border) and `#d0d0d0` (axis box) are chrome and have no business in a
+    legend, so a whole-set comparison would fail on correct code. A new
+    form color written INLINE rather than as a `const` is therefore still
+    invisible here — and it would be invisible to the emitter's own
+    `match tr.form` too, which is where that would be caught first.
+    """
+    strokes, forms = emitter_colors(emitter)
+    listed = {_hex(color) for color, _, _ in LEGEND}
+    return sorted(listed - strokes), sorted(forms - listed)
 
 
 def pick(entries):
@@ -196,13 +230,17 @@ def selftest():
         else:
             raise AssertionError("a non-conforming cell must fail loud")
 
-    # 3. Every legend swatch is a color the emitter actually strokes.
-    want = {color for color, _, _ in LEGEND}
-    if EMITTER.exists():
-        found = legend_colors_in_emitter()
-        assert found == want, sorted(want - found)
-    else:  # a checkout without the tour source: say so, do not pass quietly
+    # 3. The legend and the emitter agree, in both directions.
+    if not EMITTER.exists():  # a checkout without the tour source
         raise SystemExit(f"{EMITTER} not found — the legend check cannot run")
+    unused, unlisted = legend_agrees_with_emitter()
+    assert not unused, f"legend swatches the emitter never strokes: {unused}"
+    assert not unlisted, f"pcurve-form colors missing from the legend: {unlisted}"
+
+    # And the comparison is over colors, not spellings: `#333` is the
+    # color `#333333`, so a cosmetic re-spelling in the emitter must not
+    # fail this gate.
+    assert _hex("#333") == _hex("#333333") == "333333"
 
     print("compose_uv_montage selftest: ok (3 cases)")
 
