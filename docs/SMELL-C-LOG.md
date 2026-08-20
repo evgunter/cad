@@ -2051,6 +2051,47 @@ recording against the temptation to read repeated NOT CLEARED as churn:
 all of it tier 3 on the helix bodies. A review round that ends in a slower suite
 and a smaller claim is a round that worked.
 
+### Incident — hosted CI is down repo-wide, second budget lapse of the day
+
+**2026-08-20, from ~20:51 UTC.** Every CI run in the repository is failing
+**within two to five seconds**, on every branch, including **`main` itself**:
+run 2324 on `main` at `4af27a42` created 20:59:30 and concluded `failure` at
+20:59:34. Runs 2317–2324 are eight consecutive failures across at least five
+branches (`main`, `smellc/s29-style-followup`, `smellc/s32-surface-jet-api`,
+`smellf/f1-certifiedbounds-gate`, `smelle/d35`, `smelle/row0-recovery`).
+
+**The signature is the one this track already documented**: `runner_id=0`, zero
+steps, ~2 s elapsed, downstream checks skipped. **No runner was allocated.** A
+37-check matrix cannot conclude in four seconds, and it cannot fail identically
+on six unrelated branches — one of which is `main`, whose tree is known good
+because it was green thirty minutes earlier.
+
+**This blocks the track, not just a unit.** Hosted CI is the verification of
+record here. Nothing merges on a run that never ran: **#816** (the #803 style
+follow-up) and **#804** (S32) are both complete and both unverifiable.
+
+*Two things worth keeping.*
+
+**It is the second lapse today**, and the first was diagnosed by the same tell in
+the morning. **A failure mode seen twice should be detectable, not re-diagnosed.**
+Both times the distinguishing evidence was free: elapsed time under five seconds
+and `runner_id=0`. Any lane can be told to check those two fields before reading
+a red check as a finding, and that is cheaper than a lane reasoning its way to it
+from scratch — which is what C-g did, correctly, and what a less careful lane
+would not have.
+
+**And it is the fourth environmental failure this session wearing the costume of
+a result** — after the shallow clone that silently disabled `git log -S`, the
+morning's budget lapse, and the full disk. Every one of them, presented to a
+lane, looks like a fact about the diff. That is now a pattern rather than a run
+of bad luck, and the standing brief should carry it: **before treating any red
+signal as a finding, ask what it would look like if the environment, rather than
+the code, had failed.**
+
+*Reviews continue.* Adversarial and style lanes build locally, so the stall costs
+nothing there — #804's reviews are dispatched into the outage deliberately, so
+that when CI returns the only thing missing is the run.
+
 ### Reviewers age out of their own tree, twice now — and it is not their error
 
 Both style reviews today reported a finding that was **already false when they
