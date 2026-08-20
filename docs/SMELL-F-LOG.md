@@ -64,7 +64,7 @@ Three destinations, and a lane picks by the finding's kind, not by its size:
 orchestrators never read a document that is behind the tree. Each unit
 makes two edits to `docs/SMELL-SCAN-2026-08.md` in its own PR:
 
-1. the finding's heading becomes `## SNN. FIXED by #825 — …`, and its
+1. the finding's heading becomes `## SNN. FIXED by #NNN — …`, and its
    **original problem statement is replaced** by the record of what was
    done. Version control keeps the original; leaving it in place makes a
    closed finding read as open.
@@ -286,7 +286,7 @@ and say what they were.
 
 **Recording your own completion.** Your PR makes two edits to
 `docs/SMELL-SCAN-2026-08.md`: the finding's heading becomes
-`## SNN. FIXED by #825 — …` with its **original problem statement replaced** by
+`## SNN. FIXED by #NNN — …` with its **original problem statement replaced** by
 the record of what was done (version control keeps the original), and your row
 **leaves** §D's Track F table. Check the surrounding prose as well — Track F's
 preamble names rows by name, so a landing that leaves the table and stays in
@@ -715,16 +715,23 @@ row, which is the thing that was at risk.**
 ### F4 (S76, S78, S84, S91) — landed by lane F-d
 
 - **F-d — F4 (S76, S78, S84, S91), PR #825**, opened 2026-08-20 off
-  `origin/main` at 80f0ae1c. All four closed. **The missing idiom now has a
+  `origin/main` at 80f0ae1c and re-merged at 3b4d6d65. All four closed. **The missing idiom now has a
   home**: `crates/test-utils/src/census.rs` — `Census`, an anti-vacuity tally
   reported unconditionally and asserted with a floor, plus `stood_down`, the
   tree's one spelling of a loud stand-down. `test_utils`' own header said it
   held *"exactly one thing"*; it now holds two, and the four sites share one
   spelling rather than four.
 - **S76 was measured before it was asserted**, because `ci.yml` cites the row by
-  name. `oks` is **250** of **876** calls on the spent-graft row (and 3966 of
-  11907 on its twin), so the floor is green with headroom and **no `ci.yml` edit
-  is needed** — the F4 brief's stop-and-report condition did not fire.
+  name. Mutation phases reached: **6 of 7** operators on the spent-graft row and
+  **5 of 7** on its twin, so the floors are green and **no `ci.yml` edit is
+  needed** — the F4 brief's stop-and-report condition did not fire. The measuring
+  also showed the twin's own `oks > 0` to be nearly unfalsifiable on that fixture
+  (one loop-keyed operator survives a fully nulled arena), which is why both rows
+  floor over operators rather than over a total.
+- **Recorded in S76's entry, without a number**: `kemr` never enters a mutation
+  phase in either hammer row, and `mfkrh_plug` never does in the torn sweep — the
+  file's *"drives every operator"* is true of the calls and false of the arms.
+  The orchestrator may want a number for it; I did not take one.
 - **Placed**: **S126** (the silent whole-row stand-down, population 13 in three
   files) and **D70**, which schedules it. Reserved numbers used exactly; none
   taken beyond the assignment.
@@ -734,6 +741,39 @@ row, which is the thing that was at risk.**
   constant behaving as documented.
 
 ## Incidents
+
+### F-d shipped a planted mutation and a template-corrupting substitution (2026-08-20)
+
+**One cause, two symptoms: a mechanical edit that reached further than intended
+and was not read back before committing.**
+
+1. **`geom-core/src/spline/knots.rs`'s `span_offset_in` shipped with
+   `if t < knots[p]` in place of `!(t > knots[p])`**, so NaN stopped routing to
+   the first span. Six `test` jobs red (run 32420701703). It was F-d's own
+   red-demonstration mutation for S91: the mutation script edits, runs, then
+   `git checkout --` reverts — and a `git add -A && git commit` issued from
+   another shell **while the script was mid-run** captured the mutated file, after
+   which the script's revert restored it *to the mutated committed state*. The
+   commit is `cd6b1f9e`, message *"S78 record: the corpus is 8 of 11 today"*.
+2. **A blanket `#NNN` → `#825` substitution over `docs/SMELL-F-LOG.md`** hit the
+   two **templates** — the *Recording convention* line and the standing lane
+   header's — so the instruction telling the next lane what to write would have
+   read *"FIXED by #825"*. Both restored.
+
+**Neither was caught by anything F-d ran**, and that is the transferable part.
+Clippy passes on the mutation; the failing NaN row was in a suite not re-run after
+the merge; and the branch's own `git diff --stat` was read on the final tree,
+where the mutation looked intentional. **The remedies are mechanical, not
+resolutions to be careful:** never `git add -A` while a mutation script is
+running (stage explicit paths, or commit before it starts), and never run a
+blanket substitution over a document that contains a *template* of the string
+being substituted — the two sites were spelled identically to the four real ones.
+
+**The standing obligation this hardens:** a lane that produces red demonstrations
+by mutation must diff its branch against `origin/main` **restricted to production
+files** before opening, and read every `docs/` hunk rather than the summary.
+`git diff origin/main...HEAD --name-only -- ':(exclude)docs'` is a two-second check
+that would have shown one non-test hunk in a lane whose whole subject was tests.
 
 ### F-a claimed its record edits and shipped without them (2026-08-20)
 

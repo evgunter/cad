@@ -607,7 +607,7 @@ fn span_offset_in(knots: &[f64], degree: usize, t: f64) -> usize {
     // the construction invariant len ≥ 2(degree + 1).
     let (p, last) = (degree, knots.len() - 2 * degree - 2);
     // NaN and below-domain both fail this test → first span.
-    if t < knots[p] {
+    if !(t > knots[p]) {
         return 0;
     }
     // Indexing justified: p + last + 1 = len − degree − 1 < len.

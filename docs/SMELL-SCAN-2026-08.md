@@ -8911,6 +8911,16 @@ doors separate bodies still reds there; it is no longer the row's
 evidence. The probe classes are censused and floored, so a probe list
 that stopped reaching an exit reds instead of silently narrowing.
 
+**Demonstrated red, and then demonstrated again by accident.** Reverting
+`span_offset_in`'s deliberate `!(t > …)` NaN route to `t < …` reds the
+new row at `p2 at NaN` and leaves the old assertion green — the finding,
+executed. That same mutation then **escaped into the branch** and reddened
+six CI jobs before a reviewer caught it; the incident is recorded in
+`docs/SMELL-F-LOG.md`. The coincidence is worth keeping: S91 is the
+finding that this function's NaN behaviour was untestable from the row
+above it, and what escaped was a change to this function's NaN behaviour.
+The row as it now stands catches it.
+
 ## S92. Two parallel scraped-source registries of "what is a public mutation door", both classifying by string match
 
 `crates/topo/src/review_m1_pr5_internal.rs:254` and
