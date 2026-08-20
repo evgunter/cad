@@ -79,6 +79,9 @@ pub(super) fn build_partial<T: Decide>(
     let seed = body.mvfs(qs[0])?;
     // Start cap plane: the mef face's loop runs the chain reversed;
     // first point kept, rest reversed (extrude's bottom-cap order).
+    // Derived from the sketch data alone — it reads no entity and
+    // mints none — so the closing surface can be in hand before the
+    // chain that will carry it.
     let forward = cap_points(outer, qs, place);
     let mut start_order: Vec<Point3<T>> = Vec::with_capacity(forward.len());
     if let Some(&p0) = forward.first() {

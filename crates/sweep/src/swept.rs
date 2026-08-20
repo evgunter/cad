@@ -12,10 +12,12 @@
 //! What is deliberately NOT here: anything a verb decides
 //! differently. The wall-orientation sense is per-verb (extrude reads
 //! the canonical turn, revolve reads the wall class, loft is uniform),
-//! the strut carrier is per-verb (a translation trajectory is a line,
-//! a rotation trajectory is a circle), and the swept-traversal builder
-//! is per-verb (only extrude has a reversal arm). Each of those lives
-//! with the verb that owns the decision.
+//! and the strut carrier is per-verb (a translation trajectory is a
+//! line, a rotation trajectory is a circle). The swept-traversal
+//! builder is not here either, but for a weaker reason: extrude's has
+//! a reversal arm and mints the orientation bit, revolve's has
+//! neither, and loft imports extrude's rather than owning one — so it
+//! is two implementations serving three verbs, not three.
 
 use geom_brep::{EdgeCurveSpec, EdgeGeometry, MappedCurve, SketchSegment};
 use geom_core::{
@@ -24,8 +26,9 @@ use geom_core::{
 use geom_curves::Curve3;
 use topo::{Body, EulerOpError, FaceKey, SurfaceKey};
 
-/// The one classification funnel of the sweep crate's shared lowering
-/// (the `geom-brep` pattern): delegates to the unified recorder funnel
+/// The classification funnel of this shared lowering and of the three
+/// sweep verbs above it (the `geom-brep` pattern; `fillet` still has
+/// its own): delegates to the unified recorder funnel
 /// [`geom_core::k_stats::decide`], so every decision's predicate name
 /// reaches the margin-telemetry recorder. The name is a parameter —
 /// each verb keeps its own predicate names through one shared body.
@@ -71,21 +74,26 @@ pub(crate) trait SweptChord<T: Real> {
     fn bulge(&self) -> T;
     /// The carrier class in swept traversal order.
     fn kind(&self) -> SweptKind<T>;
+}
 
-    /// The segment as a `geom-brep` sketch segment (the description's
-    /// authoritative source data).
-    fn sketch_segment(&self) -> SketchSegment<T> {
-        match self.kind() {
-            SweptKind::Line => SketchSegment::Line {
-                a: self.a(),
-                b: self.b(),
-            },
-            SweptKind::Arc { .. } => SketchSegment::Arc {
-                a: self.a(),
-                b: self.b(),
-                bulge: self.bulge(),
-            },
-        }
+/// The segment as a `geom-brep` sketch segment (the description's
+/// authoritative source data).
+///
+/// A free function over the accessors rather than a provided method:
+/// the point of the trait is that the four accessors are all a verb
+/// gets to supply, and a provided method is one an impl may quietly
+/// override — which would put the body back to two.
+pub(crate) fn sketch_segment<T: Real, S: SweptChord<T>>(seg: &S) -> SketchSegment<T> {
+    match seg.kind() {
+        SweptKind::Line => SketchSegment::Line {
+            a: seg.a(),
+            b: seg.b(),
+        },
+        SweptKind::Arc { .. } => SketchSegment::Arc {
+            a: seg.a(),
+            b: seg.b(),
+            bulge: seg.bulge(),
+        },
     }
 }
 
@@ -131,7 +139,7 @@ pub(crate) fn turn_axis<T: Real>(turn: Sign, normal: Vec3<T>) -> Vec3<T> {
 /// `place` and `normal` are the placement the segment is lowered
 /// through and its plane normal — the sketch placement for a base
 /// lamina, the translated or rotated one for the swept copy.
-pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T> + ?Sized>(
+pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
     seg: &S,
     place: Affine3<T>,
     normal: Vec3<T>,
@@ -139,7 +147,7 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T> + ?Sized>(
     q_to: Point3<T>,
 ) -> EdgeCurveSpec<T> {
     let description = EdgeGeometry::MappedCurve(MappedCurve::PlacedSegment {
-        segment: seg.sketch_segment(),
+        segment: sketch_segment(seg),
         place,
     });
     match seg.kind() {
