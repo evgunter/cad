@@ -24,6 +24,17 @@
 # baseline is the durable record — same rows, same columns). The ci
 # `k-lint` job runs the same sweep into a scratch dir and lints the
 # fresh rows against the thresholds pinned in tools/k-lint.
+#
+# THE M2 CORPUS RIDES BESIDE, NOT INSIDE. `crates/sweep/tests/k_report.rs`
+# is the M2-era instrument over the ten M2 acceptance shapes. It is dumped
+# to `<outdir>/m2/<prefix><ε>.csv` and is NOT merged into the linted CSV:
+# what k-lint gates is a distribution whose thresholds were argued over
+# the Band 4 corpus and the tour scenes, and folding ten more shapes into
+# it would move the gate's subject matter, which is a geometry
+# conversation and not a coverage one. What running it here buys is that
+# the harness is EXECUTED on every building merge — a type-check cannot
+# see a panic — and that the command re-cutting the M2 baseline is this
+# script rather than a runbook line nothing runs.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 root=$(pwd)
@@ -34,19 +45,49 @@ outdir=$(cd "$out_arg" && pwd)
 gz=${2:-}
 prefix=${K_SWEEP_PREFIX:-k-eps-}
 
+mkdir -p "$outdir/m2"
+
+# A NAME FILTER THAT MATCHES NOTHING EXITS 0. Every harness below is
+# selected by `--ignored <module>::` against an aggregated `--test all`
+# binary, so nothing about the selection is checked by cargo: a renamed
+# module, a dropped `#[ignore]`, or a suite that fell out of its crate's
+# `tests/all.rs` all produce a green run over zero rows and an empty CSV.
+# So the row count and the dump are both asserted here — this is the only
+# place that can tell the difference between "clean" and "ran nothing".
+run_dump() {
+  local eps=$1 label=$2 pkg=$3 filter=$4 out=$5 log passed
+  log=$(mktemp)
+  echo "=== k-probe sweep @ eps=$eps ($label) ==="
+  CAD_TOLERANCE_EPS=$eps CAD_K_REPORT_OUT="$out" \
+    cargo test -p "$pkg" --features probe --test all -- \
+      --ignored --nocapture "$filter" | tee "$log"
+  passed=$(sed -n 's/^test result: ok\. \([0-9]\{1,\}\) passed.*/\1/p' "$log" | head -1)
+  rm -f "$log"
+  if [ "${passed:-0}" -lt 1 ]; then
+    echo "ERROR: \`$filter\` matched no test in $pkg — the sweep recorded nothing and would have exited 0. Check the module name and its \`#[ignore]\`." >&2
+    exit 1
+  fi
+  if [ "$(wc -l < "$out")" -lt 2 ]; then
+    echo "ERROR: $label wrote no sample rows to $out — the harness ran but recorded no margins." >&2
+    exit 1
+  fi
+}
+
 for eps in 1e-6 1e-9 1e-12; do
   corpus="$outdir/.corpus-$eps.csv"
   demos="$outdir/.demos-$eps.csv"
   merged="$outdir/$prefix$eps.csv"
-  # `--features probe` on both halves: the recording scalar
+  m2="$outdir/m2/$prefix$eps.csv"
+  # `--features probe` on every half: the recording scalar
   # `geom_core::k_stats::Probe` is opt-in (see geom-core's manifest — it is
   # a `Real` instantiation, so it monomorphizes every generic-over-`Real`
   # body, and this sweep is its only consumer). Without the feature the
-  # corpus filter below matches nothing and the tour's `k-probe` mode
-  # refuses loudly; either way this script is the thing that must pass it.
-  echo "=== k-probe sweep @ eps=$eps (corpus) ==="
-  CAD_TOLERANCE_EPS=$eps CAD_K_REPORT_OUT="$corpus" \
-    cargo test -p editor-core --features probe --test all -- --ignored --nocapture m4_pr8_k_probe::
+  # corpus filters match nothing and the tour's `k-probe` mode refuses
+  # loudly; either way this script is the thing that must pass it.
+  run_dump "$eps" corpus editor-core m4_pr8_k_probe:: "$corpus"
+  # The M2-era instrument. `sweep` sets `autotests = false`, so there is
+  # no `--test k_report` target and selection is by module prefix.
+  run_dump "$eps" "M2 corpus" sweep k_report:: "$m2"
   echo "=== k-probe sweep @ eps=$eps (demo scenes) ==="
   (cd "$root/demos/tour" && CAD_TOLERANCE_EPS=$eps cargo run --features probe -- k-probe "$demos")
   # One header, then both bodies — corpus first, demos second.
@@ -54,9 +95,9 @@ for eps in 1e-6 1e-9 1e-12; do
   tail -n +2 "$demos" >> "$merged"
   rm "$corpus" "$demos"
   if [ "$gz" = "--gzip" ]; then
-    gzip -9 -f "$merged"
-    echo "wrote $merged.gz"
+    gzip -9 -f "$merged" "$m2"
+    echo "wrote $merged.gz and $m2.gz"
   else
-    echo "wrote $merged"
+    echo "wrote $merged and $m2"
   fi
 done

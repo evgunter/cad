@@ -1761,7 +1761,48 @@ jobs:
           cd tools/tess-lint && cargo run -- \
             ../../target/tess-budget-fresh.csv \
             --baseline ../../docs/tess-budget-data/tess-budget-baseline.csv
-      - name: K-telemetry probe sweep (corpus + demo scenes, 3 eps rows)
+      # THE PROBE TEST SURFACE. `probe` is an opt-in feature, so a
+      # `tests/*.rs` behind `#![cfg(feature = "probe")]` is invisible to
+      # every default row in this file: it can rot into a build error, or
+      # out of existence, with the whole matrix green. Sixteen such
+      # suites exist across five crates and only editor-core's two were
+      # ever compiled — as a side effect of the sweep below, not by
+      # anything that meant to.
+      #
+      # WHY HERE AND NOT IN A JOB OF ITS OWN, which is the shape
+      # `release-corruption` above would suggest. That job is separate
+      # because release artifacts share no fingerprint with any
+      # dev-profile job, so it had to own a cache key. The opposite holds
+      # here: this is already the only job that passes `--features
+      # probe`, so its cache is where the probe-instantiated graph lives,
+      # and its gate (`run_k_lint`, "whenever anything builds") is
+      # already the right one — `probe` is a `Real` instantiation, so a
+      # change in ANY kernel crate can break a probe suite's type-check,
+      # and a job keyed on a hand-written root set would be the same
+      # snapshot-goes-stale failure one level up.
+      #
+      # The selection is DERIVED, not listed: the census script scans the
+      # tree, and the loop checks exactly what it prints, so a crate that
+      # gains its first probe suite is covered with nothing to remember.
+      # A derived selection that matches nothing exits 0, which is the
+      # silence this pair of steps exists to remove — hence `--selftest`
+      # first, which proves the census refuses an empty answer, and hence
+      # the floor it enforces by name.
+      - name: probe-suite census (a selection that matches nothing is not a pass)
+        run: |
+          scripts/probe-suite-census.sh --selftest
+          scripts/probe-suite-census.sh
+      - name: type-check every probe-gated test target
+        run: |
+          for c in $(scripts/probe-suite-census.sh --crates); do
+            cargo check -p "$c" --features probe --all-targets
+          done
+      # Runs the M2-era harness (crates/sweep) beside the M4/M5/M7 one
+      # (editor-core + tour) — see the script header for why its dump
+      # rides beside the linted CSV rather than inside it. A type-check
+      # would not have caught what that harness actually did: it compiled
+      # perfectly and panicked, unnoticed, for 26 days.
+      - name: K-telemetry probe sweep (corpus + M2 corpus + demo scenes, 3 eps rows)
         run: scripts/k_probe_sweep.sh target/k-fresh
       - name: large-K lint (gate — a flagged margin fails this row)
         run: |

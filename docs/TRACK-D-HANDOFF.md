@@ -59,13 +59,13 @@ both used D10 and D11). Numbers are now assigned by the orchestrator:
 
 | Row | Owner | Subject |
 |---|---|---|
-| D17 | placed by #718 | No CI lane builds any crate's `probe` **test targets** but editor-core's — 14 suites unbuilt |
+| D17 | placed by #718 | No CI lane builds any crate's `probe` **test targets** but editor-core's — 14 suites unbuilt. **LANDED as #PRNUM**: both mechanisms, on the finding that they are red under disjoint conditions |
 | D18 | placed by #720 | `split.rs:253`'s unproven `prev`, **and** `kef`'s — unblocks W2c's last two sites |
 | D19 | placed by #719 | The K roster obligation reaches types, not names-not-reachable-as-bare-literals (37 sites across 24 files) |
 | D20 | placed by #722 | D5's +46% is real and **unattributed**; `choose_op` is excluded by measurement |
 
-All four are landed rows in §D now, and all four are **edge-free and
-unstarted** — D20 is the highest number placed.
+All four are landed rows in §D now; **D17 has since landed as #PRNUM** and the
+other three are **edge-free and unstarted** — D20 is the highest number placed.
 
 **The rule, which a successor should keep:** a lane takes the next number the
 orchestrator has assigned, never the next gap it can see. A roster with holes
@@ -85,7 +85,7 @@ What is unstarted is unstarted for schedule reasons only, not technical ones:
 - **D2** (B3 / S19, the fillet error catch-alls, ADVERSARIAL) is the widest
   unblocked row and gates D7's fillet-helper row — the only edge left in the
   track.
-- **D8**, **D17**, **D18**, **D19**, **D20** and D7's **`PairSolve`** row are
+- **D8**, **D18**, **D19**, **D20** and D7's **`PairSolve`** row are
   edge-free. `PairSolve`'s provenance note goes to **issue #611**, not the PR
   body, because R2's thread is live; the deleting PR must cite the recoverable
   commit SHA. **D18 is ADVERSARIAL** — it converts a discard behind two new

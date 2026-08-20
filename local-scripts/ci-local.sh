@@ -478,6 +478,19 @@ demos_hygiene() {
 klint_tool() {
   (cd tools/k-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test)
 }
+# Mirror of hosted's two probe-surface rows in the `k-lint` job. The
+# census selection is DERIVED from the tree and a derived selection that
+# matches nothing exits 0, so `--selftest` proves the census refuses an
+# empty answer before the real pass — the same order the scripts/gates/
+# rows run in.
+probe_targets() {
+  scripts/probe-suite-census.sh --selftest || return 1
+  scripts/probe-suite-census.sh || return 1
+  local c
+  for c in $(scripts/probe-suite-census.sh --crates); do
+    cargo check -p "$c" --features probe --all-targets || return 1
+  done
+}
 klint_gate() {
   scripts/k_probe_sweep.sh target/k-fresh || return 1
   (cd tools/k-lint && cargo run -- \
@@ -582,6 +595,7 @@ run_row_if "$RUN_INTERVAL_BACKEND" "interval backend crate" interval_backend
 run_row_if "$RUN_K_LINT" "demos tour (fmt + clippy)"       demos_hygiene
 run_row_if "$RUN_K_LINT" "uv sheet drift (demos)"          uv_sheet_drift
 run_row_if "$RUN_K_LINT" "k-lint tool (fmt+clippy+litmus)" klint_tool
+run_row_if "$RUN_K_LINT" "probe test targets (census)"      probe_targets
 run_row_if "$RUN_K_LINT" "k-lint sweep + gate"             klint_gate
 run_row_if "$RUN_K_LINT" "tess-lint tool (fmt+clippy+cli)" tesslint_tool
 run_row_if "$RUN_K_LINT" "tess-meter tool (fmt+clippy+tests)" tessmeter_tool
