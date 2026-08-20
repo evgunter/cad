@@ -28,10 +28,15 @@ line numbers, are the content.
   `interval-transcendentals/`, `demos/`, `tools/`, `scripts/gates/`,
   and the test files added since the base.
 
-Every scope ran `docs/REVIEW-STYLE-BRIEF.md` §2 (the stance) and §3 (the
-eight questions) as its method — the brief that came out of the first
-scan's process observations. This is its first use at scale, and §C
-below reports on how it did.
+Every scope ran the style brief's stance and eight questions as its
+method — the brief that came out of the first scan's process
+observations. It has since been split into
+`docs/prompts/reviewer-style-lane.md` (the reviewer's document: §1 the
+stance, §2 the questions, §3 what a finding looks like) and
+`docs/REVIEW-STYLE-DISPATCH.md` (dispatcher notes); the agents ran
+against the pre-split `docs/REVIEW-STYLE-BRIEF.md`, whose §2/§3 are the
+current §1/§2. Citations below use the live paths. **This is the brief's
+first use at scale**, and §C reports on how it did.
 
 **What I verified by hand.** Ten of the highest-stakes claims, marked
 **[verified]** where they appear. Everything else carries the reporting
@@ -1372,7 +1377,7 @@ site; cite them as e.g. `S110(d)`.
 
 ## S110. Tests and assertions that cannot go red (roll-up)
 
-The largest class in this scan, and the one the style brief's Q3 was
+The largest class in this scan, and the one the brief's Q3 was
 written for. Beyond S60, S75, S76, S78, S84 and S91 above:
 
 - (a) `crates/topo/tests/probe_s5_sectors.rs:164-172` — six per-lane
@@ -1972,14 +1977,19 @@ highest-authority text a scanning agent sees, and the failure mode it
 invites is confirmation: an agent told "X was fixed, check for
 regressions" can produce a plausible regression report about a fix that
 never landed. Both agents refused the frame. What made that possible is
-plainly in `docs/REVIEW-STYLE-BRIEF.md` §2 — *"a textual justification is
-not a defence"* and *"your taste is evidence"* generalise to the brief
-itself, and neither agent needed to be told that a dispatcher can be
-wrong.
+plainly in the stance — *"a textual justification is not a defence"* and
+*"your taste is evidence"* generalise to the brief itself, and neither
+agent needed to be told that a dispatcher can be wrong.
 
-**Worth making explicit in the brief anyway.** §2 should say that the
-dispatch is a hypothesis, and that contradicting it is a first-class
-result. It cost nothing here; it will not always.
+**Worth making explicit in the reviewer's own document anyway.**
+`docs/REVIEW-STYLE-DISPATCH.md` §3 already tells the dispatcher that
+*"reviewers correcting the dispatcher is a working lane, not a
+malfunction — say so in the brief"*, and
+`docs/prompts/reviewer-style-lane.md` §1 does not yet say it. The
+missing sentence is that the dispatch is a **hypothesis**, and that
+contradicting it is a first-class result. It cost nothing here; it will
+not always. (I have not edited either document — that is a ratified
+process artefact and the change is Evan's call.)
 
 ## C16. The dominant defect shape is now "the fix pass had the file open"
 
@@ -2002,12 +2012,22 @@ invisible — several of these fixes *state* their scope
 ladders stay where they are"; "the reported instances"), and the
 statement reads as completeness.
 
-**What would help, concretely.** The brief's class-not-instance rule
-(§3 Q-family) is aimed at *scanners*. The same rule aimed at *fixers*
-would be: before writing the scope sentence, grep for the shape you are
-fixing and either fix or name every hit. The output of that grep should
-go in the PR description — it is the one artefact that would have caught
-almost every row above, and it is cheap.
+**The shape is already named; what is missing is the fixer's half.**
+`docs/REVIEW-STYLE-DISPATCH.md` §2 names *"the fix reproducing the
+defect it closes"* as a shape to emphasise, and
+`docs/prompts/reviewer-style-lane.md` §3's class-not-instance rule
+already says that sweeping only the reported instance *"is a **half-fix**
+and should be labelled one"*. Both are aimed at the **reviewer's
+report**. Neither puts an obligation on the **fix pass**, and this scan
+is thirteen measurements of what that gap costs.
+
+The fixer-side version is cheap and mechanical: *before writing the
+scope sentence, grep for the shape you are fixing, and either fix or
+name every hit — with the grep and its output in the PR description.*
+That one artefact would have caught almost every row above. S60 is the
+cleanest demonstration: `rg area_pad crates/*/tests` returns two
+tightness-relevant sites, neither bounds it, and the fix pass was
+editing the file that contains both.
 
 ## C17. C11's mechanism is real and has now been observed running backwards
 
@@ -2081,12 +2101,18 @@ unscheduled"*). S90 is the sharpest version: the D1 ruling's three
 seam it actually left unguarded got prose.
 
 The disclosures are honest and well written, which is exactly the C2
-diagnosis. The rule was the right response; what it lacks is a place
-that *executes*. C3 said this. Six months of "recorded as such" suggests
-the register has to be mechanical — a grep for the disclosure vocabulary
-that fails without an adjacent issue number would be a gate in the style
-of the fourteen that already exist, and S63 says how carefully those
-regexes need to be written.
+diagnosis. `docs/REVIEW-STYLE-DISPATCH.md` §4 already warns the
+dispatcher not to let the `## Style` section *"become the place where
+known problems go to be recorded and forgotten"*, and Q6 exists to close
+it — so this is not an unnamed problem. It is a named problem with no
+mechanism.
+
+What the rule lacks is a place that *executes*; C3 said this. The
+register has to be mechanical: a grep for the disclosure vocabulary that
+fails without an adjacent issue number would be a gate in the style of
+the fourteen that already exist — and S63 is the warning about how
+carefully that regex would need to be written, since every one of the
+six existing grep gates has a hole of exactly that kind.
 
 ## C21. The style brief worked, and here is what it cost
 
@@ -2097,7 +2123,8 @@ question-numbered self-reports at the end of each agent's output (*"Q1
 against"*) were unexpectedly useful as a coverage receipt, and I would
 keep them.
 
-Two observations for the next revision:
+Two observations for the next revision (recommendations only — I did not
+edit `docs/prompts/reviewer-style-lane.md`):
 
 - **Q8 (read a whole file end to end) produced the findings nothing else
   would have.** S116(e) (the euler header is now two screens of another
@@ -2108,9 +2135,9 @@ Two observations for the next revision:
 - **The stance's "report more rather than fewer" produced a long tail
   that needs a coordinator.** Roughly a third of the raw findings became
   roll-up bullets here rather than standing rows. That is the right
-  outcome and it should be stated in §4 so agents do not calibrate
-  toward fewer, better-defended findings — the defended ones are not the
-  valuable ones.
+  outcome, and saying so in §3 ("what your findings must look like")
+  would stop agents calibrating toward fewer, better-defended findings —
+  the defended ones are not the valuable ones.
 
 ## C22. Documentation growth is still the default response to a finding
 
