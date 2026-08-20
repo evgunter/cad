@@ -51,6 +51,9 @@ fn sin_extremum_capture() {
     let x = DInterval::from_bounds(1.5, 1.6);
     let s = x.sin();
     assert_eq!(s.hi(), 1.0, "sup must be the exact extremum, got {s:?}");
+    // One-sided by design: this row is about the CAPTURE. The other
+    // side of the same endpoint — that the pad is no wider than derived
+    // — is `pad_contract.rs`, on inputs chosen so no capture fires.
     assert!(s.lo() <= libm::sin(1.5) && s.decoration() == Decoration::Com);
     // Same through the oracle lens.
     #[cfg(feature = "oracle-inari")]
@@ -66,7 +69,9 @@ fn tan_pole_refusal() {
     let t = pole.tan();
     assert_eq!(t.decoration(), Decoration::Trv, "pole ⇒ Trv, got {t:?}");
     assert!(t.lo() == f64::NEG_INFINITY && t.hi() == f64::INFINITY);
-    // Pole-free branch stays Com and tight-ish.
+    // Pole-free branch stays Com and encloses the endpoint values.
+    // "Tight-ish" is not asserted here and cannot be: the bound on how
+    // far out those endpoints may sit is `pad_contract.rs`'s.
     let ok = DInterval::from_bounds(-0.5, 0.5).tan();
     assert_eq!(ok.decoration(), Decoration::Com);
     assert!(ok.lo() <= libm::tan(-0.5) && ok.hi() >= libm::tan(0.5));

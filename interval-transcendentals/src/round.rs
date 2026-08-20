@@ -252,7 +252,7 @@ mod tests {
         assert!(div_hi(1.0, f64::INFINITY) > 0.0);
         // Below the 2Prod validity floor the witness is not trusted even
         // when the quotient happens to be exact.
-        let tiny = f64::from_bits(0x0010_0000_0000_0000); // 2^-1022
+        let tiny = f64::MIN_POSITIVE; // 2^-1022, far below the 2^-960 floor
         assert!(div_lo(tiny, 2.0) < tiny / 2.0);
     }
 }

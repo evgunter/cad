@@ -318,34 +318,10 @@ fn fuzz_div_witness_soundness_and_containment() {
             }
         }
     }
-    // Lane 4: targeted edges.
-    for a in [
-        f64::MAX,
-        -f64::MAX,
-        f64::MIN_POSITIVE,
-        -f64::MIN_POSITIVE,
-        f64::from_bits(1),
-        f64::from_bits(0x000f_ffff_ffff_ffff),
-        f64::from_bits(0x03f0_0000_0000_0000), // 2^-960 exactly
-        f64::from_bits(0x03f0_0000_0000_0001),
-        f64::from_bits(0x03ef_ffff_ffff_ffff),
-        0.0,
-        -0.0,
-        1.0,
-        -1.0,
-    ] {
-        for b in [
-            f64::MAX,
-            -f64::MAX,
-            f64::MIN_POSITIVE,
-            f64::from_bits(1),
-            1.0,
-            -1.0,
-            2.0,
-            0.5,
-            3.0,
-            f64::from_bits(0x03f0_0000_0000_0000),
-        ] {
+    // Lane 4: targeted edges, from the one list of magnitudes worth
+    // naming (`EDGE_MAGNITUDES` below) rather than a second copy of it.
+    for a in EDGE_MAGNITUDES {
+        for b in EDGE_MAGNITUDES {
             if ok_pair(a, b) {
                 check_div_case(a, b);
                 n += 1;
