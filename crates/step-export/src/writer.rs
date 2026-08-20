@@ -326,7 +326,7 @@ impl<'a> Writer<'a> {
                 self.emit(&format!("ELLIPSE('', #{placement}, {a}, {b})"))
             }
             Curve3::Nurbs(ref payload) => {
-                if payload.control().iter().all(|p| !p.x.is_finite()) {
+                if payload.is_placeholder() {
                     // The "no description yet" carrier placeholder —
                     // the curve-side twin of the mvfs surface
                     // placeholder. Mid-surgery, never exportable.
@@ -1118,7 +1118,7 @@ mod tests {
         let Curve3::Nurbs(ref payload) = placeholder else {
             panic!("the placeholder is a NURBS curve");
         };
-        assert!(payload.control().iter().all(|p| !p.x.is_finite()));
+        assert!(payload.is_placeholder());
         assert_eq!(carrier_kind(&placeholder), "nurbs curve");
     }
 }

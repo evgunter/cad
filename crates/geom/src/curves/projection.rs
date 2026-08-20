@@ -7,14 +7,39 @@
 //! re-checks the carried values through its own Decide/band machinery;
 //! this module pins their presence and honesty.
 //!
-//! # This is C6's f64 lane — structure machinery
+//! # This is C6's f64 lane — structure machinery, with a lifted payload
 //!
 //! Projection *selects* a parameter (structure); it decides no
-//! topology. Everything here is `f64` with raw comparisons under C6's
+//! topology. The **selection** is `f64` with raw comparisons under C6's
 //! pinning rule, deterministic per D9: fixed constants, fixed seeding,
 //! fixed iteration policy, no data-dependent iteration order. The
 //! certification of whatever a consumer builds from the foot point is
 //! the consumer's, at its own scalar (C2).
+//!
+//! # `f64` structure, `T` payload
+//!
+//! The surface half of §6.1 and this one follow the same ratified
+//! **f64-structure + T-lift** pattern:
+//!
+//! - the seeding sweep and the Newton iteration read the curve through
+//!   **bracket midpoints** and run in `f64` — at `f64` the midpoint of
+//!   a point bracket is the value itself, so the selected `t*` is
+//!   bitwise what an `f64`-only iteration produces;
+//! - the returned [`Projection3`]/[`Projection2`] is then **evaluated
+//!   at `T`** at that selected parameter, so `distance` and
+//!   `orthogonality` are the consumer's own scalar — an enclosure on
+//!   the interval lane.
+//!
+//! The bound is the sole-bound `T: Bounds` the discipline reserves for
+//! certification/driver code (`geom_core::real`'s scope rule): reading
+//! a bracket to *select* a parameter is the driver half of that rule,
+//! and nothing here decides.
+//!
+//! A note on what the lift does NOT claim: Newton at the interval
+//! scalar would be a different algorithm (interval Newton with
+//! existence tests), and this is deliberately not that. The iteration
+//! is a search for structure; the honesty is entirely in the residuals
+//! it reports, which are reported at the consumer's scalar.
 //!
 //! # The D9-fixed iteration policy (binding, named constants)
 //!
@@ -59,9 +84,22 @@
 //! exists for exactly those fixtures and for warm-started consumers
 //! (the PR 7 marcher).
 
-use geom_core::{Point2, Point3};
+use geom_core::{Bounds, Point2, Point3, Real};
 
 use crate::curves::{NurbsCurve2, NurbsCurve3};
+
+/// The bracket midpoint of a scalar — the **structure read** the
+/// seeding sweep and the Newton iteration run on (module docs).
+///
+/// Written `lo + ½(hi − lo)` rather than `½(lo + hi)` so that at `f64`
+/// (where `lo` = `hi` = the value) it is bitwise the identity, with no
+/// overflow at the representable extremes. A poisoned bracket yields
+/// NaN, which loses every `<` comparison in the sweep and breaks the
+/// Newton loop into the typed refusal — poison never selects.
+fn mid<T: Bounds>(v: T) -> f64 {
+    let (lo, hi) = (v.lo(), v.hi());
+    lo + 0.5 * (hi - lo)
+}
 
 /// Fixed Newton iteration cap (D9 — never data-dependent).
 pub const PROJECT_MAX_ITERS: usize = 32;
@@ -115,22 +153,25 @@ macro_rules! nurbs_project {
         /// the consumer re-checks both through its own band machinery;
         /// see the module docs' honesty section).
         #[derive(Clone, Copy, Debug)]
-        pub struct $Projection {
-            /// The foot parameter `t*` (inside the knot domain).
+        pub struct $Projection<T: Real> {
+            /// The foot parameter `t*` (inside the knot domain) —
+            /// **`f64` structure**: a selected parameter, not a
+            /// certified quantity.
             pub t: f64,
-            /// The curve point `C(t*)`.
-            pub foot: $Point<f64>,
-            /// `|C(t*) − P|` in meters — the nearness residual.
-            pub distance: f64,
+            /// The curve point `C(t*)`, evaluated at the consumer's
+            /// scalar.
+            pub foot: $Point<T>,
+            /// `|C(t*) − P|` in meters — the nearness residual, at `T`.
+            pub distance: T,
             /// `|C′(t*)·(C(t*) − P)|` — the orthogonality residual
             /// (meters² per parameter unit; honest and possibly large
-            /// for a domain-end foot).
-            pub orthogonality: f64,
+            /// for a domain-end foot), at `T`.
+            pub orthogonality: T,
             /// Newton steps consumed (diagnostic structure).
             pub iterations: usize,
         }
 
-        impl $Curve<f64> {
+        impl<T: Bounds> $Curve<T> {
             /// Projects `p` onto the curve: the fixed seeding sweep
             /// (module docs) followed by [`Self::project_from_seed`].
             /// Deterministic bit-for-bit per D9.
@@ -140,14 +181,14 @@ macro_rules! nurbs_project {
             /// [`ProjectionInconclusive`] when Newton's fixed budget
             /// expires without meeting an acceptance condition (a NaN
             /// input point lands here too — poison converges nowhere).
-            pub fn project(&self, p: $Point<f64>) -> Result<$Projection, ProjectionInconclusive> {
+            pub fn project(&self, p: $Point<T>) -> Result<$Projection<T>, ProjectionInconclusive> {
                 self.project_from_seed(p, self.project_seed(p))
             }
 
             /// The fixed-count seeding sweep (module docs: the seeding
             /// rule). Public for warm-start consumers and the planted
             /// wrong-branch fixtures; `project` = this + Newton.
-            pub fn project_seed(&self, p: $Point<f64>) -> f64 {
+            pub fn project_seed(&self, p: $Point<T>) -> f64 {
                 let kv = self.knots();
                 let mut best_t = kv.domain().0;
                 let mut best_d2 = f64::INFINITY;
@@ -159,8 +200,8 @@ macro_rules! nurbs_project {
                         #[allow(clippy::cast_precision_loss)]
                         let frac = j as f64 / (PROJECT_SEEDS_PER_SPAN - 1) as f64;
                         let t = u0 + (u1 - u0) * frac;
-                        let d = self.eval_in_span(span, t) - p;
-                        let d2 = d.dot(d);
+                        let d = self.eval_in_span(span, T::from_f64(t)) - p;
+                        let d2 = mid(d.dot(d));
                         // Strict `<`: first minimum wins, NaN never does.
                         if d2 < best_d2 {
                             best_d2 = d2;
@@ -184,9 +225,9 @@ macro_rules! nurbs_project {
             /// degenerate/poisoned Newton arithmetic.
             pub fn project_from_seed(
                 &self,
-                p: $Point<f64>,
+                p: $Point<T>,
                 seed: f64,
-            ) -> Result<$Projection, ProjectionInconclusive> {
+            ) -> Result<$Projection<T>, ProjectionInconclusive> {
                 let (lo, hi) = self.domain();
                 let mut t = seed.clamp(lo, hi);
                 let mut iterations = 0usize;
@@ -194,24 +235,28 @@ macro_rules! nurbs_project {
                 let mut last_dist = f64::NAN;
                 while iterations < PROJECT_MAX_ITERS {
                     let span = self.knots().span_at(t);
-                    let (c, c1, c2) = self.ders_in_span(span, t);
+                    let (c, c1, c2) = self.ders_in_span(span, T::from_f64(t));
                     let d = c - p;
-                    let dist = d.norm();
-                    let g = c1.dot(d);
+                    // The iteration reads structure through the
+                    // brackets; the T-valued jet above is what the
+                    // accepted payload is built from (module docs:
+                    // f64 structure, T payload).
+                    let dist = mid(d.norm());
+                    let g = mid(c1.dot(d));
                     last_g = g;
                     last_dist = dist;
-                    let speed = c1.norm();
+                    let speed = mid(c1.norm());
                     // Acceptance: coincidence, then cosine.
                     if dist <= PROJECT_EPS_POINT || g.abs() <= PROJECT_EPS_COSINE * speed * dist {
                         return Ok($Projection {
                             t,
                             foot: c,
-                            distance: dist,
-                            orthogonality: g.abs(),
+                            distance: d.norm(),
+                            orthogonality: c1.dot(d).abs(),
                             iterations,
                         });
                     }
-                    let gp = c2.dot(d) + c1.dot(c1);
+                    let gp = mid(c2.dot(d)) + mid(c1.dot(c1));
                     let step = g / gp;
                     if !step.is_finite() {
                         break;
@@ -222,16 +267,15 @@ macro_rules! nurbs_project {
                     // feet land here — module docs).
                     if ((tn - t) * speed).abs() <= PROJECT_EPS_POINT {
                         let span = self.knots().span_at(tn);
-                        let (c, c1, _) = self.ders_in_span(span, tn);
+                        let (c, c1, _) = self.ders_in_span(span, T::from_f64(tn));
                         let d = c - p;
                         let dist = d.norm();
-                        let g = c1.dot(d);
-                        if !dist.is_nan() {
+                        if !mid(dist).is_nan() {
                             return Ok($Projection {
                                 t: tn,
                                 foot: c,
                                 distance: dist,
-                                orthogonality: g.abs(),
+                                orthogonality: c1.dot(d).abs(),
                                 iterations,
                             });
                         }
