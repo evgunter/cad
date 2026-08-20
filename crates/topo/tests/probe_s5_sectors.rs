@@ -22,7 +22,7 @@
 //! preserved — so the rows are NOT sorted.
 //!
 //! **TYPE-CHECKED by CI, but not run, and not a gate.** CI's `k-lint`
-//! job has a step named *"type-check every probe-gated test target"*
+//! job has a step named *"compile and list every probe-gated test target"*
 //! (`scripts/gates/probe-suite-census.sh` derives the crate set; the
 //! step `cargo check`s each one `--features probe --all-targets`), so
 //! this file can no longer rot into a build error unnoticed. That step
