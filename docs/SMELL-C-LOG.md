@@ -1613,3 +1613,49 @@ wrong — the lanes classified by reading code, which is what they had — but
 **"benign rot" and "a precondition widened out from under a caller" were
 distinguished by argument where a command was supposed to decide it.** Worth
 re-checking if a classification is ever load-bearing.
+
+### The orchestrator overstated #636, and the lane corrected it one notch
+
+Relaying C-e's derivation I wrote that **"#636's index was already broken on a
+case #636 itself named."** C-e pushed back, and its weaker version is the true
+one:
+
+> **#636 never ran its index on a helix** — it named the helices as out of reach
+> and declined them. So no #636 row was ever wrong.
+
+What is wider than #636 stated is the **reason**, in two places:
+
+1. **Orientability fails everywhere on a whole turn, not only at the ends.** The
+   level-plane normal is the path tangent `T(a) ∝ (−R sin a, R cos a, k)`, and
+   the whole-turn stacking chord `c(2π) − c(0) = (0, 0, 2πk)` is purely axial —
+   so `cos = k/√(R²+k²)` **independent of `a`**: `0.0635` analytically, measured
+   `0.06351710028158192` at level 0 and at every level. The half turn differs
+   only because its chord is *not* axial (`c(π) − c(0) = (−2R, 0, πk)`), giving
+   `≈ 0.0063` analytically against `0.011081` measured — and **`0.011` is #636's
+   own figure to five digits**, which is what corroborates that both units
+   measured the same object.
+2. **Monotonicity fails on the half turn too**, which #636's note did not reach
+   at all: `dh/da ∝ −R² cos a − k²` turns positive at `a ≈ π/2`, well inside a
+   half turn, and mutation O2 shows it in execution at step 273/512. #636 gave
+   orientability as its reason, and orientability is the **weaker** of the two
+   failures.
+
+*So the correction is not cosmetic:* "#636's index was broken on a case it named"
+and "#636 declined a case for a reason narrower than the real one" are different
+claims about another unit's competence, and only the second is supported. **I
+made the error the track exists to catch, in a message instructing a lane to
+expect its claims to be re-derived.** The lane re-derived mine.
+
+*And it named where its own two numbers legitimately differ*, unprompted: the
+derivation uses the exact tangent, the measurement uses the Newell fit of the
+placed ring, and the gap between `0.0063` and `0.011` **is** that difference. A
+lane that says which of its numbers is analytic and which is measured has already
+answered the question a reviewer would spend an hour on.
+
+**A self-correction in the same report, worth keeping:** C-e's first report
+listed `klein.rs`'s U-turn as a fourth uncovered demo body. It is **not one** —
+that `sweep_body` call is a documented refusal wall (`LoftError::ReversedStacking`),
+so it builds nothing and there is nothing there to orient. Row C20 says so
+explicitly, *so a taker does not go looking for a body that does not exist* —
+the extreme case is closed by refusal rather than by a bit. Found while writing
+the row, and stated rather than silently patched.
