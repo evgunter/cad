@@ -37,6 +37,12 @@ pub(crate) trait ControlPoint<T: Real>: Copy + Sub<Self, Output = Self::Offset> 
     /// announce it with `unreachable!` (D9's D2 addendum: a state the
     /// code can observe in a branch is announced, never swallowed)
     /// rather than returning a plausible-looking wrong coordinate.
+    ///
+    /// Those two arms are therefore **unguardable by construction**:
+    /// no public door reaches them, and a row could only fire them
+    /// through a fake `ControlPoint` impl written to lie about
+    /// `CHANNELS` — which would test the fake, not the kernel. They are
+    /// unexecuted code, stated as such rather than left to be noticed.
     fn channel(self, d: usize) -> T;
 
     /// `‖offset‖`.

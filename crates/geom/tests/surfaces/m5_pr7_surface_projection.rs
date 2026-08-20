@@ -185,3 +185,65 @@ fn seeding_is_bit_deterministic() {
     assert_eq!(pa.u.to_bits(), pb.u.to_bits());
     assert_eq!(pa.distance.to_bits(), pb.distance.to_bits());
 }
+
+/// An **overflowing residual refuses**, and the inputs that produce
+/// one are all finite — the surface half of
+/// `tests/curves/projection.rs`'s overflow row.
+///
+/// The two rows are not two facts. They pin **one** property of a
+/// shared helper: `crate::projection::mid` is `x + ½(x − x)`, the
+/// identity on every finite `x` and **NaN at ±∞**, and that
+/// non-totality is *load-bearing at every caller* — it is what turns an
+/// overflowed residual into the typed refusal instead of a converged
+/// foot at infinite distance. `mid` has exactly two callers, this half
+/// and the curve half, and each now has a row. Making `mid` total at
+/// ±∞ turns **both** red; before this row it turned one red and changed
+/// the other's certified path in silence.
+///
+/// `NurbsSurface::new` validates counts and weight positivity, never
+/// coordinate magnitude, so a control net at 1e200 is a legal surface
+/// reachable through the public door, and its squared distance to a
+/// point at the origin overflows.
+#[test]
+fn an_overflowing_residual_refuses_rather_than_reporting_an_infinite_foot() {
+    let huge = 1.0e200;
+    let ku = KnotVector::unit_segment(1);
+    let kv = KnotVector::unit_segment(1);
+    // A bilinear patch, every corner at ~1e200.
+    let control = vec![
+        Point3::new(huge, huge, huge),
+        Point3::new(huge, 2.0 * huge, huge),
+        Point3::new(2.0 * huge, huge, huge),
+        Point3::new(2.0 * huge, 2.0 * huge, huge),
+    ];
+    let s = NurbsSurface::new(ku, kv, control, vec![1.0; 4])
+        .expect("a bilinear patch with unit weights is a valid surface");
+
+    // Finite inputs throughout: the net's own coordinates and the query
+    // point are all representable.
+    assert!(
+        s.control()
+            .iter()
+            .all(|p| p.x.is_finite() && p.z.is_finite())
+    );
+    let p = Point3::new(0.0, 0.0, 0.0);
+    assert!(p.x.is_finite());
+
+    // The residual itself is what overflows. Asserted BEFORE the
+    // refusal: a fixture that stopped reaching its own precondition
+    // would otherwise pass for the wrong reason.
+    let d = s.eval(0.0, 0.0) - p;
+    assert!(d.dot(d).is_infinite(), "the fixture must overflow");
+
+    match s.project(p) {
+        Err(e) => {
+            assert!(
+                e.last_distance.is_nan()
+                    && e.last_orthogonality_u.is_nan()
+                    && e.last_orthogonality_v.is_nan(),
+                "the refusal carries the poisoned state honestly: {e:?}"
+            );
+        }
+        Ok(pr) => panic!("an overflowed residual was reported as a foot point: {pr:?}"),
+    }
+}

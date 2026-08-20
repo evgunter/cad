@@ -4179,13 +4179,44 @@ returned `Ok { distance: inf }`. It is reachable with **all inputs
 finite**: `NurbsCurve3::new` validates counts and weight positivity,
 never coordinate magnitude, so a control net at 1e200 overflows its own
 squared distance. The refusal is the wanted posture — an overflowed
-residual is not an honest answer — and it now has a row,
-`tests/curves/projection.rs::an_overflowing_residual_refuses_rather_than_reporting_an_infinite_foot`,
-built from finite control points so it shows the case is reachable
-through the public door. The `mid` doc sentence that claimed the
-identity outright was **pre-existing** (carried verbatim from the
+residual is not an honest answer. The `mid` doc sentence that claimed
+the identity outright was **pre-existing** (carried verbatim from the
 surface half, where `mid` already lived); the curve half newly depends
 on it, which is why #705 corrected it.
+
+**Both callers are pinned, and that is one claim rather than two
+rows.** `mid`’s non-totality at `±∞` is not a curve fact — it is a
+property of a **shared helper**, load-bearing at *every* caller,
+because at each one it is what turns an overflowed residual into the
+typed refusal instead of a converged foot at infinite distance. `mid`
+has exactly two callers, and each now carries
+`an_overflowing_residual_refuses_rather_than_reporting_an_infinite_foot`
+(`tests/curves/projection.rs`,
+`tests/surfaces/m5_pr7_surface_projection.rs`), each built from
+**finite** control points — `NurbsCurve3::new` and `NurbsSurface::new`
+both validate counts and weight positivity, neither validates
+coordinate magnitude — and each asserting its fixture actually
+overflows *before* asserting the refusal, so a fixture that stopped
+reaching its own precondition cannot pass for the wrong reason.
+Mutation-checked both ways: shrinking a fixture fails it at the
+precondition, and making `mid` total at `±∞` turns **both** rows red.
+
+*Why the second row exists is this unit’s own lesson turned on itself.*
+#705 first shipped the curve row alone. The author’s report named the
+residue in the first person — *"I fixed it at the reported instance and
+left the class, with the aggravating detail that I am the one who made
+it a class"* — and the orchestrator **held the merge** for it rather
+than scheduling a follow-up, on the grounds that landing it later would
+be this scan documenting its own thesis and then doing the thing
+anyway. The hazard was concrete: after the merge `mid`’s behaviour is a
+**stated contract** whose own doc flags the asymmetry, so the next
+reader is invited to make it total — and with one row that would have
+gone red on the curve half while changing the surface half’s certified
+path in silence. **A guard that tells the next person half the truth is
+worse than no guard, because they will trust it.** The generalisation:
+a claim about a shared helper is a claim about every caller, not about
+the one whose diff you are reading — the same error as the retraction
+above, one level up.
 
 *Lesson from that retraction:* the diff really was "only the wrapping"
 — the semantic change lived entirely in a helper the wrapping called,

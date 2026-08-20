@@ -58,6 +58,17 @@ mod tests {
     /// INHERENT `std` method wins over the trait one and the two differ
     /// by an ulp. Generic bodies only ever see the trait method; this
     /// row must too, or it measures the dispatch rather than the frame.
+    ///
+    /// **What it does NOT pin: the call sites.** A caller that
+    /// destructured [`frame`] the wrong way round — taking the radial
+    /// where the tangential belongs — compiles, and this row still
+    /// passes. That case is caught, but only INDIRECTLY: by the
+    /// derivative-vs-dual rows in `tests/curves/nurbs_differential.rs`,
+    /// the hand-computed partials and finite-difference oracles in
+    /// `tests/surfaces/review_m2_pr1.rs`, and the locus/periodicity
+    /// property rows on each enum. Stated here so that thinning any of
+    /// those suites is a visible loss of this refactor's site-level
+    /// guard rather than an invisible one.
     #[test]
     fn both_doors_are_bitwise_the_documented_formula() {
         let axis = Vec3::new(0.31, -0.72, 0.61).normalize();

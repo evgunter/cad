@@ -36,6 +36,11 @@ pub(crate) fn dual_vec(v: Vec3<f64>) -> Vec3<Dual64> {
 /// makes the `interval` gate legible as the "test-only code" case of
 /// `scripts/check-interval-cfg-additive.py`'s rule to a checker that
 /// reads this file without its parent declaration.
+///
+/// **The redundancy is load-bearing, and in the safe direction.** The
+/// attribute that satisfies the gate is the same attribute that makes
+/// the claim true, so deleting it as "redundant" turns CI **red**
+/// rather than quietly making a gated item production-reachable.
 #[cfg(feature = "interval")]
 #[cfg(test)]
 pub(crate) fn interval_point(p: Point3<f64>) -> Point3<geom_core::Interval> {
