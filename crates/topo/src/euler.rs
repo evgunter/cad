@@ -1831,20 +1831,14 @@ impl<T: Decide> Body<T> {
     }
 
     /// Resolves a vertex's point coordinates (the certification gate's
-    /// endpoints): [`EulerOpError::StaleKey`] on the vertex,
+    /// endpoints), the read-back door's walk with its unresolved
+    /// reference renamed: [`EulerOpError::StaleKey`] on the vertex,
     /// [`EulerOpError::StaleGeometry`] on the point.
     pub(crate) fn resolve_vertex_point(
         &self,
         vertex: VertexKey,
     ) -> Result<Point3<T>, EulerOpError> {
-        let vertex_data = self.get_vertex(vertex).ok_or(EulerOpError::StaleKey {
-            key: EntityId::Vertex(vertex),
-        })?;
-        self.get_point(vertex_data.point)
-            .copied()
-            .ok_or(EulerOpError::StaleGeometry {
-                key: GeomRef::Point(vertex_data.point),
-            })
+        crate::readback::vertex_point_ref(self, vertex).map_err(Into::into)
     }
 
     /// The attachment gate (D4 ¶2 at operation time): certifies an
@@ -2075,8 +2069,10 @@ impl<T: Decide> Body<T> {
 ///
 /// A described NURBS operand in an `Intersection` certifies only
 /// through `geom_brep`'s injected lane, whose derivation needs a
-/// bracket-carrying scalar (`geom_brep::EdgeNurbsLane`'s static
-/// split). Raising the whole Euler surface to that bound would push it
+/// CERTIFYING scalar (`geom_brep::EdgeNurbsLane`'s static split; the
+/// lane fn's own bound is `Decide + Bounds + CertifiedEnclosure`, and
+/// since D1, 2026-08-19, it is that last term rather than `Bounds` that
+/// a dual fails). Raising the whole Euler surface to that bound would push it
 /// through hundreds of `T: Decide` signatures for a capability three
 /// of the four sealed scalars have unconditionally, so the lane is a
 /// SEPARATE DOOR onto the same shared machinery: identical

@@ -26,6 +26,12 @@ PAGES = [
     ROOT / "docs" / "GUIDE.md",
     ROOT / "docs" / "guide" / "examples.md",
     ROOT / "docs" / "guide" / "fail-loud.md",
+    # REGISTERED, not covered: `selecting.md` is the Rust half of the
+    # guide and has no ```python blocks today, so its only assertion
+    # here is that the file exists. It is listed so a Python block
+    # added to it is executed from the first commit rather than from
+    # whenever someone remembers this list.
+    ROOT / "docs" / "guide" / "selecting.md",
     ROOT / "docs" / "guide" / "north-star-audit.md",
     # The crate front door: its example is held to the same standard.
     ROOT / "crates" / "pncad-py" / "README.md",

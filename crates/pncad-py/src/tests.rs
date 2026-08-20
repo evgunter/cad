@@ -9,7 +9,7 @@
 // failure mechanism.
 #![allow(clippy::expect_used, clippy::panic)]
 
-use crate::errors::{DimensionError, ErrorClass, canonical_unit, dimension_tag};
+use crate::errors::{ErrorClass, QuantityOpMismatch, canonical_unit, dimension_tag};
 use crate::tags::{expr_dimension_error_tag, path_error_tag, persist_error_tag};
 use pncad::document::Dimension;
 use std::collections::BTreeMap;
@@ -33,8 +33,8 @@ fn canonical_units_match_the_gq5_ratification() {
 }
 
 #[test]
-fn dimension_error_carries_structure_not_prose() {
-    let err = DimensionError::new("+", Dimension::Length, Dimension::Angle);
+fn a_quantity_operator_mismatch_carries_structure_not_prose() {
+    let err = QuantityOpMismatch::new("+", Dimension::Length, Dimension::Angle);
     assert_eq!(err.op, "+");
     assert_eq!(err.left, Dimension::Length);
     assert_eq!(err.right, Dimension::Angle);
@@ -43,18 +43,44 @@ fn dimension_error_carries_structure_not_prose() {
     assert_eq!(err.to_string(), "cannot apply `+` to length and angle");
 }
 
+/// Every class name is pinned, and the pin cannot go stale: the
+/// expected spelling comes from a SECOND exhaustive match, so a new
+/// [`ErrorClass`] variant stops this test compiling rather than
+/// slipping past a list someone forgot to extend (`Frame` did).
 #[test]
 fn error_classes_name_the_python_hierarchy() {
-    assert_eq!(ErrorClass::Edit.class_name(), "EditError");
-    assert_eq!(ErrorClass::Evaluation.class_name(), "EvaluationError");
-    assert_eq!(ErrorClass::Validation.class_name(), "ValidationError");
-    assert_eq!(ErrorClass::Dimension.class_name(), "DimensionError");
-    assert_eq!(ErrorClass::Literal.class_name(), "LiteralError");
-    assert_eq!(ErrorClass::Persist.class_name(), "PersistError");
-    assert_eq!(ErrorClass::Export.class_name(), "ExportError");
-    assert_eq!(ErrorClass::StepImport.class_name(), "StepImportError");
-    assert_eq!(ErrorClass::Path.class_name(), "PathError");
-    assert_eq!(ErrorClass::Select.class_name(), "SelectRefusal");
+    fn expected(class: ErrorClass) -> &'static str {
+        match class {
+            ErrorClass::Edit => "EditError",
+            ErrorClass::Evaluation => "EvaluationError",
+            ErrorClass::Validation => "ValidationError",
+            ErrorClass::Dimension => "DimensionError",
+            ErrorClass::Literal => "LiteralError",
+            ErrorClass::Persist => "PersistError",
+            ErrorClass::Export => "ExportError",
+            ErrorClass::StepImport => "StepImportError",
+            ErrorClass::Path => "PathError",
+            ErrorClass::Select => "SelectRefusal",
+            ErrorClass::Frame => "FrameError",
+            ErrorClass::Identity => "IdentityError",
+        }
+    }
+    for class in [
+        ErrorClass::Edit,
+        ErrorClass::Evaluation,
+        ErrorClass::Validation,
+        ErrorClass::Dimension,
+        ErrorClass::Literal,
+        ErrorClass::Persist,
+        ErrorClass::Export,
+        ErrorClass::StepImport,
+        ErrorClass::Path,
+        ErrorClass::Select,
+        ErrorClass::Frame,
+        ErrorClass::Identity,
+    ] {
+        assert_eq!(class.class_name(), expected(class));
+    }
 }
 
 /// LIB-PYSEL: `SelectRefusal` is `#[non_exhaustive]`, so the tag
@@ -155,9 +181,15 @@ fn declare_error_tags_are_stable() {
     assert_eq!(declare_error_tag(&DeclareError::NoMintedId), "no_minted_id");
 }
 
-/// LIB-DOORS F5: the binding matches `Expr::literal`'s OWN refusals
-/// (the `check_literal` pre-check is gone), and the tags Python sees
-/// for the two literal-reachable arms are unchanged from LIB-U9S.
+/// The binding matches `Expr::literal`'s OWN refusals rather than
+/// pre-checking them, and the tags Python sees are stable.
+///
+/// **Scope: the literal-construction door only.** It is one of TWO
+/// doors that reach the document layer's `DimensionError`; the other
+/// is `load`, and
+/// `the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_parse_refusal`
+/// below is its half. Read the two together — either alone is a
+/// premise that excludes the mode the other covers.
 #[test]
 fn literal_refusals_come_from_the_kernel_with_stable_tags() {
     use pncad::document::Expr;
@@ -166,6 +198,146 @@ fn literal_refusals_come_from_the_kernel_with_stable_tags() {
     let count = Expr::literal(3.0, Dimension::Count).expect_err("a continuous count refuses");
     assert_eq!(expr_dimension_error_tag(&count), "count_is_integer");
     assert!(Expr::literal(1.5, Dimension::Length).is_ok());
+
+    // The reachable set, exhaustively: every dimension, a finite and
+    // a non-finite value each. Nothing here is a dimension MISMATCH,
+    // which is what makes `LiteralError` the right class.
+    let mut reachable = std::collections::BTreeSet::new();
+    for dim in [
+        Dimension::Length,
+        Dimension::Angle,
+        Dimension::Count,
+        Dimension::Scalar,
+    ] {
+        for value in [0.0, 1.5, 3.0, -2.0, f64::NAN, f64::INFINITY] {
+            if let Err(err) = Expr::literal(value, dim) {
+                reachable.insert(expr_dimension_error_tag(&err));
+            }
+        }
+    }
+    assert_eq!(
+        reachable.into_iter().collect::<Vec<_>>(),
+        ["count_is_integer", "non_finite"],
+        "literal construction now refuses on an arm outside the \
+         literal-value pair — it raises `LiteralError`, so decide \
+         whether that is still the right class before widening this pin"
+    );
+}
+
+/// **The second door.** `WireExpr::rebuild` (the load path) re-runs
+/// every dimension check through `Expr`'s OPERATOR builders, so a
+/// hand-edited save file reaches the genuine dimension-mismatch arms
+/// with no new binding at all — six of them, executed here.
+///
+/// Today they arrive in Python as `PersistError` with `variant ==
+/// "parse"`, because the deserializer `Debug`-formats the structured
+/// refusal into a serde message. That is a real misrouting and it is
+/// **issue #694**, not this crate's to fix: a dimension mismatch is
+/// not a parse failure, and a `format!("{err:?}")` message is not the
+/// "typed exception carrying the structured error" this crate's
+/// taxonomy promises.
+///
+/// What this test is for is the DECISION the fix will force. When
+/// #694 gives these a typed class, this assertion goes red, and
+/// whoever changes it has to answer the question the three names make
+/// easy to get wrong: a dimension mismatch from the load path is not
+/// a `LiteralError` (nothing about it is a literal) and it is not the
+/// quantity boundary's `DimensionError` either.
+#[test]
+fn the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_parse_refusal() {
+    use pncad::document::{DocEdit, LoopProgram, Node, ProfileDoc, ProfileProgram, apply, save};
+    use pncad::prelude::SketchPlane;
+
+    let doc: ProfileDoc = crate::identity::derived("dimension-routing-probe");
+    let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
+        .expect("finite corners");
+    let applied = apply(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::Profile(ProfileProgram {
+                plane: SketchPlane::xy(),
+                loops: vec![square],
+            }),
+        },
+    )
+    .expect("the profile inserts");
+    let text = save(&applied.doc, &[]).expect("the document saves");
+    let (header, body) = text.split_once("\n{").expect("a header line then the body");
+    let body = format!("{{{body}");
+    let saved: serde_json::Value = serde_json::from_str(&body).expect("the save body is JSON");
+
+    // Every case replaces the FIRST literal in the document, so this
+    // is driven by the wire SHAPE rather than by a node id.
+    let length = serde_json::json!({ "Literal": { "value": 1.0, "dim": "Length" } });
+    let angle = serde_json::json!({ "Literal": { "value": 1.0, "dim": "Angle" } });
+    let cases = [
+        ("mismatch", serde_json::json!({ "Add": [length, angle] })),
+        (
+            "mul_needs_scalar",
+            serde_json::json!({ "Mul": [length, length] }),
+        ),
+        (
+            "div_needs_scalar_divisor",
+            serde_json::json!({ "Div": [length, angle] }),
+        ),
+        ("trig_needs_angle", serde_json::json!({ "Sin": length })),
+        ("not_count", serde_json::json!({ "CountToScalar": length })),
+        (
+            "unknown_display_unit",
+            serde_json::json!({
+                "Literal": { "value": 1.0, "dim": "Length", "unit": "furlong" }
+            }),
+        ),
+        (
+            "display_unit_mismatch",
+            serde_json::json!({
+                "Literal": { "value": 1.0, "dim": "Angle", "unit": "mm" }
+            }),
+        ),
+    ];
+
+    for (arm, expr) in cases {
+        let mut mutated = saved.clone();
+        assert!(
+            replace_first_literal(&mut mutated, &expr),
+            "{arm}: the save body has no literal expression to replace — \
+             the wire shape moved and this probe was about to pass vacuously"
+        );
+        let text = format!(
+            "{header}\n{}",
+            serde_json::to_string(&mutated).expect("re-serializing")
+        );
+        let err = pncad::document::load(&text)
+            .err()
+            .unwrap_or_else(|| panic!("{arm}: an ill-dimensioned save file must refuse"));
+        assert_eq!(
+            persist_error_tag(&err),
+            "parse",
+            "{arm}: the load path's dimension refusal has changed class \
+             (#694). It is neither a literal-value refusal nor the \
+             quantity boundary's operator check — decide which typed \
+             class it raises, and say so on both Python classes' docs, \
+             before updating this pin"
+        );
+    }
+}
+
+/// Replaces the first single-key `Literal` object found in a
+/// depth-first walk. Returns whether one was found — a probe that
+/// silently replaced nothing would assert nothing.
+#[cfg(test)]
+fn replace_first_literal(value: &mut serde_json::Value, with: &serde_json::Value) -> bool {
+    match value {
+        serde_json::Value::Object(map) => {
+            if map.len() == 1 && map.contains_key("Literal") {
+                *value = with.clone();
+                return true;
+            }
+            map.values_mut().any(|v| replace_first_literal(v, with))
+        }
+        serde_json::Value::Array(items) => items.iter_mut().any(|v| replace_first_literal(v, with)),
+        _ => false,
+    }
 }
 
 /// LIB-DOORS F1: a load refusal's tag, exercised through the real
@@ -295,4 +467,71 @@ fn crate_lints_match_the_workspace_minus_unsafe_code() {
                 .collect::<Vec<_>>(),
         );
     }
+}
+
+// ---------------------------------------------------------------
+// Document identity: the id a Python-authored document carries.
+// ---------------------------------------------------------------
+
+/// **Two Python-authored documents are two PARTS**: distinct ids, and
+/// one workspace holds both.
+///
+/// The store's uniqueness invariant is keyed on the id, so a constant
+/// id makes the second document unstorable beside the first — and per
+/// the assembly model it is not a second part at all, because
+/// `DocRef`/`ContentPin` references resolve by id. This test refuses
+/// both halves at once: it fails on the ids if a constant comes back,
+/// and it fails on `create` if the store ever stops enforcing what
+/// the ids are for.
+#[test]
+fn two_python_authored_documents_are_two_parts_in_one_workspace() {
+    let a = crate::identity::interactive().expect("OS entropy");
+    let b = crate::identity::interactive().expect("OS entropy");
+    assert_ne!(
+        a.id(),
+        b.id(),
+        "two interactively authored documents share an id, so they are \
+         one part and one workspace cannot hold both"
+    );
+
+    let dir = std::env::temp_dir().join(format!(
+        "pncad-py-identity-{}-{:?}",
+        std::process::id(),
+        std::thread::current().id()
+    ));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("a scratch workspace directory");
+
+    let mut store = pncad::workspace::Workspace::open(&dir).expect("an empty workspace opens");
+    let first = store.create(&a).expect("the first document writes");
+    let second = store
+        .create(&b)
+        .expect("the second document writes beside it");
+    assert_ne!(first, second, "two parts, two files");
+    assert_eq!(
+        store.documents().len(),
+        2,
+        "both documents are in the store's id map"
+    );
+
+    // And the scan agrees from cold: the header ids are what the map
+    // was built from, so a re-open is the store's own verdict.
+    let reopened = pncad::workspace::Workspace::open(&dir).expect("the store rescans clean");
+    assert_eq!(reopened.documents().len(), 2);
+
+    std::fs::remove_dir_all(&dir).expect("cleanup");
+}
+
+/// The LABELLED spelling is deterministic — same label, same part —
+/// which is what makes it the reproducible door and NOT the default.
+#[test]
+fn a_labelled_document_is_the_same_part_every_time() {
+    assert_eq!(
+        crate::identity::derived("plate-param").id(),
+        crate::identity::derived("plate-param").id()
+    );
+    assert_ne!(
+        crate::identity::derived("plate-param").id(),
+        crate::identity::derived("bracket").id()
+    );
 }
