@@ -237,18 +237,35 @@ fn foreign_parent_loop_garbage_in_garbage_out_release() {
 /// "one legitimate panic site / never an input failure" doc sentence
 /// only holds under the tier-1-valid input assumption.
 ///
-/// **Why the payload is asserted and not just `is_err()`.** Since the
-/// D2 addendum landed in the Euler modules there is a SECOND panic
-/// source in this call path -- the row-4 `unreachable!`s the mutation
-/// phases now carry. A bare `is_err()` would pass identically whether
-/// the panic came from the postcondition this row is named for or from
-/// a mis-converted `unreachable!`, and the postcondition is the only
-/// debug-side signal that separates them. Both
-/// `assert_euler_postcondition` messages carry the literal below; no
-/// `unreachable!` message does.
+/// **Why the panic's SOURCE is asserted and not just that one
+/// occurred.** Since the D2 addendum landed in the Euler modules there
+/// is a second panic source in this call path -- the row-4
+/// `unreachable!`s the mutation phases now carry. A bare `is_err()`
+/// passes identically whether the panic came from the postcondition
+/// this row is named for or from a mis-converted `unreachable!`, and
+/// the postcondition is the only debug-side signal that separates
+/// them. Both `assert_euler_postcondition` messages carry the literal
+/// asserted below; no `unreachable!` message does.
+///
+/// The message is captured through a panic HOOK rather than by
+/// downcasting `catch_unwind`'s payload: `Any` downcasts are a second
+/// bit channel and the `bit-identity punning` gate bans them outside
+/// `geom_core::bit_identity`, test code included. The hook is
+/// process-global, so it is restored immediately and the capture is
+/// treated as advisory -- a concurrently panicking test in the same
+/// process would show up as an empty or foreign message, which fails
+/// loudly here rather than passing quietly.
 #[test]
 #[cfg(debug_assertions)]
 fn debug_postcondition_fires_on_corrupt_input() {
+    let captured = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
+    let sink = std::sync::Arc::clone(&captured);
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        if let Ok(mut slot) = sink.lock() {
+            *slot = info.to_string();
+        }
+    }));
     let result = std::panic::catch_unwind(|| {
         let (mut body, seed, seg, split) = pillow();
         let foreign = seed.r#loop;
@@ -259,16 +276,14 @@ fn debug_postcondition_fires_on_corrupt_input() {
             he2: split.he_minus,
         });
     });
-    let payload = result.expect_err(
+    std::panic::set_hook(previous);
+    assert!(
+        result.is_err(),
         "expected the debug postcondition to panic on corrupt input; if \
          this stops panicking, the doc claim becomes true and this test \
-         should move to the release-style garbage-out assertion",
+         should move to the release-style garbage-out assertion"
     );
-    let message = payload
-        .downcast_ref::<String>()
-        .map(String::as_str)
-        .or_else(|| payload.downcast_ref::<&str>().copied())
-        .unwrap_or("<non-string panic payload>");
+    let message = captured.lock().map(|slot| slot.clone()).unwrap_or_default();
     assert!(
         message.contains("postcondition"),
         "panicked, but not from the postcondition -- a row-4 \
