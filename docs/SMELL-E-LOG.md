@@ -217,8 +217,10 @@ as **D51**, with the verdict recorded and the taker left free to disagree.
 
 ### A second smell scan landed under three live lanes (2026-08-20)
 
-`docs/SMELL-SCAN-2-2026-08.md` — **S59–S116**, scan base `0714d540`, written by
-another session and merged mid-wave. REPORT ONLY, no verdicts, **no schedule**.
+The second scan — **S59–S116**, scan base `0714d540`, written by
+another session and merged mid-wave. **It has since been folded into
+`docs/SMELL-SCAN-2026-08.md`**; the separate file is deleted and recorded in
+`docs/DOC-LEDGER.md`. REPORT ONLY, no verdicts, **no schedule**.
 Its ID space continues the first scan's on purpose, so a citation never means
 two things; `S45`–`S48` stay reserved in the first document.
 
