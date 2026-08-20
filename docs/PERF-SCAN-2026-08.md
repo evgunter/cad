@@ -1227,7 +1227,7 @@ are not re-reported as findings.
   strings, no rehash.
 - **Test-binary count is fully optimized.** 367 `tests/*.rs` files exist,
   but all 14 crates with tests carry `autotests = false` plus a single
-  `[[test]]` aggregator, gated by `scripts/check-test-aggregation.sh`.
+  `[[test]]` aggregator, gated by `scripts/gates/test-aggregation.sh`.
   The 19 binaries CI builds are the floor for 10 packages. Anyone reading
   "367 test files" as a lever is reading a pre-#387 number.
 - **Generic monomorphization is not a material build cost** —

@@ -125,9 +125,9 @@ discharged before this track existed.
 | **E-b** | D23 | `docs/` + suite headers; code set is what the re-derivation finds | none | style | **in flight** |
 | **E-c** | D26 | `docs/SMELL-SCAN-2026-08.md` §D and §S19 | none | style | **DONE — #752 merged**; discharged into D36–D39, plus D47/D48 from its review, all unstaffed |
 | **E-d** | D33 | `docs/predicate-dimension-audit.md` | none | style | **#761, in review** |
-| **E-e** | D28 + issue #693 | `editor-core/src/eval/` | **confirm against C-f (#731)** — same crate, disjoint files | style | **in flight** |
+| **E-e** | D28 + issue #693 | `editor-core/src/eval/` | **#731 EDITS `eval/mod.rs` — the file, not just the crate.** Disjoint by *item* (~700 lines apart), not by file. Whichever merges second re-merges | style | **#767, in review** |
 | **E-f** | D25 | `topo/src/euler.rs` and every `link_half_edges` caller | none | **ADVERSARIAL** | **#755, in review** |
-| **E-g** | D27, then D29 | `sweep/src/fillet/{build,surgery,mod}.rs` | none | **ADVERSARIAL** (D27), style (D29) | **in flight** |
+| **E-g** | D27, then D29 | `sweep/src/fillet/{build,surgery,mod}.rs` | none | **ADVERSARIAL** (D27), style (D29) | **#768**, both reviewers running; **#777** stacked, awaiting Evan |
 | **E-h** | D21 | `topo/src/{split,attach,movefac,revert}.rs`, `splitting/finish.rs`, `boolean/combine.rs` | **E-f, for file overlap on `split.rs`** — see E-R4 | **ADVERSARIAL** | unstarted |
 | **E-i** | D24 | `Cargo.toml` workspace lints, or `.github/workflows/` | none | style | unstarted |
 | **E-j** | D31 | `sweep/src/skin.rs`, `geom/src/curves/fit.rs`, home in `geom-core/src/spline/algebra.rs` | **Track C (C-l, C-g)** | style, escalates if the sort order is load-bearing | unstarted |
@@ -257,6 +257,64 @@ claim-travels-between-documents failure #752's review caught, one document
 further out. The second scan has no schedule; that does not make its findings
 absent, it makes them unowned.
 
+### Tracks F and G exist, and F took part of Track E's territory (2026-08-20)
+
+**#766 folded the second smell scan into the first document and carved Tracks F
+and G out of it.** Three things follow for this track:
+
+- **Track F has an orchestrator.** It owns the instrument surface — gates,
+  `ci-filter.py`, the guards that cannot fire, the tests that cannot go red —
+  and it is **gated on E-a (#753)**, which holds `scripts/gates/` and `ci.yml`
+  until it lands. **D58, D59 and D60 were placed for Track F, not for here**,
+  out of E-a's own re-derivation of S61 and S62. **D50** (the `Live`
+  unforgeability gate) is `scripts/gates/` work and belongs to F for the same
+  reason; it stays listed here only until F picks it up.
+- **Track G is unstarted and edge-free.** `interval-transcendentals/`,
+  `demos/`, `profile/` and `sweep/src/` outside `fillet/` — no track is live in
+  any of them.
+- **Every open Track E PR went CONFLICTING**, because #766 grew
+  `docs/SMELL-SCAN-2026-08.md` by ~2,400 lines and every lane edits it. That is
+  the cost of the merge, it was foreseeable, and it is worth stating plainly
+  rather than letting four lanes each rediscover it: **a register that every
+  lane edits makes a structural change to that register expensive in exactly
+  proportion to how many lanes are live.** The alternative — leaving two
+  documents — cost a silently-wrong C-number in both. The merge was still right.
+
+**What Track E keeps:** the Euler-surgery rows the second scan added land here
+rather than in F or G, because `topo`'s mutation surface is fenced under one
+ADVERSARIAL policy and a second track on those files is the collision the
+sequencing exists to prevent. S68 is D21 (E-h). S67, S69 and S70 are unplaced
+and want rows after E-h lands — S70 is S14 and is Evan's.
+
+### The dispatcher wrote a stale index inside the section warning about stale indexes (2026-08-20)
+
+**#766 placed D49, D50 and D58–D60 and left §D's *"D48 is the highest one
+placed"* sentence untouched.** E-d found it while re-merging and corrected it to
+**D60**. That sentence is the placement register's own index — the one artefact
+whose entire job is to say what the highest number is — and I broke it in the
+same PR that added three new §D sections about findings travelling between
+documents without being re-derived.
+
+*Why it is worth a paragraph rather than a shrug:* it is **not** the same
+mechanism as E-R4 or as #752's inherited-gate finding. Those were claims copied
+from one place to another without checking. This was a claim I **did not touch
+at all** — the defect is that a number-carrying sentence sits far from the table
+whose contents determine it, so an edit to the table is not an edit to the
+sentence and nothing connects them. That is C14's shape (*pins guard the
+invariant as it was reachable then*) applied to prose, and D23's class exactly:
+**an enumeration stated in prose, already drifted.**
+
+The honest reading is that the register has now produced this defect twice in
+one day, in two different sentences, and both were caught by a lane rather than
+by the orchestrator who wrote them. **The instrument that works here is a lane
+re-deriving on its way past** — which is what the standing header's rule 5
+asks for, and it has now paid for itself four times on this track.
+
+**E-d also re-measured a third time** at the new base after #755 gave `topo` a
+`live.rs` and rewrote `split.rs`; all ten figures reproduced, and the file names
+all three commits. That is the discipline D23 asks for, applied without being
+asked, on a measurement nobody would have re-checked.
+
 ---
 
 ## The standing lane header
@@ -278,10 +336,16 @@ as an A/B row anywhere. If something seems to require it, stop and ask the
 orchestrator.
 
 **3. Your branch and your lane.** Branch `smelle/<row>` (e.g. `smelle/d25`),
-off current `origin/main`. Use **your own** `CARGO_TARGET_DIR`; never one shared
-with another worktree. Anything to be published — a PR body, a review findings
-file — goes to a **lane-private** path, never the session scratchpad, which is
-shared between concurrently running agents.
+off current `origin/main`. Use **your own** `CARGO_TARGET_DIR` — never one
+shared with another worktree, **and never one inside the session scratchpad.**
+Put it in your own worktree. The scratchpad is shared between concurrently
+running agents and it is on the same fixed per-session disk allowance as every
+lane's build: six lanes each parking a 1–7 GB target directory there took this
+container from 24 GB free to **6.4 GB** in under two hours, which is past the
+point where a build can fail mid-link and leave torn binaries behind. Anything
+to be **published** — a PR body, a review findings file — goes to a
+**lane-private** path for the same reason plus a second one: another agent can
+read and overwrite it.
 
 **4. Commit and push at every coherent seam**, not at the end. Two lanes have
 been lost mid-unit with everything uncommitted; a pushed commit is the only
@@ -340,19 +404,34 @@ constituted.**
 
 | block | lane | state |
 |---|---|---|
-| D36–D39 | E-c (D26) | **all four used** — D36 `UnsupportedCarrier`, D37 `tags.rs`'s residue, D38 `SkippedMerge`, D39 `ProgramRefusal::Geometry` |
-| D40–D41 | E-a (D22 + D34) | reserved 2026-08-20 |
-| D42–D43 | E-f (D25) | **returned unused** — the unit's two findings were corrections recorded at their own entries, and neither leaves work behind |
-| D44–D45 | E-b (D23) | reserved 2026-08-20 |
-| D47–D48 | E-c's fix pass (#752) | assigned 2026-08-20 — the `pncad-py` `Debug`-dump class and its unguarded rule; `select_refusal_tag`'s vacuous alarm |
-| D49–D50 | E-f's fix pass (#755) | assigned 2026-08-20 — the token-free half of the liveness block, alive in five more arenas; the `Live` unforgeability gate (**sequences after E-a**, which holds `scripts/gates/` and `ci.yml`) |
-| D46 | E-d (D33) | **used** — the 23 funnel predicate names the audit reaches under no reading |
-| D51 | E-d (D33) | assigned 2026-08-20 — `DESIGN.md:31` describes the audit's open findings as including two the audit itself has RETIRED |
-| D52–D53 | E-g (D27 + D29) | reserved 2026-08-20 |
-| D54–D55 | E-e (D28 + #693) | reserved 2026-08-20 |
-| D46 | E-d (D33) | reserved 2026-08-20 |
+| D36–D39 | E-c (D26) | all four used |
+| D40–D41 | E-a (D22 + D34) | used |
+| D42–D43 | E-f (D25) | returned unused |
+| D44–D45 | E-b (D23) | used |
+| D46, D51, D57 | E-d (D33) | used; **D56 handed back** with a measurement as the reason |
+| D47–D48 | E-c's fix pass | used |
+| D49–D50 | E-f's fix pass | used; **D50 is Track F's** by file |
+| D52–D53 | E-g (D27 + D29) | returned unused — the work landed instead |
+| D54 | E-e (D28) | used; **D55** returned |
+| D58–D60 | **Track F**, via E-a | used |
+| **D81–D100** | **Track E's own block**, claimed 2026-08-20 | see the reissue below |
 
-Next unassigned: **D56**; D42 and D43 are back in the pool and deliberately not
+**Reissued out of Track F's block, 2026-08-20.** Track E issued D61–D70 to five
+lanes while `D61`–`D70` were **already reserved to Track F** and `D71`–`D80` to
+Track G. Nothing was overwritten — neither new track had placed into its block
+yet — and the double-allocation was caught by **lane E-h**, which read
+`SMELL-F-LOG.md` before writing a row and withdrew the D61 it had already
+placed. Reissued:
+
+| was | now | lane |
+|---|---|---|
+| D67 (**placed in #767**) | **D81** | E-e — the `Debug`-at-a-composing-layer class |
+| D63–D64 | **D82–D83** | E-a's fix pass |
+| D65–D66 | **D84–D85** | E-b's fix pass |
+| D69–D70 | **D86–D87** | E-m |
+| D61–D62 | **D88–D89** | E-h — D88 is `merge_faces.rs:766`'s `unwrap_or_default` discard |
+
+Next unassigned in Track E's block: **D92**.
 re-issued — a number that has appeared in a lane's report, even as *unused*, is
 cheaper to skip than to explain.
 
@@ -380,10 +459,12 @@ serialized here and each lane re-merges `origin/main` when one lands.
 | lane | row(s) | branch | PR | state |
 |---|---|---|---|---|
 | **E-c** | D26 | `smelle/d26` | **#752** | **MERGED 2026-08-20** — Track E's first landing |
-| **E-a** | D22 + D34 | `smelle/d22-d34` | — | implementing |
+| **E-a** | D22 + D34 | `smelle/d22-d34` | **#753** | fix pass complete, run 2140 in flight. **Track F is gated on this landing** |
 | **E-f** | D25 | `smelle/d25` | **#755** | **CLEARED by both lanes**; combined fix pass running (3 must-fix, 2 → rows D49/D50). Merges after #752 |
-| **E-b** | D23 | `smelle/d23` | — | dispatched. **Fenced off `scripts/gates/probe-suite-census.sh` and `ci.yml`** while E-a holds them |
-| **E-d** | D33 | `smelle/d33` | **#761** | reported, green, `clean`; **style review running**; D51 assigned for its `DESIGN.md` finding |
+| **E-b** | D23 | `smelle/d23` | **#763** | **NOT CLEARED** — a live wrong answer inside D45, plus 4 MAJOR; fix pass running |
+| **E-d** | D33 | `smelle/d33` | **#761** | **MERGED 2026-08-20.** Placed D46, D51, D57; handed D56 back |
+| **E-e** | D28 + #693 | `smelle/d28` | **#767** | cleared, **but the fix pass went red** — 3 shards on a `sweep` test the lane had fenced itself out of. Second fix pass running |
+| **E-h** | D21 | `smelle/d21` | **#773** | reported — census **17**, not 14; all 17 discharged and **all 17 inverted live**. Placed D88. Owes a re-merge after #767 |
 
 **E-g dispatched 2026-08-20** (`smelle/d27-d29`), D27 then D29 — one lane
 because both edit `sweep/src/fillet/`, and D27 first because its newtype may
@@ -543,9 +624,474 @@ shape and proved the arms. The only overlap was *"one constructor"* is false —
 which both found independently, from opposite directions, which is why it is the
 one finding recorded as certain.
 
+### #753 (E-a / D22 + D34) — style lane, 2026-08-20: **not cleared**, and the review is the strongest instrument work on this track
+
+Most of the unit held under a genuinely adversarial re-derivation: D22's premise
+being false on main reproduced **verbatim at rustc 1.97.0**, the narrower-silence
+argument confirmed by construction, the move and its fixture timed independently,
+the `.py` refusal confirmed, and **six guards mutated out of the census one at a
+time, 6/6 red**. Both rows are credited as *decided and defended, not deferred
+behind work*, which is what they close on.
+
+**Four MAJORs, and the first is a live wrong answer in a gate this PR wrote.**
+
+- **A refusal that states a falsehood and refuses gates CI actually builds.** The
+  census refuses a second-feature gate on the ground that *"no CI row builds
+  `probe` with another one"*. `topo` and `sweep` carry **self dev-dependencies**
+  that turn `test-support` / `sweep-testing` on for every one of that crate's own
+  test builds — the two crates owning 6 of the 16 censused suites. Demonstrated
+  by planting a `compile_error!` in such a suite and watching **the census's own
+  type-check loop** fail with it: the file compiles, and the gate refuses it
+  anyway, with a wrong explanation. Two further false positives on the same
+  predicate, one of them contradicting the header two screens above it.
+- **The widening opened a hole it is presented as leaving.** For a *re-gated
+  existing* suite, main reds (the crate drops below its floor) and this head does
+  not. That may be the right trade — a textual predicate cannot tell `not(miri)`
+  from `not(target_os="linux")` — but it is a **cost of the change** written up as
+  a standing gap.
+- **The number carrying D34's rejection is n=1 per arm and inside its own
+  variance.** Two runs give 219 s vs 196 s; **a third, same-config, in this PR's
+  own run list gives 212 s** — a 16 s move between identical configurations
+  against a claimed 23 s delta. And *"196 s today"* was the PR's **first commit**.
+  The pair-sum unit was checked and is right; the basis is not.
+- **The structural half of the rejection is falsified by `ci.yml:1873`**, which
+  already invokes this script from the `k-lint` job — the one with the cargo
+  build. So the assertion *could* live as a second mode with `--root` and a
+  `--selftest`, and what actually remains is fixture cost — **which the same PR
+  rules affordable two rows apart**, at D40.
+
+**Two corrections to the dispatcher, both accepted.** The two defects I recorded
+as *"found by hosted CI and not reachable locally"* were **minted by this PR** —
+the stderr fold arrived with the rewrite, and the SIGPIPE check is new in the same
+commit. That is REVIEW-STYLE-DISPATCH §2's *"a unit that adds a guard can leave it
+failing open"*, not a discovery about hosted CI, and recording it the way I did
+would have flattered the unit. Also three positive controls, not two.
+
+*Worth carrying:* **the review's instrument was mutation, and it is the third time
+on this track that mutating a guard beat reading it.** Six guards mutated, 6/6
+red; two fixtures reverted to their pre-fix form, both red; two of
+`test-aggregation.sh`'s own guards mutated out and the selftest stayed **green**,
+which is how the vacuous pair was found. C22's *"executing the mutation beats
+reading the code, and it was rare"* is no longer rare here.
+
+### The fence I gave E-e was false, and the lane checked it because I told it not to trust me (2026-08-20)
+
+**I wrote, in E-e's brief and in §D's lane table, that Track C's C-f (#731) is on
+`editor-core/src/{resolve/, select.rs, refactor.rs}` and therefore disjoint from
+`eval/`.** #731's actual file set includes **`crates/editor-core/src/eval/mod.rs`**
+and `eval/anchor.rs`, plus six more files. It touches E-e's file.
+
+They are disjoint **by item, not by file**: #731's `eval/mod.rs` hunks are the
+content-key hasher, ~700 lines from the `Display` impl E-e rewrote. So the
+exposure is a merge conflict, not a semantic collision, and the standing rule
+covers it — *whichever is second re-merges rather than assumes*. **E-e continued
+rather than stopping, and was right to**: stopping bought nothing the serialized
+merge does not already provide, and flagging it loudly is the useful half.
+
+*Where the claim came from, which is the point:* **§D's Track C table**, written
+by that track's orchestrator, transcribed into my brief without being re-derived
+against #731's actual diff. That is the same mechanism as #752's inherited gate
+and as my own stale index — **a claim that travels between documents without
+being checked at each stop** — and it is the third instance on this track in one
+day. The register is where this happens, because a register is exactly a place
+where claims are written to be copied.
+
+**What stopped it costing anything was one sentence in the brief:** *"Disjoint by
+inspection — so read C-f's head and confirm it, do not trust this sentence."*
+That sentence has now paid for itself twice (E-f's line numbers were the other),
+and it is worth keeping in every dispatch whose fence I did not personally
+verify. **The honest generalisation is not "check your citations" — it is that a
+dispatcher who cannot verify a fence must say which fences those are**, because a
+brief states them all in the same voice otherwise.
+
+Corrected in the roster above, and in §D's E-e row by the lane.
+
+### #763 (E-b / D23) — style lane, 2026-08-20: **not cleared**, and the finding turned on its own author
+
+Claims 1–4 held under independent re-derivation, and the **code half is judged
+close to best available**: eleven prose counts removed behind an existing
+directory-derived guard, with two of the replacements improving on their
+originals. The verdict half did not survive.
+
+**A live wrong answer, inside the row the unit placed.** D45 says
+`PERF-SCAN`'s *"367 `tests/*.rs` files exist"* does not re-derive at its stated
+base. **At `870c7a9` the literal single-level glob the sentence writes is exactly
+367.** Its sibling leg is the same shape: *"all 14 crates with tests carry the
+aggregator"* is **true at the stated base** — 15 `tests/` directories, one of them
+Python — and the lane's "13" is the count at a *different* commit. **The lane
+measured a scan-base claim at the wrong commit, in the row whose entire thesis is
+measure at the stated base.** D23's *"none of which re-derive at their own stated
+scan bases"* is false for two of four, and the verdict's third leg drops from
+three-of-six to two-of-six.
+
+**Three more of the same shape, all self-inflicted:** the survey's own headline
+instance counts are **off by one, all three** (and one is the post-merge number
+inside a row declaring its survey commit); a four-criterion list **switches
+criterion mid-list**, which is the exact defect the unit corrected two paragraphs
+earlier in the same file; and the unit **minted a fresh drifted enumeration in
+`K-REPORT.md`** — *"2 of the 16 probe-gated suites"* — at the one site where the
+tree already derives that number every merge.
+
+**The verdict needs re-arguing, not editing.** *"No mechanism; this class is
+found by reading"* was concluded after defeating only the weakest candidate. The
+tree already carries the shape the row says does not exist:
+`probe-suite-census.sh` pairs a derived count with a `CITING_FILES` list and
+**fails when the prose stops naming its step** — a doc-prose gate keyed to a
+derived quantity, in the same subsystem that produced the row's sharpest
+instance. And the largest sub-class, eleven near-verbatim aggregator headers, has
+an exact cheap guard nobody costed.
+
+**A correction to the dispatcher, and it is the named exposure.** I repeated the
+lane's PERF-SCAN error back to it **with my authority**, as claim 5 of the review
+brief. `REVIEW-STYLE-DISPATCH` §3 says exactly this: *a lane's unverified
+observation, repeated back to it as an instruction, arrives carrying the
+dispatcher's authority and is one commit from a ratified doc.* It was one commit
+from a ratified doc. The reviewer caught it because the brief also told it to
+correct my framing — which is the second time today that instruction has been the
+thing that worked.
+
+*The shape worth keeping:* **a unit whose subject is unverified enumerations is
+the hardest kind to write, because every number it publishes is an instance of
+its own class.** This one published ~25 and got at least four wrong. That is not
+an argument against the unit — it is the strongest available argument *for* the
+finding, and the fix pass should say so rather than quietly correcting the
+numbers.
+
+### #767 (E-e / D28 + #693) — style lane, 2026-08-20: **CLEARED**
+
+The census was re-derived independently and the lane's number and reading both
+hold: **twelve** arms, not the row's eight, because the row counted *op* arms
+while the class is *a payload with a `Display`, discarded*. Two payload types had
+no `Display` at all, and the second is the find — `EditError::MetaUnversioned`
+was rendering *"lacks the integer `v` version field"* for all three arms of a
+dropped error, **two of which are not that**, and the test covering it matched
+the variant and so could not see the message. A live wrong message, pre-existing,
+found by a lane whose row was about thin messages rather than wrong ones.
+
+**Eight style findings, and the first is a consequence of the fix itself.**
+Forwarding now ships `Debug` struct guts into the Python exception string:
+`splitting/finish.rs` renders a `BandError` as `{e:?}` and an `Indeterminate` as
+`{diag:?}` — **both types have good `Display`s, and this PR starts forwarding one
+of them fifteen lines away.** So the same `BandError` now has two spellings and
+the `Debug` one became FFI-reachable *because of this change*, while
+`refusals_render_as_prose_not_debug_guts` — asserting a rendered refusal contains
+no `{` — runs on one fixture and cannot see it. **A fix that invalidates the
+premise a neighbouring test states as the rule.**
+
+The second finding is the same class **outside the crate the existing row
+covers**: five more `Debug`-dumps of typed payloads in `editor-core/src/persist/`
+and `product.rs`, including one that bypasses the very `Display` this PR
+corrected, one layer up in the same crate. D47 is scoped to `pncad-py`, so these
+had no home. Placed as **D67**.
+
+*Worth carrying:* **the lane's disclosed blind spot was where the class lived.**
+It said its `Self::V(_)` pattern could not match a `Debug`-derived rendering and
+routed that to D47 — correctly identifying the shape and mis-identifying its
+extent by a whole crate. A disclosure that names the right pattern and the wrong
+scope reads exactly like a discharge, which is why the standing rule is that a
+disclosure is a work order.
+
+### Six lanes filled the disk with target directories in the shared scratchpad (2026-08-20)
+
+**24 GB free to 6.4 GB in under two hours**, with four lanes building. Cause:
+every lane obeyed *"use your own `CARGO_TARGET_DIR`"* — which is the rule, and
+which each of them followed correctly — and put it under
+`/tmp/.../scratchpad/`. Six distinct directories, 13 GB, one of them 6.6 GB.
+
+**The rule was right and incomplete.** `memories/agent-lane-operations.md` says
+*never share a `CARGO_TARGET_DIR`* and separately says *the scratchpad is shared,
+so lane-private files go elsewhere* — but the second rule is written about
+**published** artefacts (PR bodies, findings files), and its stated reason is
+*another agent can overwrite it*. A target directory is neither published nor at
+risk of being overwritten, so nothing in the rule as written excluded the
+scratchpad, and six independent lanes all read it the same way. **When six
+careful agents make the same call, the brief is what is wrong.**
+
+Reclaimed 11 GB from four finished lanes' target directories; the standing lane
+header now says *put it in your own worktree*, with the number, because the
+reason is a disk allowance and not a correctness argument and the number is what
+makes it stick.
+
+*The reason this is worth a paragraph:* the container's writable space is a
+**fixed per-session allowance**, so a disk-full does not degrade gracefully —
+it produces torn binaries and test results that must be treated as suspect for
+the whole pressure window (`memories/agent-lane-operations.md`). This came
+within a couple of gigabytes of costing every in-flight lane's verification, and
+the only reason it did not is that a routine `df` was run before dispatching the
+next lane.
+
+### "22 of 26 green" is not a CI result (2026-08-20)
+
+**#767's fix pass reported *"22 of 26 green, 0 failures"* and was accurate when
+written.** Three `test (eps = …)` shards started eight minutes later and all
+three failed — on `sweep::all m5_pr6_pcurves::a_seam_closed_tube_split_is_typed_either_way`,
+a test in the crate the lane had deliberately fenced itself out of and did not
+touch.
+
+**The cause is the fix pass's own F7.** Asked to read a composed message end to
+end, the lane found `SplitError` prefixing `"split: "` onto three stages that
+already say `split_reduce` / `split join` / `split finish`, dropped it on those
+three, kept it on the one stage shared with non-split callers, and wrote: *"no
+test asserts on them."* One does, three shards over. **The grep was for the old
+literal strings**, and a test that builds its expectation by concatenation, or
+matches a prefix, or `expect`s with a formatted message, matches no search for a
+literal.
+
+**Two things here, and they should not be collapsed into one.**
+
+*The message-assertion sweep is a known-hard class and the lane's pattern was
+the wrong shape* — that is an ordinary finding and the fix pass will answer it.
+
+*The reporting shape is the transferable one.* **A count of green jobs is only a
+claim about the jobs that have finished**, and nothing in the number distinguishes
+"26 jobs, 22 green, 4 pending" from "26 jobs, all done, 22 green". The lane's
+sentence was true and unfalsifiable at once. The rule now in every dispatch:
+**report how many of the run's jobs had completed, not only how many were
+green** — two numbers, one of which is checkable later.
+
+*And the orchestrator's half:* I nearly merged on that sentence. What stopped it
+was reading the run's own check list rather than the lane's summary of it —
+which is the same instrument that caught #755's cancelled-run citation, and the
+same reason `memories/agent-lane-operations.md` says to read the workflow **runs**
+list rather than the PR's checks list. **A lane's CI summary is a record of a
+moment; the run is the fact.**
+
+### Four orchestrators, one number sequence, and nobody's register noticed (2026-08-20)
+
+**Track E issued `D61`–`D70` to five of its own lanes while those numbers were
+already reserved to Track F**, and `D71`–`D80` to Track G. Both blocks were
+claimed the same day, both are recorded in §D, and neither register caught the
+collision. **Lane E-h did** — it read `SMELL-F-LOG.md` before writing a row,
+found `D61` was not Track E's to give, and **withdrew a row it had already
+placed** rather than shipping it.
+
+Nothing was overwritten, and the only reason is timing: both new tracks were
+hours old and neither had placed into its block yet. **One day later this would
+have been two rows with one number in a register three tracks cite.**
+
+*The mechanism, and it is not carelessness:* the standing rule is **take the
+next unassigned number from the orchestrator, never the next gap you can
+see** — which is exactly right inside one track, and silently wrong across
+four. *"Unassigned"* was a fact about a branch the other three orchestrators
+could not see. Four of us read `main`, each **correctly** computed the next free
+number, and each got the same one. **A sequence with one allocator per branch is
+not a sequence**, and no amount of care at any single allocator fixes that.
+
+Track F's own block paragraph says as much and tells Tracks C and E to claim
+blocks — it was right, and Track E owed itself one before it issued a single
+number. Track E now holds **`D81`–`D100`**; the ten issued out of F's block are
+reissued and each holding lane was told individually.
+
+*What generalises past the register:* this is the third defect on this track
+whose shape is **a correct local derivation of a quantity that is not local** —
+the others being my stale *"highest one placed"* index and the C-f fence I
+transcribed from Track C's table. All three were caught by a lane looking at
+something the orchestrator had not thought to check. **The instrument that
+works across tracks is a lane reading the other track's log**, and it is worth
+saying in a dispatch rather than hoping for.
+
+### #777 — a design-conversation PR that argues against itself, and is waiting on Evan
+
+E-g's D27 dissolved `FilletError::EmptyChain` structurally, which retired the D2
+addendum's *"one state this taxonomy does not contain"* paragraph. The lane's
+first draft replaced it with **both** the factual retraction **and** a new
+general rule — *ask whether the type can stop representing the state before
+asking the taxonomy to grow.* I ruled those two apart:
+
+- **The retraction stays in #768.** The state no longer exists, so leaving the
+  sentence would be a stale claim **in the ratified contract** — exactly what
+  #755 was made to fix one paragraph over.
+- **The general rule goes to Evan in its own PR**, because it reaches into
+  **S14**, which sits in *Open decisions — Evan only* and is currently a bound
+  on other lanes (#740 left 46 lookup sites typed because it is open). The
+  lane's own framing made the connection — *S14's graft class stays open because
+  a public door genuinely produces it* — and an argument about S14 is not mine
+  to ratify.
+
+**#777 is what came back, and its shape is worth copying.** One paragraph of
+proposal, the argument, both worked cases as a table, an explicit *"S14 stays
+open and stays yours"* — and **three arguments against itself on the record**:
+that it can be read as licensing type churn to dodge a classification, that
+*"only if it cannot"* is a judgement with no cost threshold, and that it is a
+rule minted from **one positive instance**. The body states that *"no — record
+what #768 did and leave the procedure alone"* is a **passing answer**, and that
+#768 does not depend on it either way.
+
+*Why that matters beyond this PR:* §C2 of this document records that
+**disclosure functions as immunity** here — a disclosed deviation scores as a
+positive with no counter-metric. A design PR that lists the strongest arguments
+against its own proposal, and names the answer that rejects it as passing, is
+the one shape that cannot be read that way. It is also the first thing on this
+track that made a design question *cheaper* for Evan to answer rather than
+larger.
+
+### The rule the block scheme was missing: placed numbers keep their identity (2026-08-20)
+
+Lane E-a asked the question the double-allocation should have prompted and I had
+not answered: **its own rows D40 and D41 sit outside every block** — issued under
+the old single-sequence rule, unspent on `main`, and therefore *"in exactly the
+kind of gap a fourth orchestrator reading `main` would compute as free."* It did
+**not** renumber them, on the grounds that moving assigned numbers unilaterally
+is the same failure in reverse. That instinct is right and worth more than the
+two rows.
+
+**The ruling: numbers already placed keep their identity; blocks govern new
+allocations only.** Renumbering a placed row breaks every PR body and finding
+that cites it — the argument that kept Track D's numbers when Track E took the
+register this morning.
+
+**But the gap E-a named is real, and the fix is legibility, not renumbering.**
+*Placed* and *assigned-but-unspent* look identical from outside a branch, which
+is the whole mechanism of the collision. §D now records **D1–D60 as the closed
+pre-block sequence — allocated, none available, gaps included** — so a fifth
+orchestrator reading `main` sees them as taken rather than recomputing them as
+free. One paragraph closes it for everyone instead of moving two rows for one
+track.
+
+### #768 (E-g / D27 + D29) — style lane, 2026-08-20: **D29 cleared, D27 not**, and the correction is to my framing
+
+**The headline I reported was true and I drew the wrong conclusion from it.** The
+lane's result was *"none of the three refusal arms had to become row 4"*, and I
+carried that as *the refusals did not become panics, so nothing was lost.* The
+style lane's correction is exact:
+
+> **"None had to become row 4" is true and is not the same as "no refusal was
+> lost."** Two of the three sites lost their branch because a value carries the
+> fact. The third lost half its branch because a *different* fact — one nothing
+> carries — was assumed.
+
+**`octant_chart` is the third.** The old code filtered incident links and
+skipped one whose two supports were **not among the corner's three faces**,
+refusing if none contributed. The incidence half is genuinely gone and is a real
+improvement. The **membership** half is not: `CornerFaces::third(a, b)` is
+*total*, so a link whose supports are not the corner's three now **scores a
+candidate off an arbitrary face** instead of being skipped — and the only
+statement that this is acceptable is `third`'s own doc, in another module.
+
+**That is D27's own defect, reproduced by D27's fix**: *a fact held in prose one
+or two frames from where it is needed.* `octant_chart`'s new sentence — *"there
+is no 'no candidate here' state left to refuse"* — is true and is not the
+property that was lost. **Totality is not meaningfulness.** And the assumption
+holds only on a manifold-consistent body, which `surgery.rs`'s own header
+doctrine refuses to assume anywhere else: *"No site inherits its proof from
+whole-body validity."*
+
+The style lane deliberately did **not** claim a live wrong answer: reaching it
+needs a body where the vertex orbit and the edge's two faces disagree **while
+both walks succeed**. Forwarded to the adversarial lane, whose claim 3 is
+exactly `third`'s totality, as the highest-value thing left on the PR.
+
+**Three more worth keeping.** D29's sweep **did not run the pattern it
+disclosed** — `loft.rs:518,520` discard a typed error through `map_err(|_| …)`,
+the shape the PR body names as its blind spot, in the crate the unit was already
+editing. The **guard test's blind spot was demonstrated rather than described**:
+a forged constructor written `-> Self { Self { faces } }` reds, the same one
+written `-> CornerFaces { CornerFaces { faces } }` stays green. And `admit.rs`
+added **3.6× the prose it retired** (comments +313/−86 against code +514/−379),
+nine sites of it narrating what the code *used to* do, one narrating **another
+PR's** incident — which is §4's rule and #755's finding, at a larger multiple.
+
+*The generalisable half:* **a unit that replaces a refusal with a type has two
+ways to succeed and they look identical in a diff** — the value carries the
+fact, or the fact stops being checked. Only the first is what the row asked for,
+and the PR body cannot tell them apart because in both cases the branch is
+simply gone.
+
+### #768's two reviewers disagreed, and 3,125 cases settled it (2026-08-20)
+
+The style lane returned **D27 NOT CLEARED** on its lead finding: that
+`octant_chart`'s deleted `continue` refused *a link whose two supports are not
+among the corner's three faces*, and that `CornerFaces::third`'s totality
+swallowed the refusal. I forwarded it to the adversarial lane as the highest-value
+thing left on the PR. **It refuted it.**
+
+The old lookup was `faces.iter().find(|f| **f != l.face_a && **f != l.face_b)`.
+When both supports are strangers, every orbit face differs from both, so `find`
+returns `faces[0]` — **exactly** what `third(a, b)` returns. `third` *is* that
+`find`, unrolled, with `f2` as the total fallback. An exhaustive differential over
+a 5-key alphabet, 3 orbit slots × 2 query keys, **3,125 cases**: 2960/2960
+agreements wherever the old `find` answered; **zero `None` cases over three
+distinct faces**, so the `continue` was **dead** for the same structural reason
+`third` is total; and all 165 `None` cases have a **duplicated orbit**, which
+`CornerFaces::admit` now refuses up front where the old code merely stepped past
+it. **Detection went up.**
+
+**What survives of the style finding is a real, pre-existing gap** — `octant_chart`
+never verifies `faces.contains(l.face_a)` — unchanged by #768, taken as **D90**,
+and made *cheaper* by it. The style lane's guess that a bad chart would surface
+downstream as a late `Op`/`Certify` is probably wrong: the sphere case is a
+reparameterization, same point set.
+
+**The adversarial lane then found four things nobody had**, three of them in the
+half the style lane had verified rather than attacked: `CornerLinks::seed` takes
+its `vertex` **on faith**, contradicting the module's own *"no constructor that
+takes the underlying data on faith"* — demonstrated by planting a token seeded
+with a link touching **neither end** of the vertex and watching `corner_plan`
+plan a corner from it. The guard has a **fourth escape**, a **child module**
+`admit/inner.rs`, which is *inside* the privacy boundary and *invisible* to the
+`include_str!` scan — planted, guard stayed green. `CornerFaces::admit`'s
+distinctness check is **dead and untested**: planted `if false`, all ten lib tests
+pass. And the `unreachable!` count is **22 → 23 code sites**, not "unchanged at
+23", because the base's `build.rs` token was **prose inside a doc comment** — a
+number E-k's decision row will read.
+
+*Two things worth keeping about how this resolved.*
+
+**A disagreement between reviewers is not a tie to be split.** The style lane's
+reading was careful, plausible, and explicitly hedged on reachability; the
+adversarial lane's was decisive because it **ran the two functions against each
+other over the whole input space** rather than reasoning about them. Where a
+claim is decidable by execution, the lane that executes wins and the other's
+uncertainty is not evidence against it.
+
+**The style lane's other findings were unaffected by being wrong about the lead**
+— D29's sweep not running its own disclosed pattern inside its own crate, the
+3.6× prose growth, three present-tense citations of a deleted symbol. A refuted
+headline does not discredit a report, and treating it that way would have cost
+three real findings.
+
 ---
 
 ## Landings
+
+### #761 — D33 (E-d), merged 2026-08-20
+
+The audit's coverage of its own two crates, measured, and its bound stated.
+**246 funnel-reaching predicate names; the document dimensions 121, reaches 223
+under the most generous reading, and misses 23** — a ceiling on reach, a floor
+on the hole, and a verdict count, three numbers the file had conflated into one.
+The two-crate bound is **deliberate and binds the TABLE, not the document**,
+which is sharper than the yes/no the row asked for: four of the dispositions are
+`editor-core` rows, so *"the document is bounded"* would have been false.
+
+**Its review returned four MAJORs and every one was on the axis the row exists
+to close** — the number is the deliverable, and a published number was wrong, an
+omitted spelling was named in the document's own scope line, and the sentence
+that made the floor safe to build on was falsified by the section the same
+change added. All four closed, two of them better than asked:
+
+- **The site ledger is published and demoted** — 322 raw → 315 funnel calls →
+  302 name-fixing sites, every subtraction named, rather than a headline that
+  contradicted the one piece of arithmetic the paragraph offered.
+- **D56 was handed back with a measurement as the reason.** Asked to check
+  whether "a helper that fixes a name" is a class, the lane re-derived it at
+  **~30 instances** and found every one benign — *a helper that fixes a name
+  calls the funnel with that name as a literal, so all of them are already in
+  the 210.* The class costs a **site** count its canonicity and costs the roster
+  nothing. A row declined on evidence is worth more than a row taken on
+  suspicion.
+- **The published re-derivation recipe now strips the file's two
+  self-describing sections**, so the next re-deriver does not have to exclude
+  one by hand as the reviewer did.
+- **The overclaim was retired in place, not footnoted:** *"The word* every *was
+  this document's for a year and it was never true of the second bound."*
+
+Placed **D46** (audit the 23), **D51** (`DESIGN.md:31`'s F-range, where two
+findings the audit itself RETIRED are still listed as open — and the residue was
+*re-homed*, so the pointer redirects rather than merely missing) and **D57** (a
+class measured at seven names by one spelling and **nine** by two, over two
+crates out of a dozen — an unknown population read by a known-incomplete
+instrument, which is S113/D23's shape caught inside the review looking for it).
 
 ### #752 — D26 (E-c), merged 2026-08-20. **Track E's first.**
 

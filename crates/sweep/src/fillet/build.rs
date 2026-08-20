@@ -217,7 +217,7 @@ pub(super) fn octant_chart<T: Decide + Bounds>(
         Ok((n_c.cross(axis).norm().lo().abs(), n_a, axis))
     };
     let mut best = candidate(links.first().link())?;
-    for l in links.iter() {
+    for l in links.rest() {
         let next = candidate(l.link())?;
         if next.0 < best.0 {
             best = next;

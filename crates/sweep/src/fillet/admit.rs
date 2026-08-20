@@ -3,44 +3,33 @@
 //! [`super::surgery::fillet_surgery`] admits a verdict one clause at a
 //! time — this chain is a single convex plane–plane link; this corner
 //! is trivalent with all three edges requested; this support face has
-//! its entire outer cycle requested. Those clauses used to be carried
-//! downward as PROSE: a helper two frames below refused a state its
-//! caller had already excluded, and could say so only in a comment,
-//! because the fact was not in anything it was handed.
+//! its entire outer cycle requested. Each type here is one of those
+//! clauses, and **holding the value is the fact**: a helper handed one
+//! has no branch left to write about it. A refusal belongs to the door
+//! that decides it, in the plan phase, before any mutation — never to a
+//! helper below that cannot justify it and never to a panic.
 //!
-//! Each type here is one of those clauses. **Holding the value is the
-//! fact**, so the helper that used to re-refuse takes the value
-//! instead and has no branch left to write. Nothing here converts a
-//! refusal into a panic: the refusal moves to the door that decides
-//! it, in the plan phase, before any mutation.
+//! # How they are unforgeable, and where that stops
 //!
-//! # How they are unforgeable
+//! Every field is private to this module and every constructor either
+//! checks or derives what it claims: no `From`, no `Default`, no public
+//! field, no argument taken on faith.
 //!
-//! Every field below is **private to this module**, and every function
-//! that produces one either performs the check itself or takes a value
-//! that already carries it. There is no `From`, no public field, no
-//! `Default`, and no constructor that takes the underlying data on
-//! faith. `crates/sweep/src/fillet/{build,surgery}.rs` are sibling
-//! modules, not children, so field privacy holds against them.
-//!
-//! Two of the four carry their fact by SHAPE rather than by a check —
-//! [`CornerLinks`] stores its first link in its own field and can
-//! never be empty, and [`CornerFaces`] stores three faces in an array.
-//! For those the constructor cannot lie because there is nothing to
-//! lie about.
+//! **The boundary is this module, not this file.** A child module
+//! (`admit/…`) would sit inside it and could mint any of these without
+//! a check. Nothing in the language prevents that, so
+//! `tests::every_token_type_has_exactly_one_construction_site` asserts
+//! there is no child to be inside it.
 //!
 //! # What these tokens do NOT claim
 //!
-//! They are statements about the **verdict and the source body as the
-//! plan read them**, not about a body under mutation. [`ConvexOpen`]
-//! borrows a link out of the verdict, which is immutable for the
-//! surgery's whole run, so it cannot go stale. [`CornerFaces`] and
-//! [`RequestedBoundary`] are read off the SOURCE body during the plan
-//! phase, and the mutation phase runs on a clone — so a token can
-//! describe a face the mutation has since carved. That is exactly what
-//! the blank phase wants (it is carving along the boundary the plan
-//! recorded), and it is why the rows are carried in the token rather
-//! than re-walked afterwards.
+//! They describe the verdict and the source body **as the plan read
+//! them**. [`ConvexOpen`] borrows out of the verdict, which is immutable
+//! for the whole run, so it cannot go stale. [`CornerFaces`] and
+//! [`RequestedBoundary`] are read off the SOURCE body and consumed
+//! against a clone, so a token may describe a face the carve has since
+//! split — which is what the blank phase wants, and why the walk rides
+//! in the token rather than being re-derived after.
 
 use geom_core::{Decide, Point3, Real};
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
@@ -129,14 +118,14 @@ impl<'a, T: Real> ConvexOpen<'a, T> {
 }
 
 /// **The admitted open links incident to one corner vertex** — at
-/// least one, every one convex.
+/// least one, every one convex, every one terminating at that vertex.
 ///
-/// Non-emptiness is the shape, not a check: the seed link lives in its
-/// own field, so [`CornerLinks::first`] returns a link rather than an
-/// `Option` and there is no "a corner has no requested incident link"
-/// state to refuse. That refusal used to appear three times, in three
-/// functions, each of which could only cite the loop one or two frames
-/// up that built the corner list out of the links.
+/// Non-emptiness is the shape: the seed link lives in its own field, so
+/// [`CornerLinks::first`] returns a link rather than an `Option` and
+/// there is no "a corner has no requested incident link" state left to
+/// refuse. **Incidence is a check**, made by both constructors — the
+/// vertex arrives as a separate argument, so it is the one thing here a
+/// caller could get wrong.
 pub(super) struct CornerLinks<'a, T: Real> {
     vertex: VertexKey,
     first: ConvexOpen<'a, T>,
@@ -144,19 +133,44 @@ pub(super) struct CornerLinks<'a, T: Real> {
 }
 
 impl<'a, T: Real> CornerLinks<'a, T> {
-    /// Start a corner's incidence list from the link that discovered
-    /// it.
-    pub(super) fn seed(vertex: VertexKey, first: ConvexOpen<'a, T>) -> Self {
-        Self {
+    /// A link terminates at `vertex`, or the plan's own data disagrees
+    /// with itself.
+    fn incident(vertex: VertexKey, link: ConvexOpen<'a, T>) -> Result<(), FilletError> {
+        let l = link.link();
+        if l.start == vertex || l.end == vertex {
+            return Ok(());
+        }
+        Err(not_intact(
+            EntityId::Vertex(vertex),
+            "a corner's incidence list was offered a link that does not terminate there",
+        ))
+    }
+
+    /// Start a corner's incidence list from the link that discovered it.
+    ///
+    /// # Errors
+    ///
+    /// [`FilletError::BodyNotIntact`] when `first` does not terminate at
+    /// `vertex`.
+    pub(super) fn seed(vertex: VertexKey, first: ConvexOpen<'a, T>) -> Result<Self, FilletError> {
+        Self::incident(vertex, first)?;
+        Ok(Self {
             vertex,
             first,
             rest: Vec::new(),
-        }
+        })
     }
 
     /// Record another admitted link terminating at this corner.
-    pub(super) fn also(&mut self, link: ConvexOpen<'a, T>) {
+    ///
+    /// # Errors
+    ///
+    /// [`FilletError::BodyNotIntact`] when `link` does not terminate at
+    /// this corner's vertex.
+    pub(super) fn also(&mut self, link: ConvexOpen<'a, T>) -> Result<(), FilletError> {
+        Self::incident(self.vertex, link)?;
         self.rest.push(link);
+        Ok(())
     }
 
     /// The corner vertex.
@@ -169,18 +183,29 @@ impl<'a, T: Real> CornerLinks<'a, T> {
         self.first
     }
 
-    /// Every incident admitted link. Never empty.
-    pub(super) fn iter(&self) -> impl Iterator<Item = ConvexOpen<'a, T>> + Clone + '_ {
-        core::iter::once(self.first).chain(self.rest.iter().copied())
+    /// The incident links after [`CornerLinks::first`].
+    pub(super) fn rest(&self) -> &[ConvexOpen<'a, T>] {
+        &self.rest
     }
 
-    /// The incident links, sorted by edge key — the deterministic
-    /// order the corner fusion walks them in.
+    /// The incident links in edge-key order — what the corner fusion
+    /// walks, ordered here rather than by trusting the order the caller
+    /// fed them in.
     pub(super) fn sorted(&self) -> Vec<ConvexOpen<'a, T>> {
-        let mut all: Vec<ConvexOpen<'a, T>> = self.iter().collect();
+        let mut all: Vec<ConvexOpen<'a, T>> = core::iter::once(self.first)
+            .chain(self.rest.iter().copied())
+            .collect();
         all.sort_by_key(ConvexOpen::edge);
         all
     }
+}
+
+/// Pairwise distinctness of a corner's three support faces — the
+/// property [`CornerFaces::third`]'s totality rests on. Free-standing
+/// so it can be exercised directly: its one call site is unreachable by
+/// input (see [`CornerFaces::admit`]).
+fn distinct(f0: FaceKey, f1: FaceKey, f2: FaceKey) -> bool {
+    f0 != f1 && f1 != f2 && f0 != f2
 }
 
 /// **A trivalent corner's three distinct support faces**, in orbit
@@ -223,10 +248,13 @@ impl CornerFaces {
                 },
             ));
         };
-        // `vertex_faces` returns distinct faces; the array's whole
-        // claim rests on that, so it is checked here rather than
-        // inherited from the walk's implementation.
-        if f0 == f1 || f1 == f2 || f0 == f2 {
+        // Distinctness is what makes `third` total, so it is checked
+        // here rather than inherited from `vertex_faces`' dedup.
+        // **This arm cannot fire today** — the walk already dedups, so
+        // no input reaches it and no row can drive it; what is guarded
+        // is the predicate, in `distinct_faces_is_pairwise`, and what
+        // is unguarded is this one call to it.
+        if !distinct(f0, f1, f2) {
             return Err(not_intact(
                 EntityId::Vertex(vertex),
                 "a corner's face orbit returned one face twice",
@@ -283,22 +311,19 @@ pub(super) struct BoundaryStation<T: Real> {
 /// is a planned corner that counts this face among its three.
 ///
 /// The blank phase carves such a face into the shrunk face plus one
-/// strip per edge, and its carving is only well-defined under exactly
-/// that property. It used to re-derive the property mid-carve, one
-/// refusal per clause, with nothing local to justify either — while
-/// the source body it needed to read was already being mutated
-/// alongside. Admission moves both refusals into the plan phase, where
-/// they belong, and hands the carve the walk it checked.
+/// strip per edge, and that carve is well-defined only under exactly
+/// this property. Admission checks it in the plan phase, before any
+/// mutation, and hands the carve the walk it checked plus each
+/// station's foot — so the carve reads no source geometry of its own.
 pub(super) struct RequestedBoundary<T: Real> {
     face: FaceKey,
     stations: Vec<BoundaryStation<T>>,
 }
 
-// `Decide` alone, deliberately: admission walks a cycle and folds a
-// stored plane normal, and decides nothing that reads a bracket. The
-// fillet seam's ratified compound `Decide + Bounds` bound
-// (`geom-core/src/real.rs`, the `Bounds` scope rule) stops at the three
-// files that need it, and this one does not.
+// `Decide` alone: admission walks a cycle and folds a stored plane
+// normal, and decides nothing that reads a bracket. The fillet seam's
+// ratified compound `Decide + Bounds` bound (`geom-core/src/real.rs`,
+// the `Bounds` scope rule) covers three files and this is not one.
 impl<T: Decide> RequestedBoundary<T> {
     /// Admit one support face of the plan.
     ///
@@ -385,32 +410,31 @@ impl<T: Decide> RequestedBoundary<T> {
 mod tests {
     use topo::FaceKey;
 
-    use super::CornerFaces;
+    use super::super::FilletError;
+    use super::super::battery::{Chain, ChainClosure, Link};
+    use super::{ConvexOpen, CornerFaces, CornerLinks};
     use crate::test_support::{L, all_links, cube};
 
     /// **What guards the unforgeability claim**, since nothing else
     /// can.
     ///
-    /// Field privacy is the compiler's job and needs no test: no
-    /// sibling module can name a field of any type here. What privacy
-    /// does NOT guard is a second constructor added *inside* this
-    /// module that skips the check — which is exactly how the sibling
-    /// row's `Live` shipped two raw-construction sites while its own
-    /// docs and its register row both said one, found by two reviewers
-    /// independently rather than by anything mechanical.
+    /// Field privacy is the compiler's job. What privacy does NOT guard
+    /// is a constructor added *inside* the boundary that skips the
+    /// check, so this row asserts both halves of "inside":
     ///
-    /// So the count is the claim: **four token types, four `Self`
-    /// struct literals, one apiece**, each inside the door that checks.
-    /// A fifth reddens this row and has to justify itself.
+    /// 1. **Four token types, four `Self` struct literals, one apiece**,
+    ///    each inside the door that checks. A fifth reddens this row.
+    /// 2. **No child module**, because `admit/…` would be inside the
+    ///    privacy boundary *and* outside this file's text — the one
+    ///    escape that defeats clause 1 silently.
     ///
-    /// **Its blind spot, stated:** this is a text scan of this file. A
-    /// literal spelled `Self{…}` without the space, one written as
-    /// `ConvexOpen { link }` by name, or a constructor built through
-    /// `Default` would all escape it. It catches the accident it is
-    /// aimed at — a convenience constructor added next to the door —
-    /// not a determined evasion, and it cannot see whether the check a
-    /// door performs is the RIGHT one. The rows below cover that half
-    /// for the doors that have a decision to make.
+    /// **Blind spot, stated:** clause 1 is a text scan. `Self{…}`
+    /// without the space, a literal written by type name, or a route
+    /// through `Default` escapes it; it catches the accident it is
+    /// aimed at, not a determined evasion, and it cannot judge whether
+    /// a door's check is the RIGHT one. `distinct_faces_is_pairwise`
+    /// and `admission_makes_the_third_support_total` cover that half
+    /// where there is a decision to get wrong.
     #[test]
     fn every_token_type_has_exactly_one_construction_site() {
         let source = include_str!("admit.rs");
@@ -423,6 +447,88 @@ mod tests {
             "admit.rs must hold exactly one construction site per token type \
              (ConvexOpen, CornerLinks, CornerFaces, RequestedBoundary) — found {literals}"
         );
+        let child = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/fillet/admit");
+        assert!(
+            !child.exists(),
+            "a child module of `admit` is inside the privacy boundary and outside the scan \
+             above, so it can mint any token here with no check and leave this row green: \
+             {}",
+            child.display()
+        );
+    }
+
+    /// **The one thing a caller of [`CornerLinks`] can get wrong.** The
+    /// vertex arrives as its own argument, so a link that terminates
+    /// nowhere near it would be admitted on faith — which is the gap
+    /// between "every constructor checks" and "every constructor exists
+    /// for a reason". Both constructors refuse it.
+    ///
+    /// Unreachable at today's one call site, where the vertex is read
+    /// off the link itself; the check is here so the type's claim does
+    /// not depend on that staying true.
+    #[test]
+    fn corner_links_refuses_a_link_that_terminates_elsewhere() {
+        let body = cube(L);
+        let links = all_links(&body);
+        let chains: Vec<Chain<f64>> = links.iter().cloned().map(open_chain).collect();
+        let admitted: Vec<ConvexOpen<'_, f64>> = chains
+            .iter()
+            .map(|c| ConvexOpen::admit(c).expect("a cube's links are convex plane–plane"))
+            .collect();
+        let vertex = links[0].start;
+        let stranger = *admitted
+            .iter()
+            .find(|o| {
+                let l = o.link();
+                l.start != vertex && l.end != vertex
+            })
+            .expect("a cube has links touching neither end of a given vertex");
+        assert!(
+            matches!(
+                CornerLinks::seed(vertex, stranger),
+                Err(FilletError::BodyNotIntact { .. })
+            ),
+            "seed must refuse a link that does not terminate at the corner"
+        );
+        let seed = *admitted
+            .iter()
+            .find(|o| o.link().start == vertex || o.link().end == vertex)
+            .expect("a link at this vertex");
+        let mut c = CornerLinks::seed(vertex, seed).expect("the seed terminates here");
+        assert!(
+            matches!(c.also(stranger), Err(FilletError::BodyNotIntact { .. })),
+            "also must refuse it too"
+        );
+    }
+
+    /// One open chain per link, so the door has something to admit.
+    fn open_chain(link: Link<f64>) -> Chain<f64> {
+        let (head, tail) = (link.start, link.end);
+        Chain::new(
+            link,
+            Vec::new(),
+            Vec::new(),
+            ChainClosure::Open { head, tail },
+        )
+    }
+
+    /// The predicate [`super::CornerFaces::third`]'s totality rests on.
+    /// Its one call site cannot fire (`vertex_faces` already dedups), so
+    /// the property is exercised here instead of being left as a guard
+    /// nobody can tell is working.
+    #[test]
+    fn distinct_faces_is_pairwise() {
+        let body = cube(L);
+        let vertex = all_links(&body)[0].start;
+        let faces = CornerFaces::admit(&body, vertex).expect("a cube corner is trivalent");
+        let [f0, f1, f2] = match faces.as_slice() {
+            [a, b, c] => [*a, *b, *c],
+            other => panic!("three faces, got {other:?}"),
+        };
+        assert!(super::distinct(f0, f1, f2));
+        assert!(!super::distinct(f0, f0, f2), "first pair");
+        assert!(!super::distinct(f0, f1, f1), "second pair");
+        assert!(!super::distinct(f0, f1, f0), "the wrap-around pair");
     }
 
     /// **The admission is what makes [`CornerFaces::third`] total**, so
