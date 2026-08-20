@@ -294,38 +294,6 @@ complete; wave 2 is the live one.
 |---|---|---|---|
 | **G-a** | **G1** — S72 + S110(h), S111(c), S112(b)(c), S114(a)(d), S116(r)(t) | **#786** | Fence published per **G-R3**: `ci.yml` hunks confined to the `interval-backend` job's header comment, ~790 lines from #753's. **NOT CLEARED on first review; fix pass landed in the same PR** — the tightness ceiling had reproduced S72's own defect (a max over a sample set the degradation empties), and the structural derivation beside it was wrong in the crate's favour (`4·pad+1`, not `2·pad+1`). One member came back correcting its finding: **S114(d)**'s decoration idiom is five sites, not six. **S111(c)'s first write-up over-corrected and is withdrawn** — the diagnostic was right about the code, only the remedy was wrong; see **G-R8** as amended. New findings taken: **S127**/D71, **S134**/D78. |
 
-### G-f — **G7**/S106, the `Step` vocabulary, #836
-
-**S106's diagnosis held; its mechanism did not, and correcting it was most of
-the unit.** Measured with a probe verb added to `transition_table!`: adding a
-verb breaks the workspace at **exactly two** sites, both exhaustive matches on
-`profile::Step` — `eval::feed_step` and `LoopProgram::from_recorded`. So the
-finding's *"one breaks loudly and two go silently short"* is wrong in both
-halves: two break loudly, and `WireStep` cannot go short of `ProgramStep` at
-all (`from_step`/`into_step` are exhaustive both ways). The real silence is
-upstream of both — two compile errors dischargeable without the verb reaching
-`ProgramStep`, after which `cargo check --workspace --all-targets` is clean
-over a document, wire, slot and Python vocabulary that never learned it.
-
-- **Closed by a census, not by prose**: `switch_program_vocabulary.rs`,
-  anchored on `profile::Verb::ALL` — the same anchor `profile` uses internally
-  — plus `verb_tag`, which makes the content-key tag a total function of
-  `Verb` and computes the injectivity the old comment asserted and
-  `verb_tags_are_structure` never checked. Both negative-controlled.
-- **`StepArg` is `node.rs:84`**, not `program.rs`, and is a role vocabulary,
-  not a verb one. **The count is six, not five**, and the five S4 names span
-  two crates, not three — **S169**/D75 records the sixth (`pncad-py`'s PATHS
-  surface and its `.pyi`), the only copy with neither compile guard nor
-  census.
-- **Issue #829** raised, not fixed: a hand-built fused step with two
-  `Sweep`/`ArcLen`/`Bulge` specs enumerates one role twice and leaves the
-  arrival spec's argument unaddressable. The fix adds variants to a persisted
-  enum, so it is a persistence decision.
-- **G-R6 discharged.** #767 is merged; its head was re-read before
-  `eval/mod.rs` was touched and it neither adds nor removes a `profile::Step`
-  match. Disjointness from the concurrent G-e confirmed by file: G-e is
-  `assembly.rs`/`mate.rs`/`py/{doc,select}.rs`, none of which this unit opens.
-
 ### G-b — **G2**, `demos/`, #787
 
 **Seven of the nine members closed**, S114(c) surveyed and left open as §D
@@ -372,6 +340,38 @@ all five analytic rows are exact. That is a `mesh` question, so it is **issue
 #782** and the lane did **not** re-baseline. The #99 ε pin is armed in `k-lint`;
 the `--bin demo-tour` unit tests are deliberately not, and **S129 stays open**
 until #782 decides them.
+
+### G-f — **G7**/S106, the `Step` vocabulary, #836
+
+**S106's diagnosis held; its mechanism did not, and correcting it was most of
+the unit.** Measured with a probe verb added to `transition_table!`: adding a
+verb breaks the workspace at **exactly two** sites, both exhaustive matches on
+`profile::Step` — `eval::feed_step` and `LoopProgram::from_recorded`. So the
+finding's *"one breaks loudly and two go silently short"* is wrong in both
+halves: two break loudly, and `WireStep` cannot go short of `ProgramStep` at
+all (`from_step`/`into_step` are exhaustive both ways). The real silence is
+upstream of both — two compile errors dischargeable without the verb reaching
+`ProgramStep`, after which `cargo check --workspace --all-targets` is clean
+over a document, wire, slot and Python vocabulary that never learned it.
+
+- **Closed by a census, not by prose**: `switch_program_vocabulary.rs`,
+  anchored on `profile::Verb::ALL` — the same anchor `profile` uses internally
+  — plus `verb_tag`, which makes the content-key tag a total function of
+  `Verb` and computes the injectivity the old comment asserted and
+  `verb_tags_are_structure` never checked. Both negative-controlled.
+- **`StepArg` is `node.rs:84`**, not `program.rs`, and is a role vocabulary,
+  not a verb one. **The count is six, not five**, and the five S4 names span
+  two crates, not three — **S169**/D75 records the sixth (`pncad-py`'s PATHS
+  surface and its `.pyi`), the only copy with neither compile guard nor
+  census.
+- **Issue #829** raised, not fixed: a hand-built fused step with two
+  `Sweep`/`ArcLen`/`Bulge` specs enumerates one role twice and leaves the
+  arrival spec's argument unaddressable. The fix adds variants to a persisted
+  enum, so it is a persistence decision.
+- **G-R6 discharged.** #767 is merged; its head was re-read before
+  `eval/mod.rs` was touched and it neither adds nor removes a `profile::Step`
+  match. Disjointness from the concurrent G-e confirmed by file: G-e is
+  `assembly.rs`/`mate.rs`/`py/{doc,select}.rs`, none of which this unit opens.
 
 ## Incidents
 
