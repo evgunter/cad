@@ -408,10 +408,11 @@ fn arithmetic_and_sqrt_pad_at_most_one_step() {
 /// `mul` pads (directed binary exponentiation, plus a division for a
 /// negative exponent), so the number of steps it is entitled to is a
 /// function of the exponent, not a constant — and each component step is
-/// already bounded by the row above. What the composition costs in
-/// practice is a measurement, and the thing that measures it is
-/// `Tightness` in the oracle tier. What IS a fixed contract here is the
-/// one `powi` carries for soundness: an even power of a zero-straddling
+/// already bounded by the row above. That is a reason for not writing a
+/// CONSTANT here, not a reason for writing nothing: an
+/// exponent-dependent bound is derivable, is not derived, and is
+/// scheduled as smell-scan **S134** / §D row **D78**. What IS a fixed
+/// contract here is the one `powi` carries for soundness: an even power of a zero-straddling
 /// interval has lower bound exactly `0.0`, no pad, so a downstream
 /// `sqrt` never sees a spurious negative.
 #[test]

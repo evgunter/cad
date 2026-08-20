@@ -107,8 +107,13 @@
 //!   ENCLOSURE against the correctly-rounded oracle, which catches a
 //!   widening that does not come from a pad.
 //!
-//! `powi` and the huge-magnitude window carry no ceiling, for reasons
-//! written at those call sites.
+//! Two accumulators carry no ceiling. The huge-magnitude window's is
+//! complete — its looseness is documented and unbounded by design. **
+//! `powi`'s is a deferral, not an unguardable**: something downstream
+//! does compute with that width (`crates/geom-core`'s
+//! `powi_f64_lane_is_contained_by_the_padded_enclosure`), and an
+//! exponent-dependent ceiling is derivable and not derived. Scheduled as
+//! smell-scan **S134** / §D row **D78**.
 
 #![forbid(unsafe_code)]
 

@@ -8046,6 +8046,24 @@ claims were rewritten to split by DIRECTION (a pad widened: every
 operation; a pad dropped: `÷ × sqrt` cheaply, the rest under
 `oracle-certify`, which fires on every change to the crate).
 
+**What the review pass changed, because the first fix reproduced the
+finding.** The ceiling `Tightness::report` gained was defeated by the
+degradation it was added to catch: `record` dropped every sample with a
+non-finite width or a zero oracle width, and `report` returned on
+`n == 0` *before* the assert — so an operation that regressed to
+`entire()` on every draw contributed no ratios and passed. Every bucket
+is now counted rather than dropped, and three asserts stand on the
+census: no draw may return an unbounded enclosure where the oracle's is
+bounded; a quarter of draws must still yield a comparable ratio; and the
+class a ratio cannot score — the oracle proved the value exact and we
+padded anyway — is bounded absolutely, in representable steps. All three
+demonstrated red by mutation. The structural derivation was also wrong
+in the crate's favour: the ratio is on *widths*, so a step crossing a
+binade boundary is worth two oracle ulps and the bound is `4·pad + 1`
+(17 and 5), not `2·pad + 1` — which is why `atan2` measured 10 against a
+stated 9. The ceilings were already loose enough; the paragraph beside
+them was the thing that would have caused a false red.
+
 **Verdict:** FIXED.
 
 ## S73. The tessellation instruments resolve every broken measurement in the cannot-fire direction
@@ -8959,23 +8977,30 @@ written for. Beyond S60, S75, S76, S78, S84 and S91 above:
   class; #672 records the residue and does not name this. Also:
   `sweep::fillet::surgery` is `pub` while every other item in it is
   `pub(super)`.
-- (c) **FIXED by #786, and the charge was wrong about the code.**
-  `intersection` is neither uncalled (five call sites in `ops.rs`'s
-  `intersection_trv_cap_and_taxonomy`, pinning the `Trv` cap, the
-  empty/disjoint taxonomy and NaI propagation) nor decorative:
-  `docs/semantics-diffs.md` §D7 defines `hull`'s single deliberate
-  1788 divergence AGAINST it, so deleting it would remove what a
-  surviving argument points at — S74's mechanism. What the diagnostic
-  actually convicted was `docs/inventory.md`, which omits `hull` by the
-  same test, and `hull` is unquestionably used. **Both set operations
-  are inventoried now**, in their own section with their callers, and
-  `lib.rs`'s scope sentence names them apart from the `Real` surface
-  rather than claiming *"nothing else"*. The mirror case,
-  `consts.rs`'s `neg_frac_pi_2`, is `pub(crate)` and IS `-frac_pi_2()`
-  rather than a second hand-written endpoint pair, which puts it under
-  `certify_constants`' cross-check transitively (the step between them
-  being exact); two unit tests pin that and the constants' one-ulp
-  brackets. Recorded as a ruling in `SMELL-G-LOG`.
+- (c) **FIXED by #786 — the diagnostic was right and the REMEDY was
+  wrong.** `git grep '\.intersection('` over the tree returns only
+  `src/ops.rs`'s own `#[cfg(test)]` unit test, so the charge stands
+  exactly as written: a `pub` function with **no production caller**.
+  (#786's first write-up said the charge "was wrong about the code",
+  counting one test function's five assertions as call sites. It was
+  not; that sentence is withdrawn, and ruling **G-R8** is amended to
+  match.) What the finding got wrong is *delete it*:
+  `docs/semantics-diffs.md` §D7 defines `hull`'s single deliberate 1788
+  divergence BY CONTRAST with `intersection`, so deleting it deletes
+  what a live argument points at — S74's mechanism, one document over.
+  It is kept, and the zero-caller fact is now recorded rather than
+  papered over: `docs/inventory.md`'s new set-operations table says
+  `none today` in the callers column, and `lib.rs`'s scope paragraph
+  says outright that *"everything here has a caller"* is false and why
+  this one is the exception. The same diagnostic also convicted
+  `docs/inventory.md`, which omitted `hull` by the identical test while
+  `hull` is unquestionably used; both set operations are inventoried
+  now. The mirror case, `consts.rs`'s `neg_frac_pi_2`, is `pub(crate)`
+  and IS `-frac_pi_2()` rather than a second hand-written endpoint pair
+  — which puts it under `certify_constants`' cross-check transitively,
+  the step between them being exact (verified bit-identical on both
+  endpoints by #786's adversarial review); two unit tests pin that and
+  the constants' one-ulp brackets.
 - (d) `crates/sweep/src/fillet/naming.rs:56` — `Retired` still has no
   face channel, so the one thing it exists to catch (a source entity
   destroyed without a record) is structurally uncatchable for faces. The
@@ -9289,7 +9314,8 @@ see §C.
   there rather than only in the divergences file. §D7's argument is not
   restated; a second home for it would be S13's defect. The consumer-side
   half (`crates/geom-core/src/interval.rs:135-143`) is outside this
-  lane's workspace and is not closed here.
+  lane's workspace and is **not closed** — scheduled as **S134** / §D row
+  **D78** rather than left as a sentence.
 - (s) `crates/geom/tests/surfaces/m5_pr7_surface_projection.rs:224-228`
   and `crates/geom/tests/curves/projection.rs:219` — both new overflow
   rows are built around *"Finite inputs throughout"*, which is the
@@ -9314,6 +9340,73 @@ see §C.
   quibble"* — empirical rather than derived, harmless because
   over-gating only costs tightness, and the one number in that crate
   that is chosen rather than proven.
+
+---
+
+## S127. The local gate has no mirror of `oracle-certify`, and nothing enforces ci.yml ↔ ci-local.sh job parity
+
+**Found by #786's style review, in the sentence #786 was rewriting.**
+`local-scripts/ci-local.sh:432-438` carried both of the claims S72
+convicted in `ci.yml` (*"the row that catches a dropped outward round"*,
+*"stays a by-hand gate"*) — doc rot, and fixed there by #786. The
+**code** drift underneath it is not fixed: `ci-local.sh` mirrors
+`ci.yml`'s cheap `interval-backend` row and has **no `oracle-certify`
+row at all**.
+
+That matters because `local-scripts/gate.sh` documents itself as the
+merge gate when hosted Actions is unavailable. On the hosted pipeline a
+dropped transcendental pad is caught (by `oracle-certify`, keyed on
+`ci-filter.py`'s `ORACLE_PATHS`); under the local gate it is not caught
+by anything, and the same is true of a dropped `+`/`−` pad.
+`scripts/gates/gate-roster.sh` enforces gate-SCRIPT parity, which is a
+different set — **nothing enforces JOB parity between the two files**,
+so this is a class, not an instance: any hosted job with no local mirror
+is invisible the same way.
+
+Two decisions, and neither is #786's to take: whether the local gate
+should carry a ~250s GMP+MPFR build, and whether job parity should be
+mechanically enforced or explicitly declared per job. #786 records the
+gap at both sites (`ci-local.sh`'s comment and the crate README) rather
+than closing it.
+
+**Verdict:** ACCEPTED, unstaffed. §D row **D71**.
+
+## S134. What is still one-directional in the interval backend, after #786 made most of it two-sided
+
+#786 gave the pads an upper constraint in both tiers. Three things it
+did not close, gathered so that they are a register entry rather than
+four sentences in a PR body:
+
+- **`powi`'s tightness ceiling is a deferral, not an unguardable.**
+  `certify.rs` passes `None` because the steps `powi` is entitled to are
+  a function of its exponent rather than a constant — which argues
+  against a *constant* ceiling and concedes that an exponent-dependent
+  one is derivable. Something downstream computes with that width:
+  `crates/geom-core/tests/review_m0_pr4.rs`'s
+  `powi_f64_lane_is_contained_by_the_padded_enclosure` pins the kernel's
+  f64 lane inside this enclosure. Measured worst ratio moves with the
+  seed (117 at effort 1, 122 at effort 2, |n| ≤ 31), which is exactly
+  why fitting a constant would be the wrong answer.
+- **The oracle tier's upper constraint is a RATIO, and a ratio is
+  scale-free.** `pad_contract.rs` now covers wide boxes for the monotone
+  operations, but a fixed absolute over-widening on a non-monotone shape
+  with a large oracle width still moves no ratio and matches no fixture.
+  A per-endpoint oracle-relative bound is the obvious instrument and
+  #786 declined it for a stated reason — extremum capture, huge-argument
+  degradation, pole and branch-cut refusals all make it fire on sound
+  output — so what is owed is a bound that excludes those paths from the
+  INPUT rather than from the output.
+- **S116(r)'s consumer-side half.** The caveat that `intersection`
+  returns `Trv` on every input is now at `lib.rs`, in the backend.
+  `crates/geom-core/src/interval.rs:135-143` is the other place a
+  consumer meets it and does not carry it; that file is outside the
+  backend's workspace and was outside #786's fence.
+
+Not on this list, deliberately: `copysign`'s placement inside a consumer
+(`crates/geom-core/src/interval.rs:356`). That is **S1**'s, it is Tier 1,
+and S112(c) exists to hand it the fact rather than to decide it.
+
+**Verdict:** ACCEPTED, unstaffed. §D row **D78**.
 
 ---
 
@@ -10984,6 +11077,8 @@ recorded at G-R5 so a lane does not go looking for text that is not there.
 | # | Work | From | Scope | Proposed verdict | Review |
 |---|---|---|---|---|---|
 | **G2** | **`demos/` — nine roll-up members, one tree, no owner.** Equal-by-construction asserts (S110(g)(j)), prose describing a world the code left (S112(h)), two drifted counts (S113(a)(b) — **give these to E-b and let this lane consume the result**, or the two collide on `demos/tour/Cargo.toml`), duplications the fix passes did not reach (S114(b)), and **the one design question in the cluster: three hand-rolled JSON emitters, four readers, no schema (S114(c))**. | S110(g)(j), S112(h), S113(a)(b), S114(b)(c), S116(d) | `demos/` | **ACCEPTED**; S114(c) is a design row, not a patch | style |
+| **D71** | **The local gate has no `oracle-certify` mirror, and nothing enforces ci.yml ↔ ci-local.sh JOB parity.** Fell out of G1's fix pass: `ci-local.sh` carried both sentences G1 corrected in `ci.yml`, and under it the transcendental and `+ −` pads have no containment guard at all. Two decisions, neither a patch: does the local gate carry a ~250s GMP build, and is job parity enforced (like `gate-roster.sh` does for gate scripts) or declared per job? | **S127** | `local-scripts/{ci-local.sh,gate.sh}`, `scripts/gates/` | **ACCEPTED**, unstaffed | style |
+| **D78** | **What is still one-directional in the interval backend after G1.** Three items: `powi`'s tightness ceiling is a deferral with a downstream consumer, not an unguardable; the oracle tier's upper constraint is a scale-free ratio and misses a fixed absolute over-widening on non-monotone shapes with wide boxes; S116(r)'s consumer-side caveat at `crates/geom-core/src/interval.rs:135-143` is outside G1's fence and unclosed. **`copysign`'s placement is NOT on this list — it is S1's.** | **S134** | `interval-transcendentals/tests/`, and `crates/geom-core/src/interval.rs` for the third item | **ACCEPTED**, unstaffed | ADVERSARIAL for the first two |
 | **G3** | **`swept.rs`'s new shared home states a reason for not unifying that is factually false, and the same commit deleted the duplication markers.** `swept.rs:17-20` says revolve's builder has neither a reversal arm nor the orientation bit; `revolve/mod.rs:625` is `swept_segments(lp, reverse: bool)` and its own doc states the full involution. **The class claim is the valuable half**: re-check every *"deliberately NOT unified"* sentence in the S6 record. | **S74** | `sweep/src/{swept,revolve/mod,extrude,loft,revolve/tube}.rs` | **ACCEPTED** — and the deliverable is the class re-check, not the single fix | style |
 | **G4** | **`profile`'s fifth lane trait, blanket-implemented, which D1 never looked at** — `ArcCarrierScalar` over `T: Decide + Bounds`, so `Dual64` carries the whole `path::family` arc surface today, re-exported from `pncad`. **Per Evan's ruling this is mechanical**: `CertifiedBounds` is the bound that excludes a dual. **Gated on F1** — the gate that is supposed to force ratification of the new spelling is blind to it until S59 lands. | **S87** (and S88's `profile` half) | `profile/src/path/{arc_fillet,family}.rs`, `profile/src/lib.rs`, `pncad/src/profile.rs` | **ACCEPTED — RULED** (the admitting set) | **ADVERSARIAL** |
 | **G5** | **`profile`'s ONARC prose outlived the boundary it describes.** Per the ruling above, this is **not** the capability question the finding posed: `review_s2.rs:45` claims the class *"is built"* and cites a test the deleting commit removed, while the shipped pin records the boundary the commit deliberately established. Correct the prose to state the boundary; **do not delete `sugar.rs`'s machinery**, which is the raw-builder path the boundary is defined against. | **S71** | `profile/tests/review_s2.rs`, and only a re-read of `profile/src/sugar.rs` | **ACCEPTED IN PART — RULED** | style |

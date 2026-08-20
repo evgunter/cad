@@ -267,7 +267,7 @@ roster** (see *Landings*).
 
 | lane | row | PR | note |
 |---|---|---|---|
-| **G-a** | **G1** — S72 + S110(h), S111(c), S112(b)(c), S114(a)(d), S116(r)(t) | **#786** | Fence published per **G-R3**: three `ci.yml` hunks, all inside the `interval-backend` job's header comment, ~790 lines from #753's. Two members came back with corrections to the findings rather than clean closures — **S111(c)** (`intersection` is called and is §D7's reference point; the inventory was the defect) and **S114(d)** (the decoration idiom is five sites, not six). Both are recorded at the findings. |
+| **G-a** | **G1** — S72 + S110(h), S111(c), S112(b)(c), S114(a)(d), S116(r)(t) | **#786** | Fence published per **G-R3**: `ci.yml` hunks confined to the `interval-backend` job's header comment, ~790 lines from #753's. **NOT CLEARED on first review; fix pass landed in the same PR** — the tightness ceiling had reproduced S72's own defect (a max over a sample set the degradation empties), and the structural derivation beside it was wrong in the crate's favour (`4·pad+1`, not `2·pad+1`). One member came back correcting its finding: **S114(d)**'s decoration idiom is five sites, not six. **S111(c)'s first write-up over-corrected and is withdrawn** — the diagnostic was right about the code, only the remedy was wrong; see **G-R8** as amended. New findings taken: **S127**/D71, **S134**/D78. |
 
 ## Incidents
 
