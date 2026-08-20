@@ -413,9 +413,8 @@ pub trait Real:
 /// bracket-free: it carries the value channel's bracket. What it may
 /// not do is certify. The split therefore stands on two things now, not
 /// one — `PropsQuadLane` at the API, and, since #643, the
-/// `quad_lane::*` signatures' own third term
-/// [`CertifiedEnclosure`](crate::CertifiedEnclosure), which no `Dual`
-/// implements.)
+/// `quad_lane::*` signatures' own third term [`CertifiedEnclosure`],
+/// which no `Dual` implements.)
 ///
 /// **Extension (M5 PR 12, ORCHESTRATOR ruling 2026-08-03, applying
 /// the PR 11 precedent; retroactive Evan review per the self-merge
