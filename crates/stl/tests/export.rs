@@ -269,7 +269,7 @@ fn the_acceptance_exports_agree_are_honest_and_are_byte_identical() {
     for (which, text) in [("l_prism", &ascii_a), ("ball", &ascii_b)] {
         let first = text.lines().next().expect("NAME: ascii export is empty");
         assert_eq!(
-            first, "solid cad-kernel",
+            first, "solid part",
             "NAME: {which}: the shipped default solid name"
         );
         let last = text
@@ -277,7 +277,7 @@ fn the_acceptance_exports_agree_are_honest_and_are_byte_identical() {
             .next_back()
             .expect("NAME: ascii export is empty");
         assert_eq!(
-            last, "endsolid cad-kernel",
+            last, "endsolid part",
             "NAME: {which}: endsolid must close on the same name"
         );
     }
@@ -322,20 +322,47 @@ fn the_acceptance_exports_agree_are_honest_and_are_byte_identical() {
         body_of(&ascii_a),
         "NAME/OPTIONS: only the solid name moves"
     );
-    assert!(
-        matches!(
-            write_ascii(
-                by_name("l_prism"),
-                &StlOptions {
-                    solid_name: "two\nlines".to_owned(),
-                    ..Default::default()
-                },
-                &mut Vec::new(),
-            ),
-            Err(stl::StlError::UnrepresentableSolidName { character: '\n' })
-        ),
-        "NAME/OPTIONS: a newline in the name is refused, not written"
-    );
+    // The admissible set is `0x20..=0x7E`, and BOTH bounds are pinned
+    // plus the two characters just outside them. A row that only
+    // covered `'\n'` could not see the range widened — dropping the
+    // upper bound would make DEL and every non-ASCII character
+    // writable with nothing going red.
+    let name_verdict = |name: &str| -> Result<(), char> {
+        match write_ascii(
+            by_name("l_prism"),
+            &StlOptions {
+                solid_name: name.to_owned(),
+                ..Default::default()
+            },
+            &mut Vec::new(),
+        ) {
+            Ok(()) => Ok(()),
+            Err(stl::StlError::UnrepresentableSolidName { character }) => Err(character),
+            Err(other) => panic!("NAME/OPTIONS: unexpected refusal for {name:?}: {other:?}"),
+        }
+    };
+    for (name, want) in [
+        ("two\nlines", Err('\n')),
+        ("bell\u{7}", Err('\u{7}')),
+        ("del\u{7f}", Err('\u{7f}')),
+        ("caf\u{e9}", Err('\u{e9}')),
+        ("line\u{2028}sep", Err('\u{2028}')),
+        ("emoji\u{1f600}", Err('\u{1f600}')),
+        // The bounds themselves, and the empty name, are ADMISSIBLE —
+        // so a mutation that narrows the range reddens here rather
+        // than silently refusing legal names.
+        (" ", Ok(())),
+        ("~", Ok(())),
+        ("", Ok(())),
+        ("part 7 (rev C) — no: ASCII only", Err('\u{2014}')),
+    ] {
+        assert_eq!(
+            name_verdict(name),
+            want,
+            "NAME/OPTIONS: {name:?} must be {}",
+            if want.is_ok() { "written" } else { "refused" }
+        );
+    }
 
     // ---- BYTE-IDENTITY: repeat-call identity through the FULL
     // pipeline — rebuild the body, retessellate, rewrite; bytes must

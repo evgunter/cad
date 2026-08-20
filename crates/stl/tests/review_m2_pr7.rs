@@ -5,7 +5,23 @@
 //! (winding-derived, unit, outward by parsed signed volume), writer
 //! determinism under repetition/interleaving, typed degenerate
 //! refusals, and a fresh consumer e2e (vase + bracket) from profile
-//! data to parsed-back mesh volume.
+//! data to parsed-back mesh volume. The caller-settable header's own
+//! row lives here too, for the independent parser: it is the only
+//! reader in the suite that checks the 80 bytes without using the
+//! writer's own view of them.
+//!
+//! **Two of the jobs in this file do not call an `stl` door at all**,
+//! and the file name does not say so:
+//! `check_mesh_catches_hand_broken_meshes` exercises `mesh::validate`
+//! (the export pre-flight, not the export), and
+//! `review_shapes_mesh_volume_within_3_delta_area` is here only
+//! because the sweep suite cannot link `mesh` without a dependency
+//! cycle. Both are lodgers. The file is also named after a
+//! milestone-2 PR review while now carrying the newest public API's
+//! pins — left as-is under S36's boundary (milestone naming inside
+//! test files is a backlog marker kept until the suite is combed),
+//! and recorded here so the accumulation is visible rather than
+//! discovered.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -430,17 +446,54 @@ fn a_caller_supplied_header_lands_padded_and_its_limits_refuse_typed() {
     }
 
     // The sniff constraint the writer used to satisfy by construction
-    // is now enforced on every header.
-    match stl::write_binary(
-        &mesh,
-        &stl::StlOptions {
-            header: "solid widget".to_owned(),
-            ..Default::default()
-        },
-        &mut Vec::new(),
-    ) {
-        Err(stl::StlError::HeaderSniffsAscii) => {}
-        other => panic!("expected HeaderSniffsAscii, got {other:?}"),
+    // is now enforced on every header, over the WHOLE class a
+    // whitespace-skipping, case-folding reader recognises. Each
+    // refused row below is a spelling a byte-exact `starts_with`
+    // check would let through, so narrowing the predicate reddens
+    // here rather than only deleting it doing so.
+    let header_sniffs = |header: &str| -> bool {
+        match stl::write_binary(
+            &mesh,
+            &stl::StlOptions {
+                header: header.to_owned(),
+                ..Default::default()
+            },
+            &mut Vec::new(),
+        ) {
+            Ok(()) => false,
+            Err(stl::StlError::HeaderSniffsAscii) => true,
+            Err(other) => panic!("HEADER/OPTIONS: unexpected refusal for {header:?}: {other:?}"),
+        }
+    };
+    for (header, want) in [
+        ("solid widget", true),
+        // No trailing space: a `starts_with(b"solid ")` narrowing
+        // passes this and is caught here.
+        ("solid-block", true),
+        ("solid", true),
+        ("Solid widget", true),
+        ("SOLID widget", true),
+        (" solid widget", true),
+        ("\tsolid widget", true),
+        ("SolidWorks export", true),
+        // Not the keyword, and must stay writable — so a mutation that
+        // over-widens the check (matching any header containing
+        // "solid", say) reddens too.
+        ("consolidated frame", false),
+        ("soli", false),
+        ("binary STL; widget-7", false),
+        ("", false),
+    ] {
+        assert_eq!(
+            header_sniffs(header),
+            want,
+            "HEADER/OPTIONS: {header:?} must {} as ascii",
+            if want {
+                "be refused as sniffing"
+            } else {
+                "NOT sniff"
+            }
+        );
     }
 }
 

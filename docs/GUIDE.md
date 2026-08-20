@@ -737,11 +737,19 @@ let step = step_string(&result.body, &StepOptions {
 })?;
 assert!(step.starts_with("ISO-10303-21;"));
 
-let mut stl = Vec::new();
-write_binary(&mesh, &StlOptions {
-    header: "bracket".to_string(),
+// The binary writer reads `header` (the format's free text) and not
+// `solid_name`; the ASCII writer is the other way round. Setting both
+// is what a caller exporting both formats would do.
+let stl_options = StlOptions {
+    solid_name: "bracket".to_string(),
+    header: "bracket, exported by the tour".to_string(),
     ..Default::default()
-}, &mut stl)?;
+};
+let mut stl = Vec::new();
+write_binary(&mesh, &stl_options, &mut stl)?;
+let mut stl_text = Vec::new();
+write_ascii(&mesh, &stl_options, &mut stl_text)?;
+assert!(String::from_utf8(stl_text)?.starts_with("solid bracket\n"));
 let declared = u32::from_le_bytes(stl[80..84].try_into().unwrap()) as usize;
 assert_eq!(declared, pncad::mesh::validate::triangle_count(&mesh));
 

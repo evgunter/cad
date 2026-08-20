@@ -6,11 +6,17 @@ use crate::{StlError, StlOptions, facets};
 
 /// The solid name written into an ASCII export the caller supplies no
 /// name for: constant in this build, with no run-dependent content, so
-/// identical meshes give byte-identical files. A caller who sets
-/// [`StlOptions::solid_name`] supplies a constant of its own — the
-/// writer reads no clock, no environment and no global state, so the
-/// same byte-identity holds for every name, not only this one.
-pub(crate) const DEFAULT_SOLID_NAME: &str = "cad-kernel";
+/// identical meshes give byte-identical files. A caller-supplied
+/// [`StlOptions::solid_name`] is written verbatim and the writer still
+/// reads no clock, no environment and no global state, so byte-identity
+/// follows from the pair `(mesh, options)` for every name, not only
+/// this one.
+///
+/// It is a **generic part name**, not a producer or project identity:
+/// `solid <name>` names the solid the file describes, so the producer
+/// belongs in the binary header instead. This also keeps the exported
+/// bytes independent of Q9.
+pub(crate) const DEFAULT_SOLID_NAME: &str = "part";
 
 /// Writes `mesh` as ASCII STL: the standard `solid <name>` grammar with
 /// [`StlOptions::solid_name`], closed by the matching `endsolid`. Every
