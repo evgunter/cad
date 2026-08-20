@@ -493,6 +493,53 @@ pub fn divisions(extent: f64, h: f64) -> f64 {
 /// exactly where these walls live — a ruled direction has `muu = 0`
 /// and pushes the optimum onto the `h_u ≤ extent` boundary — and the
 /// two `ceil`s make the true objective a step function anyway.
+///
+/// # Why these two carry no mechanical guard
+///
+/// **Not an omission, and not for want of trying: the quantity anyone
+/// would guard is DISCONTINUOUS in the parameters they would guard it
+/// against.** Two attempts are in the record (#783) and both failed
+/// the same way wearing different clothes — one pinned the answer and
+/// its argmax, one pinned the answer's distance to a denser reference.
+///
+/// The measurement, so a reader learns the fact and not just the
+/// conclusion. Take the worst relative excess over a family of bounds
+/// against a 240,001-sample reference, and vary the sample count by
+/// ONE:
+///
+/// | samples | 321 | 322 | 323 | 324 | 325 |
+/// |---|---|---|---|---|---|
+/// | excess | 5.88% | 3.64% | 5.24% | 1.79% | 3.94% |
+///
+/// Adjacent sample counts move it ~4 percentage points, in both
+/// directions, with no convergence: 328 is 5.31% and 2,000 is still
+/// 0.79%. **`323` is the witness** — two samples ABOVE the shipped
+/// value, a strict refinement, and 5.24%. So no tolerance on that
+/// excess can admit every refinement and exclude every degradation:
+/// wide enough to survive the jumps is too weak to catch anything,
+/// tight enough to catch a degradation is a lottery on which lattice
+/// the count lands. A tolerance that appears to work is fitted to the
+/// family it was measured on — and one plausible extra member
+/// (`muu = 0.1, muv = 1.0, mvv = 50`) puts the SHIPPED pair at 5.88%.
+///
+/// **The discontinuity is the two `ceil`s, not the scan.** The same
+/// worst-excess computed WITHOUT them — the cost as a continuous
+/// function of `t` — moves by hundredths of a point across the same
+/// neighbours (321: 0.017%, 322: 0.083%, 323: 0.011%, 324: 0.030%),
+/// falls smoothly with resolution (65 samples: 1.82%; 200: 0.096%;
+/// 400: 0.0069%; 1,000: 0.0034%), and depends on the sampling step
+/// `2·DECADES/(SAMPLES−1)` and the range — which is what these two
+/// constants actually set. A guard on THAT quantity is continuous
+/// where a guard on the cell count cannot be; it is not written here
+/// because it measures something these columns do not report.
+///
+/// **So what these constants guarantee is a resolution in aspect
+/// ratio, and not a bound on the answer.** The `ceil` quantisation on
+/// top of it is real and is not theirs to control. Anyone re-tuning
+/// them should know that the shipped pair is not even locally best on
+/// the cell count — `DECADES` 3, 4, 6 and 10 all score better at the
+/// same sample count — and that this is exactly the kind of fact a
+/// step function produces and no amount of tuning removes.
 const SPLIT_SCAN_DECADES: f64 = 8.0;
 /// Samples per scan (fixed, so the answer is deterministic — D9).
 /// SAMPLES, not steps: a step in this crate's vocabulary is a UV
