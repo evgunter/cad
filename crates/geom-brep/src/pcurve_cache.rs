@@ -1,5 +1,5 @@
-//! **Pcurves as per-half-edge certified caches** (M5 PR 6; C4, and the
-//! `docs/M5-PR6-SPEC.md` sections it mechanizes): the chart-image cache
+//! **Pcurves as per-half-edge certified caches** (M5 PR 6; C4): the
+//! chart-image cache
 //! of an edge's certified 3-D carrier, certified **in meters through
 //! the map**.
 //!
@@ -112,8 +112,8 @@
 //!   azimuth channel of a [`Pcurve::Harmonic`] is `α + β·t` with a
 //!   *single* stored `α` and a winding `β ∈ {−1, 0, +1}`. There is no
 //!   per-sample branch choice to get wrong: the M2 PR 5 meridian
-//!   finding ("nearest-previous per-sample unwrapping is a bug",
-//!   `docs/M2-LOG.md`) is generalized here by making the wrong unwrap
+//!   finding ("nearest-previous per-sample unwrapping is a bug")
+//!   is generalized here by making the wrong unwrap
 //!   **unrepresentable** — a τ jump cannot be expressed. Which branch
 //!   (`α + kτ`) a given half-edge takes is chosen once per face by the
 //!   loop walk in `topo::pcurves` and *certified* by loop continuity

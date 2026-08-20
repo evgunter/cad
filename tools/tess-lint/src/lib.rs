@@ -14,24 +14,16 @@
 //! grid is per-knot-span-cell-sized now, recorded as `grid_cells`;
 //! the retired whole-patch-sup schedule rides along as the
 //! COUNTERFACTUAL `patch_cells` column so the held gain stays a
-//! number; `span_cells` is IDENTICALLY `grid_cells` (see `agree`
-//! below). What guards the schedule itself is the per-triangle
+//! number. What guards the schedule itself is the per-triangle
 //! certificate refusal, this gate's growth rules, and the committed
-//! render cells.
+//! render cells — no column reports the lane's realisation of the
+//! schedule, and `docs/TESS-BUDGET.md` ("Why there is no realisation
+//! column") says why that is deliberate rather than owed.
 //!
 //! * **held** = `patch_cells / grid_cells` — the span gain TESS-SPAN
 //!   holds over whole-patch sizing. A regression toward whole-patch
 //!   sizing drives it toward 1.0 (and fires the gate through
 //!   `recoverable`, below).
-//! * **agree** = `grid_cells / span_cells` — **1.00 identically, and
-//!   it checks nothing.** The two are the same `band_schedule` sum:
-//!   `grid_cells` is `Σ nuc·nvc` accumulated in the very loop that
-//!   emits the candidates, and `span_cells` is that number copied.
-//!   Neither counts a realised candidate, so the column cannot detect
-//!   the drift it was described as detecting. It is kept because the
-//!   committed baseline and this parser read it by position; making
-//!   it a real check is a schema change and a re-cut baseline, and
-//!   is unscheduled.
 //! * **split** = `grid_cells / span_opt_cells` — what is still
 //!   recoverable by picking a cheaper point on each cell's
 //!   constraint ellipse `muu·h_u² + 2·muv·h_u·h_v + mvv·h_v² ≤ δ_s`;
@@ -120,9 +112,6 @@ pub struct Nurbs {
     pub patch_cells: f64,
     /// Cheapest uniform grid the same whole-patch bound admits.
     pub opt_cells: f64,
-    /// The shipped schedule's cell count, summed through the same
-    /// derivation the lane consumes (the agreement denominator).
-    pub span_cells: f64,
     /// Per-cell sizing at the cheapest split.
     pub span_opt_cells: f64,
     /// Worst per-triangle certificate the face emitted.
@@ -136,12 +125,6 @@ impl Row {
     /// the Hessian-sized lane.
     pub fn span_held(&self) -> Option<f64> {
         self.nurbs.map(|n| ratio(n.patch_cells, n.grid_cells))
-    }
-
-    /// `grid_cells / span_cells` — the lane-vs-meter agreement,
-    /// ~1.0 by construction.
-    pub fn agreement(&self) -> Option<f64> {
-        self.nurbs.map(|n| ratio(n.grid_cells, n.span_cells))
     }
 
     /// `grid_cells / span_opt_cells` — the recoverable slack (the
@@ -188,7 +171,7 @@ pub struct ParseError {
 /// fail as harness breakage rather than parse into wrong columns.
 pub const EXPECTED_HEADER: &str = "scene,face,chart,delta,triangles,u0,u1,v0,v1,nu,nv,\
                                    muu,muv,mvv,cells,grid_cells,patch_cells,opt_cells,\
-                                   span_cells,span_opt_cells,worst_cert,worst_dev,dev_samples";
+                                   span_opt_cells,worst_cert,worst_dev,dev_samples";
 
 /// Parses a budget CSV.
 ///
@@ -236,7 +219,7 @@ pub fn parse(text: &str) -> Result<Vec<Row>, ParseError> {
         };
         // The sizing columns are empty on every non-NURBS chart. All
         // present or all absent — a half-filled row is drift.
-        let sizing: Vec<&str> = vec![f[15], f[16], f[17], f[18], f[19], f[20], f[21]];
+        let sizing: Vec<&str> = vec![f[15], f[16], f[17], f[18], f[19], f[20]];
         let nurbs = if sizing.iter().all(|s| s.is_empty()) {
             None
         } else if sizing.iter().any(|s| s.is_empty()) {
@@ -249,10 +232,9 @@ pub fn parse(text: &str) -> Result<Vec<Row>, ParseError> {
                 grid_cells: num(15, "grid_cells")?,
                 patch_cells: num(16, "patch_cells")?,
                 opt_cells: num(17, "opt_cells")?,
-                span_cells: num(18, "span_cells")?,
-                span_opt_cells: num(19, "span_opt_cells")?,
-                worst_cert: num(20, "worst_cert")?,
-                worst_dev: num(21, "worst_dev")?,
+                span_opt_cells: num(18, "span_opt_cells")?,
+                worst_cert: num(19, "worst_cert")?,
+                worst_dev: num(20, "worst_dev")?,
             })
         };
         rows.push(Row {
@@ -283,8 +265,6 @@ pub struct SceneTotals {
     pub patch_cells: f64,
     /// Cheapest same-bound uniform grids, summed.
     pub opt_cells: f64,
-    /// The meter's per-cell predictions, summed.
-    pub span_cells: f64,
     /// Per-cell-sized grids at the cheapest split, summed.
     pub span_opt_cells: f64,
     /// Triangles on faces the sweep actually resampled.
@@ -306,11 +286,6 @@ impl SceneTotals {
     /// against the shipped grid).
     pub fn span_held(&self) -> f64 {
         ratio(self.patch_cells, self.grid_cells)
-    }
-
-    /// The scene's lane-vs-meter agreement (~1.0 by construction).
-    pub fn agreement(&self) -> f64 {
-        ratio(self.grid_cells, self.span_cells)
     }
 
     /// The scene's total slack: its resampled triangles against the
@@ -346,7 +321,6 @@ pub fn totals(rows: &[Row]) -> Vec<(String, SceneTotals)> {
             t.grid_cells += n.grid_cells;
             t.patch_cells += n.patch_cells;
             t.opt_cells += n.opt_cells;
-            t.span_cells += n.span_cells;
             t.span_opt_cells += n.span_opt_cells;
         }
         if let Some(s) = r.total_slack() {
@@ -479,9 +453,9 @@ mod tests {
     fn csv(tris: usize, span_opt: f64) -> String {
         format!(
             "{EXPECTED_HEADER}\n\
-             s/b,0,plane,2e-3,4,,,,,,,,,,,,,,,,,,\n\
+             s/b,0,plane,2e-3,4,,,,,,,,,,,,,,,,,\n\
              s/b,1,nurbs,2e-3,{tris},0e0,1e0,0e0,1e0,1e1,2e1,1e0,1e0,1e0,4,\
-             1e2,2e2,5e1,1e2,{span_opt:e},1e-4,5e-5,99\n"
+             1e2,2e2,5e1,{span_opt:e},1e-4,5e-5,99\n"
         )
     }
 
@@ -493,9 +467,8 @@ mod tests {
         let n = rows[1].nurbs.unwrap();
         assert!((n.grid_cells - 100.0).abs() < 1e-9);
         assert!((n.patch_cells - 200.0).abs() < 1e-9);
-        // 200 / 100, 100 / 100, 100 / 25, and delta / worst_dev.
+        // 200 / 100, 100 / 25, and delta / worst_dev.
         assert!((rows[1].span_held().unwrap() - 2.0).abs() < 1e-9);
-        assert!((rows[1].agreement().unwrap() - 1.0).abs() < 1e-9);
         assert!((rows[1].recoverable().unwrap() - 4.0).abs() < 1e-9);
         assert!((rows[1].total_slack().unwrap() - 40.0).abs() < 1e-9);
     }
@@ -575,7 +548,7 @@ mod tests {
     fn a_half_filled_sizing_row_is_harness_breakage() {
         let bad = format!(
             "{EXPECTED_HEADER}\n\
-             s/b,1,nurbs,2e-3,9,0e0,1e0,0e0,1e0,1e1,2e1,1e0,1e0,1e0,4,1e2,,5e1,1e2,2.5e1,\
+             s/b,1,nurbs,2e-3,9,0e0,1e0,0e0,1e0,1e1,2e1,1e0,1e0,1e0,4,1e2,,5e1,2.5e1,\
              1e-4,5e-5,99\n"
         );
         let e = parse(&bad).unwrap_err();

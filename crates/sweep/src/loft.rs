@@ -1,5 +1,5 @@
-//! **The loft/sweep BODY assembly** (M6-3; the executed design of
-//! `docs/M5-LOG.md` PR 9c item 6, incorporated by the M6-3 spec §1).
+//! **The loft/sweep BODY assembly** (M6-3, executing the design
+//! banked as M5 PR 9c item 6).
 //!
 //! The topology is EXTRUDE'S with different geometry (item 6(i)):
 //! bottom cap from section 0, top cap from section k−1, one NURBS wall

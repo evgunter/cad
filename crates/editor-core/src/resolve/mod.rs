@@ -1,5 +1,5 @@
 //! Name resolution and diagnosis (M4 PR 4; NAMING-DESIGN N5 verbatim,
-//! ratified #74; spec `docs/M4-PR4-SPEC.md` D1–D4).
+//! ratified #74).
 //!
 //! Resolution is a TABLE LOOKUP (N4), never a search: a name resolves
 //! by reading the evaluation the replay just built. What this module
