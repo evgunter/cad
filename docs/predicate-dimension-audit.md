@@ -137,10 +137,11 @@ all stored surface axes/normals/`u_ref` unit; `implicit_residual` is
 
 ## Coverage of the two crates, measured
 
-**Against main at `a0a6e1a5`** — carried explicitly, because this is a
-survey written into the tree it surveys (§D's D23). *(First taken at
-`f87b203`; re-taken here after main moved `census.rs` and
-`splitting/rules.rs` under it. Every figure reproduced.)*
+**Against main at `43e2998d`** — carried explicitly, because this is a
+survey written into the tree it surveys (§D's D23). *(Taken three
+times: `f87b203`, then `a0a6e1a5` after main moved `census.rs` and
+`splitting/rules.rs` under it, then here after `topo` gained `live.rs`
+and rewrote `split.rs`. Every figure reproduced at all three.)*
 
 **What is in scope.** K-REPORT's restated rule: a name is in scope if
 it reaches the `geom_core::k_stats` funnel *however it is spelled at
@@ -435,7 +436,7 @@ tolerances and step-size control in ssi (documented structure
 parameters), `props.rs` trig pad (ε/radius, an enclosure pad, not a
 decision), test fixtures.
 
-### Uncovered names (measured at `a0a6e1a5`)
+### Uncovered names (measured at `43e2998d`)
 
 Twenty-three names reach the funnel from `geom-brep` or `topo` and
 have **no row, no family cell and no mention** anywhere above this

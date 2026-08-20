@@ -1367,8 +1367,17 @@ where
         Node::Mate { .. } => 23,
     };
     h.write_tag(tag);
-    // Structural payloads beyond the tag: profile floats and Declare
-    // pairs (StableName is float-free by construction).
+    // Structural payloads beyond the tag — everything a node carries
+    // that its SLOTS do not express, and that two nodes of one tag can
+    // differ in. The match is EXHAUSTIVE on purpose: a future variant
+    // whose recipe payload lives outside its slots must be fed here or
+    // the compile breaks. It cannot default to "tag plus slots" and
+    // hash identically to a node that differs in that payload — a memo
+    // hit would then serve another node's geometry, which is not
+    // hypothetical (see S4: `Step::AtToward`'s content-key tag collided
+    // with `ArcContinue`'s and was caught by a reviewer, not a type).
+    // The tag match above is exhaustive for the same reason; the two
+    // halves of one key had different answers to that until now.
     match node {
         Node::Profile(program) => {
             // LIB-SWITCH §4e: the program's structural payload feeds
@@ -1510,7 +1519,17 @@ where
                 feed_stable_name(&mut h, n);
             }
         }
-        _ => {}
+        // Fully expressed by tag plus slots: their whole recipe payload
+        // is either an input edge (excluded from the key by design — the
+        // inputs' own keys carry it) or a slot expression, fed below.
+        Node::Datum(_)
+        | Node::Extrude { .. }
+        | Node::Revolve { .. }
+        | Node::Loft { .. }
+        | Node::Sweep { .. }
+        | Node::Split { .. }
+        | Node::Boolean { .. }
+        | Node::Transform { .. } => {}
     }
     // Evaluated slot values, in the node's deterministic slot order.
     for (i, (_slot, val)) in slot_values.iter().enumerate() {
