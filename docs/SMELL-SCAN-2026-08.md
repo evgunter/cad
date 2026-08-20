@@ -11644,23 +11644,30 @@ S60/S66's rows; and a general gate re-proposes exactly what Evan declined.
 
 ---
 
-## S157. Every gate's failure message is invisible on the half that gates
+## S157. Every gate can die before its own error message, and the self-test harness is blind to that by construction
 
-**Found by Track F's lane F-f (#798) while demonstrating F2's re-siting, and
-handed over rather than taken — `scripts/gates/lib.sh` is lane F-g's file.**
+**Found by Track F's lane F-f (#798) while demonstrating F2's re-siting;
+diagnosed by that PR's style review; handed over rather than taken —
+`scripts/gates/lib.sh` is lane F-g's file.**
 
-On hosted CI a failing gate prints **no readable reason**. On run
-`32408775985` — a deliberate breakage, so the failure is known and expected —
-the only failure text anywhere, in the job log *and* in the check-run
-annotations queried across every check run on the head SHA, is:
+On hosted run `32408775985` — a deliberate breakage, so the failure was known
+and expected — a failing gate produced **no readable reason**. The only failure
+text anywhere, in the job log *and* in the check-run annotations queried across
+every check run on the head SHA, was:
 
     Process completed with exit code 1
 
-`gate_error` emits `::error::<msg>` when `GITHUB_ACTIONS` is set; **that line
-appears in neither.** The plain `ERROR:` branch is local-only. So **all fifteen
-gates currently fail on the hosted half without saying why**, and this
-directory's carefully written failure messages are readable only by re-running
-locally — which is the half that does not gate.
+**The first diagnosis of that was wrong, and F-f is the one who wrote it.** It
+read *"`gate_error` emits `::error::<msg>` and the runner consumes it as a
+workflow command, so the message appears in neither the log nor the
+annotations"*, with the mechanism explicitly not determined. **Refuted on run
+`32413754011`**, a docs-tier plant on the same branch, whose log carries the
+same message twice — once as the plain `ERROR: …` line and once as the runner's
+rendered `##[error]check-ci-mirror-parity: …`. `::error::` is not swallowed.
+**Nothing was invisible; nothing was ever printed.** The finding is the
+mechanism below and only that, and the refutation is recorded here because a
+wrong mechanism in a register is worse than an open question: it sends whoever
+takes the row to the wrong file.
 
 ### The mechanism, found by #798's style review — and it is larger than the finding
 
@@ -11670,8 +11677,10 @@ self-test harness structurally cannot see it.**
 At `gate-roster.sh:156-159`, `loopvar=$(grep … | head -1 | awk …)` **aborts the
 script** under `errexit` before `gate_error` can run. The self-test passes only
 because `gate_selftest_case` runs the gate inside `if out=$(…)` — **a context in
-which bash suppresses errexit.** The same shape kills `ci-mirror-parity.sh`'s
-empty-scan guard.
+which bash suppresses errexit.** The same shape killed the empty-scan guard in
+what was then `ci-mirror-parity.sh` (now `scripts/check-ci-mirror-parity.py`). **Both of F-f's own instances are fixed in #798**, and its two
+checks now run every self-test case as a real subprocess, so a diagnosis lost to
+errexit fails the self-test rather than passing it.
 
 So the finding is not *"gates print nothing on hosted CI"*. It is:
 
@@ -11688,8 +11697,8 @@ self-tests that all pass: they were never able to fail this way.
 `scripts/gates/` directory's whole design premise is that a gate explains
 itself: S13, S59, S61, S62 and S63 are all findings about gates whose *prose*
 was wrong, argued over at length, and every one of those arguments is about
-text no CI reader has ever seen. The mechanism was not determined, only that it
-reproduces.
+text no CI reader has ever seen — and a gate that dies at a matcher shows a
+reader none of it.
 
 **Scope:** `scripts/gates/lib.sh` — the harness — plus every gate whose
 diagnostic path runs a pipeline or a command substitution under `errexit`.

@@ -670,10 +670,10 @@ def main() -> int:
         print(f"ERROR: check-ci-mirror-parity: {exc}", file=sys.stderr)
         return 1
     for e in errs:
-        # BOTH FORMS, ALWAYS. `::error::` is consumed by the Actions runner as a
-        # workflow command and does not appear in the job log, so a gate that
-        # prints only that form fails a hosted run with no readable reason —
-        # observed on run 32408775985.
+        # BOTH FORMS. `::error::` is what puts the message on the failing step
+        # in the Actions UI; the plain line on stderr is what a `gh run view
+        # --log` and a piped local run carry. Neither subsumes the other, and
+        # the cost of printing both is one line.
         if os.environ.get("GITHUB_ACTIONS"):
             print(f"::error::check-ci-mirror-parity: {e}")
         print(f"ERROR: check-ci-mirror-parity: {e}", file=sys.stderr)
