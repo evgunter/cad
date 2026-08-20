@@ -39,13 +39,21 @@
 //!
 //! # What is NOT here
 //!
-//! The *policy* — which target a schedule should aim at, how much
-//! margin a chart buys itself, when a schedule may be coarsened — is
-//! not stated anywhere in this crate, and this module does not state
-//! it. Each rule is argued at its own site (`curved`'s per-chart
-//! grid, `nurbs_cert`'s per-band schedule, `trimmed`'s refinement
-//! ladder). This module unifies the *vocabulary* those arguments are
-//! written in, and nothing more.
+//! The *policy* — which target a schedule aims at, how much margin a
+//! chart buys itself, when a schedule may be coarsened — is not stated
+//! here, and this module does not state it. Each rule is argued at its
+//! own site (`curved`'s per-chart grid, `nurbs_cert`'s per-band
+//! schedule, `trimmed`'s refinement ladder), and this module unifies
+//! only the *vocabulary* those arguments are written in.
+//!
+//! **One sizing question does have a ratified answer, and it is worth
+//! knowing it is the only one**: `docs/TESS-BUDGET.md`'s *split
+//! schedule's aspect policy* (2026-08-16, PR #568) rules the NURBS
+//! split schedule's 3-D aspect cap at A = 16, and
+//! `docs/TESS-SPLIT-SPEC.md` binds its execution. Both are scoped
+//! entirely to `nurbs_cert`'s per-cell step derivation. Nothing covers
+//! the analytic charts, the sizing target itself, or the retry and
+//! refinement budgets.
 
 use crate::types::TessellateError;
 

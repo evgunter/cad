@@ -4880,9 +4880,16 @@ all.
 once routed this finding's policy question to `docs/TESS-SPLIT-SPEC.md`
 and PR #568. That was wrong and was corrected in the row on 2026-08-19,
 before this lane opened: both #568 and TESS-SPLIT-SPEC are scoped
-**entirely** to the NURBS per-cell schedule in `nurbs_cert`, so
-`curved::grid_steps` (now `grid_counts`) never had a venue. **The policy
-half still has none** — the design PR C-R2 requires is the first one.
+**entirely** to the NURBS per-cell step derivation in `nurbs_cert`, so
+`curved::grid_steps` (now `grid_counts`) never had a venue. **Stated
+exactly, because "nothing is ratified" would be too wide**: exactly one
+sizing question has a ratified answer — `docs/TESS-BUDGET.md`'s *split
+schedule's aspect policy*, A = 16, ratified 2026-08-16 on #568 and still
+unexecuted. It rules where the NURBS split schedule takes its point on
+the certified ellipse and **nothing else**: not δ_s = δ/2, not the
+sphere margin, not `SAFE_ASPECT`, not the retry or refinement budgets,
+and not the analytic charts at all. Those are what the C-R2 design PR
+has to speak to, and they have no venue.
 
 **Residue filed as §D row C23**: `nurbs_cert::RATIONAL_CERT_SPLITS` and
 `geom::curves`' `RATIONAL_METER_SPLITS` are one refinement schedule
