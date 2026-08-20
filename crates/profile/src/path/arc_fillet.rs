@@ -60,11 +60,11 @@
 //! only thing that can move an ulp is step 1 — hence the squared-radius
 //! rule.
 
+use geom_core::k_stats::decide;
 use geom_core::{Band, Bounds, Decide, Margin, Point2, Real, Sign, Tolerance, Vec2};
 
 use super::{ArcData, Dir, PathError, PathNoCornerReason};
 use crate::fillet_select::nearest_joint;
-use crate::k_stats::decide;
 use crate::sugar::{
     ArcFilletCandidate, ArcFilletOutcome, ArcSweep, ArcTrimRefusal, FilletLegShape,
     arc_fillet_trims, signed_swept,
