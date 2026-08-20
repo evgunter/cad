@@ -32,11 +32,12 @@
 //!    left every row green while the suite's own name became false —
 //!    all-but-one silently becoming all-but-two. This row names
 //!    `evaluate` itself from a generic function, so it is checked at its
-//!    own definition and goes red on exactly that drift. A second bridge
-//!    does the same against the NAMED set, `EvalScalar` — the two are
-//!    restated ten lines apart in `eval/mod.rs` and can drift from each
-//!    other — and a third proves the converse inclusion, so the pair pins
-//!    set EQUALITY rather than one direction.
+//!    own definition and goes red on exactly that drift. Three functions
+//!    make up this row: one bridge against `evaluate`'s literal
+//!    where-clause, a second against the NAMED set `EvalScalar` (the two
+//!    are restated ten lines apart in `eval/mod.rs` and can drift from
+//!    each other), and a third proving the converse inclusion — so the
+//!    last two together pin set EQUALITY rather than one direction.
 //! 3. **The negative row**, which is a `compile_fail,E0277` doctest on
 //!    [`editor_core::eval::ContentBits`] rather than a `#[test]` here —
 //!    stable Rust cannot assert "`T` does **not** implement `Tr`" from
@@ -110,8 +111,8 @@ where
     requires_the_whole_eval_scalar_set::<T>();
 }
 
-/// The full `EvalScalar` set, named once so the two bridges above have
-/// something to prove into and out of.
+/// The full `EvalScalar` set, named once so the bridges on either side of
+/// it have something to prove into and out of.
 fn requires_the_whole_eval_scalar_set<T: editor_core::eval::EvalScalar>() {}
 
 /// The converse direction, so the pair pins set EQUALITY rather than one
