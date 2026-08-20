@@ -78,9 +78,13 @@ impl<T: Decide> Body<T> {
         // ---- Mutation (infallible from here on). ----
         let new = self.mint_face_surface(surface, old);
         if new != old {
-            if let Some(f) = self.get_face_mut(face) {
-                f.surface = new;
-            }
+            let Some(f) = self.get_face_mut(face) else {
+                unreachable!(
+                    "set_face_surface: `face` resolved in the plan phase and minting a \
+                     surface kills no face"
+                )
+            };
+            f.surface = new;
             self.remove_surface_if_orphaned(old);
         }
 
@@ -249,9 +253,13 @@ impl<T: Decide> Body<T> {
 
         // ---- Mutation (infallible from here on). ----
         let new = self.add_curve(certified);
-        if let Some(e) = self.get_edge_mut(edge) {
-            e.curve = new;
-        }
+        let Some(e) = self.get_edge_mut(edge) else {
+            unreachable!(
+                "set_edge_curve: `edge` resolved in the plan phase and adding a curve \
+                 kills no edge"
+            )
+        };
+        e.curve = new;
         self.remove_curve_if_orphaned(old);
 
         #[cfg(debug_assertions)]

@@ -69,7 +69,12 @@ makes two edits to `docs/SMELL-SCAN-2026-08.md` in its own PR:
    done. Version control keeps the original; leaving it in place makes a
    closed finding read as open.
 2. the unit's **row leaves §D's Track F table**, per §D's own *live rows
-   only* rule.
+   only* rule — **but a row that carries evidence the finding's record does not
+   is relocated, not deleted** (F-R11). Schedule rows accumulate re-derivations,
+   counts and narratives that were never folded back into the finding; striking
+   such a row silently destroys the best evidence for the thing being closed.
+   Before deleting a row, read it for anything the finding's own text does not
+   say, and move that into the record.
 
 **Conflicts in that file are expected and survivable**, and there are
 three live orchestrators editing it. Resolve by merging `origin/main` —
@@ -215,7 +220,21 @@ sub-block, from the orchestrator.
 | **F-a** | D61, D62 | S117, S118 |
 | **F-b** | D63, D64 | S119, S120 |
 | **F-c** | D65, D66, D67 | S121, S122, S123 |
-| unassigned | D68–D70 | S124–S126 |
+| **F-e** | D68, D69 | S124, S125 |
+| **F-d** | D70 | S126 |
+| **F-f** | **D101** | **S157** |
+| unassigned (2nd block) | D102–D110 | S158–S166 |
+
+**Second block claimed 2026-08-20: `D101`–`D110` and `S157`–`S166`.** The first
+block is spent. Taken beyond Track E's `D81`–`D100` / `S137`–`S156` and Track
+G's `D71`–`D80` / `S127`–`S136` rather than into any gap — **and the reason is
+now demonstrated rather than argued**: between Track F claiming D61–D70 and
+that claim landing, **Track E's orchestrator issued D61–D70 to five of its own
+lanes**, and had to reissue them as D82–D89 once both branches were visible.
+Two orchestrators, one sequence, neither able to see the other's unmerged
+work — the exact failure the block convention exists to prevent, caught only
+because both blocks were published. A block that is not landed is not a
+reservation.
 
 ---
 
@@ -387,6 +406,66 @@ all"*.
 | # | Ruling |
 |---|---|
 | **F-R7** | **The `tess-meter` box reds on a refinement that improves the answer.** Holding `SPLIT_SCAN_DECADES = 8.0`, **S=1000 fails while returning 4844 cells — strictly better than the shipped 4911**; S=322 fails `cells <= 4911` at 4987. The green step counts are exactly the lattices containing exponent `-3.7`; the reds are the ones that do not. So the row pins the constants to **a sample lattice, not a resolution**, and its failure message — *"the range is too narrow or the step is too coarse"* — is wrong in the surprising cases, because those step counts are **finer**. The unit's own defence, *"refinement cannot red it, deliberately"*, is **false**: the superset argument holds only when `S-1` is a multiple of 320. **Direction ruled, shape left to the lane: pin the RELATION, not the answer** — a test that computes its own reference refinement and asserts the shipped pair is within a stated tolerance is monotone-safe by construction. **"No honest box exists" is a passing answer**, recorded at the claim site per Q6; *making it worse than the non-monotone pin it replaced* is the one outcome the row cannot ship. Riding with it: the *"within 2.0%"* figure is **2.04%** on the reviewer's measurement and rests on an unstated choice of denominator. |
+
+### #798 (F-f / S61, S62, D58–D60) — style lane, 2026-08-20: **NOT CLEARED**, five MAJORs
+
+**What held, and it is substantial.** All three isolated demonstration commits
+verified as descendants of the review head, all TIER=docs, with `discipline` and
+every build/lint/test job **skipped** in all three while `mirror` red for the
+plant the lane named. **D58 and D59 are completely closed** — mode 0644
+re-planted by the reviewer and it reds correctly. **S62/D60's class is genuinely
+mechanised**, and the population was *derived rather than listed*: twelve
+non-`scripts/gates/` executables, eleven already mirrored, including the member
+two prior enumerations missed. **Q6 came out in the unit's favour**: 8/9/12 s,
+in parallel with `filter`, **zero added critical-path latency** — one extra
+billed job-minute per docs run, which honours *"cheap docs CI stays"*.
+
+| # | Ruling |
+|---|---|
+| **F-R12** | **S157's mechanism, and it is much larger than S157.** `set -euo pipefail` **aborts the gate before its own `gate_error`** whenever the diagnostic path runs a pipeline or command substitution — and `gate_selftest_case` runs each gate inside `if out=$(…)`, **where bash suppresses errexit**, so the self-test is *structurally incapable* of seeing it. **Every gate can die before its own error message, and every gate's self-test is blind to that by construction.** S157 is escalated to carry this. **F-f owns only the two instances in its own new code; the harness and the sweep are F-g's** — and *fifteen self-tests passing is not evidence here, because the harness is what hides it.* |
+| **F-R13** | **The re-siting invariant is unguarded, and the row's own defect is reproducible after the fix.** The reviewer hollowed `mirror` to checkout+echo and moved all three gate steps back into `discipline`: **all three gates stayed green.** The exact S61 state can be restored in one commit with nothing firing. Evan's ruling is a *rule* — *a gate must be sited where it can fire on its own inputs* — currently held as **prose in three headers**. A rule this repo has now paid for twice deserves a check. |
+
+**Three more that each break a stated claim.** Claim 2 is *stated as total and is
+not* — the job regex misses uppercase names, and a planted `buildXtra:` reading
+`ci-local.sh` after a pruning job returned **OK, exit 0**. The **local half still
+`exit 0`s at TIER=docs**, so the ruled rule holds hosted-side only — S61's
+deliverable half-closed and reading as closed. And `--citations` is now
+**hosted-only**, moved out of one blind spot into another.
+
+**The shape verdict, worth more than the individual defects.** The reviewer's
+answer to *best available way* is **no**, and the reason generalises: **grep/awk
+over YAML, in a repo that already ships a parser.** Four of the five MAJORs are
+text-processing failures — errexit inside a pipeline, a case-sensitive regex, a
+blind exclusion. That is not bad luck, it is the tool.
+
+### #791 (F-e / S59) — style lane, 2026-08-20: **NOT CLEARED**, and **G4 is cleared to proceed**
+
+**The headline number survived a hostile re-derivation.** The reviewer re-derived
+the zero **independently on `origin/main`** — 122 raw hits old, 123 new, the one
+added line a **leading** `///`, so the leading-only stripper is *correct* here
+rather than a second bug carrying the claim — and post-strip file sets are
+byte-identical at 19 files. The enumeration of `CertifiedBounds` uses is
+exhaustive and all are sole bounds. **The zero is honest.** The reviewer also
+reverted the matcher and ran each planter **alone**: all three new positives fail
+separately, so the self-test cases are individually load-bearing rather than
+load-bearing as a set.
+
+**Track G's G4 may proceed on the strength of this PR** — the ruling's
+precondition, that `real.rs`'s sentence be true, is met in both operand orders.
+**With one correction G4 must carry: the widened matcher fires on nothing G4
+actually writes, so a green gate there is not ratification evidence.**
+
+| # | Ruling |
+|---|---|
+| **F-R10** | **The gate is blind to the two edits that would defeat it.** *(a)* The `trait CertifiedBounds:` definition skip is anchored on the **name**, so `pub trait CertifiedBounds: Decide + Bounds + CertifiedEnclosure {}` is **silently skipped** — planted, exit 0. That is the single edit that would turn every sole-bound site in the tree into a decide-and-bracket parameter at a stroke, and it is **undisclosed**. *(b)* The direct S59 successor — `trait Bracket: Bounds + CertifiedEnclosure` used as `Decide + Bracket` — is invisible, and neither it nor its mitigation is in the gap list. The unit's own argument was that *"an enumerating matcher is blind to the next alias the day it is written"*; **a name-shaped matcher is blind to the next alias that does not carry the name.** Not a reason to return to a list — a reason the gap list must say it. *(c)* **A hole in the self-test itself:** deleting `(\w+::)*` from the right of `+` leaves `--selftest` **green** while `Decide + geom_core::CertifiedBounds` goes blind — *a spelling the tree already uses*; the mirror group on the left is dead code. The mutation check covered the matcher wholesale and missed a mutation **inside** it. |
+| **F-R11** | **Striking a row deleted the evidence, and the defect is in this track's convention rather than in the lane's judgement.** Removing the F1 row from §D removed the E-g `admit.rs` narrative — the gate's strongest single piece of evidence — with no relocation. The *Recording convention* says a row leaves §D when it lands and says nothing about a row that **carries evidence the finding's record does not**. **Amended below.** Version control keeping something is not the same as a reader finding it. |
+
+**A third thing, small and sharp.** The gate header grew **131 → 168 lines** — and
+**S116(m), live in this same document**, measures a 130-line header as *"past the
+point where the rule is findable."* The unit grew a header past a threshold the
+scan records, in the file the scan records it about. That is not a lapse of care;
+it is what happens when a finding's own document is 12,000 lines and its
+neighbours are unreadable from inside a lane.
 
 ### #788 (F-a / S92) — style lane, 2026-08-20: **NOT CLEARED**
 
