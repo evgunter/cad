@@ -142,6 +142,68 @@ scopes); L1, L2 and L3, which are deliberately last and stay that way.
 
 ---
 
+## The standing lane header
+
+**Every Track E dispatch carries this by reference** — *"read
+`docs/SMELL-E-LOG.md` § The standing lane header in full before you start"*. It
+is committed rather than kept in a container home directory on purpose: a
+pointer at an uncommitted file is a pointer at nothing, one preemption later.
+
+**1. Read these, by path, before touching anything.**
+`docs/prompts/implementer-discipline.md` in full; your row in
+`docs/SMELL-SCAN-2026-08.md` §D Track E, and the **finding** it came from
+(follow the `Was` column); `CLAUDE.md`; and `memories/MEMORY.md`'s index,
+following the pointers your row actually touches.
+
+**2. The A/B fence.** This track runs **beside** the model A/B experiment. Do
+not read, cite, or edit `docs/MODEL-AB-LOG.md`, and do not describe your unit
+as an A/B row anywhere. If something seems to require it, stop and ask the
+orchestrator.
+
+**3. Your branch and your lane.** Branch `smelle/<row>` (e.g. `smelle/d25`),
+off current `origin/main`. Use **your own** `CARGO_TARGET_DIR`; never one shared
+with another worktree. Anything to be published — a PR body, a review findings
+file — goes to a **lane-private** path, never the session scratchpad, which is
+shared between concurrently running agents.
+
+**4. Commit and push at every coherent seam**, not at the end. Two lanes have
+been lost mid-unit with everything uncommitted; a pushed commit is the only
+state that survives.
+
+**5. Re-derive; do not transcribe.** Your row was written from another lane's
+record. Records are accurate about the moment they describe, and a fix pass may
+have moved the tree since. **Check every citation in your brief and in your row
+against the tree before you build on it** — five briefs on the sibling track
+carried a citation that did not resolve, and one carried a claim that was simply
+false on main. Checking rather than complying is the behaviour that is wanted;
+say in your report what did not resolve.
+
+**6. State what your sweep cannot match.** If your unit closes an instance of a
+class, name the pattern and its blind spot. A path glob is part of the pattern.
+A count is not a deliverable; a sweep with a stated blind spot is.
+
+**7. Merge `origin/main` immediately before opening the PR, and re-merge
+whenever main moves while it is open.** A PR that goes CONFLICTING runs **no**
+check runs at all — it reads as CI absent, not CI failing. After any push,
+confirm checks actually **started** by reading the workflow *runs* list.
+
+**8. Record your completion at the finding, in your own PR.** A bolded
+`FIXED by #NNN` lead at the finding in `docs/SMELL-SCAN-2026-08.md`, the
+**original problem statement removed** (version control keeps it), and your row
+struck from §D's Track E table. Every Track E PR edits that file, so expect to
+re-merge; merges are serialized by the orchestrator.
+
+**9. If your unit finds something it cannot carry, it is a row, not a
+footnote.** Ask the orchestrator for a number — do not invent one, and do not
+leave it in the PR body. *A verdict is not a placement* (§D ordering rule 4).
+
+**10. Your report is a claim site too.** ≤150 lines. Name the questions you
+actually exercised, what you could not check, and anything in this header or in
+your brief that turned out to be wrong. Reviewers correcting the dispatcher is a
+working lane, not a malfunction.
+
+---
+
 ## Rulings made in this track
 
 | # | Ruling |
