@@ -75,11 +75,12 @@ topo = { path = "../topo", features = ["sweep-testing"] }
 # dev-dependencies (neither ever enters the other's build graph).
 mesh = { path = "../mesh" }
 proptest = { workspace = true }
-# The shared fuzz harness (one RNG, the per-run seed, the CAD_FUZZ_EFFORT
-# dial). A dependency-free leaf crate named by [dev-dependencies] only,
-# here and everywhere else, which is what keeps it off every shipped
-# build path — and what makes the effort dial reachable without a
-# hand-rolled env read (`scripts/gates/no-ambient-env.sh`).
+# The one home for a randomized sweep's seed and effort dial
+# (`CAD_FUZZ_SEED` / `CAD_FUZZ_EFFORT`). `test-utils` is a dev-only
+# leaf no shipped build reaches, which is why the ambient-environment
+# gate allowlists its `fuzz.rs` by REACHABILITY — a suite here that
+# rolled its own env dial would be a second channel with no such
+# argument behind it.
 test-utils = { path = "../test-utils" }
 
 # ONE test binary for the whole suite (see tests/all.rs). Each extra test

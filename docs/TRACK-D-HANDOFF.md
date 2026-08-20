@@ -39,12 +39,13 @@ real risk, which took a full adversarial lane as well.
 | D7 (1 of 3) | `Mat2`/`Affine2` deleted, with the orphan its deletion made | #721 |
 | D13, D14 | The pcurve-staleness convention checked; D14 **refuted**, not closed | #722 |
 | D18 | The two unproven `prev`s proven; `link_half_edges` converted — **W2c done** | #736 |
+| D2 | S19's fillet half — 103 sites in, 108 out, partitioned 41/49/18; the row-4 reading **bounded, not refuted** | #740 |
 
-## In flight: D18 only
+## In flight
 
-The twelve units through #722 are merged; **D18 is open as #736** (W2c's last
-two sites plus the helper, and the release-corruption CI row's disposition —
-its PR body is the record). The four that were mid-fix-pass when the first
+The twelve units through #722 are merged, plus **D18 as #736** (W2c's last two
+sites plus the helper, and the release-corruption CI row's disposition — its PR
+body is the record) and **D2 as #740**. The four that were mid-fix-pass when the first
 version of this file was written — #719, #720, #721, #722 — each finished its
 pass and landed, so the table that listed them is gone rather than left to rot.
 What each pass actually turned up is in its PR body, which is the record.
@@ -88,9 +89,15 @@ fillet-helper row, and **D8**, whose `geom-curves/src/fit.rs` it relocated to
 
 What is unstarted is unstarted for schedule reasons only, not technical ones:
 
-- **D2** (B3 / S19, the fillet error catch-alls, ADVERSARIAL) is the widest
-  unblocked row and gates D7's fillet-helper row — the only edge left in the
-  track.
+- **D7's fillet-helper row** is unblocked now that **D2** landed as #740. It
+  must re-read all four `sweep/src/fillet/` files first: D2 rewrote every
+  refusal site in `surgery.rs` and `build.rs`.
+- **D26**, **D27**, **D28** and **D29** were placed by #740: S19's four
+  unplaced rows; the surgery's front-door invariants carried in comments
+  (**ADVERSARIAL**, and it also owes the addendum a home for `EmptyChain`);
+  `editor-core`'s eight payload-discarding `Display` arms; and
+  `FilletError::Op`/`Certify`'s ~20 `format!` sites. **D27 and D29 share
+  `sweep/src/fillet/`** — the only edge left in the track.
 - **D17**, **D19**, **D20**, **D21**, **D25**, **D30** and **D31** are edge-free. D7's
   **`PairSolve`** row was too, and landed as **#735**; its provenance note is a
   comment on **issue #611**, not the PR body, because R2's thread is live, and
@@ -120,9 +127,25 @@ it:
 2. **#720's review** — sharper: because these are slotmap keys, an unpatched
    source-internal key may **resolve to an unrelated live entity** rather than
    dangle. That is *live but wrong*, which no plan phase can refuse.
+3. **#740 (D2)** — a witness that **sharpened witness 1 and then failed to
+   use it**. #740 first argued that a spent graft destination reaches
+   `fillet_edges` and therefore that its 46 lookup sites must stay typed. The
+   argument is **false in both halves**: the public `instance` doors bridge with
+   `combine::Bridge::RemapKeys`, whose arm never reaches the only
+   `GraftRecertify` raise (so `instance.rs`'s `# Errors` named an error its own
+   door cannot return — fixed by #740), and a spent destination comes back with
+   ≥2 solids, which `fillet_surgery`'s entry gate refuses above all 46 sites.
+   **Witness 1 still stands as stated in #713** — a public door can leave a body
+   tier-1-invalid — but it is now known that reaching a *particular* consumer
+   with such a body is a separate question, and one nobody has answered for
+   `fillet`. #740's 46 sites stayed typed on that open question, not on a
+   demonstration.
 
-Both are the "reachable by API misuse" row S43 proposed and the ratified D2
-addendum's five classes do not contain.
+All three are the "reachable by API misuse" row S43 proposed and the ratified
+D2 addendum's five classes do not contain. **#740 adds a fourth gap, from the
+other side**: `FilletError::EmptyChain` is neither reachable by input nor
+locally provable, so none of the five classes fits it. That is
+`SMELL-SCAN-2026-08.md`'s **D27**.
 
 ## What the review lane actually caught
 
