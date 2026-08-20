@@ -188,42 +188,38 @@ impl UnitDef {
 /// pairing by the table. Obtain one from a unit constant ([`MM`],
 /// [`CM`], [`M`], [`IN`]) or from [`UnitDef::as_length`].
 ///
-/// **Every public entry point that takes one trusted the caller's
-/// `symbol` and `factor` before the seal**, and this is the whole list:
-/// [`crate::fmt_length`], [`crate::Length::in_unit`], and the two `Mul`
-/// impls (`f64 * LengthUnit`, `LengthUnit * f64`) — with
-/// [`crate::fmt_angle`], [`crate::Angle::in_unit`] and the two mirrored
-/// `Mul` impls on [`AngleUnit`]. None of them checks anything now
-/// either; what changed is that there is no longer an unchecked value
-/// to hand them.
-///
-/// What that closed, concretely: `25.0 * LengthUnit { symbol: "mm",
-/// factor: 1.0 }` was 25 METRES carrying the label `mm`, at the D6
-/// typed-units boundary — a wrong VALUE, not a mislabelled string. And
-/// it reached a document, since `fmt.rs`'s stated pin is
-/// `parse(fmt(x, unit))`: `fmt_length(0.025, LengthUnit { symbol:
-/// "deg", factor: 1e-3 })` rendered `"25 deg"`, which parses to an
-/// [`crate::Angle`] literal.
+/// **Five public doors apply a unit's factor and print its symbol
+/// without checking either**, which is why the pairing has to be typed
+/// rather than validated: [`crate::fmt_length`],
+/// [`crate::Length::in_unit`], and the two `Mul` impls
+/// (`f64 * LengthUnit`, `LengthUnit * f64`) — mirrored on
+/// [`AngleUnit`] by [`crate::fmt_angle`], [`crate::Angle::in_unit`] and
+/// its own two. The `Mul` pair IS the D6 typed-units boundary, and
+/// `fmt.rs`'s `parse(fmt(x, unit))` pin makes the formatter's suffix
+/// parser input, so a symbol paired with a foreign factor would be a
+/// wrong VALUE reaching an `Expr` and a document — not a display
+/// string. Issue #669 has the executed reproductions.
 ///
 /// The seal is a claim about what COMPILES, so it is pinned by rows
 /// that must fail to compile, each with the legal twin that differs
 /// from it by exactly the illegal step.
 ///
-/// The mislabelled-value mint no longer builds:
+/// A symbol paired with a factor of the caller's choosing does not
+/// exist:
 ///
 /// ```compile_fail
 /// let bogus = quantity::LengthUnit { symbol: "mm", factor: 1.0 };
 /// ```
 ///
-/// Nor does the struct-update escape from a real unit constant, which
-/// is the form a seal on the constructor alone would leave open:
+/// Nor by struct-update out of a real unit constant — the form a seal
+/// on a constructor alone would leave open:
 ///
 /// ```compile_fail
 /// let bogus = quantity::LengthUnit { factor: 1.0, ..quantity::MM };
 /// ```
 ///
-/// Nor the cross-quantity mint the formatter round trip turned into an
-/// [`crate::Angle`] in a document:
+/// Nor with another quantity's symbol, the pairing that renders as an
+/// [`crate::Angle`] literal under the round-trip pin:
 ///
 /// ```compile_fail
 /// let bogus = quantity::LengthUnit { symbol: "deg", factor: 1e-3 };
@@ -253,8 +249,8 @@ pub struct LengthUnit(UnitDef);
 /// **SEALED for the reason and by the mechanism on [`LengthUnit`]**;
 /// obtain one from [`DEG`], [`RAD`], or [`UnitDef::as_angle`].
 ///
-/// The mint that made `90.0 * AngleUnit { symbol: "deg", factor: 1.0 }`
-/// ninety RADIANS labelled `deg` no longer builds:
+/// The pairing that would make `90.0 * deg` ninety RADIANS does not
+/// exist:
 ///
 /// ```compile_fail
 /// let bogus = quantity::AngleUnit { symbol: "deg", factor: 1.0 };
