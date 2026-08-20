@@ -7679,10 +7679,18 @@ on its own inputs.** `discipline` keeps its `if: run_build == 'true'` and every
 build, lint and test job keeps skipping on a docs-only change set. What #798
 moved is the guards whose *inputs* are that change class.
 
+**The anchor, re-derived:** `scripts/ci-filter.py`'s `_is_docs` returns true for
+any `.md` path and for anything under `memories/`, `local-scripts/` or
+`.claude/`, so such a change set is `TIER=docs`, `RUN_BUILD=false`, and
+`ci.yml`'s `discipline` job — `if: needs.filter.outputs.run_build == 'true'` — is
+skipped. That is D58's anchor and it still holds; what changed is where the two
+guards sit.
+
 A new `ci.yml` job, **`mirror`**, carries no `if:` and so runs on every tier; it
-is greps over three files, and it is the one job that does not delete
-`local-scripts/`, because its subject is the agreement between the two halves of
-CI. `gate-roster.sh` moved there and now **reads the local half**: it asserts
+is the one job that does not delete `local-scripts/`, because its subject is the
+agreement between the two halves of CI. Measured on three docs-tier runs at 8, 9
+and 12 s wall clock, finishing before `filter`, so the added critical-path
+latency on a docs PR is zero. `gate-roster.sh` moved there and now **reads the local half**: it asserts
 `ci-local.sh` still loops `scripts/gates/*.sh`, still runs each gate's
 `--selftest` and then the gate, and still excludes `lib.sh` by name. Its header's
 argument that it need not read `local-scripts/` *because* a deletion there
@@ -7691,7 +7699,17 @@ classifies TIER=docs — the C2 shape, a hole offered as the reason not to close
 
 `probe-suite-census.sh`'s citation half moved there too, as `--citations`; the
 census, floor and clippy-row checks stayed in `discipline`, where their inputs
-are.
+are. **The local half moved with them**: `local-scripts/ci-local.sh` returns at
+`TIER=docs` too, so a re-siting that fixed only the hosted job would have left
+the same defect in the other half of the pair — the three tier-blind rows now run
+**above** that early exit.
+
+**And the rule is checked, not merely obeyed.** Hollowing `mirror` and moving its
+three steps back into `discipline` restores the exact state this finding recorded
+and would have fired nothing; `scripts/check-ci-mirror-parity.py`'s claim 7
+requires each tier-blind invocation to be run from a ci.yml job carrying no `if:`
+and from the local half above its docs exit — where a *definition* above the exit
+does not count as a run.
 
 **The residue this finding named is closed rather than relocated.** The citation
 half made `docs/SMELL-SCAN-2026-08.md` — this document — a hard CI dependency on
@@ -7713,7 +7731,13 @@ E found a **sixth** member by accident (#794/D86,
 `scripts/interval-only-selection.py`) — so a hand list of six would have bought
 one instance and left the class.
 
-`scripts/gates/ci-mirror-parity.sh` **derives** the population instead: every
+**Why the enumerations missed members is the diagnosis, not the count.** E-a's
+D34 enumeration was shaped over `scripts/…` paths appearing in `ci.yml`, so
+`demos/check_render_provenance.py` and `demos/compose_uv_montage.py` were
+invisible to it by construction; the sixth member surfaced only when a different
+track tripped over it. A reader is what those two enumerations had in common.
+
+`scripts/check-ci-mirror-parity.py` **derives** the population instead: every
 `scripts/**` or `demos/**` executable named on a non-comment line of `ci.yml`
 must be named in `local-scripts/ci-local.sh` and the reverse, excluding
 `scripts/gates/**` (a directory is its own roster) and `MIRROR_EXEMPT` entries
@@ -7727,11 +7751,25 @@ the criterion is mechanical and total, so it admits things nobody would call
 gates (`ci-filter.py`, `k_probe_sweep.sh`). "Is this a gate" is what let a row go
 unmirrored.
 
-Two further claims ride the same gate. **The prune exception is exactly one
+**It is python, and that is a finding about the first attempt.** The first
+version read `ci.yml`'s structure with `awk '/^  [a-z0-9_-]+:$/'`; a reviewer
+planted a job named `buildXtra:` carrying a checkout and a read of
+`local-scripts/`, and the matcher — not seeing an uppercase letter as a job start
+— folded its steps into the previous job and exited 0. A claim stated as total
+and only approximately total is this track's own subject, so the structural half
+moved to a stdlib-python reader that **Bails on any structure it does not
+recognise**.
+
+Four further claims ride the same check. **The prune exception is exactly one
 job** — every checked-out job in `.github/workflows/*.yml`, `render.yml`
 included, deletes `local-scripts/` and `.claude/` except `mirror`, which is what
 keeps `ci-filter.py` right to classify a change under either tree as
-non-triggering. And **mirror citations resolve**: `ci-local.sh` carries
+non-triggering. **Gate MODES are mirrored too** — the directory loop passes no flags, so
+`--citations` was hosted-only and nothing could see it. **No executable under
+`scripts/` or `demos/` is an orphan**, by transitive closure from both halves and
+every workflow file. **Both halves name each `tools/` crate**, which no
+path-shaped matcher can reach. And **mirror citations resolve**: `ci-local.sh`
+carries
 `# HOSTED MIRROR: <job> / <step name>` markers, each of which must name a step
 `ci.yml` carries under that job, with a floor so deleting the markers is not a
 pass. The drifted prose this finding recorded — *"the `k-lint` job's 'demos

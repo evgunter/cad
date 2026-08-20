@@ -98,7 +98,13 @@ import sys
 # existed, a gate whose input was this tree argued it need not read the
 # tree, BECAUSE a change to the tree classified docs and skipped the gate —
 # a description of a hole offered as the reason not to close it.
-# `scripts/gates/ci-mirror-parity.sh` fails if a second job stops pruning.
+# `scripts/check-ci-mirror-parity.py` fails if a second job stops pruning, or if
+# `mirror` starts. That check is SITED IN THE JOB IT DESCRIBES, which is
+# self-referential and is stated rather than hidden: deleting the job deletes
+# the thing that would have complained. What limits the damage is that the same
+# check runs in the local half above its docs exit, that the job is a required
+# status check on this branch, and that a diff removing it is one line long in
+# a file three tracks read.
 #
 # .claude/: agent session config (2026-08-15) — the SessionStart hook that
 # provisions a Claude Code on the web container, and the settings.json that

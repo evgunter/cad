@@ -340,7 +340,7 @@ live in that directory and two of them share `scripts/ci-filter.py`.
 | **F-d** | **F4** (S76, S78, S84, S91) | `smellf/f4-guards-that-pass` | `topo/src/review_d18.rs`, `sweep/tests/review_d2_adv_probes.rs`, `geom-brep/tests/`, `geom-core/src/spline/knots.rs` | **ADVERSARIAL** (S76, S78) + style | **dispatched** |
 | **F-e** | **F1** (S59) | `smellf/f1-certifiedbounds-gate` | `scripts/gates/bounds-allowlist.sh`, `geom-core/src/real.rs` | style; **ADVERSARIAL** for forced conversions | **dispatched** |
 | **F-g** | **F3** (S63) | — | `scripts/gates/{no-extra-real-bounds,bit-identity-debug-only,interval-square-allowlist,lib.sh}`, `ci-filter.py` | style; **ADVERSARIAL** for the `x*x → powi(2)` conversions | queued — owns `lib.sh` |
-| **F-h** | **F8** (D44, D45) | — | `scripts/k_probe_sweep.sh`, `ci.yml`, `docs/` | style | queued — F-f's row is closed by #798 |
+| **F-h** | **F8** (D44, D45) | — | `scripts/k_probe_sweep.sh`, `ci.yml`, `docs/` | style | queued — F-f's row is carried by #798 (open) |
 
 **F-f's PR is open** (#798); its roster row left the table above per the
 recording convention, which the landing PR carries.
@@ -502,15 +502,21 @@ when the review lands, which is why it trails.
 
 ## Landings
 
-### F-f / F2 (S61, S62, D58–D60) — #798, opened 2026-08-20; style review pending
+*(none yet — the entry below is a PR that has not merged, kept here because the
+recording convention puts a unit's record in its own landing PR. It becomes a
+landing when #798 does.)*
+
+### F-f / F2 (S61, S62, D58–D60) — #798, OPEN, not merged; style review returned NOT CLEARED and was answered
 
 **What it built.** A new `ci.yml` job, `mirror`, with no `if:` — so it runs on
-every tier, including the docs-only runs where every other job is skipped — and
-the single declared exception to the `rm -rf local-scripts .claude` prune,
-because its subject is the agreement between the two halves of CI. Three gates
+every tier, including the docs-only runs where every job carrying one is skipped
+— and the single declared exception to the `rm -rf local-scripts .claude` prune,
+because its subject is the agreement between the two halves of CI. Three checks
 are sited in it: `gate-roster.sh` (moved, and now reading the local half's
 loop), `probe-suite-census.sh --citations` (the citation half, whose inputs are
-prose), and a new `ci-mirror-parity.sh`.
+prose), and a new `scripts/check-ci-mirror-parity.py`. The local half runs the
+same three **above** its own `TIER=docs` early exit, because the rule binds both
+halves.
 
 **What is worth carrying forward, beyond the row.**
 
@@ -529,8 +535,24 @@ prose), and a new `ci-mirror-parity.sh`.
   fifteen files on disk, *"all 14 gates"*, exit 0.
 - **The exception to a structural rule is itself gated.** `mirror` keeping
   `local-scripts/` weakens `ci-filter.py`'s claim unless exactly one job does
-  it, so `ci-mirror-parity.sh` checks that over every workflow file —
-  `render.yml` included, which is the file a sweep reading `ci.yml` would miss.
+  it, so the checker verifies that over every workflow file — `render.yml`
+  included, which is the file a sweep reading `ci.yml` would miss.
+- **A rule the repo has paid for twice deserves a check, not a comment.** The
+  first version left *a gate must be sited where it can fire on its own inputs*
+  as prose in three script headers; the reviewer restored the exact S61 state in
+  one commit with nothing firing. Claim 7 now pins the siting itself, in both
+  halves, and distinguishes a definition above the local exit from a run.
+- **Read structure with a reader, not a regex.** The bash version of the parity
+  check missed an uppercase job name and passed a checked-out job reading
+  `local-scripts/`. Four of the review's five MAJORs were text-processing
+  failures; the structural half is stdlib python now and Bails on anything it
+  cannot parse.
+- **A self-test that cannot reproduce the real invocation proves nothing.**
+  `lib.sh`'s harness runs a gate inside `if out=$(…)`, where bash suppresses
+  errexit — the one condition under which a `set -euo pipefail` gate dies at a
+  failing matcher before printing its diagnosis. Both of this unit's own
+  instances are fixed, and its cases now run the gate as a subprocess. The
+  harness itself is `lib.sh`, lane F-g's, escalated as **S157**.
 
 ## Incidents
 
