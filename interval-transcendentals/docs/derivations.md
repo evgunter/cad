@@ -8,6 +8,31 @@ the two representables straddling `t` (for `t` beyond `MAX`, the gap of
 
 ## §1 Rounding lemmas
 
+**Lemma P0 (TwoSum is exact, with no underflow proviso).** For finite
+doubles `a`, `b` with `s = RN(a + b)` finite, the rounding error
+`e = (a + b) − s` is **itself exactly representable**, and Knuth's
+six-operation TwoSum computes it exactly:
+`bp = s − a; ap = s − bp; e = (a − ap) + (b − bp)`.
+*Proof sketch (Knuth, *TAOCP* vol. 2 §4.2.2 Thm. B; Shewchuk 1997 Thm.
+7).* `s` lies in the same binade as the larger operand or one above, so
+`e` has magnitude `<= ulp(s)/2` and its trailing bits are a suffix of
+the exact sum's bits, which the exponent range of binary64 accommodates
+— **including when `a`, `b` or `e` are subnormal**, because addition on
+the subnormal grid is exact (the grid is uniform and closed under
+differences). The six operations are each exact by the same argument
+applied to Sterbenz-representable differences. ∎
+
+Consequences used by the code:
+- `round.rs::two_sum_err` decides *exactly* whether `a + b` was exact,
+  so `add_lo`/`add_hi`/`sub_lo`/`sub_hi` pad only when they must;
+- **there is no validity floor for the addition witness.** This is the
+  contrast with 2Prod (§3), whose residual can itself underflow below
+  `2^-960` and make the witness LIE — which is why the multiplication,
+  division and sqrt witnesses are magnitude-gated and addition's is not,
+  and why `tests/review_fuzz_exact.rs` fuzzes those three and not
+  `+ −`. Non-finite `s` yields a NaN error term, which compares
+  `!= 0.0` and therefore takes the padded path.
+
 **Lemma P1 (1 step covers correct rounding).** If `c = RN(t)` then
 `next_down(c) <= t <= next_up(c)`.
 *Proof.* Suppose `next_down(c) > t`. Then `next_down(c)` is representable
