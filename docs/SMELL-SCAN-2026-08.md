@@ -637,7 +637,12 @@ Two of these have **already drifted, observably**:
   `RoleSeg` too and ended in a BINDING catch-all (`other => other`) that
   #632's scan could not express, so it was neither counted nor fixed. All
   five are now exhaustive on the `RoleSeg` axis, and the four that see a
-  `Qualifier` are exhaustive on that axis too.
+  `Qualifier` are exhaustive on that axis too. **Five is #632's population
+  plus that one, not the tree's**: a probe `RoleSeg` variant demands a
+  decision at **seven** matches on today's head — those five, plus
+  `eval::feed_role_seg` and `resolve`'s `visit`, which were already
+  exhaustive and so were never anyone's residue. The distinction is the
+  one this row is about, so it is spelled rather than left to the count.
 
 **The `BooleanOp` mirror is FIXED by #642.** It was the tell that these
 copies are accretion rather than principle — one vocabulary **mirrored**
@@ -758,11 +763,15 @@ mate, and now refuses to load at all.
 *Drift (b) CONFIRMED, **FIXED by #632**, and its residues **FIXED by #731**
 (H11).* The `Fragment(SideOf)` disagreement is **documented and intentional**
 and was preserved. #632 disclosed two residues; #731 closed them, and closed
-**seven further fail-quiet classifications of the same shape in the same
-crate** — two that #632's own body had ruled out in writing, and five that
-neither #632 nor #731's first pass found. The class as reported was *"#632's
-two residues"*; the class as it existed was nine. That gap, not either fix, is
-the finding.
+**eight further fail-quiet classifications of the same shape in the same
+crate** — two that #632's own body had ruled out in writing, five that
+neither #632 nor #731's first pass found, and one that **neither of #731's
+own instruments could express**, found by its verification pass. The class as
+reported was *"#632's two residues"*; the class as it existed was **ten**.
+That gap, not either fix, is the finding — and the count moved three times
+(two, four, nine, ten), each time because a differently shaped instrument
+was run, which is §C15's clause arriving as a measurement rather than as a
+warning.
 
 - `resolve::apply_with_names`' `DocEdit` wildcard is now three named groups —
   checked, name-carrying-and-deliberately-unchecked, name-free — which encodes
@@ -804,6 +813,19 @@ the finding.
   lists — #618's own growth of the same duplication — and `expr.rs`'s four
   arity lists took the same treatment as the triplication above
   (`name_free_node!`, `binary_kind!`/`unary_kind!`/`leaf_kind!`).
+- **The tenth, found by this PR's verification pass, and it is the one
+  neither instrument could see.** `doc.rs`'s `DocParam::bit_eq` matched
+  `(self, other)` and closed with `_ => false`. Invisible to the type-aware
+  instrument because the scrutinee is a **tuple** — its declared blind spot,
+  exactly — and invisible to the arm-content instrument because the arms are
+  spelled `Self::Continuous` / `Self::Count` and name no enum, which is the
+  **same alias tell** as the `use RoleSeg as R` miss that started this. Its
+  consequence is a wrong value, not a missed check: a future `DocParam`
+  variant would have compared unequal to ITSELF, and `Doc::bit_eq` and
+  `diff.rs` would have read that answer — D7's replay identity and the
+  document diff both reporting a change that is not there. Closed
+  exhaustively on both sides of the pair; a probe `DocParam` variant carrying
+  an `f64` breaks **4** sites on the head against **2** on `origin/main`.
 - **What the second sweep changed about the method.** #731's first
   instrument was type-aware (`--force-warn
   clippy::wildcard_enum_match_arm`) and it *declared* a blind spot — an
@@ -815,7 +837,14 @@ the finding.
   catch-all, `_` or a bare binding, never consulting the scrutinee's type.
   It is self-tested — run against `origin/main` it re-derives
   `eval::anchor::remap_seg` unaided, through both the alias and the binding
-  catch-all. **Its own blind spot**: a brace-balance window, so it
+  catch-all. **That property was re-verified, but not that script**: no
+  sweep script ships with the fix, so the verification pass wrote its own
+  instrument of the same family (whole-file brace tracking rather than a
+  window, `if let`/`while let`/`matches!` as well as `match`, keyed on every
+  enum-variant name in `crates/` rather than a target list) and it re-derives
+  `remap_seg` on `origin/main` too. A claim that cannot be re-executed is
+  weaker than one that can, and this one is the weaker kind: what stands is
+  the property, held by a second instrument, not the run. **Its own blind spot**: a brace-balance window, so it
   false-positives across a long `impl` (it flagged `pncad-py`'s
   `select_refusal_tag`, whose wildcard is forced by `#[non_exhaustive]` and
   compensated by a pin test), and it cannot see a classification written as
@@ -7506,7 +7535,7 @@ rewritten rather than appended to.
 | # | Work | Why it is here rather than in a track |
 |---|---|---|
 | **C1** | **H12, H13, H15** — three lanes' own residues: the SSI sweeps' other never-silence doors (no acceptance row in either lane), `sweep_body`'s helix rows with no orientation coverage, #635's unclassified siblings. (**H14**, #637's two jurisdiction residues, left this row FIXED by #737.) | Each is small; together they are a lane. They are the clearest instance of ordering rule 3. |
-| **C2** | **H16, H17** — the STL header not being caller-settable while `StepOptions` carries `product_name`; and S37's rustdoc remainder, ~1115 lines across 130 files. (H11, #632's residues, was the third member and is **FIXED by #731**. The residues were two as recorded and nine as they existed — see S4's drift (b) for the seven further fail-quiet classifications in the same crate, **§C15** for what each sweep could not match, and **C12** for what #731 filed rather than fixed.) | H17 is large and mechanical; H16 is a small asymmetry with a clear right answer. |
+| **C2** | **H16, H17** — the STL header not being caller-settable while `StepOptions` carries `product_name`; and S37's rustdoc remainder, ~1115 lines across 130 files. (H11, #632's residues, was the third member and is **FIXED by #731**. The residues were two as recorded and ten as they existed — see S4's drift (b) for the seven further fail-quiet classifications in the same crate, **§C15** for what each sweep could not match, and **C12** for what #731 filed rather than fixed.) | H17 is large and mechanical; H16 is a small asymmetry with a clear right answer. |
 | **C3** | **S27, S29** — `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block; and the sizing vocabulary fragmented across five modules with self-admitted magic constants. (S30, the mesh crate's 1,060 lines of instrument, was the third member and is FIXED by #709.) **S29 is NOT blocked on a design conversation — corrected 2026-08-19.** This row previously said its policy question was routed to `docs/TESS-SPLIT-SPEC.md` and PR #568. #684's review checked: both are scoped **entirely to the NURBS per-cell schedule** (`nurbs_cert`'s `grid_steps`, certified cells, the first fundamental form — TESS-SPLIT-SPEC's D-1 replaces the AM-GM grouping, with `leaf_a f2` as its poster child). **Nothing in either covers analytic-chart sizing**, so `curved::grid_steps` has no venue at all — and #684 has since added a sixth rule to it. S29's own lesson applies to that: *N well-defended deviations read as N decisions when they are one undecided question.* S27 touches `props/`, so it must follow **A2** (#714) **and #723**, which re-opens the same file on the same closed forms — see the gating note above; S29 is edge-free. |
 | **C4** | **S32, S33** — `Surface`'s one-partial-per-call API, which is what created the shadow surface enum in SSI; and neither geometry enum being able to lift itself to another scalar. (S31, the `geom-curves`/`geom-surfaces` split, was the third member and is FIXED by #705.) | **S32 is now additionally gated on #705's merge**: the enum and its NURBS payload are one crate's two modules, so a `SurfaceJet` door at the enum no longer crosses a crate boundary. **S33 is coloured by D1**: several of its ~14 hand-written ladders exist only to reach `Dual`, and what `Bounds for Dual` changes there is written in S44's **D1 DECIDED** block. |
 | **C5** | **S26, S28's duplication half** — the certified area enclosure that is never metered against anything (`area.width()` appears nowhere in the file); and the three tessellation lanes that remain three pipelines now that #648/#674 have settled their ordering and column questions. (**S24 left this row FIXED by #702.**) | S26 was explicitly deferred in writing by #472 — *"metering against `area.lo()` … deserves its own proposal with re-measured floors"* — so it is a proposal, not a patch. S28's duplication half must follow **A3**. |
