@@ -776,7 +776,7 @@ cannot know who else is in it.
 | **C-h** | H14 — the census's record-keyed deferrals | **#737** | **MERGED** `ec12b7ce` |
 | **C-o** | H16 — `StlOptions` → validated newtypes + per-format option structs | **#732** | **MERGED** `1948e2a5` — Evan signed off after ruling all seven §5 choices |
 | **C-p** | C9 — the `agreement` column | **#738** | **MERGED** `a0a6e1a5` |
-| **C-e** | H13 — `sweep_body`'s helix orientation coverage | — | implementing; **adversarial** + style |
+| **C-e** | H13 — `sweep_body`'s helix orientation coverage | **#779** | fix pass in, CI **35/2/0 green on `0494295e`** (verified at source, not taken); cleared to merge after writing row **C25** |
 | **C-i** | H15 — #635's unclassified siblings (**23 rows**, not the three the finding names) | **#775** | **MERGED** `3fa135fa` |
 | **C-q** | C10 — `geom_core::k_stats`, S30's class one crate over | — | dispatched; **adversarial** + style; row **C22** reserved |
 | **C-j** | S29 — the mesh sizing vocabulary (mechanical half) | — | dispatched; **style only**, and owes the byte-identity proof C-R12 bought it with; row **C23** reserved |
@@ -1791,6 +1791,70 @@ inside the machinery a lane was sent to extend rather than by looking for it.
   falsifying it**, and worse-placed for noticing it should. C-q found this while
   reading the matcher to reuse it. Nobody auditing rustdoc for false sentences
   would have gone looking in a test's grep pattern.
+
+### A true model is the best camouflage an unmeasured quantifier can have
+
+The #779 correction is worth one more paragraph than it already has, because
+C-e's own account of how it happened is the generalisable part:
+
+> O1's table measured level 0 on three fixtures, found the same number twice,
+> and I generalised it to "every level" without measuring a second level. **The
+> model happened to be right, which is what made it survive re-reading.**
+
+That is the mechanism. A claim backed by a *correct derivation* passes exactly
+the check a careful reader applies — "does the maths say this?" — and the maths
+did. What the maths did not say is that **the shipped object is the model**. The
+level planes come from a Newell fit of the placed ring, deviating up to ~3.8°
+from the exact tangent, and 3.8° is worth a factor of two when the quantity is a
+near-zero cosine.
+
+**The measured table is now in `orient.rs`, and it pays for itself immediately:**
+
+| fixture | level 0 | min | max | levels above the `0.1` guard |
+|---|---|---|---|---|
+| half turn | 0.011081 | 0.011081 | **0.993462** | **486 / 513** |
+| whole turn | 0.063517 | 0.057463 | 0.129178 | 18 / 513 |
+| two turns | 0.063517 | 0.057492 | 0.129178 | 18 / 513 |
+
+Two things nobody had before it. **The half turn is *mostly* orientable** and
+fails only near its ends — which is exactly what #636's note claimed for it, so
+#636 was right about the half turn and merely gave the weaker of its two
+reasons. And **the conclusion rests on the minimum**, not on a typical value:
+the fixed-chord index needs *every* level orientable and refuses on the first
+that is not, so `0.0575` and `0.0111` are the load-bearing numbers and the row
+asserts on the minimum. The assertion had been right all along; the prose around
+it was not.
+
+*Rule, stated where a lane will read it:* **a quantifier is a claim and needs its
+own evidence.** A spot measurement agreeing with a derivation corroborates the
+derivation *at that spot*. When the two agree, that is the moment to measure a
+second point, not the moment to stop.
+
+### A capability the lanes do not have, discovered by a lane working around it
+
+#779 hit a red `render lanes / freecad montage` reporting a montage cell **not
+produced** — which that job itself classifies as a failed or partial pass rather
+than a re-baseline. C-e established it was not the diff's: the job's own
+classification, a diff touching only `crates/sweep/tests/` and docs, an empty
+`git diff` over `demos/`, and the lane green on `main`. That is the legitimate
+*not this PR's* case, established rather than assumed, and exactly the check the
+drive-to-green rules ask for.
+
+**Then it could not act on it: re-running a failed job returns 403 for a lane.**
+It pushed an **empty commit** to trigger a fresh run, which came back green.
+
+*Two things to keep.* The workaround was the only lever available and it worked,
+so this is not a reprimand — but an empty commit is a permanent record of no
+work in a repo whose stated convention is that **commits are the record of
+actual work done**, and it is the one CI-kicking move the standing rules name as
+forbidden. The real finding is upstream of the choice: **the orchestrator can
+trigger workflow runs and a lane cannot, and nothing had written that down**, so
+the lane could not know that handing the re-run up was available. Now told, and
+recorded here rather than only in one lane's message.
+
+*And the lane's own flag is the useful half*: if that scene is intermittently
+failing to produce a cell on the runner, it will hit the next lane too. Three are
+live.
 
 ### Reviewers age out of their own tree, twice now — and it is not their error
 
