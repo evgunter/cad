@@ -699,8 +699,8 @@ when the review lands, which is why it trails.
   both `Decide + Bounds` orders, both `Decide + CertifiedBounds` orders, a
   path-qualified alias after the `+`, an alias name not in the tree, a
   non-`Bounds`-named alias *declaration* in all **three** spellings (pair,
-  sole supertrait, `where Self:` — KNOWN GAP 4's mitigation, planted rather
-  than promised), real.rs beside its skipped definition lines, real.rs with
+  sole supertrait, `where Self:` — what the declaration alternative catches,
+  which is NOT a mitigation for GAP 4; see F-R15 below), real.rs beside its skipped definition lines, real.rs with
   the alias **redefined to carry `Decide`** — plus a **negative** case (sole
   bracket bounds must not fire). An exact-text skip is brittle where a name
   anchor is not, so `gate_definition_skip_subject` proves the two skipped
@@ -727,9 +727,9 @@ when the review lands, which is why it trails.
   decide-and-bracket parameter; the skip is now exact text. The path prefix
   after `+` was untested while a spelling the tree already uses depended on
   it. The same group on the left of `+` was dead and is gone. The header's
-  gap list gained **GAP 4** (an alias not named `…Bounds`) with its mitigation
-  planted, and **GAP 5** (the leading-only comment strip, F-g's to close).
-  **The header is 178 lines against 131 at open** — S116(m) measures this very
+  gap list gained **GAP 4** (an alias not named `…Bounds`, and see F-R15 — it
+  is disclosed OPEN, with no mitigation) and **GAP 5** (the leading-only comment strip, F-g's to close).
+  **The header is 195 lines against 131 at open** — S116(m) measures this very
   file at 130 and is re-measured in place rather than restored; five lines of
   comment archaeology were cut and the lane's own additions compressed twice.
   **The argument that came out of that row is worth more than the row**, and
@@ -737,19 +737,19 @@ when the review lands, which is why it trails.
   gaps are honest is longer than one whose gaps are silent, so **this
   directory wants the ratification ledger split out of the script**. The
   per-seam justifications are a document that happens to live in a comment
-  block, and they are what makes a 20-line function carry a 178-line header.
-- **The lane minted a fresh instance of the defect it closed, found it before
-  the verifier, and closed it.** GAP 4's mitigation was published as *"the
-  declaration writes the pair literally and therefore fires"* — true only of
-  `trait Bracket: Bounds + CertifiedEnclosure`. **`trait Bracket:
-  CertifiedBounds` carries both bracket doors with no `+` on the line**, so
-  neither it nor `Decide + Bracket` fired: S59 exactly, one turn later, in the
-  change that closes S59. The matcher gained a third alternative for trait
-  DECLARATIONS naming a `…Bounds` supertrait (or `where Self:`); all three
-  spellings are planted; it reds nothing in the tree. **This is the second
-  half of the track's two-for-three record on fix passes minting their own
-  defect, and self-measurement did not settle it — an attack on the published
-  sentence did.**
+  block, and they are what makes a 20-line function carry a 195-line header.
+- **The lane minted a fresh instance of the defect it closed.** GAP 4's
+  mitigation was published as *"the declaration writes the pair literally and
+  therefore fires"* — true only of `trait Bracket: Bounds +
+  CertifiedEnclosure`. **`trait Bracket: CertifiedBounds` carries both bracket
+  doors with no `+` on the line**, so neither it nor `Decide + Bracket` fired:
+  S59 exactly, one turn later, in the change that closes S59. The lane caught
+  that one itself, by attacking its own sentence rather than measuring it, and
+  added a third matcher alternative for single-line trait declarations naming
+  a `…Bounds` supertrait or `where` bound. **It then republished the
+  mitigation on that alternative, and F-R15 refuted it too** — see below.
+  **This is the track's fix-passes-minting-their-own-defect record, and the
+  datum is that self-measurement settled neither round.**
 - **A helper this lane needed and did not put in `lib.sh`.** `selftest_passes`
   — the negative twin of `gate_selftest_case` — is local to
   `bounds-allowlist.sh` and is named `bounds_selftest_passes`, deliberately
