@@ -454,16 +454,27 @@ pub trait Real:
 /// (2026-08-19 adversarial review). The `ContentBits` lock guards
 /// `editor_core::evaluate`; it guards nothing on the public surface.
 ///
-/// So this is a **standing obligation, not a live hole** — the audit
-/// below is what makes it "not a live hole", not the reachability: every
-/// `Bounds` read in the seam is a typed-error payload or a selection that
-/// takes the value channel's branch, and at a dual both are the base
-/// scalar's by delegation. What is owed is a lane, or a written reason it
-/// needs none, and it is owed on the **public** surface rather than from
-/// the day E4 seeds a dual through `evaluate`. This seam is the one
-/// allowlisted `Decide + Bounds` seam with no lane to refuse on.
-/// Recorded here rather than in a lane's notes because this paragraph is
-/// what a reader consults.
+/// So this is a **standing obligation, not a live hole** — and what makes
+/// it "not a live hole" is the AUDIT, not the reachability. All fourteen
+/// `Bounds` reads across `battery.rs`/`build.rs`/`surgery.rs` were
+/// enumerated (twice, independently): every predicate's `Ok`/`Err` comes
+/// from a `decide(...)` call, ten reads are typed-error payloads, and
+/// four are selections. Two of those four feed a classification or a
+/// mutation rather than sitting after one (`battery.rs:836` → `chain_g1`;
+/// `surgery.rs:1184` → `body.split_edge`), so their safety is
+/// **delegation** — at a dual each takes the value channel's branch,
+/// which is the base scalar's — and NOT the `sugar.rs` "choice among
+/// already-classified constructions" precedent, which does not reach
+/// them. Nothing mints a certificate object.
+///
+/// What is owed is a lane, or a written reason it needs none, and it is
+/// owed on the **public** surface rather than from the day E4 seeds a
+/// dual through `evaluate`. This seam is the one allowlisted
+/// `Decide + Bounds` seam with no lane to refuse on. Recorded here rather
+/// than in a lane's notes because this paragraph is what a reader
+/// consults; `scripts/gates/bounds-allowlist.sh` and S44's D1 block point
+/// at it rather than restating it. The full enumeration lives in PR
+/// #682's body.
 ///
 /// **Extension (M6-2, authorized by `docs/M6-2-SPEC.md` §2 under the
 /// PR 11/PR 12 precedent; retroactive Evan review per the self-merge
