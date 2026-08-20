@@ -1217,6 +1217,34 @@ when it propagates into signatures that do not otherwise care. A "no"
 is a complete answer and is recorded as the reason a row below applies,
 not as a defeat.
 
+*Row 4's message convention stays prose, and D35 is the decision not to
+gate it (PR #809, 2026-08-20).* The shape the conversion passes applied
+— **the message states WHY the state cannot occur, not merely WHAT was
+violated, and carries the values a reader debugging it would want** —
+was settled by ruling across #740 and #744 and is recorded here rather
+than as a rule anyone checks. **No gate was built, and the population is
+the reason.** Re-derived at `25175838` over `crates/*/src`, an
+`unreachable!` in macro-call position stands at **103** kernel sites
+(plus 2 in `#[cfg(test)]` modules and 29 prose mentions a bare grep
+conflates with them). **76 of the 103 are one state, not 76** — an arena
+key proven live earlier in the same call did not resolve — whose row 0
+is the `Live` brand and was answered *no* above; their messages are one
+template, written by three conversion passes under one ruling, and read
+uniformly. Only **three** messages in the whole population stated the
+what and not the why, all three outside those passes, and all three are
+fixed in the same PR. **A shape gate cannot separate the two**, and the
+tree already shows both halves of why: `topo`'s
+`d18_no_unreachable_message_can_impersonate_the_postcondition` is a
+source walk over these messages that works *because* it forbids one
+spelling, and `quantity`'s `row_index` is a message-**less** site that a
+required-message rule could not satisfy at all — `unreachable!` routes
+every message through `format_args!`, which is not const-callable, and
+`panic!` is lint-banned. **What the population wants is not a message
+rule.** It is row 0 asked at the sites where the answer might be yes:
+the non-empty-by-construction sequences and the small-domain indices,
+which are where a converted arm should have been no arm — thirteen of
+them, enumerated as `SMELL-SCAN-2026-08.md`'s **D96**.
+
 *Row 1 absorbs the terminal indeterminates.* An `Indeterminate` whose
 `MarginDiag` is `Value` (f64 margin in the ambiguity band) or an
 `Enclosure` lying wholly inside a sliver band is a statement about the
