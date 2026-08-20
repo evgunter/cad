@@ -128,18 +128,15 @@ fn the_die_is_tier3_valid_at_a_second_radius() {
     );
 }
 
-/// A subset request now routes to the M6 surgery, whose own front
-/// door refuses a partially-requested corner (run-outs) — still
-/// typed, still naming what is not implemented. (History: at M5 this
-/// row pinned the whole-body door's refusal of ANY subset.)
-///
-/// refuses TYPED naming the banked surgery unit — never half-builds.
+/// A partially-requested corner (a run-out) is outside the assembly
+/// front door: it refuses TYPED, naming what is not implemented,
+/// rather than half-building.
 #[test]
 fn a_subset_of_the_edges_refuses_at_the_assembly_front_door() {
     let body = cube(1.0);
     let edges = all_edges(&body);
     let err = fillet_edges(&body, &edges[..1], 0.15, band())
-        .expect_err("one edge of a box is in-place surgery, not the whole-body door");
+        .expect_err("one edge of a box leaves its corners partly requested");
     assert!(
         matches!(err, FilletError::AssemblyUnsupported { .. }),
         "expected the assembly front-door refusal, got {err}",

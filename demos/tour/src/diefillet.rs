@@ -16,7 +16,7 @@
 //!   `TangentIntersection` from birth, and the corner trimlines are
 //!   CIRCLES — a jet-certificate class this unit had to retire into
 //!   the lane before it could store them honestly. The selection is
-//!   `all_edges`, the whole-body materializer.
+//!   `all_edges`, the every-edge materializer.
 //! - **the pips** — 21 spherical dimples on the six faces of a sharp
 //!   cube, cut in ONE certified group operation (S13's closed-group
 //!   arm), each ball charted with its pole along the face it is cut
