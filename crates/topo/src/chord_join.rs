@@ -2466,8 +2466,8 @@ mod tests {
             "sphere_section_polar",
         ]
         .map(|rung| format!("\"split_{rung}\""));
-        let home = crate::fixtures::src_root().join("chord_join.rs");
-        let files = crate::fixtures::crate_sources();
+        let home = crate::source_walk::src_root().join("chord_join.rs");
+        let files = crate::source_walk::crate_sources();
         assert!(files.contains(&home), "the walk did not find chord_join.rs");
         for rung in &rungs {
             let mut sites = 0;

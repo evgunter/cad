@@ -243,13 +243,13 @@ fn d18_torn_body_fixture_leaves_every_prev_live() {
 /// the discriminator pass on exactly the failure it exists to catch,
 /// silently. This row is that premise as a gate.
 ///
-/// It reads the crate's own sources (the `fixtures::crate_sources`
+/// It reads the crate's own sources (the `source_walk::crate_sources`
 /// walk), so it costs a directory walk and no fixture.
 #[test]
 fn d18_no_unreachable_message_can_impersonate_the_postcondition() {
     let mut offenders: Vec<String> = Vec::new();
     let mut postcondition_messages = 0_usize;
-    for path in crate::fixtures::crate_sources() {
+    for path in crate::source_walk::crate_sources() {
         if path.ends_with("review_d18_probes.rs") {
             continue; // this row quotes the literal it forbids
         }

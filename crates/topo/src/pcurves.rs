@@ -1458,12 +1458,12 @@ pub fn validate_pcurves<T: PcurveFittedLane>(body: &Body<T>, band: Band) -> Vec<
 }
 
 #[cfg(test)]
-mod staleness_posture {
+pub(crate) mod staleness_posture {
     #![allow(clippy::expect_used)]
 
     /// Which of this module's three postures a mutation door holds.
     #[derive(Clone, Copy, Debug, PartialEq)]
-    enum Posture {
+    pub(crate) enum Posture {
         /// Clears and re-mints before returning. Read out of the
         /// source (a `mint_pcurves` call in the door's own body); an
         /// entry declares it only when the re-mint is one delegation
@@ -1477,58 +1477,18 @@ mod staleness_posture {
         Neither,
     }
 
-    /// **The convention at the top of this module, checked rather than
-    /// surveyed.** Every public mutation path into a [`crate::Body`] —
-    /// `pub fn` taking `&mut self`, plus the free functions taking
-    /// `&mut Body<T>` — either re-mints the map in its own body, which
-    /// this walk reads directly, or is declared below with its posture
-    /// and a note on that door.
+    /// `(door, posture, note)` — the doors that do NOT re-mint the
+    /// map in their own body. The reason a posture is SAFE lives once,
+    /// on the [`Posture`] variant; a note here says only what is
+    /// particular to this door.
     ///
-    /// **Why a test and not a list in prose.** A prose index has no way
-    /// to notice a door being added, and the previous one did not. This
-    /// goes red the day one lands unsorted, which is the rot the prose
-    /// could only describe.
-    ///
-    /// **What it checks, exactly.** Three failures, all mechanical: a
-    /// door that neither calls `mint_pcurves` nor appears below; a door
-    /// whose entry says anything but `Maintains` while its body calls
-    /// `mint_pcurves`; and an entry naming a door that no longer
-    /// exists.
-    ///
-    /// **Where the door set comes from.**
-    /// [`crate::fixtures::mutation_doors`], shared with the tier-1
-    /// postcondition guard in [`crate::review_m1_pr5_internal`], which
-    /// walks the same population to ask a different question. The walk
-    /// and the `&mut self` / `&mut Body` predicate live there because
-    /// they are one concept; the two tables stay in their own guards
-    /// because they are two properties of that one set, and a merged
-    /// table would let an edit about tier 1 red this guard.
-    ///
-    /// **"Calls `mint_pcurves`" is a read of code, not of prose.**
-    /// [`crate::fixtures::MutationDoor::calls`] searches the door's
-    /// body with comments and string literals blanked. This guard used
-    /// a raw `body.contains`, and a planted door whose body only
-    /// *mentioned* `mint_pcurves(` in a comment was counted as
-    /// re-minting, in both this guard and the tier-1 one, both green.
-    ///
-    /// **What it does not check.** That a `Maintains` entry is TRUE. A
-    /// re-mint reached through a delegate is invisible to a source
-    /// read, so those two entries are taken at their word — the guard
-    /// establishes that every door is sorted and that no door has
-    /// silently started minting, not that each sort is correct. The
-    /// module docs' *"what the guard does NOT establish"* list carries
-    /// this and the rest of the blind spot: delegation, and everything
-    /// outside `topo/src`'s `&mut Body` surface. The full inherited
-    /// list is on [`crate::fixtures::mutation_doors`].
-    #[test]
-    fn every_mutation_door_declares_its_pcurve_posture() {
+    /// Module-scoped rather than local to the guard so that
+    /// [`crate::review_m1_pr5_internal::the_two_door_tables_cover_the_same_surface`]
+    /// can read it. That row is the only other reader; this table
+    /// stays this guard's.
+    pub(crate) const DECLARED: &[(&str, Posture, &str)] = {
         use Posture::{Maintains, Neither, Transfers};
-
-        // `(door, posture, note)`. The reason a posture is SAFE lives
-        // once, on the `Posture` variant; a note here says only what is
-        // particular to this door — most often nothing beyond which
-        // family it belongs to.
-        const DECLARED: &[(&str, Posture, &str)] = &[
+        &[
             // ---- Maintains, one delegation away from the re-mint. ----
             (
                 "merge_coplanar_faces",
@@ -1556,7 +1516,7 @@ mod staleness_posture {
                 "graft_disjoint_all_keyed",
                 Transfers,
                 "remaps each row onto the transplanted half-edge's fresh key and DROPS any \
-                 row the graft walk did not reach, which is the staleness test itself",
+             row the graft walk did not reach, which is the staleness test itself",
             ),
             (
                 "graft_disjoint_all_onto_keyed",
@@ -1594,7 +1554,7 @@ mod staleness_posture {
                 "split_edge",
                 Neither,
                 "replaces one edge's geometry with two children — the one primitive that \
-                 makes a row stale in CONTENT rather than by key",
+             makes a row stale in CONTENT rather than by key",
             ),
             // ---- Neither: the caller's own row-level control of the
             // map, and writes the map is not keyed on. ----
@@ -1602,14 +1562,14 @@ mod staleness_posture {
                 "attach_pcurve",
                 Neither,
                 "writes ONE row the caller chose; every other row is untouched, and \
-                 certifying this one is the caller's",
+             certifying this one is the caller's",
             ),
             ("detach_pcurve", Neither, "drops ONE row the caller chose"),
             (
                 "set_face_surface",
                 Neither,
                 "a surface swap is content staleness the tier-3 pass re-certifies against, \
-                 not a key the map can lose",
+             not a key the map can lose",
             ),
             (
                 "set_edge_curve",
@@ -1628,16 +1588,61 @@ mod staleness_posture {
             ("clear_geom_sources", Neither, "GeomSource metadata"),
             ("set_null_face_pair", Neither, "null-face annotation"),
             ("clear_null_face_pair", Neither, "removes that annotation"),
-        ];
+        ]
+    };
 
+    /// **The convention at the top of this module, checked rather than
+    /// surveyed.** Every public mutation path into a [`crate::Body`] —
+    /// `pub fn` taking `&mut self`, plus the free functions taking
+    /// `&mut Body<T>` — either re-mints the map in its own body, which
+    /// this walk reads directly, or is declared below with its posture
+    /// and a note on that door.
+    ///
+    /// **Why a test and not a list in prose.** A prose index has no way
+    /// to notice a door being added, and the previous one did not. This
+    /// goes red the day one lands unsorted, which is the rot the prose
+    /// could only describe.
+    ///
+    /// **What it checks, exactly.** Three failures, all mechanical: a
+    /// door that neither calls `mint_pcurves` nor appears below; a door
+    /// whose entry says anything but `Maintains` while its body calls
+    /// `mint_pcurves`; and an entry naming a door that no longer
+    /// exists.
+    ///
+    /// **Where the door set comes from, and what it cannot see:**
+    /// [`crate::source_walk::mutation_doors`], shared with the tier-1
+    /// postcondition guard in [`crate::review_m1_pr5_internal`], which
+    /// walks the same population to ask a different question. That
+    /// function's docs carry the reason the two tables do not merge
+    /// and the whole inherited blind-spot list; this guard does not
+    /// restate either.
+    ///
+    /// **"Calls `mint_pcurves`" is a read of code, not of prose.** The
+    /// body arrives with comments and literals blanked. This guard
+    /// used a raw `body.contains`, and a planted door whose body only
+    /// *mentioned* `mint_pcurves(` in a comment was counted as
+    /// re-minting, in both this guard and the tier-1 one, both green.
+    ///
+    /// **What it does not check.** That a `Maintains` entry is TRUE. A
+    /// re-mint reached through a delegate is invisible to a source
+    /// read, so those two entries are taken at their word — the guard
+    /// establishes that every door is sorted and that no door has
+    /// silently started minting, not that each sort is correct. The
+    /// module docs' *"what the guard does NOT establish"* list carries
+    /// this and the rest of the blind spot: delegation, and everything
+    /// outside `topo/src`'s `&mut Body` surface. The full inherited
+    /// list is on [`crate::source_walk::mutation_doors`].
+    #[test]
+    fn every_mutation_door_declares_its_pcurve_posture() {
+        use Posture::Maintains;
         let mut minting: Vec<String> = Vec::new();
         let mut declared: Vec<&str> = Vec::new();
         let mut undeclared: Vec<String> = Vec::new();
         let mut mislabelled: Vec<String> = Vec::new();
 
-        for door in crate::fixtures::mutation_doors() {
+        for door in crate::source_walk::mutation_doors() {
             let entry = DECLARED.iter().find(|(n, _, _)| *n == door.name);
-            if door.calls("mint_pcurves(") {
+            if door.code_contains("mint_pcurves(") {
                 if let Some((_, posture, _)) = entry.filter(|(_, p, _)| *p != Maintains) {
                     mislabelled.push(format!("{} declared {posture:?}", door.name));
                 }
@@ -1669,11 +1674,20 @@ mod staleness_posture {
                  mutation path — it was renamed or deleted. Drop the entry.",
             );
         }
-        // A walk that found nothing would pass every assertion above.
+        // **Over-stripping is SILENT here**, which is why this pin is
+        // by name rather than a count. A door that stops reading as
+        // calling `mint_pcurves` does not red — it falls into the
+        // `else if let Some(entry)` arm and is accepted as declared.
+        // Only a door with no entry at all reds, and today exactly one
+        // door is classified by its body, so a lexing gap that erased
+        // the needle everywhere would leave this guard green over a
+        // surface it had stopped reading. The walk's own floor is
+        // upstream on `mutation_doors`; this is the needle's.
         assert!(
-            declared.len() + minting.len() >= 30,
-            "the walk found {} door(s) — it is not reading the real surface",
-            declared.len() + minting.len(),
+            minting.iter().any(|n| n == "merge_coplanar_faces_declared"),
+            "`merge_coplanar_faces_declared` no longer reads as calling `mint_pcurves`. \
+             Either the door stopped re-minting — a finding, and its entry belongs below \
+             — or the source read lost the call.",
         );
         println!(
             "[pcurve posture] {} door(s): {} re-mint, {} declared",

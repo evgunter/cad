@@ -106,8 +106,8 @@ mod tests {
     ///    pattern appears, so the textual pair never matches.
     #[test]
     fn the_planar_sense_flip_lives_in_one_place() {
-        let home = crate::fixtures::src_root().join("face_normal.rs");
-        let files = crate::fixtures::crate_sources();
+        let home = crate::source_walk::src_root().join("face_normal.rs");
+        let files = crate::source_walk::crate_sources();
         assert!(
             files.contains(&home),
             "the walk did not find face_normal.rs"

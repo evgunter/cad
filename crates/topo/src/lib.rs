@@ -150,7 +150,14 @@ pub mod euler_ring;
 pub(crate) mod face_normal;
 #[cfg(test)]
 pub(crate) mod fixtures;
+// This crate's own sources, read as source. A sibling of `fixtures`
+// rather than a section of it: that module's subject is canonical
+// bodies, this one's is a Rust reader, and the two were one file with
+// ~900 lines of fixtures between the halves. Non-doc comment for the
+// same rustdoc reason as the sector modules below.
 pub mod geometry;
+#[cfg(test)]
+pub(crate) mod source_walk;
 
 pub mod instance;
 #[cfg(test)]
@@ -180,7 +187,7 @@ mod review_m1_pr3;
 #[cfg(test)]
 mod review_m1_pr4;
 #[cfg(test)]
-mod review_m1_pr5_internal;
+pub(crate) mod review_m1_pr5_internal;
 // The shared vertex-neighborhood sector modules — top-level siblings
 // of `boolean/` and `splitting/` on purpose: both lanes ask these
 // questions, so neither hosts them (S5). Each module's own docs carry
