@@ -388,6 +388,71 @@ constraint is, and it is stated here so a Track G taker can read it.
 
 ---
 
+## Incidents (orchestrator's own)
+
+### The register's over-claim, 2026-08-20 — S157 as filed was wider than its evidence
+
+**S157 was recorded, escalated and merged with a claim one observation could
+not carry**: *"all fifteen gates currently fail on the hosted half without
+saying why."* The evidence was a single run showing only
+`Process completed with exit code 1`. **The lane that raised the finding
+refuted it** on run `32413754011`, where `ERROR:` and `##[error]` both appear
+with the full diagnosis. The `::error::` plumbing works; a gate that dies under
+`errexit` simply never reaches it.
+
+The finding survives, **narrowed to the mechanism** — which is where it was
+always strongest, and which the style review had already stated precisely. What
+did not survive is the generalisation the orchestrator wrapped around it.
+
+**Why this one is worth an incident when a lane's would be worth a fix.**
+This track has ruled on *a claim wider than its evidence* four times today —
+F-a's record edits, F-b's box twice, F-f's *"stated as total and is not"*. Every
+one of those was caught because **a lane's claims get a reviewer**. The
+register's do not. An orchestrator writing a finding is the one author on this
+track with no adversary, and the failure mode is identical.
+
+**Two things follow.** *A finding is not exempt from the standard it enforces* —
+S157 was written from one run and escalated on a review's diagnosis without
+re-deriving the escalated part. And **the sharpest reviewer of a finding is the
+lane that raised it**: F-f had the run open, knew what its own gate printed, and
+said so against a document that had just credited it. That is worth more than
+the finding was.
+
+## Standing rules this track derived
+
+### A verification is valid for the PATHS it verified, not for the SHA it ran on
+
+Two correct rules pulled against each other: **a PR must never sit CONFLICTING**
+(it runs *no* checks at all and reads as CI being absent rather than failing),
+and **a head must not move under a running verification**. Freezing the branch
+resolves it in the wrong direction — it trades a real risk for a bookkeeping
+convenience.
+
+The resolution costs one command. A verification names **the SHA it measured**
+and **the path set it is about**; the lane, after any merge, reports the new
+SHA **paired with**
+
+    git diff <verified-sha> <new-head> -- <that path set>
+
+**Empty → the verification still holds, whatever else moved.** Non-empty → it
+is re-run rather than reasoned about. Neither party has to wait for the other,
+and each half is checkable by the other.
+
+**Two refinements the lane added, both better than the rule as issued.** *Merge
+while still `MERGEABLE` rather than waiting to conflict* — same move, strictly
+cheaper, and it never passes through the state where CI is silent. And *widen
+the path-diff past the paths under verification to the whole subtree the unit
+owns*, so the answer covers the rest of the unit rather than only the row being
+checked.
+
+**Report the merge and the diff together.** A merge reported without its
+path-diff is a claim the orchestrator then has to go and check; the diff is the
+thing that makes the merge harmless, so it travels with it.
+
+*(Second instance today of two correct rules colliding. The first: a unit records
+its completion in its own PR, yet cannot cite a PR number before the PR exists —
+resolved by opening with an honest placeholder rather than a claim.)*
+
 ## Reviews
 
 ### #783 (F-b / S73 parts 1 and 3) — style lane, 2026-08-20: **NOT CLEARED**
@@ -406,6 +471,50 @@ all"*.
 | # | Ruling |
 |---|---|
 | **F-R7** | **The `tess-meter` box reds on a refinement that improves the answer.** Holding `SPLIT_SCAN_DECADES = 8.0`, **S=1000 fails while returning 4844 cells — strictly better than the shipped 4911**; S=322 fails `cells <= 4911` at 4987. The green step counts are exactly the lattices containing exponent `-3.7`; the reds are the ones that do not. So the row pins the constants to **a sample lattice, not a resolution**, and its failure message — *"the range is too narrow or the step is too coarse"* — is wrong in the surprising cases, because those step counts are **finer**. The unit's own defence, *"refinement cannot red it, deliberately"*, is **false**: the superset argument holds only when `S-1` is a multiple of 320. **Direction ruled, shape left to the lane: pin the RELATION, not the answer** — a test that computes its own reference refinement and asserts the shipped pair is within a stated tolerance is monotone-safe by construction. **"No honest box exists" is a passing answer**, recorded at the claim site per Q6; *making it worse than the non-monotone pin it replaced* is the one outcome the row cannot ship. Riding with it: the *"within 2.0%"* figure is **2.04%** on the reviewer's measurement and rests on an unstated choice of denominator. |
+
+### #783 F-R7 — independent verification, 2026-08-20: **the fix FAILED, second instance**
+
+**`SPLIT_SCAN_STEPS = 321 → 323` reds the row** — two steps above shipped,
+5.2369% against a 5% pin. The verifier scanned **every** S in 322..2000 with a
+replica validated to reproduce the real build to the digit and found **exactly
+one red: S=323.** Rarer than the defect it replaced, same species — *the
+docstring's thirteen rows were a sample that missed the counterexample sitting
+next door.*
+
+**Every figure the lane reported reproduced exactly.** The verifier's own words:
+*"the lane measured honestly — the defect is in the claim's shape, not its
+arithmetic."*
+
+| # | Ruling |
+|---|---|
+| **F-R14** | **Second instance, so no third patch — the row goes to first principles, and the first principle is now measured.** *The worst excess moves ~3 percentage points between **adjacent** step counts; the headroom is 0.54.* **The quantity being pinned is discontinuous in the parameter it is pinned against** — so no tolerance on the excess can simultaneously admit every refinement and exclude every degradation. Wide enough to survive the jumps is too weak to catch a degradation; tight enough to catch one is a lottery on the lattice. **Both failed versions failed for this reason wearing different clothes.** The expected answer is the one F-R7 pre-authorised: **not boxable by a tolerance on the excess, recorded at the claim site with this measurement as the reason** — Q6's *"a written reason it can have neither"*, now evidenced rather than shrugged. **And the real result is the question it forces: if the excess is discontinuous in `S`, what resolution guarantee do these constants provide at all?** Possibly none — which is a bigger finding than the box that was asked for. |
+
+**Independent of the boxing question: the oracle guard is green by
+construction.** The shipped lattice is a **strict subset** of the reference's
+(exponents at multiples of 0.05 in [-8,8] against 1e-4 in [-12,12], ratio exactly
+500; **0 of 321 shipped samples lie off the reference lattice**), and both seed
+with the same lane fallback — so `reference <= shipped` holds by construction.
+**Replacing the reference with the subject itself leaves the row GREEN at
+0.0000% on all five members.** A guard that passes when its reference is replaced
+by the thing it judges. Two more, both `sure`: **tolerance and family are not
+independent** (a plausible sixth member scores 5.8824%, and the worst shipped
+member is *mildly anisotropic*, not the ruled wall the row is about), and the
+`D = 3/4` *"genuinely better"* argument is outcome-correct with a **failed
+mechanism**.
+
+**What this says about the verification lane, which is why it was run.** The
+lane had *itself* identified an oracle gap — under-convergence — and asked
+whether to close it. **It was deliberately held**, so that an independent lane's
+result would be interpretable rather than a re-check of a known answer. The
+verifier found **a strictly worse instance of the same gap**: not an imprecise
+oracle, an oracle that can *be* the subject. So the gap was findable from
+outside, the hold cost one round and bought a calibration, and the author's
+restraint is what made the answer mean anything.
+
+**The rule this hardens.** *A guard verified only by its author's chosen
+samples is a sample, not a guard* — and when the quantity is discontinuous, no
+number of author-chosen samples converges on the truth. Both versions of this row
+were green on thirteen honestly-measured points and false as stated.
 
 ### #798 (F-f / S61, S62, D58–D60) — style lane, 2026-08-20: **NOT CLEARED**, five MAJORs
 
