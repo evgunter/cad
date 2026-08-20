@@ -8061,6 +8061,10 @@ NURBS face that reroutes to a non-NURBS lane, which is the *"silent
 coverage loss reads as an improvement"* case `lib.rs:79-81` calls a
 finding rather than a footnote. No test covers scene-present-face-missing.
 
+*Line numbers as found, and #783 moved them further: the join is
+`compare`'s `key` closure and the `else { continue }` arm below it,
+which that PR left untouched and marked at the site.*
+
 **Part three is closed by boxing the constant from both sides, on both
 rules it governs.** Re-derived on `4f959cb4` by bisecting
 `GROWTH_TOLERANCE` against the suite rather than transcribing the
