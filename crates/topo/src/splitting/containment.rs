@@ -24,8 +24,11 @@
 //! could diverge between the f64 and interval lanes; a fixed schedule
 //! whose degenerate members are *detected by predicate* cannot):
 //! direction k is `r_k − n(n·r_k)` for the k-th schedule vector `r_k`,
-//! accepted iff its length is definitely positive
-//! (**`point_in_loop_arm`**; a near-parallel `r_k` is simply skipped).
+//! accepted iff the in-plane displacement it commands at the loop's
+//! own scale — `(|r_k − n(n·r_k)| / |r_k|) · extent`, not the bare
+//! projected length — is definitely positive (**`point_in_loop_arm`**;
+//! a near-parallel `r_k` is skipped, and a loop collapsed onto `q`
+//! zeroes the arm for *every* member and ends in `RayExhausted`).
 //!
 //! # Predicates (all K-tagged, meters)
 //!
@@ -39,8 +42,9 @@
 //! - **`point_in_loop_boundary`**: distance of `q` to an edge segment
 //!   (perpendicular distance when the foot lies inside the span,
 //!   endpoint distance otherwise) — Zero ⇒ `OnBoundary`.
-//! - **`point_in_loop_arm`**: length of a projected schedule
-//!   direction (skip gate, see above).
+//! - **`point_in_loop_arm`**: a projected schedule direction's
+//!   in-plane fraction levered by the loop's reach from `q` (skip
+//!   gate, see above) — the loop's own extent is half of it.
 //! - **`point_in_loop_side`**: signed offset of an edge endpoint from
 //!   the ray line — Zero ⇒ grazing ⇒ next ray.
 //! - **`point_in_loop_advance`**: the crossing's advance along the
@@ -54,9 +58,11 @@ use crate::entity::{LoopBoundary, LoopKey};
 use crate::ray_parity::{self, ParityRows};
 use crate::validate::decide;
 
-/// This consumer's K rows for the shared walk. The 3-D loop's
+/// This consumer's K rows for the shared walk, and the greppable
+/// roster entry for all four (see [`ParityRows`]). The 3-D loop's
 /// `point_in_loop_arm` row is not among them: it gates the *frame*
-/// construction below, which is this consumer's own.
+/// construction below, which is this consumer's own, and is written
+/// at its own `decide` call.
 const ROWS: ParityRows = ParityRows {
     segment: "point_in_loop_segment",
     boundary: "point_in_loop_boundary",
@@ -185,7 +191,7 @@ pub fn point_in_loop<T: Decide>(
     let escalate = |diag| PointInLoopError::Escalated { r#loop, diag };
     let points = loop_points(body, r#loop)?;
 
-    if ray_parity::on_boundary(&points, q, &ROWS, band, escalate)? {
+    if ray_parity::on_boundary(&points, q, &ROWS, band).map_err(escalate)? {
         return Ok(LoopContainment::OnBoundary);
     }
 
@@ -218,7 +224,7 @@ pub fn point_in_loop<T: Decide>(
         let d = d_raw.normalize();
         let side_axis = normal.cross(d); // in-plane ⟂, unit
         if let Some(inside) =
-            ray_parity::ray_verdict(&points, q, d, side_axis, &ROWS, band, escalate)?
+            ray_parity::ray_verdict(&points, q, d, side_axis, &ROWS, band).map_err(escalate)?
         {
             return Ok(if inside {
                 LoopContainment::In

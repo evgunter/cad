@@ -882,7 +882,9 @@ const SCHEDULE_2D: [[f64; 2]; 16] = [
     [1.0, -0.75],
 ];
 
-/// This consumer's K rows for the shared walk ([`crate::ray_parity`]).
+/// This consumer's K rows for the shared walk ([`crate::ray_parity`]),
+/// and the greppable roster entry for all four (see
+/// [`crate::ray_parity::ParityRows`]).
 /// Chart-space margins are metered separately from the 3-D loop's —
 /// the polygon is metred by the exact arms, but it is a different
 /// population — so the names stay distinct even though the walk is one.
@@ -922,7 +924,7 @@ fn point_in_polygon<T: Decide>(
 ) -> Result<PolyContainment, ChartRegionError> {
     let escalate = ChartRegionError::Escalated;
 
-    if ray_parity::on_boundary(poly, q, &ROWS, band, escalate)? {
+    if ray_parity::on_boundary(poly, q, &ROWS, band).map_err(escalate)? {
         return Ok(PolyContainment::OnBoundary);
     }
 
@@ -930,7 +932,8 @@ fn point_in_polygon<T: Decide>(
     for r in &SCHEDULE_2D {
         let d = Vec2::new(T::from_f64(r[0]), T::from_f64(r[1])).normalize();
         let side_axis = Vec2::new(T::zero() - d.y, d.x); // in-plane ⟂, unit
-        if let Some(inside) = ray_parity::ray_verdict(poly, q, d, side_axis, &ROWS, band, escalate)?
+        if let Some(inside) =
+            ray_parity::ray_verdict(poly, q, d, side_axis, &ROWS, band).map_err(escalate)?
         {
             return Ok(if inside {
                 PolyContainment::In
