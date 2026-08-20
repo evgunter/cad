@@ -49,7 +49,7 @@
 //! axis, degenerate weights) poisons the bound, which fails every
 //! `≤ ε` comparison (D4 ¶2).
 
-use super::knots::{KnotVector, SplineError};
+use super::knots::{KnotVector, SplineError, find_span_in};
 use crate::ring_interval::RingInterval;
 
 pub mod tensor;
@@ -269,25 +269,6 @@ impl BernsteinSpans {
 // Bézier decomposition (module docs step 2)
 // ---------------------------------------------------------------------
 
-/// The distinct interior knot values of `kv` with their multiplicities
-/// (ascending — structure scan, exact `f64` identity).
-fn interior_values(kv: &KnotVector) -> Vec<(f64, usize)> {
-    let p = kv.degree();
-    let knots = kv.knots();
-    let mut out = Vec::new();
-    let mut idx = p + 1;
-    while idx < knots.len() - p - 1 {
-        let v = knots[idx];
-        let mut m = 1;
-        while idx + m < knots.len() - p - 1 && knots[idx + m] == v {
-            m += 1;
-        }
-        out.push((v, m));
-        idx += m;
-    }
-    out
-}
-
 /// One Boehm insertion of `u` into the raw knot list `knots` (degree
 /// `p`, current multiplicity `s` of `u`), coefficients combined in the
 /// ring: `Q_i = c_{i−1} + (c_i − c_{i−1})·α_i` with
@@ -300,14 +281,25 @@ fn insert_once_ring(
     coeffs: &mut Vec<RingInterval>,
     u: f64,
 ) {
-    // Span k: the last index with knots[k] ≤ u (interior u of a valid
-    // clamped vector, so 0 < k < len − 1).
-    let mut k = 0;
-    for (i, kn) in knots.iter().enumerate() {
-        if *kn <= u {
-            k = i;
-        }
+    // The precondition of everything below: `u` strictly inside the
+    // domain. The span search is total on all of `f64` and answers
+    // *something* outside — the last span at or above the domain end,
+    // the first below it or at NaN — and that answer is not the one
+    // this arithmetic needs; inserting at an end would break the clamp
+    // besides. Observed here, in the frame that depends on it, rather
+    // than inherited from the caller's structure filter (D2 addendum
+    // row 4: a kernel-bug state the code can simply observe, so
+    // `unreachable!` and not a re-deriving `debug_assert`). Not
+    // input-reachable: the only caller draws `u` either from
+    // `interior_knots`, whose values are strictly interior by the
+    // `KnotVector` invariant, or from extras it filters to the open
+    // domain, which also rejects NaN.
+    if !(u > knots[p] && u < knots[knots.len() - p - 1]) {
+        unreachable!("insert_once_ring at {u}, outside the open domain");
     }
+    // Span k: knots[k] ≤ u < knots[k+1], the last copy's span, so
+    // 0 < k < len − 1.
+    let k = find_span_in(knots, p, u);
     let n_old = coeffs.len();
     let mut out = Vec::with_capacity(n_old + 1);
     let up = RingInterval::point(u);
@@ -356,13 +348,21 @@ fn to_bezier_spans_extra(
     // Merge the existing interior values (multiplicity from the vector)
     // with the fresh extras (multiplicity 0), ascending, exact-`f64`
     // dedup — pure structure (C6's f64 lane).
-    let mut interior = interior_values(kv);
+    let mut interior: Vec<(f64, usize)> = kv.interior_knots().collect();
     for &v in extra {
         if v > lo && v < hi && !interior.iter().any(|(w, _)| *w == v) {
             interior.push((v, 0));
         }
     }
     interior.sort_by(|a, b| a.0.total_cmp(&b.0));
+    // `knots` is a valid clamped vector for `p` at every step, which is
+    // what lets the raw span search be called on it: each insertion
+    // places one copy of a strictly interior `v` inside the existing
+    // order (so still non-decreasing, and both clamp runs untouched),
+    // and `step` stops at `p`, so no interior multiplicity exceeds the
+    // degree. Rebuilding a `KnotVector` per step would re-establish
+    // that by validation, at a clone and an O(n) re-check each — the
+    // reason this path is raw at all.
     for (v, m) in &interior {
         for step in *m..p {
             insert_once_ring(&mut knots, p, step, &mut c, *v);
@@ -907,6 +907,63 @@ mod tests {
             }
         }
         num.iter().map(|v| v / den).collect()
+    }
+
+    /// The raw insertion path's span derivation, at **every step of a
+    /// real multi-insertion decomposition**, against the linear scan it
+    /// replaced. The integration differential
+    /// (`tests/knot_queries_differential.rs`) covers the two searches on
+    /// static vectors; this one covers the thing that static test
+    /// cannot — that the knot list stays a valid clamped vector as it is
+    /// mutated in place, so the binary search is entitled to run on it.
+    #[test]
+    fn the_raw_span_search_tracks_the_linear_scan_through_every_insertion() {
+        let retired = |knots: &[f64], u: f64| {
+            let mut k = 0;
+            for (i, kn) in knots.iter().enumerate() {
+                if *kn <= u {
+                    k = i;
+                }
+            }
+            k
+        };
+        // Degree 3, three interior values at multiplicities 1, 2, 3 —
+        // so the decomposition inserts at a fresh value, at a partly
+        // filled one, and skips the already-full one.
+        let kv = KnotVector::clamped(
+            vec![
+                0.0, 0.0, 0.0, 0.0, 0.2, 0.5, 0.5, 0.8, 0.8, 0.8, 1.0, 1.0, 1.0, 1.0,
+            ],
+            3,
+        )
+        .unwrap();
+        let p = kv.degree();
+        let mut knots = kv.knots().to_vec();
+        let mut coeffs: Vec<RingInterval> = (0..kv.control_count())
+            .map(|i| RingInterval::point(i as f64))
+            .collect();
+        let interior: Vec<(f64, usize)> = kv.interior_knots().collect();
+        assert_eq!(interior, vec![(0.2, 1), (0.5, 2), (0.8, 3)]);
+        for (v, m) in &interior {
+            for step in *m..p {
+                // Checked BEFORE the insertion, against the list as it
+                // stands at this step — the state a static fixture has
+                // no way to reach.
+                assert_eq!(
+                    find_span_in(&knots, p, *v),
+                    retired(&knots, *v),
+                    "step {step} at {v}: the binary search left the linear scan"
+                );
+                assert!(
+                    KnotVector::clamped(knots.clone(), p).is_ok(),
+                    "step {step} at {v}: the raw list stopped being a valid clamped vector"
+                );
+                insert_once_ring(&mut knots, p, step, &mut coeffs, *v);
+            }
+        }
+        // Full multiplicity everywhere: four segments over degree 3.
+        assert_eq!(knots.len(), 2 * (p + 1) + 3 * p);
+        assert_eq!(coeffs.len(), 4 * p + 1);
     }
 
     fn lift(coords: &[Vec<f64>]) -> Vec<Vec<RingInterval>> {

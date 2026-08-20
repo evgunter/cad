@@ -42,6 +42,8 @@ mod eps_provenance;
 mod flagged_census;
 #[path = "interval_band.rs"]
 mod interval_band;
+#[path = "knot_queries_differential.rs"]
+mod knot_queries_differential;
 #[path = "m5_pr1_poison_conservation.rs"]
 mod m5_pr1_poison_conservation;
 #[path = "m5_pr7b_tensor_compose.rs"]

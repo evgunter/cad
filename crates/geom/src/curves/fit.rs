@@ -373,20 +373,6 @@ pub fn interpolate_columns(
     Ok((kv, control))
 }
 
-/// The distinct interior knot values of `kv`, ascending (structure
-/// scan, exact `f64` identity) — the removal sweep's candidate list.
-fn distinct_interior(kv: &KnotVector) -> Vec<f64> {
-    let p = kv.degree();
-    let knots = kv.knots();
-    let mut out: Vec<f64> = Vec::new();
-    for u in &knots[p + 1..knots.len() - p - 1] {
-        if out.last() != Some(u) {
-            out.push(*u);
-        }
-    }
-    out
-}
-
 macro_rules! nurbs_fit {
     ($Curve:ident, $Point:ident, $($c:ident),+) => {
         impl $Curve<f64> {
@@ -662,7 +648,11 @@ macro_rules! nurbs_fit {
                     // so this terminates; the budget caps it anyway).
                     loop {
                         let mut removed_any = false;
-                        for u in distinct_interior(cur.knots()) {
+                        // Collected: the body replaces `cur`, so the
+                        // candidate list must outlive the borrow.
+                        let candidates: Vec<f64> =
+                            cur.knots().interior_knots().map(|(u, _)| u).collect();
+                        for u in candidates {
                             if attempts >= budget {
                                 return Err(FitError::BudgetExhausted {
                                     budget,
@@ -719,8 +709,7 @@ macro_rules! nurbs_fit {
                 // interior knots descend from the same chord params).
                 let mut need: Vec<(f64, usize)> = Vec::new();
                 for kv in [self.knots(), reference.knots()] {
-                    for u in distinct_interior(kv) {
-                        let m = kv.multiplicity_of(u).map_or(0, |(s, _)| s);
+                    for (u, m) in kv.interior_knots() {
                         match need.iter_mut().find(|(v, _)| *v == u) {
                             Some(entry) => entry.1 = entry.1.max(m),
                             None => need.push((u, m)),
