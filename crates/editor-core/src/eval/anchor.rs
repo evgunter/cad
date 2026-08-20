@@ -281,6 +281,13 @@ fn remap_vertex(naming: &ProfileNaming, v: ProfileVertexRef) -> ProfileVertexRef
 /// Rewrites the profile-ref-bearing role segments an emitter minted
 /// DIRECTLY (extrude/revolve/loft emitters; wrapped upstream names are
 /// already program-anchored, so composition variants are untouched).
+///
+/// Not to be confused with [`crate::refactor`]'s function of the same
+/// name: that one partitions [`RoleSeg`] by whether the variant embeds
+/// a [`StableName`] and recurses into the ones that do; this one
+/// partitions it by whether the variant embeds a PROFILE LOCATOR, and
+/// does not recurse — the sentence above is why, and nothing enforces
+/// it.
 fn remap_seg(naming: &ProfileNaming, seg: RoleSeg) -> RoleSeg {
     use RoleSeg as R;
     match seg {

@@ -116,7 +116,14 @@ pub(crate) fn validate_document(
     validate_snapshot(snapshot).map_err(super::PersistError::Snapshot)
 }
 
-/// The first non-finite float the format would write, or `None`.
+/// The first non-finite float in ε, the document params, the profile
+/// nodes, the appearance records or the edit log, reported as a
+/// [`NonFiniteSite`], or `None`.
+///
+/// NOT every float the format writes: placement frames and mate
+/// alignments are checked by [`validate_snapshot`] and reported under
+/// [`SnapshotError`], because they are structural state rather than a
+/// value the writer is asked to round-trip.
 fn first_non_finite(
     snapshot: &ProfileDoc,
     edits: &[DocEdit<ProfileProgram>],
@@ -210,9 +217,20 @@ fn edit_non_finite(edit: &DocEdit<ProfileProgram>) -> Option<NonFiniteSite> {
         // guarded arms above are repeated without their guards because
         // a guarded arm does not count towards exhaustiveness.
         //
-        // `InsertNode`'s other node kinds hold their floats in `Expr`
-        // literals, finite by the construction door; the `Node`
-        // vocabulary itself is not closed here (S4's node-kinds row).
+        // Why the classified variants carry nothing for this door,
+        // stated per mechanism rather than in one sweeping clause:
+        //
+        // - Most `InsertNode` node kinds hold their floats in `Expr`
+        //   literals, finite by the construction door.
+        // - `Node::Mate`'s `alignment` and `SetPlacement`'s `frame` are
+        //   RAW `f64`, not `Expr`s. They are refused on replay by
+        //   `apply` (`EditError::NonFiniteAlignment`,
+        //   `NonFinitePlacement`), which `persist::load` runs the log
+        //   through — so they are guarded, but by a door this function
+        //   deliberately does not rely on for the rest of its list.
+        //   That asymmetry is the reason this comment enumerates.
+        // - The `Node` vocabulary is not closed here: this match is
+        //   exhaustive on `DocEdit`, not on `Node`.
         DocEdit::InsertNode { .. }
         | DocEdit::SetTolerance { .. }
         | DocEdit::DeleteNode { .. }

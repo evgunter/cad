@@ -534,9 +534,17 @@ fn remap_name(name: &StableName, map: &NodeMap) -> Result<StableName, RecipeNode
     })
 }
 
-/// One segment of [`remap_name`]'s rewrite. The match is EXHAUSTIVE on
-/// purpose (the walk_names rule): a future [`RoleSeg`] variant
-/// embedding names must be classified here or the compile breaks.
+/// One segment of [`remap_name`]'s rewrite: the [`RoleSeg`] partition
+/// by whether the variant embeds a [`StableName`], recursing into the
+/// ones that do. Not to be confused with `eval::anchor`'s function of
+/// the same name, which partitions the same enum by whether it embeds a
+/// PROFILE LOCATOR and deliberately does not recurse.
+///
+/// The match is EXHAUSTIVE on purpose (the walk_names rule): a future
+/// [`RoleSeg`] variant embedding names must be
+/// classified here or the compile breaks — or, if it embeds no name,
+/// added to [`crate::names::name_free_seg`], which is the one place
+/// that answer is written for this and its two sibling matches.
 #[allow(clippy::too_many_lines)] // one arm per RoleSeg variant, each short
 fn remap_seg(seg: &RoleSeg, map: &NodeMap) -> Result<RoleSeg, RecipeNodeId> {
     use RoleSeg as R;

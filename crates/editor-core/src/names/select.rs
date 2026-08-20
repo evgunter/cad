@@ -328,7 +328,9 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
 /// carries verdicts rather than a role argument and contributes none.
 /// The match is EXHAUSTIVE on purpose (the `walk_names` rule): a
 /// future [`RoleSeg`] or [`Qualifier`] variant embedding names must be
-/// classified here or the compile breaks.
+/// classified here or the compile breaks — or, if it embeds no name,
+/// added to [`crate::names::name_free_seg`], which is the one place
+/// that answer is written for this and its two sibling matches.
 fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
     match seg {
         RoleSeg::FromA(n)
