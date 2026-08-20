@@ -175,7 +175,7 @@ fn every_document_verb_survives_the_wire() {
 /// step shapes the corpus omits. The one it deliberately omits is a
 /// fused step whose two specs are the same `Sweep`/`ArcLen`/`Bulge`
 /// mode — unreachable from every recording surface, representable by
-/// hand, and aliasing today (issue linked at `spec_slots`).
+/// hand, and aliasing today (issue #829).
 #[test]
 fn every_enumerated_slot_addresses_a_distinct_expression() {
     let program = corpus();

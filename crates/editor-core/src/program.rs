@@ -56,6 +56,16 @@ pub enum ProgramTarget {
 /// (V2's table: coordinates/lengths/radii `Length`, angle/turn/phase
 /// `Angle`, bulge and director components `Scalar`).
 ///
+/// It is a second spelling of a vocabulary `profile` declares once,
+/// and it has to be: a step here carries `Expr`s and serializes, and
+/// G1 layering keeps both out of the kernel crate. What holds the two
+/// in step is not this comment — [`LoopProgram::from_recorded`] below
+/// is exhaustive on [`profile::Step`], so a verb the transition table
+/// gains breaks this file at compile, and
+/// `tests/switch_program_vocabulary.rs` is the census that makes it
+/// break for the right reason: the verb has to arrive HERE, not merely
+/// be discharged in `from_recorded`'s error arm.
+///
 /// Fields are public data (the node-slot pattern: dimensions are
 /// checked at the edit door via [`ProfileProgram::slots`] +
 /// [`StepArg::dimension`], and at the persistence doors' shared
@@ -365,9 +375,15 @@ fn spec_slots(spec: &ProgramArcData, second: bool, out: &mut Vec<StepArg>) {
             target_slots(target, out);
             out.push(A::Bulge);
         }
-        // Bulge is never an arrival (§2c); a second-position Bulge is
-        // unrepresentable from the recording surface, but slot
-        // enumeration must stay total over the data type.
+        // Three modes have no spec-2 role twin — `Bulge`, `Sweep` and
+        // `ArcLen` — because none of them is an arrival mode (§2c:
+        // `ArrivalSpec` is implemented for `Radius`, `Via` and
+        // `Center` only), so no recording surface can put one in
+        // second position. Enumeration stays total over the data type
+        // regardless, and for a HAND-BUILT step whose two specs are
+        // the SAME one of those three the role it reuses addresses the
+        // incoming spec's argument twice and the arrival's not at all
+        // — issue #829.
         (S::Bulge { target, .. }, true) => {
             target2_slots(target, out);
             out.push(A::Bulge);
@@ -662,6 +678,11 @@ fn res_target(
 }
 
 /// Resolves one chain step to its scalar-valued mirror.
+///
+/// This is the direction the compiler cannot check: it MATCHES
+/// [`ProgramStep`] and CONSTRUCTS a [`Step`], so a verb `profile`'s
+/// table gains is invisible here. The census in
+/// `tests/switch_program_vocabulary.rs` is what sees it.
 fn res_step(
     s: &ProgramStep,
     env: &ParamEnv<f64>,
