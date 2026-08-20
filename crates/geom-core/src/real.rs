@@ -353,8 +353,8 @@ pub trait Real:
 /// [`Real`] omits bound extraction so evaluation code cannot silently
 /// collapse an interval to a number (see the [module docs](self)); this
 /// trait is the separate door those docs promised. Its scope is a named
-/// style rule under the evaluation-code discipline (L7 in
-/// `docs/M0-LOG.md`): `Bounds` may appear only in **certification and
+/// style rule under the evaluation-code discipline (M0 L7):
+/// `Bounds` may appear only in **certification and
 /// driver code** — residual certification, the subdivision driver,
 /// rendering/telemetry — never in evaluation signatures. Code that needs
 /// it writes `T: Bounds` as the parameter's sole bound (it is a subtrait,
@@ -476,9 +476,8 @@ pub trait Real:
 /// at it rather than restating it. The full enumeration lives in PR
 /// #682's body.
 ///
-/// **Extension (M6-2, authorized by `docs/M6-2-SPEC.md` §2 under the
-/// PR 11/PR 12 precedent; retroactive Evan review per the self-merge
-/// convention):** the **SSI rung-3 certificate** —
+/// **Extension (M6-2, authorized under the PR 11/PR 12 precedent;
+/// retroactive Evan review per the self-merge convention):** the **SSI rung-3 certificate** —
 /// `geom_brep::ssi` (the `certify_rung3` door),
 /// `geom_brep::ssi::certify` (the three limbs) and
 /// `geom_brep::pcurve_cache`'s fitted lane — joins the compound
@@ -502,7 +501,7 @@ pub trait Real:
 /// **sole-bound** `T: Bounds` the rule already allows, and is not
 /// allowlisted.
 ///
-/// **Extension (M7-8, `docs/M7-8-SPEC.md` under Evan's #264 ruling):**
+/// **Extension (M7-8, under Evan's #264 ruling):**
 /// `geom_brep::edge_nurbs` — the plane × NURBS declare-and-check edge
 /// lane — joins the allowlist as the narrowest possible extension of
 /// the M6-2 seam. It adds no new obligation: it DELEGATES to the
@@ -516,9 +515,8 @@ pub trait Real:
 /// attach and validate doors take the lane as an injected function,
 /// so no `topo` API grows a bracket bound.
 ///
-/// **Extension (M9-2 PR-1, `docs/M9-2-SPEC.md` item 1 under the
-/// PR 11 precedent; retroactive Evan review per the self-merge
-/// convention):** `topo::chart_region` — the chart-region overlap
+/// **Extension (M9-2 PR-1, under the PR 11 precedent; retroactive
+/// Evan review per the self-merge convention):** `topo::chart_region` — the chart-region overlap
 /// predicate — joins the compound allowlist. It is the quadrature
 /// seam's class exactly: it simultaneously DECIDES (its
 /// `chart_region_*` funnel margins) and reads **exact-`f64`

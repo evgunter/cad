@@ -1,5 +1,5 @@
 //! **Exact-arithmetic soundness fuzz of the C9 interval ring** (M5 PR 2,
-//! `docs/M5-PR2-SPEC.md` family 1).
+//! acceptance family 1).
 //!
 //! Every containment claim below is checked against the **exact** value
 //! of the operation over the reals — never against a second

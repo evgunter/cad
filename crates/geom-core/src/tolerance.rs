@@ -66,7 +66,7 @@ use core::fmt;
 use std::sync::OnceLock;
 
 /// Environment variable consulted for ε on `get()` self-initialization
-/// (name fixed by CI's multi-ε matrix, L3 in `docs/M0-LOG.md`).
+/// (name fixed by CI's multi-ε matrix; M0 L3).
 pub const ENV_EPS: &str = "CAD_TOLERANCE_EPS";
 
 /// Compiled default for ε: 1e-9 m (ratified, D4 ¶1) — micron-to-kilometer

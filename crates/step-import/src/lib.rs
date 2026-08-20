@@ -1,7 +1,7 @@
 //! STEP (ISO 10303-21 / AP214) import of the analytic subset the
 //! kernel exports — D7's "import is adoption, not admission" made
 //! executable for the first slice: the corpus `step-export` writes
-//! (M7-1; `docs/M7-1-SPEC.md`).
+//! (M7-1).
 //!
 //! # What this is
 //!
@@ -131,7 +131,7 @@
 //! (the banked rational-patch-flux lane), so the at-rest gate below
 //! refuses them at import until that lane lands.
 //!
-//! # The wild (M7-4; `docs/M7-4-SPEC.md`)
+//! # The wild (M7-4)
 //!
 //! The subset above is what the writer emits. What translators emit
 //! is a *dialect* of it, and reading files nobody here authored is
