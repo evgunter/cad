@@ -543,7 +543,7 @@ placed. Reissued:
 | D69–D70 | **D86–D87** | E-m |
 | D61–D62 | **D88–D89** | E-h — D88 is `merge_faces.rs:766`'s `unwrap_or_default` discard |
 
-Next unassigned in Track E's block: **D94**.
+Next unassigned in Track E's block: **D96**.
 re-issued — a number that has appeared in a lane's report, even as *unused*, is
 cheaper to skip than to explain.
 
@@ -1344,6 +1344,56 @@ was right to carry it. And **S68's problem statement must be left alone**: the
 `S`-series `Verdict:` line is Evan's by convention and S-findings keep their
 bodies — unlike D-rows, whose recording convention demands the problem statement
 be removed. I had the two conventions blurred; leaving S68 untouched was correct.
+
+### #773's adversarial lane broke four claims by building, and the census survived (2026-08-20)
+
+**What survived is worth stating first, because it is most of the unit.** The
+count was re-derived **twice independently** — direct enumeration of the diff,
+and a 180-hit sweep of the base tree with all 120 non-W2c hits classified by hand
+— and there is **no 18th site inside `crates/topo/src` under the stated
+reading**. Candidates were chased and rejected with reasons, including one that
+looked like a D88 sibling and is not: `merge_faces.rs:416`'s
+`SecondaryMap::entry` returns `None` only for a null key or an older version, so
+on a freshly built map a stale non-null key yields `Some(Vacant)` and the write
+happens — **a null-key guard, not a stale-key discard**, established by reading
+slotmap's source. Per-site soundness survived too, verified rather than read off
+the row. And **all five probe rows inverted red**, including the movefac walk row
+retargeted to `EntityId::Solid`, which proves it reaches the guard it claims
+rather than passing on an earlier refusal.
+
+**Four claims broke, and the method is the point: the reviewer built rather than
+argued.**
+
+- **"No two share a consumer" is false.** Eight of the 17 sit on three shared
+  doors — `get_edge_mut`, `get_vertex_mut`, `get_face_mut` — and **D25's
+  "consumer" was `link_half_edges`, a function that takes the key**, whose exact
+  analogue here is `get_*_mut` at 22/26/21 call sites. The conclusion may still
+  hold **on cost**; the stated reason does not.
+- **One site should have been row 0, demonstrated by replacing it and running the
+  suite.** `revert.rs:217` became `out.edges.iter_mut()` — *the idiom the same
+  function already uses two loops down* — and topo went **441/342/6/4 green**.
+  The `unreachable!` and a third of a probe row's purpose become unstatable. The
+  deliverable is **16 conversions + 1 restructure**.
+- **Two of the seventeen messages are byte-identical**, and the lane's own
+  poisoning rounds named them `graft-remap` / `graft-recert` — *the distinct text
+  existed and did not land in the code.*
+- **One proof is one frame up, not in the same call.** `merge_faces.rs:955` is
+  sound — verified by establishing that `kemr` contains no `faces.remove` and the
+  only face removals in the euler modules are in `kef` and `kfmrh` — but #720's
+  standard as the addendum states it is *never on a proof borrowed from one frame
+  up*, and the row-0 fix is to hand the resolved face down.
+
+**And it flipped the style lane's framing on the six siblings.** `combine.rs`'s
+six `.ok_or_else(corrupt)?` are keyed by a `dk` minted by the same call's mint
+pass — **so under the addendum a minted-in-call key that fails to resolve is a
+kernel bug, row 4, and if anything it is the six that are misfiled at row 1**,
+not the two that were converted. Same facts, opposite conclusion from the same
+document. The file answers one proof two ways and the unit owes the reason.
+
+*A reviewer's artefact worth keeping:* **`carve`'s arm fires only in
+`tests/all.rs`**, so a `-p topo` run without `--no-fail-fast` never reaches it
+once an earlier lib test panics — the reviewer's first inversion scored it 0 for
+exactly that reason and it caught its own instrument before reporting.
 
 ---
 
