@@ -6,8 +6,9 @@ schedule itself lives in `docs/SMELL-SCAN-2026-08.md` §D; this file is the
 operational state that does not belong there** — what each lane was told, and
 what a successor should not re-derive.
 
-**Every dispatched unit has landed and no branch is live**, so what remains
-here is the part a successor cannot reconstruct from the schedule: why the row
+**Every dispatched unit through #722 has landed; D18 is dispatched and in
+flight as #736**, so what remains here is the part a successor cannot
+reconstruct from the schedule: why the row
 numbers are assigned centrally, S14's three witnesses, what the style-only
 review lane actually caught, and four operational facts this session paid for.
 Delete this file once a successor absorbs it.
@@ -37,11 +38,14 @@ real risk, which took a full adversarial lane as well.
 | D16 | W2c — the D2 addendum executed over 58 discard sites | #720 |
 | D7 (1 of 3) | `Mat2`/`Affine2` deleted, with the orphan its deletion made | #721 |
 | D13, D14 | The pcurve-staleness convention checked; D14 **refuted**, not closed | #722 |
+| D18 | The two unproven `prev`s proven; `link_half_edges` converted — **W2c done** | #736 |
 | D2 | S19's fillet half — 103 sites in, 108 out, partitioned 41/49/18; the row-4 reading **bounded, not refuted** | #740 |
 
-## Nothing is in flight
+## In flight
 
-All thirteen units are merged. The four that were mid-fix-pass when the first
+The twelve units through #722 are merged, plus **D18 as #736** (W2c's last two
+sites plus the helper, and the release-corruption CI row's disposition — its PR
+body is the record) and **D2 as #740**. The four that were mid-fix-pass when the first
 version of this file was written — #719, #720, #721, #722 — each finished its
 pass and landed, so the table that listed them is gone rather than left to rot.
 What each pass actually turned up is in its PR body, which is the record.
@@ -61,12 +65,13 @@ both used D10 and D11). Numbers are now assigned by the orchestrator:
 | Row | Owner | Subject |
 |---|---|---|
 | D17 | placed by #718 | No CI lane builds any crate's `probe` **test targets** but editor-core's — 14 suites unbuilt |
-| D18 | placed by #720 | `split.rs:253`'s unproven `prev`, **and** `kef`'s — unblocks W2c's last two sites |
+| D18 | placed by #720 | `split.rs:253`'s unproven `prev`, **and** `kef`'s — unblocked W2c's last two sites (**landed, #736**) |
 | D19 | placed by #719 | The K roster obligation reaches types, not names-not-reachable-as-bare-literals (37 sites across 24 files) |
 | D20 | placed by #722 | D5's +46% is real and **unattributed**; `choose_op` is excluded by measurement |
+| D21 | placed by #736 | The discard idiom's **11 sites in `crates/topo` outside W2c's three-module census** — 3 in `split_edge`, 2 `attach.rs`, 3 `movefac.rs`, 3 `revert.rs` |
 
-All four are landed rows in §D now, and all four are **edge-free and
-unstarted** — D20 is the highest number placed.
+All five are landed rows in §D. D18 has since landed as #736; the other four
+are **edge-free and unstarted** — D21 is the highest number placed.
 
 **The rule, which a successor should keep:** a lane takes the next number the
 orchestrator has assigned, never the next gap it can see. A roster with holes
@@ -93,11 +98,14 @@ What is unstarted is unstarted for schedule reasons only, not technical ones:
   `editor-core`'s eight payload-discarding `Display` arms; and
   `FilletError::Op`/`Certify`'s ~20 `format!` sites. **D27 and D29 share
   `sweep/src/fillet/`** — the only edge left in the track.
-- **D8**, **D17**, **D18**, **D19** and **D20** are edge-free. D7's
+- **D8**, **D17**, **D19**, **D20**, **D21** and **D25** are edge-free. D7's
   **`PairSolve`** row was too, and landed as **#735**; its provenance note is a
   comment on **issue #611**, not the PR body, because R2's thread is live, and
-  the PR cites the commit the type is recoverable from. **D18 is ADVERSARIAL** — it converts a discard behind two new
-  preconditions on the delicate-site path, and #720 proved the hole is real.
+  the PR cites the commit the type is recoverable from. **D18 landed as #736**,
+  finishing W2c and placing D21 and D25. **D21 is now the ADVERSARIAL one**, for
+  the reason D18 was: each conversion turns a garbage-out into a panic, and #720
+  proved that hole is real. It should sequence after **D25**, which would
+  discharge its half-edge sites structurally rather than site by site.
 
 ## For Evan — S14 now has three witnesses
 
