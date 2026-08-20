@@ -170,17 +170,23 @@ gathered across M2's full pipeline.
   The two are not interchangeable: a type-check cannot see a panic, and
   running one harness says nothing about the suites nothing runs.
 
-  **Which suites CI executes, derived rather than inferred** (D23,
-  re-derived at `f87b203`). `scripts/k_probe_sweep.sh` makes exactly two
-  `run_dump` calls, and each passes an `--ignored <module>::` filter:
-  `editor-core`'s `m4_pr8_k_probe::` and `sweep`'s `k_report::`. So **2
-  of the 16 probe-gated suites are executed and 14 are type-checked and
-  never run**. `crates/editor-core/tests/m5_pr5_corpus_probe.rs` is one
-  of the fourteen: the sweep *compiles* it, because building
-  `editor-core`'s `--test all` binary compiles every suite in it, but no
-  filter selects it. Naming the crate does not name the suite, and the
-  earlier count of thirteen came from reading the crate out of the
-  invocation instead of the filter out of the command.
+  **Which suites CI executes, named rather than counted** (D23). The
+  executed set is exactly the modules `scripts/k_probe_sweep.sh`'s
+  `run_dump` calls name in their `--ignored <module>::` filters —
+  **`m4_pr8_k_probe::` in `editor-core` and `k_report::` in `sweep`** —
+  and nothing else. Every other suite the census covers is type-checked
+  and never run. The total is deliberately not written here: it is
+  `scripts/gates/probe-suite-census.sh`'s derived tally, recomputed on
+  every merge, and D22 is open precisely because a suite can exist that
+  the tally does not see.
+
+  **The distinction that was wrong, stated so it is not re-inferred.**
+  `crates/editor-core/tests/m5_pr5_corpus_probe.rs` is compiled — building
+  that crate's `--test all` binary compiles every suite in it — and is
+  selected by no filter, so it has never run in CI. Earlier prose put
+  `editor-core`'s suites on the executed side because the sweep's
+  invocation names that crate. **Naming the crate is not naming the
+  suite**, and the filter, not the `-p`, is what selects.
 
   **The M2 dump rides beside the gate, not inside it.** The sweep writes
   it to `<outdir>/m2/<prefix><ε>.csv`; `tools/k-lint` is handed the

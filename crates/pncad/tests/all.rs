@@ -14,9 +14,11 @@
 //! a kernel crate. **That was false**, and review falsified it by
 //! execution: adding `use topo as _;` here compiles clean. Cargo
 //! passes `--extern` for a crate's ordinary dependencies to its test
-//! targets as well as its dev-dependencies, so the twelve deps are in
-//! scope here regardless of what the manifest's dev-dependency
-//! section says. An empty dev-dependency list is good hygiene; it is
+//! targets as well as its dev-dependencies, so every crate this one
+//! depends on is in scope here regardless of what the manifest's
+//! dev-dependency section says. (The count of them is not written out:
+//! it was `twelve` and the manifest lists thirteen, `getrandom` being
+//! the one a kernel-crate reading of the list drops.) An empty dev-dependency list is good hygiene; it is
 //! not an enforcement mechanism, and this file no longer pretends it
 //! is.
 //!
