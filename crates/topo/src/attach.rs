@@ -120,7 +120,7 @@ impl<T: Decide> Body<T> {
     /// S11 audit finding, banked for the curved-boolean/revert
     /// units).** Every `mef` mints its new face `sense: true`,
     /// including the boolean splitting/reassembly re-mints
-    /// (`splitting/join.rs`, `splitting/reassembly.rs`), so splitting
+    /// (`chord_join.rs`, `splitting/reassembly.rs`), so splitting
     /// a `sense: false` face today would silently stamp `true` on the
     /// pieces — a piece of a reversed wall is the same surface region
     /// with the same material side and MUST inherit the parent face's

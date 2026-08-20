@@ -45,9 +45,10 @@
 use geom_core::{Decide, Real, Vec3};
 use slotmap::SecondaryMap;
 
-use super::join::{CompletedSection, SplitJoinError, loop_points_of};
+use super::join::{CompletedSection, loop_points_of};
 use super::{PlaneSide, SplitReduction};
 use crate::body::Body;
+use crate::chord_join::SplitJoinError;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
 use crate::euler::{EulerOpError, FaceSurface};
 use geom_surfaces::Surface;
@@ -103,7 +104,7 @@ pub struct SplitNaming {
     /// the verdict vector — N4's covariance).
     pub sections: Vec<(FaceKey, PlaneSide)>,
     /// Chord-mef fragment rows: `(new face, divided-from face)` in
-    /// mint order, call-time keys ([`super::join`]'s `ChordJoiner`
+    /// mint order, call-time keys ([`crate::chord_join`]'s `ChordJoiner`
     /// log). Section faces appear here too (they are minted by the
     /// same mefs); consumers exclude the keys listed in `sections`.
     pub face_fragments: Vec<(FaceKey, FaceKey)>,

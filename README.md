@@ -19,6 +19,9 @@ executed, as a doctest or by the Python test runner.
   mapped to what each demonstrates.
 - [`docs/guide/fail-loud.md`](docs/guide/fail-loud.md) — this kernel refuses
   rather than guessing. What the refusals look like, and how to read one.
+- [`docs/guide/selecting.md`](docs/guide/selecting.md) — naming and
+  selecting entities: materializers, the pattern language, the geometric
+  filters, and the detect/declare protocol.
 - [`docs/guide/north-star-audit.md`](docs/guide/north-star-audit.md) — what
   the Python bindings can author today, and the named gaps.
 
