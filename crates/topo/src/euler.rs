@@ -939,7 +939,8 @@ impl<T: Decide> Body<T> {
     /// Euler vector: `(v +1, e 0, f +1, h 0, r 0, s +1)` — arena deltas
     /// +1 solid, +1 shell, +1 face, +1 loop, +1 vertex. (The shell is
     /// our entity, absent in GWB, where a "solid" is one connected
-    /// boundary; multi-shell solids arrive at M3.)
+    /// boundary; a solid here may hold several, and does whenever a
+    /// boolean leaves a void shell — [`crate::Solid`].)
     ///
     /// **Minting order** (D9, exact): point, surface, vertex, solid,
     /// shell, loop, face. The seed face's surface is the

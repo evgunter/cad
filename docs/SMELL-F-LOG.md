@@ -371,7 +371,84 @@ constraint is, and it is stated here so a Track G taker can read it.
 
 ## Reviews
 
-*(none yet)*
+### #783 (F-b / S73 parts 1 and 3) — style lane, 2026-08-20: **NOT CLEARED**
+
+**What it confirmed.** Part one's *shape* is right — per-column admission at
+the parse boundary, the one real absence carried in the type, exit in the
+harness voice — and the **#746 fence was verified by diff rather than by
+prose**: `compare`'s key, `fresh_faces`, the `else { continue }` arm and its
+comment are unchanged, and `Row::recoverable`'s signature still offers #746 the
+same seam. Every measured interval the unit reported reproduced on both trees,
+including the non-monotonicity that refuted S73's own *"pinned by nothing at
+all"*.
+
+**What it found, and it is the row's own defect with the sign reversed.**
+
+| # | Ruling |
+|---|---|
+| **F-R7** | **The `tess-meter` box reds on a refinement that improves the answer.** Holding `SPLIT_SCAN_DECADES = 8.0`, **S=1000 fails while returning 4844 cells — strictly better than the shipped 4911**; S=322 fails `cells <= 4911` at 4987. The green step counts are exactly the lattices containing exponent `-3.7`; the reds are the ones that do not. So the row pins the constants to **a sample lattice, not a resolution**, and its failure message — *"the range is too narrow or the step is too coarse"* — is wrong in the surprising cases, because those step counts are **finer**. The unit's own defence, *"refinement cannot red it, deliberately"*, is **false**: the superset argument holds only when `S-1` is a multiple of 320. **Direction ruled, shape left to the lane: pin the RELATION, not the answer** — a test that computes its own reference refinement and asserts the shipped pair is within a stated tolerance is monotone-safe by construction. **"No honest box exists" is a passing answer**, recorded at the claim site per Q6; *making it worse than the non-monotone pin it replaced* is the one outcome the row cannot ship. Riding with it: the *"within 2.0%"* figure is **2.04%** on the reviewer's measurement and rests on an unstated choice of denominator. |
+
+### #788 (F-a / S92) — style lane, 2026-08-20: **NOT CLEARED**
+
+**What it confirmed, by running rather than reasoning.** The reviewer re-planted
+`plant_s92_door` on the PR head and got **both guards red**; `code_only` flips
+exactly that door's two needles and no live door's; with `code_only` bypassed,
+all six `a_mention_is_not_a_call` spellings go red. Every count re-derived. The
+unit's correction of its own record-edit gap was read as honest rather than
+retitled-around.
+
+| # | Ruling |
+|---|---|
+| **F-R8** | **The defect is reproduced one layer down, in the same file, by code the fix did not touch.** `public_fns`/`matching` carves the body that `code_only` then blanks — and **its own lexing is strictly weaker**: `'"'` reads as a string opener, block comments do not nest, raw strings are unknown. *Those are the exact three constructs `code_only` was written for.* Demonstrated: a door body containing `'"'` makes `public_fns` **lose the door entirely and corrupt the next one**. The row that should catch it, `a_call_is_still_a_call`, tests `code_only` **in isolation and never through the pipeline**. Not live today (161 = 161 over `topo/src`) — luck, not a guard. **Direction ruled, shape left to the lane: one home for *read Rust source past comments and literals*.** The unit argued exactly that for the door set — *"a guard against duplication should not be the next copy of its own walk"* — then left two lexers in one file with different competence. Riding with it: `br"x\"` **over-strips and erases a real call**; `char_literal_len`'s escape loop starts one byte past the escape (`'\''` short, `'\\'` returns `None`); and *"over-stripping is loud"* is true of the tier-1 guard and **false of the pcurve one**, where a door that stops reading as minting passes **silently**. |
+| **F-R9** | **The argument for staying textual does not exist in the tree.** A string-match classifier was replaced by a better string-match classifier, and three of the four disclosed blind spots are artefacts of reading text that a parser dissolves rather than documents. **The deliverable is the argument, not a particular answer:** if textual is right — build cost, `memories/review-and-dependency-policy.md`'s dependency-age rule, a guard that must run without compiling the crate — it goes **at the site**, because a reader today cannot learn why. If a parser is right, that is a **dependency decision and a design question** → a PR asking Evan, not an addition. **What the row cannot ship is the choice made silently for a third time.** |
+
+**Two lessons, and the second is about this document.**
+
+**A disclosed blind spot list is a claim about a population.** The unit disclosed
+its blind spots honestly and dispositioned seven class members. The reviewer's
+**differently-shaped** sweep found **two more that none of the unit's six
+patterns could reach**, because `include_str!` is the blind spelling
+(`profile/tests/seal.rs`, `editor-core/tests/schema_ledger.rs`). So **S117's
+"seven" was a floor presented as an enumeration** — the same shape as D45, one
+track over, and the reason the style brief asks not merely for a sweep but for
+*what the pattern could not match*, run **shaped differently** by someone else.
+
+**One wrong number reached four documents before anyone recomputed it.** The
+class disposition says "four" in the PR body while naming three, "four" at S92,
+and "three" at D61 and in this log — and `face_normal.rs` was excluded *for a
+reason untrue of it* (it greps **code fragments**, not string literals, so the
+blanker serves it as shipped). A count copied between records is not four
+independent statements; it is one statement with three echoes, and this
+document's own §C13 is what it becomes.
+
+**The lesson, which outlives the row.** S73's whole subject is *an instrument
+whose failure mode is its pass condition*. The fix for it minted **an instrument
+whose pass condition is a sample lattice** — a guard that goes red on an
+improvement. The lane header's first named shape is *the fix reproducing the
+defect it closes*; this is that shape arriving inside the very row written to
+demonstrate a box, in a unit whose part-one work was otherwise careful and
+correct. **Boxing a constant by pinning the answer it currently produces is not
+boxing it** — it freezes the sample grid that produced the answer, and every
+property of that grid becomes load-bearing by accident.
+
+**A second class, worth as much as F-R7.** Three of the review's findings are
+one shape: **the fix's own new mechanism is unobserved by its own tests.** The
+`>= 1.0` cell-count floor — *the load-bearing premise of the whole part-one
+argument* — is pinned by nothing, because the four-value bad-input matrix
+cannot separate `CellCount` from `Positive`. `delta`'s new admission is
+unobservable and is defended by a reason that does not apply to it (it is a
+denominator, not a numerator). And `Some(0.0)` is folded straight back into
+`None` by the first call that uses the type introduced to separate absent from
+small. **A unit that adds refusals owes a test that can see each one**, and the
+admission matrix had its hole exactly where its argument was.
+
+**A convention clarified rather than changed** (the review read the sequencing
+as wrong): a lane records its landing **in its own PR**, so the record lands
+*atomically with the code*. A landing recorded in a PR that never merges never
+lands either. The `## Reviews` section here is the orchestrator's and is written
+when the review lands, which is why it trails.
+
+
 
 ## Landings
 
