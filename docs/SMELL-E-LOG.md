@@ -399,6 +399,19 @@ not merely incomplete — **it is a count of a list that does not yet contain th
 jobs which catch test failures**, which is precisely the class of failure a
 green count is being offered as evidence against.
 
+**The rule those traps all reduce to: a job count is a denominator only once
+the graph is fully expanded, and on this workflow the fan-out is
+artifact-gated — so `M` is not final until the `build + archive` pair is
+green.** Any *"N of M"* taken before that is measured against a denominator
+that has not stopped moving, and the check-runs endpoint reports the partial
+board without flagging it as partial. Reporting *"N of M finished"* is
+therefore not sufficient discipline here: **say whether `M` is final.** The
+lane that wrote this paragraph reported *"25 of 26 finished, 0 failed"* while
+holding the rule above — its tally was not wrong about what it counted, it was
+wrong about what there was to count; the board went 26 → 36 the moment the
+builds landed. **The one report that needs no denominator is the run's own
+`conclusion`** — take that, and no tally is load-bearing.
+
 **8. Record your completion at the finding, in your own PR.** A bolded
 `FIXED by #NNN` lead at the finding in `docs/SMELL-SCAN-2026-08.md`, the
 **original problem statement removed** (version control keeps it), and your row
@@ -1435,6 +1448,34 @@ finding cannot absorb.
 ---
 
 ## Landings
+
+### #773 — D21 (E-h), merged 2026-08-20. **Track E's one adversarial review.**
+
+The discard idiom outside W2c's three modules, censused and disposed:
+**17 sites — 16 row 4, 1 row 0** — with the reading stated because three
+readings of *"the discard idiom"* exist and they give different censuses. The
+src/test cut is the `#[cfg(test)] mod` **declaration**, wherever it stands, not
+the file name.
+
+**The adversarial lane broke four of its claims by building them**, which is
+the review this row was given an adversarial lane to get: a census defended in
+prose is a claim, and a census a reviewer can re-run is a receipt. All eleven
+items (B1–B5, M1, M3, M6, M8, N1–N4, N6) closed in one fix pass.
+
+Placed **D88** (`merge_faces.rs:766` — `absorb` drops every ring of the
+absorbed face on a silent `None`, **inside the mutation loop**: the one site the
+census found that cannot meet #720's standard), **D89** (the same fourth
+spelling in `editor-core/src/edit.rs:995`, eleven lines after the handler has
+already proved the node live — so the discard is unreachable and the proof is
+not carried), **D94** (D21's *"`crates/topo`"* clause was **a scope of work, not
+a finding about the class** — its own pass 2 went workspace-wide for one
+spelling, so the row used the crate as a boundary for one spelling and as no
+boundary for another) and **D95** (`boolean/combine.rs` now answers one proof
+two ways, and D21 is why).
+
+**Its own reporting is the incident above** — a *"25 of 26 finished"* taken
+against a denominator the artifact-gated fan-out had not finished growing. Rule
+7's closing paragraph is that lane's correction, in its own words.
 
 ### #761 — D33 (E-d), merged 2026-08-20
 
