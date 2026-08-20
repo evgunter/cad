@@ -323,6 +323,39 @@ disclosure owes a schedule; it does not ask whether the disclosure is
 *exhaustive*. On this row that gap was the difference between a disclosed
 limitation and an undisclosed live one.
 
+### #705's MAJOR-1 fix — targeted re-read, 2026-08-20: **cleared**
+
+Same rule as #702: *a claim once found overstated is re-derived, not re-read.*
+The lane had now written a claim about this arithmetic **twice**, and the first
+was false, so the adversarial lane was asked back for four checks and nothing
+else. All four cleared.
+
+- **The new row goes red for the right reason.** Reverting the refusal (making
+  `mid` the identity at ±∞ again) fails it at the refusal assertion, reproducing
+  the original Case B output exactly. And shrinking the fixture from `1e200` to
+  `1e2` **also** fails it — at *"the fixture must overflow"* — so the guard is
+  real: if the fixture stops overflowing the row goes red rather than passing
+  for the wrong reason. That second mutation is the one worth noting; a refusal
+  row that no longer reaches its own precondition is the classic silent pass.
+- **The restated claim survives on a distinction worth keeping.** The qualifier
+  is **"finite *arithmetic*", not "finite *inputs*"** — Case B has finite inputs
+  and a non-finite intermediate, so it falls outside the claim rather than
+  contradicting it. And the entry does not leave that to the reader: three
+  sentences on it states outright that the case *"is reachable with all inputs
+  finite"* and names the mechanism.
+- **`mid`'s doc is true at ±∞ now**, and volunteers something the reviewer had
+  found and not reported: `mid(-0.0) = +0.0`, the only finite-value departure
+  from the identity, with the argument for why it is unobservable in
+  `project`'s outputs.
+- **MINOR-1 fixed**, verified by re-running the `pub`-declaration extraction
+  *and* by a compile probe importing all 24 names both old crate roots exported
+  through the new paths.
+
+*Generalisable:* the useful discriminator was **"finite arithmetic" vs "finite
+inputs"**, and it is a distinction a reviewer only reaches by constructing the
+case where they come apart. The first claim was not sloppy — it was precise
+about the wrong quantity.
+
 ---
 
 ## Landings
