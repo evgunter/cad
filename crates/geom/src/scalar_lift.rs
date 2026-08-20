@@ -30,7 +30,14 @@ pub(crate) fn dual_vec(v: Vec3<f64>) -> Vec3<Dual64> {
 
 /// A point as degenerate intervals — each coordinate its own exact
 /// bracket, so the lift adds no width of its own.
+///
+/// The `#[cfg(test)]` below is redundant — `lib.rs` already declares
+/// this whole module test-only — and is written anyway: it is what
+/// makes the `interval` gate legible as the "test-only code" case of
+/// `scripts/check-interval-cfg-additive.py`'s rule to a checker that
+/// reads this file without its parent declaration.
 #[cfg(feature = "interval")]
+#[cfg(test)]
 pub(crate) fn interval_point(p: Point3<f64>) -> Point3<geom_core::Interval> {
     use geom_core::{Interval, Real};
     Point3::new(
@@ -40,8 +47,10 @@ pub(crate) fn interval_point(p: Point3<f64>) -> Point3<geom_core::Interval> {
     )
 }
 
-/// A vector as degenerate intervals (see [`interval_point`]).
+/// A vector as degenerate intervals (see [`interval_point`]); the
+/// double gate is [`interval_point`]'s.
 #[cfg(feature = "interval")]
+#[cfg(test)]
 pub(crate) fn interval_vec(v: Vec3<f64>) -> Vec3<geom_core::Interval> {
     use geom_core::{Interval, Real};
     Vec3::new(
