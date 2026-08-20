@@ -41,7 +41,7 @@ use sweep::skin::{LoftGeometry, Section, loft_geometry, segment_curve, sweep_geo
 use sweep::{SketchSegment, loft_body, sweep_body};
 
 mod common;
-use common::orient::{LevelIndex, along_v, assert_walls_face_out, chart_at, chart_normal_turn};
+use common::orient::{LevelIndex, along_v, assert_walls_face_out, chart_at};
 use common::quad;
 
 /// A closed square section of half-width `h`, centred on the sketch
@@ -412,6 +412,13 @@ fn a_rational_section_on_a_curved_path_meters_at_the_span_meter() {
     );
 }
 
+/// The step off a wall, both ways, that the material-side probe takes.
+/// The section is a circle of radius [`ELBOW_H`] = 0.25, so an inward
+/// step lands at radius 0.19 and an outward one at 0.31 — each a fifth
+/// of the radius clear of the wall, and three orders above the level
+/// polyline's chord error at 64 samples per half-circle (7.5e-5).
+const PROBE_DELTA: f64 = 0.06;
+
 /// **The rational swept chart's walls face out of the material.**
 ///
 /// The orientation half of the fixture above. It is here rather than in
@@ -425,9 +432,11 @@ fn a_rational_section_on_a_curved_path_meters_at_the_span_meter() {
 /// `1`, which is a different jet through different code even though the
 /// `sense` it is signed by is minted by the same traversal argument.
 ///
-/// ANTI-VACUITY, both directions of the thing that makes this row
-/// distinct: the chart must genuinely turn along `v`, and the walls
-/// must genuinely be rational.
+/// ANTI-VACUITY on both halves of that. The chart must genuinely turn
+/// along `v` — the level planes are the path's normal planes, so a 90°
+/// arc turns them by `π/2` and a straight path by nothing, and the bar
+/// is nine tenths of `π/2`. And the walls must genuinely be rational,
+/// or the row is the integral elbow next door retyped.
 #[test]
 fn a_rational_section_on_a_curved_path_faces_out_along_the_turn() {
     let swept = sweep_body::<f64>(
@@ -441,23 +450,22 @@ fn a_rational_section_on_a_curved_path_faces_out_along_the_turn() {
     assert_eq!(topo::validate(&swept.body), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&swept.body), Ok(()), "tier 2");
 
-    let wall = swept.side_faces[0][0];
-    let turned = chart_normal_turn(&swept.body, wall, 64);
+    let index = LevelIndex::build(&swept);
+    let turned = index.total_turn();
     assert!(
         turned >= 0.9 * FRAC_PI_2,
-        "the elbow must turn a wall's outward normal a quarter turn along v, not \
-         {turned} rad — a straight path would hold it fixed"
+        "the elbow must turn the level planes a quarter turn along v, not \
+         {turned} rad — a straight path would hold them parallel"
     );
-    let (surface, _, _) = chart_at(&swept.body, wall, 0.5, 0.5);
+    let (surface, _, _) = chart_at(&swept.body, swept.side_faces[0][0], 0.5, 0.5);
     assert!(
         surface.weights().iter().any(|w| *w != 1.0),
         "the fixture stopped exercising a RATIONAL chart: every weight is 1.0, so \
          this row now restates the integral elbow next door"
     );
 
-    let index = LevelIndex::build(&swept);
     let samples = along_v();
     let oracle = |q| index.contains(q);
-    let probes = assert_walls_face_out(&swept, &oracle, &samples, 0.06, 2);
+    let probes = assert_walls_face_out(&swept, &oracle, &samples, PROBE_DELTA, 2);
     assert_eq!(probes, 2 * samples.len(), "both walls at every level");
 }
