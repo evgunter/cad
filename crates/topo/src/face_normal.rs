@@ -21,7 +21,12 @@
 //! the other way. So the door moved to the crate root and
 //! `boolean::reduce` re-exports it — the boolean's four remaining
 //! consumers are unchanged, and the shared walk uses the same flip
-//! rather than a second one.
+//! rather than a second one. **Consumers here are lanes, not call
+//! sites**: three of the four reach the door through
+//! `boolean::reduce::face_plane` (`recl`'s `plane_of`, the reduction
+//! sweep, the REST lane) and only the pierce lane (`vtxfac`) calls it
+//! directly, so counting `face_outward_normal` call sites gives two
+//! and does not falsify the four.
 //!
 //! **"One door" is true of these consumers, not of the workspace.**
 //! `boolean::solid_contain::face_plane`, `chord_join`'s
