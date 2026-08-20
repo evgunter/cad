@@ -16,6 +16,8 @@
 #      checks the repo out deletes `local-scripts/` and `.claude/`
 #      immediately, which is what makes `ci-filter.py` right to treat a
 #      change under either tree as non-triggering for the build rows.
+#      EVERY workflow file, not only ci.yml — `render.yml` runs four
+#      checked-out jobs of its own, reached through a `uses:` job.
 #      MIRROR_JOB is the single declared exception — the job whose
 #      SUBJECT is the agreement between the halves, so it has to see
 #      both.
@@ -49,11 +51,11 @@
 # string the shell builds at runtime is invisible to them, as is a
 # check invoked from a script one of the halves calls rather than from
 # the half itself — the parity claim is about the two ROSTERS, not
-# about the transitive call graph. Claim 2 reads this workflow only:
-# `render.yml` is a separate file, reached through a `uses:` job, and
-# is out of this gate's scope. And, as everywhere in this directory,
-# wiring is not execution: a step disabled by an `if:` still satisfies
-# claim 3.
+# about the transitive call graph. Claim 2 reads `.github/workflows/*.yml`
+# and no other trigger of a checkout — a composite action, or a workflow
+# added under a different path, is outside it. And, as everywhere in this
+# directory, wiring is not execution: a step disabled by an `if:` still
+# satisfies claim 3.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -151,12 +153,15 @@ gate() {
     rc=1
   done
 
-  # CLAIM 2.
+  # CLAIM 2, over every workflow file: `render.yml`'s four lanes check
+  # the repo out too, and a hole there is the same hole.
+  local wf
   found=
+  for wf in .github/workflows/*.yml; do
   while IFS=$'\t' read -r job co pr; do
     [ -n "$job" ] || continue
     [ "$co" = 1 ] || continue
-    if [ "$job" = "$MIRROR_JOB" ]; then
+    if [ "$wf" = "$HOSTED_HALF" ] && [ "$job" = "$MIRROR_JOB" ]; then
       found=yes
       if [ "$pr" = 1 ]; then
         gate_error "$(gate_name): job \`$MIRROR_JOB\` prunes local-scripts/, but it is the one job whose subject is the agreement between the halves — with the tree deleted it can only check the hosted side, and the gates sited there would pass for the wrong reason"
@@ -165,10 +170,11 @@ gate() {
       continue
     fi
     if [ "$pr" != 1 ]; then
-      gate_error "$(gate_name): ci.yml job \`$job\` checks the repo out and does not delete local-scripts/ and .claude/. That deletion is what makes \`scripts/ci-filter.py\` right to classify a change under either tree as non-triggering; a job that keeps them can couple the hosted gate to a developer's machine without anything saying so"
+      gate_error "$(gate_name): $wf job \`$job\` checks the repo out and does not delete local-scripts/ and .claude/. That deletion is what makes \`scripts/ci-filter.py\` right to classify a change under either tree as non-triggering; a job that keeps them can couple the hosted gate to a developer's machine without anything saying so"
       rc=1
     fi
-  done < <(mirror_jobs "$HOSTED_HALF")
+  done < <(mirror_jobs "$wf")
+  done
   if [ -z "$found" ]; then
     gate_error "$(gate_name): ci.yml has no job \`$MIRROR_JOB\` that checks the repo out. That job is where the gates whose inputs are docs, prose and local-scripts/ are sited — without it they are back in a job that skips on exactly the change class they are about"
     rc=1
@@ -196,7 +202,7 @@ gate() {
 
   [ "$rc" -eq 0 ] || exit 1
   GATE_SCAN_FILES=$(printf '%s\n%s\n' "$hosted" "$local_" | sort -u | wc -l | tr -d ' ')
-  gate_ok "both halves invoke the same checks outside scripts/gates/, every checked-out job but \`$MIRROR_JOB\` prunes local-scripts/, and all $n hosted-mirror citations resolve to a step ci.yml carries"
+  gate_ok "both halves invoke the same checks outside scripts/gates/, every checked-out job in .github/workflows/ but \`$MIRROR_JOB\` prunes local-scripts/, and all $n hosted-mirror citations resolve to a step ci.yml carries"
 }
 
 # The subject is two CI halves, so the fixture is a miniature repo.
@@ -240,6 +246,19 @@ plant_unpruned_job() {
   printf '  newjob:\n    steps:\n      - uses: actions/checkout@v4\n      - run: echo hi\n' \
     >> "$1/.github/workflows/ci.yml"
 }
+# A SECOND workflow file grows a checked-out job that keeps the tree.
+# The reusable render workflow is exactly this shape, so the claim is
+# over the directory and not over one file.
+plant_unpruned_second_workflow() {
+  printf 'jobs:\n  tour:\n    steps:\n      - uses: actions/checkout@v4\n      - run: echo hi\n' \
+    > "$1/.github/workflows/render.yml"
+}
+# And a job called `mirror` in that other file gets no exemption: the
+# one declared exception is ci.yml's.
+plant_mirror_named_job_elsewhere() {
+  printf 'jobs:\n  %s:\n    steps:\n      - uses: actions/checkout@v4\n      - run: echo hi\n' \
+    "$MIRROR_JOB" > "$1/.github/workflows/render.yml"
+}
 # The mirror job starts pruning, so it can no longer see the half it exists to check.
 plant_mirror_job_prunes() {
   sed -i "s#      - name: gate roster parity#      - run: rm -rf local-scripts\\n      - name: gate roster parity#" \
@@ -273,12 +292,14 @@ gate_selftest() {
   gate_selftest_case 'and local-scripts/ci-local.sh does not' plant_hosted_only
   gate_selftest_case 'and .github/workflows/ci.yml does not' plant_local_only
   gate_selftest_case 'checks the repo out and does not delete' plant_unpruned_job
+  gate_selftest_case 'render.yml job `tour` checks the repo out' plant_unpruned_second_workflow
+  gate_selftest_case 'render.yml job `mirror` checks the repo out' plant_mirror_named_job_elsewhere
   gate_selftest_case 'prunes local-scripts/, but it is the one job' plant_mirror_job_prunes
   gate_selftest_case 'has no step named' plant_marker_wrong_job
   gate_selftest_case 'has no step named' plant_marker_step_renamed
   gate_selftest_case 'below the' plant_markers_deleted
   gate_selftest_case 'declared as local-only in MIRROR_EXEMPT' plant_exemption_inverted
-  printf '%s selftest OK: passes a clean fixture; fires on a hosted-only row, a local-only row, a checked-out job that keeps local-scripts/, the mirror job pruning it, a marker naming the wrong job, a marker whose step was renamed, the markers deleted wholesale, and an exemption that now describes the opposite of the tree\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture; fires on a hosted-only row, a local-only row, a checked-out job that keeps local-scripts/, a second workflow file growing one, a job merely NAMED like the exempt one in another file, the mirror job pruning it, a marker naming the wrong job, a marker whose step was renamed, the markers deleted wholesale, and an exemption that now describes the opposite of the tree\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
