@@ -329,6 +329,44 @@ pub(crate) fn nurbs_cell_bounds(
         .collect())
 }
 
+/// One tessellation's memo of certified whole-patch NURBS bounds, one
+/// entry per described NURBS face.
+///
+/// It lives HERE, beside the assembly it remembers, rather than in
+/// either pass that reads it: [`crate::chords`]' adjacent-face
+/// tightening and [`crate::trimmed`]'s band schedule both need the
+/// same per-face fact, and a cache hosted inside one of its two
+/// consumers is the shape that drifts.
+pub(crate) type FaceBounds = std::collections::HashMap<FaceKey, NurbsFaceBound>;
+
+/// A described NURBS face's certified whole-patch bound, assembled on
+/// first ask and remembered for the rest of the tessellation.
+///
+/// The assembly is the most expensive thing either pass does and its
+/// answer is a per-face fact, so one memo threaded from
+/// [`crate::tessellate()`] through both passes makes it one assembly
+/// per face per tessellation instead of one per pass.
+///
+/// # Errors
+///
+/// As [`nurbs_face_bound`] — a face outside the certified inventory
+/// refuses here exactly as it would there, on the first ask and (from
+/// the memo's absence) on every later one.
+pub(crate) fn face_bound(
+    memo: &mut FaceBounds,
+    payload: &NurbsSurface<f64>,
+    fk: FaceKey,
+) -> Result<NurbsFaceBound, TessellateError> {
+    match memo.get(&fk) {
+        Some(&b) => Ok(b),
+        None => {
+            let b = nurbs_face_bound(payload, fk)?;
+            memo.insert(fk, b);
+            Ok(b)
+        }
+    }
+}
+
 /// The realized-anisotropy line beyond which a band snaps to the
 /// patch column count ([`NurbsCellGrid::band_schedule`] derives the
 /// sliver certificate `(aspect² + 1)/8 · δ_s` and what happens at the
@@ -369,7 +407,7 @@ pub(crate) fn nurbs_cell_bounds(
 ///   per face against `docs/tess-budget-data/tess-budget-baseline.csv`, a
 ///   grown budget failing the row. A scheduled register, not an assert;
 /// * SOUNDNESS, on a fixed corpus: `ci.yml`'s `k-lint (gate)` also runs
-///   `mesh certificate falsifier (feature = probe-stats)`, i.e.
+///   `mesh budget meter + certificate falsifier (feature = budget)`, i.e.
 ///   `probe_review::z1_per_triangle_certificate_falsification`, which
 ///   resamples every emitted triangle against its own certificate — but
 ///   over **four NURBS fixtures at two δ**, not the tour. It falsifies
@@ -517,6 +555,26 @@ impl NurbsCellGrid {
     /// The certified bound of cell `(ci, ri)`.
     pub fn bound(&self, ci: usize, ri: usize) -> NurbsFaceBound {
         self.bounds[ci * (self.v_cuts.len() - 1) + ri]
+    }
+
+    /// Every cell of the table, in the u-major order
+    /// [`nurbs_cell_bounds`] emits — the assembly read back out, so a
+    /// consumer that needs the per-cell bounds does not run the
+    /// assembly a second time to get them.
+    ///
+    /// The budget meter is that consumer and it is opt-in, so in a
+    /// default build nothing calls this.
+    #[cfg_attr(not(feature = "budget"), allow(dead_code))]
+    pub fn cells(&self) -> impl Iterator<Item = CellBound> + '_ {
+        let rows = self.v_cuts.len() - 1;
+        let cols = self.u_cuts.len() - 1;
+        (0..cols).flat_map(move |ci| {
+            (0..rows).map(move |ri| CellBound {
+                u: (self.u_cuts[ci], self.u_cuts[ci + 1]),
+                v: (self.v_cuts[ri], self.v_cuts[ri + 1]),
+                bound: self.bound(ci, ri),
+            })
+        })
     }
 
     /// The SIZING bound of the v-band `ri` (the ROW schedule's
@@ -1524,7 +1582,7 @@ mod tests {
     /// weakening sailed past the aggregate δ+ε pin and died only
     /// here. The GUARD against under-certification is the empirical
     /// per-triangle falsifier (`probe_review::z1`, armed through
-    /// `probe_stats::arm`), which kills the same plant on measured
+    /// `budget::arm`), which kills the same plant on measured
     /// deviations. Kept as a cheap freeze; never cite it as evidence
     /// the bound is honest.
     #[test]

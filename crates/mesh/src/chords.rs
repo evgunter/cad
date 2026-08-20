@@ -49,7 +49,7 @@ use geom_core::spline::KnotVector;
 use geom_core::spline::hull::derivative_coeffs;
 use topo::{Body, EdgeKey};
 
-use crate::nurbs_cert::nurbs_face_bound;
+use crate::nurbs_cert::{FaceBounds, face_bound};
 use crate::types::TessellateError;
 
 /// Sanity cap on any single count (δ small enough to exceed this would
@@ -118,25 +118,36 @@ pub(crate) fn torus_grid_step(delta_s: f64, major: f64, minor: f64) -> f64 {
     (delta_s / (3.0 * (major + 2.0 * minor))).sqrt()
 }
 
+/// The chord pass's output: every edge's chord-point ids and the
+/// parameter schedule they were sampled at.
+///
+/// One value rather than two, because they are ONE derivation and
+/// every consumer that reads the ids at a parameter reads both — the
+/// trimmed lane evaluates pcurves at exactly the schedule the 3-D
+/// chords were minted on, which is the property that keeps a face's
+/// boundary and its neighbour's the same points.
+pub(crate) struct ChordPass {
+    /// Per-edge chord-point mesh ids, `he_plus`-forward.
+    pub ids: HashMap<EdgeKey, Vec<u32>>,
+    /// The matching per-edge chord parameters (endpoints included).
+    pub params: HashMap<EdgeKey, Vec<f64>>,
+}
+
 /// Computes every edge's chord-point ids (minting interior points into
 /// `positions`), in edge-arena order. `vids` maps topology vertices to
 /// their already-minted mesh ids.
-#[allow(clippy::type_complexity)] // an (ids, params) pair of per-edge maps
 pub(crate) fn compute_chords(
     body: &Body<f64>,
     delta_s: f64,
     vids: &HashMap<topo::VertexKey, u32>,
     positions: &mut Vec<geom_core::Point3<f64>>,
-) -> Result<(HashMap<EdgeKey, Vec<u32>>, HashMap<EdgeKey, Vec<f64>>), TessellateError> {
+    bounds: &mut FaceBounds,
+) -> Result<ChordPass, TessellateError> {
     let mut chords = HashMap::new();
     // Chord PARAMETERS per edge (`he_plus`-forward, endpoints
     // included) — the trimmed-face lane evaluates pcurves at exactly
     // the chord schedule, so both stay one derivation (M5 PR 11).
     let mut params = HashMap::new();
-    // Per-NURBS-face (h_u, h_v) memo for the adjacent-NURBS
-    // tightening (module docs) — the Hessian hull is a per-face fact,
-    // computed once however many edges the face bounds.
-    let mut nurbs_steps: HashMap<topo::FaceKey, (f64, f64)> = HashMap::new();
     for (ek, edge) in body.edges() {
         let curve = body
             .get_curve_geom(edge.curve)
@@ -188,7 +199,7 @@ pub(crate) fn compute_chords(
         // Adjacent-NURBS tightening (module docs), on every carrier
         // kind — a straight wall edge is one 3-D chord but many UV
         // steps of the wall's certificate budget.
-        let n = nurbs_tighten(body, ek, span, delta_s, &mut nurbs_steps, n)?;
+        let n = nurbs_tighten(body, ek, span, delta_s, bounds, n)?;
         let (vs, ve) = edge_vertices(body, ek)?;
         let start_id = *vids.get(&vs).ok_or(TessellateError::MissingEntity {
             what: "start vertex",
@@ -214,7 +225,10 @@ pub(crate) fn compute_chords(
         chords.insert(ek, ids);
         params.insert(ek, ts);
     }
-    Ok((chords, params))
+    Ok(ChordPass {
+        ids: chords,
+        params,
+    })
 }
 
 /// Chord count for a B-spline carrier from the hull-bounded sagitta
@@ -538,14 +552,14 @@ fn rational_carrier_m_bound(
 /// The adjacent-NURBS chord tightening (module docs): for each
 /// adjacent described NURBS face, raise `n` until the edge's UV image
 /// steps fit inside the face's certificate-budget grid steps. The
-/// per-face `(h_u, h_v)` memo (`steps`) keeps the Hessian hull a
-/// once-per-face computation.
+/// bound comes from the tessellation's shared [`FaceBounds`] memo, so
+/// the Hessian hull is assembled once per face for the whole run.
 fn nurbs_tighten(
     body: &Body<f64>,
     ek: EdgeKey,
     span: f64,
     delta_s: f64,
-    steps: &mut HashMap<topo::FaceKey, (f64, f64)>,
+    bounds: &mut FaceBounds,
     mut n: usize,
 ) -> Result<usize, TessellateError> {
     let edge = body
@@ -575,14 +589,7 @@ fn nurbs_tighten(
         if payload.is_placeholder() {
             return Err(TessellateError::UnsupportedSurface { face: fk });
         }
-        let (hu, hv) = match steps.get(&fk) {
-            Some(&s) => s,
-            None => {
-                let s = nurbs_face_bound(payload, fk)?.grid_steps(delta_s);
-                steps.insert(fk, s);
-                s
-            }
-        };
+        let (hu, hv) = face_bound(bounds, payload, fk)?.grid_steps(delta_s);
         let Some(cache) = body.pcurve(hek) else {
             return Err(TessellateError::UnsupportedCurve {
                 edge: ek,

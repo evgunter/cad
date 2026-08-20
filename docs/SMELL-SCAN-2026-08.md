@@ -1760,7 +1760,8 @@ adversarially reviewed.
 | `Node::Sweep` | `eval/wire.rs:1524` | Full vocabulary entry — variant, 2 `SlotId`s, content tag, `inputs`/`slots`/`expr` arms — for an op with no success path |
 | STEP cylinder recognition | `recognize.rs:257`, `:794` | ~90-line estimator whose own test `p7_exact_cylinder_envelope_is_honest` asserts an exactly cylindrical patch must **not** promote; `PromotedKind::Cylinder` asserted as an outcome nowhere in `src` or `tests` |
 | `ProfileError`'s five fillet variants | `profile/src/validate.rs:411`–`:507` | Constructible only from `test_support.rs`, behind the `test-support` feature; `Profile::validate` cannot produce any of them |
-| `Mat2` / `Affine2` | `geom-core/src/linalg.rs:135` | Only mentions outside `linalg/` are the re-export and one review test; `Vec2`/`Point2` are heavily used, so it is the 2-D *linear-map* half specifically that is dead |
+| `Mat2` / `Affine2` — **DELETED by #721**, see the D4 DECIDED block | `geom-core/src/linalg/mat.rs:21`, `affine.rs:17` (pre-deletion) | Only mentions outside `linalg/` are the re-export and one review test; `Vec2`/`Point2` are heavily used, so it is the 2-D *linear-map* half specifically that is dead |
+| `Vec2::unit_x`, `Vec2::unit_y` | `geom-core/src/linalg/vec.rs:44`, `:49` | **Minted as a row by #721, the PR that closed the one above.** Their only `src` consumer in the workspace was `Mat2::identity`; the sole remaining caller anywhere is one line of their own module test (`vec.rs:469`). No verdict — delete-or-keep has not been asked |
 | `PatchContact` | `boolean/mod.rs:214` | No producer; `ContactRecords.patches` and its face-lineage chase in `remap_contacts` are paths no run reaches. Deliberate per its doc ("the vocabulary is complete") |
 | `trace_plane_nurbs_uncertified` | `ssi.rs:970` | Demonstration entry point in `src/`, test-only, re-copying ~40 lines of `plane_nurbs_ssi`'s setup |
 | `FlipSet::flips_on_path`, `flips_at` | `resolve/vdiff.rs:181`, `:150` | Public, documented against a spec line, no callers; the one consumer that wants exactly this calls the raw primitive underneath |
@@ -1885,6 +1886,37 @@ the thread turns out to have wanted it after all:
 Per §C3, a note in a prose register is not a deferral but a forgetting on a
 schedule — so the deleting PR must cite the commit SHA the code is recoverable
 from, not merely say "see history".
+
+**EXECUTED — row 1 of 3, `Mat2`/`Affine2`, by #721 (2026-08-20).** The census
+was re-run on that day's tree before anything was deleted, and had not moved
+since 2026-08-18: outside `linalg/` the only mentions were still `lib.rs:38`'s
+re-export and `geom-core/tests/review_m0_pr5.rs`. **Recoverable from
+`9f559f6a4179a77a87d569bc0b8f363fa1cf2c1a`**, whose tree carries both types in
+full; the provenance note is #721's body and a comment on **#614**, per the
+table above. Three things that *referred* to the 2-D types while being about
+something else migrated rather than died — `Affine3`'s `Mul` doc and its
+worked-example test, both re-expressed in 3-D, and `Mat3`'s Rodrigues
+cross-check, which now builds its reference block from `sin_cos` directly.
+
+**The deletion minted a row of the same class it closed.** `Vec2::unit_x` and
+`Vec2::unit_y` (`vec.rs:44`, `:49`) had exactly one `src` consumer in the
+workspace — `Mat2::identity` — so after #721 the only caller left anywhere is
+one line of their own module test. They are tabled above without a verdict.
+The class to watch is **anything in `Vec2`/`Point2`'s surface whose last live
+caller was 2-D-map code**, and the general lesson is that a deletion's census
+pattern is scoped to the deleted names, so it structurally cannot see what the
+deletion orphans. #721's pattern was `mat2|affine2`; that is its blind spot,
+per §C15. The follow-up sweep that found this pair matched *qualified*
+associated-function calls (`Vec2::foo(`) across the workspace and found no
+other orphan — `new`, `zero` and `origin` all keep outside callers. It cannot
+see method calls (`v.dot(w)`, `p.distance(q)`), whose `Vec2`-vs-`Vec3` receiver
+needs type inference rather than grep; the method half of the surface is
+therefore unswept.
+
+Of the two remaining rows, **`PairSolve` is unblocked and unstarted** — #702
+merged 2026-08-20 as `f382c4aa`, its only gate — and the fillet helpers still
+wait on **D2**; **#705** merged 2026-08-20, discharging its file-overlap
+gate.
 
 ## S12. FIXED by #706 — the release-profile run the suite instructed and CI never did
 
@@ -4217,53 +4249,98 @@ complaint anyway: with no stated sizing policy, rule six arrives as one more
 locally-argued decision in a module that already has five, and the reader still
 has to read all six to know what the schedule promises.
 
-## S30. `budget` and `probe_stats` are ~1,050 lines of instrument in the kernel's hot loop
+## S30. FIXED by #709 — the kernel crate carried 1,060 lines of instrument, because "is it gated?" was the only question anyone asked of it
 
 - **Where**: `crates/mesh/src/budget.rs:1`,
   `crates/mesh/src/probe_stats.rs:1`, `crates/mesh/src/trimmed.rs:406`
 - **Confidence**: sure
 
 Two cargo features, two `live`/`inert` module pairs, two thread-local
-accumulators, a CSV schema with a column-counting helper, and a
-numerical optimizer (`best_split_steps`) live in the kernel's mesh
-crate — ~1,050 of ~7,900 lines. The emit loop carries eight
-unconditional telemetry calls, one of them with a `?` on it, plus a
-`sample` flag and a resampling block containing an `assert!`. The live
-half of `note_nurbs_sizing` re-runs `nurbs_cell_bounds`,
-`nurbs_cell_grid` **and** `nurbs_face_bound` — a third full pass over
-the certified assembly — purely to fill counterfactual columns.
-`probe_stats`' module docs are a three-section history of a removed
-environment variable, and its only consumer is one test.
+accumulators, a CSV schema with a column-counting helper, and a 321-step
+numerical optimizer (`best_split_steps`) lived in the kernel's mesh crate
+— 1,060 of ~10,200 lines. The dispatch and emit loops carried eleven
+telemetry call sites, one with a `?` on it and one an `assert!` inside the
+innermost loop. The live half of `note_nurbs_sizing` re-ran
+`nurbs_cell_bounds`, `nurbs_cell_grid` **and** `nurbs_face_bound` — a
+third full pass over the certified assembly — to fill counterfactual
+columns, while `tessellate_trimmed` held the results of all three twelve
+lines above. `probe_stats`' module docs were a three-section history of an
+environment variable removed in #562, and its only consumer was one test.
 
-Related: certified NURBS bounds are recomputed 2–4× per face per
-tessellation, because the chord pass memoizes `nurbs_face_bound` locally
-and the trimmed lane computes it again with no memo shared between
-passes (`trimmed.rs:192`, `chords.rs:581`).
-
-**Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
-baffle me with how they ever happened." Postmortem pass commissioned.
-**Postmortem (2026-08-18). The meter complies with the rule its own incident
-produced; the volume question was never asked.**
-
+**The postmortem's finding, which stands: the meter complied with the rule
+its own incident produced, and the volume question was never asked.**
 `budget.rs` was authored (#547) in the same 24 hours as the `NURBS_PROBE`
-incident and **satisfies every clause of the rule that came out of it** — the
-live/inert split, zero `#[cfg]` in the hot files, `arm`/`take` in the live half
-only, its own CI row. `memories/telemetry-gating.md` cites `mesh::budget` as
-**the worked example**. The third full pass is spec-driven too: TESS-SPAN's
-**D-4 "the meter stays sighted"** required the whole-patch counterfactual.
+incident and satisfied every clause of the rule that came out of it — the
+live/inert split, zero `#[cfg]` in the hot files, `arm`/`take` in the live
+half only, its own CI row. Evan reviewed the meter directly and cleared
+it: *"does this affect production behavior? (no: properly gated)"*. The
+third full pass was spec-driven too: TESS-SPAN's **D-4 "the meter stays
+sighted"** required the whole-patch counterfactual. Volume and placement —
+1,060 lines, eleven call sites, a numerical optimizer in the kernel crate
+— were raised in **neither** #547, #560, #579, MESH-PROBEGATE-SPEC, nor
+the (since-deleted) `memories/telemetry-gating.md`.
 
-**FLAGGED AND PARTLY FIXED — on the gating axis only.** #547 itself caught the
-sibling (`probe_stats::armed()` reading an env var once per triangle, 261k
-times on the leaf) and hoisted it. Evan then reviewed the meter directly and
-cleared it: *"does this affect production behavior? (no: properly gated) and
-does anything need fixing? (nothing egregious, three notes)"*. The
-volume-and-placement question — 1,050 of ~7,900 mesh lines, eight call sites in
-the emit loop, a numerical optimizer in the kernel crate — was **never raised**
-in #547, #560, #579, the spec, or the memory.
-
-*Lesson:* a gating rule answers "does it run in shipped builds?" and is easy to
-certify green; it says nothing about how much instrument the kernel should
+*Lesson, unchanged and the reason this entry is worth keeping:* a gating
+rule answers "does it run in shipped builds?" and is easy to certify
+green; it says nothing about how much instrument the kernel should
 **contain**, so the compliance check quietly became the whole review.
+
+**Executed by #709.** The kernel now keeps only what nothing downstream
+can recover. Walking the CSV's 23 columns decides the line mechanically:
+`chart`, `triangles` and the face ordinal are already in the `Body` and
+the `Mesh` that `tessellate` returns, so the kernel is no longer asked for
+them (`begin_face`, `finish_face`, `Chart` and the six-arm `match
+*surface` in `tessellate.rs` are gone); the counterfactual schedules and
+the split scan are arithmetic over certified bounds, so they moved out;
+the trim box, the realised cell count, the worst certificate and the
+sampled deviation are the lane's alone, so they stay — as **one plain-data
+struct handed over once per NURBS face, on the path that keeps its
+triangles**. `mesh::budget` is 256 lines with a single recording call
+site; the schema, the optimizer, the slack-factor prose and their tests
+are the new workspace-excluded crate **`tools/tess-meter`**, beside
+`tess-lint` and `k-lint` and with its own hosted row.
+
+`probe_stats` is **deleted**, and the falsification it existed for is
+preserved and strengthened: the kernel reduces the deviation samples to
+`worst_ratio`, the largest `|S − Π| / (cert + ε)` any sample on any
+triangle of the face reached, and the suite asserts `≤ 1`. That is the
+per-**triangle** claim losslessly aggregated, so **no `assert!` in `mesh`
+is reachable only under a feature any more** — no build flag can add a
+panic to the tessellation path, which is the property #562 and #558 were
+both reaching for and neither could reach while the `assert!` was in the
+lane. (Not the same as "the path cannot panic": the unconditional
+kernel-bug assertions in `nurbs_cert` and `walk` are untouched and are a
+different class.) That is also why folding the
+falsifier into `budget` no longer costs what #558 refused: there is no
+assertion left to put in a release artifact, and `Mode::Sizing` resamples
+nothing. The `probe-stats` feature and its NAME CAUTION paragraphs are
+gone; its CI row folded into the budget row, still unconditional, verified
+by planting the M8-5 cert weakening and watching two suites go red.
+
+The 2–4× recomputation is fixed on both causes — the meter's three extra
+passes (the lane now hands it the assembly, via a new
+`NurbsCellGrid::cells()`) and the unshared memo between the chord pass and
+the trimmed lane (`chords::FaceBounds`, one per tessellation). **The
+measurement does not support a performance claim, and #709 says so**: at
+tour scale (1,049 faces, 1.04M triangles) it is ~1.5%, inside noise; a
+planted ×10 prices the *rational* arm's assembly at ~1.3–1.6 ms per face
+per call and the *integral* arm's below the noise floor. The fix is right
+because the meter should not re-run kernel analysis to fill a column, not
+because it is fast.
+
+**D-4 is intact** — the counterfactual column is still emitted, byte for
+byte; only who computes it moved. Both sweeps (`--sizing-only` and
+`--deviation`) are byte-identical to main's, all 1,050 rows.
+
+**One finding surfaced and deliberately NOT fixed there:** the
+`agreement` column measures nothing. `grid_cells` and `span_cells` were
+the same `band_schedule` sum computed twice, so `grid_cells / span_cells
+≡ 1.0` by arithmetic and `budget_meter`'s `≤ 1%` assertion on it was
+vacuous — the docs' claim that it "verifies the lane's REALISATION of the
+schedule (candidate generation, dedup, counting)" was never true, because
+neither number counts a candidate. `tess-meter` now says so in the
+column's doc rather than claiming a check. Making it real needs a CSV
+schema change and a re-cut committed baseline.
 
 ## S31. FIXED by #705 — `geom-curves` / `geom-surfaces` was a crate split that bought nothing and was paid for in duplication
 
@@ -6626,16 +6703,16 @@ because several rows want a decision inside them that the taker should expect
 to make and record.
 
 **Gating, stated 2026-08-19, because "nothing here is blocked" was too loose.**
-Three of these are edge-free and could start today: **C1**, **C2**, **S30**.
+Two of these are edge-free and could start today: **C1** and **C2**.
 Three unblock when **A1** (#682) lands — **C7**
 entirely and **C4's S33** — and their input is now better than "wait for the
 report": #682's adversarial pass produced a *compile-verified* table of which
 lanes sit behind `CertifiedEnclosure`, which is the premise W2a would otherwise
 have been designed against wrongly. **S27** waits on **A2**, **S28's
 duplication half** on **A3**, and **S32** on **#705** — all three for file
-overlap rather than for knowledge. (**S31** and **S24** were two of the six
-edge-free rows and are FIXED by #705 and #702; a landing leaves this paragraph
-as well as the table.)
+overlap rather than for knowledge. (**S31**, **S24** and **S30** were three of the six
+edge-free rows and are FIXED by #705, #702 and #709; a landing leaves this
+paragraph as well as the table.)
 
 Two will not unblock by waiting, and should not be read as queued: **C6**'s
 rows are gated on other programmes entirely, and **S26** wants a written
@@ -6646,7 +6723,7 @@ and the width-1 build mutex, not dependency.**
 |---|---|---|
 | **C1** | **H12–H15** — four lanes' own residues: the SSI sweeps' other never-silence doors (no acceptance row in either lane), `sweep_body`'s helix rows with no orientation coverage, #637's two jurisdiction residues, #635's unclassified siblings. | Each is small; together they are a lane. They are the clearest instance of ordering rule 3. |
 | **C2** | **H11, H16, H17** — #632's two residues; the STL header not being caller-settable while `StepOptions` carries `product_name`; and S37's rustdoc remainder, ~1115 lines across 130 files. | H17 is large and mechanical; H16 is a small asymmetry with a clear right answer. |
-| **C3** | **S27, S29, S30** — `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block; the sizing vocabulary fragmented across five modules with self-admitted magic constants; and ~1,050 lines of instrument in the mesh crate's hot loop. **S29 is NOT blocked on a design conversation — corrected 2026-08-19.** This row previously said its policy question was routed to `docs/TESS-SPLIT-SPEC.md` and PR #568. #684's review checked: both are scoped **entirely to the NURBS per-cell schedule** (`nurbs_cert`'s `grid_steps`, certified cells, the first fundamental form — TESS-SPLIT-SPEC's D-1 replaces the AM-GM grouping, with `leaf_a f2` as its poster child). **Nothing in either covers analytic-chart sizing**, so `curved::grid_steps` has no venue at all — and #684 has since added a sixth rule to it. S29's own lesson applies to that: *N well-defended deviations read as N decisions when they are one undecided question.* S27 touches `props/`, so it must follow **A2**; S29 and S30 are edge-free. |
+| **C3** | **S27, S29** — `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block; and the sizing vocabulary fragmented across five modules with self-admitted magic constants. (S30, the mesh crate's 1,060 lines of instrument, was the third member and is FIXED by #709.) **S29 is NOT blocked on a design conversation — corrected 2026-08-19.** This row previously said its policy question was routed to `docs/TESS-SPLIT-SPEC.md` and PR #568. #684's review checked: both are scoped **entirely to the NURBS per-cell schedule** (`nurbs_cert`'s `grid_steps`, certified cells, the first fundamental form — TESS-SPLIT-SPEC's D-1 replaces the AM-GM grouping, with `leaf_a f2` as its poster child). **Nothing in either covers analytic-chart sizing**, so `curved::grid_steps` has no venue at all — and #684 has since added a sixth rule to it. S29's own lesson applies to that: *N well-defended deviations read as N decisions when they are one undecided question.* S27 touches `props/`, so it must follow **A2**; S29 is edge-free. |
 | **C4** | **S32, S33** — `Surface`'s one-partial-per-call API, which is what created the shadow surface enum in SSI; and neither geometry enum being able to lift itself to another scalar. (S31, the `geom-curves`/`geom-surfaces` split, was the third member and is FIXED by #705.) | **S32 is now additionally gated on #705's merge**: the enum and its NURBS payload are one crate's two modules, so a `SurfaceJet` door at the enum no longer crosses a crate boundary. **S33 is coloured by D1**: several of its ~14 hand-written ladders exist only to reach `Dual`, and what `Bounds for Dual` changes there is written in S44's **D1 DECIDED** block. |
 | **C5** | **S26, S28's duplication half** — the certified area enclosure that is never metered against anything (`area.width()` appears nowhere in the file); and the three tessellation lanes that remain three pipelines now that #648/#674 have settled their ordering and column questions. (**S24 left this row FIXED by #702.**) | S26 was explicitly deferred in writing by #472 — *"metering against `area.lo()` … deserves its own proposal with re-measured floors"* — so it is a proposal, not a patch. S28's duplication half must follow **A3**. |
 | **C6** | **W2f remainder / S4** — `ProgramStep`/`WireStep`, `SegTag`, and the "no usable value" core. | Each is blocked on something real: the first behind OnArc + RESPELL-TABLE and crossing the same files, the second needs the workspace's first proc-macro crate, the third by a persisted format. |
@@ -6893,7 +6970,7 @@ have failed loudly even if it had been attempted.
 | # | Work | Was | Scope | Review | Gated on |
 |---|---|---|---|---|---|
 | **D2** | **B3 / S19 — the fillet half of the error catch-alls.** D2's addendum is ratified, so these are row 4 (`unreachable!`) and the rename to `Unsupported*` is owed. **The count has moved: 102 construction sites on today's main, not 146** — 97 in `surgery.rs` through one closure, 5 in `build.rs` through two more — because B1's retirement took the rest with the whole-body door. Scope still excludes `MissingEntity` (mesh — Track A) and `SplitJoinError::Corrupt` (splitting — B4/#690). | B3 | `sweep/src/fillet/` | **ADVERSARIAL** — converting a refusal into `unreachable!` in a kernel whose D9 rule is *never a panic* is only sound if "cannot fail on a valid body" is **proven** per site rather than inherited from the closure's name. | **D1** (same crate) |
-| **D7** | **U1 / D4 — the three decided deletions.** Decided by Evan 2026-08-19 and unexecuted. Each row owes a provenance note next to the thread that produced it (`PairSolve` → **#611**; the two fillet helpers → **#319**/**#554**; `Mat2`/`Affine2` → the deleting PR body, cross-referenced from **#614**), and the deleting PR must cite the **commit SHA** the code is recoverable from. `trimline_description`'s doc is the only place D7's prefer-intrinsic obligation is *named*: that sentence migrates, it does not die. | U1 | `geom-core/src/linalg/{mat,affine}.rs`, `editor-core/src/mate{.rs,/solve.rs}`, `sweep/src/fillet/{blend,battery}.rs` | style | **split by row.** `Mat2`/`Affine2` is free now. `PairSolve` waits on **#702**, which is editing `mate.rs`, `mate/solve.rs` and the `lib.rs` re-export block it lives in. The fillet helpers wait on **D2**. Evan placed the whole row *"back of the queue, but ahead of W3b"*, and its rationale — noise to lanes reading the same files — is what these two gates discharge. |
+| **D7** | **U1 / D4 — the decided deletions. One of three executed; two are unexecuted, so the row stays.** Decided by Evan 2026-08-19. **`Mat2`/`Affine2` landed as #721** (2026-08-20); the execution record, its SHA and the row it minted are in the D4 DECIDED block, which is their one home. **What remains is two rows**, each still owing a provenance note next to the thread that produced it and a recoverable **commit SHA** in its deleting PR: `PairSolve` → **#611**, and the two inlined fillet helpers → **#319**/**#554**. `trimline_description`'s doc is the only place D7's prefer-intrinsic obligation is *named*: that sentence migrates with the fillet row, it does not die. | U1 | remaining: `editor-core/src/mate{.rs,/solve.rs}`, `sweep/src/fillet/{blend,battery}.rs` (`geom-core/src/linalg/{mat,affine}.rs` done) | style | **split by row.** `Mat2`/`Affine2` was free and is done. **`PairSolve` is unblocked and unstarted** — #702 merged 2026-08-20 as `f382c4aa`, and it was the only gate on that row; it is open for a successor. The fillet helpers stay blocked on **D2** alone: **#705 merged 2026-08-20**, discharging the file-overlap gate it held on all four `sweep/src/fillet/` files. Evan placed the whole row *"back of the queue, but ahead of W3b"*, and its rationale — noise to lanes reading the same files — is what D2 still discharges. |
 | **D8** | **U4's remainder — the knot-vector queries.** `KnotVector` offers `multiplicity_of(u)`, which requires you to already know `u`; every consumer that needs *the list* of distinct interior knots hand-writes the same scan, four times (`compose.rs:274`, `algebra.rs:563`, `geom/curves/fit.rs:378`, `sweep/skin.rs:370`). Beside it, knot insertion exists twice in one module, one of them re-deriving the span with a linear scan where `find_span`'s binary search is one module away. The scan's own lesson: *a data structure whose API was frozen one PR before its first consumer is the tell.* | U4 (rows) | `geom-core/src/spline/{compose,algebra}.rs`, `geom/src/curves/fit.rs`, `sweep/src/skin.rs` | **ADVERSARIAL** — it adds to a certified type's API and replaces a linear scan with a binary search inside knot arithmetic, where an off-by-one is a wrong curve rather than a compile error. | nothing (but it edits `sweep/src/skin.rs`, so sequence it against D1/D2 within this track) |
 | **D13** | **S15's pcurve-staleness row, which is still open.** `pcurves.rs:124`: *"an op that mutates an already-minted body must either clear the map or re-mint before returning, and **should say which in its own docs**"* — a convention, with *"The lists above are a survey, not an enforced invariant"* four lines above it, and nothing that notices when a new op joins the wrong bucket. **What D5 verified before placing this**: #635 corrected the one entry the steelman caught (`merge_coplanar_faces` had started re-minting and the index had not moved), so the survey is *accurate today* — the row is that nothing keeps it accurate. The shape D5 used for its sibling row is available and cheap: a source-walking test over the three buckets, the way `review_m1_pr5_internal::every_public_mutation_path_preserves_tier1` now covers the mutation surface. | S15 (row 1) | `topo/src/pcurves.rs` and the test's home | style | **discharged — #707** (D4) landed the `pcurves.rs` edits this must not conflict with |
 | **D14** | **`seqgen`'s candidate enumeration is eager.** `choose_op` builds every candidate `Vec` on every call — including rows whose weight is zero because the body has stopped growing — and then discards all but one. D5's `split_edge` row is what makes that cost visible rather than what causes it: `split_edge_candidates` runs a full `EdgeCurve::recertify` plus an O(V) separation scan **per edge, per step** (~14 re-certifications and ~200 metered decisions at `GROW_CAP`), which is where its measured +46% went. `memories/test-suite-cost.md` is categorical that an ungated fuzzer is a defect in the fuzzer. The fix is not to drop the gates — they are what keep the lane honest — but to skip zero-weight rows and to enumerate lazily. | S15 (`seqgen` half) | `topo/src/seqgen.rs` | style, but **measure before and after**: the row exists because a number was measured, and it closes on a number, not on a shape | nothing |
@@ -6984,7 +7061,7 @@ Where each went:
 
 | Was | Now |
 |---|---|
-| **U1** — S11/D4's three decided deletions | **D7**, split by row: `Mat2`/`Affine2` free, `PairSolve` behind #702, the fillet helpers behind D2 |
+| **U1** — S11/D4's three decided deletions | **D7**, split by row: `Mat2`/`Affine2` done (#721), `PairSolve` unblocked and unstarted since #702 merged, the fillet helpers behind D2 (#705 merged, its gate discharged) |
 | **U2** — S8, S9, S10 | **D4 — DONE, #707.** All three sorted to *keep*; the prose the sort contradicts is truthed at each finding |
 | **U3** — S17's ray-parity twins | **D9** — done as **#712**, which spawned three rows, all now retired: **D10** (the S15 ray-schedule row, a different pair) and **D12** (its sweep residue), both by **#717** — D10 fixed, D12 answered dimension-forced — and **D11** (`bool_join_nearest`, the drift class D9 closed only at S17's anchor) by **#719**, which closed its worst instance and left the class open |
 | **U4** — S18's duplicated derivations | **D3** (the negative-zero flush) — **landed as #704**, row retired — and **D8** (the knot-vector queries); the `step-export/volume.rs` row goes to **C3**, because closing it needs a per-shell door in `props/` |
@@ -7017,7 +7094,7 @@ A1 (Bounds for Dual) ──► C7  (S3 lane traits, S1/S2 scalars, S44's residue
 A2 (iso-rectangle)   ──► C3  (S27, and S18's step-export row — same props/ files)
 A3 (#678)            ──► C5  (S28's duplication half)
 D1 (#710, landed) ─────► D2 (S19 fillet errors) ──► D7's fillet-helper row
-#702 (assembly door) ──► D7's PairSolve row
+#702 (assembly door, merged) ─► D7's PairSolve row — edge discharged
 #690 (B4, splitting) ──► D9 (S17's ray-parity twins, #712) ──► D10, D12 (#717)
                                                           └─► D11 (bool_join_nearest, #719)
 all deletions        ──────────────► L2 (S38 comments)
@@ -7030,10 +7107,10 @@ had, are Track D's D1/D2.
 **Track D's remaining edges are `sweep/` internal, plus one on another track's
 open PR.** Landed: D1 as #710, D3 as #704, D4 as #707 — which also discharges
 D13's gate — D5 as #713, D6 as #706, D9 as #712, D10 and D12 as #717, D15 as
-#718, D11 as #719. In flight: D13/D14, D16, and D7's first third. **D17 and
-D19 are edge-free and unstarted**; D17 is the only row
-in the track whose file set is `.github/workflows/`**, so it collides with no
-kernel lane and can run at any time.
+#718, D11 as #719. In flight: D13/D14, D16, and D7's first third.
+**D17 and D19 are edge-free and unstarted.** D17 is the only row in the
+track whose file set is `.github/workflows/`, so it collides with no kernel
+lane and can run at any time.
 
 **Blocked on #705** (the `geom-curves` + `geom-surfaces` merge, ≥200 files):
 **D2** and D7's fillet-helper row — it edits all four `sweep/src/fillet/` files
@@ -7041,10 +7118,9 @@ kernel lane and can run at any time.
 `geom/src/curves/fit.rs`. D8 also
 edits `sweep/src/skin.rs`, so it
 sequences against **D2** alone within the track: D1 has landed and left
-`skin.rs` untouched. The last external edge — D7's `PairSolve` row, behind
-**#702** — **is discharged: #702 merged as `f382c4aa`.** D7's row and the U1
-mapping above still read *"behind #702"*; correcting D7's own bookkeeping
-belongs to D7's lane, and is noted here rather than done from #718.
+`skin.rs` untouched. D7's `PairSolve` row was the one remaining external edge;
+**#702 merged 2026-08-20 (`f382c4aa`) and discharged it**, so the only edge
+left in the track is D2 → D7's fillet-helper row.
 
 ---
 

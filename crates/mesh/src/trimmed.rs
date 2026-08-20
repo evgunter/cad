@@ -95,12 +95,12 @@ use geom::Surface;
 use geom_brep::Pcurve;
 use geom_core::Point3;
 use spade::{ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulation};
-use topo::{Body, EdgeKey, FaceKey};
+use topo::{Body, FaceKey};
 
 use crate::cert;
-use crate::chords::{ceil_count, sagitta_angle};
+use crate::chords::{ChordPass, ceil_count, sagitta_angle};
 use crate::curved::Tol;
-use crate::nurbs_cert::{NurbsCellGrid, NurbsFaceBound, nurbs_cell_grid, nurbs_face_bound};
+use crate::nurbs_cert::{FaceBounds, NurbsCellGrid, NurbsFaceBound, face_bound, nurbs_cell_grid};
 use crate::planar::{classify_faces, edge_key, shoelace2};
 use crate::types::TessellateError;
 
@@ -160,10 +160,10 @@ pub(crate) fn tessellate_trimmed(
     body: &Body<f64>,
     fk: FaceKey,
     surface: &Surface<f64>,
-    chords: &HashMap<EdgeKey, Vec<u32>>,
-    chord_ts: &HashMap<EdgeKey, Vec<f64>>,
+    chords: &ChordPass,
     positions: &mut Vec<Point3<f64>>,
     tol: &Tol,
+    bounds: &mut FaceBounds,
 ) -> Result<Vec<[u32; 3]>, TessellateError> {
     let face = body
         .get_face(fk)
@@ -190,7 +190,7 @@ pub(crate) fn tessellate_trimmed(
             }
             Lane::Nurbs {
                 grid: nurbs_cell_grid(payload, fk)?,
-                patch: nurbs_face_bound(payload, fk)?,
+                patch: face_bound(bounds, payload, fk)?,
             }
         }
         _ => return Err(trim_frontier(body, fk, face.outer)?),
@@ -200,7 +200,7 @@ pub(crate) fn tessellate_trimmed(
     // shared chord parameters (each traversal contributes all but its
     // last point; ids stay the shared 3-D chord ids).
     let nurbs_chart = matches!(lane, Lane::Nurbs { .. });
-    let polygon = trim_polygon(body, fk, face.outer, chords, chord_ts, nurbs_chart)?;
+    let polygon = trim_polygon(body, fk, face.outer, chords, nurbs_chart)?;
     if polygon.len() < 3 {
         return Err(TessellateError::MissingEntity {
             what: "degenerate trimmed boundary",
@@ -237,23 +237,6 @@ pub(crate) fn tessellate_trimmed(
             (cand, Some(cells))
         }
     };
-    // BUDGET METER (dead in normal runs): what this grid cost, and the
-    // schedules the same certificates admit (`crate::budget`, issue
-    // #320 / TESS-SPAN). Read off the sizing above — it changes
-    // nothing about it.
-    if let (Some(grid_cells), Surface::Nurbs(payload)) = (nurbs_grid_cells, surface) {
-        crate::budget::note_nurbs_sizing(
-            payload,
-            fk,
-            crate::budget::Sizing {
-                u: (u0, u1),
-                v: (v0, v1),
-                grid_cells,
-                delta_s: tol.delta_s,
-            },
-        )?;
-    }
-
     // Grid candidates are a fixed, deduplicated, (v, u)-sorted list
     // computed ONCE (above the retry loop): mesh ids mint row-major on
     // the FINAL kept set, and a retry drops candidates by INDEX — with
@@ -261,10 +244,21 @@ pub(crate) fn tessellate_trimmed(
     // cells, and dropping a location rather than one cell's copy of it
     // is what keeps the retry ladder strictly shrinking (module docs).
     let mut dropped: HashSet<usize> = HashSet::new();
+    // THE FALSIFICATION ACCUMULATOR, deliberately OUTSIDE the retry
+    // loop and reset by nothing.
+    //
+    // Two obligations share the deviation samples and they want
+    // different scopes. The CSV's `worst_dev` / `dev_samples` describe
+    // the mesh that was KEPT, so they are per-attempt (below). The
+    // falsification — was any triangle's measured deviation ever above
+    // its own certificate — is about every triangle this face
+    // TESSELLATED, discarded attempts included: a certificate that
+    // fails on a triangle we then threw away has still failed, and a
+    // falsifier that stops watching a case is the defect it exists to
+    // catch. So `worst_ratio` accumulates across attempts and is
+    // handed over once, at the end.
+    let (mut worst_ratio, mut ratio_samples) = (f64::NAN, 0u64);
     'retry: for attempt in 0..=MAX_GRID_RETRIES {
-        // A retry rebuilds the emit pass from scratch, so the budget
-        // meter's per-face deviation samples start over with it.
-        crate::budget::reset_face_dev();
         let mut cdt: ConstrainedDelaunayTriangulation<SpadePoint<f64>> =
             ConstrainedDelaunayTriangulation::new();
         // Handle-index → (mesh id or grid candidate index, uv).
@@ -405,28 +399,26 @@ pub(crate) fn tessellate_trimmed(
         };
         // Pass 2: emit and certify.
         //
-        // The two sampling arms are decided ONCE per face, not per
-        // triangle: this loop runs a quarter of a million times on
-        // #320's leaf, and arming cannot change inside a face, so
-        // hoisting is observationally identical. It is what makes both
-        // meters cost exactly nothing per triangle when they are
-        // disarmed, which is every normal run.
-        //
-        // (Until the `NURBS_PROBE` back channel was removed this also
-        // hoisted an environment-variable read out of the loop; the
-        // arming is a thread-local now, so what is saved is smaller —
-        // the hoist stays because the reason it was right did not
-        // depend on which of the two it was reading.)
-        let probe = crate::probe_stats::armed();
-        let sample =
-            matches!(lane, Lane::Nurbs { .. }) && (probe || crate::budget::deviation_armed());
-        let samples_per_edge = if probe {
-            12usize
+        // The meter's arming is read ONCE per face, not per triangle:
+        // this loop runs a quarter of a million times on #320's leaf,
+        // and arming cannot change inside a face, so hoisting is
+        // observationally identical. It is what makes the meter cost
+        // exactly nothing per triangle when it is disarmed, which is
+        // every normal run.
+        let dev_samples_per_edge = if matches!(lane, Lane::Nurbs { .. }) {
+            crate::budget::deviation_samples()
         } else {
-            crate::budget::DEV_SAMPLES
+            None
         };
         let mut triangles = Vec::new();
         let mut worst: f64 = 0.0;
+        // The CSV's deviation columns. LOCAL to this attempt, so a
+        // retry's samples start over with them — a discarded attempt's
+        // triangles must not contribute to numbers that describe the
+        // mesh that was KEPT. (`worst_ratio` deliberately does not
+        // live here; see above.)
+        let (mut worst_dev, mut worst_dev_cert) = (f64::NAN, f64::NAN);
+        let mut dev_samples = 0u64;
         // CERT-DRIVEN REFINEMENT (TESS-SPAN; module docs): NURBS
         // triangles certifying above the per-face sizing target get
         // their UV centroid queued as a new candidate for the next
@@ -490,30 +482,28 @@ pub(crate) fn tessellate_trimmed(
                 // half-open boundary case).
                 Lane::Nurbs { ref grid, .. } => grid.cert(uv),
             };
-            // REVIEW PROBE: per-triangle falsification of the NURBS
-            // certificate — dense barycentric samples of |S(w) − Π(w)|
-            // must be dominated by cert + ε on EVERY triangle, not in
-            // aggregate.
+            // THE DEVIATION PASS (`crate::budget`, issue #320):
+            // barycentric samples of |S(w) − Π(w)| on this triangle,
+            // reduced to the largest ratio against the triangle's OWN
+            // certificate.
             //
-            // The BUDGET METER shares this block (`crate::budget`,
-            // issue #320): same samples, same assertion, its own
-            // (cheaper) density when the probe is not itself armed —
-            // a quarter-million-triangle face resampled at 12 is 24M
-            // surface evaluations.
+            // INVARIANT: that maximum is the per-TRIANGLE claim, not a
+            // per-face average — `worst_ratio ≤ 1` holds exactly when
+            // every sample on every triangle was dominated by the
+            // certificate of the triangle it was taken on. The suite
+            // that drives the meter asserts it, and this lane does
+            // not: no build of this crate may turn `tessellate`'s
+            // typed-error contract into a panic.
             //
-            // INVARIANT (issue #558): this whole block is ABSENT from a
-            // default build, and there is deliberately no `#[cfg]` here
-            // saying so. `sample` is built from two module-gated
-            // `armed()` calls; with neither feature on, both are
-            // `const fn`s returning `false` in their modules' inert
-            // halves, so `sample` is a compile-time constant `false`
-            // and the block — including the `assert!` below, which
-            // would otherwise convert `tessellate`'s typed error
-            // contract into a panic — is deleted outright. Do not
-            // convert this to a `#[cfg]`: one lane in one version,
-            // shared by every configuration, is the whole point.
-            if sample {
-                let m = samples_per_edge;
+            // INVARIANT: this whole block is ABSENT from a default
+            // build, and there is deliberately no `#[cfg]` here saying
+            // so. `dev_samples_per_edge` comes from a module-gated
+            // `deviation_samples()`; with the feature off that is a
+            // `const fn` answering `None` in the module's inert half,
+            // so the block is deleted outright. Do not convert this to
+            // a `#[cfg]`: one lane in one version, shared by every
+            // configuration, is the whole point.
+            if let Some(m) = dev_samples_per_edge {
                 for a in 0..=m {
                     for b in 0..=(m - a) {
                         #[allow(clippy::cast_precision_loss)]
@@ -532,16 +522,27 @@ pub(crate) fn tessellate_trimmed(
                         let d =
                             ((s.x - pi.x).powi(2) + (s.y - pi.y).powi(2) + (s.z - pi.z).powi(2))
                                 .sqrt();
-                        assert!(
-                            d <= bound + tol.eps,
-                            "PROBE per-triangle violation: |S-Pi| {d} > cert {bound} + eps {} \
-                             at uv=({u},{v}) tri uv {uv:?}",
-                            tol.eps
-                        );
-                        if probe {
-                            crate::probe_stats::record(d, bound + tol.eps);
+                        // ε is the crate's documented promise: f64
+                        // EVALUATION rounding sits outside the bound,
+                        // and on a flat wall certifying at ~5e-17 a
+                        // bare `d / cert` would read pure rounding
+                        // dust as a violation.
+                        let r = d / (bound + tol.eps);
+                        // A first sample replaces the NaN seed; after
+                        // that, max — sticky-NaN, the same rule the
+                        // certificate accumulation below follows,
+                        // because a `>` comparison silently DROPS a
+                        // NaN and a NaN here is the loudest reading
+                        // there is.
+                        if dev_samples == 0 || d.is_nan() || d > worst_dev {
+                            worst_dev = d;
+                            worst_dev_cert = bound;
                         }
-                        crate::budget::note_dev(d);
+                        if ratio_samples == 0 || r.is_nan() || r > worst_ratio {
+                            worst_ratio = r;
+                        }
+                        ratio_samples += 1;
+                        dev_samples += 1;
                     }
                 }
             }
@@ -581,7 +582,43 @@ pub(crate) fn tessellate_trimmed(
                 requested: tol.delta,
             });
         }
-        crate::budget::note_worst_cert(worst);
+        // BUDGET METER (dead in normal runs): this face's
+        // measurements, handed over ONCE, on the path that kept its
+        // triangles — everything derivable downstream is derived
+        // downstream (`crate::budget`, issue #320 / TESS-SPAN). The
+        // certified bounds are the ones the sizing above already read;
+        // nothing is recomputed for the meter.
+        if crate::budget::armed()
+            && let (Some(grid_cells), Lane::Nurbs { grid, patch }) = (nurbs_grid_cells, &lane)
+        {
+            crate::budget::note_face(crate::budget::FaceMeasure {
+                face: fk,
+                u: (u0, u1),
+                v: (v0, v1),
+                delta_s: tol.delta_s,
+                grid_cells,
+                muu: patch.muu,
+                muv: patch.muv,
+                mvv: patch.mvv,
+                patch_steps: patch.grid_steps(tol.delta_s),
+                cells: grid
+                    .cells()
+                    .map(|c| crate::budget::CellMeasure {
+                        u: c.u,
+                        v: c.v,
+                        muu: c.bound.muu,
+                        muv: c.bound.muv,
+                        mvv: c.bound.mvv,
+                        steps: c.bound.grid_steps(tol.delta_s),
+                    })
+                    .collect(),
+                worst_cert: worst,
+                worst_dev,
+                worst_dev_cert,
+                worst_ratio,
+                dev_samples,
+            });
+        }
         positions.extend(staged);
         return Ok(triangles);
     }
@@ -720,8 +757,7 @@ fn trim_polygon(
     body: &Body<f64>,
     fk: FaceKey,
     lk: topo::LoopKey,
-    chords: &HashMap<EdgeKey, Vec<u32>>,
-    chord_ts: &HashMap<EdgeKey, Vec<f64>>,
+    chords: &ChordPass,
     nurbs_chart: bool,
 ) -> Result<Vec<(f64, f64, u32)>, TessellateError> {
     let lp = body
@@ -793,10 +829,14 @@ fn trim_polygon(
                 });
             }
         }
-        let ids = chords.get(&he.edge).ok_or(TessellateError::MissingEntity {
-            what: "edge chords",
-        })?;
-        let ts = chord_ts
+        let ids = chords
+            .ids
+            .get(&he.edge)
+            .ok_or(TessellateError::MissingEntity {
+                what: "edge chords",
+            })?;
+        let ts = chords
+            .params
             .get(&he.edge)
             .ok_or(TessellateError::MissingEntity {
                 what: "edge chord params",
