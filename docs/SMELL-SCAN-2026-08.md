@@ -5773,14 +5773,23 @@ of the two happened?**
   the crate's own decision-making modules"** — the eighth mention,
   `profile/src/lift.rs:636`, is a doc line saying there is *no* funnel
   call site there, so the count was raised by a sentence stating its own
-  negation. Swept before deleting: `profile::k_stats` appears in no
-  file in the tree outside `crates/profile`, **including the three
-  workspace-EXCLUDED roots** (`demos/`, `tools/`, `interval-transcendentals/`),
-  which no root `cargo check` compiles and about which a green workspace
-  build is therefore no evidence; `demos/tour` and `tools/k-lint` already
-  reach `geom_core::k_stats` directly. The other two STILL-OPEN bullets in
-  this section (`WitnessSlot`, `same_level`/`unreachable_zero`) are
-  untouched, which is why this heading does not become FIXED.
+  negation. **The three workspace-EXCLUDED roots were swept and then
+  BUILT** — `demos/`, `tools/` and `interval-transcendentals/` are
+  `exclude`d, so a green root `cargo check` is no evidence about them;
+  `demos/tour --features probe`, `demos/wild` and `tools/k-lint` all
+  build, and the first two already reached `geom_core::k_stats`
+  directly. **The sweep pattern still missed one consumer, and that is
+  the transferable part**: `profile::k_stats` matched nothing outside
+  `crates/profile`, but `crates/pncad/src/profile.rs:53` re-exported the
+  module as `pub use ::profile::{k_stats, lift, path};` — a **brace-list
+  re-export names a symbol without ever writing its path**, so no
+  path-shaped pattern can see it. `cargo check --workspace` caught it
+  (E0432), the sweep did not. The re-export is removed and
+  `pncad::profile::k_stats` had no consumers, verified afterwards by
+  scanning every `k_stats` token in the tree rather than a path. The
+  other two STILL-OPEN bullets in this section (`WitnessSlot`,
+  `same_level`/`unreachable_zero`) are untouched, which is why this
+  heading does not become FIXED.
 - **FIXED by #627.** The refusal message's line continuations are
   restored; the runtime text is one clean sentence again (the acceptance
   probe matches on `NON-PARALLEL`, which is unchanged).
