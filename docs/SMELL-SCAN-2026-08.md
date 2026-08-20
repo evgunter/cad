@@ -3906,20 +3906,49 @@ makes the row work is a fact about lengths rather than about ε.
 **H12 — the rest of the doors — landed as #734**, tests only. The
 never-silence claims in this area were enumerated from the refusal sites
 in `exhaust.rs` and the one guard in `ssi.rs` that makes the sweep's
-floor meaningful, crossed with the lane and (for the floor refusal) with
-the tube set: nine cells, of which three had rows. Six now do — the
-floor refusal's fourth {lane}×{tube set} cell, the cell budget in both
-lanes, both sweeps' enclosure-poison arms, and the chart-speed guard's
-infinite-speed blind spot, which the cell budget is what actually
-catches. The one that matters beyond the count is the **chart lane's
-containment test**: before that PR, `UvRect::contained_in` returning
-`true` for every cell — the accounting pass claiming to have proved
-cells it never touched — left 252 of `geom-brep`'s 253 rows green, while
-the ℝ³ twin was guarded by six. #633 had examined that cell and argued
-it should stay unwritten; the argument priced the shared floor arm and
-not the containment test underneath it. Two doors are recorded there
-rather than closed, both unreachable from the public doors as they
-stand: the chart-speed guard's own two arms.
+floor meaningful. **Sites are not the grid**: the budget check and both
+poison arms sit in the ONE shared recursion, which runs under both
+values of `SweepDuty` on separate calls with separate floors, so duty is
+an axis — and it is the axis this finding's bug lived on. Crossed with
+the lane, with duty where duty applies, and with the tube set for the
+floor refusal (the one site that exists under the accounting duty only),
+the grid is **thirteen cells, of which three had rows. Five more do**:
+the floor refusal's fourth {lane}×{tube set} cell, and the cell budget
+and the poison arm in each lane under the **seeding** duty — verified by
+instrumenting both `exhaust` entry points on each new row. The eight
+cells that had a row and the five that still do not are enumerated at
+the block itself in `geom-brep/tests/m5_pr7_ssi.rs`. A sixth row landed
+that covers no cell: it is the executable record of a live defect, below.
+
+The one that matters beyond the count is the **chart lane's containment
+test**. Each lane's accounting predicate reaches the sweep through one
+`SweepCell::contained_in` forwarder, and those two are the like-for-like
+pair: making the chart one return `true` for every cell — the accounting
+pass claiming to have proved cells it never touched — reddened **one** of
+`geom-brep`'s 260 rows, and making the ℝ³ one return `true` reddened
+**three** (measured on the merged head, 92 lib + 168 integration). One
+against three is the asymmetry. Mutating the ℝ³ predicate at its
+*definition* reddens six, but three of those are not accounting coverage:
+one is the predicate's own unit test in `enclose.rs`, and two are
+adversarial loop rows that go red only when the ℝ³ **seed dedup** at
+`ssi.rs:781` — a second, unrelated consumer — breaks at the same time.
+#633 had examined the chart cell and argued it should stay unwritten; the
+argument priced the shared floor arm and not the containment test
+underneath it.
+
+**One door is recorded rather than closed, and one is LIVE.** The
+chart-speed guard's own two arms are unreachable from the public doors as
+they stand. The hole *beside* them is not: `plane_nurbs_ssi` guards on
+`speed.is_nan() || speed <= 0.0`, so a certified chart speed of `+∞`
+passes, both floors translate to exactly `0`, the certified tube padding
+would be zero-width, and the **cell budget answers with the wrong
+diagnosis** — the caller is told its search was too big when the wall has
+no usable chart speed. Reachable from the public door on a NURBS surface
+any caller can build, and measured. That is a source-side logic fix
+inside a certifying door, so under C-R19 it is **issue #762** and no §D
+row; the same issue carries the latent `f64::max`-drops-a-lone-`NaN` in
+the same expression, and the ℝ³ poison arm's message naming surface kinds
+its own door excludes.
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
 baffle me with how they ever happened." Postmortem pass commissioned.

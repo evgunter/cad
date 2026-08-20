@@ -1654,8 +1654,9 @@ fn an_unseeded_chart_run_refuses_typed_rather_than_receipting_an_unprovable_doma
 //     that leaves a region neither excluded nor accounted at every
 //     width is a research question, not a row.
 //   - the chart-speed guard itself. Both of its arms are unreachable
-//     as written and the hole beside them is a live source defect —
-//     see [`an_infinite_chart_speed_refuses_rather_than_receipting`].
+//     as written, and the hole beside them is a LIVE source defect,
+//     open as issue #762 — see
+//     `an_infinite_chart_speed_refuses_rather_than_receipting`.
 //
 // Every cell here is a claim in `exhaust.rs`'s module docs — "a typed
 // refusal, never a silent truncation of the search" — that no fixture
@@ -2098,8 +2099,8 @@ fn a_poisoning_control_net_refuses_the_enclosure_typed() {
 ///
 /// This row covers **none** of the thirteen cells the block header
 /// enumerates. It is the regression guard attached to a source defect
-/// that is open, and it is here so the defect is executable rather
-/// than only written down.
+/// that is open as **issue #762**, and it is here so the defect is
+/// executable rather than only written down.
 ///
 /// **The defect.** `plane_nurbs_ssi` translates BOTH of its floors —
 /// seeding and accounting — from meters into the wall's parameter
