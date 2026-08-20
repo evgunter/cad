@@ -122,6 +122,16 @@ fn a_rung3_edge_at_rest_carries_a_fitted_pcurve_with_the_full_c2_certificate() {
 /// fitted cache cannot be certified by a scalar that may not certify
 /// (D1, 2026-08-19 — a dual now carries a bracket and still may not
 /// reach the C9 ring), and it says so.
+///
+/// **The asserted substring changed with D1, and it had to.** This row
+/// used to require the message to contain `"bracket"`, which was the
+/// reason the refusal gave: *"this scalar carries no bracket to reach the
+/// ring with"*. That sentence is now false — a dual carries the value
+/// channel's bracket — so the message says the true reason instead, and
+/// this row asserts the true reason. It is the assertion that keeps the
+/// user-facing string honest, so it is the one place that must move when
+/// the string does: `msg.contains("bracket")` passing again would mean
+/// someone reintroduced the stale claim.
 #[test]
 fn the_dual_lane_refuses_a_fitted_cache_typed() {
     let Some(built) = fixture::build::<f64>() else {
@@ -131,8 +141,12 @@ fn the_dual_lane_refuses_a_fitted_cache_typed() {
     let err = fixture::certify_at_dual(&built);
     let msg = format!("{err}");
     assert!(
-        msg.contains("dual") && msg.contains("bracket"),
-        "the refusal names the lane and why it has none: {msg}"
+        msg.contains("dual") && msg.contains("may not certify"),
+        "the refusal names the lane and the true reason it has none: {msg}"
+    );
+    assert!(
+        !msg.contains("no bracket") && !msg.contains("carries no bracket"),
+        "the refusal must not re-assert the premise D1 invalidated: {msg}"
     );
 }
 
