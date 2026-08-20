@@ -56,9 +56,9 @@ use core::f64::consts::{FRAC_PI_2, FRAC_PI_8, PI};
 use profile::RawLoop;
 
 use common::orient::{
-    FIXED_AXIS_GUARD_COS, along_v, assert_walls_face_out, level_ring, level_ring_plane,
-    level_set_contains, stack_axis, wall_outward, wall_outward_at,
+    along_v, assert_walls_face_out, loft_contains, wall_outward, wall_outward_at,
 };
+use common::quad;
 use geom::Surface;
 use geom_core::{Affine3, Band, Point3, Tolerance, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
@@ -757,92 +757,6 @@ fn a_lofted_operand_refuses_the_union_check_typed() {
 // against #619's twin oracle on the prism, where both are valid.
 // =====================================================================
 
-/// The PLANE of the level set at `v`-fraction `t`, oriented along the
-/// stack: the index these fixtures use, and the one a stack that turns
-/// past a right angle does not admit (`common::orient::LevelIndex`).
-///
-/// Newell's sign follows the ring's traversal, so a plane whose normal
-/// is near-perpendicular to the chord cannot be oriented against it
-/// reliably at all — that is what this guard is for. It is NOT the
-/// bisection's precondition; `loft_contains` checks that one directly.
-fn level_plane(lofted: &Lofted<f64>, axis: Vec3<f64>, t: f64) -> (Point3<f64>, Vec3<f64>) {
-    let (origin, n) = level_ring_plane(lofted, t);
-    let along = if n.dot(axis) < 0.0 { -1.0 } else { 1.0 };
-    assert!(
-        (n.dot(axis) * along) / axis.norm() > FIXED_AXIS_GUARD_COS,
-        "the level plane at v-fraction {t} must be orientable against the \
-         stacking chord: cos = {}",
-        n.dot(axis) * along / axis.norm()
-    );
-    (origin, n * along)
-}
-
-/// The body's own level set at `v`-fraction `t`, against the plane the
-/// stacking chord orients.
-fn level_set(lofted: &Lofted<f64>, t: f64) -> Vec<Vec<Point3<f64>>> {
-    level_ring(lofted, level_plane(lofted, stack_axis(lofted), t), t)
-}
-
-/// Levels the bisection's premise is checked on. Coarse: it must
-/// catch a fan that folds back, not resolve one.
-const MONOTONE_SCAN: usize = 64;
-
-/// **The level-set oracle**: is `q` inside the stacked solid? `q`'s
-/// height above the level plane falls as the level rises past it, so
-/// `q`'s own level set is found by bisection and the caller never
-/// needs to know how `v` maps to space. Past either cap is `Out` by
-/// construction.
-///
-/// PRECONDITION, asserted rather than assumed, and asserted DIRECTLY:
-/// `height` must be monotone. `level_plane`'s orientability guard is a
-/// weaker and different condition — measured on the elbow, a 120° turn
-/// clears it at `cos = 0.28` while `height` has already stopped being
-/// monotone — so guarding that instead would leave a body whose level
-/// is ambiguous answering from whichever root the bisection lands on.
-/// A post-condition cannot substitute: every spurious root satisfies
-/// `height ≈ 0`, and which root was found is exactly what is at stake.
-/// The scan is a scan — it certifies at its own resolution, and it
-/// fires rather than lies.
-fn loft_contains(lofted: &Lofted<f64>, q: Point3<f64>) -> SolidContainment {
-    let axis = stack_axis(lofted);
-    let height = |t: f64| {
-        let (p, n) = level_plane(lofted, axis, t);
-        (q - p).dot(n)
-    };
-    #[allow(clippy::cast_precision_loss)]
-    let scan: Vec<f64> = (0..=MONOTONE_SCAN)
-        .map(|i| height(i as f64 / MONOTONE_SCAN as f64))
-        .collect();
-    for (i, w) in scan.windows(2).enumerate() {
-        assert!(
-            w[1] < w[0],
-            "the level height must fall monotonically along v for a query \
-             point's level to be well defined: at step {i} of {MONOTONE_SCAN} \
-             it rises, {} then {}",
-            w[0],
-            w[1]
-        );
-    }
-    if scan[0] <= 0.0 || scan[MONOTONE_SCAN] >= 0.0 {
-        return SolidContainment::Out;
-    }
-    let (mut lo, mut hi) = (0.0_f64, 1.0_f64);
-    for _ in 0..40 {
-        let mid = (lo + hi) * 0.5;
-        if height(mid) > 0.0 {
-            lo = mid;
-        } else {
-            hi = mid;
-        }
-    }
-    let t = (lo + hi) * 0.5;
-    if level_set_contains(&level_set(lofted, t), level_plane(lofted, axis, t), q) {
-        SolidContainment::In
-    } else {
-        SolidContainment::Out
-    }
-}
-
 /// The convexity-FLIPPING section: the audit's rectangle with both the
 /// bottom and the top edge bowed, the bulge signs taken from `sign`.
 /// `flipping_loops(1.0)` bows the bottom edge INTO the region and the
@@ -906,8 +820,7 @@ fn a_convexity_flipping_loft_faces_out_at_every_level() {
 
     let samples = along_v();
     let oracle = |q| loft_contains(&lofted, q);
-    let probes = assert_walls_face_out(&lofted, &oracle, &samples, 0.02, 4);
-    assert_eq!(probes, 4 * samples.len(), "every wall at every level");
+    assert_walls_face_out(&lofted, &oracle, &samples, 0.02, 4);
 }
 
 /// **A three-section curved-`v` loft.** The notched region stacked
@@ -942,8 +855,7 @@ fn a_three_section_curved_v_loft_faces_out_at_every_level() {
 
     let samples = along_v();
     let oracle = |q| loft_contains(&lofted, q);
-    let probes = assert_walls_face_out(&lofted, &oracle, &samples, 0.02, 4);
-    assert_eq!(probes, 4 * samples.len(), "every wall at every level");
+    assert_walls_face_out(&lofted, &oracle, &samples, 0.02, 4);
 }
 
 /// **The level-set oracle agrees with the extruded twin.** The two
@@ -1039,12 +951,7 @@ fn a_curved_path_swept_body_faces_out_along_the_whole_turn() {
     )
     .expect("the elbow path is a well-formed quarter arc");
     let h = 0.25;
-    let profile = vec![ProfileLoop::polygon([
-        p2(-h, -h),
-        p2(h, -h),
-        p2(h, h),
-        p2(-h, h),
-    ])];
+    let profile = quad([(-h, -h), (h, -h), (h, h), (-h, h)]);
     let swept =
         sweep_body::<f64>(&profile, Affine3::identity(), &path, 9, 3).expect("the elbow sweeps");
     assert_eq!(topo::validate(&swept.body), Ok(()), "tier 1");
@@ -1064,6 +971,5 @@ fn a_curved_path_swept_body_faces_out_along_the_whole_turn() {
 
     let samples = along_v();
     let oracle = |q| loft_contains(&swept, q);
-    let probes = assert_walls_face_out(&swept, &oracle, &samples, 0.05, 4);
-    assert_eq!(probes, 4 * samples.len(), "every wall at every level");
+    assert_walls_face_out(&swept, &oracle, &samples, 0.05, 4);
 }

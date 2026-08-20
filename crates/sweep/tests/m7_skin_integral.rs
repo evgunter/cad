@@ -41,7 +41,9 @@ use sweep::skin::{LoftGeometry, Section, loft_geometry, segment_curve, sweep_geo
 use sweep::{SketchSegment, loft_body, sweep_body};
 
 mod common;
-use common::orient::{LevelIndex, along_v, assert_walls_face_out, chart_at};
+use common::orient::{
+    LevelIndex, along_v, assert_caps_face_out, assert_walls_face_out, chart_at, min_roll_turn,
+};
 use common::quad;
 
 /// A closed square section of half-width `h`, centred on the sketch
@@ -433,10 +435,26 @@ const PROBE_DELTA: f64 = 0.06;
 /// `sense` it is signed by is minted by the same traversal argument.
 ///
 /// ANTI-VACUITY on both halves of that. The chart must genuinely turn
-/// along `v` — the level planes are the path's normal planes, so a 90°
-/// arc turns them by `π/2` and a straight path by nothing, and the bar
-/// is nine tenths of `π/2`. And the walls must genuinely be rational,
-/// or the row is the integral elbow next door retyped.
+/// along `v` — the level planes are the path's normal planes, so a
+/// quarter-turn arc turns them by `π/2` and a straight path by nothing.
+/// The bar is [`min_roll_turn`]'s, the same law the helix rows use, at
+/// this path's `k = 0`. And the walls must genuinely be rational, or
+/// the row is the integral elbow next door retyped.
+///
+/// The CAPS are probed for the reason the helix rows probe them: a body
+/// whose two cap bits are inverted leaves every wall bit honest and
+/// passes every wall probe.
+///
+/// Tiers 1 and 2 only, deliberately, and not because the caps are
+/// covered by them. This fixture's rational walls miss the certified
+/// quadrature's `1024·ε` target at this scale — the same honest
+/// out-of-budget posture `m5_s11_concave_sense`'s rational hole-wall
+/// row records — so `validate_geometric` refuses here with
+/// `VolumeUncomputable`, and pinning that refusal costs 61 s against
+/// this row's 0.04 s for a statement about the quadrature schedule
+/// rather than about orientation. The cap probe above is what pins the
+/// cap bits on this body; the helix rows run the full ladder as well
+/// because there it is free.
 #[test]
 fn a_rational_section_on_a_curved_path_faces_out_along_the_turn() {
     let swept = sweep_body::<f64>(
@@ -452,10 +470,11 @@ fn a_rational_section_on_a_curved_path_faces_out_along_the_turn() {
 
     let index = LevelIndex::build(&swept);
     let turned = index.total_turn();
+    let want = min_roll_turn(0.25, 1.0, 0.0);
     assert!(
-        turned >= 0.9 * FRAC_PI_2,
+        turned >= want,
         "the elbow must turn the level planes a quarter turn along v, not \
-         {turned} rad — a straight path would hold them parallel"
+         {turned} rad against {want} — a straight path would hold them parallel"
     );
     let (surface, _, _) = chart_at(&swept.body, swept.side_faces[0][0], 0.5, 0.5);
     assert!(
@@ -464,8 +483,7 @@ fn a_rational_section_on_a_curved_path_faces_out_along_the_turn() {
          this row now restates the integral elbow next door"
     );
 
-    let samples = along_v();
     let oracle = |q| index.contains(q);
-    let probes = assert_walls_face_out(&swept, &oracle, &samples, PROBE_DELTA, 2);
-    assert_eq!(probes, 2 * samples.len(), "both walls at every level");
+    assert_walls_face_out(&swept, &oracle, &along_v(), PROBE_DELTA, 2);
+    assert_caps_face_out(&swept, &oracle, PROBE_DELTA);
 }

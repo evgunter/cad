@@ -39,7 +39,8 @@ use sweep::sweep_body;
 
 mod common;
 use common::orient::{
-    FIXED_AXIS_GUARD_COS, LevelIndex, along_v, assert_walls_face_out, stack_axis,
+    FIXED_AXIS_GUARD_COS, LevelIndex, along_v, assert_caps_face_out, assert_walls_face_out,
+    min_roll_turn, stack_axis,
 };
 use common::quad;
 
@@ -210,28 +211,44 @@ const PROBE_DELTA: f64 = 0.02;
 /// (`common::orient::LevelIndex`) sees only positions off the shipped
 /// charts.
 ///
+/// The walls, the CAPS and the full tier ladder. A body whose two cap
+/// bits are inverted leaves the point set untouched, every wall bit
+/// honest, and every wall probe passing — measured — so the caps are
+/// probed rather than argued about, and tier 3 is run rather than
+/// stopped short of.
+///
 /// Two ANTI-VACUITY conditions, because a row that never reaches its
 /// own premise passes for the wrong reason:
 ///
 /// - **the frame really rolls.** The elbow row's form — `n(0)·n(1)`
 ///   near zero — is worthless here: after a whole turn the two ends
-///   coincide at `cos = 1`, exactly as on a straight path. The level
-///   planes' turn is ACCUMULATED instead, and the figure it must reach
-///   is derived, not fitted: the level plane normal is the path
-///   tangent, `T(a) ∝ (−R sin a, R cos a, k)`, so `|dT/da| = R/√(R²+k²)`
-///   and a `turns`-revolution path turns it by `2π · turns · 0.9981`
-///   at this fixture's `R` and `k`. The bar is nine tenths of that.
-///   (One WALL's normal is the wrong quantity here and reads far less:
+///   coincide at `cos = 1`, exactly as on a straight path. The LEVEL
+///   PLANES' turn is accumulated instead, against the one law both
+///   swept suites take their bar from ([`min_roll_turn`]). One WALL's
+///   normal is the wrong quantity and reads far less:
 ///   `side_faces[0][0]`'s outward normal starts within a degree of the
-///   helix axis, which is close to what the minimal-rotation frame
-///   turns about, so it barely moves while the frame sweeps a whole
-///   revolution. That is a fact about which wall, not about the chart.)
-/// - **no fixed axis orients these level planes**, so the loft
-///   corpus's index could not have answered and this row is not a
-///   restatement of it. Its guard needs every level plane's normal
-///   within [`FIXED_AXIS_GUARD_COS`] of the stacking chord; here the
-///   worst level is far outside it, and the row asserts that rather
-///   than resting on the derivation in [`common::orient::LevelIndex`].
+///   helix axis, which is near what the minimal-rotation frame turns
+///   about, so it accumulates 0.09 rad over a quarter turn while the
+///   frame sweeps 90°.
+///
+///   The accumulation is UNSIGNED, which costs and buys something. It
+///   buys catching a path that turns and comes back; it costs counting
+///   the interpolated spine's wobble as turn, so the shipped bodies
+///   read about 1.7% ABOVE the smooth-helix figure (6.3769 against
+///   6.2705 at one turn). Harmless under a ten-per-cent lower bound —
+///   but it means a body could in principle clear the bar on wobble
+///   with no net turn, which is why the second condition is not
+///   optional.
+/// - **no fixed axis orients these level planes**, so the fixed-chord
+///   index could not have answered and this row is not a restatement of
+///   it. That index needs EVERY level plane's normal within
+///   [`FIXED_AXIS_GUARD_COS`] of the stacking chord and refuses on the
+///   first one that is not, so the quantity to assert on is the
+///   MINIMUM over the levels: measured `0.0575` on the whole turn and
+///   `0.0111` on the half. The maximum is nowhere near it (`0.129` and
+///   `0.993`) — [`common::orient::LevelIndex`] carries the whole range,
+///   and a row that read one level would read `0.0635` and prove less
+///   than it looked.
 fn assert_helix_walls_face_out(turns: f64, stations: usize) {
     let path = helix_path(turns);
     let place = start_place(&path);
@@ -246,9 +263,8 @@ fn assert_helix_walls_face_out(turns: f64, stations: usize) {
     );
 
     let index = LevelIndex::build(&swept);
-    let k = PITCH / std::f64::consts::TAU;
     let turned = index.total_turn();
-    let want = 0.9 * turns * std::f64::consts::TAU * R / (R * R + k * k).sqrt();
+    let want = min_roll_turn(turns, R, PITCH / std::f64::consts::TAU);
     assert!(
         turned >= want,
         "{turns} turns: the level planes accumulated only {turned} rad of turn \
@@ -270,13 +286,13 @@ fn assert_helix_walls_face_out(turns: f64, stations: usize) {
          past it"
     );
 
-    let samples = along_v();
     let oracle = |q| index.contains(q);
-    let probes = assert_walls_face_out(&swept, &oracle, &samples, PROBE_DELTA, 4);
+    assert_walls_face_out(&swept, &oracle, &along_v(), PROBE_DELTA, 4);
+    assert_caps_face_out(&swept, &oracle, PROBE_DELTA);
     assert_eq!(
-        probes,
-        4 * samples.len(),
-        "{turns} turns: every wall at every level"
+        topo::validate::validate_geometric(&swept.body),
+        Ok(()),
+        "{turns} turns: tier 3"
     );
 }
 
