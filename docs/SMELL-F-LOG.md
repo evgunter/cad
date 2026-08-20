@@ -64,7 +64,7 @@ Three destinations, and a lane picks by the finding's kind, not by its size:
 orchestrators never read a document that is behind the tree. Each unit
 makes two edits to `docs/SMELL-SCAN-2026-08.md` in its own PR:
 
-1. the finding's heading becomes `## SNN. FIXED by #NNN — …`, and its
+1. the finding's heading becomes `## SNN. FIXED by #783 — …`, and its
    **original problem statement is replaced** by the record of what was
    done. Version control keeps the original; leaving it in place makes a
    closed finding read as open.
@@ -251,7 +251,7 @@ and say what they were.
 
 **Recording your own completion.** Your PR makes two edits to
 `docs/SMELL-SCAN-2026-08.md`: the finding's heading becomes
-`## SNN. FIXED by #NNN — …` with its **original problem statement replaced** by
+`## SNN. FIXED by #783 — …` with its **original problem statement replaced** by
 the record of what was done (version control keeps the original), and your row
 **leaves** §D's Track F table. Check the surrounding prose as well — Track F's
 preamble names rows by name, so a landing that leaves the table and stays in
@@ -354,7 +354,7 @@ constraint is, and it is stated here so a Track G taker can read it.
 
 ## Landings
 
-**F-b — F6 (S73 parts 1 and 3), PR #NNN.** `ratio` is gone: the sizing
+**F-b — F6 (S73 parts 1 and 3), PR #783.** `ratio` is gone: the sizing
 columns are admitted or refused **per column** where they are parsed, so
 a broken measurement leaves in the harness voice instead of becoming the
 gate's pass value, while the one legitimately-absent column (`worst_dev`,

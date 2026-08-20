@@ -8017,11 +8017,11 @@ tests can see, not about the mathematics.
 
 **Verdict:**
 
-## S73. FIXED IN PART by #NNN — parts one and three; part two remains as Track C's C15 (issue #746)
+## S73. FIXED IN PART by #783 — parts one and three; part two remains as Track C's C15 (issue #746)
 
 Three findings on `tools/`, which is where the project's
 measure-don't-guess rule (`memories/tessellation-budget.md`) is
-implemented. **Parts one and three are closed by #NNN. Part two — the
+implemented. **Parts one and three are closed by #783. Part two — the
 positional face-ordinal join — is Track C's row C15 and issue #746, is
 unstaffed, and stands below as it was found.**
 
