@@ -230,7 +230,7 @@ before the merge, so answering saves a round.
 
 ## Lane roster
 
-**Wave 1 — open now.** These three share no file with each other, with Track
+**Wave 1 — open now.** These lanes share no file with each other, with Track
 C's open lanes (#732, `stl/`), with Track E's (#753 `scripts/`+`ci.yml`, #763
 `crates/*/tests/all.rs`, #767 `editor-core/src/eval/`, #768
 `sweep/src/fillet/`), or with Track F's.
@@ -239,7 +239,6 @@ C's open lanes (#732, `stl/`), with Track E's (#753 `scripts/`+`ci.yml`, #763
 |---|---|---|---|---|
 | **G-a** | **G1** (S72 + S110(h), S111(c), S112(b)(c), S114(a)(d), S116(r)(t)) | `interval-transcendentals/` (its own workspace), and `ci.yml`'s oracle-job comments only — see **G-R3** | **ADVERSARIAL** | — |
 | **G-b** | **G2** (S110(g)(j), S112(h), S113(a)(b), S114(b)(c), S116(d)) | `demos/` | style; **S114(c) is a design PR to Evan** | — |
-| **G-c** | **G3** (S74, and the *"deliberately NOT unified"* class re-check) | `sweep/src/{swept,revolve/mod,extrude,loft,revolve/tube}.rs` | style | — |
 
 **Wave 2 — opens as wave 1 lanes free up; edge-free today.**
 
