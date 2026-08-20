@@ -9537,7 +9537,7 @@ of `boolean_op::serialize`'s round-trip guard.
 
 **Verdict:**
 
-## S106. FIXED by #PRNUM — the profile `Step` vocabulary was unified inside `profile` only
+## S106. FIXED by #836 — the profile `Step` vocabulary was unified inside `profile` only
 
 **The diagnosis was right and the mechanism was wrong, and correcting it
 is most of the fix.** The vocabulary is spelled six times, not five, and

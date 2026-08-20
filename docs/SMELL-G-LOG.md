@@ -133,7 +133,7 @@ from the orchestrator.
 | **G-a** | D71, D72 | S127, S128 |
 | ~~**G-b**~~ (landed, #787) | D73, D74 — **unused, returned**; **D79** used | S129 and **S130** used; S135, S136 free |
 | ~~**G-c**~~ (landed, #781) | D75–D77 — **unused, returned** | S131, S132, S133 — **all spent** |
-| ~~**G-f**~~ (G7, landed #PRNUM) | **D75** used; D76 returned | **S169** used; S170 returned |
+| ~~**G-f**~~ (G7, landed #836) | **D75** used; D76 returned | **S169** used; S170 returned |
 | unassigned | D72, D73, D74, D76, D77, D80 | S128, S135, S136, S170 |
 
 **G-a used D71 and D78, and S127 and S134** (see *Landings*); D72 and S128 came
@@ -294,7 +294,7 @@ complete; wave 2 is the live one.
 |---|---|---|---|
 | **G-a** | **G1** — S72 + S110(h), S111(c), S112(b)(c), S114(a)(d), S116(r)(t) | **#786** | Fence published per **G-R3**: `ci.yml` hunks confined to the `interval-backend` job's header comment, ~790 lines from #753's. **NOT CLEARED on first review; fix pass landed in the same PR** — the tightness ceiling had reproduced S72's own defect (a max over a sample set the degradation empties), and the structural derivation beside it was wrong in the crate's favour (`4·pad+1`, not `2·pad+1`). One member came back correcting its finding: **S114(d)**'s decoration idiom is five sites, not six. **S111(c)'s first write-up over-corrected and is withdrawn** — the diagnostic was right about the code, only the remedy was wrong; see **G-R8** as amended. New findings taken: **S127**/D71, **S134**/D78. |
 
-### G-f — **G7**/S106, the `Step` vocabulary, #PRNUM
+### G-f — **G7**/S106, the `Step` vocabulary, #836
 
 **S106's diagnosis held; its mechanism did not, and correcting it was most of
 the unit.** Measured with a probe verb added to `transition_table!`: adding a
