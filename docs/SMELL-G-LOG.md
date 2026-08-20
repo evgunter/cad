@@ -349,6 +349,66 @@ complete; wave 2 is the live one.
 | **G-b** | **#787** (G2, nine members) | style only, then a targeted re-check | **fix pass done, re-check running.** All ten must-fixes taken and **no disagreements** — because, as the lane put it, *three of the ten were defects its own first fix introduced*, and it names finding 3 as the one it is least happy about, having read G-a's `assert_contains` finding in its own brief and reproduced it anyway one tree over. **That record is why a second pass gets a look**, not ritual. Best fix of the pass: the `LEGEND` was closed **by computing it** against the emitter, and the computation immediately caught two live drifts (`#777777` appearing in no cell; `#333333` against the emitter's `#333`). The volume pin's `9.0` literal is gone — the expected volume is derived from the sections and checked *before* the kernel is asked — and `volume_pad` is now bounded above. The winding alarm became a **fatal assert**, with the lane arguing fatal-in-the-tour over a kernel issue on the ground that **nothing fires today, so an issue now would be a placeholder for a hypothetical, while the assert is the thing that would produce that issue with a witness attached**. Issues **#795** (the typed-refusal exit convention, flagged as possibly Evan's) and **#796** (the shadow tuple algebra beside `Vec3`, in the #757–#759 channel). `S130` + `D79` record the `lily.rs` roll-up. Spent `S129`, `S130`, `D79`; `D73`, `D74`, `S135`, `S136` returned free | CI green (36 success, 1 skipped). Weight put on: **a printed number is not a guarded number** — the lane's governing choice was *compute or delete, never restate*, and every closed count is now *printed by the run that produces it* or is a Rust array length; **the array length enforces, the printing does not**, and a number printed and never compared is S110(b)'s class and the exact defect G-a is fixing one tree over. Also: this unit **deleted a great deal** and a frontier arm now panics where something previously did not, which changes what a render lane sees; S114(b)'s replacement of a false *"VERBATIM"* with a computed volume pin is the right shape but **two different prisms can share a volume**; and `lily.rs` (2,446 lines, §B2's *"sampled, not read"*, the scan's highest-yield uncovered file) is the Q8 candidate |
 | **G-c** | **#781** (G3/S74) | style only | **CLEARED and MERGED** (35 checks green, 2 skipped, 0 failed, `k-lint (gate)` included). The fix pass took all seven must-fixes and every judgement call, and **disagreed twice, correctly, on both** — verified independently by the orchestrator before the merge. *(i)* No visibility widening happened: `pub(super)` written in `crate::revolve` **already means** `pub(crate)`, because `revolve` is a child of the crate root — proved by compiling a sibling construction rather than by argument. The substantive worry is real, pre-existing and unchanged by the diff, and is recorded as **S131** rather than presented as fixed. *(ii)* The marker recount is **7 = 5 + 2**, not the reviewer's 4 + 2: `cap_points` and `cosurface` do carry markers. Re-derived by the orchestrator from `6b9c1236` — eight marker lines, one excluded — and the lane **published the criterion** (*a marker is a sentence declaring this item is the same code as a named item elsewhere*), which is what makes a contested count re-derivable rather than asserted. **The best thing in the pass:** S-9/S-14/S-15 were closed **in code, not prose** — the arc rule is now one body, `swept::centre_on_material_side`, called from both verbs, with the `Zero` posture decided once and the reconciling comment deleted. That is the correct answer to *"you closed a prose fence by writing prose fences"*. Spent `S131`, `S132`, `S133`; returned `D75`–`D77`. Took `revolve/axis.rs`, outside §D's Scope cell, and named it in the PR. **Was: NOT CLEARED** The reviewer's verdict on the track's own question: *"the instance is gone; the mechanism is not."* Claim 1 **confirmed two independent ways** and the code shape endorsed (*"how I would have done it"*), with the guarding row named — `m5_s11_concave_sense.rs:165` goes red on a mis-indexed bit. But claim 6 **fails** (a self-declared hand-copy of the involution at `revolve/tube.rs:216-239`, inside scope, that neither sweep surfaced) and claim 5 **fails on its arithmetic** (5+2≠7; re-derived as 4 correct + 2 standing, and two names in the list carried no deleted marker at all). **Two findings are S74's own mechanism committed by the fix for S74** — a replacement funnel count already wrong in the other direction, and S6's own copy of the false sentence left standing by the class re-check that read it. Seven must-fixes; `S131`–`S133` / `D75`–`D77` reassigned to the pass. Reviewer asked, and answered, whether this should have been adversarial: **no** | CI 22 green / 0 failed / 3 in flight at dispatch. Claims handed over for falsification: *geometry does not move* (the index algebra of the reverse arm is the one where a wrong answer ships wrong geometry), *the duplication is removed not relocated*, *loft's orientation bit is now structurally absent*, and the deleted-marker sweep's **"no third"** negative result. Emphasis: **a unification is the shape that mints duplicates**, the lane's two disclosed blind spots are work orders, and the reviewer is asked to say explicitly if the unit should have carried an adversarial review after all |
 
+## Wave-2 review outcomes
+
+**#834 (G-g, G8) — NOT CLEARED on style, Unit 2 CONFIRMED on adversarial.** The
+split was worth it and both halves earned their posture.
+
+*Unit 2 is the strongest single result on this track.* The reviewer confirmed
+`point_in_loop`'s sign-invariance by reading the real loop (the normal enters at
+exactly three places and only there), then by **320k bitwise projection/side-axis
+cases, 2M FP-lemma pairs, 14k f64 probes over 5 profiles × 7 planar faces, 1.26k
+probes on the certified lane, and a mutation test** — and it holds **for the
+structural reason**, so reachability changes only how much is at stake.
+
+*Two reviewers converged on one line from opposite directions*, which is the
+strongest signal this process generates. The style lane flagged the pin's
+`Debug`-string equality and could only mark it **`unsure`, taste**; the
+adversarial lane built the witness — a vertex 3e-9 off the first ray line
+escalates with the same variant, predicate and band, but the diagnostic carries
+the **signed** margin, so 12 of 12 such refusals differ and the row false-reds.
+**Neither lane alone would have produced a fix; together they produced a
+witness.** Worth remembering when deciding whether a row gets one review or two.
+
+*And the adversarial lane refuted a limit in the safe direction.* The pin's docs
+said it would not fire on an unsigned crossing lever, *"because a closed loop
+has an even number of straddles"*; the reviewer **mutated `ray_parity.rs` to
+exactly that and the row failed** — the tilted block pins absolute verdicts. A
+lane understating its own instrument is rarer than the reverse and still wrong:
+the sentence is disproved by the file's own code. (The parity claim is also
+*true but vacuous where invoked* — `sides` only ever holds `Positive`/`Negative`,
+so adjacent-unequal pairs are even for any cyclic two-valued sequence.)
+
+**#831 (G-d, G5) — NOT CLEARED on style.** The reviewer read all 1,590 lines,
+**re-derived the geometry numerically** rather than taking it on report, and
+cleared the substance: the new assertion is non-vacuous (a wrong crossing misses
+the 1e-9 bound by ~2r), issue #827 does not quietly decide the capability
+question, and both scope calls were endorsed. Then it found that **the PR
+re-minted S71's shape at the site it was correcting** — `check_corner`'s doc
+contradicts itself inside one paragraph, and the replacement still opens with
+*"So the class is built"*, the exact phrase the finding was raised about, with a
+rider appended. **A rider is a narrowing, not a removal**, and that is now the
+third time this track has had to say so.
+
+*The printed-number class, for the third time.* `n_enclosing` is accumulated,
+never asserted, and printed with `eprintln!` — which `cargo test` swallows
+without `--nocapture` — under a header claiming the sweep *corroborates* the
+boundary. Its consequence is worse than the instance: the arm it feeds **would
+pass if the door ever did emit an enclosing tangency**, so it cannot be the
+tripwire its presence implies.
+
+*A finding worth generalising:* the PR that measures **285 inert `tests/`
+intra-doc links** adds **four fresh ones** in the same diff, when plain
+backticks were already in use for the same targets two crates over.
+
+*And the amnesty channel, caught by precedent rather than by argument.* The lane
+declined a §D row for S135 on the grounds that its disposition is *"a policy
+call"* — while **D71 sits in the same register as `ACCEPTED, unstaffed`**, which
+is exactly a decision-shaped row with no patch. The channel exists and was used
+one screen up. A finding whose fix is *someone should decide something* owes a
+named decision-holder, and the same lane routed its other decision correctly, to
+a numbered issue with an owner.
+
 ## Landings
 
 | lane | row | PR | note |
