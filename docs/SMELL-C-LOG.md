@@ -494,6 +494,52 @@ untouched because its recording sits *inside* `decide`/`decide_flagged`/
 `decide_invariant`, which are load-bearing kernel predicate doors — so the
 `mesh::budget` split does not transfer mechanically.
 
+### #709 (C-b / S30) — both lanes, 2026-08-20: **not cleared**
+
+Twenty findings across the two lanes on a unit whose CI was green and whose PR
+body was the most rigorous of the three. Neither lane found a shipped wrong
+answer; both found **claims wider than their evidence**, which is now this
+track's characteristic result.
+
+**The adversarial break (claim 2), and it is the one worth carrying.** The PR
+claimed the deleted per-triangle `assert!`'s falsification was *"preserved
+exactly, and strengthened"* by reducing to `worst_ratio`. The floating-point
+half is sound — verified across binades, a one-ULP violation still caught, and
+genuinely stronger at `d = B = +inf`. **The population is not the same.** The
+accumulators are local to the tessellation attempt and `note_face` runs only on
+the *accepted* one, while the old assert fired inside **every** attempt,
+discarded retries included. A certificate violation on a discarded attempt's
+triangle was caught before and is silently dropped now. The lane's own comment
+argues the reset is right *for the reported numbers* — true — and does not
+notice it also narrows the falsifier.
+
+Exposure is **zero today**: the reviewer instrumented the retry path and
+measured 0 retries across the full tour sweep and the 152-test budget build. So
+it is a real, unstated narrowing that nothing currently exercises.
+
+*Generalisable:* **"the reported numbers are per accepted attempt" and "the
+falsifier sees every triangle we tessellated" are different obligations that
+happened to share an accumulator.** Scoping the accumulator correctly for one
+silently rescoped the other. A falsifier that quietly stopped watching a case
+is precisely the shape S30's own postmortem describes — a compliance check that
+became the whole review.
+
+**The style lane's counterpart:** the PR whose headline finding was *a vacuous
+assertion* shipped one — `opt_cells <= patch_cells`, where `patch_cells` is
+exactly the value the optimizer seeds its running minimum with. And its
+correction of the false `agreement` sentence landed at **two of four sites**,
+leaving it verbatim in the lint tool's docs and in `TESS-BUDGET.md`.
+
+**Two findings reach past the PR**, both from the style lane: `docs/MESH-PROBEGATE-SPEC.md`
+is a **binding spec whose entire subject no longer exists** after this PR,
+untouched and unmarked; and ~1,050 lines of prose left the workspace rustdoc
+gate, whose own header claims "no exclusions" and argues it exists because
+*"prose that quietly stops rendering is a real loss"*.
+
+*And the successor risk, stated by the style lane and worth keeping:* **the
+danger is that "is it in `tools/`?" becomes the new compliance check** — S30's
+lesson one level up, applied to S30's own fix.
+
 ---
 
 ## Landings
