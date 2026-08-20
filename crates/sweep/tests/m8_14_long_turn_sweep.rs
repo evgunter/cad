@@ -200,11 +200,6 @@ fn a_two_turn_helical_sweep_builds_and_certifies() {
 /// fixtures — the section's walls are straight lines).
 const PROBE_DELTA: f64 = 0.02;
 
-/// Samples of `v` the anti-vacuity turn is accumulated over. Coarse
-/// enough to be cheap, fine enough that two turns advance the normal by
-/// ~3° per step.
-const TURN_SAMPLES: usize = 256;
-
 /// **Every wall of a `turns`-revolution helical sweep faces out of the
 /// material, at every level of a chart that rolls the whole way.**
 ///
@@ -220,8 +215,17 @@ const TURN_SAMPLES: usize = 256;
 ///
 /// - **the frame really rolls.** The elbow row's form — `n(0)·n(1)`
 ///   near zero — is worthless here: after a whole turn the two ends
-///   coincide at `cos = 1`, exactly as on a straight path. The turn is
-///   ACCUMULATED instead and must reach `0.9 · turns · 2π`.
+///   coincide at `cos = 1`, exactly as on a straight path. The level
+///   planes' turn is ACCUMULATED instead, and the figure it must reach
+///   is derived, not fitted: the level plane normal is the path
+///   tangent, `T(a) ∝ (−R sin a, R cos a, k)`, so `|dT/da| = R/√(R²+k²)`
+///   and a `turns`-revolution path turns it by `2π · turns · 0.9981`
+///   at this fixture's `R` and `k`. The bar is nine tenths of that.
+///   (One WALL's normal is the wrong quantity here and reads far less:
+///   `side_faces[0][0]`'s outward normal starts within a degree of the
+///   helix axis, which is close to what the minimal-rotation frame
+///   turns about, so it barely moves while the frame sweeps a whole
+///   revolution. That is a fact about which wall, not about the chart.)
 /// - **no fixed axis orients these level planes**, so the loft
 ///   corpus's index could not have answered and this row is not a
 ///   restatement of it. Its guard needs every level plane's normal
@@ -241,16 +245,17 @@ fn assert_helix_walls_face_out(turns: f64, stations: usize) {
         "{turns} turns: tier 2"
     );
 
-    let turned = chart_normal_turn(&swept.body, swept.side_faces[0][0], TURN_SAMPLES);
-    let want = 0.9 * turns * std::f64::consts::TAU;
+    let index = LevelIndex::build(&swept);
+    let k = PITCH / std::f64::consts::TAU;
+    let turned = index.total_turn();
+    let want = 0.9 * turns * std::f64::consts::TAU * R / (R * R + k * k).sqrt();
     assert!(
         turned >= want,
-        "{turns} turns: a wall's outward normal accumulated only {turned} rad of \
-         turn along v, under the {want} this fixture exists to exercise — the \
-         chart is not rolling and the rows below would pass on a straight tube"
+        "{turns} turns: the level planes accumulated only {turned} rad of turn \
+         along v, under the {want} this fixture exists to exercise — the chart is \
+         not rolling and the rows below would pass on a straight tube"
     );
 
-    let index = LevelIndex::build(&swept);
     let axis = stack_axis(&swept);
     let worst = index
         .planes()

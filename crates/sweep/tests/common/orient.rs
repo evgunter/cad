@@ -484,6 +484,23 @@ impl<'a> LevelIndex<'a> {
         &self.planes
     }
 
+    /// How far the level planes' normal turns along the whole stack,
+    /// accumulated over the samples rather than compared end to end.
+    ///
+    /// For a swept body this is the path tangent's total turn, so it is
+    /// the direct measure of whether the chart ROLLS: a straight path
+    /// holds every level plane parallel and reads 0, and a whole
+    /// revolution reads `2π` less whatever the tangent's own pitch
+    /// keeps out of the turning plane. Accumulating is what
+    /// distinguishes a whole turn from a straight path at all — their
+    /// end-to-end normals are the same vector.
+    pub fn total_turn(&self) -> f64 {
+        self.planes
+            .windows(2)
+            .map(|w| w[0].1.dot(w[1].1).clamp(-1.0, 1.0).acos())
+            .sum()
+    }
+
     /// The level plane at an arbitrary `t`, oriented to agree with
     /// `reference` — used inside a bracket, where the two are one
     /// sample apart and the choice is not close.
