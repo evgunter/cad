@@ -36,13 +36,20 @@ pub fn frac_pi_2() -> DInterval {
     )
 }
 
-/// One-ulp-wide enclosure of −π/2 (negation of an enclosure is exact).
-pub fn neg_frac_pi_2() -> DInterval {
-    DInterval::make(
-        (-core::f64::consts::FRAC_PI_2).next_down(),
-        -core::f64::consts::FRAC_PI_2,
-        Decoration::Com,
-    )
+/// One-ulp-wide enclosure of −π/2, for `sin`'s minimum grid.
+///
+/// It IS the negation of [`frac_pi_2`] rather than a second hand-written
+/// pair of endpoints, because interval negation is exact (`arith.rs`'s
+/// `Neg` swaps the endpoints and negates them, and f64 negation is
+/// exact). That is what puts it under `certify_constants`' cross-check
+/// against the MPFR oracle: the harness certifies `frac_pi_2`, and the
+/// only step between them is exact.
+///
+/// `pub(crate)`, unlike its three siblings: they are re-exported from
+/// `lib.rs` because the kernel's `Real` trait asks for them, and this one
+/// is not on that surface.
+pub(crate) fn neg_frac_pi_2() -> DInterval {
+    -frac_pi_2()
 }
 
 /// Conservative test: might the arithmetic grid `{c + k·p : k ∈ ℤ}`
@@ -73,4 +80,39 @@ pub(crate) fn grid_possibly_hits(x: &DInterval, c: DInterval, p: DInterval) -> b
         return true;
     }
     k.hi.floor() >= k.lo.ceil()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The direction facts this module's header asserts, checked rather
+    /// than only written down. Each constant's enclosure must be the
+    /// one-ulp bracket `[c, next_up(c)]` around the f64 constant, which
+    /// is what makes it an enclosure of the irrational value given the
+    /// header's rounding-direction facts (certified against MPFR in
+    /// `certify_constants`).
+    #[test]
+    fn each_constant_is_the_one_ulp_bracket_above_its_f64() {
+        for (iv, c, name) in [
+            (pi(), core::f64::consts::PI, "pi"),
+            (tau(), core::f64::consts::TAU, "tau"),
+            (frac_pi_2(), core::f64::consts::FRAC_PI_2, "frac_pi_2"),
+        ] {
+            assert_eq!(iv.lo(), c, "{name}: lo");
+            assert_eq!(iv.hi(), c.next_up(), "{name}: hi");
+            assert_eq!(iv.decoration(), Decoration::Com, "{name}: dec");
+        }
+    }
+
+    /// `neg_frac_pi_2` is the exact negation of `frac_pi_2`, endpoints
+    /// swapped — the property that lets it inherit `frac_pi_2`'s
+    /// certification instead of needing its own oracle row.
+    #[test]
+    fn neg_frac_pi_2_is_the_exact_negation_of_frac_pi_2() {
+        let (p, n) = (frac_pi_2(), neg_frac_pi_2());
+        assert_eq!(n.lo(), -p.hi());
+        assert_eq!(n.hi(), -p.lo());
+        assert_eq!(n.decoration(), p.decoration());
+    }
 }

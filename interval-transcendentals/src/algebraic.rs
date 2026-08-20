@@ -6,14 +6,7 @@
 //! allowlist" step gates in the kernel).
 
 use crate::interval::{DInterval, Decoration};
-use crate::round::{down1, mul_hi, mul_lo, up1};
-
-/// Smallest `a` for which the FMA exactness witness for `sqrt` is valid:
-/// below this the residual `s·s − a` can itself underflow and the test
-/// becomes unreliable (docs/derivations.md §3). Exactly `2^-960`, the
-/// same 2Prod validity floor as `round.rs` (harness-hardened margin)
-/// (IEEE 754 bit pattern: biased exponent 1023 − 960 = 63, zero mantissa).
-const SQRT_EXACT_WITNESS_MIN: f64 = f64::from_bits(0x03F0_0000_0000_0000);
+use crate::round::{down1, mul_hi, mul_lo, two_prod_witness, up1};
 
 impl DInterval {
     /// Enclosure of `sqrt` over `self ∩ [0, ∞)`. Partial domain miss
@@ -69,14 +62,7 @@ impl DInterval {
     /// `self^m` for `m >= 1`, by sign/parity case split over directed
     /// binary exponentiation.
     fn pow_pos(self, m: u64) -> Self {
-        let dec = {
-            let bounded = self.lo.is_finite() && self.hi.is_finite();
-            self.dec.min(if bounded {
-                Decoration::Com
-            } else {
-                Decoration::Dac
-            })
-        };
+        let dec = self.dec.min(Decoration::continuous_on(self.is_bounded()));
         if m.is_multiple_of(2) {
             let (lo, hi) = if self.lo <= 0.0 && self.hi >= 0.0 {
                 // Straddles zero: inf of range is EXACTLY 0 (attained).
@@ -101,7 +87,10 @@ impl DInterval {
 
 fn sqrt_lo(a: f64) -> f64 {
     let s = a.sqrt();
-    if a >= SQRT_EXACT_WITNESS_MIN && f64::mul_add(s, s, -a) == 0.0 {
+    // `s·s = a` witnessed by round.rs's one 2Prod test, gated on the
+    // radicand because that IS the product magnitude here (derivations §3
+    // derives one floor for the mul, div and sqrt witnesses alike).
+    if two_prod_witness(s, s, a, a) {
         s // provably exact: sqrt(a) is representable
     } else {
         // True sqrt >= 0 always; the pad may not cross below zero.
@@ -111,7 +100,7 @@ fn sqrt_lo(a: f64) -> f64 {
 
 fn sqrt_hi(b: f64) -> f64 {
     let s = b.sqrt();
-    if b >= SQRT_EXACT_WITNESS_MIN && f64::mul_add(s, s, -b) == 0.0 {
+    if two_prod_witness(s, s, b, b) {
         s
     } else {
         up1(s)

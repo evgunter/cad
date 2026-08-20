@@ -26,6 +26,19 @@ pub enum Decoration {
     Com,
 }
 
+impl Decoration {
+    /// The decoration a TOTAL, CONTINUOUS function earns on an input box:
+    /// `Com` when the box is bounded, `Dac` when it is not — `Com` is
+    /// definitionally unavailable on an unbounded box (1788 §8, and the
+    /// [`DInterval`] type invariant). Every such operation in the crate
+    /// asks this rather than spelling the branch again; operations that
+    /// are NOT total (`sqrt`, `asin`, `acos`, `tan`) choose their own
+    /// decoration from their domain test instead.
+    pub(crate) fn continuous_on(bounded: bool) -> Self {
+        if bounded { Self::Com } else { Self::Dac }
+    }
+}
+
 /// A decorated interval: `[lo, hi]` encloses the true real value of the
 /// computation; `dec` is the poison channel.
 ///
@@ -140,6 +153,13 @@ impl DInterval {
     /// Upper bound (NaN for empty/NaI).
     pub fn hi(&self) -> f64 {
         self.hi
+    }
+
+    /// Both endpoints finite. Only meaningful on a nonempty, non-NaI
+    /// interval (NaN bounds answer `false`), which is where every caller
+    /// asks it: after [`Self::propagate1`]/[`Self::propagate2`].
+    pub(crate) fn is_bounded(&self) -> bool {
+        self.lo.is_finite() && self.hi.is_finite()
     }
 
     pub fn decoration(&self) -> Decoration {

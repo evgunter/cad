@@ -17,13 +17,23 @@ fn half_pi_hi() -> f64 {
 }
 
 impl DInterval {
-    /// Enclosure of `asin` over `self ∩ [-1, 1]` (monotone increasing).
-    pub fn asin(self) -> Self {
+    /// Shared prologue of [`Self::asin`] and [`Self::acos`]: both are
+    /// defined exactly on `[-1, 1]`, so both dispose of the same three
+    /// cases in the same way — poison/empty propagates, a FULL domain
+    /// miss is `Empty`, and a PARTIAL miss clamps the input to `[-1, 1]`
+    /// and drops the decoration to `Trv` so the clamp can never decide
+    /// anything (the kernel's contract, `lib.rs`).
+    ///
+    /// Returns the clamped endpoints and the result decoration, or the
+    /// early result in `Err`. What each function keeps for itself is the
+    /// part that genuinely differs: which endpoint feeds which bound
+    /// (`asin` increases, `acos` decreases) and the range it clips to.
+    fn clamp_to_unit(self) -> Result<(f64, f64, Decoration), Self> {
         if let Some(p) = Self::propagate1(&self) {
-            return p;
+            return Err(p);
         }
         if self.lo > 1.0 || self.hi < -1.0 {
-            return Self::empty();
+            return Err(Self::empty());
         }
         let inside = self.lo >= -1.0 && self.hi <= 1.0;
         let op_dec = if inside {
@@ -31,33 +41,32 @@ impl DInterval {
         } else {
             Decoration::Trv
         };
-        let (a, b) = (self.lo.max(-1.0), self.hi.min(1.0));
+        Ok((self.lo.max(-1.0), self.hi.min(1.0), self.dec.min(op_dec)))
+    }
+
+    /// Enclosure of `asin` over `self ∩ [-1, 1]` (monotone increasing).
+    pub fn asin(self) -> Self {
+        let (a, b, dec) = match self.clamp_to_unit() {
+            Ok(v) => v,
+            Err(early) => return early,
+        };
         // Range ⊆ [-π/2, π/2]: clip pads to the π/2 enclosure's outer bounds.
         let lo = step_down(libm::asin(a), PAD_ULPS).max(-half_pi_hi());
         let hi = step_up(libm::asin(b), PAD_ULPS).min(half_pi_hi());
-        Self::make(lo, hi, self.dec.min(op_dec))
+        Self::make(lo, hi, dec)
     }
 
-    /// Enclosure of `acos` over `self ∩ [-1, 1]` (monotone decreasing);
-    /// same clamp/poison behavior as [`Self::asin`].
+    /// Enclosure of `acos` over `self ∩ [-1, 1]` (monotone DECREASING —
+    /// the lower bound comes from the upper endpoint).
     pub fn acos(self) -> Self {
-        if let Some(p) = Self::propagate1(&self) {
-            return p;
-        }
-        if self.lo > 1.0 || self.hi < -1.0 {
-            return Self::empty();
-        }
-        let inside = self.lo >= -1.0 && self.hi <= 1.0;
-        let op_dec = if inside {
-            Decoration::Com
-        } else {
-            Decoration::Trv
+        let (a, b, dec) = match self.clamp_to_unit() {
+            Ok(v) => v,
+            Err(early) => return early,
         };
-        let (a, b) = (self.lo.max(-1.0), self.hi.min(1.0));
         // Range ⊆ [0, π]: clip pads (true values ≥ 0, ≤ π < next_up(PI)).
         let lo = step_down(libm::acos(b), PAD_ULPS).max(0.0);
         let hi = step_up(libm::acos(a), PAD_ULPS).min(core::f64::consts::PI.next_up());
-        Self::make(lo, hi, self.dec.min(op_dec))
+        Self::make(lo, hi, dec)
     }
 
     /// Enclosure of `atan` (total on ℝ, monotone increasing, bounded).
@@ -65,12 +74,7 @@ impl DInterval {
         if let Some(p) = Self::propagate1(&self) {
             return p;
         }
-        let bounded = self.lo.is_finite() && self.hi.is_finite();
-        let dec = self.dec.min(if bounded {
-            Decoration::Com
-        } else {
-            Decoration::Dac
-        });
+        let dec = self.dec.min(Decoration::continuous_on(self.is_bounded()));
         let lo = if self.lo == f64::NEG_INFINITY {
             -half_pi_hi()
         } else {
@@ -135,12 +139,7 @@ impl DInterval {
         }
         lo = lo.max((-core::f64::consts::PI).next_down());
         hi = hi.min(core::f64::consts::PI.next_up());
-        let bounded = y.lo.is_finite() && y.hi.is_finite() && x.lo.is_finite() && x.hi.is_finite();
-        let op_dec = if bounded {
-            Decoration::Com
-        } else {
-            Decoration::Dac
-        };
+        let op_dec = Decoration::continuous_on(y.is_bounded() && x.is_bounded());
         Self::make(lo, hi, dec_in.min(op_dec))
     }
 }
