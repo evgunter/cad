@@ -10376,7 +10376,18 @@ enforces it only by an orchestrator's habit, would not match — and M9-3's
 shape, reachable here only because it happens to spell "predicate name".
 
 
-**No row number is reserved; D60 is the highest one placed.** Placements:
+**`D1`–`D60` are the closed pre-block sequence.** They were issued under the
+single-allocator rule, before Tracks F and G existed, and every one of them is
+placed or assigned — **none is available**, and the gaps in the range are
+assigned-and-unspent rather than free. That distinction is invisible from
+outside a branch, which is how ten numbers came to be double-allocated on
+2026-08-20, so it is stated here rather than left to be recomputed. **Blocks
+start at D61.** A number already placed keeps its identity when its track
+changes hands; renumbering a placed row breaks every PR body and finding that
+cites it, which is why Track D's rows kept their numbers when Track E took the
+register.
+
+**D60 is the highest one placed in that sequence.** Placements:
 D15 by #710, D16 by #706, **D17** by #718 (landed, #739), **D18** by #720 (landed, #736),
 **D19** by #719 (landed, #747, which **placed D32**, **D33** and **D34**), **D20** by **#722** (D5's +46%, unattributed once that unit's
 measurement excluded the enumeration D14 blamed), **D24** by **#735** (a `pub`

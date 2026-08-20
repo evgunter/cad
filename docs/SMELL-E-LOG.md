@@ -459,7 +459,7 @@ serialized here and each lane re-merges `origin/main` when one lands.
 | lane | row(s) | branch | PR | state |
 |---|---|---|---|---|
 | **E-c** | D26 | `smelle/d26` | **#752** | **MERGED 2026-08-20** — Track E's first landing |
-| **E-a** | D22 + D34 | `smelle/d22-d34` | **#753** | **NOT CLEARED** — 4 MAJOR incl. a live wrong answer in the census; fix pass running. **Track F is gated on this landing** |
+| **E-a** | D22 + D34 | `smelle/d22-d34` | **#753** | fix pass complete, run 2140 in flight. **Track F is gated on this landing** |
 | **E-f** | D25 | `smelle/d25` | **#755** | **CLEARED by both lanes**; combined fix pass running (3 must-fix, 2 → rows D49/D50). Merges after #752 |
 | **E-b** | D23 | `smelle/d23` | **#763** | **NOT CLEARED** — a live wrong answer inside D45, plus 4 MAJOR; fix pass running |
 | **E-d** | D33 | `smelle/d33` | **#761** | **MERGED 2026-08-20.** Placed D46, D51, D57; handed D56 back |
@@ -924,6 +924,29 @@ against its own proposal, and names the answer that rejects it as passing, is
 the one shape that cannot be read that way. It is also the first thing on this
 track that made a design question *cheaper* for Evan to answer rather than
 larger.
+
+### The rule the block scheme was missing: placed numbers keep their identity (2026-08-20)
+
+Lane E-a asked the question the double-allocation should have prompted and I had
+not answered: **its own rows D40 and D41 sit outside every block** — issued under
+the old single-sequence rule, unspent on `main`, and therefore *"in exactly the
+kind of gap a fourth orchestrator reading `main` would compute as free."* It did
+**not** renumber them, on the grounds that moving assigned numbers unilaterally
+is the same failure in reverse. That instinct is right and worth more than the
+two rows.
+
+**The ruling: numbers already placed keep their identity; blocks govern new
+allocations only.** Renumbering a placed row breaks every PR body and finding
+that cites it — the argument that kept Track D's numbers when Track E took the
+register this morning.
+
+**But the gap E-a named is real, and the fix is legibility, not renumbering.**
+*Placed* and *assigned-but-unspent* look identical from outside a branch, which
+is the whole mechanism of the collision. §D now records **D1–D60 as the closed
+pre-block sequence — allocated, none available, gaps included** — so a fifth
+orchestrator reading `main` sees them as taken rather than recomputing them as
+free. One paragraph closes it for everyone instead of moving two rows for one
+track.
 
 ---
 
