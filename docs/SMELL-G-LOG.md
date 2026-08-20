@@ -269,4 +269,24 @@ C's open lanes (#732, `stl/`), with Track E's (#753 `scripts/`+`ci.yml`, #763
 
 ## Incidents
 
-*(none yet)*
+### `new-lane.sh` could not create a lane in this container
+
+**2026-08-20, at track start.** `local-scripts/new-lane.sh` clones from a
+literal `git@github.com:evgunter/cad.git`. This orchestrator's container has
+**no `ssh` binary at all** and an **https `origin`**, so the one committed
+door for lane creation failed on its first invocation — and it failed in a way
+that reads as *"the standard way to create an agent lane is unavailable"*
+rather than as a wrong URL, which is exactly the pressure that produces the
+hand-rolled `git clone` the script exists to prevent (a hand-rolled clone
+silently lacks `core.hooksPath`, so the committed pre-push fmt hook is off).
+
+**Fixed in place rather than worked around**: the URL now comes from the
+invoking checkout's `origin`, with the literal kept as a fallback for a
+detached invocation. `local-scripts/` is non-triggering for CI by design
+(`ci-filter.py`), so this carries no CI cost.
+
+**Worth carrying:** this is the same shape the track was constituted to fix,
+one level out — *a claim in prose ("the standard way") that a mechanism no
+longer supports*, invisible until someone stood in an environment the author
+did not have. It is local tooling and not a smell-scan row, so it is recorded
+here and nowhere else.
