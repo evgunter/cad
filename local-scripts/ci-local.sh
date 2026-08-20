@@ -226,7 +226,7 @@ discipline() {
 # FreeCAD, milliseconds) — hence an always-run row, not a filtered one:
 # a guard that a tier selection can skip is not a guard. Runs its own
 # self-test first (the guard must be shown to fire).
-# HOSTED MIRROR: k-lint / demos render provenance
+# HOSTED MIRROR: discipline / render provenance (demos)
 render_provenance() {
   python3 demos/check_render_provenance.py --selftest && \
     python3 demos/check_render_provenance.py
