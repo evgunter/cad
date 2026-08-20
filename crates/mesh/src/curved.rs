@@ -147,7 +147,7 @@ pub(crate) fn tessellate_curved(
         .filter(|e| !e.pole && e.v > v0 && e.v < v1 && (e.u <= u0 || e.u >= u1))
         .count();
 
-    // Grid steps per kind (module docs).
+    // Grid counts per kind (module docs).
     let (nu, nv) = grid_counts(
         &chart,
         tol.delta_s,
@@ -559,8 +559,8 @@ fn require_swept_rectangle(
 /// the cross-fan. Structural, not lucky: dirty needs `nv >= 3`, and
 /// the meridian's chord step `phi(delta_s, r)` and the grid's
 /// `phi(delta_s / SPHERE_SIZING_MARGIN, r)` are never more than ~12%
-/// apart with both capped, so `nv >= 3` FORCES at least two interior meridian
-/// points. The sphere arm is kept anyway (Evan, 2026-08-19) so the
+/// apart with both capped, so `nv >= 3` FORCES at least two interior
+/// meridian points. The sphere arm is kept anyway (Evan, 2026-08-19) so the
 /// rule reads as one sentence rather than one chart but not the other
 /// — and what it rests on is CHECKED, not just written down: see the
 /// `debug_assert` in [`grid_counts`]'s sphere arm, which asserts the
@@ -586,12 +586,11 @@ fn require_swept_rectangle(
 /// # Blast radius, and #678's two open questions
 ///
 /// Only pole faces with `nu == 2` re-size. A full revolve can never be
-/// one: [`sagitta_step`] hard-caps at [`crate::sizing::MAX_ANGULAR_STEP`]
-/// on both
-/// branches, and [`torus_grid_step`] is capped against the same value
-/// here, so a `2*pi`
-/// span gives `nu >= 8` — confirmed in the A/B, where no full-revolve
-/// face appears with `nu <= 2`.
+/// one: [`sagitta_step`] hard-caps at
+/// [`crate::sizing::MAX_ANGULAR_STEP`] on both branches, and
+/// [`torus_grid_step`] is capped against the same value here, so a
+/// `2*pi` span gives `nu >= 8` — confirmed in the A/B, where no
+/// full-revolve face appears with `nu <= 2`.
 ///
 /// `Fixes #678` closes the only other home of that issue's two open
 /// questions, so both answers live here. *Does the sphere lane reach

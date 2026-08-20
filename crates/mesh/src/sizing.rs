@@ -23,12 +23,10 @@
 //!   (`curved::pole_columns` floors the pole case;
 //!   `NurbsCellGrid::band_schedule` snaps a malign band's).
 //!
-//! **The rule that is enforced, and it is one sentence:** *"step" names
-//! an `f64` increment and nothing else; a `usize` count is never called
-//! a step.* Both halves used to be false — `sagitta_angle` was a step
-//! that did not say so, and `curved::grid_steps`, `MAX_STEPS` and
-//! `tess_meter::SPLIT_SCAN_STEPS` were a count pair, a count cap and a
-//! sample count that all did.
+//! **The rule, in one sentence:** *"step" names an `f64` increment and
+//! nothing else; a `usize` count is never called a step, and neither is
+//! a sample count.* A new sizing rule states which of the three it
+//! produces by its name, or it is misnamed.
 //!
 //! The one deliberate second spelling is `tess_meter::divisions`, in
 //! the consumer half of the budget meter: a different cargo root, so
