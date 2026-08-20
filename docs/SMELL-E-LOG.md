@@ -173,6 +173,26 @@ Y"* invites a lane that disproves Y to delete X. State the mechanism a gate
 protects, not the story you happen to have for it — and when a lane refutes the
 story, the dispatcher re-derives the gate rather than accepting its removal.
 
+**Corrected in `147e3a4`**, and the lane's own account of how it happened is the
+sharper half: *"I read 'the gates are not dependency gates' in the roster, found
+the dependency was fictional, and deleted the gate rather than checking whether
+the gate rested on the dependency at all. The file overlap was visible in my own
+diff — `split.rs` is on both scopes — and I reported the line numbers moving
+inside `split_edge` as a **courtesy to E-h** in the same breath as cutting the
+edge that would have kept E-h from colliding with it."* The evidence against the
+deletion was in the deleting lane's hands, in the same paragraph. That is not
+carelessness; it is what happens when a refutation and its consequence are
+reasoned about separately, and it is why a gate removal is the dispatcher's call
+and not a lane's.
+
+**One byproduct worth carrying, for E-a.** This unit's `doc-gate.sh` red — a
+deletion orphaning a rustdoc intra-doc link, invisible to both `cargo build` and
+`clippy -p topo --lib` — is a **third** instance of the class D34's third
+decision turns on, after #740 and #744, and the first whose shape is *a lane
+creating the defect precisely by doing the right thing*. Forwarded to E-a as
+evidence, explicitly not as an instruction: the row closes on a verdict either
+way, and the cost side is that lane's to measure.
+
 ---
 
 ## The standing lane header
