@@ -11243,6 +11243,36 @@ S60/S66's rows; and a general gate re-proposes exactly what Evan declined.
 
 ---
 
+## S157. Every gate's failure message is invisible on the half that gates
+
+**Found by Track F's lane F-f (#798) while demonstrating F2's re-siting, and
+handed over rather than taken — `scripts/gates/lib.sh` is lane F-g's file.**
+
+On hosted CI a failing gate prints **no readable reason**. On run
+`32408775985` — a deliberate breakage, so the failure is known and expected —
+the only failure text anywhere, in the job log *and* in the check-run
+annotations queried across every check run on the head SHA, is:
+
+    Process completed with exit code 1
+
+`gate_error` emits `::error::<msg>` when `GITHUB_ACTIONS` is set; **that line
+appears in neither.** The plain `ERROR:` branch is local-only. So **all fifteen
+gates currently fail on the hosted half without saying why**, and this
+directory's carefully written failure messages are readable only by re-running
+locally — which is the half that does not gate.
+
+**Why this is worth its own finding rather than a line in F2's record.** The
+`scripts/gates/` directory's whole design premise is that a gate explains
+itself: S13, S59, S61, S62 and S63 are all findings about gates whose *prose*
+was wrong, argued over at length, and every one of those arguments is about
+text no CI reader has ever seen. The mechanism was not determined, only that it
+reproduces.
+
+**Scope:** `scripts/gates/lib.sh`. **Owner:** Track F's **F-g** (row F3), which
+already holds that file. **Row: D101.**
+
+---
+
 ## Track G — the ground no track owns, and the passes that deleted their own evidence
 
 Two things bind this track. **One:** `interval-transcendentals/`, `demos/`,
