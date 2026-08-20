@@ -58,10 +58,11 @@ use crate::test_support_impl::ArenaCounts;
 /// (where that absolute path need not exist, but `--workspace-remap`
 /// has pointed the per-test cwd at the crate root).
 ///
-/// Lives here rather than in one of them because THREE anti-re-fork
-/// guards now walk the crate's own sources — the sector-shape rungs,
-/// the planar sense flip, and the arc-side rung — and a guard against
-/// duplication should not be the fourth copy of its own walk.
+/// Lives here rather than in any one of them because several
+/// anti-re-fork guards walk the crate's own sources — the sector-shape
+/// rungs, the planar sense flip, the arc-side rung, the tier-1
+/// postcondition surface, the pcurve-staleness postures — and a guard
+/// against duplication should not be the next copy of its own walk.
 pub(crate) fn src_root() -> std::path::PathBuf {
     let baked = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
     if baked.is_dir() {
