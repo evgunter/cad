@@ -16,10 +16,12 @@
 //! see [`eps_in_rows_for`] for what that costs and what it buys:
 //!
 //! * **the disposition** — solid, wireframe, or a typed refusal with
-//!   its reason. 51 of the 54 files hold ONE disposition across the
-//!   whole matrix, and that constancy is the claim. The three that do
-//!   not are marked `EpsSensitive` and pinned cell by cell in
-//!   [`EPS_ROWS`], each cell carrying the live signature of the
+//!   its reason. Every file in [`CORPUS`] not marked `EpsSensitive`
+//!   holds ONE disposition across the whole matrix, and that
+//!   constancy is the claim; the counts are [`CORPUS`]'s own length
+//!   and the `EpsSensitive` markers in it, so they are not
+//!   transcribed here. The `EpsSensitive` files are pinned cell by
+//!   cell in [`EPS_ROWS`], each cell carrying the live signature of the
 //!   sub-reason that actually fires there — because a row that may
 //!   Pass at one ambient ε and refuse typed at another can otherwise
 //!   be green for the wrong reason. No ε is ever special-cased into
@@ -57,6 +59,19 @@
 //! corpus; the one body class the gate newly refuses is the
 //! rational-walled loft, which has no committed fixture and whose row
 //! lives in `nurbs_import.rs`.
+//!
+//! **S58 / #649 (2026-08-19) added four rows; one of them is a
+//! newly-refused body class.**
+//! `iso-rect/cross.step` is the one that moved: a valid, manifold,
+//! closed solid that USED to pass this gate and then measure 19% low
+//! with `pad = 0.0`, and that the one iso-rectangle predicate now
+//! refuses here. `iso-rect/tee.step` never passed this gate — #649
+//! records import already refusing it, on `props_du_consistent`,
+//! because its one-sided arm makes the rim-group span sums disagree.
+//! What S58 moved for the tee is the **reason** in the refusal string,
+//! not its disposition, and the row is pinned on the new reason.
+//! `iso-rect/rect.step` / `iso-rect/xsplit.step` beside them are the
+//! controls that keep the tightening from being a blanket refusal.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::path::{Path, PathBuf};
@@ -214,6 +229,13 @@ const RATIONAL_FLUX_STALL: &str = "the certified quadrature enclosure stalled at
 const LADDER_NO_DESCRIPTION: &str = "edge #389: no intensional description certifies";
 const NIST09: &str = "tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp";
 
+/// The S58 iso-rectangle predicate, by name: *every rim sits at one of
+/// the face's two extreme `v`-levels*. Naming the PREDICATE rather than
+/// the shared "shared at-rest validation gate" preamble is what lets
+/// these rows see a regression that re-widens the rule, as opposed to
+/// one that merely moves the refusal somewhere else.
+const ISO_RECTANGLE_PREDICATE: &str = "props_rim_level";
+
 /// The seam carrier's residual is DECIDEDLY outside the band.
 const SEAM_HALFPLANE_DEFINITE: &str =
     "SeamHalfplane residual at sample 0 definitely exceeds the tolerance band";
@@ -236,7 +258,7 @@ const ENDPOINT_START_MAPPED_CURVE: &str = "mapped curve: geometry attachment gat
 /// Every committed STEP file, with the disposition measured at M7-7.
 /// Paths are relative to this crate's manifest directory (the `../`
 /// rows are `step-export`'s corpus, which this crate imports from).
-const CORPUS: [(&str, Disposition); 58] = [
+const CORPUS: [(&str, Disposition); 62] = [
     ("tests/fixtures/band/band_a.stp", Pass(1, 1, 2, 6, 4)),
     ("tests/fixtures/band/band_a180.stp", Pass(1, 1, 2, 6, 4)),
     ("tests/fixtures/band/band_b180.stp", Pass(1, 1, 2, 6, 4)),
@@ -291,6 +313,35 @@ const CORPUS: [(&str, Disposition); 58] = [
     (
         "tests/fixtures/freecad/twobody_importexport.step",
         Pass(2, 2, 8, 14, 10),
+    ),
+    // -- tests/fixtures/iso-rect/ (S58 / #649) ------------------------
+    // #649's own fixtures, committed with the fix. Both plus-domain
+    // solids are geometrically VALID — manifold, closed, χ = 2 — and
+    // both refuse here on the one iso-rectangle predicate, but they
+    // arrive from opposite places. `cross` USED to import and then
+    // MEASURE: 19% low with `pad = 0.0`, a certificate of exactness on
+    // a wrong number, this gate green — it is the disposition S58
+    // moved. `tee` was already refused before S58, by the span-sum
+    // rule (`props_du_consistent`): only the reason in its refusal
+    // string moved, which is why pinning the reason rather than the
+    // disposition is what makes these rows able to see a regression.
+    // `rect` is the control (a genuine iso-rectangle of the same Δu and
+    // v extent) and `xsplit` is the same solid as `cross` authored with
+    // rectangular sub-faces; both keep passing, and
+    // `s58_iso_rectangle.rs` holds them to their EXACT volumes and runs
+    // `merge_coplanar_faces` on `xsplit` — #649's second door.
+    (
+        "tests/fixtures/iso-rect/cross.step",
+        Refused(ISO_RECTANGLE_PREDICATE),
+    ),
+    ("tests/fixtures/iso-rect/rect.step", Pass(1, 1, 6, 12, 8)),
+    (
+        "tests/fixtures/iso-rect/tee.step",
+        Refused(ISO_RECTANGLE_PREDICATE),
+    ),
+    (
+        "tests/fixtures/iso-rect/xsplit.step",
+        Pass(1, 1, 18, 40, 24),
     ),
     // #653's import route: one D-prism, stated four ways. The two
     // `split_*` files state the cylindrical face's vertical boundary as
