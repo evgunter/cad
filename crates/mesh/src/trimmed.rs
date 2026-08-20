@@ -98,17 +98,18 @@ use spade::{ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulatio
 use topo::{Body, FaceKey};
 
 use crate::cert;
-use crate::chords::{ChordPass, ceil_count, sagitta_angle};
-use crate::curved::Tol;
+use crate::chords::ChordPass;
 use crate::nurbs_cert::{FaceBounds, NurbsCellGrid, NurbsFaceBound, face_bound, nurbs_cell_grid};
 use crate::planar::{classify_faces, edge_key, shoelace2};
+use crate::sizing::{Tol, ceil_count, sagitta_step};
 use crate::types::TessellateError;
 
-/// Retry budget for the grid-on-constraint rebuild (module docs).
-// 6 since TESS-SPAN (was 4): the same round budget now carries the
-// certificate-driven refinement retries beside the grid-on-constraint
-// drops (module docs); the bound stays what it always was — the
-// typed-refusal backstop, not a tuning knob.
+/// Retry budget for the rebuild loop (module docs).
+///
+/// One round budget covers both retry kinds — the grid-on-constraint
+/// drops and the certificate-driven refinement — and it is a
+/// typed-refusal backstop rather than a tuning knob: exhausting it
+/// raises [`TessellateError`], it never coarsens or accepts a mesh.
 const MAX_GRID_RETRIES: usize = 6;
 
 /// The per-chart data of the two constructing lanes (module docs):
@@ -224,7 +225,7 @@ pub(crate) fn tessellate_trimmed(
     }
     let (mut candidates, nurbs_grid_cells) = match lane {
         Lane::Cylinder { radius, .. } => {
-            let hu = sagitta_angle(tol.delta_s, radius);
+            let hu = sagitta_step(tol.delta_s, radius);
             let nu = ceil_count(u1 - u0, hu)?;
             let nv = ceil_count(v1 - v0, radius * hu)?;
             (uniform_candidates((u0, u1), (v0, v1), nu, nv), None)

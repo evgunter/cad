@@ -458,12 +458,12 @@ impl From<&CellMeasure> for Bound {
 /// direction (`h = ∞`, e.g. the ruled direction of a wall with
 /// `muv = 0`) takes one.
 ///
-/// **It is the second spelling of the lane's `chords::ceil_count`, and
+/// **It is the second spelling of the lane's `sizing::ceil_count`, and
 /// it deliberately does not match it.** They cannot share an import —
 /// two cargo roots — so the divergences are stated instead of left to
 /// be discovered:
 ///
-/// * `ceil_count` REFUSES a count at or above `MAX_STEPS` (2^24) with
+/// * `ceil_count` REFUSES a count at or above its `MAX_COUNT` (2^24) with
 ///   a typed error, because it is about to allocate that many grid
 ///   points. This one counts and returns, because it sizes nothing:
 ///   an absurd counterfactual is a number in a diagnostic column, and
@@ -474,7 +474,10 @@ impl From<&CellMeasure> for Bound {
 ///   normal thing for a counterfactual to be asked about.
 ///
 /// The shared part — `ceil(extent / h)`, floored at one — is the part
-/// the columns are comparable through, and it is identical.
+/// the columns are comparable through, and it is identical. The
+/// different NAME is the tell: the lane says *count* for a `usize`
+/// division count it is about to allocate for, and this says
+/// *divisions* for an `f64` counterfactual that allocates nothing.
 pub fn divisions(extent: f64, h: f64) -> f64 {
     if h.is_finite() && h > 0.0 {
         (extent / h).ceil().max(1.0)
@@ -490,9 +493,58 @@ pub fn divisions(extent: f64, h: f64) -> f64 {
 /// exactly where these walls live — a ruled direction has `muu = 0`
 /// and pushes the optimum onto the `h_u ≤ extent` boundary — and the
 /// two `ceil`s make the true objective a step function anyway.
+///
+/// # Why these two carry no mechanical guard
+///
+/// **Not an omission, and not for want of trying: the quantity anyone
+/// would guard is DISCONTINUOUS in the parameters they would guard it
+/// against.** Two attempts are in the record (#783) and both failed
+/// the same way wearing different clothes — one pinned the answer and
+/// its argmax, one pinned the answer's distance to a denser reference.
+///
+/// The measurement, so a reader learns the fact and not just the
+/// conclusion. Take the worst relative excess over a family of bounds
+/// against a 240,001-sample reference, and vary the sample count by
+/// ONE:
+///
+/// | samples | 321 | 322 | 323 | 324 | 325 |
+/// |---|---|---|---|---|---|
+/// | excess | 5.88% | 3.64% | 5.24% | 1.79% | 3.94% |
+///
+/// Adjacent sample counts move it ~4 percentage points, in both
+/// directions, with no convergence: 328 is 5.31% and 2,000 is still
+/// 0.79%. **`323` is the witness** — two samples ABOVE the shipped
+/// value, a strict refinement, and 5.24%. So no tolerance on that
+/// excess can admit every refinement and exclude every degradation:
+/// wide enough to survive the jumps is too weak to catch anything,
+/// tight enough to catch a degradation is a lottery on which lattice
+/// the count lands. A tolerance that appears to work is fitted to the
+/// family it was measured on — and one plausible extra member
+/// (`muu = 0.1, muv = 1.0, mvv = 50`) puts the SHIPPED pair at 5.88%.
+///
+/// **The discontinuity is the two `ceil`s, not the scan.** The same
+/// worst-excess computed WITHOUT them — the cost as a continuous
+/// function of `t` — moves by hundredths of a point across the same
+/// neighbours (321: 0.017%, 322: 0.083%, 323: 0.011%, 324: 0.030%),
+/// falls smoothly with resolution (65 samples: 1.82%; 200: 0.096%;
+/// 400: 0.0069%; 1,000: 0.0034%), and depends on the sampling step
+/// `2·DECADES/(SAMPLES−1)` and the range — which is what these two
+/// constants actually set. A guard on THAT quantity is continuous
+/// where a guard on the cell count cannot be; it is not written here
+/// because it measures something these columns do not report.
+///
+/// **So what these constants guarantee is a resolution in aspect
+/// ratio, and not a bound on the answer.** The `ceil` quantisation on
+/// top of it is real and is not theirs to control. Anyone re-tuning
+/// them should know that the shipped pair is not even locally best on
+/// the cell count — `DECADES` 3, 4, 6 and 10 all score better at the
+/// same sample count — and that this is exactly the kind of fact a
+/// step function produces and no amount of tuning removes.
 const SPLIT_SCAN_DECADES: f64 = 8.0;
 /// Samples per scan (fixed, so the answer is deterministic — D9).
-const SPLIT_SCAN_STEPS: usize = 321;
+/// SAMPLES, not steps: a step in this crate's vocabulary is a UV
+/// increment, and these are trial aspect ratios.
+const SPLIT_SCAN_SAMPLES: usize = 321;
 
 /// The cheapest uniform grid a bound admits over one box: minimize
 /// `divisions(U, h_u) · divisions(V, h_v)` subject to the SAME
@@ -535,9 +587,9 @@ pub fn best_split_steps(bound: Bound, du: f64, dv: f64, delta_s: f64) -> (f64, f
         lane_u,
         lane_v,
     );
-    for k in 0..SPLIT_SCAN_STEPS {
+    for k in 0..SPLIT_SCAN_SAMPLES {
         #[allow(clippy::cast_precision_loss)]
-        let f = k as f64 / (SPLIT_SCAN_STEPS - 1) as f64;
+        let f = k as f64 / (SPLIT_SCAN_SAMPLES - 1) as f64;
         let (hu, hv) = steps(10.0f64.powf(SPLIT_SCAN_DECADES * f.mul_add(2.0, -1.0)));
         let n = divisions(du, hu) * divisions(dv, hv);
         if n < best.0 {

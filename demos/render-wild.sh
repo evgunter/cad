@@ -11,8 +11,9 @@
 #   cd .. && ./render-wild.sh               # cells + sheet -> renders-wild/
 #
 # The cell set is governed by docs/WILD-CORPUS-LICENSES.md (the
-# license audit): the generator pins it (8 cells) and fails loud on
-# drift, and the attribution block rides demos/README.md.
+# license audit): the generator pins it -- in WILD_CELLS's own array
+# length, which is where the count lives -- and fails loud on drift,
+# and the attribution block rides demos/README.md.
 #
 # The lane keeps the committed-tree contracts of render.sh:
 #   * STAGING — cells render into out/stage/renders-wild/ (untracked)
@@ -50,7 +51,10 @@ fi
 WILD_OUT=wild/out
 RD=renders-wild
 STAGE=out/stage/$RD
-# Keep in sync with check_render_provenance.py's WILD_AUTHOR.
+# check_render_provenance.py READS this line and compares it against its
+# own WILD_AUTHOR (wild_author_in_script(), asserted in --selftest), so
+# the two cannot drift apart unnoticed -- but keep the shape below
+# (AUTHOR='...' on one line) or that reader stops finding it.
 AUTHOR='pncad wild-corpus lane (kernel tessellation of licensed third-party STEP)'
 
 if [ ! -f "$WILD_OUT/scenes.json" ]; then
