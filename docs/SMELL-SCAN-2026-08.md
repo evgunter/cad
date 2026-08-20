@@ -12732,6 +12732,50 @@ S60/S66's rows; and a general gate re-proposes exactly what Evan declined.
 
 ---
 
+## S167. Merging a PR destroys its in-flight checks, and the wreckage is permanently unreproducible
+
+**The branch-side twin of S162, found by lane F-c diagnosing its own merge.**
+
+Merging a PR deletes `refs/pull/<n>/merge`. Any check still running then fails
+at **checkout**, not at its subject:
+
+    ##[error]fatal: couldn't find remote ref refs/pull/790/merge
+
+**And it cannot be re-run.** A `pull_request`-event run can never check out a
+merged PR's ref again, so `--failed` re-fails identically, forever. The record
+keeps two red jobs on a landed PR that **nothing was rendered or compared** in.
+
+**The verified instance.** #790 merged at 23:19:42 while
+`render lanes / demo tour (scene inputs)` and
+`render lanes / wild-corpus montage` were still running; both failed at 23:19:44
+on the checkout. Both are **`success`** on `1c760e94` — a later run, on another
+track's branch, that **contains** the merge commit `2866eb99`. So the code was
+fine and the evidence for that comes from a run neither party created.
+
+**Why it is worth a finding rather than a shrug.** *It looks exactly like a
+defect.* Two red jobs named `render lanes` on a merged PR read as a rendering
+regression, they are the last word that PR's board will ever carry, and the
+obvious remedy — re-run the failures — is structurally guaranteed to reproduce
+them. A reader six weeks from now has no way to tell this from a real failure
+except by knowing this paragraph exists.
+
+**The operational tension it exposes, which had not been stated.** *Do not sit
+CONFLICTING* — a PR in that state runs **no** checks at all, a silent CI outage —
+pulls toward merging the moment a PR is clean. *Do not merge with checks in
+flight* pulls the other way. **Both are correct.** The resolution costs seconds
+and is compatible with merging fast: **filter the check runs, then merge** —
+`gh api …/check-runs`, reject anything whose `conclusion` is not `success`.
+`MERGEABLE / UNSTABLE` means *some check is not green and this word will not
+tell you which*; it is a status whose method is hidden, which is why it reads as
+settled.
+
+**Together with S162 this is one shape, on both sides of the merge:** *the record
+of a verification can be destroyed by the act of landing it.* On `main` the run
+is **cancelled** and a docs-tier successor goes green over it; on the branch the
+run is **killed at checkout** and stays red forever. Row: **D113**.
+
+---
+
 ## S162. A code merge's full run is cancelled by the docs-tier pushes behind it, and the board goes green having run two jobs
 
 **Found by Track F's lane F-b, 2026-08-20, in the composition of two
