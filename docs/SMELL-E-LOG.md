@@ -125,7 +125,7 @@ discharged before this track existed.
 | **E-b** | D23 | `docs/` + suite headers; code set is what the re-derivation finds | none | style | **in flight** |
 | **E-c** | D26 | `docs/SMELL-SCAN-2026-08.md` §D and §S19 | none | style | **DONE — #752 merged**; discharged into D36–D39, plus D47/D48 from its review, all unstaffed |
 | **E-d** | D33 | `docs/predicate-dimension-audit.md` | none | style | **#761, in review** |
-| **E-e** | D28 + issue #693 | `editor-core/src/eval/` | **#731 EDITS `eval/mod.rs` — the file, not just the crate.** Disjoint by *item* (~700 lines apart), not by file. Whichever merges second re-merges | style | **#767, in review** |
+| **E-e** | D28 + issue #693 | `editor-core/src/eval/` | — | style | **DONE — #767 merged** |
 | **E-f** | D25 | `topo/src/euler.rs` and every `link_half_edges` caller | none | **ADVERSARIAL** | **#755, in review** |
 | **E-g** | D27, then D29 | `sweep/src/fillet/{build,surgery,mod}.rs` | none | **ADVERSARIAL** (D27), style (D29) | **#768**, both reviewers running; **#777** stacked, awaiting Evan |
 | **E-h** | D21 | `topo/src/{split,attach,movefac,revert}.rs`, `splitting/finish.rs`, `boolean/combine.rs` | **E-f, for file overlap on `split.rs`** — see E-R4 | **ADVERSARIAL** | unstarted |
@@ -545,9 +545,9 @@ serialized here and each lane re-merges `origin/main` when one lands.
 | **E-c** | D26 | `smelle/d26` | **#752** | **MERGED 2026-08-20** — Track E's first landing |
 | **E-a** | D22 + D34 | `smelle/d22-d34` | **#753** | **MERGED 2026-08-20** — 37/37 jobs finished, 36 success, 1 skipped, 0 failures. **Track F is unblocked** |
 | **E-f** | D25 | `smelle/d25` | **#755** | **CLEARED by both lanes**; combined fix pass running (3 must-fix, 2 → rows D49/D50). Merges after #752 |
-| **E-b** | D23 | `smelle/d23` | **#763** | **NOT CLEARED** — a live wrong answer inside D45, plus 4 MAJOR; fix pass running |
+| **E-b** | D23 | `smelle/d23` | **#763** | fix pass complete — **D45 withdrawn**, a guard taken, final count 59/17/9. Awaiting its run |
 | **E-d** | D33 | `smelle/d33` | **#761** | **MERGED 2026-08-20.** Placed D46, D51, D57; handed D56 back |
-| **E-e** | D28 + #693 | `smelle/d28` | **#767** | cleared, **but the fix pass went red** — 3 shards on a `sweep` test the lane had fenced itself out of. Second fix pass running |
+| **E-e** | D28 + #693 | `smelle/d28` | **#767** | **MERGED 2026-08-20** — 37/37 finished, 0 failed. Census 12 arms not 8; placed D54, D81 |
 | **E-h** | D21 | `smelle/d21` | **#773** | reported — census **17**, not 14; all 17 discharged and **all 17 inverted live**. Placed D88. Owes a re-merge after #767 |
 
 **E-g dispatched 2026-08-20** (`smelle/d27-d29`), D27 then D29 — one lane
@@ -1224,6 +1224,41 @@ the moment a row is worth minting**, and #777 says so in those words.
 the row could not be executed, is the opposite failure mode from the one this
 whole register exists to prevent — and it is the right call. **A placement whose
 premise is open is not a placement; it is a deferral wearing a row number.**
+
+### The counting bug that counted the line which derives the count (2026-08-20)
+
+E-b's fix pass found why its three headline instance counts were each **+1**: the
+grep was unanchored, so it matched **each guard's own
+`format!("#[path = …]")`** — *the line that derives the set, counted as a member
+of it.* Anchored: `topo` 53, `editor-core` 90, `sweep` 82.
+
+That is D23's own class turned on the instrument measuring it, and it is the
+second self-referential defect this row has produced — the first being the head
+sentences falsified by the section the same change added. **A survey of
+enumerations is written with the tools it is auditing**, and there is no version
+of this row that escapes that; what there is, is a re-derivation recipe committed
+to the tree so the next reader does not have to trust the number.
+
+**D45 is withdrawn as a row rather than repaired.** Two of its four legs were
+false — `PERF-SCAN`'s 367 and its 14-of-14 both re-derive **exactly** at the
+stated base — and what survives is annotated in place. Withdrawing a row whose
+evidence collapsed is the right disposition and the harder one; the lane carried
+both consequences rather than softening them, including that the verdict's third
+leg drops from *three of six* to *two of five*.
+
+**The verdict was re-argued per sub-class and the guard was taken.** *"No
+mechanism"* is withdrawn as a blanket. The twelve aggregator headers get a real
+guard — one spelling asserted verbatim, the retired phrasing forbidden by name,
+an empty walk refused, **falsified both ways before landing**, and deliberately a
+**test rather than a gate**, so there is no `ci.yml` wiring to drift and nothing
+to unwire. The `CITING_FILES` mechanism I pointed at became **D84**.
+
+*And a citation rotted inside the fix pass that wrote it:* **D85 cited
+`scripts/check-test-aggregation.sh`, which #753 moved to
+`scripts/gates/test-aggregation.sh` hours later.** Re-pointed, with the move
+recorded in the row. A register this active produces stale pointers faster than
+a lane can write them, which is the argument for citing by **symbol and reason**
+rather than by path wherever a row can.
 
 ---
 
