@@ -60,8 +60,12 @@ concurrency:
 #
 #   MEASURED, PR #174 (all timings tier `all`, same 261-binary archive;
 #   PR #177 then collapsed 251 of those 263 binaries into 12 aggregators —
-#   see any crates/*/tests/all.rs header — so the per-binary constant now
-#   multiplies 24 binaries, not 263):
+#   see any crates/*/tests/all.rs header for the pattern — so the
+#   per-binary constant now multiplies one aggregated target per crate
+#   rather than 263. The count itself is NOT restated here:
+#   `scripts/gates/test-aggregation.sh` derives it from `cargo metadata`
+#   on every merge and prints it, and a number copied out beside a claim
+#   is a second, unchecked copy of something the tooling already knows):
 #     default build compile step   514 s -> 389 s  (-24%)
 #     interval build compile step  618 s -> 495 s  (-20%)
 #   The runner is 2 vCPU / 7 GB (`nproc` from the provenance step below —
@@ -72,10 +76,12 @@ concurrency:
 #
 # LINKER — mold RETIRED 2026-08-12. #174 adopted it on a -24%/-20% result
 # measured across 261 static links; that is the whole basis for it, and
-# the basis is gone. #179 and #387 took this workspace to 14 test targets
-# (`scripts/gates/test-aggregation.sh` asserts the count), so the
-# per-binary link constant mold attacks now multiplies 14, not 261. Two
-# independent readings say it no longer pays:
+# the basis is gone. #179 and #387 took this workspace to ONE test target
+# per crate — `scripts/gates/test-aggregation.sh` enforces that invariant
+# and prints the resulting total; it does not assert a particular number,
+# so no number is copied here — and the per-binary link constant mold
+# attacks now multiplies that handful, not 261. Two independent readings
+# say it no longer pays:
 #   * LOCAL, measured 2026-08-11 at today's target count:
 #     189 s baseline vs 186 s with mold — noise. That measurement is
 #     written up in docs/LOCAL-BUILD-PERF.md, which reverted mold locally
@@ -547,7 +553,8 @@ jobs:
     # OPT LEVEL — reverses the #52/#53 verdict, because both of its
     # premises expired. That decision ("blanket opt 2 is net-slower on
     # core-crate PRs") was measured when this workspace had 261 test
-    # binaries and compile dominated the run. #179/#387 took that to 14,
+    # binaries and compile dominated the run. #179/#387 took that to one
+    # per crate (`scripts/gates/test-aggregation.sh` prints the total),
     # and test EXECUTION is now ~79% of run wall (measured 2026-08-12:
     # compile jobs ~220 s of a ~1060 s critical path). Re-measured on the
     # same box, whole workspace, `--all-targets`:
@@ -1932,10 +1939,11 @@ jobs:
       # THE PROBE TEST SURFACE. `probe` is an opt-in feature, so a
       # `tests/*.rs` behind `#![cfg(feature = "probe")]` is invisible to
       # every default row in this file: it can rot into a build error, or
-      # out of existence, with the whole matrix green. Sixteen such
-      # suites exist across five crates and only editor-core's two were
-      # ever compiled — as a side effect of the sweep below, not by
-      # anything that meant to.
+      # out of existence, with the whole matrix green. Before this loop
+      # the only ones ever compiled were `editor-core`'s, as a side
+      # effect of the sweep below rather than by anything that meant to.
+      # How many there are is not written here: the census gate derives
+      # the tally every merge and prints it per crate.
       #
       # WHY HERE AND NOT IN A JOB OF ITS OWN, which is the shape
       # `release-corruption` above would suggest. That job is separate
@@ -2006,6 +2014,17 @@ jobs:
       # rides beside the linted CSV rather than inside it. A type-check
       # would not have caught what that harness actually did: it compiled
       # perfectly and panicked, unnoticed, for 26 days.
+      #
+      # IT ALSO RUNS THE PROBE LANE'S PRECONDITIONS, once and outside the
+      # ε loop, and FLOORS WHAT IT RAN. The preconditions are the plain
+      # `#[test]`s asserting that `Probe` is a wrapper and not a second
+      # arithmetic; they sat compiled and unexecuted because the sweep's
+      # only selections passed `--ignored`. The floor
+      # (`probe-suite-census.sh --check-executed`, called by the script)
+      # is keyed on the runner's own passed count per invocation, never
+      # on which suites a filter could have matched — a filter naming a
+      # suite of plain `#[test]`s selects the module and runs none of it,
+      # so reachability and execution are different questions here.
       - name: K-telemetry probe sweep (corpus + M2 corpus + demo scenes, 3 eps rows)
         run: scripts/k_probe_sweep.sh target/k-fresh
       - name: large-K lint (gate — a flagged margin fails this row)

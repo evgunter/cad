@@ -170,23 +170,41 @@ gathered across M2's full pipeline.
   The two are not interchangeable: a type-check cannot see a panic, and
   running one harness says nothing about the suites nothing runs.
 
-  **Which suites CI executes, named rather than counted** (D23). The
-  executed set is exactly the modules `scripts/k_probe_sweep.sh`'s
-  `run_dump` calls name in their `--ignored <module>::` filters —
-  **`m4_pr8_k_probe::` in `editor-core` and `k_report::` in `sweep`** —
-  and nothing else. Every other suite the census covers is type-checked
-  and never run. The total is deliberately not written here: it is
-  `scripts/gates/probe-suite-census.sh`'s derived tally, recomputed on
-  every merge, and D22 is open precisely because a suite can exist that
-  the tally does not see.
+  **Which suites CI executes, rostered rather than counted.** The
+  executed set is `scripts/gates/probe-suite-census.sh`'s `RUN_FLOOR`,
+  and `scripts/k_probe_sweep.sh` is what runs it: two `--ignored` dump
+  invocations (`m4_pr8_k_probe::` in `editor-core`, `k_report::` in
+  `sweep`) inside the ε loop, and two default-selection preconditions
+  before it (`m4_pr8_k_probe::` and `m5_pr5_corpus_probe::`, both in
+  `editor-core`). Every other censused suite is compiled and not run, and
+  each of them says so in its own header — the census gate refuses a
+  probe suite that is on neither side, so a new one has to pick.
+
+  **The roster is floored on what RAN, not on what a filter could
+  match.** The sweep records the runner's own `N passed` line per
+  invocation and `--check-executed` reads it back. Reachability would be
+  the wrong key: `run_dump` passes `--ignored`, so a filter naming a
+  suite of plain `#[test]`s matches the module and executes none of it —
+  a floor built on "some filter names it" scores such a suite covered
+  while it is inert. **The selection is part of the roster key** for the
+  same reason: `--ignored` and the default selection run disjoint halves
+  of a suite.
 
   **The distinction that was wrong, stated so it is not re-inferred.**
-  `crates/editor-core/tests/m5_pr5_corpus_probe.rs` is compiled — building
-  that crate's `--test all` binary compiles every suite in it — and is
-  selected by no filter, so it has never run in CI. Earlier prose put
-  `editor-core`'s suites on the executed side because the sweep's
-  invocation names that crate. **Naming the crate is not naming the
-  suite**, and the filter, not the `-p`, is what selects.
+  Earlier prose put `editor-core`'s suites on the executed side because
+  the sweep's invocation names that crate with `-p`. **Naming the crate
+  is not naming the suite, and naming the suite is not naming the
+  selection**: `crates/editor-core/tests/m5_pr5_corpus_probe.rs` was
+  selected by no filter at all, and `m4_pr8_k_probe.rs`'s
+  `corpus_evaluates_green_at_probe` sat inside a module the sweep DID
+  name while carrying no `#[ignore]` — so the one filter that reached its
+  module ran the other test in it and never that one. Both run now, as
+  preconditions, once and outside the ε loop: each asserts bit-identity
+  against the f64 lane rather than a margin distribution, so neither has
+  anything per-ε to say.
+
+  The total is deliberately not written here: it is that gate's derived
+  tally, recomputed on every merge.
 
   **The M2 dump rides beside the gate, not inside it.** The sweep writes
   it to `<outdir>/m2/<prefix><ε>.csv`; `tools/k-lint` is handed the
