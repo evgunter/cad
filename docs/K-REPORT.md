@@ -4,7 +4,10 @@
 2026-07-21 after the adversarial review byte-reproduced the CSVs at all
 three ε rows and independently re-derived every reported number. The
 outcome is ratified into DESIGN.md's Q1 residue by the M2-exit sweep.
-Per Evan on #41, the value needed no separate sign-off.)
+Per Evan on #41, the value needed no separate sign-off. That
+byte-reproduction was a check against the tree of that day and is not
+a standing property of the committed CSVs — see "Provenance of the M2
+CSVs" under Methodology.)
 
 ## Background
 
@@ -32,10 +35,139 @@ gathered across M2's full pipeline.
 
   ```sh
   CAD_TOLERANCE_EPS=1e-9 CAD_K_REPORT_OUT=docs/k-report-data/eps-1e-9.csv \
-    cargo test -p sweep --test k_report -- --ignored --nocapture
+    cargo test -p sweep --features probe --test all \
+      -- --ignored --nocapture k_report::
   ```
 
+  (`sweep` sets `autotests = false` and aggregates every suite into one
+  `tests/all.rs` binary, so `--test k_report` names no target; the
+  suite is selected by the `k_report::` module prefix instead. The
+  `probe` feature is what compiles the file at all — it is
+  `#![cfg(feature = "probe")]`.)
+
 - Rows: ε ∈ {1e-6, 1e-9, 1e-12}. Raw CSVs: `docs/k-report-data/`.
+
+  **Provenance of the M2 CSVs — what byte-reproduction does and does
+  not mean here (corrected 2026-08-20, D15).** The status line above is
+  a statement about 2026-07-21: the adversarial review byte-reproduced
+  `docs/k-report-data/eps-*.csv` against the tree as it stood at
+  finalization, and that check was real. It is **not** a standing
+  claim: no tree since 2026-07-25 could have reproduced these files.
+  Two things happened after the cut:
+
+  - **2026-07-25, #101 (`548c9618`, declared-tangency discipline)**
+    added `ProfileLoop::tangent_joints`, `judge_joints` and
+    `ProfileError::UndeclaredTangency`. It migrated the corpora it
+    exercised; `k_report.rs` is `#[ignore]`d and runs in no CI row, so
+    its `rounded_prism` fixture — a rounded rectangle, tangent at all
+    eight fillet-to-edge joints by construction — was missed and the
+    harness has panicked at profile validation ever since. Nothing
+    noticed for 26 days. Fixed by declaring the eight joints (D15); the
+    fixture's coordinates and bulges are unchanged and the kernel
+    verifies each declaration — a wrong declaration is refused as
+    `TangencyContradicted`, so this is an assertion the kernel checks,
+    not a silencer.
+
+    **The migrator was in this directory that same afternoon.** #101's
+    companion `0cda5f08` migrated ten files across six crates, among
+    them `crates/sweep/tests/extrude_acceptance.rs` — where it declared
+    **eight joints on a rounded square** — and
+    `crates/mesh/tests/common/mod.rs`, whose rounded square is the same
+    fixture down to `r = 0.5` and `tan(π/8)` and now reads
+    `with_tangent_joints((0..n).collect())`, the identical idiom D15
+    applied here. So the fix is not a judgement call reconstructed after
+    the fact: it is the migration this file was supposed to get, and
+    `rounded_prism` is conspicuously absent from a commit that
+    enumerates the fixtures it converted. What singled it out was being
+    `#[ignore]`d.
+  - **2026-08-04 (`d8b8f6a8`, *collapse the remaining 122 test
+    targets*)** folded `sweep`'s 60 test targets into one `tests/all.rs`
+    binary, which retired the `--test k_report` target this section's
+    command named. That command has therefore been **dead 16 days**, and
+    it fails before compiling anything. The command above is the working
+    one. Note the shape: **two independent breaks ten days apart**, and
+    the second alone would have hidden the first — a reader who ran the
+    documented command got `no test target named k_report`, never the
+    panic.
+
+  **The M2 CSVs are therefore a historical snapshot, not a
+  reproducible artifact.**
+
+  > **Measured against `9f559f6a` (2026-08-20), re-verified BYTE-IDENTICAL
+  > after merging `origin/main` through `f382c4aa` (12 commits), and
+  > still NOT GUARDED.** Every
+  > figure in the next two paragraphs is a one-off observation of a
+  > moving quantity: the next merge that adds a predicate name
+  > falsifies the sample count, the name count and the ratio. It is not
+  > registered, not asserted, and nothing will notice when it goes
+  > stale — the harness runs in no CI row (D17). Guarding it would mean
+  > committing a second baseline, which is the re-cut this unit
+  > deliberately did not do. Read these as *dated evidence that the
+  > committed files are stale*, never as current numbers.
+
+  A fresh cut of the same ten shapes records **16 824 samples over 105
+  predicate names** against the committed **13 282 over 63**. The
+  breakdown matters, because the growth is **not purely additive**:
+
+  - **+3 365** from **42 new names** — the `pcurve_*` chart/loop/trim
+    family (PCURVE-UNIFY) 28, `tangent_*` 6, `props_rim_*` /
+    `props_meridian_*` 7, `bool_ring_run_winding` 1;
+  - **+177 of churn inside the original 63**, where **19 of the 63
+    changed their own counts** — `chord_side` 216 → 245,
+    `witness_on_surface_{1,2}` 178 → 194, `props_circle_axis_class`
+    80 → 120 and others up, and **one down**:
+    `carrier_matches_mapped_source` **1 296 → 1 224 (−72)**.
+
+  "No name was lost" is true at the *name* level only. **The
+  per-predicate counts in this report are stale for 19 of its 63 rows**,
+  and one of them moved the wrong way — which is exactly the kind of
+  thing a byte-reproduction check existed to surface. The committed
+  files are left as cut: they are the M2-era record this report's
+  numbers describe, and re-cutting them is the runbook's and the
+  orchestrator's call, not a lane's.
+
+  **The K = 10 conclusion survives the re-cut**, which is the part that
+  decides whether anyone needs to hurry. The fresh sweep is ε-stable
+  exactly as reported here (shape/predicate/outcome columns
+  byte-identical across all three ε rows), and lands **0 samples in
+  (ε, Kε), 0 within a decade of Kε, 0 indeterminate and 0 invalid** at
+  every row. The definite-side minimum |m| is 1.0e-2 m — **250× the M7
+  lint floor of 4.0e-5, i.e. 2.4 decades** (the "3 decades" figure in
+  Finding 3 above is against *Kε at ε = 1e-6*, a different comparand;
+  do not conflate them).
+
+  **One claim does NOT carry over unscoped**, and it is named here
+  rather than quietly left: the Zero-side bullet above reports the
+  largest `zero`-classified |margin| as 8.9e-16 m, *"≥ 3 decades below
+  even the tightest row's ε = 1e-12"*. On the fresh cut the largest is
+  **1.378e-15 m** (`pcurve_map_residual`, one of the 42 new names) —
+  **2.86 decades**, not ≥ 3. Restricted to the original 63 names it is
+  still **8.882e-16 m**, so the sentence as written about *these CSVs*
+  is intact and K = 10 is untouched; it is the *generalisation* to
+  today's predicate set that fails, by 0.14 of a decade.
+
+  **This break never touched the gate, and the gate reads no committed
+  CSV at all.** `ci.yml`'s *K-telemetry probe sweep* runs
+  `scripts/k_probe_sweep.sh` into `target/k-fresh` on every building
+  merge, and `tools/k-lint` lints **that fresh sweep** against constants
+  pinned in `tools/k-lint/src/lib.rs` (`BASELINE_FLOOR_MARGIN = 4.0e-5`
+  and the rule set). Nothing under `docs/k-report-data/` is opened at
+  gate time — the committed CSVs, M2's included, are a **record**, not
+  an input. (Its neighbour `tess-lint` *does* diff against a committed
+  baseline; k-lint deliberately does not.) So no staleness in any
+  committed CSV can weaken the gate, and `k_report.rs` is the M2-era
+  instrument only.
+
+  **What *is* uncovered, stated precisely.** The `sweep` **library** is
+  compiled under `probe` on every building merge — `editor-core`'s
+  `probe` feature forwards `sweep/probe`, and the sweep script runs
+  `cargo test -p editor-core --features probe`. What no CI lane does is
+  build **sweep's own test targets** under `probe`: nothing in
+  `.github/workflows/` runs `cargo test -p sweep --features probe`, so
+  this file is not type-checked by CI, let alone run. That is a class,
+  not this file's peculiarity — placed as SMELL-SCAN row **D17**. Until
+  it closes, anyone re-running this harness is its only check.
+
 - Scope: the corpus is all-valid by construction, so refusal-path
   predicates that only fire on invalid input never sample here (dead
   on this corpus: `carrier_circles_internal`, `collinear_overlap`,
@@ -207,7 +339,10 @@ margin sources, exactly the pressure source Finding 4 anticipated:
   `enters_material_arm`.
 
 (Inventory method: `grep -r 'decide("' crates/*/src` diffed against
-this report's M2 CSV predicate column, plus the census's
+this report's M2 CSV predicate column — which is a 2026-07-21
+snapshot and today lists 63 of the funnel's names, so the diff is
+sound only in the direction that matters, catching a name in the code
+that no CSV column carries — plus the census's
 `gap_is_zero`/`signed_is_zero` helper call sites, which pass names
 into the same funnel, plus — **since #712** — the row-name TABLES.
 A predicate name supplied as a parameter is invisible to the `decide("`
