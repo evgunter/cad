@@ -442,6 +442,50 @@ all"*.
 |---|---|
 | **F-R7** | **The `tess-meter` box reds on a refinement that improves the answer.** Holding `SPLIT_SCAN_DECADES = 8.0`, **S=1000 fails while returning 4844 cells — strictly better than the shipped 4911**; S=322 fails `cells <= 4911` at 4987. The green step counts are exactly the lattices containing exponent `-3.7`; the reds are the ones that do not. So the row pins the constants to **a sample lattice, not a resolution**, and its failure message — *"the range is too narrow or the step is too coarse"* — is wrong in the surprising cases, because those step counts are **finer**. The unit's own defence, *"refinement cannot red it, deliberately"*, is **false**: the superset argument holds only when `S-1` is a multiple of 320. **Direction ruled, shape left to the lane: pin the RELATION, not the answer** — a test that computes its own reference refinement and asserts the shipped pair is within a stated tolerance is monotone-safe by construction. **"No honest box exists" is a passing answer**, recorded at the claim site per Q6; *making it worse than the non-monotone pin it replaced* is the one outcome the row cannot ship. Riding with it: the *"within 2.0%"* figure is **2.04%** on the reviewer's measurement and rests on an unstated choice of denominator. |
 
+### #783 F-R7 — independent verification, 2026-08-20: **the fix FAILED, second instance**
+
+**`SPLIT_SCAN_STEPS = 321 → 323` reds the row** — two steps above shipped,
+5.2369% against a 5% pin. The verifier scanned **every** S in 322..2000 with a
+replica validated to reproduce the real build to the digit and found **exactly
+one red: S=323.** Rarer than the defect it replaced, same species — *the
+docstring's thirteen rows were a sample that missed the counterexample sitting
+next door.*
+
+**Every figure the lane reported reproduced exactly.** The verifier's own words:
+*"the lane measured honestly — the defect is in the claim's shape, not its
+arithmetic."*
+
+| # | Ruling |
+|---|---|
+| **F-R14** | **Second instance, so no third patch — the row goes to first principles, and the first principle is now measured.** *The worst excess moves ~3 percentage points between **adjacent** step counts; the headroom is 0.54.* **The quantity being pinned is discontinuous in the parameter it is pinned against** — so no tolerance on the excess can simultaneously admit every refinement and exclude every degradation. Wide enough to survive the jumps is too weak to catch a degradation; tight enough to catch one is a lottery on the lattice. **Both failed versions failed for this reason wearing different clothes.** The expected answer is the one F-R7 pre-authorised: **not boxable by a tolerance on the excess, recorded at the claim site with this measurement as the reason** — Q6's *"a written reason it can have neither"*, now evidenced rather than shrugged. **And the real result is the question it forces: if the excess is discontinuous in `S`, what resolution guarantee do these constants provide at all?** Possibly none — which is a bigger finding than the box that was asked for. |
+
+**Independent of the boxing question: the oracle guard is green by
+construction.** The shipped lattice is a **strict subset** of the reference's
+(exponents at multiples of 0.05 in [-8,8] against 1e-4 in [-12,12], ratio exactly
+500; **0 of 321 shipped samples lie off the reference lattice**), and both seed
+with the same lane fallback — so `reference <= shipped` holds by construction.
+**Replacing the reference with the subject itself leaves the row GREEN at
+0.0000% on all five members.** A guard that passes when its reference is replaced
+by the thing it judges. Two more, both `sure`: **tolerance and family are not
+independent** (a plausible sixth member scores 5.8824%, and the worst shipped
+member is *mildly anisotropic*, not the ruled wall the row is about), and the
+`D = 3/4` *"genuinely better"* argument is outcome-correct with a **failed
+mechanism**.
+
+**What this says about the verification lane, which is why it was run.** The
+lane had *itself* identified an oracle gap — under-convergence — and asked
+whether to close it. **It was deliberately held**, so that an independent lane's
+result would be interpretable rather than a re-check of a known answer. The
+verifier found **a strictly worse instance of the same gap**: not an imprecise
+oracle, an oracle that can *be* the subject. So the gap was findable from
+outside, the hold cost one round and bought a calibration, and the author's
+restraint is what made the answer mean anything.
+
+**The rule this hardens.** *A guard verified only by its author's chosen
+samples is a sample, not a guard* — and when the quantity is discontinuous, no
+number of author-chosen samples converges on the truth. Both versions of this row
+were green on thirteen honestly-measured points and false as stated.
+
 ### #798 (F-f / S61, S62, D58–D60) — style lane, 2026-08-20: **NOT CLEARED**, five MAJORs
 
 **What held, and it is substantial.** All three isolated demonstration commits
