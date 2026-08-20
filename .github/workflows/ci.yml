@@ -1693,6 +1693,25 @@ jobs:
         run: cd demos/tour && cargo fmt --check && cargo clippy --all-targets -- -D warnings
       - name: demos wild fmt + clippy
         run: cd demos/wild && cargo fmt --check && cargo clippy --all-targets -- -D warnings
+      # THE #99 ε PIN, ARMED. `--all-targets` above type-checks the test
+      # targets and runs none of them, so until this row landed nothing
+      # in any gate had ever EXECUTED an assertion under `demos/`. The
+      # pin spawns the tour three times (default ε, 1e-6, 1e-12) and
+      # costs ~7 s wall on top of the release build this job already
+      # pays for the tess-budget sweep below.
+      #
+      # SCOPED TO THE INTEGRATION TEST, DELIBERATELY, AND NOT A
+      # SILENCING. A plain `cargo test --release` here would also run
+      # `--bin demo-tour`'s seven `lily::review_probes` unit tests, and
+      # two rows of `finding_13_tessellation_table_reproduces` are red
+      # on main today (issue #782: the two SWEPT blades tessellate to
+      # 1016/854 triangles against a pinned 976/826, while all five
+      # analytic rows are exact). Whether that new count is correct is a
+      # `mesh` question. Widening this row to the whole suite is owed
+      # the moment #782 is decided; until then those five other probes
+      # stay unguarded and #782 says so.
+      - name: demos tour eps pin (#99)
+        run: cd demos/tour && cargo test --release --test eps_regression
       - name: k-lint tool fmt + clippy + tests (incl. the #99 litmus)
         run: cd tools/k-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
       # `cargo doc` here is the same stopgap #709 added to the
