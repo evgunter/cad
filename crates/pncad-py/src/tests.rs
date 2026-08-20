@@ -358,7 +358,9 @@ fn two_python_authored_documents_are_two_parts_in_one_workspace() {
 
     let mut store = pncad::workspace::Workspace::open(&dir).expect("an empty workspace opens");
     let first = store.create(&a).expect("the first document writes");
-    let second = store.create(&b).expect("the second document writes beside it");
+    let second = store
+        .create(&b)
+        .expect("the second document writes beside it");
     assert_ne!(first, second, "two parts, two files");
     assert_eq!(
         store.documents().len(),
