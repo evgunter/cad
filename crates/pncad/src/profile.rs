@@ -50,7 +50,7 @@
 // and `path`'s own root re-exports are already listed
 // below, but the module hop is what the lattice's program vocabulary
 // (`profile::path::program::Step`) is spelled through.
-pub use ::profile::{k_stats, lift, path};
+pub use ::profile::{lift, path};
 
 // The lattice: authoring states, targets, the closed-carrier verbs.
 pub use ::profile::{
