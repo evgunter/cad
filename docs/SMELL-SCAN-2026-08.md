@@ -8490,24 +8490,49 @@ separate them. The doc was written against the pre-consolidation world.
 
 **Verdict:**
 
-## S92. Two parallel scraped-source registries of "what is a public mutation door", both classifying by string match
+## S92. FIXED by #788 — one home for the mutation-door set, and a classifier that reads code rather than prose
 
-`crates/topo/src/review_m1_pr5_internal.rs:254` and
-`crates/topo/src/pcurves.rs:1507` both walk `fixtures::crate_sources()`,
-both filter with the identical copy-pasted predicate
-`params.contains("&mut self") || params.contains("&mut Body")`, and each
-then maintains its own hand-written table of ~20 door names with
-per-door prose. The shared concept has no home; it is duplicated inside
-two consumers.
+`crates/topo/src/fixtures.rs` now owns the shared concept as
+`mutation_doors()`: every `pub fn` in `topo/src` taking `&mut self` or
+`&mut Body<T>`, as a `MutationDoor { file, name, code }`. Both
+consumers — `review_m1_pr5_internal`'s tier-1 postcondition guard and
+`pcurves`' staleness-posture guard — iterate it; neither spells the
+walk, the `&mut self` / `&mut Body` predicate (which was byte-identical
+at the two sites, not merely near-identical) or the `file::name` site
+string any more. **The two tables deliberately did not merge, and both
+sites now carry the reason**: they are two properties of one set, and a
+merged table would let an edit about pcurve staleness red the tier-1
+guard.
 
-Both also decide a door's classification by
-`body.contains("<literal>")` (`"assert_euler_postcondition"` /
-`"mint_pcurves("`), so a door can be classified compliant by a *comment*
-in its body mentioning the string, and neither guard would go red. Each
-discloses one blind spot (delegation; `topo/src` only); neither
-discloses the string-match one.
+**The string-match hole is closed, and it was demonstrated before it was
+closed.** A public mutation door was planted in `pcurves.rs` whose body
+held nothing but two comments naming `assert_euler_postcondition` and
+`mint_pcurves(`; both guards stayed green and both counted it compliant
+(38 doors: 15 asserting / 23 allowlisted; 2 re-minting / 36 declared).
+A `MutationDoor` now carries its body with every comment, string literal
+and char literal blanked (`fixtures::code_only`), reached only through
+`MutationDoor::calls` — a consumer is not handed a raw body, so it
+cannot re-open the hole with `body.contains`. The same plant now reds
+both guards. `fixtures::source_reader` pins the mechanism in both
+directions: six spellings of the plant that must not read as calls, and
+seven real calls reached past each construct the blanker walks, which is
+what stops the fix from being a classifier that answers `false` to
+everything.
 
-**Verdict:**
+**Blind spots** live once, on `mutation_doors`, and both guards point at
+it: delegation, `topo/src` only, and *text rather than semantics* — a
+`cfg`-gated call counts as present, a `use` line naming the macro counts
+as a call, and a call reached under an alias does not.
+
+**The class.** Swept with `&mut self")` (2 hits, both fixed),
+`body\.contains(` (3 hits, 2 fixed) and the callers of
+`crate_sources()` (6 hits, 2 fixed). Those patterns are keyed on
+spellings and cannot see a guard that scrapes source another way;
+widening to `extension() == "rs"` / `join("src")` / `CARGO_MANIFEST_DIR`
+found instances outside `topo` that the first three missed. The seven
+remaining members are **S117**, not this row: four of them need a
+different helper (they search *for* string literals, which `code_only`
+blanks) and two are in crates `fixtures` cannot reach.
 
 ## S93. The S15 fix minted two new prose-held caller obligations
 
@@ -9265,6 +9290,49 @@ see §C.
   quibble"* — empirical rather than derived, harmless because
   over-gating only costs tightness, and the one number in that crate
   that is chosen rather than proven.
+
+## S117. Seven source-text guards classify by matching raw source, and each has a direction in which a comment is enough
+
+Raised by **#788** (S92) while closing that finding's two members. Every
+guard below reads `.rs` source and asserts a count or a presence over
+raw text, with no comment awareness or with line-leading-`//` awareness
+only. **The direction that matters is the silent one**: a real site
+commented out leaves its text in the file, so the count does not move
+and the guard stays green over exactly the change it exists to catch.
+For several of them the loud direction is live too — a doc comment
+mentioning the string reds the guard, which is F3's already-realised
+cry-wolf-then-allowlist outcome.
+
+- `topo/src/review_d18.rs` — `body.matches("unreachable!").count() == 2`
+  over `link_half_edges`; commenting both out keeps the count at 2.
+- `topo/src/review_d18_probes.rs` — skips line-leading `//` only, so a
+  block-commented offending `unreachable!` message is not seen.
+- `topo/src/chord_join.rs` — `stripped.matches("decide(\"split_…\"")`
+  pinned at one site per rung; commenting the real site out keeps it
+  at one.
+- `topo/src/sector_shape.rs` and `topo/src/face_normal.rs` — the
+  *"the guard earns its line only if the string is reachable at all"*
+  half is satisfied by a commented-out home spelling. `sector_shape`'s
+  own comment records that its retired names *"briefly"* made it its own
+  first counter-example, so the loud direction has already fired once.
+- `geom-core/tests/flagged_census.rs` — the ledger count of
+  `k_stats::decide_flagged(` sites, no strip at all, both directions
+  live.
+- `step-import/tests/tier_gate.rs` — the *"exactly two validator call
+  sites"* pin, line-leading `//` only.
+
+**Why #788 did not sweep them.** Its fix is `fixtures::code_only`, which
+blanks comments **and string literals**. Three of the topo members
+(`chord_join`, `sector_shape`, `face_normal`) are anti-re-fork guards
+that search *for* string literals, so `code_only` would blank exactly
+what they look for and turn them into guards that cannot fail — this
+track's characteristic failure. They need a comments-only variant. The
+two outside `topo` cannot reach the helper at all: `topo::fixtures` is
+`pub(crate)`, so sharing it is a test-support-crate decision, not a
+lane's. **This row closes on a helper shape plus the seven conversions**,
+and the shape question comes first.
+
+**Verdict:**
 
 ---
 
@@ -10611,6 +10679,10 @@ all `pncad-py`'s error surface, and D37(a) and D39 are literally one mechanism
 (a `PathError` discriminant that lives in `profile`), so a lane taking D37+D39
 or D37+D47+D48 is cheaper than any of them alone.
 
+**D61 is placed and unstaffed too**, by #788 out of its own class check
+(S117). It is one class across seven files in three crates, and its first
+deliverable is the helper's shape — see the row.
+
 | # | Work | Was | Scope | Review | Gated on |
 |---|---|---|---|---|---|
 | **D20** | **D5's +46% on the `seqgen` lane is real, and after #722 it is unattributed.** #713 measured `split_edge`'s entry into the catalog at +0.9 s median (1.91 → 2.78 s) and charged it to the generator's eager candidate enumeration, which #722 placed as D14 and then **excluded by measurement**: `choose_op` is 2.4–2.7% of the lane on two independently built deterministic replays, so the whole of it cannot hold a 46% regression, and making it lazy moved no suite number. **What is left is the row.** The named candidates, in the order #722's measurement points at them: what a split *does* when applied (`EdgeCurve::certify` on both children), its inverse in the roundtrip arm, the isomorphism oracle's deep compare over the bodies splits make bigger, and the second-order cost of every later step running against a larger body. **Start by attributing, not by fixing** — the instrument is a deterministic replay of `run_properties` over a fixed stream set (S15 records its shape, its box and its spread), and the first deliverable is a per-phase attribution, which may find the cost is inherent to what the lane now covers rather than a defect. Two eager-enumeration instances have now been measured out of the frame (`choose_op` at 2.7% of the lane, `teardown` at 1.2% with the shape worth ~1% of that), so **the enumeration class is closed as a candidate**: do not re-open it without a number. `memories/test-suite-cost.md`'s rule still applies to whatever it finds. | S15 (`seqgen` half), via D14's refutation in **#722** | `topo/src/seqgen.rs` | style, and it **closes on an attribution**: a number that says where the 46% lives, or a written finding that it is inherent — not a shape | nothing |
@@ -10639,6 +10711,7 @@ or D37+D47+D48 is cheaper than any of them alone.
 | **D50** | **`Live`'s unforgeability is guarded by nothing the repo runs.** #755's claim is that no `Live` exists which a lookup did not license — a property of `topo/src/live.rs`'s privacy, holding only while every raw construction stays inside that file. The crate's usual instrument cannot witness it: a `compile_fail` doctest cannot name a `pub(crate)` type, so the test that would try the forge cannot be written where the claim is. The adversarial reviewer compiled six forge attempts by hand and all six were hard errors, which is evidence about that commit and not a mechanism. **The shape is a source-level guard in the `scripts/gates/` one-home idiom**: assert that `Live(` and `Self(` construction appear only in `live.rs`, and that the struct's field stays private — the same posture as the gates that pin a single home for an idiom. This is Q6's third answer written down rather than deferred: `live.rs`'s module docs carry the *"unguardable by the crate's usual instrument, and here is why"* note pointing here. | #755 (D25), on its reviewers' F2 | `scripts/gates/`, `.github/workflows/ci.yml` | style | **E-a**, which holds `scripts/gates/` and `ci.yml` |
 | **D51** | **`DESIGN.md`'s companion table describes the dimensional audit's open findings as they stood two retirements ago.** `docs/DESIGN.md:31` reads *"LIVE working audit | Dimensional-analysis sweep; open findings F2, F6's residue, F7–F15"*. The audit's own disposition list says otherwise on two of those: **F6 is RETIRED** (*"M6-3 closed most of it … The residue closed with F7"*) and **F7 is RETIRED** (`nurbs_span_meter`, closed by the typed-margin fold-in — the two were closed together, as one quantity three sites had handled three ways). So the sentence names as open a residue that no longer exists under that name and a finding that was retired with it — and the residue did not simply vanish: the audit re-homed what is left (`pcurves.rs`'s `azimuth_arm` `_ => 1` and the `v_meter` fallbacks) to **issue #501** and states explicitly that it is *"NOT this family"*. A reader following *"F6's residue"* is sent to a disposition that redirects them, which is worse than a plain miss. The rest of the range is right today: F8–F11 and F13–F15 are open, F12 is open as an attribution hole, and F2 is open with a named re-pin unit. **This is S39's class, in the one file where it is most expensive, and it fits that finding's own shape exactly**: S39 records that in nearly every one of its eleven rows the *authoritative* statement was already correct and only a summary or module-level restatement had rotted. Here the authoritative statement (the audit's disposition list) is current and the index rotted — a stale claim in a document *about* another document that has moved under it. `DESIGN.md` is the ratified contract and its companion table is the index a reader hits first; a reader who trusts it goes looking for an F7 disposition that says RETIRED and concludes one of the two documents is wrong. Nothing checks the sentence: the audit is prose, the table is prose, and no test, lint or CI row reads either. **The fix is a re-derivation, not a one-line correction, and the reason is the shape of the error.** Striking *"F6's residue, F7"* would make the sentence true this week and leave it the same kind of claim — a hand-copied enumeration of another file's live state, with the same expiry and the same absence of anything that would report it. **S39's own postmortem is the argument against the quick edit**: its one non-benign row was a false sentence written *by a previous stale-claims sweep*, which replaced two honest sentences with one wrong one. A sweep that patches a range without reading the dispositions is how that happens again. The rows to state are the ones the audit's disposition list currently carries, and the honest form is a pointer plus a shape (*"open findings live in that document's disposition list; F2 and the arm-policy family F8–F11 are the standing ones"*) rather than a range that has to be re-typed every time a finding retires. Whoever takes it should decide that, not assume it. **A lane here is editing the ratified contract**: `docs/DESIGN.md` changes are a design conversation, so flag the edit to the orchestrator and do **not** self-merge (CLAUDE.md, and §D's standing rule that ratifying PRs wait for Evan). | D33 (#761), which read the audit's dispositions end to end while measuring its coverage and found the index disagreeing with them | `docs/DESIGN.md` | style | nothing |
 | **D57** | **Nine names carry the K predicate vocabulary in refusal diagnostics while never reaching the funnel, and the sweep that found them was two crates wide.** A `geom_core::Indeterminate` carries `predicate: Option<&'static str>`, and in `geom-brep` + `topo` **nine** names are only ever written there: seven through `predicate: Some("…")` — `carrier_kind`, `contact_tangent_independent`, `contact_rest_senses_opposed`, `contact_rest_ladder_invariant`, `transversality`, `plane_nurbs_transversality_reported`, `validate_probe` — and **two more through an `invalid(band, "…")` helper**, `bool_contfp_boundary` and `pm_census_containment`, which a `predicate: Some("` sweep does not see. **That second spelling is why this is a row and not a sentence**: the class was measured at seven by one spelling and at nine by two, over two crates out of a dozen, so the population is unknown and the instrument that found it is already known to be incomplete — **S113 / D23's shape**, an enumeration keyed on a spelling rather than on the thing enumerated, here caught inside the review that was checking for it. Verified at `a0a6e1a5`: none of the nine is at a funnel site, none appears in the committed M7 baseline, so **excluding them from the predicate roster is correct** — this is not a roster hole. **The question is whether a refusal diagnostic may name something the funnel never decided.** A user or agent reading a refusal gets a `predicate` that looks exactly like a K row name, greps `docs/K-REPORT.md` and `docs/predicate-dimension-audit.md` for it, and finds nothing — with no sentence anywhere saying why. Two answers are legitimate and the row closes on choosing one: **(a)** the convention is fine and gets written down where a grepper lands (K-REPORT's *"inventory method, restated"*, one paragraph), or **(b)** a diagnostic-only label is a different namespace and should look like one. **Sweep the workspace first, all spellings** — `predicate: Some(`, `invalid(band,`, and any other constructor of `Indeterminate` — because the two-crate count is a floor. `docs/predicate-dimension-audit.md`'s coverage section already carries the nine as a disclosed non-hole; this row owns the rule, not the disclosure. | D33 (#761), from its style review's undisclosed-blind-spot finding, re-derived and enlarged from seven to nine | `crates/*/src` for the sweep; `docs/K-REPORT.md` if the answer is (a) | style, and it **closes on a rule plus its sweep**, not on a list | nothing |
+| **D61** | **Seven source-text guards classify by matching raw source, and each has a direction in which a comment is enough.** Raised by **#788** while closing S92, whose two members were exactly this defect and are fixed. Each of `topo/src/{review_d18.rs, review_d18_probes.rs, chord_join.rs, sector_shape.rs, face_normal.rs}`, `geom-core/tests/flagged_census.rs` and `step-import/tests/tier_gate.rs` asserts a count or a presence over raw `.rs` text with no comment strip, or with a line-leading-`//` skip that a block comment walks past. **The silent direction is the one that matters**: a real site commented out leaves its text behind, so the count does not move and the guard stays green over the change it exists to catch. **Why #788 did not sweep them, and why the shape question comes first:** its helper `fixtures::code_only` blanks comments AND string literals, and three of the topo members are anti-re-fork guards that search *for* string literals — applying it would blank what they look for and mint three guards that cannot fail, which is this track's characteristic failure. They need a comments-only variant. The two outside `topo` cannot reach the helper at all (`topo::fixtures` is `pub(crate)`), so sharing it is a test-support-crate decision rather than a lane's. | **S117**, from #788's (F5/S92) class check | the seven files above, plus wherever the shared helper lands | style; **closes on a helper shape plus the seven conversions** | nothing |
 
 ---
 
@@ -10780,7 +10853,6 @@ than from the schedule** (F-R1, F-R2 in the track log):
 | **F2** | **Re-site the gates that cannot fire on their own inputs**, per Evan's S61 ruling. `probe-suite-census.sh:52-57` asserts two docs still name a CI step and cannot fire on a docs-only change; `gate-roster.sh:31-39` argues it need not read `local-scripts/` *because* the discipline job never runs there. Carries **D58**, **D59** and **D60** (below), which are E-a's own re-derived residues. | **S61**, **S62**, and E-a's report | `.github/workflows/ci.yml`, `scripts/ci-filter.py`, `scripts/gates/{probe-suite-census,gate-roster}.sh`, `local-scripts/ci-local.sh` | **ACCEPTED — RULED** (posture; re-site) | style |
 | **F3** | **Three of six grep gates pass the spellings they exist to forbid.** `no-extra-real-bounds.sh` greps `\bReal\s*\+` raw with no comment strip; `bit-identity-debug-only.sh` counts uses and `cfg(debug_assertions)` separately and prints an unsupported sentence; `interval-square-allowlist.sh`'s PCRE backreference cannot see `self.x * self.x`, and `geom-core/src/linalg/vec.rs:325-326` is a live unallowlisted instance. The cry-wolf-then-allowlist outcome is **already realised** at `linalg/mat.rs`. **Its line numbers are fiction — re-derive, do not transcribe.** | **S63** | `scripts/gates/{no-extra-real-bounds,bit-identity-debug-only,interval-square-allowlist,lib.sh}`, `scripts/ci-filter.py` | **ACCEPTED** | style for the gates; **ADVERSARIAL** for the `x*x → powi(2)` conversions, which change numerics in `Interval`-generic production code |
 | **F4** | **Guards whose failure mode is their pass condition** — four instances bound by one missing idiom rather than by files. The spent-graft hammer row lacks the `oks > 0` its twin has, and `ci.yml` cites it by name (**S76**); a fuzz corpus is built entirely behind `if let Ok` with no floor (**S78**); a floor row matches into a `println!("SKIPPED")` arm and returns green (**S84**); a new differential test compares an expression against itself (**S91**). | S76, S78, S84, S91 | `topo/src/review_d18.rs`, `sweep/tests/review_d2_adv_probes.rs`, `geom-brep/tests/*`, `geom-core/src/spline/knots.rs` | **ACCEPTED** on all four | **ADVERSARIAL** for S76 and S78 (each is a guard on a soundness contract); style for S84, S91 |
-| **F5** | **Two scraped-source registries of "what is a public mutation door", both classifying by `body.contains("literal")`** — so a comment satisfies the guard. The undisclosed string-match blind spot is the sharper half. | **S92** | `topo/src/review_m1_pr5_internal.rs`, `topo/src/pcurves.rs` | **ACCEPTED** | style |
 | **F6** | **`tess-lint` resolves broken measurements in the cannot-fire direction**: `ratio` returns `1.0` on a non-positive denominator or non-finite numerator and feeds `recoverable()`; `GROWTH_TOLERANCE = 1.05` is unpinned. **Part two of the finding — the positional-ordinal join — is already Track C's row C15 (#746) and is NOT this track's.** | **S73**, parts 1 and 3 | `tools/tess-lint/src/lib.rs` | **ACCEPTED IN PART** — parts 1 and 3 only | style |
 | **F7** | **Assertions that cannot go red, sorted.** The roll-up is **three dispositions, not one**: *(a)* genuinely vacuous assertions in shipped test files — a normal fix lane, cheap and edge-free; *(b)* hand-run diff artefacts whose comparison no longer exists (`probe_s5_sectors.rs` has no runner and says so in the file; `review_m6_5_pr2_sweep_probes.rs`'s printed hash; `review_d8_consumer_differential.rs`'s pinned seeds) — **C23's class, and §A2 already routes them to the test-suite-cost sweep**; *(c)* equal-by-construction asserts in `demos/`, which go to **Track G**. **The skip-reads-as-a-pass shape is deliberately NOT here** — Evan ruled it un-rolled-up (C21), because a floor concedes the skip and *whether the test should skip at all* comes first. **Do not re-propose the floors.** | **S110** (10 members, enumerated) | six crates' `tests/`, plus `memories/test-suite-cost.md` | **ACCEPTED, SORT REQUIRED** — the sort is above and is the row's first deliverable | style |
 | **F8** | **D44 and D45**, placed by Track E's lane E-b out of D23. **D44:** the *executed* probe-suite set has no floor — `k_probe_sweep.sh` filters to two suites, so CI runs **2 of 16** and 14 are type-checked and never run; `editor-core/tests/m5_pr5_corpus_probe.rs` carries a plain non-`#[ignore]`d test that **has never run in CI**. Every document's *"thirteen of the fourteen"* came from reading `-p editor-core` out of the invocation instead of the filter out of the command. **D45:** a REPORT-ONLY survey's stated scan base does not warrant its counts — three of six wrong-when-written enumerations live in documents that *do* name a base and are wrong there. | D44, D45 | `scripts/k_probe_sweep.sh` (**neither of E-a's two files — sequence it beside D22**), `docs/` | **ACCEPTED** | style |

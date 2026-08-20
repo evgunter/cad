@@ -295,12 +295,12 @@ before the merge, so answering saves a round.
 
 ## Lane roster
 
-**Wave 1 — open now.** These three share no file with each other, with
-Track C's open lanes, or with Track E's.
+**Wave 1 — open now.** These lanes share no file with each other, with
+Track C's open lanes, or with Track E's. **F-a is done and its PR is open**
+(#788, style review pending) — see *Landings*.
 
 | lane | row | branch | scope | review | state |
 |---|---|---|---|---|---|
-| **F-a** | **F5** (S92) | `smellf/f5-door-registries` | `topo/src/review_m1_pr5_internal.rs`, `topo/src/pcurves.rs` | style | **dispatched** 2026-08-20 |
 | **F-b** | **F6** (S73 parts 1 and 3) | `smellf/f6-tess-lint` | `tools/tess-lint/` | style | **dispatched** 2026-08-20 |
 | **F-c** | **F7** (S110, sort first) | `smellf/f7-cannot-go-red` | six crates' `tests/`, `memories/test-suite-cost.md` | style | **dispatched** 2026-08-20 |
 
@@ -355,7 +355,33 @@ constraint is, and it is stated here so a Track G taker can read it.
 
 ## Landings
 
-*(none yet)*
+**F-a — F5 (S92) — PR #788, opened 2026-08-20, review pending.** One home for
+the mutation-door set (`topo/src/fixtures.rs`'s `mutation_doors()`), and a
+classifier that reads code rather than prose. Measured at merge base
+`4f959cb4`: the walk finds **37** doors; the duplicated `&mut self` /
+`&mut Body` predicate was **byte-identical** at the two sites, not merely
+near-identical; the two tables (23 and 36 entries, **22 names in both**) were
+consistent with each other and **deliberately did not merge** — they are two
+properties of one set, and a merged table would let an edit about pcurve
+staleness red the tier-1 guard. Both sites now carry that reason.
+
+The string-match hole was **demonstrated before it was closed**: a planted
+door whose body held only two comments naming the two literals left both
+guards green and counted compliant (38 doors: 15 asserting / 23 allowlisted;
+2 re-minting / 36 declared). After the change the same plant reds both.
+`MutationDoor` hands out a body with comments, string and char literals
+blanked, so a consumer is never given a raw body to `contains` on, and
+`fixtures::source_reader` pins the mechanism in both directions — six
+spellings of the plant that must not read as calls, seven real calls that
+must. Door counts are unchanged by the fix, so nothing was over-stripped.
+
+**Residue: S117 / D61**, seven further source-text guards across three crates
+with the same silent direction (a real site commented out leaves its text, so
+the count does not move). Not swept under F5 on purpose — three of them search
+*for* string literals, so this unit's helper would have blanked what they look
+for and minted three guards that cannot fail, and two live in crates
+`topo::fixtures` cannot reach. **S118 and D62 were reserved to F-a and are
+unused.**
 
 ## Incidents
 
