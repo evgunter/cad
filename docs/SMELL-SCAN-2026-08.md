@@ -8582,8 +8582,10 @@ to stderr. **A gate's self-test is only as good as the fixture's resemblance to
 the tree**, and "small" is a resemblance failure.
 
 **What the predicate cannot match**, since the previous one's blind spot went
-unstated: a gate broken across lines; a gate reached through `cfg_attr` or a
-macro; `cfg(not(feature = "probe"))`, which it counts as a probe suite though it
+unstated: a gate broken across lines; a gate carrying a **trailing comment**,
+because the match is anchored to the whole line and those anchors are what keep
+prose out; a gate reached through `cfg_attr` or a macro;
+`cfg(not(feature = "probe"))`, which it counts as a probe suite though it
 means the opposite — an over-count, and the harmless direction, since such a
 file compiles under the default rows; and the never-true non-feature condition
 above. The census reports **16** suites across **5** crates, unchanged by the

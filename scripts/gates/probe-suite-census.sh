@@ -78,7 +78,9 @@
 #
 # WHAT THIS PREDICATE CANNOT MATCH, stated because the previous one's
 # blind spot was not: a gate broken across lines (rustfmt keeps these on
-# one); a gate reached through a `cfg_attr` or a macro; and
+# one); a gate carrying a TRAILING COMMENT, since the match is anchored to
+# the whole line — the anchors are what keep prose out, and they cost this;
+# a gate reached through a `cfg_attr` or a macro; and
 # `cfg(not(feature = "probe"))`, which it counts as a probe suite though
 # it means the opposite — an over-count, and the harmless direction,
 # since such a file compiles under the DEFAULT rows and is covered there.
