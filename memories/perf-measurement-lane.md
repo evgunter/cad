@@ -17,14 +17,13 @@ built around it.
 `crates/editor-core/tests/baseline/rebuild-latency.json` used to hold
 both structure and milliseconds, refreshed by whoever ran
 `CAD_LATENCY_BASELINE_REFRESH=1` on their workstation. Three refreshes
-disagreed by **90–98% on every row** (`die` full: 51661.1 ms → ~985.9
-ms → 1103.5 ms). Contention was ruled out by a verified-quiet re-run,
-leaving an untested build/environment hypothesis nobody ever captured
-side by side. The file ended up declaring cross-refresh comparison
-meaningless *in its own provenance block*, and
-`docs/PERF-SCAN-2026-08.md` §0 had to label every absolute-millisecond
-claim in the repo provisional as a result — of that scan's ~20
-findings, exactly one carried measured numbers.
+of the same rows disagreed by more than any real change could explain.
+Contention was ruled out by a verified-quiet re-run, leaving an untested
+build/environment hypothesis nobody ever captured side by side. The file
+ended up declaring cross-refresh comparison meaningless *in its own
+provenance block*, and `docs/PERF-SCAN-2026-08.md` §0 had to label every
+absolute-millisecond claim in the repo provisional as a result — almost
+none of that scan's findings could carry a number at all.
 
 ## The lane now (2026-08-17)
 
@@ -59,9 +58,10 @@ against `main`'s last hosted measurement.
   is gone. A local run READS the history and reports against it; it
   cannot write to it. Your local milliseconds are not comparable with a
   runner's — that is the design, not a limitation.
-- **Read the `±` column before believing a delta.** Each figure is the
-  median of 5 runs; a hosted 2-vCPU runner has a fat tail, and a `vs
-  base` move inside the spread is noise.
+- **Read the `±` column before believing a delta.** Each figure is a
+  median over repeats (`m4_pr8_latency` owns the count); a hosted
+  2-vCPU runner has a fat tail, and a `vs base` move inside the spread
+  is noise.
 - **Still REPORTING ONLY, still never gated** (M4-PLAN F8; PERF-PLAN
   advisory). No CI row fails on a millisecond. The assertions in that
   test are the ε-independent structural ones.

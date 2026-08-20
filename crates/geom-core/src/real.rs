@@ -551,7 +551,11 @@ pub trait Real:
 /// decision parameter that has also been handed bracket extraction, and
 /// both halves of that pair are bracket-side doors. Adding
 /// [`Decide`](crate::predicate::Decide) to
-/// it is a compound bound again, and still needs ratification.
+/// it is a compound bound again, and needs ratification — and
+/// `scripts/gates/bounds-allowlist.sh` enforces that: its matcher is
+/// shaped by the trait NAME, so it reads `Decide + CertifiedBounds` as a
+/// compound bound in either operand order, and a **sole**
+/// [`CertifiedBounds`] does not fire.
 ///
 /// # Semantics
 ///
@@ -784,11 +788,15 @@ impl CertifiedEnclosure for f64 {
 /// shorter spelling.
 ///
 /// It is **not** an escape from the compound-`Bounds` rule.
-/// `T: Decide + CertifiedBounds` is still a compound bound, still fires
-/// the gate, and still needs ratification — correctly so, because that is
-/// exactly the thing the rule targets: one parameter that both DECIDES and
-/// reads brackets. `geom_brep::ssi::certify`'s `probe_tube_chart` is that
-/// shape and stays allowlisted on its own justification.
+/// `T: Decide + CertifiedBounds` is a compound bound, fires
+/// `scripts/gates/bounds-allowlist.sh`, and needs ratification —
+/// correctly so, because that is exactly the thing the rule targets: one
+/// parameter that both DECIDES and reads brackets. So the guidance above
+/// — write the alias, not the pair — is safe to follow at a `Decide`
+/// site: it changes the spelling and not what is ratified.
+/// `geom_brep::ssi::certify`'s `probe_tube_chart` is that shape, writes
+/// the long form today, and is allowlisted by file on its own
+/// justification either way.
 pub trait CertifiedBounds: Bounds + CertifiedEnclosure {}
 
 /// Every scalar with both doors has the pair; the alias adds no obligation
