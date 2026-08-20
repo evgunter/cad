@@ -6672,22 +6672,28 @@ It is listed separately because neither track has capacity for it now, and
 because several rows want a decision inside them that the taker should expect
 to make and record.
 
-**Gating, stated 2026-08-19, because "nothing here is blocked" was too loose.**
-Two of these are edge-free and could start today: **C1** and **C2**.
-Three unblock when **A1** (#682) lands — **C7**
-entirely and **C4's S33** — and their input is now better than "wait for the
-report": #682's adversarial pass produced a *compile-verified* table of which
-lanes sit behind `CertifiedEnclosure`, which is the premise W2a would otherwise
-have been designed against wrongly. **S27** waits on **A2**, **S28's
-duplication half** on **A3**, and **S32** on **#705** — all three for file
-overlap rather than for knowledge. (**S31**, **S24** and **S30** were three of the six
-edge-free rows and are FIXED by #705, #702 and #709; a landing leaves this
-paragraph as well as the table.)
+**Gating — restated 2026-08-20, and almost nothing is blocked any more.**
+The 2026-08-19 statement of this paragraph is superseded: every gate it
+named has since fallen. **A1 (#682), A3 (issue #678, landed as #684), #690
+and #692 are all merged**, and **#705** merged the two geometry crates into
+one `geom`. So C1's remaining members, C3's S29, C4 in full, C5's S28 half,
+C7, C9 and C10 are all edge-free and takeable today.
 
-Two will not unblock by waiting, and should not be read as queued: **C6**'s
-rows are gated on other programmes entirely, and **S26** wants a written
-proposal rather than a lane. **The binding constraint on the rest is capacity
-and the width-1 build mutex, not dependency.**
+**Two gates remain, and they are different in kind.** **C3's S27** waits on
+**A2** (#649, open as #714) for file overlap in `props/` — as does the
+`step-export/volume.rs` row Track D handed over, whose immediate cause is
+that `topo::props` exposes only body-scoped `mass_properties` while the
+exporter needs *per-shell* volume. And **C2's H17** is held **deliberately
+last**: it touches ~130 files and would conflict with every open lane.
+
+**Two will not unblock by waiting, and should not be read as queued:**
+**C6**'s rows are gated on other programmes entirely, and **S26** wants a
+written proposal rather than a lane. **The binding constraint on the rest is
+capacity and the width-1 build mutex, not dependency.**
+
+**S31, S24 and S30 are FIXED** by #705, #702 and #709 — and a landing leaves
+this paragraph as well as the table, which is why this paragraph is
+rewritten rather than appended to.
 
 | # | Work | Why it is here rather than in a track |
 |---|---|---|
@@ -6699,6 +6705,8 @@ and the width-1 build mutex, not dependency.**
 | **C6** | **W2f remainder / S4** — `ProgramStep`/`WireStep`, `SegTag`, and the "no usable value" core. | Each is blocked on something real: the first behind OnArc + RESPELL-TABLE and crossing the same files, the second needs the workspace's first proc-macro crate, the third by a persisted format. |
 | **C7** | **W2a / S3 and W2b / S1+S2** — the lane-trait collapse, and `RingInterval` versus an always-on `Interval`. | **The S3 half no longer waits — D1 is ruled, and its report is S44's D1 DECIDED block.** The steelman's compiled collapse for S3 **predates #643's `Bounds`/`CertifiedEnclosure` split** and must be re-derived against the two-trait world; read *"What this does NOT settle"* first, in particular its per-lane correction — deleting a lane trait leaves **three of the four** seams still uninstantiable at a dual, and only `chart_region_overlap` would become instantiable. W2b's blast radius is 535 refs in 15 files with five carrying 60%. **Two rows joined this one on 2026-08-20**, both from the unscheduled audit: **S44's open residue** — whether the four lane traits survive and whether D9's four bit-identity assertions may be re-expressed, which is what S44 means by *"open for the part that matters"* now that its priced half (D1) is ruled — and **S55**, `Enclosure` as a live trait with no consumer, which Evan deferred *pending the `Bounds` narrow-vs-broad split* and which is therefore this row's, not a lane of its own. Whoever takes C7 absorbs both. |
 | **C8** | **#711 — S24's residues outside `editor-core`**: `step-import/src/recognize.rs:126`, whose `try_cylinder` promoting arm is documented unreachable and whose `Plane > Cylinder` preference order is *"unfalsifiable by execution"*; and `docs/ASM-R2A-SPEC.md:21`, a landed spec sentence (*"v1 admits `Rest`/`Tangent`"*) that is true of the door it binds and no longer of v1 as a whole. | Filed by #702's fix pass rather than left inside a finding marked FIXED. The first may want the tighter cylinder certificate rather than an encoding change; the second is a one-line ruling — clarifier, or "landed specs read as of their own date". Small, edge-free, and **not** a lane on its own: fold into whoever next opens `step-import`. |
+| **C9** | **The `tess-meter` CSV's `agreement` column measures nothing**, and its `≤ 1%` assertion in `budget_meter` was vacuous. `grid_cells` and `span_cells` are the same `Σ nuc·nvc` from the same `band_schedule`, so the ratio is `≡ 1.0` by arithmetic — while the module docs claimed it *"verifies the lane's REALISATION of the schedule (candidate generation, dedup, counting)"*, which was never true because neither number counts a candidate. `tess-lint`'s own report legend already printed *"1.00 by construction"*: **the tool knew and the docs disagreed.** #709 corrected the column's doc to stop claiming a check; making the column *real* needs a CSV schema change and a re-cut committed baseline. | Disclosed in #709's body and correctly out of that unit's scope — **and it had no row until now, which is this track's own instance of §C3.** The substantive question is whether a realisation check is worth having at all: if the answer is no, the honest fix is to delete the column rather than re-derive it, and that is a decision the lane should make and record. Edge-free; `tools/tess-meter/`, `tools/tess-lint/`, the committed baseline, `docs/TESS-BUDGET.md`. |
+| **C10** | **`geom_core::k_stats` is S30's class one crate over** — 598 lines, ~96 of them separable instrument, in the kernel's own core crate. | Reported by #709 and deliberately untouched, for a reason that is the whole row: the recording sits **inside** `decide`/`decide_flagged`/`decide_invariant`, which are load-bearing kernel predicate doors, so the `mesh::budget` split does **not** transfer mechanically. Whoever takes this must first decide whether the instrument can leave a door that certifies, and record that decision — it is not a cut-and-paste of #709. Note also `profile::k_stats`, a self-declared compatibility shim whose retirement is **STILL OPEN** at S40. Edge-free but not small. |
 
 ---
 
