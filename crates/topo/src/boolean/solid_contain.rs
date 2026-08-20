@@ -6,9 +6,17 @@
 //!
 //! # Method: closest-hit ray test with the fixed schedule
 //!
-//! Cast a ray from `q` along a direction of the fixed schedule (the
-//! same 16-member golden-angle table as [`point_in_loop`], used as
-//! space directions directly). For each face (planar — the F5 regime):
+//! Cast a ray from `q` along a direction of the fixed schedule — the
+//! same 16-member golden-angle table as [`point_in_loop`], and
+//! literally the same const (`SCHEDULE`, read from
+//! `splitting::containment`), used here as space directions
+//! **directly**: this module normalizes the raw triple, where
+//! `point_in_loop` projects it into the loop's plane and skips the
+//! near-parallel members. One table, two different sweeps — the
+//! shared const buys the absence of drift between copies, not
+//! agreement on a direction, and determinism is per site (a `const`
+//! swept in a fixed order every run). For each face
+//! (planar — the F5 regime):
 //! intersect the ray with the face plane, test the hit point against
 //! the face's loops (outer minus rings) via [`point_in_loop`], and
 //! keep the **closest** crossing. The verdict reads the material side
@@ -66,31 +74,9 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use crate::body::Body;
 use crate::entity::{FaceKey, LoopBoundary};
-use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_loop};
+use crate::splitting::containment::{LoopContainment, PointInLoopError, SCHEDULE, point_in_loop};
 use crate::validate::decide;
 use geom::Surface;
-
-/// The 16-member fixed direction schedule (shared table with
-/// `point_in_loop` — re-declared here to keep the module boundaries
-/// thin; the values are the ratified schedule).
-const SCHEDULE: [[f64; 3]; 16] = [
-    [1.0, 0.0, 0.0],
-    [0.0, 1.0, 0.0],
-    [0.0, 0.0, 1.0],
-    [0.5, 0.25, 1.0],
-    [1.0, 0.5, 0.25],
-    [0.25, 1.0, 0.5],
-    [-0.5, 1.0, 0.125],
-    [0.125, -0.5, 1.0],
-    [1.0, 0.125, -0.5],
-    [0.75, -1.0, 0.375],
-    [0.375, 0.75, -1.0],
-    [-1.0, 0.375, 0.75],
-    [0.625, 0.9375, 0.3125],
-    [0.3125, -0.625, 0.9375],
-    [0.9375, 0.3125, -0.625],
-    [-0.75, -0.25, 1.0],
-];
 
 /// The trilean answer: is `q` in the solid's **material**?
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
