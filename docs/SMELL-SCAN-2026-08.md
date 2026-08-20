@@ -10825,8 +10825,8 @@ scope and dispositioning what it returns. The one-command version is in
 
 **chord_join.rs discharged by #NNN (G8).** The vocabulary
 (`verbatim|re-derived|ported from|mirror|copy|copies|duplicat|identical|twin|hand-appl|hand-writ|parallel`,
-case-insensitive) returns **37 hits** in that file at `origin/main`
-(`c3983195`), and S131's warning that the grep is a candidate list
+case-insensitive) returns **37 hits** in that file, re-derived on `origin/main` at the
+merge (`3ddd6011`), and S131's warning that the grep is a candidate list
 rather than a count holds hard: **36 are false positives**, and four
 shapes account for most of them. Mäntylä citations (`:18`, `:29`,
 `:1895` — the book's *mirror site*). `derive(Clone, Copy)` (`:101`,
