@@ -58,6 +58,7 @@
 //! about the request rather than the configuration and refuses as
 //! [`FilletError::UnsupportedRunOut`].
 
+mod admit;
 pub mod battery;
 pub mod blend;
 pub mod build;
@@ -440,10 +441,6 @@ pub enum FilletError {
         /// Which stored shape was found instead.
         detail: &'static str,
     },
-    /// The verdict handed the surgery a chain with no links (D2
-    /// addendum row 1). Payload-free deliberately: the emptiness IS
-    /// the defect, so there is no edge, vertex or face to name.
-    EmptyChain,
     /// **The body handed to the surgery does not hold together where
     /// the plan read it** (D2 addendum row 1): a stored reference that
     /// did not resolve, a cycle that did not close, or a verdict whose
@@ -468,17 +465,32 @@ pub enum FilletError {
         /// The clearance margin, meters (negative or zero here).
         margin: f64,
     },
-    /// The blend geometry could not be certified as stored — a
-    /// carrier/surface pair outside the jet certificate's lane, or a
-    /// residual over ε.
+    /// **The result's pcurve caches could not be re-minted** after the
+    /// surgery — a chart image outside a derivation route, a loop that
+    /// does not close in the chart, or a cache that fails its
+    /// certification.
+    ///
+    /// The pass's own typed refusal is nested whole: it names the
+    /// half-edge or face at fault and its own reason, which no
+    /// rendering of this error has to reconstruct.
     Certify {
-        /// The underlying certification refusal, as text.
-        detail: String,
+        /// The surgery step that ran the pass.
+        site: &'static str,
+        /// The pcurve pass's typed refusal.
+        source: topo::PcurveMintError,
     },
-    /// An Euler operator refused during assembly.
+    /// **An Euler operator refused during assembly.**
+    ///
+    /// The operator's own refusal is nested whole — `StaleKey`,
+    /// `Certification`, and the rest of its vocabulary reach the caller
+    /// typed rather than as prose. `site` names the surgery step that
+    /// ran the operator, which is what the message used to carry and
+    /// the type did not.
     Op {
-        /// The underlying operator refusal, as text.
-        detail: String,
+        /// The surgery step that ran the operator.
+        site: &'static str,
+        /// The operator's typed refusal.
+        source: topo::EulerOpError,
     },
 }
 
@@ -605,11 +617,6 @@ impl fmt::Display for FilletError {
                 f,
                 "fillet assembly: {detail} (at {at}) — {FILLET3_GEOMETRY_RECOURSE}"
             ),
-            Self::EmptyChain => write!(
-                f,
-                "fillet surgery: the verdict carries a chain with no links. This is \
-                 invalid input, not a fillet frontier, and no fillet recourse applies"
-            ),
             Self::BodyNotIntact { at, detail } => write!(
                 f,
                 "fillet surgery: {detail} — {at} did not resolve. The body handed to the \
@@ -621,8 +628,12 @@ impl fmt::Display for FilletError {
                 "fillet surgery: a ring of support face {face:?} sits within a blend's \
                  trimline — margin {margin} m; {FILLET3_RING_RECOURSE}"
             ),
-            Self::Certify { detail } => write!(f, "fillet: blend geometry uncertified — {detail}"),
-            Self::Op { detail } => write!(f, "fillet: assembly refused — {detail}"),
+            Self::Certify { site, source } => {
+                write!(f, "fillet: {site} — {source}")
+            }
+            Self::Op { site, source } => {
+                write!(f, "fillet: assembly refused at {site} — {source}")
+            }
         }
     }
 }
@@ -742,7 +753,6 @@ mod recourse_tests {
             }
             // Invalid input (row 1), and the two forwarding variants.
             FilletError::RepeatedEdge { .. } => (err.clone(), Recourse::None),
-            FilletError::EmptyChain => (err.clone(), Recourse::None),
             FilletError::BodyNotIntact { .. } => (err.clone(), Recourse::None),
             FilletError::Certify { .. } => (err.clone(), Recourse::None),
             FilletError::Op { .. } => (err.clone(), Recourse::None),
@@ -774,7 +784,6 @@ mod recourse_tests {
             FilletError::RepeatedEdge {
                 edge: EdgeKey::default(),
             },
-            FilletError::EmptyChain,
             FilletError::BodyNotIntact {
                 at: EntityId::HalfEdge(HalfEdgeKey::default()),
                 detail: "a reference the plan followed",

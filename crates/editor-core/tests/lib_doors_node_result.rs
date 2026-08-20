@@ -132,8 +132,11 @@ fn ok_and_absent_nodes_answer_none() {
 /// F6 (reopened on the PR #308 review): the refusal enums render as
 /// PROSE — problem statements, not the payloads' `Debug` guts. Pins
 /// one message per new `Display` (EditError, NodeError/-Kind,
-/// DimensionError, ProgramRefusal) plus the no-guts property on the
-/// live coincidence refusal.
+/// DimensionError, ProgramRefusal), the no-guts property on the live
+/// coincidence refusal, and the same property over every arm of
+/// [`forwarding_cases`] — a forwarded payload carries whatever its own
+/// `Display` renders, so the no-guts rule is only as wide as the set
+/// of payloads something actually renders.
 #[test]
 fn refusals_render_as_prose_not_debug_guts() {
     use editor_core::{DimensionError, EditError};
@@ -146,6 +149,18 @@ fn refusals_render_as_prose_not_debug_guts() {
     let literal = Expr::literal(f64::NAN, Dimension::Length).expect_err("NaN refuses");
     assert!(matches!(literal, DimensionError::NonFiniteLiteral));
     assert_eq!(literal.to_string(), "a literal value must be finite");
+
+    // The fourth `Display` this suite claims to pin. Its validate arm
+    // holds a `profile::ProfileError`, so it forwards rather than
+    // re-stating — the same rule as `NodeErrorKind`'s payload arms.
+    let program = editor_core::ProgramRefusal::Validate(profile::ProfileError::EmptyProfile);
+    assert_eq!(
+        program.to_string(),
+        format!(
+            "the replayed loops failed profile validation: {}",
+            profile::ProfileError::EmptyProfile
+        )
+    );
 
     // The live failure: the coincident Boolean's message states the
     // problem and the two-armed recourse (since R3 the refusal is the
@@ -172,5 +187,122 @@ fn refusals_render_as_prose_not_debug_guts() {
         "Indeterminate",
     ] {
         assert!(!message.contains(guts), "Debug guts leaked: {message}");
+    }
+
+    // Every forwarded payload, to the depth the workspace nests them.
+    // A `{` here means some layer below rendered a struct with `{:?}`
+    // and the forwarding carried it out through the FFI.
+    for kind in forwarding_cases() {
+        let rendered = kind.to_string();
+        for guts in ["{", "MarginDiag", "Value("] {
+            assert!(
+                !rendered.contains(guts),
+                "Debug guts leaked through a forwarded payload: {rendered}"
+            );
+        }
+    }
+
+    // The metadata version door: three payload arms, one of which used
+    // to be reported as another. Each must say its own thing, and the
+    // message must not read as the "v" field being absent when it is
+    // the map that is. `EditError` renders IDENTIFIERS via `Debug`
+    // deliberately (its own `Display` header states why: an identifier
+    // IS the location), so the property asserted here is the payload
+    // one — the variant's name never reaches the prose.
+    for (error, expected) in [
+        (editor_core::MetaVersionError::NotAMap, "is not a map"),
+        (
+            editor_core::MetaVersionError::MissingVersion,
+            "no \"v\" entry",
+        ),
+        (
+            editor_core::MetaVersionError::VersionNotInt,
+            "not an integer",
+        ),
+    ] {
+        let message = EditError::MetaUnversioned {
+            name: editor_core::StableName {
+                kind: editor_core::EntityKind::Body,
+                node: RecipeNodeId(1),
+                path: vec![editor_core::RoleSeg::OutputBody],
+            },
+            key: "provenance".to_string(),
+            error,
+        }
+        .to_string();
+        assert!(message.contains(expected), "{error:?} rendered: {message}");
+        for guts in ["NotAMap", "MissingVersion", "VersionNotInt"] {
+            assert!(!message.contains(guts), "Debug guts leaked: {message}");
+        }
+    }
+}
+
+/// The forwarding roster: one `NodeErrorKind` arm per payload-owning
+/// crate, plus the deepest nesting the workspace actually builds
+/// (`Split` → `SplitFinishError` → `BandError`, three layers of
+/// forwarding under one node arm). Two properties are asserted over
+/// it — that each arm forwards its payload, and that none of them
+/// leaks `Debug` structure — because both are properties of the same
+/// roster and a fixture that holds one should hold the other.
+fn forwarding_cases() -> Vec<editor_core::NodeErrorKind> {
+    use editor_core::NodeErrorKind as K;
+    vec![
+        K::Profile(profile::ProfileError::EmptyProfile),
+        K::Extrude(sweep::ExtrudeError::ObliqueExtrusion),
+        K::Revolve(sweep::RevolveError::DegenerateAxis),
+        K::Skin(sweep::SkinError::TooFewSections { have: 1, need: 2 }),
+        K::Loft(sweep::LoftError::SeamStructure),
+        K::Fillet(sweep::fillet::FilletError::RepeatedEdge {
+            edge: topo::EdgeKey::default(),
+        }),
+        K::Transform(topo::transform::TransformError::NurbsPlaceholder),
+        K::Split(topo::SplitError::Finish(topo::SplitFinishError::Band(
+            geom_core::BandError::Empty {
+                zero: 1.0,
+                escalate: 0.5,
+            },
+        ))),
+    ]
+}
+
+/// **A `NodeErrorKind` arm that holds a kernel refusal RENDERS it.**
+/// The variant carries the typed error for a caller who can match; the
+/// message is the whole channel for one who cannot, and the bindings'
+/// `kind` attribute is the discriminant alone — so an arm that names
+/// the op and stops has spent the payload's class, keys and recourse
+/// on nothing.
+///
+/// **Representative, not exhaustive**, and nothing makes it
+/// exhaustive: `NodeErrorKind` cannot be enumerated at runtime and a
+/// hand-kept roster of arms is the very shape this repo keeps
+/// retiring. [`forwarding_cases`] is the roster — **eight** arms,
+/// `profile` x1, `sweep` x5, `topo` x2 — and a new arm wrapping a new
+/// kernel error is not covered by it; the module comment on the
+/// `Display` impl is what states the rule for such an arm.
+#[test]
+fn a_kernel_payload_arm_forwards_the_payloads_own_message() {
+    use editor_core::NodeErrorKind as K;
+
+    for kind in forwarding_cases() {
+        let rendered = kind.to_string();
+        let payload = match &kind {
+            K::Profile(e) => e.to_string(),
+            K::Extrude(e) => e.to_string(),
+            K::Revolve(e) => e.to_string(),
+            K::Skin(e) => e.to_string(),
+            K::Loft(e) => e.to_string(),
+            K::Fillet(e) => e.to_string(),
+            K::Transform(e) => e.to_string(),
+            K::Split(e) => e.to_string(),
+            other => panic!("add the new case's payload here: {other:?}"),
+        };
+        assert!(
+            rendered.ends_with(&payload),
+            "the arm dropped its payload: rendered {rendered:?}, payload {payload:?}"
+        );
+        assert!(
+            rendered.len() > payload.len(),
+            "the arm must still name the failing op: {rendered:?}"
+        );
     }
 }

@@ -20,8 +20,9 @@ use crate::validate::decide;
 /// here). Every other kind refuses typed, **citing its rung routing**
 /// (`CurvedBooleanUnsupported` retires per arm, never wholesale).
 /// Edge carriers: `Line`/`Circle`/`Ellipse` pass (the crossing and
-/// split lanes handle all three); `Nurbs` refuses typed (rung 3,
-/// unimplemented until SSI). Pre-existing null scaffolding refuses as
+/// split lanes handle all three); `Nurbs` refuses typed (a rung-3
+/// carrier in the input operand — the general rung is implemented, this
+/// gate has not retired). Pre-existing null scaffolding refuses as
 /// ever.
 pub(super) fn gate_operand<T: Decide>(body: &Body<T>) -> Result<(), SplitReduceError> {
     for (face_key, face) in body.faces() {

@@ -21,9 +21,12 @@
 //!
 //! Both land at millimetre scale on half-metre geometry — 6 to 10 orders
 //! above every ε row this kernel's CI runs (1e-6, 1e-9, 1e-12). Nothing
-//! about the constructors is wrong; they answer a different question,
-//! and PR 7's SSI rung (which produces a fitted pcurve natively) will
-//! have to answer this one explicitly when it adds the fitted variant.
+//! about the constructors is wrong; they answer a different question.
+//! The fitted variant has since landed — `Pcurve::Fitted` exists and
+//! certifies at rest — and this file does NOT establish what parameter
+//! the SSI rung's natively-fitted pcurve carries. That is still the
+//! open question, stated in the present tense rather than promised of a
+//! milestone that has passed.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

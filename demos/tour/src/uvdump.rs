@@ -22,8 +22,14 @@
 //!   complement of the intended one — checked against the face's own
 //!   [`topo::Face::sense`] bit rather than against CCW, because a bore
 //!   or a concave groove carries `sense = false` and its outer loop is
-//!   then legitimately CW. 879 of the 982 M7 faces are checkable this
-//!   way and all 879 agree; the alarm is reserved for a contradiction;
+//!   then legitimately CW. Not every face is checkable this way — a
+//!   chart with a branch jump has no meaningful shoelace, and a face
+//!   whose loops could not be walked has no measurement at all — so
+//!   the tour prints how many were checked and **fails on any
+//!   contradiction**: these charts are the kernel's own output, so a
+//!   winding that disagrees with `sense` is a kernel regression. The
+//!   counts are that printed line and are not restated here, because
+//!   the corpus grows and the sentence would not;
 //! - a seam crossing on a periodic chart — a cylinder's `u` is
 //!   2π-periodic, and a loop that crosses the seam draws as a jump
 //!   across the strip;
@@ -57,8 +63,9 @@
 //!
 //! # The failure arm has no fixture (stated, not hidden)
 //!
-//! [`draw_failure`] is unexercised by the corpus: all 982 faces of the
-//! M7 tour walk clean, and forging one that does not would mean
+//! [`draw_failure`] is unexercised by the corpus: every face of the
+//! tour walks clean (the run prints the unwalkable count, and it is
+//! zero), and forging one that does not would mean
 //! hand-building a corrupt body here, at the demo layer, purely to feed
 //! a drawing routine. The arm stands as the tripwire for a real
 //! regression rather than as tested code — the same posture
@@ -290,9 +297,12 @@ pub struct FaceStats {
     /// face that touches a chart singularity or a seam — a spherical
     /// fillet corner running through the pole shows a chart jump of
     /// exactly π/2 while being perfectly closed in 3-D, because at the
-    /// pole a whole `u`-line IS one point. Measured over the M7 corpus:
-    /// 103 of 982 faces have such a jump, every one of them exactly
-    /// π/2, π or 2π; genuine round-off never exceeds 9.4e-16.
+    /// pole a whole `u`-line IS one point. The tour prints how many
+    /// faces carry such a jump and the worst value of each measure per
+    /// run: on the corpora seen so far every jump is exactly π/2, π or
+    /// 2π and genuine round-off stays at the 1e-15 scale, and it is
+    /// that printed line — not this comment — that says so about the
+    /// tree you are looking at.
     pub gap: f64,
     /// The worst chart-space jump across the same junctions — kept
     /// because it is the seam/pole *structure*, printed only when it is

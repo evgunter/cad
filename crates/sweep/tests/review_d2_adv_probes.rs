@@ -18,26 +18,19 @@
 //!   varies, is logged unconditionally, and the count rides
 //!   `CAD_FUZZ_EFFORT` through [`test_utils::fuzz`]. Cutting the count
 //!   loses detection power, never correctness.
-//! - `d2_the_battery_never_hands_the_surgery_an_empty_chain` is a
-//!   **witness-free property** over the same corpus: it pins the
-//!   reason `FilletError::EmptyChain` has no input witness, which is
-//!   what the PR's row-1 classification of those two sites asserts.
 //! - `d2_reached_variants` asserts nothing about coverage and is
 //!   therefore **evidence, not a gate** — it prints which refusal
 //!   classes the corpus actually reaches, which is the number a
 //!   future reader of the partition wants.
 //!
 //! **Anti-vacuity floors** ([`test_utils::census`]). Every interesting
-//! body in the corpus is minted behind a fallible door and every
-//! battery call can refuse, so both gates state how much they actually
-//! exercised and assert it: [`census_corpus`] floors the corpus and the
-//! rim/circle/multi-solid coverage the claims rest on,
+//! body in the corpus is minted behind a fallible door, so the gates
+//! state how much they actually exercised and assert it: [`census_corpus`] floors the corpus and the
+//! rim/circle/multi-solid coverage the claims rest on, and
 //! `d2_no_input_reaches_a_panic` floors its request count and its
-//! all-rim requests (the sample's only route into `rim_phase`), and
-//! `d2_the_battery_never_hands_the_surgery_an_empty_chain` floors both
-//! the verdicts it obtained and the chains it inspected. Without these
-//! a run in which `boolean_op_with`, `revolve` or `run_battery` began
-//! refusing would shrink to a bare cube and stay green.
+//! all-rim requests — the sample's only route into `rim_phase`. Without
+//! these a run in which `boolean_op_with` or `revolve` began refusing
+//! would shrink to a bare cube and stay green.
 //!
 //! Gating: these are written against `crates/sweep/src/fillet`; run
 //! them when that directory changes.
@@ -58,7 +51,7 @@ use core::f64::consts::PI;
 
 use geom_core::{Affine3, Band, Point2, Tolerance, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
-use sweep::fillet::{FilletError, FilletRequest, fillet_edges, run_battery};
+use sweep::fillet::{FilletError, fillet_edges};
 use sweep::test_support::cube;
 use sweep::{Revolution, RevolveAxis, revolve};
 use test_utils::census::Census;
@@ -383,7 +376,6 @@ fn class(e: &FilletError) -> &'static str {
         FilletError::UnsupportedChain { .. } => "UnsupportedChain(row 2)",
         FilletError::UnsupportedRunOut { .. } => "UnsupportedRunOut(row 2)",
         FilletError::UnsupportedGeometry { .. } => "UnsupportedGeometry(row 2)",
-        FilletError::EmptyChain => "EmptyChain(row 1)",
         FilletError::BodyNotIntact { .. } => "BodyNotIntact(row 1)",
         FilletError::RingClearance { .. } => "RingClearance",
         FilletError::Certify { .. } => "Certify",
@@ -465,66 +457,10 @@ fn d2_no_input_reaches_a_panic() {
     );
 }
 
-/// **The row-1 premise for `EmptyChain`.** Both of its two sites read
-/// `chain.links` off a verdict the SAME public call produced one frame
-/// up. If `run_battery` can never hand out a chain with no links, the
-/// variant has no input witness — which is what the PR's split turns
-/// on, and what a future reader of the partition needs pinned.
-#[test]
-fn d2_the_battery_never_hands_the_surgery_an_empty_chain() {
-    let mut rng = fuzz::start("d2_the_battery_never_hands_the_surgery_an_empty_chain");
-    let bodies = corpus();
-    census_corpus(&bodies);
-    let mut census = Census::new("d2_the_battery_never_hands_the_surgery_an_empty_chain");
-    for (name, body) in &bodies {
-        for edges in requests(body, &mut rng, effort()) {
-            if edges.is_empty() {
-                continue;
-            }
-            for r in RADII {
-                let req = FilletRequest {
-                    body,
-                    edges: edges.clone(),
-                    radius: r,
-                };
-                let Ok(v) = run_battery(&req, band()) else {
-                    census.note("battery refusals");
-                    continue;
-                };
-                census.note("verdicts");
-                for (i, chain) in v.chains.iter().enumerate() {
-                    census.note("chains inspected");
-                    assert!(
-                        !chain.links.is_empty(),
-                        "{name}: the battery emitted chain {i} with no links \
-                         (radius {r}, {}) — `FilletError::EmptyChain` would then \
-                         have an input witness",
-                        fuzz::replay()
-                    );
-                }
-            }
-        }
-    }
-    census.report();
-    // TWO floors, because the `continue` above and the inner loop are
-    // separate ways for this row to assert nothing: a run in which the
-    // battery refused everything reaches no verdict, and a run of
-    // verdicts that all carry zero chains reaches no `chain.links` at
-    // all. Either one greens the row while pinning nothing.
-    let why = format!(
-        "the battery reached no chain, so this row's claim that `EmptyChain` has no \
-         input witness rests on nothing this run observed — {}",
-        fuzz::replay()
-    );
-    census.require("verdicts", 1, &why);
-    census.require("chains inspected", 1, &why);
-}
-
 /// EVIDENCE, not a gate (it asserts nothing about coverage): which
 /// refusal classes the corpus reaches. A reader checking the
 /// partition wants to know that the row-2 names and the row-1 names
-/// are not equally reachable — and, in particular, whether
-/// `EmptyChain` ever appears.
+/// are not equally reachable.
 #[test]
 fn d2_reached_variants() {
     let mut rng = fuzz::start("d2_reached_variants");
