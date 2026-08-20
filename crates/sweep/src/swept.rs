@@ -10,14 +10,28 @@
 //! hosted inside one of its consumers is the shape that drifts.
 //!
 //! What is deliberately NOT here: anything a verb decides
-//! differently. The wall-orientation sense is per-verb (extrude reads
-//! the canonical turn, revolve reads the wall class, loft is uniform),
-//! and the strut carrier is per-verb (a translation trajectory is a
-//! line, a rotation trajectory is a circle). The swept-traversal
-//! builder is not here either, but for a weaker reason: extrude's has
-//! a reversal arm and mints the orientation bit, revolve's has
-//! neither, and loft imports extrude's rather than owning one — so it
-//! is two implementations serving three verbs, not three.
+//! differently. The **wall-orientation sense** is per-verb — every
+//! extrude wall reads the canonical turn (`false` exactly on concave
+//! arcs), a revolve wall reads the canonical turn only where its
+//! carrier centre is on the meridian (sphere, torus) and reads the
+//! canonical Δz or Δr otherwise (cylinder, cone, plane annulus), and
+//! loft is uniform `true` — so the three rule sets share one arm, not
+//! a body, and `revolve::axis` names that arm where it states its own
+//! derivation. The **strut carrier** is per-verb: a translation
+//! trajectory is a line, a rotation trajectory is a circle, and the
+//! two specs agree on neither arity, carrier nor `MappedCurve`
+//! variant.
+//!
+//! The **swept-traversal builder** is not in that list: it is here.
+//! [`swept_segments`] is the one home of the profile crate's reversal
+//! involution, and [`SweptSeg`] the record it fills. Each verb still
+//! decides *whether* to reverse for its own reason — extrude for
+//! `w·n < 0`, revolve for θ > 0, loft never — but the relabelling
+//! itself is one rule with one implementation. Extrude needs one field
+//! more than the record carries, and takes it the way [`SweptChord`]
+//! already prescribes: its own record (`extrude::WallSeg`) wraps these
+//! fields and adds the orientation bit, and every shared body below
+//! reads it through the trait, so no shared body can see that bit.
 
 use geom::Curve3;
 use geom_brep::{EdgeCurveSpec, EdgeGeometry, MappedCurve, SketchSegment};
@@ -28,8 +42,13 @@ use topo::{Body, EulerOpError, FaceKey, SurfaceKey};
 
 /// The classification funnel of this shared lowering, and of `extrude`
 /// and `revolve` above it (the `geom-brep` pattern). It is not the
-/// crate's only one: `fillet` keeps a second copy, and `loft` and
-/// three other sites reach past a funnel to the recorder directly.
+/// crate's only one, and it is not the crate's only door to the
+/// recorder: `fillet` keeps a second funnel, and three decisions —
+/// `loft`'s stacking test, `extrude`'s tangent test and
+/// `revolve::tube`'s angle window — call the recorder directly. They
+/// are named rather than counted because a name goes stale visibly
+/// and a count does not; the list is the `k_stats::decide` callers in
+/// `crates/sweep/src` that are not a funnel.
 /// Delegates to the unified recorder funnel
 /// [`geom_core::k_stats::decide`], so every decision's predicate name
 /// reaches the margin-telemetry recorder. The name is a parameter —
@@ -45,6 +64,12 @@ pub(crate) fn decide<T: Decide>(
 /// A segment's carrier class in swept traversal order (the canonical
 /// classification carried through any reversal — never re-decided from
 /// scalar data here).
+///
+/// Field-for-field the shape of `profile::SegmentKind`, and
+/// deliberately a separate type: `turn` here is the **swept** turn,
+/// flipped by a reversal, where the profile crate's is the canonical
+/// one. The two are the same data under different orientation, so a
+/// change to either enum's arms is a change to both.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum SweptKind<T: Real> {
     Line,
@@ -62,11 +87,11 @@ pub(crate) enum SweptKind<T: Real> {
 /// swept segment: endpoints in swept traversal order, the bulge in
 /// that order, and the carrier class.
 ///
-/// It is a trait rather than a struct because the verbs' segment
-/// records are not the same type and must not become one — extrude's
-/// carries a wall-orientation bit derived from the canonical turn that
-/// would be wrong for the other verbs. Everything below this line is
-/// the same for all of them; everything above it is not.
+/// It is a trait and not just [`SweptSeg`] because a verb may carry
+/// more than a swept traversal does — extrude's record adds a
+/// wall-orientation bit, derived from the canonical turn, that would
+/// be wrong for the other verbs. Everything below this line reads a
+/// chord and nothing else; anything a verb adds stays above it.
 pub(crate) trait SweptChord<T: Real> {
     /// Start point, sketch coordinates.
     fn a(&self) -> Point2<T>;
@@ -76,6 +101,103 @@ pub(crate) trait SweptChord<T: Real> {
     fn bulge(&self) -> T;
     /// The carrier class in swept traversal order.
     fn kind(&self) -> SweptKind<T>;
+}
+
+/// One segment of a swept loop in swept traversal order, with the
+/// canonical indices it came from (for error reporting).
+///
+/// This is what a swept traversal *is*, for every verb: the canonical
+/// loop's chord data relabelled into traversal order. A verb that
+/// needs more attaches its own field to its own record and reaches
+/// this one through [`SweptChord`] — see `extrude::WallSeg`, whose
+/// extra field is the wall face's orientation bit.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SweptSeg<T: Real> {
+    /// Start point, sketch coordinates. Vertex `j` of the swept chain
+    /// is segment `j`'s start.
+    pub(crate) a: Point2<T>,
+    /// End point.
+    pub(crate) b: Point2<T>,
+    /// The bulge in swept traversal (negated by reversal).
+    pub(crate) bulge: T,
+    /// The carrier class in swept traversal order.
+    pub(crate) kind: SweptKind<T>,
+    /// Canonical index of the start vertex (for error reporting).
+    pub(crate) canonical_vertex: usize,
+    /// Canonical index of the segment (for error reporting).
+    pub(crate) canonical_segment: usize,
+}
+
+impl<T: Real> SweptChord<T> for SweptSeg<T> {
+    fn a(&self) -> Point2<T> {
+        self.a
+    }
+    fn b(&self) -> Point2<T> {
+        self.b
+    }
+    fn bulge(&self) -> T {
+        self.bulge
+    }
+    fn kind(&self) -> SweptKind<T> {
+        self.kind
+    }
+}
+
+/// Builds the swept traversal of one canonical loop: forward, or
+/// reversed via the profile crate's reversal involution (endpoints
+/// swapped, bulge negated, turn flipped).
+///
+/// **The one home of that involution.** Every verb reverses for its
+/// own reason — extrude for `w·n < 0`, revolve for θ > 0, loft never —
+/// but the relabelling itself is one rule, and reversal is a
+/// relabelling only: the carrier class is carried through, never
+/// re-decided from scalar data. Swept segment `j` retraces canonical
+/// segment `n − 1 − j`, and swept vertex `j` is canonical vertex
+/// `(n − j) mod n`.
+pub(crate) fn swept_segments<T: Decide>(
+    lp: &profile::ValidatedLoop<T>,
+    reverse: bool,
+) -> Vec<SweptSeg<T>> {
+    let segs = lp.segments();
+    let n = segs.len();
+    let mut out = Vec::with_capacity(n);
+    for j in 0..n {
+        let (s, a, b, bulge, canonical_vertex, canonical_segment) = if reverse {
+            let s = &segs[n - 1 - j];
+            (
+                s,
+                s.end,
+                s.start,
+                T::zero() - s.bulge,
+                (n - j) % n,
+                n - 1 - j,
+            )
+        } else {
+            let s = &segs[j];
+            (s, s.start, s.end, s.bulge, j, j)
+        };
+        let kind = match s.kind {
+            profile::SegmentKind::Line => SweptKind::Line,
+            profile::SegmentKind::Arc {
+                center,
+                radius,
+                turn,
+            } => SweptKind::Arc {
+                center,
+                radius,
+                turn: if reverse { turn.flip() } else { turn },
+            },
+        };
+        out.push(SweptSeg {
+            a,
+            b,
+            bulge,
+            kind,
+            canonical_vertex,
+            canonical_segment,
+        });
+    }
+    out
 }
 
 /// The segment as a `geom-brep` sketch segment (the description's

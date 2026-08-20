@@ -105,7 +105,7 @@ use profile::ValidatedProfile;
 use topo::readback::{Pose, ReadbackError, face_pose};
 use topo::{Body, EdgeKey, EulerOpError, FaceKey, ShellKey, SolidKey, VertexKey};
 
-use crate::swept::{SweptChord, SweptKind, decide};
+use crate::swept::decide;
 
 /// The predicate names a revolve's cosurface decision reports under
 /// (the revolution walls: planes, cylinders and cones from lines,
@@ -597,92 +597,14 @@ impl From<EulerOpError> for RevolveError {
     }
 }
 
-/// One segment of a swept loop in swept traversal order (canonical, or
-/// reversed for θ > 0 — module docs), with canonical indices for error
-/// reporting. A revolve's wall orientation is decided per wall class
-/// (`axis::WallKind`), not per segment, so no orientation bit rides
-/// here; the shared lowering reads this through
-/// [`crate::swept::SweptChord`].
-#[derive(Clone, Copy, Debug)]
-pub(super) struct SweptSeg<T: Real> {
-    /// Start point, sketch coordinates; swept vertex `j` is segment
-    /// `j`'s start.
-    pub(super) a: Point2<T>,
-    /// End point.
-    pub(super) b: Point2<T>,
-    /// The bulge in swept traversal (negated by reversal).
-    pub(super) bulge: T,
-    pub(super) kind: SweptKind<T>,
-    /// Canonical index of the start vertex.
-    pub(super) canonical_vertex: usize,
-    /// Canonical index of the segment.
-    pub(super) canonical_segment: usize,
-}
-
-/// Builds the swept traversal of one canonical loop: forward, or
-/// reversed via the profile crate's reversal involution (endpoints
-/// swapped, bulge negated, turn flipped).
-pub(super) fn swept_segments<T: Decide>(
-    lp: &profile::ValidatedLoop<T>,
-    reverse: bool,
-) -> Vec<SweptSeg<T>> {
-    use profile::SegmentKind;
-    let segs = lp.segments();
-    let n = segs.len();
-    let mut out = Vec::with_capacity(n);
-    for j in 0..n {
-        let (s, a, b, bulge, canonical_vertex, canonical_segment) = if reverse {
-            let s = &segs[n - 1 - j];
-            (
-                s,
-                s.end,
-                s.start,
-                T::zero() - s.bulge,
-                (n - j) % n,
-                n - 1 - j,
-            )
-        } else {
-            let s = &segs[j];
-            (s, s.start, s.end, s.bulge, j, j)
-        };
-        let kind = match s.kind {
-            SegmentKind::Line => SweptKind::Line,
-            SegmentKind::Arc {
-                center,
-                radius,
-                turn,
-            } => SweptKind::Arc {
-                center,
-                radius,
-                turn: if reverse { turn.flip() } else { turn },
-            },
-        };
-        out.push(SweptSeg {
-            a,
-            b,
-            bulge,
-            kind,
-            canonical_vertex,
-            canonical_segment,
-        });
-    }
-    out
-}
-
-impl<T: Real> SweptChord<T> for SweptSeg<T> {
-    fn a(&self) -> Point2<T> {
-        self.a
-    }
-    fn b(&self) -> Point2<T> {
-        self.b
-    }
-    fn bulge(&self) -> T {
-        self.bulge
-    }
-    fn kind(&self) -> SweptKind<T> {
-        self.kind
-    }
-}
+/// The swept traversal a revolve sweeps: the shared record and the
+/// shared builder, re-exported under this module's names.
+///
+/// Reversed for θ > 0 (module docs). A revolve's wall orientation is
+/// decided per wall class (`axis::WallKind`, `axis::classify_segment`)
+/// and not per segment, so this verb needs nothing beyond the shared
+/// record — unlike `extrude`, which wraps it to add an orientation bit.
+pub(super) use crate::swept::{SweptSeg, swept_segments};
 
 /// Revolves a validated profile about an in-sketch-plane axis into a
 /// closed solid.

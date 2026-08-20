@@ -65,9 +65,8 @@ use topo::{
     PcurveMintError, ShellKey, SolidKey,
 };
 
-use crate::extrude::{SweptSeg, swept_segments};
 use crate::skin::{LoftGeometry, Section, SkinError, lift_surface, loft_geometry, sweep_places};
-use crate::swept::{cap_points, face_surface_key, placed_segment_spec};
+use crate::swept::{SweptSeg, cap_points, face_surface_key, placed_segment_spec, swept_segments};
 
 /// Everything [`loft_body`]/[`sweep_body`] built, keyed — the
 /// [`crate::Extruded`] bundle one operation over.
