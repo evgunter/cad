@@ -127,10 +127,7 @@ origin/main immediately before opening the PR, and re-merge whenever
 main moves while it is open"; after any push, confirm checks actually
 STARTED by reading the workflow **runs** list, not the PR's checks list,
 which cannot distinguish no run from a queued one. PR watchers treat
-CONFLICTING as a loud failure, and the hourly sweep checks open PRs'
-mergeable state — `git merge-tree` against the merge base — not just lane
-activity. Binary/render conflicts are never hand-picked — take a side,
-regenerate through the pipeline, re-verify the reproducibility contract.
+CONFLICTING as a loud failure.
 
 **The session scratchpad is SHARED between concurrently running agents
 of one session.** PR/issue bodies and anything else to-be-published go
