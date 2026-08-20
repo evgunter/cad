@@ -127,7 +127,7 @@ discharged before this track existed.
 | **E-d** | D33 | `docs/predicate-dimension-audit.md` | none | style | **#761, in review** |
 | **E-e** | D28 + issue #693 | `editor-core/src/eval/` | **#731 EDITS `eval/mod.rs` — the file, not just the crate.** Disjoint by *item* (~700 lines apart), not by file. Whichever merges second re-merges | style | **#767, in review** |
 | **E-f** | D25 | `topo/src/euler.rs` and every `link_half_edges` caller | none | **ADVERSARIAL** | **#755, in review** |
-| **E-g** | D27, then D29 | `sweep/src/fillet/{build,surgery,mod}.rs` | none | **ADVERSARIAL** (D27), style (D29) | **#768, both reviewers running** |
+| **E-g** | D27, then D29 | `sweep/src/fillet/{build,surgery,mod}.rs` | none | **ADVERSARIAL** (D27), style (D29) | **#768**, both reviewers running; **#777** stacked, awaiting Evan |
 | **E-h** | D21 | `topo/src/{split,attach,movefac,revert}.rs`, `splitting/finish.rs`, `boolean/combine.rs` | **E-f, for file overlap on `split.rs`** — see E-R4 | **ADVERSARIAL** | unstarted |
 | **E-i** | D24 | `Cargo.toml` workspace lints, or `.github/workflows/` | none | style | unstarted |
 | **E-j** | D31 | `sweep/src/skin.rs`, `geom/src/curves/fit.rs`, home in `geom-core/src/spline/algebra.rs` | **Track C (C-l, C-g)** | style, escalates if the sort order is load-bearing | unstarted |
@@ -889,6 +889,41 @@ transcribed from Track C's table. All three were caught by a lane looking at
 something the orchestrator had not thought to check. **The instrument that
 works across tracks is a lane reading the other track's log**, and it is worth
 saying in a dispatch rather than hoping for.
+
+### #777 — a design-conversation PR that argues against itself, and is waiting on Evan
+
+E-g's D27 dissolved `FilletError::EmptyChain` structurally, which retired the D2
+addendum's *"one state this taxonomy does not contain"* paragraph. The lane's
+first draft replaced it with **both** the factual retraction **and** a new
+general rule — *ask whether the type can stop representing the state before
+asking the taxonomy to grow.* I ruled those two apart:
+
+- **The retraction stays in #768.** The state no longer exists, so leaving the
+  sentence would be a stale claim **in the ratified contract** — exactly what
+  #755 was made to fix one paragraph over.
+- **The general rule goes to Evan in its own PR**, because it reaches into
+  **S14**, which sits in *Open decisions — Evan only* and is currently a bound
+  on other lanes (#740 left 46 lookup sites typed because it is open). The
+  lane's own framing made the connection — *S14's graft class stays open because
+  a public door genuinely produces it* — and an argument about S14 is not mine
+  to ratify.
+
+**#777 is what came back, and its shape is worth copying.** One paragraph of
+proposal, the argument, both worked cases as a table, an explicit *"S14 stays
+open and stays yours"* — and **three arguments against itself on the record**:
+that it can be read as licensing type churn to dodge a classification, that
+*"only if it cannot"* is a judgement with no cost threshold, and that it is a
+rule minted from **one positive instance**. The body states that *"no — record
+what #768 did and leave the procedure alone"* is a **passing answer**, and that
+#768 does not depend on it either way.
+
+*Why that matters beyond this PR:* §C2 of this document records that
+**disclosure functions as immunity** here — a disclosed deviation scores as a
+positive with no counter-metric. A design PR that lists the strongest arguments
+against its own proposal, and names the answer that rejects it as passing, is
+the one shape that cannot be read that way. It is also the first thing on this
+track that made a design question *cheaper* for Evan to answer rather than
+larger.
 
 ---
 
