@@ -127,7 +127,7 @@ discharged before this track existed.
 | **E-d** | D33 | `docs/predicate-dimension-audit.md` | none | style | **#761, in review** |
 | **E-e** | D28 + issue #693 | `editor-core/src/eval/` | **#731 EDITS `eval/mod.rs` — the file, not just the crate.** Disjoint by *item* (~700 lines apart), not by file. Whichever merges second re-merges | style | **#767, in review** |
 | **E-f** | D25 | `topo/src/euler.rs` and every `link_half_edges` caller | none | **ADVERSARIAL** | **#755, in review** |
-| **E-g** | D27, then D29 | `sweep/src/fillet/{build,surgery,mod}.rs` | none | **ADVERSARIAL** (D27), style (D29) | **in flight** |
+| **E-g** | D27, then D29 | `sweep/src/fillet/{build,surgery,mod}.rs` | none | **ADVERSARIAL** (D27), style (D29) | **#768, both reviewers running** |
 | **E-h** | D21 | `topo/src/{split,attach,movefac,revert}.rs`, `splitting/finish.rs`, `boolean/combine.rs` | **E-f, for file overlap on `split.rs`** — see E-R4 | **ADVERSARIAL** | unstarted |
 | **E-i** | D24 | `Cargo.toml` workspace lints, or `.github/workflows/` | none | style | unstarted |
 | **E-j** | D31 | `sweep/src/skin.rs`, `geom/src/curves/fit.rs`, home in `geom-core/src/spline/algebra.rs` | **Track C (C-l, C-g)** | style, escalates if the sort order is load-bearing | unstarted |
@@ -456,7 +456,7 @@ serialized here and each lane re-merges `origin/main` when one lands.
 | **E-f** | D25 | `smelle/d25` | **#755** | **CLEARED by both lanes**; combined fix pass running (3 must-fix, 2 → rows D49/D50). Merges after #752 |
 | **E-b** | D23 | `smelle/d23` | **#763** | **NOT CLEARED** — a live wrong answer inside D45, plus 4 MAJOR; fix pass running |
 | **E-d** | D33 | `smelle/d33` | **#761** | **MERGED 2026-08-20.** Placed D46, D51, D57; handed D56 back |
-| **E-e** | D28 + #693 | `smelle/d28` | **#767** | **CLEARED**; fix pass running (8 findings, 1 → row D67). **Next in the merge queue** |
+| **E-e** | D28 + #693 | `smelle/d28` | **#767** | cleared, **but the fix pass went red** — 3 shards on a `sweep` test the lane had fenced itself out of. Second fix pass running |
 | **E-h** | D21 | `smelle/d21` | — | dispatched — **unblocked by #755**, whose lane verified D21 inherits nothing from D25 |
 
 **E-g dispatched 2026-08-20** (`smelle/d27-d29`), D27 then D29 — one lane
@@ -812,6 +812,42 @@ the whole pressure window (`memories/agent-lane-operations.md`). This came
 within a couple of gigabytes of costing every in-flight lane's verification, and
 the only reason it did not is that a routine `df` was run before dispatching the
 next lane.
+
+### "22 of 26 green" is not a CI result (2026-08-20)
+
+**#767's fix pass reported *"22 of 26 green, 0 failures"* and was accurate when
+written.** Three `test (eps = …)` shards started eight minutes later and all
+three failed — on `sweep::all m5_pr6_pcurves::a_seam_closed_tube_split_is_typed_either_way`,
+a test in the crate the lane had deliberately fenced itself out of and did not
+touch.
+
+**The cause is the fix pass's own F7.** Asked to read a composed message end to
+end, the lane found `SplitError` prefixing `"split: "` onto three stages that
+already say `split_reduce` / `split join` / `split finish`, dropped it on those
+three, kept it on the one stage shared with non-split callers, and wrote: *"no
+test asserts on them."* One does, three shards over. **The grep was for the old
+literal strings**, and a test that builds its expectation by concatenation, or
+matches a prefix, or `expect`s with a formatted message, matches no search for a
+literal.
+
+**Two things here, and they should not be collapsed into one.**
+
+*The message-assertion sweep is a known-hard class and the lane's pattern was
+the wrong shape* — that is an ordinary finding and the fix pass will answer it.
+
+*The reporting shape is the transferable one.* **A count of green jobs is only a
+claim about the jobs that have finished**, and nothing in the number distinguishes
+"26 jobs, 22 green, 4 pending" from "26 jobs, all done, 22 green". The lane's
+sentence was true and unfalsifiable at once. The rule now in every dispatch:
+**report how many of the run's jobs had completed, not only how many were
+green** — two numbers, one of which is checkable later.
+
+*And the orchestrator's half:* I nearly merged on that sentence. What stopped it
+was reading the run's own check list rather than the lane's summary of it —
+which is the same instrument that caught #755's cancelled-run citation, and the
+same reason `memories/agent-lane-operations.md` says to read the workflow **runs**
+list rather than the PR's checks list. **A lane's CI summary is a record of a
+moment; the run is the fact.**
 
 ---
 
