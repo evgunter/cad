@@ -143,9 +143,9 @@
 //! surjectivity follow-up is the *tightness*: a carrier whose spans
 //! individually turn by π or more is refused rather than analysed.
 
+use geom::{Curve3, NurbsCurve3};
 use geom_core::spline::compose::{self, CurveRingData, ImplicitSurface};
 use geom_core::{Point3, Vec3};
-use geom_curves::{Curve3, NurbsCurve3};
 
 use crate::signed_zero::{plus_zero, plus_zero_point};
 

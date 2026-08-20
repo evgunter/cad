@@ -11,9 +11,9 @@
 )]
 
 use crate::recognize_curve::{CurveRecognition, recognize};
+use geom::{Curve3, NurbsCurve3};
 use geom_core::spline::KnotVector;
 use geom_core::{Point3, Vec3};
-use geom_curves::{Curve3, NurbsCurve3};
 
 const EPS_IN: f64 = 1e-9;
 

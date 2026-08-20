@@ -34,9 +34,9 @@
 use core::f64::consts::{FRAC_PI_2, PI};
 use profile::RawLoop;
 
+use geom::NurbsCurve3;
+use geom::curves::fit::interpolate_columns;
 use geom_core::{Affine3, Point2, Point3, Vec3};
-use geom_curves::NurbsCurve3;
-use geom_curves::fit::interpolate_columns;
 use sweep::skin::{LoftGeometry, Section, loft_geometry, segment_curve, sweep_geometry};
 use sweep::{SketchSegment, loft_body, sweep_body};
 
@@ -321,7 +321,7 @@ fn the_swept_bodys_seam_carriers_meter_positively() {
         else {
             panic!("a finished body has no null scaffolding");
         };
-        if let geom_curves::Curve3::Nurbs(c) = curve.carrier() {
+        if let geom::Curve3::Nurbs(c) = curve.carrier() {
             let s = c.speed_lower_bound();
             assert!(
                 s > 0.0,
@@ -394,7 +394,7 @@ fn a_rational_section_on_a_curved_path_meters_at_the_span_meter() {
         else {
             panic!("a finished body has no null scaffolding");
         };
-        if let geom_curves::Curve3::Nurbs(c) = curve.carrier() {
+        if let geom::Curve3::Nurbs(c) = curve.carrier() {
             let s = c.speed_lower_bound();
             assert!(
                 s > 0.0,

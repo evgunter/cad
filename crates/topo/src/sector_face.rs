@@ -180,14 +180,14 @@ pub(crate) fn resolve<T: Decide>(
         .get_surface(face_data.surface)
         .ok_or(SectorFaceError::Corrupt(EntityId::Face(face)))?
     {
-        geom_surfaces::Surface::Cylinder { origin, axis, .. } => {
+        geom::Surface::Cylinder { origin, axis, .. } => {
             let w = point()? - *origin;
             charted(
                 (w - *axis * w.dot(*axis)).normalize(),
                 SectorCarrier::Cylinder,
             )
         }
-        geom_surfaces::Surface::Sphere { center, .. } => {
+        geom::Surface::Sphere { center, .. } => {
             charted((point()? - *center).normalize(), SectorCarrier::Sphere)
         }
         // The planar arm returned above; anything else has no arm.
@@ -212,7 +212,7 @@ mod tests {
         let mut body = p.body;
         body.set_face_surface(
             face,
-            crate::FaceSurface::New(geom_surfaces::Surface::Sphere {
+            crate::FaceSurface::New(geom::Surface::Sphere {
                 center: geom_core::Point3::new(0.0, 0.0, 0.0),
                 radius: 2.0,
                 axis: geom_core::Vec3::new(0.0, 0.0, 1.0),

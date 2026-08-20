@@ -11,9 +11,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom::Surface;
 use geom_brep::{circle_residual_extremes, implicit_residual};
 use geom_core::{Point3, Vec3};
-use geom_surfaces::Surface;
 use test_utils::fuzz;
 
 fn unit_vec(rng: &mut fuzz::Rng) -> Vec3<f64> {

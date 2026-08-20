@@ -11,9 +11,9 @@
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom::NurbsCurve3;
 use geom_brep::SketchSegment;
 use geom_core::{Affine3, Band, Bounds, Interval, Point2, Real, Vec3};
-use geom_curves::NurbsCurve3;
 use sweep::skin::{lift_surface, make_compatible, segment_curve, skin, skin_parameters};
 
 fn ring() -> f64 {

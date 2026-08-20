@@ -2,8 +2,8 @@
 //! certified carrier caches, the dihedral classification predicate, and
 //! Newell face equations (M2 PR 3).
 //!
-//! This crate sits between the evaluators (`geom-curves` /
-//! `geom-surfaces`) and the arena store (`topo`): it defines **what an
+//! This crate sits between the evaluators (`geom`) and the arena
+//! store (`topo`): it defines **what an
 //! edge's geometry is** ([`EdgeGeometry`] — a description, never a bare
 //! curve), **how a concrete cache earns its place** ([`EdgeCurve`] —
 //! certification against the description, D4 ¶2; an uncertified carrier

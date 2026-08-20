@@ -289,7 +289,7 @@ fn probe_nested_spheres_union_to_the_outer_ball() {
 /// 10_007 samples against BOTH surfaces (the unit's own row samples 17).
 #[test]
 fn probe_plane_sphere_section_dense_residual() {
-    use geom_surfaces::Surface;
+    use geom::Surface;
     let band = geom_core::Band::linear().unwrap();
     let n = Vec3::new(0.3, -0.55, 0.9).normalize();
     let plane = Surface::Plane {
@@ -310,7 +310,7 @@ fn probe_plane_sphere_section_dense_residual() {
     else {
         panic!("expected a circle");
     };
-    let geom_curves::Curve3::Circle {
+    let geom::Curve3::Circle {
         center: cc,
         axis: ca,
         radius: cr,

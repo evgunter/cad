@@ -75,7 +75,7 @@ pub fn flush_declarations<S: Scalar>(a: &Body<S>, b: &Body<S>) -> pncad::topo::B
     )> {
         body.faces()
             .filter_map(|(k, f)| match body.get_surface(f.surface) {
-                Some(&pncad::geom_surfaces::Surface::Plane { origin, normal, .. }) => {
+                Some(&pncad::geom::Surface::Plane { origin, normal, .. }) => {
                     Some((k, origin, normal))
                 }
                 _ => None,

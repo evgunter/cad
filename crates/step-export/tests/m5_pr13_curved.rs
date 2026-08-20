@@ -75,9 +75,9 @@ mod common;
 
 use std::collections::HashMap;
 
+use geom::Curve3;
+use geom::Surface;
 use geom_core::Tolerance;
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
 use step_export::{StepExportError, StepOptions, step_string};
 
 /// The fixture options (matching `tests/export.rs` and the fixture

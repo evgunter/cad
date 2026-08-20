@@ -16,9 +16,9 @@
 use core::f64::consts::{FRAC_PI_8, PI};
 use profile::RawLoop;
 
+use geom::Surface;
 use geom_brep::{EdgeGeometry, newell_plane};
 use geom_core::{Band, Point2, Point3, Real, Tolerance, Vec3};
-use geom_surfaces::Surface;
 use profile::{LoopRole, Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{ExtrudeError, Extruded, Extrusion, extrude};
 use topo::{
@@ -829,7 +829,7 @@ fn survives_cosurface_bitwise_center_agreement() {
     let mut bottom_rims = 0;
     let mut top_rims = 0;
     for (_, c) in t.body.curves() {
-        if let Some(geom_curves::Curve3::Circle { center, .. }) =
+        if let Some(geom::Curve3::Circle { center, .. }) =
             c.certified().map(|c| c.carrier().clone())
         {
             if center.z.to_bits() == origin.z.to_bits() {

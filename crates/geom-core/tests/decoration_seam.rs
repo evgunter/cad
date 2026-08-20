@@ -10,7 +10,7 @@
 //! 1. **It is a sound bracket.** `[0, 2]` really does contain every value
 //!    the expression was defined on. Containment properties written
 //!    against [`Bounds`] hold for it and must keep holding —
-//!    `geom-curves`' F1 rows assert exactly this, on enclosures that are
+//!    `geom`'s F1 rows assert exactly this, on enclosures that are
 //!    `Trv` and even unbounded.
 //! 2. **It may not certify anything.** The bracket describes a
 //!    *different* expression from the one that was asked for, so nothing
@@ -90,7 +90,7 @@ fn the_trv_fixture_is_nonempty_with_finite_endpoints() {
 ///
 /// A `Trv` enclosure is still a sound bracket, so the bracket door
 /// reports its endpoints unchanged. This is not a tolerated weakness —
-/// it is the property `geom-curves`' F1 containment rows depend on, and
+/// it is the property `geom`'s F1 containment rows depend on, and
 /// making `Bounds` consult the decoration breaks them. This row is the
 /// local guard on that: it goes red the moment the bracket door starts
 /// answering the certification question.
@@ -99,7 +99,7 @@ fn the_bracket_door_reports_stored_endpoints_and_never_refuses() {
     assert_eq!((Bounds::lo(trv()), Bounds::hi(trv())), (0.0, 2.0));
     assert_eq!((Bounds::lo(healthy()), Bounds::hi(healthy())), (1.0, 2.0));
     // Containment through `Bounds` holds for the violated value, which is
-    // the shape `geom-curves` asserts.
+    // the shape `geom` asserts.
     let (lo, hi) = (Bounds::lo(trv()), Bounds::hi(trv()));
     for v in [0.0, 0.5, 1.0, 2.0] {
         assert!(lo <= v && v <= hi, "Trv bracket must still contain {v}");

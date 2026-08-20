@@ -508,7 +508,7 @@ fn curved_face_gate_witness() {
     let (face, _) = b.faces().next().unwrap();
     b.set_face_surface(
         face,
-        topo::FaceSurface::New(geom_surfaces::Surface::Torus {
+        topo::FaceSurface::New(geom::Surface::Torus {
             center: Point3::new(0.0, 0.0, 1.0),
             axis: Vec3::new(1.0, 0.0, 0.0),
             major_radius: 1.0,
@@ -543,8 +543,8 @@ fn nurbs_wall_boolean_surfaces_the_crossing_layer_refusal() {
     let (face, _) = b.faces().next().unwrap();
     b.set_face_surface(
         face,
-        topo::FaceSurface::New(geom_surfaces::Surface::Nurbs(std::sync::Arc::new(
-            geom_surfaces::NurbsSurface::placeholder(),
+        topo::FaceSurface::New(geom::Surface::Nurbs(std::sync::Arc::new(
+            geom::NurbsSurface::placeholder(),
         ))),
     )
     .unwrap();

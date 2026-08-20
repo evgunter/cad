@@ -137,8 +137,8 @@ pub(crate) fn test_curve(anchor: Point3<f64>) -> geom_brep::EdgeCurve<f64> {
 /// A raw-fixture surface: the `Nurbs` "no description yet" state (the
 /// anchor argument is accepted for call-site symmetry with
 /// [`test_curve`] and ignored — surfaces carry no certification).
-pub(crate) fn test_surface(_anchor: Point3<f64>) -> geom_surfaces::Surface<f64> {
-    geom_surfaces::Surface::nurbs_placeholder()
+pub(crate) fn test_surface(_anchor: Point3<f64>) -> geom::Surface<f64> {
+    geom::Surface::nurbs_placeholder()
 }
 
 /// All ten arena lengths of a body: the seven topology arenas, held as

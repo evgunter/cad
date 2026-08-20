@@ -514,7 +514,7 @@ pub(crate) enum JoinLane<'a, T: Real> {
     /// The boolean planar-side chord of a curved germ pair.
     BoolPlanar {
         /// The partner wall surface (value; from the other operand).
-        wall: geom_surfaces::Surface<T>,
+        wall: geom::Surface<T>,
         /// The wall FACE's azimuth window on the wall chart.
         window: (T, T),
         /// The aux wall key in THIS body (minted once, caller-cached).
@@ -621,7 +621,7 @@ struct SectionConic<T: Real> {
     /// The semi-axis along `normal × major`.
     sb: T,
     /// The carrier itself.
-    carrier: geom_curves::Curve3<T>,
+    carrier: geom::Curve3<T>,
 }
 
 /// What the C5 table made of `plane × wall` for a chord that has to
@@ -639,7 +639,7 @@ enum SectionCase<T: Real> {
     /// caller mints no spec.
     Straight,
     /// The tangent locus, as the table constructed it.
-    Tangent(geom_curves::Curve3<T>),
+    Tangent(geom::Curve3<T>),
 }
 
 /// The section of `plane_s × wall` under THE C5 table, in the frame
@@ -657,8 +657,8 @@ enum SectionCase<T: Real> {
 fn section_case<T: Decide>(
     face: FaceKey,
     band: Band,
-    plane_s: &geom_surfaces::Surface<T>,
-    wall: &geom_surfaces::Surface<T>,
+    plane_s: &geom::Surface<T>,
+    wall: &geom::Surface<T>,
     extent: T,
 ) -> Result<SectionCase<T>, SplitJoinError> {
     let invariant = |what: &'static str| SplitJoinError::SectionInvariant { face, what };
@@ -669,7 +669,7 @@ fn section_case<T: Decide>(
             source: other,
         },
     };
-    if let geom_surfaces::Surface::Sphere {
+    if let geom::Surface::Sphere {
         axis: sph_axis,
         radius: sph_r,
         ..
@@ -694,7 +694,7 @@ fn section_case<T: Decide>(
                 ));
             }
         };
-        let &geom_curves::Curve3::Circle {
+        let &geom::Curve3::Circle {
             center,
             axis,
             radius,
@@ -734,7 +734,7 @@ fn section_case<T: Decide>(
     let sec = geom_brep::plane_cylinder_section(plane_s, wall, extent, band).map_err(table)?;
     match sec {
         geom_brep::PlaneCylinderSection::TiltedEllipse(e) => {
-            let geom_curves::Curve3::Ellipse {
+            let geom::Curve3::Ellipse {
                 center,
                 axis,
                 major,
@@ -754,7 +754,7 @@ fn section_case<T: Decide>(
             }))
         }
         geom_brep::PlaneCylinderSection::Rim(c) => {
-            let geom_curves::Curve3::Circle {
+            let geom::Curve3::Circle {
                 center,
                 axis,
                 radius,
@@ -821,7 +821,7 @@ fn select_arc<T: Decide>(
     window: (T, T),
     p1: Point3<T>,
     p2: Point3<T>,
-) -> Result<(geom_curves::Curve3<T>, T, T), SplitJoinError> {
+) -> Result<(geom::Curve3<T>, T, T), SplitJoinError> {
     let v_e = conic.normal.cross(conic.major);
     // Exact conic parameters of the (on-locus) endpoints.
     let theta_of = |p: Point3<T>| -> T {
@@ -973,25 +973,25 @@ fn select_arc<T: Decide>(
         // The cw arc: flip the carrier's axis so it runs forward.
         let span = tau - (th2 - th1).reduce_periodic(tau);
         let flipped = match conic.carrier.clone() {
-            geom_curves::Curve3::Ellipse {
+            geom::Curve3::Ellipse {
                 center,
                 axis,
                 major,
                 minor,
                 u_ref,
-            } => geom_curves::Curve3::Ellipse {
+            } => geom::Curve3::Ellipse {
                 center,
                 axis: -axis,
                 major,
                 minor,
                 u_ref,
             },
-            geom_curves::Curve3::Circle {
+            geom::Curve3::Circle {
                 center,
                 axis,
                 radius,
                 u_ref,
-            } => geom_curves::Curve3::Circle {
+            } => geom::Curve3::Circle {
                 center,
                 axis: -axis,
                 radius,
@@ -1020,7 +1020,7 @@ fn chord_spec<T: Decide>(
     let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
     let wall_key = face_data.surface;
     let (o_c, a_c, r_c, u_ref_c) = match body.get_surface(wall_key) {
-        Some(geom_surfaces::Surface::Plane { .. }) => {
+        Some(geom::Surface::Plane { .. }) => {
             // The boolean's planar-side chord of a curved germ pair
             // takes its own lane (M5 PR 9); every other lane keeps
             // the straight chord BIT-IDENTICALLY.
@@ -1043,7 +1043,7 @@ fn chord_spec<T: Decide>(
                 JoinLane::Planar | JoinLane::Split(_) => Ok(None),
             };
         }
-        Some(&geom_surfaces::Surface::Cylinder {
+        Some(&geom::Surface::Cylinder {
             origin,
             axis,
             radius,
@@ -1052,7 +1052,7 @@ fn chord_spec<T: Decide>(
         // The sphere wall (M5 S13): the chart frame is (center, polar
         // axis, radius, seam u_ref) — azimuth about the polar axis,
         // exactly the shape the S9 tail below meters.
-        Some(&geom_surfaces::Surface::Sphere {
+        Some(&geom::Surface::Sphere {
             center,
             radius,
             axis,
@@ -1080,7 +1080,7 @@ fn chord_spec<T: Decide>(
     // A transient classification value: only origin/normal are read by
     // the table (u_ref is a placement convention the classification
     // never consumes; the STORED aux plane below gets an honest one).
-    let plane_s = geom_surfaces::Surface::Plane {
+    let plane_s = geom::Surface::Plane {
         origin: ctx.plane.origin,
         normal: ctx.plane.normal,
         u_ref: ctx.plane.normal,
@@ -1094,7 +1094,7 @@ fn chord_spec<T: Decide>(
         // the ordinary certification gate by the mef/mekr caller. No
         // arc-side rule applies: a line has no complementary candidate.
         SectionCase::Tangent(line) => {
-            let geom_curves::Curve3::Line { origin, dir } = line else {
+            let geom::Curve3::Line { origin, dir } = line else {
                 return Err(SplitJoinError::SectionInvariant {
                     face,
                     what: "tangent classification carried a non-line",
@@ -1116,9 +1116,9 @@ fn chord_spec<T: Decide>(
             )
             .map_err(|diag| SplitJoinError::Escalated { face, diag })?
             {
-                Sign::Positive => (geom_curves::Curve3::Line { origin, dir }, t1, t2),
+                Sign::Positive => (geom::Curve3::Line { origin, dir }, t1, t2),
                 Sign::Negative => (
-                    geom_curves::Curve3::Line { origin, dir: -dir },
+                    geom::Curve3::Line { origin, dir: -dir },
                     T::zero() - t1,
                     T::zero() - t2,
                 ),
@@ -1132,7 +1132,7 @@ fn chord_spec<T: Decide>(
             let plane_key = match ctx.plane_key {
                 Some(k) => k,
                 None => {
-                    let k = body.add_surface(geom_surfaces::Surface::Plane {
+                    let k = body.add_surface(geom::Surface::Plane {
                         origin: ctx.plane.origin,
                         normal: ctx.plane.normal,
                         // Honest u_ref: the ruling direction lies in
@@ -1183,7 +1183,7 @@ fn chord_spec<T: Decide>(
     let plane_key = match ctx.plane_key {
         Some(k) => k,
         None => {
-            let k = body.add_surface(geom_surfaces::Surface::Plane {
+            let k = body.add_surface(geom::Surface::Plane {
                 origin: ctx.plane.origin,
                 normal: ctx.plane.normal,
                 u_ref: conic.major,
@@ -1206,7 +1206,7 @@ fn chord_spec<T: Decide>(
 }
 pub(crate) fn face_azimuth_window<T: Decide>(
     body: &Body<T>,
-    surface: &geom_surfaces::Surface<T>,
+    surface: &geom::Surface<T>,
     face: FaceKey,
     band: Band,
 ) -> Result<Option<(T, T)>, SplitJoinError> {
@@ -1238,7 +1238,7 @@ fn bool_planar_chord_spec<T: Decide>(
     band: Band,
     face: FaceKey,
     plane_key: SurfaceKey,
-    wall: &geom_surfaces::Surface<T>,
+    wall: &geom::Surface<T>,
     window: (T, T),
     partner_key: &mut Option<SurfaceKey>,
     u1: VertexKey,
@@ -1247,13 +1247,13 @@ fn bool_planar_chord_spec<T: Decide>(
     // The wall's chart frame — cylinder (PR 9, untouched) or sphere
     // (M5 S13: center, polar axis, radius, seam u_ref).
     let (o_c, a_c, r_c, u_ref_c) = match *wall {
-        geom_surfaces::Surface::Cylinder {
+        geom::Surface::Cylinder {
             origin,
             axis,
             radius,
             u_ref,
         } => (origin, axis, radius, u_ref),
-        geom_surfaces::Surface::Sphere {
+        geom::Surface::Sphere {
             center,
             radius,
             axis,
@@ -1268,7 +1268,7 @@ fn bool_planar_chord_spec<T: Decide>(
         }
     };
     let (p_o, p_n) = match body.get_surface(plane_key) {
-        Some(&geom_surfaces::Surface::Plane { origin, normal, .. }) => (origin, normal),
+        Some(&geom::Surface::Plane { origin, normal, .. }) => (origin, normal),
         // The two failures are different things and are typed apart: a
         // key that does not resolve is corruption, a key that resolves
         // to the wrong kind is this lane's invariant. A single `_` arm
@@ -1281,7 +1281,7 @@ fn bool_planar_chord_spec<T: Decide>(
             });
         }
     };
-    let plane_s = geom_surfaces::Surface::Plane {
+    let plane_s = geom::Surface::Plane {
         origin: p_o,
         normal: p_n,
         u_ref: p_n,
@@ -1395,8 +1395,8 @@ fn between_edge_in_plane<T: Decide>(
         return Ok(Some(true)); // null scaffolding: zero-length, ON
     };
     match curve.carrier() {
-        geom_curves::Curve3::Line { .. } | geom_curves::Curve3::Nurbs(_) => Ok(Some(true)),
-        geom_curves::Curve3::Circle { .. } | geom_curves::Curve3::Ellipse { .. } => {
+        geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => Ok(Some(true)),
+        geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
             let (t0, t1) = curve.params();
             let mid = curve.carrier().eval(t0 + (t1 - t0) * T::from_f64(0.5));
             match lane {
@@ -1430,13 +1430,13 @@ fn between_edge_in_plane<T: Decide>(
                     // sphere (M5 S13); the branch-cut-free cosine
                     // window test below is chart-frame generic.
                     let (o_c, a_c, r_c, u_ref_c) = match wall {
-                        geom_surfaces::Surface::Cylinder {
+                        geom::Surface::Cylinder {
                             origin,
                             axis,
                             radius,
                             u_ref,
                         } => (origin, axis, radius, u_ref),
-                        geom_surfaces::Surface::Sphere {
+                        geom::Surface::Sphere {
                             center,
                             radius,
                             axis,
@@ -1553,7 +1553,7 @@ fn chart_azimuth_range<T: SpanLocate>(p: &Pcurve<T>, t0: T, t1: T) -> Option<(T,
 /// are stepped over without breaking the chain.
 fn run_azimuth_window<T: Decide>(
     body: &Body<T>,
-    surface: &geom_surfaces::Surface<T>,
+    surface: &geom::Surface<T>,
     face: FaceKey,
     halves: &[HalfEdgeKey],
     band: Band,
@@ -1608,7 +1608,7 @@ fn run_azimuth_window<T: Decide>(
                 // pole test and its side are named trileans and an
                 // in-band junction escalates (F6).
                 let mut k = (q + half).floor();
-                if let geom_surfaces::Surface::Sphere {
+                if let geom::Surface::Sphere {
                     center,
                     radius,
                     axis,
@@ -2023,7 +2023,7 @@ fn face_plane_normal<T: Decide>(
 ) -> Result<geom_core::Vec3<T>, SplitJoinError> {
     let f = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
     match body.get_surface(f.surface) {
-        Some(geom_surfaces::Surface::Plane { normal, .. }) => Ok(*normal),
+        Some(geom::Surface::Plane { normal, .. }) => Ok(*normal),
         // Corruption and an unwired arm are different refusals.
         None => Err(corrupt_face(face)),
         Some(_) => Err(SplitJoinError::SectionInvariant {
@@ -2106,7 +2106,7 @@ mod tests {
         let seed = body.mvfs(p1).unwrap();
         body.set_face_surface(
             seed.face,
-            crate::FaceSurface::New(geom_surfaces::Surface::Cylinder {
+            crate::FaceSurface::New(geom::Surface::Cylinder {
                 origin: Point3::origin(),
                 axis: Vec3::unit_z(),
                 radius: 1.0,
@@ -2136,7 +2136,7 @@ mod tests {
     /// interval must be forward and shorter than a period (the ordinary
     /// certification gates).
     fn rim_run(body: &mut crate::Body<f64>, t0: f64, t1: f64) -> crate::entity::HalfEdgeKey {
-        let carrier = geom_curves::Curve3::Circle {
+        let carrier = geom::Curve3::Circle {
             center: Point3::origin(),
             axis: Vec3::unit_z(),
             radius: 1.0,
@@ -2145,13 +2145,13 @@ mod tests {
         // The seed solid first: `mvfs` asserts tier-1 validity, and a
         // surface nothing references yet is an orphan.
         let seed = body.mvfs(carrier.eval(t0)).unwrap();
-        let cyl = body.add_surface(geom_surfaces::Surface::Cylinder {
+        let cyl = body.add_surface(geom::Surface::Cylinder {
             origin: Point3::origin(),
             axis: Vec3::unit_z(),
             radius: 1.0,
             u_ref: Vec3::unit_x(),
         });
-        let plane = body.add_surface(geom_surfaces::Surface::Plane {
+        let plane = body.add_surface(geom::Surface::Plane {
             origin: Point3::origin(),
             normal: Vec3::unit_z(),
             u_ref: Vec3::unit_x(),
@@ -2206,7 +2206,7 @@ mod tests {
         let spec = spec_with(&[(-0.2, core::f64::consts::FRAC_PI_2 + 0.2)])
             .unwrap()
             .expect("cylinder face mints a conic chord");
-        let geom_curves::Curve3::Ellipse { axis, .. } = spec.carrier else {
+        let geom::Curve3::Ellipse { axis, .. } = spec.carrier else {
             panic!("tilted section is an ellipse");
         };
         // ccw keeps the classification frame (axis ≈ the plane normal)
@@ -2224,7 +2224,7 @@ mod tests {
         )])
         .unwrap()
         .expect("cylinder face mints a conic chord");
-        let geom_curves::Curve3::Ellipse { axis, .. } = spec.carrier else {
+        let geom::Curve3::Ellipse { axis, .. } = spec.carrier else {
             panic!("tilted section is an ellipse");
         };
         assert!(
