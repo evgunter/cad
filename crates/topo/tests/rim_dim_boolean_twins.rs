@@ -251,7 +251,15 @@ fn boolean_margin_streams_scale_linearly_with_the_model() {
     // gates (F3) are on this list BECAUSE of this unit: their
     // presence here is what makes their absence from KNOWN_NONLINEAR
     // a claim rather than a silence — they fire, and they scale.
+    //
+    // `bool_join_chord` is here for the ASSIGNMENT, not the metering:
+    // it decides the germ-chord LENGTH, so its samples are the join
+    // family's model-scale distances, while `bool_join_nearest`
+    // decides a DIFFERENCE of two such lengths and on these fixtures
+    // every incumbent comparison ties at exactly 0. Swap the two names
+    // and the nonzero-margin assertion below goes red.
     for fixed in [
+        "bool_join_chord",
         "bool_join_facing",
         "pm_census_ee_parallel",
         "bool_ring_run_winding",
