@@ -205,8 +205,9 @@ pub enum ArcData<T: Real> {
 ///
 /// Adding a row here does not add a verb there. It breaks that crate's
 /// two exhaustive matches on [`Step`] (its content-key tag table and
-/// its lifting door) and stops; the function that builds a [`Step`]
-/// from the document form constructs rather than matches, so the
+/// its lifting door) and stops. The function that goes the other way —
+/// document form to [`Step`] — matches the DOCUMENT type and
+/// CONSTRUCTS this one, so it cannot see a row added here, and the
 /// document, wire and expression-slot vocabularies can stay short
 /// while everything compiles. That they do not is a census rather than
 /// a compile error, and it lives where it can see both sides:
