@@ -5540,9 +5540,44 @@ Three process facts worth carrying, all from this lane:
   (`FullRevolveHoles`' Display: *"sweeps produce genus, never voids; voids are born
   only from booleans"*). Q1 — grep the file you are in.
 
-Unclassified siblings went to **H15**; the `enters.rs` question was **D5**, answered by #665 (the newtype).
+Unclassified siblings went to **H15**, **FIXED by #775**; the `enters.rs`
+question was **D5**, answered by #665 (the newtype).
 
-**Two rows were added after that fix**, both from #647's style review. The first
+**What H15 found, because it corrects this entry's own arithmetic.** H15 named
+three sites. #775's disposition table has **twenty-three rows**, four of which
+cover more than one site each — a row count, not a site count, and the
+distinction is stated because the first version of this sentence lost it. Two
+of the rows falsify records written here. (i) *"Unclassified siblings"* omitted the
+**"Still not swept, and why"** list above — three further residues once its
+overlap with H15's own third site is removed, two of them still live. (ii) The
+sibling table's `topo/src/entity.rs` row is marked **Swept**, and the identical
+sentence (*"multi-shell solids arrive at M3"*, false since M3) was live in two
+other files of the same crate. (iii) `splitting/mod.rs`'s *"unimplemented until
+SSI"* was not one site: the literal phrase stood at **eight** places in `src/`
+across `topo` and `geom-brep`, plus two test pins, and **three further members
+of the class used none of those words** — `edge_geometry.rs`'s public variant
+doc, a test header's future tense about a shipped variant, and `bvh`'s
+seam — while the corrected form was already in the file the phrase most often
+appeared in. (iv) The not-yet-checked list's *"M6 interval clearance"*
+contradicted `DESIGN.md`, which schedules it at **M10** in two places. None of
+the three named sites was a lost invariant: `planar.rs`'s outward-normal claim
+is TRUE and survives S10 because it reads the walk and never a chart; the other
+two were benign rot whose substance is now stated against a name
+(`ContactMark::Unmarked`) or against the per-arm retirement rule, rather than
+against a date.
+
+**And the method fact this leaves for the next sweep, which is the entry's own
+subject.** #775 ran four instruments and the class still had three survivors,
+because each instrument's **selection rule** — not its regex — excluded them:
+one required the live-scope marker *before* the milestone token (*"SSI arrives
+(M3+)"* puts it after), and one *discarded* every clause carrying a milestone
+token. A fixed-string re-grep for the retired wording then returned zero and was
+read as the class being closed. **A fixed-string grep cannot close a class; it
+can only prove one phrasing is gone.** The mechanical guard that can is now in
+`geom-brep/tests/intersect_table.rs`: every route-table note is asserted not to
+carry the retired vocabulary, on every row rather than only the rung-3 ones.
+
+**Two rows were added after #635's fix**, both from #647's style review. The first
 needed Evan, because `DESIGN.md` is the ratified contract — he authorised the edit
 and it is closed. **The second is still open**: it needs a per-row read rather than
 a script, for the reason its own entry gives.
@@ -9606,7 +9641,8 @@ to make and record.
 The 2026-08-19 statement of this paragraph is superseded: every gate it
 named has since fallen. **A1 (#682), A3 (issue #678, landed as #684), #690
 and #692 are all merged**, and **#705** merged the two geometry crates into
-one `geom`. So C1's remaining members, C3's S29, C4 in full, C5's S28 half,
+one `geom`. So C1's one remaining member (H13), C3's S29, C4 in full,
+C5's S28 half,
 C7 and C10 are edge-free and takeable today. (**C9 — the `agreement`
 column — is FIXED by #738**, which deleted it rather than re-deriving
 it; the similarly-numbered **§C9** is an unrelated process
@@ -9639,7 +9675,7 @@ rewritten rather than appended to.
 
 | # | Work | Why it is here rather than in a track |
 |---|---|---|
-| **C1** | **H13, H15** — two lanes' own residues: `sweep_body`'s helix rows with no orientation coverage, and #635's unclassified siblings. (**H12**, the SSI sweeps' other never-silence doors, left this row **FIXED by #734**; **H14**, #637's two jurisdiction residues, left it **FIXED by #737**.) | Each is small; together they are a lane. They are the clearest instance of ordering rule 3. |
+| **C1** | **H13** — a lane's own residue: `sweep_body`'s helix rows with no orientation coverage. (**H12**, the SSI sweeps' other never-silence doors, left this row **FIXED by #734**; **H14**, #637's two jurisdiction residues, left it **FIXED by #737**; **H15**, #635's unclassified siblings, left it **FIXED by #775** — three sites as recorded, twenty as they existed.) | Small on its own; it is the clearest instance of ordering rule 3. |
 | **C2** | **H17** — S37's rustdoc remainder, ~1115 lines across 130 files. (Both other members have landed. **H11**, #632's residues, is **FIXED by #731** — the residues were two as recorded and ten as they existed; see S4's drift (b) for the seven further fail-quiet classifications in the same crate, **§C15** for what each sweep could not match, and **C12** for what #731 filed rather than fixed. **H16**, the STL header not being caller-settable while `StepOptions` carries `product_name`, is **FIXED by #732**.) | H17 is large and mechanical. |
 | **C3** | **S27, S29** — `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block; and the sizing vocabulary fragmented across five modules with self-admitted magic constants. (S30, the mesh crate's 1,060 lines of instrument, was the third member and is FIXED by #709.) **S29 is NOT blocked on a design conversation — corrected 2026-08-19.** This row previously said its policy question was routed to `docs/TESS-SPLIT-SPEC.md` and PR #568. #684's review checked: both are scoped **entirely to the NURBS per-cell schedule** (`nurbs_cert`'s `grid_steps`, certified cells, the first fundamental form — TESS-SPLIT-SPEC's D-1 replaces the AM-GM grouping, with `leaf_a f2` as its poster child). **Nothing in either covers analytic-chart sizing**, so `curved::grid_steps` has no venue at all — and #684 has since added a sixth rule to it. S29's own lesson applies to that: *N well-defended deviations read as N decisions when they are one undecided question.* S27 touches `props/`, so it must follow **A2** (#714) **and #723**, which re-opens the same file on the same closed forms — see the gating note above; S29 is edge-free. |
 | **C4** | **S32, S33** — `Surface`'s one-partial-per-call API, which is what created the shadow surface enum in SSI; and neither geometry enum being able to lift itself to another scalar. (S31, the `geom-curves`/`geom-surfaces` split, was the third member and is FIXED by #705.) | **S32 is now additionally gated on #705's merge**: the enum and its NURBS payload are one crate's two modules, so a `SurfaceJet` door at the enum no longer crosses a crate boundary. **S33 is coloured by D1**: several of its ~14 hand-written ladders exist only to reach `Dual`, and what `Bounds for Dual` changes there is written in S44's **D1 DECIDED** block. |
@@ -9656,6 +9692,8 @@ rewritten rather than appended to.
 | **C16** | **#730 — the Python STEP door exposes one of `StepOptions`' six fields.** `pncad-py`'s `step_string(node, product_name=None)` sets `product_name` and silently takes the Rust defaults for `timestamp`, `author`, `organization`, `originating_system` and `uncertainty_m` — the last of which is the exported `UNCERTAINTY_MEASURE_WITH_UNIT` value. A Python caller **can** move the ambient tolerance (`DocEdit.set_tolerance`, `pncad-py/src/py/doc.rs:1193`); what they cannot do is set the exported uncertainty **independently of** it, which is exactly what `uncertainty_m: Some(ε)` is for. | Found by **H16**'s sweep and filed rather than left as a sentence in a PR body (**C-R7**). It is H16's own class one layer out: an export door writing caller-visible file content the caller cannot set. The fix may be a Python options object, keyword arguments, or a written argument for the narrowing — what is wrong today is that the narrowing is neither argued nor visible. Small, edge-free: fold into whoever next opens `pncad-py`. **Number:** C-R20 assigned this row **C11**; `C11` had already been taken on `main` by #714's fix pass (A2's own two residues, landed minutes after the assignment), so it sits at **C16**, confirmed. That collision is C-R20's third instance and its first across tracks, which is why the rule now reads: **a row number is not owned until it is on `main`, and a lane mints against the merged tree rather than against an assignment.** |
 | **C17** | **Two of four excluded cargo roots now carry a hand-copied `cargo doc` step, and nothing gates the copies against drift.** `scripts/doc-gate.sh` is `cargo doc --workspace`, which sees workspace MEMBERS only; `tools/tess-meter` has a step copied into its CI row by #709 and `tools/tess-lint` one copied by #738, while `tools/k-lint`, `demos/tour` and `demos/wild` have none. The copies are prose in a YAML row: nothing checks that a root has one, that it matches its siblings, or that the sentences describing the arrangement are still true. | **The drift is measured, not predicted.** `doc-gate.sh:50` asserted *"**none** of those rows runs `cargo doc`"* four lines above its own record of #709's stopgap — false BEFORE #738 and falsified twice over by it — and `ci.yml:1718` said tess-meter documents *"unlike its sibling rows"*, and `local-scripts/ci-local.sh:518`, whose header says it mirrors ci.yml's row of the same name, stopped mirroring it the moment the hosted row gained a step. Three sites, all corrected by hand in #738, none of them caught by anything. **Tier (C-R19): the middle one — this asks for a plan before implementation, not a patch.** The row is not "add three more copies": the mechanism question is whether the doc gate stops being workspace-scoped and iterates every cargo root (changing what the gate IS, and its cost on every tier), or whether the copies stay and a gate asserts each excluded root's row carries one. That choice has a design element, and the local mirror is a second copy set that either answer has to account for. |
 | **C18** | **Three residues of H12's own enumeration, left open by #734** — a tests-only unit, so all three are coverage or prose, none a source change. **(a) The four Account-duty cells of the sweeps' never-silence grid have no acceptance row.** The grid is thirteen, not the nine #734 first claimed: the cell budget and both enclosure-poison arms sit in `exhaust.rs`'s ONE shared recursion, which runs under both values of `SweepDuty` on separate calls with separate floors, so **duty is an axis** — and it is the axis S23's own bug lived on. Three cells had rows before #734 and five more do now, all five under the **seeding** duty, because seeding runs first on both lanes. The residue is {cell budget, poison arm} × {ℝ³, chart} under **Account**. **What was tried and did not reach them, so the next taker does not repeat it:** the accounting floor is routinely orders finer than the seeding one (measured on the substrate wall, `8.8e-10` against `2.1e-2` in chart units), so the road looks open — but at `floor_scale` of 0, 1e-12 and 1e-9 both lanes' fixtures still terminate `Ok`, because exclusion and the banked tubes between them resolve every cell above any floor. What is needed is a fixture leaving a region neither excluded nor accounted at every width, and that is a new fixture, not a new assertion. **(b) The macro blind spot on #734's population sweep is open.** The 1-vs-3 containment measurement rests on `plane_nurbs_ssi` having exactly the callers a whole-tree name grep finds; a caller reaching it through a macro-generated path would not be matched. There is no such macro in this workspace to the lane's knowledge, and the reviewer did not close it either — but it is the one declared blind spot on the measurement and it should not live only in a PR body. **(c) `m5_pr7_ssi.rs`'s header claims the battery runs it "at the interval scalar", and the interval CI leg runs only the set difference of the two nextest lists** — so rows present in both configs never run there, and every row in that file is. A coverage claim about the file, false as the workflow stands; either the claim goes or the selection does, and which is a question for whoever owns the interval leg. | **C-R19 tier one — a lane takes it.** No design fork: (a) is test coverage needing a fixture whose non-existence is established rather than assumed, (b) is a sweep widened or a blind spot restated, (c) is one sentence corrected against one workflow file. Nothing here is a kernel change — H12's only source-side residue is **issue #762** (the chart-speed guard's `+∞` hole), which is deliberately NOT part of this row. |
+| **C19** | **`step-import/src/assemble.rs`'s `build`/`build_one_solid` pair — #635's residue B, and DEAD CODE rather than a stale claim.** `build(&[SolidSpec])` has exactly one caller, `build_one_solid`, which always passes a one-element slice; the multi-solid door retired with M8 instancing (a `SolidSpec`'s maps are keyed by file entity ids, so two copies in one arena would collide id for id). **The distinction is this row's content.** #635 named it under *"Still not swept, and why"*, and #775 — the lane that swept the rest of that list — established that its **prose is TRUE today**: `assemble.rs:817` already says *"One door reaches it today … The multi-solid door retired with M8 instancing"*. So there is nothing here for a stale-claims pass to fix, which is exactly why **C-R6 does not reach it**: C-R6 fixes in-crate members of the *class*, and this is not a member of the class. A reader who arrives assuming another stale-claim site re-derives that for nothing. | **C-R19 tier one — a lane takes it.** ~10 lines: fold `build`'s loop into `build_one_solid` and keep the retirement reason at the surviving door. No design element, no public API (`build_one_solid` is `pub(crate)`, `build` private), one crate, edge-free. Not taken by #775 because `step-import` is outside that lane's scope column and the change is code, not prose — the lane asked for this number rather than taking one (**C-R20/C-R21**). Fold into whoever next opens `step-import`; **C8** already routes two `step-import` rows the same way. |
+| **C21** | **Two measured populations from #775's sweeps, neither read per item — and one of them has already hidden a live member.** **(a) I1's 102 live-scope hits**: comment clauses carrying a milestone token with a live-scope marker in the 40 characters before it, workspace-wide, of 2,206 such clauses. The class is *"an `at M<n>` scope label whose milestone has shipped and whose substance may or may not still be true"* — mostly benign, individually cheap, and only decidable by reading the code each one describes. **(b) I3's 411 fan-in variants**: typed refusals whose ONE rustdoc and ONE `Display` arm must cover N > 1 construction sites. Fan-in is a *necessary condition* for the defect it found, not the defect — separating the real ones needs a per-variant read. **What makes this a row and not a note:** bucket (a) is where `geom-brep/src/edge_geometry.rs:285` sat — a **public enum variant doc** whose prediction had come true the other way — and it survived **all four** of #775's instruments, then went undetected until a style reviewer read for it by hand. I1 bucketed it *historical* because its live-scope marker follows the milestone token (*"SSI arrives (M3+)"*) instead of preceding it. **A population that has already concealed one live member is not a backlog; it is an unread result**, and calling it *"named as a population"* was the same sentence as *"recorded as a pickup"* (Q6). | **C-R19 tier: the MIDDLE one — a plan goes to Evan before implementation, not a patch.** A per-item read of 513 items is not a patch, and the design element is the triage itself: how to decide these without committing **§C16**'s move — a prose-hygiene pass that launders a guess into an assertion, which is exactly what bulk-rewriting 102 dated scope labels would be. #775 declined the rewrite on that ground and was right to; declining the rewrite is not the same as declining the schedule, and this row is the schedule. Whoever takes it starts from the two instruments' stated selection rules — **each dropped `edge_geometry.rs:285` by its rule, not by its regex** — because the triage design has to survive the same failure. Both instruments' patterns are written out in #775's body. |
 
 **Three ownership changes made to this table from outside the track (2026-08-20,
 Track E), stated here rather than only in Track E so this table is not read as
@@ -9677,6 +9715,27 @@ Both incoming rows are Track C's because they are Track C's files, and a second
 track editing them is the collision this sequencing exists to prevent. **If
 Track C declines either, it returns to Track E** — not to nobody, which is the
 failure §C3 names.
+
+**A file overlap Track C should know about, found 2026-08-20.** This table
+describes **C-f (#731)** as scoped to `editor-core/src/{resolve/, select.rs,
+refactor.rs}`. Its actual diff also touches **`editor-core/src/eval/mod.rs`**
+and `eval/anchor.rs`, plus `doc.rs`, `expr.rs`, `names/{mod,role,select}.rs`,
+`node.rs` and `persist/check.rs`. Track E's **E-e (#767)** rewrote
+`eval/mod.rs`'s `Display` impl on the strength of the narrower description.
+
+**Nothing is broken and no action is needed beyond re-merging.** The two are
+disjoint **by item** — #731's `eval/mod.rs` hunks are the content-key hasher,
+about seven hundred lines from the `Display` impl — so the exposure is a merge
+conflict, not a semantic collision, and *whichever lands second re-merges rather
+than assumes* already covers it. It is recorded here rather than as a comment on
+#731 because this table is the shared register and is where the wrong scope was
+written.
+
+*The transferable half:* **a track's own table is the thing other tracks fence
+against, so a scope line that lags its lane's diff silently mis-fences someone
+else.** Track E built a brief on this row and would have shipped into a
+collision if the lane had not been told to verify the fence rather than trust
+it.
 
 ---
 
@@ -10369,7 +10428,18 @@ enforces it only by an orchestrator's habit, would not match — and M9-3's
 shape, reachable here only because it happens to spell "predicate name".
 
 
-**No row number is reserved; D60 is the highest one placed.** Placements:
+**`D1`–`D60` are the closed pre-block sequence.** They were issued under the
+single-allocator rule, before Tracks F and G existed, and every one of them is
+placed or assigned — **none is available**, and the gaps in the range are
+assigned-and-unspent rather than free. That distinction is invisible from
+outside a branch, which is how ten numbers came to be double-allocated on
+2026-08-20, so it is stated here rather than left to be recomputed. **Blocks
+start at D61.** A number already placed keeps its identity when its track
+changes hands; renumbering a placed row breaks every PR body and finding that
+cites it, which is why Track D's rows kept their numbers when Track E took the
+register.
+
+**D60 is the highest one placed in that sequence.** Placements:
 D15 by #710, D16 by #706, **D17** by #718 (landed, #739), **D18** by #720 (landed, #736),
 **D19** by #719 (landed, #747, which **placed D32**, **D33** and **D34**), **D20** by **#722** (D5's +46%, unattributed once that unit's
 measurement excluded the enumeration D14 blamed), **D24** by **#735** (a `pub`
@@ -10791,6 +10861,24 @@ than from the schedule** (F-R1, F-R2 in the track log):
 | # | Work | From | Scope | Proposed verdict | Review |
 |---|---|---|---|---|---|
 | **F1** | **The compound-`Bounds` gate is blind to `CertifiedBounds`, and `real.rs` tells authors to write the invisible spelling.** Its matcher fires on `Decide + Bounds` and not on `Decide + CertifiedBounds`; `real.rs:46-48` and `:789` both assert that it does. **This is S56 returning one alias later**, and per the ruling above it now **gates S87/S88**. | **S59** `[verified]` | `scripts/gates/bounds-allowlist.sh`, `geom-core/src/real.rs` (two prose sites), plus whatever the widened matcher then reds | **ACCEPTED** — executed, self-evidencing | style; **ADVERSARIAL** for any conversion the widened matcher forces |
+
+**A sharper form of S59, found by Track E's lane E-g on 2026-08-20 and left here
+because this is Track F's row.** `bounds-allowlist.sh` caught that lane widening
+the fillet seam's *ratified* compound-`Bounds` allowlist as a refactor side
+effect — `admit.rs` had inherited `T: Decide + Bounds` from a file already on the
+allowlist, and `cargo check`, `clippy --workspace --all-targets`, `doc-gate.sh`
+and the whole suite all passed over it. **The gate did its job, and the right fix
+was not the allowlist**: the bound was not needed, `impl<T: Decide>` compiles,
+and the seam stays at three files.
+
+**That is the strongest evidence for the gate, and it sharpens the finding
+rather than softening it.** The same mistake spelled `Decide + CertifiedBounds`
+would **not** have been caught — and the gate's own header says that spelling
+*"is right, that is a parameter that decides AND brackets"*, i.e. **the header
+asserts the case the matcher cannot see.** So S59 is not "the matcher is
+incomplete"; it is *the gate documents a violation class it cannot detect*, on a
+seam whose whole purpose is that widening it requires ratification. Track E's
+**G4** (S87's `ArcCarrierScalar`) is gated on this row for the same reason.
 | **F2** | **Re-site the gates that cannot fire on their own inputs**, per Evan's S61 ruling. `probe-suite-census.sh:52-57` asserts two docs still name a CI step and cannot fire on a docs-only change; `gate-roster.sh:31-39` argues it need not read `local-scripts/` *because* the discipline job never runs there. Carries **D58**, **D59** and **D60** (below), which are E-a's own re-derived residues. | **S61**, **S62**, and E-a's report | `.github/workflows/ci.yml`, `scripts/ci-filter.py`, `scripts/gates/{probe-suite-census,gate-roster}.sh`, `local-scripts/ci-local.sh` | **ACCEPTED — RULED** (posture; re-site) | style |
 | **F3** | **Three of six grep gates pass the spellings they exist to forbid.** `no-extra-real-bounds.sh` greps `\bReal\s*\+` raw with no comment strip; `bit-identity-debug-only.sh` counts uses and `cfg(debug_assertions)` separately and prints an unsupported sentence; `interval-square-allowlist.sh`'s PCRE backreference cannot see `self.x * self.x`, and `geom-core/src/linalg/vec.rs:325-326` is a live unallowlisted instance. The cry-wolf-then-allowlist outcome is **already realised** at `linalg/mat.rs`. **Its line numbers are fiction — re-derive, do not transcribe.** | **S63** | `scripts/gates/{no-extra-real-bounds,bit-identity-debug-only,interval-square-allowlist,lib.sh}`, `scripts/ci-filter.py` | **ACCEPTED** | style for the gates; **ADVERSARIAL** for the `x*x → powi(2)` conversions, which change numerics in `Interval`-generic production code |
 | **F4** | **Guards whose failure mode is their pass condition** — four instances bound by one missing idiom rather than by files. The spent-graft hammer row lacks the `oks > 0` its twin has, and `ci.yml` cites it by name (**S76**); a fuzz corpus is built entirely behind `if let Ok` with no floor (**S78**); a floor row matches into a `println!("SKIPPED")` arm and returns green (**S84**); a new differential test compares an expression against itself (**S91**). | S76, S78, S84, S91 | `topo/src/review_d18.rs`, `sweep/tests/review_d2_adv_probes.rs`, `geom-brep/tests/*`, `geom-core/src/spline/knots.rs` | **ACCEPTED** on all four | **ADVERSARIAL** for S76 and S78 (each is a guard on a soundness contract); style for S84, S91 |
@@ -10837,6 +10925,25 @@ one sub-unit, which is the whole adversarial budget of the track — and it runs
 beside the model A/B experiment without touching `docs/MODEL-AB-LOG.md`. The
 lane roster, the rulings and the landings are in that file; this table stays the
 schedule and a row leaves it when it lands.
+
+**`D81`–`D100` and `S137`–`S156` are reserved to Track E**, claimed 2026-08-20
+after Track F's block paragraph pointed out that Tracks C and E owed themselves
+one. **They were owed it sooner than that.** Between Track F claiming D61–D70
+and this paragraph, Track E's orchestrator issued **D61–D70 to five of its own
+lanes** — a straight double-allocation of ten numbers, caught not by either
+register but by lane E-h, which read `SMELL-F-LOG.md` before writing a row and
+withdrew the D61 it had already placed. Nothing of F's or G's was overwritten
+because neither had placed into its block yet; **the only reason this cost
+nothing is that both new tracks were hours old.**
+
+*The mechanism, stated because the fix is not "be careful":* the register's rule
+was **take the next unassigned number from the orchestrator**, which is exactly
+right inside one track and silently wrong across four, because "unassigned" was
+a fact about a branch none of the other three could see. An orchestrator reading
+`main` correctly computed the next free number and four of them computed the
+same one. **A sequence with one allocator per branch is not a sequence.** Blocks
+are the fix; the numbers Track E issued out of F's block are reissued from
+D81–D100 below, and the lanes holding them were told individually.
 
 **`D71`–`D80` and `S127`–`S136` are reserved to Track G**, for the reason Track
 F's block records one section up: the *"take the next unassigned number from the
