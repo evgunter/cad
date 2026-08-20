@@ -102,7 +102,7 @@ cases. A finding is a *question worth answering*, not a defect.
 including its own `down1`/`up1` restatement of `interval-transcendentals`'
 `round.rs` technique — that `DInterval` already provides. `RingInterval`
 is always compiled and carries ~600 references across `geom-brep`,
-`mesh`, `topo`, `geom-curves` and `geom-core::spline`. `Interval` — Q1's
+`mesh`, `topo`, `geom` and `geom-core::spline`. `Interval` — Q1's
 *ratified* certification scalar — has 37 `cfg`-gated `src` sites and, per
 the repo's own measurement, **zero symbols in a default build**.
 
@@ -241,7 +241,7 @@ days later by a different route.
 In a default build the only `Real` inhabitants that appear are `f64` and
 `Probe` (a transparent `f64` newtype). `Interval` is 0 symbols; `Dual`
 has **no** production consumer at all — every `Dual` use across
-`geom-curves`, `geom-surfaces` and `geom-core` is inside `#[cfg(test)]`.
+`geom` and `geom-core` is inside `#[cfg(test)]`.
 Meanwhile the cost is paid throughout: five-term bound stacks
 (`T: Decide + ContentBits + geom_core::Bounds + Send + Sync +
 topo::PropsQuadLane`) repeated at eight-plus signatures, plus the four
@@ -1820,7 +1820,7 @@ Each remaining row was chased to its spec and its call graph. Two change.
 (`hull.rs:347`), a documented public certified-bounds function, and
 `domain_hull_rational` likewise backs `sup_norm_bound_rational`
 (`hull.rs:358`). Those wrappers' own callers are still only tests (4 in
-`geom-core/tests/spline_hull.rs`, 3 in `geom-curves/tests/review_m5_pr2_e2e.rs`),
+`geom-core/tests/spline_hull.rs`, 3 in `geom/tests/curves/review_m5_pr2_e2e.rs`),
 so "no named consumer" holds at the *top* of the chain — but the deletion
 on offer is not one dead helper, it is **retiring the `sup_norm_bound*`
 API**, and the rational limb of that API sits on the banked #390/#453
@@ -4363,6 +4363,24 @@ deviation was also restored — a deviation number records
 *authorisation*, which the comment-style rule against history does not
 cover.
 
+**Re-anchoring this document, and the rule it applies.** #705 renamed the
+stale crate names in this file across three passes, because Track D kept
+writing new rows against the old names while the merge was in flight. The
+rule, stated so it does not have to be re-derived: *a pointer that tells
+someone where to go is re-anchored; a record of what was observed at a
+place and time keeps the name it was observed under.* Renamed on that
+basis: `Where:` lines, scope columns, live paths and present-tense claims
+about code that exists now — in S1, S2, S11, S32, S33, S35's roll-up,
+S38, S41, S43, S44 and Track D's **D8** row (whose scope column named a
+path this PR relocates, for a unit that has not run). Left as history:
+narrative inside **closed** findings (S12, S56) and this entry's own
+record of the two crates it merged. The case worth naming is S41's
+`Trv`-crossing table and its `cargo test -p geom-curves --features
+interval` line: those are **measurements**, not directions, and renaming
+a measurement's command would make a record of what was run look
+re-runnable when it is not — so the command stays as executed, with a
+bracket noting the crate is now `geom`.
+
 *Lesson:* the split was justified once, in prose, by a file layout — and
 the justification outlived the layout by four milestones while the
 duplication it licensed accumulated underneath it. Nothing in CI, review
@@ -4666,7 +4684,7 @@ The pattern, with the extreme cases:
 | `crates/mesh/src/lib.rs` | 219 comment lines around ~22 lines of module declarations |
 | `crates/pncad/src/select.rs` | 449 comment lines in front of one `pub use` |
 | `crates/profile/src/fillet_select.rs` | 238 lines hosting 15 lines of code; one function documented as existing "to state that identity in code rather than in prose" |
-| `geom-curves`'s `speed_lower_bound` | ~170 doc lines over ~90 code lines, mostly litigating history |
+| `geom`'s `speed_lower_bound` | ~170 doc lines over ~90 code lines, mostly litigating history |
 | `mesh/src/walk.rs:653` | ~90 lines of prose — a census of 315 closures, a traced STEP coordinate, two rejected alternatives — on a five-line `if` |
 | `crates/mesh` overall | ~40% comment lines |
 | `boolean/ops.rs:584` `volume_backstop` | ~100 doc lines over a 60-line function, including an arm annotated "unreachable now… kept as the honest statement of the gate rather than a dead arm removed" |
@@ -4908,13 +4926,14 @@ which the finding did not list, returned `[−1, 3]`. All three reach
 defect at all depends on D1.** The first attempt made `impl Bounds for
 Interval` refuse below `Decoration::Def`. That is sound only under the
 "may enter certified code" reading, and the repo already encodes the
-other one: `geom-curves/tests/review_m5_pr3_attack_interval.rs` and
+other one: `geom/tests/curves/review_m5_pr3_attack_interval.rs` and
 `nurbs_interval.rs` carry three containment rows that assert a component
 enclosure contains the pointwise `f64` value, and one of those enclosures
 is `DInterval { lo: -inf, hi: inf, dec: Trv }`. It *does* contain it —
 interval arithmetic brackets the values the expression was defined on
 even when the decoration is `Trv`. Making `Bounds` refuse turned
-`cargo test -p geom-curves --features interval` from `116 passed` into
+`cargo test -p geom-curves --features interval` (the crate is `geom`
+since #705; the command is left as it was RUN) from `116 passed` into
 `113 passed, 3 failed`. A `Trv` bracket is simultaneously **a sound
 bracket** and **inadmissible in certified code**; those are two
 questions, and one accessor cannot answer both.
@@ -4937,7 +4956,7 @@ So the repair is the split, not a refusal bolted onto `Bounds`:
 - The three crossings require `CertifiedEnclosure`, so a `Trv` enclosure
   cannot reach `RingInterval::from_bounds` through them at all.
 
-The three `geom-curves` containment rows pass **untouched** — that was the
+The three `geom` containment rows pass **untouched** — that was the
 success criterion, and it is what distinguishes the split from the
 refusal.
 
@@ -5067,7 +5086,7 @@ answer.
 ## S43. The kernel has five different answers to "this state can only be a bug"
 
 - **Where**: `crates/topo/src/euler.rs:1940` (and 57 siblings),
-  `crates/geom-curves/src/nurbs.rs:162`,
+  `crates/geom/src/curves/nurbs.rs:126`,
   `crates/mesh/src/walk.rs:395`, `crates/geom-core/src/spline/hull.rs:80`,
   `docs/DESIGN.md:1100`, `Cargo.toml` (the `indexing_slicing` deferral)
 - **Importance**: high
@@ -5084,7 +5103,7 @@ answer.
 | 5 | Bare indexing that panics, **chosen deliberately** | `nurbs.rs:162`, `hull.rs` `coeffs[j]`, `mesh/chords.rs:465` | "the fail-loud direction" (PR #447) |
 
 Idioms 4 and 5 are **opposite answers to one question**, each argued in
-its own module's prose by appeal to the same principle. `geom-curves`
+its own module's prose by appeal to the same principle. `geom`
 writes that silently dropping data is the wrong direction and panicking
 is the right one; `crates/topo` does the silently-dropping thing 58
 times and has it blessed by D9's footnote. Both believe they implement
@@ -5227,7 +5246,7 @@ at all, and a `Bounds` split into its two meanings."
 fact rather than as a ruling.** The bundling Evan named — *"there must be
 multiple semantic things bundled together"* — turned out to be demonstrable
 rather than arguable, and the demonstration is in the existing suite:
-`geom-curves`' three containment rows assert that a `Trv`-decorated, unbounded
+`geom`'s three containment rows assert that a `Trv`-decorated, unbounded
 enclosure contains its pointwise `f64` value, which is TRUE under meaning (1)
 and inadmissible under meaning (2). An attempt to make `Bounds` serve meaning
 (2) broke exactly those three rows. So for `Interval` the two meanings are now
@@ -5298,7 +5317,7 @@ one accessor carrying both meanings, so granting a dual the bracket would have
 granted it the certification right in the same stroke — which is exactly why
 the founding ruling's paraphrase was arguable in both directions and why S3
 could not move. The two meanings are now two traits, and the split was
-**forced rather than chosen**: three `geom-curves` containment rows assert that
+**forced rather than chosen**: three `geom` containment rows assert that
 a `Trv`, unbounded enclosure still contains its pointwise value, true under
 "carries a bracket" and inadmissible under "may enter certified code". The
 ruling lands on a seam that evidence cut.
@@ -6906,7 +6925,8 @@ kernel lane and can run at any time.
 
 **Blocked on #705** (the `geom-curves` + `geom-surfaces` merge, ≥200 files):
 **D2** and D7's fillet-helper row — it edits all four `sweep/src/fillet/` files
-— and **D8**, whose `geom-curves/src/fit.rs` that PR *relocates*. D8 also
+— and **D8**, whose `geom-curves/src/fit.rs` that PR *relocates* to
+`geom/src/curves/fit.rs`. D8 also
 edits `sweep/src/skin.rs`, so it
 sequences against **D2** alone within the track: D1 has landed and left
 `skin.rs` untouched. The last external edge — D7's `PairSolve` row, behind
