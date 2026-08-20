@@ -7176,23 +7176,20 @@ have failed loudly even if it had been attempted.
 **No row number is reserved; D24 is the highest one placed.** Placements:
 D15 by #710, D16 by #706, **D17** by #718, **D18** by #720, **D19** by #719,
 **D20** by **#722** (D5's +46%, unattributed once that unit's measurement
-excluded the enumeration D14 blamed) and **D24** by **#735**. All four of the
-lanes that retired this
-hour placed their own residue on the way out rather than leaving it in a PR
-body — D15's as **D17** (the 14 `probe` test suites no CI lane type-checks),
-D16's as **D18** (`link_half_edges`' two unproven callers, which are W2c's
-last two sites), D11's as **D19** (the K roster's inventory hole) and
-D13/D14's as **D20** (D5's +46%, once the enumeration it was charged to was
-measured out of the frame). D7's `PairSolve` row did the same on its way out,
-placing **D24** — nothing mechanical can catch a `pub` item that is dead
-workspace-wide. **D21–D23 are assigned but not yet merged**, so this document
-shows a gap between D20 and D24; that gap is the assignment rule working, not
-an editing error. Row numbers are assigned centrally
-because several lanes mint rows in parallel and three collided once already: a
-lane that needs a row takes the next number the orchestrator has not assigned,
-never the next gap it can see. **A verdict is not a placement** (§D's fourth
-ordering rule) is why all four are rows here rather than sentences in four
-PR bodies.
+excluded the enumeration D14 blamed) and **D24** by **#735**. All four of
+the lanes that retired this hour placed their own residue on the way out
+rather than leaving it in a PR body — D15's as **D17** (the 14 `probe` test
+suites no CI lane type-checks), D16's as **D18** (`link_half_edges`' two
+unproven callers, which are W2c's last two sites), D11's as **D19** (the K
+roster's inventory hole) and D13/D14's as **D20** (D5's +46%, once the
+enumeration it was charged to was measured out of the frame). D7's
+`PairSolve` row did the same on its way out, placing **D24** — nothing
+mechanical can catch a `pub` item that is dead workspace-wide. Row numbers
+are assigned centrally because several lanes mint rows in parallel and three
+collided once already: a lane that needs a row takes the next number the
+orchestrator has not assigned, never the next gap it can see. **A verdict is
+not a placement** (§D's fourth ordering rule) is why all four are rows here
+rather than sentences in four PR bodies.
 
 **D16 is retired — done as #720** (`topo/src/euler{,_ring,_kill}.rs`, S43/S12).
 The re-derived census is **58 discard sites**, not the ~60 the row carried: the
