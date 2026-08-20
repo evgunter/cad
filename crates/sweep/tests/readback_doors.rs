@@ -7,6 +7,8 @@
 //! asked of real swept bodies: nothing here transcribes a literal to
 //! learn where a cap landed.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use geom_core::{Affine3, Point2, Tolerance, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 use sweep::{

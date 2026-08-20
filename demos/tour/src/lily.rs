@@ -122,10 +122,9 @@ use pncad::profile::{ArcSweep, Center, ProfileLoop, ProfileVertex, SketchPlane, 
 // kernel crate directly.
 use pncad::sweep::fillet::FilletError;
 use pncad::sweep::{
-    ExtrudeError, Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, loft_body, revolve,
-    sweep_body, tube_along_arc,
+    ExtrudeError, Extrusion, Revolution, RevolveAxis, TubeWindow, WedgeFrames, extrude, loft_body,
+    revolve, revolved_caps, sweep_body, tube_along_arc,
 };
-use pncad::sweep::{WedgeFrames, revolved_caps};
 use pncad::topo::{Body, BooleanError, BooleanOp, Operand, TransformError};
 use profile::RawLoop;
 
