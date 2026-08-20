@@ -163,10 +163,10 @@ pub struct Chain<T: Real> {
 impl<T: Real> Chain<T> {
     /// Assemble a chain from its first link and the rest.
     ///
-    /// The signature is the invariant: there is no way to spell a
-    /// chain with no links, here or anywhere else.
+    /// The signature is the invariant: there is no way to spell a chain
+    /// with no links, here or anywhere else.
     #[must_use]
-    pub fn new(
+    pub(crate) fn new(
         first: Link<T>,
         rest: Vec<Link<T>>,
         junctions: Vec<VertexKey>,
@@ -196,14 +196,12 @@ impl<T: Real> Chain<T> {
     }
 
     /// How many links the chain has — at least one.
-    pub fn len(&self) -> usize {
+    ///
+    /// Not `len`, so that no `is_empty` is owed: a constant `false`
+    /// would be an accessor whose only effect is to suggest the
+    /// question is open.
+    pub fn link_count(&self) -> usize {
         1 + self.rest.len()
-    }
-
-    /// Always `false`: a chain holds at least [`Chain::first`]. Stated
-    /// rather than suppressed, because the invariant is the point.
-    pub fn is_empty(&self) -> bool {
-        false
     }
 }
 

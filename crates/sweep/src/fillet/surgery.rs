@@ -273,8 +273,8 @@ pub(super) fn fillet_surgery<T: Decide + Bounds>(
     for o in &opens {
         for v in [o.link().start, o.link().end] {
             match ends.iter_mut().find(|c| c.vertex() == v) {
-                Some(c) => c.also(*o),
-                None => ends.push(CornerLinks::seed(v, *o)),
+                Some(c) => c.also(*o)?,
+                None => ends.push(CornerLinks::seed(v, *o)?),
             }
         }
     }
@@ -289,8 +289,7 @@ pub(super) fn fillet_surgery<T: Decide + Bounds>(
             ));
         };
         incident.sort_unstable();
-        let mut here: Vec<EdgeKey> = links.iter().map(|l| l.edge()).collect();
-        here.sort_unstable();
+        let mut here: Vec<EdgeKey> = links.sorted().iter().map(|l| l.edge()).collect();
         here.dedup();
         // Two different refusals, and they are not the same class: the
         // valence is the corner's own configuration (the OQ6
@@ -496,7 +495,7 @@ fn resolve_rim<'a, T: Decide + Bounds>(
     // typed rather than becoming row 4 because nothing IN THIS CALL
     // proves the screen ran.
     let link0 = chain.first();
-    if chain.len() < 2 {
+    if chain.link_count() < 2 {
         return Err(unbuilt_chain(
             link0.edge,
             "a closed chain of fewer than two links (a one-edge rim) is not implemented",
@@ -510,7 +509,7 @@ fn resolve_rim<'a, T: Decide + Bounds>(
         ))
     };
     let mut plane = None;
-    let mut spheres = Vec::with_capacity(chain.len());
+    let mut spheres = Vec::with_capacity(chain.link_count());
     for link in chain.links() {
         if !matches!(link.arm, BlendArm::PlaneSphereTorus) {
             return Err(unbuilt_chain(
@@ -610,7 +609,7 @@ fn resolve_rim<'a, T: Decide + Bounds>(
     let ring_len = loop_walk(body, ring)
         .ok_or_else(|| not_intact(EntityId::Loop(ring), "a rim's ring loop"))?
         .len();
-    if ring_len != chain.len() {
+    if ring_len != chain.link_count() {
         return Err(unbuilt_chain(
             link0.edge,
             "a rim ring carries edges outside the requested chain",
@@ -1973,9 +1972,11 @@ mod tests {
             l.start == v || l.end == v
         });
         let first = *here.next().expect("the seed link of this corner");
-        let mut corner_links = CornerLinks::seed(v, first);
+        let mut corner_links = CornerLinks::seed(v, first).expect("the seed link touches v");
         for o in here {
-            corner_links.also(*o);
+            corner_links
+                .also(*o)
+                .expect("every filtered link touches v");
         }
         let convex = corner_plan(&body, corner_links, R).expect("the corner plans");
         assert!(convex.convexity.blend_sense(), "a convex octant is outward");

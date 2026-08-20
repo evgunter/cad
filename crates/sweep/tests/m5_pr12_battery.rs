@@ -147,7 +147,7 @@ fn the_battery_passes_on_a_box_at_a_fitting_radius() {
     let verdict = run_battery(&req, band()).expect("the box at r = 0.2 is a valid fillet request");
     assert_eq!(verdict.chains.len(), 12, "twelve one-link chains");
     for chain in &verdict.chains {
-        assert_eq!(chain.len(), 1);
+        assert_eq!(chain.link_count(), 1);
         assert!(matches!(chain.closure, ChainClosure::Open { .. }));
         assert!(
             chain.junctions.is_empty(),
