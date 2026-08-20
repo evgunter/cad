@@ -128,7 +128,7 @@ impl core::fmt::Display for TransformError {
             Self::NotRigid { check } => write!(
                 f,
                 "transform: the map's linear part is not an isometry at tolerance — \
-                 predicate {check} refused (a maybe-rigid map is not a rigid map)"
+                 predicate {check} refused, definitely or in-band"
             ),
             Self::NonFiniteMap { check } => write!(
                 f,
@@ -151,6 +151,10 @@ impl core::fmt::Display for TransformError {
     }
 }
 
+// No `source()`, matching every error type in this crate: each arm's
+// `Display` renders its nested payload's own `Display` in full, so the
+// chain is already in the message and a walker would re-read what it
+// just printed.
 impl std::error::Error for TransformError {}
 
 fn map_vec<T: Real>(map: &Affine3<T>, v: Vec3<T>) -> Vec3<T> {
