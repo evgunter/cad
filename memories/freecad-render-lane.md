@@ -206,9 +206,3 @@ one). Byte-stability is defined against a repeat HOSTED render;
 local renders are preview-only (the local hazards above still
 apply when previewing) and their frames must never be committed.
 Implementer briefs no longer include local render passes.
-
-**The lane wedges transiently**, and `rerun-failed-jobs` 403s for this
-integration — a fresh run has to come from a real push. Settle a suspected
-wedge by observation (does it come back green on identical content?), not by
-argument, and check the failing scene reaches no code the change touches
-before concluding it is unrelated.
