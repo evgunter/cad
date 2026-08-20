@@ -53,6 +53,156 @@ head, merge without waiting for a second CI run.**
 
 ---
 
+## HANDOFF — 2026-08-20, session 2 winding down
+
+Evan called the usage limit near, so: **live work finishes, nothing new starts,
+and everything unstarted is written down here rather than carried in an
+orchestrator's head.** This section is the reassignment. A fresh orchestrator
+should be able to work from it plus the *Review policy*, *Recording convention*,
+*Rulings* and *standing lane header* sections above, without reconstructing
+anything from a transcript.
+
+### Live at handoff — these were in flight and are not reassigned
+
+| unit | PR | what it still needs |
+|---|---|---|
+| **C-q / C10** | **#801** | Combined fix pass for **two adversarial MAJORs + twelve style findings**. MAJOR 1 falsified the PR's headline claim (see *"The oracle I called the right shape"* above); the title, two tree sites and three record sites all still carry it. MAJOR 2 (turbofish) is **fixed**. Needs: the MAJOR 1 restatement, the upstream probe added to `seal-oracle.sh`, a stale-body sweep, a re-merge (it has a `SMELL-SCAN` conflict), and a **first-ever valid CI run** — `get_check_runs` on its heads has returned `total_count: 0` throughout. |
+| **C-g / S32** | **#804** | Adversarial + style review returns. Row **C24** is written in it. |
+| **C-j follow-up** | **#816** | Rows **C22** and **C26** being written, then CI, then it merges. |
+
+**If a review lane returns after this session ends**, its findings are in
+`~/.local/share/cad-work/{adv,sty}-8NN-findings.md` — **container-local, and the
+container is reclaimable.** Anything load-bearing from them must be relayed into
+a PR body or into this file before it is worth anything. That is this session's
+most-repeated lesson and it has cost four separate incidents.
+
+### Unstarted — reassigned, with gates re-verified against `main` at handoff
+
+| lane | finding | scope | gate — **as of 2026-08-20 21:xx**, re-verify before starting | review |
+|---|---|---|---|---|
+| **C-k** | **S28's duplication half** — three tessellation lanes, three pipelines | `mesh/` | **Held, not blocked.** #684 discharged the original gate. The live reason to wait was **#816**, which edits `mesh/` — once it merges, C-k is free. This is a *dependency*, so it does not clear by waiting on capacity. | **adversarial** + style (C-R12) |
+| **C-l** | **C7 + S33** — the lane-trait collapse, `RingInterval`, the scalar ladders | `geom-core/`, and W2b's 535 refs across 15 files | **Was blocked on #801** (`geom-core/`). Free once #801 merges. Expect to **split into 2–3 lanes**. | **style only, provisionally** — the sub-lane that *rewrites* `Dual` arithmetic rather than re-spelling it is promoted to adversarial |
+| **C-m** | **S27** — `props/quad.rs`'s four quadrature engines | `geom-brep/src/props/quad.rs` | **GATED, and the gate is a live kernel defect, not a queue.** A2/#714 merged 08:42Z and is discharged; what remains is **#723** — open. It does **not** clear by waiting on this track. See the note under the roster. | **adversarial** + style |
+| **C-n** | **H17** — the rustdoc spec-code remainder, ~1115 lines / 130 files | per crate: `topo` 300, `editor-core` 267, `geom-brep` 192, `geom-core` 107, `sweep` 64, rest < 70 | **Deliberately last** — 130 files, conflicts with every open lane. **Its measurement is not to be re-run** (see the roster note). | style, per crate batch |
+| **S29's policy half** | **C-R2** — nothing states what the mesh sizing *policy* is | `crates/mesh/src/sizing.rs`'s module doc | **Waits for Evan.** Design PR, not a cleanup. The plan is **recovered below** — it existed only in a container-local file until this commit. | design conversation |
+
+### Recovered: the S29 policy plan, which existed only in a container file
+
+C-j wrote this and left it at `~/.local/share/cad-work/c-j-policy-plan.md`. That
+path does not survive a container reclaim, and this session has already lost one
+container. **Committed verbatim** (headings demoted to nest here), because a plan
+that lives only in `$HOME` is not a plan — the same failure as a register that
+has not landed, which this track recorded four times today.
+
+#### S29's policy half — PLAN ONLY (C-R2: its own PR, waits for Evan)
+
+**Not implemented. Not in #803.** #803 unified the *vocabulary*; this is
+the *policy*, and C-R2 rules it a design act.
+
+##### The one thing that IS ratified, so the gap is not overstated
+
+`docs/TESS-BUDGET.md`'s *split schedule's aspect policy* (A = 16,
+ratified 2026-08-16 on PR #568, bound by `docs/TESS-SPLIT-SPEC.md`,
+**still unexecuted**) rules where the NURBS split schedule takes its
+point on the certified ellipse. That is the whole of it: it says nothing
+about δ_s = δ/2, the sphere margin, `SAFE_ASPECT`, the retry or
+refinement budgets, or the analytic charts. Any policy document written
+here must **subsume it, not contradict it**, and must say whether A = 16
+is an instance of a general clause or a one-off.
+
+##### The gap, stated precisely
+
+Six sizing rules ship in `crates/mesh` and each is argued **locally and
+well**: δ_s = δ/2; the sphere arm's extra ×1.25; `SAFE_ASPECT = 5.0`
+above its own derived √15; `MAX_GRID_RETRIES = 6`;
+`RATIONAL_CERT_SPLITS = 16`; the π/4 angular cap. Nothing says what they
+are collectively *for*, so rule seven arrives as a seventh local
+argument (#684's `pole_columns` was rule six, and it arrived exactly
+that way). S29's own lesson: *N well-defended deviations read as N
+decisions when they are one undecided question.*
+
+##### What the document must answer — five clauses
+
+1. **What the schedule promises.** The crate docs already say *heuristic;
+   the certificates are the guarantee*. Promote that from a parenthesis
+   to the first clause: the schedule is a **cost** heuristic, the
+   per-triangle certificate is the **correctness** gate, and `trimmed`'s
+   refinement ladder is the reconciliation between them. Every constant
+   below is then a cost-vs-refusal-risk trade with one stated criterion,
+   not six independent defences.
+2. **How much margin a schedule may spend, and against what.** Three
+   margins exist with three unrelated derivations (δ/2; the sphere's
+   further /1.25; the measured `(3.87, 5]` aspect gap). State the rule
+   that admits a *new* one.
+3. **When a MEASURED constant is admissible.** `SAFE_ASPECT` sits above
+   its derived line on measured margin. Proposed clause: admissible only
+   where a typed refusal backstops it, and only with the measurement's
+   corpus named at the constant. Both hold today — which means this
+   clause ratifies practice rather than changing it, and that is the
+   cheapest possible version of the fix.
+4. **What evidence a re-tune owes.** The tess-budget baseline
+   (regression, not absolute) and the certificate falsifier already
+   exist; say which one each constant answers to, and say out loud where
+   a constant answers to neither.
+5. **The unguarded residue, kept visible.** `SAFE_ASPECT`'s own doc
+   concedes the *worst tour face certificate 0.60·δ* margin has no guard
+   at all. A policy that does not name its unguarded quantities is the
+   same substitution one level up.
+
+##### Deliverable
+
+One section — home is `crates/mesh/src/sizing.rs`'s module doc, which
+#803 left a **"What is NOT here"** hole shaped for it; escalate to
+`docs/DESIGN.md` only if Evan judges it a ratified decision rather than a
+crate contract. Plus a table: one row per constant, naming the clause
+that licenses it and the guard that watches it.
+
+##### The risk to declare before starting
+
+Writing the table may find a constant that **no defensible clause
+licenses**. That is a finding, not a cleanup: under C-R19 it is tier
+three (an issue and a §D row), and it must not be laundered by inventing
+a clause to fit it. The policy PR's honest failure mode is to conclude
+"five of six are licensed and the sixth is not", and it should be
+allowed to.
+
+### What a fresh orchestrator most needs to know
+
+Six things, in the order they will bite:
+
+1. **Every recorded population this track has checked was wrong.** H11's two were
+   ten, H12's nine were thirteen, H15's three were twenty-three, C10's ~96 lines
+   were 263, S29's five modules were wrong in *both* directions. **Measure with
+   an instrument shaped differently from the one that produced the number** — no
+   correction this session came from looking harder with the same one.
+2. **Every unit was NOT CLEARED on first review**, and in every case the defect
+   was **a claim wider than its evidence**, not a shipped wrong answer. Budget
+   for two rounds minimum. A round that ends in a smaller claim worked.
+3. **Environmental failures arrive wearing the costume of a result** — four this
+   session: a shallow clone that silently disabled `git log -S`, two CI budget
+   lapses (`runner_id=0`, ~2–5 s, all branches including `main`), and a full disk
+   that truncated this file mid-write and let `git commit` succeed. **Before
+   treating any red signal as a finding, ask what it would look like if the
+   environment had failed instead.**
+4. **Row numbers: assign centrally, and a lane re-verifies against `main`
+   immediately before writing** (C-R20/C-R21). §D is shared by seven programmes
+   and its conflict window is shorter than one CI run. A hole in the sequence can
+   mean *landed and left* (C9) or *reservation released unused* (C22) — the row
+   must say which.
+5. **The `C<n>` namespace is saturated**: §C's process observations run C1–C25
+   against §D's rows C1–C26 **in the same document**. The only thing separating
+   them is #731's convention — a bare `CNN` is a §D row, a `§CNN` is a §C
+   observation.
+6. **The lane helper is container-local.** `local-scripts/new-lane.sh` clones
+   `git@github.com:` and this box has **no `ssh` binary**;
+   `~/.local/share/cad-work/new-lane.sh` is the stand-in that clones locally,
+   unshallows, and sets `core.hooksPath`. **It will not survive a reclaim** —
+   recreate it, and keep the `--unshallow`, because a shallow clone silently
+   disables `git log -S`, which is §S39's own named instrument.
+
+
+---
+
 ## Rulings made in this track
 
 | # | Question | Ruling | By |
@@ -72,7 +222,7 @@ head, merge without waiting for a second CI run.**
 | **C-R19** | **What this track may take, restated.** The working rule had drifted to *style fixes only; anything cross-crate or public-API gets filed and left*, which is what sent H16's ε item out as a parked issue. | **Cross-crate and public-API changes are within scope** (Evan, 2026-08-20): *"cross crate and public api is potentially within scope for these style fixes, though it may have a design element that means the plan should go by me before implementation."* So the discriminator is **not** where the change lands — it is whether a **design element** is present. Three tiers: a style or encoding fix is taken by the lane; a change with a design element is written up as a **plan that goes to Evan before implementation**; **implementing a new feature or fixing a logic bug is never this track's** and gets a GitHub issue. The middle tier is new and is where the ε item, the two Part-21 user-assigned STEP header fields, and anything like them now sit — **takeable Track C rows asking for a plan, not parked issues.** A filed row must say which tier it is in, or the next reader re-derives the judgement. | Evan, 2026-08-20 |
 | **C-R20** | **Two lanes minted §D row `C11` independently**, an hour apart, in two unmerged branches (#732's `pncad-py` option surface and #731's `editor-core` residues). Neither could see the other's number. | **Row numbers are assigned by the orchestrator, never taken from the next visible gap.** Assigned: **C11** C-o/#732 (issue #730), **C12** C-f/#731, **C13** and **C14** C-o's ε and Part-21 rows, **C15** reserved for C-p's per-face slack gate hole. A lane needing a row asks for the number. **This rule already existed one track over** — Track D hit the identical collision when three lanes minted in parallel and two landed on D10/D11 — and its handoff states it explicitly. I read that handoff at session start and did not apply it, which is the whole failure: *a rule recorded in another track's operational file is not carried by reading it once.* The cost was small only because both PRs were still unmerged. | orchestrator, 2026-08-20 |
 | **C-R21** | **C-R20 is not sufficient, and its third instance proved it.** I assigned §D row numbers centrally *within Track C*. Track A's #714 fix pass then landed its own **C11** on `main` — roughly ten minutes after I assigned C11 to #732, and cited from three other places in the document. Neither track could see the other's unmerged branch. | **A row number is not owned until it is on `main`, and a lane mints against the merged tree, never against an assignment.** Central assignment prevents *intra*-track collisions and cannot prevent cross-track ones, because **§D is shared by every track**. So: the orchestrator still assigns, but the assignment is a *reservation against a tree that may move*, and a lane re-verifies against `origin/main` immediately before it writes the number — exactly what C-o did, which is why this cost a relabel instead of a silent duplicate. **Holes in the sequence are named in the gating paragraph** so the next reader does not tidy them away. Settled state: C11 Track A; C12 #731; C13/C14/C16 #732; C15/C17 #738. | orchestrator, 2026-08-20 |
-| **C-R22** | **C10 asks for work the ratified design forbids, and nothing in the row knows it.** The row instructs its taker to lift the instrument out of `geom-core`, S30-style. C-q's compile oracle — a scratch crate against `geom-core --features probe` — walked the three escapes and hit an escalating wall: `impl Decide for P` → E0277 (`P: SpanLocate` unsatisfied); `impl SpanLocate for P` → E0277 (`P: locate::sealed::Sealed` unsatisfied); `impl …sealed::Sealed for P` → **E0603, module `sealed` is private**. The seal is what closes **Q1's ratified instantiation set**. | **Refuse the split, and record the refusal as the unit's answer** — C10's own text asks the taker to *"decide whether the instrument can leave a door that certifies, and record that decision"*, so a reasoned no **is** the deliverable, not a declined lane. Take instead: consolidate the three doors' identical bodies into one private `classify<T: Decide>` (in-crate, no public API, no behaviour change); **D32 option (b)** — make `ledger_row` load-bearing by extending `flagged_census.rs`; and **retire `profile::k_stats`** (S40's shim, whose own docs say to stop using it — tier 1.5, executing a decision recorded at M2 PR 7, not making one). Also correct **two wrong premises in C10 itself**: the instrument is **263 lines, not ~96** (the row's figure omits `Probe`'s own trait impls, and a type's impls travel with the type), and *"S30's class one crate over"* is wrong **at the level of the diagnosis** — the volume question S30 found unasked **was** asked here, in `geom-core/Cargo.toml`'s `probe` feature comment, measurement and placement argument attached. | orchestrator, 2026-08-20 (from C-q's oracle) |
+| **C-R22** *(conditions restored, and the GROUND corrected 2026-08-20 — see both notes below; the row as first written kept the approvals and dropped the conditions, and rested on a claim #801's adversarial lane then falsified)* | **C10 asks for work the ratified design forbids, and nothing in the row knows it.** The row instructs its taker to lift the instrument out of `geom-core`, S30-style. C-q's compile oracle — a scratch crate against `geom-core --features probe` — walked the three escapes and hit an escalating wall: `impl Decide for P` → E0277 (`P: SpanLocate` unsatisfied); `impl SpanLocate for P` → E0277 (`P: locate::sealed::Sealed` unsatisfied); `impl …sealed::Sealed for P` → **E0603, module `sealed` is private**. The seal is what closes **Q1's ratified instantiation set**. | **Refuse the split, and record the refusal as the unit's answer** — C10's own text asks the taker to *"decide whether the instrument can leave a door that certifies, and record that decision"*, so a reasoned no **is** the deliverable, not a declined lane. Take instead: consolidate the three doors' identical bodies into one private `classify<T: Decide>` (in-crate, no public API, no behaviour change); **D32 option (b)** — make `ledger_row` load-bearing by extending `flagged_census.rs`; and **retire `profile::k_stats`** (S40's shim, whose own docs say to stop using it — tier 1.5, executing a decision recorded at M2 PR 7, not making one). Also correct **two wrong premises in C10 itself**: the instrument is **263 lines, not ~96** (the row's figure omits `Probe`'s own trait impls, and a type's impls travel with the type), and *"S30's class one crate over"* is wrong **at the level of the diagnosis** — the volume question S30 found unasked **was** asked here, in `geom-core/Cargo.toml`'s `probe` feature comment, measurement and placement argument attached. **Six conditions, which are part of the ruling and were dropped from the first version of this row.** (a) The identity proof owed is about **order**, not just content — the `VERDICTS` push feeds `editor_core::resolve::vdiff` and a diff consumer is order-sensitive. (b) Say **at the fence** that the consolidation was measured against it and moves in the permitted direction — an unremarked fence reads identically whether it was honoured or missed. (c) The best-way argument is that `classify` converts an **asserted** sameness into a **compiled** one, and both doors' *"verbatim"* sentences get rewritten to what is then true rather than deleted. (d) D32(b) must **close** the census's blind spot, not inherit it — widen the pattern or correct the rustdoc, and the limitation lives **at the pattern**, not in a report. (e) The S40 shim retirement sweeps the three **workspace-excluded** roots explicitly; a green workspace build is no evidence about them. (f) Provenance on the `Cargo.toml` percentages: name the tree, and say whether they were re-measured. | orchestrator, 2026-08-20 (from C-q's oracle) |
 | **C-R23** | **S32's causal sentence is false, and two more of its clauses with it.** The finding says *"the natural query being unavailable at the enum is what created the second enum"* — i.e. give `Surface` a jet door and `geom-brep`'s `Chart` dissolves. C-g's archaeology found `Chart` born at `ffc0b0fa` carrying today's doc verbatim, and `ssi/system.rs:150-235` on main confirms it. | **`Chart` stays; S32 lands as `FIXED IN PART`** (#714/S58's precedent for this exact shape). The API half is real and is fixed — one `jet` door, the five partials and `normal` become projections of it, `normal` and `metric_floor` each drop from two passes to one. The causal half is **corrected, not closed**, on three independent grounds any one of which is sufficient: `Chart` is **third order** (`jet3`, `k+l ≤ 3`) where `SurfaceJet` is second; it **carries a domain** (`u_range`/`v_range`, `domain()`) because a plane is unbounded and `Surface::Plane` has nowhere to put a window; and a `Surface`-wide constructor is **deliberately refused by a named rule**, C12.1's per-arm retirement rule — so the narrowness is a ratified property, not a workaround. **A third clause is also false:** S32 reads the *"hand-filled `SurfaceJet3` of zeros"* as placeholder filler, but a plane's second and third partials **are** exactly zero — the finding mistook a right answer for a smell. The fourth clause, *"re-implementing plane evaluation"*, is the weak one and is to be stated at the notch it can hold: a hoisted cross product plus a window, not an independent implementation. | orchestrator, 2026-08-20 (from C-g's archaeology, verified against main) |
 | **C-R24** | **Where C-R6 stops and C-R19 tier two starts.** C-g found the identical class on the curve side — `NurbsCurve::deriv_in_span`/`deriv2_in_span` discard 2 of 3, and `topo/src/splitting/neighborhood.rs:180,184` runs two full order-2 passes at the same `t` **under a comment calling the result *"the base-endpoint jet"***. It is the **same crate**, which normally puts it under C-R6 (in-crate residues are fixed, not reported). | **File it (row C24), and the row states the discriminator.** The surface side has a **ratified type to project onto**: `SurfaceJet` already exists and is already publicly exported — which is half of S32's own complaint. The curve side has **no `CurveJet` at all**, so the work is not *apply the same fix one type over*, it is **mint a new public type** — a design element, C-R19 tier two, a plan rather than a lane's discretion. That is the line: **using a decision already made is tier one; making one is tier two, in-crate or not.** C-R6 is about *ownership* (do not hand an in-crate residue to someone else), not about *authority* (a lane may not ratify a new public type because it happens to be nearby). | orchestrator, 2026-08-20 |
 
@@ -168,7 +318,7 @@ superseded for Track C by this table.
 | **C-e** | **H13** — `sweep_body`'s helix rows have no orientation coverage | `sweep/tests/{m8_14_long_turn_sweep,m7_skin_integral}.rs`, `step-export/tests/common/mod.rs` — **two of these three citations do not contain a member of the finding's own class, and the mechanism is worth keeping (C-R11: the scope cell is a claim site, so the correction lands here and not only in a PR body).** `m7_skin_integral.rs` and `step-export/tests/common/mod.rs` contain **no helix at all**; both build the SQUARE ELBOW, byte-identical to the body #636's own orientation row already pins (`R = 3`, `h = 0.25`, `bulge = tan(π/8)`, 9 stations, `v_degree` 3), and `step-export`'s own docstring says *"constant for constant"*. The cell was minted from **#636's list of uncovered `sweep_body` callers** — a wider class than *"the helix rows"* — and the two were conflated. The direction of the error is **over-scope**, not stale location: the cell described coverage that already existed. #636's own citation `step-export/tests/common/mod.rs:482` is line 4 of a six-line comment, not a call. **The one real gap the cell obscured** is `m7_skin_integral.rs:381`, the RATIONAL circle-section elbow, which had no orientation coverage and is closed by #779 alongside the helices. | **discharged** (#779) | **adversarial** + style — #636's level-plane oracle trips its own precondition here (`cos ≈ 0.011`), so this needs a *new* oracle, and the oracle carries the soundness |
 | **C-f** | **H11** — #632's residues: two as recorded, **ten** as they existed | `editor-core/src/{resolve/,names/select.rs,refactor.rs,eval/{mod,anchor}.rs,node.rs,expr.rs,persist/check.rs,doc.rs}` — this cell read `editor-core/src/select.rs` until #731, and no such file exists (**C-R11**: the scope cell is a claim site, so the correction lands here rather than only in a PR body) | **discharged** (#731 merged) | style — returned NOT CLEARED twice (C-R16/C-R17/C-R18, then the verification pass's probe-D re-derivation and a tenth class member at `doc.rs`) |
 | **C-g** | **S32** — `Surface`'s one-partial-per-call API and the shadow SSI enum | `geom/` (the merged crate), `geom-brep/src/ssi/system.rs` | **discharged** (#705, #692 merged) | **adversarial** + style |
-| **C-j** — **discharged** | **S29** — the sizing vocabulary across five modules | `mesh/src/{nurbs_cert,curved,chords,trimmed}.rs` + the new `mesh/src/sizing.rs` and `tools/tess-meter/src/lib.rs`; the cell read `budget.rs` until #803, and that file lost its sizing content to `tools/tess-meter` when #709 landed (**C-R11**: a scope cell is a claim site, so the correction lands here) | **discharged** (#684 merged) | **style only** on the mechanical half — retrimmed, see C-R12. **Mechanical half merged as #803**; the policy half is a design PR (**C-R2**) and is **NOT** discharged by it |
+| **C-j** — **discharged** | **S29** — the sizing vocabulary across five modules | `mesh/src/{nurbs_cert,curved,chords,trimmed}.rs` + the new `mesh/src/sizing.rs` and `tools/tess-meter/src/lib.rs`; three of the five cited lines did not resolve at `d6b5ae01^1` — `budget.rs:555` (307-line file, its sizing content having gone to `tools/tess-meter` with #709), `curved.rs:226` (`cdt.add_constraint`) and `nurbs_cert.rs:356` (`memo: &mut FaceBounds`); only `chords.rs:63` and `trimmed.rs:112` did (**C-R11**: a scope cell is a claim site, so the correction lands here — #803 recorded the first, the style review the other two) | **discharged** (#684 merged) | **style only** on the mechanical half — retrimmed, see C-R12. **Mechanical half merged as #803**; the policy half is a design PR (**C-R2**) and is **NOT** discharged by it |
 | **C-k** | **S28's duplication half** — three tessellation lanes, three pipelines | `mesh/` | **discharged** (#684 merged) | **adversarial** + style |
 | **C-l** | **C7 + S33** — the lane-trait collapse, `RingInterval`, the scalar ladders | `geom-core/`, and W2b's 535 refs across 15 files | **discharged** (#682 merged) | **style only, provisionally** — see C-R12; expect to split into 2–3 lanes, and the sub-lane that rewrites `Dual` arithmetic rather than re-spelling it gets promoted to adversarial |
 | **C-m** | **S27** — `props/quad.rs`'s four quadrature engines | `geom-brep/src/props/quad.rs` | **STILL GATED, and the gate changed identity** — #714 **merged** (`08:42Z`), so A2 is discharged; C3's row now names **#723** as the second gate, and it is **open**. See the note below. | **adversarial** + style |
@@ -776,10 +926,10 @@ cannot know who else is in it.
 | **C-h** | H14 — the census's record-keyed deferrals | **#737** | **MERGED** `ec12b7ce` |
 | **C-o** | H16 — `StlOptions` → validated newtypes + per-format option structs | **#732** | **MERGED** `1948e2a5` — Evan signed off after ruling all seven §5 choices |
 | **C-p** | C9 — the `agreement` column | **#738** | **MERGED** `a0a6e1a5` |
-| **C-e** | H13 — `sweep_body`'s helix orientation coverage | **#779** | fix pass in, CI **35/2/0 green on `0494295e`** (verified at source, not taken); cleared to merge after writing row **C25** |
+| **C-e** | H13 — `sweep_body`'s helix orientation coverage | **#779** | **MERGED** `db241875` — verified independently on `main`: `orient.rs` 805 lines, rows **C20** and **C25** both present, **C1 gone from §D**, and the false `0.0635` sentence replaced by the measured table at `orient.rs:584-592` |
 | **C-i** | H15 — #635's unclassified siblings (**23 rows**, not the three the finding names) | **#775** | **MERGED** `3fa135fa` |
 | **C-q** | C10 — `geom_core::k_stats`, S30's class one crate over | **#801** | complete, **CI green on `9fb929d2`** (full matrix, TIER=all); adversarial + style reviews dispatched. Answer to C10 is **no, with the compiler as witness** (C-R22). Row **C22 released unused** — the lane declined to mint a row to have minted one. |
-| **C-j** | S29 — the mesh sizing vocabulary (mechanical half) | **#803** | **MERGED** `d6b5ae01` — **before its style review, which is my dispatch gap, not the lane's**: the brief said a style review would happen and never said it was a merge gate. Post-hoc style review dispatched; its output is a follow-up PR. Row C23 landed. Policy half is a plan, unimplemented, waiting on Evan (C-R2). |
+| **C-j** | S29 — the mesh sizing vocabulary (mechanical half) | **#803** + follow-up **#816** | **MERGED** `d6b5ae01`, style review **NOT CLEARED** post-hoc; #816 carries the prose sweep #803 never ran, `pub mod chords` → private, three module-doc exactness fixes, the `torus_grid_step` claim **verified correct and now guarded**, two mutation-checked tests, and the §S29 record corrections. Rows **C22** and **C26** assigned to it. — **before its style review, which is my dispatch gap, not the lane's**: the brief said a style review would happen and never said it was a merge gate. Post-hoc style review dispatched; its output is a follow-up PR. Row C23 landed. Policy half is a plan, unimplemented, waiting on Evan (C-R2). |
 | **C-g** | S32 — `Surface`'s one-partial-per-call API and SSI's shadow enum | — | dispatched **plan-first** (C-R19 tier 2); **adversarial** + style; row **C24** reserved |
 
 **Three reservations, and what they are reservations against.** C22/C23/C24
@@ -1915,6 +2065,265 @@ Corrected in §D, and the reading rule is left standing with its real reason: a
 taker asks the orchestrator for a number **not because the hole is unreserved,
 but because from `main` alone you cannot tell** — which is exactly why the
 asking exists.
+
+### Sequencing note: C-k is held, and the reason is not capacity
+
+`mesh/` is free again now that #803 has landed, which would normally make **C-k**
+(S28's duplication half — three tessellation lanes, three pipelines) the next
+dispatch. **It is held anyway**, because #803's *post-hoc* style review is live
+and its output is a **follow-up PR in `mesh/`**. Dispatching C-k now would put an
+implementer and a corrective PR in the same crate on the same afternoon.
+
+*The distinction worth recording:* this is not the build mutex talking. The
+reason to wait is that **one of the live lanes can still change the file another
+would edit** — a dependency, not a queue. A sequencing decision that says
+"capacity" when it means "dependency" produces the wrong action later, because
+capacity frees on its own and a dependency does not.
+
+### The disk filled, and the failure it would have caused is a false finding
+
+**2026-08-20, ~20:35.** The container's disk hit 99% with five lanes holding
+private `CARGO_TARGET_DIR`s — 14 GB across ten lane directories, `c-q` alone at
+5.2 GB. Writes began failing with ENOSPC while deletes still succeeded.
+
+The operational fix was routine: drop the three discharged lanes' trees and the
+finished lane's target, 12 GB used and 26 GB free. **Two things it cost are
+worth more than the fix.**
+
+**1. It silently truncated this file, and the truncation was committed.** A
+`docs/SMELL-C-LOG.md` write died mid-sentence at a 132 KiB block boundary,
+ending inside a UTF-8 sequence. The next command in the same chain ran
+`git add -A && git commit && git push` and **succeeded** — git does not care that
+a file is half-written, and neither did the pipeline. It surfaced only because
+the *next* edit tried to read the file back and hit a decode error. Restored from
+the last intact commit and fixed forward, never by rewriting history.
+
+*The generalisable part:* **a write-then-commit chain has no integrity check in
+it**, so a partial write becomes a pushed artefact in one step. What caught it was
+a **reader**, one step later, by accident. An edit that validates what it read is
+the cheap version of that accident.
+
+**2. It would have manufactured a false finding.** Four review and implementer
+lanes were mid-build. A lane that hits ENOSPC sees a **build failure**, and a
+build failure in a review lane reads as *a finding about the diff*. Nothing
+distinguishes "this code does not compile" from "this box could not write the
+object file" unless someone reads the error text closely — and a reviewer just
+told to go hard at a claim is primed to read a red build as confirmation.
+
+*So the rule is not about disk.* **An environmental failure that arrives wearing
+the costume of a result is the same class as §S39's stale documentation**, and
+this track has now hit three in one session: a shallow clone that silently
+disabled `git log -S`, a CI budget lapse that produced runs with no runner, and
+a full disk. Each looked like a fact about the work. **Told to every live lane
+the moment it was fixed** — a lane cannot know the box ran out of space, and only
+the orchestrator can see all of them at once.
+
+### A ruling recorded without its conditions is a different ruling
+
+**#801's style lane, applying C-R11 to the ruling itself.** I gave C-q a ruling
+with six conditions attached, then recorded **C-R22** as a compressed table row
+that kept every approval and dropped every condition. The reviewer read the log —
+as its brief instructed, and as C-R11 requires of a citation — and correctly
+reported that three of the conditions its dispatch named *"are not in C-R22"*.
+They were not. They were in the message.
+
+*This is the register failure at one level down*, and the level matters. The
+earlier four instances were about a document not reaching `main`. This one is
+about **a document reaching `main` with the load-bearing half missing**, which is
+strictly worse: nothing looks absent, so nothing prompts a check. A row that
+records *"approved: A, B, C"* and omits *"on conditions D, E, F"* does not read as
+incomplete — it reads as a ruling.
+
+**Why conditions are not commentary.** An approval with conditions is a
+**conditional** approval; the conditions are what makes it correct. Drop them and
+the row licenses more than was licensed — here, it would have licensed a census
+fix that inherited its own blind spot, which is precisely what condition (d)
+existed to forbid and precisely what the reviewer then had to find by hand.
+
+**Rule taken:** a ruling row carries the conditions of the ruling, or it is not
+the ruling. When a ruling is given in a message and recorded in a table, the
+table is the artefact — **write the row from the message, not from memory of
+what was decided.** C-R22's conditions are restored above.
+
+*And note who caught it.* Not me re-reading my own row, which I had done twice
+while citing it. A reviewer whose brief pointed at the row for authority, and who
+noticed the authority did not cover what the brief claimed it covered.
+
+### The CI message did the work, and a shorter message would have cost a kernel hunt
+
+C-e's closing remark on the montage failure is the operational finding of the
+incident, and it is not the empty commit:
+
+> I only knew the failure was not mine because the job's own message
+> distinguishes **missing cell** from **drift**; a lane that read
+> `M montage-freecad.png` alone would have gone looking in the kernel.
+
+**A render-lane diff is ambiguous by default.** `M <file>` says a rendered image
+changed, which for a body-building kernel is exactly what a real regression looks
+like. What made the call cheap was that the job classifies its own outcome — *a
+cell was not produced* is a **failed or partial pass**, not a re-baseline — so the
+lane could reason about the *category* of the failure without reproducing it.
+
+*The generalisation:* **a check that reports what changed leaves the diagnosis to
+the reader; a check that reports what its change means does the diagnosis once,
+at the place that knows.** The second costs one sentence at authoring time and
+saves every future reader the same investigation. Worth having in mind wherever
+this repo's gates print a diff — it is the same economy as stating a sweep's
+blind spot at the pattern rather than in a report.
+
+*And it composes with the disk incident directly:* both are environmental
+failures wearing the costume of a result, and in both the thing that separated
+them from a real finding was **text written by whoever knew the difference**,
+placed where the confused reader would be.
+
+### #779 closed, and what four rounds bought
+
+Merged `db241875`, verified on `main` rather than taken: `orient.rs` at 805
+lines, rows **C20** and **C25** present, **C1 gone from §D entirely** — all four
+of its members closed — and the false sentence replaced at `orient.rs:584-592` by
+the measured table.
+
+*The unit took four rounds and every one moved something real*, which is worth
+recording against the temptation to read repeated NOT CLEARED as churn:
+
+1. **Round 1** shipped a half-move (leaves relocated, the fixed-chord index
+   stranded) and a false quantifier permanently in a test helper.
+2. **Round 2** — adversarial — built an independent containment oracle sharing
+   only `S(u,v)` with the lane's, agreed on 360 row probes and 800 random points
+   with zero refusals, and **falsified the quantifier by measuring 513 levels**.
+3. **Round 3** — style — found the anti-vacuity assertion with no mutation row
+   and the residue disclosed for the third time.
+4. **Round 4** closed the caps residue rather than disclosing it a fourth time,
+   with mutation **G3** reddening the new rows while leaving #636's elbow row
+   green — the finding executed instead of described.
+
+**The cost is honest and recorded**: the four rows went 0.57 s → 3.48 s, sixfold,
+all of it tier 3 on the helix bodies. A review round that ends in a slower suite
+and a smaller claim is a round that worked.
+
+### Incident — hosted CI is down repo-wide, second budget lapse of the day
+
+**2026-08-20, from ~20:51 UTC.** Every CI run in the repository is failing
+**within two to five seconds**, on every branch, including **`main` itself**:
+run 2324 on `main` at `4af27a42` created 20:59:30 and concluded `failure` at
+20:59:34. Runs 2317–2324 are eight consecutive failures across at least five
+branches (`main`, `smellc/s29-style-followup`, `smellc/s32-surface-jet-api`,
+`smellf/f1-certifiedbounds-gate`, `smelle/d35`, `smelle/row0-recovery`).
+
+**The signature is the one this track already documented**: `runner_id=0`, zero
+steps, ~2 s elapsed, downstream checks skipped. **No runner was allocated.** A
+37-check matrix cannot conclude in four seconds, and it cannot fail identically
+on six unrelated branches — one of which is `main`, whose tree is known good
+because it was green thirty minutes earlier.
+
+**This blocks the track, not just a unit.** Hosted CI is the verification of
+record here. Nothing merges on a run that never ran: **#816** (the #803 style
+follow-up) and **#804** (S32) are both complete and both unverifiable.
+
+*Two things worth keeping.*
+
+**It is the second lapse today**, and the first was diagnosed by the same tell in
+the morning. **A failure mode seen twice should be detectable, not re-diagnosed.**
+Both times the distinguishing evidence was free: elapsed time under five seconds
+and `runner_id=0`. Any lane can be told to check those two fields before reading
+a red check as a finding, and that is cheaper than a lane reasoning its way to it
+from scratch — which is what C-g did, correctly, and what a less careful lane
+would not have.
+
+**And it is the fourth environmental failure this session wearing the costume of
+a result** — after the shallow clone that silently disabled `git log -S`, the
+morning's budget lapse, and the full disk. Every one of them, presented to a
+lane, looks like a fact about the diff. That is now a pattern rather than a run
+of bad luck, and the standing brief should carry it: **before treating any red
+signal as a finding, ask what it would look like if the environment, rather than
+the code, had failed.**
+
+*Reviews continue.* Adversarial and style lanes build locally, so the stall costs
+nothing there — #804's reviews are dispatched into the outage deliberately, so
+that when CI returns the only thing missing is the run.
+
+### The oracle I called "the right shape" tested one direction, and I never asked about the other
+
+**C-R22 rests on a compile oracle, and #801's adversarial lane broke it.** C-q's
+three probes all define `Probe` **downstream** of `geom-core` — a crate that
+depends on the kernel — and all three fail, ending in `E0603 module sealed is
+private`. I read those three escalating errors and wrote that the oracle was
+*"the load-bearing evidence here and the right shape — each one closes a
+different escape route."*
+
+They close three **downstream** escape routes. The reviewer tested **upstream**:
+a new crate holding `pub struct Probe(pub f64)` and its `core::ops` impls, with
+`geom-core` depending on *it* and every kernel-trait impl (`Sealed`, `Real`,
+`Bounds`, `CertifiedEnclosure`, `SpanLocate`, `Decide`) staying in `geom-core` —
+a local trait on a foreign type, which is legal. It builds. 289 tests green.
+Golden traces byte-identical. **No unseal, no new public accessor.**
+
+So *"`Probe` cannot be defined outside `geom-core` at all"* — which shipped in
+the tree and in the record — **is false.**
+
+**What survives is smaller and better.** The `geom-core` traits can be
+implemented nowhere else, so **`impl Decide for Probe` — the actual recorder —
+cannot travel in either direction.** That is 139 of the 258 gated lines. The
+*type* can move upstream; doing so relocates 48 lines of `core::ops` and leaves
+every line C10 is about exactly where it was. **The disposition is unchanged and
+the ground is replaced**: what pins the instrument is not a property of the type,
+it is that the recorder is an impl of a sealed trait.
+
+*Three things generalise, and the first is the one I keep paying for.*
+
+- **A negative result is only as universal as the directions you tried.** Three
+  probes that all fail the same way read as exhaustive precisely *because* they
+  agree; agreement across probes of one shape is not coverage, it is one probe
+  run three times. The escalation from E0277 to E0277 to E0603 made it *look*
+  like a search closing in, which is why neither of us asked what else there was.
+- **C-q's supporting sentence was backwards, and it was load-bearing.** *"A
+  type's impls travel with the type"* carried the 263-vs-96 line argument. Here
+  the `core::ops` impls travel and the kernel-trait impls cannot — the exact
+  inverse. A sentence that sounds like a general rule of the language is the
+  hardest kind to audit, because it does not look like a claim about this tree.
+- **I am the one who should have asked.** The lane built the witness; I ruled on
+  it, cited it in the register, and repeated it to Evan. **An orchestrator
+  approving a negative result owes it one question the lane did not ask** — and
+  "did you try it the other way round" is the cheapest such question there is.
+
+*The fix is not only the sentence.* `seal-oracle.sh` gains the upstream probe, so
+the script records that both directions were tried and what each returned. An
+oracle that tested one direction and read as universal is the same defect as a
+sweep whose blind spot went unstated — and this track already has a rule for
+that, one level over.
+
+### The recording convention has a hazard, and #803 walked into it
+
+**The convention** (Evan, 2026-08-20): a landing unit replaces the finding's
+original problem statement with the record of what was done, because version
+control keeps the original. **The hazard, which nobody had named:** the
+replacement is then **the only in-tree account of a document it may be getting
+wrong**, and the thing it is getting wrong is no longer beside it to check
+against.
+
+#803 hit it exactly. Its §S29 replacement listed `NurbsCellGrid::row_bound` and
+`trimmed::uniform_candidates` as *"unnamed by the finding"*. **Both are named
+verbatim in the original**, along with a third, `per_cell_candidates`, dropped
+entirely. Four entry points were genuinely unnamed, not seven — the correction's
+*direction* stood and its *size* was overstated, which is this session's most
+repeated shape, now committed against a text that had just been deleted.
+
+*Why this is worse than an ordinary miscount.* An overstated claim about live
+code gets falsified by the next reader of that code. An overstated claim about a
+**replaced** text has no such reader: `git show <sha>^1:` is the only witness, and
+nobody runs it unless already suspicious. The convention is right — inline
+originals rot and duplicate — but it **moves the burden of accuracy onto the
+replacing sentence entirely**, and that burden was not stated anywhere.
+
+**Rule taken:** a replacement that characterises the original — *"the finding
+said N"*, *"unnamed by the finding"*, *"the finding claimed X"* — is **quoting a
+document it is deleting**, and must be checked against `^1` before it lands, not
+from memory of having read it. Characterising is the risky verb; simply recording
+what was done carries no such exposure.
+
+*Found by the post-hoc style lane*, which had to read the pre-PR tree anyway to
+do its job — which is also why a review that runs **after** the merge is not
+worthless: it is the only reader positioned to catch this class at all.
 
 ### Reviewers age out of their own tree, twice now — and it is not their error
 
