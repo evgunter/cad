@@ -529,7 +529,10 @@ component-aware E–P form found and corrected in M1 PR 4).**
   f64-structure + T-payload pattern. `Pcurve::Fitted` landed with a
   `PcurveFittedLane` static split (the `PropsQuadLane` shape: `f64`,
   `Probe` and `Interval` derive the certificate, `Dual` refuses typed
-  — a dual carries no bracket). The banked walk-row-2 obligation is
+  — *a dual may not certify*, Wave 0 decision **D1** of
+  `docs/SMELL-SCAN-2026-08.md`, ruled 2026-08-19; the refusal is
+  `CertifiedEnclosure`'s, not `Bounds`', since a dual **does** carry a
+  bracket — the value channel's). The banked walk-row-2 obligation is
   discharged: a cylinder×sphere rung-3 edge reaches a body at rest
   carrying a fitted cache whose full C2 certificate (hull sup-norm +
   uniqueness tube) is RE-DERIVED at rest, at `f64` and at `Interval`;
@@ -1107,15 +1110,36 @@ topology change is stated, not emergent.
   predicate.
 - The kernel never panics on any input: panics are bugs; every failure is
   a typed error. *(Honest M1 footnote: operator debug postconditions
-  are `debug_assert`s, but they are unreachable by input through the
-  public API — raw insertion is crate-internal, and the eleven public
-  mutators all preserve tier 1: the ten Euler operators by the
-  soundness theorem, and `ring_move` — the one public non-operator
-  mutator — by the separating-curve argument documented on the method
+  are `debug_assert`s, and they are unreachable by input through the
+  public API at every door but one — raw insertion is crate-internal,
+  and the public mutation paths preserve tier 1: the Euler operators by
+  the soundness theorem; the non-operator structural mutators
+  (`ring_move`, `split_edge`, `movefac`, `merge_coplanar_faces`) by
+  declaring the same debug postcondition or by being composed of
+  operators that do; and the attach/metadata setters by re-certifying
+  under their own tier-1 assertion or by writing fields tier 1 does not
+  constrain. The claim is that closure property, deliberately not a
+  count of the doors — a frozen count is what rots as doors are added,
+  and `topo`'s
+  `review_m1_pr5_internal::every_public_mutation_path_preserves_tier1`
+  checks it against the real surface. `ring_move` remains the least
+  obvious of the asserting doors, by the separating-curve
+  argument documented on the method
   (a ring on a genus-0 component is a Jordan curve, so cross-component
   moves re-partition into legal pieces; non-separating rings force
-  g ≥ 1). A firing postcondition is therefore a kernel bug by
-  definition. What the kernel then DOES about such a state is the D2
+  g ≥ 1).
+  **The one door outside the property is `instance`'s graft**, which is
+  a raw transplant rather than an operator run: it mints empty
+  destination solids before transplanting, and its own docs state that
+  a refusal raised mid-transplant leaves the destination partially
+  written and *spent, never resumable* — an empty solid being the
+  tier-1 error `SolidWithoutShells`. A caller that discards a graft's
+  `Err` and keeps the body can therefore fire a later operator's
+  postcondition from **API misuse rather than a kernel bug**. That
+  state class is not among the D2 addendum's five and is open as
+  **S14** in `docs/SMELL-SCAN-2026-08.md`; this footnote records the
+  door, not a disposition. Everywhere else a firing postcondition is a
+  kernel bug by definition. What the kernel then DOES about such a state is the D2
   addendum below — which supersedes this footnote's original
   "typed errors where cheaply detectable, or documented garbage-out in
   release". The bounded-traversal half stands: never a hang; every
@@ -1879,7 +1903,10 @@ revision).
   as the poison channel* (`decoration < Def ⇒ Indeterminate(Invalid)` —
   silent domain clamps never decide); `Bounds` certification trait with
   poison-visible NaN brackets for empty AND NaI (failing certification
-  outranks 1788 representational honesty); tight `pown` powi override
+  outranks 1788 representational honesty) — *`Bounds` was split at #643:
+  it now means only "carries a bracket", and the certification half is
+  `CertifiedEnclosure`, which is what D1 (2026-08-19) leaves refusing a
+  `Dual`*; tight `pown` powi override
   (containment of the true value is the interval contract); the sliver
   band is *terminal* for a subdivision driver (an enclosure wholly
   inside (ε, Kε) never refines — escalate as a genuine sliver).

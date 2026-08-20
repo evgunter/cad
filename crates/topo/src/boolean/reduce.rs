@@ -47,7 +47,6 @@
 //! - Sweep order (D9): direction A→B fully, then B→A; edges in arena
 //!   order, faces in arena snapshot order, worklist FIFO.
 
-use geom_brep::OutwardNormal;
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Sign};
 
 use super::boxes;
@@ -237,15 +236,17 @@ pub(super) fn face_source<T: Decide>(
 /// orientation was ever encoded, so on a `sense: false` face the
 /// stored normal points INTO the material, and every consumer reading
 /// a material direction off it would answer backwards. The flip
-/// itself lives in [`face_outward_normal`], which this function is
-/// defined in terms of — one door for the planar boolean consumers
-/// (`sector_face`, `plane_of`, this sweep, the pierce lane, the REST
-/// lane), one flip, so those consumers stay orientation-blind.
+/// itself lives in [`crate::face_normal`], which this function is
+/// defined in terms of — one door for the planar consumers
+/// (`plane_of`, this sweep, the pierce lane, the REST lane, and the
+/// SHARED [`crate::sector_face`] walk, which is why the door sits at
+/// the crate root rather than here), one flip, so those consumers stay
+/// orientation-blind.
 ///
-/// "One door" is true of this module's consumers, not of the
-/// workspace: `solid_contain::face_plane`, `join.rs`'s
-/// `face_plane_normal` and `merge_faces.rs` each carry their own
-/// hand-multiply (smell-scan D6).
+/// "One door" is true of those consumers, not of the workspace:
+/// `solid_contain::face_plane`, `chord_join`'s `face_plane_normal` and
+/// `merge_faces.rs` each carry their own hand-multiply (smell-scan
+/// D6).
 ///
 /// Consumers that only compare the plane RESIDUAL `(p − o)·n̂` against
 /// Zero, or that hand the normal to a ray-parity test, are unaffected
@@ -264,26 +265,16 @@ pub(super) fn face_plane<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Pla
     })
 }
 
-/// The same door, typed: a planar face's outward normal as an
-/// [`OutwardNormal`], which is what the material-side consumers
-/// (`sector_face`, the pierce lane's `side_code`) actually want.
-///
-/// INVARIANT: this is where the planar lane's sense flip lives —
-/// [`face_plane`] is defined in terms of it, so there is one flip, not
-/// two that could drift. `None` for a non-planar face (the caller
-/// falls through to the curved arms).
-pub(super) fn face_outward_normal<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-) -> Option<OutwardNormal<T>> {
-    let f = body.get_face(face)?;
-    match body.get_surface(f.surface) {
-        Some(geom::Surface::Plane { normal, .. }) => {
-            Some(OutwardNormal::from_chart(*normal, f.sense))
-        }
-        _ => None,
-    }
-}
+// The same door, typed: a planar face's outward normal as an
+// [`OutwardNormal`], which is what the material-side consumers want.
+//
+// INVARIANT: there is ONE flip, and since the sector walk became
+// shared it lives at the crate root — [`crate::face_normal`], whose
+// docs carry the argument and the consumer list. This module's four
+// remaining consumers reach it through this re-export, and
+// `face_plane` above is still defined in terms of it, so the invariant
+// is unchanged in substance: one flip, not two that could drift.
+pub(super) use crate::face_normal::face_outward_normal;
 
 /// The recipe source of the face's **oriented plane description** —
 /// the datum [`super::oriented_plane_eq`]'s rung 1 needs, which is NOT

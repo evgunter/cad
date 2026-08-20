@@ -12,7 +12,8 @@
 use geom_core::{Affine3, Band, Decide, Margin, Point2, Point3, Real, Sign, Vec2, Vec3};
 use profile::ValidatedProfile;
 
-use super::{RevolveAxis, RevolveError, SweptKind, SweptSeg, arc_apex, arc_span, decide};
+use super::{RevolveAxis, RevolveError, SweptSeg};
+use crate::swept::{SweptKind, arc_apex, arc_span, decide};
 
 /// The classified axis in both coordinate systems: the sketch-plane
 /// line plus its placed 3-D frame. `a3`/`u3` are the **shared
@@ -130,12 +131,12 @@ pub(super) fn radial_extent<T: Real>(profile: &ValidatedProfile<T>, frame: &Axis
         for s in lp.segments() {
             r_max = r_max.max(frame.r(s.start).abs());
             if let profile::SegmentKind::Arc { center, radius, .. } = s.kind {
-                let apex = apex_of(s.start, s.end, s.bulge);
+                let apex = arc_apex(s.start, s.end, s.bulge);
                 r_max = r_max.max(frame.r(apex).abs());
                 // Arc-interior radial extrema: the carrier points
                 // c ± R·ê_r, each folded in iff on the arc. The arc is
                 // the chord side of sign −bulge (apex side; see
-                // `apex_of`), so with the chord normal
+                // `arc_apex`), so with the chord normal
                 // n = (−chord.y, chord.x) the membership margin is
                 // −bulge·((p − a)·n) ≥ 0.
                 let chord = s.end - s.start;
@@ -149,17 +150,6 @@ pub(super) fn radial_extent<T: Real>(profile: &ValidatedProfile<T>, frame: &Axis
         }
     }
     r_max
-}
-
-/// The arc apex from raw endpoint/bulge data (the same closed form as
-/// [`super::arc_apex`], usable outside swept traversals).
-fn apex_of<T: Real>(a: Point2<T>, b: Point2<T>, bulge: T) -> Point2<T> {
-    let chord = b - a;
-    let len = chord.norm();
-    let u = chord.normalize();
-    let nhat = Vec2::new(T::zero() - u.y, u.x);
-    let mid = a.lerp(b, T::from_f64(0.5));
-    mid - nhat * (len * bulge * T::from_f64(0.5))
 }
 
 /// A vertex's axis-contact class (swept order).
@@ -423,7 +413,7 @@ fn classify_segment<T: Decide>(
                             });
                         }
                     }
-                    let r_apex = frame.r(arc_apex(s));
+                    let r_apex = frame.r(arc_apex(s.a, s.b, s.bulge));
                     match decide("axis_arc_apex", Margin::of(r_apex), band).map_err(escalated)? {
                         Sign::Positive => {}
                         // On or below the axis: tangential/crossing

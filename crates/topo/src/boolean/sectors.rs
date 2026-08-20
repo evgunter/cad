@@ -43,10 +43,10 @@
 use geom_brep::{EntersMaterial, OutwardNormal, enters_material};
 use geom_core::{Band, Decide, Margin, Sign, Vec3};
 
-use super::reduce::face_outward_normal;
 use super::{BooleanError, Operand, SideCode};
 use crate::body::Body;
-use crate::entity::{FaceKey, HalfEdgeKey, VertexKey};
+use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
+use crate::sector_face::{SectorCarrier, SectorFaceError};
 use crate::sector_shape::{SectorShape, sector_shape};
 use crate::validate::decide;
 
@@ -206,75 +206,55 @@ pub(super) fn build_sectors<T: Decide>(
     Ok(sectors)
 }
 
-/// The sector's face + outward normal at the base vertex. Planes take
-/// the stored normal (the M3 path); `Cylinder`/`Sphere` faces (M5
-/// PR 9) take the LOCAL chart normal at the vertex — the same
-/// convention the splitting lane's PR 5 sector machinery established.
-/// Kinds without a wired sector arm refuse typed (C12.1, per arm).
+/// The sector's face + outward normal at the base vertex.
 ///
-/// **Every arm folds in the face's `sense` bit** (S10) by minting an
-/// [`OutwardNormal`]: all three read a chart normal and hand it back
-/// as the face's OUTWARD normal, and the chart is the only encoding
-/// of orientation they have, so the sense bit is authoritative here.
-/// The plane arm gets it through [`face_outward_normal`]; the curved
-/// arms mint in place.
+/// The walk and the normals are [`crate::sector_face`] — ONE
+/// implementation, called from here and from the splitting lane's
+/// sector walk (smell scan S5). What stays here is this lane's
+/// adaptation of it, and only that: the boolean error type, whose
+/// every arm carries the [`Operand`] the shared walk has no notion of.
+/// All three wired arms — `Plane`, `Cylinder`, `Sphere` (M5 PR 9) —
+/// are live on this side; kinds without one refuse typed (C12.1, per
+/// arm).
 ///
-/// This function is the chokepoint for the whole vertex-vertex lane.
-/// Everything downstream of [`BoolSector::normal`] — `within`,
-/// `side_code`, `sector_overlap`, the wideness/bisector algebra above,
-/// `insert::germ_dir`, `vtxfac::pierce_germ_dir` — is then
-/// sense-invariant GIVEN this source, and must not multiply again:
-/// those sites pair the normal with the STORED orbit/loop traversal,
-/// which `revert` flips in the same breath as the sense bit, so a
-/// second factor would cancel the first and re-break what this fixes.
+/// The normal arrives as an [`OutwardNormal`] with the face's `sense`
+/// folded in (S10), minted at the shared chokepoint — which makes that
+/// chokepoint the source for the whole vertex-vertex lane. Everything
+/// downstream of [`BoolSector::normal`] — `within`, `side_code`,
+/// `sector_overlap`, the wideness/bisector algebra above,
+/// `insert::germ_dir`, `vtxfac::pierce_germ_dir` — is sense-invariant
+/// GIVEN this source and must not multiply again: those sites pair the
+/// normal with the STORED orbit/loop traversal, which `revert` flips in
+/// the same breath as the sense bit, so a second factor would cancel
+/// the first and re-break what this fixes.
 pub(super) fn sector_face<T: Decide>(
     body: &Body<T>,
     operand: Operand,
     vertex: VertexKey,
     he: HalfEdgeKey,
 ) -> Result<(FaceKey, OutwardNormal<T>), BooleanError> {
-    let mate = body.mate(he).ok_or_else(|| corrupt(operand, vertex))?;
-    let parent = body
-        .get_half_edge(mate)
-        .ok_or_else(|| corrupt(operand, vertex))?
-        .parent_loop;
-    let face = body
-        .get_loop(parent)
-        .ok_or_else(|| corrupt(operand, vertex))?
-        .face;
-    if let Some(n) = face_outward_normal(body, face) {
-        return Ok((face, n)); // the planar door mints it from chart × sense
-    }
-    let p = *body
-        .get_point(
-            body.get_vertex(vertex)
-                .ok_or_else(|| corrupt(operand, vertex))?
-                .point,
-        )
-        .ok_or_else(|| corrupt(operand, vertex))?;
-    let face_data = body
-        .get_face(face)
-        .ok_or_else(|| corrupt(operand, vertex))?;
-    let sense = face_data.sense;
-    let surface = body
-        .get_surface(face_data.surface)
-        .ok_or_else(|| corrupt(operand, vertex))?;
-    match surface {
-        geom::Surface::Cylinder { origin, axis, .. } => {
-            let w = p - *origin;
-            let radial = w - *axis * w.dot(*axis);
-            Ok((face, OutwardNormal::from_chart(radial.normalize(), sense)))
-        }
-        geom::Surface::Sphere { center, .. } => Ok((
-            face,
-            OutwardNormal::from_chart((p - *center).normalize(), sense),
-        )),
-        s => Err(BooleanError::CurvedBooleanUnsupported {
+    let resolved = crate::sector_face::resolve(body, vertex, he).map_err(|e| match e {
+        // The shared walk names the entity that did not resolve; this
+        // lane's corruption arm carries the operand and a VERTEX, so
+        // the payload is narrowed here the same way the splitting
+        // lane's is — a vertex names itself, anything else falls back
+        // to the base vertex (issue #695).
+        SectorFaceError::Corrupt(EntityId::Vertex(v)) => corrupt(operand, v),
+        SectorFaceError::Corrupt(_) => corrupt(operand, vertex),
+        SectorFaceError::Unsupported { face, kind } => BooleanError::CurvedBooleanUnsupported {
             operand,
             face,
-            kind: geom_brep::SurfaceKind::of(s),
-        }),
+            kind,
+        },
+    })?;
+    // Exhaustive on purpose, exactly as the splitting wrapper is: a
+    // fifth carrier arm added to the shared walk must be a compile
+    // error in BOTH lanes, not silently accepted by the one whose
+    // downstream algebra happens not to read the carrier.
+    match resolved.carrier {
+        SectorCarrier::Plane | SectorCarrier::Cylinder | SectorCarrier::Sphere => {}
     }
+    Ok((resolved.face, resolved.normal))
 }
 
 fn invalid_escalation(band: Band, predicate: &'static str) -> BooleanError {

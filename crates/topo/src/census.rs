@@ -974,8 +974,12 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
                 }
                 match T::chart_overlap(body, fa, body, fb, band) {
                     None => {
-                        // No bracket lane at this scalar (dual): the
-                        // pair cannot be decided — typed, never silent.
+                        // No CERTIFIED lane at this scalar (dual):
+                        // `ChartRegionLane` refuses, so the pair cannot
+                        // be decided here — typed, never silent. (Since
+                        // D1, 2026-08-19, a dual DOES carry a bracket;
+                        // the refusal is the lane's ruling, not a
+                        // missing `Bounds` impl.)
                         errors.push(ValidationError::CensusUnsupported {
                             entity: EntityId::Face(fa),
                         });
@@ -1181,12 +1185,23 @@ fn sweep_cross_solid_backstop<T: Decide>(
     // **`boolean::boxes`'s `FaceBoxRule`/`EdgeBoxRule`, instantiated in
     // this lane's arithmetic.** The rules — which kinds have a cheap
     // sound superset, and by what construction — are read from there;
-    // only the min/max is re-derived, and it must be: `face_box` reads
-    // `[lo(), hi()]` brackets under a per-file `Bounds` allowlist
-    // (geom-core `real.rs`) that this lane is not on and cannot join,
-    // because the census validates `Dual` bodies and `Dual` has no
-    // bracket. An unboxable kind is `None` here and poison there —
-    // refuse without a distance test, versus never prune. Both loud.
+    // only the min/max is re-derived. An unboxable kind is `None` here
+    // and poison there — refuse without a distance test, versus never
+    // prune. Both loud.
+    //
+    // **The reason for the duplication has LAPSED, and its replacement is
+    // weaker.** It used to read: `face_box` reads `[lo(), hi()]` under a
+    // per-file `Bounds` allowlist (geom-core `real.rs`) that this lane is
+    // not on "and cannot join, because the census validates `Dual` bodies
+    // and `Dual` has no bracket". Since the D1 ruling (2026-08-19) `Dual`
+    // HAS a bracket — the value channel's — so that impossibility is
+    // gone. What is left is the discipline rule itself: `census.rs` is
+    // not allowlisted, so writing `T: Decide + Bounds` here fires
+    // `scripts/gates/bounds-allowlist.sh` until the seam is ratified.
+    // That is a process reason, not a type one, and it does not by itself
+    // justify carrying two derivations of the same min/max that can
+    // silently diverge, with no differential row between them. Filed as
+    // issue #700 rather than left as prose in a merged PR body.
     let edge_reach = |ek: crate::entity::EdgeKey| -> Option<(Point3<T>, Point3<T>)> {
         let e = body.edges.get(ek)?;
         let end = |he| -> Option<Point3<T>> {

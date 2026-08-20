@@ -45,9 +45,10 @@ geom-core = { path = "../geom-core" }
 # and `geom_brep::SurfaceKind` is the workspace's ONE fieldless mirror
 # of `Surface` (D3: closed, compiler-enumerated). Reused rather than
 # re-minted — a second mirror is a second thing to keep in step — and
-# `topo` deliberately does not re-export it (pncad `closure.rs`'s
-# "zero kernel edits" ruling), so the honest reach is a direct edge on
-# a crate editor-core already builds against through `sweep`.
+# `topo` deliberately does not re-export it (the "zero kernel edits"
+# ruling, `crates/pncad/src/lib.rs` contract clause 1), so the honest
+# reach is a direct edge on a crate editor-core already builds against
+# through `sweep`.
 geom-brep = { path = "../geom-brep" }
 # M4 PR 3: the naming layer reads face carrier PLANES (side-of
 # discriminators against cutting carriers, N2) from the result body.

@@ -110,9 +110,9 @@ use slotmap::SecondaryMap;
 
 use super::{BooleanError, BooleanReduction, HalfGerm, Operand};
 use crate::body::Body;
+use crate::chord_join::{ChordJoiner, CutOutcome, SplitJoinError};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopKey, VertexKey};
 use crate::null::NullFacePair;
-use crate::splitting::join::{ChordJoiner, CutOutcome, SplitJoinError};
 use crate::validate::decide;
 
 /// One completed section-polygon **pair**: the 2-loop null face in
@@ -329,8 +329,8 @@ pub(super) fn bool_connect<T: Decide>(
         // orientation comes from the joiner's stored winding.
         let ga = surf_of(&red.a, germ.a_face)?;
         let gb = surf_of(&red.b, germ.b_face)?;
+        use crate::chord_join::{JoinLane, SectionCtx, face_azimuth_window};
         use crate::splitting::SplitPlane;
-        use crate::splitting::join::{JoinLane, SectionCtx, face_azimuth_window};
         use geom::Surface as Sf;
         match (&ga, &gb) {
             (Sf::Plane { .. }, Sf::Plane { .. }) => {

@@ -339,7 +339,7 @@ fn face_geo<T: Decide>(
                 .get_surface(f.surface)
                 .cloned()
                 .ok_or(PointInSolidError::CorruptFace { face })?;
-            let az = crate::splitting::join::face_azimuth_window(body, &surf, face, band)
+            let az = crate::chord_join::face_azimuth_window(body, &surf, face, band)
                 .ok()
                 .flatten()
                 .ok_or(PointInSolidError::CorruptFace { face })?;

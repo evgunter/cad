@@ -81,7 +81,15 @@ class ValidationError(PncadError):
     failure_count: int
 
 class DimensionError(PncadError):
-    """A dimension mismatch at the quantity boundary."""
+    """An operator applied to two QUANTITIES whose dimensions do not
+    admit it — `1 * m + 1 * rad`.
+
+    The quantity boundary only, and not the library's only dimension
+    check. The document layer's own refusal type reaches Python
+    through literal construction (as LiteralError) and through `load`,
+    where a save file's ill-dimensioned expression arrives as
+    PersistError with `variant == "parse"` rather than as any
+    dimension class (issue #694)."""
 
     op: str
     left: str
@@ -89,7 +97,14 @@ class DimensionError(PncadError):
 
 class LiteralError(PncadError):
     """A value the expression layer refused (`Expr::literal`'s own
-    curated error). `value` is the offending number."""
+    curated error). `value` is the offending number.
+
+    Not DimensionError, which is the quantity boundary's operator
+    check. The expression layer's refusal type has dimension-mismatch
+    arms too, and `load` does reach them from a hand-edited save file
+    — but they arrive as PersistError with `variant == "parse"`, not
+    here (issue #694). Every `kind` raised on this class is a
+    literal-value refusal."""
 
     kind: str
     value: float
@@ -150,6 +165,15 @@ class FrameError(PncadError):
     `variant` is `degenerate_aim`, `degenerate_tangent`,
     `degenerate_roll_reference`, `degenerate_reference_ladder`,
     `degenerate_mirror_normal`, or `band`."""
+
+    variant: str
+
+class IdentityError(PncadError):
+    """A document identity could not be minted: the OS entropy source
+    refused. Identity is never defaulted — two documents sharing an id
+    are the same part, and a workspace refuses to hold both.
+
+    `variant` is `randomness_unavailable`."""
 
     variant: str
 
@@ -871,7 +895,21 @@ class DocEdit:
 class Doc:
     """A parametric document: the recipe, not the geometry."""
 
-    def __init__(self) -> None: ...
+    def __init__(self, label: Optional[str] = None) -> None:
+        """An empty document.
+
+        `Doc()` mints a FRESH random identity, so two documents
+        authored here are two parts and one workspace holds both.
+        `Doc(label)` derives the id from the label instead — same
+        label, same id, on every platform, which makes it the
+        reproducible spelling and, deliberately, the one that makes
+        two same-label documents the SAME part. Raises IdentityError
+        if the OS entropy source refuses."""
+    @property
+    def id(self) -> str:
+        """This document's identity as 32 lowercase hex digits — the
+        save file's `id:` header, and the workspace store's key.
+        Identity survives every edit; it is not a content hash."""
     def apply(self, edit: DocEdit) -> Optional[NodeId]: ...
     def insert(self, node: Node) -> NodeId: ...
     def declare(self, finding: FlushFinding) -> NodeId:
