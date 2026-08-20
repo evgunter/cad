@@ -576,7 +576,7 @@ serialized here and each lane re-merges `origin/main` when one lands.
 | **E-b** | D23 | `smelle/d23` | **#763** | fix pass complete — **D45 withdrawn**, a guard taken, final count 59/17/9. Awaiting its run |
 | **E-d** | D33 | `smelle/d33` | **#761** | **MERGED 2026-08-20.** Placed D46, D51, D57; handed D56 back |
 | **E-e** | D28 + #693 | `smelle/d28` | **#767** | **MERGED 2026-08-20** — 37/37 finished, 0 failed. Census 12 arms not 8; placed D54, D81 |
-| **E-h** | D21 | `smelle/d21` | **#773** | reported — census **17**, not 14; all 17 discharged and **all 17 inverted live**. Placed D88. Owes a re-merge after #767 |
+| **E-h** | D21 | `smelle/d21` | **#773** | **style lane NOT CLEARED** — 8 MAJOR; adversarial lane running. Placed D88, D89 |
 
 **E-g dispatched 2026-08-20** (`smelle/d27-d29`), D27 then D29 — one lane
 because both edit `sweep/src/fillet/`, and D27 first because its newtype may
@@ -1287,6 +1287,63 @@ to unwire. The `CITING_FILES` mechanism I pointed at became **D84**.
 recorded in the row. A register this active produces stale pointers faster than
 a lane can write them, which is the argument for citing by **symbol and reason**
 rather than by path wherever a row can.
+
+### #773 (E-h / D21) — style lane, 2026-08-20: **not cleared**, and the reading is the finding
+
+The conversions are good work and the arithmetic is honest — the reviewer
+**re-derived 14 + 3 independently and it holds**, every one a genuine discard,
+none wrong. What did not survive is the unit's own deliverable: **the reading**.
+
+**Its boundary is a scope sentence, which is the defect D21 exists to close.**
+Pass 1 reads *"over `crates/topo/src`"*; **pass 2 went workspace-wide over
+`crates/*/src`** — so the crate clause is a convenience for one spelling and the
+class for another. And there is a receipt on the other side of it:
+`step-import/src/normalize.rs:737` silently discards a mutation-phase write **on
+a key resolved by an infallible panicking index five lines above**, nine lines
+apart, two dispositions, one loop — with a fifteen-line comment immediately above
+defending that very write as load-bearing for bit-identical round-trip.
+
+*That is D21's own thesis executed against D21.* The row's complaint was that a
+scope sentence, not the class, drew W2c's boundary. The fix drew a new one.
+
+**Seven more, and three are the same shape one level in:**
+
+- **`euler.rs:24`'s replacement asserts a universal the PR knowingly falsifies.**
+  It widened *"at every write"* to **crate-wide**, naming the non-operator
+  structural mutators — while placing `merge_faces.rs`'s discard as **D88**
+  rather than converting it, and `merge_coplanar_faces` is one of those mutators
+  by the PR's own argument. The old sentence asserted a universal on three
+  modules' evidence; the fix widened the universal and made it false.
+- **The instrument's justification, corrected once, is still false.** It claims
+  `set_face_surface` has *"no error-path row at all"* and there is *"no stale-key
+  row anywhere"*. `topo/tests/review_m2_pr3.rs:332-337` **is** a
+  `set_face_surface` error-path row on a stale key, asserting the typed refusal
+  **and** a body-untouched snapshot — the exact pair the new rows call
+  unprecedented. *It moved the claim without running the grep that would have
+  settled it.*
+- **Six structurally identical siblings sit at row 1 in a file with two converted
+  sites.** `boolean/combine.rs` has 48 `.ok_or_else(corrupt)?`, six keyed by a
+  `dk` minted by the same call's mint pass — all provable under #720's standard.
+  The reading's classification clause makes them invisible, so **the scope hazard
+  migrated from a path boundary to a classification boundary.**
+
+**And one is row 0, four lines away in the same function.** `revert.rs:215`
+iterates `self.edges` to harvest keys and looks each one up again in `out`; the
+unrepresentable form is `out.edges.iter_mut()`, **which `revert.rs:227` and
+`:234` already use** for the surface and face arenas. The PR added an
+`unreachable!` and then a probe row defending a fact the restructure would make
+unstatable. The per-arena-token rejection is a good argument about *tokens* and
+does not reach *restructuring*, which is what Evan's row 0 asks.
+
+**Also: `8d80e2bb` deletes five checked-in proptest regression seeds**, three
+carrying hand-written diagnoses, unmentioned in the PR body — in a PR about not
+discarding things silently.
+
+**Two corrections to the dispatcher, both accepted.** *"14 + 3"* is honest and I
+was right to carry it. And **S68's problem statement must be left alone**: the
+`S`-series `Verdict:` line is Evan's by convention and S-findings keep their
+bodies — unlike D-rows, whose recording convention demands the problem statement
+be removed. I had the two conventions blurred; leaving S68 untouched was correct.
 
 ---
 
