@@ -61,13 +61,22 @@ impl DocParam {
 
     /// Bit-semantic equality (spec D7): continuous values compare by
     /// BITS (`0.0` ≠ `-0.0` here), everything else structurally.
+    ///
+    /// EXHAUSTIVE on purpose, on BOTH sides of the pair: the mismatched
+    /// pairs are spelled out rather than swept up, so a future
+    /// `DocParam` variant must say how it compares here or the compile
+    /// breaks. A wildcard would have answered `false` for a new variant
+    /// against ITSELF — two equal parameters reported as differing,
+    /// through [`Doc::bit_eq`] and `diff.rs`, which is D7's replay
+    /// identity and the document diff reading the same wrong answer.
     pub fn bit_eq(&self, other: &DocParam) -> bool {
         match (self, other) {
             (Self::Continuous { dim: da, value: va }, Self::Continuous { dim: db, value: vb }) => {
                 da == db && va.to_bits() == vb.to_bits()
             }
             (Self::Count { value: a }, Self::Count { value: b }) => a == b,
-            _ => false,
+            (Self::Continuous { .. }, Self::Count { .. })
+            | (Self::Count { .. }, Self::Continuous { .. }) => false,
         }
     }
 }

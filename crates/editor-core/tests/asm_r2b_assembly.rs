@@ -1,6 +1,6 @@
 //! **ASM-R2b acceptance** — declaration minting and the assembly
-//! at-rest gate (docs/ASM-R2B-SPEC.md rows 1–5 and 7;
-//! ASSEMBLY-DESIGN A3/A4/A5/A13 clause 4).
+//! at-rest gate (acceptance rows 1–5 and 7; ASSEMBLY-DESIGN
+//! A3/A4/A5/A13 clause 4).
 //!
 //! One assertion per acceptance row, each comment stating the
 //! INVARIANT the row pins rather than the mechanics it exercises.
