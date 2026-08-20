@@ -141,6 +141,18 @@ running it **once, outside the loop** is both cheaper and a truer statement of
 what it checks. A lane that drops it into the loop because that is where the
 other invocations are has paid 3× for a claim that is not per-ε.
 
+**DISCHARGED by Evan, 2026-08-20**, on the measurement above: *"ok yeah k lint
+is consistently shorter, sounds like there's no worry about test time then."*
+So **the cost condition on F-R5 is settled and is no longer a gate on F-h.**
+The lane does not owe a re-measurement, and it does not owe the `#[ignore]`
+fallback: `cut_cylinder_replays_at_probe` gets run.
+
+**What survives the discharge, and why it is not a cost argument.** Run it
+**once, outside the ε loop.** That is now a *truthfulness* point rather than a
+budget one: the test asserts a bit-identical replay, not a margin distribution,
+so sweeping it per ε would state a per-ε claim the test does not make. It would
+also have been 3× the cost, but that is no longer the reason.
+
 **Two honesty conditions on those numbers.** They are **one sample**, and job
 durations move with runner and cache state — F-h states which run each number
 came from (`memories/perf-measurement-lane.md`) and re-takes them if `main` has

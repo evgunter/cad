@@ -171,7 +171,6 @@ superseded for Track C by this table.
 | **C-l** | **C7 + S33** — the lane-trait collapse, `RingInterval`, the scalar ladders | `geom-core/`, and W2b's 535 refs across 15 files | **discharged** (#682 merged) | **style only, provisionally** — see C-R12; expect to split into 2–3 lanes, and the sub-lane that rewrites `Dual` arithmetic rather than re-spelling it gets promoted to adversarial |
 | **C-m** | **S27** — `props/quad.rs`'s four quadrature engines | `geom-brep/src/props/quad.rs` | **STILL GATED** — A2 / #649, open as **#714** | **adversarial** + style |
 | **C-n** | **H17** — the rustdoc spec-code remainder, ~1115 lines / 130 files | per crate: `topo` 300, `editor-core` 267, `geom-brep` 192, `geom-core` 107, `sweep` 64, rest < 70 | **deliberately last** — it touches 130 files and would conflict with every open lane | style, per crate batch |
-| **C-o** | **H16** — the STL header is not caller-settable | `stl/` | none | style; design PR, waits for sign-off (**C-R1**) |
 | **C-q** | **C10** — `geom_core::k_stats`, S30's class one crate over | `geom-core/src/k_stats.rs`, and `profile::k_stats`'s shim (S40) | none | **adversarial** + style — the recording sits *inside* three load-bearing kernel predicate doors, so #709's split does not transfer mechanically |
 
 **Not taken by Track C:** C6's rows (blocked on other programmes — OnArc
