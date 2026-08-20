@@ -26,13 +26,18 @@
 //! "Or garbage bodies" is NOT. The addendum's rule is **silent discard is
 //! never an answer**, and it explicitly supersedes the footnote's original
 //! "typed errors where cheaply detectable, or documented garbage-out in
-//! release". The ~60 silent discards in `euler{,_ring,_kill}.rs` that
-//! produce those garbage bodies are now a known deviation pending **W2c**,
-//! not a ratified disposition. So
-//! `foreign_parent_loop_garbage_in_garbage_out_release` below documents
-//! what the kernel currently DOES, not what it is entitled to do, and W2c
-//! is expected to change its meaning or retire it. Its independent value
-//! until then is that it is the file's only
+//! release". W2c executed that rule across `euler{,_ring,_kill}.rs`: no
+//! mutation phase there discards a failed lookup any more.
+//!
+//! **That did not retire the row below, and the reason is the row's whole
+//! point.** `foreign_parent_loop_garbage_in_garbage_out_release` corrupts
+//! `parent_loop` to a key that is *live but wrong*, so no lookup fails —
+//! every write lands, on the wrong topology. The garbage it observes is
+//! wrong data, never a swallowed failure, and it is the residue the
+//! addendum leaves standing: corruption a plan phase cannot observe still
+//! yields `Ok` plus a body the validator refuses. The row therefore still
+//! documents what the kernel DOES rather than what it is entitled to do.
+//! Its other value is that it is the file's only
 //! `#[cfg(not(debug_assertions))]` item, so it is the one thing here that
 //! a debug-only CI could not even type-check.
 
@@ -172,8 +177,9 @@ fn large_torn_body_terminates_quickly() {
 /// Foreign-parent-loop corruption that PASSES every precondition: the op
 /// completes and returns Ok, producing a garbage body. This RECORDS
 /// current behaviour rather than blessing it -- the D2 addendum retired
-/// the garbage-out half of the contract and W2c converts the discards
-/// that cause it (see the module docs). In DEBUG builds the postcondition
+/// the garbage-out half of the contract. **No discard is involved**: the
+/// planted `parent_loop` is live but wrong, so every lookup succeeds and
+/// writes the wrong topology (see the module docs). In DEBUG builds the postcondition
 /// assert fires instead -- which contradicts the module doc's claim that
 /// a firing postcondition is "never an input failure". Kept release-only
 /// here, which also makes it the file's only item a debug-only CI cannot
