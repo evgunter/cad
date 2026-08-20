@@ -99,4 +99,3 @@ pub(super) fn strut_spec<T: Real>(
         param_end: theta.abs(),
     }
 }
-

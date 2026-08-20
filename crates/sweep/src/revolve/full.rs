@@ -275,13 +275,13 @@ fn build_wire<T: Decide>(
     let axis_c = turn_axis(Sign::Positive, frame.a3);
     let mut pair = vec![false; k];
     for i in 1..k {
-        pair[i] = cosurface(&segs[wseg(i - 1)], &segs[wseg(i)], WALL_COSURFACE, band).map_err(|source| {
-            RevolveError::CosurfaceEscalated {
+        pair[i] = cosurface(&segs[wseg(i - 1)], &segs[wseg(i)], WALL_COSURFACE, band).map_err(
+            |source| RevolveError::CosurfaceEscalated {
                 loop_index: 0,
                 vertex_index: segs[wseg(i)].canonical_vertex,
                 source,
-            }
-        })?;
+            },
+        )?;
     }
     let mut struts: Vec<Option<topo::MevCreated>> = vec![None];
     for i in 1..k {

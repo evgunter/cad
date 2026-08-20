@@ -17,8 +17,8 @@ use geom_core::{Affine3, Band, Decide, Point3, Sign};
 use topo::{Body, EdgeKey, FaceKey, FaceSurface, MefSite, MevSite};
 
 use super::axis::{AxisFrame, LoopClasses, WallClass};
-use super::surfaces::{strut_spec, wall_surface};
 use super::chain::build_chain;
+use super::surfaces::{strut_spec, wall_surface};
 use super::upgrade::upgrade_intersection;
 use super::{RevolveError, Revolved, RevolvedKind, SweptSeg, WALL_COSURFACE};
 use crate::swept::{cap_points, cosurface, face_surface_key, placed_segment_spec, turn_axis};

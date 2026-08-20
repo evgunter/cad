@@ -750,13 +750,15 @@ fn sweep_loop<T: Decide>(
     let mut pair = Vec::with_capacity(n);
     for j in 0..n {
         let prev = &segs[(j + n - 1) % n];
-        pair.push(cosurface(prev, &segs[j], SIDE_COSURFACE, band).map_err(|source| {
-            ExtrudeError::CosurfaceEscalated {
-                loop_index,
-                vertex_index: segs[j].canonical_vertex,
-                source,
-            }
-        })?);
+        pair.push(
+            cosurface(prev, &segs[j], SIDE_COSURFACE, band).map_err(|source| {
+                ExtrudeError::CosurfaceEscalated {
+                    loop_index,
+                    vertex_index: segs[j].canonical_vertex,
+                    source,
+                }
+            })?,
+        );
     }
 
     // Struts: one raised vertex per loop vertex, in traversal order.
