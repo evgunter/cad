@@ -368,4 +368,85 @@ mod tests {
         let err = apply_rule_b(VertexKey::default(), &mut e).unwrap_err();
         assert!(matches!(err, SplitReduceError::ConsecutiveOnSectors { .. }));
     }
+
+    // ============ §H14: the lever arm may not be under-claimed ============
+
+    /// **An unbounded face has no lever arm.** `mvfs` seeds a face
+    /// whose OUTER loop is a lone vertex, so the face's locus is the
+    /// whole carrier: no finite distance over-estimates the
+    /// displacement an angular error induces across it. `face_extent`
+    /// used to walk past that loop and answer `0`, which is the
+    /// under-claiming direction — a zero arm makes every angular
+    /// residual decide `Zero`, i.e. coplanar.
+    ///
+    /// The zero answer was loud at ONE caller by accident (`apply_rule_a`
+    /// gates on `split_sector_extent` being definitely positive) and
+    /// silent at the other two, in `chord_join`, which pass the extent
+    /// straight into `section_case`. The refusal is at the source.
+    #[test]
+    fn an_unbounded_face_has_no_lever_arm() {
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(geom_core::Point3::new(0.0, 0.0, 0.0)).unwrap();
+        assert!(matches!(
+            body.get_loop(seed.r#loop).unwrap().boundary,
+            crate::entity::LoopBoundary::Empty { .. }
+        ));
+        assert!(
+            matches!(
+                face_extent(&body, seed.vertex, seed.face),
+                Err(SplitReduceError::CorruptOperand { .. })
+            ),
+            "an empty OUTER loop refuses; it must not answer zero"
+        );
+    }
+
+    /// **An isolated RING vertex is boundary, so it contributes.** The
+    /// same `continue` also walked past a lone-vertex ring, whose
+    /// vertex is a real point of the face's boundary and can be the
+    /// farthest one. Planted on the cube's seed face, at the corner
+    /// diagonally opposite the base vertex, it is strictly farther
+    /// than every vertex of that face's own cycle — so the row is not
+    /// vacuous, and it asserts that gap rather than just the maximum.
+    #[test]
+    fn an_isolated_ring_vertex_contributes_its_distance() {
+        let mut cube = crate::fixtures::ops_cube();
+        // The BOTTOM face, whose own cycle stops at the far bottom
+        // corner; the seed (top) face already reaches the body's
+        // farthest vertex, which would make the row vacuous.
+        let face = cube.mefs[0].face;
+        let base = cube.seed.vertex;
+        let before = face_extent(&cube.body, base, face).unwrap();
+        // The farthest vertex in the whole body from `base`.
+        let p_base = *cube
+            .body
+            .get_point(cube.body.get_vertex(base).unwrap().point)
+            .unwrap();
+        let (far, far_d) = cube
+            .body
+            .vertices()
+            .map(|(k, v)| {
+                let p = *cube.body.get_point(v.point).unwrap();
+                (k, (p - p_base).norm())
+            })
+            .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
+            .unwrap();
+        assert!(
+            far_d > before,
+            "the fixture's precondition: the planted vertex must be farther \
+             than the face's own cycle ({far_d} vs {before})"
+        );
+        let ring = cube.body.add_loop(
+            crate::entity::Loop {
+                boundary: crate::entity::LoopBoundary::Empty { vertex: far },
+                face,
+            },
+            crate::provenance::Provenance::Primordial { op: "h14-row" },
+        );
+        cube.body.get_face_mut(face).unwrap().rings.push(ring);
+        let after = face_extent(&cube.body, base, face).unwrap();
+        assert!(
+            (after - far_d).abs() < 1e-12,
+            "the ring's lone vertex sets the arm: {after} vs {far_d}"
+        );
+    }
 }
