@@ -3599,8 +3599,8 @@ infinite-speed blind spot, which the cell budget is what actually
 catches. The one that matters beyond the count is the **chart lane's
 containment test**: before that PR, `UvRect::contained_in` returning
 `true` for every cell — the accounting pass claiming to have proved
-cells it never touched — left 161 of `geom-brep`'s 162 rows green, while
-the ℝ³ twin was guarded by five. #633 had examined that cell and argued
+cells it never touched — left 252 of `geom-brep`'s 253 rows green, while
+the ℝ³ twin was guarded by six. #633 had examined that cell and argued
 it should stay unwritten; the argument priced the shared floor arm and
 not the containment test underneath it. Two doors are recorded there
 rather than closed, both unreachable from the public doors as they
