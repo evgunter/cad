@@ -33,9 +33,10 @@ use topo::{Body, EdgeKey, FaceKey, FaceSurface, MefSite, MekrSite, MevSite};
 
 use super::axis::{AxisFrame, AxisRun, LoopClasses};
 use super::partial::{he_edge, sweep_loop};
-use super::surfaces::{chain_spec, cosurface, strut_spec, wall_surface};
-use super::upgrade::{face_surface_key, upgrade_intersection, upgrade_meridian_seam};
-use super::{RevolveError, Revolved, RevolvedKind, SweptSeg};
+use super::surfaces::{strut_spec, wall_surface};
+use super::upgrade::{upgrade_intersection, upgrade_meridian_seam};
+use super::{RevolveError, Revolved, RevolvedKind, SweptSeg, WALL_COSURFACE};
+use crate::swept::{cosurface, face_surface_key, placed_segment_spec, turn_axis};
 
 /// Builds the full solid of revolution (file docs). `theta` is +2π
 /// (the module-doc convention; the sweep traverses reversed chains).
@@ -81,7 +82,7 @@ fn build_lamina<T: Decide>(
             r#loop: seed.r#loop,
         },
         qs[1 % n],
-        chain_spec(&segs[0], place, frame.n3, qs[0], qs[1 % n]),
+        placed_segment_spec(&segs[0], place, frame.n3, qs[0], qs[1 % n]),
     )?;
     hes.push(first.he_plus);
     let mut prev = first;
@@ -92,7 +93,7 @@ fn build_lamina<T: Decide>(
                 he2: prev.he_minus,
             },
             qs[j],
-            chain_spec(&segs[j - 1], place, frame.n3, qs[j - 1], qs[j]),
+            placed_segment_spec(&segs[j - 1], place, frame.n3, qs[j - 1], qs[j]),
         )?;
         hes.push(m.he_plus);
         prev = m;
@@ -102,7 +103,7 @@ fn build_lamina<T: Decide>(
             he1: prev.he_minus,
             he2: first.he_plus,
         },
-        chain_spec(&segs[n - 1], place, frame.n3, qs[n - 1], qs[0]),
+        placed_segment_spec(&segs[n - 1], place, frame.n3, qs[n - 1], qs[0]),
         FaceSurface::New(Surface::nurbs_placeholder()),
     )?;
     hes.push(close.he_plus);
@@ -111,7 +112,7 @@ fn build_lamina<T: Decide>(
     // ---- Phase 2: the one-band sweep (the generic pinned-aware sweep
     // with nothing pinned; rotated copies at the original coordinates
     // and the original placement — full period is the identity). ----
-    let axis_c = super::turn_axis(Sign::Positive, frame.a3);
+    let axis_c = turn_axis(Sign::Positive, frame.a3);
     let swept = sweep_loop(
         &mut body, 0, segs, cls, &hes, &qs, &qs, frame, theta, axis_c, place, frame.n3, band,
     )?;
@@ -265,7 +266,7 @@ fn build_wire<T: Decide>(
             r#loop: seed.r#loop,
         },
         qw[1],
-        chain_spec(&segs[wseg(0)], place, frame.n3, qw[0], qw[1]),
+        placed_segment_spec(&segs[wseg(0)], place, frame.n3, qw[0], qw[1]),
     )?;
     hes.push(first.he_plus);
     let mut prev = first;
@@ -276,7 +277,7 @@ fn build_wire<T: Decide>(
                 he2: prev.he_minus,
             },
             qw[i + 1],
-            chain_spec(&segs[wseg(i)], place, frame.n3, qw[i], qw[i + 1]),
+            placed_segment_spec(&segs[wseg(i)], place, frame.n3, qw[i], qw[i + 1]),
         )?;
         hes.push(m.he_plus);
         prev = m;
@@ -291,10 +292,10 @@ fn build_wire<T: Decide>(
     // half-period rims at interior vertices; walls carry the FULL
     // revolution surfaces; the mef edges are the angle-π meridian
     // copies). Cosurface pairs precomputed; no wrap on an open chain.
-    let axis_c = super::turn_axis(Sign::Positive, frame.a3);
+    let axis_c = turn_axis(Sign::Positive, frame.a3);
     let mut pair = vec![false; k];
     for i in 1..k {
-        pair[i] = cosurface(&segs[wseg(i - 1)], &segs[wseg(i)], band).map_err(|source| {
+        pair[i] = cosurface(&segs[wseg(i - 1)], &segs[wseg(i)], WALL_COSURFACE, band).map_err(|source| {
             RevolveError::CosurfaceEscalated {
                 loop_index: 0,
                 vertex_index: segs[wseg(i)].canonical_vertex,
@@ -352,7 +353,7 @@ fn build_wire<T: Decide>(
         };
         let mef = body.mef(
             MefSite::Chords { he1, he2 },
-            chain_spec(&segs[wseg(i)], place_pi, n_pi, qpi[i], qpi[i + 1]),
+            placed_segment_spec(&segs[wseg(i)], place_pi, n_pi, qpi[i], qpi[i + 1]),
             surface,
         )?;
         // The honest orientation bit (M5 S11) — see

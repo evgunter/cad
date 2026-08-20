@@ -103,6 +103,16 @@ use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point2, Real, Si
 use profile::ValidatedProfile;
 use topo::{Body, EdgeKey, EulerOpError, FaceKey, ShellKey, SolidKey, VertexKey};
 
+use crate::swept::{SweptChord, SweptKind, decide};
+
+/// The predicate names a revolve's cosurface decision reports under
+/// (the revolution walls: planes, cylinders and cones from lines,
+/// spheres and tori from arcs).
+pub(super) const WALL_COSURFACE: crate::swept::CosurfaceNames = crate::swept::CosurfaceNames {
+    lines: "wall_lines_cosurface",
+    arcs: "wall_arcs_cosurface",
+};
+
 /// The revolve axis: a line in **sketch coordinates** (module docs).
 /// The profile must lie in the closed half-plane `r ≥ 0`, where `r` is
 /// the signed radial coordinate `(p − origin).perp_dot(dir/|dir|)`.
@@ -502,39 +512,12 @@ impl From<EulerOpError> for RevolveError {
     }
 }
 
-/// The one classification funnel of this module (the `geom-brep`
-/// pattern): delegates to the unified recorder funnel
-/// [`geom_core::k_stats::decide`] (M2 PR 7) — predicate names feed the
-/// margin-telemetry recorder on every decision.
-pub(super) fn decide<T: Decide>(
-    name: &'static str,
-    margin: Margin<T>,
-    band: Band,
-) -> Result<Sign, Indeterminate> {
-    geom_core::k_stats::decide(name, margin, band)
-}
-
-/// A segment's carrier class in swept traversal order — the mirror of
-/// `extrude`'s `SweptKind` (kept module-local: the two sweeps share the
-/// shape but not yet a common home; unify when a third sweep or a
-/// shared lowering layer gives the shape an owner — deliberately left
-/// module-local by M2 PR 7, whose funnel unification was the K
-/// recorder, not this enum).
-#[derive(Clone, Copy, Debug)]
-pub(super) enum SweptKind<T: Real> {
-    Line,
-    Arc {
-        center: Point2<T>,
-        radius: T,
-        /// Turn sense in swept traversal; never `Zero` (upstream
-        /// classification; a `Zero` would take the `Positive` arm).
-        turn: Sign,
-    },
-}
-
 /// One segment of a swept loop in swept traversal order (canonical, or
 /// reversed for θ > 0 — module docs), with canonical indices for error
-/// reporting. Mirror of `extrude`'s `SweptSeg`.
+/// reporting. A revolve's wall orientation is decided per wall class
+/// (`axis::WallKind`), not per segment, so no orientation bit rides
+/// here; the shared lowering reads this through
+/// [`crate::swept::SweptChord`].
 #[derive(Clone, Copy, Debug)]
 pub(super) struct SweptSeg<T: Real> {
     /// Start point, sketch coordinates; swept vertex `j` is segment
@@ -553,8 +536,7 @@ pub(super) struct SweptSeg<T: Real> {
 
 /// Builds the swept traversal of one canonical loop: forward, or
 /// reversed via the profile crate's reversal involution (endpoints
-/// swapped, bulge negated, turn flipped). Mirror of `extrude`'s
-/// `swept_segments`.
+/// swapped, bulge negated, turn flipped).
 pub(super) fn swept_segments<T: Decide>(
     lp: &profile::ValidatedLoop<T>,
     reverse: bool,
@@ -602,50 +584,19 @@ pub(super) fn swept_segments<T: Decide>(
     out
 }
 
-impl<T: Real> SweptSeg<T> {
-    /// The segment as a `geom-brep` sketch segment (the description's
-    /// authoritative source data).
-    pub(super) fn sketch_segment(&self) -> geom_brep::SketchSegment<T> {
-        match self.kind {
-            SweptKind::Line => geom_brep::SketchSegment::Line {
-                a: self.a,
-                b: self.b,
-            },
-            SweptKind::Arc { .. } => geom_brep::SketchSegment::Arc {
-                a: self.a,
-                b: self.b,
-                bulge: self.bulge,
-            },
-        }
+impl<T: Real> SweptChord<T> for SweptSeg<T> {
+    fn a(&self) -> Point2<T> {
+        self.a
     }
-}
-
-/// The arc parameter span θ = 4·atan|bulge| (the sanctioned bulge
-/// re-inspection — never endpoint `atan2`; extrude's convention).
-pub(super) fn arc_span<T: Real>(bulge: T) -> T {
-    T::from_f64(4.0) * bulge.abs().atan()
-}
-
-/// The turn-signed carrier axis: `+normal` for a counterclockwise
-/// segment, `−normal` for a clockwise one (extrude's convention; `Zero`
-/// unreachable, kept total on the positive arm).
-pub(super) fn turn_axis<T: Real>(turn: Sign, normal: geom_core::Vec3<T>) -> geom_core::Vec3<T> {
-    match turn {
-        Sign::Positive | Sign::Zero => normal,
-        Sign::Negative => geom_core::Vec3::zero() - normal,
+    fn b(&self) -> Point2<T> {
+        self.b
     }
-}
-
-/// The arc apex (exact sagitta closed form: `midpoint − n̂·(L·b/2)`,
-/// n̂ the left normal of the chord direction) — an on-carrier interior
-/// point of the segment. Mirror of `extrude`'s `arc_apex`.
-pub(super) fn arc_apex<T: Real>(s: &SweptSeg<T>) -> Point2<T> {
-    let chord = s.b - s.a;
-    let len = chord.norm();
-    let u = chord.normalize();
-    let nhat = Vec2::new(T::zero() - u.y, u.x);
-    let mid = s.a.lerp(s.b, T::from_f64(0.5));
-    mid - nhat * (len * s.bulge * T::from_f64(0.5))
+    fn bulge(&self) -> T {
+        self.bulge
+    }
+    fn kind(&self) -> SweptKind<T> {
+        self.kind
+    }
 }
 
 /// Revolves a validated profile about an in-sketch-plane axis into a

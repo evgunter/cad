@@ -33,7 +33,8 @@ use geom_core::{
 };
 
 use super::axis::AxisFrame;
-use super::{RevolveAxis, RevolveError, Revolved, SweptKind, SweptSeg, full, partial};
+use super::{RevolveAxis, RevolveError, Revolved, SweptSeg, full, partial};
+use crate::swept::SweptKind;
 
 /// The traversed window of the spine arc.
 #[derive(Clone, Copy, Debug)]

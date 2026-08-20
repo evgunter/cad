@@ -65,7 +65,8 @@ use topo::{
     PcurveMintError, ShellKey, SolidKey,
 };
 
-use crate::extrude::{SweptSeg, cap_points, face_surface_key, rim_spec, swept_segments};
+use crate::extrude::{SweptSeg, swept_segments};
+use crate::swept::{cap_points, face_surface_key, placed_segment_spec};
 use crate::skin::{LoftGeometry, Section, SkinError, lift_surface, loft_geometry, sweep_places};
 
 /// Everything [`loft_body`]/[`sweep_body`] built, keyed — the
@@ -353,7 +354,7 @@ fn assemble<T: Decide>(
             r#loop: seed.r#loop,
         },
         qs[1 % n],
-        rim_spec(&outer[0], bplace, n_bottom, qs[0], qs[1 % n]),
+        placed_segment_spec(&outer[0], bplace, n_bottom, qs[0], qs[1 % n]),
     )?;
     hes.push(first.he_plus);
     let mut prev = first;
@@ -364,7 +365,7 @@ fn assemble<T: Decide>(
                 he2: prev.he_minus,
             },
             qs[j],
-            rim_spec(&outer[j - 1], bplace, n_bottom, qs[j - 1], qs[j]),
+            placed_segment_spec(&outer[j - 1], bplace, n_bottom, qs[j - 1], qs[j]),
         )?;
         hes.push(m.he_plus);
         prev = m;
@@ -383,7 +384,7 @@ fn assemble<T: Decide>(
             he1: prev.he_minus,
             he2: first.he_plus,
         },
-        rim_spec(&outer[n - 1], bplace, n_bottom, qs[n - 1], qs[0]),
+        placed_segment_spec(&outer[n - 1], bplace, n_bottom, qs[n - 1], qs[0]),
         FaceSurface::New(bottom_plane),
     )?;
     hes.push(close.he_plus);
@@ -416,7 +417,7 @@ fn assemble<T: Decide>(
         let first = body.mev(
             MevSite::Lone { r#loop: ring },
             hq[1 % m],
-            rim_spec(&segs[0], bplace, n_bottom, hq[0], hq[1 % m]),
+            placed_segment_spec(&segs[0], bplace, n_bottom, hq[0], hq[1 % m]),
         )?;
         hole_hes.push(first.he_plus);
         let mut prev = first;
@@ -427,7 +428,7 @@ fn assemble<T: Decide>(
                     he2: prev.he_minus,
                 },
                 hq[j],
-                rim_spec(&segs[j - 1], bplace, n_bottom, hq[j - 1], hq[j]),
+                placed_segment_spec(&segs[j - 1], bplace, n_bottom, hq[j - 1], hq[j]),
             )?;
             hole_hes.push(mv.he_plus);
             prev = mv;
@@ -437,7 +438,7 @@ fn assemble<T: Decide>(
                 he1: prev.he_minus,
                 he2: first.he_plus,
             },
-            rim_spec(&segs[m - 1], bplace, n_bottom, hq[m - 1], hq[0]),
+            placed_segment_spec(&segs[m - 1], bplace, n_bottom, hq[m - 1], hq[0]),
             FaceSurface::Shared(bottom_surface),
         )?;
         hole_hes.push(close.he_plus);
@@ -481,7 +482,7 @@ fn assemble<T: Decide>(
                     he1: struts[j].he_minus,
                     he2,
                 },
-                rim_spec(&tsegs[j], tplace, n_top, top_q_from, top_q_to),
+                placed_segment_spec(&tsegs[j], tplace, n_top, top_q_from, top_q_to),
                 FaceSurface::New(Surface::Nurbs(Arc::clone(&walls_t[li][j]))),
             )?;
             if j == 0 {

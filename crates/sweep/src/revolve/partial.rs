@@ -17,9 +17,10 @@ use geom_core::{Affine3, Band, Decide, Point3, Sign};
 use topo::{Body, EdgeKey, FaceKey, FaceSurface, MefSite, MevSite};
 
 use super::axis::{AxisFrame, LoopClasses, WallClass};
-use super::surfaces::{cap_points, chain_spec, cosurface, strut_spec, wall_surface};
-use super::upgrade::{face_surface_key, upgrade_intersection};
-use super::{RevolveError, Revolved, RevolvedKind, SweptSeg};
+use super::surfaces::{strut_spec, wall_surface};
+use super::upgrade::upgrade_intersection;
+use super::{RevolveError, Revolved, RevolvedKind, SweptSeg, WALL_COSURFACE};
+use crate::swept::{cap_points, cosurface, face_surface_key, placed_segment_spec, turn_axis};
 
 /// Builds the wedge solid (file docs). `reverse` is the already-decided
 /// sign class of θ (`true` ⇔ θ definitely positive — module docs'
@@ -37,7 +38,7 @@ pub(super) fn build_partial<T: Decide>(
     let rot = Affine3::rotation_about_axis(frame.o3, frame.a3, theta);
     let place_end = rot * place;
     let n_end = rot.linear * frame.n3;
-    let axis_c = super::turn_axis(
+    let axis_c = turn_axis(
         if reverse {
             Sign::Positive
         } else {
@@ -82,7 +83,7 @@ pub(super) fn build_partial<T: Decide>(
             r#loop: seed.r#loop,
         },
         qs[1 % n],
-        chain_spec(&outer[0], place, frame.n3, qs[0], qs[1 % n]),
+        placed_segment_spec(&outer[0], place, frame.n3, qs[0], qs[1 % n]),
     )?;
     hes.push(first.he_plus);
     // The start chain's vertex per swept position (position j is the
@@ -98,7 +99,7 @@ pub(super) fn build_partial<T: Decide>(
                 he2: prev.he_minus,
             },
             qs[j],
-            chain_spec(&outer[j - 1], place, frame.n3, qs[j - 1], qs[j]),
+            placed_segment_spec(&outer[j - 1], place, frame.n3, qs[j - 1], qs[j]),
         )?;
         hes.push(m.he_plus);
         chain_verts.push(m.vertex);
@@ -121,7 +122,7 @@ pub(super) fn build_partial<T: Decide>(
             he1: prev.he_minus,
             he2: first.he_plus,
         },
-        chain_spec(&outer[n - 1], place, frame.n3, qs[n - 1], qs[0]),
+        placed_segment_spec(&outer[n - 1], place, frame.n3, qs[n - 1], qs[0]),
         FaceSurface::New(start_plane),
     )?;
     hes.push(close.he_plus);
@@ -152,7 +153,7 @@ pub(super) fn build_partial<T: Decide>(
         let first = body.mev(
             MevSite::Lone { r#loop: ring },
             hq[1 % m],
-            chain_spec(&segs[0], place, frame.n3, hq[0], hq[1 % m]),
+            placed_segment_spec(&segs[0], place, frame.n3, hq[0], hq[1 % m]),
         )?;
         hole_hes.push(first.he_plus);
         // Recorded for EVERY loop, holes included, though a validated
@@ -171,7 +172,7 @@ pub(super) fn build_partial<T: Decide>(
                     he2: prev.he_minus,
                 },
                 hq[j],
-                chain_spec(&segs[j - 1], place, frame.n3, hq[j - 1], hq[j]),
+                placed_segment_spec(&segs[j - 1], place, frame.n3, hq[j - 1], hq[j]),
             )?;
             hole_hes.push(mv.he_plus);
             hole_verts.push(mv.vertex);
@@ -182,7 +183,7 @@ pub(super) fn build_partial<T: Decide>(
                 he1: prev.he_minus,
                 he2: first.he_plus,
             },
-            chain_spec(&segs[m - 1], place, frame.n3, hq[m - 1], hq[0]),
+            placed_segment_spec(&segs[m - 1], place, frame.n3, hq[m - 1], hq[0]),
             FaceSurface::Shared(start_surface),
         )?;
         hole_hes.push(close.he_plus);
@@ -393,7 +394,7 @@ pub(super) fn sweep_loop<T: Decide>(
         let p = (j + n - 1) % n;
         let linked = walled[p]
             && walled[j]
-            && cosurface(&segs[p], &segs[j], band).map_err(|source| {
+            && cosurface(&segs[p], &segs[j], WALL_COSURFACE, band).map_err(|source| {
                 RevolveError::CosurfaceEscalated {
                     loop_index,
                     vertex_index: segs[j].canonical_vertex,
@@ -474,7 +475,7 @@ pub(super) fn sweep_loop<T: Decide>(
         };
         let mef = body.mef(
             MefSite::Chords { he1, he2 },
-            chain_spec(&segs[j], place_end, n_end, rq[j], rq[next]),
+            placed_segment_spec(&segs[j], place_end, n_end, rq[j], rq[next]),
             surface,
         )?;
         if j == 0 {
