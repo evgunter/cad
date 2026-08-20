@@ -516,6 +516,39 @@ is: diagnose against `main`, then wait for a real reason to push — a re-merge
 when `main` next moves, which a long-running branch owes anyway. Waiting is not
 inaction here; it is the only honest trigger.
 
+### E-R8 — a row on another track's TABLE is not a handoff (2026-08-20)
+
+**D86 blocked Track E's #784 for hours while both tracks believed the other
+owned it.** Track E found it, could not fix it (`scripts/` is Track F's), and
+placed it on **Track F's table** in the shared register as BLOCKING — #794,
+merged. Track F's lane F-f then read #794 and wrote into #798's body that *"the
+script itself is Track E's (#794 open)"*, concluding the opposite ownership.
+Nobody scheduled it.
+
+**The mechanism: `docs/SMELL-F-LOG.md` has zero mentions of D86.** Each track's
+orchestrator works from its own log; the register is where rows *live*, not
+where a track *looks* for its work. So a row written onto another track's table
+lands in a document that track reads for reference and not for assignment —
+**visible, durable, correct, and unread.**
+
+**This is E-R5 one level over.** E-R5: a row is not placed until it is on
+`main`. E-R8: **being on `main` is not being received.** Placement makes a row
+true; a handoff needs an *addressee*, and the addressee is the other track's
+log or its orchestrator, never the register alone. Where the receiving track's
+session is unreachable — as Track F's is from here — the handoff is not
+complete until a human routes it, and **the honest state until then is
+"unrouted", not "handed off"**.
+
+**And it compounded**: F-f's lane read the placement PR and derived ownership
+from it, which was reasonable — #794 *is* Track E's PR, and a docs-only PR that
+places a row looks exactly like a docs-only PR that fixes one. **A placement and
+a fix are indistinguishable from the outside of a merged docs PR**, so a
+placement should say, in the row itself, who is expected to act.
+
+Evan ruled Track E takes D86 (lane **E-o**), crossing into `scripts/` with the
+crossing stated, after both `SMELL-F-LOG.md` and `SMELL-G-LOG.md` were checked
+for a claim on the file and neither had one.
+
 ### E-R7 — a green PR does not absorb new work at merge time (2026-08-20)
 
 **E-l found twelve copies of one build-cost measurement across the
@@ -677,7 +710,7 @@ serialized here and each lane re-merges `origin/main` when one lands.
 | **E-e** | D28 + #693 | `smelle/d28` | **#767** | **MERGED 2026-08-20** — 37/37 finished, 0 failed. Census 12 arms not 8; placed D54, D81 |
 | **E-h** | D21 | `smelle/d21` | **#773** | **style lane NOT CLEARED** — 8 MAJOR; adversarial lane running. Placed D88, D89 |
 | **E-k** | D35 | `smelle/d35` | **#809** | **complete, stacked on #817.** Closes on **(d) — no gate**. **103** sites, 7 crates; **76 are one state** (answered *no* by #755), **13 row-0 candidates** → **D96** (written as its own finding), 3 messages fixed. Found **#777 never reached `main`** → **#817**, which merges first |
-| **E-l** | #681 | `smelle/681` | **#810** | **reported, green on `dc78a98f` by the run's own conclusion.** 7 of 9 surfaces swept, 2 declared; 24 claims, **1 unguarded (#807, Track F's surface)**; #808 handed off per E-R7; `memories/` raised as a tenth surface for Evan. Merges after #763 |
+| **E-l** | #681 | `smelle/681` | **#810** | **MERGED 2026-08-20.** 7 of 9 surfaces swept, 2 declared; 24 claims → 7 guarded, 2 scheduled, 13 unguardable-with-reason, **1 unguarded (#807)**. #808 stands free now that #763 is in; `memories/` raised as a tenth surface |
 
 **E-g dispatched 2026-08-20** (`smelle/d27-d29`), D27 then D29 — one lane
 because both edit `sweep/src/fillet/`, and D27 first because its newtype may
