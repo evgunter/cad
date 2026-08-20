@@ -2,18 +2,17 @@
 """The demo scene manifest, read in one place.
 
 `<outdir>/scenes.json` is hand-rolled by the tour and by the wild
-generator and consumed by everything that draws a render: the
-matplotlib renderer, the FreeCAD renderer, the montage composer and
-`render.sh`'s scene lister. Reading it was open-coded once per
-consumer, which is what let `transparency` and `montage` acquire two
-independent defaults each, and the `view.up` convention two
-independent implementations facing opposite ways. The walk, the field
-names and the camera convention live here.
+generator, and everything that draws a render walks it: the matplotlib
+renderer, the FreeCAD renderer, the montage composer and `render.sh`'s
+scene lister. **They walk it through here.** A second walk is a second
+opinion about what a missing field means, and a second copy of the
+`up` convention is two maps facing opposite ways with nothing
+comparing them — neither shows up as a crash.
 
-There is no schema and no validation layer, deliberately. The
-producers stay hand-rolled JSON, and a schema could not have caught
-either duplication above: it declares that `up` is `"y"` or `"z"` and
-says nothing whatever about the transform that meaning implies.
+There is no schema and no validation layer, deliberately: the
+producers stay hand-rolled JSON. A schema would not help with either
+hazard above — it declares that `up` is `"y"` or `"z"` and says
+nothing whatever about the transform that meaning implies.
 
 Scope is `scenes.json`. The UV lane's `uv.json` has exactly one reader
 (`compose_uv_montage.py`) and its walk stays there; a second home for
