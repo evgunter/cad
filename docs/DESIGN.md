@@ -1166,56 +1166,11 @@ announced, not swallowed.
 
 | # | State class | Mechanism |
 |---|---|---|
-| **0** | **Can this state be made unrepresentable?** — asked of every state, before the rows below | **change the type.** Preferred over every row below whenever it is available |
 | 1 | Reachable by input, **invalid** | typed error |
 | 2 | Reachable by input, **valid but unbuilt** | typed `Unsupported*` error |
 | 3 | **Value-domain degeneracy** | poison — NaN / empty |
 | 4 | **Kernel bug**, observable in a branch | `unreachable!` |
 | 5 | **Kernel bug**, detectable only by re-derivation | `debug_assert` |
-
-**Row 0 (ratified 2026-08-20, Evan's sign-off; raised by D27).
-Representability comes before classification.** Rows 1–5 classify a
-state that exists. Row 0 asks whether it should exist at all, and it is
-answered **first**, before the classification begins. **When the answer
-is yes, that is the answer** — not one disposition among six, but the
-preferred one wherever it is available: a state that cannot be spelled
-needs no error variant, no `Display` arm, no recourse row, no test
-seed, and no row of this table.
-
-*It is a question, not a class, which is why it is row 0 and not row
-6.* It adds no bucket and renumbers nothing. What it adds is a step to
-the procedure: **a lane that files a state under any row owes the
-reason row 0 did not apply**, and a lane that reaches row 1 has already
-answered row 0. Without that step the procedure has no place for *"this
-state should not exist"* to be the answer, so a state fitting no row
-reads as a gap in the taxonomy — which is exactly how
-`FilletError::EmptyChain` came to sit under a row whose definition it
-failed, and how a sixth row came to look like the fix.
-
-*What "if possible" excludes, because a preference that outranks the
-alternatives is otherwise a licence.* Row 0 is answered against the
-cost of the type change, and the two ends of that scale are both in the
-tree:
-
-- **`EmptyChain` — yes.** The emptiness was an artefact of `Chain`
-  holding its links in a `Vec` when the walk mints every chain from a
-  seed link. Moving the first link into its own private field deleted
-  the state, both its refusal sites and the pin guarding it: **a
-  private field and a constructor signature, no public API change**
-  (D27, PR #768).
-- **`Live`'s generative brand — no, and it was already answered.**
-  Making a stale certificate unrepresentable needs a brand lifetime on
-  `Body`, which infects every signature in the workspace that names a
-  body, the public API included. #755 weighed exactly that and rejected
-  it, before row 0 existed — which is the evidence that this rule
-  describes what careful lanes already do rather than inventing an
-  obligation. **Row 0 must be able to say no out loud, and that is the
-  precedent for where the line falls.**
-
-So: yes when the change is local to the type and its constructors; no
-when it propagates into signatures that do not otherwise care. A "no"
-is a complete answer and is recorded as the reason a row below applies,
-not as a defeat.
 
 *Row 4's message convention stays prose, and D35 is the decision not to
 gate it (PR #809, 2026-08-20).* The shape the conversion passes applied
@@ -1366,10 +1321,9 @@ locally provable (the emptiness was a property of the verdict handed
 in), so it was neither row 1 nor row 4, and it sat under row 1 failing
 that row's own definition. It is no longer representable: `Chain` holds
 its first link in its own private field, `walk_chains` mints it from
-the seed link it already had, and the variant is deleted. **Rows 1–5
-stand unamended** — nothing was added to the classification and nothing
-in it was reclassified; what this case produced is **row 0** above, the
-question that comes before them. The same unit retired the front-door invariants
+the seed link it already had, and the variant is deleted. **The five
+rows stand unamended** — nothing was added to the taxonomy and nothing
+in it was reclassified. The same unit retired the front-door invariants
 the surgery was carrying as prose: `crates/sweep/src/fillet/admit.rs`
 mints one value per admitted clause, and the helpers that used to
 re-refuse a state their caller had already excluded now take the value
@@ -1377,28 +1331,11 @@ and have no branch to write. **Nothing there became an `unreachable!`**
 — each refusal moved to the door that decides it rather than becoming a
 panic.
 
-*This is row 0's first application, and row 0 is the rule it produced.*
-The disposition above is not special-cased to the fillet: it is what
-row 0 says to do, and it is written into the table rather than left as
-a story about one variant.
-
-**What row 0 changes about S14, and what it deliberately does not.**
-S14 asks whether the no-panic principle should be amended for a state
-`topo::instance`'s graft genuinely produces — a mid-transplant refusal
-leaving `dst` partially written, spent, and tier-1-invalid, which a
-caller may keep. Under row 0 the first question about that state is no
-longer *which row does it fall under* but **can
-`graft_disjoint_all_keyed` be restructured so that a partially-written
-destination is not representable?** — staging into a fresh body and
-committing on success, which is the shape `merge_coplanar_faces`
-already uses in this crate (`merge_faces.rs:468`, `let mut work =
-self.clone()`, under its own *"Never a partial commit: each sub-stage
-is tier-2-gated before adoption"*) and the shape D27 used. **That
-reframes S14; it does not answer it.** Whether the restructuring is
-affordable is precisely the "if possible" judgement above, and
-**S14 stays open and stays Evan's** — #740 left 46 lookup sites typed
-rather than converted because it is open, so anything that moves S14
-moves them.
+*This paragraph records what happened to one state and claims nothing
+beyond it.* Whether "can the type stop representing it?" is the
+question to ask FIRST at the next site of this shape is a ruling about
+how this addendum is applied, it bears on **S14**, and it is not
+settled here; it is open for Evan's sign-off in its own PR.
 
 *The `crates/topo` sites outside W2c's three modules are done* (D21,
 PR #773) — **the sites, not the class**, and the difference is the
