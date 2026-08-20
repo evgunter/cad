@@ -21,14 +21,18 @@
 //! claim — a reordering of decisions shows up even when the multiset is
 //! preserved — so the rows are NOT sorted.
 //!
-//! **NOT run by CI, and not a gate.** `#![cfg(feature = "probe")]`
-//! means the default rows do not even type-check this file, and nothing
-//! in `.github/workflows/` runs `cargo test -p topo --features probe`
-//! (the K sweep runs `-p editor-core --features probe`). So this is a
-//! reproducible HAND-RUN artifact: it can bit-rot green, and a claim
-//! that leans on it must say so. `tests/probe_census.rs` and
-//! `tests/probe_f34_review.rs` are in the same position — a class, not
-//! this suite's peculiarity. The standing gate over the same telemetry
+//! **TYPE-CHECKED by CI, but not run, and not a gate.** CI's `k-lint`
+//! job has a step named *"type-check every probe-gated test target"*
+//! (`scripts/gates/probe-suite-census.sh` derives the crate set; the
+//! step `cargo check`s each one `--features probe --all-targets`), so
+//! this file can no longer rot into a build error unnoticed. That step
+//! name is grepped for by the census gate, so this sentence cannot go
+//! quietly false. Nothing
+//! *executes* it: `cargo test -p topo --features probe` appears in no
+//! workflow, and the rows here are not asserted anywhere. So it stays a
+//! reproducible HAND-RUN artifact whose recorded stream can drift, and
+//! a claim that leans on it must still say so. `tests/probe_census.rs`
+//! is in the same position. The standing gate over the same telemetry
 //! is CI's `k-lint`, which runs `scripts/k_probe_sweep.sh` at three ε.
 //!
 //! The fixtures are chosen to drive BOTH lanes: two boolean subtracts

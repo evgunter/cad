@@ -164,11 +164,12 @@ impl<T: Decide> RaySpace<T> for Point2<T> {
 /// names per consumer are the point: see the module docs.
 ///
 /// **These name literals are the greppable K roster entry for the
-/// walk.** `K-REPORT.md`'s inventory method greps `decide("` for
-/// predicate names; a name passed as a parameter is invisible to it,
-/// so the report's method names this type explicitly as the one
-/// place in the workspace where row names live in a table instead.
-/// A new `ParityRows` value is a roster change and belongs there.
+/// walk.** A name passed as a parameter is invisible to a grep for a
+/// literal at the funnel site, so this type is named explicitly in
+/// `K-REPORT.md`'s inventory method. It is one of several such
+/// carriers, not the only one — the restated method there enumerates
+/// the classes and their measured residue. A new `ParityRows` value is
+/// a roster change and belongs in that document.
 pub(crate) struct ParityRows {
     /// A segment's own length — the degeneracy gate. Zero ⇒ the
     /// segment is null scaffolding and the point distance is measured

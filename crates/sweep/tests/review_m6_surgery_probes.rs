@@ -519,5 +519,10 @@ fn p8_duplicate_edge_refuses() {
     let mut req = box_edges.clone();
     req.push(box_edges[0]);
     let err = fillet_edges(&pipped, &req, DIE_R, band()).expect_err("duplicate edge");
-    assert!(format!("{err}").contains("repeats an edge"), "{err}");
+    // The refusal names the repeated key, not just the situation: the
+    // caller can act on it without re-deriving which edge doubled.
+    assert!(
+        matches!(err, sweep::fillet::FilletError::RepeatedEdge { edge } if edge == box_edges[0]),
+        "{err}"
+    );
 }

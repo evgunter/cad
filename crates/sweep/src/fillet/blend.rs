@@ -81,17 +81,6 @@ pub enum BlendArm {
     PlaneSphereTorus,
 }
 
-impl BlendArm {
-    /// The arm's name, for refusal text and report rows.
-    #[must_use]
-    pub fn name(self) -> &'static str {
-        match self {
-            Self::PlanePlaneCylinder => "plane–plane → cylinder",
-            Self::PlaneSphereTorus => "plane–sphere → torus",
-        }
-    }
-}
-
 /// The unit component of `x` orthogonal to the unit direction `a` —
 /// the seam reference every chart below takes from real geometry the
 /// caller already stored (a support's own `u_ref`, a corner normal),
@@ -290,24 +279,5 @@ pub fn corner_ball<T: Real>(
         },
         center: c,
         independence: det.abs(),
-    }
-}
-
-/// The contact circle between the corner ball and one incident edge
-/// cylinder: centred at the ball centre, of radius `r`, in the plane
-/// through the centre normal to the cylinder axis (the ball centre
-/// lies on that axis, so the circle is the ball's equator there).
-#[must_use]
-pub fn corner_contact_circle<T: Real>(
-    ball: &CornerBall<T>,
-    axis: Vec3<T>,
-    radius: T,
-    u_ref: Vec3<T>,
-) -> Curve3<T> {
-    Curve3::Circle {
-        center: ball.center,
-        axis,
-        radius,
-        u_ref,
     }
 }
