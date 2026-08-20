@@ -132,7 +132,6 @@ fn trace_branch() -> Option<ssi::SsiBranch> {
         center: Point3::new(0.0, 0.0, 0.0),
         half_extent: 1.5,
         extent: 2.0,
-        eps: Tolerance::get().eps,
         floor_scale: 1.0,
     };
     match ssi::cylinder_sphere_ssi(

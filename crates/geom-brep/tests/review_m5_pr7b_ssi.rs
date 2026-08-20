@@ -6,7 +6,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_brep::ssi::{self, SsiDomain, SsiError, SsiOperand};
+use geom_brep::ssi::{self, MarchTol, SsiDomain, SsiError, SsiOperand};
 use geom_core::spline::KnotVector;
 use geom_core::spline::compose::ComposeError;
 use geom_core::{Band, Point3, Tolerance, Vec3};
@@ -53,22 +53,25 @@ fn cutting_plane() -> Surface<f64> {
     }
 }
 
-fn wall_domain_at(e: f64) -> SsiDomain {
+fn wall_domain() -> SsiDomain {
     SsiDomain {
         center: Point3::new(0.5, 0.0, 0.4),
         half_extent: 2.0,
         extent: 1.5,
-        eps: e,
         floor_scale: 1.0,
     }
 }
 
 /// The dense-scan max of |S(P(t)) − C(t)| for a traced pair, plus the
 /// argmax parameter.
+/// `e` is the **generator's** step tolerance, not the run's: this door
+/// returns no certificate, which is the whole reason a decoupled
+/// [`MarchTol`] can be built for it at all.
 fn trace_deviation(w: &NurbsSurface<f64>, e: f64, samples: u32) -> Option<(f64, f64)> {
     let p = cutting_plane();
+    let tol = MarchTol::decoupled(e).expect("a positive finite march tolerance");
     let (carrier, _pa, pb) =
-        match ssi::trace_plane_nurbs_uncertified(&p, w, (0.5, 0.5), wall_domain_at(e), band()) {
+        match ssi::trace_plane_nurbs_uncertified(&p, w, (0.5, 0.5), wall_domain(), tol, band()) {
             Ok(t) => t,
             Err(SsiError::FitSampleBudget { .. }) => return None,
             Err(err) => panic!("trace: {err}"),
@@ -270,13 +273,18 @@ fn deviation1_and_3_domain_mismatch_refuses_typed_with_the_recourse() {
     // certifying to refusing.
     let w = nurbs_wall();
     let p = cutting_plane();
-    let (carrier, _pa, pb) =
-        match ssi::trace_plane_nurbs_uncertified(&p, &w, (0.5, 0.5), wall_domain_at(eps()), band())
-        {
-            Ok(t) => t,
-            Err(SsiError::FitSampleBudget { .. }) => return,
-            Err(err) => panic!("trace: {err}"),
-        };
+    let (carrier, _pa, pb) = match ssi::trace_plane_nurbs_uncertified(
+        &p,
+        &w,
+        (0.5, 0.5),
+        wall_domain(),
+        MarchTol::of(band()),
+        band(),
+    ) {
+        Ok(t) => t,
+        Err(SsiError::FitSampleBudget { .. }) => return,
+        Err(err) => panic!("trace: {err}"),
+    };
     let knots: Vec<f64> = pb.knots().knots().iter().map(|k| k * 2.0).collect();
     let stretched = KnotVector::clamped(knots, pb.knots().degree()).unwrap();
     let bad =
@@ -289,7 +297,6 @@ fn deviation1_and_3_domain_mismatch_refuses_typed_with_the_recourse() {
         &SsiOperand::Nurbs(&w),
         1.5,
         1.5,
-        eps(),
         band(),
     )
     .expect_err("a domain-mismatched pcurve cannot certify");
@@ -325,7 +332,7 @@ fn retirement_breadth_a_multicell_wall_is_served_or_refuses_loudly() {
         control.push(Point3::new(x, y, 0.8));
     }
     let w = NurbsSurface::new(ku, kv, control, vec![1.0; 10]).unwrap();
-    match ssi::plane_nurbs_ssi(&cutting_plane(), &w, wall_domain_at(eps()), band()) {
+    match ssi::plane_nurbs_ssi(&cutting_plane(), &w, wall_domain(), band()) {
         Ok(out) => {
             let sup = out.branches[0].certificate.hull_sup;
             eprintln!("[review] multi-cell wall CERTIFIED, hull_sup {sup:.3e}");

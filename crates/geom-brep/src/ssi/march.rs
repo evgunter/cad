@@ -111,6 +111,65 @@ use crate::dihedral::decide;
 use super::SsiError;
 use super::system::LocalSystem;
 
+/// The **candidate generator's** step tolerance, in meters.
+///
+/// The marcher is deliberately untrusted: it runs in `f64`, it makes no
+/// trilean decision, and every number it produces is re-derived by the
+/// certificate through the run's [`Band`] before anything is claimed.
+/// [`SSI_NEWTON_TOL`] and [`SSI_STEP_DEVIATION`] scale this value into
+/// that generator's convergence tolerance and between-sample deviation
+/// budget.
+///
+/// It is a distinct type — not a bare `f64` beside the `Band` — because
+/// the two are the *same quantity* on every door that certifies, and a
+/// second `f64` copy of the run tolerance is exactly the shape that
+/// lets a caller march at one tolerance and certify at another. There
+/// is no `From<f64>`: a caller either derives it from the run band
+/// ([`MarchTol::of`]) or names the decoupling out loud
+/// ([`MarchTol::decoupled`]).
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
+pub struct MarchTol(f64);
+
+impl MarchTol {
+    /// The generator's tolerance derived from the run's band — the run
+    /// tolerance ε itself, since a linear [`Band`]'s `zero()` **is** ε.
+    ///
+    /// This is the only constructor a certifying door may use, which is
+    /// what ties the marcher's spacing, the accounting floor and the
+    /// certificate's floors to one number.
+    #[must_use]
+    pub fn of(band: Band) -> Self {
+        Self(band.zero())
+    }
+
+    /// A generator tolerance **deliberately decoupled** from the run
+    /// band, for a door that returns no certificate.
+    ///
+    /// The only legitimate use is measuring the marcher against itself
+    /// — how the fitted pair's deviation scales as the generator is
+    /// tightened, independently of the ambient tolerance the run is
+    /// banded at. Nothing built from one may reach a certificate: the
+    /// certifying doors do not accept a `MarchTol` at all, they derive
+    /// their own from the band.
+    ///
+    /// # Errors
+    ///
+    /// [`SsiError::InvalidMarchTol`] when `meters` is not finite and
+    /// strictly positive — a typed refusal, never a silent clamp.
+    pub fn decoupled(meters: f64) -> Result<Self, SsiError> {
+        if !(meters.is_finite() && meters > 0.0) {
+            return Err(SsiError::InvalidMarchTol { value: meters });
+        }
+        Ok(Self(meters))
+    }
+
+    /// The tolerance in meters — the `f64` the untrusted lane consumes.
+    #[must_use]
+    pub fn meters(self) -> f64 {
+        self.0
+    }
+}
+
 /// Fixed Newton-refinement cap per step (D9 — never data-dependent).
 pub const SSI_NEWTON_ITERS: usize = 8;
 
@@ -226,8 +285,9 @@ pub struct MarchContext<const N: usize> {
     /// The caller's named feature extent, in meters — the lever arm of
     /// last resort and the scale of the step clamps.
     pub extent: f64,
-    /// The run's tolerance (ε), in meters.
-    pub eps: f64,
+    /// The candidate generator's step tolerance. Derived from the run
+    /// band on every certifying door — see [`MarchTol`].
+    pub tol: MarchTol,
     /// Step budget.
     pub max_steps: usize,
 }
@@ -268,7 +328,7 @@ pub(crate) fn march<const M: usize, const N: usize, S>(
 where
     S: LocalSystem<M, N> + TransversalityData<N>,
 {
-    let mut x = newton_refine(sys, seed, ctx.eps)
+    let mut x = newton_refine(sys, seed, ctx.tol.meters())
         .ok_or(SsiError::SeedRefinementFailed { mode: mode.name() })?;
     let seed_state = x;
     let mut states = vec![x];
@@ -399,7 +459,7 @@ where
                     // behind it. Same value to within an ulp, but the
                     // D9 promise ("libm-only, bit-replayable") is only
                     // true of the sqrt route.
-                    ((24.0 * SSI_STEP_DEVIATION * ctx.eps) / (kappa3d * kappa3d * kappa3d))
+                    ((24.0 * SSI_STEP_DEVIATION * ctx.tol.meters()) / (kappa3d * kappa3d * kappa3d))
                         .sqrt()
                         .sqrt()
                         / speed
@@ -434,7 +494,7 @@ where
         }
 
         // ---- 6. Newton refinement to the surface pair ----
-        let Some(refined) = newton_refine(sys, next, ctx.eps) else {
+        let Some(refined) = newton_refine(sys, next, ctx.tol.meters()) else {
             // A step that will not settle is a step into nothing: end
             // the branch honestly rather than record a bad sample.
             return Err(SsiError::SeedRefinementFailed { mode: mode.name() });
@@ -707,7 +767,7 @@ fn push_boundary<const M: usize, const N: usize, S>(
         for (i, v) in t.iter_mut().enumerate() {
             *v = inside[i] + (outside[i] - inside[i]) * m;
         }
-        match newton_refine(sys, t, ctx.eps) {
+        match newton_refine(sys, t, ctx.tol.meters()) {
             Some(r) if within(&r, &ctx.domain) => {
                 lo = m;
                 best = Some(r);

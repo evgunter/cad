@@ -1020,9 +1020,6 @@ fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
     // D4 ¶1's lever arm of last resort, and it is exactly the scale a
     // uniqueness tube around this carrier can hope to reach.
     let arm = carrier_diameter(carrier);
-    // The band IS built from ε (`Band::linear`), so its zero threshold
-    // is the run tolerance the ladder's floor is stated in.
-    let eps = band.zero();
     crate::ssi::certify_rung3(
         carrier,
         Some(image),
@@ -1030,7 +1027,6 @@ fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
         &operand(surface),
         arm,
         geom_core::Bounds::hi(arm),
-        eps,
         band,
     )
     .map(Some)

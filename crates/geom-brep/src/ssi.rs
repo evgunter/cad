@@ -129,7 +129,7 @@ use geom_surfaces::{NurbsSurface, Surface};
 pub use certify::{SSI_CERT_SPANS, SSI_TUBE_RADIUS, SsiCertificate, SsiLimb};
 pub use exhaust::{Exhaustiveness, SSI_FLOOR, SSI_MAX_CELLS, SSI_SEED_FLOOR};
 pub use march::{
-    BranchEnd, SSI_IDEALIZED_STEP, SSI_NEWTON_ITERS, SSI_NEWTON_TOL, SSI_STEP_DEVIATION,
+    BranchEnd, MarchTol, SSI_IDEALIZED_STEP, SSI_NEWTON_ITERS, SSI_NEWTON_TOL, SSI_STEP_DEVIATION,
     SSI_STEP_MAX, StepperMode,
 };
 
@@ -317,6 +317,11 @@ pub enum SsiError {
     Escalated(Indeterminate),
     /// Band construction refused.
     Band(geom_core::BandError),
+    /// A decoupled marcher step tolerance was not a usable length.
+    InvalidMarchTol {
+        /// The offending value, in meters.
+        value: f64,
+    },
 }
 
 impl From<FitError> for SsiError {
@@ -429,6 +434,11 @@ impl core::fmt::Display for SsiError {
                  operand pair at this tolerance: {diag}"
             ),
             Self::Band(e) => write!(f, "ssi: {e}"),
+            Self::InvalidMarchTol { value } => write!(
+                f,
+                "ssi: the marcher's step tolerance {value:e} m is not a usable length \
+                 (finite and > 0); derive it from the run band with `MarchTol::of`"
+            ),
         }
     }
 }
@@ -484,8 +494,6 @@ pub struct SsiDomain {
     /// The caller's named feature extent — the lever arm of last
     /// resort (D4 ¶1), in meters.
     pub extent: f64,
-    /// The run's tolerance, in meters.
-    pub eps: f64,
     /// Multiplier on [`SSI_FLOOR`] for the **accounting** floor only
     /// (seeding is unaffected — see [`SsiDomain::seed_floor`]). `1.0`
     /// is the standard floor; the acceptance suite raises it far above
@@ -503,8 +511,13 @@ impl SsiDomain {
     }
 
     /// The accounting floor, in meters.
-    fn floor(&self) -> f64 {
-        SSI_FLOOR * self.eps * self.floor_scale
+    ///
+    /// Stated in the run band's ε and nowhere else: the floor is a
+    /// proof obligation, so the tolerance it is stated in is the one
+    /// the trileans decide against, by construction rather than by
+    /// convention at the call site.
+    fn floor(&self, band: Band) -> f64 {
+        SSI_FLOOR * band.zero() * self.floor_scale
     }
 
     /// The seeding floor, in meters — a fraction of the **extent**,
@@ -669,7 +682,7 @@ pub fn cylinder_sphere_ssi(
             [slab.z.lo(), slab.z.hi()],
         ],
         extent: domain.extent,
-        eps: domain.eps,
+        tol: MarchTol::of(band),
         max_steps: SSI_MAX_STEPS,
     };
     let mut branches: Vec<SsiBranch> = Vec::new();
@@ -686,11 +699,11 @@ pub fn cylinder_sphere_ssi(
         // component, and an exhaustiveness receipt that double-counts
         // the same tube). Refine first, then test.
         let state = [seed.x, seed.y, seed.z];
-        let landed = march::newton_refine::<2, 3, _>(&sys, state, domain.eps);
+        let landed = march::newton_refine::<2, 3, _>(&sys, state, ctx.tol.meters());
         let probe = landed.map_or(*seed, |x| Point3::new(x[0], x[1], x[2]));
         if tubes
             .iter()
-            .any(|t| Box3::around(probe, domain.eps).contained_in(*t))
+            .any(|t| Box3::around(probe, ctx.tol.meters()).contained_in(*t))
         {
             continue;
         }
@@ -710,7 +723,7 @@ pub fn cylinder_sphere_ssi(
     // ---- accounting: the same subdivision, asked for its proof duty.
     // An empty `tubes` here means nothing was found, so nothing is
     // proved. ----
-    let exhaustiveness = exhaust::account_r3(a, b, slab, &tubes, domain.floor())?;
+    let exhaustiveness = exhaust::account_r3(a, b, slab, &tubes, domain.floor(band))?;
     Ok(SsiOutcome {
         branches,
         exhaustiveness,
@@ -738,7 +751,6 @@ fn finish_r3(
         &SsiOperand::Analytic(b),
         arm,
         domain.extent,
-        domain.eps,
         band,
     )?;
     let params = carrier.domain();
@@ -833,7 +845,7 @@ pub fn plane_nurbs_ssi(
     let ctx = MarchContext::<4> {
         domain: [[pu.0, pu.1], [pv.0, pv.1], [ud.0, ud.1], [vd.0, vd.1]],
         extent: domain.extent,
-        eps: domain.eps,
+        tol: MarchTol::of(band),
         max_steps: SSI_MAX_STEPS,
     };
     let mut branches: Vec<SsiBranch> = Vec::new();
@@ -864,7 +876,7 @@ pub fn plane_nurbs_ssi(
     }
 
     let exhaustiveness =
-        exhaust::account_chart_plane(wall, p0, normal, root, &tubes, domain.floor() / speed)?;
+        exhaust::account_chart_plane(wall, p0, normal, root, &tubes, domain.floor(band) / speed)?;
     Ok(SsiOutcome {
         branches,
         exhaustiveness,
@@ -935,7 +947,6 @@ fn finish_r4(
         &SsiOperand::Nurbs(wall),
         domain.extent,
         domain.extent,
-        domain.eps,
         band,
     )?;
     let params = carrier.domain();
@@ -970,6 +981,14 @@ fn finish_r4(
 /// the tensor composite bound that retired limb 2 (the fixture role
 /// the PR 7 refusal reserved for it).
 ///
+/// **The only door that takes the generator's tolerance separately.**
+/// `tol` is the marcher's step tolerance ([`MarchTol`]); every
+/// certifying door derives its own from `band` and has no such
+/// parameter. Naming it here is what lets the marcher be measured
+/// against itself at a tolerance the run is not banded at — the one
+/// legitimate reason the two numbers ever differ — without that
+/// freedom existing anywhere a certificate is produced.
+///
 /// # Errors
 ///
 /// Any [`SsiError`] the trace or the fit can produce.
@@ -978,6 +997,7 @@ pub fn trace_plane_nurbs_uncertified(
     wall: &NurbsSurface<f64>,
     seed_uv: (f64, f64),
     domain: SsiDomain,
+    tol: MarchTol,
     band: Band,
 ) -> Result<TracedTriple, SsiError> {
     let Surface::Plane {
@@ -1005,7 +1025,7 @@ pub fn trace_plane_nurbs_uncertified(
     let ctx = MarchContext::<4> {
         domain: [[pu.0, pu.1], [pv.0, pv.1], [ud.0, ud.1], [vd.0, vd.1]],
         extent: domain.extent,
-        eps: domain.eps,
+        tol,
         max_steps: SSI_MAX_STEPS,
     };
     let v_ref = normal.cross(u_ref);
@@ -1045,7 +1065,11 @@ pub fn trace_plane_nurbs_uncertified(
 /// # Errors
 ///
 /// As [`certify::certify_branch`].
-#[allow(clippy::too_many_arguments)] // one parameter per named quantity
+///
+/// **There is no `eps` parameter.** The certificate's own floors — the
+/// tube ladder's, in particular — are stated in `band.zero()`, which
+/// *is* the run tolerance, so the tolerance a branch is certified at
+/// cannot differ from the one its trileans decide against.
 pub fn certify_rung3<T: geom_core::Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
     pcurve_b: Option<&NurbsCurve2<T>>,
@@ -1053,10 +1077,9 @@ pub fn certify_rung3<T: geom_core::Decide + geom_core::Bounds + geom_core::Certi
     b: &SsiOperand<'_, T>,
     arm: T,
     extent: f64,
-    eps: f64,
     band: Band,
 ) -> Result<SsiCertificate<T>, SsiError> {
-    certify::certify_branch(carrier, pcurve_b, a, b, arm, extent, eps, band)
+    certify::certify_branch(carrier, pcurve_b, a, b, arm, extent, band)
 }
 
 /// The idealized stepper's trace of an analytic pair from an explicit
@@ -1083,7 +1106,7 @@ pub fn idealized_trace_r3(
             [slab.z.lo(), slab.z.hi()],
         ],
         extent: domain.extent,
-        eps: domain.eps,
+        tol: MarchTol::of(band),
         max_steps: SSI_MAX_STEPS,
     };
     let trace = march_both::<2, 3, _>(

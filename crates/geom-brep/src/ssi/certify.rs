@@ -152,8 +152,8 @@ pub const SSI_TUBE_RADIUS: f64 = 8.0;
 /// (D9): no value branch chooses it, the first rung that certifies
 /// wins, and if none does the operation refuses typed rather than
 /// shipping a carrier whose component-selection claim is unproved.
-fn tube_ladder(extent: f64, eps: f64) -> impl Iterator<Item = f64> {
-    let floor = SSI_TUBE_RADIUS * eps;
+fn tube_ladder(extent: f64, band: Band) -> impl Iterator<Item = f64> {
+    let floor = SSI_TUBE_RADIUS * band.zero();
     (0..SSI_TUBE_RUNGS).filter_map(move |k| {
         #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
         let r = SSI_TUBE_RADIUS_MAX * extent / (2.0f64).powi(k as i32);
@@ -744,7 +744,12 @@ pub(crate) fn tube_boxes<T: Decide + Bounds + CertifiedEnclosure>(
 /// `arm` is the folded curvature/extent lever arm the transversality
 /// margin is stated over (metres); `extent` is the caller's named
 /// feature extent, which sets the tube ladder's widest rung.
-#[allow(clippy::too_many_arguments)] // one parameter per named quantity
+///
+/// The tolerance is `band`'s and only `band`'s. A linear band's
+/// `zero()` **is** the run's ε, and every threshold this function
+/// applies — the three limbs' trileans and the tube ladder's floor —
+/// reads it from there, so there is no second number a caller could
+/// certify at.
 pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
     pcurve_b: Option<&NurbsCurve2<T>>,
@@ -752,7 +757,6 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
     b: &SsiOperand<'_, T>,
     arm: T,
     extent: f64,
-    eps: f64,
     band: Band,
 ) -> Result<SsiCertificate<T>, SsiError> {
     let mut on_locus = T::zero();
@@ -776,7 +780,7 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
     // ---- limb 3: pick the widest certifiable tube, then decide ONCE.
     let mut chosen: Option<(f64, f64, u32)> = None; // (radius, margin, boxes)
     let chain = box_chain(carrier);
-    for radius in tube_ladder(extent, eps) {
+    for radius in tube_ladder(extent, band) {
         let probe = match (a, b) {
             (SsiOperand::Analytic(s1), SsiOperand::Analytic(s2)) => {
                 probe_tube_analytic(&chain, s1, s2, radius)

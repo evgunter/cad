@@ -340,7 +340,6 @@ fn lane<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         &SsiOperand::Nurbs(&localized),
         extent,
         extent.hi(),
-        band.zero(),
         band,
     )
     .map_err(refusal)?;
