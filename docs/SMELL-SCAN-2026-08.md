@@ -1922,9 +1922,12 @@ to the whole tree bar `.git` and `target`, so `crates/pncad-py/`, every
 crate's `tests/`, `demos/`, `tools/`, `scripts/`, `review/` and
 `review-probes/` are covered; outside `docs/` there were no other hits, in
 either spelling (`PairSolve` or `pair_solve`, matched case-insensitively).
-**Recoverable from `8a2d2305e999ad42b926980e0672b41d6a8c0846`**, #735's
-merge base, whose tree carries the type in full — checked by reading the
-struct out of that tree, not inferred from `git log -S`. The provenance note
+**Recoverable from `adbeff0976dd6d2fc1a0a4f663aef965f01f8dd7`** —
+*ASM-R2a: the Mate node, the coset algebra, clusters and the solve*, the
+commit that wrote it — whose tree carries the type in full, checked by
+reading the struct out of that tree rather than trusting `git log -S`.
+The authoring commit is the citation #611's successor wants: the shape and
+the intent that produced it sit together there. The provenance note
 is a comment on **issue #611**, per the table above; the PR body points at it.
 Nothing migrated: the type had no `impl`, so it read nothing, and its three
 field types (`RecipeNodeId`, `Vec`, `Coset`) all keep consumers.
