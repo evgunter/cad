@@ -13,7 +13,10 @@
 //! The matches below are EXHAUSTIVE on purpose. A new kernel variant
 //! breaks this build rather than silently arriving in Python as an
 //! untagged refusal; that is the drift alarm, and it fires in hosted
-//! CI because this module compiles without Python.
+//! CI because this module compiles without Python. **One map is the
+//! exception**: [`select_refusal_tag`]'s enum is `#[non_exhaustive]`,
+//! which forces a wildcard arm and takes the compile-time alarm away —
+//! see that function for what stands in its place.
 //!
 //! Full per-variant field projection (node ids, slots, operand roles)
 //! is deferred to the unit that binds the complete surface.
