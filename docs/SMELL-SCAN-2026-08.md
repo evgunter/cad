@@ -3778,22 +3778,55 @@ be kept exhaustive by hand as variants are added, and each silently maps
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
 baffle me with how they ever happened." Postmortem pass commissioned.
-## S34. `readback.rs` is a body-wide accessor module housed in `sweep`
+## S34. FIXED by #697 — `readback.rs` was a body-wide accessor module housed in `sweep`
 
-- **Where**: `crates/sweep/src/readback.rs:163`, `:379`, `:559`
+- **Where**: `crates/topo/src/readback.rs` (its new home)
 - **Confidence**: sure
 
-`face_pose`, `edge_pose` and `vertex_point` take a `topo::Body` and touch
-nothing from `sweep`; `blend_arcs` reads only a `profile::ValidatedLoop`.
-Because they live here, `editor-core` and `pncad` depend on the whole
-`sweep` crate — NURBS skinning included — to read a face's plane. The
-three op-specific doors on top (`extruded_caps`, `lofted_caps`,
-`revolved_caps`) are each two `face_pose` calls on public fields the
-caller already holds, and two of the three have no callers outside their
-own doctests. `vertex_point` is additionally a near-copy of
-`revolve/upgrade.rs`'s, differing only in error type. The module's home
-was chosen by provenance ("these questions arose from sweep ops") rather
-than by what the code depends on.
+**FIXED by #697**, on the rule *a door lives in the crate whose types it
+reads*. Body-wide reads went to `topo::readback`; `blend_arcs` became
+`ValidatedLoop::blend_arcs()` in `profile` — a method rather than a second
+readback module, since a second module would have had to **restate** the
+three read-back rules, which is this finding's own smell class; the
+op-result door stayed in `sweep::revolve`. `sweep::readback` no longer
+exists and no reference to it survives anywhere. The dependency claim was
+verified narrowly and honestly: `editor-core/src/names/interrogate.rs` now
+names **no** `sweep` item, and `editor-core`/`pncad` still depend on `sweep`
+only for *evaluating* sweep ops and for façade re-export — neither
+removable by moving an accessor.
+
+**Two of the three op doors had zero callers, and their doctests were their
+only evidence** — S11's shape, and the doctest was the door's own
+advertisement. Deleted, with every assertion preserved as a six-test
+integration suite written the way a caller writes it now, which is
+simultaneously the proof the deletion is lossless (review mutation-tested
+that suite to red). `revolved_caps` survived on a real distinction:
+`Extruded` exposes `top`/`bottom` as flat public fields, so its door was
+three field reads, while `Revolved`'s caps live inside
+`RevolvedKind::Partial`, so its door carries case analysis and a "a full
+revolve has no caps" refusal a field read cannot give.
+
+**The finding under-counted: `vertex_point` had FIVE copies, not two** —
+and the obstacle to sharing was self-inflicted. `Dangling` named the
+failing lookup as a `&'static str`, which no caller can map back to a key,
+so each site kept its own walk to keep its own error fidelity. A
+`DanglingRef` payload (`Entity(EntityId)` | `Geometry(GeomRef)`) dissolves
+that: one body, the two discriminating callers keeping their exact arms
+through one `From`, the two corrupt-verdict callers collapsing both
+deliberately. *The general shape: a refusal that describes its cause in
+prose instead of naming it forces every caller to re-derive the thing it
+refused about.*
+
+**Left open, and named rather than lost.** Review ran the
+`face_pose`-shaped sweep this PR declined to run and found the class alive
+one crate over — see **S57** below. And the "five became one" claim is a
+**measurement with no guard**, in the one crate that holds the exact
+machine for guarding it (`topo::face_normal`'s anti-re-fork row, whose own
+docs record that the fix pass which built it had re-forked the walk in the
+same commit). Per Q6 that owes a guard, a scheduled re-measure, or a
+written reason it can have neither; it has none of the three, and it is now
+the fourth crate-root module in this fix class shipping without the guard
+its sibling has (**#695**).
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
 baffle me with how they ever happened." Postmortem pass commissioned.
@@ -5329,6 +5362,50 @@ Notes for whoever takes it, so the unit does not quietly become four:
   precondition is an argument for refusing such a body once at `validate`
   rather than at each door. Not decided here.
 
+## S57. The `readback` class is alive one crate over, and the "one door" guard cannot see it
+
+- **Where**: `crates/editor-core/src/names/emit_topo.rs:48`,
+  `crates/sweep/src/fillet/build.rs:247`,
+  `crates/sweep/src/fillet/battery.rs:175`, `:183`, `:189`
+- **Confidence**: sure
+- **Raised by**: the S34 fix lane's review (#697), 2026-08-20, by running the
+  `face_pose`-shaped sweep that PR declined to run and stated as its blind
+  spot. **The blind spot was real and it hit.**
+
+**A sixth copy of the readback walk, in the crate the fix was about.**
+`emit_topo.rs:48`'s `face_plane` is `get_face` → dangling refusal →
+`get_surface` → dangling refusal → destructure `Surface::Plane`. It is not a
+literal copy — it folds `sense_sign` and refuses non-planar carriers — but it
+refuses with `NamingError::Emission { what: "face_plane: dangling" }`, which
+is **verbatim the `&'static str`-names-the-lookup defect #697 eliminated**,
+still standing in `editor-core`, the crate whose dependency on `sweep` the
+whole finding was about.
+
+**Four `Body`-only accessors housed in an op crate — S34's own shape, one
+crate away from where it was looked for.** `fillet/build.rs`'s `outward_of`
+and `battery.rs`'s `outward` / `face_of` / `carrier_of` each take a `&Body`
+plus an arena key and touch nothing from `sweep`. `outward_of` is a
+hand-written copy of `topo::face_normal::face_outward_normal` — the function
+whose module doc calls itself **"the one door"** and whose mechanical
+anti-re-fork guard walks `topo/src` **only**, and therefore cannot see a
+re-fork that lives in `sweep`.
+
+That last point is the finding's sharpest edge and generalises past these
+sites: **a guard scoped to one crate cannot enforce a rule stated about a
+concept.** The `face_normal` guard was built (#690) precisely because a fix
+pass re-forked the planar sense flip while creating the door, and it is
+correct and load-bearing within `topo` — but the copy it was built to catch
+already existed outside its walk.
+
+Where else to look, unswept: `crates/mesh/src/walk.rs:973`,
+`crates/step-export/src/`, and the three sites already named as D6's
+hand-multiply class (`boolean::solid_contain::face_plane`,
+`chord_join::face_plane_normal`, `merge_faces.rs`).
+
+**Verdict:** _(unreviewed)_
+
+---
+
 ---
 # §A. Where I would start
 
@@ -5450,7 +5527,6 @@ mutually independent and edge-free.
 
 | # | Work | Scope | Note |
 |---|---|---|---|
-| **B8** | **S34 — `readback.rs` is a body-wide accessor module housed in `sweep`.** `face_pose`, `edge_pose`, `vertex_point` take a `topo::Body` and touch nothing from `sweep`, so `editor-core` and `pncad` depend on the whole sweep crate — NURBS skinning included — to read a face's plane. | `sweep/src/readback.rs` and its new home | Small and clear. Two of the three op-specific doors have no callers outside their own doctests; `vertex_point` is a near-copy of `revolve/upgrade.rs`'s. In flight as **#697**. |
 
 ---
 
