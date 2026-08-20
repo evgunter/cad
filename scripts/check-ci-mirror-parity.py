@@ -227,7 +227,27 @@ def reachable(root: str, seeds: set[str]) -> set[str]:
             continue
         # A script names its siblings by BASENAME as often as by path
         # (`demos/render.sh` runs `strip_png_stamps.py` from its own directory),
-        # so both spellings count.
+        # so both spellings count — resolved against the NAMING script's own
+        # directory, which is what the shell does.
+        #
+        # THE FAILURE DIRECTION, because a heuristic without one is a guess.
+        # This resolves a bare `foo.sh` to `<dir of the naming script>/foo.sh`
+        # whenever that file exists, and a bare name can be a coincidence: a
+        # comment, a string, or a sibling with the same basename as some other
+        # directory's script. So the closure can only be TOO LARGE — it can
+        # decide a script is owned when nothing really runs it. It can never
+        # shrink: every path-shaped reference is still matched exactly.
+        #
+        # An over-large closure UNDER-reports claim 4 (an orphan reads as
+        # owned) and affects nothing else — no other claim consumes it. That is
+        # the safe direction here, and deliberately so: claim 4's job is to
+        # catch a check nobody runs, and a false positive there would demand a
+        # `MIRROR_EXEMPT` entry for a script that is in fact perfectly wired,
+        # which teaches the next reader that the exemption list is where
+        # inconvenient results go. Under-reporting costs a missed orphan;
+        # over-reporting costs the credibility of every other claim in the
+        # file. The claim's own wording is written to match: it says a check
+        # that neither half names *and no named script reaches*.
         here = os.path.dirname(cur)
         named = invocations(body)
         for l in body:
