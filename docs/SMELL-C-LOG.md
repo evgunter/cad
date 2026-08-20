@@ -66,6 +66,9 @@ head, merge without waiting for a second CI run.**
 | **C-R13** | **H16 — what the STL `solid` name should default to.** The lane defaulted `solid_name` to the producer (`cad-kernel`, the Q9 placeholder) and flagged that `StepOptions::product_name` defaults to `part` — a *part* — so the mirror C-R1 asked for is not exact. | **Make it semantically correct; symmetry with STEP is not the criterion.** Evan, 2026-08-20: *"i don't care about the symmetry with STEP, it should just match what that field is supposed to be."* STL's `solid <name>` names **the solid being described**, so a producer string is the wrong kind of thing there; the binary 80-byte header is free text conventionally carrying a producer, so it is right as it stands and does not move. **This moves the default output bytes**, which is permitted and is not a reason to hesitate (`memories/output-stability-as-justification.md`) — but the PR's *"26/26 byte-identical"* evidence must be restated as what it then proves, not kept as written. Bonus the change buys: today's exported bytes carry the **Q9 placeholder project name**, so a part-shaped default decouples STL output from the naming decision entirely. | Evan, 2026-08-20 |
 | **C-R14** | **H16 — `StlOptions` derives `Eq` and `StepOptions` cannot** (its `Option<f64>`). The lane offered keep-as-a-strengthening or drop-to-match. Evan, 2026-08-20: *"this feels off, is there a cleaner third option?"* | **Both offered options answer the wrong question, and that is why it read as off.** `Eq` is not a feature — it is a marker asserting the existing `PartialEq` is reflexive. Underneath sit two real questions. **(a) Does anything need it?** No: every `StlOptions` consumer in the workspace constructs one or passes `&StlOptions::default()`; none uses it as a set element, map key, or anywhere total equality is required. So drop it — on the ground that **nothing needs it**, never on the ground that `StepOptions` lacks it. **(b) Why can `StepOptions` not have it?** `uncertainty_m: Option<f64>` — a bare `f64` tolerance in a public options struct, in a codebase whose ratified thesis is that bare `f64` tolerances get types. **The `Eq` asymmetry is not a fact about STL; it is a symptom of S25's shape in the other struct**, one crate over from where #692 fixed an instance of it with `MarchTol(f64)`. Typing it would move the *"finite and > 0"* check from write time to construction time and make `Eq` honest on both (a NaN-rejecting newtype has reflexive equality, so `impl Eq {}` is sound where `derive` cannot reach). That half is a `step-export` public API change → **C-R7: an issue and a §D row, not a widening of #732.** Half (a) is taken now; half (b) awaits Evan. | orchestrator, 2026-08-20 (from Evan's question) |
 | **C-R15** | **H16's two remaining flags.** Empty strings accepted for both fields (`solid_name: ""` writes `solid ` with a trailing space; `header: ""` writes 80 zero bytes), and the stale pre-#639 artifacts under `crates/stl/target/m3pr6-stl/`. | **Both stay as they are** (Evan, 2026-08-20: *"no opinion"* / *"sounds good"*), with one addition: the empty-string behaviour is **documented at the field**, not only in the PR body. A reader of the type currently cannot learn it, and a PR body is not where a type's contract lives. | Evan, 2026-08-20 |
+| **C-R16** | **#731's E0004 mutation table was taken on an intermediate working state and never re-run.** Two of four rows are wrong, and both omit `eval/anchor.rs` — the PR's own headline fix. The tell is a cited line (`resolve/mod.rs:977`) matching **neither** tree (main 975, head 1007), under the claim *"identical to #632's post-state"* — true only because it literally **is** #632's post-state. | **Re-derive every row on the shipped head and name the tree each number came from.** Not re-read — re-run. A table taken during development is not evidence about what merges. | orchestrator, 2026-08-20 |
+| **C-R17** | **Three more in-crate members of H11's class**, declined or unfound: `eval/mod.rs:1372` (`content_key`'s payload wildcard under an **exhaustive** tag match — the identical split the PR closed elsewhere), `node.rs:955`/`:1004`, and `expr.rs:686/696` (a wildcard nested in a tuple, inside the PR's own declared blind spot). | **Fix all three. C-R6 is explicit that in-crate residues are fixed, not reported.** `eval/mod.rs:1372` carries the most: **S4's own record documents this bug having already happened** — *"`Step::AtToward`'s memo content-key tag 28 COLLIDED with `ArcContinue`'s existing 28 — a hit would serve wrong geometry"*, caught by a reviewer rather than a type. Routing `node.rs` to "S4's payload-lists row, marked FIXED by #618" is C-R7's named failure verbatim: a live problem parked inside a record labelled FIXED. | orchestrator, 2026-08-20 |
+| **C-R18** | **#731's prose-hygiene pass manufactured the defect it was fixing.** Its correction to **§C15** replaced a false clause with *"the conclusion survived in two of three"* — a reading C15's own bullets do not support (under the reading that makes #632 fail, all three failed). It also corrected the **meta**-record while leaving the **object-level** sentences that carry #632's wrong population (`SMELL-SCAN:627`, `:728`). | **State a reading the bullets actually support and say which it is, or leave C15 alone and record the #632 fact elsewhere — not the split difference.** And sweep the object-level sentences: correcting the record *about* a claim while leaving the claim is the same half-fix one level up. **This is §C16 committed inside a correction to §C15**, which is the sharpest instance of that section the scan has produced. | orchestrator, 2026-08-20 |
 
 ---
 
@@ -651,8 +654,70 @@ caller; a brief is a claim site too).
 
 ### In flight
 
-| lane | finding | branch | review |
+| lane | finding | PR | state |
 |---|---|---|---|
-| **C-d** | H12 — the SSI sweeps' other never-silence doors | `smellc/h12-ssi-never-silence` | style |
-| **C-f** | H11 — #632's two residues | `smellc/h11-632-residues` | style |
-| **C-h** | H14 — the census's `bridged` skip | `smellc/h14-census-bridged` | **adversarial** + style |
+| **C-d** | H12 — the SSI sweeps' other never-silence doors | **#734** | open, CI green; awaiting the lane's report before its style review |
+| **C-f** | H11 — #632's residues (**four**, not the two the finding states) | **#731** | **NOT CLEARED** — style review returned a MAJOR; fix pass running |
+| **C-h** | H14 — the census's record-keyed deferrals | **#737** | open; needs **both** reviewers once it reports |
+| **C-o** | H16 — `StlOptions` | **#732** | green; **waits for Evan's sign-off**, and a fix pass for C-R13/C-R14/C-R15 held until its style review lands |
+| **C-p** | C9 — the `agreement` column | — | implementing, at its fourth seam |
+
+### #731 (C-f / H11) — style lane, 2026-08-20: **not cleared**
+
+The second test of the style-review-only policy on a row classed low-risk, and
+the second time a style lane alone returned a MAJOR. Both of the track's added
+questions came back **No**.
+
+**The finding said "two residues". There were four** — and the two the lane
+added were each ruled out *in writing* by #632's own body: one dismissed as
+"different enum (`DocParam`/`DocEdit`)" when it matches `DocEdit`, and one
+under the flat assertion *"no fail-quiet wildcard in any `RoleSeg` or
+`Qualifier` match in the workspace."* The review then found **two more**, so
+the class is at least six. The sharpest is `eval/anchor.rs`'s `remap_seg`,
+which ends `other => other` — a **binding** catch-all inside a match written
+through `use RoleSeg as R`, so the literal `RoleSeg::` never appears in the
+window #632's corrected scan required. Missed twice over, by two differently
+shaped sweeps, and it is the one with a *wrong value* behind it rather than a
+missed check: it rewrites profile locators on re-anchor, and a thirteenth
+carrier variant would have crossed a re-anchor with a stale locator, silently.
+
+**MAJOR-1, and it is this track's characteristic result arriving for the
+second time.** The mutation table was measured on an intermediate working
+state and never re-run: two of four rows are wrong, and **both omit the PR's
+own headline fix**. Ruled at **C-R16**.
+
+*Generalisable, and it now has two instances rather than one:* **a mutation
+table is a measurement of a tree, and the tree it measures is the one that
+was checked out when it was run.** #702's table overstated what its mutations
+reddened; #731's was accurate about a tree that no longer existed. Both
+passed a reader who checked whether the numbers were plausible rather than
+whether they were current. The cheap discriminator is the one that caught
+this: **a cited line number that matches neither the base nor the head is a
+receipt for the tree the measurement actually ran on.**
+
+**MAJOR-2 is a bug this repo has already had once.** `content_key`'s payload
+wildcard sits under an *exhaustive* tag match, so the compiler forces a
+decision at one site and silently defaults at the other — and S4's record
+carries the realised failure: *"`Step::AtToward`'s memo content-key tag 28
+COLLIDED with `ArcContinue`'s existing 28 … a hit would serve wrong
+geometry."* Caught then by a reviewer, not by a type; still not caught by a
+type. Ruled at **C-R17**.
+
+**And the prose finding is §C16 in its purest form.** The PR's correction to
+**§C15** repaired a false clause and left the paragraph asserting something
+its own bullets do not support — *a prose-hygiene pass manufacturing the
+defect it exists to remove*, committed inside a correction to the section
+about half-fixes. It also corrected the record *about* #632's population while
+leaving the two sentences that state it. Ruled at **C-R18**.
+
+*What the reviewer's own instrument adds, and it is worth keeping.* It swept
+by **match-arm content** rather than by scrutinee type — arms mentioning the
+target variants, plus any catch-all, ignoring what is being matched on — which
+sees through the `Option`/`Result`/tuple nesting that defeats
+`clippy::wildcard_enum_match_arm`. That reproduced all five of the lane's hand
+re-reads and returned eight more sites. It also stated its own blind spot
+without being asked: **it is keyed to a fixed enum list, so `ExprKind`, `Entry`
+and any enum not named were invisible until read by hand.** Three differently
+shaped instruments have now been run at this one class and each found what the
+previous two could not — which is Q1's *the question is the instrument* with a
+third worked example.
