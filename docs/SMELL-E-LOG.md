@@ -126,9 +126,9 @@ discharged before this track existed.
 | **E-c** | D26 | `docs/SMELL-SCAN-2026-08.md` §D and §S19 | none | style | **#752, in review** |
 | **E-d** | D33 | `docs/predicate-dimension-audit.md` | none | style | **in flight** |
 | **E-e** | D28 + issue #693 | `editor-core/src/eval/` | **confirm against C-f (#731)** — same crate, disjoint files | style | unstarted |
-| **E-f** | D25 | `topo/src/euler.rs` and every `link_half_edges` caller | none | **ADVERSARIAL** | **in flight** |
+| **E-f** | D25 | `topo/src/euler.rs` and every `link_half_edges` caller | none | **ADVERSARIAL** | **#755, in review** |
 | **E-g** | D27, then D29 | `sweep/src/fillet/{build,surgery,mod}.rs` | none | **ADVERSARIAL** (D27), style (D29) | unstarted |
-| **E-h** | D21 | `topo/src/{split,attach,movefac,revert}.rs`, `splitting/finish.rs`, `boolean/combine.rs` | **E-f** | **ADVERSARIAL** | unstarted |
+| **E-h** | D21 | `topo/src/{split,attach,movefac,revert}.rs`, `splitting/finish.rs`, `boolean/combine.rs` | **E-f, for file overlap on `split.rs`** — see E-R4 | **ADVERSARIAL** | unstarted |
 | **E-i** | D24 | `Cargo.toml` workspace lints, or `.github/workflows/` | none | style | unstarted |
 | **E-j** | D31 | `sweep/src/skin.rs`, `geom/src/curves/fit.rs`, home in `geom-core/src/spline/algebra.rs` | **Track C (C-l, C-g)** | style, escalates if the sort order is load-bearing | unstarted |
 | **E-k** | D35 | `docs/DESIGN.md`'s D2 addendum, and whatever the answer names | **E-g**, **E-h** | style | unstarted |
@@ -139,6 +139,39 @@ discharged before this track existed.
 **Not taken by Track E:** D30 and D32 (Track C's files — C-m, C-q); C11's #726
 and #727 (Track A's residues, in `mesh/` and `props/`, which are C-k's and C-m's
 scopes); L1, L2 and L3, which are deliberately last and stay that way.
+
+---
+
+## Incidents and corrections
+
+### E-R4 — a gate whose stated reason is refuted is not a gate that has fallen (2026-08-20)
+
+**E-f (#755) refuted the reason I gave for E-h's gate, and then removed the
+gate.** The register said D21's half-edge sites *"inherit D25 for free"*, so
+sequencing D21 after D25 would discharge them structurally rather than site by
+site. E-f checked it against the tree and it is **false**: not one of D21's 14
+sites is a half-edge key handed to a splice — three in `split_edge` are an edge
+and two vertices, `attach.rs`'s are a face and an edge, `movefac.rs`'s a shell,
+a face and a solid, and the one half-edge-arena lookup on the list
+(`revert.rs:206`) is a field write into a clone of the arena it iterates, not a
+splice. That correction is right, it is exactly what a lane is for, and it
+stands.
+
+**But the gate survives its reason.** Track E's gates are **file-overlap and
+instrument-ordering** gates, not dependency gates — §D's edge list says so in
+terms — and #755 rewrites `crates/topo/src/split.rs`, where D21's file set
+opens. Two lanes rewriting one function collide whether or not either inherits
+anything from the other. The lane was asked to record **both** claims: that D21
+inherits nothing (its finding, in its words) and that E-h still sequences after
+E-f for file overlap, which is a different and weaker claim than the one it
+removed.
+
+*Generalisable, and it is the dispatcher's error as much as the lane's:* **I
+wrote a gate down with one reason attached, and the reason was load-bearing for
+the gate's survival in a way I did not intend.** A gate stated as *"X because
+Y"* invites a lane that disproves Y to delete X. State the mechanism a gate
+protects, not the story you happen to have for it — and when a lane refutes the
+story, the dispatcher re-derives the gate rather than accepting its removal.
 
 ---
 
@@ -225,11 +258,11 @@ constituted.**
 |---|---|---|
 | D36–D39 | E-c (D26) | **all four used** — D36 `UnsupportedCarrier`, D37 `tags.rs`'s residue, D38 `SkippedMerge`, D39 `ProgramRefusal::Geometry` |
 | D40–D41 | E-a (D22 + D34) | reserved 2026-08-20 |
-| D42–D43 | E-f (D25) | reserved 2026-08-20 |
+| D42–D43 | E-f (D25) | **returned unused** — the unit's two findings were corrections recorded at their own entries, and neither leaves work behind |
 | D44–D45 | E-b (D23) | reserved 2026-08-20 |
 | D46 | E-d (D33) | reserved 2026-08-20 |
 
-Next unassigned: **D47**.
+Next unassigned: **D47**; D42 and D43 are back in the pool.
 
 **D36–D39 are placed and unstaffed**, and they are Track E's to schedule.
 E-c's report says D37(a) and D39 want **one** lane, not two: both need a
@@ -250,7 +283,7 @@ serialized here and each lane re-merges `origin/main` when one lands.
 |---|---|---|---|---|
 | **E-c** | D26 | `smelle/d26` | **#752** | reported, CI green on the merged head; **style review running**. Merge first once cleared — it is doc-heavy and every other lane edits the same file |
 | **E-a** | D22 + D34 | `smelle/d22-d34` | — | implementing |
-| **E-f** | D25 | `smelle/d25` | — | implementing; ADVERSARIAL, and **E-h (D21) is scoped against its head**, not against the old census |
+| **E-f** | D25 | `smelle/d25` | **#755** | reported, 23 checks started on the merge head; **both reviewers running**. One doc correction requested and in flight |
 | **E-b** | D23 | `smelle/d23` | — | dispatched. **Fenced off `scripts/gates/probe-suite-census.sh` and `ci.yml`** while E-a holds them |
 | **E-d** | D33 | `smelle/d33` | — | dispatched |
 
