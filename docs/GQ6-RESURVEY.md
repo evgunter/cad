@@ -245,6 +245,13 @@ feature enabled and `RUSTFLAGS='--cfg getrandom_backend="wasm_js"'`,
 (`pncad-py` is out of scope by construction: PyO3 targets a native
 CPython.)
 
+**Unguarded, and it should not be** (§Q6). This table is a reading of
+one tree at one revision on one toolchain, and nothing re-takes it: CI
+builds no wasm32 target, so any dependency bump can turn a `clean` cell
+red while every existing row stays green. The guard is the two `cargo
+check` commands above, run in CI; it is filed as **#807** rather than
+added here because `.github/workflows/` is another track's surface.
+
 So: **the whole product below the GUI compiles to wasm today,
 certified-interval lane included.** That is a materially different
 strategic position from the one the snapshot recorded, and it was

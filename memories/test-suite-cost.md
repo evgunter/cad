@@ -23,9 +23,9 @@ A hardcoded seed does not make a weak fuzzer — it makes something that
 is **not a fuzzer at all**. It explores exactly the same points on
 every run for the rest of the project's life, so after its first green
 run it can only ever fail because the code under test changed. At the
-audit, *every* seed in the workspace was a hardcoded literal across 44
-RNG-driven tests, which is why the whole family was re-deriving known
-answers at full price on every PR.
+audit, *every* seed in the workspace was a hardcoded literal, which is
+why the whole family was re-deriving known answers at full price on
+every PR.
 
 **FIRST, ask which SHAPE the test is** — because "a fuzzer must not fix
 its seed" read as "everything needs a random seed" is how a coverage
@@ -129,18 +129,19 @@ reports green having asserted nothing. Use the tree's NAMED loud-skip
 idiom (`interval_lane_skipped_no_certified_coverage_here`) so the
 absence is visible in the battery log.
 
-**Measured facts that will mislead you if you assume otherwise:**
+**Four things about the suite that will mislead you if you assume
+otherwise.** Each was measured once; if a decision needs the number
+rather than the shape, re-measure it — nothing re-takes these.
 
-- The change filter's tier `all` fires on **75% of building merges**
-  (demos/, .github/, scripts/ dominate), so gating anything on the
-  filter's existing closure output barely reduces how often it runs —
-  84–94% of building merges. A frequency gate has to key on *source*
-  changes, ignoring demos/CI/scripts.
-- The crates holding the sweeps are crystallized: own-source change
-  rates of 3–16% per building merge.
-- Cost concentrates savagely. At the audit, 20 tests were 55% of all
-  test time and 2,603 tests were 1.7% of it. Profile before cutting;
-  the long tail is free.
+- The change filter's tier `all` fires on most building merges (demos/,
+  .github/ and scripts/ dominate), so gating anything on the filter's
+  existing closure output barely reduces how often it runs. A frequency
+  gate has to key on *source* changes, ignoring demos/CI/scripts.
+- The crates holding the sweeps are crystallized: their own source
+  changes on a small fraction of building merges.
+- Cost concentrates savagely: a handful of tests hold most of the test
+  time and the thousands in the tail hold almost none. Profile before
+  cutting; the long tail is free.
 - Per-test CI timings are NOT comparable across legs without
-  normalising — one leg in a sampled run was ~1.5x faster than its
-  siblings, which manufactures apparent ε-sensitivity.
+  normalising — legs in one sampled run differed enough to manufacture
+  apparent ε-sensitivity.
