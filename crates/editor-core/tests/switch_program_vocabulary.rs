@@ -10,8 +10,8 @@
 //! document form) and `persist::wire`'s `WireStep` (the persisted
 //! form).
 //!
-//! Two of the three cross-crate hops need no test, because the
-//! compiler already refuses them:
+//! Two of the three hops need no test, because the compiler already
+//! refuses them:
 //!
 //! - `WireStep` is produced and consumed by matches that are
 //!   exhaustive on `ProgramStep` and on `WireStep`, so neither can
@@ -167,12 +167,19 @@ fn every_document_verb_survives_the_wire() {
     assert_eq!(before, after);
 }
 
-/// Slot addressing agrees with slot enumeration: every slot the
-/// payload enumerates addresses an expression, and no two slots
-/// address the SAME expression. The second half is the one worth
-/// having — `step_expr`'s table ends in a catch-all `None`, so a role
-/// that enumerates but does not address, or two roles that collapse
-/// onto one argument, are both silent without it.
+/// Slot addressing is a BIJECTION onto the program's expressions:
+/// every slot addresses one, no two address the same one, and there
+/// are exactly as many slots as expressions. Each clause catches a
+/// different silence — `step_expr`'s table ends in a catch-all `None`
+/// (a role that enumerates but does not address), the fused arms fall
+/// back from one spec to the other (two roles collapsing onto one
+/// argument), and `spec_slots` could simply stop enumerating a role
+/// (an expression no slot reaches, which neither of the other two
+/// clauses can see).
+///
+/// The count comes from the wire rather than from a number written
+/// here: every expression in the corpus is a bare literal, so the
+/// `Literal` tags in its serialization ARE its expressions.
 ///
 /// Blind spot, stated: this walks the corpus, so it says nothing about
 /// step shapes the corpus omits. The one it deliberately omits is a
@@ -183,7 +190,16 @@ fn every_document_verb_survives_the_wire() {
 fn every_enumerated_slot_addresses_a_distinct_expression() {
     let program = corpus();
     let slots = program.slots();
-    assert!(!slots.is_empty());
+    let expressions = serde_json::to_string(&program)
+        .expect("the program serializes")
+        .matches("\"Literal\"")
+        .count();
+    assert_eq!(
+        slots.len(),
+        expressions,
+        "the program has {expressions} expressions and enumerates {} slots",
+        slots.len()
+    );
     let mut addresses: Vec<*const Expr> = Vec::new();
     for slot in &slots {
         let Some(expr) = program.expr(*slot) else {
