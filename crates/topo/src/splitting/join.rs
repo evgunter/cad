@@ -63,6 +63,15 @@ pub struct CompletedSection {
     pub below_loop: LoopKey,
 }
 
+/// The joining sweep (module docs). Mutates `red.body` in place;
+/// returns the completed section polygons in completion order, with
+/// the F9 `NullFacePair::Split` records set on the body, and the
+/// chord-mef fragment rows the core logged.
+///
+/// # Errors
+///
+/// [`SplitJoinError`] — the body may be left mid-surgery on `Err`
+/// (callers operate on a scratch clone; the public ops discard it).
 pub(super) fn split_connect<T: Decide>(
     red: &mut SplitReduction<T>,
     band: Band,
