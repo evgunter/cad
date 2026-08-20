@@ -90,8 +90,8 @@ fillet-helper row, and **D8**, whose `geom-curves/src/fit.rs` it relocated to
 
 What is unstarted is unstarted for schedule reasons only, not technical ones:
 
-- **D7's fillet-helper row** is unblocked now that **D2** landed as #740. It
-  must re-read all four `sweep/src/fillet/` files first: D2 rewrote every
+- **D7's fillet-helper row landed as #748**, closing D7 and **U1** in full. It
+  re-read all four `sweep/src/fillet/` files first, D2 having rewritten every
   refusal site in `surgery.rs` and `build.rs`.
 - **D26**, **D27**, **D28** and **D29** were placed by #740: S19's four
   unplaced rows; the surgery's front-door invariants carried in comments
