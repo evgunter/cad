@@ -349,7 +349,6 @@ Track C's open lanes, or with Track E's.
 | lane | row | branch | scope | review | state |
 |---|---|---|---|---|---|
 | **F-a** | **F5** (S92) | `smellf/f5-door-registries` | `topo/src/review_m1_pr5_internal.rs`, `topo/src/pcurves.rs` | style | **dispatched** 2026-08-20 |
-| **F-c** | **F7** (S110, sort first) | `smellf/f7-cannot-go-red` | six crates' `tests/`, `memories/test-suite-cost.md` | style | **dispatched** 2026-08-20 |
 
 Lane clones are `~/.local/share/cad-work/smellf-{a,b,c}/cad`. They are
 **reused** stale lanes from finished work, renamed and reset to `origin/main`
@@ -366,9 +365,11 @@ live in that directory and two of them share `scripts/ci-filter.py`.
 | lane | row | branch | scope | review | state |
 |---|---|---|---|---|---|
 | **F-d** | **F4** (S76, S78, S84, S91) | `smellf/f4-guards-that-pass` | `topo/src/review_d18.rs`, `sweep/tests/review_d2_adv_probes.rs`, `geom-brep/tests/`, `geom-core/src/spline/knots.rs` | **ADVERSARIAL** (S76, S78) + style | **dispatched** |
-| **F-f** | **F2** (S61/S62 + D58–D60) | — | `ci.yml`, `ci-filter.py`, `probe-suite-census.sh`, `gate-roster.sh`, `ci-local.sh` | style | queued behind F-e |
 | **F-g** | **F3** (S63) | — | `scripts/gates/{no-extra-real-bounds,bit-identity-debug-only,interval-square-allowlist,lib.sh}`, `ci-filter.py` | style; **ADVERSARIAL** for the `x*x → powi(2)` conversions | queued — owns `lib.sh` |
-| **F-h** | **F8** (D44, D45) | — | `scripts/k_probe_sweep.sh`, `ci.yml`, `docs/` | style | queued behind F-f |
+| **F-h** | **F8** (D44, D45) | — | `scripts/k_probe_sweep.sh`, `ci.yml`, `docs/` | style | queued — F-f's row is carried by #798 (open) |
+
+**F-f's PR is open** (#798); its roster row left the table above per the
+recording convention, which the landing PR carries.
 
 **F-e went first because Track G's G4 is blocked on it** — per Evan's S87/S88
 ruling, the sentence that makes the `CertifiedBounds` conversion safe was false,
@@ -824,6 +825,11 @@ when the review lands, which is why it trails.
   learns in the same breath that the neighbouring multi-line form is silent.
   That adjacency is the difference between a partial catch and false comfort.
 
+*(The F-f entry further down is a PR that has NOT merged. It is kept here
+because the recording convention puts a unit's record in its own landing PR;
+it becomes a landing when #798 does.)*
+
+
 ### F6 (S73 parts 1 and 3) — **CLEARED 2026-08-20**, the track's first
 
 **It cleared on a deletion**, which F-R14 had pre-authorised. The row that failed
@@ -947,6 +953,95 @@ Placed rather than landed: no third instrument in a row that has shipped two, it
 needs a parameterization of code the brief marked read-only, and it deserves its
 own review rather than riding a clearance. **The evidence is written into the
 row, which is the thing that was at risk.**
+
+- **F-c — F7 (S110)**, PR **#790**, opened 2026-08-20; **NOT CLEARED** at
+  style review (26 findings), re-worked in the same PR. The sort ran and
+  the review reproduced every receipt in it and confirmed all ten
+  placements: **(c)(d)(e)(f)** closed in lane, **(g)(h)(j)** already
+  closed by #787 and #786, **(a)(b)(i)** disposition (b). **(d) is not
+  disposition (a)** — a working tripwire that goes red on its documented
+  trigger, missing only the premise that puts its operand in the class
+  the re-gate exists for — so **S110(d) was over-stated, which is a
+  finding about the scan.** Two of S110's own claims about (c) did not
+  survive re-derivation.
+
+  **The review's largest finding was not the lane's.** §D's F7 row and
+  the lane brief both routed (a)(b)(i) to *"C23's class … the
+  test-suite-cost sweep"*, and no such target exists; the lane complied
+  with a citation instead of testing it, and with F7 struck in the same
+  commit three members would have been marked ROUTED with no scheduled
+  home. Re-homed by the orchestrator — **(a) to F8**, whose probe-suite
+  finding it *is*, **(b) and (i) to D104** — and #790 carries the
+  corrected record plus a note that the target was tested.
+
+  **Three findings were the lane's own, all fixed in place.** The one
+  assertion whose receipt the lane declared impossible had a one-line
+  receipt: its red condition is a property of the *operand*, so the
+  demonstration is a **fixture swap**, not a code mutation — *"no
+  mutation models it"* was a claim about the method presented as a claim
+  about the world, and honest disclosure made it harder to catch, not
+  easier. (f)'s new assertion was blind to half the contract it quoted,
+  because the fixture gave both curves the same knot vector; the carrier
+  now carries its own and both halves of the merge are demonstrated. And
+  the (f) fix had minted **S110(h)'s exact shape** one line down by
+  hoisting an `unwrap()` past an `is_ok()` — the fifth instance of *the
+  fix reproducing the defect it closes* on this track, which is a
+  standing hazard of a pass that has the file open and the defect in
+  mind rather than carelessness.
+
+  F-R4 held throughout: a test **function** was deleted, no test **file**
+  was, and `crates/*/tests/all.rs` was never touched. New rows **D65**
+  (S121, re-filed as a five-site class in four crates after the review
+  found three more), **D66** (S122) and **D67** (S123) — F-c's block is
+  fully spent.
+
+### F-f / F2 (S61, S62, D58–D60) — #798, OPEN, not merged; style review returned NOT CLEARED and was answered
+
+**What it built.** A new `ci.yml` job, `mirror`, with no `if:` — so it runs on
+every tier, including the docs-only runs where every job carrying one is skipped
+— and the single declared exception to the `rm -rf local-scripts .claude` prune,
+because its subject is the agreement between the two halves of CI. Three checks
+are sited in it: `gate-roster.sh` (moved, and now reading the local half's
+loop), `probe-suite-census.sh --citations` (the citation half, whose inputs are
+prose), and a new `scripts/check-ci-mirror-parity.py`. The local half runs the
+same three **above** its own `TIER=docs` early exit, because the rule binds both
+halves.
+
+**What is worth carrying forward, beyond the row.**
+
+- **The docs-tier skip is untouched**, per Evan's ruling. The unit moved guards,
+  not the posture. `discipline` still skips on docs tier and still should.
+- **A hand-maintained roster gets a completeness check, not a longer list.**
+  Both halves of this unit take that shape: the citation half's `CITING_FILES`
+  is now checked against every citation in the tree, and the population of
+  checks outside `scripts/gates/` is *derived* from the two halves rather than
+  enumerated. Two prior enumerations of that population had each missed a member
+  — the second found by another track by accident (#794/D86) — which is the
+  argument for the shape.
+- **A permission bit is not a registration mechanism.** `lib.sh` is excluded by
+  name in both halves now, and a non-executable member of `scripts/gates/` is a
+  failure rather than a skip. Re-confirmed by planting on the merge base first:
+  fifteen files on disk, *"all 14 gates"*, exit 0.
+- **The exception to a structural rule is itself gated.** `mirror` keeping
+  `local-scripts/` weakens `ci-filter.py`'s claim unless exactly one job does
+  it, so the checker verifies that over every workflow file — `render.yml`
+  included, which is the file a sweep reading `ci.yml` would miss.
+- **A rule the repo has paid for twice deserves a check, not a comment.** The
+  first version left *a gate must be sited where it can fire on its own inputs*
+  as prose in three script headers; the reviewer restored the exact S61 state in
+  one commit with nothing firing. Claim 7 now pins the siting itself, in both
+  halves, and distinguishes a definition above the local exit from a run.
+- **Read structure with a reader, not a regex.** The bash version of the parity
+  check missed an uppercase job name and passed a checked-out job reading
+  `local-scripts/`. Four of the review's five MAJORs were text-processing
+  failures; the structural half is stdlib python now and Bails on anything it
+  cannot parse.
+- **A self-test that cannot reproduce the real invocation proves nothing.**
+  `lib.sh`'s harness runs a gate inside `if out=$(…)`, where bash suppresses
+  errexit — the one condition under which a `set -euo pipefail` gate dies at a
+  failing matcher before printing its diagnosis. Both of this unit's own
+  instances are fixed, and its cases now run the gate as a subprocess. The
+  harness itself is `lib.sh`, lane F-g's, escalated as **S157**.
 
 ## Incidents
 
