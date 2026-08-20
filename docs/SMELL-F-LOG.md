@@ -64,7 +64,7 @@ Three destinations, and a lane picks by the finding's kind, not by its size:
 orchestrators never read a document that is behind the tree. Each unit
 makes two edits to `docs/SMELL-SCAN-2026-08.md` in its own PR:
 
-1. the finding's heading becomes `## SNN. FIXED by #NNN — …`, and its
+1. the finding's heading becomes `## SNN. FIXED by #825 — …`, and its
    **original problem statement is replaced** by the record of what was
    done. Version control keeps the original; leaving it in place makes a
    closed finding read as open.
@@ -286,7 +286,7 @@ and say what they were.
 
 **Recording your own completion.** Your PR makes two edits to
 `docs/SMELL-SCAN-2026-08.md`: the finding's heading becomes
-`## SNN. FIXED by #NNN — …` with its **original problem statement replaced** by
+`## SNN. FIXED by #825 — …` with its **original problem statement replaced** by
 the record of what was done (version control keeps the original), and your row
 **leaves** §D's Track F table. Check the surrounding prose as well — Track F's
 preamble names rows by name, so a landing that leaves the table and stays in
@@ -714,7 +714,7 @@ row, which is the thing that was at risk.**
 
 ### F4 (S76, S78, S84, S91) — landed by lane F-d
 
-- **F-d — F4 (S76, S78, S84, S91), PR #NNN**, opened 2026-08-20 off
+- **F-d — F4 (S76, S78, S84, S91), PR #825**, opened 2026-08-20 off
   `origin/main` at 80f0ae1c. All four closed. **The missing idiom now has a
   home**: `crates/test-utils/src/census.rs` — `Census`, an anti-vacuity tally
   reported unconditionally and asserted with a floor, plus `stood_down`, the

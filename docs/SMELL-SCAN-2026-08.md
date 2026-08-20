@@ -8494,7 +8494,7 @@ The four rows below were flagged **high** by their reporting agents and
 are placed here only because Tier 1 was already full at the point they
 landed; read them as the tail of Tier 1.
 
-## S76. FIXED by #NNN — the spent-graft hammer row now floors what it exercised, per operator
+## S76. FIXED by #825 — the spent-graft hammer row now floors what it exercised, per operator
 
 `a_spent_graft_destination_never_reaches_a_row_four_unreachable`
 (`crates/topo/src/review_d18.rs`) asserted only `calls > 100`; its twin
@@ -8557,7 +8557,7 @@ arm no row.
 
 **Verdict:**
 
-## S78. FIXED by #NNN — the D2 fuzz corpus now states what it contains, and both gates floor it
+## S78. FIXED by #825 — the D2 fuzz corpus now states what it contains, and both gates floor it
 
 `crates/sweep/tests/review_d2_adv_probes.rs` built every interesting
 body behind a fallible door and asserted nothing about the result.
@@ -8718,7 +8718,7 @@ re-exported, its doc saying *"Outside this crate the only constructor is
 
 **Verdict:**
 
-## S84. FIXED by #NNN — the floor row's stand-down is now proved, and its clamp is stated in metres
+## S84. FIXED by #825 — the floor row's stand-down is now proved, and its clamp is stated in metres
 
 Two premises, one of them the finding's and one found under it.
 
@@ -8884,7 +8884,7 @@ closed"*. This one is decided-and-open.
 
 **Verdict:**
 
-## S91. FIXED by #NNN — the span search is now checked against a definitional oracle, not against itself
+## S91. FIXED by #825 — the span search is now checked against a definitional oracle, not against itself
 
 `find_span_in_is_find_span_on_the_same_knots`
 (`crates/geom-core/src/spline/knots.rs`) compared two expressions that
@@ -11762,7 +11762,7 @@ than from the schedule** (F-R1, F-R2 in the track log):
 - **F4's S84 half was `geom-brep/tests/m5_pr7_ssi.rs`, the one code file Track
   C's open #734 edited.** F4 waited on it as a whole rather than splitting, since
   its four members were one missing idiom and closing three of four is §C13.
-  **Landed as #NNN**; the row is struck from the table below and the idiom it was
+  **Landed as #825**; the row is struck from the table below and the idiom it was
   missing now lives at `crates/test-utils/src/census.rs`.
 
 **BLOCKING, handed to Track F on 2026-08-20 by Track E, which found it and
