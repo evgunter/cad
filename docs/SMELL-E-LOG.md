@@ -489,6 +489,33 @@ that moves S14 moves them.
 **#777 is now a ratified-decision PR rather than a proposal** and self-merges
 once written and green.
 
+### A repo-wide CI outage looks exactly like a per-branch failure (2026-08-20)
+
+**The CI budget ran out and every run failed within seconds**, unbroken across
+ten branches on four tracks. The signature: the first job, `change filter`,
+completes in 2–4 seconds with `steps: []`, `runner_id: 0`, `runner_name: ""`,
+and everything else skips behind it — a job that was never assigned a runner,
+not a job that ran and failed.
+
+**`main` is the discriminator, and it is cheap.** Main's own push run carried
+the identical signature, which settles that no branch's diff is responsible
+without reading a single log. Two other checks cost nothing and were worth
+doing anyway: the failing job's `runner_id`, and re-running the failed step
+locally — `scripts/ci-filter.py --base origin/main` returned `TIER=docs`, exit
+0, on exactly the diff CI could not classify.
+
+**The mode also progressed**, which is the part that would have misled a lane
+diagnosing one branch: earlier in the outage `change filter` still ran and the
+*test shards* died 1–2 seconds in, which reads as a test failure. Only later
+did the first job stop getting a runner at all. **The same outage presents as
+two different defects depending on when you look at it.**
+
+**There was no lever.** `rerun-failed-jobs` and `rerun` are both 403 for this
+token, and the discipline forbids an empty commit to kick CI. So the sequence
+is: diagnose against `main`, then wait for a real reason to push — a re-merge
+when `main` next moves, which a long-running branch owes anyway. Waiting is not
+inaction here; it is the only honest trigger.
+
 ### E-R7 — a green PR does not absorb new work at merge time (2026-08-20)
 
 **E-l found twelve copies of one build-cost measurement across the
@@ -649,7 +676,7 @@ serialized here and each lane re-merges `origin/main` when one lands.
 | **E-d** | D33 | `smelle/d33` | **#761** | **MERGED 2026-08-20.** Placed D46, D51, D57; handed D56 back |
 | **E-e** | D28 + #693 | `smelle/d28` | **#767** | **MERGED 2026-08-20** — 37/37 finished, 0 failed. Census 12 arms not 8; placed D54, D81 |
 | **E-h** | D21 | `smelle/d21` | **#773** | **style lane NOT CLEARED** — 8 MAJOR; adversarial lane running. Placed D88, D89 |
-| **E-k** | D35 | `smelle/d35` | **#809** | **reported.** Closes on **(d) — no gate**, reason beside row 0. Population re-derived: **103** sites, 7 crates; **76 are one state** (already answered *no* by #755), **13 row-0 candidates** → **D96**, 3 defective messages fixed. Found that **#777 never reached `main`** → **#817** |
+| **E-k** | D35 | `smelle/d35` | **#809** | **complete, stacked on #817.** Closes on **(d) — no gate**. **103** sites, 7 crates; **76 are one state** (answered *no* by #755), **13 row-0 candidates** → **D96** (written as its own finding), 3 messages fixed. Found **#777 never reached `main`** → **#817**, which merges first |
 | **E-l** | #681 | `smelle/681` | **#810** | **reported, green on `dc78a98f` by the run's own conclusion.** 7 of 9 surfaces swept, 2 declared; 24 claims, **1 unguarded (#807, Track F's surface)**; #808 handed off per E-R7; `memories/` raised as a tenth surface for Evan. Merges after #763 |
 
 **E-g dispatched 2026-08-20** (`smelle/d27-d29`), D27 then D29 — one lane
