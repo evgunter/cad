@@ -34,13 +34,22 @@ Not the full orchestrator protocol. Per Evan, 2026-08-20:
 
 ## Recording convention
 
-Implementer lanes **do not edit** `docs/SMELL-SCAN-2026-08.md` — three
-concurrent lanes editing one file is the CONFLICTING failure mode. Each
-lane puts what it would have written into its **PR body**; the
-orchestrator lifts it from there and records the landing at the
-finding, in batches, replacing the original problem statement (version
-control keeps it) exactly as previous findings have been recorded. The
-row also leaves §D's Track C table when it lands.
+**The landing PR carries its own record.** Evan, 2026-08-20: it is ideal
+for the table update to land *with* the PR, so the concurrent
+orchestrators are not reading a document that is behind the tree.
+
+Each unit therefore makes two edits to `docs/SMELL-SCAN-2026-08.md` in
+its own PR: the finding's heading becomes
+`## SNN. FIXED by #NNN — …` and its **original problem statement is
+replaced** by the record of what was done (version control keeps the
+original — it is not preserved inline); and the unit's **row leaves §D's
+Track C table**, per §D's own *live rows only* rule.
+
+**Conflicts there are expected and survivable.** Resolve by merging
+`origin/main` — never rebase, never force-push — and keep both sides;
+the edits are to different findings and different rows. **If the only
+conflict was that document and CI was already green on the pre-merge
+head, merge without waiting for a second CI run.**
 
 ---
 
