@@ -1957,7 +1957,8 @@ planted first to prove the instrument can go red), it found **one dead item:
 `MateRole::name`**, ten lines above the deleted struct, documented *"The
 role's name, for messages"*, with nothing anywhere formatting a role into a
 message. It builds clean without it under default features, under
-`--features probe`, and for `pncad-py`. **Deleted here**: dead in `mate/` is
+`--features probe`, and for `pncad-py`. R2-a wrote it too, so
+`adbeff09` above is its recoverable commit as well. **Deleted here**: dead in `mate/` is
 the class D4 ruled on, so removing it applies the ruling rather than making a
 fourth decision. Every other item answered LIVE, including all three
 `MateRole` arms — `Determining` in production at `solve.rs:666`, `Declaring`
