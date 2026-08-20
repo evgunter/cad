@@ -66,12 +66,14 @@
 //!   an architectural argument, and it is not a reason to keep the code
 //!   here once #639 has landed.
 //!
-//! **Re-open trigger.** If the `sector_face` twins (still forked in
-//! both lanes — the rest of S5) are ever unified and want the same
-//! treatment, that is a real second consumer, and `geom-brep` is where
-//! this placement should be re-opened. Absent that consumer, the crate
-//! root holds: it is defensible on the merits above, not merely on the
-//! transient reason.
+//! **Re-open trigger — FIRED, and it resolves the other way.** The
+//! `sector_face` twins are now unified as [`crate::sector_face`], the
+//! second consumer this paragraph was waiting for. That consumer takes
+//! a [`Body`](crate::body::Body) and three arena keys, so `geom-brep` —
+//! which has neither — cannot host it at any price, and the two shared
+//! sector modules belong in one scope. The crate root holds, now on a
+//! reason that does not expire: it is the deepest scope that can hold
+//! both.
 //!
 //! # Which scalars the argument-order equality is proven for
 //!
