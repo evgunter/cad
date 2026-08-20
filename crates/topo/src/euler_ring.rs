@@ -477,9 +477,12 @@ impl<T: Decide> Body<T> {
         );
         // Move he1's side into the ring and close its cycle.
         for &moved in &ring_side {
-            if let Some(he) = self.get_half_edge_mut(moved) {
-                he.parent_loop = ring;
-            }
+            let Some(he) = self.get_half_edge_mut(moved) else {
+                unreachable!(
+                    "kemr: the ring side's members were resolved by the plan phase's bounded walk"
+                )
+            };
+            he.parent_loop = ring;
         }
         if let (Some(&first), Some(&last)) = (ring_side.first(), ring_side.last()) {
             // last = prev(he2), first = next(he1): closing the ring cycle.
@@ -500,12 +503,14 @@ impl<T: Decide> Body<T> {
             Some(&first) => LoopBoundary::Cycle { first },
             None => LoopBoundary::Empty { vertex: u },
         };
-        if let Some(l) = self.get_loop_mut(loop_key) {
-            l.boundary = old_boundary;
-        }
-        if let Some(face) = self.get_face_mut(face_key) {
-            face.rings.push(ring);
-        }
+        let Some(l) = self.get_loop_mut(loop_key) else {
+            unreachable!("kemr: the loop resolved in the plan phase")
+        };
+        l.boundary = old_boundary;
+        let Some(face) = self.get_face_mut(face_key) else {
+            unreachable!("kemr: the face resolved in the plan phase")
+        };
+        face.rings.push(ring);
         // Kills, with their provenance entries (kill order documented
         // above).
         self.half_edges.remove(he1);
@@ -521,12 +526,14 @@ impl<T: Decide> Body<T> {
         // second write wins — deterministic.
         let u_anchor = old_side.first().copied();
         let w_anchor = ring_side.first().copied();
-        if let Some(vertex) = self.get_vertex_mut(u) {
-            vertex.emanating = u_anchor;
-        }
-        if let Some(vertex) = self.get_vertex_mut(w) {
-            vertex.emanating = w_anchor;
-        }
+        let Some(vertex) = self.get_vertex_mut(u) else {
+            unreachable!("kemr: `u` resolved in the plan phase")
+        };
+        vertex.emanating = u_anchor;
+        let Some(vertex) = self.get_vertex_mut(w) else {
+            unreachable!("kemr: `w` resolved in the plan phase")
+        };
+        vertex.emanating = w_anchor;
 
         #[cfg(debug_assertions)]
         self.assert_euler_postcondition(
@@ -720,7 +727,9 @@ impl<T: Decide> Body<T> {
     /// (`StaleKey`); cross-shell only: one solid
     /// ([`EulerOpError::CrossSolid`]); `f2` has no rings
     /// ([`EulerOpError::FaceHasRings`]); `f2`'s outer loop resolves
-    /// (`StaleKey`).
+    /// (`StaleKey`); cross-shell only: every surviving face of `f2`'s
+    /// shell and the shared solid resolve (`StaleKey`) — the fusion
+    /// writes through both.
     ///
     /// # Errors
     ///
@@ -767,39 +776,63 @@ impl<T: Decide> Body<T> {
                 key: EntityId::Loop(ring),
             });
         }
+        if cross_shell {
+            // The fusion re-homes f2's shell's surviving faces and
+            // rewrites the shared solid's shell list; both are keys read
+            // out of the body rather than arguments, so prove them live
+            // here — the mutation below cannot fail midway (atomicity).
+            for &face in &s2_data.faces {
+                if face != f2 && !self.faces.contains_key(face) {
+                    return Err(EulerOpError::StaleKey {
+                        key: EntityId::Face(face),
+                    });
+                }
+            }
+            if !self.solids.contains_key(s2_data.solid) {
+                return Err(EulerOpError::StaleKey {
+                    key: EntityId::Solid(s2_data.solid),
+                });
+            }
+        }
 
         // ---- Mutation (infallible from here on). ----
         // The surviving loop is repointed and demoted; nothing else at
         // the half-edge/vertex/edge level is touched.
-        if let Some(l) = self.get_loop_mut(ring) {
-            l.face = f1;
-        }
-        if let Some(face) = self.get_face_mut(f1) {
-            face.rings.push(ring);
-        }
+        let Some(l) = self.get_loop_mut(ring) else {
+            unreachable!("kfmrh: the ring resolved in the plan phase")
+        };
+        l.face = f1;
+        let Some(face) = self.get_face_mut(f1) else {
+            unreachable!("kfmrh: `f1` resolved in the plan phase")
+        };
+        face.rings.push(ring);
         let killed_shell = if cross_shell {
             // Shell fusion: f2's surviving faces re-home into f1's
             // shell — appended in their surviving f2-shell list order
             // (deterministic, D9) — then f2's shell dies.
             let moved: Vec<FaceKey> = s2_data.faces.iter().copied().filter(|&f| f != f2).collect();
             for &face in &moved {
-                if let Some(face_data) = self.get_face_mut(face) {
-                    face_data.shell = f1_shell;
-                }
+                let Some(face_data) = self.get_face_mut(face) else {
+                    unreachable!("kfmrh: f2's shell's faces were resolved in the plan phase")
+                };
+                face_data.shell = f1_shell;
             }
-            if let Some(shell) = self.get_shell_mut(f1_shell) {
-                shell.faces.extend(moved);
-            }
-            if let Some(solid) = self.get_solid_mut(s2_data.solid) {
-                solid.shells.retain(|&s| s != f2_shell);
-            }
+            let Some(shell) = self.get_shell_mut(f1_shell) else {
+                unreachable!("kfmrh: f1's shell resolved in the plan phase")
+            };
+            shell.faces.extend(moved);
+            let Some(solid) = self.get_solid_mut(s2_data.solid) else {
+                unreachable!("kfmrh: the shared solid resolved in the plan phase")
+            };
+            solid.shells.retain(|&s| s != f2_shell);
             self.shells.remove(f2_shell);
             self.shell_provenance.remove(f2_shell);
             Some(f2_shell)
         } else {
-            if let Some(shell) = self.get_shell_mut(f1_shell) {
-                shell.faces.retain(|&face| face != f2);
-            }
+            let Some(shell) = self.get_shell_mut(f1_shell) else {
+                unreachable!("kfmrh: f1's shell resolved in the plan phase")
+            };
+            shell.faces.retain(|&face| face != f2);
             None
         };
         self.faces.remove(f2);
@@ -922,15 +955,18 @@ impl<T: Decide> Body<T> {
 
         // ---- Mutation (infallible; no-op when the faces coincide). ----
         if from_face != to_face {
-            if let Some(face) = self.get_face_mut(from_face) {
-                face.rings.retain(|&l| l != ring);
-            }
-            if let Some(face) = self.get_face_mut(to_face) {
-                face.rings.push(ring);
-            }
-            if let Some(l) = self.get_loop_mut(ring) {
-                l.face = to_face;
-            }
+            let Some(face) = self.get_face_mut(from_face) else {
+                unreachable!("ring_move: the source face resolved in the plan phase")
+            };
+            face.rings.retain(|&l| l != ring);
+            let Some(face) = self.get_face_mut(to_face) else {
+                unreachable!("ring_move: the destination face resolved in the plan phase")
+            };
+            face.rings.push(ring);
+            let Some(l) = self.get_loop_mut(ring) else {
+                unreachable!("ring_move: the ring resolved in the plan phase")
+            };
+            l.face = to_face;
         }
 
         #[cfg(debug_assertions)]
@@ -1010,9 +1046,12 @@ impl<T: Decide> Body<T> {
         let (curve, edge, he_plus, he_minus) = self.mekr_mint(site, u, w, target_loop, certified);
         // Reparent the whole ring cycle into the target loop.
         for &moved in &ring_members {
-            if let Some(he) = self.get_half_edge_mut(moved) {
-                he.parent_loop = target_loop;
-            }
+            let Some(he) = self.get_half_edge_mut(moved) else {
+                unreachable!(
+                    "mekr chords: the ring's members were resolved by the plan phase's bounded walk"
+                )
+            };
+            he.parent_loop = target_loop;
         }
         // Splice (module docs diagram): he_plus → ring … prev(ring) →
         // he_minus → target … prev(target) → he_plus.
@@ -1156,9 +1195,12 @@ impl<T: Decide> Body<T> {
         // ---- Mutation (infallible from here on). ----
         let (curve, edge, he_plus, he_minus) = self.mekr_mint(site, u, w, target, certified);
         for &moved in &ring_members {
-            if let Some(he) = self.get_half_edge_mut(moved) {
-                he.parent_loop = target;
-            }
+            let Some(he) = self.get_half_edge_mut(moved) else {
+                unreachable!(
+                    "mekr empty-target: the ring's members were resolved by the plan phase's bounded walk"
+                )
+            };
+            he.parent_loop = target;
         }
         // Splice: he_plus → ring … prev(ring) → he_minus → he_plus (the
         // target contributes no half-edges; its Empty boundary grows to
@@ -1308,20 +1350,26 @@ impl<T: Decide> Body<T> {
     ) {
         let (u, w) = anchors;
         let (he_plus, he_minus) = halves;
-        if let Some(l) = self.get_loop_mut(target_loop) {
-            l.boundary = LoopBoundary::Cycle { first: he_plus };
-        }
-        if let Some(face_data) = self.get_face_mut(face) {
-            face_data.rings.retain(|&l| l != ring_loop);
-        }
+        let Some(l) = self.get_loop_mut(target_loop) else {
+            unreachable!(
+                "mekr: `target_loop` proven live by the caller's plan phase (mekr_cycles / mekr_empty_ring / mekr_empty_target / mekr_both_empty)"
+            )
+        };
+        l.boundary = LoopBoundary::Cycle { first: he_plus };
+        let Some(face_data) = self.get_face_mut(face) else {
+            unreachable!("mekr: the face resolved in check_ring_not_outer")
+        };
+        face_data.rings.retain(|&l| l != ring_loop);
         self.loops.remove(ring_loop);
         self.loop_provenance.remove(ring_loop);
-        if let Some(vertex) = self.get_vertex_mut(u) {
-            vertex.emanating = Some(he_plus);
-        }
-        if let Some(vertex) = self.get_vertex_mut(w) {
-            vertex.emanating = Some(he_minus);
-        }
+        let Some(vertex) = self.get_vertex_mut(u) else {
+            unreachable!("mekr: `u` resolved in check_anchors")
+        };
+        vertex.emanating = Some(he_plus);
+        let Some(vertex) = self.get_vertex_mut(w) else {
+            unreachable!("mekr: `w` resolved in check_anchors")
+        };
+        vertex.emanating = Some(he_minus);
     }
 }
 
@@ -1331,7 +1379,7 @@ mod tests {
     use geom_core::Point3;
 
     use super::*;
-    use crate::entity::{Edge, Face, HalfEdge, Shell, Solid, Vertex};
+    use crate::entity::{Edge, Face, HalfEdge, Shell, Solid, SolidKey, Vertex};
     use crate::euler::{MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
     use crate::fixtures::{deep_snapshot, mvfs_state, pillow, prov};
     use crate::validate::validate;
@@ -2453,6 +2501,63 @@ mod tests {
         let expected = EulerOpError::CrossSolid {
             f1: seed.face,
             f2: other.face,
+        };
+        assert_err_deep_unchanged(&mut body, &expected, |b| {
+            b.kfmrh(seed.face, other.face).unwrap_err()
+        });
+    }
+
+    /// A same-solid two-shell body: the shape `kfmrh`'s fusion form
+    /// exists for. It is not constructible through the public
+    /// operators (`mvfs` mints one solid per shell), so the second
+    /// shell is re-homed by raw in-crate write — the same adversarial
+    /// posture as the rest of this module's corruption rows.
+    fn fused_two_shell_body() -> (Body<f64>, MvfsCreated, MvfsCreated) {
+        let (mut body, seed, _seg, _split) = ops_pillow();
+        let other = body.mvfs(p(9.0)).unwrap();
+        let f1_shell = body.get_face(seed.face).unwrap().shell;
+        let first_solid = body.get_shell(f1_shell).unwrap().solid;
+        body.get_shell_mut(other.shell).unwrap().solid = first_solid;
+        body.get_solid_mut(first_solid)
+            .unwrap()
+            .shells
+            .push(other.shell);
+        body.get_solid_mut(other.solid).unwrap().shells.clear();
+        (body, seed, other)
+    }
+
+    /// The fusion's first plan-phase guard, on the exact corruption it
+    /// exists to refuse. The re-homing walks `f2`'s shell's face list —
+    /// a key read out of the body, not an argument — so
+    /// `kfmrh_rejects_stale_faces`, which corrupts only the two
+    /// ARGUMENTS, cannot reach it. Without the guard the op half-wrote
+    /// the fusion and returned `Ok`.
+    #[test]
+    fn kfmrh_refuses_a_dangling_face_in_f2s_shell() {
+        let (mut body, seed, other) = fused_two_shell_body();
+        let dead = FaceKey::default();
+        body.get_shell_mut(other.shell).unwrap().faces.push(dead);
+        let expected = EulerOpError::StaleKey {
+            key: EntityId::Face(dead),
+        };
+        assert_err_deep_unchanged(&mut body, &expected, |b| {
+            b.kfmrh(seed.face, other.face).unwrap_err()
+        });
+    }
+
+    /// The fusion's second guard. Both shells name the same DEAD solid,
+    /// so the `CrossSolid` gate — which only compares the two — passes,
+    /// and the solid guard is the only thing left to catch it. The
+    /// fusion rewrites that solid's shell list.
+    #[test]
+    fn kfmrh_refuses_a_dead_shared_solid() {
+        let (mut body, seed, other) = fused_two_shell_body();
+        let dead = SolidKey::default();
+        let f1_shell = body.get_face(seed.face).unwrap().shell;
+        body.get_shell_mut(f1_shell).unwrap().solid = dead;
+        body.get_shell_mut(other.shell).unwrap().solid = dead;
+        let expected = EulerOpError::StaleKey {
+            key: EntityId::Solid(dead),
         };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
             b.kfmrh(seed.face, other.face).unwrap_err()

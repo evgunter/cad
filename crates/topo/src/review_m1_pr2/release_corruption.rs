@@ -26,15 +26,45 @@
 //! "Or garbage bodies" is NOT. The addendum's rule is **silent discard is
 //! never an answer**, and it explicitly supersedes the footnote's original
 //! "typed errors where cheaply detectable, or documented garbage-out in
-//! release". The ~60 silent discards in `euler{,_ring,_kill}.rs` that
-//! produce those garbage bodies are now a known deviation pending **W2c**,
-//! not a ratified disposition. So
-//! `foreign_parent_loop_garbage_in_garbage_out_release` below documents
-//! what the kernel currently DOES, not what it is entitled to do, and W2c
-//! is expected to change its meaning or retire it. Its independent value
-//! until then is that it is the file's only
+//! release". W2c executed that rule across `euler{,_ring,_kill}.rs`: no
+//! mutation phase there discards a failed lookup any more.
+//!
+//! **That did not retire the row below, and the reason is the row's whole
+//! point.** `foreign_parent_loop_garbage_in_garbage_out_release` corrupts
+//! `parent_loop` to a key that is *live but wrong*, so no lookup fails —
+//! every write lands, on the wrong topology. The garbage it observes is
+//! wrong data, never a swallowed failure, and it is the residue the
+//! addendum leaves standing: corruption a plan phase cannot observe still
+//! yields `Ok` plus a body the validator refuses. The row therefore still
+//! documents what the kernel DOES rather than what it is entitled to do.
+//! Its other value is that it is the file's only
 //! `#[cfg(not(debug_assertions))]` item, so it is the one thing here that
 //! a debug-only CI could not even type-check.
+//!
+//! # What this file does NOT cover, stated rather than left to be found
+//!
+//! The row-4 `unreachable!`s the Euler modules now carry fire on a key
+//! that fails to RESOLVE. Every corruption planted below is either
+//! live-but-wrong (`parent_loop`, the edge<->half bijection) or a torn
+//! `next` -- by construction none of them makes a lookup fail, which is
+//! why the whole file still passes unchanged after the conversion. So
+//! **no row here plants a dangling key into a mutation phase**, and in
+//! release, where the postcondition is compiled out, those
+//! `unreachable!`s are the only guard left.
+//!
+//! That gap is recorded rather than closed. Reaching a mutation phase
+//! with a dangling key means defeating the plan phase that exists to
+//! refuse exactly that: on today's operators every such key is either
+//! minted in-phase or proven live, so a fixture would have to corrupt
+//! the body BETWEEN the plan and the mutation -- which no in-crate
+//! surface offers, the two phases being straight-line code inside one
+//! `&mut self` call. A fixture that instead corrupts before the call
+//! gets a typed `StaleKey`, which is the row above, not this one. The
+//! honest statement is that these arms are unreachable by construction
+//! and therefore also untestable by construction; the thing that WOULD
+//! go red on a bad conversion is
+//! `debug_postcondition_fires_on_corrupt_input`, which is why it now
+//! asserts its panic's source instead of only that one occurred.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -172,8 +202,9 @@ fn large_torn_body_terminates_quickly() {
 /// Foreign-parent-loop corruption that PASSES every precondition: the op
 /// completes and returns Ok, producing a garbage body. This RECORDS
 /// current behaviour rather than blessing it -- the D2 addendum retired
-/// the garbage-out half of the contract and W2c converts the discards
-/// that cause it (see the module docs). In DEBUG builds the postcondition
+/// the garbage-out half of the contract. **No discard is involved**: the
+/// planted `parent_loop` is live but wrong, so every lookup succeeds and
+/// writes the wrong topology (see the module docs). In DEBUG builds the postcondition
 /// assert fires instead -- which contradicts the module doc's claim that
 /// a firing postcondition is "never an input failure". Kept release-only
 /// here, which also makes it the file's only item a debug-only CI cannot
@@ -205,9 +236,36 @@ fn foreign_parent_loop_garbage_in_garbage_out_release() {
 /// postcondition DOES fire on tier-1-invalid input (panic), i.e. the
 /// "one legitimate panic site / never an input failure" doc sentence
 /// only holds under the tier-1-valid input assumption.
+///
+/// **Why the panic's SOURCE is asserted and not just that one
+/// occurred.** Since the D2 addendum landed in the Euler modules there
+/// is a second panic source in this call path -- the row-4
+/// `unreachable!`s the mutation phases now carry. A bare `is_err()`
+/// passes identically whether the panic came from the postcondition
+/// this row is named for or from a mis-converted `unreachable!`, and
+/// the postcondition is the only debug-side signal that separates
+/// them. Both `assert_euler_postcondition` messages carry the literal
+/// asserted below; no `unreachable!` message does.
+///
+/// The message is captured through a panic HOOK rather than by
+/// downcasting `catch_unwind`'s payload: `Any` downcasts are a second
+/// bit channel and the `bit-identity punning` gate bans them outside
+/// `geom_core::bit_identity`, test code included. The hook is
+/// process-global, so it is restored immediately and the capture is
+/// treated as advisory -- a concurrently panicking test in the same
+/// process would show up as an empty or foreign message, which fails
+/// loudly here rather than passing quietly.
 #[test]
 #[cfg(debug_assertions)]
 fn debug_postcondition_fires_on_corrupt_input() {
+    let captured = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
+    let sink = std::sync::Arc::clone(&captured);
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        if let Ok(mut slot) = sink.lock() {
+            *slot = info.to_string();
+        }
+    }));
     let result = std::panic::catch_unwind(|| {
         let (mut body, seed, seg, split) = pillow();
         let foreign = seed.r#loop;
@@ -218,11 +276,19 @@ fn debug_postcondition_fires_on_corrupt_input() {
             he2: split.he_minus,
         });
     });
+    std::panic::set_hook(previous);
     assert!(
         result.is_err(),
         "expected the debug postcondition to panic on corrupt input; if \
          this stops panicking, the doc claim becomes true and this test \
          should move to the release-style garbage-out assertion"
+    );
+    let message = captured.lock().map(|slot| slot.clone()).unwrap_or_default();
+    assert!(
+        message.contains("postcondition"),
+        "panicked, but not from the postcondition -- a row-4 \
+         `unreachable!` fired instead, which means a conversion's \
+         not-input-reachable claim is false: {message}"
     );
 }
 
