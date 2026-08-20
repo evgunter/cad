@@ -61,17 +61,6 @@ impl MateRole {
     }
 }
 
-/// One pair's folded coset, with the mates that produced it.
-#[derive(Debug, Clone)]
-pub struct PairSolve {
-    /// The pair, in solve order (parent, child).
-    pub pair: (RecipeNodeId, RecipeNodeId),
-    /// The mates folded, in document order.
-    pub mates: Vec<RecipeNodeId>,
-    /// What survived the fold.
-    pub coset: Coset,
-}
-
 /// The document's solved poses (D-5's compose-outward input).
 #[derive(Debug, Clone, Default)]
 pub struct SolvedPoses {
