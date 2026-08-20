@@ -53,6 +53,156 @@ head, merge without waiting for a second CI run.**
 
 ---
 
+## HANDOFF — 2026-08-20, session 2 winding down
+
+Evan called the usage limit near, so: **live work finishes, nothing new starts,
+and everything unstarted is written down here rather than carried in an
+orchestrator's head.** This section is the reassignment. A fresh orchestrator
+should be able to work from it plus the *Review policy*, *Recording convention*,
+*Rulings* and *standing lane header* sections above, without reconstructing
+anything from a transcript.
+
+### Live at handoff — these were in flight and are not reassigned
+
+| unit | PR | what it still needs |
+|---|---|---|
+| **C-q / C10** | **#801** | Combined fix pass for **two adversarial MAJORs + twelve style findings**. MAJOR 1 falsified the PR's headline claim (see *"The oracle I called the right shape"* above); the title, two tree sites and three record sites all still carry it. MAJOR 2 (turbofish) is **fixed**. Needs: the MAJOR 1 restatement, the upstream probe added to `seal-oracle.sh`, a stale-body sweep, a re-merge (it has a `SMELL-SCAN` conflict), and a **first-ever valid CI run** — `get_check_runs` on its heads has returned `total_count: 0` throughout. |
+| **C-g / S32** | **#804** | Adversarial + style review returns. Row **C24** is written in it. |
+| **C-j follow-up** | **#816** | Rows **C22** and **C26** being written, then CI, then it merges. |
+
+**If a review lane returns after this session ends**, its findings are in
+`~/.local/share/cad-work/{adv,sty}-8NN-findings.md` — **container-local, and the
+container is reclaimable.** Anything load-bearing from them must be relayed into
+a PR body or into this file before it is worth anything. That is this session's
+most-repeated lesson and it has cost four separate incidents.
+
+### Unstarted — reassigned, with gates re-verified against `main` at handoff
+
+| lane | finding | scope | gate — **as of 2026-08-20 21:xx**, re-verify before starting | review |
+|---|---|---|---|---|
+| **C-k** | **S28's duplication half** — three tessellation lanes, three pipelines | `mesh/` | **Held, not blocked.** #684 discharged the original gate. The live reason to wait was **#816**, which edits `mesh/` — once it merges, C-k is free. This is a *dependency*, so it does not clear by waiting on capacity. | **adversarial** + style (C-R12) |
+| **C-l** | **C7 + S33** — the lane-trait collapse, `RingInterval`, the scalar ladders | `geom-core/`, and W2b's 535 refs across 15 files | **Was blocked on #801** (`geom-core/`). Free once #801 merges. Expect to **split into 2–3 lanes**. | **style only, provisionally** — the sub-lane that *rewrites* `Dual` arithmetic rather than re-spelling it is promoted to adversarial |
+| **C-m** | **S27** — `props/quad.rs`'s four quadrature engines | `geom-brep/src/props/quad.rs` | **GATED, and the gate is a live kernel defect, not a queue.** A2/#714 merged 08:42Z and is discharged; what remains is **#723** — open. It does **not** clear by waiting on this track. See the note under the roster. | **adversarial** + style |
+| **C-n** | **H17** — the rustdoc spec-code remainder, ~1115 lines / 130 files | per crate: `topo` 300, `editor-core` 267, `geom-brep` 192, `geom-core` 107, `sweep` 64, rest < 70 | **Deliberately last** — 130 files, conflicts with every open lane. **Its measurement is not to be re-run** (see the roster note). | style, per crate batch |
+| **S29's policy half** | **C-R2** — nothing states what the mesh sizing *policy* is | `crates/mesh/src/sizing.rs`'s module doc | **Waits for Evan.** Design PR, not a cleanup. The plan is **recovered below** — it existed only in a container-local file until this commit. | design conversation |
+
+### Recovered: the S29 policy plan, which existed only in a container file
+
+C-j wrote this and left it at `~/.local/share/cad-work/c-j-policy-plan.md`. That
+path does not survive a container reclaim, and this session has already lost one
+container. **Committed verbatim** (headings demoted to nest here), because a plan
+that lives only in `$HOME` is not a plan — the same failure as a register that
+has not landed, which this track recorded four times today.
+
+#### S29's policy half — PLAN ONLY (C-R2: its own PR, waits for Evan)
+
+**Not implemented. Not in #803.** #803 unified the *vocabulary*; this is
+the *policy*, and C-R2 rules it a design act.
+
+##### The one thing that IS ratified, so the gap is not overstated
+
+`docs/TESS-BUDGET.md`'s *split schedule's aspect policy* (A = 16,
+ratified 2026-08-16 on PR #568, bound by `docs/TESS-SPLIT-SPEC.md`,
+**still unexecuted**) rules where the NURBS split schedule takes its
+point on the certified ellipse. That is the whole of it: it says nothing
+about δ_s = δ/2, the sphere margin, `SAFE_ASPECT`, the retry or
+refinement budgets, or the analytic charts. Any policy document written
+here must **subsume it, not contradict it**, and must say whether A = 16
+is an instance of a general clause or a one-off.
+
+##### The gap, stated precisely
+
+Six sizing rules ship in `crates/mesh` and each is argued **locally and
+well**: δ_s = δ/2; the sphere arm's extra ×1.25; `SAFE_ASPECT = 5.0`
+above its own derived √15; `MAX_GRID_RETRIES = 6`;
+`RATIONAL_CERT_SPLITS = 16`; the π/4 angular cap. Nothing says what they
+are collectively *for*, so rule seven arrives as a seventh local
+argument (#684's `pole_columns` was rule six, and it arrived exactly
+that way). S29's own lesson: *N well-defended deviations read as N
+decisions when they are one undecided question.*
+
+##### What the document must answer — five clauses
+
+1. **What the schedule promises.** The crate docs already say *heuristic;
+   the certificates are the guarantee*. Promote that from a parenthesis
+   to the first clause: the schedule is a **cost** heuristic, the
+   per-triangle certificate is the **correctness** gate, and `trimmed`'s
+   refinement ladder is the reconciliation between them. Every constant
+   below is then a cost-vs-refusal-risk trade with one stated criterion,
+   not six independent defences.
+2. **How much margin a schedule may spend, and against what.** Three
+   margins exist with three unrelated derivations (δ/2; the sphere's
+   further /1.25; the measured `(3.87, 5]` aspect gap). State the rule
+   that admits a *new* one.
+3. **When a MEASURED constant is admissible.** `SAFE_ASPECT` sits above
+   its derived line on measured margin. Proposed clause: admissible only
+   where a typed refusal backstops it, and only with the measurement's
+   corpus named at the constant. Both hold today — which means this
+   clause ratifies practice rather than changing it, and that is the
+   cheapest possible version of the fix.
+4. **What evidence a re-tune owes.** The tess-budget baseline
+   (regression, not absolute) and the certificate falsifier already
+   exist; say which one each constant answers to, and say out loud where
+   a constant answers to neither.
+5. **The unguarded residue, kept visible.** `SAFE_ASPECT`'s own doc
+   concedes the *worst tour face certificate 0.60·δ* margin has no guard
+   at all. A policy that does not name its unguarded quantities is the
+   same substitution one level up.
+
+##### Deliverable
+
+One section — home is `crates/mesh/src/sizing.rs`'s module doc, which
+#803 left a **"What is NOT here"** hole shaped for it; escalate to
+`docs/DESIGN.md` only if Evan judges it a ratified decision rather than a
+crate contract. Plus a table: one row per constant, naming the clause
+that licenses it and the guard that watches it.
+
+##### The risk to declare before starting
+
+Writing the table may find a constant that **no defensible clause
+licenses**. That is a finding, not a cleanup: under C-R19 it is tier
+three (an issue and a §D row), and it must not be laundered by inventing
+a clause to fit it. The policy PR's honest failure mode is to conclude
+"five of six are licensed and the sixth is not", and it should be
+allowed to.
+
+### What a fresh orchestrator most needs to know
+
+Six things, in the order they will bite:
+
+1. **Every recorded population this track has checked was wrong.** H11's two were
+   ten, H12's nine were thirteen, H15's three were twenty-three, C10's ~96 lines
+   were 263, S29's five modules were wrong in *both* directions. **Measure with
+   an instrument shaped differently from the one that produced the number** — no
+   correction this session came from looking harder with the same one.
+2. **Every unit was NOT CLEARED on first review**, and in every case the defect
+   was **a claim wider than its evidence**, not a shipped wrong answer. Budget
+   for two rounds minimum. A round that ends in a smaller claim worked.
+3. **Environmental failures arrive wearing the costume of a result** — four this
+   session: a shallow clone that silently disabled `git log -S`, two CI budget
+   lapses (`runner_id=0`, ~2–5 s, all branches including `main`), and a full disk
+   that truncated this file mid-write and let `git commit` succeed. **Before
+   treating any red signal as a finding, ask what it would look like if the
+   environment had failed instead.**
+4. **Row numbers: assign centrally, and a lane re-verifies against `main`
+   immediately before writing** (C-R20/C-R21). §D is shared by seven programmes
+   and its conflict window is shorter than one CI run. A hole in the sequence can
+   mean *landed and left* (C9) or *reservation released unused* (C22) — the row
+   must say which.
+5. **The `C<n>` namespace is saturated**: §C's process observations run C1–C25
+   against §D's rows C1–C26 **in the same document**. The only thing separating
+   them is #731's convention — a bare `CNN` is a §D row, a `§CNN` is a §C
+   observation.
+6. **The lane helper is container-local.** `local-scripts/new-lane.sh` clones
+   `git@github.com:` and this box has **no `ssh` binary**;
+   `~/.local/share/cad-work/new-lane.sh` is the stand-in that clones locally,
+   unshallows, and sets `core.hooksPath`. **It will not survive a reclaim** —
+   recreate it, and keep the `--unshallow`, because a shallow clone silently
+   disables `git log -S`, which is §S39's own named instrument.
+
+
+---
+
 ## Rulings made in this track
 
 | # | Question | Ruling | By |
