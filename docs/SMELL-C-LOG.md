@@ -1578,3 +1578,38 @@ lanes, and three of the four remaining reach the door through
 was that it never said **what it counted**. **A reviewer flagging an unclear
 claim is not the same as the claim being false**, and rewriting a true number to
 satisfy a review would have been the worse outcome.
+
+### §S39's own named instrument was unavailable to every lane, and one command restored it
+
+C-i reported, holding back rather than claiming: it could not settle whether
+`split_other_at_point`'s retired *"post-gate"* precondition was a sentence that
+rotted or a precondition **silently widened out from under the helper** —
+because `git log -S` *"bottoms out at the graft commit `541d9d83` in this shallow
+clone for both sides."* And it named the consequence exactly: **§S39's method
+note says `git log -S` is the instrument; in this clone it is not one.**
+
+Checked, and it was true of every lane this session. The container's checkout is
+shallow — **1,006 commits reachable, 15 graft points**. `git fetch --unshallow`
+takes seconds and yields **4,539**. Run against a fresh clone, `git log -S` then
+answers C-i's question on the first try, returning the two commits that touch the
+sentence and the gate.
+
+**Fixed rather than recorded.** The orchestrator checkout is unshallowed, so
+every lane cloned from it now inherits full history; the four live lane clones
+were unshallowed in place; and `new-lane.sh` re-asserts it, so a re-shallowed
+source cannot quietly take it away again.
+
+*Generalisable, and it is a shape this track has not had before.* Every other
+instrument failure here has been **a lane's instrument being too narrow**. This
+is **the repository's own ratified instrument being absent from the environment
+the work happens in** — §S39 names `git log -S` as the way to tell benign rot
+from a latent defect, and no lane could run it. The finding was reachable only
+because C-i disclosed a question it could not answer *and said why*, rather than
+picking the likelier of the two readings.
+
+**What that costs, retroactively:** every S39-class classification made this
+session was made without the instrument the finding names. None is thereby
+wrong — the lanes classified by reading code, which is what they had — but
+**"benign rot" and "a precondition widened out from under a caller" were
+distinguished by argument where a command was supposed to decide it.** Worth
+re-checking if a classification is ever load-bearing.
