@@ -9580,6 +9580,27 @@ track editing them is the collision this sequencing exists to prevent. **If
 Track C declines either, it returns to Track E** — not to nobody, which is the
 failure §C3 names.
 
+**A file overlap Track C should know about, found 2026-08-20.** This table
+describes **C-f (#731)** as scoped to `editor-core/src/{resolve/, select.rs,
+refactor.rs}`. Its actual diff also touches **`editor-core/src/eval/mod.rs`**
+and `eval/anchor.rs`, plus `doc.rs`, `expr.rs`, `names/{mod,role,select}.rs`,
+`node.rs` and `persist/check.rs`. Track E's **E-e (#767)** rewrote
+`eval/mod.rs`'s `Display` impl on the strength of the narrower description.
+
+**Nothing is broken and no action is needed beyond re-merging.** The two are
+disjoint **by item** — #731's `eval/mod.rs` hunks are the content-key hasher,
+about seven hundred lines from the `Display` impl — so the exposure is a merge
+conflict, not a semantic collision, and *whichever lands second re-merges rather
+than assumes* already covers it. It is recorded here rather than as a comment on
+#731 because this table is the shared register and is where the wrong scope was
+written.
+
+*The transferable half:* **a track's own table is the thing other tracks fence
+against, so a scope line that lags its lane's diff silently mis-fences someone
+else.** Track E built a brief on this row and would have shipped into a
+collision if the lane had not been told to verify the fence rather than trust
+it.
+
 ---
 
 ## Track D — COMPLETE (2026-08-20): every row landed or moved
