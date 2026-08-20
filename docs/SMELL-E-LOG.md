@@ -125,9 +125,9 @@ discharged before this track existed.
 | **E-b** | D23 | `docs/` + suite headers; code set is what the re-derivation finds | none | style | **in flight** |
 | **E-c** | D26 | `docs/SMELL-SCAN-2026-08.md` §D and §S19 | none | style | **DONE — #752 merged**; discharged into D36–D39, plus D47/D48 from its review, all unstaffed |
 | **E-d** | D33 | `docs/predicate-dimension-audit.md` | none | style | **#761, in review** |
-| **E-e** | D28 + issue #693 | `editor-core/src/eval/` | **confirm against C-f (#731)** — same crate, disjoint files | style | unstarted |
+| **E-e** | D28 + issue #693 | `editor-core/src/eval/` | **confirm against C-f (#731)** — same crate, disjoint files | style | **in flight** |
 | **E-f** | D25 | `topo/src/euler.rs` and every `link_half_edges` caller | none | **ADVERSARIAL** | **#755, in review** |
-| **E-g** | D27, then D29 | `sweep/src/fillet/{build,surgery,mod}.rs` | none | **ADVERSARIAL** (D27), style (D29) | unstarted |
+| **E-g** | D27, then D29 | `sweep/src/fillet/{build,surgery,mod}.rs` | none | **ADVERSARIAL** (D27), style (D29) | **in flight** |
 | **E-h** | D21 | `topo/src/{split,attach,movefac,revert}.rs`, `splitting/finish.rs`, `boolean/combine.rs` | **E-f, for file overlap on `split.rs`** — see E-R4 | **ADVERSARIAL** | unstarted |
 | **E-i** | D24 | `Cargo.toml` workspace lints, or `.github/workflows/` | none | style | unstarted |
 | **E-j** | D31 | `sweep/src/skin.rs`, `geom/src/curves/fit.rs`, home in `geom-core/src/spline/algebra.rs` | **Track C (C-l, C-g)** | style, escalates if the sort order is load-bearing | unstarted |
@@ -192,6 +192,28 @@ decision turns on, after #740 and #744, and the first whose shape is *a lane
 creating the defect precisely by doing the right thing*. Forwarded to E-a as
 evidence, explicitly not as an instruction: the row closes on a verdict either
 way, and the cost side is that lane's to measure.
+
+### A stale-claims sweep can write the false sentence: E-d's argument for re-deriving rather than striking (2026-08-20)
+
+E-d found `docs/DESIGN.md:31` describing the predicate-dimension audit's open
+findings as *"F2, F6's residue, F7–F15"* when the audit has **F6 and F7 both
+RETIRED** — retired *together*, being one quantity three sites had handled three
+ways. Asked whether the fix is a one-line strike or a re-derivation, it argued
+**re-derive**, and the argument is worth keeping because it turns S39 on itself:
+
+> S39's single non-benign row was a false sentence written **by a previous
+> stale-claims sweep**, which replaced two honest sentences with one wrong one.
+
+Striking `"F6's residue, F7"` makes the sentence true this week and leaves it
+the same hand-copied enumeration with the same expiry. The honest form is a
+**pointer plus a shape** — *"open findings live in that document's disposition
+list; F2 and the arm-policy family F8–F11 are the standing ones"* — rather than
+a range that must be retyped on every retirement.
+
+It is also sharper than a plain miss: F6's residue did not vanish, the audit
+**re-homed** it to issue #501 and says explicitly it is *"NOT this family"*. So
+a reader following the index lands on a disposition that redirects them. Placed
+as **D51**, with the verdict recorded and the taker left free to disagree.
 
 ---
 
@@ -285,9 +307,10 @@ constituted.**
 | D46 | E-d (D33) | **used** — the 23 funnel predicate names the audit reaches under no reading |
 | D51 | E-d (D33) | assigned 2026-08-20 — `DESIGN.md:31` describes the audit's open findings as including two the audit itself has RETIRED |
 | D52–D53 | E-g (D27 + D29) | reserved 2026-08-20 |
+| D54–D55 | E-e (D28 + #693) | reserved 2026-08-20 |
 | D46 | E-d (D33) | reserved 2026-08-20 |
 
-Next unassigned: **D54**; D42 and D43 are back in the pool and deliberately not
+Next unassigned: **D56**; D42 and D43 are back in the pool and deliberately not
 re-issued — a number that has appeared in a lane's report, even as *unused*, is
 cheaper to skip than to explain.
 
@@ -325,7 +348,7 @@ because both edit `sweep/src/fillet/`, and D27 first because its newtype may
 dissolve part of D29's surface. Its brief carries the four things #755 learned
 at cost about shipping an unforgeable token, so it does not re-learn them.
 
-Not yet dispatched: **E-e** is wave-1-eligible and held only by capacity. E-h
+**E-e dispatched 2026-08-20** (`smelle/d28`), fenced off `sweep/` while E-g holds it and told to read C-f's head rather than trust my claim that `eval/` and `resolve/` are disjoint. E-h
 waits on E-f (file overlap on `split.rs`, see E-R4), E-k on E-g and E-h, E-j on
 a Track C confirmation. E-i, E-l, E-m are wave 2; E-n is last.
 
