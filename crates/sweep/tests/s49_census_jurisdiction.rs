@@ -251,6 +251,10 @@ fn face_vertices(body: &Body<f64>, f: FaceKey) -> Vec<topo::VertexKey> {
     for &lk in core::iter::once(&data.outer).chain(&data.rings) {
         let Some(l) = body.get_loop(lk) else { continue };
         let topo::LoopBoundary::Cycle { first } = l.boundary else {
+            // A lone-vertex loop has no cycle to walk. Extruded bodies
+            // have none; the skip is a shape requirement of the walk,
+            // not a judgement that an empty loop carries nothing —
+            // which is the reading §H14's residue 2 was about.
             continue;
         };
         for he in body.loop_cycle(first).unwrap() {

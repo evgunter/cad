@@ -6355,16 +6355,34 @@ pair was deferred by one arm and dropped by the other. The deferral now requires
 opposed senses, which is the configuration the conformal arm returns a verdict
 on; the rest fall through to the box test.
 
-**The capability cost is real and is filed as §D row C16.** Deleting the
-`bridged` skip means no assembly with a non-convex container — L-bracket, blind
-bore, pocket, cavity — can pass `validate_pseudomanifold` by any declaration,
-where before a declaration was the only route it had. Measured on an L-bracket
-with a part resting on its inner wall, all records confirming, no placeholder
-anywhere: `Ok(())` at base, one `CensusUndecidable` at head. That is not a false
-refusal — the arm genuinely cannot separate it from the embedded cube — but the
-cause is the coarseness of an extent-box test, not interference, so C6's recorded
-gate-skips (scoped by `ASSEMBLY-DESIGN.md:199` to deliberate interference fits)
-are **not** the remedy, and the pointer that named them is withdrawn.
+**The capability cost is real, and it is kernel work rather than style: it is
+filed as issue #750**, *"Containment examination is extent-box coarse: no
+non-convex-container assembly can certify after #737"*. Deleting the `bridged`
+skip means no assembly with a non-convex container — L-bracket, blind bore,
+pocket, cavity — can pass `validate_pseudomanifold` by any declaration, where
+before a declaration was the only route it had. Measured on an L-bracket with a
+part resting flat on its inner wall, four v-on-f records all confirming, plain
+`Plane` surfaces, no placeholder anywhere: `Ok(())` at base, one
+`CensusUndecidable` at head. That is not a false refusal — the arm genuinely
+cannot separate it from the embedded cube — but the cause is the coarseness of an
+axis-aligned extent-box test, not interference, so C6's recorded gate-skips
+(scoped by `ASSEMBLY-DESIGN.md:199` to deliberate interference fits — overlapping
+shells, which the L-bracket has none of) are **not** the remedy: a gate-skip would
+suppress the refusal rather than fix it, and suppressing it re-creates the class
+this unit removed. The pointer that named them is withdrawn from the code and
+from this record. **This gets no §D row** (Evan, 2026-08-20: *"the cost sounds
+like it's real kernel work and not style; if my read is accurate, file a github
+issue about it instead"*); #750 carries the reproduction, the base-vs-head table,
+the extent-box diagnosis, and the style lane's `declared.faces` same-solid
+residual. It also records the one **negative result** this unit produced, so it
+is not retried: the obvious record-free narrowing that reuses data already in
+`Geo` — deriving a separating plane from the container's own face planes — is
+unsound **exactly** on the class that needs it, since extending the L-bracket's
+inner wall `x = 1` puts points at `x > 1, y < 1` outward of that plane and inside
+the material. A separating face plane certifies "outside" only for a convex
+container. That converts this unit's *"minimality was never proved"* disclosure
+into a stated negative result about one named candidate — not a proof that the
+skip's deletion is minimal.
 
 **No instrument was added, and the recurrence is not addressed.** This defect has
 now been found four times — S49, #637's two residues, and this PR's third
@@ -6374,9 +6392,22 @@ about the SAME pair*), not a token, a convention, a test or a gate; a `continue`
 with a prose justification remains indistinguishable to grep and to CI from one
 without. Residue 2's class is measurably larger than its instance: a
 differently-shaped sweep for `LoopBoundary::Cycle { first } = … else { continue }`
-returns **29 sites in 18 files**, and this PR audits the three inside
-`census.rs`/`rules.rs` and none of the rest. `scripts/gates/` already holds three
-allowlist-shaped gates, which is the shape a deferral register would take.
+returned **29 sites in 18 files** when the style lane ran it; re-run at this
+unit's merge head (`eef045ac`) with the pattern
+`LoopBoundary::(Cycle|Empty).*else \{ … continue \}` over `crates/`, it returns
+**26 sites in 17 files**, of which this unit audits the three inside
+`census.rs`/`rules.rs` and none of the rest. **What that pattern cannot match**,
+and what therefore is not in either number: the same handling written as a `match`
+arm rather than a let-else — 15 further sites, two of which
+(`topo/src/seqgen.rs:1080`, `editor-core/src/names/emit.rs:422`) are
+`LoopBoundary::Empty { .. } => {}`, residue 2's exact reading in match form,
+uninspected here; `continue`s that drop a loop for a different reason (an arena
+miss); and the same class over any other enum. `scripts/gates/` holds three
+allowlist-shaped gates, and since this unit opened, one **derived-census** gate
+(`probe-suite-census.sh`, landed on main 2026-08-20) — a gate that derives its
+population rather than listing it, and refuses an empty answer or a drop below a
+floor. That is closer to the shape a deferral register would take than an
+allowlist is, and it is the nearest existing precedent for building one.
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18) — *"should be scheduled but i have no
 opinion on when"*. The jurisdiction call was part of the unit, not a prerequisite
@@ -7412,7 +7443,6 @@ rewritten rather than appended to.
 | **C9** | **The `tess-meter` CSV's `agreement` column measures nothing**, and its `≤ 1%` assertion in `budget_meter` was vacuous. `grid_cells` and `span_cells` are the same `Σ nuc·nvc` from the same `band_schedule`, so the ratio is `≡ 1.0` by arithmetic — while the module docs claimed it *"verifies the lane's REALISATION of the schedule (candidate generation, dedup, counting)"*, which was never true because neither number counts a candidate. `tess-lint`'s own report legend already printed *"1.00 by construction"*: **the tool knew and the docs disagreed.** #709 corrected the column's doc to stop claiming a check; making the column *real* needs a CSV schema change and a re-cut committed baseline. | Disclosed in #709's body and correctly out of that unit's scope — **and it had no row until now, which is this track's own instance of §C3.** The substantive question is whether a realisation check is worth having at all: if the answer is no, the honest fix is to delete the column rather than re-derive it, and that is a decision the lane should make and record. Edge-free; `tools/tess-meter/`, `tools/tess-lint/`, the committed baseline, `docs/TESS-BUDGET.md`. |
 | **C10** | **`geom_core::k_stats` is S30's class one crate over** — 598 lines, ~96 of them separable instrument, in the kernel's own core crate. | Reported by #709 and deliberately untouched, for a reason that is the whole row: the recording sits **inside** `decide`/`decide_flagged`/`decide_invariant`, which are load-bearing kernel predicate doors, so the `mesh::budget` split does **not** transfer mechanically. Whoever takes this must first decide whether the instrument can leave a door that certifies, and record that decision — it is not a cut-and-paste of #709. Note also `profile::k_stats`, a self-declared compatibility shim whose retirement is **STILL OPEN** at S40. Edge-free but not small. |
 | **C11** | **#726 and #727 — A2/#714's own two residues.** #726: fold the iso-rectangle SHAPE question out of `mesh::curved`'s `require_swept_rectangle` and onto the named predicate, leaving `entries_off_bbox` only #653's walk-consistency question. #727: which door owns the refusal — `mesh` and (once its curved-pierce door lands) the boolean are still protected **transitively**, through tier 3's check 7 calling `mass_properties`, which is the pre-#648 mesher's shape. | Both were footnotes inside a finding marked fixed until #714's style review applied ordering rule 3. #726 is a lane; #727 is a **decision** with a written answer to react to (S58's entry), not a patch. Whoever takes either reads **#723** first — `props_rim_level` is not the whole closed-form premise, so "protected by `props` refusing" is weaker than it reads. |
-| **C16** | **The certifying door now refuses every assembly whose container is non-convex, and a declaration can no longer get one through.** #737 deleted arm 2's record-keyed skip because no `ContactRecords` variant states a placement relation — correct, and it closed a live false accept (a solid embedded in another's material validated clean when its contact was declared truthfully). The cost, measured by #737's adversarial reviewer on an L-bracket with a part resting flat on its inner wall, four v-on-f records all confirming, plain `Plane` surfaces, no placeholder anywhere: `validate_pseudomanifold` answered **`Ok(())` at `793a7ae` and `Err([CensusUndecidable])` at #737's head**. Not a *false* refusal — `CensusUndecidable` claims undecidability and the arm genuinely cannot separate this from the embedded cube; both are the same input to an extent-box test. **The actual cause is that the test is an axis-aligned extent box**, which cannot distinguish "inside the material" from "inside the bounding box of a concavity". Before #737 a declaration was the only route by which an L-bracket, blind bore, pocket, C-channel or cavity assembly could pass that door; after it, none can, by any declaration. | **Middle tier under C-R19: this asks for a plan that goes to Evan before implementation, not a patch.** What arm 2 needs is a container test finer than an extent box — a containment predicate against the solid's own boundary, which is a design element (C9's exclusion ring is the named eventual home). **C6's recorded gate-skips are NOT the remedy and #737's pointer at them is withdrawn**: `ASSEMBLY-DESIGN.md:199` scopes them to deliberate *interference fits* — overlapping shells — and the L-bracket has no overlap at all, so a gate-skip would suppress the refusal rather than fix it. **Two open questions ride here.** (i) Is a certifying door that refuses this class acceptable until the finer predicate lands, or does the refusal need a narrower trigger first? (ii) `Declared::faces` is built with no cross-solid test, so a curve/patch record naming two faces of the **same** solid would back vertex-granular events within it — raised by #737's style lane, adjudicated as not-H14 by its adversarial lane (the locus is implied by the incidence for the cross-solid case), and explicitly not ruled out for the same-solid case. Neither was measured. |
 
 ---
 
