@@ -1753,7 +1753,7 @@ adversarially reviewed.
 | `bspline_green_integral` + its whole `DerivLadder` substrate | `props/quad.rs:706`, `:629` | Module doc at `:42` claims the patch flux engine consumes it; the patch engine runs a separate near-parallel copy |
 | `pcurve.rs`'s ellipse constructors | `geom-brep/src/pcurve.rs:107`, `:219` | Superseded by `pcurve_cache`, which says so in its own docs; the file keeps the name a reader reaches for first |
 | `hull.rs` — 8 of 10 public fns test-only | `spline/hull.rs:151`, `:196`, `:211`, `:297` | `span_hull_rational` documented as returning the same hull as `span_hull` — a wrapper whose body is a precondition check |
-| `boxes` modules in **both** geom crates | `geom-curves/src/boxes.rs:29`, `geom-surfaces/src/boxes.rs:25` | Zero production consumers, while `topo/boolean/boxes.rs` carries a KNOWN GAP note saying "the sound constructor exists unused" (see S16) |
+| `boxes` modules on **both** halves of `geom` | `geom/src/curves/boxes.rs:29`, `geom/src/surfaces/boxes.rs:25` | Zero production consumers, while `topo/boolean/boxes.rs` carries a KNOWN GAP note saying "the sound constructor exists unused" (see S16) |
 | `Node::Sweep` | `eval/wire.rs:1524` | Full vocabulary entry — variant, 2 `SlotId`s, content tag, `inputs`/`slots`/`expr` arms — for an op with no success path |
 | STEP cylinder recognition | `recognize.rs:257`, `:794` | ~90-line estimator whose own test `p7_exact_cylinder_envelope_is_honest` asserts an exactly cylindrical patch must **not** promote; `PromotedKind::Cylinder` asserted as an outcome nowhere in `src` or `tests` |
 | `ProfileError`'s five fillet variants | `profile/src/validate.rs:411`–`:507` | Constructible only from `test_support.rs`, behind the `test-support` feature; `Profile::validate` cannot produce any of them |
@@ -2539,7 +2539,7 @@ pooling the ledger, and that inference is what was wrong.
 | …and again *within* `mesh`, curve vs surface | The curve version's doc says "the face bound's quotient-rule assembly one dimension down" | `mesh/chords.rs:363` |
 | Bulge-arc closed form (ratified convention) | 3 | `edge_geometry.rs:146`, `profile/seg.rs:143`, `sweep/skin.rs:306` |
 | Knot insertion | 2 in one module — one against a validated `KnotVector`, one on a raw `&mut Vec<f64>` re-deriving the span with a linear scan where `find_span`'s binary search is one module away | `spline/compose.rs:296`, `algebra.rs:278` |
-| "Distinct interior knots with multiplicities" | ≥4, because `KnotVector` only offers `multiplicity_of(u)` — the query every consumer actually needs is the one the data structure makes awkward | `compose.rs:274`, `algebra.rs:563`, `geom-curves/fit.rs:378`, `sweep/skin.rs:370` |
+| "Distinct interior knots with multiplicities" | ≥4, because `KnotVector` only offers `multiplicity_of(u)` — the query every consumer actually needs is the one the data structure makes awkward | `compose.rs:274`, `algebra.rs:563`, `geom/curves/fit.rs:378`, `sweep/skin.rs:370` |
 | Prefer-intrinsic upgrade rule | 3, with **3 different sample schedules**: validator uses `CERT_SAMPLES`; `revolve/upgrade.rs` hardcodes `let samples = 9u32`; `extrude.rs` uses a *single* midpoint with no lane gate. The doc claims "the SAME quantity, the same predicate name" — true only by coincidence of the literal 9 | `revolve/upgrade.rs:198`, `extrude.rs:1044`, `validate.rs:1994` |
 | Planar divergence-theorem volume | `step-export/volume.rs` re-derives what `props::planar_face` computes, strictly weaker (planes+lines only) and reading its sign with a raw `volume < 0.0` outside the trilean discipline | `step-export/src/volume.rs:88` |
 | Negative-zero flush helper | **FIXED by #704** — all four copies call one home, `step-import/src/signed_zero.rs`, and a CI gate now fails a fifth. The two later copies were byte-identical to *each other*; the home was the variant | `step-import/src/signed_zero.rs` |
@@ -4013,28 +4013,44 @@ split) and he chose the merge.
 two drifts, the deduplication the merge makes possible, then a prose
 sweep. The merged crate is **`geom`**, above `geom-core` and `bvh`;
 `curves` and `surfaces` are its two modules, with the collision-forced
-nesting `geom::{curves,surfaces}::{boxes,nurbs,projection}` and root
-re-exports for everything the two crate roots exported (no collisions).
-Eleven dependents plus both demo workspaces were rewritten. The test
-aggregation held: one `[[test]]` binary, suites grouped under
-`tests/curves/` and `tests/surfaces/`, and the
+nesting `geom::{curves,surfaces}::{boxes,nurbs,projection}`. **Every
+public name either crate root exported is still exported**, from the new
+root — verified by extracting the `pub` declarations of both old trees
+and diffing against `geom/src`: the only delta is two gained `mod`s.
+(The first pass lost four — the `SURFACE_PROJECT_*` constants, whose
+values moved into an interior policy module. Restored as root
+re-exports, which is also what makes the interior module symmetric with
+the other two.) Eleven dependents plus both demo workspaces were
+rewritten. The test aggregation held: one `[[test]]` binary, suites
+grouped under `tests/curves/` and `tests/surfaces/`, and the
 `every_suite_file_is_aggregated` guard made **recursive** so grouping did
 not quietly make it vacuous — 16 members / 13 test targets, and the one
-lost `#[test]` of 225 is that guard's second copy. Feature forwarding
+lost `#[test]` of 225 is that guard's second copy. The guard now also
+computes the suite COUNT rather than letting the file's header restate
+it: that number had been wrong three times running, in a file whose
+whole point is that a list must be mechanically held. Feature forwarding
 collapsed to one crate with no widening: every `interval`/`probe` row on
 both sides expanded to `geom-core/<feature>` already.
 
-*The deduplication.* The four §6.1 constants became one declaration in a
-new `geom::projection` (values were byte-identical: 32, 8, 1e-13, 1e-12),
-which also holds the `mid` bracket-midpoint helper both halves now need;
-`SURFACE_PROJECT_*` had no consumer outside the two crates. A new private
-`geom::net` holds the rank- and dimension-blind control-net helpers, one
-each: `validate_counts` (the surface had hand-inlined a copy in its
-`new`), `poison_point`, `is_placeholder`, `ring_coords` (**three**
-copies) and `removal_pass_bound`. The Newton loops, the seeding sweeps,
-`placeholder()` and the span evaluators were **not** unified and the PR
-says why: they are analogues over different dimension, not copies, and
-the part that genuinely was one policy is the part now shared.
+*The deduplication.* Three interior modules, one per thing the halves
+share. `geom::projection` declares the four §6.1 constants once (values
+were byte-identical: 32, 8, 1e-13, 1e-12), the `mid` bracket read, and
+**the policy prose** — the C6 `f64`-lane framing, the
+`f64`-structure/`T`-payload lift, the sole-bound rule and the C2.1
+honesty contract, each of which the first pass left duplicated
+word-for-word in both halves while the module above them claimed to be
+their one home. `geom::net` holds the rank- and dimension-blind
+control-net helpers, one each: `validate_counts` (the surface had
+hand-inlined a copy in its `new`), `poison_point`, `is_placeholder`,
+`ring_coords` (**three** copies) and `removal_pass_bound`.
+`geom::azimuth` holds the frame `DESIGN.md`'s parameterization row
+already ratifies as one convention — `v_ref = axis × u_ref` — which the
+surface half had as a helper and the curve half open-coded six times.
+Four `#[cfg(test)]` scalar-lift converters, byte-identical under two
+spellings, collapsed to one set. The Newton loops, the seeding sweeps,
+`placeholder()` and the span evaluators were **not** unified: they are
+analogues over different dimension, not copies, and the part that
+genuinely was one policy is the part now shared.
 
 *The drifts.* `NurbsCurve3::is_placeholder` now exists with the surface's
 discriminator and `all`-not-`any` contract, and `step-export`'s
@@ -4045,9 +4061,35 @@ all-infinite control net now refuses as `NonFiniteReal` (corrupt
 which is what the predicate's own docs already argued for, and what the
 surface arm already did. `Projection3`/`Projection2` were lifted to
 `T: Bounds` on the ratified f64-structure + T-lift pattern, matching
-`SurfaceProjection`; at `f64` it is bitwise the old code, and the
-surface's own Newton block diffs empty against main once the constant
-renames are applied.
+`SurfaceProjection`. The surface's own Newton block diffs **literally
+empty** against main once the constant renames are applied.
+
+*A retraction, and the second behaviour change.* This entry first said
+the curve lift was *"bitwise the old code at `f64` — the diff is only
+the wrapping."* **That was false**, caught by #705's adversarial review.
+The correct statement: **bitwise identical on finite arithmetic; a
+residual that overflows now refuses instead of returning an infinite
+distance.** The bracket-midpoint read is `lo + ½(hi − lo)`, which at
+`f64` is `x + ½(x − x)` — the identity on every finite `x` and **NaN at
+`±∞`** — so an overflowed `dist`/`g` loses every acceptance comparison
+and the loop exits to `ProjectionInconclusive` where the `f64`-only form
+returned `Ok { distance: inf }`. It is reachable with **all inputs
+finite**: `NurbsCurve3::new` validates counts and weight positivity,
+never coordinate magnitude, so a control net at 1e200 overflows its own
+squared distance. The refusal is the wanted posture — an overflowed
+residual is not an honest answer — and it now has a row,
+`tests/curves/projection.rs::an_overflowing_residual_refuses_rather_than_reporting_an_infinite_foot`,
+built from finite control points so it shows the case is reachable
+through the public door. The `mid` doc sentence that claimed the
+identity outright was **pre-existing** (carried verbatim from the
+surface half, where `mid` already lived); the curve half newly depends
+on it, which is why #705 corrected it.
+
+*Lesson from that retraction:* the diff really was "only the wrapping"
+— the semantic change lived entirely in a helper the wrapping called,
+whose own doc asserted the property the wrapping was justified by. A
+value-preservation claim about a lift is a claim about the lift's
+**helper**, not about the lines that moved.
 
 *The two crate-doc headers.* `DESIGN.md:369` names these as the
 authoritative text for a convention stated once, so every paragraph was
@@ -4071,13 +4113,34 @@ about a crate boundary that no longer exists, so any citation of it is
 now false. The project's invalidation discipline is symbol-scoped and no
 convention covers a *sentence*, so #705 grepped the prose and found three
 live citations. The load-bearing one was `sweep/src/skin.rs`, whose
-entire "placement in this crate" argument rested on it; the premise is
-void, the conclusion (constructions live in `sweep`) is not, and the
-paragraph was rewritten to stand on the surviving reason. The other two
+entire "placement in this crate" argument rested on it. The other two
 were placement rationales in `geom-surfaces`' and `profile`'s promoted
 review suites. `DESIGN.md:1132` still names `geom-curves` inside the
 ratified **D2 addendum's** rationale — left alone as outside #705's
 authorisation, and now a stale crate name in a ratified document.
+
+**The sentence recorded a placement rule, not a crate-graph fact**, and
+its real subject is `geom-brep/src/nurbs_iso.rs` — iso-curve extraction
+"belongs to the EdgeGeometry layer". Merging the two evaluator crates
+deleted the record *and* removed the structural obstacle enforcing it:
+both payload types are now one crate, so nothing but the rule stops the
+next author moving extraction down beside them. #705's first pass missed
+this — it read three files for name-free citations and not the one file
+the sentence was about — and the review caught it. The rule is now
+stated on its subject, in `nurbs_iso.rs`'s own header, with the reason:
+extraction produces *another entity's carrier*, which is what the
+EdgeGeometry layer is for and what the evaluator layer must not know
+about.
+
+`skin.rs`'s replacement argument was likewise wrong on the first pass —
+"`sweep` is the layer for constructions" is falsified nineteen lines
+later by its own `use geom::curves::fit::…`. The binding reason is
+layering, and it is checkable from the same import list: skinning reads
+a `profile::ValidatedProfile` and a `geom_brep::SketchSegment`, both
+**above** `geom`, so it cannot live below them. The heading's numbered
+deviation was also restored — a deviation number records
+*authorisation*, which the comment-style rule against history does not
+cover.
 
 *Lesson:* the split was justified once, in prose, by a file layout — and
 the justification outlived the layout by four milestones while the
@@ -4087,9 +4150,10 @@ caught it was someone diffing two manifests.
 
 ## S32. `Surface`'s one-partial-per-call API created a second surface enum
 
-- **Where**: `crates/geom-surfaces/src/lib.rs:403`, `:460`,
-  `crates/geom-surfaces/src/nurbs.rs:794`,
-  `crates/geom-brep/src/ssi/system.rs:225`
+- **Where**: `crates/geom/src/surfaces.rs:333` (`deriv_u`), `:434`
+  (`normal`), `crates/geom/src/surfaces/nurbs.rs:736` (`ders`),
+  `crates/geom-brep/src/ssi/system.rs:225` — paths re-anchored by #705's
+  crate merge; the finding is unchanged
 - **Confidence**: sure
 
 `NurbsSurface` computes point and all `k+l ≤ 2` partials in one pass
@@ -4106,18 +4170,19 @@ unavailable at the enum is what created the second enum.
 baffle me with how they ever happened." Postmortem pass commissioned.
 ## S33. Neither geometry enum can lift itself to another scalar
 
-- **Where**: `crates/geom-curves/src/lib.rs:870`, `:990`,
-  `crates/geom-surfaces/src/lib.rs:679`, `:1113`,
-  `crates/sweep/src/skin.rs:770`
+- **Where**: `crates/geom/src/curves.rs:818`, `:908`,
+  `crates/geom/src/surfaces.rs:653`, `:1057`,
+  `crates/sweep/src/skin.rs:774` — paths re-anchored by #705's crate
+  merge; the finding is unchanged
 - **Confidence**: sure
 
 `DESIGN.md` makes "evaluate the same function with a different scalar
 type" the reason the geometry layer is generic over `T`, but `Curve3<T>`
 and `Surface<T>` have no `map_scalar`/`lift`. Every place needing
 `Curve3<f64> → Curve3<Dual64>` or `→ Curve3<Interval>` writes its own
-per-variant ladder: twice inside `geom-curves/src/lib.rs` alone (the
+per-variant ladder: twice inside `geom/src/curves.rs` alone (the
 dual and interval versions differing only in the scalar conversion),
-twice again in `geom-surfaces`, and roughly ten more across `topo`,
+twice again in `geom/src/surfaces.rs`, and roughly ten more across `topo`,
 `mesh` and test modules, plus one production copy in `sweep`. Each must
 be kept exhaustive by hand as variants are added, and each silently maps
 `Nurbs(_)` to the placeholder rather than lifting the payload.
@@ -4197,7 +4262,7 @@ baffle me with how they ever happened." Postmortem pass commissioned.
 | `resolve_selection` / `resolve_declarations` are a documented hand-synced duplicate — "**If you change either ladder, change both**" — where the justification is longer than the shared code it declines to factor | `eval/wire.rs:707`, `:1029` | sure |
 | The profile resolve→replay→validate ladder exists three times with two error vocabularies, so the same broken profile reports differently at the edit door and at evaluation | `eval/wire.rs:407`, `:1419`, `program.rs:846` | sure |
 | `eval`'s finiteness door computes `value * T::zero()` and asks a tolerance band whether the product is `Sign::Zero`, with two magic constants and an `else` the comment calls unreachable — standing in for an `is_finite`/poison predicate `Real` does not expose, and the sole reason `eval` demands `Decide` over `Real` | `expr.rs:854` | likely |
-| `Real::is_poison` exists to support a NaN sentinel: "no description yet" is a bilinear patch whose control points are all NaN, recognised by testing `p.x.is_poison()` — in a crate that elsewhere works hard to make illegal states unrepresentable | `real.rs:143`, `geom-surfaces/nurbs.rs:235` | likely |
+| `Real::is_poison` exists to support a NaN sentinel: "no description yet" is a bilinear patch whose control points are all NaN, recognised by testing `p.x.is_poison()` — in a crate that elsewhere works hard to make illegal states unrepresentable | `real.rs:143`, `geom/net.rs:137` | likely |
 | `bit_identity.rs` dispatches via `&dyn Any` + `downcast_ref` — the channel `real.rs` names as **banned** — for a mechanism whose production allowlist its own docs record as now empty | `bit_identity.rs:56`, `real.rs:22` | sure |
 | Three "the one greppable decide funnel" wrappers, all pure forwards; `geom-brep` has two of them, so the invariant the pattern exists to hold is already broken, and callers bypass both | `dihedral.rs:98`, `enters.rs:163`, `validate.rs:261`, `props/quad.rs:409` | sure |
 | `Revolved` is one result type for three topologies, with the mode encoded in whether `Vec<Vec<Option<_>>>` fields are entirely `None`; `None` means several different things per case, all in prose | `revolve/mod.rs:203` | sure |
@@ -4236,14 +4301,14 @@ baffle me with how they ever happened." Postmortem pass commissioned.
 | The `profile` typestate markers are PhantomData over one untyped `Tip` with two `Option` fields, so `HasPos` does not make `tip.pos` a `Point2` — hence two error variants documented as "expected unreachable" threaded through ~24 sites, and `.to(anchor)` distinguishing lattice states at runtime via `self.core.pending.is_none()` | `profile/path.rs:1091`, `:761` | sure |
 | Two different types named `ArcData` in one crate — a resolved carrier circle and the authored-spec enum — both reachable as `super::ArcData`, with the enum exported at the crate root | `profile/path.rs:982`, `path/program.rs:96` | sure |
 | The profile elaborator advertises "strictly forward, single pass" and back-patches emitted geometry in three places, so "every authored point lies on the final path" holds in the weaker sense of "lies on some segment" | `profile/path.rs:44`, `:1604`, `:1684`, `:2650` | likely |
-| The `nurbs_curve!`/`nurbs_fit!`/`nurbs_project!` macros mint a full 2-D twin whose heavy half (speed meter, removal bounds, `split_at`, `elevate_degree`, a whole `Projection2`) is shipped, monomorphized and unexercised | `geom-curves/nurbs.rs:87` | likely |
-| `FitError::ParamCountMismatch` is returned for four unrelated failures — in a module that added `RaggedRows` specifically to avoid exactly that reuse | `geom-curves/fit.rs:471` | sure |
+| The `nurbs_curve!`/`nurbs_fit!`/`nurbs_project!` macros mint a full 2-D twin whose heavy half (speed meter, removal bounds, `split_at`, `elevate_degree`, a whole `Projection2`) is shipped, monomorphized and unexercised | `geom/curves/nurbs.rs:61` | likely |
+| `FitError::ParamCountMismatch` is returned for four unrelated failures — in a module that added `RaggedRows` specifically to avoid exactly that reuse | `geom/curves/fit.rs:115` | sure |
 | `frame::path_start_frame` is justified by a deduplication it never performed (no kernel caller; `sweep` still builds its own frames) and duplicates `Vec3::orthonormal_basis`'s role with a different policy | `linalg/frame.rs:322`, `vec.rs:307` | likely |
 | `ch_scale_left`/`ch_scale_right` are the same function kept apart "to preserve the rehearsal's association" — but `RingInterval::mul` is bit-for-bit commutative, so production shape is anchored to a test file for nothing | `spline/compose.rs:519` | likely |
 | `CurvePlan::apply_points` defends against malformed plans its own three private constructors rule out, and pushes the cost onto callers as an invented poison value plus four near-identical lerp closures | `spline/algebra.rs:161` | likely |
 | `lsq::solve_normal` forms `AᵀA` (squaring the condition number) on the fitting path while the sibling `svd.rs` already contains Householder QR; the adversarial review test validates it by implementing QR a *third* time | `linalg/lsq.rs:158`, `svd.rs:183` | unsure |
 | ~~`certify_rung3`'s `arm` and `extent` are the same value at three of four call sites, so the `#[allow(too_many_arguments)] // one parameter per named quantity` covers a parameter varied once~~ **FIXED by #692** — `TubeScale<T>` names the two cases (`uniform(arm)` at the three sites where they are one quantity, `split(arm, extent)` at `finish_r3`); `certify_rung3` goes 8 args to 6 and the `allow` is deleted **on merit**. Found by review as a residue of #692's own diff: the PR removed one redundant parameter and left its twin in the same argument list — the exact class it existed to close, one line below the one it closed | ~~`ssi.rs:925`, `:729`~~ | sure |
-| Two unrelated `compose` modules with two unrelated `ComposeError`s; defended on the grounds that "the two never meet in one scope", which is a claim about today's imports | `geom-curves/compose.rs:18`, `geom-core/spline/compose.rs:57` | sure |
+| Two unrelated `compose` modules with two unrelated `ComposeError`s; defended on the grounds that "the two never meet in one scope", which is a claim about today's imports | `geom/curves/compose.rs:106`, `geom-core/spline/compose.rs:57` | sure |
 | `names/flush.rs` puts document-editing sugar and seven kernel contact-type re-exports inside the naming subsystem; `declare` → `declare_all` → `declare_node` is three public doors over one operation, each with a doc block longer than its body | `names/flush.rs:440`, `:113` | sure |
 | `mesh`'s `trimmed` retry loop serves two opposite failure modes (one shrinks the candidate set, one grows it) under one budget with two exit conditions, index-coupled mutable state, and an unreachable trailing `Err` — so the stated termination argument no longer covers the loop | `trimmed.rs:264`, `:349` | likely |
 | `crates/bvh`: the tree has two live call sites and earns its place, but four crates depend on it **only** for `Aabb`, a plain box type unrelated to hierarchies — the load-bearing export and the crate name disagree, and two of the three duties in its own header are "not yet wired" | `bvh/src/lib.rs:1` | likely |
@@ -6317,7 +6382,7 @@ set, and D1 declined to widen into it.
 |---|---|---|---|---|---|
 | **D2** | **B3 / S19 — the fillet half of the error catch-alls.** D2's addendum is ratified, so these are row 4 (`unreachable!`) and the rename to `Unsupported*` is owed. **The count has moved: 102 construction sites on today's main, not 146** — 97 in `surgery.rs` through one closure, 5 in `build.rs` through two more — because B1's retirement took the rest with the whole-body door. Scope still excludes `MissingEntity` (mesh — Track A) and `SplitJoinError::Corrupt` (splitting — B4/#690). | B3 | `sweep/src/fillet/` | **ADVERSARIAL** — converting a refusal into `unreachable!` in a kernel whose D9 rule is *never a panic* is only sound if "cannot fail on a valid body" is **proven** per site rather than inherited from the closure's name. | **D1** (same crate) |
 | **D7** | **U1 / D4 — the three decided deletions.** Decided by Evan 2026-08-19 and unexecuted. Each row owes a provenance note next to the thread that produced it (`PairSolve` → **#611**; the two fillet helpers → **#319**/**#554**; `Mat2`/`Affine2` → the deleting PR body, cross-referenced from **#614**), and the deleting PR must cite the **commit SHA** the code is recoverable from. `trimline_description`'s doc is the only place D7's prefer-intrinsic obligation is *named*: that sentence migrates, it does not die. | U1 | `geom-core/src/linalg/{mat,affine}.rs`, `editor-core/src/mate{.rs,/solve.rs}`, `sweep/src/fillet/{blend,battery}.rs` | style | **split by row.** `Mat2`/`Affine2` is free now. `PairSolve` waits on **#702**, which is editing `mate.rs`, `mate/solve.rs` and the `lib.rs` re-export block it lives in. The fillet helpers wait on **D2**. Evan placed the whole row *"back of the queue, but ahead of W3b"*, and its rationale — noise to lanes reading the same files — is what these two gates discharge. |
-| **D8** | **U4's remainder — the knot-vector queries.** `KnotVector` offers `multiplicity_of(u)`, which requires you to already know `u`; every consumer that needs *the list* of distinct interior knots hand-writes the same scan, four times (`compose.rs:274`, `algebra.rs:563`, `geom-curves/fit.rs:378`, `sweep/skin.rs:370`). Beside it, knot insertion exists twice in one module, one of them re-deriving the span with a linear scan where `find_span`'s binary search is one module away. The scan's own lesson: *a data structure whose API was frozen one PR before its first consumer is the tell.* | U4 (rows) | `geom-core/src/spline/{compose,algebra}.rs`, `geom-curves/src/fit.rs`, `sweep/src/skin.rs` | **ADVERSARIAL** — it adds to a certified type's API and replaces a linear scan with a binary search inside knot arithmetic, where an off-by-one is a wrong curve rather than a compile error. | nothing (but it edits `sweep/src/skin.rs`, so sequence it against D1/D2 within this track) |
+| **D8** | **U4's remainder — the knot-vector queries.** `KnotVector` offers `multiplicity_of(u)`, which requires you to already know `u`; every consumer that needs *the list* of distinct interior knots hand-writes the same scan, four times (`compose.rs:274`, `algebra.rs:563`, `geom/curves/fit.rs:378`, `sweep/skin.rs:370`). Beside it, knot insertion exists twice in one module, one of them re-deriving the span with a linear scan where `find_span`'s binary search is one module away. The scan's own lesson: *a data structure whose API was frozen one PR before its first consumer is the tell.* | U4 (rows) | `geom-core/src/spline/{compose,algebra}.rs`, `geom/src/curves/fit.rs`, `sweep/src/skin.rs` | **ADVERSARIAL** — it adds to a certified type's API and replaces a linear scan with a binary search inside knot arithmetic, where an off-by-one is a wrong curve rather than a compile error. | nothing (but it edits `sweep/src/skin.rs`, so sequence it against D1/D2 within this track) |
 | **D10** | **S15's ray-schedule row — the close D9 could not reach.** `boolean/solid_contain.rs:76` re-declares `splitting/containment.rs:102`'s 16-entry 3-D table verbatim, justified by *"to keep the module boundaries thin"*, with determinism depending on byte-identity and nothing checking. Byte-diffed entry for entry by D9's reviewer and confirmed identical. Drop the private const, import `containment::SCHEDULE`, raise its `pub(super)` to `pub(crate)` — `boolean` is not a descendant of `splitting`, so `pub(crate)` is the minimum that reaches, and `splitting/order.rs:77` already imports the same const and is unaffected. One table means the row needs no guard. | S15 (row) | `topo/src/boolean/solid_contain.rs`, `topo/src/splitting/containment.rs` | style | **#712** (D9), which is editing `containment.rs` |
 | **D11** | **S17's drift class where it bites hardest: `bool_join_nearest`.** `topo/src/boolean/join.rs:564,600,804,818` decides two different questions under one K name — `Margin::of(dist)` (*"is this chord length zero?"*) and `Margin::of(dist - bd)` (*"is this candidate nearer?"*). A distance and a difference of distances, pooled into one row across four sites in one crate: the same drift D9 closed in `point_in_loop`, worse by site count. D9 closed the class where S17 pointed and nowhere else, which is what makes this a row rather than a residue. Next candidates behind it, from the same sweep: `bool_join_facing` (4 sites), `bool_point_in_solid_plane` (3), `bool_dir_same` (3) — cost each before taking them. | S17 (class) | `topo/src/boolean/join.rs` | **ADVERSARIAL** — it splits a shipped K row into two, and unlike D9's split the two questions here are decided at *different* sites rather than three lines apart, so which site gets which name is a judgement the diff must argue rather than inherit. | **#712** (D9) for the convention precedent, not for files |
 | **D12** | **`chart_region.rs:1363`'s self-declared verbatim derivation.** *"the `split_section_area` derivation verbatim, chart-space edition"* — a disclosed copy sitting one screen from the code D9 de-duplicated, in a file D9 edited, and D9's sweep pattern could not match it. **A row, not a verdict**: it may be dimension-forced exactly as the two ray schedules are (`split_section_area` is 3-D, this is chart space), in which case the deliverable is the negative result and a doc line, not a shared home. Establish which before writing any code. The standing `rg -n 'verbatim|re-derived|ported from|mirror of'` is the pattern that finds this class; D9's blind-spot list did not name it. | new (D9's sweep residue) | `topo/src/chart_region.rs`, `topo/src/splitting/join.rs` | style | nothing |

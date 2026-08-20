@@ -7,44 +7,12 @@
 //! re-checks the carried values through its own Decide/band machinery;
 //! this module pins their presence and honesty.
 //!
-//! # This is C6's f64 lane — structure machinery, with a lifted payload
+//! # This half's reading of the shared policy
 //!
-//! Projection *selects* a parameter (structure); it decides no
-//! topology. The **selection** is `f64` with raw comparisons under C6's
-//! pinning rule, deterministic per D9: fixed constants, fixed seeding,
-//! fixed iteration policy, no data-dependent iteration order. The
-//! certification of whatever a consumer builds from the foot point is
-//! the consumer's, at its own scalar (C2).
-//!
-//! # `f64` structure, `T` payload
-//!
-//! The surface half of §6.1 and this one follow the same ratified
-//! **f64-structure + T-lift** pattern:
-//!
-//! - the seeding sweep and the Newton iteration read the curve through
-//!   **bracket midpoints** and run in `f64` — at `f64` the midpoint of
-//!   a point bracket is the value itself, so the selected `t*` is
-//!   bitwise what an `f64`-only iteration produces;
-//! - the returned [`Projection3`]/[`Projection2`] is then **evaluated
-//!   at `T`** at that selected parameter, so `distance` and
-//!   `orthogonality` are the consumer's own scalar — an enclosure on
-//!   the interval lane.
-//!
-//! The bound is the sole-bound `T: Bounds` the discipline reserves for
-//! certification/driver code (`geom_core::real`'s scope rule): reading
-//! a bracket to *select* a parameter is the driver half of that rule,
-//! and nothing here decides.
-//!
-//! A note on what the lift does NOT claim: Newton at the interval
-//! scalar would be a different algorithm (interval Newton with
-//! existence tests), and this is deliberately not that. The iteration
-//! is a search for structure; the honesty is entirely in the residuals
-//! it reports, which are reported at the consumer's scalar.
-//!
-//! # The D9-fixed iteration policy (binding, named constants)
-//!
-//! The constants are [`crate::projection`]'s — one declaration serving
-//! both halves of §6.1. What follows is this half's reading of them.
+//! `crate::projection` carries the policy itself — the C6 `f64`
+//! lane, the `f64`-structure + `T`-payload lift, the honesty contract,
+//! and the four constants named below, declared once for both halves.
+//! What follows is what that policy means in one parameter.
 //!
 //! - **Seeding rule**: for every nonempty span, in ascending span
 //!   order, evaluate the squared distance to `P` at
@@ -74,18 +42,16 @@
 //! - **Non-convergence** is the typed [`ProjectionInconclusive`]
 //!   refusal — never a best-effort answer.
 //!
-//! # Honesty (C2.1 verbatim)
+//! # Honesty, in one parameter
 //!
-//! Newton converges to *stationary points* of the distance: on a
-//! closed curve a deliberately bad seed can converge to the far branch
-//! with a tiny orthogonality residual but a large distance. Both
-//! values ride the projection, so the consumer's band check
-//! catches every such case: wrong branch ⇒ `distance` fails the band;
-//! boundary clamp ⇒ `orthogonality` fails it. The planted-fixture
-//! tests (`tests/projection.rs`) pin both, via
-//! [`NurbsCurve3::project_from_seed`] — the raw-Newton entry that
-//! exists for exactly those fixtures and for warm-started consumers
-//! (the PR 7 marcher).
+//! The shared contract is `crate::projection`'s. Here the residual
+//! set is two: on a closed curve a deliberately bad seed can converge
+//! to the far branch with a tiny `orthogonality` and a large
+//! `distance`, and at `|C′| = 0` the cosine test is met with a
+//! trivially-zero `orthogonality` — so a consumer bands the **pair**.
+//! The planted-fixture rows in `tests/curves/projection.rs` pin both,
+//! via [`NurbsCurve3::project_from_seed`], the raw-Newton entry that
+//! exists for exactly those fixtures and for warm-started consumers.
 
 use geom_core::{Bounds, Point2, Point3, Real};
 

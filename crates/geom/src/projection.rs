@@ -6,16 +6,67 @@
 //! orthogonality condition against two, a scalar derivative against a
 //! 2×2 Jacobian — so the iterations themselves live in
 //! [`crate::curves::projection`] and [`crate::surfaces::projection`].
-//! What they share is this: one iteration budget, one seed schedule,
-//! one pair of acceptance thresholds, and one rule for reading a
-//! bracketed scalar as structure. Those are declared here, once, and
-//! neither half may hold a private copy — the halves ARE one policy,
-//! and a second declaration is how a policy becomes two.
+//! Everything below is what the two share, and it is stated here
+//! once: neither half restates it, and neither may hold a private
+//! copy of a constant. Each half's module docs give this policy's
+//! dimension-specific *reading* — what "a seed per span" means over a
+//! span versus over a span cell, which quantities the acceptance
+//! conditions test, and which residuals ride the result.
 //!
-//! Each half's module docs state that policy's dimension-specific
-//! form: what "a seed per span" means over a span versus over a span
-//! cell, what the acceptance conditions test, and what the returned
-//! residuals are honest about.
+//! # This is C6's f64 lane — structure machinery, with a lifted payload
+//!
+//! Projection *selects* a parameter (structure); it decides no
+//! topology. The **selection** is `f64` with raw comparisons under
+//! C6's pinning rule, deterministic per D9: fixed constants, fixed
+//! seeding, fixed iteration policy, no data-dependent iteration order.
+//! The certification of whatever a consumer builds from the foot point
+//! is the consumer's, at its own scalar (C2).
+//!
+//! # `f64` structure, `T` payload
+//!
+//! Both halves follow the ratified **f64-structure + T-lift** pattern:
+//!
+//! - the seeding sweep and the Newton iteration read the payload
+//!   through **bracket midpoints** ([`mid`]) and run in `f64`, so on
+//!   finite arithmetic the selected parameter is bitwise what an
+//!   `f64`-only iteration produces;
+//! - the returned projection is then **evaluated at `T`** at that
+//!   selected parameter, so the distance and the orthogonality
+//!   residuals are the consumer's own scalar — an enclosure on the
+//!   interval lane, which is what makes a rung-3 certificate against a
+//!   NURBS operand exist there at all.
+//!
+//! The bound is the sole-bound `T: Bounds` the discipline reserves for
+//! certification/driver code (`geom_core::real`'s scope rule): reading
+//! a bracket to *select* a parameter is the driver half of that rule,
+//! and nothing here decides.
+//!
+//! A note on what the lift does NOT claim: Newton at the interval
+//! scalar would be a different algorithm (interval Newton with
+//! existence tests), and this is deliberately not that. The iteration
+//! is a search for structure; the honesty is entirely in the residuals
+//! it reports, which are reported at the consumer's scalar.
+//!
+//! # Honesty (C2.1): a bad projection cannot launder a bad cache
+//!
+//! Newton converges to *stationary points* of the distance, so a
+//! deliberately bad seed can converge to a far branch or sheet with a
+//! tiny orthogonality residual and a large distance; and at a
+//! degenerate parameterization point (a vanishing partial — a cusp, a
+//! collapsed row of control points) the cosine condition is met with a
+//! trivially-zero orthogonality residual. **Every residual rides the
+//! result**, so a consumer must band them *together*: wrong
+//! branch/sheet ⇒ the distance fails the band; a boundary clamp ⇒ an
+//! orthogonality residual fails it. Neither half decides anything;
+//! both report. Each half's docs name its own residual set and its
+//! planted-fixture rows.
+//!
+//! # Non-convergence
+//!
+//! Never a best-effort answer: each half returns its own typed
+//! inconclusive refusal carrying the last iterate and the last
+//! residuals, so a diagnosing consumer sees where the iteration died
+//! and nothing can be mistaken for a foot point.
 
 use geom_core::Bounds;
 
@@ -39,11 +90,24 @@ pub const PROJECT_EPS_COSINE: f64 = 1e-12;
 /// The bracket midpoint of a scalar — the **structure read** both
 /// seeding sweeps and both Newton iterations run on.
 ///
-/// Written `lo + ½(hi − lo)` rather than `½(lo + hi)` so that at `f64`
-/// (where `lo` = `hi` = the value) it is bitwise the identity, with no
-/// overflow at the representable extremes. A poisoned bracket yields
-/// NaN, which loses every `<` comparison in the sweeps and breaks a
-/// Newton loop into the typed refusal — poison never selects.
+/// Written `lo + ½(hi − lo)` rather than `½(lo + hi)` so that a finite
+/// bracket cannot overflow at the representable extremes; at `f64`
+/// (where `lo` = `hi` = the value) it is then the identity on every
+/// finite input.
+///
+/// **It is not the identity on a non-finite one, and that is
+/// load-bearing.** At `x = ±∞` the form is `∞ + 0.5·(∞ − ∞)` = NaN, so
+/// an overflowed residual reaches the acceptance tests as NaN, loses
+/// every comparison, and falls out to the typed inconclusive refusal
+/// rather than being reported as a converged foot at infinite
+/// distance. Poison behaves the same way and for the same reason:
+/// poison never selects. `crates/geom/tests/curves/projection.rs`'s
+/// overflow row pins that exit through the public door, with finite
+/// control points.
+///
+/// The one other departure from the identity is `mid(-0.0) = +0.0`;
+/// every consumer here either takes `.abs()` of the result or divides
+/// it into a difference that is insensitive to the sign of zero.
 pub(crate) fn mid<T: Bounds>(v: T) -> f64 {
     let (lo, hi) = (v.lo(), v.hi());
     lo + 0.5 * (hi - lo)

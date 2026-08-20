@@ -30,7 +30,13 @@ pub(crate) trait ControlPoint<T: Real>: Copy + Sub<Self, Output = Self::Offset> 
     /// `T::zero()`, the all-poison point at the scalar's poison.
     fn splat(v: T) -> Self;
 
-    /// Coordinate `d`, for `d < CHANNELS`.
+    /// Coordinate `d`.
+    ///
+    /// `d >= CHANNELS` is a caller bug, not an input: every caller in
+    /// this crate drives it from `0..CHANNELS`. The implementations
+    /// announce it with `unreachable!` (D9's D2 addendum: a state the
+    /// code can observe in a branch is announced, never swallowed)
+    /// rather than returning a plausible-looking wrong coordinate.
     fn channel(self, d: usize) -> T;
 
     /// `‖offset‖`.
@@ -46,7 +52,11 @@ impl<T: Real> ControlPoint<T> for Point2<T> {
     }
 
     fn channel(self, d: usize) -> T {
-        if d == 0 { self.x } else { self.y }
+        match d {
+            0 => self.x,
+            1 => self.y,
+            _ => unreachable!("plane control point has no channel {d}"),
+        }
     }
 
     fn norm(offset: Vec2<T>) -> T {
@@ -66,7 +76,8 @@ impl<T: Real> ControlPoint<T> for Point3<T> {
         match d {
             0 => self.x,
             1 => self.y,
-            _ => self.z,
+            2 => self.z,
+            _ => unreachable!("space control point has no channel {d}"),
         }
     }
 
@@ -120,12 +131,8 @@ pub(crate) fn poison_point<T: Real, P: ControlPoint<T>>() -> P {
 }
 
 /// Is this the "no description yet" placeholder net rather than a
-/// described one? The placeholder's every control point is all-poison
-/// by construction; a described net is finite data.
-///
-/// `all` (not `any`): a described net with one poisoned point is
-/// corrupt *described* geometry and must fail loudly as such, never
-/// masquerade as the benign placeholder.
+/// described one? The contract is stated once, in the crate docs'
+/// totality-and-poison section; this is its one implementation.
 pub(crate) fn is_placeholder<T: Real, P: ControlPoint<T>>(control: &[P]) -> bool {
     control.iter().all(|p| p.channel(0).is_poison())
 }
@@ -158,8 +165,12 @@ pub(crate) fn ring_coords<T: CertifiedBounds, P: ControlPoint<T>>(
 /// One knot-removal pass's projected perturbation bound: `orig` and
 /// `re` share their knot structure and net shape by construction
 /// (reinsertion restores the original knot vectors, hence the original
-/// control count). Reductions are ascending-index `Real::max` folds —
-/// lattice value ops, never control flow.
+/// control count). The two scalar-valued reductions (`c_max`, `bwp`)
+/// are ascending-index `Real::max` folds — lattice value ops, so no
+/// `T` comparison enters generic code. The other two (`bw`, `w_min`)
+/// reduce `f64` **structure** — weights are `f64` by the data model —
+/// and are written as ordinary comparisons, which is the C6 lane's
+/// posture, not a decision.
 ///
 /// The derivation is on the caller's `remove_knot`; the rank does not
 /// enter it, which is why one body serves the curve and the surface.

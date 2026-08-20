@@ -1,10 +1,12 @@
 //! Aggregated integration-test binary for `geom`.
 //!
 //! Every suite under `tests/` is included here VERBATIM via `#[path]`,
-//! so this one binary replaces what were 25 separate test targets. The
+//! so this one binary stands in for one test target per suite. The
 //! files themselves are untouched: each keeps its own `//!` docs and its
 //! inner attributes (`#![cfg(feature = "interval")]` and friends work as
-//! module-level attributes).
+//! module-level attributes). The suite count is deliberately not stated
+//! in prose here — `every_suite_file_is_aggregated` computes it, and a
+//! restated number is exactly what went stale three times.
 //!
 //! The suites are grouped in `tests/curves/` and `tests/surfaces/`,
 //! mirroring the crate's two modules — the two halves were separate
@@ -106,7 +108,16 @@ mod surfaces_span_window_pairing;
 
 /// Guards the `autotests = false` hazard: a suite file added under
 /// `tests/` but not declared above would silently stop being compiled
-/// and run. Walks the group directories, not just `tests/` itself.
+/// and run. Walks the group directories, not just `tests/` itself, and
+/// checks the declaration COUNT against what is on disk so no number
+/// about this file can be asserted in prose without being computed.
+///
+/// One shape to know before you trip it: this guard treats every `.rs`
+/// file under `tests/` as a suite, so a shared HELPER placed in a group
+/// directory is reported as an undeclared suite. None exist today; the
+/// header above anticipates a suite growing a `mod <helper>;`, and when
+/// one does the helper belongs beside it with a `#[path]` line of its
+/// own, or the guard needs a stated exclusion — not a silent one.
 #[test]
 // Scoped to this fn on purpose: a crate-root `#![allow]` in this file would
 // weaken the lint gate for every suite module included above.
@@ -115,6 +126,7 @@ fn every_suite_file_is_aggregated() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests");
     let src = include_str!("all.rs");
     let mut missing: Vec<String> = Vec::new();
+    let mut found = 0usize;
     let mut pending = vec![root.clone()];
     while let Some(dir) = pending.pop() {
         for entry in std::fs::read_dir(&dir).expect("tests/ subtree is readable") {
@@ -134,6 +146,7 @@ fn every_suite_file_is_aggregated() {
             if rel == "all.rs" {
                 continue;
             }
+            found += 1;
             if !src.contains(&format!("#[path = \"{rel}\"]")) {
                 missing.push(rel);
             }
@@ -144,5 +157,16 @@ fn every_suite_file_is_aggregated() {
         missing.is_empty(),
         "suites under tests/ are not declared in tests/all.rs, so `autotests = false` \
          is silently dropping them: {missing:?}. Add a `#[path]` line for each."
+    );
+
+    // The count, computed rather than restated. `missing` proves every
+    // file on disk is declared; this proves the converse is not padded
+    // — one `#[path]` line per suite file, no orphan declarations. The
+    // `format!` call above spells its quote escaped, so it is not one
+    // of these matches.
+    let declared = src.matches("#[path = \"").count();
+    assert_eq!(
+        declared, found,
+        "tests/all.rs declares {declared} suites but {found} suite files exist under tests/"
     );
 }

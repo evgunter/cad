@@ -59,7 +59,7 @@
 //! bit*, every weight is a leg weight *bit for bit*, and the knots are
 //! the legs' knots under one affine map per leg. The pinned row is
 //! `compose(quarter arc, quarter arc)` against the half arc's own
-//! rational-quadratic chain (`tests/compose.rs`), which agrees on all
+//! rational-quadratic chain (`tests/curves/compose.rs`), which agrees on all
 //! three channels bit for bit.
 //!
 //! Two normalizations are stated rather than hidden, because they are

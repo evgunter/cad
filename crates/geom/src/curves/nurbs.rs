@@ -55,7 +55,7 @@ use crate::net;
 /// evaluation-invariant, so the curve is unchanged; only the hulls the
 /// bound is assembled from shrink. The constant is a measured
 /// trade-off, not a tuning knob — see the `rational_speed_lower_bound`
-/// docs and the adversarial rows in `tests/m5_pr7_speed_meter.rs`.
+/// docs and the adversarial rows in `tests/curves/m5_pr7_speed_meter.rs`.
 const RATIONAL_METER_SPLITS: usize = 16;
 
 macro_rules! nurbs_curve {
@@ -400,8 +400,8 @@ macro_rules! nurbs_curve {
             /// abstentions, both-poison, and the poisoned-INPUT
             /// no-laundering claim below — is EXERCISED on
             /// bitwise-exact fixtures by the adopted review probes
-            /// (`tests/lt_r1_probes.rs::r1_join_abstention_logic`,
-            /// `tests/r2_lt_probes.rs::the_join_lattice_is_pinned_cell_by_cell`),
+            /// (`tests/curves/lt_r1_probes.rs::r1_join_abstention_logic`,
+            /// `tests/curves/r2_lt_probes.rs::the_join_lattice_is_pinned_cell_by_cell`),
             /// and the same suites' randomized fuzz kills the unsound
             /// near-neighbors of the scan (active window shifted, last
             /// span dropped, either arm deleted from the join) that
@@ -473,7 +473,7 @@ macro_rules! nurbs_curve {
             /// This is the kernel-wide posture shared with the
             /// rational arm; the `Interval` instantiation is the
             /// certified lane, and the bracket row in
-            /// `tests/m5_pr7_speed_meter.rs` pins containment.
+            /// `tests/curves/m5_pr7_speed_meter.rs` pins containment.
             ///
             /// # Poison (total, D4 ¶2)
             ///
@@ -731,7 +731,7 @@ macro_rules! nurbs_curve {
             /// do not, so the `f64` reading is a bound only up to about
             /// a relative ulp. **The `Interval` instantiation is the
             /// certified lane** — it encloses the same expression, and
-            /// `tests/m5_pr7_speed_meter.rs`'s bracket row pins that
+            /// `tests/curves/m5_pr7_speed_meter.rs`'s bracket row pins that
             /// the interval answer contains the `f64` one. This is the
             /// kernel-wide posture, not a property of this bound.
             ///
@@ -744,7 +744,7 @@ macro_rules! nurbs_curve {
             /// weights, can refuse outright while its true speed is
             /// comfortably positive. Refusal is always sound and only
             /// ever a usability cost; the frontier rows in
-            /// `tests/m5_pr7_speed_meter.rs` pin where it currently
+            /// `tests/curves/m5_pr7_speed_meter.rs` pin where it currently
             /// falls, so [`RATIONAL_METER_SPLITS`] cannot be changed
             /// without the trade-off becoming visible.
             fn rational_speed_lower_bound(&self) -> T {
@@ -1125,21 +1125,9 @@ impl<T: Real> NurbsCurve3<T> {
     /// Is this payload the [`NurbsCurve3::placeholder`] — the "no
     /// description yet" state — rather than a described curve?
     ///
-    /// The discriminator is the control net's poison: the
-    /// placeholder's every control point is all-poison by
-    /// construction, while a described net is finite data. The two
-    /// states refuse different things for different reasons — a
-    /// placeholder is a mid-surgery fact, a described curve is real
-    /// geometry — and every consumer that tells them apart goes
-    /// through THIS method rather than re-deriving the test inline.
-    /// The surface half is
-    /// [`crate::surfaces::NurbsSurface::is_placeholder`], with the
-    /// same discriminator and the same contract.
-    ///
-    /// `all` (not `any`): a described net with one poisoned point is
-    /// corrupt *described* geometry and must fail loudly as such
-    /// (certification, +V, export), never masquerade as the benign
-    /// placeholder.
+    /// The discriminator and the reason it is `all` and not
+    /// `any` are the crate docs' totality-and-poison section;
+    /// the surface and curve halves answer it identically.
     pub fn is_placeholder(&self) -> bool {
         net::is_placeholder(&self.control)
     }

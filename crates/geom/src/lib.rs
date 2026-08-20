@@ -6,10 +6,12 @@
 //! The two halves live in [`curves`] and [`surfaces`]; each module's
 //! docs carry the conventions specific to its own entity kinds. What
 //! they share is stated once and only once: the parameterization
-//! conventions below, the §6.1 point-projection policy in
-//! [`projection`], and the control-net helpers the three NURBS
-//! payloads are built from (private — they carry no vocabulary a
-//! consumer needs).
+//! conventions below; the §6.1 point-projection policy, whose four
+//! constants are re-exported here; the azimuthal frame convention;
+//! and the control-net helpers the three NURBS payloads are built
+//! from. The last three live in interior modules — they carry the
+//! argument, not API, and the names a consumer needs are at this
+//! root.
 //!
 //! # Conventions (normative, stated once)
 //!
@@ -66,6 +68,18 @@
 //! all-poison point (representable ≠ described; the poison fails every
 //! downstream certification loudly, per D4 ¶2).
 //!
+//! **Telling the two states apart is one rule with one spelling.** The
+//! discriminator is the control net's poison: a placeholder's every
+//! control point is all-poison by construction, a described net is
+//! finite data. `all`, not `any` — a described net with one poisoned
+//! point is corrupt *described* geometry and must fail loudly as such
+//! (certification, +V, export), never masquerade as the benign
+//! placeholder. The two payloads that carry the state expose it as
+//! [`NurbsCurve3::is_placeholder`] and
+//! [`NurbsSurface::is_placeholder`]; every consumer that tells the
+//! states apart goes through one of those rather than re-deriving the
+//! test inline.
+//!
 //! # Evaluation-code discipline
 //!
 //! All evaluation *arithmetic* here is comparison-free ring/trig code:
@@ -81,9 +95,12 @@
 //! and `Dual<Interval>` — the derivative-vs-dual consistency and
 //! enclosure-containment test axes rely on exactly that.
 
+mod azimuth;
 pub mod curves;
 mod net;
-pub mod projection;
+mod projection;
+#[cfg(test)]
+mod scalar_lift;
 pub mod surfaces;
 
 pub use curves::{
@@ -91,6 +108,9 @@ pub use curves::{
     NurbsCurve3, Projection2, Projection3, ProjectionInconclusive, RefitSkip, SeamSide,
     compose_chain,
 };
+// The §6.1 policy module is interior — its body is the argument for
+// these four values, not API — but the values themselves are the
+// public names both halves' callers have always used.
 pub use projection::{
     PROJECT_EPS_COSINE, PROJECT_EPS_POINT, PROJECT_MAX_ITERS, PROJECT_SEEDS_PER_SPAN,
 };

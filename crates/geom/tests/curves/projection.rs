@@ -185,3 +185,52 @@ fn poisoned_input_is_a_typed_refusal_never_a_foot_point() {
         Ok(pr) => panic!("NaN point projected to t = {}", pr.t),
     }
 }
+
+/// An **overflowing residual refuses**, and the inputs that produce
+/// one are all finite.
+///
+/// `NurbsCurve3::new` validates counts and weight positivity, never
+/// coordinate magnitude, so a control net at 1e200 is a legal curve
+/// reachable through the public door. Its squared distance to a point
+/// at the origin overflows to `+∞`, and the Newton loop reads that
+/// residual through `crate::projection::mid` — `x + ½(x − x)`, which
+/// is NaN at `±∞`. NaN loses every acceptance comparison, so the
+/// iteration falls out to the typed refusal instead of reporting a
+/// converged foot at infinite distance.
+///
+/// That is the intended posture (an overflowed residual is not an
+/// honest answer) and it is a **behaviour change** against the
+/// `f64`-only form this lift replaced, which returned
+/// `Ok { distance: inf }`. This row exists so the change cannot
+/// silently revert: `mid` is what makes it happen, and nothing else in
+/// the suite reaches an overflowing residual.
+#[test]
+fn an_overflowing_residual_refuses_rather_than_reporting_an_infinite_foot() {
+    let huge = 1.0e200;
+    let control = vec![
+        Point3::new(huge, huge, huge),
+        Point3::new(2.0 * huge, huge, huge),
+    ];
+    let curve = NurbsCurve3::new(KnotVector::unit_segment(1), control, vec![1.0, 1.0])
+        .expect("a degree-1 segment with unit weights is a valid curve");
+
+    // Finite inputs throughout: the curve's own coordinates and the
+    // query point are all representable.
+    assert!(curve.control().iter().all(|p| p.x.is_finite()));
+    let p = Point3::new(0.0, 0.0, 0.0);
+    assert!(p.x.is_finite());
+
+    // The residual itself is what overflows.
+    let d = curve.eval(0.0) - p;
+    assert!(d.dot(d).is_infinite(), "the fixture must overflow");
+
+    match curve.project(p) {
+        Err(e) => {
+            assert!(
+                e.last_distance.is_nan() && e.last_orthogonality.is_nan(),
+                "the refusal carries the poisoned state honestly: {e:?}"
+            );
+        }
+        Ok(pr) => panic!("an overflowed residual was reported as a foot point: {pr:?}"),
+    }
+}

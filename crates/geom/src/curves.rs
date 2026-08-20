@@ -8,7 +8,7 @@
 //! arms are real; the "no description yet" state is
 //! [`Curve3::nurbs_placeholder`].
 //!
-//! # Curve conventions (normative, stated once)
+//! # Curve conventions (normative; the curve half)
 //!
 //! The crate docs carry the conventions curves and surfaces share —
 //! units, complete loci, the no-range-reduction rule and its
@@ -49,12 +49,16 @@ pub use compose::{ComposeError, SeamSide, compose_chain};
 pub use fit::{FIT_REMOVAL_BUDGET, FitError, FitOutcome, RefitSkip};
 use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
+
+use crate::azimuth;
 pub use nurbs::{NurbsCurve2, NurbsCurve3};
 pub use projection::{Projection2, Projection3, ProjectionInconclusive};
 
-/// An analytic 3-D curve — a **complete locus** (see the crate docs for
-/// the conventions: units, periodicity, the `he_plus` forward contract,
-/// and the conventional unit-field invariants).
+/// An analytic 3-D curve — a **complete locus**. Units, the
+/// no-range-reduction rule and its bit-identity policy, and the
+/// conventional-and-unchecked field rule are the crate docs'; what the
+/// parameter means per kind, where an edge's bounds come from, and the
+/// `he_plus` forward contract are this module's.
 ///
 /// Fields are public data (D2: conventions are carried by data);
 /// construction is by struct-literal variant syntax.
@@ -303,9 +307,8 @@ impl<T: SpanLocate> Curve3<T> {
                 radius,
                 u_ref,
             } => {
-                let (s, c) = t.sin_cos();
-                let v_ref = axis.cross(*u_ref);
-                *center + (*u_ref * c + v_ref * s) * *radius
+                let (radial, _) = azimuth::frame(*axis, *u_ref, t);
+                *center + radial * *radius
             }
             Curve3::Ellipse {
                 center,
@@ -314,8 +317,7 @@ impl<T: SpanLocate> Curve3<T> {
                 minor,
                 u_ref,
             } => {
-                let (s, c) = t.sin_cos();
-                let v_ref = axis.cross(*u_ref);
+                let ((s, c), v_ref) = azimuth::basis(*axis, *u_ref, t);
                 *center + (*u_ref * (*major * c) + v_ref * (*minor * s))
             }
             Curve3::Nurbs(n) => n.eval(t),
@@ -342,9 +344,8 @@ impl<T: SpanLocate> Curve3<T> {
                 u_ref,
                 ..
             } => {
-                let (s, c) = t.sin_cos();
-                let v_ref = axis.cross(*u_ref);
-                (*u_ref * (-s) + v_ref * c) * *radius
+                let (_, tangential) = azimuth::frame(*axis, *u_ref, t);
+                tangential * *radius
             }
             Curve3::Ellipse {
                 axis,
@@ -353,8 +354,7 @@ impl<T: SpanLocate> Curve3<T> {
                 u_ref,
                 ..
             } => {
-                let (s, c) = t.sin_cos();
-                let v_ref = axis.cross(*u_ref);
+                let ((s, c), v_ref) = azimuth::basis(*axis, *u_ref, t);
                 *u_ref * (-(*major * s)) + v_ref * (*minor * c)
             }
             Curve3::Nurbs(n) => n.deriv(t),
@@ -380,8 +380,7 @@ impl<T: SpanLocate> Curve3<T> {
                 u_ref,
                 ..
             } => {
-                let (s, c) = t.sin_cos();
-                let v_ref = axis.cross(*u_ref);
+                let ((s, c), v_ref) = azimuth::basis(*axis, *u_ref, t);
                 (*u_ref * (-c) + v_ref * (-s)) * *radius
             }
             Curve3::Ellipse {
@@ -391,8 +390,7 @@ impl<T: SpanLocate> Curve3<T> {
                 u_ref,
                 ..
             } => {
-                let (s, c) = t.sin_cos();
-                let v_ref = axis.cross(*u_ref);
+                let ((s, c), v_ref) = azimuth::basis(*axis, *u_ref, t);
                 *u_ref * (-(*major * c)) + v_ref * (-(*minor * s))
             }
             Curve3::Nurbs(n) => n.deriv2(t),
@@ -818,24 +816,10 @@ mod tests {
     /// Lifts an f64 curve to `Curve3<Dual64>` with constant (∂/∂θ = 0)
     /// geometry — only the evaluation parameter is the variable.
     fn lift_to_dual(c: &Curve3<f64>) -> Curve3<Dual64> {
-        fn cp(p: Point3<f64>) -> Point3<Dual64> {
-            Point3::new(
-                Dual::constant(p.x),
-                Dual::constant(p.y),
-                Dual::constant(p.z),
-            )
-        }
-        fn cv(v: Vec3<f64>) -> Vec3<Dual64> {
-            Vec3::new(
-                Dual::constant(v.x),
-                Dual::constant(v.y),
-                Dual::constant(v.z),
-            )
-        }
         match *c {
             Curve3::Line { origin, dir } => Curve3::Line {
-                origin: cp(origin),
-                dir: cv(dir),
+                origin: crate::scalar_lift::dual_point(origin),
+                dir: crate::scalar_lift::dual_vec(dir),
             },
             Curve3::Circle {
                 center,
@@ -843,10 +827,10 @@ mod tests {
                 radius,
                 u_ref,
             } => Curve3::Circle {
-                center: cp(center),
-                axis: cv(axis),
+                center: crate::scalar_lift::dual_point(center),
+                axis: crate::scalar_lift::dual_vec(axis),
                 radius: Dual::constant(radius),
-                u_ref: cv(u_ref),
+                u_ref: crate::scalar_lift::dual_vec(u_ref),
             },
             Curve3::Ellipse {
                 center,
@@ -855,11 +839,11 @@ mod tests {
                 minor,
                 u_ref,
             } => Curve3::Ellipse {
-                center: cp(center),
-                axis: cv(axis),
+                center: crate::scalar_lift::dual_point(center),
+                axis: crate::scalar_lift::dual_vec(axis),
                 major: Dual::constant(major),
                 minor: Dual::constant(minor),
-                u_ref: cv(u_ref),
+                u_ref: crate::scalar_lift::dual_vec(u_ref),
             },
             Curve3::Nurbs(_) => Curve3::nurbs_placeholder(),
         }
@@ -921,27 +905,11 @@ mod tests {
 
         use super::*;
 
-        fn ipoint(p: Point3<f64>) -> Point3<Interval> {
-            Point3::new(
-                Interval::from_f64(p.x),
-                Interval::from_f64(p.y),
-                Interval::from_f64(p.z),
-            )
-        }
-
-        fn ivec(v: Vec3<f64>) -> Vec3<Interval> {
-            Vec3::new(
-                Interval::from_f64(v.x),
-                Interval::from_f64(v.y),
-                Interval::from_f64(v.z),
-            )
-        }
-
         pub(super) fn lift(c: &Curve3<f64>) -> Curve3<Interval> {
             match *c {
                 Curve3::Line { origin, dir } => Curve3::Line {
-                    origin: ipoint(origin),
-                    dir: ivec(dir),
+                    origin: crate::scalar_lift::interval_point(origin),
+                    dir: crate::scalar_lift::interval_vec(dir),
                 },
                 Curve3::Circle {
                     center,
@@ -949,10 +917,10 @@ mod tests {
                     radius,
                     u_ref,
                 } => Curve3::Circle {
-                    center: ipoint(center),
-                    axis: ivec(axis),
+                    center: crate::scalar_lift::interval_point(center),
+                    axis: crate::scalar_lift::interval_vec(axis),
                     radius: Interval::from_f64(radius),
-                    u_ref: ivec(u_ref),
+                    u_ref: crate::scalar_lift::interval_vec(u_ref),
                 },
                 Curve3::Ellipse {
                     center,
@@ -961,11 +929,11 @@ mod tests {
                     minor,
                     u_ref,
                 } => Curve3::Ellipse {
-                    center: ipoint(center),
-                    axis: ivec(axis),
+                    center: crate::scalar_lift::interval_point(center),
+                    axis: crate::scalar_lift::interval_vec(axis),
                     major: Interval::from_f64(major),
                     minor: Interval::from_f64(minor),
-                    u_ref: ivec(u_ref),
+                    u_ref: crate::scalar_lift::interval_vec(u_ref),
                 },
                 Curve3::Nurbs(_) => Curve3::nurbs_placeholder(),
             }

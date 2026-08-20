@@ -19,12 +19,19 @@
 //! it DEFINES one. The Book presents the same construction; we simply
 //! decline to pretend the result is anything but itself.
 //!
-//! # Placement in this crate
+//! # Placement in this crate (M5 PR 10, numbered deviation 1)
 //!
-//! Skinning is a construction, not an evaluator: it chooses a
-//! structure (degrees, knots, sub-arc counts) and emits a payload.
-//! `sweep` is the layer for constructions, and §10.3/§10.4 are sweep
-//! operations by name. The produced payload is `geom::NurbsSurface`.
+//! Not "constructions live here" — `geom` builds NURBS payloads too
+//! (`geom::curves::fit`, which this module calls). The binding reason
+//! is the layering: skinning reads a `profile::ValidatedProfile`
+//! through a `SketchPlane` and a `geom_brep::SketchSegment`, so it
+//! depends on two layers ABOVE `geom` and cannot live below them. Of
+//! the crates that sit above both, `sweep` is the one whose subject
+//! this is — §10.3/§10.4 are sweep operations by name. The import list
+//! below is the check: nothing in it may be pushed down.
+//!
+//! The produced payload is `geom::NurbsSurface`, so nothing about the
+//! surface type moved.
 //!
 //! # Structure selection is f64 (C6/D9)
 //!

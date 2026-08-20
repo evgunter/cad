@@ -46,7 +46,7 @@
 //! against the locus stays the consumer's, via
 //! `geom_core::spline::compose` hull bounds.
 //!
-//! **Worked example** (pinned in `tests/fit_certify.rs`): 65 samples
+//! **Worked example** (pinned in `tests/curves/fit_certify.rs`): 65 samples
 //! of a radius-2.5 m quarter arc, degree 3, input tolerance `1e-2` ⇒
 //! 30 control points (the loop removed over half the structure), the
 //! achieved bound ≈ `9.9e-3` ≤ the tolerance (the input tolerance is

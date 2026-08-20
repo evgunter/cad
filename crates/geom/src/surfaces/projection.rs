@@ -6,54 +6,18 @@
 //! This is the surface analogue of [`crate::curves::projection`] and
 //! implements the same contract: both halves take their iteration
 //! budget, seed schedule and acceptance thresholds from
-//! [`crate::projection`], which is the one place that policy is
+//! `crate::projection`, which is the one place that policy is
 //! declared. What differs is dimension — two orthogonality conditions
 //! instead of one, solved through a 2×2 Jacobian instead of a scalar
 //! derivative — and that is why the iteration is written here rather
 //! than shared.
 //!
-//! # This is C6's f64 lane — structure machinery, with a lifted payload
+//! # This half's reading of the shared policy
 //!
-//! Projection *selects* a parameter pair (structure); it decides no
-//! topology. The **selection** is `f64` with raw comparisons under C6's
-//! pinning rule, deterministic per D9: fixed constants, fixed seeding,
-//! fixed iteration policy, no data-dependent iteration order. The
-//! certification of whatever a consumer builds from the foot point is
-//! the consumer's, at its own scalar (C2).
-//!
-//! # The M6-2 lift: `f64` structure, `T` payload
-//!
-//! Until M6-2 this module was an `impl NurbsSurface<f64>` block, and
-//! that type wall is what kept the SSI certificate — and therefore
-//! `Pcurve::Fitted` — off every scalar but `f64` (M5-LOG PR 9c
-//! deviations 2/6). The lift follows the ratified **f64-structure +
-//! T-lift** pattern (M5 PR 10 dev 3; `sweep::skin::lift_surface`):
-//!
-//! - the seeding sweep and the Newton iteration read the surface
-//!   through **bracket midpoints** and run in `f64` exactly as before —
-//!   at `f64` the midpoint of a point bracket is the value itself, so
-//!   the selected `(u*, v*)` is bitwise what it always was;
-//! - the returned [`SurfaceProjection<T>`] is then **evaluated at `T`**
-//!   at that selected parameter pair, so `distance` and both
-//!   orthogonality residuals are the consumer's own scalar — an
-//!   enclosure on the interval lane, which is what makes a rung-3
-//!   certificate against a NURBS operand exist there at all.
-//!
-//! The bound is the sole-bound `T: Bounds` the discipline reserves for
-//! certification/driver code (`geom_core::real`'s scope rule): reading
-//! a bracket to *select* a parameter is the driver half of that rule,
-//! and nothing here decides.
-//!
-//! A note on what the lift does NOT claim: Newton at the interval
-//! scalar would be a different algorithm (interval Newton with
-//! existence tests), and this is deliberately not that. The iteration
-//! is a search for structure; the honesty is entirely in the residuals
-//! it reports, which are now reported at the consumer's scalar.
-//!
-//! # The D9-fixed iteration policy (binding, named constants)
-//!
-//! The constants are [`crate::projection`]'s — one declaration serving
-//! both halves of §6.1. What follows is this half's reading of them.
+//! `crate::projection` carries the policy itself — the C6 `f64`
+//! lane, the `f64`-structure + `T`-payload lift, the honesty contract,
+//! and the four constants named below, declared once for both halves.
+//! What follows is what that policy means in two parameters.
 //!
 //! - **Seeding rule**: over every nonempty span **cell** (u-span ×
 //!   v-span), in ascending `(span_u, span_v)` order, evaluate the
@@ -87,19 +51,16 @@
 //! - **Non-convergence** is the typed [`SurfaceProjectionInconclusive`]
 //!   refusal — never a best-effort answer.
 //!
-//! # Honesty (C2.1 verbatim: a bad projection cannot launder a bad
-//! cache)
+//! # Honesty, in two parameters
 //!
-//! Newton converges to *stationary points* of the distance: a
-//! deliberately bad seed can converge to a far sheet with tiny
-//! orthogonality residuals and a large distance, and a degenerate chart
+//! The shared contract is `crate::projection`'s. Here the residual
+//! set is three — `distance`, `orthogonality_u`, `orthogonality_v` —
+//! and all three ride the [`SurfaceProjection`] so the consumer can
+//! band them together: a far sheet fails on `distance`, a domain-edge
+//! clamp fails on an orthogonality residual, and a degenerate chart
 //! point (`|S_u| = 0`, e.g. a collapsed row of control points) meets
-//! the cosine test with a trivially-zero residual. **All three
-//! residuals ride the [`SurfaceProjection`]** — `distance`,
-//! `orthogonality_u`, `orthogonality_v` — so the consumer must band
-//! them together: wrong sheet ⇒ `distance` fails the band; domain-edge
-//! clamp ⇒ an orthogonality residual fails it. This module decides
-//! nothing; it reports.
+//! the cosine test with a trivially-zero residual that `distance`
+//! refuses.
 
 use geom_core::{Bounds, Point3, Real};
 

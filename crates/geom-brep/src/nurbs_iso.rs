@@ -15,6 +15,30 @@
 //! one (walls meet at their u-boundaries by construction), and an
 //! unconsumed general extractor would be untested machinery. The
 //! function that first needs it brings it.
+//!
+//! # Why this lives in `geom-brep` and not beside the payloads
+//!
+//! **Iso-curve extraction belongs to the EdgeGeometry layer, not to
+//! the evaluator layer**, and that is a placement rule rather than an
+//! accident of which crate the types used to sit in. Extraction is the
+//! step that turns one entity's data into *another entity's carrier*:
+//! its whole purpose is to hand a curve to an edge, which is what this
+//! layer is for. `geom` answers "what is this locus and what does it
+//! evaluate to"; it does not know that a surface row is about to
+//! become an edge's geometry, and giving it a door that produces
+//! carriers would make the evaluator layer aware of the B-rep above
+//! it.
+//!
+//! This was previously recorded, obliquely, as a crate-graph fact —
+//! `geom-surfaces` declaring that it deliberately did not depend on
+//! `geom-curves`, "iso-curve extraction, which would create the
+//! dependency, belongs to the EdgeGeometry layer". Merging the two
+//! evaluator crates deleted that sentence and with it the only record
+//! of the rule, while removing the structural obstacle that had been
+//! enforcing it: both payload types are now one crate, so nothing
+//! stops this module moving down except the rule itself. It is
+//! therefore stated here, on its subject, where a reader deciding
+//! where to put the next extractor will find it.
 
 use geom::NurbsCurve3;
 use geom::NurbsSurface;

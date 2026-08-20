@@ -222,24 +222,12 @@ impl<T: Real> NurbsSurface<T> {
         }
     }
 
-    /// Is this payload the [`NurbsSurface::placeholder`] — the mvfs
-    /// "no description yet" state — rather than a described surface?
+    /// Is this payload the [`NurbsSurface::placeholder`] — the "no
+    /// description yet" state — rather than a described surface?
     ///
-    /// The discriminator is the control net's poison: the
-    /// placeholder's every control point is all-poison by
-    /// construction, while a described net is finite data. The two
-    /// states refuse different things for different reasons — a
-    /// placeholder is a mid-surgery fact, a described surface is real
-    /// geometry — and every consumer that tells them apart goes
-    /// through THIS method rather than re-deriving the test inline.
-    /// The curve half is
-    /// [`crate::curves::NurbsCurve3::is_placeholder`], with the same
-    /// discriminator and the same contract.
-    ///
-    /// `all` (not `any`): a described net with one poisoned point is
-    /// corrupt *described* geometry and must fail loudly as such
-    /// (certification, +V, export), never masquerade as the benign
-    /// placeholder.
+    /// The discriminator and the reason it is `all` and not
+    /// `any` are the crate docs' totality-and-poison section;
+    /// the surface and curve halves answer it identically.
     pub fn is_placeholder(&self) -> bool {
         net::is_placeholder(&self.control)
     }

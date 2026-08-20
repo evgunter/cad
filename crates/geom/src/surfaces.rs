@@ -8,7 +8,7 @@
 //! [`nurbs`]) and its evaluator arms are real; the "no description yet"
 //! state is [`Surface::nurbs_placeholder`].
 //!
-//! # Surface conventions (normative, stated once)
+//! # Surface conventions (normative; the surface half)
 //!
 //! The crate docs carry the conventions curves and surfaces share —
 //! units, complete loci (here: the infinite plane, the full cylinder,
@@ -52,6 +52,9 @@
 //!   singularity (no tangent plane exists). Pole handling (tessellation
 //!   fans, revolve's pole vertices) is downstream case analysis on
 //!   *topology*, never a special path inside these evaluators.
+//! - **The conventional fields** here are `axis`, `normal` and `u_ref`
+//!   (unit; `u_ref ⊥ axis`, ⊥ `normal`), unchecked per the crate
+//!   docs' rule.
 
 pub mod boxes;
 pub mod nurbs;
@@ -61,12 +64,16 @@ use std::sync::Arc;
 
 use geom_core::spline::SpanLocate;
 use geom_core::{Point3, Real, Vec3};
+
+use crate::azimuth;
 pub use nurbs::{NurbsSurface, SurfaceJet, SurfaceJet3, SurfaceWindow};
 pub use projection::{SurfaceProjection, SurfaceProjectionInconclusive};
 
-/// An analytic surface — a **complete locus** (see the crate docs for
-/// the conventions: units, frames, seam placement, derived normals, and
-/// chart singularities).
+/// An analytic surface — a **complete locus**. Units, the
+/// no-range-reduction rule and its bit-identity policy, and the
+/// conventional-and-unchecked field rule are the crate docs'; the
+/// reference frame, seam placement, derived normals and the chart
+/// singularities are this module's.
 ///
 /// Fields are public data (D2: conventions are carried by data);
 /// construction is by struct-literal variant syntax.
@@ -141,7 +148,7 @@ pub enum Surface<T: Real> {
     ///   vector would fabricate a tangent plane that does not exist.
     ///   (NaN-poison holds exactly at `v = 0`; in the underflow band
     ///   `0 < |v| ≲ 3e-162` the normalization instead yields `±∞`
-    ///   components — ∞ is not f64 poison — see the crate docs'
+    ///   components — ∞ is not f64 poison — see this module's
     ///   singularity bullet and `Vec3::normalize`'s band notes.)
     ///   Away from the apex the chart normal is
     ///   `radial(u)·cos α − axis·sin α` for `v > 0` (tilted outward,
@@ -250,24 +257,14 @@ impl<T: Real> Surface<T> {
     }
 }
 
-/// The azimuthal frame at angle `u`: `(radial, tangential)` =
-/// `(u_ref·c + v_ref·s, u_ref·(−s) + v_ref·c)` from one `sin_cos` call,
-/// with `v_ref = axis.cross(u_ref)` (the crate-doc frame convention;
-/// associations exactly as written, D9). Shared by every axisymmetric
-/// evaluator below.
-fn azimuth_frame<T: Real>(axis: Vec3<T>, u_ref: Vec3<T>, u: T) -> (Vec3<T>, Vec3<T>) {
-    let (s, c) = u.sin_cos();
-    let v_ref = axis.cross(u_ref);
-    (u_ref * c + v_ref * s, u_ref * (-s) + v_ref * c)
-}
-
 impl<T: SpanLocate> Surface<T> {
     /// The point at parameters `(u, v)` — each variant's formula and
-    /// conventions are on the variant (the crate docs carry the shared
-    /// frame/seam/unit rules). Evaluation order per variant is exactly
-    /// the documented formula with the azimuth-frame helper's fixed
-    /// associations (`radial`/`tangential` from one `sin_cos`, crate
-    /// docs); [`Surface::Nurbs`] routes to the payload's evaluator
+    /// conventions are on the variant (this module's docs carry the
+    /// frame and seam rules, the crate docs the units). Evaluation
+    /// order per variant is exactly the documented formula with the
+    /// shared azimuthal frame's fixed associations
+    /// (`radial`/`tangential` from one `sin_cos`, `crate::azimuth`);
+    /// [`Surface::Nurbs`] routes to the payload's evaluator
     /// (span selection via the sealed [`SpanLocate`] seam — the
     /// `impl`-block bound, a sealed `Real` subtrait; see the crate
     /// docs' evaluation-code discipline note).
@@ -287,7 +284,7 @@ impl<T: SpanLocate> Surface<T> {
                 radius,
                 u_ref,
             } => {
-                let (radial, _) = azimuth_frame(axis, u_ref, u);
+                let (radial, _) = azimuth::frame(axis, u_ref, u);
                 origin + radial * radius + axis * v
             }
             &Surface::Cone {
@@ -297,7 +294,7 @@ impl<T: SpanLocate> Surface<T> {
                 u_ref,
             } => {
                 let (s_a, c_a) = half_angle.sin_cos();
-                let (radial, _) = azimuth_frame(axis, u_ref, u);
+                let (radial, _) = azimuth::frame(axis, u_ref, u);
                 apex + axis * (v * c_a) + radial * (v * s_a)
             }
             &Surface::Sphere {
@@ -307,7 +304,7 @@ impl<T: SpanLocate> Surface<T> {
                 u_ref,
             } => {
                 let (s_v, c_v) = v.sin_cos();
-                let (radial, _) = azimuth_frame(axis, u_ref, u);
+                let (radial, _) = azimuth::frame(axis, u_ref, u);
                 center + (radial * c_v + axis * s_v) * radius
             }
             &Surface::Torus {
@@ -318,7 +315,7 @@ impl<T: SpanLocate> Surface<T> {
                 u_ref,
             } => {
                 let (s_v, c_v) = v.sin_cos();
-                let (radial, _) = azimuth_frame(axis, u_ref, u);
+                let (radial, _) = azimuth::frame(axis, u_ref, u);
                 center + radial * (major_radius + minor_radius * c_v) + axis * (minor_radius * s_v)
             }
             Surface::Nurbs(n) => n.eval(u, v),
@@ -342,7 +339,7 @@ impl<T: SpanLocate> Surface<T> {
                 u_ref,
                 ..
             } => {
-                let (_, tangential) = azimuth_frame(axis, u_ref, u);
+                let (_, tangential) = azimuth::frame(axis, u_ref, u);
                 tangential * radius
             }
             &Surface::Cone {
@@ -352,7 +349,7 @@ impl<T: SpanLocate> Surface<T> {
                 ..
             } => {
                 let (s_a, _) = half_angle.sin_cos();
-                let (_, tangential) = azimuth_frame(axis, u_ref, u);
+                let (_, tangential) = azimuth::frame(axis, u_ref, u);
                 tangential * (v * s_a)
             }
             &Surface::Sphere {
@@ -362,7 +359,7 @@ impl<T: SpanLocate> Surface<T> {
                 ..
             } => {
                 let (_, c_v) = v.sin_cos();
-                let (_, tangential) = azimuth_frame(axis, u_ref, u);
+                let (_, tangential) = azimuth::frame(axis, u_ref, u);
                 tangential * (radius * c_v)
             }
             &Surface::Torus {
@@ -373,7 +370,7 @@ impl<T: SpanLocate> Surface<T> {
                 ..
             } => {
                 let (_, c_v) = v.sin_cos();
-                let (_, tangential) = azimuth_frame(axis, u_ref, u);
+                let (_, tangential) = azimuth::frame(axis, u_ref, u);
                 tangential * (major_radius + minor_radius * c_v)
             }
             Surface::Nurbs(n) => n.ders(u, v).du,
@@ -399,7 +396,7 @@ impl<T: SpanLocate> Surface<T> {
                 ..
             } => {
                 let (s_a, c_a) = half_angle.sin_cos();
-                let (radial, _) = azimuth_frame(axis, u_ref, u);
+                let (radial, _) = azimuth::frame(axis, u_ref, u);
                 axis * c_a + radial * s_a
             }
             &Surface::Sphere {
@@ -409,7 +406,7 @@ impl<T: SpanLocate> Surface<T> {
                 ..
             } => {
                 let (s_v, c_v) = v.sin_cos();
-                let (radial, _) = azimuth_frame(axis, u_ref, u);
+                let (radial, _) = azimuth::frame(axis, u_ref, u);
                 (radial * (-s_v) + axis * c_v) * radius
             }
             &Surface::Torus {
@@ -419,7 +416,7 @@ impl<T: SpanLocate> Surface<T> {
                 ..
             } => {
                 let (s_v, c_v) = v.sin_cos();
-                let (radial, _) = azimuth_frame(axis, u_ref, u);
+                let (radial, _) = azimuth::frame(axis, u_ref, u);
                 (radial * (-s_v) + axis * c_v) * minor_radius
             }
             Surface::Nurbs(n) => n.ders(u, v).dv,
@@ -428,11 +425,12 @@ impl<T: SpanLocate> Surface<T> {
 
     /// The unit chart normal: exactly
     /// `self.deriv_u(u, v).cross(self.deriv_v(u, v)).normalize()` — the
-    /// derived normal of the crate docs. Orientation is the
+    /// derived normal of this module's docs. Orientation is the
     /// parameterization's; at chart singularities (sphere poles in
     /// exact arithmetic, the cone apex) the cross vanishes and the
-    /// result is honest poison, per the crate-doc policy (no fabricated
-    /// limit directions; downstream pole machinery owns those points).
+    /// result is honest poison, per the singularity bullet there (no
+    /// fabricated limit directions; downstream pole machinery owns
+    /// those points).
     pub fn normal(&self, u: T, v: T) -> Vec3<T> {
         self.deriv_u(u, v).cross(self.deriv_v(u, v)).normalize()
     }
@@ -453,7 +451,7 @@ impl<T: SpanLocate> Surface<T> {
                 u_ref,
                 ..
             } => {
-                let (radial, _) = azimuth_frame(axis, u_ref, u);
+                let (radial, _) = azimuth::frame(axis, u_ref, u);
                 radial * (-radius)
             }
             &Surface::Cone {
@@ -463,7 +461,7 @@ impl<T: SpanLocate> Surface<T> {
                 ..
             } => {
                 let (s_a, _) = half_angle.sin_cos();
-                let (radial, _) = azimuth_frame(axis, u_ref, u);
+                let (radial, _) = azimuth::frame(axis, u_ref, u);
                 radial * (-(v * s_a))
             }
             &Surface::Sphere {
@@ -473,7 +471,7 @@ impl<T: SpanLocate> Surface<T> {
                 ..
             } => {
                 let (_, c_v) = v.sin_cos();
-                let (radial, _) = azimuth_frame(axis, u_ref, u);
+                let (radial, _) = azimuth::frame(axis, u_ref, u);
                 radial * (-(radius * c_v))
             }
             &Surface::Torus {
@@ -484,7 +482,7 @@ impl<T: SpanLocate> Surface<T> {
                 ..
             } => {
                 let (_, c_v) = v.sin_cos();
-                let (radial, _) = azimuth_frame(axis, u_ref, u);
+                let (radial, _) = azimuth::frame(axis, u_ref, u);
                 radial * (-(major_radius + minor_radius * c_v))
             }
             Surface::Nurbs(n) => n.ders(u, v).duu,
@@ -508,7 +506,7 @@ impl<T: SpanLocate> Surface<T> {
                 ..
             } => {
                 let (s_a, _) = half_angle.sin_cos();
-                let (_, tangential) = azimuth_frame(axis, u_ref, u);
+                let (_, tangential) = azimuth::frame(axis, u_ref, u);
                 tangential * s_a
             }
             &Surface::Sphere {
@@ -518,7 +516,7 @@ impl<T: SpanLocate> Surface<T> {
                 ..
             } => {
                 let (s_v, _) = v.sin_cos();
-                let (_, tangential) = azimuth_frame(axis, u_ref, u);
+                let (_, tangential) = azimuth::frame(axis, u_ref, u);
                 tangential * (-(radius * s_v))
             }
             &Surface::Torus {
@@ -528,7 +526,7 @@ impl<T: SpanLocate> Surface<T> {
                 ..
             } => {
                 let (s_v, _) = v.sin_cos();
-                let (_, tangential) = azimuth_frame(axis, u_ref, u);
+                let (_, tangential) = azimuth::frame(axis, u_ref, u);
                 tangential * (-(minor_radius * s_v))
             }
             Surface::Nurbs(n) => n.ders(u, v).duv,
@@ -554,7 +552,7 @@ impl<T: SpanLocate> Surface<T> {
                 ..
             } => {
                 let (s_v, c_v) = v.sin_cos();
-                let (radial, _) = azimuth_frame(axis, u_ref, u);
+                let (radial, _) = azimuth::frame(axis, u_ref, u);
                 (radial * c_v + axis * s_v) * (-radius)
             }
             &Surface::Torus {
@@ -564,7 +562,7 @@ impl<T: SpanLocate> Surface<T> {
                 ..
             } => {
                 let (s_v, c_v) = v.sin_cos();
-                let (radial, _) = azimuth_frame(axis, u_ref, u);
+                let (radial, _) = azimuth::frame(axis, u_ref, u);
                 (radial * c_v + axis * s_v) * (-minor_radius)
             }
             Surface::Nurbs(n) => n.ders(u, v).dvv,
@@ -653,29 +651,15 @@ mod tests {
     /// Lifts an f64 surface to `Surface<Dual64>` with constant geometry
     /// (only evaluation parameters become variables).
     fn lift_dual(s: &Surface<f64>) -> Surface<Dual64> {
-        fn cp(p: Point3<f64>) -> Point3<Dual64> {
-            Point3::new(
-                Dual::constant(p.x),
-                Dual::constant(p.y),
-                Dual::constant(p.z),
-            )
-        }
-        fn cv(v: Vec3<f64>) -> Vec3<Dual64> {
-            Vec3::new(
-                Dual::constant(v.x),
-                Dual::constant(v.y),
-                Dual::constant(v.z),
-            )
-        }
         match *s {
             Surface::Plane {
                 origin,
                 normal,
                 u_ref,
             } => Surface::Plane {
-                origin: cp(origin),
-                normal: cv(normal),
-                u_ref: cv(u_ref),
+                origin: crate::scalar_lift::dual_point(origin),
+                normal: crate::scalar_lift::dual_vec(normal),
+                u_ref: crate::scalar_lift::dual_vec(u_ref),
             },
             Surface::Cylinder {
                 origin,
@@ -683,10 +667,10 @@ mod tests {
                 radius,
                 u_ref,
             } => Surface::Cylinder {
-                origin: cp(origin),
-                axis: cv(axis),
+                origin: crate::scalar_lift::dual_point(origin),
+                axis: crate::scalar_lift::dual_vec(axis),
                 radius: Dual::constant(radius),
-                u_ref: cv(u_ref),
+                u_ref: crate::scalar_lift::dual_vec(u_ref),
             },
             Surface::Cone {
                 apex,
@@ -694,10 +678,10 @@ mod tests {
                 half_angle,
                 u_ref,
             } => Surface::Cone {
-                apex: cp(apex),
-                axis: cv(axis),
+                apex: crate::scalar_lift::dual_point(apex),
+                axis: crate::scalar_lift::dual_vec(axis),
                 half_angle: Dual::constant(half_angle),
-                u_ref: cv(u_ref),
+                u_ref: crate::scalar_lift::dual_vec(u_ref),
             },
             Surface::Sphere {
                 center,
@@ -705,10 +689,10 @@ mod tests {
                 axis,
                 u_ref,
             } => Surface::Sphere {
-                center: cp(center),
+                center: crate::scalar_lift::dual_point(center),
                 radius: Dual::constant(radius),
-                axis: cv(axis),
-                u_ref: cv(u_ref),
+                axis: crate::scalar_lift::dual_vec(axis),
+                u_ref: crate::scalar_lift::dual_vec(u_ref),
             },
             Surface::Torus {
                 center,
@@ -717,11 +701,11 @@ mod tests {
                 minor_radius,
                 u_ref,
             } => Surface::Torus {
-                center: cp(center),
-                axis: cv(axis),
+                center: crate::scalar_lift::dual_point(center),
+                axis: crate::scalar_lift::dual_vec(axis),
                 major_radius: Dual::constant(major_radius),
                 minor_radius: Dual::constant(minor_radius),
-                u_ref: cv(u_ref),
+                u_ref: crate::scalar_lift::dual_vec(u_ref),
             },
             Surface::Nurbs(_) => Surface::nurbs_placeholder(),
         }
@@ -1070,22 +1054,6 @@ mod tests {
 
         use super::*;
 
-        fn ip(p: Point3<f64>) -> Point3<Interval> {
-            Point3::new(
-                Interval::from_f64(p.x),
-                Interval::from_f64(p.y),
-                Interval::from_f64(p.z),
-            )
-        }
-
-        fn iviv(v: Vec3<f64>) -> Vec3<Interval> {
-            Vec3::new(
-                Interval::from_f64(v.x),
-                Interval::from_f64(v.y),
-                Interval::from_f64(v.z),
-            )
-        }
-
         fn lift(s: &Surface<f64>) -> Surface<Interval> {
             match *s {
                 Surface::Plane {
@@ -1093,9 +1061,9 @@ mod tests {
                     normal,
                     u_ref,
                 } => Surface::Plane {
-                    origin: ip(origin),
-                    normal: iviv(normal),
-                    u_ref: iviv(u_ref),
+                    origin: crate::scalar_lift::interval_point(origin),
+                    normal: crate::scalar_lift::interval_vec(normal),
+                    u_ref: crate::scalar_lift::interval_vec(u_ref),
                 },
                 Surface::Cylinder {
                     origin,
@@ -1103,10 +1071,10 @@ mod tests {
                     radius,
                     u_ref,
                 } => Surface::Cylinder {
-                    origin: ip(origin),
-                    axis: iviv(axis),
+                    origin: crate::scalar_lift::interval_point(origin),
+                    axis: crate::scalar_lift::interval_vec(axis),
                     radius: Interval::from_f64(radius),
-                    u_ref: iviv(u_ref),
+                    u_ref: crate::scalar_lift::interval_vec(u_ref),
                 },
                 Surface::Cone {
                     apex,
@@ -1114,10 +1082,10 @@ mod tests {
                     half_angle,
                     u_ref,
                 } => Surface::Cone {
-                    apex: ip(apex),
-                    axis: iviv(axis),
+                    apex: crate::scalar_lift::interval_point(apex),
+                    axis: crate::scalar_lift::interval_vec(axis),
                     half_angle: Interval::from_f64(half_angle),
-                    u_ref: iviv(u_ref),
+                    u_ref: crate::scalar_lift::interval_vec(u_ref),
                 },
                 Surface::Sphere {
                     center,
@@ -1125,10 +1093,10 @@ mod tests {
                     axis,
                     u_ref,
                 } => Surface::Sphere {
-                    center: ip(center),
+                    center: crate::scalar_lift::interval_point(center),
                     radius: Interval::from_f64(radius),
-                    axis: iviv(axis),
-                    u_ref: iviv(u_ref),
+                    axis: crate::scalar_lift::interval_vec(axis),
+                    u_ref: crate::scalar_lift::interval_vec(u_ref),
                 },
                 Surface::Torus {
                     center,
@@ -1137,11 +1105,11 @@ mod tests {
                     minor_radius,
                     u_ref,
                 } => Surface::Torus {
-                    center: ip(center),
-                    axis: iviv(axis),
+                    center: crate::scalar_lift::interval_point(center),
+                    axis: crate::scalar_lift::interval_vec(axis),
                     major_radius: Interval::from_f64(major_radius),
                     minor_radius: Interval::from_f64(minor_radius),
-                    u_ref: iviv(u_ref),
+                    u_ref: crate::scalar_lift::interval_vec(u_ref),
                 },
                 Surface::Nurbs(_) => Surface::nurbs_placeholder(),
             }
