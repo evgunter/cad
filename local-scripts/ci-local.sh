@@ -108,6 +108,7 @@ RUN_STEP_EXPORT=true
 RUN_PNCAD_PY=true
 RUN_INTERVAL_BACKEND=true
 RUN_K_LINT=true
+RUN_TOPO_RELEASE=true
 if [ "$FULL" -eq 1 ]; then
   echo "=== change filter: --full, forcing tier 'all'"
 else
@@ -128,6 +129,7 @@ else
       RUN_PNCAD_PY) RUN_PNCAD_PY="$v" ;;
       RUN_INTERVAL_BACKEND) RUN_INTERVAL_BACKEND="$v" ;;
       RUN_K_LINT) RUN_K_LINT="$v" ;;
+      RUN_TOPO_RELEASE) RUN_TOPO_RELEASE="$v" ;;
     esac
   done < <(scripts/ci-filter.py --base "$BASE")
 fi
@@ -270,6 +272,40 @@ watertight() {
 # discovery and REQUIRE_FREECAD.
 step_import() {
   scripts/check_step.sh
+}
+
+# Mirror of hosted's `release-corruption` job. The ONE row in either
+# gate that compiles the release profile: two suites in crates/topo split
+# their expectations on `cfg(debug_assertions)`, so the ordinary rows
+# above can only ever run one half. Scoped to `-p topo --lib` — the
+# compile is the whole cost (93 s on a cold hosted cache). The guards
+# after the run are the point: a name filter that matches nothing exits
+# 0, so an empty selection must fail rather than pass quietly.
+topo_release() {
+  local log rc passed
+  log=$(mktemp) || return 1
+  set -o pipefail
+  cargo test --release -p topo --lib -- \
+    review_m1_pr2::release_corruption \
+    review_m1_pr4::kill_ops_survive_torn_bodies_without_panicking \
+    2>&1 | tee "$log"
+  rc=$?
+  set +o pipefail
+  if [ "$rc" -ne 0 ]; then rm -f "$log"; return "$rc"; fi
+  passed=$(sed -n 's/^test result: ok\. \([0-9]\{1,\}\) passed.*/\1/p' "$log")
+  echo "release-profile rows run: ${passed:-0}"
+  rc=0
+  [ "${passed:-0}" -gt 0 ] || { echo "ERROR: no tests matched the release-profile filters"; rc=1; }
+  for t in 'garbage_in_garbage_out_release' 'large_torn_body_terminates_quickly' \
+           'kill_ops_survive_torn_bodies_without_panicking'; do
+    grep -q "$t \.\.\. ok" "$log" || { echo "ERROR: $t did not run"; rc=1; }
+  done
+  grep -q 'corrupt input (release profile)' crates/topo/src/review_m1_pr2/release_corruption.rs ||
+    { echo "ERROR: release_corruption.rs no longer names this row"; rc=1; }
+  grep -q 'corrupt input (release profile)' crates/topo/src/review_m1_pr4.rs ||
+    { echo "ERROR: review_m1_pr4.rs no longer names this row"; rc=1; }
+  rm -f "$log"
+  return "$rc"
 }
 
 # Mirror of hosted's `python-suite` job (LIB PY-CI). Hosted runs the
@@ -549,6 +585,10 @@ run_row_if "$RUN_STL" "watertight (admesh)"          watertight
 # Root package step-export: no cargo build — FreeCAD over the committed
 # fixtures, which are byte-golden against that crate's writer.
 run_row_if "$RUN_STEP_EXPORT" "step import (freecad)" step_import
+# Root package topo: the release-profile row's suites live in that crate
+# and it compiles `-p topo --lib`, so topo's own closure membership is
+# the condition. Fires on 89 of the last 128 first-parent merges.
+run_row_if "$RUN_TOPO_RELEASE" "corrupt input (release profile)" topo_release
 # Root package pncad-py: the wheel's build graph is the whole façade
 # stack, so this fires exactly when something the suite compiles moved.
 run_row_if "$RUN_PNCAD_PY" "python suite (staged cdylib)" python_suite

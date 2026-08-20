@@ -966,14 +966,15 @@ fn level_set(lofted: &Lofted<f64>, t: f64) -> Vec<Vec<Point3<f64>>> {
 /// without any orientation at all — a hole loop needs no special case,
 /// its crossings simply cancel the plate's.
 ///
-/// **A DECLARED COPY** (report §S17, which names three ray-parity
-/// point-in-polygon implementations; this is a fourth). Reuse was
-/// checked and is blocked in all three directions:
-/// `topo::splitting::containment::point_in_loop` is public but takes
-/// `(&Body, LoopKey)` and walks the B-rep, so it cannot consume a
-/// sampled polyline; `chart_region::point_in_polygon` and
-/// `profile::validate::point_in_loop` are private to their crates; and
-/// any `Decide`-certified door would tie this oracle's validity to the
+/// **A DECLARED COPY** (report §S17; this is the outermost of the
+/// ray-parity implementations it tracks). Reuse is blocked in every
+/// direction: `topo::splitting::containment::point_in_loop` is public
+/// but takes `(&Body, LoopKey)` and walks the B-rep, so it cannot
+/// consume a sampled polyline; `chart_region::point_in_polygon`,
+/// `profile::validate::point_in_loop` and the shared walk the first
+/// two now share (`topo::ray_parity::ray_verdict`, `pub(crate)`) are
+/// private to their crates; and any `Decide`-certified door — which
+/// the shared walk is — would tie this oracle's validity to the
 /// running ε, which is the fragility #619 was faulted for.
 fn level_set_contains(
     loops: &[Vec<Point3<f64>>],

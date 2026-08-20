@@ -50,8 +50,18 @@ pyo3::create_exception!(
     pncad,
     DimensionError,
     PncadError,
-    "A dimension mismatch at the quantity boundary. Carries `op`, \
-     `left`, `right` — the operator and the two dimension tags."
+    "An operator applied to two QUANTITIES whose dimensions do not \
+     admit it — `1 * m + 1 * rad`. Carries `op`, `left`, `right`: \
+     the operator and the two dimension tags.\n\n\
+     This is the quantity boundary only, and it is not the only \
+     dimension check in the library. The document layer has its own \
+     refusal type, which reaches Python two ways: through literal \
+     construction, raising `LiteralError`; and through `load`, where \
+     a save file's ill-dimensioned expression — a genuine mismatch — \
+     arrives as `PersistError` with `variant == \"parse\"` rather \
+     than as any dimension class (issue #694). So `DimensionError` \
+     does not intercept an expression-layer mismatch, and nothing \
+     else does either yet."
 );
 pyo3::create_exception!(
     pncad,
@@ -59,7 +69,13 @@ pyo3::create_exception!(
     PncadError,
     "A value the expression layer refused: non-finite, or a count \
      written as a continuous literal. Carries `kind`, the stable tag \
-     of the refusing arm."
+     of the refusing arm.\n\n\
+     Not `DimensionError`: that one is the quantity boundary's \
+     operator check. The expression layer's refusal type has \
+     dimension-mismatch arms too, and `load` DOES reach them from a \
+     hand-edited save file — but they arrive as `PersistError` with \
+     `variant == \"parse\"`, not here (issue #694). Every `kind` \
+     raised on this class is a literal-value refusal."
 );
 pyo3::create_exception!(
     pncad,
@@ -109,6 +125,15 @@ pyo3::create_exception!(
 );
 pyo3::create_exception!(
     pncad,
+    IdentityError,
+    PncadError,
+    "A document identity could not be minted: the OS entropy source \
+     refused. Identity is never defaulted — two documents sharing an \
+     id are the same part, and a workspace refuses to hold both — so \
+     the refusal is surfaced. Carries `variant`."
+);
+pyo3::create_exception!(
+    pncad,
     FrameError,
     PncadError,
     "A frame constructor refused its inputs — the same typed refusal \
@@ -143,6 +168,7 @@ pub(crate) fn typed_err(
         ErrorClass::Path => PathError::new_err(message),
         ErrorClass::Select => SelectRefusal::new_err(message),
         ErrorClass::Frame => FrameError::new_err(message),
+        ErrorClass::Identity => IdentityError::new_err(message),
     };
     // Attaching attributes needs the instance, which materialises the
     // exception value; a failure here would itself be a Python error,
@@ -182,6 +208,7 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("PathError", py.get_type::<PathError>())?;
     m.add("SelectRefusal", py.get_type::<SelectRefusal>())?;
     m.add("FrameError", py.get_type::<FrameError>())?;
+    m.add("IdentityError", py.get_type::<IdentityError>())?;
 
     quantity::register(m)?;
     path::register(m)?;

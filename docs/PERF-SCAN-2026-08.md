@@ -361,7 +361,7 @@ full ~40-sweep tier-1 pass over the *whole body*.
 Building a body with K operator calls therefore costs **Θ(K·N) instead
 of Θ(K)**. Booleans and splitting drive Euler ops in inner loops
 (`boolean/zip.rs:147,171,173`, `boolean/insert.rs:431`,
-`boolean/rest.rs:592,1191,…`, `splitting/join.rs:1926,…`), so the boolean
+`boolean/rest.rs:592,1191,…`, `chord_join.rs:1797,…`), so the boolean
 inner loop is quadratic in debug.
 
 **Why this matters for the numbers everyone reads:** the rebuild-latency
@@ -554,20 +554,29 @@ against a degenerate cocircular hull, not point location.
 #### 8. `point_in_loop` re-decides loop-intrinsic facts on every query **[verified]**
 
 `crates/topo/src/splitting/containment.rs:162-197`, called from
-`boolean/contain.rs:130,141` and `splitting/join.rs:2079`.
+`boolean/contain.rs:130,141` and `chord_join.rs:1951`.
 
 Hard call-count evidence, recomputed from
 `docs/k-report-data/m7-eps-1e-9.csv.gz` (15 corpus documents,
 284 178 decisions): `point_in_loop_boundary` 49 290 (17.3%),
 `point_in_loop_side` 22 831 (8.0%), `point_in_loop_arm` 7 755 (2.7%),
 `point_in_loop_advance` 5 632 (2.0%) — **85 508, or 30.1% of every
-decision the corpus makes.** `point_in_loop_boundary` alone is the
-single largest predicate in the corpus, ahead of
-`bool_point_in_solid_plane` (6.8%) and `carrier_on_surface_1` (6.5%).
+decision the corpus makes.** The `point_in_loop_*` family is the
+largest in the corpus, ahead of `bool_point_in_solid_plane` (6.8%)
+and `carrier_on_surface_1` (6.5%).
+
+**Name split since #712.** That 49 290 was ONE name deciding two
+questions. #712 split it: the degeneracy gate is now
+`point_in_loop_segment` and the distance keeps
+`point_in_loop_boundary`, at **24 645 each** — exactly half, because
+the pre-pass asks both once per segment per query. The family total,
+the margins and the decision sequence are unchanged; a reader chasing
+the 49 290 figure in a fresh CSV must add the two rows.
 
 Three query-independent wastes:
 
-- `containment.rs:180` — `decide("point_in_loop_boundary", Margin::norm3(e), band)`
+- the pre-pass's degeneracy gate — `point_in_loop_segment` since #712,
+  now decided inside `ray_parity::on_boundary` —
   asks *"is this loop segment degenerate?"*. `e` depends only on the
   loop, not the query point, and it runs once per segment **per query**.
   That is ~24 600 corpus decisions — **8.7% of all decisions** —

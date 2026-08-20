@@ -90,6 +90,7 @@
 //! `geom_core::k_stats::decide` (M2 PR 7).
 
 mod axis;
+mod chain;
 mod full;
 mod partial;
 mod surfaces;
@@ -101,7 +102,18 @@ use core::fmt;
 use geom_brep::NewellError;
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point2, Real, Sign, Vec2};
 use profile::ValidatedProfile;
+use topo::readback::{Pose, ReadbackError, face_pose};
 use topo::{Body, EdgeKey, EulerOpError, FaceKey, ShellKey, SolidKey, VertexKey};
+
+use crate::swept::{SweptChord, SweptKind, decide};
+
+/// The predicate names a revolve's cosurface decision reports under
+/// (the revolution walls: planes, cylinders and cones from lines,
+/// spheres and tori from arcs).
+pub(super) const WALL_COSURFACE: crate::swept::CosurfaceNames = crate::swept::CosurfaceNames {
+    lines: "wall_lines_cosurface",
+    arcs: "wall_arcs_cosurface",
+};
 
 /// The revolve axis: a line in **sketch coordinates** (module docs).
 /// The profile must lie in the closed half-plane `r ≥ 0`, where `r` is
@@ -209,6 +221,89 @@ pub enum RevolvedKind {
         /// vertex.
         pi_rims: Vec<Option<EdgeKey>>,
     },
+}
+
+/// The two wedge-cap frames of a PARTIAL revolve, in the operation's
+/// own vocabulary.
+#[derive(Clone, Copy, Debug)]
+pub struct WedgeFrames<T: Real> {
+    /// The start cap's carrier frame (the sketch plane).
+    pub start: Pose<T>,
+    /// The end cap's carrier frame (the sketch plane rotated by θ).
+    pub end: Pose<T>,
+}
+
+/// Typed refusal of [`revolved_caps`] (closed enum, D4 ¶3).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WedgeCapsError {
+    /// The revolve has no caps to read: [`RevolvedKind::Full`] closes
+    /// on itself, so there is no start or end plane. A fact about the
+    /// operation, not an empty answer.
+    NoCaps,
+    /// A cap face's frame could not be read.
+    Read(ReadbackError),
+}
+
+impl From<ReadbackError> for WedgeCapsError {
+    fn from(e: ReadbackError) -> Self {
+        Self::Read(e)
+    }
+}
+
+/// **Where did the partial revolve's wedge caps land?** — the joint
+/// frames of a tube: each cap plane's origin and normal, which is
+/// exactly the tube's end tangent there when the profile is a
+/// cross-section.
+///
+/// The op-specific half of the read: the cap faces live inside
+/// [`RevolvedKind::Partial`], so the case analysis is the door's
+/// content and [`topo::readback::face_pose`] does the reading.
+///
+/// # Errors
+///
+/// [`WedgeCapsError::NoCaps`] for a full revolve; every
+/// [`topo::readback::face_pose`] refusal.
+///
+/// ```
+/// use geom_core::{Point2, Tolerance, Vec2};
+/// use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
+/// use sweep::{Revolution, RevolveAxis, revolve, revolved_caps};
+///
+/// // A quarter tube: a small circle a distance 5 from the axis,
+/// // revolved a quarter turn about the sketch frame's +v.
+/// let circle = profile::circle(Point2::new(5.0, 0.0), 0.5).expect("a positive radius");
+/// // The complete-loop primitives answer with a `ClosedLoop` (the
+/// // lowered loop plus its program); `Profile` takes the loop.
+/// let sketch = Profile::new(SketchPlane::xy(), vec![circle.into()])
+///     .validate(Tolerance::get())
+///     .expect("the circle validates");
+/// let axis = RevolveAxis { origin: Point2::new(0.0, 0.0), dir: Vec2::new(0.0, 1.0) };
+/// let quarter = revolve::<f64>(
+///     &sketch,
+///     axis,
+///     Revolution::Partial(std::f64::consts::FRAC_PI_2),
+/// )
+/// .expect("the tube revolves");
+///
+/// let caps = revolved_caps(&quarter).expect("a partial revolve has caps");
+/// // The start cap IS the sketch plane, so its normal is the sketch
+/// // normal (+z) — and that is the tube's end tangent there.
+/// assert!(caps.start.axis.z.abs() > 0.99);
+/// // A quarter turn about +y later, the end cap's normal has turned
+/// // with it, onto x.
+/// assert!(caps.end.axis.x.abs() > 0.99);
+/// ```
+pub fn revolved_caps<T: Real>(r: &Revolved<T>) -> Result<WedgeFrames<T>, WedgeCapsError> {
+    let RevolvedKind::Partial {
+        start_cap, end_cap, ..
+    } = r.kind
+    else {
+        return Err(WedgeCapsError::NoCaps);
+    };
+    Ok(WedgeFrames {
+        start: face_pose(&r.body, start_cap)?,
+        end: face_pose(&r.body, end_cap)?,
+    })
 }
 
 /// Typed failure of [`revolve`] (closed enum, D4 ¶3). Loop indices
@@ -502,39 +597,12 @@ impl From<EulerOpError> for RevolveError {
     }
 }
 
-/// The one classification funnel of this module (the `geom-brep`
-/// pattern): delegates to the unified recorder funnel
-/// [`geom_core::k_stats::decide`] (M2 PR 7) — predicate names feed the
-/// margin-telemetry recorder on every decision.
-pub(super) fn decide<T: Decide>(
-    name: &'static str,
-    margin: Margin<T>,
-    band: Band,
-) -> Result<Sign, Indeterminate> {
-    geom_core::k_stats::decide(name, margin, band)
-}
-
-/// A segment's carrier class in swept traversal order — the mirror of
-/// `extrude`'s `SweptKind` (kept module-local: the two sweeps share the
-/// shape but not yet a common home; unify when a third sweep or a
-/// shared lowering layer gives the shape an owner — deliberately left
-/// module-local by M2 PR 7, whose funnel unification was the K
-/// recorder, not this enum).
-#[derive(Clone, Copy, Debug)]
-pub(super) enum SweptKind<T: Real> {
-    Line,
-    Arc {
-        center: Point2<T>,
-        radius: T,
-        /// Turn sense in swept traversal; never `Zero` (upstream
-        /// classification; a `Zero` would take the `Positive` arm).
-        turn: Sign,
-    },
-}
-
 /// One segment of a swept loop in swept traversal order (canonical, or
 /// reversed for θ > 0 — module docs), with canonical indices for error
-/// reporting. Mirror of `extrude`'s `SweptSeg`.
+/// reporting. A revolve's wall orientation is decided per wall class
+/// (`axis::WallKind`), not per segment, so no orientation bit rides
+/// here; the shared lowering reads this through
+/// [`crate::swept::SweptChord`].
 #[derive(Clone, Copy, Debug)]
 pub(super) struct SweptSeg<T: Real> {
     /// Start point, sketch coordinates; swept vertex `j` is segment
@@ -553,8 +621,7 @@ pub(super) struct SweptSeg<T: Real> {
 
 /// Builds the swept traversal of one canonical loop: forward, or
 /// reversed via the profile crate's reversal involution (endpoints
-/// swapped, bulge negated, turn flipped). Mirror of `extrude`'s
-/// `swept_segments`.
+/// swapped, bulge negated, turn flipped).
 pub(super) fn swept_segments<T: Decide>(
     lp: &profile::ValidatedLoop<T>,
     reverse: bool,
@@ -602,50 +669,19 @@ pub(super) fn swept_segments<T: Decide>(
     out
 }
 
-impl<T: Real> SweptSeg<T> {
-    /// The segment as a `geom-brep` sketch segment (the description's
-    /// authoritative source data).
-    pub(super) fn sketch_segment(&self) -> geom_brep::SketchSegment<T> {
-        match self.kind {
-            SweptKind::Line => geom_brep::SketchSegment::Line {
-                a: self.a,
-                b: self.b,
-            },
-            SweptKind::Arc { .. } => geom_brep::SketchSegment::Arc {
-                a: self.a,
-                b: self.b,
-                bulge: self.bulge,
-            },
-        }
+impl<T: Real> SweptChord<T> for SweptSeg<T> {
+    fn a(&self) -> Point2<T> {
+        self.a
     }
-}
-
-/// The arc parameter span θ = 4·atan|bulge| (the sanctioned bulge
-/// re-inspection — never endpoint `atan2`; extrude's convention).
-pub(super) fn arc_span<T: Real>(bulge: T) -> T {
-    T::from_f64(4.0) * bulge.abs().atan()
-}
-
-/// The turn-signed carrier axis: `+normal` for a counterclockwise
-/// segment, `−normal` for a clockwise one (extrude's convention; `Zero`
-/// unreachable, kept total on the positive arm).
-pub(super) fn turn_axis<T: Real>(turn: Sign, normal: geom_core::Vec3<T>) -> geom_core::Vec3<T> {
-    match turn {
-        Sign::Positive | Sign::Zero => normal,
-        Sign::Negative => geom_core::Vec3::zero() - normal,
+    fn b(&self) -> Point2<T> {
+        self.b
     }
-}
-
-/// The arc apex (exact sagitta closed form: `midpoint − n̂·(L·b/2)`,
-/// n̂ the left normal of the chord direction) — an on-carrier interior
-/// point of the segment. Mirror of `extrude`'s `arc_apex`.
-pub(super) fn arc_apex<T: Real>(s: &SweptSeg<T>) -> Point2<T> {
-    let chord = s.b - s.a;
-    let len = chord.norm();
-    let u = chord.normalize();
-    let nhat = Vec2::new(T::zero() - u.y, u.x);
-    let mid = s.a.lerp(s.b, T::from_f64(0.5));
-    mid - nhat * (len * s.bulge * T::from_f64(0.5))
+    fn bulge(&self) -> T {
+        self.bulge
+    }
+    fn kind(&self) -> SweptKind<T> {
+        self.kind
+    }
 }
 
 /// Revolves a validated profile about an in-sketch-plane axis into a

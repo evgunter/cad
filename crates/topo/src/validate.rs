@@ -605,7 +605,7 @@ pub enum ValidationError {
     /// record or conformal candidate whose certifier lane refuses
     /// typed (no exact-constant-arm chart, seam-branch divergence,
     /// non-planar trims, a carrier kind outside the Rest ladder, a
-    /// scalar with no bracket lane). Refused loudly rather than
+    /// scalar with no certified lane). Refused loudly rather than
     /// sampled, exactly as before — only the inventory statement
     /// moved.
     CensusUnsupported {
@@ -1766,8 +1766,9 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
             continue;
         };
         // The at-rest pass takes the plane × NURBS DOOR (M7-8): this
-        // tier already requires a bracket-carrying scalar
-        // (`PropsQuadLane`), so the lane that certifies a described
+        // tier already requires a CERTIFYING scalar (`PropsQuadLane` —
+        // not merely a bracket-carrying one, which since D1
+        // (2026-08-19) includes `Dual`), so the lane that certifies a described
         // NURBS operand is available here — and an imported body of
         // that class must re-derive its certificate at rest exactly as
         // it did at attach time. Re-certification re-derives; it never

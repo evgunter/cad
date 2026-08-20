@@ -27,6 +27,7 @@
 //! compiles and tests.
 
 pub mod errors;
+pub mod identity;
 pub mod tags;
 
 #[cfg(feature = "python")]

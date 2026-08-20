@@ -425,6 +425,32 @@ pub(crate) fn tessellate_trimmed(
                     Slot::Grid(c) => grid_ids[&c],
                 };
             }
+            // #678's sibling sweep (C10 makes it part of acceptance,
+            // not a follow-up). `curved`'s identical idiom hid a
+            // silent non-manifold fan: two boundary entries sharing
+            // one mesh vertex, far apart in u, with a SINGLE interior
+            // grid column equidistant from both, so the CDT fanned
+            // both over it and the identified edge was used four
+            // times. This lane is CLEAR of that shape, for two
+            // reasons rather than by measurement.
+            //
+            // 1. No chart singularity can reach here. The two
+            //    constructing lanes are cylinder and described NURBS
+            //    (module docs): `walk::Chart::poles()` is empty for a
+            //    cylinder, a NURBS face has no `Chart` at all, and a
+            //    conic trim on a cone/sphere/torus chart refuses typed
+            //    (`trim_frontier`). So a repeated `Slot::Boundary(id)`
+            //    is never a pole pair.
+            // 2. The only other source of one repeated id at two
+            //    DISTINCT UV locations is the full-2π seam
+            //    double-traversal, and there `uspan = 2π` against an
+            //    `hu` the sagitta cap holds at ≤ π/4, so `nu ≥ 8` —
+            //    `nu == 2` is unreachable, the same containment
+            //    argument `curved::pole_columns` records. A loop that
+            //    revisits a vertex puts both entries at the SAME UV,
+            //    where spade dedupes them to one CDT vertex; a
+            //    self-touch landing on a constraint instead refuses
+            //    typed (`SelfTouchingTrimLoop`).
             if ids[0] == ids[1] || ids[1] == ids[2] || ids[0] == ids[2] {
                 continue; // boundary-degenerate sliver
             }
