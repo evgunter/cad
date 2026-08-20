@@ -101,13 +101,12 @@ pub(crate) fn sizing_target(chordal: f64) -> f64 {
 
 /// The cap on any *angular* step (π/4).
 ///
-/// Two things rest on it, both structural rather than tuning: a
-/// periodic chart unwrapped by continuity along the boundary walk
-/// needs consecutive samples closer than a half-turn for the branch
-/// choice to be unambiguous, and a full-period rim must polygonalize
-/// with at least 8 chords rather than degenerate. It therefore binds
-/// only where a step is an angle in a periodic coordinate; a NURBS
-/// parameter step is uncapped.
+/// Two things rest on it, both structural rather than tuning: it keeps
+/// the unwrapping-by-continuity of a periodic chart along the boundary
+/// walk branch-unambiguous, and it makes a full-period rim
+/// polygonalize with at least 8 chords rather than degenerate. It
+/// therefore binds only where a step is an angle in a periodic
+/// coordinate; a NURBS parameter step is uncapped.
 pub(crate) const MAX_ANGULAR_STEP: f64 = core::f64::consts::FRAC_PI_4;
 
 /// Sanity cap on any single count (δ small enough to exceed this would
@@ -170,10 +169,11 @@ pub fn ellipse_step(delta_s: f64, major: f64, minor: f64) -> f64 {
 /// lane steps a periodic chart coordinate with it directly and applies
 /// [`cap_angular`] itself; the chord pass takes it only as a *lower
 /// bound on a count* it has already sized from the circle sagitta, and
-/// that sagitta step is capped over the same span — `h` exceeds the
-/// cap only when `δ_s > (π²/16)·3(R + 2r)`, which forces `δ_s > ρ` and
-/// so an exactly-capped sagitta step — so the capped and uncapped
-/// requirements coincide there.
+/// that sagitta step is capped over the same span. `h` exceeds the cap
+/// only when `δ_s > (3π²/16)·(R + 2r) ≈ 1.85·(R + 2r)`, which is above
+/// every circle radius a torus carries (`R + r` at most), so the
+/// sagitta step is then exactly the cap and the capped and uncapped
+/// requirements coincide.
 pub(crate) fn torus_grid_step(delta_s: f64, major: f64, minor: f64) -> f64 {
     (delta_s / (3.0 * (major + 2.0 * minor))).sqrt()
 }
