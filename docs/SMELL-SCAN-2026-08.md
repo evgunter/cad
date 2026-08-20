@@ -81,7 +81,7 @@ cases. A finding is a *question worth answering*, not a defect.
 - [Tier 3 — real but lower stakes](#tier-3--real-but-lower-stakes) (S38–S48)
 - [Findings raised by the Wave-1 fix lanes](#findings-raised-by-the-wave-1-fix-lanes-2026-08-18) (S49–S56)
 - [§A. Where I would start](#a-where-i-would-start)
-- [§D. The schedule](#d-the-schedule) — live rows only; Track B is the parallel-orchestrator list
+- [§D. The schedule](#d-the-schedule) — live rows only; Track B is the parallel-orchestrator list, and **Accepted, unscheduled** is the tail with verdicts but no rows
 - [§C. Process observations](#c-process-observations)
 - [§B. Negative results and coverage](#b-negative-results-and-coverage)
 
@@ -5125,6 +5125,11 @@ unit is recorded at its own finding as a bolded `FIXED by #NNN` lead, which is
 the one home for it. A row leaves this section when it lands. What follows is
 therefore what is *left*, and its length is the honest measure of that.
 
+That claim held only for work someone had already been assigned. An audit of
+all 56 finding IDs against this schedule (2026-08-20) found eleven accepted,
+disputed or decided findings with no row anywhere; they are now tabulated under
+**Accepted, unscheduled** below, so the measure counts them.
+
 **Overhauled 2026-08-19.** The original schedule's Waves 0, 1 and 1b are
 complete except where a row appears below; W1a–W1e all landed, H1–H10 all
 landed, and four of the six Wave-0 decisions were made in one sitting. The
@@ -5201,15 +5206,29 @@ mutually independent and independent of the B1–B3 chain.
 
 ## Track C — ready, unclaimed by either orchestrator
 
-Nothing here is blocked. It is listed separately because neither track has
-capacity for it now, and because several rows want a decision inside them that
-the taker should expect to make and record.
+It is listed separately because neither track has capacity for it now, and
+because several rows want a decision inside them that the taker should expect
+to make and record.
+
+**Gating, stated 2026-08-19, because "nothing here is blocked" was too loose.**
+Six of these are edge-free and could start today: **C1**, **C2**, **S30**,
+**S31**, **S32**, **S24**. Three unblock when **A1** (#682) lands — **C7**
+entirely and **C4's S33** — and their input is now better than "wait for the
+report": #682's adversarial pass produced a *compile-verified* table of which
+lanes sit behind `CertifiedEnclosure`, which is the premise W2a would otherwise
+have been designed against wrongly. **S27** waits on **A2** and **S28's
+duplication half** on **A3**, both for file overlap rather than for knowledge.
+
+Two will not unblock by waiting, and should not be read as queued: **C6**'s
+rows are gated on other programmes entirely, and **S26** wants a written
+proposal rather than a lane. **The binding constraint on the rest is capacity
+and the width-1 build mutex, not dependency.**
 
 | # | Work | Why it is here rather than in a track |
 |---|---|---|
 | **C1** | **H12–H15** — four lanes' own residues: the SSI sweeps' other never-silence doors (no acceptance row in either lane), `sweep_body`'s helix rows with no orientation coverage, #637's two jurisdiction residues, #635's unclassified siblings. | Each is small; together they are a lane. They are the clearest instance of ordering rule 3. |
 | **C2** | **H11, H16, H17** — #632's two residues; the STL header not being caller-settable while `StepOptions` carries `product_name`; and S37's rustdoc remainder, ~1115 lines across 130 files. | H17 is large and mechanical; H16 is a small asymmetry with a clear right answer. |
-| **C3** | **S27, S29, S30** — `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block; the sizing vocabulary fragmented across five modules with self-admitted magic constants; and ~1,050 lines of instrument in the mesh crate's hot loop. | **S29's policy question is already routed out** to `docs/TESS-SPLIT-SPEC.md` and PR #568, unexecuted — so S29 is blocked on a design conversation, not on capacity. S27 touches `props/`, so it must follow **A2**. |
+| **C3** | **S27, S29, S30** — `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block; the sizing vocabulary fragmented across five modules with self-admitted magic constants; and ~1,050 lines of instrument in the mesh crate's hot loop. **S29 is NOT blocked on a design conversation — corrected 2026-08-19.** This row previously said its policy question was routed to `docs/TESS-SPLIT-SPEC.md` and PR #568. #684's review checked: both are scoped **entirely to the NURBS per-cell schedule** (`nurbs_cert`'s `grid_steps`, certified cells, the first fundamental form — TESS-SPLIT-SPEC's D-1 replaces the AM-GM grouping, with `leaf_a f2` as its poster child). **Nothing in either covers analytic-chart sizing**, so `curved::grid_steps` has no venue at all — and #684 has since added a sixth rule to it. S29's own lesson applies to that: *N well-defended deviations read as N decisions when they are one undecided question.* S27 touches `props/`, so it must follow **A2**; S29 and S30 are edge-free. |
 | **C4** | **S31, S32, S33** — the `geom-curves`/`geom-surfaces` split that buys nothing; `Surface`'s one-partial-per-call API, which is what created the shadow surface enum in SSI; and neither geometry enum being able to lift itself to another scalar. | **S33 is coloured by A1**: several of its ~14 hand-written ladders exist only to reach `Dual`, and what `Bounds for Dual` changes there is A1's report to give. |
 | **C5** | **S24, S26, S28's duplication half** — the assembly gate whose success arm is documented unreachable; the certified area enclosure that is never metered against anything (`area.width()` appears nowhere in the file); and the three tessellation lanes that remain three pipelines now that #648/#674 have settled their ordering and column questions. | S26 was explicitly deferred in writing by #472 — *"metering against `area.lo()` … deserves its own proposal with re-measured floors"* — so it is a proposal, not a patch. S28's duplication half must follow **A3**. |
 | **C6** | **W2f remainder / S4** — `ProgramStep`/`WireStep`, `SegTag`, and the "no usable value" core. | Each is blocked on something real: the first behind OnArc + RESPELL-TABLE and crossing the same files, the second needs the workspace's first proc-macro crate, the third by a persisted format. |
@@ -5224,6 +5243,44 @@ the taker should expect to make and record.
 | **L1** | **S36** — comb-and-rename, **per suite**, never a rename pass. | A PR-numbered name currently *carries signal*: it marks a suite not yet combed. Renaming first converts a visible backlog into an invisible one. Needs an owner and a slot, not just permission — the 2026-08-13 retirement licence has produced zero deletions. |
 | **L2** | **S38** — comment trimming. | Must follow every deletion above; trimming comments on code about to be deleted is pure waste. Note the pressure runs the other way too: three fix passes this week added prose because a finding demanded a claim-site reason that did not exist. |
 | **L3** | Remaining **S35** roll-up rows. | Lowest value density; several will be resolved incidentally. |
+
+---
+
+## Accepted, unscheduled
+
+**These have a verdict and no row.** This section exists because §D's opening
+claim — *"what follows is what is left, and its length is the honest measure of
+that"* — was not true without it: an audit of all 56 finding IDs against the
+schedule (2026-08-20) found eleven findings that Evan accepted, disputed or
+decided and that appear in **no track, no decision table, and no `FIXED by`
+lead**. They were not dropped on purpose. They were accepted in *batches* —
+`ACCEPTED … see S16`, `ACCEPTED, SORT REQUIRED … see S8` — and when the work
+was scheduled, the batch's leader got a lane and its siblings got a verdict and
+nothing else.
+
+That is §C3 (*"deferrals must land in a register that executes"*) happening to
+this document, which is the register. A row here is **not** a claim that the
+work should start; several of these want a decision inside them first. It is a
+claim that the item is real, has been agreed to be real, and currently has
+nowhere to be picked up from.
+
+| # | Finding | Verdict as recorded | What it is waiting on |
+|---|---|---|---|
+| **U1** | **S11 / D4** — `Mat2`/`Affine2`, `PairSolve`, and the two inlined fillet helpers. | **DECIDED** (Evan, 2026-08-19): delete. | Nothing — this one is *decided and unexecuted*, the sharpest case here. The ruling gave it a queue position, **"back of the queue, but ahead of W3b"**, on ordering rule 1's logic that comments must not be trimmed on condemned code; "Last, deliberately" has no D4 row, so that instruction binds nothing. It also carries three provenance-note obligations (`PairSolve` → **#611**; the fillet helpers → **#319**/**#554**; `Mat2`/`Affine2` → the deleting PR body cross-referenced from **#614**) and the requirement that the deleting PR cite the **commit SHA** the code is recoverable from. |
+| **U2** | **S8, S9, S10** — the fitted rung-3 pcurve lane with no producer; the vacuous trim-containment limb; the dead schema-migration mechanism and its fourteen versions. | **ACCEPTED, SORT REQUIRED** (2026-08-18). | The sort itself: *frontier* (keep, gate, say so) or *deletion*, decided per lane. §A ranked this third of four and it is the only §A item never taken up — *"several of these lanes are the reason other things are awkward — S8 is why `Pcurve` is not `Copy`."* |
+| **U3** | **S17** — three ray-parity point-in-polygon implementations, one an admitted transcription. | **ACCEPTED** (2026-08-18) — recorded only as *"see S16"*. | A row. S16 was fixed by **#620**; this is the sibling that rode in on its acceptance. The transcription is self-declared in prose at the copy site, which is the shape §C11 says nobody reads. |
+| **U4** | **S18** — certified numeric derivations duplicated across crates (roll-up). | **ACCEPTED** (2026-08-18) — also *"see S16"*, with *"they should certainly be unified."* | A row, and a scope: it is a roll-up, so it needs the same frontier/deletion sort U2 needs before it can be one lane. |
+| **U5** | **S12** — Euler atomicity by convention: every write silently no-ops on a missed precondition. | **ACCEPTED** (2026-08-18), identified as one half of a pair. | A row. This is the one item in this table that describes a **silent** failure mode in kernel writes rather than a structural or documentation defect. |
+| **U6** | **S15** — other invariants held by prose rather than by types (roll-up). | **ACCEPTED** (2026-08-18) — *"lots of other great catches."* | A row, and the same roll-up sort. Its own body notes the repo demonstrably knows how to do all three alternatives. |
+| **U7** | **S14** — `Span` validity is prose, and the guard's removal turned poison into a documented panic. | **DISPUTED — REFRAME PROPOSED** (2026-08-18). | **A place to be answered.** A proposed reframe is a question to Evan, but S14 is not in *Open decisions — Evan only* either, so the reframe has no channel. This is the only row here that is a *decision* rather than *work*. |
+| **U8** | **S44** — the founding ruling for the lane-trait pattern exists only as an agent's paraphrase. | **OPEN** "for the part that matters". | Its priced half (D1) was ruled 2026-08-19 and is executing as **A1**; the part recorded as still open was not carried across into C7 with the rest of the lane-trait question. |
+| **U9** | **S51** — S42's verification never varies the loft's `v` direction. | **ACCEPTED** (2026-08-18) — *"worth a lane on its own terms."* | The lane it says it is worth. S42 itself closed **NO DEFECT** on #619's evidence, and this row is the observation that the evidence did not vary the axis that would have mattered. |
+| **U10** | **S55** — `Enclosure` is a live trait with no consumer left. | **DEFERRED** (Evan, 2026-08-19), pending the `Bounds` narrow-vs-broad question. | Legitimately blocked on **A1** — but C4 and C7 name their A1-blocked items explicitly and S55 is not among them, so it is blocked *in prose* rather than in the schedule. It belongs in an edge, not in this table, and is listed here only until it is put in one. |
+
+**How to retire a row from this table:** move it into a track, into *Open
+decisions*, or into *Last, deliberately* — or close it with a `FIXED by`. Do
+not delete a row from here without one of those, which is the failure this
+table records.
 
 ---
 
@@ -5534,11 +5591,20 @@ Nothing re-derives a pin when a new caller arrives. And a stale comment on a
 still-passing test reads as **evidence the invariant holds**.
 
 **The weaker case — no pin at all — is #651**, raised by the style review of
-#646. The rule it produced is in `docs/REVIEW-STYLE-BRIEF.md` §Q6 (a
+#646. The rule it produced is in `docs/prompts/reviewer-style-lane.md` §Q6 (a
 measured claim owes a mechanical guard, a scheduled register that
 re-measures it, or a written reason at the claim site that it can have
 neither); the classification sweep is a comment on #651, and is not
-repeated here.
+repeated here. #667 continued it over a corrected population (a
+provenance-vocabulary pattern restricted to comment text, deduplicated to
+the comment block and filtered by a numeral: **197** blocks, 37 of them
+claim-bearing, against #663's 146 `measured` lines) and its rows are the second comment on the
+same issue. Its finding for THIS clause is C14's own shape one turn
+further on: `ci.yml` runs more registers than #663 found, and two of them
+gate — but each re-takes a **subset of the columns** of the document it
+produced, so "`docs/TESS-BUDGET.md` is re-measured per merge" is itself a
+guard described wider than it is read. The register roster and what each
+one actually re-takes live in the sweep comment, not here.
 
 ---
 

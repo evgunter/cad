@@ -18,18 +18,6 @@
 //! nothing upstream, these are bit-identical. This emitter contributes
 //! no independent judgment that could disagree.
 //!
-//! # Both doors, one vocabulary
-//!
-//! This pass serves the composition surgery AND (since M6-5 PR-2) the
-//! whole-body rebuild. The two doors differ only in how a shrunk
-//! SUPPORT face reaches it: the surgery leaves the source face in
-//! place, so it arrives as a survivor (an output key that is also a
-//! source key); the whole-body rebuild mints into a fresh arena, so it
-//! arrives as a [`FilletNaming::supports`] row. Both land on
-//! [`RoleSeg::FromTarget`] of the same upstream name — a name must not
-//! depend on which door built the body, or the same edit would rename
-//! things by changing which door the request falls through.
-//!
 //! # The provenance channels, and the totality that closes them
 //!
 //! An output entity is either a recorded mint or a survivor keeping
@@ -38,28 +26,28 @@
 //! their role. Anything that is neither — a key minted without a
 //! record — has no upstream name and surfaces as
 //! [`NamingError::MissingUpstream`], loudly, rather than being guessed
-//! around. The final [`check_total`] closes the other direction, for
-//! both doors alike.
+//! around. The final [`check_total`] closes the other direction.
 //!
 //! One guard sits between those two cases, because "keeps its source
-//! arena key" is a claim about NUMBERING, and the whole-body door
-//! rebuilds into a fresh arena whose numbering is unrelated to the
-//! target's. A key can therefore coincide with a source key by
-//! accident. So a would-be survivor whose key the records list as
-//! RETIRED refuses [`NamingError::Emission`]: on that door every
-//! source entity is retired, so any survivor-branch hit there is a
-//! bug, and the retirement list is already in hand to say so.
+//! arena key" is a claim about NUMBERING and nothing here re-checks
+//! it. A would-be survivor whose key the records list as RETIRED
+//! refuses [`NamingError::Emission`].
 //!
-//! **Defense in depth, and honest about it.** No production path
-//! reaches that guard: `Plan::assemble` refuses a slot it never
-//! minted before any record is written, so a dropped record is not a
-//! state this code can be handed today. The guard exists because the
-//! alternative was worse than untested — an unrecorded mint would be
-//! named `FromTarget` of an unrelated entity, and whether that
-//! misnaming got caught depended on whether the real owner of the
-//! name happened to collide at insertion. It was caught by luck; now
-//! it is caught by design. Same posture as `wire_fillet`'s refusal of
-//! `naming: None`.
+//! **That guard is unreachable BY CONSTRUCTION, and it is worth
+//! saying which construction.** The surgery mutates a clone of the
+//! target's own body, and `topo::Body`'s arenas are `slotmap::SlotMap`
+//! over `new_key_type!` keys, which bump a slot's VERSION on removal:
+//! a retired key is never reissued, so a retired key cannot reappear
+//! in the output arena at all. There is no input this code can be
+//! handed that reaches the refusal.
+//!
+//! It is kept because the property it rests on lives in another
+//! crate's choice of container. If a future body ever numbered its
+//! entities itself, or reused slots, an unrecorded mint would be named
+//! `FromTarget` of an unrelated entity — and whether that misnaming
+//! got caught would depend on whether the real owner of the name
+//! happened to collide at insertion. That is luck, not a guarantee.
+//! Same posture as `wire_fillet`'s refusal of `naming: None`.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -115,11 +103,6 @@ pub(crate) fn name_fillet<T: geom_core::Real>(
         Ok(())
     };
 
-    // A shrunk support: same role as a surgery survivor, different
-    // channel (module docs).
-    for (f, src) in &rec.supports {
-        put(EntityKey::Face(*f), RoleSeg::FromTarget(b(up_f(*src)?)))?;
-    }
     for (f, e) in &rec.blends {
         put(EntityKey::Face(*f), RoleSeg::BlendFace(b(up_e(*e)?)))?;
     }
@@ -218,27 +201,21 @@ pub(crate) fn name_fillet<T: geom_core::Real>(
             Some(seg) => seg.clone(),
             // Not minted, so it must be a survivor keeping its source
             // arena key — UNLESS the records say that key was retired,
-            // in which case the coincidence is not provenance.
+            // in which case the match is not provenance.
             //
-            // The trapdoor this closes (PR-2 review F-C): the
-            // whole-body door rebuilds into a FRESH arena, so its keys
-            // are drawn from a different numbering than the target's
-            // and can COINCIDE with a source key by accident. An
-            // unrecorded mint would then fall through here, find a
-            // same-numbered source entity, and be named `FromTarget`
-            // of something it has nothing to do with. Today that
-            // misnaming happens to be caught downstream — the real
-            // owner of the name collides and `insert` refuses
-            // `Duplicate` — but only by luck, and luck is not a
-            // guarantee. Every source entity IS retired on that door,
-            // so this check makes the refusal a designed one.
+            // Unreachable by construction: the arenas are slotmaps
+            // whose keys carry a slot version, so a retired key is
+            // never reissued and cannot come back here. The guard
+            // holds the invariant against that container choice
+            // changing, not against a state reachable today (module
+            // docs).
             None => {
                 let dead = match key {
                     EntityKey::Edge(k) => retired_e.contains(&k),
                     EntityKey::Vertex(k) => retired_v.contains(&k),
-                    // Faces are never retired by either door — a
-                    // support shrinks, it does not die — so a face
-                    // key can only be a real survivor.
+                    // Faces are never retired — a support shrinks, it
+                    // does not die — so a face key can only be a real
+                    // survivor.
                     EntityKey::Face(_) | EntityKey::Body => false,
                 };
                 if dead {

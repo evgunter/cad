@@ -202,17 +202,15 @@ pub const FILLET3_CONVEXITY_RECOURSE: &str =
 /// names the run-out front door that does not exist yet.
 pub const FILLET3_CORNER_RECOURSE: &str = "fillet a chain that terminates in a three-convex-edge vertex; general run-outs \
      are not implemented";
-/// The recourse for an assembly request outside BOTH front doors —
-/// the whole-body rebuild and the in-place composition surgery (M6
-/// unit 1). What remains outside is named per refusal; the shared
-/// remainder is junction carry-through, run-outs at
+/// The recourse for an assembly request outside the front door — the
+/// in-place composition surgery. What remains outside is named per
+/// refusal; the remainder is junction carry-through, run-outs at
 /// partially-requested corners, and concave (material-adding)
 /// blends, which are not implemented.
-pub const FILLET3_ASSEMBLY_RECOURSE: &str = "fillet EVERY edge of a convex, planar-faced, trivalent-vertex polyhedron, or a \
-     subset whose open chains are single convex plane\u{2013}plane links ending at \
-     fully-requested trivalent corners and whose closed chains are circular \
-     plane\u{2013}sphere rims; junction carry-through, run-outs and concave blends are \
-     not implemented";
+pub const FILLET3_ASSEMBLY_RECOURSE: &str = "fillet a set of edges whose open chains are single convex plane\u{2013}plane links \
+     ending at fully-requested trivalent corners and whose closed chains are \
+     circular plane\u{2013}sphere rims; junction carry-through, run-outs and concave \
+     blends are not implemented";
 /// The recourse for a ring the blend's trimline would consume (the
 /// surgery's ring carry-through check).
 pub const FILLET3_RING_RECOURSE: &str =
@@ -341,17 +339,16 @@ pub enum FilletError {
         /// The margin diagnosis and the predicate that produced it.
         source: Indeterminate,
     },
-    /// The battery passed, but the request is outside BOTH assembly
-    /// front doors: the whole-body rebuild (every edge of a convex,
-    /// planar-faced, trivalent-vertex polyhedron) and the in-place
-    /// composition surgery ([`surgery`], M6 unit 1 — subsets whose
-    /// open chains end at fully-requested trivalent corners, plus
-    /// circular plane–sphere rim chains). The `detail` names exactly
-    /// which remaining gap was hit (junction carry-through, run-outs,
-    /// concave blends, non-circle rims — each a front door that does
-    /// not exist yet, the `FullRevolveHoles` precedent).
+    /// The battery passed, but the request is outside the assembly
+    /// front door: the in-place composition surgery ([`surgery`] —
+    /// edge sets whose open chains end at fully-requested trivalent
+    /// corners, plus circular plane–sphere rim chains). The `detail`
+    /// names exactly which remaining gap was hit (junction
+    /// carry-through, run-outs, concave blends, non-circle rims —
+    /// each a front door that does not exist yet, the
+    /// `FullRevolveHoles` precedent).
     AssemblyUnsupported {
-        /// What about the request put it outside the front doors.
+        /// What about the request put it outside the front door.
         detail: &'static str,
     },
     /// **The surgery's ring carry-through check**

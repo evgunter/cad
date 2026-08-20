@@ -195,7 +195,7 @@ most likely to break the invariant it depends on.
 | 9 | Kill-direction Euler ops are O(arena) via orphan scans | runtime | M | high |
 | 10 | CI: shard the default archive build across runners | CI wall | M | high |
 | 11 | `merge_group` rescans the edge arena after every kill | runtime | M | high |
-| 12 | Fillet `Plan::assemble` is ~cubic in blended edges | runtime | M | high |
+| 12 | ~~Fillet `Plan::assemble` is ~cubic in blended edges~~ | — | — | **RETIRED** — its subject was deleted |
 | 13 | Boolean `join` is O(n³) with hoistable invariants | runtime | M | high |
 | 14 | `graft_solid` is O(E²) — missing inverse map | runtime | S | high |
 | 15 | `StableName` nests one `Box` per boolean → O(chain²) | runtime | M/L | high |
@@ -433,13 +433,15 @@ width-1. Parallelism helps `die`'s independent pip subtrees and the
 re-mints and re-certifies **every face in the body**, at `CERT_SAMPLES = 9`
 residual samples per boundary edge.
 
-It is called from **10 production call sites across 3 crates** (topo,
+It is called from **9 production call sites across 3 crates** (topo,
 sweep, step-import):
 `boolean/ops.rs:532`, `merge_faces.rs:536`, `splitting/mod.rs:632`,
-`transform.rs:424`, `sweep/fillet/surgery.rs:283`,
-`sweep/fillet/build.rs:938`, `sweep/loft.rs:532`,
+`transform.rs:424`, `sweep/fillet/surgery.rs:286`, `sweep/loft.rs:532`,
 `sweep/revolve/mod.rs:695`, `sweep/revolve/tube.rs:253`, plus
-`step-import/src/assemble.rs:820`.
+`step-import/src/assemble.rs:820`. (It was ten: the fillet's whole-body
+assembly door held the tenth, and both it and the door were deleted when
+SMELL-SCAN S7 / D3 was executed. The fillet now re-mints once, from the
+surgery, per fillet.)
 
 **The consequence is a quadratic nobody named.** A chain of N booleans on
 a growing body re-certifies the whole body N times: `die`'s 21 chained
@@ -666,28 +668,28 @@ per merge group (10 arenas + 11 `SecondaryMap` sidecars) and run a full
 G groups. Fix by validating only the affected shell, or by staging all
 groups and validating once with per-group fallback on refusal. Effort M.
 
-#### 12. Fillet `Plan::assemble` is ~cubic in blended edges
+#### 12. ~~Fillet `Plan::assemble` is ~cubic in blended edges~~ — **RETIRED, subject deleted**
 
-`crates/sweep/src/fillet/build.rs:798-819`. The greedy face scan is
-`while remaining > 1 { for (i, face) in self.faces.iter().enumerate() { … self.runway(&state, face) … } }`,
-and `runway` (`:958-968`) calls `state.body.find_half_edge(...)` once per
-position of the candidate's cycle. `find_half_edge`
-(`crates/topo/src/euler.rs:1220-1245`) walks the entire hole loop via
-`loop_cycle`, and `bounded_walk` (`crates/topo/src/body.rs:816-843`)
-**allocates and grows a `Vec<HalfEdgeKey>` on every call**.
+This row's subject no longer exists. `Plan::assemble` and its `runway`
+greedy face scan were the fillet's **whole-body assembly door**, deleted
+in full when SMELL-SCAN S7 / D3 was executed: the composition surgery's
+front door strictly contains the whole-body door's, so the second
+implementation was retired rather than optimized. There is nothing left
+to re-measure and the prescribed fix has no site to apply to.
 
-For a polyhedron with V vertices the result has O(V) faces and an O(V)
-hole boundary, giving **O(V³)** with one allocation per probe. Concretely
-for `die_fillet` (V=8, F_result=26): ≈ 2 275 `find_half_edge` calls, each
-allocating and walking up to ~30 half-edges — ~68 000 half-edge steps to
-mint 25 faces.
+The row is kept struck through rather than removed, because what it
+measured is still a real cost SHAPE and a future assembler could
+reintroduce it: the finding was a greedy O(V) rescan whose inner probe
+(`find_half_edge` → `loop_cycle` → `bounded_walk`) walks and
+**allocates** per position, giving O(V³). The surviving surgery does not
+have that shape — it splits and merges named faces in place rather than
+growing a patch by scanning for the longest run — so nothing inherits
+the row.
 
-**Fix:** build a `(VertexKey, VertexKey) → HalfEdgeKey` index of the hole
-loop once per outer iteration and have `runway` probe it — O(k) instead
-of O(k·|hole|). Determinism preserved because the greedy pick order
-(first face with the strictly-longest run, in plan-face order) is
-unchanged. **Do not** replace the outer rescan with a priority queue —
-that would change tie-breaks and therefore arena order. Effort M.
+Two consequences elsewhere in this document, both applied: finding 7's
+`mint_pcurves` call-site list drops from ten sites to nine, and the
+fillet's contribution to it is now one re-mint per fillet rather than
+two doors' worth.
 
 #### 13. Boolean `join` is O(n³) with hoistable invariants
 
@@ -1134,7 +1136,7 @@ are not re-reported as findings.
   ≈38.7×) puts it near ~63 ms — mid-pack. **There is no combinatorial
   blowup in the octant/corner/torus-band handling**: `corner_ball`
   (`fillet/blend.rs:266-294`) is a closed-form Cramer solve,
-  `octant_chart` (`build.rs:319-352`) is an argmin over ≤3 links,
+  `octant_chart` (`build.rs:172-205`) is an argmin over ≤3 links,
   `plane_sphere_blend` is straight-line closed form, and the rim phase
   (`surgery.rs:1043-1432`) is O(n) per phase with no nesting. The one
   loop that looks like a retry (`surgery.rs:1176-1182`) is a bounded

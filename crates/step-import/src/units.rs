@@ -24,6 +24,14 @@
 //! every file measured; rather than fold a second SI scale into the
 //! angle path on speculation, it refuses typed and names the unit.
 //!
+//! Both corpus claims above — the millimetre-and-`1.E-07` dialect and
+//! the absence of a prefixed SI angle — are re-read from the committed
+//! files by `tests/freecad.rs`'s
+//! `the_committed_freecad_corpus_still_says_what_chart_and_units_quote`
+//! (issue #667's Q6), so neither is a sentence that can quietly stop
+//! being true. What that row does NOT claim is anything about FreeCAD
+//! releases nobody committed a file from.
+//!
 //! **Conversion-based units (M7-4 Leg B).** The wild's dominant
 //! convention is not SI at all: `CONVERSION_BASED_UNIT('INCH', …)` and
 //! `('DEGREE', …)`, each naming a `*_MEASURE_WITH_UNIT` that states
