@@ -7340,6 +7340,23 @@ have failed loudly even if it had been attempted.
 **D19 — FIXED by #747.** D19 was placed by #719 rather than raised at a
 numbered finding, so its full record is here.
 
+**THE ROW'S PREMISE IS WRONG, and that is the headline.** D19 says the roster
+is *"complete today by luck of era"*. It is not complete and has not been:
+**seven predicate names the `k-lint`-gated corpus actually emits are recorded
+in neither `docs/K-REPORT.md` nor `docs/predicate-dimension-audit.md`, under
+any reading** — `arc_apex_identity`, `contact_at_shared_vertex`,
+`side_planes_cosurface`, `side_cylinders_cosurface`, and the three
+`demo_flush_*`. This is a correction to a row minted by #719, not a detail
+inside the restatement, and `K-REPORT.md` now leads with it: a successor who
+meets *"complete by luck"* first and then finds seven missing names would
+conclude the restatement is broken rather than that the premise was.
+
+**A count of SITES was never the right measure of a NAME roster** — the
+reusable half. The row sized the hole at *"37 sites across 24 files"*; that
+reproduces exactly, and it understates the hole by more than **2×**, because
+one parameterised site carries many names. Those 37 sites carry **83 of the
+233 names** in the committed M7 baseline. Size a name roster's hole in names.
+
 **The row's own figure reproduced exactly, which is how the criterion was
 confirmed to match.** At `4a007a76`: **349** funnel call sites under
 `crates/*/src` (338 `decide`, 8 `decide_flagged`, 3 `decide_invariant`), of
@@ -7349,16 +7366,15 @@ said 38 across 25 and the extra was a `#[cfg(test)]` guard row in
 `chord_join.rs` that counts `decide(` occurrences as text; excluding it
 reproduces the row.
 
-**The site count understates the hole by more than a factor of two, and that
-is the finding.** One parameterised site carries many names: **83 of the 233
-names in the committed M7 baseline have no `decide("<name>"` site anywhere in
-the tree.** 37 sites, 83 names.
-
-**Five escape routes, three of which the row did not name.** (i) `decide("`
-does not match `decide_flagged("` or `decide_invariant("` — **11 sites**, ten
-passing a bare literal that looks reachable and is not
-(`volume_backstop{,_operand,_violation}`, `bool_ray_cylinder_disc`,
-`revolve_axis_dir_in_plane`, …). (ii) Names arrive through at least
+**Five escape routes, three of which the row did not name.** (i) **The
+sharpest, because the site satisfies the method's own criterion**: `decide("`
+does not match `decide_flagged("` or `decide_invariant("` — **11 sites, ten of
+them passing a bare string literal**, so by the old rule's own description
+("a name written as a literal at the funnel site") they are covered, and they
+are not (`volume_backstop{,_operand,_violation}`, `bool_ray_cylinder_disc`,
+`revolve_axis_dir_in_plane`, `revolve_full_vs_partial`,
+`pcurve_cone_chart_nappe`, `bool_point_in_solid_denom`). (ii) Names arrive
+through at least
 `check_residual`, `classify`, `require_zero`, `coincident`, `zero`,
 `gap_is_zero` and `signed_is_zero`; the method named the last two. (iii)
 Module-private consts — **five, not three**: the row's
@@ -7366,10 +7382,12 @@ Module-private consts — **five, not three**: the row's
 (`sel_datum_distance`, editor-core) and `RING_CLEARANCE`
 (`fillet3_ring_clearance`, sweep). (iv) Tables and arrays: `ParityRows` (the
 listed one), `CosurfaceNames` (the row's), and `transform.rs:129`'s
-seven-element `[(&'static str, T); 7]`. (v) **The scan root** — the method
-greps `crates/*/src`, while `demos/tour/src/booleans.rs` decides
+seven-element `[(&'static str, T); 7]`. (v) **The scan root, which is a scope error in the
+method rather than a missed site** — it greps `crates/*/src` while the gated
+corpus is fed from two trees: `demos/tour/src/booleans.rs` decides
 `demo_flush_{offset,orient,parallel}` through the same funnel and the sweep
-records them into the CSV `k-lint` gates.
+records them into the very CSV `k-lint` reads. No amount of care at the sites
+the method does scan would have found these.
 
 **Both halves are blind, and the count depends on which you pick — the row's
 own "cost the definition before counting", applied to itself.** The code scan
@@ -7434,6 +7452,18 @@ deliberately.
 table instead"*. `CosurfaceNames` and `transform.rs`'s array are two more, so
 it now says it is one carrier of several and points at the enumeration.
 
+**Two residues, placed as rows rather than left in the PR body** (§D's third
+ordering rule). **D32**: `decide_flagged`'s fourth parameter,
+`ledger_row: &'static str`, is `let _ = ledger_row;` at `k_stats.rs:185` — the
+only place in the tree where the K funnel and the dimensional-audit ledger
+touch, and the touch is inert, while `M9-2-SPEC.md:69` and `SELECT-DESIGN.md`
+treat ledger rows as an obligation. **D33**: `predicate-dimension-audit.md` is
+a second name-carrying document with the same completeness question and an
+undisclosed two-crate bound — five of the seven orphans above are outside it by
+construction. Its scope line is the *better* criterion of the two and is what
+this restatement adopted, which is exactly why the sibling deserves the same
+re-derivation rather than being assumed sound.
+
 **The cross-programme sweep, and what it could not match.** Pattern:
 `roster|K name|K-name|ledger row|predicate name|inventory method|greppable`
 over `docs/` and `crates/*/src`. **The premise is restated live in three other
@@ -7464,10 +7494,12 @@ shape, reachable here only because it happens to spell "predicate name".
 | **D21** | **The discard idiom is not confined to the three modules W2c's census walked, and nobody knows how many sites there are.** The D2 addendum's *"silent discard is never an answer"* was executed across `euler.rs` / `euler_ring.rs` / `euler_kill.rs` (58 sites, #720 + #736) because those are the modules S12's census walked. Elsewhere in `crates/topo` a re-sweep at #736's head finds **at least 14** production sites: three in `split_edge` (`:284` `edge`, `:291` `w`, `:296` `v`), two in `attach.rs`, three in `movefac.rs`, three in `revert.rs`, one in `splitting/finish.rs`, two in `boolean/combine.rs`. **14 is a FLOOR, and every number here is only as good as its reading — state the reading or the next taker derives a third and thinks someone was wrong.** Three counts exist and they do not conflict: **11** under a *write-discard-only* reading confined to the four originally-named files (#736's adversarial lane, which also notes that **read-side discards in the same functions are uncounted**); **≥ 15** under wider spellings and wider file scope (#736's style lane); **14** here, which is the style lane's scope after #736 itself converted one of them (`split_edge`'s `he.start = w`). #736 first published 11, then published 11 as a *ceiling*; the bare number was wrong and the ceiling was worse — a ceiling tells a taker the sweep is done and only the arithmetic is open, so they re-count instead of re-sweeping. The count moved because the pattern was one spelling of the idiom, and **three spellings escaped it**, each worth knowing: **let-chains** (`&& let Some(v) = self.get_vertex_mut(v)` — this hid a *fourth* discard inside `split_edge`, in the file #736 edited most); **field-access lookups** (`body.solids.get_mut(k)`, `dst.curves.get_mut(k)`) rather than `get_*_mut()` methods; and **files with no `#[cfg(test)]` module at all**, which a src-vs-test cut based on that marker mishandles. **So the deliverable is a sweep, not a count** — assume the pattern is still incomplete and say what the new one cannot match. **What is verified per site, and stands**: at a glance every one of the 14 looks trivially provable — `attach.rs`'s two and `movefac.rs`'s `shell`/`solid` are resolved by their own plan phases and nothing kills them; `movefac.rs`'s `face` comes from a list whose members the labelling loop above `contains_key`s; `revert.rs`'s three iterate the very arena its `out` is a `clone()` of; `boolean/combine.rs`'s two and `splitting/finish.rs`'s one are post-mint patches keyed by the map that minted them. **That glance is exactly the posture that produced D18**, where *"cannot fail on the operator paths"* was not narrow but wrong, so the row is a per-site discharge and not a rubber stamp. **One judgement call to re-make rather than inherit**: `validate.rs:3006` was excluded as a lookup into a local accumulator rather than the arena — the same reasoning that took #720's count from ~60 to 58, and the same reasoning that should be re-checked rather than trusted. **One instrument does not carry over**: `attach.rs` guards with a `debug_assert`ed full `validate(self)` rather than `assert_euler_postcondition` (`movefac.rs` uses the postcondition; the two are not the same instrument), so `debug_postcondition_fires_on_corrupt_input` — the row that separates a postcondition panic from a mis-converted `unreachable!` — covers neither file. **What this row is not**: a licence to convert on the module's reputation. #720's standard is per-site — minted in the same call or proven live by a check in the same call, never by tier-1 validity — and it was falsified across roughly half of #720's own sites, so a site that cannot meet it wants a plan-phase check first (as D18's two did) or a typed error, not an `unreachable!`. **D25 changes this row's shape if it lands first**: a `Live` key type discharges the half-edge sites structurally, so sequence against it rather than racing it. | raised by D18 (#736), whose sweep crossed the census boundary; the count and the three missed spellings are #736's style review | `topo/src/{split,attach,movefac,revert}.rs`, `topo/src/splitting/finish.rs`, `topo/src/boolean/combine.rs` | **ADVERSARIAL** for the same reason D18 was — each conversion turns a garbage-out into a panic, and the sites that look easiest are the ones a glance is most likely to be wrong about | **D25** (sequence after it if both are live) |
 | **D24** | **A `pub` item that is dead workspace-wide is invisible to every mechanical check this repo runs.** `dead_code` exempts anything `pub`, on the assumption that an external crate may call it — an assumption that is false for a workspace whose only consumers are its own members plus `pncad`/`pncad-py`. `[workspace.lints.rust]` (`Cargo.toml:130`) carries exactly `unsafe_code = "forbid"` and `missing_docs = "warn"` — plus D9's panic family under `clippy` — and **no `unreachable_pub`**, so nothing fires. The verified first instance is `MateRole::name` (`editor-core/src/mate/solve.rs`), deleted by #735: `pub`, documented *"The role's name, for messages"*, and never called anywhere in the workspace under default features, under `--features probe`, or from `pncad-py`. It was found by hand, by a lane that happened to open the file for an unrelated deletion — which is the finding. S11's whole dead-machinery table is drawn from the same blind spot. **Two fix shapes, and the row closes on choosing one, not on deleting anything**: (a) add `unreachable_pub` to the workspace lints, which demotes items that need not be `pub` and makes the genuinely-`pub`-and-dead ones visible as a residue — cheapest, but it will fire widely on first run and the triage is the real cost; (b) a `pub`-surface census job, in the shape D17's enforcement work takes, that enumerates the workspace's public items and reports the ones with no consumer, tests included. This is **enforcement work like D17, not a deletion row** — it does not itself condemn anything, and any item it surfaces still needs a verdict. The exact instrument for a single item is rename-and-rebuild, which #735's body documents; the row's job is to make that mechanical instead of manual. | S11 (the dead-machinery table's method), via #735 | `Cargo.toml`'s workspace lints, or `.github/workflows/` | style, and it **closes on a chosen mechanism** that runs in CI — not on a list of dead items | nothing |
 | **D25** | **A proven-live half-edge key as a type, so `link_half_edges`' precondition stops being prose.** Seven near-identical liveness blocks exist today (`euler.rs:1438`, `:1702`, `euler_kill.rs:608`, `:832`, `euler_ring.rs:1033`, `:1117`, `split.rs:163`), each re-deriving *this key resolves* for the same helper. `Live(HalfEdgeKey)`, mintable only by `mint_halves`, `resolve_half_edge` and `loop_cycle`/`vertex_orbit` — **the walks already `contains_key` every member they return, so they hand it out for free** — with `link_half_edges(a: Live, b: Live)`, collapses all seven through one constructor and makes the discharge structural. **Why this is worth a row rather than a preference**: a per-call-site precondition gives a *third* caller nothing, and this codebase has now been bitten by exactly that twice — #720 converted 56 sites and left the helper because two callers had no proof, and #736's review then found the helper's replacement comment licensing the very inference `kef` had made. A type refuses the third instance at compile time; a comment asks the next author to have read it. **The honest cost is churn**: ~44 call sites touched, uncosted, plus a decision about whether `Live` survives a `&mut self` call (it must not outlive a mutation that can kill the key, which is the part that may make this harder than it reads). **D21's sites inherit it for free** where they are half-edge keys, which is why D21 should sequence after this rather than race it. | raised by #736's style review, via the seven-block enumeration and the licensed inference in the helper's own replacement comment | `topo/src/euler.rs` and every `link_half_edges` caller | **ADVERSARIAL** — it changes a signature threaded through every Euler operator's mutation phase, and a `Live` that can outlive the mutation that kills its key would be worse than the prose it replaces | nothing (but D21 should follow it) |
+| **D32** | **A spec obligation is discharged by a discard: `decide_flagged`'s `ledger_row` argument is `let _ = ledger_row;`.** `geom_core::k_stats::decide_flagged` takes a fourth parameter, `ledger_row: &'static str`, and its body throws it away — the value reaches no recorder, no CSV column, and no assertion. Meanwhile `docs/M9-2-SPEC.md:69` makes it an obligation on implementers (*"every decision through named decide/Margin doors; **ledger rows for any `decide_flagged`**"*), `docs/M9-3-SPEC.md:77` routes a new metered name to *"a named row plus its predicate-dimension audit entry"*, and `docs/SELECT-DESIGN.md:41/85` refuses a comparand *"without a ledger row in `docs/predicate-dimension-audit.md`"*. **Measured at `ff5ad78e`**: 8 `decide_flagged` sites pass 5 distinct rows — `"F2"` ×4, `"F10"`, `"F13"`, `"F14"`, `"F15"`. Every one is a correct citation today. Nothing checks that, and nothing would notice a sixth spelled `"F16"` with no such row in the audit, or an existing row renumbered out from under a call site. **Why it is a row and not a tidy-up.** The parameter is the only place in the tree where the K funnel and the dimensional-audit ledger touch, and the touch is inert: it reads as an enforced link and is a comment with a type. The question to answer first is which of the three it should be — (a) **delete it**, and let the ledger citation live in a normal comment, which is honest and costs nothing; (b) **check it**, in the shape D17's census gate takes, asserting every literal passed here resolves to a row heading in `docs/predicate-dimension-audit.md`; or (c) **use it**, emitting the row into the recorded sample so the CSV can be grouped by ledger row, which is the only option that buys anything at runtime and the only one that costs. **It closes on that choice**, not on a rename. | D19 (#747), which found it while establishing what computes with predicate names | `crates/geom-core/src/k_stats.rs`, and whatever the choice names | style | nothing |
+| **D33** | **`docs/predicate-dimension-audit.md` is a SECOND name-carrying document with the same completeness question, and an unstated scope bound.** D19 fixed one document's inventory method; the sibling has the same one, which is why this is a class row and not a follow-up. The audit's scope line — *"Every decision-boundary comparand in `geom-brep` and `topo` (every `classify`/`require_zero`/`require_extent`/`decide` funnel call and every raw `sign_within` use)"* — is **the better criterion of the two**, and #747 adopted it for K-REPORT precisely because it reaches the wrappers a `decide("` grep cannot. But it carries a bound nothing states at the top of the file: **two crates**. **Measured at `ff5ad78e`**: of the seven names #747 found recorded in neither document, **five are outside the audit's two crates by construction** — `arc_apex_identity` and `contact_at_shared_vertex` (`profile`), `side_planes_cosurface` and `side_cylinders_cosurface` (`sweep`), and `demo_flush_offset` (`demos/tour`) — so a reader treating the audit as the workspace ledger is wrong for reasons the document does not disclose. The audit has **145 table rows**; how many funnel sites in `geom-brep` and `topo` it actually reaches is not stated either, and is the number this row should produce. **D19's restatement gives this row a criterion to be checked against**: the same funnel, the same "however it is spelled" rule, the same two-blind-spot framing (a code scan misses carried names; a corpus column misses unexercised ones), and a worked re-derivation recipe. Apply it to the audit and report (i) its true coverage of its own two crates, (ii) whether the two-crate bound is deliberate — the dimensional argument may genuinely be crate-local — and (iii) if it is, say so at the top of the file, because *"every decision-boundary comparand"* does not currently read as bounded. **Do not widen it to the workspace without deciding (ii) first**; a ledger that silently grew its scope is the same defect one direction over. | D19 (#747), which cross-checked its orphans against this document and found the bound | `docs/predicate-dimension-audit.md` | style, and it **closes on a coverage number plus a scope verdict** | nothing (D19 landed the criterion it uses) |
 
-**No row number is reserved; D25 is the highest one placed.** Placements:
+**No row number is reserved; D33 is the highest one placed.** Placements:
 D15 by #710, D16 by #706, **D17** by #718, **D18** by #720 (landed, #736),
-**D19** by #719 (landed, #747), **D20** by **#722** (D5's +46%, unattributed once that unit's
+**D19** by #719 (landed, #747, which **placed D32** and **D33**), **D20** by **#722** (D5's +46%, unattributed once that unit's
 measurement excluded the enumeration D14 blamed), **D24** by **#735** (a `pub`
 item dead workspace-wide is invisible to every mechanical check here), and
 **D21** and **D25** by **#736** — the discard idiom's uncounted sites outside
@@ -7675,7 +7707,7 @@ which **placed D24** — D13/D14 as #722, which **placed D20**, the +46% its
 measurement left unattributed, and **D18 as #736**, which finished W2c and
 **placed D21** and **D25**, and **D19 as #747**.
 **Nothing is in flight.**
-**D17, D20, D21 and D25 are edge-free and unstarted** — though D21
+**D17, D20, D21, D25, D32 and D33 are edge-free and unstarted** — though D21
 should sequence after **D25**, which would discharge its half-edge sites
 structurally rather than site by site. D17 is the only row in
 the track whose file set is `.github/workflows/`, so it collides with no kernel
@@ -7683,7 +7715,11 @@ lane and can run at any time; **D19 landed as #747**, and it named no enforcemen
 record, nothing computes with it, and the deliverable was the criterion plus
 its measured residue; **D21** is `topo/src/{split,attach,movefac,revert}.rs`,
 which #736 leaves untouched except for `split_edge`'s plan phase, so it
-collides with no other row here. **D18 landed as #736**, taking W2c with it.
+collides with no other row here. **D18 landed as #736**, taking W2c with it. **D32 and D33 are #747's own
+residues**: D32 is a spec obligation discharged by a discard
+(`decide_flagged`'s `ledger_row`), D33 the sibling ledger that has D19's
+question and now has D19's criterion to answer it with. Neither is gated on
+anything and neither gates anything.
 
 **Both external edges are discharged.** #705 (the `geom-curves` +
 `geom-surfaces` merge, ≥200 files) blocked **D2** and D7's fillet-helper row —

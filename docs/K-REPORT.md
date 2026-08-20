@@ -350,6 +350,23 @@ on the M2 corpus — `carrier_circles_internal`, `collinear_overlap`,
 
 ### The inventory method, restated (2026-08-20)
 
+**READ THIS FIRST: the roster is not complete, and was not.** The row
+that ordered this restatement (§D's D19) described the roster as
+*"complete today by luck of era"*. That premise is wrong, and it is
+corrected here rather than worked around. **Seven predicate names that
+the `k-lint`-gated corpus actually emits are recorded in neither this
+document nor `docs/predicate-dimension-audit.md`, under any reading**
+(tabled below). A reader who meets the old premise first and then finds
+seven missing names will conclude the restatement is broken; it is the
+premise that was.
+
+**And a count of SITES was never the right measure of a NAME roster.**
+The old method's blind spot was sized at *"37 sites across 24 files"*.
+That figure reproduces exactly — and it understates the hole by more
+than a factor of two, because one parameterised site carries many
+names: those 37 sites carry **83 of the 233 names** in the committed M7
+baseline. Size a name roster's hole in names.
+
 **The rule.** A predicate name is in scope if it reaches the
 `geom_core::k_stats` funnel — `decide`, `decide_flagged` or
 `decide_invariant` — from anywhere the sweep can execute, **however it
@@ -370,11 +387,15 @@ anywhere in the tree.**
 
 Five ways a name escapes the old pattern, all live today:
 
-1. **A different funnel entry.** `decide("` does not match
-   `decide_flagged("` or `decide_invariant("`. Eleven sites, ten of
-   them passing a bare literal that looks reachable and is not
-   (`volume_backstop{,_operand,_violation}`, `bool_ray_cylinder_disc`,
-   `revolve_axis_dir_in_plane`, …).
+1. **A different funnel entry — the sharpest instance, because the
+   site satisfies the method's own criterion.** `decide("` does not
+   match `decide_flagged("` or `decide_invariant("`. **Eleven sites,
+   ten of them passing a bare string literal**: by the old rule's own
+   description — "a name written as a literal at the funnel site" —
+   these are covered, and they are not.
+   `volume_backstop{,_operand,_violation}`, `bool_ray_cylinder_disc`,
+   `revolve_axis_dir_in_plane`, `revolve_full_vs_partial`,
+   `pcurve_cone_chart_nappe`, `bool_point_in_solid_denom`.
 2. **A different wrapper spelling.** Names reach the funnel through at
    least `check_residual`, `classify`, `require_zero`, `coincident`,
    `zero`, `gap_is_zero` and `signed_is_zero`. The old method named the
@@ -388,10 +409,14 @@ Five ways a name escapes the old pattern, all live today:
    one carrier this document already listed), `swept.rs`'s
    `CosurfaceNames`, and `transform.rs:129`'s seven-element
    `[(&'static str, T); 7]` array consumed by a loop variable.
-5. **The scan root.** The pattern greps `crates/*/src`.
-   `demos/tour/src/booleans.rs` decides `demo_flush_{offset,orient,
-   parallel}` through the same funnel, and `k_probe_sweep.sh` records
-   them into the CSV the `k-lint` gate reads.
+5. **The scan root — a scope error in the method, not a missed site.**
+   The pattern greps `crates/*/src`, while the corpus the gate is fed
+   from is not confined to it: `demos/tour/src/booleans.rs` decides
+   `demo_flush_{offset,orient,parallel}` through the same funnel, and
+   `k_probe_sweep.sh` records them into the very CSV `k-lint` reads. A
+   roster method that sweeps one tree and calls itself complete, while
+   the gated corpus is fed from two, is wrong by construction — no
+   amount of care at the sites it does scan would have found these.
 
 **Both halves have a blind spot, and the union is the roster.** The
 code scan misses names not written as a literal at a funnel site (the
