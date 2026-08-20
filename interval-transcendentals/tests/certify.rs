@@ -17,8 +17,20 @@
 //! Gated on `oracle-inari` (M5 PR 1 fix pass): the oracle is inari with
 //! its bundled GMP/MPFR C build, and making it optional is what lets the
 //! kernel's CI run this crate's oracle-free tier without a C toolchain.
-//! Run this lane by hand — `cargo test --release --features oracle-inari`
-//! — whenever the rounding layer or the pads change.
+//!
+//! **CI runs this lane.** `ci.yml`'s `oracle-certify` job fires it
+//! whenever anything under `interval-transcendentals/src/`, `tests/`,
+//! `Cargo.toml` or `Cargo.lock` changes (`scripts/ci-filter.py`'s
+//! `ORACLE_PATHS`), at `CAD_FUZZ_EFFORT=8`. To run it by hand as well:
+//! `RUSTFLAGS="-C target-cpu=x86-64-v3" cargo test --release --features
+//! oracle-inari` (the flag is inari's AVX+FMA floor, not ours).
+//!
+//! This lane owns the SOUNDNESS direction for the transcendentals: their
+//! truth is not computable without a multi-precision reference, so a pad
+//! that is too small is invisible to every cheap-tier row. It also owns
+//! the upper bound on the whole enclosure, via `Tightness`' ceiling
+//! below — the cheap tier's `pad_contract.rs` bounds each pad, this
+//! bounds the result.
 #![cfg(feature = "oracle-inari")]
 
 mod common;
@@ -43,8 +55,23 @@ const CASES_BINARY: usize = 300_000;
 // which is a deliberate unbounded-interval test case.
 const WINDOWS: [(i32, i32); 4] = [(-8, 8), (-1074, -960), (-60, 4), (30, 1022)];
 
+/// Ceiling on the worst width ratio vs the correctly-rounded oracle, for
+/// the ops padded `PAD_ULPS = 4` steps per endpoint. Structurally the
+/// worst is about `2·4 + 1 = 9` (see `Tightness::report`); measured
+/// maxima on this branch were 8 (asin), 9 (sin, cos, tan, acos, atan)
+/// and 10 (atan2), stable across efforts 1 and 2 and four seeds. 64
+/// leaves better than 6x over the measurement and 7x over the
+/// derivation — loose enough that a legitimate draw cannot reach it,
+/// tight enough that a gross widening cannot hide under it.
+const TRANSCENDENTAL_RATIO_MAX: f64 = 64.0;
+
+/// The same for the ops padded one step (`+ − × ÷ sqrt`): structurally
+/// about 3, measured 3 exactly, ceiling 8.
+const ARITHMETIC_RATIO_MAX: f64 = 8.0;
+
 fn drive_unary(
     label: &str,
+    max_ratio: f64,
     mine_f: impl Fn(DInterval) -> DInterval,
     oracle_f: impl Fn(inari::DecInterval) -> inari::DecInterval,
 ) {
@@ -67,43 +94,81 @@ fn drive_unary(
         assert_contains(&format!("{label} case {i} x={x:?}"), &mine, &oracle, false);
         if wi == 3 { &mut tight_huge } else { &mut tight }.record(&mine, &oracle);
     }
-    tight.report(label);
-    tight_huge.report(&format!("{label}[huge-window]"));
+    tight.report(label, Some(max_ratio));
+    // No ceiling on the huge window: it is where localization is
+    // DOCUMENTED to degrade to the trivial enclosure (semantics-diffs
+    // D3), so its ratios are unbounded by design.
+    tight_huge.report(&format!("{label}[huge-window]"), None);
 }
 
 #[test]
 fn certify_sin() {
-    drive_unary("sin", DInterval::sin, inari::DecInterval::sin);
+    drive_unary(
+        "sin",
+        TRANSCENDENTAL_RATIO_MAX,
+        DInterval::sin,
+        inari::DecInterval::sin,
+    );
 }
 
 #[test]
 fn certify_cos() {
-    drive_unary("cos", DInterval::cos, inari::DecInterval::cos);
+    drive_unary(
+        "cos",
+        TRANSCENDENTAL_RATIO_MAX,
+        DInterval::cos,
+        inari::DecInterval::cos,
+    );
 }
 
 #[test]
 fn certify_tan() {
-    drive_unary("tan", DInterval::tan, inari::DecInterval::tan);
+    drive_unary(
+        "tan",
+        TRANSCENDENTAL_RATIO_MAX,
+        DInterval::tan,
+        inari::DecInterval::tan,
+    );
 }
 
 #[test]
 fn certify_asin() {
-    drive_unary("asin", DInterval::asin, inari::DecInterval::asin);
+    drive_unary(
+        "asin",
+        TRANSCENDENTAL_RATIO_MAX,
+        DInterval::asin,
+        inari::DecInterval::asin,
+    );
 }
 
 #[test]
 fn certify_acos() {
-    drive_unary("acos", DInterval::acos, inari::DecInterval::acos);
+    drive_unary(
+        "acos",
+        TRANSCENDENTAL_RATIO_MAX,
+        DInterval::acos,
+        inari::DecInterval::acos,
+    );
 }
 
 #[test]
 fn certify_atan() {
-    drive_unary("atan", DInterval::atan, inari::DecInterval::atan);
+    drive_unary(
+        "atan",
+        TRANSCENDENTAL_RATIO_MAX,
+        DInterval::atan,
+        inari::DecInterval::atan,
+    );
 }
 
 #[test]
 fn certify_sqrt() {
-    drive_unary("sqrt", DInterval::sqrt, inari::DecInterval::sqrt);
+    drive_unary(
+        "sqrt",
+        ARITHMETIC_RATIO_MAX,
+        DInterval::sqrt,
+        inari::DecInterval::sqrt,
+    );
 }
 
 #[test]
@@ -129,7 +194,7 @@ fn certify_atan2() {
         );
         tight.record(&mine, &oracle);
     }
-    tight.report("atan2");
+    tight.report("atan2", Some(TRANSCENDENTAL_RATIO_MAX));
 }
 
 #[test]
@@ -159,8 +224,15 @@ fn certify_powi() {
         );
         if wi == 3 { &mut tight_huge } else { &mut tight }.record(&mine, &oracle);
     }
-    tight.report("powi");
-    tight_huge.report("powi[huge-window]");
+    // No ceiling: `powi`'s enclosure is a COMPOSITION of `mul` pads
+    // (binary exponentiation, plus a division for a negative exponent),
+    // so the steps it is entitled to depend on the exponent rather than
+    // being a constant — and each component step is bounded in
+    // `certify_arith` and `pad_contract.rs` already. The measured worst
+    // here is 117 at |n| up to 31, which is that composition, not a
+    // defect.
+    tight.report("powi", None);
+    tight_huge.report("powi[huge-window]", None);
 }
 
 #[test]
@@ -189,7 +261,7 @@ fn certify_arith() {
         }
     }
     for (t, l) in tights.iter_mut().zip(["add", "sub", "mul", "div"]) {
-        t.report(l);
+        t.report(l, Some(ARITHMETIC_RATIO_MAX));
     }
 }
 

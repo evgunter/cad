@@ -109,8 +109,37 @@ impl Tightness {
         }
     }
 
-    /// Print summary line: `label: n mean p50 p99 max wider%`.
-    pub fn report(&mut self, label: &str) {
+    /// Print the summary line `label: n mean p50 p99 max wider%`, and —
+    /// where the caller supplies one — ASSERT a ceiling on the worst
+    /// width ratio seen.
+    ///
+    /// The ceiling is the upper counterpart to `assert_contains`, in the
+    /// tier that has an oracle. `assert_contains` alone gets EASIER as
+    /// the enclosure degrades, so without this the printed distribution
+    /// was the only record of tightness and nothing computed with it.
+    /// `pad_contract.rs` bounds each PAD from above in the cheap tier;
+    /// this bounds the whole enclosure against a correctly-rounded
+    /// reference, which is what catches a widening that does not come
+    /// from a pad — an extremum-capture rule that fires too often, a
+    /// range clip dropped, a corner evaluation gone wide.
+    ///
+    /// **The ceiling is DERIVED and then confirmed, not fitted.** Our
+    /// width exceeds a correctly-rounded one by at most `2·pad` steps,
+    /// and the oracle's own width is at least one step wherever it is
+    /// inexact, so the worst ratio is structurally about `2·pad + 1` —
+    /// 3 for the 1-step ops, 9 for the 4-step ones. The ceilings the
+    /// callers pass sit far above that (see `certify.rs`), and the
+    /// measured maxima on this branch, at efforts 1 and 2 over four
+    /// varying seeds, were 3 and 8–10 respectively.
+    ///
+    /// **`None` means the caller has a documented reason no ceiling
+    /// applies**, not that it forgot: `powi`'s pad count is a function
+    /// of its exponent rather than a constant, and the huge-magnitude
+    /// window is where the crate's localization is DOCUMENTED to degrade
+    /// to `[-1, 1]` (semantics-diffs D3), with observed ratios past
+    /// 2^70. Bounding either would be a guard that fires on a sound
+    /// enclosure.
+    pub fn report(&mut self, label: &str, max_ratio: Option<f64>) {
         self.ratios.sort_unstable_by(f64::total_cmp);
         let n = self.ratios.len();
         if n == 0 {
@@ -120,13 +149,24 @@ impl Tightness {
             );
             return;
         }
+        let worst = self.ratios[n - 1];
+        if let Some(cap) = max_ratio {
+            assert!(
+                worst <= cap,
+                "TIGHTNESS CEILING EXCEEDED for {label}: worst width ratio \
+                 {worst} vs oracle exceeds {cap} over n={n} samples. The \
+                 enclosure got wider; find out why before touching this \
+                 number, and if the new width is right, re-derive the \
+                 ceiling rather than restoring the old one."
+            );
+        }
         let mean: f64 = self.ratios.iter().sum::<f64>() / n as f64;
         let p = |q: f64| self.ratios[((n - 1) as f64 * q) as usize];
         println!(
             "TIGHTNESS {label}: n={n} mean={mean:.6} p50={:.6} p99={:.6} max={:.6} wider={:.3}%",
             p(0.5),
             p(0.99),
-            self.ratios[n - 1],
+            worst,
             100.0 * self.mine_wider_cases as f64 / self.total as f64
         );
     }
@@ -146,14 +186,7 @@ pub fn assert_contains(ctx: &str, mine: &DInterval, oracle: &DecInterval, dec_ex
     }
     let iv = oracle.interval().expect("non-NaI oracle has an interval");
     if iv.is_empty() {
-        assert!(
-            mine.is_empty() || !mine.is_nai(),
-            "{ctx}: oracle empty, mine NaI"
-        );
-        assert!(
-            mine.is_empty(),
-            "{ctx}: oracle empty, mine nonempty {mine:?}"
-        );
+        assert!(mine.is_empty(), "{ctx}: oracle empty, mine {mine:?}");
         return;
     }
     assert!(
