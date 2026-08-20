@@ -27,15 +27,33 @@ use crate::error::StepImportError;
 /// point of the writer over a single printed sign. Normalizing at the
 /// mint keeps one representative everywhere and moves no value
 /// (`-0.0 == 0.0`).
+///
+/// The same argument covers every frame RECOGNITION derives —
+/// `center`/`axis`/`u_ref`/`origin` on a promoted analytic surface or
+/// curve are minted, not read, so a promoted body's one-cycle
+/// re-export fixed point misses by exactly those sign bits unless they
+/// are normalized here too.
 pub(crate) fn plus_zero(v: Vec3<f64>) -> Vec3<f64> {
-    let z = |x: f64| if x == 0.0 { 0.0 } else { x };
-    Vec3::new(z(v.x), z(v.y), z(v.z))
+    Vec3::new(
+        plus_zero_scalar(v.x),
+        plus_zero_scalar(v.y),
+        plus_zero_scalar(v.z),
+    )
 }
 
 /// [`plus_zero`] for a point.
 pub(crate) fn plus_zero_point(p: Point3<f64>) -> Point3<f64> {
-    let z = |x: f64| if x == 0.0 { 0.0 } else { x };
-    Point3::new(z(p.x), z(p.y), z(p.z))
+    Point3::new(
+        plus_zero_scalar(p.x),
+        plus_zero_scalar(p.y),
+        plus_zero_scalar(p.z),
+    )
+}
+
+/// [`plus_zero`] on one component. NaN passes through unchanged: this
+/// states a representative, it never certifies one.
+fn plus_zero_scalar(x: f64) -> f64 {
+    if x == 0.0 { 0.0 } else { x }
 }
 
 /// The carrier parameters of `p_start` / `p_end` (module docs).
