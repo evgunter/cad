@@ -1715,13 +1715,14 @@ jobs:
       # tests are the derivations' tests — the split optimizer's answer
       # against the certificate it claims to satisfy, and the row
       # shapes' agreement about their width.
-      # `cargo doc` too, unlike its sibling rows. `scripts/doc-gate.sh`
-      # is `cargo doc --workspace` and the root manifest excludes
-      # `tools/`, so this crate's ~1,050 lines of prose — the slack
-      # factors, the anisotropy caveat, the boundary rule — are outside
-      # that gate. Documenting them here is a stopgap for THIS crate;
-      # the same hole covers every excluded root and is stated at the
-      # gate itself.
+      # `cargo doc` too, as the tess-lint row above now also does.
+      # `scripts/doc-gate.sh` is `cargo doc --workspace` and the root
+      # manifest excludes `tools/`, so this crate's ~1,050 lines of
+      # prose — the slack factors, the anisotropy caveat, the boundary
+      # rule — are outside that gate. Documenting them here is a
+      # stopgap for THIS crate; the same hole still covers `k-lint`,
+      # `demos/tour` and `demos/wild`, and is stated at the gate
+      # itself.
       - name: tess-meter tool fmt + clippy + doc + tests
         run: |
           cd tools/tess-meter
