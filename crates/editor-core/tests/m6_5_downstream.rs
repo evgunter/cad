@@ -132,8 +132,8 @@ fn an_every_edge_fillet_emits_a_full_name_table() {
     assert!(!table.is_empty(), "the empty-table dead end is gone");
 
     // The roles are the fillet vocabulary, and a shrunk support reads
-    // as `FromTarget` — the SAME name the surgery door gives it,
-    // where that face is a survivor rather than a fresh mint.
+    // as `FromTarget`: the surgery leaves that face in place, so it is
+    // a survivor rather than a mint and takes its source's own name.
     let mut supports = 0usize;
     for (n, _) in table.iter() {
         match n.path.first().expect("a role path") {
@@ -255,7 +255,7 @@ fn every_fillet_minted_role_resolves_through_the_ladder() {
 /// **The boolean consumer, ATTEMPTED and pinned** (M6-5 PR-2
 /// deviation 1).
 ///
-/// The spec's §5 row is a boolean over a whole-body-filleted body.
+/// The spec's §5 row is a boolean over a fully filleted body.
 /// The NAMING half is ready — the two rows above show the fillet's
 /// names resolving and composing — but the kernel's boolean cannot
 /// take a body carrying sphere OCTANTS at all: it refuses

@@ -82,12 +82,16 @@ pub struct Filleted<T: Real> {
     /// **Per-entity birth records**: what the fillet minted and which
     /// source entity each mint was made for.
     ///
-    /// The surgery writes the rows as it mutates. The `Option`
-    /// survives only because `Filleted` is public and a second
-    /// assembly would have to say so explicitly rather than ship an
-    /// empty table by default; `None` is a kernel bug today and
-    /// `editor-core` refuses it as one, never falling back to unnamed
-    /// geometry.
+    /// The surgery writes the rows as it mutates, and it is the only
+    /// producer, so `None` is never constructed. It is a **permanent
+    /// `Option` over a value that is always `Some`**, and deliberately
+    /// so: `Filleted` is public, and the alternative — a bare
+    /// `FilletNaming` with `Default` — would let a caller or a future
+    /// assembly ship an EMPTY table indistinguishable from a full one.
+    /// `None` is the state that says "this body has no birth records",
+    /// which `editor-core` refuses as a kernel bug rather than falling
+    /// back to unnamed geometry; an empty struct would be refused by
+    /// nothing.
     pub naming: Option<super::naming::FilletNaming>,
 }
 
@@ -215,12 +219,15 @@ pub(super) fn octant_chart<T: Decide + Bounds>(
 /// ([`Convexity::blend_sense`]) — never a sampled normal.
 ///
 /// `links` are the requested links already filtered to this corner.
-/// **Neither refusal below is a reachable door**: the assembly admits
-/// only convex chains, and a corner exists only where an open link
-/// terminates, so the links are always present and always agree. They
-/// are typed guards on the invariant the door holds — kept so the bit
-/// cannot rot when the door moves, in the shape [`super::surgery`]'s
-/// closure guard uses.
+/// **Neither refusal below is reachable through the front door**: it
+/// admits only convex chains, and a corner exists only where an open
+/// link terminates, so the links are always present and always agree.
+/// They are typed guards on the condition the derivation needs, in the
+/// shape [`super::surgery`]'s closure guard uses — so the bit is a
+/// consequence of the verdict rather than of the door's current
+/// predicate. Both arms are pinned directly
+/// (`surgery::tests::a_corner_plan_*`), which is how the guards stay
+/// honest without a reachable input.
 pub(super) fn corner_convexity<T: Real>(links: &[&Link<T>]) -> Result<Convexity, FilletError> {
     let unsupported = |detail: &'static str| FilletError::AssemblyUnsupported { detail };
     let mut convexity: Option<Convexity> = None;

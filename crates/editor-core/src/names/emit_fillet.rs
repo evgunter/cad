@@ -31,19 +31,23 @@
 //! One guard sits between those two cases, because "keeps its source
 //! arena key" is a claim about NUMBERING and nothing here re-checks
 //! it. A would-be survivor whose key the records list as RETIRED
-//! refuses [`NamingError::Emission`]: a retired key that reappears in
-//! the output arena is a coincidence, not provenance.
+//! refuses [`NamingError::Emission`].
 //!
-//! **Defense in depth, and honest about it.** No production path
-//! reaches that guard: the surgery mutates the target's own arena and
-//! a retired key is removed from it, so an output row can only carry
-//! a retired key if an unrecorded mint reused the numbering. The
-//! guard exists because the alternative was worse than untested — an
-//! unrecorded mint would be named `FromTarget` of an unrelated
-//! entity, and whether that misnaming got caught depended on whether
-//! the real owner of the name happened to collide at insertion. It
-//! was caught by luck; now it is caught by design. Same posture as
-//! `wire_fillet`'s refusal of `naming: None`.
+//! **That guard is unreachable BY CONSTRUCTION, and it is worth
+//! saying which construction.** The surgery mutates a clone of the
+//! target's own body, and `topo::Body`'s arenas are `slotmap::SlotMap`
+//! over `new_key_type!` keys, which bump a slot's VERSION on removal:
+//! a retired key is never reissued, so a retired key cannot reappear
+//! in the output arena at all. There is no input this code can be
+//! handed that reaches the refusal.
+//!
+//! It is kept because the property it rests on lives in another
+//! crate's choice of container. If a future body ever numbered its
+//! entities itself, or reused slots, an unrecorded mint would be named
+//! `FromTarget` of an unrelated entity — and whether that misnaming
+//! got caught would depend on whether the real owner of the name
+//! happened to collide at insertion. That is luck, not a guarantee.
+//! Same posture as `wire_fillet`'s refusal of `naming: None`.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -197,16 +201,14 @@ pub(crate) fn name_fillet<T: geom_core::Real>(
             Some(seg) => seg.clone(),
             // Not minted, so it must be a survivor keeping its source
             // arena key — UNLESS the records say that key was retired,
-            // in which case the coincidence is not provenance.
+            // in which case the match is not provenance.
             //
-            // The trapdoor this closes: an unrecorded mint whose key
-            // coincides with a retired source key would fall through
-            // here, find a same-numbered source entity, and be named
-            // `FromTarget` of something it has nothing to do with.
-            // That misnaming is caught downstream only when the real
-            // owner of the name collides and `insert` refuses
-            // `Duplicate` — luck, not a guarantee. Reading the
-            // retirement list makes the refusal a designed one.
+            // Unreachable by construction: the arenas are slotmaps
+            // whose keys carry a slot version, so a retired key is
+            // never reissued and cannot come back here. The guard
+            // holds the invariant against that container choice
+            // changing, not against a state reachable today (module
+            // docs).
             None => {
                 let dead = match key {
                     EntityKey::Edge(k) => retired_e.contains(&k),

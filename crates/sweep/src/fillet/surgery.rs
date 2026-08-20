@@ -13,16 +13,17 @@
 //! # What the surgery does, per chain kind
 //!
 //! **Open chains** (plane–plane links, the box edges): every open
-//! chain must be a single link terminating at trivalent corners whose
-//! THREE incident edges are all requested — the sphere-octant
-//! configuration, reached in place. Per support face: one strut `mev` per boundary vertex (to
-//! the corner ball's foot on that face) and one trimline `mef` per
-//! blended edge carve the face into the SHRUNK face plus one strip per
-//! edge — the shrunk face keeps its `FaceKey`, its surface, its sense
-//! bit (S12 parent-sense inheritance) **and its rings**, which is
-//! what carries a face's rings through. Then per
-//! edge one `kef` merges the two strips across the dying sharp edge;
-//! per corner three arc `mef`s split the corner triangles off, two
+//! chain must be a single link terminating at trivalent corners
+//! whose THREE incident edges are all requested — the sphere-octant
+//! configuration, reached in place. Per support face: one strut
+//! `mev` per boundary vertex (to the corner ball's foot on that
+//! face) and one trimline `mef` per blended edge carve the face
+//! into the SHRUNK face plus one strip per edge — the shrunk face
+//! keeps its `FaceKey`, its surface, its sense bit (S12
+//! parent-sense inheritance) **and its rings**, which is what
+//! carries a face's rings through the fillet. Then per edge one
+//! `kef` merges the two strips across the dying sharp edge; per
+//! corner three arc `mef`s split the corner triangles off, two
 //! `kef`s and one `kev` fuse them into the octant and retire the
 //! struts and the sharp vertex.
 //!
@@ -1474,8 +1475,8 @@ fn loop_walk_face<T: Decide>(
 
 /// The prefer-intrinsic upgrade for one new edge: rebuild the exact
 /// carrier and describe it as the tangential contact locus of its two
-/// adjacent faces' surfaces, over the rim arcs' stored carriers as
-/// well as the straight trimlines.
+/// adjacent faces' surfaces — over the rim arcs' stored carriers as
+/// well as over the straight trimlines.
 fn attach_contact<T: Decide + Bounds>(
     body: &mut Body<T>,
     edge: EdgeKey,
