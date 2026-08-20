@@ -168,9 +168,37 @@ superseded for Track C by this table.
 | **C-j** | **S29** — the sizing vocabulary across five modules | `mesh/src/{nurbs_cert,curved,chords,trimmed,budget}.rs` | **discharged** (#684 merged) | **style only** on the mechanical half — retrimmed, see C-R12; the policy half is a design PR (**C-R2**) |
 | **C-k** | **S28's duplication half** — three tessellation lanes, three pipelines | `mesh/` | **discharged** (#684 merged) | **adversarial** + style |
 | **C-l** | **C7 + S33** — the lane-trait collapse, `RingInterval`, the scalar ladders | `geom-core/`, and W2b's 535 refs across 15 files | **discharged** (#682 merged) | **style only, provisionally** — see C-R12; expect to split into 2–3 lanes, and the sub-lane that rewrites `Dual` arithmetic rather than re-spelling it gets promoted to adversarial |
-| **C-m** | **S27** — `props/quad.rs`'s four quadrature engines | `geom-brep/src/props/quad.rs` | **STILL GATED** — A2 / #649, open as **#714** | **adversarial** + style |
+| **C-m** | **S27** — `props/quad.rs`'s four quadrature engines | `geom-brep/src/props/quad.rs` | **STILL GATED, and the gate changed identity** — #714 **merged** (`08:42Z`), so A2 is discharged; C3's row now names **#723** as the second gate, and it is **open**. See the note below. | **adversarial** + style |
 | **C-n** | **H17** — the rustdoc spec-code remainder, ~1115 lines / 130 files | per crate: `topo` 300, `editor-core` 267, `geom-brep` 192, `geom-core` 107, `sweep` 64, rest < 70 | **deliberately last** — it touches 130 files and would conflict with every open lane | style, per crate batch |
 | **C-q** | **C10** — `geom_core::k_stats`, S30's class one crate over | `geom-core/src/k_stats.rs`, and `profile::k_stats`'s shim (S40) | none | **adversarial** + style — the recording sits *inside* three load-bearing kernel predicate doors, so #709's split does not transfer mechanically |
+
+**C-m's gate is now a live kernel defect, not a queued lane.** #723 is a
+sphere meridian arc crossing a pole: `min_max` folds only edge *endpoint*
+levels, so the latitude extreme in the arc's interior is never seen, and
+`area = r·Δu·(hi − lo)` integrates against a false `(lo, hi)`. Executed at rest
+through `import_step`: **tier 3 green, `pad = 0.0`, volume −47.19%** — more than
+twice #649's 19%, on the same failure *shape* and a different premise. Adding
+one vertex to a solid that is otherwise **refused** turns the refusal into a
+wrong certified number.
+
+Three things follow for this track.
+
+1. **It is not ours.** Under **C-R19** that is tier three — a logic bug, not a
+   style or encoding fix and not a design element. It is already filed. Track C
+   does not take it and does not widen a lane to reach it.
+2. **So C-m does not unblock by waiting on us**, and should not be read as
+   queued behind C-q/C-j/C-g. Its gate is somebody else's fix landing.
+3. **The gate's identity changed under the roster**, which is the same failure
+   C-R11 names one level up: my roster cell said *"STILL GATED — A2 / #649, open
+   as #714"* hours after #714 merged. A gate cell is a claim site too, and a
+   *discharged* gate reads identical to a live one until someone checks. What
+   saved it here is that the row it points at, C3, records **two** gates and the
+   second is still real — so the cell was stale rather than wrong, by luck.
+
+*Worth Evan's attention on its own terms*, separately from Track C: #723 has
+sat open since `05:48Z` with an executed at-rest reproduction and two named
+candidate fixes, and it is the second wrong-certified-volume-at-`pad = 0.0`
+found in one day.
 
 **Not taken by Track C:** C6's rows (blocked on other programmes — OnArc
 + RESPELL-TABLE, the workspace's first proc-macro crate, a persisted
