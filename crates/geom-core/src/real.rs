@@ -607,11 +607,19 @@ impl Bounds for f64 {
 /// bracket readers, no arithmetic obligation at all. Every `Bounds`
 /// implementor gets it by blanket impl (so `f64` and the interval scalar
 /// are covered without a line of change), and the ring implements it
-/// directly. Certification helpers — the spline hull bounds in
-/// [`crate::spline::hull`] are the first — take `T: Enclosure` and work
-/// for all three: an `f64` coefficient is a degenerate bracket, an
-/// interval-scalar coefficient is the replayed enclosure, a ring
-/// coefficient is the certification arithmetic's own.
+/// directly. A helper that only needs to READ a bracket takes
+/// `T: Enclosure` and works for all three: an `f64` coefficient is a
+/// degenerate bracket, an interval-scalar coefficient is the replayed
+/// enclosure, a ring coefficient is the certification arithmetic's own.
+///
+/// **Not "certification helpers", which is what this said before #643 —
+/// and the word matters more since D1 (2026-08-19).** `Enclosure` is a
+/// bracket accessor; the certification door is [`CertifiedEnclosure`].
+/// The spline hull bounds in [`crate::spline::hull`], cited here as the
+/// first `Enclosure` consumer, moved to [`CertifiedEnclosure`] at #643,
+/// and no `Enclosure`-bounded signature remains in `crates/*/src`. See
+/// the blanket impl below for why that is worth saying: a `Dual` is an
+/// `Enclosure` now, and nothing gates a new `T: Enclosure` bound.
 ///
 /// # Semantics
 ///
