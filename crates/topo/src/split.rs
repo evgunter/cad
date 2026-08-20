@@ -116,7 +116,8 @@ impl<T: Decide> Body<T> {
     /// # Precondition check order
     ///
     /// `edge` resolves ([`EulerOpError::StaleKey`]); its halves and
-    /// `next(he_plus)` resolve (`StaleKey`); its curve entry resolves
+    /// the two splice neighbours `next(he_plus)` / `prev(he_minus)`
+    /// resolve (`StaleKey`); its curve entry resolves
     /// ([`EulerOpError::StaleGeometry`]) and is certified
     /// ([`EulerOpError::NullScaffoldCurve`] — null scaffolding has
     /// nothing to split); both endpoint vertices and their points
@@ -152,11 +153,18 @@ impl<T: Decide> Body<T> {
         let (hp, hm) = (edge_data.he_plus, edge_data.he_minus);
         let hp_data = self.resolve_half_edge(hp)?;
         let hm_data = self.resolve_half_edge(hm)?;
+        // The two splices write through `next(hp)` and `prev(hm)`;
+        // validate both now so the mutation below cannot fail midway
+        // (atomicity). `prev(hm)` is re-read after splice 1 — see the
+        // splice for why the value read there is covered by this check.
         let hp_next = hp_data.next;
-        if !self.half_edges.contains_key(hp_next) {
-            return Err(EulerOpError::StaleKey {
-                key: EntityId::HalfEdge(hp_next),
-            });
+        let hm_prev = hm_data.prev;
+        for link in [hp_next, hm_prev] {
+            if !self.half_edges.contains_key(link) {
+                return Err(EulerOpError::StaleKey {
+                    key: EntityId::HalfEdge(link),
+                });
+            }
         }
         let entry = self
             .get_curve_geom(edge_data.curve)
@@ -250,8 +258,15 @@ impl<T: Decide> Body<T> {
         // Splice 2: current prev(hm) → n⁻ → hm, in hm's loop. The
         // prev is re-read AFTER splice 1 so the strut case
         // (next(hp) == hm ⇒ prev(hm) is now n⁺) chains correctly.
-        let hm_prev = self.get_half_edge(hm).map(|he| he.prev).unwrap_or(n_plus); // unreachable: hm resolved above
-        self.link_half_edges(hm_prev, n_minus);
+        // Splice 1 rewrites exactly one `prev` — `hp_next`'s, to the
+        // minted `n_plus` — so the value read here is `n_plus` when
+        // `hm == hp_next` and the plan phase's `hm_prev` otherwise.
+        // Both are live: the first is minted above, the second is
+        // proven by the plan phase's link check.
+        let Some(hm_data_spliced) = self.get_half_edge(hm) else {
+            unreachable!("split_edge: `hm` resolved in the plan phase and this op kills no half-edge")
+        };
+        self.link_half_edges(hm_data_spliced.prev, n_minus);
         self.link_half_edges(n_minus, hm);
         // The parent's minus half now starts at w (the parent derives
         // its new end w through n⁺/n⁻'s starts).

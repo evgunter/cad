@@ -1223,21 +1223,28 @@ sanctioned deviation is `unsafe_code` — so the two move together).
 `panic`, `todo` and `unimplemented` stay banned.
 
 *Conversion work this licenses.* Opening the lint permitted the work;
-it did not perform it. The `crates/topo` half is **done** (W2c, PR
-#720): the discards across `euler.rs` / `euler_ring.rs` /
-`euler_kill.rs` re-derived to **58** sites, of which 56 became row 4
-with a per-site not-input-reachable proof and 2 became row-1 typed
-errors. **No site was row 5** — rows 4/5 split on re-derivation, and a
-failed key lookup is observed rather than re-derived. Two discards
-remain, both in `link_half_edges`, because two of its callers pass a
-`prev` read out of the arena that nothing proves (`split_edge`, and
-`kef` — whose cycle walk steps `next`); converting there would make a
-documented garbage-out into a panic, which this addendum's headline
-forbids. Those two call sites are `SMELL-SCAN-2026-08.md`'s **D18**.
+it did not perform it. **W2c is done**: the Euler surgery modules
+`euler.rs` / `euler_ring.rs` / `euler_kill.rs` discard nothing. The
+census re-derived to **58** sites, of which 56 became row 4 with a
+per-site not-input-reachable proof and 2 became row-1 typed errors (PR
+#720), and the last two — the shared write helper `link_half_edges` —
+converted once its two unproven callers gained the missing plan-phase
+link check (`split_edge`'s `prev(he_minus)` and `kef`'s `prev(he)`;
+each operator already proved the symmetric `next`). **No site was row
+5** — rows 4/5 split on re-derivation, and a failed key lookup is
+observed rather than re-derived. The standard the conversion holds to,
+and the reason it survives a corrupt body: **every converted key is
+minted in the same call or proven live by a check in the same call,
+never by the body's tier-1 validity** — which is a whole-body property
+no single call establishes, and which would have been falsified across
+roughly half the sites.
 
-*Still outstanding:* idiom 2's `MissingEntity` router defects, and
-`AssemblyUnsupported`'s rename to `Unsupported*` — both outside
-`crates/topo`.
+*Still outstanding:* discards elsewhere in `crates/topo` —
+`split_edge`'s three remaining arena re-reads, plus `attach.rs`,
+`movefac.rs` and `revert.rs` — which W2c's census never covered
+(`SMELL-SCAN-2026-08.md`'s **D21**); and, outside `crates/topo`, idiom
+2's `MissingEntity` router defects and `AssemblyUnsupported`'s rename
+to `Unsupported*`.
 
 **Replay with kills (M1, pinned in PRs #20/#23):** the determinism
 contract holds with destructive operators in the history. Identical

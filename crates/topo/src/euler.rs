@@ -2074,35 +2074,28 @@ impl<T: Decide> Body<T> {
 
     /// Writes the mutual `next`/`prev` link `a → b`.
     ///
-    /// **The one write helper in these three modules that still
-    /// discards a failed lookup, and the invariant it needs is not the
-    /// one it can state.** At all but two of its call sites both keys
-    /// are minted in the mutation phase or proven live by the plan
-    /// phase, so a failed lookup would be the D2 addendum's row 4.
-    /// **Two call sites do not prove their key, and both hand it the
-    /// same thing — a `prev` read straight out of the arena:**
-    ///
-    /// - [`Body::split_edge`] passes `prev(hm)`, the symmetric partner
-    ///   of the `next(hp)` its preconditions *do* check.
-    /// - [`Body::kef`] passes `a = prev(he)`. Its cycle walk steps
-    ///   `next`, so the walk proves `next(he)` and not `prev(he)`;
-    ///   `kev`, `mev`, `mef` and `mekr` each check their own `prev`s
-    ///   explicitly, and `kef` is the outlier.
-    ///
-    /// So the qualifier this comment used to carry — *"cannot fail on
-    /// the operator paths"* — was not merely narrow, it was wrong:
-    /// one of the two gaps is inside an operator. Both keys are live
-    /// on a tier-1-valid body and unproven on any other, so making
-    /// this helper announce would convert a documented garbage-out
-    /// into a panic on exactly the paths that have no proof. The
-    /// proofs belong at those two call sites, not here.
+    /// **Precondition: both keys are live.** Every caller either mints
+    /// the key in its own mutation phase or proves it live in its own
+    /// plan phase — by `resolve_half_edge`, by an explicit
+    /// `contains_key`, or by membership in a bounded walk
+    /// ([`Body::loop_cycle`] / [`Body::vertex_orbit`], which resolve
+    /// every member they return). Never by tier-1 validity of the
+    /// body, which is not a property any single call establishes. A
+    /// failed lookup here is therefore the D2 addendum's row 4 and
+    /// announces.
     pub(crate) fn link_half_edges(&mut self, a: HalfEdgeKey, b: HalfEdgeKey) {
-        if let Some(he) = self.get_half_edge_mut(a) {
-            he.next = b;
-        }
-        if let Some(he) = self.get_half_edge_mut(b) {
-            he.prev = a;
-        }
+        let Some(he) = self.get_half_edge_mut(a) else {
+            unreachable!(
+                "link_half_edges: `a` is minted in the caller's mutation phase or proven live by its plan phase"
+            )
+        };
+        he.next = b;
+        let Some(he) = self.get_half_edge_mut(b) else {
+            unreachable!(
+                "link_half_edges: `b` is minted in the caller's mutation phase or proven live by its plan phase"
+            )
+        };
+        he.prev = a;
     }
 
     /// D1's ratified postcondition-assert clause: after a successful
