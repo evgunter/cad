@@ -85,9 +85,8 @@
 //!
 //! - **Row 2**, above: valid input, unbuilt door, carries the fillet
 //!   recourse that is true of it.
-//! - **Row 1**, [`FilletError::BodyNotIntact`] (and
-//!   [`FilletError::EmptyChain`]): a stored reference that did not
-//!   resolve, or a cycle that did not close. **This is not a kernel
+//! - **Row 1**, [`FilletError::BodyNotIntact`]: a stored reference
+//!   that did not resolve, or a cycle that did not close. **This is not a kernel
 //!   bug channel.** A body that fails referential integrity is
 //!   reachable at this door without any kernel bug in the trace —
 //!   `topo::instance::graft_disjoint_all`'s own docs record that a
