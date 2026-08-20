@@ -315,7 +315,6 @@ a hand-rolled clone silently lacks.
 
 | lane | row | gated on | why |
 |---|---|---|---|
-| **F-d** | **F4** (S76, S78, S84, S91) | Track C's **#734** | F-R2 — file overlap at `geom-brep/tests/m5_pr7_ssi.rs` |
 | **F-e** | **F1** (S59) | Track E's **#753** | `scripts/gates/`, and the widened matcher's own conversions |
 | **F-f** | **F2** (S61/S62 + D58–D60) | Track E's **#753** | the same two files, plus `ci-local.sh` |
 | **F-g** | **F3** (S63) | Track E's **#753** | `scripts/gates/`, `scripts/ci-filter.py` |
@@ -355,7 +354,24 @@ constraint is, and it is stated here so a Track G taker can read it.
 
 ## Landings
 
-*(none yet)*
+- **F-d — F4 (S76, S78, S84, S91), PR #NNN**, opened 2026-08-20 off
+  `origin/main` at 80f0ae1c. All four closed. **The missing idiom now has a
+  home**: `crates/test-utils/src/census.rs` — `Census`, an anti-vacuity tally
+  reported unconditionally and asserted with a floor, plus `stood_down`, the
+  tree's one spelling of a loud stand-down. `test_utils`' own header said it
+  held *"exactly one thing"*; it now holds two, and the four sites share one
+  spelling rather than four.
+- **S76 was measured before it was asserted**, because `ci.yml` cites the row by
+  name. `oks` is **250** of **876** calls on the spent-graft row (and 3966 of
+  11907 on its twin), so the floor is green with headroom and **no `ci.yml` edit
+  is needed** — the F4 brief's stop-and-report condition did not fire.
+- **Placed**: **S126** (the silent whole-row stand-down, population 13 in three
+  files) and **D70**, which schedules it. Reserved numbers used exactly; none
+  taken beyond the assignment.
+- **No GitHub issue and no design PR.** Nothing found here was a kernel-logic
+  defect: the ε-relative floor clamp under S84 is a fixture defect in a test,
+  not a defect in `ssi`, and the fit budget it was hiding is D9's documented
+  constant behaving as documented.
 
 ## Incidents
 
