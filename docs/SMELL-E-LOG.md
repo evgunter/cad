@@ -464,7 +464,7 @@ serialized here and each lane re-merges `origin/main` when one lands.
 | **E-b** | D23 | `smelle/d23` | **#763** | **NOT CLEARED** — a live wrong answer inside D45, plus 4 MAJOR; fix pass running |
 | **E-d** | D33 | `smelle/d33` | **#761** | **MERGED 2026-08-20.** Placed D46, D51, D57; handed D56 back |
 | **E-e** | D28 + #693 | `smelle/d28` | **#767** | cleared, **but the fix pass went red** — 3 shards on a `sweep` test the lane had fenced itself out of. Second fix pass running |
-| **E-h** | D21 | `smelle/d21` | — | dispatched — **unblocked by #755**, whose lane verified D21 inherits nothing from D25 |
+| **E-h** | D21 | `smelle/d21` | **#773** | reported — census **17**, not 14; all 17 discharged and **all 17 inverted live**. Placed D88. Owes a re-merge after #767 |
 
 **E-g dispatched 2026-08-20** (`smelle/d27-d29`), D27 then D29 — one lane
 because both edit `sweep/src/fillet/`, and D27 first because its newtype may
@@ -855,6 +855,40 @@ which is the same instrument that caught #755's cancelled-run citation, and the
 same reason `memories/agent-lane-operations.md` says to read the workflow **runs**
 list rather than the PR's checks list. **A lane's CI summary is a record of a
 moment; the run is the fact.**
+
+### Four orchestrators, one number sequence, and nobody's register noticed (2026-08-20)
+
+**Track E issued `D61`–`D70` to five of its own lanes while those numbers were
+already reserved to Track F**, and `D71`–`D80` to Track G. Both blocks were
+claimed the same day, both are recorded in §D, and neither register caught the
+collision. **Lane E-h did** — it read `SMELL-F-LOG.md` before writing a row,
+found `D61` was not Track E's to give, and **withdrew a row it had already
+placed** rather than shipping it.
+
+Nothing was overwritten, and the only reason is timing: both new tracks were
+hours old and neither had placed into its block yet. **One day later this would
+have been two rows with one number in a register three tracks cite.**
+
+*The mechanism, and it is not carelessness:* the standing rule is **take the
+next unassigned number from the orchestrator, never the next gap you can
+see** — which is exactly right inside one track, and silently wrong across
+four. *"Unassigned"* was a fact about a branch the other three orchestrators
+could not see. Four of us read `main`, each **correctly** computed the next free
+number, and each got the same one. **A sequence with one allocator per branch is
+not a sequence**, and no amount of care at any single allocator fixes that.
+
+Track F's own block paragraph says as much and tells Tracks C and E to claim
+blocks — it was right, and Track E owed itself one before it issued a single
+number. Track E now holds **`D81`–`D100`**; the ten issued out of F's block are
+reissued and each holding lane was told individually.
+
+*What generalises past the register:* this is the third defect on this track
+whose shape is **a correct local derivation of a quantity that is not local** —
+the others being my stale *"highest one placed"* index and the C-f fence I
+transcribed from Track C's table. All three were caught by a lane looking at
+something the orchestrator had not thought to check. **The instrument that
+works across tracks is a lane reading the other track's log**, and it is worth
+saying in a dispatch rather than hoping for.
 
 ---
 
