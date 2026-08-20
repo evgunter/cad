@@ -3,7 +3,7 @@
 //!
 //! Why these exist (mutation evidence from the concurrent review):
 //! three certifying-path mutants survived the entire shipped
-//! geom-curves battery —
+//! curve battery —
 //!
 //! - shrinking the per-span ACTIVE window by one (`lo_i+1..span`):
 //!   UNSOUND (bound above true min speed by up to +2.3 on random

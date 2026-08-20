@@ -7,10 +7,9 @@
 //! shipped fixtures; the independence is the regression value.
 //!
 //! Promotion adaptations (mechanical only): the standard test-lint
-//! allows below; everything else is verbatim. Lives in
-//! `geom-surfaces/tests/` because the suite consumes curves AND
-//! surfaces through public API only (geom-curves is a dev-dependency
-//! here; acyclic — geom-surfaces does not depend on geom-curves).
+//! allows below; everything else is verbatim. Grouped under
+//! `tests/surfaces/` because it is the surface PR's review artifact;
+//! it consumes curves AND surfaces, both through public API only.
 
 #![allow(
     clippy::unwrap_used,

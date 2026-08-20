@@ -19,15 +19,12 @@
 //! it DEFINES one. The Book presents the same construction; we simply
 //! decline to pretend the result is anything but itself.
 //!
-//! # Placement in this crate (M5 PR 10, numbered deviation 1)
+//! # Placement in this crate
 //!
-//! Skinning needs curves AND surfaces in one place, and `geom-surfaces`
-//! deliberately does not depend on `geom-curves` (its crate docs: the
-//! two are peer evaluators; machinery spanning both belongs one layer
-//! up). `sweep` is that layer for constructions — it already depends on
-//! both, and §10.3/§10.4 are sweep operations by name. The produced
-//! payload is `geom::NurbsSurface`, so nothing about the
-//! surface type moved.
+//! Skinning is a construction, not an evaluator: it chooses a
+//! structure (degrees, knots, sub-arc counts) and emits a payload.
+//! `sweep` is the layer for constructions, and §10.3/§10.4 are sweep
+//! operations by name. The produced payload is `geom::NurbsSurface`.
 //!
 //! # Structure selection is f64 (C6/D9)
 //!

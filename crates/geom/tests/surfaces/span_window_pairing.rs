@@ -2,7 +2,7 @@
 //! their [`SurfaceWindow`] names — no more (which would make the result
 //! depend on a control point the span pair cannot see) and no fewer
 //! (which is what a truncating `zip` against a mis-sized basis row
-//! would do). This is `geom-curves/tests/span_window_pairing.rs` one
+//! would do). This is `tests/curves/span_window_pairing.rs` one
 //! dimension up, and it additionally pins the **stride**: the tensor
 //! window's extra failure mode is a row-major `iu·nv + iv` that walks
 //! the wrong row.

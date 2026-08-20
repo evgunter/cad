@@ -54,7 +54,7 @@ fn simpson2(mut f: impl FnMut(f64, f64) -> f64, r: [f64; 4], n: usize) -> f64 {
 }
 
 /// Point, unit chart normal, and Jacobian of the surface at (u, v),
-/// derived from the documented parameterizations (geom-surfaces).
+/// derived from the documented parameterizations (`geom`'s `surfaces` module).
 fn chart(s: &Surface<f64>, u: f64, v: f64) -> (Point3<f64>, Vec3<f64>, f64) {
     let frame = |axis: Vec3<f64>, u_ref: Vec3<f64>, u: f64| {
         let v_ref = axis.cross(u_ref);

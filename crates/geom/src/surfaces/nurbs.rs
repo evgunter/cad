@@ -846,17 +846,13 @@ impl<T: SpanLocate> NurbsSurface<T> {
 
 impl<T: geom_core::CertifiedBounds> NurbsSurface<T> {
     /// The control net lifted to ring points — the data-in shape of
-    /// `geom_core::spline::compose::tensor` (M5 PR 7b): channel `d`,
-    /// control index `i` in the row-major `iu·nv + iv` layout, as
-    /// `[x, y, z]` channels of ring enclosures. Pair with
+    /// `geom_core::spline::compose::tensor`: channel `d`, control
+    /// index `i` in the row-major `iu·nv + iv` layout, as `[x, y, z]`
+    /// channels of ring enclosures. Pair with
     /// [`Self::knots_u`]/[`Self::knots_v`]/[`Self::weights`] to build a
-    /// `SurfaceRingData` for composite residual bounds.
-    ///
-    /// **The bracket seam (M6-2)** — the surface counterpart of
-    /// [`crate::curves::NurbsCurve3::ring_coords`]: knots and weights are
-    /// `f64` structure, the control net is the scalar-typed data, and
-    /// it enters the C9 ring through its own bracket. Bitwise the
-    /// `f64`-only form at `f64`.
+    /// `SurfaceRingData` for composite residual bounds. The rank does
+    /// not enter the lift, so this is the same body the curves use
+    /// (`net::ring_coords`).
     pub fn ring_coords(&self) -> Vec<Vec<geom_core::RingInterval>> {
         net::ring_coords(&self.control)
     }

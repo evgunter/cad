@@ -2,7 +2,7 @@
 //! evaluations by interval evaluations for the NURBS cylinder patch —
 //! single-cell and knot-straddling boxes — plus poison propagation.
 //! (Containment legitimacy for pure ring arithmetic: the note at the
-//! top of `geom-curves/tests/nurbs_interval.rs`.)
+//! top of `tests/curves/nurbs_interval.rs`.)
 
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

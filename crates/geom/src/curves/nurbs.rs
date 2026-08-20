@@ -1085,27 +1085,20 @@ nurbs_curve!(NurbsCurve3, Point3, Vec3, x, y, z);
 
 impl<T: geom_core::CertifiedBounds> NurbsCurve3<T> {
     /// The control coordinates lifted to ring points — the data-in
-    /// shape of `geom_core::spline::compose` (M5 PR 4): channel `d`,
-    /// point `i`, as `[x, y, z]` channels of ring enclosures. Pair with
+    /// shape of `geom_core::spline::compose`: channel `d`, point `i`,
+    /// as `[x, y, z]` channels of ring enclosures. Pair with
     /// [`Self::knots`] and [`Self::weights`] to build a `CurveRingData`
-    /// for composite bounds.
-    ///
-    /// **The bracket seam (M6-2).** Knots, weights and degree are `f64`
-    /// structure (module docs), so the only scalar-typed data in a
-    /// carrier is the control net — and a control point enters the C9
-    /// ring through its own bracket, never through an evaluation. At
-    /// `f64` the bracket is the value (`lo` = `hi`), so this is bitwise
-    /// what the `f64`-only form produced; at the interval scalar each
-    /// coefficient carries its enclosure into the hull, which is what
-    /// makes a composite bound over a lifted carrier honest.
+    /// for composite bounds. The bracket seam this reads the net
+    /// through is the shared one (`net::ring_coords`).
     pub fn ring_coords(&self) -> Vec<Vec<RingInterval>> {
         net::ring_coords(&self.control)
     }
 }
 
 impl<T: geom_core::CertifiedBounds> NurbsCurve2<T> {
-    /// The 2-D counterpart of [`NurbsCurve3::ring_coords`]: `[x, y]`
-    /// channels of ring enclosures, through the same bracket seam.
+    /// [`NurbsCurve3::ring_coords`] at two channels: `[x, y]` channels
+    /// of ring enclosures, through the same bracket seam and the same
+    /// body.
     pub fn ring_coords(&self) -> Vec<Vec<RingInterval>> {
         net::ring_coords(&self.control)
     }

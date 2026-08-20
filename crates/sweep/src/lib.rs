@@ -8,7 +8,7 @@
 //! sweep, re-derived under our counterclockwise convention), and
 //! attaches real geometry throughout: D2 intensional edge descriptions
 //! with certified carrier caches (`geom-brep`), analytic side surfaces
-//! (`geom-surfaces`), Newell-certified cap planes. Every
+//! (`geom`), Newell-certified cap planes. Every
 //! topology-determining comparison goes through named trilean
 //! predicates (Q1); every failure is a typed error (D4 ¶3); everything
 //! is generic over [`geom_core::Real`] via the [`geom_core::Decide`]

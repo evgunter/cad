@@ -7,7 +7,7 @@
 //! lesson applied at the input boundary, ratified in the PR #24
 //! conversation — see `docs/M2-PLAN.md` PR 2). Sweeps accept only a
 //! [`ValidatedProfile`], the canonicalized output of
-//! [`Profile::validate`]; arcs lower to `geom-curves` circle carriers at
+//! [`Profile::validate`]; arcs lower to `geom` circle carriers at
 //! sweep time — this crate stays 2-D and depends on `geom-core` only.
 //!
 //! # Profile conventions (normative, stated once)
@@ -51,7 +51,7 @@
 //!   finite, so no single segment can close a full period. Closed
 //!   carriers therefore need **≥ 2 vertices** (ratified): the minimal
 //!   circle is two arcs — representation and topology agree with the
-//!   vertices-derive-bounds rule (`geom-curves` crate docs).
+//!   vertices-derive-bounds rule (`geom`'s `curves` module docs).
 //! - **Winding is invisible.** There is no direction concept in the
 //!   API: users write loops in either traversal; [`Profile::validate`]
 //!   derives nesting from containment and canonicalizes traversal
@@ -103,7 +103,7 @@
 //! input (e.g. [`bulge_from_via`] with a collinear-ish through-point
 //! yields a ~1e15 m radius arc that validates if simple). D4 ¶4 wants
 //! out-of-range geometry rejected at construction; that check is a
-//! kernel-wide boundary (shared with `topo`/`geom-curves`), not a
+//! kernel-wide boundary (shared with `topo`/`geom`), not a
 //! per-crate ad-hoc test, and lands as its own design item — this is
 //! the first site where innocent input reaches the gap.
 //!
@@ -390,7 +390,7 @@ impl<T: Real> ProfileLoop<T> {
 ///
 /// Rigidity — u, v, normal orthonormal and right-handed
 /// (normal = u × v) — is **conventional data, unchecked** (the crate
-/// docs' plane convention; the same posture as `geom-curves`' unit
+/// docs' plane convention; the same posture as `geom`'s unit
 /// `dir`/`u_ref` fields). Tier-3 geometric validation certifies it at
 /// rest; a non-rigid placement yields a well-defined skewed sketch, not
 /// poison.

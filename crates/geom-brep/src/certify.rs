@@ -35,7 +35,7 @@
 //!
 //! # The stored parameter interval — a certified cache, not an authority
 //!
-//! `geom-curves`' ratified convention stands: an edge's bounds are
+//! `geom`'s ratified curve convention stands: an edge's bounds are
 //! *derived from its vertices* — the authority is the vertex geometry.
 //! The [`EdgeCurve`] nevertheless **stores** the parameter interval,
 //! as a certified derived cache in exactly the carrier's sense: the

@@ -5,7 +5,7 @@
 //! `sweep_places`' near-antipodal frame roll. The meter's integral arm
 //! now joins a per-span scan with the global chord (derivation on
 //! `NurbsCurve3::speed_lower_bound`; corpus + flips in
-//! `geom-curves/tests/m8_14_long_turn_meter.rs`), so a long-turn
+//! `geom/tests/curves/m8_14_long_turn_meter.rs`), so a long-turn
 //! corner path whose speed never drops meters positively and the body
 //! assembles and certifies.
 //!

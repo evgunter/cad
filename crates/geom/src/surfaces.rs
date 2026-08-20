@@ -970,7 +970,7 @@ mod tests {
         }
 
         /// Periodicity in u at the value level (the honest statement —
-        /// see geom-curves' crate docs; never bitwise).
+        /// see the crate docs; never bitwise).
         #[test]
         fn azimuthal_periodicity_value_level(
             u in -3.0..3.0f64,
