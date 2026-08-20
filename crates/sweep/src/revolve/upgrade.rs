@@ -14,7 +14,6 @@ use geom_brep::{
 use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Margin, Point3, Real};
 use geom_curves::Curve3;
-use topo::readback::DanglingRef;
 use topo::{Body, EdgeKey, EulerOpError, FaceKey, SurfaceKey};
 
 use super::RevolveError;
@@ -53,13 +52,7 @@ pub(super) fn vertex_point<T: Real>(
     body: &Body<T>,
     vertex: topo::VertexKey,
 ) -> Result<Point3<T>, RevolveError> {
-    topo::readback::vertex_point_ref(body, vertex).map_err(|what| {
-        match what {
-            DanglingRef::Entity(key) => EulerOpError::StaleKey { key },
-            DanglingRef::Geometry(key) => EulerOpError::StaleGeometry { key },
-        }
-        .into()
-    })
+    topo::readback::vertex_point_ref(body, vertex).map_err(|what| EulerOpError::from(what).into())
 }
 
 fn edge_data<T: SpanLocate>(body: &Body<T>, edge: EdgeKey) -> Result<EdgeData<T>, RevolveError> {
