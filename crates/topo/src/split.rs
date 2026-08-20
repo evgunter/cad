@@ -151,17 +151,16 @@ impl<T: Decide> Body<T> {
             key: EntityId::Edge(edge),
         })?;
         let (hp, hm) = (edge_data.he_plus, edge_data.he_minus);
-        let hp_data = self.resolve_half_edge(hp)?;
-        let hm_data = self.resolve_half_edge(hm)?;
-        // The two splices write through `next(hp)` and `prev(hm)` and
-        // through the parent's own halves; certify all four now so the
-        // mutation below cannot fail midway (atomicity). `prev(hm)`
-        // changes under splice 1 — see the splice for the case that
-        // moves it, and for why the new value is certified too.
+        let (hp, hp_data) = self.resolve_half_edge_live(hp)?;
+        let (hm, hm_data) = self.resolve_half_edge_live(hm)?;
+        // The two splices write through `next(hp)` and `prev(hm)` as
+        // well as the parent's own halves, whose certificates came out
+        // of the resolves above; certify these two now so the mutation
+        // below cannot fail midway (atomicity). `prev(hm)` changes
+        // under splice 1 — see the splice for the case that moves it,
+        // and for why the new value is certified too.
         let hp_next = self.certify_half_edge(hp_data.next)?;
         let hm_prev = self.certify_half_edge(hm_data.prev)?;
-        let hp = self.certify_half_edge(hp)?;
-        let hm = self.certify_half_edge(hm)?;
         let entry = self
             .get_curve_geom(edge_data.curve)
             .ok_or(EulerOpError::StaleGeometry {

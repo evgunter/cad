@@ -992,8 +992,8 @@ impl<T: Decide> Body<T> {
         curve: EdgeCurveSpec<T>,
     ) -> Result<MekrResult, EulerOpError> {
         // ---- Preconditions. ----
-        let target_data = self.resolve_half_edge(target)?;
-        let ring_data = self.resolve_half_edge(ring)?;
+        let (target_live, target_data) = self.resolve_half_edge_live(target)?;
+        let (ring_live, ring_data) = self.resolve_half_edge_live(ring)?;
         let target_loop = target_data.parent_loop;
         let ring_loop = ring_data.parent_loop;
         if target_loop == ring_loop {
@@ -1032,14 +1032,11 @@ impl<T: Decide> Body<T> {
             .last()
             .copied()
             .ok_or(EulerOpError::LoopCycleBroken { r#loop: ring_loop })?;
-        // `prev(target)` is an arena read; the walk above certified
-        // `ring` and `ring_last`, and both ends of the new edge are
-        // minted below.
+        // `prev(target)` is an arena read of its own; `target` and
+        // `ring` were certified by the resolves above, `ring_last` by
+        // the walk, and both ends of the new edge are minted below.
         let target_prev = self.certify_half_edge(target_data.prev)?;
-        let (target, ring) = (
-            self.certify_half_edge(target)?,
-            self.certify_half_edge(ring)?,
-        );
+        let (target, ring) = (target_live, ring_live);
         let u = target_data.start;
         let w = ring_data.start;
         let (p_u, p_w) = self.check_anchors(u, w)?;
@@ -1093,7 +1090,7 @@ impl<T: Decide> Body<T> {
         curve: EdgeCurveSpec<T>,
     ) -> Result<MekrResult, EulerOpError> {
         // ---- Preconditions. ----
-        let target_data = self.resolve_half_edge(target)?;
+        let (target_live, target_data) = self.resolve_half_edge_live(target)?;
         let target_loop = target_data.parent_loop;
         if target_loop == ring {
             return Err(EulerOpError::SameLoop { r#loop: ring });
@@ -1120,10 +1117,11 @@ impl<T: Decide> Body<T> {
             });
         }
         self.check_ring_not_outer(face_key, ring)?;
-        // `prev(target)` is an arena read, as is `target` itself; both
-        // ends of the new edge are minted below.
+        // `prev(target)` is an arena read of its own; `target` was
+        // certified by the resolve above, and both ends of the new edge
+        // are minted below.
         let target_prev = self.certify_half_edge(target_data.prev)?;
-        let target = self.certify_half_edge(target)?;
+        let target = target_live;
         let u = target_data.start;
         let (p_u, p_w) = self.check_anchors(u, w)?;
         // ---- Geometry gate (still no mutation): certify u → w (the
@@ -1168,7 +1166,7 @@ impl<T: Decide> Body<T> {
             return Err(EulerOpError::LoopNotEmpty { r#loop: target });
         };
         let face_key = target_data.face;
-        let ring_data = self.resolve_half_edge(ring)?;
+        let (ring_live, ring_data) = self.resolve_half_edge_live(ring)?;
         let ring_loop = ring_data.parent_loop;
         if ring_loop == target {
             return Err(EulerOpError::SameLoop { r#loop: target });
@@ -1193,9 +1191,9 @@ impl<T: Decide> Body<T> {
             .last()
             .copied()
             .ok_or(EulerOpError::LoopCycleBroken { r#loop: ring_loop })?;
-        // The walk certified `ring` and `ring_last`; both ends of the
-        // new edge are minted below.
-        let ring = self.certify_half_edge(ring)?;
+        // `ring` was certified by the resolve above and `ring_last` by
+        // the walk; both ends of the new edge are minted below.
+        let ring = ring_live;
         let w = ring_data.start;
         let (p_u, p_w) = self.check_anchors(u, w)?;
         // ---- Geometry gate (still no mutation): certify u → w (the

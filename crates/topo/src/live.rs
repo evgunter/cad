@@ -10,9 +10,10 @@
 //!
 //! `Live` is that obligation as a type. It wraps a [`HalfEdgeKey`] and
 //! its field is private to this module, so **the only way to obtain one
-//! is [`Live::certify`], which performs the lookup**. There is no
-//! trusted mint, no `From`, no public field: a key nothing has looked up
-//! cannot reach a splice.
+//! is a door that performs the lookup** — [`Live::certify`], or
+//! [`Body::resolve_half_edge_live`], which keeps the certificate the
+//! same `Some` arm already earned. There is no trusted mint, no `From`,
+//! no public field: a key nothing has looked up cannot reach a splice.
 //!
 //! # What a `Live` claims, exactly
 //!
@@ -40,7 +41,7 @@
 //! through one `&mut self`.
 
 use crate::body::Body;
-use crate::entity::{EntityId, HalfEdgeKey};
+use crate::entity::{EntityId, HalfEdge, HalfEdgeKey};
 use crate::euler::EulerOpError;
 use geom_core::Real;
 
@@ -53,7 +54,8 @@ use geom_core::Real;
 pub(crate) struct Live(HalfEdgeKey);
 
 impl Live {
-    /// The only constructor. `None` when the key does not resolve.
+    /// Certification from a bare key: the lookup, and nothing else.
+    /// `None` when the key does not resolve.
     pub(crate) fn certify<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<Self> {
         body.half_edges.contains_key(he).then_some(Self(he))
     }
@@ -77,6 +79,26 @@ impl<T: Real> Body<T> {
         Live::certify(self, he).ok_or(EulerOpError::StaleKey {
             key: EntityId::HalfEdge(he),
         })
+    }
+
+    /// [`Body::resolve_half_edge`] keeping the certificate its lookup
+    /// earns, for an operator that both reads a half-edge's fields and
+    /// splices through the key itself.
+    ///
+    /// The certificate comes out of the same `Some` arm the fields do,
+    /// so this door checks exactly once — an operator that certified
+    /// separately would carry a refusal path its own `resolve` had
+    /// already made unreachable.
+    pub(crate) fn resolve_half_edge_live(
+        &self,
+        he: HalfEdgeKey,
+    ) -> Result<(Live, HalfEdge), EulerOpError> {
+        match self.half_edges.get(he) {
+            Some(data) => Ok((Live(he), data.clone())),
+            None => Err(EulerOpError::StaleKey {
+                key: EntityId::HalfEdge(he),
+            }),
+        }
     }
 
     /// [`Body::loop_cycle`] with its members certified.

@@ -1409,9 +1409,9 @@ impl<T: Decide> Body<T> {
         he1: HalfEdgeKey,
         he2: HalfEdgeKey,
     ) -> Result<MevFanPlan<T>, EulerOpError> {
-        let he1_data = self.resolve_half_edge(he1)?;
+        let (he1_live, he1_data) = self.resolve_half_edge_live(he1)?;
         let (v, he1_prev, he1_loop) = (he1_data.start, he1_data.prev, he1_data.parent_loop);
-        let he2_data = self.resolve_half_edge(he2)?;
+        let (he2_live, he2_data) = self.resolve_half_edge_live(he2)?;
         let (he2_start, he2_prev, he2_loop) = (he2_data.start, he2_data.prev, he2_data.parent_loop);
         if he2_start != v {
             return Err(EulerOpError::FanStartMismatch { he1, he2 });
@@ -1443,8 +1443,8 @@ impl<T: Decide> Body<T> {
             v,
             p_old,
             run,
-            he1: self.certify_half_edge(he1)?,
-            he2: self.certify_half_edge(he2)?,
+            he1: he1_live,
+            he2: he2_live,
             he1_prev,
             he2_prev,
             he1_loop,
@@ -1674,9 +1674,9 @@ impl<T: Decide> Body<T> {
         surface: FaceSurface<T>,
     ) -> Result<MefCreated, EulerOpError> {
         // ---- Preconditions. ----
-        let he1_data = self.resolve_half_edge(he1)?;
+        let (he1_live, he1_data) = self.resolve_half_edge_live(he1)?;
         let (u1, he1_prev, loop_key) = (he1_data.start, he1_data.prev, he1_data.parent_loop);
-        let he2_data = self.resolve_half_edge(he2)?;
+        let (he2_live, he2_data) = self.resolve_half_edge_live(he2)?;
         let (u2, he2_prev) = (he2_data.start, he2_data.prev);
         if he2_data.parent_loop != loop_key {
             return Err(EulerOpError::NotSameLoop { he1, he2 });
@@ -1706,8 +1706,9 @@ impl<T: Decide> Body<T> {
         // so the mutation below cannot fail midway (atomicity).
         let he1_prev = self.certify_half_edge(he1_prev)?;
         let he2_prev = self.certify_half_edge(he2_prev)?;
-        // The splice also writes through the two chords themselves.
-        let (he1, he2) = (self.certify_half_edge(he1)?, self.certify_half_edge(he2)?);
+        // The splice also writes through the two chords themselves,
+        // whose certificates came out of the resolves above.
+        let (he1, he2) = (he1_live, he2_live);
         let face_data = self.get_face(face_key).ok_or(EulerOpError::StaleKey {
             key: EntityId::Face(face_key),
         })?;
@@ -1875,12 +1876,12 @@ impl<T: Decide> Body<T> {
 
     /// Resolves a half-edge argument, copying out its fields
     /// ([`EulerOpError::StaleKey`] if it does not resolve).
+    ///
+    /// An operator that also splices through the key wants
+    /// [`Body::resolve_half_edge_live`], which is this lookup keeping
+    /// the certificate it earns rather than re-earning it.
     pub(crate) fn resolve_half_edge(&self, he: HalfEdgeKey) -> Result<HalfEdge, EulerOpError> {
-        self.get_half_edge(he)
-            .cloned()
-            .ok_or(EulerOpError::StaleKey {
-                key: EntityId::HalfEdge(he),
-            })
+        self.resolve_half_edge_live(he).map(|(_, data)| data)
     }
 
     /// Resolves a vertex's point coordinates (the certification gate's
