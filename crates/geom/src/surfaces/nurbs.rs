@@ -34,9 +34,15 @@ use geom_core::{Point3, Real, Vec3};
 
 use crate::net;
 
-/// The point and first/second partials of one evaluation — everything
-/// the [`crate::surfaces::Surface`] evaluator arms need from a single
-/// span-restricted pass.
+/// The point and every partial with `k + l ≤ 2` at one parameter pair.
+///
+/// This is [`crate::surfaces::Surface::jet`]'s return type for **all
+/// six** variants, so read it as a surface jet, not as a NURBS
+/// evaluation artifact: the analytic arms fill it directly, with no
+/// span and no basis pass involved. It lives in this module because
+/// [`NurbsSurface::ders`] — which does fill it from a single
+/// span-restricted pass — is where it was born and is still its only
+/// producer here.
 #[derive(Clone, Copy, Debug)]
 pub struct SurfaceJet<T: Real> {
     /// The surface point `S(u, v)`.
