@@ -63,6 +63,14 @@ head, merge without waiting for a second CI run.**
 | **C-R4** | **S29 is not blocked on a design conversation.** §D routes it to `docs/TESS-SPLIT-SPEC.md` / PR #568. | **Correction, and it stands.** Checked by #684's reviewer: both #568 and TESS-SPLIT-SPEC are scoped entirely to the NURBS per-cell schedule in `nurbs_cert`. **No open conversation covers `curved::grid_steps`**, so S29's analytic-chart half was never waiting on a venue — it does not have one. §D's C3 row is wrong on this point and is corrected when C-j lands. | the parallel orchestrator, 2026-08-20 |
 | **C-R11** | **The roster's own scope citations are stale, and a lane checks them rather than complying.** `C-h`'s `splitting/rules.rs:268` lands on `face_extent`, a lever-arm helper, not on anything the `bridged` skip reads. | **Every scope cell is a claim site.** A lane that finds a citation unresolvable says so in its report and states what the line actually contains; it does not silently work around it or silently obey it. This is the same failure as the brief that fenced a lane against a memory deleted from main two days earlier — recorded there as an incident, promoted here to a standing rule, because the roster is now the third document on this track to carry a citation that outlived what it described. | orchestrator, 2026-08-20 |
 | **C-R12** | **How many lanes get an adversarial review.** The inherited roster marked 7 of the 12 remaining lanes adversarial, which is more than *"a minority of the track"* claims. | **Retrimmed to five: C-e, C-g, C-h, C-k, C-m** — plus **C-q**, which is new. The criterion Evan gave is *"complex enough that there's a significant chance the change will introduce a regression not caught by CI"*, and it is a narrower test than "this code is load-bearing". **C-j drops to style-only** because its mechanical half is a re-spelling whose correctness is provable by byte-identity of mesh output — a wrong answer is visible without an adversary, and the lane owes that proof. **C-l drops provisionally**, because a lane-trait collapse is type-level and the compiler is the adversary; the sub-lane that *rewrites* `Dual` arithmetic rather than re-spelling it is promoted back. | Evan (criterion) + orchestrator (application), 2026-08-20 |
+| **C-R13** | **H16 — what the STL `solid` name should default to.** The lane defaulted `solid_name` to the producer (`cad-kernel`, the Q9 placeholder) and flagged that `StepOptions::product_name` defaults to `part` — a *part* — so the mirror C-R1 asked for is not exact. | **Make it semantically correct; symmetry with STEP is not the criterion.** Evan, 2026-08-20: *"i don't care about the symmetry with STEP, it should just match what that field is supposed to be."* STL's `solid <name>` names **the solid being described**, so a producer string is the wrong kind of thing there; the binary 80-byte header is free text conventionally carrying a producer, so it is right as it stands and does not move. **This moves the default output bytes**, which is permitted and is not a reason to hesitate (`memories/output-stability-as-justification.md`) — but the PR's *"26/26 byte-identical"* evidence must be restated as what it then proves, not kept as written. Bonus the change buys: today's exported bytes carry the **Q9 placeholder project name**, so a part-shaped default decouples STL output from the naming decision entirely. | Evan, 2026-08-20 |
+| **C-R14** | **H16 — `StlOptions` derives `Eq` and `StepOptions` cannot** (its `Option<f64>`). The lane offered keep-as-a-strengthening or drop-to-match. Evan, 2026-08-20: *"this feels off, is there a cleaner third option?"* | **Both offered options answer the wrong question, and that is why it read as off.** `Eq` is not a feature — it is a marker asserting the existing `PartialEq` is reflexive. Underneath sit two real questions. **(a) Does anything need it?** No: every `StlOptions` consumer in the workspace constructs one or passes `&StlOptions::default()`; none uses it as a set element, map key, or anywhere total equality is required. So drop it — on the ground that **nothing needs it**, never on the ground that `StepOptions` lacks it. **(b) Why can `StepOptions` not have it?** `uncertainty_m: Option<f64>` — a bare `f64` tolerance in a public options struct, in a codebase whose ratified thesis is that bare `f64` tolerances get types. **The `Eq` asymmetry is not a fact about STL; it is a symptom of S25's shape in the other struct**, one crate over from where #692 fixed an instance of it with `MarchTol(f64)`. Typing it would move the *"finite and > 0"* check from write time to construction time and make `Eq` honest on both (a NaN-rejecting newtype has reflexive equality, so `impl Eq {}` is sound where `derive` cannot reach). That half is a `step-export` public API change → **C-R7: an issue and a §D row, not a widening of #732.** Half (a) is taken now. **Half (b), CORRECTED by Evan, 2026-08-20** — *"it sounds similar to what epsilon already is"*, and he is right, which makes the finding **smaller and better**: `uncertainty_m` **is** an ε — same quantity, same units, same validity rule that `geom_core::Tolerance::init` already enforces (*finite and strictly positive*). So this is not a missing newtype, it is **S4's dominant shape — one vocabulary, N hand-synced copies** — with `StepOptions` restating ε's rule by hand as the Nth. `step-import/src/entities.rs` carries the same bare `f64` twice, so import and export each restate it independently. One real distinction survives: `Tolerance` is `{eps, k}`, the **run configuration**, whereas this wants **ε alone**, which has no type while ε-plus-K does. Filed rather than done, per Evan's standing scope rule for this track. | orchestrator, 2026-08-20 (from Evan's question) |
+| **C-R15** | **H16's two remaining flags.** Empty strings accepted for both fields (`solid_name: ""` writes `solid ` with a trailing space; `header: ""` writes 80 zero bytes), and the stale pre-#639 artifacts under `crates/stl/target/m3pr6-stl/`. | **Both stay as they are** (Evan, 2026-08-20: *"no opinion"* / *"sounds good"*), with one addition: the empty-string behaviour is **documented at the field**, not only in the PR body. A reader of the type currently cannot learn it, and a PR body is not where a type's contract lives. | Evan, 2026-08-20 |
+| **C-R16** | **#731's E0004 mutation table was taken on an intermediate working state and never re-run.** Two of four rows are wrong, and both omit `eval/anchor.rs` — the PR's own headline fix. The tell is a cited line (`resolve/mod.rs:977`) matching **neither** tree (main 975, head 1007), under the claim *"identical to #632's post-state"* — true only because it literally **is** #632's post-state. | **Re-derive every row on the shipped head and name the tree each number came from.** Not re-read — re-run. A table taken during development is not evidence about what merges. | orchestrator, 2026-08-20 |
+| **C-R17** | **Three more in-crate members of H11's class**, declined or unfound: `eval/mod.rs:1372` (`content_key`'s payload wildcard under an **exhaustive** tag match — the identical split the PR closed elsewhere), `node.rs:955`/`:1004`, and `expr.rs:686/696` (a wildcard nested in a tuple, inside the PR's own declared blind spot). | **Fix all three. C-R6 is explicit that in-crate residues are fixed, not reported.** `eval/mod.rs:1372` carries the most: **S4's own record documents this bug having already happened** — *"`Step::AtToward`'s memo content-key tag 28 COLLIDED with `ArcContinue`'s existing 28 — a hit would serve wrong geometry"*, caught by a reviewer rather than a type. Routing `node.rs` to "S4's payload-lists row, marked FIXED by #618" is C-R7's named failure verbatim: a live problem parked inside a record labelled FIXED. | orchestrator, 2026-08-20 |
+| **C-R18** | **#731's prose-hygiene pass manufactured the defect it was fixing.** Its correction to **§C15** replaced a false clause with *"the conclusion survived in two of three"* — a reading C15's own bullets do not support (under the reading that makes #632 fail, all three failed). It also corrected the **meta**-record while leaving the **object-level** sentences that carry #632's wrong population (`SMELL-SCAN:627`, `:728`). | **State a reading the bullets actually support and say which it is, or leave C15 alone and record the #632 fact elsewhere — not the split difference.** And sweep the object-level sentences: correcting the record *about* a claim while leaving the claim is the same half-fix one level up. **This is §C16 committed inside a correction to §C15**, which is the sharpest instance of that section the scan has produced. | orchestrator, 2026-08-20 |
+| **C-R19** | **What this track may take, restated.** The working rule had drifted to *style fixes only; anything cross-crate or public-API gets filed and left*, which is what sent H16's ε item out as a parked issue. | **Cross-crate and public-API changes are within scope** (Evan, 2026-08-20): *"cross crate and public api is potentially within scope for these style fixes, though it may have a design element that means the plan should go by me before implementation."* So the discriminator is **not** where the change lands — it is whether a **design element** is present. Three tiers: a style or encoding fix is taken by the lane; a change with a design element is written up as a **plan that goes to Evan before implementation**; **implementing a new feature or fixing a logic bug is never this track's** and gets a GitHub issue. The middle tier is new and is where the ε item, the two Part-21 user-assigned STEP header fields, and anything like them now sit — **takeable Track C rows asking for a plan, not parked issues.** A filed row must say which tier it is in, or the next reader re-derives the judgement. | Evan, 2026-08-20 |
+| **C-R20** | **Two lanes minted §D row `C11` independently**, an hour apart, in two unmerged branches (#732's `pncad-py` option surface and #731's `editor-core` residues). Neither could see the other's number. | **Row numbers are assigned by the orchestrator, never taken from the next visible gap.** Assigned: **C11** C-o/#732 (issue #730), **C12** C-f/#731, **C13** and **C14** C-o's ε and Part-21 rows, **C15** reserved for C-p's per-face slack gate hole. A lane needing a row asks for the number. **This rule already existed one track over** — Track D hit the identical collision when three lanes minted in parallel and two landed on D10/D11 — and its handoff states it explicitly. I read that handoff at session start and did not apply it, which is the whole failure: *a rule recorded in another track's operational file is not carried by reading it once.* The cost was small only because both PRs were still unmerged. | orchestrator, 2026-08-20 |
 
 ---
 
@@ -648,8 +656,246 @@ caller; a brief is a claim site too).
 
 ### In flight
 
-| lane | finding | branch | review |
+| lane | finding | PR | state |
 |---|---|---|---|
-| **C-d** | H12 — the SSI sweeps' other never-silence doors | `smellc/h12-ssi-never-silence` | style |
-| **C-f** | H11 — #632's two residues | `smellc/h11-632-residues` | style |
-| **C-h** | H14 — the census's `bridged` skip | `smellc/h14-census-bridged` | **adversarial** + style |
+| **C-d** | H12 — the SSI sweeps' other never-silence doors | **#734** | open, CI green; awaiting the lane's report before its style review |
+| **C-f** | H11 — #632's residues (**four**, not the two the finding states) | **#731** | **NOT CLEARED** — style review returned a MAJOR; fix pass running |
+| **C-h** | H14 — the census's record-keyed deferrals | **#737** | open; needs **both** reviewers once it reports |
+| **C-o** | H16 — `StlOptions` | **#732** | green; **waits for Evan's sign-off**, and a fix pass for C-R13/C-R14/C-R15 held until its style review lands |
+| **C-p** | C9 — the `agreement` column | — | implementing, at its fourth seam |
+
+### #731 (C-f / H11) — style lane, 2026-08-20: **not cleared**
+
+The second test of the style-review-only policy on a row classed low-risk, and
+the second time a style lane alone returned a MAJOR. Both of the track's added
+questions came back **No**.
+
+**The finding said "two residues". There were four** — and the two the lane
+added were each ruled out *in writing* by #632's own body: one dismissed as
+"different enum (`DocParam`/`DocEdit`)" when it matches `DocEdit`, and one
+under the flat assertion *"no fail-quiet wildcard in any `RoleSeg` or
+`Qualifier` match in the workspace."* The review then found **two more**, so
+the class is at least six. The sharpest is `eval/anchor.rs`'s `remap_seg`,
+which ends `other => other` — a **binding** catch-all inside a match written
+through `use RoleSeg as R`, so the literal `RoleSeg::` never appears in the
+window #632's corrected scan required. Missed twice over, by two differently
+shaped sweeps, and it is the one with a *wrong value* behind it rather than a
+missed check: it rewrites profile locators on re-anchor, and a thirteenth
+carrier variant would have crossed a re-anchor with a stale locator, silently.
+
+**MAJOR-1, and it is this track's characteristic result arriving for the
+second time.** The mutation table was measured on an intermediate working
+state and never re-run: two of four rows are wrong, and **both omit the PR's
+own headline fix**. Ruled at **C-R16**.
+
+*Generalisable, and it now has two instances rather than one:* **a mutation
+table is a measurement of a tree, and the tree it measures is the one that
+was checked out when it was run.** #702's table overstated what its mutations
+reddened; #731's was accurate about a tree that no longer existed. Both
+passed a reader who checked whether the numbers were plausible rather than
+whether they were current. The cheap discriminator is the one that caught
+this: **a cited line number that matches neither the base nor the head is a
+receipt for the tree the measurement actually ran on.**
+
+**MAJOR-2 is a bug this repo has already had once.** `content_key`'s payload
+wildcard sits under an *exhaustive* tag match, so the compiler forces a
+decision at one site and silently defaults at the other — and S4's record
+carries the realised failure: *"`Step::AtToward`'s memo content-key tag 28
+COLLIDED with `ArcContinue`'s existing 28 … a hit would serve wrong
+geometry."* Caught then by a reviewer, not by a type; still not caught by a
+type. Ruled at **C-R17**.
+
+**And the prose finding is §C16 in its purest form.** The PR's correction to
+**§C15** repaired a false clause and left the paragraph asserting something
+its own bullets do not support — *a prose-hygiene pass manufacturing the
+defect it exists to remove*, committed inside a correction to the section
+about half-fixes. It also corrected the record *about* #632's population while
+leaving the two sentences that state it. Ruled at **C-R18**.
+
+*What the reviewer's own instrument adds, and it is worth keeping.* It swept
+by **match-arm content** rather than by scrutinee type — arms mentioning the
+target variants, plus any catch-all, ignoring what is being matched on — which
+sees through the `Option`/`Result`/tuple nesting that defeats
+`clippy::wildcard_enum_match_arm`. That reproduced all five of the lane's hand
+re-reads and returned eight more sites. It also stated its own blind spot
+without being asked: **it is keyed to a fixed enum list, so `ExprKind`, `Entry`
+and any enum not named were invisible until read by hand.** Three differently
+shaped instruments have now been run at this one class and each found what the
+previous two could not — which is Q1's *the question is the instrument* with a
+third worked example.
+
+### #732 (C-o / H16) — style lane, 2026-08-20: no MAJOR, twenty findings
+
+The design PR, and the first row where the style lane's answer to track
+question 1 turned on **an argument rather than a sweep**. Both questions came
+back qualified rather than No.
+
+**Where the asymmetry is not gone.** H16 is a finding *about an asymmetry
+between two export doors*, so "is STL fixed" was never the question. The
+reviewer found that `step-export/src/writer.rs:913-930` still hardcodes two
+**caller-facing free-text** fields — `FILE_NAME`'s seventh argument, which is
+Part 21's `authorisation` and is assigned by the standard to the **user**, and
+the description list in `FILE_DESCRIPTION((''), '2;1')`. The PR's §7 names only
+`'2;1'` and the schema name and then promotes them to the whole entity.
+
+That is the load-bearing gap, because **§7's Part-21 argument is exactly what
+makes STL's 80 bytes "the caller's"**. The argument that decides the finding
+was incomplete in the direction that hurts: STEP keeps free text the caller
+cannot reach, while STL's becomes settable in the same PR.
+
+**Two guards blind to their own weakening.** Q3's shape, at the property the
+PR itself says moved **from structural to checked**: mutating the sniff from
+`starts_with(b"solid")` to `starts_with(b"solid ")` leaves the suite green,
+because the fixture `"solid widget"` still trips it — the row sees the guard
+*deleted* but not *narrowed*. Likewise dropping the name range's upper bound
+admits DEL, `é`, emoji and U+2028 while the doc promises `0x20..=0x7E`, with
+only `'\n'` actually pinned. `HeaderTooLong` is the counter-example done right.
+
+And the predicate is narrower than the sentence above it: `"Solid widget"`,
+`" solid widget"`, `"\tsolid widget"` and `"SOLID widget"` are all accepted,
+so a reader that lowercases or trims before sniffing misreads those files.
+
+**The sentence one level up was never re-read.** C-R1 named `ascii.rs`'s
+*"constant in this build"* wording and the lane preserved it correctly — and
+`crates/stl/src/lib.rs:10-15`, the crate header a reader meets **first**, still
+says byte-identical output for *"identical inputs"* and never names
+`StlOptions`. The mirror target does it right, naming `StepOptions` in its own
+crate header.
+
+*Generalisable:* **a ruling that names a sentence protects that sentence, and
+a lane that satisfies it exactly has still only checked the sentence it was
+handed.** C-R1's instruction was precise and was followed precisely; the defect
+moved one level up, into prose nobody had been told to look at.
+
+**The field the PR is built on is exercised by nothing but its own tests.**
+`solid_name` is constructed at exactly two sites in the repo, both in
+`crates/stl/tests/export.rs`; **every consumer-seat site sets `header`** — both
+demos and `GUIDE.md`. So the headline correspondence (`product_name` ↔
+`solid_name`) is between the field nobody uses and its STEP twin, while the
+field everyone uses has no STEP counterpart at all. §5.3's argument for one
+struct — *"a caller exporting both formats states its identity once"* — is
+contradicted by every call site it has: both demos are binary-only and their
+`solid_name` silently stays the default.
+
+**A demo finding that must not be hidden.** Both demos pipe an arbitrary body
+label into `header` under `unwrap_or_else(panic!)`, so a body named
+`solid-block` — or any label over 80 bytes — hard-panics the demo. Per
+`memories/demo-purpose.md` that is a library finding the demos surfaced, and
+it is filed rather than smoothed away.
+
+**A sweep whose blind spot was the glob, not the regex.** Both of the lane's
+sweeps excluded `demos/` by path, which contains `uvdump::emit` — a door its
+own verb list would have caught had it looked there. The lane declared regex
+blindness and not path blindness. The conclusion still holds (an
+independently-shaped third sweep reproduced the door set exactly and found no
+seventh in-crate door); it is the **disclosure** that was incomplete, which is
+§C15's question one turn further in: *a sweep's result is worth nothing
+without a statement of what its pattern cannot match* — and a path glob is
+part of the pattern.
+
+### The C9 row I wrote this morning carried two stale claims — and the mechanism generalises
+
+C-p checked its brief rather than complying with it (**C-R11**) and found that
+**two of the claims in §D's C9 row are false against the tree**, not merely
+imprecise:
+
+- *"#709 corrected the sentence at two of four sites, leaving it in the lint
+  docs and `TESS-BUDGET.md`"* — **true at review time, false on main.** #709's
+  own fix-pass commit `46b44fd` is literally titled *"sweep the agreement
+  correction to all four sites"*, and did.
+- *"its `≤ 1%` assertion in `budget_meter` was vacuous"* — **that assertion no
+  longer exists.** It went with the schema when #709 moved the columns;
+  `budget_meter.rs` has carried no agreement assertion since.
+
+Both came from the same place: **I wrote C9 out of #709's review record rather
+than out of the tree.** The review record was accurate about the moment it
+described. The fix pass then changed the tree, and nothing updated the record —
+because a review record is not supposed to be updated. It is a record.
+
+*Generalisable, and it is **C-c's pointer-versus-record discriminator turned on
+this log itself**:* a review finding is **a record of what was observed at a
+place and time**; a schedule row is **a pointer telling someone where to go**.
+Writing the first into the second silently converts a dated observation into a
+present-tense instruction, and it will be wrong exactly as often as the fix
+pass that followed it did its job. **A row minted from a review finding is
+re-derived against the tree before it is written**, not transcribed.
+
+That is now the third of five briefs this session to carry a citation that did
+not resolve (C-h's line number, C-f's scope path, and this). The rate is no
+longer anecdotal, and C-R11's instruction — *check rather than comply* — has
+paid for itself three times. What is new here is the **direction**: the earlier
+two were stale *locations*, this one is a stale *claim*, and a stale claim is
+the more expensive kind because a lane cannot discover it by failing to find
+the file.
+
+What C-p found live instead, once it stopped trusting the row: the column
+itself, `TESS-BUDGET.md`'s *"A REAL agreement check is owed and unscheduled"*,
+and **seven item-doc and report-legend sites** #709's module-doc sweep missed —
+including `main.rs:181`'s legend, still reading *"agree = the lane's realised
+cell count vs the same schedule's sum"* with *"(1.00 by construction)"*
+appended after it. The tool's own legend disagreed with itself in one sentence.
+
+### #737 (C-h / H14) — style lane, 2026-08-20: **not cleared** (adversarial lane still running)
+
+The unit that found a **live wrong answer** — a 1 m cube inside a 4 m cube with
+four bottom corners declared v-on-f, every record geometrically true, returning
+`Ok(())` at the merge base while the same body undeclared returns
+`CensusUndecidable`. **Declaring a true contact switched the containment
+examination off.** The one pre-existing guard bridges its pair with a *bogus*
+record and measures the staleness refusal, so it stays green under the reverted
+fix.
+
+Both track questions came back qualified: fixed **at the instance**, and *"mostly
+yes on the deletion, no on its neighbours."*
+
+**The finding of the review is that the PR's own honest-cost fixtures are not
+exercising the arm it fixed.** The style lane instrumented `conformal_pair()`
+and found it carries two `mvfs` seed faces that are **placeholder `Nurbs`**;
+`face_box_rule` sends those down `ControlNet`, a placeholder net is four
+`poison_point()`s, and `Real::min`/`max` propagate NaN **by documented
+contract**. So each solid's `solid_reach` box is entirely NaN and **all six
+containment margins are uncallable**. Causation was proved rather than argued:
+excluding placeholder faces from the fold flips the verdict text from *"not
+definitely separable … in band"* to *"one instance's extent box inside
+another's"*.
+
+*The consequence, and it is the sharp one:* **two sheets a kilometre apart
+would produce the identical refusal.** On the two fixtures the PR offers as the
+honest cost of deleting the skip, the arm it fixed is not examining anything.
+
+Three riders came with it, each a claim the PR makes elsewhere:
+`census.rs:1207-1211`'s *"An unboxable kind is `None` here"* is false for this
+case; the typed *"unclaimable extent"* guard at `:1590` is dead for it; and
+**the placeholder exclusion the PR expanded a paragraph to justify is applied
+in arm 1 only**, while arm 2's two folds walk `body.faces.iter()` raw — the PR
+argued for an exclusion and did not apply it in the arm it rewrote.
+
+**Two deferrals pointing at each other.** Backstop `:1486` skips same-key curved
+pairs as *"the conformal arm's pair"*; the conformal arm `:972` skips same-sense
+pairs with a bare `continue`. A cross-solid same-key same-sense pair is decided
+by **neither**. This PR re-audited that exact skip and wrote a **new paragraph
+defending it**, whose test stops at *"pairs the conformal arm never walks"* —
+walking, not deciding — three paragraphs after the PR itself raises the bar to
+*"asks the SAME question"*.
+
+**Residue 2's defect is inside the function the PR rewrote.** `census.rs:1146`
+carries the identical empty-loop `continue`, and `:1423`'s
+`if pts.is_empty() { continue; }` drops an unbounded face out of the backstop
+**with no error and no comment** — in the function whose own header says the
+census must never silently not-examine. `boundary_reach:1293` gets it right, so
+both handlings live in the same file and the PR touched neither.
+
+**And the question this row was asked to answer came back No.** Three
+instruments have now found this defect in this function and none of them was a
+sweep: S49 found arm 1's, #637 left two residues, this PR found a third
+instance in arm 1. The PR's instrument against a fourth is **a paragraph**. A
+differently-shaped sweep of residue 2's class returns **29 sites in 18 files**,
+and `scripts/gates/` already holds three allowlist-shaped gates — which is the
+shape a deferral register would take if anyone built one.
+
+*Operationally, and it worked:* the style lane finished first and flagged two
+findings as correctness-lane candidates. **They were forwarded to the
+adversarial lane mid-review** rather than held for the fix pass. #705 is the
+precedent — there the two lanes found things neither would have found alone;
+here one lane's measurement reframes the other's central question before it
+finishes.
