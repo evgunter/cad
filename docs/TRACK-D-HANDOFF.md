@@ -85,11 +85,15 @@ What is unstarted is unstarted for schedule reasons only, not technical ones:
 - **D2** (B3 / S19, the fillet error catch-alls, ADVERSARIAL) is the widest
   unblocked row and gates D7's fillet-helper row — the only edge left in the
   track.
-- **D8**, **D17**, **D18**, **D19**, **D20** and D7's **`PairSolve`** row are
+- **D17**, **D18**, **D19**, **D20** and D7's **`PairSolve`** row are
   edge-free. `PairSolve`'s provenance note goes to **issue #611**, not the PR
   body, because R2's thread is live; the deleting PR must cite the recoverable
   commit SHA. **D18 is ADVERSARIAL** — it converts a discard behind two new
   preconditions on the delicate-site path, and #720 proved the hole is real.
+- **D8 landed as #744** (ADVERSARIAL, S18's two knot-vector rows). It edits
+  `crates/mesh/`, which its row did not name — the census was six copies, not
+  four — so **Track C's C5** now finds two of its C¹ carrier gates already
+  four lines each.
 
 ## For Evan — S14 now has three witnesses
 
