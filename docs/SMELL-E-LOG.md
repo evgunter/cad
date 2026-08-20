@@ -215,6 +215,46 @@ It is also sharper than a plain miss: F6's residue did not vanish, the audit
 a reader following the index lands on a disposition that redirects them. Placed
 as **D51**, with the verdict recorded and the taker left free to disagree.
 
+### A second smell scan landed under three live lanes (2026-08-20)
+
+`docs/SMELL-SCAN-2-2026-08.md` — **S59–S116**, scan base `0714d540`, written by
+another session and merged mid-wave. REPORT ONLY, no verdicts, **no schedule**.
+Its ID space continues the first scan's on purpose, so a citation never means
+two things; `S45`–`S48` stay reserved in the first document.
+
+**Its higher-yield half is a fix audit** — code rewritten *in response to* the
+first scan, read as a diff against `4258584`, looking for what the fixes
+introduced. That is Track D's and Track C's output, and now Track E's. Its
+recurring outcome, in its own words: *a fix pass touching a file is a fix pass
+with the file open, and it swept the reported instance and left the sibling.*
+
+**Where it lands on Track E, and what was done about it:**
+
+| finding | lands on | action |
+|---|---|---|
+| **S61** `[verified]` | **E-a**, both rows. The whole `discipline` job is gated on `run_build`, and `_is_docs` is true for any `.md` **or `local-scripts/`** path — so all 14 gates skip on a docs-tier change. `probe-suite-census.sh`'s citation half (D22's file) *cannot fire on the only change class that can break it*; `gate-roster.sh` (D34's file) argues it need not read `local-scripts/` **because** of that hole | forwarded to E-a mid-unit |
+| **S62** | **E-a / D34.** Five gate-by-every-criterion checks outside `scripts/gates/`, hand-named in both halves — including the two D34 asks about, plus two `demos/` scripts D34's `ci.yml` enumeration never surfaced. And the **executable bit is the registration mechanism**: a gate at mode `0644` is invisible to both halves | forwarded |
+| **S63** | possibly **E-a**. Three of six grep gates pass the spellings they forbid | forwarded to judge |
+| **S68** `[verified]` | **E-h / D21**, independently. *The W2c discard sweep stopped inside the function it was editing* — `split_edge`'s mutation phase took two `unreachable!` conversions in the same diff, ten lines above three silent discards. Its framing is the better one: **`split_edge` is not a sibling, it is the same call** | fold into E-h's brief when dispatched |
+
+**S60** reports S26 was never fixed; that is Track C's C5, not Track E's.
+
+**The instruction to E-a is the part worth keeping.** Three fresh findings are
+**not a licence to widen a unit** — D22 still closes on its decision and D34 on
+a scope verdict plus at most one move. What they change is whether the *premise*
+of a verdict still holds: a census whose citation half cannot fire on the change
+class that breaks it is a different object than the row describes, and a
+partition of *"which scripts can be roster gates"* reasons about a gate surface
+that is itself conditionally inert. So: re-derive where the premise moved, say
+in the PR body which of S61–S63 the verdict answers / leaves / changes, and ask
+for a row for anything touched and not closed.
+
+**And the general rule this makes concrete:** a Track E verdict that silently
+overlaps an unverdicted finding in another document is the same
+claim-travels-between-documents failure #752's review caught, one document
+further out. The second scan has no schedule; that does not make its findings
+absent, it makes them unowned.
+
 ---
 
 ## The standing lane header
