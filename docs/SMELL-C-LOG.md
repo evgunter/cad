@@ -1627,8 +1627,14 @@ What is wider than #636 stated is the **reason**, in two places:
 1. **Orientability fails everywhere on a whole turn, not only at the ends.** The
    level-plane normal is the path tangent `T(a) ∝ (−R sin a, R cos a, k)`, and
    the whole-turn stacking chord `c(2π) − c(0) = (0, 0, 2πk)` is purely axial —
-   so `cos = k/√(R²+k²)` **independent of `a`**: `0.0635` analytically, measured
-   `0.06351710028158192` at level 0 and at every level. The half turn differs
+   so the *model* gives `cos = k/√(R²+k²) = 0.0635` **independent of `a`**,
+   measured `0.06351710028158192` at level 0. **Corrected below: that is the
+   right model and a sentence wider than its evidence** — the shipped body's
+   level planes are the Newell fit of the placed ring, not the exact tangent,
+   so the measured cosine runs `0.057–0.129` across the 513 levels and
+   *exceeds* the `0.1` guard at some of them. The conclusion is unharmed (the
+   guard is load-bearing everywhere, and by more than the model says); the
+   quantifier was not measured. The half turn differs
    only because its chord is *not* axial (`c(π) − c(0) = (−2R, 0, πk)`), giving
    `≈ 0.0063` analytically against `0.011081` measured — and **`0.011` is #636's
    own figure to five digits**, which is what corroborates that both units
@@ -1658,6 +1664,45 @@ so it builds nothing and there is nothing there to orient. Row C20 says so
 explicitly, *so a taker does not go looking for a body that does not exist* —
 the extreme case is closed by refusal rather than by a bit. Found while writing
 the row, and stated rather than silently patched.
+
+### The orchestrator propagated a lane's number instead of checking it
+
+C-e's derivation ended in a sentence I liked: `cos = k/√(R²+k²)` is
+**independent of `a`**, so the whole turn's stacking chord is unorientable
+*at every level*, not just at the ends. I relayed it to Evan and wrote it into
+this log. #779's adversarial lane measured it: over the 513 levels the cosine
+runs **`0.057–0.129`**, and at some levels it is **above the `0.1` guard** the
+sentence was explaining. The model is exact; the shipped body is not the model.
+Its level planes come from the Newell fit of the placed ring, which deviates
+from the exact tangent by up to ~3.8°, and 3.8° is worth a factor of two here
+because the quantity is a near-zero cosine.
+
+**Three things are worth separating.**
+
+- *The conclusion survived.* The guard is needed at every level — by more than
+  the derivation claimed, since some levels breach it outright. A wrong sentence
+  can sit on top of a right conclusion, which is exactly why "does the fix hold?"
+  does not answer "is the sentence true?".
+- *The measurement was taken, and taken at one level.* `0.06351710028158192` is
+  a real number from a real run. What made it wrong was the word **every**,
+  which no run produced. A quantifier is a claim, and it needs its own evidence;
+  a spot measurement that agrees with a derivation corroborates the derivation
+  **at that spot** and nowhere else.
+- *I was the amplifier.* The lane derived it once. I repeated it to Evan and
+  committed it, and each repetition made it look better-attested than the single
+  level it rested on. **An orchestrator relaying a lane's number is the last
+  place it can still be cheap to check** — after that it is in the record and in
+  a human's head.
+
+*And it did not stop at the log.* The same sentence shipped in
+`crates/sweep/tests/common/orient.rs`, where it would have outlived every
+document in this scan — which is the pattern §S39 is about, seeded live. The
+fix pass corrects the source file, not only the PR body.
+
+**Rule taken:** when a lane hands over an analytic result with a measurement
+attached, ask **at how many points** before relaying it. If the answer is one
+and the claim says *every*, the claim is the derivation's, not the
+measurement's — relay it that way or make the lane widen the run.
 
 ### Reviewers age out of their own tree, twice now — and it is not their error
 
