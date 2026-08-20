@@ -35,12 +35,27 @@
 # argument. Whether to reinstate it (and render two doc sets, public and
 # private) is banked as its own question: issue #519.
 #
-# COVERAGE. The gate is workspace-wide with no exclusions: every crate
-# is subject to it, a new crate from its first commit. It landed with a
-# shrinking KNOWN_DIRTY exclusion list (#465 chunk 0) because 75
-# warnings had accumulated unseen; that list is now empty and the
-# machinery is gone with it. If a cleanup ever needs staging again,
+# COVERAGE. The gate has no exclusions OF ITS OWN: every crate in the
+# workspace is subject to it, a new crate from its first commit. It
+# landed with a shrinking KNOWN_DIRTY exclusion list (#465 chunk 0)
+# because 75 warnings had accumulated unseen; that list is now empty and
+# the machinery is gone with it. If a cleanup ever needs staging again,
 # stage it in the CHANGE, not by re-adding an escape hatch here.
+#
+# WHAT IT DOES NOT COVER, stated because "workspace-wide" reads as
+# "everything" and is not. `cargo doc --workspace` sees WORKSPACE
+# MEMBERS, and the root manifest excludes `demos/` and `tools/`
+# (Cargo.toml's `workspace.exclude`). Those crates are separate cargo
+# roots with their own fmt+clippy+test rows in ci.yml's `k-lint` job,
+# and **none of those rows runs `cargo doc`** — so the prose in
+# `tools/tess-lint`, `tools/k-lint`, `tools/tess-meter`, `demos/tour`
+# and `demos/wild` is outside this gate entirely. That is a real hole
+# by this gate's own argument: #709 moved ~1,050 lines of prose from
+# `crates/mesh/src/budget.rs` into `tools/tess-meter`, which is
+# precisely the prose-goes-dark case above, and it went from covered to
+# uncovered by moving. #709 added a `cargo doc` step to the tess-meter
+# row as a stopgap; **a row is owed that does the same for every
+# excluded root**, and it is unscheduled.
 
 set -euo pipefail
 

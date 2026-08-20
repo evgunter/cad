@@ -69,7 +69,7 @@
 # Telemetry is the recurring offender, so it has a rule of its
 # own: gate it behind a feature at the module boundary from the
 # first commit, and arm it by an explicit call — never by the
-# environment. Worked examples: `mesh::budget`, `mesh::probe_stats`.
+# environment. Worked example: `mesh::budget`.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"

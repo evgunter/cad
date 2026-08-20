@@ -40,6 +40,13 @@ budget = ["pncad/budget"]
 [dependencies]
 pncad = { path = "../../crates/pncad" }
 
+# The budget meter's consumer half: the CSV schema and the
+# counterfactual arithmetic the `tess-budget` mode writes. Not gated
+# behind the `budget` feature — the crate is plain derivation over
+# `mesh::budget`'s (ungated, data-only) measurement types, so carrying
+# it never turns the instrument on. What `budget` gates is `arm`/`take`.
+tess-meter = { path = "../../tools/tess-meter" }
+
 # The one exception, and it is a MEASUREMENT, not a convenience:
 # `profile::RawLoop` is the raw loop door — kernel vocabulary that
 # `pncad::profile` omits on purpose — and `ProfileLoop`'s fields are

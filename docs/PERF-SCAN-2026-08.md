@@ -1357,8 +1357,10 @@ names as a target: `par_iter()` into a pre-sized buffer emitting *local*
 grid ids, then a sequential fold in face-arena order assigning base
 offsets. Output is bit-identical. Two details: pick the first error in
 arena order (not first-to-fail) so refusals stay deterministic, and
-update `probe_stats`' thread-local comment at `mesh/src/lib.rs:226`, which
-currently asserts "tessellation runs entirely on the calling thread".
+update the budget meter's thread-local invariant at
+`mesh/src/budget.rs` ("tessellation runs on the calling thread, so armed
+evidence stays attributable under a parallel test runner"), which is
+where that claim lives now that `probe_stats` is gone (#709).
 Effort M; ceiling is core count against face count.
 
 Finally, a mechanism worth recording because it strengthens finding 3:

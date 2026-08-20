@@ -4143,53 +4143,98 @@ complaint anyway: with no stated sizing policy, rule six arrives as one more
 locally-argued decision in a module that already has five, and the reader still
 has to read all six to know what the schedule promises.
 
-## S30. `budget` and `probe_stats` are ~1,050 lines of instrument in the kernel's hot loop
+## S30. FIXED by #709 — the kernel crate carried 1,060 lines of instrument, because "is it gated?" was the only question anyone asked of it
 
 - **Where**: `crates/mesh/src/budget.rs:1`,
   `crates/mesh/src/probe_stats.rs:1`, `crates/mesh/src/trimmed.rs:406`
 - **Confidence**: sure
 
 Two cargo features, two `live`/`inert` module pairs, two thread-local
-accumulators, a CSV schema with a column-counting helper, and a
-numerical optimizer (`best_split_steps`) live in the kernel's mesh
-crate — ~1,050 of ~7,900 lines. The emit loop carries eight
-unconditional telemetry calls, one of them with a `?` on it, plus a
-`sample` flag and a resampling block containing an `assert!`. The live
-half of `note_nurbs_sizing` re-runs `nurbs_cell_bounds`,
-`nurbs_cell_grid` **and** `nurbs_face_bound` — a third full pass over
-the certified assembly — purely to fill counterfactual columns.
-`probe_stats`' module docs are a three-section history of a removed
-environment variable, and its only consumer is one test.
+accumulators, a CSV schema with a column-counting helper, and a 321-step
+numerical optimizer (`best_split_steps`) lived in the kernel's mesh crate
+— 1,060 of ~10,200 lines. The dispatch and emit loops carried eleven
+telemetry call sites, one with a `?` on it and one an `assert!` inside the
+innermost loop. The live half of `note_nurbs_sizing` re-ran
+`nurbs_cell_bounds`, `nurbs_cell_grid` **and** `nurbs_face_bound` — a
+third full pass over the certified assembly — to fill counterfactual
+columns, while `tessellate_trimmed` held the results of all three twelve
+lines above. `probe_stats`' module docs were a three-section history of an
+environment variable removed in #562, and its only consumer was one test.
 
-Related: certified NURBS bounds are recomputed 2–4× per face per
-tessellation, because the chord pass memoizes `nurbs_face_bound` locally
-and the trimmed lane computes it again with no memo shared between
-passes (`trimmed.rs:192`, `chords.rs:581`).
-
-**Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
-baffle me with how they ever happened." Postmortem pass commissioned.
-**Postmortem (2026-08-18). The meter complies with the rule its own incident
-produced; the volume question was never asked.**
-
+**The postmortem's finding, which stands: the meter complied with the rule
+its own incident produced, and the volume question was never asked.**
 `budget.rs` was authored (#547) in the same 24 hours as the `NURBS_PROBE`
-incident and **satisfies every clause of the rule that came out of it** — the
-live/inert split, zero `#[cfg]` in the hot files, `arm`/`take` in the live half
-only, its own CI row. `memories/telemetry-gating.md` cites `mesh::budget` as
-**the worked example**. The third full pass is spec-driven too: TESS-SPAN's
-**D-4 "the meter stays sighted"** required the whole-patch counterfactual.
+incident and satisfied every clause of the rule that came out of it — the
+live/inert split, zero `#[cfg]` in the hot files, `arm`/`take` in the live
+half only, its own CI row. Evan reviewed the meter directly and cleared
+it: *"does this affect production behavior? (no: properly gated)"*. The
+third full pass was spec-driven too: TESS-SPAN's **D-4 "the meter stays
+sighted"** required the whole-patch counterfactual. Volume and placement —
+1,060 lines, eleven call sites, a numerical optimizer in the kernel crate
+— were raised in **neither** #547, #560, #579, MESH-PROBEGATE-SPEC, nor
+the (since-deleted) `memories/telemetry-gating.md`.
 
-**FLAGGED AND PARTLY FIXED — on the gating axis only.** #547 itself caught the
-sibling (`probe_stats::armed()` reading an env var once per triangle, 261k
-times on the leaf) and hoisted it. Evan then reviewed the meter directly and
-cleared it: *"does this affect production behavior? (no: properly gated) and
-does anything need fixing? (nothing egregious, three notes)"*. The
-volume-and-placement question — 1,050 of ~7,900 mesh lines, eight call sites in
-the emit loop, a numerical optimizer in the kernel crate — was **never raised**
-in #547, #560, #579, the spec, or the memory.
-
-*Lesson:* a gating rule answers "does it run in shipped builds?" and is easy to
-certify green; it says nothing about how much instrument the kernel should
+*Lesson, unchanged and the reason this entry is worth keeping:* a gating
+rule answers "does it run in shipped builds?" and is easy to certify
+green; it says nothing about how much instrument the kernel should
 **contain**, so the compliance check quietly became the whole review.
+
+**Executed by #709.** The kernel now keeps only what nothing downstream
+can recover. Walking the CSV's 23 columns decides the line mechanically:
+`chart`, `triangles` and the face ordinal are already in the `Body` and
+the `Mesh` that `tessellate` returns, so the kernel is no longer asked for
+them (`begin_face`, `finish_face`, `Chart` and the six-arm `match
+*surface` in `tessellate.rs` are gone); the counterfactual schedules and
+the split scan are arithmetic over certified bounds, so they moved out;
+the trim box, the realised cell count, the worst certificate and the
+sampled deviation are the lane's alone, so they stay — as **one plain-data
+struct handed over once per NURBS face, on the path that keeps its
+triangles**. `mesh::budget` is 256 lines with a single recording call
+site; the schema, the optimizer, the slack-factor prose and their tests
+are the new workspace-excluded crate **`tools/tess-meter`**, beside
+`tess-lint` and `k-lint` and with its own hosted row.
+
+`probe_stats` is **deleted**, and the falsification it existed for is
+preserved and strengthened: the kernel reduces the deviation samples to
+`worst_ratio`, the largest `|S − Π| / (cert + ε)` any sample on any
+triangle of the face reached, and the suite asserts `≤ 1`. That is the
+per-**triangle** claim losslessly aggregated, so **no `assert!` in `mesh`
+is reachable only under a feature any more** — no build flag can add a
+panic to the tessellation path, which is the property #562 and #558 were
+both reaching for and neither could reach while the `assert!` was in the
+lane. (Not the same as "the path cannot panic": the unconditional
+kernel-bug assertions in `nurbs_cert` and `walk` are untouched and are a
+different class.) That is also why folding the
+falsifier into `budget` no longer costs what #558 refused: there is no
+assertion left to put in a release artifact, and `Mode::Sizing` resamples
+nothing. The `probe-stats` feature and its NAME CAUTION paragraphs are
+gone; its CI row folded into the budget row, still unconditional, verified
+by planting the M8-5 cert weakening and watching two suites go red.
+
+The 2–4× recomputation is fixed on both causes — the meter's three extra
+passes (the lane now hands it the assembly, via a new
+`NurbsCellGrid::cells()`) and the unshared memo between the chord pass and
+the trimmed lane (`chords::FaceBounds`, one per tessellation). **The
+measurement does not support a performance claim, and #709 says so**: at
+tour scale (1,049 faces, 1.04M triangles) it is ~1.5%, inside noise; a
+planted ×10 prices the *rational* arm's assembly at ~1.3–1.6 ms per face
+per call and the *integral* arm's below the noise floor. The fix is right
+because the meter should not re-run kernel analysis to fill a column, not
+because it is fast.
+
+**D-4 is intact** — the counterfactual column is still emitted, byte for
+byte; only who computes it moved. Both sweeps (`--sizing-only` and
+`--deviation`) are byte-identical to main's, all 1,050 rows.
+
+**One finding surfaced and deliberately NOT fixed there:** the
+`agreement` column measures nothing. `grid_cells` and `span_cells` were
+the same `band_schedule` sum computed twice, so `grid_cells / span_cells
+≡ 1.0` by arithmetic and `budget_meter`'s `≤ 1%` assertion on it was
+vacuous — the docs' claim that it "verifies the lane's REALISATION of the
+schedule (candidate generation, dedup, counting)" was never true, because
+neither number counts a candidate. `tess-meter` now says so in the
+column's doc rather than claiming a check. Making it real needs a CSV
+schema change and a re-cut committed baseline.
 
 ## S31. FIXED by #705 — `geom-curves` / `geom-surfaces` was a crate split that bought nothing and was paid for in duplication
 
@@ -6552,16 +6597,16 @@ because several rows want a decision inside them that the taker should expect
 to make and record.
 
 **Gating, stated 2026-08-19, because "nothing here is blocked" was too loose.**
-Three of these are edge-free and could start today: **C1**, **C2**, **S30**.
+Two of these are edge-free and could start today: **C1** and **C2**.
 Three unblock when **A1** (#682) lands — **C7**
 entirely and **C4's S33** — and their input is now better than "wait for the
 report": #682's adversarial pass produced a *compile-verified* table of which
 lanes sit behind `CertifiedEnclosure`, which is the premise W2a would otherwise
 have been designed against wrongly. **S27** waits on **A2**, **S28's
 duplication half** on **A3**, and **S32** on **#705** — all three for file
-overlap rather than for knowledge. (**S31** and **S24** were two of the six
-edge-free rows and are FIXED by #705 and #702; a landing leaves this paragraph
-as well as the table.)
+overlap rather than for knowledge. (**S31**, **S24** and **S30** were three of the six
+edge-free rows and are FIXED by #705, #702 and #709; a landing leaves this
+paragraph as well as the table.)
 
 Two will not unblock by waiting, and should not be read as queued: **C6**'s
 rows are gated on other programmes entirely, and **S26** wants a written
@@ -6572,7 +6617,7 @@ and the width-1 build mutex, not dependency.**
 |---|---|---|
 | **C1** | **H12–H15** — four lanes' own residues: the SSI sweeps' other never-silence doors (no acceptance row in either lane), `sweep_body`'s helix rows with no orientation coverage, #637's two jurisdiction residues, #635's unclassified siblings. | Each is small; together they are a lane. They are the clearest instance of ordering rule 3. |
 | **C2** | **H11, H16, H17** — #632's two residues; the STL header not being caller-settable while `StepOptions` carries `product_name`; and S37's rustdoc remainder, ~1115 lines across 130 files. | H17 is large and mechanical; H16 is a small asymmetry with a clear right answer. |
-| **C3** | **S27, S29, S30** — `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block; the sizing vocabulary fragmented across five modules with self-admitted magic constants; and ~1,050 lines of instrument in the mesh crate's hot loop. **S29 is NOT blocked on a design conversation — corrected 2026-08-19.** This row previously said its policy question was routed to `docs/TESS-SPLIT-SPEC.md` and PR #568. #684's review checked: both are scoped **entirely to the NURBS per-cell schedule** (`nurbs_cert`'s `grid_steps`, certified cells, the first fundamental form — TESS-SPLIT-SPEC's D-1 replaces the AM-GM grouping, with `leaf_a f2` as its poster child). **Nothing in either covers analytic-chart sizing**, so `curved::grid_steps` has no venue at all — and #684 has since added a sixth rule to it. S29's own lesson applies to that: *N well-defended deviations read as N decisions when they are one undecided question.* S27 touches `props/`, so it must follow **A2**; S29 and S30 are edge-free. |
+| **C3** | **S27, S29** — `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block; and the sizing vocabulary fragmented across five modules with self-admitted magic constants. (S30, the mesh crate's 1,060 lines of instrument, was the third member and is FIXED by #709.) **S29 is NOT blocked on a design conversation — corrected 2026-08-19.** This row previously said its policy question was routed to `docs/TESS-SPLIT-SPEC.md` and PR #568. #684's review checked: both are scoped **entirely to the NURBS per-cell schedule** (`nurbs_cert`'s `grid_steps`, certified cells, the first fundamental form — TESS-SPLIT-SPEC's D-1 replaces the AM-GM grouping, with `leaf_a f2` as its poster child). **Nothing in either covers analytic-chart sizing**, so `curved::grid_steps` has no venue at all — and #684 has since added a sixth rule to it. S29's own lesson applies to that: *N well-defended deviations read as N decisions when they are one undecided question.* S27 touches `props/`, so it must follow **A2**; S29 is edge-free. |
 | **C4** | **S32, S33** — `Surface`'s one-partial-per-call API, which is what created the shadow surface enum in SSI; and neither geometry enum being able to lift itself to another scalar. (S31, the `geom-curves`/`geom-surfaces` split, was the third member and is FIXED by #705.) | **S32 is now additionally gated on #705's merge**: the enum and its NURBS payload are one crate's two modules, so a `SurfaceJet` door at the enum no longer crosses a crate boundary. **S33 is coloured by D1**: several of its ~14 hand-written ladders exist only to reach `Dual`, and what `Bounds for Dual` changes there is written in S44's **D1 DECIDED** block. |
 | **C5** | **S26, S28's duplication half** — the certified area enclosure that is never metered against anything (`area.width()` appears nowhere in the file); and the three tessellation lanes that remain three pipelines now that #648/#674 have settled their ordering and column questions. (**S24 left this row FIXED by #702.**) | S26 was explicitly deferred in writing by #472 — *"metering against `area.lo()` … deserves its own proposal with re-measured floors"* — so it is a proposal, not a patch. S28's duplication half must follow **A3**. |
 | **C6** | **W2f remainder / S4** — `ProgramStep`/`WireStep`, `SegTag`, and the "no usable value" core. | Each is blocked on something real: the first behind OnArc + RESPELL-TABLE and crossing the same files, the second needs the workspace's first proc-macro crate, the third by a persisted format. |

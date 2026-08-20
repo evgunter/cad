@@ -13,11 +13,12 @@ remains open on the aspect-policy question.
 
 ## The instrument
 
-Three pieces, each usable on its own:
+Four pieces, each usable on its own:
 
 | piece | what it is |
 |---|---|
-| `mesh::budget` | A per-face meter inside the kernel, behind the crate's `budget` feature. Armed, it records one row per face: chart, triangles, the grid the lane used, the whole-patch Hessian bound, and what CHEAPER grids the same certificates admit. |
+| `mesh::budget` | The per-face MEASUREMENTS, taken inside the kernel behind the crate's `budget` feature — and only what nothing downstream can recover: the trim box, the cells the schedule built, the certified bounds the sizing read, the worst per-triangle certificate, and (armed for it) the sampled deviation. One hand-off per NURBS face. No schema, no arithmetic, no assertion. |
+| `tools/tess-meter` | Everything downstream of the measurements: the counterfactual schedules, the split optimizer, the row for every face (a planar cap's chart and triangle count are in the body and the mesh, so the meter is not asked to report them), and the CSV. Outside the kernel workspace, because a change to how the numbers are READ must not reach the lane that produces them. |
 | `mesh::nurbs_cert::nurbs_cell_bounds` | The certificate assembly reported PER KNOT-SPAN CELL instead of maxed over the patch. A second path, deliberately, so the shipped bound stays bit-identical. Its honesty is falsified cell by cell against densely sampled true second partials. |
 | `demo-tour tess-budget` → `tools/tess-lint` | The sweep (every tour scene, one CSV) and the consumer (report + regression gate). Same two-halves shape as the K-telemetry sweep and `k-lint`. |
 
@@ -41,16 +42,23 @@ two configurations from drifting. `arm`/`take` exist ONLY in the armed
 half, so a build without the feature fails to compile the sweep rather
 than writing an empty CSV.
 
-The module itself is `pub` only under the feature (`pub(crate)`
-otherwise, which is all the inert half needs), and so are the row types
-— `Mode`, `NurbsBudget`, `FaceBudget`, the CSV. A default build exports
-no part of the meter. What stays compiled either way is exactly what
-the shared call sites name: `Chart`, `Sizing`, `DEV_SAMPLES`, and the
-no-op recorders.
+The MEASUREMENT TYPES (`FaceMeasure`, `CellMeasure`) are public either
+way: they are the contract with `tools/tess-meter`, which reads them
+without needing the instrument compiled in, and they are data. What the
+feature gates is the instrument — `Mode`, `arm`, `take`, the
+thread-local, and the recording the lane does between them.
 
 The default `cargo test` therefore exercises the inert half; the armed
 half has its own CI row (`cargo test -p mesh --features budget`),
-mirrored in `local-scripts/ci-local.sh`.
+mirrored in `local-scripts/ci-local.sh`. That row also carries the
+per-triangle certificate falsifier
+(`probe_review::z1_per_triangle_certificate_falsification`), which
+drives the deviation pass at 12 samples per edge and asserts on
+`worst_ratio`. **The assertion is in the suite, not in the lane**: the
+kernel reduces the samples to the largest `|S − Π| / (cert + ε)` any
+sample on any triangle of the face reached, which is the per-triangle
+claim as one number, so no build of the kernel can turn
+`tessellate`'s typed-error contract into a panic.
 
 The sweep resamples `|S − Π|` on every emitted triangle unless
 `--sizing-only` is passed; without that pass it costs one tessellation
@@ -82,28 +90,34 @@ re-derived (spec D-4) so BOTH regression kinds stay visible:
   COUNTERFACTUAL. `patch_cells / grid_cells` is the **held** span
   gain; a silent revert to whole-patch sizing multiplies `grid_cells`
   by it, which fires the triangle gate and the slack gate both.
-* `span_cells` — the shipped schedule's cell count, summed through
-  the SAME `band_schedule` derivation the lane consumes.
-  `grid_cells / span_cells` is the **agreement** column, 1.00 by
-  construction; it verifies the lane's REALISATION of the schedule
-  (candidate generation, dedup, counting), not an independent
-  re-derivation.
+* `span_cells` — **identically `grid_cells`.** `grid_cells /
+  span_cells` is the **agreement** column and it is 1.00 by
+  arithmetic, not by check: both numbers are the same `band_schedule`
+  sum (`Σ nuc·nvc`, accumulated in the loop that emits the
+  candidates), so neither counts a realised candidate and the column
+  cannot detect the drift it was once described as detecting. Kept
+  because the committed baseline and `tess-lint` read it by position.
 * `opt_cells`, `span_opt_cells` — as before (cheapest split under the
   whole-patch bound / per cell). `grid_cells / span_opt_cells` is the
   gate's per-face recoverable-slack ratio, now carrying the split
   factor PLUS the banding and malign-snap forfeits, summed.
 
-What guards `band_schedule` itself, since the agreement column shares
-its derivation: (i) the per-triangle certificate — `NurbsCellGrid::cert`
-reads the raw per-cell bounds independent of the schedule, so an
-undersizing bug ends in refinement then a typed refusal, and is
-falsified per-triangle under the probe features; (ii) this gate's
-growth rules against the committed baseline; (iii) the committed
-render cells. The stated blind spot: a schedule bug that makes the
-grid COARSER while still certifying is invisible to the growth-only
-gate and to `agree` — accepted because the certificate is the
-guarantee, and recorded here so nobody mistakes `agree = 1.00` for
-more than it is.
+What guards `band_schedule` itself, given that the agreement column
+guards nothing: (i) the per-triangle certificate —
+`NurbsCellGrid::cert` reads the raw per-cell bounds independent of the
+schedule, so an undersizing bug ends in refinement then a typed
+refusal, and is falsified per-triangle under the `budget` feature's
+deviation mode; (ii) this gate's growth rules against the committed
+baseline; (iii) the committed render cells. **The stated blind spot: a
+schedule bug that makes the grid COARSER while still certifying is
+invisible to the growth-only gate, and `agree` cannot see it either** —
+accepted because the certificate is the guarantee, and recorded here
+so nobody mistakes `agree = 1.00` for more than it is.
+
+**A REAL agreement check is owed and unscheduled.** It means counting
+something the lane realises independently of the schedule sum, which
+is a CSV schema change plus a re-cut baseline — a unit, not a patch.
+Until it exists, read `agree` as a placeholder column.
 
 The report prints `held / agree / split / total`; `tess-lint`'s gate
 rules are unchanged in shape (triangle growth, per-face recoverable

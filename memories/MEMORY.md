@@ -52,7 +52,8 @@ usable-as-a-library (`docs/LIB-LOG.md`), ASM — assemblies
   nothing without its box; hosted CI produces them, history is
   append-only, reporting never gating
 - [Tessellation budget](tessellation-budget.md) — MEASURE whether a mesh
-  is bigger than it needs to be; the anisotropic-sliver lesson
+  is bigger than it needs to be; the anisotropic-sliver lesson; and
+  WHERE instrument belongs (gating does not answer volume)
 - [FreeCAD render lane](freecad-render-lane.md) — CI renders and
   re-baselines all four lanes; PRs REPORT (neutral, not a failure), main
   COMMITS; the FreeCAD self-deadlock and its fix
