@@ -10851,8 +10851,10 @@ the same file the whole time and one row did not call it.
 
 **[verified, #831]** S71's dangling link was invisible to
 `scripts/doc-gate.sh` *"because it is in a `tests/` file"*. The measurement
-behind that: **463 test files across the workspace, 105 of them carrying
-277 bracket-link candidates in doc lines.** None of the 277 is ever resolved.
+behind that: **465 test files across the workspace, 106 of them carrying
+285 bracket-link candidates in doc lines** (re-swept at #831's merge of
+`origin/main`, which added two test files and eight candidates and no new
+breakage). None of the 285 is ever resolved.
 `cargo doc` documents lib and bin targets, and the gate's own header says the
 consequence in its own words — *"rustdoc builds no test targets"*
 (`scripts/doc-gate.sh:71`), written there to justify `--all-features`. So an
