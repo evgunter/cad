@@ -92,7 +92,15 @@ pub fn plane_section<T: geom_core::Decide>(
         }
         let (u, v) = match (u_ref, v_ref) {
             (Some(u), Some(v)) => (u, v),
-            _ => return Err(SplitError::Join(super::join::SplitJoinError::Corrupt)),
+            _ => {
+                return Err(SplitError::Join(
+                    crate::chord_join::SplitJoinError::SectionInvariant {
+                        face: section.face,
+                        what: "the section polygon has fewer than two points, so the in-plane \
+                               frame it is reported in was never established",
+                    },
+                ));
+            }
         };
         let uv = points
             .iter()

@@ -60,18 +60,28 @@
 //! - **Permanent:** it would promote an internal algebra to public API
 //!   in a crate re-exported into four others, for no consumer outside
 //!   `topo`.
-//! - **Transient, and recorded as such:** `crates/geom-brep/src/` was
-//!   held by an in-flight lane (#639) that the S5 sector unit was told
-//!   not to collide with. That is a scheduling fact with an expiry, not
-//!   an architectural argument, and it is not a reason to keep the code
-//!   here once #639 has landed.
+//! - **Expired, and recorded as having expired:** `crates/geom-brep/src/`
+//!   was held by an in-flight lane (#639) that the S5 sector unit was
+//!   told not to collide with. #639 has since landed, so that reason is
+//!   spent and carries no weight here any more. It is left in the list
+//!   rather than deleted because a placement argument that quietly
+//!   drops its weakest premise reads stronger than it was.
 //!
-//! **Re-open trigger.** If the `sector_face` twins (still forked in
-//! both lanes — the rest of S5) are ever unified and want the same
-//! treatment, that is a real second consumer, and `geom-brep` is where
-//! this placement should be re-opened. Absent that consumer, the crate
-//! root holds: it is defensible on the merits above, not merely on the
-//! transient reason.
+//! **Re-open trigger — FIRED, and it resolves the other way.** The
+//! `sector_face` twins are now unified as [`crate::sector_face`], the
+//! second consumer this paragraph was waiting for. That consumer takes
+//! a [`Body`](crate::body::Body) and three arena keys, so `geom-brep` —
+//! which has neither — cannot host IT at any price. That settles where
+//! `sector_face` goes; it does not by itself settle this module, whose
+//! own body is still pure [`Vec3`]/[`Band`] algebra and would compile
+//! in `geom-brep` today. What keeps it here is the PERMANENT bullet
+//! above (public API in a crate re-exported into four others, for no
+//! consumer outside `topo`) plus the weaker preference that the two
+//! shared sector modules be read together. The expired bullet is not
+//! load-bearing, and the second consumer's arrival strengthened the
+//! case for `geom-brep` for THIS module rather than weakening it — so
+//! whoever re-opens it should weigh the public-API cost, which is the
+//! only argument still standing.
 //!
 //! # Which scalars the argument-order equality is proven for
 //!
@@ -494,18 +504,12 @@ mod tests {
             .iter()
             .flat_map(|lane| pooled.iter().map(move |rung| format!("\"{lane}_{rung}\"")))
             .collect();
-        let src = src_root();
-        let home = src.join("sector_shape.rs");
-        let mut files = Vec::new();
-        collect_rs(&src, &mut files);
-        // The walk must be reading what it thinks it is: a broken or
-        // empty walk would otherwise pass by finding nothing.
+        let home = crate::fixtures::src_root().join("sector_shape.rs");
+        let files = crate::fixtures::crate_sources();
         assert!(
-            files.contains(&home) && files.len() > 20,
-            "the walk of {src:?} found {} file(s) and {}the home module \
-             — it is not reading topo/src",
-            files.len(),
-            if files.contains(&home) { "" } else { "not " }
+            files.contains(&home),
+            "the walk found {} file(s) but not the home module — it is not reading topo/src",
+            files.len()
         );
         for path in &files {
             let text = std::fs::read_to_string(path).expect("a readable source file");
@@ -539,36 +543,6 @@ mod tests {
                 here.contains(&format!("\"{name}\"")),
                 "`{name}` is not spelled in this module"
             );
-        }
-    }
-
-    /// This crate's `src/`, resolved for both ways the suite runs: a
-    /// plain `cargo test` (where the baked-in `CARGO_MANIFEST_DIR` is
-    /// the tree that is here) and a nextest ARCHIVE replayed on a
-    /// different runner (where that absolute path need not exist, but
-    /// `--workspace-remap` has pointed the per-test cwd at the crate
-    /// root).
-    fn src_root() -> std::path::PathBuf {
-        let baked = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-        if baked.is_dir() {
-            return baked;
-        }
-        let cwd = std::env::current_dir()
-            .expect("a working directory")
-            .join("src");
-        assert!(cwd.is_dir(), "neither {baked:?} nor {cwd:?} is topo's src/");
-        cwd
-    }
-
-    /// Every `.rs` file under `dir`, recursively.
-    fn collect_rs(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
-        for entry in std::fs::read_dir(dir).expect("a readable source directory") {
-            let path = entry.expect("a readable directory entry").path();
-            if path.is_dir() {
-                collect_rs(&path, out);
-            } else if path.extension().is_some_and(|e| e == "rs") {
-                out.push(path);
-            }
         }
     }
 }

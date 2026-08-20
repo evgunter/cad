@@ -194,7 +194,8 @@ pub(super) fn apply_rule_a<T: Decide>(
         // Exactly one of the two vectors carries an orientation (S10),
         // and the types say which. `n_face` is the FACE's
         // outward normal, an `OutwardNormal` minted from chart × sense
-        // in `sector_face` — this is a material-side verdict and
+        // in this lane's `neighborhood::sector_face` — this is a
+        // material-side verdict and
         // inverts on a reversed face read off the chart, so the
         // primitive refuses anything else in that slot. `plane.normal`
         // is the SPLIT PLANE's: an operation input that DEFINES the
@@ -255,7 +256,7 @@ pub(super) fn apply_rule_b(
 /// farthest distance from the base vertex to any vertex of the face's
 /// loops — the largest displacement a normal-angle error can induce
 /// across this face (D4 ¶1's "face extent" arm, computed, named).
-pub(super) fn face_extent<T: Decide>(
+pub(crate) fn face_extent<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
     face: FaceKey,
