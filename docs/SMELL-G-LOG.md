@@ -264,7 +264,7 @@ C's open lanes (#732, `stl/`), with Track E's (#753 `scripts/`+`ci.yml`, #763
 
 ## Landings
 
-### G-b — **G2**, `demos/`, #783
+### G-b — **G2**, `demos/`, #787
 
 **Seven of the nine members closed**, S114(c) surveyed and left open as §D
 required, one new finding and one issue raised.

@@ -8884,7 +8884,7 @@ written for. Beyond S60, S75, S76, S78, S84 and S91 above:
   drives `surface_curve_residual` with adversarial break parameters and
   asserts only `Ok` and finiteness. A break parameter that mislocated a
   span but produced a finite bound passes.
-- (g) **FIXED by #783** — `demos/wild/src/main.rs`. The vacuous
+- (g) **FIXED by #787** — `demos/wild/src/main.rs`. The vacuous
   `assert_eq!(scenes.len(), WILD_CELLS.len())` is replaced by the two
   properties it stood in for, neither of which was checked: cell NAMES
   are distinct (a name is an STL stem, a scene name and a PNG stem at
@@ -8905,7 +8905,7 @@ written for. Beyond S60, S75, S76, S78, S84 and S91 above:
   project's life. Two shapes in one test, of which only one is safe to
   pin. The merge-base comparison that motivated it has happened;
   nothing schedules another.
-- (j) **FIXED by #783** — `demos/tour/tests/eps_regression.rs`. The
+- (j) **FIXED by #787** — `demos/tour/tests/eps_regression.rs`. The
   finding's "appears to" is confirmed: the tour's only
   `std::process::exit` sites are the two feature-gated modes reporting
   a usage error, and every typed refusal on the scene path is a panic
@@ -9003,7 +9003,7 @@ written for. Beyond S60, S75, S76, S78, S84 and S91 above:
   does not appear. Not nothing: `report()` and `eps_source()` commit the
   process-global ε as a side effect of being called, which the module
   itself flags as a hazard.
-- (h) **FIXED by #783** — `demos/render.py`. The `stl is None` branch,
+- (h) **FIXED by #787** — `demos/render.py`. The `stl is None` branch,
   its `#111 pin` warning, the `drawn` counter, `draw()`'s boolean
   return and `main`'s skip-the-scene arm are all gone: neither producer
   can emit that state, and `run_stop` never emits a bodiless scene, so
@@ -9019,7 +9019,7 @@ written for. Beyond S60, S75, S76, S78, S84 and S91 above:
 
 Beyond S64, S67, S74 and S98:
 
-- (a) **FIXED by #783** — every count in this member is COMPUTED
+- (a) **FIXED by #787** — every count in this member is COMPUTED
   rather than restated, because a fresh number would drift on the next
   scene exactly as these did. The tour's closing lines now print
   `35 scenes (20 montage cells, 15 standalone)`, `1049 face charts`,
@@ -9036,7 +9036,7 @@ Beyond S64, S67, S74 and S98:
   the sheet and leaves the arithmetic to the run) and
   `demos/render-wild.sh:14` (*"8 cells"*, a second copy of the count
   (b) had just moved into `WILD_CELLS`'s array length).
-- (b) **FIXED by #783** — `demos/wild/src/main.rs`. The heading's
+- (b) **FIXED by #787** — `demos/wild/src/main.rs`. The heading's
   *"6 cells"* is deleted rather than corrected to eight: the derivation
   it headed already ends at 8, and `WILD_CELLS: [Cell; 8]` is the
   enforcement — a cell added or dropped without re-deriving is a type
@@ -9064,7 +9064,7 @@ Beyond S64, S67, S74 and S98:
   written out four times, two of them outside `round.rs` despite that
   module's doc claiming *"the load-bearing lemmas are restated at each
   helper"*.
-- (b) **FIXED by #783** — `demos/tour/src/skinned.rs`. The
+- (b) **FIXED by #787** — `demos/tour/src/skinned.rs`. The
   *"VERBATIM"* claim was false twice over: nothing computed byte
   equality, and `fn quad` is not even the same code — the corpus builds
   the section with `ProfileLoop::polygon`, the demo through the PATHS
@@ -9094,7 +9094,7 @@ Beyond S64, S67, S74 and S98:
   *"Kept in sync with render.sh's `--montage=` arguments"*, *"keep the
   three spellings in sync"* (there are two).
 
-  **Still open, and deliberately.** #783 (Track G, G2) produced the
+  **Still open, and deliberately.** #787 (Track G, G2) produced the
   full producer/consumer census this row asks for — three emitters,
   five readers, field by field, each disagreement with both sides'
   `file:line` — and stopped there rather than inventing a schema; the
@@ -9188,7 +9188,7 @@ see §C.
   => {} }` is a no-op whose only purpose is to make a future variant a
   compile error — an invariant held by a statement where a type would
   hold it structurally.
-- (d) **FIXED by #783** — `demos/tour/src/main.rs`. Both forwarders
+- (d) **FIXED by #787** — `demos/tour/src/main.rs`. Both forwarders
   are deleted and their four call sites say `plain`/`seamed`; what
   `seamed_curved`'s doc was actually for (a curved boolean result
   validates the same way — the contacts decide, not the surface kind)
@@ -9326,7 +9326,7 @@ see §C.
 
 ---
 
-## S129. `demos/` has assertions and no runner (raised by #783)
+## S129. `demos/` has assertions and no runner (raised by #787)
 
 **Raised by Track G's G2 lane while establishing what CI actually does
 with `demos/`, which S110(j) required knowing.** Searched
@@ -9351,7 +9351,7 @@ now tessellate to 1016/854 against a pinned 976/826 while all five
 analytic rows are exact. That is a kernel-behaviour question, so it is
 **issue #782**, not a row here.
 
-**PARTLY FIXED by #783**: the ε pin is armed in `k-lint` (`cargo test
+**PARTLY FIXED by #787**: the ε pin is armed in `k-lint` (`cargo test
 --release --test eps_regression`, ~7 s on top of the release build that
 job already pays), mirrored in `ci-local.sh`. **The `--bin demo-tour`
 unit tests are deliberately NOT armed** — arming them today lands a red
@@ -10949,7 +10949,7 @@ sentence** — the finding survives on its substance, and the correction is
 recorded at G-R5 so a lane does not go looking for text that is not there.
 
 **`demos/` has left this table.** Its row (G2, nine roll-up members) landed as
-**#783**, G-R1 included: S110(g)(j), S112(h), S113(a)(b), S114(b) and S116(d)
+**#787**, G-R1 included: S110(g)(j), S112(h), S113(a)(b), S114(b) and S116(d)
 are recorded FIXED at their own bullets, S114(c) stays open as the design
 question it was always going to be, and the lane raised **S129** (nothing runs
 an assertion under `demos/`) and **issue #782** (two rows of `demos/tour`'s
