@@ -1393,9 +1393,30 @@ after that, and a 390-line hit list is exactly the artefact that invites it.
 
 *Operationally:* a sweep reporting more hits than a person will read owes either
 a mechanical filter down to a readable set, or a statement that its tail was
-sampled rather than read. C-i's own recovery is the cheap check — **after the
-fix pass, re-run the narrowest literal query the class admits and confirm it
-returns zero.**
+sampled rather than read.
+
+**CORRECTION, and it is the orchestrator's — 2026-08-20.** This entry first
+ended by recommending C-i's own recovery as the cheap check: *"after the fix
+pass, re-run the narrowest literal query the class admits and confirm it returns
+zero."* **That is wrong, and #775's style review proved it on this very unit.**
+A fixed-string grep for the wording you have just retired **cannot see a class,
+only a phrasing** — it proves your edits landed and says nothing about members
+surviving under different words. #775 reported an unqualified zero on that basis
+and **three live members of the class stood on the shipped head**, one of them a
+public enum variant doc.
+
+Worse, all four of the unit's instruments had *seen* those three and dropped them
+**by selection rule, not by regex** — one required the live-scope marker before
+the milestone token where it followed, another discarded any clause carrying a
+milestone token at all. So the population was bounded by the instruments' own
+rules, and the closing grep could not have discovered that because it was
+narrower than any of them.
+
+*The rule that survives:* **a closure check must be wider than the instrument
+that found the population, not narrower.** The narrow literal re-grep is a
+useful check that your edits landed — it is not a closure argument, and calling
+it one converts a self-test into a false negative result. I repeated the lane's
+version of this without testing it, which is the same failure one level up.
 
 ### I nudged a finished lane, on two bad liveness signals — both are in my own check-in instructions
 
