@@ -29,7 +29,8 @@ use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, Section, extrude, loft_body};
 use topo::{
-    Body, BooleanError, ContactRecords, EntityId, ValidationError, validate_pseudomanifold,
+    Body, BooleanError, ContactRecords, CurveGeom, EntityId, ValidationError,
+    validate_pseudomanifold,
 };
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -200,6 +201,35 @@ fn lofted() -> Body<f64> {
 #[test]
 fn a_lofted_operand_is_refused_at_its_nurbs_edges_before_any_face_box() {
     let a = lofted();
+    // The two premises the argument above rests on, asserted rather
+    // than assumed — without them the refusal below is a fact about
+    // some other body, and the row would stay green through exactly
+    // the change that makes the end-to-end path reachable.
+    let nurbs_faces = a
+        .faces()
+        .filter(|(_, f)| {
+            matches!(
+                a.get_surface(f.surface),
+                Some(geom::Surface::Nurbs(_))
+            )
+        })
+        .count();
+    assert!(
+        nurbs_faces > 0,
+        "the lofted operand carries NURBS FACES — the class the re-gate exists for"
+    );
+    let nurbs_edges = a
+        .edges()
+        .filter(|(_, e)| match a.get_curve_geom(e.curve) {
+            Some(CurveGeom::Certified(c)) => matches!(c.carrier(), geom::Curve3::Nurbs(_)),
+            _ => false,
+        })
+        .count();
+    assert!(
+        nurbs_edges > 0,
+        "the lofted operand carries NURBS EDGES — what the gate meets first"
+    );
+
     let b = nested_box(20.0, 0.5);
     let err = topo::boolean::union(&a, &b).expect_err("a NURBS operand must refuse typed");
     assert!(

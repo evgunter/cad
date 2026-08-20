@@ -11,6 +11,12 @@
 //! re-map if a fourth operation ever landed between two existing ones,
 //! and a file would then read a different operation than it was
 //! written with.
+//!
+//! The write door's own refusal — an operation this build can spell but
+//! cannot read back — has no row here and can have none: the read table
+//! is private to the `with` module, so nothing outside it can construct
+//! the state that refusal guards. The argument for the check lives with
+//! the check, in `persist::kernel_wire::boolean_op`'s module doc.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -72,25 +78,6 @@ fn an_unknown_operation_spelling_refuses() {
         err.to_string().contains("Xor"),
         "the refusal names the spelling it could not read: {err}"
     );
-}
-
-/// The write door's own refusal, exercised through the only route a
-/// test has to it. An operation missing from the module's read table
-/// must refuse at WRITE time rather than produce a file this build
-/// cannot open — the failure mode the compiler cannot rule out. Today
-/// the table is complete, so the check must be INVISIBLE: every
-/// operation writes, and writes the bytes pinned above.
-#[test]
-fn the_write_door_admits_every_operation_it_can_read_back() {
-    for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
-        let text = serde_json::to_string(&boolean(op)).unwrap();
-        let back: Node<ProfileProgram> = serde_json::from_str(&text).unwrap();
-        assert_eq!(
-            back,
-            boolean(op),
-            "{op:?} did not survive its own write door"
-        );
-    }
 }
 
 /// The map form a derived unit-variant deserializer would also have

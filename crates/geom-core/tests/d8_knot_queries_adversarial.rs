@@ -871,15 +871,45 @@ fn caller_supplied_break_parameters_cannot_reach_the_unreachable() {
                 ],
             ),
         ];
+        // The decomposition the extras are allowed to produce, derived
+        // from the contract rather than from the implementation: the
+        // domain ends, the shared curve's own interior knots, and every
+        // extra STRICTLY inside the domain — deduplicated on exact
+        // `f64`, ascending. Everything else (both domain ends, signed
+        // zeros, non-finites, out-of-domain values, repeats of a value
+        // already present) contributes nothing.
+        let (lo, hi) = ck.domain();
+        let admitted = |extra: &[f64]| -> Vec<f64> {
+            let mut b: Vec<f64> = vec![lo, hi];
+            b.extend(ck.interior_knots().map(|(v, _)| v));
+            for &v in extra {
+                if v > lo && v < hi {
+                    b.push(v);
+                }
+            }
+            b.sort_by(f64::total_cmp);
+            b.dedup();
+            b
+        };
         for (ename, extra) in &extras {
             let out = surface_curve_residual(&s, &pd, &cd, extra);
             assert!(
                 out.is_ok(),
                 "{dname}/{ename}: the entry point refused a legal call"
             );
+            let out = out.unwrap();
+            // WHERE the spans were placed, not merely that a number
+            // came back: an extra that mislocated a span, or that was
+            // let through when it should have been filtered, moves this
+            // list while leaving the bound finite.
+            assert_eq!(
+                out.breaks(),
+                admitted(extra),
+                "{dname}/{ename}: the extras landed a different break structure"
+            );
             // The bound must still be a real number: an extra that
             // corrupted the break structure would show up as poison.
-            let sup = out.unwrap().sup_bound();
+            let sup = out.sup_bound();
             assert!(
                 sup.is_finite(),
                 "{dname}/{ename}: sup bound is {sup} — the extras corrupted the decomposition"
