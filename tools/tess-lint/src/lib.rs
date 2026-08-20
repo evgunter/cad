@@ -80,7 +80,7 @@
 //! only, so any in-band fallback for an unreadable value is the
 //! smallest movement expressible and passes by construction. The
 //! sizing columns are therefore admitted or refused where they are
-//! read ([`Admissible`]), per column, and a refused one leaves in the
+//! read (`Admissible`, private), per column, and a refused one leaves in the
 //! harness voice — a sweep the lint cannot read is not a tessellation
 //! that got better.
 //!
@@ -151,10 +151,16 @@ impl Row {
 
     /// `delta / worst_dev` — the unspent deviation budget, `None`
     /// unless the sweep resampled.
+    ///
+    /// **A resampled face that attained EXACTLY zero deviation is not
+    /// an absence**, and folding it back into `None` would undo, in
+    /// the first caller, the distinction [`Nurbs::worst_dev`]'s type
+    /// exists to draw: it spent none of its budget, which is
+    /// `f64::INFINITY`, and [`totals`] reads that as the zero
+    /// triangles the extrapolation says such a face needs.
     pub fn total_slack(&self) -> Option<f64> {
         self.nurbs
             .and_then(|n| n.worst_dev)
-            .filter(|dev| *dev > 0.0)
             .map(|dev| self.delta / dev)
     }
 }
@@ -174,15 +180,30 @@ impl Row {
 /// Absence is a real state for exactly one measured column, and it has
 /// its own spelling: `worst_dev` is `NaN` on every `--sizing-only`
 /// sweep, which is the CI gate's own, so it parses to `None` rather
-/// than to a number. A cell count is never absent — `tess_meter`'s
-/// `divisions` floors every count at one — so a non-positive or
-/// non-finite one is sweep drift, not a face with no slack.
+/// than to a number.
+///
+/// **A cell count is never absent, and the mechanism differs by
+/// column** — worth stating, because the floor is what the rest of
+/// this argument rests on. `patch_cells` and `opt_cells` are products
+/// and minima of `tess_meter`'s `divisions`, which floors at one.
+/// `grid_cells` is `Σ nuc·nvc` over the bands the lane actually ran,
+/// and `mesh::chords::ceil_count` floors each factor at one over at
+/// least one band. `span_opt_cells` is an accumulator that starts at
+/// zero and skips analysis cells outside the trim box — so its floor
+/// is not arithmetic but geometric: the cell grid tiles the patch
+/// domain and the trim box is a non-degenerate sub-box of it, so some
+/// cell overlaps, and a face whose box is degenerate has no triangles
+/// and no row. **A zero there would therefore be drift, and refusing
+/// it is the point**: under the reading this replaced it was a
+/// guaranteed pass, and a loud harness failure naming the column is
+/// the outcome to prefer if the geometric argument ever turns out to
+/// have a case in it.
 #[derive(Clone, Copy, Debug)]
 enum Admissible {
     /// A grid cell count: finite, at least one.
     CellCount,
     /// A tessellation target: finite, above zero.
-    Positive,
+    Target,
     /// A certificate: finite and non-negative (zero is a face whose
     /// triangles are exact).
     Certificate,
@@ -196,7 +217,7 @@ impl Admissible {
     fn admits(self, v: f64) -> bool {
         match self {
             Self::CellCount => v.is_finite() && v >= 1.0,
-            Self::Positive => v.is_finite() && v > 0.0,
+            Self::Target => v.is_finite() && v > 0.0,
             Self::Certificate => v.is_finite() && v >= 0.0,
             Self::OptionalDeviation => v.is_nan() || (v.is_finite() && v >= 0.0),
         }
@@ -206,7 +227,7 @@ impl Admissible {
     fn expects(self) -> &'static str {
         match self {
             Self::CellCount => "a cell count, finite and at least one",
-            Self::Positive => "finite and above zero",
+            Self::Target => "a tessellation target, finite and above zero",
             Self::Certificate => "a certificate, finite and non-negative",
             Self::OptionalDeviation => {
                 "a deviation, finite and non-negative, or NaN for an unresampled sweep"
@@ -290,9 +311,11 @@ pub fn parse(text: &str) -> Result<Vec<Row>, ParseError> {
                 text: format!("{name}: {e} ({:?})", f[col]),
             })
         };
-        // Every value this lint divides by goes through here, so that
-        // a broken measurement is harness breakage rather than a
-        // reading (see `Admissible`).
+        // The measured columns go through here, so that a broken
+        // measurement is harness breakage rather than a reading (see
+        // `Admissible`). The counted ones — `face`, `triangles` — go
+        // through `idx` and cannot arrive non-finite or negative at
+        // all.
         let admit = |col: usize, name: &str, kind: Admissible| -> Result<f64, ParseError> {
             let v = num(col, name)?;
             if kind.admits(v) {
@@ -348,7 +371,7 @@ pub fn parse(text: &str) -> Result<Vec<Row>, ParseError> {
             scene: f[0].to_string(),
             face: idx(1, "face")?,
             chart: f[2].to_string(),
-            delta: admit(3, "delta", Admissible::Positive)?,
+            delta: admit(3, "delta", Admissible::Target)?,
             triangles: idx(4, "triangles")?,
             nurbs,
         });
@@ -402,6 +425,31 @@ impl SceneTotals {
         (self.grid_cells > 0.0).then(|| self.patch_cells / self.grid_cells)
     }
 
+    /// Adds one face's row.
+    ///
+    /// The ONE accumulator: [`totals`] folds a scene's rows through it
+    /// and the CLI folds the whole sweep through it, so the two cannot
+    /// disagree about what a total is or re-derive one of these
+    /// factors by hand under a guard of its own.
+    pub fn add(&mut self, r: &Row) {
+        self.faces += 1;
+        self.triangles += r.triangles;
+        if let Some(n) = r.nurbs {
+            self.nurbs_triangles += r.triangles;
+            self.grid_cells += n.grid_cells;
+            self.patch_cells += n.patch_cells;
+            self.opt_cells += n.opt_cells;
+            self.span_opt_cells += n.span_opt_cells;
+        }
+        if let Some(slack) = r.total_slack() {
+            #[allow(clippy::cast_precision_loss)]
+            {
+                self.measured_triangles += r.triangles;
+                self.extrapolated_triangles += r.triangles as f64 / slack;
+            }
+        }
+    }
+
     /// The scene's total slack: its resampled triangles against the
     /// extrapolation of what their attained deviation needed. `None`
     /// unless the sweep resampled.
@@ -412,8 +460,13 @@ impl SceneTotals {
     /// exactly planar reports an astronomical ratio while saying
     /// nothing about where the scene's mesh went.
     pub fn total_slack(&self) -> Option<f64> {
+        // `None` means "nothing was resampled", and only that. A scene
+        // whose resampled faces were all exact extrapolates to zero
+        // triangles and so reports INFINITE unspent budget — a reading,
+        // not an absence, and the same distinction `Row::total_slack`
+        // draws one level down.
         #[allow(clippy::cast_precision_loss)]
-        (self.measured_triangles > 0 && self.extrapolated_triangles > 0.0)
+        (self.measured_triangles > 0)
             .then(|| self.measured_triangles as f64 / self.extrapolated_triangles)
     }
 }
@@ -424,26 +477,12 @@ pub fn totals(rows: &[Row]) -> Vec<(String, SceneTotals)> {
     let mut order: Vec<String> = Vec::new();
     let mut map: std::collections::HashMap<String, SceneTotals> = std::collections::HashMap::new();
     for r in rows {
-        let t = map.entry(r.scene.clone()).or_insert_with(|| {
-            order.push(r.scene.clone());
-            SceneTotals::default()
-        });
-        t.faces += 1;
-        t.triangles += r.triangles;
-        if let Some(n) = r.nurbs {
-            t.nurbs_triangles += r.triangles;
-            t.grid_cells += n.grid_cells;
-            t.patch_cells += n.patch_cells;
-            t.opt_cells += n.opt_cells;
-            t.span_opt_cells += n.span_opt_cells;
-        }
-        if let Some(s) = r.total_slack() {
-            #[allow(clippy::cast_precision_loss)]
-            {
-                t.measured_triangles += r.triangles;
-                t.extrapolated_triangles += r.triangles as f64 / s;
-            }
-        }
+        map.entry(r.scene.clone())
+            .or_insert_with(|| {
+                order.push(r.scene.clone());
+                SceneTotals::default()
+            })
+            .add(r);
     }
     order
         .into_iter()
@@ -577,6 +616,10 @@ mod tests {
     use super::*;
 
     /// A two-face fixture: one plane (empty sizing columns), one NURBS.
+    ///
+    /// Twinned in `tests/cli_contract.rs`, deliberately: an
+    /// integration test cannot see a `#[cfg(test)]` item, so the two
+    /// cannot share one. Keep them in step.
     fn csv(tris: usize, span_opt: f64) -> String {
         format!(
             "{EXPECTED_HEADER}\n\
@@ -682,14 +725,33 @@ mod tests {
         assert!(e.text.contains("partially filled"), "{}", e.text);
     }
 
-    /// Replaces one sizing column of the fixture's Hessian-sized row.
-    fn with_column(k: usize, value: &str) -> String {
-        let text = csv(100, 2.5e1);
+    /// Sets one ABSOLUTE column of the fixture's Hessian-sized row.
+    ///
+    /// The one way this module breaks a fixture: positional, so a test
+    /// says which column it is breaking rather than which byte
+    /// sequence happens to spell it — a `replace` on a literal is
+    /// coupled to the caller's arguments and silently does nothing
+    /// when they change.
+    fn with_field(text: &str, col: usize, value: &str) -> String {
         let mut lines: Vec<String> = text.lines().map(str::to_string).collect();
         let mut f: Vec<String> = lines[2].split(',').map(str::to_string).collect();
-        f[SIZING_FIRST + k] = value.to_string();
+        f[col] = value.to_string();
         lines[2] = f.join(",");
         format!("{}\n", lines.join("\n"))
+    }
+
+    /// [`with_field`] addressed within the sizing block.
+    fn with_column(k: usize, value: &str) -> String {
+        with_field(&csv(100, 2.5e1), SIZING_FIRST + k, value)
+    }
+
+    /// The shape of the sweep CI actually gates on: `--sizing-only`
+    /// resamples nothing, so `worst_dev` is `NaN` and `dev_samples` is
+    /// zero.
+    fn sizing_only(tris: usize, span_opt: f64) -> Vec<Row> {
+        let text = with_field(&csv(tris, span_opt), SIZING_FIRST + 5, "NaN");
+        let text = with_field(&text, SIZING_FIRST + SIZING_COLUMNS.len(), "0");
+        parse(&text).unwrap()
     }
 
     /// The question this parser exists to answer. Every rule fires on
@@ -706,16 +768,22 @@ mod tests {
     /// added quietly.
     #[test]
     fn every_sizing_column_refuses_the_values_that_would_read_as_a_pass() {
-        const BAD: [&str; 4] = ["0e0", "-1e0", "inf", "NaN"];
-        const ADMITTED: [(&str, [bool; 4]); SIZING_COLUMNS.len()] = [
-            ("grid_cells", [false, false, false, false]),
-            ("patch_cells", [false, false, false, false]),
-            ("opt_cells", [false, false, false, false]),
-            ("span_opt_cells", [false, false, false, false]),
-            // A face whose triangles are exact certifies at zero.
-            ("worst_cert", [true, false, false, false]),
+        // `5e-1` is here because the other four cannot tell a CELL
+        // COUNT from any other positive-finite policy, and the count's
+        // floor of one is what the argument above rests on: without a
+        // fractional row, relaxing `CellCount` to "finite and above
+        // zero" passes this whole suite.
+        const BAD: [&str; 5] = ["0e0", "-1e0", "inf", "NaN", "5e-1"];
+        const ADMITTED: [(&str, [bool; 5]); SIZING_COLUMNS.len()] = [
+            ("grid_cells", [false, false, false, false, false]),
+            ("patch_cells", [false, false, false, false, false]),
+            ("opt_cells", [false, false, false, false, false]),
+            ("span_opt_cells", [false, false, false, false, false]),
+            // A face whose triangles are exact certifies at zero, and
+            // a certificate is a length, not a count.
+            ("worst_cert", [true, false, false, false, true]),
             // The one absence with a spelling: NaN is "not resampled".
-            ("worst_dev", [true, false, false, true]),
+            ("worst_dev", [true, false, false, true, true]),
         ];
         for (k, (name, admitted)) in ADMITTED.iter().enumerate() {
             assert_eq!(*name, SIZING_COLUMNS[k].0, "column {k} of the table");
@@ -778,9 +846,6 @@ mod tests {
     /// still run over it.
     #[test]
     fn a_sizing_only_sweep_still_gates() {
-        let sizing_only = |tris: usize, span_opt: f64| {
-            parse(&csv(tris, span_opt).replace(",1e-4,5e-5,99", ",1e-4,NaN,0")).unwrap()
-        };
         let base = sizing_only(100, 2.5e1);
         assert_eq!(base[1].nurbs.unwrap().worst_dev, None);
         assert_eq!(base[1].total_slack(), None);
@@ -788,6 +853,14 @@ mod tests {
         let f = compare(&base, &sizing_only(200, 2.5e1));
         assert_eq!(f.len(), 1, "{f:?}");
         assert_eq!(f[0].kind, Kind::Triangles);
+        // The SLACK rule is the one this finding is about, and an
+        // equality-to-empty cannot say it still runs: a `recoverable`
+        // that went absent along with `worst_dev` would satisfy every
+        // line above.
+        assert_eq!(base[1].recoverable(), Some(4.0));
+        let f = compare(&base, &sizing_only(100, 1.0e1));
+        assert_eq!(f.len(), 1, "{f:?}");
+        assert_eq!(f[0].kind, Kind::Slack);
     }
 
     /// A scene with no Hessian-sized face has no sizing factor and
@@ -802,6 +875,37 @@ mod tests {
         let t = &totals(&planes)[0].1;
         assert_eq!(t.recoverable(), None);
         assert_eq!(t.span_held(), None);
+    }
+
+    /// `delta` is admitted for the same reason the cell counts are,
+    /// and the reason is one level downstream: [`totals`] divides a
+    /// face's triangles by its `total_slack` = `delta / worst_dev`, so
+    /// a zero or non-finite δ extrapolates every resampled face to
+    /// zero triangles and the scene's total column then reports
+    /// **absent**. A broken value manufacturing an absence is this
+    /// finding's own shape with the sign flipped, and the report is
+    /// where it would be read.
+    #[test]
+    fn a_broken_delta_is_harness_breakage() {
+        for bad in ["0e0", "-2e-3", "NaN", "inf"] {
+            let e = parse(&with_field(&csv(100, 2.5e1), 3, bad)).unwrap_err();
+            assert!(e.text.contains("delta"), "{bad}: {}", e.text);
+            assert!(e.text.contains("tessellation target"), "{bad}: {}", e.text);
+        }
+        assert!(parse(&with_field(&csv(100, 2.5e1), 3, "2e-3")).is_ok());
+    }
+
+    /// A resampled face that attained EXACTLY zero deviation spent
+    /// none of its budget: infinite slack, and a reading. `None` still
+    /// means "not resampled" and only that — collapsing the two is
+    /// what the `Option` exists to prevent, and the first caller is
+    /// where that collapse would happen.
+    #[test]
+    fn an_exact_face_reports_infinite_slack_not_an_absence() {
+        let rows = parse(&with_column(5, "0e0")).unwrap();
+        assert_eq!(rows[1].nurbs.unwrap().worst_dev, Some(0.0));
+        assert_eq!(rows[1].total_slack(), Some(f64::INFINITY));
+        assert_eq!(totals(&rows)[0].1.total_slack(), Some(f64::INFINITY));
     }
 
     /// [`GROWTH_TOLERANCE`] boxed from BELOW on the triangle rule: a
@@ -851,8 +955,7 @@ mod tests {
 
     #[test]
     fn a_sweep_without_deviation_has_no_total_slack() {
-        let no_dev = csv(100, 2.5e1).replace(",1e-4,5e-5,99", ",1e-4,NaN,0");
-        let rows = parse(&no_dev).unwrap();
+        let rows = sizing_only(100, 2.5e1);
         assert_eq!(rows[1].total_slack(), None);
         // …and the cell-count factors are unaffected: they never
         // needed the resampling pass.

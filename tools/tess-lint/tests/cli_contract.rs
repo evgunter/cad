@@ -15,7 +15,12 @@ use tess_lint::EXPECTED_HEADER as HEADER;
 
 /// A one-plane, one-NURBS scene. `tris` is the wall's triangle count
 /// and `span_opt` the cheapest per-cell grid, which together move the
-/// two gate rules independently.
+/// two gate rules independently — and, at `span_opt = 0`, produce the
+/// unreadable denominator this file's harness-voice row needs.
+///
+/// **The twin of `tess_lint`'s own test fixture**, deliberately: an
+/// integration test cannot see a `#[cfg(test)]` item, so the two
+/// cannot share one. Keep them in step.
 fn scene(tris: usize, span_opt: f64) -> String {
     format!(
         "{HEADER}\n\
@@ -108,10 +113,7 @@ fn a_drifted_header_exits_one_not_two() {
 #[test]
 fn an_unreadable_denominator_exits_one_not_zero() {
     let base = csv("broken-base.csv", &scene(100, 2.5e1));
-    let fresh = csv(
-        "broken-fresh.csv",
-        &scene(100, 2.5e1).replace(",2.5e1,1e-4,", ",0e0,1e-4,"),
-    );
+    let fresh = csv("broken-fresh.csv", &scene(100, 0.0));
     let out = run(&[
         fresh.to_str().unwrap(),
         "--baseline",
