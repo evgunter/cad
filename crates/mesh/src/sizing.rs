@@ -15,18 +15,31 @@
 //!   here, [`curvature_step`] for a second-derivative bound,
 //!   [`torus_grid_step`] for the torus chart, and
 //!   [`crate::nurbs_cert::NurbsFaceBound::grid_steps`] for a certified
-//!   NURBS patch. The cap on an angular one is [`MAX_ANGULAR_STEP`],
-//!   applied by [`cap_angular`] and nowhere else.
+//!   NURBS patch. The cap on an angular one is [`MAX_ANGULAR_STEP`];
+//!   this module is the only place it is applied ([`cap_angular`], and
+//!   [`sagitta_step`]'s vacuous branch, which returns it directly).
 //! - a **count** — how many chords or grid divisions a span is cut
 //!   into, always `usize`. Every count in the crate is
 //!   [`ceil_count`]`(span, step)` or a rule applied to one
-//!   (`curved::pole_columns` floors the pole case;
+//!   (`curved::pole_columns` lifts the single singular value
+//!   `nu == 2` — an equality, not a floor, and its own doc says why;
 //!   `NurbsCellGrid::band_schedule` snaps a malign band's).
 //!
 //! **The rule, in one sentence:** *"step" names an `f64` increment and
 //! nothing else; a `usize` count is never called a step, and neither is
-//! a sample count.* A new sizing rule states which of the three it
-//! produces by its name, or it is misnamed.
+//! a sample count.* A new rule that PRODUCES one of the three states
+//! which by its name, or it is misnamed. It binds the PROSE as well as
+//! the identifiers — a rename that leaves a doc sentence calling a
+//! count a step has not landed.
+//!
+//! **Scope, and what enforces it.** The rule is this crate's; the
+//! nearest violation outside it is `step-import`'s `STEPS: usize`
+//! sample count. Nothing mechanical enforces either half today — the
+//! guard this wants is a source-scraping row in the shape of this
+//! crate's own `tests/all.rs`, which `include_str!`s its own source to
+//! prove every test file is registered. Until that exists the rule is
+//! held by review, which is a weaker thing than the sentence above
+//! sounds.
 //!
 //! The one deliberate second spelling is `tess_meter::divisions`, in
 //! the consumer half of the budget meter: a different cargo root, so
@@ -173,7 +186,15 @@ pub fn ellipse_step(delta_s: f64, major: f64, minor: f64) -> f64 {
 /// only when `δ_s > (3π²/16)·(R + 2r) ≈ 1.85·(R + 2r)`, which is above
 /// every circle radius a torus carries (`R + r` at most), so the
 /// sagitta step is then exactly the cap and the capped and uncapped
-/// requirements coincide.
+/// requirements coincide. No in-tree body reaches that regime, so the
+/// claim is pinned directly rather than by the mesh oracles:
+/// `torus_cap_regime_is_sagitta_capped` below goes red if either
+/// formula or [`MAX_ANGULAR_STEP`] moves.
+///
+/// The chord pass must NOT simply cap here to sidestep the argument:
+/// [`ceil_count`] refuses a non-finite step typed, while
+/// [`cap_angular`] turns one into the cap, so capping a poisoned torus
+/// step there would swallow a refusal.
 pub(crate) fn torus_grid_step(delta_s: f64, major: f64, minor: f64) -> f64 {
     (delta_s / (3.0 * (major + 2.0 * minor))).sqrt()
 }
@@ -205,4 +226,67 @@ pub fn ceil_count(span: f64, step: f64) -> Result<usize, TessellateError> {
     }
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     Ok(if raw < 1.0 { 1 } else { raw as usize })
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+
+    /// [`torus_grid_step`]'s doc claim, which no meshing oracle
+    /// reaches: above `delta_s = (3*pi^2/16)*(R+2r)` the torus step
+    /// passes the angular cap, and there the sagitta step over the
+    /// widest circle a torus carries (`R + r`) is EXACTLY the cap — so
+    /// the chord pass's uncapped `max` and the curved lane's capped one
+    /// agree. Red if either formula or the cap moves.
+    #[test]
+    fn torus_cap_regime_is_sagitta_capped() {
+        for &(major, minor) in &[(1.0, 0.25), (5.0, 3.0), (0.5, 0.4), (100.0, 1.0)] {
+            let threshold = 3.0 * core::f64::consts::PI.powi(2) / 16.0 * (major + 2.0 * minor);
+            let delta_s = threshold * 1.0001;
+            assert!(
+                torus_grid_step(delta_s, major, minor) > MAX_ANGULAR_STEP,
+                "the threshold no longer predicts the uncapped regime"
+            );
+            assert!(
+                sagitta_step(delta_s, major + minor) == MAX_ANGULAR_STEP,
+                "the sagitta step is not exactly the cap, so the two requirements diverge"
+            );
+            assert!(
+                torus_grid_step(threshold * 0.9999, major, minor) <= MAX_ANGULAR_STEP,
+                "the threshold no longer predicts the capped regime"
+            );
+        }
+    }
+
+    /// [`cap_angular`]'s documented total behaviour. The obvious-looking
+    /// rewrite `if step > MAX { MAX } else { step }` is NOT equivalent —
+    /// it returns NaN — and nothing else in the tree would notice.
+    #[test]
+    fn cap_angular_is_total() {
+        assert!(cap_angular(f64::NAN) == MAX_ANGULAR_STEP);
+        assert!(cap_angular(f64::INFINITY) == MAX_ANGULAR_STEP);
+        assert!(cap_angular(MAX_ANGULAR_STEP) == MAX_ANGULAR_STEP);
+        assert!(cap_angular(0.1) == 0.1);
+        assert!(cap_angular(f64::NEG_INFINITY) == f64::NEG_INFINITY);
+    }
+
+    /// [`ceil_count`]'s documented edges at the boundary rather than
+    /// through a whole tessellation (`tests/errors.rs` reaches
+    /// `ResolutionOverflow` only end-to-end): the floor of 1, and the
+    /// AT-the-cap refusal — `MAX_COUNT` itself refuses, it is not the
+    /// last accepted value.
+    #[test]
+    fn ceil_count_floors_at_one_and_refuses_at_the_cap() {
+        assert!(ceil_count(1.0, 10.0) == Ok(1));
+        assert!(ceil_count(MAX_COUNT - 1.0, 1.0) == Ok(16_777_215));
+        assert!(matches!(
+            ceil_count(MAX_COUNT, 1.0),
+            Err(TessellateError::ResolutionOverflow { .. })
+        ));
+        assert!(matches!(
+            ceil_count(1.0, f64::NAN),
+            Err(TessellateError::ResolutionOverflow { .. })
+        ));
+    }
 }

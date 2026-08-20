@@ -104,7 +104,7 @@ use crate::planar::{classify_faces, edge_key, shoelace2};
 use crate::sizing::{Tol, ceil_count, sagitta_step};
 use crate::types::TessellateError;
 
-/// Retry budget for the grid-on-constraint rebuild (module docs).
+/// Retry budget for the rebuild loop (module docs).
 ///
 /// One round budget covers both retry kinds — the grid-on-constraint
 /// drops and the certificate-driven refinement — and it is a

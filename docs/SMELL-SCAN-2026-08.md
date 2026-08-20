@@ -4828,15 +4828,35 @@ and `demos` — an instrument shaped differently from the finding's list.
   points had already left the crate.** `DEV_SAMPLES`,
   `SPLIT_SCAN_DECADES`, `SPLIT_SCAN_STEPS`, `divisions` and
   `best_split_steps` moved to `tools/tess-meter` when #709 landed S30.
-  The finding's `crates/mesh/src/budget.rs:555` citation no longer
-  resolves — the file is 307 lines.
-* **The remaining vocabulary is wider than the list.** Unnamed by it:
-  `chords::nurbs_chord_count`, `chords::nurbs_tighten`,
-  `NurbsCellGrid::row_bound`, `trimmed::uniform_candidates`, the inline
-  cylinder sizing at `trimmed.rs`, `curved::pole_columns` (which the
-  finding itself recorded arriving after the fact, in #684), and an
-  **unnamed inline step formula** inside `nurbs_chord_count` that was
-  `ellipse_step`'s formula spelled a second time.
+  **Three of this finding's five scope citations did not resolve**, and
+  C-R11 makes each of them a claim site, so all three are recorded here
+  rather than silently rewritten — checked line by line against
+  `d6b5ae01^1`, the tree immediately before #803:
+  `budget.rs:555` (the file is **307** lines), `curved.rs:226` (lands on
+  `cdt.add_constraint(a, b);`) and `nurbs_cert.rs:356` (lands on
+  `memo: &mut FaceBounds,`). Only `chords.rs:63` (`sagitta_angle`) and
+  `trimmed.rs:112` (`MAX_GRID_RETRIES`) pointed at anything this finding
+  is about. The `curved`/`nurbs_cert` pair was reported by the lane and
+  written down by the style review.
+* **The remaining vocabulary is wider than the list.** Genuinely
+  unnamed by it, and there are **four**:
+  `chords::nurbs_chord_count`, `chords::nurbs_tighten`, the inline
+  cylinder sizing at `trimmed.rs`, and an **unnamed inline step
+  formula** inside `nurbs_chord_count` that was `ellipse_step`'s
+  formula spelled a second time. `curved::pole_columns` is a fifth in
+  spirit — the finding recorded it arriving after the fact, in #684.
+  **Corrected by the style review, 2026-08-20**: the version of this
+  bullet #803 wrote also listed `NurbsCellGrid::row_bound` and
+  `trimmed::uniform_candidates` as unnamed, and **both are named by the
+  original text, verbatim** (`git show
+  d6b5ae01^1:docs/SMELL-SCAN-2026-08.md`, §S29 ¶1: *"…
+  `NurbsCellGrid::band_schedule` + `row_bound`,
+  `uniform_candidates`/`per_cell_candidates`…"*), along with a third,
+  `per_cell_candidates`, which the replacement dropped entirely. The
+  correction's DIRECTION stands and its size was overstated. Recording
+  it here rather than in a log because the recording convention
+  **replaces** the original inline, so this section is the only in-tree
+  account of a document it was getting wrong.
 
 **What #803 did.** One module, `crate::sizing`, owns the vocabulary and
 its module doc fixes one word per quantity: a **target** (δ_s — one of
@@ -8188,8 +8208,8 @@ someone facing a red gate can set it to `1.9` and every test still
 passes. Contrast `k-lint`, where `BASELINE_FLOOR_MARGIN` is pinned into
 `(3.9e-5, 4.7965e-5]` by two tests and additionally floored by the `#99`
 litmus — that is what a boxed constant looks like. Plausibly a class:
-`SPLIT_SCAN_DECADES` / `SPLIT_SCAN_STEPS`
-(`tools/tess-meter/src/lib.rs:498-500`) are pinned by nothing at all.
+`SPLIT_SCAN_DECADES` / `SPLIT_SCAN_SAMPLES` (renamed by #803;
+`tools/tess-meter/src/lib.rs:496-500`) are pinned by nothing at all.
 
 **Verdict:**
 
@@ -9925,9 +9945,10 @@ scan this size is worth as much as a finding.**
   `EXPECTED_HEADER`/`CSV_HEADER` duplication across the two cargo roots
   is genuinely pinned by `tools/tess-meter/tests/derivations.rs:193-215`,
   which scrapes the sibling's source rather than sharing a constant, and
-  says why. `divisions` vs `chords::ceil_count` is a declared second
+  says why. `divisions` vs `sizing::ceil_count` is a declared second
   spelling whose two divergences check out against
-  `crates/mesh/src/chords.rs:93-100`. The three-way baseline discipline
+  `crates/mesh/src/sizing.rs:190-207` (both moved by #803; the review
+  read them at `chords.rs:93-100`). The three-way baseline discipline
   in `docs/k-report-data/README.md` holds, and both tess-budget re-cuts
   named their reason in the commit subject. Both crates' tests visibly
   hunt their own vacuous assertions — rarer than it should be.

@@ -158,10 +158,10 @@ pub enum TessellateError {
         what: &'static str,
     },
     /// A requested resolution overflowed the sanity cap (δ so small
-    /// that a single edge or face would need more than ~2²⁴ chords or
-    /// grid steps) — refused before allocating.
+    /// that a single edge or face would need a chord or grid-division
+    /// count above ~2²⁴) — refused before allocating.
     ResolutionOverflow {
-        /// The computed step count that overflowed.
+        /// The computed count that overflowed.
         count: f64,
     },
     /// An emitted triangle failed its closed-form deviation
