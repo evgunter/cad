@@ -354,28 +354,33 @@ pub(crate) fn nurbs_cell_bounds(
 /// 3.35x → 3.10x, still over the acceptance line) for correctly
 /// snapping the near-one-step bands the ideal-step test missed.
 ///
-/// **What goes red, named** (issue #667's Q6), and it is three different
-/// things — none of which re-runs the tour measurement above:
+/// **What goes red, named — and scoped, because none of it is as wide as
+/// it first reads** (issue #667's Q6). Three things, and they bracket the
+/// constant only when taken together:
 ///
-/// * the constant itself is BRACKETED by `band_schedule_snaps_on_realized_aspect`
-///   below, whose fixture is benign at 4.79 and malign at 9.09: any move
-///   outside `(4.79, 9.09]` fails that row. That is a guard on the value,
-///   not on the margin that chose it inside the bracket;
-/// * the OUTCOME is guarded per-merge and unconditionally — `ci.yml`'s
-///   `k-lint (gate)` runs `mesh certificate falsifier (feature = probe-stats)`,
-///   i.e. `probe_review::z1_per_triangle_certificate_falsification`, which
-///   resamples every emitted triangle against its own certificate; a snap
-///   line loose enough to ship an under-certified triangle fails there;
-/// * the COST side is a scheduled register: the same job's
-///   `tessellation-budget sweep` + `tessellation-budget lint (gate)` re-measure
-///   every tour scene per face against `docs/tess-budget-data/tess-budget-baseline.csv`,
-///   so a move that buys margin by growing the mesh fails too.
+/// * UPWARD, mechanically: `band_schedule_snaps_on_realized_aspect` below
+///   is malign at realized aspect 9.09, so raising this constant to 9.09
+///   or above stops the fixture snapping and fails the row. It is
+///   **one-sided** — lowering the constant leaves every assertion in that
+///   row passing;
+/// * DOWNWARD, and only as cost: lowering it snaps more bands, which grows
+///   the mesh, which is what the same job's `tessellation-budget sweep` +
+///   `tessellation-budget lint (gate)` catch — every tour scene re-measured
+///   per face against `docs/tess-budget-data/tess-budget-baseline.csv`, a
+///   grown budget failing the row. A scheduled register, not an assert;
+/// * SOUNDNESS, on a fixed corpus: `ci.yml`'s `k-lint (gate)` also runs
+///   `mesh certificate falsifier (feature = probe-stats)`, i.e.
+///   `probe_review::z1_per_triangle_certificate_falsification`, which
+///   resamples every emitted triangle against its own certificate — but
+///   over **four NURBS fixtures at two δ**, not the tour. It falsifies
+///   under-certification where it looks; it is not tour-wide coverage.
 ///
-/// What has no guard, stated so the reader does not over-read the three
-/// above: the *worst tour face certificate 0.60·δ* figure. It is a
-/// one-shot corpus observation, nothing computes with it, and the
-/// backstop it motivates ([`TessellateError::CertificateExceeded`]) is
-/// what actually holds the lane in the `(3.87, SAFE_ASPECT]` gap.
+/// And what has NO guard, stated so the three above are not over-read: the
+/// *worst tour face certificate 0.60·δ* figure. It is a one-shot corpus
+/// observation, nothing computes with it, and the thing that actually holds
+/// the lane in the `(3.87, SAFE_ASPECT]` gap is the typed
+/// [`TessellateError::CertificateExceeded`] refusal — a bad mesh stays
+/// unrepresentable whatever this constant is.
 pub(crate) const SAFE_ASPECT: f64 = 5.0;
 
 /// One v-band of the shipped schedule ([`NurbsCellGrid::band_schedule`]).
