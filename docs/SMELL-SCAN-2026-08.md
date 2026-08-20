@@ -3363,7 +3363,9 @@ for *"not locally provable, not input-reachable"*, and **it did not need one**:
 representation and both of its sites are gone. Rows 1–5 stand unamended, and the
 generalisation became **row 0 of the D2 addendum** — *can this error state be
 made unrepresentable?*, asked before the classification and **preferred over
-every row below wherever it is available** (Evan, 2026-08-20, PR #777). The pin behind the
+every row below wherever it is available** (Evan, 2026-08-20, PR #777 — which reached `main` only via **#817**, having
+been merged into a lane branch). Row 0 *reframed* **S14**'s first question
+rather than answering it; S14 itself is still open. The pin behind the
 old sentence also **re-derived to 305 verdicts per run, not 343**; #768 retired
 it, because `Chain`'s type now carries what it asserted and an assertion that
 cannot fail is §C8.
