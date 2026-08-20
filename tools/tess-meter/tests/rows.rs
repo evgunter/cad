@@ -71,25 +71,21 @@ fn every_face_gets_a_row_and_only_nurbs_faces_get_sizing() {
     let walls: Vec<_> = rows.iter().filter_map(|r| r.nurbs).collect();
     assert!(!walls.is_empty(), "the loft's walls are NURBS faces");
     for n in &walls {
-        // The per-cell ideal must not cost more than the schedule it
-        // is the ideal FOR. This one can fail: `span_opt_cells` sums
-        // each cell's own cheapest split over its own clipped extent,
-        // while `grid_cells` is the BANDED schedule's sum over the
-        // whole trim box — two derivations that a banding change can
-        // invert.
-        //
-        // Its former sibling, `opt_cells <= patch_cells`, is GONE
-        // because it could not fail: `patch_cells` is exactly the
-        // product `best_split_steps` seeds its running minimum with,
-        // so the inequality held by construction of the loop rather
-        // than by anything about the answer.
-        assert!(
-            n.span_opt_cells <= n.grid_cells,
-            "the per-cell ideal cannot cost more than the schedule it \
-             is the ideal for: {n:?}"
-        );
         assert!(n.grid_cells > 0.0 && n.span_opt_cells > 0.0, "{n:?}");
-        // (No `grid_cells <= patch_cells` assertion on purpose: the
+        // (No ordering assertion between `span_opt_cells` and either
+        // cell count. Both candidates are vacuous HERE, for one
+        // mechanism: `best_split_cells` seeds its running minimum with
+        // the lane's own steps, so an inequality against the schedule
+        // those steps produced holds by construction of the loop, not
+        // by anything about the answer. `opt_cells <= patch_cells` is
+        // vacuous for every body; `span_opt_cells <= grid_cells`
+        // separates from its seed only when a face has more than one
+        // knot-span cell, so that the BAND takes a max the per-cell
+        // ideal does not — and every NURBS face of this fixture has
+        // `cells = 1`. A multi-band body would make it a real check;
+        // the bodies that produce one live in `crates/mesh`.)
+        //
+        // (No `grid_cells <= patch_cells` assertion either: the
         // per-cell schedule pays a `ceil` per cell, and a face with
         // many near-empty cells can honestly cost a few cells MORE
         // than the whole-patch grid — #547 measured exactly that on

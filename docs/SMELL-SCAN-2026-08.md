@@ -4420,14 +4420,14 @@ and its argument are in `docs/TESS-BUDGET.md`, "Why there is no
 realisation column" — a realisation ratio divides what the lane built
 by what the schedule asked for, so it is blind BY CONSTRUCTION to the
 schedule bug the meter's own docs name as the blind spot; both
-directions of a realisation failure are already caught by instruments
-that read the mesh (the per-triangle certificate, computed from the
-realised triangle, and the triangle-growth rule); a realised point
-count matches no stated value, so its tolerance could only be read off
-the baseline; and nothing consumed the ratio. #738 also found that this
-PR's own correction of the false sentence reached the four MODULE-doc
-sites and left seven ITEM-doc and report-legend sites still describing
-two derivations.
+directions of a realisation failure are already watched by instruments
+that read the mesh (the per-triangle certificate exactly, the
+scene-total triangle-growth rule only to within its 5% tolerance); a
+realised point count matches no stated value, so its tolerance could
+only be read off the baseline; and nothing consumed the ratio. #738 also found that
+#709's correction of the false sentence reached the four MODULE-doc
+sites and left the ITEM docs and the report legend still describing two
+derivations.
 
 ## S31. FIXED by #705 — `geom-curves` / `geom-surfaces` was a crate split that bought nothing and was paid for in duplication
 
@@ -6822,8 +6822,10 @@ The 2026-08-19 statement of this paragraph is superseded: every gate it
 named has since fallen. **A1 (#682), A3 (issue #678, landed as #684), #690
 and #692 are all merged**, and **#705** merged the two geometry crates into
 one `geom`. So C1's remaining members, C3's S29, C4 in full, C5's S28 half,
-C7 and C10 are edge-free and takeable today. (**C9 is FIXED by
-#738** — the `agreement` column is deleted rather than re-derived.)
+C7 and C10 are edge-free and takeable today. (**C9 — the `agreement`
+column — is FIXED by #738**, which deleted it rather than re-deriving
+it; the similarly-numbered **§C9** is an unrelated process
+observation. **C15** is new, filed by #738's review.)
 
 **Two gates remain, and they are different in kind.** **C3's S27** waits on
 **A2** (#649, open as #714) for file overlap in `props/` — as does the
@@ -6852,6 +6854,7 @@ rewritten rather than appended to.
 | **C7** | **W2a / S3 and W2b / S1+S2** — the lane-trait collapse, and `RingInterval` versus an always-on `Interval`. | **The S3 half no longer waits — D1 is ruled, and its report is S44's D1 DECIDED block.** The steelman's compiled collapse for S3 **predates #643's `Bounds`/`CertifiedEnclosure` split** and must be re-derived against the two-trait world; read *"What this does NOT settle"* first, in particular its per-lane correction — deleting a lane trait leaves **three of the four** seams still uninstantiable at a dual, and only `chart_region_overlap` would become instantiable. W2b's blast radius is 535 refs in 15 files with five carrying 60%. **Two rows joined this one on 2026-08-20**, both from the unscheduled audit: **S44's open residue** — whether the four lane traits survive and whether D9's four bit-identity assertions may be re-expressed, which is what S44 means by *"open for the part that matters"* now that its priced half (D1) is ruled — and **S55**, `Enclosure` as a live trait with no consumer, which Evan deferred *pending the `Bounds` narrow-vs-broad split* and which is therefore this row's, not a lane of its own. Whoever takes C7 absorbs both. |
 | **C8** | **#711 — S24's residues outside `editor-core`**: `step-import/src/recognize.rs:126`, whose `try_cylinder` promoting arm is documented unreachable and whose `Plane > Cylinder` preference order is *"unfalsifiable by execution"*; and `docs/ASM-R2A-SPEC.md:21`, a landed spec sentence (*"v1 admits `Rest`/`Tangent`"*) that is true of the door it binds and no longer of v1 as a whole. | Filed by #702's fix pass rather than left inside a finding marked FIXED. The first may want the tighter cylinder certificate rather than an encoding change; the second is a one-line ruling — clarifier, or "landed specs read as of their own date". Small, edge-free, and **not** a lane on its own: fold into whoever next opens `step-import`. |
 | **C10** | **`geom_core::k_stats` is S30's class one crate over** — 598 lines, ~96 of them separable instrument, in the kernel's own core crate. | Reported by #709 and deliberately untouched, for a reason that is the whole row: the recording sits **inside** `decide`/`decide_flagged`/`decide_invariant`, which are load-bearing kernel predicate doors, so the `mesh::budget` split does **not** transfer mechanically. Whoever takes this must first decide whether the instrument can leave a door that certifies, and record that decision — it is not a cut-and-paste of #709. Note also `profile::k_stats`, a self-declared compatibility shim whose retirement is **STILL OPEN** at S40. Edge-free but not small. |
+| **C15** | **#746 — `tess-lint`'s budget gate joins baseline to fresh rows on the face ORDINAL**, so a face reorder either compares two unrelated faces or drops one from the gate with no finding at all. `compare`'s key is `(scene, face)`; when a permutation lands a baseline NURBS ordinal on a fresh NON-NURBS face, `fresh_faces.get` misses, `recoverable()` is `None`, and the loop `continue`s — under a comment explaining the miss as *"the scene's absence is already a Vanished finding"*, which is not what happened. One key, both directions, one defect. | **Live today, measured, not hypothetical**: #738's sweep found `diefillet/diefillet` with **16 face ordinals permuted** against the committed baseline, deterministic across two machines. It does not fire only because that scene has no NURBS faces. Filed by #738's style review rather than left as a sentence in the body of a finding marked FIXED (**C-R7**). **Not a re-cut** — re-cutting hides the instance and leaves the key; the unit must choose between a reorder-proof join and an explicit refusal when a scene's ordinal→chart mapping moves, and record which. May reach `topo`/`mesh` for a stable per-face identity. |
 
 ---
 

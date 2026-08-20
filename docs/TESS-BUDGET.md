@@ -67,9 +67,14 @@ sizing the lane already performed. Both run in ~4 s over the whole tour
 in release.
 
 The committed baseline is `docs/tess-budget-data/tess-budget-baseline.csv`
-(1,049 face rows, cut at the head this document was written against,
-WITH the resampling pass — its `worst_dev` column is where the
-total-slack figures below come from). CI runs the sweep
+(1,049 face rows, WITH the resampling pass, **re-cut at TESS-SPAN**).
+It is NOT the cut this document's measurement was taken from and its
+numbers are not the ones quoted below: "The finding" reports 1,025
+faces and 390,100 grid cells against the shipped whole-patch schedule
+of the time, and the total-slack figures come from that same
+pre-TESS-SPAN cut. Read the committed file as the gate's reference
+point and the figures below as the pre-fix record they are labelled
+as. CI runs the sweep
 `--sizing-only` and gates on REGRESSION against it: a scene's mesh
 growing, a face's sizing getting wastefuller, or a scene silently
 dropping out of the sweep. The gate reads triangle counts and the
@@ -127,15 +132,22 @@ for four reasons that are about the check rather than about its cost:
    the reason the check is not the guard, and it already names the
    three things that are.
 
-2. **Both directions of a genuine realisation failure are already
-   caught, by instruments that read the mesh rather than a predicted
-   count.** Realise the grid COARSER than the schedule asked and the
-   triangles are larger than the cell bound admits, so the
-   per-triangle certificate — computed from the realised triangle —
-   refuses. Realise it DENSER (a dedup that stops deduping, a band
-   emitted twice) and the triangle count grows, which is the gate's
-   first rule. The realised total is already a column (`triangles`)
-   and is already compared against the committed baseline.
+2. **Both directions of a genuine realisation failure are watched by
+   instruments that read the mesh rather than a predicted count — one
+   of them exactly, the other approximately.** Realise the grid
+   COARSER than the schedule asked and the triangles are larger than
+   the cell bound admits, so the per-triangle certificate — computed
+   from the realised triangle's own uv extents, per triangle, with no
+   tolerance — refuses. That direction is caught exactly. Realise it
+   DENSER (a dedup that stops deduping, a band emitted twice) and the
+   triangle count grows, which is the gate's first rule — but that
+   rule is a SCENE TOTAL at `GROWTH_TOLERANCE`, so a densification
+   worth less than 5% of a whole scene's triangles passes it, and the
+   slack rule cannot help because its numerator `grid_cells` is the
+   schedule's own sum and never sees realisation. The dense direction
+   is therefore bounded rather than caught. A realisation ratio would
+   not close that gap either — see 3, which is why its tolerance
+   could not be set any tighter than this one.
 
 3. **The ratio would have no principled target, so its tolerance
    could only be read off the baseline.** `per_cell_candidates` states
@@ -151,6 +163,16 @@ for four reasons that are about the check rather than about its cost:
 4. **Nothing consumed it.** The gate reads triangle counts and
    `grid_cells / span_opt_cells`; the agreement ratio reached one
    printed figure and one report column and decided nothing.
+
+**The third option, named so the rejection is on the record: keep a
+realisation column with an honest name and NO assertion, as a reported
+number.** Since the old column was a literal duplicate of
+`grid_cells`, that option is not "keep it" but "build a new one" — and
+4 says nothing wanted the number while 2 says the realised total is
+already reported, as `triangles`, from the mesh rather than from a
+count of candidates. A second reported number that nothing reads and
+that duplicates an existing one in a different unit is what was just
+removed.
 
 `grid_cells` remains and is still the schedule's own sum; what it is
 is stated where it is declared. The report prints `held / split /

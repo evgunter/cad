@@ -76,14 +76,9 @@ now deliberate). Results: leaf_a 3.35x fewer triangles, tour NURBS
 cells 390,100 → 158,444 (held 2.46x of the measured 2.5x span share),
 NURBS share of the mesh 68% → 33%, worst cert 0.60·δ. Meter columns
 re-derived (`grid_cells`, `patch_cells` counterfactual); baseline
-re-cut. **The report prints held/split/total.** It printed an
-`agree` column too until C9: that ratio's two numbers were the same
-`band_schedule` sum, so it was 1.0 by arithmetic and checked nothing,
-and no realisation column replaced it — a realisation ratio is blind
-to a schedule bug by construction, and both directions of a
-realisation failure are already caught by the per-triangle certificate
-and the triangle-growth rule (`docs/TESS-BUDGET.md`, "Why there is no
-realisation column").
+re-cut. The report prints held/split/total. (It also added an `agree`
+column, retired by #738 — `docs/TESS-BUDGET.md`, "Why there is no
+realisation column".)
 The SPLIT half (aspect policy) stays open — docs/TESS-SPLIT-SPEC.md.
 
 ## The findings, so they are not re-derived

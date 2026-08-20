@@ -95,10 +95,12 @@
 //! divides what the lane built by what the schedule asked for, so it
 //! is blind to the schedule bug above by construction; a lane that
 //! realises the schedule too coarsely fails the per-triangle
-//! certificate and one that realises it too densely grows the triangle
-//! count, both of which are already watched; and a realised point
-//! count matches no stated value anyway, because a shared band cut
-//! carries the union of both bands' columns.
+//! certificate exactly, and one that realises it too densely grows
+//! the triangle count, which the gate bounds at a scene total rather
+//! than catches; and a realised point count matches no stated value
+//! anyway, because a shared band cut carries the union of both bands'
+//! columns, so a ratio built on it could not be given a tighter
+//! tolerance than the one already there.
 //!
 //! | factor | ratio | what it says |
 //! |---|---|---|

@@ -68,7 +68,9 @@ a shrink — the re-cut is what locks the gain.
    span share); report the exact number and the meter row.
 2. Tour NURBS cells land within ~10% of the baseline's
    `span_cells` column (the promotion captured the measured
-   slack, not a lookalike).
+   slack, not a lookalike). [The CSV has no `span_cells` column
+   since #738 — it was identically `grid_cells`, which is the
+   column to read this row against.]
 3. Certification: the cell-level falsifier extends to the SHIPPED
    lane — a planted per-cell violation goes red (execute the
    plant, restore).
