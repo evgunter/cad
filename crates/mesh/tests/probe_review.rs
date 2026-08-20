@@ -95,49 +95,71 @@ fn z1_fixtures() -> [(&'static str, Body<f64>); 4] {
 const Z1_DELTAS: [f64; 2] = [3e-2, 6e-3];
 
 /// Z1: per-triangle |S - Pi| vs cert on every NURBS triangle of all
-/// four fixtures at two deltas — the probe assertions live inside
-/// trimmed.rs; here we drive them and print headroom.
+/// four fixtures at two deltas, at the falsifier's own 12-samples-per-
+/// edge density.
 ///
-/// **GATED (issue #558)**: `mesh::probe_stats` is compiled only under
-/// `mesh`'s `probe-stats` feature, so this row rides that build — with
-/// the feature off there is no `arm`/`take` to call, which is the
-/// point of the gate rather than a limitation of it. M8-5 MIN-1's
-/// intent is intact: the hosted gate still runs this UNCONDITIONALLY,
-/// in ci.yml's "mesh certificate falsifier (feature = probe-stats)"
-/// row (mirrored by local-scripts/ci-local.sh). What moved is which
-/// build the row rides in, not whether the row runs.
-#[cfg(feature = "probe-stats")]
+/// The check is `worst_ratio <= 1` — the largest `|S-Pi| / (cert + eps)`
+/// any sample on any triangle of the face reached. That is the
+/// per-TRIANGLE claim, not a per-face average: a single sample above
+/// its own triangle's certificate pushes the face's maximum over 1.
+/// The planted 0.25 -> 0.05 cert bug the M8-5 review used dies HERE,
+/// empirically, not in a formula mirror.
+///
+/// **GATED**: `mesh::budget`'s instrument is compiled only under
+/// `mesh`'s `budget` feature, so this row rides that build — with the
+/// feature off there is no `arm`/`take` to call, which is the point of
+/// the gate rather than a limitation of it. M8-5 MIN-1's intent is
+/// intact: the hosted gate still runs this UNCONDITIONALLY, in
+/// ci.yml's "mesh budget meter (feature = budget)" row (mirrored by
+/// local-scripts/ci-local.sh). What moved is which build the row rides
+/// in, not whether the row runs.
+///
+/// The ASSERTION is here and not in the tessellation lane, which is
+/// what keeps `mesh::tessellate`'s typed-error contract out of reach
+/// of any feature: no build of the kernel can turn a certificate
+/// violation into a panic, because no build of the kernel asserts.
+#[cfg(feature = "budget")]
 #[test]
 fn z1_per_triangle_certificate_falsification() {
-    // MIN-1 adoption: the probe is the SUITE'S guard now — it arms
-    // itself (mesh::probe_stats::arm) instead of demanding an env
-    // var, so the hosted gate runs it unconditionally. The planted
-    // 0.25 -> 0.05 cert bug the review used dies HERE, empirically,
-    // not in a formula mirror.
-    mesh::probe_stats::arm(true);
+    use mesh::budget::{self, Mode};
     for (name, body) in z1_fixtures() {
         for delta in Z1_DELTAS {
-            let _ = mesh::probe_stats::take();
+            budget::arm(Mode::Deviation {
+                samples_per_edge: 12,
+            });
             let m = mesh::tessellate(&body, delta).expect("tessellates");
-            let (worst_d, its_cert, max_ratio, count) = mesh::probe_stats::take();
-            println!(
-                "{name} delta={delta:.0e}: tris={} samples={count} worst|S-Pi|={worst_d:.3e} \
-                 (its cert {its_cert:.3e}) max d/cert={max_ratio:.4}",
-                m.patches.iter().map(|p| p.triangles.len()).sum::<usize>(),
-            );
+            let measures = budget::take();
             assert!(
-                max_ratio <= 1.0,
-                "{name}: a triangle's samples exceeded its certificate"
+                !measures.is_empty(),
+                "{name}: no NURBS face was measured — the falsifier sampled nothing"
+            );
+            let samples: u64 = measures.iter().map(|f| f.dev_samples).sum();
+            let worst = measures
+                .iter()
+                .max_by(|a, b| a.worst_ratio.total_cmp(&b.worst_ratio))
+                .expect("at least one measured face");
+            println!(
+                "{name} delta={delta:.0e}: tris={} samples={samples} \
+                 worst|S-Pi|={:.3e} (its cert {:.3e}) max d/cert={:.4}",
+                m.patches.iter().map(|p| p.triangles.len()).sum::<usize>(),
+                worst.worst_dev,
+                worst.worst_dev_cert,
+                worst.worst_ratio,
+            );
+            assert!(samples > 0, "{name}: the deviation pass sampled nothing");
+            assert!(
+                worst.worst_ratio <= 1.0,
+                "{name}: a triangle's samples exceeded its certificate ({:?})",
+                worst.face
             );
         }
     }
-    mesh::probe_stats::arm(false);
 }
 
 /// The Z1 corpus in a DEFAULT build, where the falsifier is gated out
-/// (issue #558) — the row that keeps the default suite's coverage of
-/// these four fixtures, and its count, when the armed row moves to the
-/// `probe-stats` build.
+/// — the row that keeps the default suite's coverage of these four
+/// fixtures, and its count, when the armed row moves to the `budget`
+/// build.
 ///
 /// It asserts what a default build can honestly assert: the fixtures
 /// still tessellate at both Z1 deltas and the results are watertight.
@@ -150,7 +172,7 @@ fn z1_per_triangle_certificate_falsification() {
 /// not the lane. If `mesh::tessellate` starts refusing these fixtures
 /// in a default build, that is a tessellation regression and it fails
 /// here, in the default row, rather than only in the feature row.
-#[cfg(not(feature = "probe-stats"))]
+#[cfg(not(feature = "budget"))]
 #[test]
 fn z1_fixtures_still_tessellate_with_the_falsifier_gated_out() {
     for (name, body) in z1_fixtures() {

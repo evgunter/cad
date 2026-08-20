@@ -463,26 +463,24 @@ klint_gate() {
 tesslint_tool() {
   (cd tools/tess-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test)
 }
-# The meter's own suite (mirrors ci.yml's row of the same name).
+# The meter's CONSUMER half (mirrors ci.yml's row of the same name):
+# the CSV schema, the counterfactual schedules and the split optimizer
+# live here, outside the kernel, and so do their tests.
+tessmeter_tool() {
+  (cd tools/tess-meter && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test)
+}
+# The meter's kernel half (mirrors ci.yml's row of the same name).
 # `mesh::budget` is gated at its module boundary, so every row above
 # runs the INERT half — the live half needs its own row or it rots.
+#
+# This row also carries
+# `probe_review::z1_per_triangle_certificate_falsification`, which
+# needs the deviation pass and so rides the `budget` build. M8-5's
+# MIN-1 wanted the gate to run that falsifier unconditionally; this row
+# is how that is still true, so it is unconditional here too.
 budget_meter() {
   cargo clippy -p mesh --all-targets --features budget -- -D warnings && \
     cargo test -p mesh --features budget
-}
-# The per-triangle certificate falsifier's own suite (mirrors ci.yml's
-# row of the same name). `mesh::probe_stats` is gated at its module
-# boundary (issue #558), which moved
-# `probe_review::z1_per_triangle_certificate_falsification` out of the
-# default `cargo test -p mesh` row and into THIS one. M8-5's MIN-1
-# wanted the gate to run that falsifier unconditionally; this row is
-# how that is still true, so it is unconditional here too.
-# A separate row from the meter's, not a folded-in
-# `--features budget,probe-stats`: two configurations need two clippy
-# passes (the `unreachable!`-under-a-probe-feature class, M8-F67).
-cert_falsifier() {
-  cargo clippy -p mesh --all-targets --features probe-stats -- -D warnings && \
-    cargo test -p mesh --features probe-stats
 }
 # `--sizing-only` mirrors ci.yml: the gate reads triangle counts and
 # the sizing columns, never `worst_dev`, so the default sweep's
@@ -542,8 +540,8 @@ run_row_if "$RUN_K_LINT" "uv sheet drift (demos)"          uv_sheet_drift
 run_row_if "$RUN_K_LINT" "k-lint tool (fmt+clippy+litmus)" klint_tool
 run_row_if "$RUN_K_LINT" "k-lint sweep + gate"             klint_gate
 run_row_if "$RUN_K_LINT" "tess-lint tool (fmt+clippy+cli)" tesslint_tool
+run_row_if "$RUN_K_LINT" "tess-meter tool (fmt+clippy+tests)" tessmeter_tool
 run_row_if "$RUN_K_LINT" "mesh budget meter (feature)"     budget_meter
-run_row_if "$RUN_K_LINT" "mesh cert falsifier (feature)"   cert_falsifier
 run_row_if "$RUN_K_LINT" "tess-budget sweep + gate"        tesslint_gate
 # Root package stl: the acceptance example and its whole (dev-)dependency
 # chain profile -> sweep -> topo -> mesh live under it.

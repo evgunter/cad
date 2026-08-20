@@ -1,6 +1,11 @@
-//! **The tessellation budget meter, end to end** (issue #320): the
-//! meter is inert unless armed, records one row per face when it is,
+//! **The budget meter's kernel half, end to end** (issue #320): the
+//! meter is inert unless armed, measures every NURBS face when it is,
 //! and does not change the mesh it measures.
+//!
+//! What the numbers MEAN is `tools/tess-meter`'s, and so are its
+//! tests. What is checked here is what only this crate can check: that
+//! arming is opt-in, that the measurements are attributed to the right
+//! faces, and that taking them perturbs nothing.
 //!
 //! The body is the `loft_prism` corpus fixture (#212), constant for
 //! constant with the trimmed-NURBS suite's — degree 1×2 walls, which
@@ -13,9 +18,9 @@
 #![cfg(feature = "budget")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Tolerance, Vec3};
-use mesh::budget::{self, Chart, Mode};
-use mesh::validate::triangle_count;
+use geom_core::{Affine3, Vec3};
+use geom_surfaces::Surface;
+use mesh::budget::{self, Mode};
 use sweep::loft_body;
 use topo::Body;
 
@@ -39,74 +44,95 @@ fn loft_prism() -> Body<f64> {
         .body
 }
 
+/// The body's described-NURBS faces, in arena order.
+fn nurbs_faces(body: &Body<f64>) -> Vec<topo::FaceKey> {
+    body.faces()
+        .filter(|(_, f)| {
+            matches!(
+                body.get_surface(f.surface).expect("face surface"),
+                Surface::Nurbs(_)
+            )
+        })
+        .map(|(fk, _)| fk)
+        .collect()
+}
+
 /// Disarmed is the normal state, and it records nothing — the meter
 /// must not be a thing a caller can accidentally pay for.
 #[test]
 fn a_disarmed_meter_records_nothing() {
     let body = loft_prism();
     assert!(!budget::armed());
+    assert!(budget::deviation_samples().is_none());
     mesh::tessellate(&body, 6e-3).expect("tessellates");
     assert!(budget::take().is_empty());
 }
 
-/// Armed: one row per face, every chart, and the sizing columns filled
-/// exactly on the Hessian-sized lane.
+/// Armed: one measurement per NURBS face, attributed by key, with the
+/// certified bounds and the built grid on it. Non-NURBS faces are the
+/// consumer's to describe (`tools/tess-meter`) and the meter says
+/// nothing about them.
 #[test]
-fn every_face_gets_a_row_and_only_nurbs_faces_get_sizing() {
+fn every_nurbs_face_is_measured_once_and_by_key() {
     let body = loft_prism();
+    let walls = nurbs_faces(&body);
+    assert!(!walls.is_empty(), "the loft's walls are NURBS faces");
     budget::arm(Mode::Sizing);
-    let mesh = mesh::tessellate(&body, 6e-3).expect("tessellates");
-    let rows = budget::take();
+    mesh::tessellate(&body, 6e-3).expect("tessellates");
+    let measures = budget::take();
     assert_eq!(
-        rows.len(),
-        body.faces().count(),
-        "one row per face, planar caps included"
+        measures.iter().map(|m| m.face).collect::<Vec<_>>(),
+        walls,
+        "one measurement per NURBS face, in face-arena order, keyed to its own face"
     );
-    assert_eq!(
-        rows.iter().map(|r| r.triangles).sum::<usize>(),
-        triangle_count(&mesh),
-        "the rows account for every triangle in the mesh"
-    );
-    for r in &rows {
-        assert_eq!(
-            r.nurbs.is_some(),
-            r.chart == Chart::Nurbs,
-            "sizing columns belong to the Hessian-sized lane and to no other"
+    for m in &measures {
+        assert!(m.grid_cells > 0, "the built grid is counted: {m:?}");
+        assert!(
+            !m.cells.is_empty(),
+            "the analysis cells are reported: {m:?}"
+        );
+        assert!(
+            m.muu.is_finite() && m.muv.is_finite() && m.mvv.is_finite(),
+            "the whole-patch bound is certified and finite: {m:?}"
+        );
+        assert!(
+            m.worst_cert.is_finite() && m.worst_cert > 0.0,
+            "the face's worst certificate is recorded: {m:?}"
+        );
+        assert!(
+            m.worst_dev.is_nan() && m.worst_ratio.is_nan() && m.dev_samples == 0,
+            "Mode::Sizing does not resample: {m:?}"
+        );
+        assert!(
+            m.u.1 > m.u.0 && m.v.1 > m.v.0,
+            "the trim box is a box: {m:?}"
         );
     }
-    let walls: Vec<_> = rows.iter().filter_map(|r| r.nurbs).collect();
-    assert!(!walls.is_empty(), "the loft's walls are NURBS faces");
-    for n in &walls {
-        // Every comparison grid is counted over the same box, so the
-        // counterfactual can never be the cheapest by construction —
-        // but it must never come out CHEAPER than the optimum either,
-        // which would mean the comparison is not a comparison.
+}
+
+/// The deviation pass samples, and every sample is dominated by its
+/// own triangle's certificate — `worst_ratio` is that check for the
+/// whole face, one number, carried out of the kernel instead of
+/// asserted inside it.
+#[test]
+fn the_deviation_pass_samples_and_stays_under_its_certificates() {
+    let body = loft_prism();
+    budget::arm(Mode::Deviation {
+        samples_per_edge: 6,
+    });
+    assert_eq!(budget::deviation_samples(), Some(6));
+    mesh::tessellate(&body, 6e-3).expect("tessellates");
+    let measures = budget::take();
+    assert!(!measures.is_empty());
+    for m in &measures {
+        assert!(m.dev_samples > 0, "resampling ran: {m:?}");
         assert!(
-            n.opt_cells <= n.patch_cells && n.span_opt_cells <= n.span_cells,
-            "a cheaper schedule cannot cost more: {n:?}"
-        );
-        assert!(n.grid_cells > 0.0 && n.span_opt_cells > 0.0, "{n:?}");
-        // TESS-SPAN: `span_cells` sums the SAME band_schedule the lane
-        // consumes, so this asserts the lane REALISED the schedule
-        // (candidate generation, dedup, counting) — not an independent
-        // re-derivation (mesh::budget module docs name what guards the
-        // schedule itself).
-        assert!(
-            (n.grid_cells - n.span_cells).abs() <= 0.01 * n.span_cells + 1.0,
-            "the lane's realised cell count and the schedule's sum disagree: {n:?}"
-        );
-        // (No `grid_cells <= patch_cells` assertion on purpose: the
-        // per-cell schedule pays a `ceil` per cell, and a face with
-        // many near-empty cells can honestly cost a few cells MORE
-        // than the whole-patch grid — #547 measured exactly that on
-        // the swept blades, span 0.9x.)
-        assert!(
-            n.worst_cert.is_finite() && n.worst_cert > 0.0,
-            "the face's worst certificate is recorded: {n:?}"
+            m.worst_ratio <= 1.0,
+            "a triangle's samples exceeded its own certificate: {m:?}"
         );
         assert!(
-            n.worst_dev.is_nan() && n.dev_samples == 0,
-            "Mode::Sizing does not resample: {n:?}"
+            m.worst_dev <= m.worst_dev_cert + geom_core::Tolerance::get().eps,
+            "the worst sample is dominated by the certificate it was measured against: {m:?}"
         );
     }
 }
@@ -118,9 +144,12 @@ fn every_face_gets_a_row_and_only_nurbs_faces_get_sizing() {
 fn arming_the_meter_does_not_change_the_mesh() {
     let body = loft_prism();
     let plain = mesh::tessellate(&body, 6e-3).expect("tessellates");
-    budget::arm(Mode::SizingAndDeviation);
+    budget::arm(Mode::Deviation {
+        samples_per_edge: 6,
+    });
     let metered = mesh::tessellate(&body, 6e-3).expect("tessellates");
-    let rows = budget::take();
+    let measures = budget::take();
+    assert!(measures.iter().all(|m| m.dev_samples > 0), "resampling ran");
     assert_eq!(plain.positions.len(), metered.positions.len());
     for (a, b) in plain.positions.iter().zip(&metered.positions) {
         assert_eq!(
@@ -131,23 +160,5 @@ fn arming_the_meter_does_not_change_the_mesh() {
     }
     for (a, b) in plain.patches.iter().zip(&metered.patches) {
         assert_eq!(a.triangles, b.triangles);
-    }
-    // …and the deviation mode actually sampled something dominated by
-    // the certificate it is measured against — at δ + ε, the crate's
-    // documented promise, because f64 EVALUATION rounding sits outside
-    // the bound. On this fixture that is not a technicality: the flat
-    // walls certify at ~5e-17 and sample ~5e-16, both pure rounding
-    // dust, and a bare `dev <= cert` would read that as a violation.
-    let eps = Tolerance::get().eps;
-    let walls: Vec<_> = rows.iter().filter_map(|r| r.nurbs).collect();
-    assert!(walls.iter().all(|n| n.dev_samples > 0), "resampling ran");
-    for n in &walls {
-        assert!(
-            n.worst_dev <= n.worst_cert + eps,
-            "a sampled deviation above the face's worst certificate would be a \
-             certificate violation, not a budget finding: dev {:e} cert {:e} {n:?}",
-            n.worst_dev,
-            n.worst_cert
-        );
     }
 }

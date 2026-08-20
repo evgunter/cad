@@ -86,6 +86,7 @@ version = "0.1.0"
 dependencies = [
  "pncad",
  "profile",
+ "tess-meter",
 ]
 
 [[package]]
@@ -455,6 +456,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "tess-meter"
+version = "0.1.0"
+dependencies = [
+ "geom-surfaces",
+ "mesh",
+ "topo",
 ]
 
 [[package]]

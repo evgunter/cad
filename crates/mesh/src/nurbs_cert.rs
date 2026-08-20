@@ -494,6 +494,26 @@ impl NurbsCellGrid {
         self.bounds[ci * (self.v_cuts.len() - 1) + ri]
     }
 
+    /// Every cell of the table, in the u-major order
+    /// [`nurbs_cell_bounds`] emits — the assembly read back out, so a
+    /// consumer that needs the per-cell bounds does not run the
+    /// assembly a second time to get them.
+    ///
+    /// The budget meter is that consumer and it is opt-in, so in a
+    /// default build nothing calls this.
+    #[cfg_attr(not(feature = "budget"), allow(dead_code))]
+    pub fn cells(&self) -> impl Iterator<Item = CellBound> + '_ {
+        let rows = self.v_cuts.len() - 1;
+        let cols = self.u_cuts.len() - 1;
+        (0..cols).flat_map(move |ci| {
+            (0..rows).map(move |ri| CellBound {
+                u: (self.u_cuts[ci], self.u_cuts[ci + 1]),
+                v: (self.v_cuts[ri], self.v_cuts[ri + 1]),
+                bound: self.bound(ci, ri),
+            })
+        })
+    }
+
     /// The SIZING bound of the v-band `ri` (the ROW schedule's
     /// input): the componentwise max over the band's cells across all
     /// of `u`. A row line runs the full trim box, so its spacing
@@ -1499,7 +1519,7 @@ mod tests {
     /// weakening sailed past the aggregate δ+ε pin and died only
     /// here. The GUARD against under-certification is the empirical
     /// per-triangle falsifier (`probe_review::z1`, armed through
-    /// `probe_stats::arm`), which kills the same plant on measured
+    /// `budget::arm`), which kills the same plant on measured
     /// deviations. Kept as a cheap freeze; never cite it as evidence
     /// the bound is honest.
     #[test]

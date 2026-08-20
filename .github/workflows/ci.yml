@@ -1534,6 +1534,7 @@ jobs:
             demos/wild
             tools/k-lint
             tools/tess-lint
+            tools/tess-meter
       # Hosted mirror of ci-local's "demos tour (fmt + clippy)" row:
       # the tour is workspace-excluded, so the fmt/clippy jobs above
       # never see it — and this is the job that builds it anyway (the
@@ -1548,41 +1549,40 @@ jobs:
         run: cd tools/k-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
       - name: tess-lint tool fmt + clippy + tests (the three exit voices)
         run: cd tools/tess-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
-      # The meter's own suite. `mesh::budget` is gated at its module
+      # The meter's CONSUMER half: the CSV schema, the counterfactual
+      # schedules and the split optimizer, which is where they live now
+      # that the kernel records measurements and derives nothing. Its
+      # tests are the derivations' tests — the split optimizer's answer
+      # against the certificate it claims to satisfy, and the row
+      # shapes' agreement about their width.
+      - name: tess-meter tool fmt + clippy + tests
+        run: cd tools/tess-meter && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
+      # THE METER'S KERNEL HALF, and the per-triangle certificate
+      # falsifier with it. `mesh::budget` is gated at its module
       # boundary (mesh's `budget` feature), so the workspace test rows
       # above run the INERT half — which is the right default, and
       # exactly why the live half needs a row of its own or it rots.
-      # Clippy too: two configurations, two lints.
-      - name: mesh budget meter (feature = budget)
+      # Clippy too: two configurations, two lints (the
+      # `unreachable!`-under-a-feature class has bitten twice, M8-F67,
+      # precisely because a feature build had no clippy lane of its own
+      # and hosted clippy could not see it).
+      #
+      # This row also runs
+      # `probe_review::z1_per_triangle_certificate_falsification`, the
+      # falsifier M8-5's review adopted (MIN-1) precisely so that "the
+      # hosted gate runs it unconditionally". The falsification is now
+      # the meter's deviation pass reduced to one ratio per face and
+      # asserted in the suite, so it rides the `budget` build rather
+      # than a feature of its own. THE INTENT SURVIVES ONLY WHILE THIS
+      # ROW STAYS UNCONDITIONAL: k-lint runs "whenever anything builds
+      # at all" (job header above), so the falsifier still runs on
+      # every build-triggering change. Making this row conditional, or
+      # dropping it, stops the falsifier running — that reopens a
+      # ratified review outcome and must be said out loud.
+      - name: mesh budget meter + certificate falsifier (feature = budget)
         run: |
           cargo clippy -p mesh --all-targets --features budget -- -D warnings
           cargo test -p mesh --features budget
-      # THE PER-TRIANGLE CERTIFICATE FALSIFIER (issue #558). Same shape
-      # as the meter row above, and here for a stronger reason: this is
-      # the row that runs
-      # `probe_review::z1_per_triangle_certificate_falsification`, the
-      # falsifier M8-5's review adopted (MIN-1) precisely so that "the
-      # hosted gate runs it unconditionally".
-      #
-      # #558 gated `mesh::probe_stats` at its module boundary, which
-      # moved that test out of the default `cargo test -p mesh` row and
-      # into this one. THE INTENT SURVIVES ONLY WHILE THIS ROW STAYS
-      # UNCONDITIONAL: k-lint runs "whenever anything builds at all"
-      # (job header above), so the falsifier still runs on every
-      # build-triggering change. Making this row conditional, or
-      # dropping it, stops the falsifier running — that reopens a
-      # ratified review outcome and must be said out loud.
-      #
-      # A SEPARATE ROW from the meter's rather than a folded-in
-      # `--features budget,probe-stats`: two features, two
-      # configurations, two clippy passes. The
-      # `unreachable!`-under-a-probe-feature class has bitten twice
-      # (M8-F67) precisely because a feature build had no clippy lane of
-      # its own and hosted clippy could not see it.
-      - name: mesh certificate falsifier (feature = probe-stats)
-        run: |
-          cargo clippy -p mesh --all-targets --features probe-stats -- -D warnings
-          cargo test -p mesh --features probe-stats
       # THE UV SHEET DRIFT GATE WAS RETIRED HERE (2026-08-17). It
       # regenerated the sheet and failed on `git diff --exit-code`; that
       # obligation now belongs to render.yml's `uv` lane, which

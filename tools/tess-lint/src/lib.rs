@@ -105,7 +105,7 @@ pub struct Row {
     pub nurbs: Option<Nurbs>,
 }
 
-/// The NURBS lane's sizing columns (`mesh::budget::NurbsBudget`).
+/// The NURBS lane's sizing columns (`tess_meter::NurbsColumns`).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Nurbs {
     /// The grid the lane actually built (TESS-SPAN: per-cell-sized),
@@ -178,7 +178,7 @@ pub struct ParseError {
 }
 
 /// The column order [`parse`] requires, byte for byte
-/// `mesh::budget::CSV_HEADER`. Pinned HERE as well as there on
+/// `tess_meter::CSV_HEADER`. Pinned HERE as well as there on
 /// purpose: the two halves are separate cargo roots by design, so
 /// there is no shared constant to import, and a drifting sweep must
 /// fail as harness breakage rather than parse into wrong columns.

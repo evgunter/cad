@@ -219,41 +219,19 @@
 //! `spade` wants f64 coordinates; D8 replay at other scalars reaches
 //! display through the f64 lane.
 
-// The tessellation budget meter (issue #320). PUBLIC only under its
-// own feature: with the feature off the module is the inert half —
-// `armed() -> false` plus a handful of no-op recorders the
-// tessellation lane calls unconditionally — which is nothing a caller
-// outside this crate can use, so a default build does not export it.
-// `pub` in both configurations would leave a permanently visible
-// surface on the kernel crate whose only consumer is a diagnostic.
-#[cfg(feature = "budget")]
+// The tessellation budget meter's kernel half (issue #320). Public in
+// both configurations, because its measurement types are the CONTRACT
+// with the consumer half (`tools/tess-meter`), which reads them
+// without needing the instrument compiled in. What the feature gates
+// is the instrument itself: `arm` and `take` exist only in the live
+// half, so a build without the feature exports the measurement types,
+// a `const fn armed()` answering `false`, and no way to arm anything.
 pub mod budget;
-#[cfg(not(feature = "budget"))]
-pub(crate) mod budget;
 pub mod cert;
 pub mod chords;
 mod curved;
 mod nurbs_cert;
 mod planar;
-// The per-triangle certificate falsifier (issue #558). PUBLIC only
-// under its own feature — the `budget` shape above, for the same
-// reason. With the feature off the module is the inert half
-// (`armed()` a `const fn` returning `false`, plus the no-op recorder
-// the tessellation lane calls unconditionally), which is nothing a
-// caller outside this crate can use, so a default build does not
-// export it and `pncad::mesh::probe_stats` does not resolve.
-//
-// A SEPARATE feature from `budget`, not a shared one: the meter is a
-// sizing instrument with a committed baseline and a RELEASE consumer
-// (`scripts/tess_budget_sweep.sh` runs the tour at `--features
-// budget`), while this is a review falsifier whose only consumer is a
-// test. Folding them together would put the falsifier's 12-sample
-// resampling and its `assert!` back into the budget sweep's release
-// binary — the exact exposure #558 exists to close.
-#[cfg(feature = "probe-stats")]
-pub mod probe_stats;
-#[cfg(not(feature = "probe-stats"))]
-pub(crate) mod probe_stats;
 mod tessellate;
 mod trimmed;
 pub mod types;
