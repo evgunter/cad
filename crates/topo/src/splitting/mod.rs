@@ -18,7 +18,9 @@
 //!    ([`SplitReduceError::CurvedBooleanUnsupported`] — per-arm
 //!    retirement, C12.1). Edge carriers `Line`/`Circle`/`Ellipse`
 //!    pass; `Nurbs` refuses
-//!    ([`SplitReduceError::CurvedEdgeUnsupported`]).
+//!    ([`SplitReduceError::CurvedEdgeUnsupported`]) — a rung-3 carrier
+//!    in the input operand, refused on this gate's own footing: the
+//!    general rung is implemented, and gates retire per arm.
 //! 2. **Vertex sweep (F6)**: every vertex classified against the plane
 //!    through the Q1 trilean `split_vertex_side` — definitely-off ⇒
 //!    clean side, coincident ⇒ [`PlaneSide::On`], in-band ⇒ the typed

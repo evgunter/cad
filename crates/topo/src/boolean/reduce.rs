@@ -951,8 +951,9 @@ fn split_at<T: Decide>(
 /// event point `p` — the both-edges-split lane that turns an edge-edge
 /// crossing into a v-v pair. A `Line` carrier gives the parameter as
 /// the exact projection `t = (p − origin)·dir`; anything else refuses
-/// typed here rather than at the operand gate, which admits `Circle`
-/// and `Ellipse` — this lane has no exact point parameter for them.
+/// typed as [`BooleanError::PointSplitCarrierUnsupported`], its own
+/// variant because this precondition is NOT the operand gate's — the
+/// gate admits `Circle` and `Ellipse` and this lane cannot take them.
 fn split_other_at_point<T: Decide>(
     y: &mut Body<T>,
     y_is: Operand,
@@ -969,7 +970,7 @@ fn split_other_at_point<T: Decide>(
         }
     };
     let geom::Curve3::Line { origin, dir } = *curve.carrier() else {
-        return Err(BooleanError::CurvedEdgeUnsupported {
+        return Err(BooleanError::PointSplitCarrierUnsupported {
             operand: y_is,
             edge,
         });

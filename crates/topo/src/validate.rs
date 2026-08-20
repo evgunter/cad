@@ -1658,9 +1658,13 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///
 /// - **Global self-intersection / minimum clearance** — M3 partial
 ///   (via booleans); the interval-based whole-body check is scheduled
-///   rather than dropped, and its schedule lives in `DESIGN.md`'s band
-///   list. Not restated here: a milestone copied into this list is the
-///   rot the list keeps producing.
+///   rather than dropped. `DESIGN.md` carries it twice — in the
+///   tier-3 bullet of the validation-tier list, and in the milestone
+///   list under the entry containing *"interval-based
+///   self-intersection / minimum-clearance checks over the parameter
+///   box"*. Quoted rather than dated on purpose: a milestone copied
+///   into this list is the rot the list keeps producing, and a quote
+///   is what survives the milestone being renumbered.
 /// - **The material wedge side** (lamina/zero-volume detection, wedge
 ///   0 vs 2π vs the legal π): distinguishing them needs the faces'
 ///   material sense **at the edge** — which side of each surface the
