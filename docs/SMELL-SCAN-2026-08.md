@@ -10855,6 +10855,38 @@ than from the schedule** (F-R1, F-R2 in the track log):
   C's open #734 edits.** F4 waits on it as a whole rather than splitting, since
   its four members are one missing idiom and closing three of four is §C13.
 
+**BLOCKING, handed to Track F on 2026-08-20 by Track E, which found it and
+cannot fix it — `scripts/` is this track's.** **D86: `interval-only-selection.py`
+matches its feature cfg as a bare substring, so a doc comment quoting the
+attribute counts as a gate.** `FEATURE_CFG = 'feature = "interval"'` is tested by
+containment over the crate's whole source; `crates/step-import/tests/all.rs:6` is
+a **doc comment** reading *"attributes (`#![cfg(feature = "interval")]` and
+friends work as…"*, and it is the only match in a crate that contains no gated
+item at all. Reproduced by calling the script's own
+`crates_with_interval_gates(root, {"step-import"})`, which returns
+`{"step-import"}`.
+
+**Consequence: no PR whose change closure is `step-import` alone can go green.**
+All four `test (interval, …)` legs die at *derive the interval-only test
+selection* before anything compiles — twice, on two heads, with every
+code-running job green. It blocks Track E's **#784** now and **D81**'s taker
+next.
+
+**This is D22's defect verbatim, one script over.** D22 was *the probe census's
+first predicate matched the substring anywhere, so prose satisfied the floor —
+including doc comments the unit itself wrote*; #753 fixed it there by matching
+the cfg **attribute** with whole-line anchors. The same bug sat in a sibling
+script the whole time, and D34's own enumeration listed
+`interval-only-selection.py` among the ten `ci.yml` invokes with **no wiring
+check of any kind**. So this is not "the fix pass had the file open and swept
+one instance" (C19) — **the fix pass never had this file open, because the row
+named one script.** A predicate defect found in one gate is a class across the
+gate directory, and nothing asked.
+
+**The narrowing is shared with `check-interval-cfg-additive.py`**, whose
+tripwire this scan is deliberately matched to, so it is a plan and not a patch —
+which is why Track E did not take it.
+
 | # | Work | From | Scope | Proposed verdict | Review |
 |---|---|---|---|---|---|
 | **F1** | **The compound-`Bounds` gate is blind to `CertifiedBounds`, and `real.rs` tells authors to write the invisible spelling.** Its matcher fires on `Decide + Bounds` and not on `Decide + CertifiedBounds`; `real.rs:46-48` and `:789` both assert that it does. **This is S56 returning one alias later**, and per the ruling above it now **gates S87/S88**. | **S59** `[verified]` | `scripts/gates/bounds-allowlist.sh`, `geom-core/src/real.rs` (two prose sites), plus whatever the widened matcher then reds | **ACCEPTED** — executed, self-evidencing | style; **ADVERSARIAL** for any conversion the widened matcher forces |
