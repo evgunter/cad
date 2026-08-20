@@ -121,11 +121,11 @@ discharged before this track existed.
 
 | lane | row(s) | scope | gate | review | state |
 |---|---|---|---|---|---|
-| **E-a** | D22 + D34 | `scripts/gates/`, `.github/workflows/ci.yml` | none | style | **in flight** |
+| **E-a** | D22 + D34 | `scripts/gates/`, `.github/workflows/ci.yml` | none | style | **DONE — #753 merged** |
 | **E-b** | D23 | `docs/` + suite headers; code set is what the re-derivation finds | none | style | **in flight** |
 | **E-c** | D26 | `docs/SMELL-SCAN-2026-08.md` §D and §S19 | none | style | **DONE — #752 merged**; discharged into D36–D39, plus D47/D48 from its review, all unstaffed |
 | **E-d** | D33 | `docs/predicate-dimension-audit.md` | none | style | **#761, in review** |
-| **E-e** | D28 + issue #693 | `editor-core/src/eval/` | **#731 EDITS `eval/mod.rs` — the file, not just the crate.** Disjoint by *item* (~700 lines apart), not by file. Whichever merges second re-merges | style | **#767, in review** |
+| **E-e** | D28 + issue #693 | `editor-core/src/eval/` | — | style | **DONE — #767 merged** |
 | **E-f** | D25 | `topo/src/euler.rs` and every `link_half_edges` caller | none | **ADVERSARIAL** | **#755, in review** |
 | **E-g** | D27, then D29 | `sweep/src/fillet/{build,surgery,mod}.rs` | none | **ADVERSARIAL** (D27), style (D29) | **#768**, both reviewers running; **#777** stacked, awaiting Evan |
 | **E-h** | D21 | `topo/src/{split,attach,movefac,revert}.rs`, `splitting/finish.rs`, `boolean/combine.rs` | **E-f, for file overlap on `split.rs`** — see E-R4 | **ADVERSARIAL** | unstarted |
@@ -133,7 +133,7 @@ discharged before this track existed.
 | **E-j** | D31 | `sweep/src/skin.rs`, `geom/src/curves/fit.rs`, home in `geom-core/src/spline/algebra.rs` | **Track C (C-l, C-g)** | style, escalates if the sort order is load-bearing | unstarted |
 | **E-k** | D35 | `docs/DESIGN.md`'s D2 addendum, and whatever the answer names | **E-g**, **E-h** | style | unstarted |
 | **E-l** | #681 | everything outside `crates/*/src` | none | style | unstarted |
-| **E-m** | #711 | `step-import/src/recognize.rs`, `docs/ASM-R2A-SPEC.md` | none | style | unstarted |
+| **E-m** | #711 | `step-import/src/recognize.rs` | **BLOCKED by D86** — no `step-import`-only PR can go green | style | **#784, red on infrastructure**; both verdicts accepted |
 | **E-n** | D20 | `topo/src/seqgen.rs` | none | style; closes on an attribution off hosted CI | unstarted |
 
 **Not taken by Track E:** D30 and D32 (Track C's files — C-m, C-q); C11's #726
@@ -335,6 +335,13 @@ not read, cite, or edit `docs/MODEL-AB-LOG.md`, and do not describe your unit
 as an A/B row anywhere. If something seems to require it, stop and ask the
 orchestrator.
 
+**A repo-wide grep is a read of every file in the repo.** A lane here had
+`MODEL-AB-LOG.md` lines enter its context from an unexcluded `grep -rn`, and
+handled it correctly: stopped, cited nothing, excluded it from every subsequent
+search, and **reported it**. That is the whole obligation — the fence is against
+reading and editing, not a tripwire, and an honest report costs nothing.
+Exclude it in your search commands rather than relying on not looking.
+
 **3. Your branch and your lane.** Branch `smelle/<row>` (e.g. `smelle/d25`),
 off current `origin/main`. Use **your own** `CARGO_TARGET_DIR` — never one
 shared with another worktree, **and never one inside the session scratchpad.**
@@ -363,10 +370,34 @@ say in your report what did not resolve.
 class, name the pattern and its blind spot. A path glob is part of the pattern.
 A count is not a deliverable; a sweep with a stated blind spot is.
 
+**And never read a truncated result as a negative one.** A lane here swept for
+the strings its change would break, **found the breaking site as hit #2 of 37**,
+piped the grep through `head -10`, and read the truncated list as complete —
+shipping a change that reddened three CI shards on an assertion its own sweep had
+located. The pattern was fine. *Truncation is worse than a weak pattern, because
+it looks like a finished sweep*: a weak pattern's blind spot gets disclosed, and
+a truncated one's does not exist to disclose. If you cap output, say so and say
+the total.
+
 **7. Merge `origin/main` immediately before opening the PR, and re-merge
 whenever main moves while it is open.** A PR that goes CONFLICTING runs **no**
 check runs at all — it reads as CI absent, not CI failing. After any push,
 confirm checks actually **started** by reading the workflow *runs* list.
+
+**And report a run by how many of its jobs FINISHED, not by how many were
+green.** *"22 of 26 green"* is true and unfalsifiable at once: nothing in it
+distinguishes *four still pending* from *all done*. One lane reported exactly
+that and three shards failed eight minutes later; on another run the last job
+finished **fourteen minutes** after the first. **Three instrument traps, all
+observed here:** a jobs listing saying `unfinished: []` can mean *not yet
+spawned* rather than *done*; the listing endpoint returned **30 rows while
+reporting `total_count: 37` in the same response** — the two disagreed, and only
+`get_check_runs` returned all 37; and, the sharpest, **the `test (eps = …)`
+shards do not exist until `build + archive` finishes.** One run's job count went
+**26 → 32 → 37**, the shards spawning eleven minutes in. So an early snapshot is
+not merely incomplete — **it is a count of a list that does not yet contain the
+jobs which catch test failures**, which is precisely the class of failure a
+green count is being offered as evidence against.
 
 **8. Record your completion at the finding, in your own PR.** A bolded
 `FIXED by #NNN` lead at the finding in `docs/SMELL-SCAN-2026-08.md`, the
@@ -382,6 +413,59 @@ leave it in the PR body. *A verdict is not a placement* (§D ordering rule 4).
 actually exercised, what you could not check, and anything in this header or in
 your brief that turned out to be wrong. Reviewers correcting the dispatcher is a
 working lane, not a malfunction.
+
+### Evan's ruling on #777: representability becomes **row 0** (2026-08-20)
+
+E-g's D27 dissolved `FilletError::EmptyChain` structurally rather than
+classifying it, which retired the D2 addendum's *"one state this taxonomy does
+not contain"* paragraph. I split the factual retraction (kept in #768) from the
+generalisation it suggested (lifted into **#777**, a design-conversation PR left
+open for Evan, which argued the three strongest cases **against** itself).
+
+**Evan ruled bigger than the PR asked:**
+
+> the sentiment is great — so great that i think it should be promoted from an
+> addendum to **row 0** — *can this error state be made unrepresentable?* —
+> **better than all other resolutions if possible**
+
+So it is not a paragraph beside the classification. **It is the first question
+asked of any state, ahead of rows 1–5, and when the answer is yes that is the
+answer** — the preferred resolution rather than one of six.
+
+**Why "row 0" and not "row 6" is the whole ruling.** Rows 1–5 classify a state
+that exists; row 0 asks whether it should exist at all. It is answered *before*
+the classification begins, so it renumbers nothing and is not a sixth bucket. A
+lane that reaches row 1 has already answered row 0, and a lane filing a state
+under any row owes the reason row 0 did not apply.
+
+**Three consequences, and the third is the long one.**
+
+*The counter-argument the PR made against itself is now more load-bearing, not
+less.* **"Only if it cannot" is a judgement with no cost threshold** — readable
+as licensing type churn to dodge a classification. That mattered when the rule
+sat beside the alternatives; it matters more now it outranks them. The rule owes
+a statement of what *"if possible"* excludes, and the calibration already exists
+at both ends: `EmptyChain` dissolved for a private field and a constructor
+signature, while **#755 rejected a generative brand for `Live` because a `Body`
+lifetime would infect every public signature in the workspace.**
+
+*That rejection is row 0 being answered "no" in the field, before row 0
+existed.* It is the best available evidence that the rule describes what careful
+lanes already do rather than inventing an obligation.
+
+***S14's first question changes.*** It has been *"which row does the graft's
+partially-written destination fall under, and does the no-panic principle need
+amending"*. Under row 0 it becomes **"can `graft_disjoint_all_keyed` be
+restructured so a partially-written destination is unrepresentable?"** — staging
+into a fresh body and committing on success, which is the shape
+`merge_faces.rs:468` already uses and the shape D27 itself used. **That reframes
+S14 and does not answer it**; the cost of the restructuring is exactly the
+*"if possible"* judgement above, and S14 stays Evan's. It has reach: **#740 left
+46 lookup sites typed rather than converted because S14 is open**, so anything
+that moves S14 moves them.
+
+**#777 is now a ratified-decision PR rather than a proposal** and self-merges
+once written and green.
 
 ---
 
@@ -431,7 +515,7 @@ placed. Reissued:
 | D69–D70 | **D86–D87** | E-m |
 | D61–D62 | **D88–D89** | E-h — D88 is `merge_faces.rs:766`'s `unwrap_or_default` discard |
 
-Next unassigned in Track E's block: **D92**.
+Next unassigned in Track E's block: **D94**.
 re-issued — a number that has appeared in a lane's report, even as *unused*, is
 cheaper to skip than to explain.
 
@@ -459,11 +543,11 @@ serialized here and each lane re-merges `origin/main` when one lands.
 | lane | row(s) | branch | PR | state |
 |---|---|---|---|---|
 | **E-c** | D26 | `smelle/d26` | **#752** | **MERGED 2026-08-20** — Track E's first landing |
-| **E-a** | D22 + D34 | `smelle/d22-d34` | **#753** | fix pass complete, run 2140 in flight. **Track F is gated on this landing** |
+| **E-a** | D22 + D34 | `smelle/d22-d34` | **#753** | **MERGED 2026-08-20** — 37/37 jobs finished, 36 success, 1 skipped, 0 failures. **Track F is unblocked** |
 | **E-f** | D25 | `smelle/d25` | **#755** | **CLEARED by both lanes**; combined fix pass running (3 must-fix, 2 → rows D49/D50). Merges after #752 |
-| **E-b** | D23 | `smelle/d23` | **#763** | **NOT CLEARED** — a live wrong answer inside D45, plus 4 MAJOR; fix pass running |
+| **E-b** | D23 | `smelle/d23` | **#763** | fix pass complete — **D45 withdrawn**, a guard taken, final count 59/17/9. Awaiting its run |
 | **E-d** | D33 | `smelle/d33` | **#761** | **MERGED 2026-08-20.** Placed D46, D51, D57; handed D56 back |
-| **E-e** | D28 + #693 | `smelle/d28` | **#767** | cleared, **but the fix pass went red** — 3 shards on a `sweep` test the lane had fenced itself out of. Second fix pass running |
+| **E-e** | D28 + #693 | `smelle/d28` | **#767** | **MERGED 2026-08-20** — 37/37 finished, 0 failed. Census 12 arms not 8; placed D54, D81 |
 | **E-h** | D21 | `smelle/d21` | **#773** | reported — census **17**, not 14; all 17 discharged and **all 17 inverted live**. Placed D88. Owes a re-merge after #767 |
 
 **E-g dispatched 2026-08-20** (`smelle/d27-d29`), D27 then D29 — one lane
@@ -1049,6 +1133,132 @@ uncertainty is not evidence against it.
 3.6× prose growth, three present-tense citations of a deleted symbol. A refuted
 headline does not discredit a report, and treating it that way would have cost
 three real findings.
+
+### The unfalsifiable claim, falsified by execution (2026-08-20)
+
+E-m's row offered two options for `step-import`'s recognizer: the tighter
+cylinder certificate, or an encoding change. **It took neither, because the
+premise was false** — and it is the second lane today to answer a row by
+refuting it rather than choosing from its menu.
+
+`recognize.rs` claimed three things: the first-order envelope refuses *every*
+cylinder certificate; the `Plane > Cylinder` preference order is *"unfalsifiable
+by execution"*; and *"no authorable patch double-certifies"*. **All three are
+false on main**, shown with one fixture — an exact unit rational cylinder — that
+double-certifies at ε = 0.99 and promotes to `Cylinder` at ε = 0.9.
+
+**The claim that no execution could falsify the order was falsified by
+execution.** Two mutations: stubbing the promoting arm → **0 red before**, two
+new rows red after; **inverting the preference order → 0 red before**, one red
+after. The test cited as pinning the order stays green under the inverted order,
+so it never could pin what it was cited for.
+
+*Why it was believed, which is the transferable half:* the certificate is
+**scale-covariant** — its slack is a per-knot-span extent, not an ε — so what
+decides it is per-span extent **against** `eps_in`. Fixing one side of that ratio
+at the wild corpus's scale makes a local reading look universal. **A claim about
+a ratio, tested at one value of the denominator, is a claim about that value.**
+
+And the travel is the register's own shape: *"unfalsifiable by execution"* passed
+through **four documents** — #711 → C8 → Track E's roster → the lane brief —
+with every reader treating it as a property of the world rather than a claim to
+check.
+
+*Also settled:* the row's second item, `docs/ASM-R2A-SPEC.md:21`, **does not
+exist** — deleted in DOC-LEDGER Sweep 1. A clarifier is impossible and the
+general rule should not be minted, because `DOC-LEDGER` already rules that merged
+per-unit specs are deleted and were never normative — **stronger** than *"landed
+specs read as of their own date"*, since a merged spec is not read with a caveat,
+it is not kept. The class is empty by construction. Reported rather than enacted,
+which was the right call; **D87** carries what it leaves behind — the ledger's
+*"no file was deleted that a live pointer depends on for its content"* misses a
+live pointer depending on a deleted file **as a target**, which is what silently
+voided half of C8's option set.
+
+### The same number, wrong three times, and the third correction is the right one (2026-08-20)
+
+`sweep`'s `unreachable!` population has now been counted three times by three
+parties and every count was wrong in a different way:
+
+- **E-g's first report: "unchanged at 23 tokens."**
+- **The adversarial lane's correction: "22 → 23 code sites"** — because the
+  base's `build.rs` hit was **prose inside `corner_convexity`'s doc comment**.
+- **E-g's fix pass: 18 → 19.** Both prior figures counted `unreachable!`
+  *tokens*, which include the macro's own definition sites and mentions. Actual
+  **call sites**: `main` 18 (all `surgery.rs`); #768 19 (`surgery.rs` 17,
+  `admit.rs` 1, `battery.rs` 1). The **+1 direction** of the correction was right
+  every time; the magnitude was wrong twice.
+
+**E-k's row carries the derivation and both retractions**, because that row is a
+decision about bounding the row-4 population and is the one place the number will
+be read rather than restated. *A count corrected without its derivation is a
+fourth number waiting to happen* — which is D21's own lesson, applied to a
+different quantity by a different lane on the same day.
+
+### D91, and a stated blind spot that was a claim
+
+E-g ran D29's disclosed pattern rather than leaving it disclosed:
+`map_err(|_| …)` has **exactly two hits in `crates/sweep/src`**, both
+`loft.rs:518/520`, and **zero** in `revolve/`, `skin.rs`, `extrude.rs` or
+`fillet/`. And it is **not** the two-line fix the finding implied — both variants
+are *also* constructed payload-free at `:273`/`:302`, so carrying a payload is a
+**variant-meaning decision**, not a field addition.
+
+The row records the method lesson in the lane's own words: **a stated blind spot
+is a claim, and publishing one unrun is an unverified negative.** That is the
+third time today this track has found a disclosure standing in for a discharge.
+
+### D92 declined, and the reason is the register's own rule
+
+Offered a row for row 0's S14 reframing, E-g **declined it**: the reframing is a
+paragraph, not a row, because *its premise is unratified* — placing
+implementation work against an unanswered question would be a register entry that
+**cannot execute**, which is §C3's failure exactly. S14 is already an entry in
+*Open decisions — Evan only*, and the reframing is recorded there with its
+precedent (`merge_faces.rs:468`'s `let mut work = self.clone();` under its own
+*"Never a partial commit: each sub-stage is tier-2-gated before adoption"* —
+checked rather than carried). **If Evan answers "yes, restructure it", that is
+the moment a row is worth minting**, and #777 says so in those words.
+
+*Worth keeping:* a lane declining a number it was offered, on the grounds that
+the row could not be executed, is the opposite failure mode from the one this
+whole register exists to prevent — and it is the right call. **A placement whose
+premise is open is not a placement; it is a deferral wearing a row number.**
+
+### The counting bug that counted the line which derives the count (2026-08-20)
+
+E-b's fix pass found why its three headline instance counts were each **+1**: the
+grep was unanchored, so it matched **each guard's own
+`format!("#[path = …]")`** — *the line that derives the set, counted as a member
+of it.* Anchored: `topo` 53, `editor-core` 90, `sweep` 82.
+
+That is D23's own class turned on the instrument measuring it, and it is the
+second self-referential defect this row has produced — the first being the head
+sentences falsified by the section the same change added. **A survey of
+enumerations is written with the tools it is auditing**, and there is no version
+of this row that escapes that; what there is, is a re-derivation recipe committed
+to the tree so the next reader does not have to trust the number.
+
+**D45 is withdrawn as a row rather than repaired.** Two of its four legs were
+false — `PERF-SCAN`'s 367 and its 14-of-14 both re-derive **exactly** at the
+stated base — and what survives is annotated in place. Withdrawing a row whose
+evidence collapsed is the right disposition and the harder one; the lane carried
+both consequences rather than softening them, including that the verdict's third
+leg drops from *three of six* to *two of five*.
+
+**The verdict was re-argued per sub-class and the guard was taken.** *"No
+mechanism"* is withdrawn as a blanket. The twelve aggregator headers get a real
+guard — one spelling asserted verbatim, the retired phrasing forbidden by name,
+an empty walk refused, **falsified both ways before landing**, and deliberately a
+**test rather than a gate**, so there is no `ci.yml` wiring to drift and nothing
+to unwire. The `CITING_FILES` mechanism I pointed at became **D84**.
+
+*And a citation rotted inside the fix pass that wrote it:* **D85 cited
+`scripts/check-test-aggregation.sh`, which #753 moved to
+`scripts/gates/test-aggregation.sh` hours later.** Re-pointed, with the move
+recorded in the row. A register this active produces stale pointers faster than
+a lane can write them, which is the argument for citing by **symbol and reason**
+rather than by path wherever a row can.
 
 ---
 
