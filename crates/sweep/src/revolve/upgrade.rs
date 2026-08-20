@@ -7,13 +7,13 @@
 //! antipode); all re-descriptions go through `topo`'s certified
 //! `set_edge_curve` door with the carrier and interval kept verbatim.
 
+use geom::Curve3;
 use geom_brep::{
     DihedralClass, EdgeCurveSpec, EdgeGeometry, classify_dihedral, curvature_lever_arm,
     edge_extent, tangent_certificate_lane, tangent_jet,
 };
 use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Margin, Point3, Real};
-use geom_curves::Curve3;
 use topo::{Body, EdgeKey, EulerOpError, SurfaceKey};
 
 use super::RevolveError;
@@ -164,8 +164,8 @@ pub(super) fn upgrade_intersection<T: Decide>(
 /// conventional description: the intrinsic upgrade is an enrichment,
 /// never a new refusal.
 fn jet_determinate<T: Decide>(
-    s1: &geom_surfaces::Surface<T>,
-    s2: &geom_surfaces::Surface<T>,
+    s1: &geom::Surface<T>,
+    s2: &geom::Surface<T>,
     data: &EdgeData<T>,
     band: Band,
 ) -> bool {
@@ -206,7 +206,7 @@ pub(super) fn upgrade_meridian_seam<T: Decide>(
         body.get_surface(wall).ok_or(EulerOpError::StaleGeometry {
             key: topo::GeomRef::Surface(wall),
         })?,
-        geom_surfaces::Surface::Plane { .. }
+        geom::Surface::Plane { .. }
     );
     if is_plane {
         return Ok(());

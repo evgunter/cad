@@ -391,9 +391,9 @@ pub fn boolean_op_with<T: Decide + Bounds>(
                 if !matches!(
                     body.get_surface(fd.surface),
                     Some(
-                        geom_surfaces::Surface::Plane { .. }
-                            | geom_surfaces::Surface::Cylinder { .. }
-                            | geom_surfaces::Surface::Sphere { .. }
+                        geom::Surface::Plane { .. }
+                            | geom::Surface::Cylinder { .. }
+                            | geom::Surface::Sphere { .. }
                     )
                 ) {
                     return Err(BooleanError::CurvedOpUnsupported { op, operand, face });
@@ -887,7 +887,7 @@ pub(super) fn describe_minted_edges<T: Decide>(
             .cloned();
         let curved = existing
             .as_ref()
-            .is_some_and(|c| !matches!(c.carrier(), geom_curves::Curve3::Line { .. }));
+            .is_some_and(|c| !matches!(c.carrier(), geom::Curve3::Line { .. }));
         let (witness, extent) = if curved {
             let c = existing.as_ref().ok_or_else(corrupt)?;
             let (t0, t1) = c.params();
@@ -1308,10 +1308,7 @@ fn sphere_extent_scan<T: Decide + Bounds>(
     // is unwritable for the kind (variant docs).
     for (operand, body) in [(Operand::A, a), (Operand::B, b)] {
         for (face, fd) in body.faces() {
-            if matches!(
-                body.get_surface(fd.surface),
-                Some(geom_surfaces::Surface::Nurbs(_))
-            ) {
+            if matches!(body.get_surface(fd.surface), Some(geom::Surface::Nurbs(_))) {
                 return Err(BooleanError::NurbsExtentUnsupported { operand, face });
             }
         }
@@ -1321,7 +1318,7 @@ fn sphere_extent_scan<T: Decide + Bounds>(
     for (x_is, x, y) in [(Operand::A, a, b), (Operand::B, b, a)] {
         let mut seen: Vec<SurfaceKey> = Vec::new();
         for (face, fd) in x.faces() {
-            let Some(&geom_surfaces::Surface::Sphere {
+            let Some(&geom::Surface::Sphere {
                 center,
                 radius,
                 axis,
@@ -1358,7 +1355,7 @@ fn sphere_extent_scan<T: Decide + Bounds>(
             let mut escape_normals: Vec<Vec3<T>> = Vec::new();
             for (yf, yfd) in y.faces() {
                 match y.get_surface(yfd.surface) {
-                    Some(&geom_surfaces::Surface::Plane {
+                    Some(&geom::Surface::Plane {
                         origin,
                         normal,
                         u_ref,
@@ -1478,7 +1475,7 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                             }
                         }
                     }
-                    Some(geom_surfaces::Surface::Cylinder { .. }) => {
+                    Some(geom::Surface::Cylinder { .. }) => {
                         // No exact sphere-vs-cylinder-face certificate
                         // is wired: the cyl×sphere lane is PR 9c
                         // deviation 1, and since M6-2 its blocker is
@@ -1497,7 +1494,7 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                             });
                         }
                     }
-                    Some(&geom_surfaces::Surface::Sphere {
+                    Some(&geom::Surface::Sphere {
                         center: c2,
                         radius: r2,
                         ..
@@ -1542,16 +1539,14 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                             }
                         }
                     }
-                    Some(geom_surfaces::Surface::Nurbs(_)) => {
+                    Some(geom::Surface::Nurbs(_)) => {
                         // Unreachable: the re-gate above runs first.
                         return Err(BooleanError::NurbsExtentUnsupported {
                             operand: x_is.other(),
                             face: yf,
                         });
                     }
-                    Some(
-                        geom_surfaces::Surface::Cone { .. } | geom_surfaces::Surface::Torus { .. },
-                    ) => {
+                    Some(geom::Surface::Cone { .. } | geom::Surface::Torus { .. }) => {
                         return Err(BooleanError::CurvedBooleanUnsupported {
                             operand: x_is.other(),
                             face: yf,

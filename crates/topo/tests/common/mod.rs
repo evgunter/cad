@@ -11,9 +11,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(dead_code)] // each integration test uses the subset it needs
 
+use geom::Surface;
 use geom_brep::{EdgeCurveSpec, EdgeGeometry, newell_plane};
 use geom_core::{Band, Point3, Real};
-use geom_surfaces::Surface;
 use topo::{Body, FaceSurface, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
 
 /// Key bundle for the geometric unit cube.

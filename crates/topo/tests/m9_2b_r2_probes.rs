@@ -6,8 +6,8 @@
 
 mod common;
 
+use geom::Surface;
 use geom_core::{Band, Point3, Vec3};
-use geom_surfaces::Surface;
 use topo::{
     Body, ContactRecords, PatchContact, TangentLocus, TangentLocusError, ValidationError,
     tangent_locus, validate_pseudomanifold,

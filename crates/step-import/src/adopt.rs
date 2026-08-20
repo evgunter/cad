@@ -42,10 +42,10 @@
 //! witness, transversality/tangency margins, and seam-side residuals
 //! at the kernel's own ε.
 
+use geom::Curve3;
+use geom::Surface;
 use geom_brep::{EdgeCurveSpec, EdgeGeometry, MappedCurve};
 use geom_core::{Affine3, Point2, Point3};
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
 use topo::{Body, FaceKey, FaceSurface, LoopKey};
 
 use crate::assemble::Assembled;
@@ -787,7 +787,7 @@ fn mapped_self_description(
 /// `Err` carries the best (smallest) worst-sample deviation over both
 /// boundary candidates, for the typed refusal.
 fn arc_rim_on_wall_boundary(
-    wall: &geom_surfaces::NurbsSurface<f64>,
+    wall: &geom::NurbsSurface<f64>,
     carrier: &Curve3<f64>,
     t0: f64,
     t1: f64,
@@ -935,10 +935,7 @@ fn line_frame(origin: Point3<f64>, dir: geom_core::Vec3<f64>) -> Option<Affine3<
 /// weights all to the bit (the IsoCurve rung's match; its call site's
 /// soundness comment). Weight lengths follow control lengths on both
 /// sides by construction (`NurbsCurve3::new` validates them equal).
-fn bitwise_iso_match(
-    carrier: &geom_curves::NurbsCurve3<f64>,
-    iso: &geom_curves::NurbsCurve3<f64>,
-) -> bool {
+fn bitwise_iso_match(carrier: &geom::NurbsCurve3<f64>, iso: &geom::NurbsCurve3<f64>) -> bool {
     let bits3 = |p: &Point3<f64>| [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()];
     carrier.knots().degree() == iso.knots().degree()
         && carrier.knots().knots().len() == iso.knots().knots().len()
@@ -1036,8 +1033,8 @@ fn carrier_on_surface(
     clippy::unreachable
 )]
 mod tests {
+    use geom::NurbsSurface;
     use geom_core::spline::KnotVector;
-    use geom_surfaces::NurbsSurface;
 
     use super::*;
 

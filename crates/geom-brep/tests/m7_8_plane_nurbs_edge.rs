@@ -23,14 +23,14 @@
 //! here observes, is pinned next door in `r1_pxn_probes.rs`.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom::{Curve3, NurbsCurve3};
+use geom::{NurbsSurface, Surface};
 use geom_brep::keys::SurfaceKey;
 use geom_brep::{
     CertifyError, EdgeCurve, EdgeCurveSpec, EdgeGeometry, EdgeNurbsLane, PlaneNurbsRefusal,
 };
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point3, Tolerance, Vec3};
-use geom_curves::{Curve3, NurbsCurve3};
-use geom_surfaces::{NurbsSurface, Surface};
 use slotmap::SlotMap;
 
 /// The rational quarter cylinder `x² + y² = 1`, `0 ≤ z ≤ 1`: degree 2

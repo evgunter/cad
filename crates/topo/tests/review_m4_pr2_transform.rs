@@ -231,8 +231,8 @@ fn extreme_scale_fires_the_certify_door_or_stays_valid() {
 /// The worst distance of any Intersection-edge witness from either of
 /// its two (plane) surfaces — the direct residual measurement.
 fn max_witness_residual(b: &Body<f64>) -> f64 {
+    use geom::Surface;
     use geom_brep::EdgeGeometry;
-    use geom_surfaces::Surface;
     let mut worst = 0.0f64;
     for (_k, e) in b.edges() {
         let geom = match b.get_curve_geom(e.curve) {

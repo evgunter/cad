@@ -413,7 +413,7 @@ pub fn walk_order(body: &Body<f64>) -> (Vec<topo::FaceKey>, Vec<topo::EdgeKey>) 
 /// The certified carrier of an edge, for the suites that compare
 /// emitted geometry with the body's own (`topo`'s public accessors,
 /// spelled once).
-pub fn certified_carrier(body: &Body<f64>, edge: topo::EdgeKey) -> &geom_curves::Curve3<f64> {
+pub fn certified_carrier(body: &Body<f64>, edge: topo::EdgeKey) -> &geom::Curve3<f64> {
     let edge = body.get_edge(edge).expect("edge key resolves");
     match body.get_curve_geom(edge.curve).expect("curve key resolves") {
         topo::CurveGeom::Certified(curve) => curve.carrier(),
@@ -681,7 +681,7 @@ pub fn composed_die() -> Body<f64> {
             pipped
                 .get_curve_geom(e.curve)
                 .and_then(|g| g.certified())
-                .is_some_and(|c| matches!(c.carrier(), geom_curves::Curve3::Line { .. }))
+                .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Line { .. }))
         })
         .map(|(k, _)| k)
         .collect();
@@ -693,9 +693,9 @@ pub fn composed_die() -> Body<f64> {
             .and_then(|fd| b.get_surface(fd.surface))
             .is_some_and(|s| {
                 if want_plane {
-                    matches!(s, geom_surfaces::Surface::Plane { .. })
+                    matches!(s, geom::Surface::Plane { .. })
                 } else {
-                    matches!(s, geom_surfaces::Surface::Sphere { .. })
+                    matches!(s, geom::Surface::Sphere { .. })
                 }
             })
     };

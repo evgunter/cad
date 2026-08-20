@@ -34,12 +34,12 @@
 //!   `spine_regularity_refuses_before_the_torus_is_minted` pins by
 //!   showing the refusal arrives with no surface allocated.
 
+use geom::Curve3;
+use geom::Surface;
 use geom_brep::EdgeGeometry;
 use geom_core::{
     Band, Bounds, Decide, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Vec3,
 };
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
 use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
 
 use super::blend::{BlendArm, EdgeBlend, plane_plane_blend, plane_sphere_blend};

@@ -28,13 +28,13 @@
 //! orders 2 and 3. The ℝ³ system gets them from [`super::jet`]'s
 //! truncated Taylor evaluation of the implicit forms along the
 //! approximant; the ℝ⁴ system gets them from the charts' third-order
-//! jets ([`geom_surfaces::SurfaceJet3`]) through the written-out chain
+//! jets ([`geom::SurfaceJet3`]) through the written-out chain
 //! rule. Neither ever forms a derivative tensor.
 //!
 //! `f64`-only and untrusted throughout — C6's selection lane.
 
+use geom::{NurbsSurface, Surface, SurfaceJet3};
 use geom_core::{Point3, Vec3};
-use geom_surfaces::{NurbsSurface, Surface, SurfaceJet3};
 
 use super::jet::implicit_path_jet;
 
@@ -225,7 +225,7 @@ impl Chart<'_> {
     pub(crate) fn jet3(&self, u: f64, v: f64) -> SurfaceJet3<f64> {
         match self {
             Self::Plane { origin, du, dv, .. } => SurfaceJet3 {
-                jet: geom_surfaces::SurfaceJet {
+                jet: geom::SurfaceJet {
                     point: *origin + *du * u + *dv * v,
                     du: *du,
                     dv: *dv,

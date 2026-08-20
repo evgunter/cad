@@ -48,10 +48,10 @@ pub(super) fn gate_operand<T: Decide>(body: &Body<T>) -> Result<(), SplitReduceE
     for (edge_key, edge) in body.edges() {
         match body.get_curve_geom(edge.curve) {
             Some(CurveGeom::Certified(curve)) => match curve.carrier() {
-                geom_curves::Curve3::Line { .. }
-                | geom_curves::Curve3::Circle { .. }
-                | geom_curves::Curve3::Ellipse { .. } => {}
-                geom_curves::Curve3::Nurbs(_) => {
+                geom::Curve3::Line { .. }
+                | geom::Curve3::Circle { .. }
+                | geom::Curve3::Ellipse { .. } => {}
+                geom::Curve3::Nurbs(_) => {
                     return Err(SplitReduceError::CurvedEdgeUnsupported { edge: edge_key });
                 }
             },
@@ -131,7 +131,7 @@ pub(super) fn classify_vertices<T: Decide>(
 /// certification re-verify every insertion — this lane proposes,
 /// never silently commits.
 fn conic_crossing_roots<T: Decide>(
-    carrier: &geom_curves::Curve3<T>,
+    carrier: &geom::Curve3<T>,
     t0: T,
     t1: T,
     plane: &SplitPlane<T>,
@@ -145,7 +145,7 @@ fn conic_crossing_roots<T: Decide>(
 /// same named trileans, against ANY plane rather than the split
 /// lane's one). Semantics and return shape documented above.
 pub(crate) fn conic_plane_crossing_roots<T: Decide>(
-    carrier: &geom_curves::Curve3<T>,
+    carrier: &geom::Curve3<T>,
     t0: T,
     t1: T,
     plane_origin: geom_core::Point3<T>,
@@ -153,20 +153,20 @@ pub(crate) fn conic_plane_crossing_roots<T: Decide>(
     band: Band,
 ) -> Result<Option<Result<Vec<T>, geom_core::Indeterminate>>, ()> {
     let (center, axis, u_ref, s_u, s_v) = match *carrier {
-        geom_curves::Curve3::Circle {
+        geom::Curve3::Circle {
             center,
             axis,
             radius,
             u_ref,
         } => (center, axis, u_ref, radius, radius),
-        geom_curves::Curve3::Ellipse {
+        geom::Curve3::Ellipse {
             center,
             axis,
             major,
             minor,
             u_ref,
         } => (center, axis, u_ref, major, minor),
-        geom_curves::Curve3::Line { .. } | geom_curves::Curve3::Nurbs(_) => return Err(()),
+        geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => return Err(()),
     };
     let v_ref = axis.cross(u_ref);
     let d0 = (center - plane_origin).dot(plane_normal);
@@ -419,8 +419,8 @@ mod tests {
     //! exactly-degenerate / in-band arms against a pure band (the
     //! geom-core test discipline: never `Band::linear` in a lib test).
 
+    use geom::Curve3;
     use geom_core::{Band, Point3, Vec3};
-    use geom_curves::Curve3;
 
     use super::conic_crossing_roots;
     use crate::splitting::SplitPlane;

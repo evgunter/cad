@@ -12,9 +12,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom::Surface;
 use geom_brep::EdgeCurveSpec;
 use geom_core::{Point3, Tolerance, Vec3};
-use geom_surfaces::Surface;
 
 use crate::euler::FaceSurface;
 use crate::fixtures::test_curve;

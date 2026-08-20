@@ -13,9 +13,9 @@
 //! definite-nonzero consistency residual or an out-of-inventory shape
 //! is a typed [`PropsError`].
 
+use geom::Curve3;
+use geom::Surface;
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
 
 use super::{FaceContribution, LoopEdge, PropsError, loop_vector_area};
 use crate::dihedral::decide;

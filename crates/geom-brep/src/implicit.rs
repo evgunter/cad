@@ -39,7 +39,7 @@
 //! | torus | `((ρ − R)² + h² − r²)/2r` | `((ρ − R)·(w/ρ) + axis·h)/r` |
 //!
 //! The cone's `|h|` makes the residual vanish on **both** nappes (the
-//! complete locus, per `geom-surfaces`' conventions); its residual is
+//! complete locus, per `geom`'s surface conventions); its residual is
 //! the exact perpendicular distance to the generator line in the
 //! meridian half-plane through the point. The `Nurbs` placeholder
 //! yields poison throughout (representable ≠ implemented — the poison
@@ -56,8 +56,8 @@
 //! apex: near the apex every feature is tiny and angular classification
 //! honestly escalates).
 
+use geom::Surface;
 use geom_core::{Point3, Real, Vec3};
-use geom_surfaces::Surface;
 
 /// The scalar's poison value (NaN at `f64`, NaI at the interval scalar).
 fn poison<T: Real>() -> T {

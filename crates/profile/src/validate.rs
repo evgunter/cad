@@ -644,7 +644,7 @@ pub enum LoopRole {
 }
 
 /// A validated segment's classified carrier, exposed read-only for
-/// sweeps (PR 4 lowers `Arc` to a `geom-curves` circle carrier and
+/// sweeps (PR 4 lowers `Arc` to a `geom` circle carrier and
 /// `Line` to a line carrier at sweep time).
 #[derive(Debug, Clone, Copy)]
 pub enum SegmentKind<T: Real> {
