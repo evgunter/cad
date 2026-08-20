@@ -123,7 +123,7 @@ discharged before this track existed.
 |---|---|---|---|---|---|
 | **E-a** | D22 + D34 | `scripts/gates/`, `.github/workflows/ci.yml` | none | style | unstarted |
 | **E-b** | D23 | `docs/` + suite headers; code set is what the re-derivation finds | none | style | unstarted |
-| **E-c** | D26 | `docs/SMELL-SCAN-2026-08.md` §D and §S19 | none | style | unstarted |
+| **E-c** | D26 | `docs/SMELL-SCAN-2026-08.md` §D and §S19 | none | style | **PR #NNN open** — D26 discharged into D36–D39 (unstaffed) |
 | **E-d** | D33 | `docs/predicate-dimension-audit.md` | none | style | unstarted |
 | **E-e** | D28 + issue #693 | `editor-core/src/eval/` | **confirm against C-f (#731)** — same crate, disjoint files | style | unstarted |
 | **E-f** | D25 | `topo/src/euler.rs` and every `link_half_edges` caller | none | **ADVERSARIAL** | unstarted |
