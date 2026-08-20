@@ -19,9 +19,9 @@ use tess_lint::EXPECTED_HEADER as HEADER;
 fn scene(tris: usize, span_opt: f64) -> String {
     format!(
         "{HEADER}\n\
-         s/b,0,plane,2e-3,4,,,,,,,,,,,,,,,,,,\n\
+         s/b,0,plane,2e-3,4,,,,,,,,,,,,,,,,,\n\
          s/b,1,nurbs,2e-3,{tris},0e0,1e0,0e0,1e0,1e1,2e1,1e0,1e0,1e0,4,\
-         1e2,2e2,5e1,1e2,{span_opt:e},1e-4,5e-5,99\n"
+         1e2,2e2,5e1,{span_opt:e},1e-4,5e-5,99\n"
     )
 }
 

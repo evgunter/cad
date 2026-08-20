@@ -73,19 +73,18 @@ fn every_face_gets_a_row_and_only_nurbs_faces_get_sizing() {
     for n in &walls {
         // The per-cell ideal must not cost more than the schedule it
         // is the ideal FOR. This one can fail: `span_opt_cells` sums
-        // each cell's own cheapest split, while `span_cells` is the
-        // banded schedule's realised count — two derivations, so a
-        // banding change can invert them.
+        // each cell's own cheapest split over its own clipped extent,
+        // while `grid_cells` is the BANDED schedule's sum over the
+        // whole trim box — two derivations that a banding change can
+        // invert.
         //
         // Its former sibling, `opt_cells <= patch_cells`, is GONE
         // because it could not fail: `patch_cells` is exactly the
         // product `best_split_steps` seeds its running minimum with,
         // so the inequality held by construction of the loop rather
-        // than by anything about the answer. (Removing a vacuous
-        // assertion is the finding this PR is about; adding one in the
-        // same breath would have been funny.)
+        // than by anything about the answer.
         assert!(
-            n.span_opt_cells <= n.span_cells,
+            n.span_opt_cells <= n.grid_cells,
             "the per-cell ideal cannot cost more than the schedule it \
              is the ideal for: {n:?}"
         );
