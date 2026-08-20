@@ -75,6 +75,6 @@ fn r6_pocketed_dice_kiss_e2e() {
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("pocketed_dice_kiss.stl");
     let mut file = std::fs::File::create(&path).unwrap();
-    stl::write_binary(&mesh, &stl::StlOptions::default(), &mut file).unwrap();
+    stl::write_binary(&mesh, &stl::BinaryOptions::default(), &mut file).unwrap();
     eprintln!("R6 STL written: {}", path.display());
 }

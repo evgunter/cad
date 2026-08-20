@@ -256,9 +256,9 @@ fn run_cell(cell: &Cell, outdir: &str) -> String {
 
     // The binary header is the one caller-visible identity binary STL
     // carries; this corpus names each body in it.
-    let stl_options = pncad::stl::StlOptions {
-        header: name.to_owned(),
-        ..Default::default()
+    let stl_options = pncad::stl::BinaryOptions {
+        header: pncad::stl::BinaryHeader::new(name)
+            .unwrap_or_else(|e| panic!("{name}: STL header refused: {e}")),
     };
     let mut stl_buf = Vec::new();
     pncad::stl::write_binary(&mesh, &stl_options, &mut stl_buf)

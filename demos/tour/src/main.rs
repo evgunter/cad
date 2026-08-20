@@ -277,9 +277,9 @@ fn run_body(
     // 80-byte header is the one caller-visible identity it carries, so
     // it gets this body's name, exactly as the STEP export below sets
     // `product_name`.
-    let stl_options = pncad::stl::StlOptions {
-        header: label.clone(),
-        ..Default::default()
+    let stl_options = pncad::stl::BinaryOptions {
+        header: pncad::stl::BinaryHeader::new(label.clone())
+            .unwrap_or_else(|e| panic!("{label}: STL header refused: {e}")),
     };
     let stl_name = format!("{label}.stl");
     let stl_path = format!("{outdir}/{stl_name}");

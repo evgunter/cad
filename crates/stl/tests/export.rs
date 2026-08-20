@@ -6,7 +6,7 @@
 mod common;
 
 use mesh::tessellate;
-use stl::{StlOptions, write_ascii, write_binary};
+use stl::{AsciiOptions, BinaryOptions, SolidName, write_ascii, write_binary};
 
 fn fnv(bytes: &[u8]) -> u64 {
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;
@@ -37,13 +37,13 @@ fn meshes() -> Vec<(&'static str, mesh::Mesh)> {
 
 fn binary_of(mesh: &mesh::Mesh) -> Vec<u8> {
     let mut out = Vec::new();
-    write_binary(mesh, &StlOptions::default(), &mut out).unwrap();
+    write_binary(mesh, &BinaryOptions::default(), &mut out).unwrap();
     out
 }
 
 fn ascii_of(mesh: &mesh::Mesh) -> Vec<u8> {
     let mut out = Vec::new();
-    write_ascii(mesh, &StlOptions::default(), &mut out).unwrap();
+    write_ascii(mesh, &AsciiOptions::default(), &mut out).unwrap();
     out
 }
 
@@ -262,7 +262,7 @@ fn the_acceptance_exports_agree_are_honest_and_are_byte_identical() {
     // invisible to them. Pin the exact DEFAULT text, its
     // input-independence, and that `endsolid` closes on the same name.
     // The expected strings are literals on purpose: sourcing them from
-    // `StlOptions::default()` would pin the writer's agreement with
+    // `AsciiOptions::default()` would pin the writer's agreement with
     // itself, not the bytes the library ships.
     let ascii_a = String::from_utf8(ascii_of(by_name("l_prism"))).expect("NAME: ascii is utf-8");
     let ascii_b = String::from_utf8(ascii_of(by_name("ball"))).expect("NAME: ascii is utf-8");
@@ -291,9 +291,8 @@ fn the_acceptance_exports_agree_are_honest_and_are_byte_identical() {
         let mut out = Vec::new();
         write_ascii(
             by_name("l_prism"),
-            &StlOptions {
-                solid_name: "widget-7".to_owned(),
-                ..Default::default()
+            &AsciiOptions {
+                solid_name: SolidName::new("widget-7").unwrap(),
             },
             &mut out,
         )
@@ -327,18 +326,26 @@ fn the_acceptance_exports_agree_are_honest_and_are_byte_identical() {
     // covered `'\n'` could not see the range widened — dropping the
     // upper bound would make DEL and every non-ASCII character
     // writable with nothing going red.
+    //
+    // The verdict is `SolidName::new`'s, not the writer's: the name is
+    // validated where it is built, so a name that exists is one the
+    // writer can emit. The row below still proves the ADMISSIBLE names
+    // reach a file — each `Ok` case is written through `write_ascii`
+    // as well — so the two halves cannot drift apart.
     let name_verdict = |name: &str| -> Result<(), char> {
-        match write_ascii(
-            by_name("l_prism"),
-            &StlOptions {
-                solid_name: name.to_owned(),
-                ..Default::default()
-            },
-            &mut Vec::new(),
-        ) {
-            Ok(()) => Ok(()),
-            Err(stl::StlError::UnrepresentableSolidName { character }) => Err(character),
-            Err(other) => panic!("NAME/OPTIONS: unexpected refusal for {name:?}: {other:?}"),
+        match SolidName::new(name) {
+            Ok(validated) => {
+                write_ascii(
+                    by_name("l_prism"),
+                    &AsciiOptions {
+                        solid_name: validated,
+                    },
+                    &mut Vec::new(),
+                )
+                .expect("NAME/OPTIONS: an admissible name must reach a file");
+                Ok(())
+            }
+            Err(stl::SolidNameError::Unrepresentable { character }) => Err(character),
         }
     };
     for (name, want) in [
@@ -402,7 +409,7 @@ fn the_acceptance_exports_agree_are_honest_and_are_byte_identical() {
 fn coarse_cone_apex_fan_is_refused_typed() {
     let mesh = tessellate(&common::cone(), 0.05).unwrap();
     let mut out = Vec::new();
-    match write_binary(&mesh, &StlOptions::default(), &mut out) {
+    match write_binary(&mesh, &BinaryOptions::default(), &mut out) {
         Err(stl::StlError::DegenerateTriangle { .. }) => {}
         other => panic!("expected DegenerateTriangle at coarse delta, got {other:?}"),
     }
@@ -425,7 +432,7 @@ fn degenerate_mesh_is_refused_typed() {
         boundaries: vec![],
     };
     let mut out = Vec::new();
-    match write_binary(&mesh, &StlOptions::default(), &mut out) {
+    match write_binary(&mesh, &BinaryOptions::default(), &mut out) {
         Err(stl::StlError::DegenerateTriangle { triangle }) => {
             assert_eq!(triangle, [0, 1, 2]);
         }

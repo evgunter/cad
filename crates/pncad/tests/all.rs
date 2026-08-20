@@ -344,7 +344,7 @@ fn the_authoring_ladder_runs_on_one_dependency() {
     assert!(!mesh.positions.is_empty());
 
     let mut stl_out: Vec<u8> = Vec::new();
-    write_binary(&mesh, &StlOptions::default(), &mut stl_out).expect("stl");
+    write_binary(&mesh, &BinaryOptions::default(), &mut stl_out).expect("stl");
     assert!(!stl_out.is_empty());
 
     let step = step_string(&built.body, &StepOptions::default()).expect("step");

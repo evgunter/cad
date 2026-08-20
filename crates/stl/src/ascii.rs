@@ -2,15 +2,15 @@
 
 use std::io::Write;
 
-use crate::{StlError, StlOptions, facets};
+use crate::{AsciiOptions, StlError, facets};
 
 /// The solid name written into an ASCII export the caller supplies no
 /// name for: constant in this build, with no run-dependent content, so
 /// identical meshes give byte-identical files. A caller-supplied
-/// [`StlOptions::solid_name`] is written verbatim and the writer still
-/// reads no clock, no environment and no global state, so byte-identity
-/// follows from the pair `(mesh, options)` for every name, not only
-/// this one.
+/// [`SolidName`](crate::SolidName) is written verbatim and the writer
+/// still reads no clock, no environment and no global state, so
+/// byte-identity follows from the pair `(mesh, options)` for every
+/// name, not only this one.
 ///
 /// It is a **generic part name**, not a producer or project identity:
 /// `solid <name>` names the solid the file describes, so the producer
@@ -19,7 +19,7 @@ use crate::{StlError, StlOptions, facets};
 pub(crate) const DEFAULT_SOLID_NAME: &str = "part";
 
 /// Writes `mesh` as ASCII STL: the standard `solid <name>` grammar with
-/// [`StlOptions::solid_name`], closed by the matching `endsolid`. Every
+/// [`AsciiOptions::solid_name`], closed by the matching `endsolid`. Every
 /// float is the **f32** value (the same narrowing the binary writer
 /// performs) formatted with Rust's default shortest-round-trip
 /// `Display` — deterministic, and bit-exact under re-parse
@@ -29,16 +29,15 @@ pub(crate) const DEFAULT_SOLID_NAME: &str = "part";
 ///
 /// # Errors
 ///
-/// [`StlError`] — a solid name outside the single-line grammar's
-/// printable ASCII (refused before any byte is written), a degenerate
-/// triangle (no honest normal), a corrupt index, or an I/O failure.
+/// [`StlError`] — a degenerate triangle (no honest normal), a corrupt
+/// index, or an I/O failure. **Nothing about the name**: a
+/// [`SolidName`](crate::SolidName) that exists is already writable.
 pub fn write_ascii(
     mesh: &mesh::Mesh,
-    options: &StlOptions,
+    options: &AsciiOptions,
     out: &mut impl Write,
 ) -> Result<(), StlError> {
-    options.check_solid_name()?;
-    let name = &options.solid_name;
+    let name = options.solid_name.as_str();
     let facets = facets(mesh)?;
     writeln!(out, "solid {name}")?;
     for facet in &facets {

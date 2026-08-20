@@ -737,18 +737,19 @@ let step = step_string(&result.body, &StepOptions {
 })?;
 assert!(step.starts_with("ISO-10303-21;"));
 
-// The binary writer reads `header` (the format's free text) and not
-// `solid_name`; the ASCII writer is the other way round. Setting both
-// is what a caller exporting both formats would do.
-let stl_options = StlOptions {
-    solid_name: "bracket".to_string(),
-    header: "bracket, exported by the tour".to_string(),
-    ..Default::default()
-};
+// STL's two formats carry different things, so they take different
+// options. The binary format's 80 bytes are free text — conventionally
+// the producer; the ASCII format's `solid <name>` names the part. Each
+// is a validated newtype, so a name that cannot be written is refused
+// here rather than when you export.
 let mut stl = Vec::new();
-write_binary(&mesh, &stl_options, &mut stl)?;
+write_binary(&mesh, &BinaryOptions {
+    header: BinaryHeader::new("bracket, exported by the tour")?,
+}, &mut stl)?;
 let mut stl_text = Vec::new();
-write_ascii(&mesh, &stl_options, &mut stl_text)?;
+write_ascii(&mesh, &AsciiOptions {
+    solid_name: SolidName::new("bracket")?,
+}, &mut stl_text)?;
 assert!(String::from_utf8(stl_text)?.starts_with("solid bracket\n"));
 let declared = u32::from_le_bytes(stl[80..84].try_into().unwrap()) as usize;
 assert_eq!(declared, pncad::mesh::validate::triangle_count(&mesh));

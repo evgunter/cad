@@ -106,13 +106,13 @@ fn parse_ascii_strict(text: &str) -> Vec<Facet> {
 
 fn binary_of(mesh: &mesh::Mesh) -> Vec<u8> {
     let mut out = Vec::new();
-    stl::write_binary(mesh, &stl::StlOptions::default(), &mut out).unwrap();
+    stl::write_binary(mesh, &stl::BinaryOptions::default(), &mut out).unwrap();
     out
 }
 
 fn ascii_of(mesh: &mesh::Mesh) -> String {
     let mut out = Vec::new();
-    stl::write_ascii(mesh, &stl::StlOptions::default(), &mut out).unwrap();
+    stl::write_ascii(mesh, &stl::AsciiOptions::default(), &mut out).unwrap();
     String::from_utf8(out).unwrap()
 }
 
@@ -185,7 +185,7 @@ fn the_acceptance_exports_parse_back_honestly_and_never_drift() {
         let (header, facets) = parse_binary_strict(&bytes);
         // ---- HEADER: the shipped DEFAULT header's exact bytes,
         // zero-padded, never "solid". The literal is deliberate — read
-        // out of `StlOptions::default()` it would pin the writer's
+        // out of `BinaryOptions::default()` it would pin the writer's
         // agreement with itself rather than the bytes that ship.
         let expected = b"binary STL; CAD kernel tessellation export";
         assert_eq!(
@@ -359,12 +359,12 @@ fn f32_display_round_trip_spot_checks() {
 fn coarse_cone_apex_fan_refuses_typed() {
     let mesh = mesh::tessellate(&common::cone(), 0.05).unwrap();
     let mut out = Vec::new();
-    match stl::write_binary(&mesh, &stl::StlOptions::default(), &mut out) {
+    match stl::write_binary(&mesh, &stl::BinaryOptions::default(), &mut out) {
         Err(stl::StlError::DegenerateTriangle { .. }) => {}
         other => panic!("expected DegenerateTriangle, got {other:?}"),
     }
     let mut out = Vec::new();
-    match stl::write_ascii(&mesh, &stl::StlOptions::default(), &mut out) {
+    match stl::write_ascii(&mesh, &stl::AsciiOptions::default(), &mut out) {
         Err(stl::StlError::DegenerateTriangle { .. }) => {}
         other => panic!("expected DegenerateTriangle (ascii), got {other:?}"),
     }
@@ -376,7 +376,7 @@ fn corrupt_index_refuses_typed() {
     let n = mesh.positions.len() as u32;
     mesh.patches[0].triangles[0][1] = n + 7;
     let mut out = Vec::new();
-    match stl::write_binary(&mesh, &stl::StlOptions::default(), &mut out) {
+    match stl::write_binary(&mesh, &stl::BinaryOptions::default(), &mut out) {
         Err(stl::StlError::IndexOutOfRange { index }) => assert_eq!(index, n + 7),
         other => panic!("expected IndexOutOfRange, got {other:?}"),
     }
@@ -395,9 +395,8 @@ fn a_caller_supplied_header_lands_padded_and_its_limits_refuse_typed() {
     let mut out = Vec::new();
     stl::write_binary(
         &mesh,
-        &stl::StlOptions {
-            header: "widget-7 rev C".to_owned(),
-            ..Default::default()
+        &stl::BinaryOptions {
+            header: stl::BinaryHeader::new("widget-7 rev C").unwrap(),
         },
         &mut out,
     )
@@ -419,30 +418,20 @@ fn a_caller_supplied_header_lands_padded_and_its_limits_refuse_typed() {
         "HEADER/OPTIONS: only the header moves"
     );
 
+    // The limits are refused at CONSTRUCTION now, so these rows call
+    // `BinaryHeader::new` rather than the writer: a header that exists
+    // is one the writer can emit, and "refused before any byte is
+    // written" stopped being a property to test and became one that
+    // cannot be violated.
+    //
     // 80 bytes exactly is the largest header that fits; 81 refuses.
-    let fits = "x".repeat(80);
     assert!(
-        stl::write_binary(
-            &mesh,
-            &stl::StlOptions {
-                header: fits,
-                ..Default::default()
-            },
-            &mut Vec::new(),
-        )
-        .is_ok(),
+        stl::BinaryHeader::new("x".repeat(80)).is_ok(),
         "HEADER/OPTIONS: 80 bytes is the boundary and must fit"
     );
-    match stl::write_binary(
-        &mesh,
-        &stl::StlOptions {
-            header: "x".repeat(81),
-            ..Default::default()
-        },
-        &mut Vec::new(),
-    ) {
-        Err(stl::StlError::HeaderTooLong { len }) => assert_eq!(len, 81),
-        other => panic!("expected HeaderTooLong, got {other:?}"),
+    match stl::BinaryHeader::new("x".repeat(81)) {
+        Err(stl::BinaryHeaderError::TooLong { len }) => assert_eq!(len, 81),
+        other => panic!("expected TooLong, got {other:?}"),
     }
 
     // The sniff constraint the writer used to satisfy by construction
@@ -452,16 +441,9 @@ fn a_caller_supplied_header_lands_padded_and_its_limits_refuse_typed() {
     // check would let through, so narrowing the predicate reddens
     // here rather than only deleting it doing so.
     let header_sniffs = |header: &str| -> bool {
-        match stl::write_binary(
-            &mesh,
-            &stl::StlOptions {
-                header: header.to_owned(),
-                ..Default::default()
-            },
-            &mut Vec::new(),
-        ) {
-            Ok(()) => false,
-            Err(stl::StlError::HeaderSniffsAscii) => true,
+        match stl::BinaryHeader::new(header) {
+            Ok(_) => false,
+            Err(stl::BinaryHeaderError::SniffsAscii) => true,
             Err(other) => panic!("HEADER/OPTIONS: unexpected refusal for {header:?}: {other:?}"),
         }
     };
@@ -596,13 +578,13 @@ fn consumer_e2e_vase_and_bracket() {
         let asc_path = outdir.join(format!("{name}.ascii.stl"));
         stl::write_binary(
             &mesh,
-            &stl::StlOptions::default(),
+            &stl::BinaryOptions::default(),
             &mut std::fs::File::create(&bin_path).unwrap(),
         )
         .unwrap();
         stl::write_ascii(
             &mesh,
-            &stl::StlOptions::default(),
+            &stl::AsciiOptions::default(),
             &mut std::fs::File::create(&asc_path).unwrap(),
         )
         .unwrap();
