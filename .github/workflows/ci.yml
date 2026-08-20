@@ -569,20 +569,27 @@ jobs:
       # `memories/`, `local-scripts/`, `.claude/`), none of which can
       # move a wasm build.
       #
-      # MEASURED, hosted, run 32428411631 (ubuntu-latest, 2 vCPU), against
-      # this job on main at run 32426924092: `doc` went 45 s -> 95 s, i.e.
-      # +50 s = target install 2 s + 18 s + 7 s + 23 s. The overhead a
-      # separate job would have duplicated is steps 1-5 of that baseline,
-      # 26 s (set up 1, checkout 3, toolchain 10, cache restore 12), so a
-      # job of its own costs ~77 s against this ~50 s. It is NOT on the
-      # critical path: the same run's longest job is `build + archive
-      # (interval)` at 698 s against a 715 s run wall, so the 50 s is
-      # billed runner minutes and zero extra wall-clock for the run.
+      # MEASURED, hosted (ubuntu-latest, 2 vCPU), against this job on main
+      # at run 32426924092 where it took 45 s. Two runs of this step:
+      # 32428411631 +50 s (2 + 18 + 7 + 23) and 32429052815 +47 s
+      # (2 + 16 + 7 + 22), so `doc` is ~45 s -> ~92 s.
       #
-      # Note rust-cache logged `Cache up-to-date.` and saved nothing —
-      # an exact key hit declines to re-save — so the wasm artifacts do
-      # NOT persist between runs and 50 s is the STEADY STATE, not a cold
-      # first run. Do not expect it to decay.
+      # WHY A STEP AND NOT A JOB, in numbers: the overhead a job of its
+      # own would duplicate is steps 1-5 of the baseline, 26 s (set up 1,
+      # checkout 3, toolchain 10, cache restore 12) plus its own runner
+      # allocation — ~77 s billed against ~50 s here, and one more
+      # concurrent runner slot.
+      #
+      # AND IT IS NOT ON THE CRITICAL PATH. The same run's longest job is
+      # `build + archive (interval)` at 648 s against a 730 s run span, so
+      # this 50 s is billed runner minutes and ZERO extra wall-clock for
+      # the run as a whole.
+      #
+      # rust-cache logs `Cache up-to-date.` here and saves nothing — an
+      # exact key hit declines to re-save — so the wasm artifacts do NOT
+      # persist between runs and ~50 s is the STEADY STATE, not a cold
+      # first run. Do not expect it to decay; the two readings above are
+      # a repeat, not a cold/warm pair.
       #
       # `check`, NOT `build`: the guarded sentence is "compiles clean".
       # This step does not link, does not run a linker at all, and
