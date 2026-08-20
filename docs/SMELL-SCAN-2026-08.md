@@ -10814,6 +10814,25 @@ beside the model A/B experiment without touching `docs/MODEL-AB-LOG.md`. The
 lane roster, the rulings and the landings are in that file; this table stays the
 schedule and a row leaves it when it lands.
 
+**`D81`–`D100` and `S137`–`S156` are reserved to Track E**, claimed 2026-08-20
+after Track F's block paragraph pointed out that Tracks C and E owed themselves
+one. **They were owed it sooner than that.** Between Track F claiming D61–D70
+and this paragraph, Track E's orchestrator issued **D61–D70 to five of its own
+lanes** — a straight double-allocation of ten numbers, caught not by either
+register but by lane E-h, which read `SMELL-F-LOG.md` before writing a row and
+withdrew the D61 it had already placed. Nothing of F's or G's was overwritten
+because neither had placed into its block yet; **the only reason this cost
+nothing is that both new tracks were hours old.**
+
+*The mechanism, stated because the fix is not "be careful":* the register's rule
+was **take the next unassigned number from the orchestrator**, which is exactly
+right inside one track and silently wrong across four, because "unassigned" was
+a fact about a branch none of the other three could see. An orchestrator reading
+`main` correctly computed the next free number and four of them computed the
+same one. **A sequence with one allocator per branch is not a sequence.** Blocks
+are the fix; the numbers Track E issued out of F's block are reissued from
+D81–D100 below, and the lanes holding them were told individually.
+
 **`D71`–`D80` and `S127`–`S136` are reserved to Track G**, for the reason Track
 F's block records one section up: the *"take the next unassigned number from the
 orchestrator"* rule was written for lanes inside one track and does not survive

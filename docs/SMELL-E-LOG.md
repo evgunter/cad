@@ -404,27 +404,34 @@ constituted.**
 
 | block | lane | state |
 |---|---|---|
-| D36–D39 | E-c (D26) | **all four used** — D36 `UnsupportedCarrier`, D37 `tags.rs`'s residue, D38 `SkippedMerge`, D39 `ProgramRefusal::Geometry` |
-| D40–D41 | E-a (D22 + D34) | reserved 2026-08-20 |
-| D42–D43 | E-f (D25) | **returned unused** — the unit's two findings were corrections recorded at their own entries, and neither leaves work behind |
-| D44–D45 | E-b (D23) | reserved 2026-08-20 |
-| D47–D48 | E-c's fix pass (#752) | assigned 2026-08-20 — the `pncad-py` `Debug`-dump class and its unguarded rule; `select_refusal_tag`'s vacuous alarm |
-| D49–D50 | E-f's fix pass (#755) | assigned 2026-08-20 — the token-free half of the liveness block, alive in five more arenas; the `Live` unforgeability gate (**sequences after E-a**, which holds `scripts/gates/` and `ci.yml`) |
-| D46 | E-d (D33) | **used** — the 23 funnel predicate names the audit reaches under no reading |
-| D51 | E-d (D33) | assigned 2026-08-20 — `DESIGN.md:31` describes the audit's open findings as including two the audit itself has RETIRED |
-| D52–D53 | E-g (D27 + D29) | reserved 2026-08-20 |
-| D56 | E-d | **handed back unused** — the "helper that fixes a name" class was re-derived at ~30 instances and every one is benign for the roster, so the class costs a site count its canonicity and costs the roster nothing |
-| D57 | E-d | **used** — the nine diagnostic-only K names (seven by one spelling, nine by two) |
-| D58–D60 | **Track F**, via E-a | S61's docs-tier conditionality, the mode-0644 registration hole, S62's four remaining hand-named checks |
-| D61–D62 | E-h (D21) | reserved 2026-08-20 |
-| D63–D64 | E-a's fix pass (#753) | reserved 2026-08-20 |
-| D65–D66 | E-b's fix pass (#763) | reserved 2026-08-20 |
-| D67–D68 | E-e's fix pass (#767) | reserved 2026-08-20 — D67 for the `Debug`-at-a-composing-layer class, D47's shape outside `pncad-py` |
-| D54 | E-e (D28) | **used** — five arms that still render prose, each with a stated reason |
-| D55 | E-e | **returned unused** |
-| D46 | E-d (D33) | reserved 2026-08-20 |
+| D36–D39 | E-c (D26) | all four used |
+| D40–D41 | E-a (D22 + D34) | used |
+| D42–D43 | E-f (D25) | returned unused |
+| D44–D45 | E-b (D23) | used |
+| D46, D51, D57 | E-d (D33) | used; **D56 handed back** with a measurement as the reason |
+| D47–D48 | E-c's fix pass | used |
+| D49–D50 | E-f's fix pass | used; **D50 is Track F's** by file |
+| D52–D53 | E-g (D27 + D29) | returned unused — the work landed instead |
+| D54 | E-e (D28) | used; **D55** returned |
+| D58–D60 | **Track F**, via E-a | used |
+| **D81–D100** | **Track E's own block**, claimed 2026-08-20 | see the reissue below |
 
-Next unassigned: **D69**; D42 and D43 are back in the pool and deliberately not
+**Reissued out of Track F's block, 2026-08-20.** Track E issued D61–D70 to five
+lanes while `D61`–`D70` were **already reserved to Track F** and `D71`–`D80` to
+Track G. Nothing was overwritten — neither new track had placed into its block
+yet — and the double-allocation was caught by **lane E-h**, which read
+`SMELL-F-LOG.md` before writing a row and withdrew the D61 it had already
+placed. Reissued:
+
+| was | now | lane |
+|---|---|---|
+| D67 (**placed in #767**) | **D81** | E-e — the `Debug`-at-a-composing-layer class |
+| D63–D64 | **D82–D83** | E-a's fix pass |
+| D65–D66 | **D84–D85** | E-b's fix pass |
+| D69–D70 | **D86–D87** | E-m |
+| D61–D62 | **D88–D89** | E-h — D88 is `merge_faces.rs:766`'s `unwrap_or_default` discard |
+
+Next unassigned in Track E's block: **D90**.
 re-issued — a number that has appeared in a lane's report, even as *unused*, is
 cheaper to skip than to explain.
 
