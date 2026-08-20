@@ -980,3 +980,55 @@ adversarial lane mid-review** rather than held for the fix pass. #705 is the
 precedent — there the two lanes found things neither would have found alone;
 here one lane's measurement reframes the other's central question before it
 finishes.
+
+## Incident — container RECLAIM, 2026-08-20: a different failure from the two restarts
+
+**Nothing pushed was lost. Nothing unpushed survived.** Five lanes were live —
+three fix passes and two reviewers. All five PRs are intact **with their
+fix-pass work on them**, because every lane had committed and pushed at its
+seams. The commit-and-push rule is the entire reason this cost a re-dispatch
+rather than a day.
+
+**But this is not the failure the death-recovery rule describes, and the
+difference matters.** `memories/agent-lane-operations.md` says a dead
+subagent's **transcript and worktree survive**, so `SendMessage` resumes it —
+and that was true twice this session, where four agents were resumed from
+transcript and none needed re-briefing. Those were container **restarts inside
+a live session**.
+
+This was a **reclaim after ~5.5 hours idle**, and it took three things
+together:
+
+- the lane clones under `~/.local/share/cad-work/`;
+- the **subagent transcripts** under the session's `tasks/` tree — checked, not
+  assumed: `ListAgents` returns *"No reachable agents"* and the `.output` files
+  are gone;
+- the session scratchpad.
+
+**So resume-from-transcript was not available.** The recovery is re-dispatch
+from the pushed heads, with the outstanding work re-derived from the commits
+and from the orchestrator's own record. That is exactly why the review records
+in this file are written per unit as they land rather than at the end: the
+three completed reviews (#731, #732, #737) survived in full, and the one that
+had not yet reported — **#734's style review — was lost entirely and is being
+re-run from scratch.**
+
+*The rule that needs the amendment:* **"resume is cheaper than restart" holds
+only while the transcript exists, and a reclaim is not a restart.** Prefer
+resume when an agent dies inside a live session; assume re-dispatch when the
+session itself has been idle long enough to be reaped. The cheap insurance is
+unchanged and is what worked: **push at every seam, and write reviewer findings
+to a file as they are settled rather than holding a verdict in context.** Both
+of those are already rules here; both paid.
+
+**What the reclaim also took, and what that cost:** the standing lane header,
+which lived at `~/.local/share/cad-work/trackc-lane-header.md` and which every
+lane was dispatched against **by path**. It is now committed above, in this
+file. That is the **second instance of one lesson in one session** — #745
+landed eight rulings that were committed and pushed to the orchestrator branch,
+cited by number in briefs, and unreachable because they had not **merged**.
+This one was never committed at all.
+
+> **A register that has not landed is not a register**, and a brief that lives
+> only in a container's home directory is not a brief. The test is not "is it
+> saved" — it is *"can the person who needs it read it from the tree."*
