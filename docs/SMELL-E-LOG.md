@@ -412,6 +412,15 @@ wrong about what there was to count; the board went 26 → 36 the moment the
 builds landed. **The one report that needs no denominator is the run's own
 `conclusion`** — take that, and no tally is load-bearing.
 
+**And the re-merge is not only conflict avoidance — it re-derives the fence
+set.** E-l was fenced out of `mesh/tests/revolves.rs` because Track C's #803
+held it. #803 merged mid-lane, the fence lifted, and the lane found that out by
+re-merging `main` and re-deriving its own scope rather than by trusting the
+scope sentence it had been given. **A fence is a fact about a moment**, and a
+long-running lane's fence list rots exactly like the enumerations D23 is about.
+Re-derive it when you re-merge; a lane that skips a leg on a fence that has
+since lifted has under-swept and will report a clean negative for it.
+
 **8. Record your completion at the finding, in your own PR.** A bolded
 `FIXED by #NNN` lead at the finding in `docs/SMELL-SCAN-2026-08.md`, the
 **original problem statement removed** (version control keeps it), and your row
@@ -479,6 +488,26 @@ that moves S14 moves them.
 
 **#777 is now a ratified-decision PR rather than a proposal** and self-merges
 once written and green.
+
+### E-R7 — a green PR does not absorb new work at merge time (2026-08-20)
+
+**E-l found twelve copies of one build-cost measurement across the
+`crates/*/tests/all.rs` headers and filed it as #808 rather than fixing it,
+because all thirteen files were in #763's head** — and #763 was already deleting
+a restated *suite count* from the same paragraphs, on reasoning that transfers
+verbatim. The lane put the merge-order question to me rather than answering it,
+which was right.
+
+**Ruling: #808 does not go into #763.** #763 had by then been through a full
+review, a withdrawn row, two register conflict resolutions and three CI runs.
+Folding thirteen unreviewed file edits into a green head at merge time buys a
+tidier diff and spends the one thing that made the head trustworthy. **The
+cheapest place to land a change is not the same as the right place**, and
+"cheapest" was the only argument for the fold. #808 stands free the moment #763
+merges, and its fence disappears with it.
+
+The general form: **a PR that is green and reviewed is a finished artifact, not
+an open branch.** Work discovered against it goes beside it.
 
 ### E-R6 — "work in your own lane" is not a dispatch instruction (2026-08-20)
 
@@ -621,7 +650,7 @@ serialized here and each lane re-merges `origin/main` when one lands.
 | **E-e** | D28 + #693 | `smelle/d28` | **#767** | **MERGED 2026-08-20** — 37/37 finished, 0 failed. Census 12 arms not 8; placed D54, D81 |
 | **E-h** | D21 | `smelle/d21` | **#773** | **style lane NOT CLEARED** — 8 MAJOR; adversarial lane running. Placed D88, D89 |
 | **E-k** | D35 | — | — | **dispatched** 2026-08-20. Its blockers #768 and #773 are both in; the brief reframes D35's four options against **row 0** |
-| **E-l** | #681 | — | — | **dispatched** 2026-08-20, scoped to `crates/*/tests`, manifests, the guide rustdoc, `pncad-py`, `crates/*/examples` and non-register `docs/` — six surfaces fenced to F and G and **declared**, not silently dropped |
+| **E-l** | #681 | `smelle/681` | **#810** | **reported, green on `dc78a98f` by the run's own conclusion.** 7 of 9 surfaces swept, 2 declared; 24 claims, **1 unguarded (#807, Track F's surface)**; #808 handed off per E-R7; `memories/` raised as a tenth surface for Evan. Merges after #763 |
 
 **E-g dispatched 2026-08-20** (`smelle/d27-d29`), D27 then D29 — one lane
 because both edit `sweep/src/fillet/`, and D27 first because its newtype may
@@ -1480,6 +1509,47 @@ finding cannot absorb.
 ---
 
 ## Landings
+
+### #810 — #681 (E-l), reported 2026-08-20, awaiting #763
+
+The measured-claim sweep outside `crates/*/src`. **Seven of #681's nine surfaces
+swept, the other two declared in writing** — a declaration discharges that
+issue's done-condition and silence does not, which is why the fences are written
+into the PR rather than merely obeyed.
+
+**The instrument was re-run, not transcribed**, and that is the row's own
+finding about itself: #667's *197 blocks over `crates/\*/src`* is **217** at this
+base. Nothing depends on the number; everything depends on it having been
+re-taken.
+
+Per leg, each with **its own** blind spot rather than #667's: `crates/*/tests`
+189 blocks → 10 claims; manifests 8 → 4; the guide's rustdoc-included `.md`
+files 11 → 1; `pncad-py` **6 with docstrings against 1 without** — the docstring
+half is the surface, and a `#`-only pass would have reported a clean negative;
+`crates/*/examples` 2 → 0; `docs/` prose 171 → 6; `local-scripts/` 21 → 3.
+
+**§Q6: 24 real claims — 7 guarded, 2 scheduled, 13 unguardable-with-written-reason
+(11 newly written at the site), 1 unguarded.** The one unguarded row is the
+interesting one precisely because it is *not* unguardable: **#807**, the claim
+that the kernel plus `editor-core` compiles clean to `wasm32-unknown-unknown`.
+Nothing in CI builds a wasm target, so a dependency bump falsifies it with every
+check green — and two `cargo check --target` lines would fix that. **It is
+Track F's surface, and Track E cannot place it there** (E-R5: a row is not
+placed until it is on `main`, and cross-track placement is that track's).
+
+**Two corrections owed to my dispatch, one in each direction.** My brief said
+`guide.rs` pulls four files; it pulls **five**. And the Track C fence I flagged
+as unverified had *lifted* — #803 merged mid-lane and unfenced
+`mesh/tests/revolves.rs`, which the lane then carried. Flagging the fence as
+unverified is what made both recoverable; see rule 7's new clause.
+
+**A tenth surface #681's list does not contain: `memories/`, 21 blocks.**
+Reported, not swept — adding a surface is the issue owner's call. It is
+plausibly the highest-consequence one: `CLAUDE.md` makes `memories/MEMORY.md` a
+session-start read whose pointers get followed, and the two dense files are
+`tessellation-budget.md` and `test-suite-cost.md`, whose subjects *are*
+measurements — one of which `docs/ASM-LOG.md` routes a live dispatch decision
+through. **This goes to Evan.**
 
 ### #773 — D21 (E-h), merged 2026-08-20. **Track E's one adversarial review.**
 
