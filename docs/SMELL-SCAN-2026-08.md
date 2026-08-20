@@ -8148,26 +8148,47 @@ The four rows below were flagged **high** by their reporting agents and
 are placed here only because Tier 1 was already full at the point they
 landed; read them as the tail of Tier 1.
 
-## S76. FIXED by #NNN — the spent-graft hammer row now floors the count that matters
+## S76. FIXED by #NNN — the spent-graft hammer row now floors what it exercised, per operator
 
 `a_spent_graft_destination_never_reaches_a_row_four_unreachable`
 (`crates/topo/src/review_d18.rs`) asserted only `calls > 100`; its twin
-asserted `oks > 0` as well. Both rows now report and floor through
-[`test_utils::census`], so each states its operator-call count **and**
-its mutation-phase count and reds if either is empty.
+asserted `oks > 0` as well. `hammer` now returns a
+[`test_utils::census`] tally counting **per operator** — every call, and
+each operator's calls that ran their mutation phase — and both rows
+floor `require_nonzero_among(&OPS, 4, …)`: at least four of the seven
+operators must have entered a mutation phase.
 
-**Measured before asserting, because `ci.yml` cites this row by name as
-one of the two things justifying the release-profile job.** On
-`origin/main` at 80f0ae1c, `cargo test --release -p topo --lib --
-review_d18`: the spent-graft row reaches `Tally { calls: 876, oks: 250
-}` and the torn sweep `{ calls: 11907, oks: 3966 }`. The floor is
-therefore green today with two orders of headroom, and no `ci.yml` edit
-is needed.
+**Per operator, and not on the total, for a measured reason.** The
+twin's `oks > 0` is nearly unfalsifiable on this fixture: on a spent
+destination whose every arena field is nulled — `next`, `prev`,
+`parent_loop`, `edge`, `start` on every half-edge, every loop's cycle
+head dead, every edge's half-edge slots dead — `mfkrh_plug` still
+returns `Ok` six times, so the total floor stays green over a body on
+which nothing else works. A guard that cannot fail is what this row is
+about, so the floor counts how much of the operator surface was
+exercised instead.
 
-**Demonstrated red**, by planting the failure mode the floor exists for
-— every half-edge of the spent destination given a dead `next`, so every
-operator refuses in its plan phase: `calls` stays at 876 and passes the
-old assertion, `oks` falls to 0 and the new one reds.
+**Measured before asserting, because `ci.yml` greps this row by name.**
+`cargo test --release -p topo --lib -- review_d18` on this branch:
+
+- spent-graft: 876 calls, `kef 24, kev 24, kemr 0, mef_chord 64,
+  mev_line 60, mfkrh_plug 6, split_edge 72` — **6 of 7** operators;
+- torn sweep: 11907 calls, `kef 546, kev 527, kemr 0, mef_chord 1038,
+  mev_line 933, mfkrh_plug 0, split_edge 900` — **5 of 7**.
+
+Both floors are green, so **no `ci.yml` edit is needed**.
+
+**And the census immediately says something the old assertion could
+not.** `kemr` never enters a mutation phase in *either* row, and
+`mfkrh_plug` never does in the torn sweep — so the file's *"drives every
+operator that reaches `link_half_edges`"* is true of the calls and false
+of the arms: two of the seven are refused at the door on every input
+either row produces. That is a live gap in D18's coverage, now visible
+in the battery log on every green run. It is not fixed here and has no
+number; it is recorded so the next reader of the partition sees it.
+
+**Demonstrated red** by the null-out above: 1 of 7 operators reaches a
+mutation phase and the floor fires, naming the census.
 
 ## S77. The rimless-sphere exemption is a newly written claim that nothing enforces
 

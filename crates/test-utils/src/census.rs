@@ -21,7 +21,8 @@
 //!    a green run leaves the number in the battery log where a reader
 //!    of the claim can find it.
 //! 3. [`Census::require`] / [`Census::require_total`] /
-//!    [`Census::require_each`] put a floor under it. Below the floor the
+//!    [`Census::require_each`] / [`Census::require_nonzero_among`] put a
+//!    floor under it. Below the floor the
 //!    run is red, and its message carries the whole census plus the
 //!    caller's own sentence, so the failure names the coverage that went
 //!    missing rather than the arithmetic.
@@ -133,6 +134,33 @@ impl Census {
         );
     }
 
+    /// **At least `min` of `categories` were reached at all.** The
+    /// floor for *how much of the mechanism the run touched*, where a
+    /// raw total can be carried by one arm: a sweep that drives seven
+    /// operators and enters the mutation phase of only one is vacuous
+    /// about the other six, and its total does not say so.
+    ///
+    /// # Panics
+    ///
+    /// If fewer than `min` of `categories` have a nonzero count.
+    #[track_caller]
+    pub fn require_nonzero_among(&self, categories: &[&str], min: usize, why: &str) {
+        let reached = categories.iter().filter(|c| self.count(c) > 0).count();
+        assert!(
+            reached >= min,
+            "VACUOUS: {self} — {reached} of these {} reached anything, against a floor \
+             of {min}: {categories:?}; {why}",
+            categories.len()
+        );
+    }
+
+    /// Fold another census in, category by category.
+    pub fn merge(&mut self, other: &Census) {
+        for (k, n) in &other.counts {
+            self.add(k, *n);
+        }
+    }
+
     /// The same floor under each of several categories — the shape for
     /// *every regime is present*, where a builder change can silently
     /// empty one and the total stays healthy.
@@ -150,7 +178,13 @@ impl Census {
 
 impl core::fmt::Display for Census {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}: {} total {:?}", self.label, self.total(), self.counts)
+        write!(
+            f,
+            "{}: {} total {:?}",
+            self.label,
+            self.total(),
+            self.counts
+        )
     }
 }
 

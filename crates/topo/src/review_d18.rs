@@ -446,75 +446,75 @@ fn plant(body: &mut Body<f64>, tear: Tear, rng: &mut test_utils::fuzz::Rng, dead
     }
 }
 
-/// What a hammer pass observed. `oks` is the anti-vacuity measure that
-/// matters: an operator that returns `Ok` on a torn body RAN ITS
-/// MUTATION PHASE, which is the only place a row-4 `unreachable!` can
-/// fire. A sweep whose calls all died in a plan phase proves nothing
-/// about the arms under attack.
+/// The operators this pass drives, by name — the census categories, and
+/// the list the anti-vacuity floor counts over.
 #[cfg(not(debug_assertions))]
-#[derive(Clone, Copy, Debug, Default)]
-struct Tally {
-    calls: usize,
-    oks: usize,
-}
+const OPS: [&str; 7] = [
+    "kef",
+    "kev",
+    "kemr",
+    "mev_line",
+    "mef_chord",
+    "split_edge",
+    "mfkrh_plug",
+];
 
 #[cfg(not(debug_assertions))]
-impl Tally {
-    fn merge(&mut self, other: Tally) {
-        self.calls += other.calls;
-        self.oks += other.oks;
-    }
-
-    /// The pass as the tree's anti-vacuity census
-    /// ([`test_utils::census`]), in the vocabulary the doc above uses:
-    /// a call is an operator driven at a key, a mutation phase is a
-    /// call that got past its plan phase and therefore had a row-4 arm
-    /// in scope. Both hammer rows report and floor through this, so
-    /// neither can green on a sweep that reached nothing.
-    fn census(self, label: &str) -> test_utils::census::Census {
-        let mut c = test_utils::census::Census::new(label);
-        c.add(Self::CALLS, self.calls);
-        c.add(Self::MUTATIONS, self.oks);
-        c
-    }
-
-    const CALLS: &'static str = "operator calls";
-    const MUTATIONS: &'static str = "mutation phases entered";
-}
+const CALLS: &str = "operator calls";
 
 /// Drives every operator that reaches [`crate::Body::link_half_edges`]
-/// over every key of a torn body. Nothing is caught: in this profile
-/// the postcondition is compiled out, so a panic escaping here is a
-/// row-4 arm and it should fail the test with its own message.
+/// over every key of a torn body, and returns the pass as the tree's
+/// anti-vacuity census ([`test_utils::census`]).
+///
+/// Nothing is caught: in this profile the postcondition is compiled out,
+/// so a panic escaping here is a row-4 arm and it should fail the test
+/// with its own message.
+///
+/// **What the census counts, and why it is per operator.** [`CALLS`] is
+/// every operator driven at a key; each operator's own category counts
+/// the calls that returned `Ok`, i.e. that RAN THEIR MUTATION PHASE,
+/// which is the only place a row-4 `unreachable!` can fire. A pass whose
+/// calls all died in a plan phase proves nothing about the arms under
+/// attack. The count is kept per operator because a total does not
+/// distinguish *seven operators exercised* from *one exercised and six
+/// refused at the door*: on a destination whose every arena field is
+/// nulled, one loop-keyed operator still returns `Ok`, so a floor on the
+/// total alone is close to unfalsifiable here.
 #[cfg(not(debug_assertions))]
-fn hammer(body: &Body<f64>) -> Tally {
+fn hammer(body: &Body<f64>) -> test_utils::census::Census {
     use crate::entity::{EdgeKey, LoopKey};
     let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
     let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
     let loops: Vec<LoopKey> = body.loops().map(|(k, _)| k).collect();
-    let mut tally = Tally::default();
-    let mut note = |ok: bool| {
-        tally.calls += 1;
+    let mut census = test_utils::census::Census::new("review_d18 hammer");
+    for op in OPS {
+        census.add(op, 0);
+    }
+    let mut note = |op: &str, ok: bool| {
+        census.note(CALLS);
         if ok {
-            tally.oks += 1;
+            census.note(op);
         }
     };
     for &he in &halves {
-        note(body.clone().kef(he).is_ok());
-        note(body.clone().kev(he).is_ok());
+        note("kef", body.clone().kef(he).is_ok());
+        note("kev", body.clone().kev(he).is_ok());
         note(
+            "mev_line",
             body.clone()
                 .mev_line(MevSite::Fan { he1: he, he2: he }, p(41.0))
                 .is_ok(),
         );
         note(
+            "mef_chord",
             body.clone()
                 .mef_chord(MefSite::Chords { he1: he, he2: he })
                 .is_ok(),
         );
         for &other in halves.iter().take(4) {
-            note(body.clone().kemr(he, other).is_ok());
+            note("kemr", body.clone().kemr(he, other).is_ok());
             note(
+                "mev_line",
                 body.clone()
                     .mev_line(
                         MevSite::Fan {
@@ -526,6 +526,7 @@ fn hammer(body: &Body<f64>) -> Tally {
                     .is_ok(),
             );
             note(
+                "mef_chord",
                 body.clone()
                     .mef_chord(MefSite::Chords {
                         he1: he,
@@ -537,19 +538,23 @@ fn hammer(body: &Body<f64>) -> Tally {
     }
     for &edge in &edges {
         for t in [0.25, 0.5, 0.75] {
-            note(body.clone().split_edge(edge, t).is_ok());
+            note("split_edge", body.clone().split_edge(edge, t).is_ok());
         }
     }
     for &l in &loops {
-        note(body.clone().mef_chord(MefSite::Lone { r#loop: l }).is_ok());
         note(
+            "mef_chord",
+            body.clone().mef_chord(MefSite::Lone { r#loop: l }).is_ok(),
+        );
+        note(
+            "mev_line",
             body.clone()
                 .mev_line(MevSite::Lone { r#loop: l }, p(43.0))
                 .is_ok(),
         );
-        note(body.clone().mfkrh_plug(l).is_ok());
+        note("mfkrh_plug", body.clone().mfkrh_plug(l).is_ok());
     }
-    tally
+    census
 }
 
 /// **The headline row.** Randomly torn bodies, every operator over
@@ -575,7 +580,7 @@ fn torn_bodies_never_reach_a_row_four_unreachable() {
     use test_utils::fuzz;
     let mut rng = fuzz::start("review_d18::torn_bodies_row_four");
     let trials = fuzz::scaled(3);
-    let mut tally = Tally::default();
+    let mut census = test_utils::census::Census::new("review_d18 torn sweep");
     for trial in 0..trials {
         for tear in TEARS {
             let cube = ops_cube();
@@ -589,22 +594,24 @@ fn torn_bodies_never_reach_a_row_four_unreachable() {
             }
             let extra = TEARS[(rng.next_u64() as usize) % TEARS.len()];
             plant(&mut body, extra, &mut rng, dead);
-            tally.merge(hammer(&body));
+            census.merge(&hammer(&body));
         }
     }
-    let census = tally.census("review_d18 torn sweep");
     census.report();
     census.require(
-        Tally::CALLS,
+        CALLS,
         1_001,
-        &format!("the tear planting or the key enumeration has collapsed — {}", fuzz::replay()),
-    );
-    census.require(
-        Tally::MUTATIONS,
-        1,
         &format!(
-            "every call died in a plan phase, so no row-4 arm was ever in scope and this \
-             green says nothing about them — {}",
+            "the tear planting or the key enumeration has collapsed — {}",
+            fuzz::replay()
+        ),
+    );
+    census.require_nonzero_among(
+        &OPS,
+        4,
+        &format!(
+            "too few operators reached a mutation phase, so most of the arms under \
+             attack were never in scope and this green says nothing about them — {}",
             fuzz::replay()
         ),
     );
@@ -640,23 +647,24 @@ fn a_spent_graft_destination_never_reaches_a_row_four_unreachable() {
         "this row only means something if the refusal really did leave \
          `dst` partially written; if the graft ever becomes atomic, retire it"
     );
-    let census = hammer(&dst).census("review_d18 spent-graft hammer");
+    let census = hammer(&dst);
     census.report();
     census.require(
-        Tally::CALLS,
+        CALLS,
         101,
         "the spent destination no longer presents the keys this row hammers",
     );
     // THE FLOOR THIS ROW EXISTS BEHIND, and the one its twin already
-    // has. A spent graft destination is more structurally damaged than
+    // had. A spent graft destination is more structurally damaged than
     // a randomly torn cube, so it is the likelier of the two to have
-    // every call refuse in its plan phase — which is exactly the run
-    // that proves nothing about the arms under attack while passing
-    // green.
-    census.require(
-        Tally::MUTATIONS,
-        1,
-        "every call died in a plan phase, so no row-4 arm was ever in scope and this \
-         green says nothing about them",
+    // its calls refuse in a plan phase — the run that proves nothing
+    // about the arms under attack while passing green.
+    //
+    // Counted over OPERATORS, not over the total: see `hammer`.
+    census.require_nonzero_among(
+        &OPS,
+        4,
+        "too few operators reached a mutation phase on the spent destination, so the \
+         arms under attack were never in scope and this green says nothing about them",
     );
 }

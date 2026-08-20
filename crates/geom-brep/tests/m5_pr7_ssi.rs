@@ -103,8 +103,8 @@ use geom::{NurbsSurface, Surface};
 use geom_brep::CERT_SAMPLES;
 use geom_brep::ssi::BranchEnd;
 use geom_brep::ssi::{
-    self, SSI_FLOOR, SSI_MAX_CELLS, SSI_MAX_FIT_SAMPLES, SSI_SEED_FLOOR, SSI_TUBE_RADIUS, SsiDomain,
-    SsiError, SsiLimb, SsiOperand, TubeScale,
+    self, SSI_FLOOR, SSI_MAX_CELLS, SSI_MAX_FIT_SAMPLES, SSI_SEED_FLOOR, SSI_TUBE_RADIUS,
+    SsiDomain, SsiError, SsiLimb, SsiOperand, TubeScale,
 };
 use geom_core::spline::KnotVector;
 use geom_core::tolerance::DEFAULT_EPS;
@@ -1340,7 +1340,11 @@ fn an_inflected_wall_refuses_in_band_at_the_hull_limb_honestly() {
         Err(SsiError::FitSampleBudget { samples, budget }) => {
             assert_eq!(budget, SSI_MAX_FIT_SAMPLES);
             assert!(samples > budget, "{samples} of {budget} is not an overrun");
-            assert!(eps() < DEFAULT_EPS, "the fit budget fired at ε = {:e}", eps());
+            assert!(
+                eps() < DEFAULT_EPS,
+                "the fit budget fired at ε = {:e}",
+                eps()
+            );
             census::stood_down(
                 &format!("the limb-2 in-band row, eps = {:e}", eps()),
                 &format!(
@@ -2430,4 +2434,3 @@ fn the_ssi_predicates_reach_the_k_funnel() {
         );
     }
 }
-
