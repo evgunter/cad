@@ -1197,7 +1197,8 @@ every message through `format_args!`, which is not const-callable, and
 `panic!` is lint-banned. **What the population wants is not a message
 rule.** It is row 0 asked at the sites where the answer might be yes:
 the non-empty-by-construction sequences and the small-domain indices,
-which are where a converted arm should have been no arm.
+which are where a converted arm should have been no arm — thirteen of
+them, enumerated as `SMELL-SCAN-2026-08.md`'s **D96**.
 
 *Row 1 absorbs the terminal indeterminates.* An `Indeterminate` whose
 `MarginDiag` is `Value` (f64 margin in the ambiguity band) or an
