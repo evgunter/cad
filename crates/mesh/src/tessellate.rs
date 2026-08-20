@@ -7,8 +7,9 @@ use geom_core::Tolerance;
 use geom_surfaces::Surface;
 use topo::Body;
 
-use crate::chords::{FaceBounds, compute_chords, edge_vertices};
+use crate::chords::{compute_chords, edge_vertices};
 use crate::curved::tessellate_curved;
+use crate::nurbs_cert::FaceBounds;
 use crate::planar::tessellate_planar;
 use crate::types::{BoundaryPolyline, FacePatch, Mesh, TessellateError};
 

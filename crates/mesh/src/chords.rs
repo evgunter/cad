@@ -49,42 +49,8 @@ use geom_curves::Curve3;
 use geom_surfaces::Surface;
 use topo::{Body, EdgeKey};
 
-use crate::nurbs_cert::{NurbsFaceBound, nurbs_face_bound};
+use crate::nurbs_cert::{FaceBounds, face_bound};
 use crate::types::TessellateError;
-
-/// One tessellation's memo of certified whole-patch NURBS bounds, one
-/// entry per described NURBS face.
-///
-/// The bound is a per-face fact and its assembly is the most expensive
-/// thing either pass does, but BOTH passes need it: the chord pass for
-/// the adjacent-face tightening (it bounds however many edges the face
-/// has) and the trimmed lane for its band schedule. One memo, threaded
-/// from [`crate::tessellate()`] through both, is what makes it one
-/// assembly per face per tessellation instead of one per pass.
-pub(crate) type FaceBounds = HashMap<topo::FaceKey, NurbsFaceBound>;
-
-/// A described NURBS face's certified whole-patch bound, assembled on
-/// first ask and remembered for the rest of the tessellation.
-///
-/// # Errors
-///
-/// As [`nurbs_face_bound`] — a face outside the certified inventory
-/// refuses here exactly as it would there, on the first ask and (from
-/// the memo's absence) on every later one.
-pub(crate) fn face_bound(
-    memo: &mut FaceBounds,
-    payload: &geom_surfaces::NurbsSurface<f64>,
-    fk: topo::FaceKey,
-) -> Result<NurbsFaceBound, TessellateError> {
-    match memo.get(&fk) {
-        Some(&b) => Ok(b),
-        None => {
-            let b = nurbs_face_bound(payload, fk)?;
-            memo.insert(fk, b);
-            Ok(b)
-        }
-    }
-}
 
 /// Sanity cap on any single count (δ small enough to exceed this would
 /// allocate gigabytes before failing anywhere else).

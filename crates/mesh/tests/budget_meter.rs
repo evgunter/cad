@@ -126,13 +126,19 @@ fn the_deviation_pass_samples_and_stays_under_its_certificates() {
     assert!(!measures.is_empty());
     for m in &measures {
         assert!(m.dev_samples > 0, "resampling ran: {m:?}");
+        // The falsification, in the one form that carries it:
+        // `worst_ratio` is the largest `d / (cert + eps)` over every
+        // sample on every triangle, so `<= 1` says each sample was
+        // dominated by ITS OWN triangle's certificate.
+        //
+        // `worst_dev <= worst_dev_cert + eps` is deliberately NOT
+        // asserted beside it: `worst_dev_cert` is the certificate of
+        // the triangle `worst_dev` came from, so that inequality is
+        // one term of the maximum above and cannot fail unless this
+        // one does.
         assert!(
             m.worst_ratio <= 1.0,
             "a triangle's samples exceeded its own certificate: {m:?}"
-        );
-        assert!(
-            m.worst_dev <= m.worst_dev_cert + geom_core::Tolerance::get().eps,
-            "the worst sample is dominated by the certificate it was measured against: {m:?}"
         );
     }
 }
@@ -149,6 +155,9 @@ fn arming_the_meter_does_not_change_the_mesh() {
     });
     let metered = mesh::tessellate(&body, 6e-3).expect("tessellates");
     let measures = budget::take();
+    // Non-emptiness FIRST: `all()` on an empty slice is `true`, so a
+    // meter that recorded nothing would sail through the next line.
+    assert!(!measures.is_empty(), "the loft's NURBS walls were measured");
     assert!(measures.iter().all(|m| m.dev_samples > 0), "resampling ran");
     assert_eq!(plain.positions.len(), metered.positions.len());
     for (a, b) in plain.positions.iter().zip(&metered.positions) {
@@ -158,7 +167,11 @@ fn arming_the_meter_does_not_change_the_mesh() {
             "a metered tessellation must be bit-identical to an unmetered one"
         );
     }
+    // `zip` stops at the shorter side, so a metered run that dropped a
+    // patch would compare only the survivors and pass.
+    assert_eq!(plain.patches.len(), metered.patches.len());
     for (a, b) in plain.patches.iter().zip(&metered.patches) {
+        assert_eq!(a.face, b.face);
         assert_eq!(a.triangles, b.triangles);
     }
 }

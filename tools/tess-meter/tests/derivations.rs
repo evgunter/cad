@@ -10,8 +10,17 @@ use tess_meter::{
 };
 use test_utils::fuzz;
 
-/// A bound with the lane's own steps, which is what the kernel reports
-/// beside it: `h = √(δ_s / (2·(m + m_uv)))` per direction.
+/// A synthetic [`Bound`] with a plausible seed in its `steps`.
+///
+/// **This is a FIXTURE, not a second copy of the lane's schedule.**
+/// `best_split_steps` treats `steps` as an opaque starting point for
+/// its running minimum — it never asks where the pair came from — so
+/// the properties asserted below (the answer certifies; the reported
+/// count matches the reported steps; a ruled wall improves) hold for
+/// any seed, and this one is chosen only because it is the shape the
+/// kernel actually reports. The KERNEL-supplied steps are exercised
+/// end to end in `rows.rs`, which tessellates a real body and reads
+/// `mesh::budget`'s own `patch_steps` / `CellMeasure::steps`.
 fn bound(muu: f64, muv: f64, mvv: f64, delta_s: f64) -> Bound {
     let step = |group: f64| {
         if group > 0.0 {
@@ -70,10 +79,25 @@ fn the_cheapest_split_still_satisfies_the_certificate() {
              at h=({hu:e},{hv:e}) for {b:?} — {}",
             fuzz::replay()
         );
-        // …and it never loses to the schedule it is compared with.
-        assert!(
-            cells <= divisions(du, b.steps.0) * divisions(dv, b.steps.1),
-            "cheapest split is worse than the lane's for {b:?} — {}",
+        // …and the count it reports is the count its OWN steps give.
+        //
+        // NOT `cells <= divisions(du, b.steps.0) * divisions(dv,
+        // b.steps.1)`, which was here and could not fail: the scan
+        // SEEDS its running minimum with exactly that product
+        // (`best_split_steps`), so "never loses to the lane" is a
+        // property of the seed, not of the search. What can fail is
+        // the tuple going out of step with itself — a count updated
+        // without its steps, or vice versa — and that is what a
+        // consumer of `(cells, h_u, h_v)` actually relies on. The
+        // search's own claim is the certificate assertion above, and
+        // that it is STRICTLY better on the anisotropic case, which
+        // `a_ruled_wall_pays_for_its_flat_direction` pins.
+        let (_, rhu, rhv) = best_split_steps(b, du, dv, delta_s);
+        assert_eq!(
+            cells.to_bits(),
+            (divisions(du, rhu) * divisions(dv, rhv)).to_bits(),
+            "the reported cell count is not the count its own steps give, \
+             for {b:?} — {}",
             fuzz::replay()
         );
     }
@@ -149,9 +173,23 @@ fn both_row_shapes_have_the_headers_width() {
 }
 
 /// The header this crate writes and the one `tools/tess-lint` parses
-/// are the same bytes. The two are separate cargo roots by design, so
-/// there is no shared constant to import and the pin is checked here
-/// against the lint's source rather than assumed.
+/// are the same bytes.
+///
+/// **Why source text and not a shared constant.** The obvious answer —
+/// a schema-only crate both depend on — would break the property
+/// `tess-lint`'s manifest states as its design: *"It has no
+/// dependencies at all: it reads the CSV … and the kernel does not
+/// appear even as a dev-dependency, its fixtures are CSV text, which
+/// is the whole contract between the two halves."* A consumer that
+/// shares a constant with its producer can no longer fail as a
+/// PARSER when the producer's schema moves, which is the failure mode
+/// the lint wants. So the two declarations stay independent and this
+/// test reads the other one's source.
+///
+/// It is a real pin and it is ugly: it parses Rust string
+/// continuations out of a sibling crate's `lib.rs`, and it breaks if
+/// that declaration is reformatted rather than changed. It replaces a
+/// comment asking a human to check, which could not break at all.
 #[test]
 fn the_lints_expected_header_is_this_one() {
     let lint = include_str!("../../tess-lint/src/lib.rs");

@@ -1,5 +1,26 @@
 # MESH-PROBEGATE — gate probe_stats at the module boundary (binding spec)
 
+> **EXECUTED (#579), AND ITS SUBJECT NO LONGER EXISTS (#709).** This
+> spec is the historical record of how `mesh::probe_stats` was gated;
+> it binds nothing now, because SMELL-SCAN **S30** deleted the module
+> and the `probe-stats` feature outright. Read it for the reasoning,
+> not for the shape of the tree.
+>
+> What survives, and where: the live/inert module gate is
+> `mesh::budget`'s (D-1's worked example became the only example). The
+> per-triangle certificate falsification D-3 protects is
+> `probe_review::z1_per_triangle_certificate_falsification`, which now
+> drives the meter's deviation mode and asserts on `worst_ratio` — a
+> per-face reduction of the per-triangle claim — in the SUITE rather
+> than in the tessellation lane, so the `assert!` D-1 wanted deleted
+> from default builds is deleted from **every** build. Its CI row is
+> `mesh budget meter + certificate falsifier (feature = budget)`,
+> still unconditional (M8-5's MIN-1). D-2's public-surface ruling was
+> revisited: `mesh::budget` is now `pub` in both configurations
+> because its measurement TYPES are the contract with
+> `tools/tess-meter`, while `arm`/`take` remain live-half-only — the
+> argument is in `mesh::budget`'s module docs.
+
 Executes issue **#558** (the register-class residue #562/#560 left):
 `mesh::probe_stats` is still unconditionally compiled and `pub`
 (re-exported through `pncad`), so a shipped build carries the

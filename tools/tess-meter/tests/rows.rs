@@ -71,13 +71,23 @@ fn every_face_gets_a_row_and_only_nurbs_faces_get_sizing() {
     let walls: Vec<_> = rows.iter().filter_map(|r| r.nurbs).collect();
     assert!(!walls.is_empty(), "the loft's walls are NURBS faces");
     for n in &walls {
-        // Every comparison grid is counted over the same box, so the
-        // counterfactual can never be the cheapest by construction —
-        // but it must never come out CHEAPER than the optimum either,
-        // which would mean the comparison is not a comparison.
+        // The per-cell ideal must not cost more than the schedule it
+        // is the ideal FOR. This one can fail: `span_opt_cells` sums
+        // each cell's own cheapest split, while `span_cells` is the
+        // banded schedule's realised count — two derivations, so a
+        // banding change can invert them.
+        //
+        // Its former sibling, `opt_cells <= patch_cells`, is GONE
+        // because it could not fail: `patch_cells` is exactly the
+        // product `best_split_steps` seeds its running minimum with,
+        // so the inequality held by construction of the loop rather
+        // than by anything about the answer. (Removing a vacuous
+        // assertion is the finding this PR is about; adding one in the
+        // same breath would have been funny.)
         assert!(
-            n.opt_cells <= n.patch_cells && n.span_opt_cells <= n.span_cells,
-            "a cheaper schedule cannot cost more: {n:?}"
+            n.span_opt_cells <= n.span_cells,
+            "the per-cell ideal cannot cost more than the schedule it \
+             is the ideal for: {n:?}"
         );
         assert!(n.grid_cells > 0.0 && n.span_opt_cells > 0.0, "{n:?}");
         // (No `grid_cells <= patch_cells` assertion on purpose: the

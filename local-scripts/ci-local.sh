@@ -503,7 +503,15 @@ tesslint_tool() {
 # the CSV schema, the counterfactual schedules and the split optimizer
 # live here, outside the kernel, and so do their tests.
 tessmeter_tool() {
-  (cd tools/tess-meter && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test)
+  # `cargo doc` too: scripts/doc-gate.sh is `cargo doc --workspace` and
+  # `tools/` is workspace-excluded, so this crate's prose has no other
+  # gate (stated at doc-gate.sh; a row covering every excluded root is
+  # owed).
+  (cd tools/tess-meter && cargo fmt --check && \
+    cargo clippy --all-targets -- -D warnings && \
+    RUSTDOCFLAGS="-D warnings -A rustdoc::private_intra_doc_links" \
+      cargo doc --no-deps --document-private-items && \
+    cargo test)
 }
 # The meter's kernel half (mirrors ci.yml's row of the same name).
 # `mesh::budget` is gated at its module boundary, so every row above

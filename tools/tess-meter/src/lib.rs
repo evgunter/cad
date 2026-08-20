@@ -15,6 +15,29 @@
 //! to how the numbers are READ cannot reach the lane that produces
 //! them.
 //!
+//! **The rule, with its one exception, because it is otherwise stated
+//! absolutely and bent quietly.** The rule is: the kernel reports what
+//! nothing downstream can recover. `FaceMeasure::patch_steps` and
+//! `CellMeasure::steps` BREAK it — they are `grid_steps(delta_s)` over
+//! `(muu, muv, mvv)`, and all four values ride in the same struct, so
+//! this crate could compute them. They are reported anyway, on a
+//! narrower rule: **the lane's own schedule rule is not re-spelled
+//! outside the lane.** `grid_steps` is the point selection the shipped
+//! sizing uses; a second copy here would be a second schedule that
+//! could drift from the one being measured, which is exactly the
+//! defect the `agreement` column turned out to have. Reporting the
+//! answer keeps one derivation. Everything else in the row is derived
+//! here.
+//!
+//! **The successor risk, stated because S30's own lesson is one level
+//! up.** S30 happened because a gating rule was easy to certify green
+//! and quietly became the whole review. "Is it in `tools/`?" is just as
+//! easy to certify green, and answers just as little: it says nothing
+//! about whether this crate has grown a second schedule, a second
+//! certificate, or an argument the kernel should have made. The
+//! question that matters stays "could the kernel have been asked for
+//! this instead, and would it then own two of something?"
+//!
 //! # The slack factors
 //!
 //! Per face the meter records what the lane used (the grid, the
@@ -55,6 +78,19 @@
 //! nothing re-takes: that document is a one-shot writeup wrapped
 //! around a re-measured sizing gate, not a register end to end. Read
 //! its sizing columns as live and its deviation columns as dated.
+//!
+//! **What guards `band_schedule` itself, and the blind spot that is
+//! left** (it moved here with the columns, because this is where their
+//! meaning now lives): the per-triangle certificate reads the raw
+//! per-cell bounds independent of the schedule, so an undersizing bug
+//! ends in refinement then a typed refusal; `tools/tess-lint`'s growth
+//! rules against the committed baseline; and the committed render
+//! cells. **The blind spot: a schedule bug that makes the grid COARSER
+//! while still certifying is invisible to a growth-only gate, and
+//! `agreement` cannot see it either** (see [`NurbsColumns::span_cells`]
+//! — that column checks nothing). Accepted because the certificate is
+//! the guarantee; stated so `agreement = 1.00` is not read as more
+//! than it is.
 //!
 //! | factor | ratio | what it says |
 //! |---|---|---|
@@ -425,8 +461,25 @@ impl From<&CellMeasure> for Bound {
 
 /// Grid divisions an extent needs at step `h`. An unconstrained
 /// direction (`h = ∞`, e.g. the ruled direction of a wall with
-/// `muv = 0`) takes one, exactly as the lane's `ceil_count` gives the
-/// shipped path.
+/// `muv = 0`) takes one.
+///
+/// **It is the second spelling of the lane's `chords::ceil_count`, and
+/// it deliberately does not match it.** They cannot share an import —
+/// two cargo roots — so the divergences are stated instead of left to
+/// be discovered:
+///
+/// * `ceil_count` REFUSES a count at or above `MAX_STEPS` (2^24) with
+///   a typed error, because it is about to allocate that many grid
+///   points. This one counts and returns, because it sizes nothing:
+///   an absurd counterfactual is a number in a diagnostic column, and
+///   turning it into a refusal would make the meter able to fail a
+///   tessellation that succeeded.
+/// * `ceil_count` treats a non-positive step as the caller's error.
+///   This one answers 1, because an unconstrained direction is a
+///   normal thing for a counterfactual to be asked about.
+///
+/// The shared part — `ceil(extent / h)`, floored at one — is the part
+/// the columns are comparable through, and it is identical.
 pub fn divisions(extent: f64, h: f64) -> f64 {
     if h.is_finite() && h > 0.0 {
         (extent / h).ceil().max(1.0)

@@ -24,22 +24,48 @@
 //! their rows there too, from the body and the mesh, which is where
 //! their chart and triangle count already are.
 //!
-//! There is also no assertion here. The deviation samples are reduced
-//! to `worst_ratio` — the largest `|S − Π| / (cert + ε)` any sample
+//! **Nothing here asserts at run time**, in either configuration —
+//! the only `assert!` in this module is a `const` one in the inert
+//! half, evaluated by the compiler and unable to reach a running
+//! tessellation. The deviation samples are reduced instead to
+//! `worst_ratio` — the largest `|S − Π| / (cert + ε)` any sample
 //! reached — which is the per-TRIANGLE falsification stated as one
 //! number per face: `worst_ratio ≤ 1` is exactly "every sample was
 //! dominated by its own triangle's certificate". The suite that drives
-//! it asserts on it, so no build of this crate can turn
+//! the meter asserts on it, so no build of this crate can turn
 //! [`crate::tessellate()`]'s typed-error contract into a panic.
 //!
-//! # Armed, or free
+//! # Armed, or free — and what a DEFAULT build of this module is
 //!
-//! Nothing here runs in a normal tessellation: [`arm`] is thread-local
-//! (tessellation runs on the calling thread, so armed evidence stays
-//! attributable under a parallel test runner) and every recording site
-//! is behind an [`armed`] check. The measurement changes no mesh: the
-//! recorded quantities are read off the sizing the lane already
-//! performed, and the deviation pass only samples what was emitted.
+//! Two configurations, and the docs below name items that exist in
+//! only one of them. **Without the `budget` feature this module is
+//! [`CellMeasure`], [`FaceMeasure`], `armed()` (a `const fn` answering
+//! `false`) and `deviation_samples()` (a `const fn` answering `None`)
+//! — and nothing else.** There is no `Mode`, no `arm`, no `take`, and
+//! so no way for any caller to switch on an instrument that is not in
+//! the build. `live::arm` and `live::take` below are the armed half's,
+//! and a default build does not have them to link against.
+//!
+//! **Why the module is `pub` in both configurations, since the
+//! opposite was once argued here.** It used to be `pub(crate)` without
+//! the feature, on the reasoning that `pub` "would leave a permanently
+//! visible surface on the kernel crate whose only consumer is a
+//! diagnostic". That reasoning is answered rather than dropped: the
+//! surface is now two plain-data structs and two `const fn`s that
+//! answer "not in this build", and it is visible **because it is the
+//! contract** — `tools/tess-meter` reads [`FaceMeasure`] to derive
+//! every column of the budget CSV, and it must do so without the
+//! instrument compiled in or depending on it would turn the meter on
+//! for everything that depends on IT. The old objection was to
+//! exporting an *instrument*; what is exported is a *record type*.
+//!
+//! Armed, nothing here runs in a normal tessellation: arming is
+//! thread-local (tessellation runs on the calling thread, so armed
+//! evidence stays attributable under a parallel test runner) and every
+//! recording site is behind an [`armed`] check. The measurement
+//! changes no mesh: the recorded quantities are read off the sizing
+//! the lane already performed, and the deviation pass only samples
+//! what was emitted.
 
 use topo::FaceKey;
 
@@ -149,6 +175,9 @@ pub enum Mode {
 /// that could arm a meter which records nothing is a fail-quiet, so
 /// with the feature off the sweep does not compile rather than
 /// producing an empty CSV.
+///
+/// [`arm`]: arm
+/// [`take`]: take
 #[cfg(feature = "budget")]
 mod live {
     use super::{FaceMeasure, Mode};

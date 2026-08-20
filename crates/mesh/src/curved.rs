@@ -797,7 +797,7 @@ mod tests {
             0.025,
             &vids,
             &mut positions,
-            &mut crate::chords::FaceBounds::new(),
+            &mut crate::nurbs_cert::FaceBounds::new(),
         )
         .unwrap()
         .ids;

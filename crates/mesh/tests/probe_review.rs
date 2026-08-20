@@ -110,8 +110,8 @@ const Z1_DELTAS: [f64; 2] = [3e-2, 6e-3];
 /// feature off there is no `arm`/`take` to call, which is the point of
 /// the gate rather than a limitation of it. M8-5 MIN-1's intent is
 /// intact: the hosted gate still runs this UNCONDITIONALLY, in
-/// ci.yml's "mesh budget meter (feature = budget)" row (mirrored by
-/// local-scripts/ci-local.sh). What moved is which build the row rides
+/// ci.yml's "mesh budget meter + certificate falsifier
+/// (feature = budget)" row (mirrored by local-scripts/ci-local.sh). What moved is which build the row rides
 /// in, not whether the row runs.
 ///
 /// The ASSERTION is here and not in the tessellation lane, which is

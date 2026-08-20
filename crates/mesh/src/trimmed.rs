@@ -98,9 +98,9 @@ use spade::{ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulatio
 use topo::{Body, FaceKey};
 
 use crate::cert;
-use crate::chords::{ChordPass, FaceBounds, ceil_count, face_bound, sagitta_angle};
+use crate::chords::{ChordPass, ceil_count, sagitta_angle};
 use crate::curved::Tol;
-use crate::nurbs_cert::{NurbsCellGrid, NurbsFaceBound, nurbs_cell_grid};
+use crate::nurbs_cert::{FaceBounds, NurbsCellGrid, NurbsFaceBound, face_bound, nurbs_cell_grid};
 use crate::planar::{classify_faces, edge_key, shoelace2};
 use crate::types::TessellateError;
 
