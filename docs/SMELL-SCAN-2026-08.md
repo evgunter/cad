@@ -6432,10 +6432,9 @@ set, and D1 declined to widen into it.
 D16 is now retired (#720) and placed **D18**, its own residue, on the way out.
 **D17 is assigned to D15's lane and is not in this table yet** — the row is
 that lane's to write, and nothing here should be read as describing it. Row
-numbers are assigned
-centrally because several lanes mint rows in parallel and three collided once
-already: a lane that needs a row takes the next number the orchestrator has not
-assigned, never the next gap it can see. **A verdict is not a placement** (§D's
+numbers are assigned centrally because several lanes mint rows in parallel and
+three collided once already: a lane that needs a row takes the next number the
+orchestrator has not assigned, never the next gap it can see. **A verdict is not a placement** (§D's
 fourth ordering rule) is why both residues are rows here rather than sentences
 in two PR bodies.
 
