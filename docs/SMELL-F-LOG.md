@@ -109,6 +109,44 @@ Evan's condition on running `cut_cylinder_replays_at_probe` is that it not be
   the lane runs in (`memories/perf-measurement-lane.md`: a timing is worth
   nothing without its box).
 
+**Amended by Evan, 2026-08-20, and the amendment is the better condition:**
+*"test cost seems probably fine then, would just want to check that it isn't,
+like, the longest thing in some cluster so it increases total CI latency."* So
+the question is not *is it expensive* but **does it move the critical path**.
+That is checkable, and it was checked — from run **32388258102**, the most
+recent green *building* run on `main` (the nine runs after it are all docs-tier
+and every job skipped, which is S61's posture doing exactly what it is supposed
+to):
+
+| job | duration | `needs:` |
+|---|---|---|
+| `build + archive (default)` | 9.7 min | `filter` |
+| `build + archive (interval)` | 8.8 min | `filter` |
+| **`k-lint (gate)`** | **8.3 min** | **`filter`** |
+| `render lanes / kernel montage` | 2.6 min | `filter` |
+
+**`k-lint` is a leaf off `filter`** — it does not `needs:` the build, so it runs
+in parallel with it. The critical chain is
+`filter (0.2) → build (9.7) → test (0.8) → cleanup-archives (0.1)` ≈ **10.6
+min**; k-lint's is `filter (0.2) → k-lint (8.3)` ≈ **8.5 min**. **So the budget
+is ~2.1 minutes** before this job becomes the thing everything waits on.
+
+**And there is a 3× multiplier waiting in the obvious placement.**
+`k_probe_sweep.sh:80` is `for eps in 1e-6 1e-9 1e-12`, and both existing
+`run_dump` calls sit inside it. A test added there costs three runs, not one, so
+the per-ε budget is ~40 s. **The placement is therefore part of the fix, not an
+implementation detail**: `cut_cylinder_replays_at_probe` asserts a *bit-identical
+replay*, not a margin distribution — it has no reason to be swept per ε — so
+running it **once, outside the loop** is both cheaper and a truer statement of
+what it checks. A lane that drops it into the loop because that is where the
+other invocations are has paid 3× for a claim that is not per-ε.
+
+**Two honesty conditions on those numbers.** They are **one sample**, and job
+durations move with runner and cache state — F-h states which run each number
+came from (`memories/perf-measurement-lane.md`) and re-takes them if `main` has
+moved materially. And the ~2.1 min slack is a property of *today's* graph: it is
+an argument for placing the test, not a licence anyone else may spend.
+
 **The fallback is part of the ruling, not a concession.** If the measurement
 comes back expensive, the answer is *not* to quietly leave the test unreachable
 — that is the state the finding is about. It is to give the test the same
