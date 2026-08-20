@@ -61,6 +61,8 @@ head, merge without waiting for a second CI run.**
 | **C-R2** | **S29 — nothing states what the mesh sizing *policy* is.** Writing one down is a design act, not a cleanup. | **Split the lane.** The mechanical vocabulary unification self-merges; the **policy statement** goes out as its own design-conversation PR and waits for sign-off. The question has been routed around twice already. | Evan, 2026-08-20 |
 | **C-R3** | **S31 — the `geom-curves`/`geom-surfaces` boundary.** The duplicated constants and helpers need a home, and where that home is *is* the crate-boundary call. | **Merge the two crates.** Named `geom`, above `geom-core` and `bvh` (the name is the orchestrator's call). Authorises editing `DESIGN.md`'s crate-table row and its pointer at the crate docs as authoritative text — and nothing else ratified. | Evan, 2026-08-20 (name: orchestrator) |
 | **C-R4** | **S29 is not blocked on a design conversation.** §D routes it to `docs/TESS-SPLIT-SPEC.md` / PR #568. | **Correction, and it stands.** Checked by #684's reviewer: both #568 and TESS-SPLIT-SPEC are scoped entirely to the NURBS per-cell schedule in `nurbs_cert`. **No open conversation covers `curved::grid_steps`**, so S29's analytic-chart half was never waiting on a venue — it does not have one. §D's C3 row is wrong on this point and is corrected when C-j lands. | the parallel orchestrator, 2026-08-20 |
+| **C-R11** | **The roster's own scope citations are stale, and a lane checks them rather than complying.** `C-h`'s `splitting/rules.rs:268` lands on `face_extent`, a lever-arm helper, not on anything the `bridged` skip reads. | **Every scope cell is a claim site.** A lane that finds a citation unresolvable says so in its report and states what the line actually contains; it does not silently work around it or silently obey it. This is the same failure as the brief that fenced a lane against a memory deleted from main two days earlier — recorded there as an incident, promoted here to a standing rule, because the roster is now the third document on this track to carry a citation that outlived what it described. | orchestrator, 2026-08-20 |
+| **C-R12** | **How many lanes get an adversarial review.** The inherited roster marked 7 of the 12 remaining lanes adversarial, which is more than *"a minority of the track"* claims. | **Retrimmed to five: C-e, C-g, C-h, C-k, C-m** — plus **C-q**, which is new. The criterion Evan gave is *"complex enough that there's a significant chance the change will introduce a regression not caught by CI"*, and it is a narrower test than "this code is load-bearing". **C-j drops to style-only** because its mechanical half is a re-spelling whose correctness is provable by byte-identity of mesh output — a wrong answer is visible without an adversary, and the lane owes that proof. **C-l drops provisionally**, because a lane-trait collapse is type-level and the compiler is the adversary; the sub-lane that *rewrites* `Dual` arithmetic rather than re-spelling it is promoted back. | Evan (criterion) + orchestrator (application), 2026-08-20 |
 
 ---
 
@@ -71,20 +73,19 @@ superseded for Track C by this table.
 
 | lane | finding | scope | gate | review |
 |---|---|---|---|---|
-| **C-a** | **S24** — the assembly gate's success path is documented unreachable | `editor-core/src/{assembly,mate}.rs` | none | style |
-| **C-b** | **S30** — ~1,050 lines of instrument in the mesh hot loop | `mesh/src/{budget,probe_stats,trimmed,chords}.rs`, the feature matrix, the CI row | none (disjoint from #684's `curved.rs`) | **adversarial** + style |
-| **C-c** | **S31** — the crate split that buys nothing | `geom-curves/`, `geom-surfaces/`, new `geom/`, 11 dependents, `step-export/src/writer.rs` | none | **adversarial** + style |
-| **C-d** | **H12** — the SSI sweeps' other never-silence doors have no acceptance row | `geom-brep/tests/` | #692 | style |
+| **C-d** | **H12** — the SSI sweeps' other never-silence doors have no acceptance row | `geom-brep/tests/` | **discharged** (#692 merged) | style |
 | **C-e** | **H13** — `sweep_body`'s helix rows have no orientation coverage | `sweep/tests/{m8_14_long_turn_sweep,m7_skin_integral}.rs`, `step-export/tests/common/mod.rs` | none | **adversarial** + style — #636's level-plane oracle trips its own precondition here (`cos ≈ 0.011`), so this needs a *new* oracle, and the oracle carries the soundness |
 | **C-f** | **H11** — #632's two residues | `editor-core/src/{resolve/,select.rs,refactor.rs}` | none | style |
-| **C-g** | **S32** — `Surface`'s one-partial-per-call API and the shadow SSI enum | `geom-surfaces/` (→ `geom/`), `geom-brep/src/ssi/system.rs` | **C-c**, #692 | **adversarial** + style |
-| **C-h** | **H14** — the census's `bridged` skip | `topo/src/census.rs`, `splitting/rules.rs:268` | #690 | **adversarial** + style — a live soundness hole of S49's exact shape |
-| **C-i** | **H15** — #635's unclassified siblings | `mesh/src/planar.rs:63`, `topo/src/validate.rs:426`, `topo/src/splitting/mod.rs:194` | #690 | style |
-| **C-j** | **S29** — the sizing vocabulary across five modules | `mesh/src/{nurbs_cert,curved,chords,trimmed,budget}.rs` | #684 | **adversarial** + style on the mechanical half; the policy half is a design PR (**C-R2**) |
-| **C-k** | **S28's duplication half** — three tessellation lanes, three pipelines | `mesh/` | #684 | **adversarial** + style |
-| **C-l** | **C7 + S33** — the lane-trait collapse, `RingInterval`, the scalar ladders | `geom-core/`, and W2b's 535 refs across 15 files | **#682** | **adversarial** + style; expect to split into 2–3 lanes |
-| **C-m** | **S27** — `props/quad.rs`'s four quadrature engines | `geom-brep/src/props/quad.rs` | A2 / S56 / **#649** | **adversarial** + style |
+| **C-g** | **S32** — `Surface`'s one-partial-per-call API and the shadow SSI enum | `geom/` (the merged crate), `geom-brep/src/ssi/system.rs` | **discharged** (#705, #692 merged) | **adversarial** + style |
+| **C-h** | **H14** — the census's `bridged` skip | `topo/src/census.rs`, `splitting/rules.rs:268` (the line citation does **not** resolve to the skip on today's main — see C-R11) | **discharged** (#690 merged) | **adversarial** + style — a live soundness hole of S49's exact shape |
+| **C-i** | **H15** — #635's unclassified siblings | `mesh/src/planar.rs:63`, `topo/src/validate.rs:426`, `topo/src/splitting/mod.rs:194` | **discharged** (#690 merged) | style |
+| **C-j** | **S29** — the sizing vocabulary across five modules | `mesh/src/{nurbs_cert,curved,chords,trimmed,budget}.rs` | **discharged** (#684 merged) | **style only** on the mechanical half — retrimmed, see C-R12; the policy half is a design PR (**C-R2**) |
+| **C-k** | **S28's duplication half** — three tessellation lanes, three pipelines | `mesh/` | **discharged** (#684 merged) | **adversarial** + style |
+| **C-l** | **C7 + S33** — the lane-trait collapse, `RingInterval`, the scalar ladders | `geom-core/`, and W2b's 535 refs across 15 files | **discharged** (#682 merged) | **style only, provisionally** — see C-R12; expect to split into 2–3 lanes, and the sub-lane that rewrites `Dual` arithmetic rather than re-spelling it gets promoted to adversarial |
+| **C-m** | **S27** — `props/quad.rs`'s four quadrature engines | `geom-brep/src/props/quad.rs` | **STILL GATED** — A2 / #649, open as **#714** | **adversarial** + style |
 | **C-n** | **H17** — the rustdoc spec-code remainder, ~1115 lines / 130 files | per crate: `topo` 300, `editor-core` 267, `geom-brep` 192, `geom-core` 107, `sweep` 64, rest < 70 | **deliberately last** — it touches 130 files and would conflict with every open lane | style, per crate batch |
+| **C-p** | **C9** — the `tess-meter` CSV's `agreement` column measures nothing | `tools/tess-meter/`, `tools/tess-lint/`, the committed baseline, `docs/TESS-BUDGET.md` | none | style — and the lane must first decide whether a realisation check is worth having at all, or whether the honest fix is to delete the column |
+| **C-q** | **C10** — `geom_core::k_stats`, S30's class one crate over | `geom-core/src/k_stats.rs`, and `profile::k_stats`'s shim (S40) | none | **adversarial** + style — the recording sits *inside* three load-bearing kernel predicate doors, so #709's split does not transfer mechanically |
 
 **Not taken by Track C:** C6's rows (blocked on other programmes — OnArc
 + RESPELL-TABLE, the workspace's first proc-macro crate, a persisted
@@ -587,3 +588,67 @@ it names.
   of Q1's self-declaration vocabulary, because neither copy confessed. It was
   found by reading. Q1's own instrument caveat (*the question is the
   instrument*) has its worked example now.
+
+---
+
+## Session 2 — 2026-08-20, resumed
+
+The handoff above was accurate and the tree matched it: `origin/main` at
+`63e7770`, three units merged, nothing else on the roster claimed or dirty.
+**Every gate the handoff listed as live has since fallen** — #682, #684, #690,
+#692 and #705 are all merged — so ten of the twelve remaining lanes are
+edge-free. The two that are not: **C-m** waits on A2/#649 (open as **#714**,
+and stalled — Track A has no orchestrator driving it), and **C-n** is held
+deliberately last.
+
+### The row that was owed, and is now written
+
+#709's body said the `agreement`-column finding *"has no §D row"* and told the
+next orchestrator to write it **before doing anything else**. Done: **C9** and
+**C10** are now rows in §D's Track C table, and **C-p** and **C-q** are lanes
+here. C10 (`geom_core::k_stats`) was the other unscheduled residue from the
+same source.
+
+*What that cost is the argument for §C3.* Both were stated clearly, in the
+right place, by a lane that knew exactly what it had found — and neither would
+have executed, because a register that does not execute is not a register. The
+gap between "disclosed in a merged PR body" and "has a row" is the whole of
+§C3, and this track produced an instance of it within hours of quoting it.
+
+### Two conditions this container imposes that the previous one did not
+
+- **There is no `ssh` binary on this box**, so `local-scripts/new-lane.sh`
+  cannot run: it clones `git@github.com:evgunter/cad.git`. Lanes are created
+  instead by cloning the orchestrator checkout locally (hardlinked objects,
+  ~4 s, ~38 MB) and repointing `origin` at HTTPS, which is the credentialed
+  path here. The stand-in lives at `~/.local/share/cad-work/new-lane.sh` and
+  sets `core.hooksPath` exactly as the committed script does — verified that
+  the pre-push fmt hook fires and that a push authenticates. **This is a
+  container fact, not a repo one**; the committed script is right for the
+  environment it was written for and is left alone.
+- **`~/.local/share/cad-work/` starts empty.** Nothing survived from the
+  previous session — no lane clones, and the two #709 review-findings files
+  the handoff points at (`rev-709-findings.md`,
+  `rev-709-style-findings.md`) **are gone**. That handoff sentence is now
+  false, and the lesson generalises: *a pointer at an uncommitted file in a
+  container's home directory is a pointer at nothing, one preemption later.*
+  Review artefacts worth surviving belong in a commit.
+
+### The standing lane header
+
+Every Track C lane is now dispatched against
+`~/.local/share/cad-work/trackc-lane-header.md`, which carries what every
+brief on this track was repeating by hand: the A/B fence, target-dir and
+lane-private-path rules, the commit-and-push-at-seams rule with the two
+incidents that earned it, the recording convention, **the four overstated
+claims this track's reviews actually caught**, and the two obligations that
+are this track's own (a claim about a shared helper is a claim about every
+caller; a brief is a claim site too).
+
+### In flight
+
+| lane | finding | branch | review |
+|---|---|---|---|
+| **C-d** | H12 — the SSI sweeps' other never-silence doors | `smellc/h12-ssi-never-silence` | style |
+| **C-f** | H11 — #632's two residues | `smellc/h11-632-residues` | style |
+| **C-h** | H14 — the census's `bridged` skip | `smellc/h14-census-bridged` | **adversarial** + style |
