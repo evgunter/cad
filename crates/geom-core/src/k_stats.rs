@@ -189,7 +189,8 @@ pub fn decide<T: Decide>(
 /// Classification and recording are otherwise [`decide`]'s, so the K
 /// stream is unchanged — not as a promise to keep in sync but as a
 /// fact of the code: both doors are calls to the same private
-/// `classify`, and only the `Margin` wrapper distinguishes them.
+/// `classify`, and [`decide`] merely unwraps its `Margin` on the way
+/// in.
 ///
 /// `ledger_row` names the audit row that argues the absence (e.g.
 /// `"F2"`, `"F13"`). It is an obligation, not telemetry: the value
