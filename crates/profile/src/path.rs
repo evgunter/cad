@@ -340,9 +340,9 @@
 use crate::RawLoop;
 use core::marker::PhantomData;
 
+use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point2, Real, Sign, Tolerance, Vec2};
 
-use crate::k_stats::decide;
 use crate::path::program::{ClosedLoop, Step, Target};
 use crate::sugar::{
     ArcSweep, LineFilletTrims, TrimRefusal, bulge_from_center, bulge_from_via,
