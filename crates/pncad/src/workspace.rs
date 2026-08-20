@@ -1,4 +1,4 @@
-//! The workspace store — read side only.
+//! The workspace store: a directory of save files, read and written.
 //!
 //! A workspace is a directory of `*.pncad` save files. [`Workspace::open`]
 //! scans it, reading each file's `id:` header line (never the body —
@@ -14,8 +14,8 @@
 //! reproducible value (Cargo.lock semantics), so
 //! an out-of-date pin is surfaced, never silently retargeted.
 //!
-//! The write side is MINIMAL: exactly what the split/
-//! inline refactorings need — [`Workspace::create`] mints a new save
+//! The write side is deliberately MINIMAL — exactly what the split/
+//! inline refactorings need, and no general mutation API — [`Workspace::create`] mints a new save
 //! file from a `Doc` (the id is the caller's:
 //! [`DocumentId::derive`] for deterministic callers,
 //! [`random_document_id`] for interactive authoring), and
@@ -208,8 +208,9 @@ impl core::fmt::Display for WorkspaceError {
 
 impl core::error::Error for WorkspaceError {}
 
-/// An opened workspace: the scanned id → path map (read side only;
-/// module docs).
+/// An opened workspace: the scanned id → path map, plus the two
+/// write doors ([`Workspace::create`], [`Workspace::resave`]) the
+/// refactorings need. See the module docs.
 #[derive(Debug, Clone)]
 pub struct Workspace {
     /// The scanned directory.
@@ -292,7 +293,8 @@ impl Workspace {
     ///
     /// [`WorkspaceError::UnknownId`], [`WorkspaceError::Io`],
     /// [`WorkspaceError::Load`] (any [`PersistError`], the ambient-ε
-    /// reconciliation refusal included), and
+    /// reconciliation refusal included), [`WorkspaceError::Pin`] if
+    /// recomputing the pin itself refuses, and
     /// [`WorkspaceError::PinMismatch`] carrying both pins and the
     /// recourse ([`PIN_MISMATCH_RECOURSE`]).
     pub fn resolve(&self, doc_ref: &DocRef) -> Result<ProfileDoc, WorkspaceError> {

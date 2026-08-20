@@ -184,16 +184,12 @@ fn declare_error_tags_are_stable() {
 /// The binding matches `Expr::literal`'s OWN refusals rather than
 /// pre-checking them, and the tags Python sees are stable.
 ///
-/// This is also the pin behind the two Python exception classes'
-/// division of labour. `DimensionError` is the QUANTITY boundary's
-/// operator check; the expression layer's refusal type — confusingly
-/// also called `DimensionError` in the document layer — is routed to
-/// `LiteralError`. That routing is honest only while the arms Python
-/// can actually reach are literal-value refusals, and literal
-/// construction is the one door that reaches this type at all, so
-/// this test asserts the WHOLE reachable set. An arm reaching Python
-/// that is a genuine dimension mismatch is the day the routing has
-/// to be re-decided, and it lands as a failure here.
+/// **Scope: the literal-construction door only.** It is one of TWO
+/// doors that reach the document layer's `DimensionError`; the other
+/// is `load`, and
+/// `the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_parse_refusal`
+/// below is its half. Read the two together — either alone is a
+/// premise that excludes the mode the other covers.
 #[test]
 fn literal_refusals_come_from_the_kernel_with_stable_tags() {
     use pncad::document::Expr;
@@ -222,10 +218,126 @@ fn literal_refusals_come_from_the_kernel_with_stable_tags() {
     assert_eq!(
         reachable.into_iter().collect::<Vec<_>>(),
         ["count_is_integer", "non_finite"],
-        "the expression layer now reaches Python with an arm outside \
-         the literal-value pair — decide what class it should raise \
-         before widening this pin"
+        "literal construction now refuses on an arm outside the \
+         literal-value pair — it raises `LiteralError`, so decide \
+         whether that is still the right class before widening this pin"
     );
+}
+
+/// **The second door.** `WireExpr::rebuild` (the load path) re-runs
+/// every dimension check through `Expr`'s OPERATOR builders, so a
+/// hand-edited save file reaches the genuine dimension-mismatch arms
+/// with no new binding at all — six of them, executed here.
+///
+/// Today they arrive in Python as `PersistError` with `variant ==
+/// "parse"`, because the deserializer `Debug`-formats the structured
+/// refusal into a serde message. That is a real misrouting and it is
+/// **issue #694**, not this crate's to fix: a dimension mismatch is
+/// not a parse failure, and a `format!("{err:?}")` message is not the
+/// "typed exception carrying the structured error" this crate's
+/// taxonomy promises.
+///
+/// What this test is for is the DECISION the fix will force. When
+/// #694 gives these a typed class, this assertion goes red, and
+/// whoever changes it has to answer the question the three names make
+/// easy to get wrong: a dimension mismatch from the load path is not
+/// a `LiteralError` (nothing about it is a literal) and it is not the
+/// quantity boundary's `DimensionError` either.
+#[test]
+fn the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_parse_refusal() {
+    use pncad::document::{DocEdit, LoopProgram, Node, ProfileDoc, ProfileProgram, apply, save};
+    use pncad::prelude::SketchPlane;
+
+    let doc: ProfileDoc = crate::identity::derived("dimension-routing-probe");
+    let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
+        .expect("finite corners");
+    let applied = apply(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::Profile(ProfileProgram {
+                plane: SketchPlane::xy(),
+                loops: vec![square],
+            }),
+        },
+    )
+    .expect("the profile inserts");
+    let text = save(&applied.doc, &[]).expect("the document saves");
+    let (header, body) = text.split_once("\n{").expect("a header line then the body");
+    let body = format!("{{{body}");
+    let saved: serde_json::Value = serde_json::from_str(&body).expect("the save body is JSON");
+
+    // Every case replaces the FIRST literal in the document, so this
+    // is driven by the wire SHAPE rather than by a node id.
+    let length = serde_json::json!({ "Literal": { "value": 1.0, "dim": "Length" } });
+    let angle = serde_json::json!({ "Literal": { "value": 1.0, "dim": "Angle" } });
+    let cases = [
+        ("mismatch", serde_json::json!({ "Add": [length, angle] })),
+        (
+            "mul_needs_scalar",
+            serde_json::json!({ "Mul": [length, length] }),
+        ),
+        (
+            "div_needs_scalar_divisor",
+            serde_json::json!({ "Div": [length, angle] }),
+        ),
+        ("trig_needs_angle", serde_json::json!({ "Sin": length })),
+        ("not_count", serde_json::json!({ "CountToScalar": length })),
+        (
+            "unknown_display_unit",
+            serde_json::json!({
+                "Literal": { "value": 1.0, "dim": "Length", "unit": "furlong" }
+            }),
+        ),
+        (
+            "display_unit_mismatch",
+            serde_json::json!({
+                "Literal": { "value": 1.0, "dim": "Angle", "unit": "mm" }
+            }),
+        ),
+    ];
+
+    for (arm, expr) in cases {
+        let mut mutated = saved.clone();
+        assert!(
+            replace_first_literal(&mut mutated, &expr),
+            "{arm}: the save body has no literal expression to replace — \
+             the wire shape moved and this probe was about to pass vacuously"
+        );
+        let text = format!(
+            "{header}\n{}",
+            serde_json::to_string(&mutated).expect("re-serializing")
+        );
+        let err = pncad::document::load(&text)
+            .err()
+            .unwrap_or_else(|| panic!("{arm}: an ill-dimensioned save file must refuse"));
+        assert_eq!(
+            persist_error_tag(&err),
+            "parse",
+            "{arm}: the load path's dimension refusal has changed class \
+             (#694). It is neither a literal-value refusal nor the \
+             quantity boundary's operator check — decide which typed \
+             class it raises, and say so on both Python classes' docs, \
+             before updating this pin"
+        );
+    }
+}
+
+/// Replaces the first single-key `Literal` object found in a
+/// depth-first walk. Returns whether one was found — a probe that
+/// silently replaced nothing would assert nothing.
+#[cfg(test)]
+fn replace_first_literal(value: &mut serde_json::Value, with: &serde_json::Value) -> bool {
+    match value {
+        serde_json::Value::Object(map) => {
+            if map.len() == 1 && map.contains_key("Literal") {
+                *value = with.clone();
+                return true;
+            }
+            map.values_mut().any(|v| replace_first_literal(v, with))
+        }
+        serde_json::Value::Array(items) => items.iter_mut().any(|v| replace_first_literal(v, with)),
+        _ => false,
+    }
 }
 
 /// LIB-DOORS F1: a load refusal's tag, exercised through the real

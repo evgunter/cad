@@ -576,8 +576,9 @@ const FACADE_SOURCES: [(&str, &str); 10] = [
 /// What this fallback CANNOT see (stated so the next reader does not
 /// over-trust it): a key type re-exported under an alias, or one
 /// reachable as an associated type or a public field of something
-/// this list does allow. A rustdoc-JSON check would catch those; when
-/// a nightly is available to CI, replace this test with one.
+/// this list does allow. A rustdoc-JSON check would catch those;
+/// whether CI grows one is **#696**, which carries this deferral and
+/// the two others that share it.
 #[test]
 fn no_arena_key_is_nameable_through_the_facade_document_surface() {
     // Every file of the façade's own source. A new module added here
@@ -640,8 +641,8 @@ fn no_arena_key_is_nameable_through_the_facade_document_surface() {
 /// report.
 ///
 /// Same fallback shape as the LB13 guard above (rustdoc JSON is
-/// nightly-gated on this toolchain), aimed at the exact regression the
-/// ruling forbids:
+/// nightly-gated on this toolchain — **#696**), aimed at the exact
+/// regression the ruling forbids:
 ///
 /// 1. `pub use profile;` — the whole-crate re-export whose removal IS
 ///    the demotion. Re-adding it makes `pncad::profile::RawLoop`
@@ -2643,10 +2644,52 @@ const NOT_CARRIED: [&str; 87] = [
     "vertex_name",
 ];
 
-/// Every name in a `pub use` statement of `src`, whether spelled in a
-/// brace group or as a single path. Comments are stripped first, so
-/// prose naming a type is not read as an export.
-fn pub_use_names(src: &str) -> std::collections::BTreeSet<String> {
+/// Every name a `pub use` statement of `src` introduces, restricted
+/// to statements whose path ROOT is `root` — so the answer is "which
+/// of that crate's names does this file carry", not "which leaf
+/// identifiers appear anywhere".
+///
+/// The restriction is what keeps the completeness check below from
+/// being satisfied by a coincidence: without it, a name re-exported
+/// from `sweep` or `topo` would count as carrying an identically
+/// spelled document-layer name, and the guard would pass while the
+/// name was uncarried.
+///
+/// Comments are stripped first, so prose naming a type is not read as
+/// an export. A statement with no `::` (a whole-crate `pub use foo;`)
+/// introduces the crate name itself and belongs to no root.
+fn pub_use_names(src: &str, root: &str) -> std::collections::BTreeSet<String> {
+    let code = code_without_comments(src);
+    let prefix = format!("{root}::");
+    let mut names = std::collections::BTreeSet::new();
+    let mut rest: &str = &code;
+    while let Some(at) = rest.find("pub use ") {
+        rest = &rest[at + "pub use ".len()..];
+        let Some(end) = rest.find(';') else { break };
+        let stmt = rest[..end].trim_start();
+        rest = &rest[end + 1..];
+        if !stmt.starts_with(&prefix) {
+            continue;
+        }
+        let items = match (stmt.find('{'), stmt.rfind('}')) {
+            (Some(open), Some(close)) if open < close => stmt[open + 1..close].to_string(),
+            // A single path: the leaf is the name it introduces.
+            _ => stmt.rsplit("::").next().unwrap_or(stmt).to_string(),
+        };
+        for item in items.split(',') {
+            let item = item.trim();
+            if !item.is_empty() {
+                names.insert(item.rsplit("::").next().unwrap_or(item).to_string());
+            }
+        }
+    }
+    names
+}
+
+/// Every name a `pub use` statement introduces, with no root
+/// restriction — the form for reading a crate's OWN `lib.rs`, where
+/// each statement's root is one of that crate's modules.
+fn module_pub_use_names(src: &str) -> std::collections::BTreeSet<String> {
     let code = code_without_comments(src);
     let mut names = std::collections::BTreeSet::new();
     let mut rest: &str = &code;
@@ -2657,7 +2700,6 @@ fn pub_use_names(src: &str) -> std::collections::BTreeSet<String> {
         rest = &rest[end + 1..];
         let items = match (stmt.find('{'), stmt.rfind('}')) {
             (Some(open), Some(close)) if open < close => stmt[open + 1..close].to_string(),
-            // A single path: the leaf is the name it introduces.
             _ => stmt.rsplit("::").next().unwrap_or(stmt).to_string(),
         };
         for item in items.split(',') {
@@ -2690,18 +2732,30 @@ fn pub_use_names(src: &str) -> std::collections::BTreeSet<String> {
 /// docs), and that the same completeness holds for the other kernel
 /// crates. It does not need to for them — they are re-exported whole,
 /// so their surfaces cannot drift from the façade's by construction.
-/// Its blind spot is a public name reachable only by module path
-/// (`editor_core::persist::Foo`) and never lifted to that crate's
-/// root: this scan reads the root, exactly as the first closure audit
-/// did, and that is the same structural hole that audit's second pass
-/// found.
+///
+/// Two blind spots, both needing rustdoc JSON to close (**#696**):
+///
+/// 1. A public name reachable only by module path
+///    (`editor_core::persist::Foo`) and never lifted to that crate's
+///    root. This scan reads the root, exactly as the first closure
+///    audit did, and that is the same structural hole that audit's
+///    second pass found.
+/// 2. A `pub` item written DIRECTLY in `editor-core/src/lib.rs`
+///    rather than re-exported. That file has no direct `pub` items
+///    today, so this one is held shut by a coincidence, not a rule.
+///
+/// A third — a leaf name colliding across crates, so that carrying
+/// `Foo` from `sweep` looked like carrying the document layer's
+/// `Foo` — is CLOSED: the façade side counts only names introduced
+/// by a `pub use editor_core::…` statement, not every leaf in the
+/// file.
 #[test]
 fn every_document_layer_root_export_is_carried_or_listed() {
     let kernel_lib =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../editor-core/src/lib.rs");
     let src = std::fs::read_to_string(&kernel_lib)
         .unwrap_or_else(|e| panic!("reading {}: {e}", kernel_lib.display()));
-    let exported = pub_use_names(&src);
+    let exported = module_pub_use_names(&src);
     assert!(
         exported.len() > 150,
         "the scanner found only {} root exports — the file's shape changed \
@@ -2709,9 +2763,13 @@ fn every_document_layer_root_export_is_carried_or_listed() {
         exported.len()
     );
 
+    // The façade side: only what it carries FROM the document layer.
+    // `prelude` re-exports through `crate::document`/`crate::select`,
+    // which are themselves scanned, so nothing is lost by the
+    // restriction — a prelude entry has an origin in this same list.
     let mut carried = std::collections::BTreeSet::new();
     for (_, facade_src) in FACADE_SOURCES {
-        carried.append(&mut pub_use_names(facade_src));
+        carried.append(&mut pub_use_names(facade_src, "editor_core"));
     }
 
     let uncarried: Vec<&String> = exported
@@ -2746,5 +2804,65 @@ fn every_document_layer_root_export_is_carried_or_listed() {
          exports — remove them:\n  {}",
         stale.len(),
         stale.join("\n  ")
+    );
+}
+
+/// **The crate doc's claim about the authoring seams, guarded.**
+///
+/// The claim is that every [`pncad::authoring`] seam is a single
+/// kernel constructor call except `validated`, which is the two-call
+/// form. Its predecessor was a COUNT ("six of the seven"), and the
+/// count went stale the moment the `polygon` door was removed —
+/// nothing was watching, so the sentence outlived the surface it
+/// described by two units.
+///
+/// This watches the failure mode that actually happened: the roster
+/// moving under a sentence about it. Adding or removing a seam fails
+/// here, and so does a second seam chaining a follow-up kernel call
+/// onto its constructor.
+///
+/// **Not guarded, stated:** "a single kernel constructor call" is
+/// about a body's SHAPE, and counting calls in source text is the
+/// kind of scan that reports its own parser rather than the code. The
+/// roster plus the chain check is what a text scan can honestly
+/// assert; the rest is the per-function rustdoc and its doctests.
+#[test]
+fn the_authoring_seam_roster_is_what_the_crate_doc_claims() {
+    let code = code_without_comments(include_str!("../src/authoring.rs"));
+    let mut seams: Vec<&str> = Vec::new();
+    let mut chaining: Vec<&str> = Vec::new();
+    let mut current: Option<&str> = None;
+    for line in code.lines() {
+        if let Some(rest) = line.strip_prefix("pub fn ") {
+            let name = rest
+                .split(|c: char| !(c.is_alphanumeric() || c == '_'))
+                .next()
+                .unwrap_or("");
+            seams.push(name);
+            current = Some(name);
+            continue;
+        }
+        // A body line: column 0 `}` closes the function.
+        if line.starts_with('}') {
+            current = None;
+        } else if let Some(name) = current
+            && line.contains(").validate(")
+        {
+            chaining.push(name);
+        }
+    }
+    seams.sort_unstable();
+    assert_eq!(
+        seams,
+        ["p2", "p3", "real", "v2", "v3", "validated"],
+        "the authoring seam roster moved — re-read the crate doc's \
+         sentence about it before changing this list"
+    );
+    assert_eq!(
+        chaining,
+        ["validated"],
+        "`validated` is documented as the ONE two-call seam; another \
+         seam now chains a follow-up kernel call, so the crate doc's \
+         claim needs re-wording"
     );
 }

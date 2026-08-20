@@ -17,7 +17,11 @@
 //!    (`geom_core::spline::KnotAlgebraError`,
 //!    `sweep::fillet::FilletError`, `topo::boolean::ContainError`,
 //!    `mesh::validate::MeshError`) — a longer path, never a second
-//!    crate. The one stated exception is `MigrationStep`, whose
+//!    crate — and it required **zero kernel edits**, which is the
+//!    ruling other crates cite when they need a payload type and find
+//!    its owner does not re-export it: the answer is a direct edge on
+//!    the owning crate, never a new re-export added to somebody
+//!    else's root. The one stated exception is `MigrationStep`, whose
 //!    signature speaks `serde_json::Value`; [`document`] records why
 //!    it stays out. `tests/all.rs` is the pin: it matches on the
 //!    cross-crate payloads using only `pncad::` paths, and a guard
@@ -48,10 +52,19 @@
 //!
 //! No geometry and no numeric behavior. The **authoring** surface is
 //! re-exports and thin wrappers that do nothing but call into the
-//! kernel: six of the seven seam functions are a single kernel
-//! constructor call, and [`validated`] is the one two-call form
-//! (`Profile::new` then `Profile::validate`) — the exact pair the
-//! demo corpus wrote by hand at every scene.
+//! kernel: every [`authoring`] seam but one is a single kernel
+//! constructor call, and [`validated`] is that one — the two-call
+//! form (`Profile::new` then `Profile::validate`) the demo corpus
+//! wrote by hand at every scene.
+//!
+//! (Stated as a shape, not a count, on purpose. The previous wording
+//! said "six of the seven", which had been wrong since the `polygon`
+//! door was removed — a stale count in the sentence whose job is to
+//! say what is true. The shape is guarded:
+//! `the_authoring_seam_roster_is_what_the_crate_doc_claims` in
+//! `tests/all.rs` reads `authoring.rs` and fails if a seam is added
+//! or removed, or if a second one chains a follow-up kernel call, so
+//! this sentence cannot rot the same way twice.)
 //!
 //! **[`workspace`] is not that, deliberately.** It is a real
 //! subsystem: it scans a directory of save files, reads each one's

@@ -118,10 +118,16 @@ pub enum ErrorClass {
     Dimension,
     /// A value the expression layer refused (non-finite literal, a
     /// count written as continuous, ...) — the document layer's
-    /// `DimensionError`, whose two literal-value arms are the only
-    /// ones any bound door can reach today. The Python class is
-    /// `LiteralError`; see the note on [`ErrorClass::Dimension`] for
-    /// why the two are separate.
+    /// `DimensionError`, raised on the LITERAL-CONSTRUCTION door.
+    /// The Python class is `LiteralError`.
+    ///
+    /// That type has genuine dimension-mismatch arms too, and `load`
+    /// reaches them (`WireExpr::rebuild` re-runs every check through
+    /// the operator builders), but they arrive as
+    /// [`ErrorClass::Persist`] with the `parse` tag rather than under
+    /// any dimension class — issue #694. Nothing here is routed to
+    /// [`ErrorClass::Dimension`], which is the quantity boundary's
+    /// own check and a different type.
     Literal,
     /// A save or load the persistence doors refused.
     Persist,

@@ -53,11 +53,15 @@ pyo3::create_exception!(
     "An operator applied to two QUANTITIES whose dimensions do not \
      admit it — `1 * m + 1 * rad`. Carries `op`, `left`, `right`: \
      the operator and the two dimension tags.\n\n\
-     This is the quantity boundary only. A value the EXPRESSION \
-     layer refuses is a `LiteralError`, and the two do not overlap \
-     today: the expression layer's refusal reaches Python only \
-     through literal construction, whose arms are `non_finite` and \
-     `count_is_integer` — neither a dimension mistake."
+     This is the quantity boundary only, and it is not the only \
+     dimension check in the library. The document layer has its own \
+     refusal type, which reaches Python two ways: through literal \
+     construction, raising `LiteralError`; and through `load`, where \
+     a save file's ill-dimensioned expression — a genuine mismatch — \
+     arrives as `PersistError` with `variant == \"parse\"` rather \
+     than as any dimension class (issue #694). So `DimensionError` \
+     does not intercept an expression-layer mismatch, and nothing \
+     else does either yet."
 );
 pyo3::create_exception!(
     pncad,
@@ -68,9 +72,10 @@ pyo3::create_exception!(
      of the refusing arm.\n\n\
      Not `DimensionError`: that one is the quantity boundary's \
      operator check. The expression layer's refusal type has \
-     dimension-mismatch arms too, but no bound door can construct an \
-     expression that reaches them, so every `kind` seen here is a \
-     literal-value refusal."
+     dimension-mismatch arms too, and `load` DOES reach them from a \
+     hand-edited save file — but they arrive as `PersistError` with \
+     `variant == \"parse\"`, not here (issue #694). Every `kind` \
+     raised on this class is a literal-value refusal."
 );
 pyo3::create_exception!(
     pncad,

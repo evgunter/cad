@@ -84,8 +84,12 @@ class DimensionError(PncadError):
     """An operator applied to two QUANTITIES whose dimensions do not
     admit it — `1 * m + 1 * rad`.
 
-    The quantity boundary only. A value the EXPRESSION layer refuses
-    is a LiteralError; the two do not overlap today."""
+    The quantity boundary only, and not the library's only dimension
+    check. The document layer's own refusal type reaches Python
+    through literal construction (as LiteralError) and through `load`,
+    where a save file's ill-dimensioned expression arrives as
+    PersistError with `variant == "parse"` rather than as any
+    dimension class (issue #694)."""
 
     op: str
     left: str
@@ -97,9 +101,10 @@ class LiteralError(PncadError):
 
     Not DimensionError, which is the quantity boundary's operator
     check. The expression layer's refusal type has dimension-mismatch
-    arms too, but no bound door can construct an expression that
-    reaches them, so every `kind` seen here is a literal-value
-    refusal."""
+    arms too, and `load` does reach them from a hand-edited save file
+    — but they arrive as PersistError with `variant == "parse"`, not
+    here (issue #694). Every `kind` raised on this class is a
+    literal-value refusal."""
 
     kind: str
     value: float

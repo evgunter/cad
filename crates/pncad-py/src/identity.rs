@@ -27,6 +27,15 @@ use pncad::workspace::{WorkspaceError, random_document_id};
 /// [`WorkspaceError::RandomnessUnavailable`] if the OS entropy source
 /// refuses. Surfaced, never papered over with a weaker source or with
 /// a constant.
+///
+/// **UNTESTED, and labelled as such rather than left looking
+/// guarded.** `getrandom::fill` has no injection seam, so this arm
+/// and the `IdentityError` raise it becomes in Python (with
+/// `variant = "randomness_unavailable"`) are reachable only on a host
+/// whose entropy source is broken. What IS pinned is the class
+/// mapping — `error_classes_name_the_python_hierarchy` — and the
+/// absence of any fallback: the `?` here is the whole control flow,
+/// so there is no second path for a constant to hide on.
 pub fn interactive() -> Result<ProfileDoc, WorkspaceError> {
     Ok(ProfileDoc::empty(random_document_id()?))
 }
