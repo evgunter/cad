@@ -191,6 +191,18 @@ survive being read back by a reviewer who did not write it. **If the residue is
 large, that is itself the finding** — report the count before writing the
 entries, not after.
 
+**DISCHARGED on an empty residue, 2026-08-20 (#791).** F-e widened the matcher
+and re-ran it: the file set is **identical** to the pre-widening one, and at
+line granularity the whole workspace gains exactly one hit — a doc comment at
+`real.rs:787` that the existing comment filter strips. **Every `CertifiedBounds`
+use in the tree is a sole bound**, so there was nothing to convert and **no
+allowlist entry was written**. The ruling's two questions were never reached.
+What the sweep *did* find is a compound bound reached through an alias NAME
+(`ArcCarrierScalar`, 49 use sites) — the ruling's second question, one level up,
+and it is left to **G4** because the answer depends on what the alias is bound
+to. That is the shape the caveat wanted: the entry that would have hidden it was
+not written.
+
 ---
 
 ## Number reservation, and why this track takes a block
@@ -215,7 +227,8 @@ sub-block, from the orchestrator.
 | **F-a** | D61, D62 | S117, S118 |
 | **F-b** | D63, D64 | S119, S120 |
 | **F-c** | D65, D66, D67 | S121, S122, S123 |
-| unassigned | D68–D70 | S124–S126 |
+| **F-e** | D68, D69 — **both used** | S124, S125 — **both used** |
+| unassigned | D70 | S126 |
 
 ---
 
@@ -319,17 +332,18 @@ live in that directory and two of them share `scripts/ci-filter.py`.
 | lane | row | branch | scope | review | state |
 |---|---|---|---|---|---|
 | **F-d** | **F4** (S76, S78, S84, S91) | `smellf/f4-guards-that-pass` | `topo/src/review_d18.rs`, `sweep/tests/review_d2_adv_probes.rs`, `geom-brep/tests/`, `geom-core/src/spline/knots.rs` | **ADVERSARIAL** (S76, S78) + style | **dispatched** |
-| **F-e** | **F1** (S59) | `smellf/f1-certifiedbounds-gate` | `scripts/gates/bounds-allowlist.sh`, `geom-core/src/real.rs` | style; **ADVERSARIAL** for forced conversions | **dispatched** |
 | **F-f** | **F2** (S61/S62 + D58–D60) | — | `ci.yml`, `ci-filter.py`, `probe-suite-census.sh`, `gate-roster.sh`, `ci-local.sh` | style | queued behind F-e |
 | **F-g** | **F3** (S63) | — | `scripts/gates/{no-extra-real-bounds,bit-identity-debug-only,interval-square-allowlist,lib.sh}`, `ci-filter.py` | style; **ADVERSARIAL** for the `x*x → powi(2)` conversions | queued — owns `lib.sh` |
 | **F-h** | **F8** (D44, D45) | — | `scripts/k_probe_sweep.sh`, `ci.yml`, `docs/` | style | queued behind F-f |
 
-**F-e is first because Track G's G4 is blocked on it** — per Evan's S87/S88
-ruling, the sentence that makes the `CertifiedBounds` conversion safe is
-currently false, and converting before the gate can see the spelling would leave
-the ratification requirement unenforced at exactly the moment new code starts
-relying on it. **F-g owns `scripts/gates/lib.sh`**; F-e's brief says to stop and
-report rather than take it.
+**F-e went first because Track G's G4 is blocked on it** — per Evan's S87/S88
+ruling, the sentence that makes the `CertifiedBounds` conversion safe was false,
+and converting before the gate could see the spelling would leave the
+ratification requirement unenforced at exactly the moment new code starts
+relying on it. **F-e is out of this table: #791 is open**, and the landing is
+recorded below. **F-g owns `scripts/gates/lib.sh`**; F-e stopped short of it and
+reported the one helper it wanted there (`selftest_passes`), which is now F-g's
+to place or decline.
 
 **Superseded gate table, kept only as the record of what was gated on what:**
 
@@ -366,6 +380,7 @@ conversion safe is *currently false*, and converting first would leave
 the ratification requirement unenforced at exactly the moment new code
 starts relying on it. Track G is not this track's, but the ordering
 constraint is, and it is stated here so a Track G taker can read it.
+**Discharged: F-e opened #791, and G4 is unblocked once it merges.**
 
 ---
 
@@ -375,7 +390,27 @@ constraint is, and it is stated here so a Track G taker can read it.
 
 ## Landings
 
-*(none yet)*
+- **F-e — F1 / S59**, PR **#791**, opened 2026-08-20 (review pending; not
+  merged by the lane). `bounds-allowlist.sh`'s matcher is now shaped by the
+  trait **name** — `(\+\s*(\w+::)*\w*Bounds\b)|(\b(\w+::)*\w*Bounds\s*\+)`
+  — rather than by a list of names, so `Decide + CertifiedBounds` fires in both
+  operand orders and so does the alias after it. The self-test plants both
+  orders, an alias name not in the tree, and a **negative** case (sole bracket
+  bounds must not fire); reverting only the matcher makes `--selftest` red, so
+  the cases are load-bearing. Three prose sites corrected — the gate header, two
+  `real.rs` paragraphs — plus S56's own record, which asserted the same false
+  thing. **Red count before allowlisting: zero; no allowlist entry written**
+  (F-R6 discharged empty, above). Sweep raised **S124/D68** (`ArcCarrierScalar`
+  invisible at 49 use sites — handed to **G4**, which owns the alias's bound)
+  and **S125/D69** (`no-extra-real-bounds.sh` is order-sensitive, S56's own
+  defect un-swept to a third gate — handed to **F-g**, whose scope holds the
+  file).
+- **A helper this lane needed and did not put in `lib.sh`.** `selftest_passes`
+  — the negative twin of `gate_selftest_case` — is local to
+  `bounds-allowlist.sh`. `lib.sh` is **F-g**'s file (F3), so promoting it is a
+  sequencing decision, not this lane's. Every gate in the directory could use
+  it: today the only fixture any of them proves *passes* is the empty clean
+  tree, which says nothing about a spelling that must not fire.
 
 ## Incidents
 
