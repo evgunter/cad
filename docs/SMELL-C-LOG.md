@@ -744,7 +744,7 @@ cannot know who else is in it.
 | lane | finding | PR | state |
 |---|---|---|---|
 | **C-d** | H12 — the SSI sweeps' other never-silence doors | **#734** | **not cleared** — style review returned both track questions No; fix pass running |
-| **C-f** | H11 — #632's residues (**ten**, not the two the finding states) | **#731** | verification pass done and **not cleared** — one probe row wrong a second time, plus a tenth member; second fix pass running |
+| **C-f** | H11 — #632's residues (**ten**, not the two the finding states) | **#731** | **MERGED** `96c109ec` |
 | **C-h** | H14 — the census's record-keyed deferrals | **#737** | **MERGED** `ec12b7ce` |
 | **C-o** | H16 — `StlOptions` | **#732** | fix pass complete, CI green; **waits for Evan's sign-off**; owes one re-run of the byte-identity probe on the merged head |
 | **C-p** | C9 — the `agreement` column | **#738** | **MERGED** `a0a6e1a5` |
@@ -1199,3 +1199,65 @@ Two consequences already visible, both recorded rather than fixed here:
 This is a cross-programme question (a per-track table? a landing lock? a
 generated index?) and belongs to whoever owns §D's shape, not to Track C. Named
 here because Track C produced the measurement.
+
+### #731 (C-f / H11) — **MERGED** `96c109ec`, after three rounds
+
+**The count is the finding.** H11's whole statement was the clause *"#632's two
+residues"*. Two were recorded; **ten existed**, all in `editor-core`, all the
+same shape. Three of the eight extra had been ruled out **in writing** by #632's
+own body — including the flat *"no fail-quiet wildcard in any `RoleSeg` or
+`Qualifier` match in the workspace"*, which was false.
+
+*The mechanism by which the count moved is the transferable part:* **two → four
+→ nine → ten, and every move came from a differently shaped instrument, never
+from looking harder with the same one.** Prose vocabulary; then type-aware
+clippy attribution; then arm-content-directed (scrutinee type never consulted,
+so nesting and aliasing are invisible by construction); then whole-file,
+window-free, keyed on every enum-variant name in `crates/`.
+
+**Row 10 is the argument for that in one site.** `DocParam::bit_eq` was missed
+by instrument 1 because its scrutinee is a **tuple** — the blind spot round 1
+declared — and missed by instrument 2 because its arms are spelled `Self::` and
+name no enum at all, **the same alias tell as the `use RoleSeg as R` miss that
+started the unit**, defeating the instrument built to be immune to exactly that.
+Two instruments, two different reasons, one site.
+
+**Row 6 is the one with a realised precedent.** `content_key`'s tag match was
+exhaustive and its payload match was `_ => {}`, so the compiler forced a
+decision at one half of one memo key and defaulted at the other — and S4 already
+records the realised failure: *"`Step::AtToward`'s memo content-key tag 28
+COLLIDED with `ArcContinue`'s existing 28 … a hit would serve wrong geometry"*,
+caught by a reviewer, not by a type. Same key, same mechanism, second time.
+
+### The probe table failed twice, and round 3 fixed the *class* rather than the cell
+
+Round 1's table was measured on an intermediate tree; **round 2's re-derivation
+of it was too**, one row over — probe D said 6, measured 7, and the missing span
+was `expr.rs:804`, the PR's own newest fix. So C-R16's defect recurred inside
+the correction to C-R16's defect.
+
+The fix that matters is not the corrected number. **Round 3 changed the line-number
+convention: every cited line is now a line of the file *as it ships*, probe
+reverted**, so `sed -n 804p` lands on the cited `match`. The earlier tables gave
+**mutated-tree** numbers, whose offset depends on how many lines the inserted
+probe variant occupies — which is why round 1's `resolve/mod.rs:977` matched
+neither tree and why probe C's `node.rs` cells sat exactly two lines high.
+
+*Generalisable:* **a mutation table cites the tree the reader has, not the tree
+the measurer had.** Under the old convention the diagnostic tell (a line
+matching neither base nor head) was indistinguishable from ordinary probe
+offset, so the error was invisible by construction; under the new one every cell
+is checkable with `sed` in one second. That is the difference between correcting
+an instance and removing the class — and it is what a fourth round would
+otherwise have been spent on.
+
+The ordering rule stands beside it: **run the probes after the last code change,
+not before**, because the table otherwise lags the diff by exactly the last fix
+— the one most likely to be the finding's headline.
+
+**Two cross-cutting notes recorded rather than acted on.** #731 went CONFLICTING
+**a second time mid-fix-pass** as main took five merges — the §D contention
+window again. And Track E's E-e row calls C-f *"disjoint by inspection"* from
+`eval/`, which C-f edits; both sentences already say to read C-f's head instead
+of themselves, which is what saves it. The lane reported it rather than editing
+another track's live table, which is right.
