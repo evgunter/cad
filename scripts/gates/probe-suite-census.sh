@@ -532,9 +532,13 @@ gate_selftest() {
   gate_selftest_case 'no workspace `cargo clippy' plant_clippy_undenied
   gate_selftest_case 'silences `unexpected_cfgs`' plant_cfg_lint_allowed
 
-  # THE CITATION HALF's cases. `gate` reads CENSUS_CITATIONS as a
-  # global and lib.sh's harness runs it in a subshell, so setting it
-  # here selects the half under test without a second harness.
+  # THE CITATION HALF's cases. The mode reaches the gate through argv,
+  # not through this shell: lib.sh's harness runs every case as a REAL
+  # subprocess, so a global set here does not cross into it. It used to,
+  # and that is why these five cases were silently running the CENSUS
+  # half — each one planted a broken citation, the census half passed it,
+  # and the case reported green (S157).
+  GATE_SELFTEST_ARGS=(--citations)
   CENSUS_CITATIONS=true
   gate_selftest_clean
   gate_selftest_case 'no longer names CI' plant_citation_dropped
@@ -543,6 +547,7 @@ gate_selftest() {
   gate_selftest_case 'neither a live claim' plant_undeclared_citation
   gate_plant_clean_exempt_control
   CENSUS_CITATIONS=false
+  GATE_SELFTEST_ARGS=()
 
   printf '%s selftest OK: passes a clean fixture, one with a ci.yml long enough to race, a compound gate, and a complete listing; fires on a listing missing a counted suite, on an empty one, and on an absent tests/ tree, a renamed gate spelling, one file re-gated onto a misspelt feature, a gate line replaced by a prose mention, a clippy row that stopped denying warnings, and the cfg lint silenced at the site — and in --citations mode, on a dropped citation, a deleted citing file, a renamed CI step, and an undeclared new citation, while PASSING the same citation in a declared-history file\n' "$(gate_name)"
 }
