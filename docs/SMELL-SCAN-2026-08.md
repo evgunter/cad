@@ -12745,12 +12745,28 @@ at **checkout**, not at its subject:
 merged PR's ref again, so `--failed` re-fails identically, forever. The record
 keeps two red jobs on a landed PR that **nothing was rendered or compared** in.
 
-**The verified instance.** #790 merged at 23:19:42 while
+**The verified instance, in two attempts — and the second is what makes this a
+finding rather than a footnote.**
+
+**Attempt 1 is the race.** #790 merged at `23:19:42Z` while
 `render lanes / demo tour (scene inputs)` and
-`render lanes / wild-corpus montage` were still running; both failed at 23:19:44
-on the checkout. Both are **`success`** on `1c760e94` — a later run, on another
-track's branch, that **contains** the merge commit `2866eb99`. So the code was
-fine and the evidence for that comes from a run neither party created.
+`render lanes / wild-corpus montage` were still running; both failed at
+`23:19:44Z`, then `:20:00` and `:20:15`, on the checkout.
+
+**Attempt 2 is the trap.** A `gh run rerun --failed` seventeen minutes later —
+quiet repo, no race left to lose — failed **identically** at `23:36:30Z`
+(`run_attempt 2`, confirmed via the jobs API). The wreckage is not a flake that
+clears on retry; **the obvious remedy reproduces it exactly, forever**, because
+the ref it needs no longer exists.
+
+So anyone who finds two red `render lanes` jobs on a merged PR and does the
+natural thing gets two red `render lanes` jobs again — and *that* reads as a
+real, reproducible defect rather than a dead ref. **The retry does not just fail
+to help; it manufactures corroborating evidence for the wrong conclusion.**
+
+What actually settled it was a run **neither party created**: `1c760e94`, on
+another track's branch, which **contains** the merge commit `2866eb99` and shows
+both lanes `success`.
 
 **Why it is worth a finding rather than a shrug.** *It looks exactly like a
 defect.* Two red jobs named `render lanes` on a merged PR read as a rendering
