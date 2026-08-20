@@ -275,6 +275,13 @@ pub fn insert_knot_plan(
 /// One insertion pass — preconditions established by the callers
 /// (`u` strictly interior, multiplicity budget available, weights
 /// validated).
+///
+/// **The Boehm structure is shared with
+/// [`super::compose`]'s `insert_once_ring`; the coefficient arithmetic
+/// is deliberately not** — see that function's docs for why. In short:
+/// this one exists to emit a replayable [`CurvePlan`] over `f64`
+/// weights; that one folds `RingInterval` coefficients with an
+/// outward-rounding quotient and has no weights to form `λ` from.
 fn insert_once(kv: &KnotVector, weights: &[f64], u: f64) -> CurvePlan {
     let p = kv.degree();
     let knots = kv.knots();

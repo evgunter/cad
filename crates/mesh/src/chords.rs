@@ -270,7 +270,7 @@ fn nurbs_chord_count(
         // is a locus fact). One with interior knots is a C⁰ polyline
         // whose kinks a uniform parameter schedule would miss —
         // refused, not guessed at.
-        return if kv.knots().len() == 4 {
+        return if kv.interior_knots().next().is_none() {
             Ok(1)
         } else {
             Err(TessellateError::UnsupportedCurve {

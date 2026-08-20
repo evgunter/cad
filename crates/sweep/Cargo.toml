@@ -75,6 +75,12 @@ topo = { path = "../topo", features = ["sweep-testing"] }
 # dev-dependencies (neither ever enters the other's build graph).
 mesh = { path = "../mesh" }
 proptest = { workspace = true }
+# The shared fuzz harness (one RNG, the per-run seed, the CAD_FUZZ_EFFORT
+# dial). A dependency-free leaf crate named by [dev-dependencies] only,
+# here and everywhere else, which is what keeps it off every shipped
+# build path — and what makes the effort dial reachable without a
+# hand-rolled env read (`scripts/gates/no-ambient-env.sh`).
+test-utils = { path = "../test-utils" }
 
 # ONE test binary for the whole suite (see tests/all.rs). Each extra test
 # target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.

@@ -90,10 +90,14 @@ What is unstarted is unstarted for schedule reasons only, not technical ones:
   body, because R2's thread is live; the deleting PR must cite the recoverable
   commit SHA. **D18 is ADVERSARIAL** — it converts a discard behind two new
   preconditions on the delicate-site path, and #720 proved the hole is real.
-- **D8 landed as #744** (ADVERSARIAL, S18's two knot-vector rows). It edits
-  `crates/mesh/`, which its row did not name — the census was six copies, not
-  four — so **Track C's C5** now finds two of its C¹ carrier gates already
-  four lines each.
+- **D8 landed as #744** (ADVERSARIAL, S18's two knot-vector rows). The census
+  was **eight** copies, not four, so it edits `crates/mesh/` and
+  `crates/step-export/`, which its row did not name — **Track C's C5** now
+  finds two of its C¹ carrier gates already four lines each. It **placed D30**
+  (ADVERSARIAL, `geom-brep/props/quad.rs`: the type cannot represent the
+  intermediate, so the consumer re-derives the vocabulary — S32's shape) and
+  **D31** (style, `make_compatible`/`deviation_from` as one routine). Both are
+  edge-free and unstarted.
 
 ## For Evan — S14 now has three witnesses
 

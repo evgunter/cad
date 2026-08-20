@@ -274,6 +274,19 @@ impl BernsteinSpans {
 /// ring: `Q_i = c_{i−1} + (c_i − c_{i−1})·α_i` with
 /// `α_i = (u − U_i)/(U_{i+p} − U_i)` formed as a **ring quotient** of
 /// knot enclosures (module docs step 2). Fixed ascending index order.
+///
+/// **The Boehm structure is shared with
+/// [`super::algebra::insert_once`]; the coefficient arithmetic is
+/// deliberately not.** Both derive the span through the same search
+/// ([`super::knots::find_span_in`] here, `find_span` there) and both
+/// insert one knot at `k + 1`. There the weights are `f64` and the
+/// output is a replayable `CurvePlan` of `Step`s whose `λ` is formed
+/// from those weights; here there are no weights at all — one
+/// homogeneous channel of `RingInterval`s, folded in place, with `α` a
+/// ring quotient that rounds **outward** under D9's fixed association.
+/// A shared body would have to make that widening conditional on the
+/// scalar, which is the one thing the ring exists to make
+/// unconditional.
 fn insert_once_ring(
     knots: &mut Vec<f64>,
     p: usize,
@@ -282,20 +295,29 @@ fn insert_once_ring(
     u: f64,
 ) {
     // The precondition of everything below: `u` strictly inside the
-    // domain. The span search is total on all of `f64` and answers
-    // *something* outside — the last span at or above the domain end,
-    // the first below it or at NaN — and that answer is not the one
-    // this arithmetic needs; inserting at an end would break the clamp
-    // besides. Observed here, in the frame that depends on it, rather
-    // than inherited from the caller's structure filter (D2 addendum
-    // row 4: a kernel-bug state the code can simply observe, so
-    // `unreachable!` and not a re-deriving `debug_assert`). Not
-    // input-reachable: the only caller draws `u` either from
+    // domain. The span search is total on all of `f64`, so outside that
+    // range it does not refuse — it answers an end span. `knots.insert`
+    // then places `u` INSIDE a clamp run, and the vector that comes out
+    // is no longer clamped: a silently wrong decomposition, not a
+    // failure. That is why this is `unreachable!` and not a
+    // `debug_assert` — compiled out, the check would not turn the bad
+    // answer into a loud one, it would only stop looking (D2 addendum:
+    // silent discard is never an answer; row 4, since the condition is
+    // observed here rather than re-derived).
+    //
+    // Not input-reachable: the only caller draws `u` either from
     // `interior_knots`, whose values are strictly interior by the
-    // `KnotVector` invariant, or from extras it filters to the open
-    // domain, which also rejects NaN.
+    // `KnotVector` invariant, or from caller-supplied extras it filters
+    // to the open domain — a filter that rejects NaN too, since
+    // `v > lo` is false for NaN.
     if !(u > knots[p] && u < knots[knots.len() - p - 1]) {
-        unreachable!("insert_once_ring at {u}, outside the open domain");
+        unreachable!(
+            "insert_once_ring: `u` proven strictly interior by the caller \
+             (interior_knots values, or extras filtered to the open domain) \
+             — got {u} against domain ({}, {})",
+            knots[p],
+            knots[knots.len() - p - 1]
+        );
     }
     // Span k: knots[k] ≤ u < knots[k+1], the last copy's span, so
     // 0 < k < len − 1.

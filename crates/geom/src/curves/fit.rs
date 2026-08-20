@@ -717,9 +717,10 @@ macro_rules! nurbs_fit {
                     }
                 }
                 let refine_to = |c: &Self| -> Result<Self, FitError> {
+                    let own: Vec<(f64, usize)> = c.knots().interior_knots().collect();
                     let mut add: Vec<f64> = Vec::new();
                     for (u, m) in &need {
-                        let have = c.knots().multiplicity_of(*u).map_or(0, |(s, _)| s);
+                        let have = own.iter().find(|(v, _)| *v == *u).map_or(0, |(_, s)| *s);
                         for _ in have..*m {
                             add.push(*u);
                         }

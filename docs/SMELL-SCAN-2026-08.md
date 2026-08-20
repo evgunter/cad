@@ -2825,18 +2825,18 @@ parameter, and a roster entry the `decide("` grep can no longer find), but it
 never required the port. The spec inferred that sharing the walk would force
 pooling the ledger, and that inference is what was wrong.
 
-## S18. Certified numeric derivations duplicated across crates (roll-up) — the two knot-vector rows FIXED by #744; four rows live
+## S18. Certified numeric derivations duplicated across crates (roll-up) — the knot-vector rows PARTLY CLOSED by #744; four rows live, plus two the closing spawned
 
 - **Confidence**: sure for each row
-- **Partly closed.** #744 closed *"Distinct interior knots with multiplicities"* and *"Knot insertion"*'s span half. The two quotient-rule rows, the bulge-arc row, the prefer-intrinsic row and `step-export/volume.rs` are **live** — the last of those is Track C's **C3**, not this row's to close.
+- **Partly closed, and precisely how.** #744 gave *"Distinct interior knots"* one home and closed *"Knot insertion"*'s **span** half. It did **not** close the coefficient fork (deliberate, permanent, now documented at both sites), the second span search for non-representable derived vectors (**D30**), or the consumer routine duplicated on top of the query (**D31**). The two quotient-rule rows, the bulge-arc row, the prefer-intrinsic row and `step-export/volume.rs` are untouched and **live** — the last of those is Track C's **C3**, not this row's to close.
 
 | Derivation | Copies | Anchor |
 |---|---|---|
 | Rational quotient-rule interval assembly | 2 crates (`ssi/enclose` vs `mesh/nurbs_cert`), sharing only the `spline::hull` primitives; a soundness fix in one is invisible to the other | `ssi/enclose.rs:417`, `mesh/nurbs_cert.rs:1039` |
 | …and again *within* `mesh`, curve vs surface | The curve version's doc says "the face bound's quotient-rule assembly one dimension down" | `mesh/chords.rs:363` |
 | Bulge-arc closed form (ratified convention) | 3 | `edge_geometry.rs:146`, `profile/seg.rs:143`, `sweep/skin.rs:306` |
-| Knot insertion | **FIXED by #744** (the span half). The raw `&mut Vec<f64>` path calls the same binary search `find_span` does — one search in the tree, not two that agree — under a stated precondition. The two routines' coefficient arithmetic is deliberately NOT unified; #744 argues why | `spline/knots.rs` (`span_offset_in`, `find_span_in`) |
-| "Distinct interior knots with multiplicities" | **FIXED by #744** — and the census was **six**, not "≥4": `mesh/chords.rs:284` and `mesh/nurbs_cert.rs:1406` are the same scan *reduced to a predicate* rather than collected, which is why a name-based search missed them. Six scans, four crates, three result shapes, eleven call sites, now one `KnotVector::interior_knots()` | `geom-core/src/spline/knots.rs` |
+| Knot insertion | **SPAN HALF CLOSED by #744; the fork STAYS.** The raw `&mut Vec<f64>` path calls the same search `find_span` does, under a stated precondition. The **coefficient arithmetic is a permanent deliberate fork** — a `CurvePlan` of `Step`s over f64 weights vs an in-place `RingInterval` fold whose α rounds outward — and both sites now say so in their own docs. Not one search in the tree: one for **clamped** vectors, plus `geom-brep`'s `props::quad::raw_span` for the derived vectors `KnotVector` cannot represent (**D30**) | `spline/knots.rs` (`span_offset_in`, `find_span_in`) |
+| "Distinct interior knots with multiplicities" | **PARTLY FIXED by #744** — the census was **eight**, not "≥4". Two copies reduce the scan to a predicate (`mesh/chords.rs`, `mesh/nurbs_cert.rs`), which no search for an "interior" *helper* reaches; one runs over the **whole** vector (`step-export/writer.rs::run_length_knots`, self-declaring the duplication in its own doc), which no search keyed on the interior bounds reaches; and one is `KnotVector::clamped`'s own validation, 180 lines from the home. All eight now call `runs_in`, through `interior_knots()` / `knot_runs()` or directly. **What did NOT close: the consumer routine those queries feed** — `sweep::make_compatible` and `geom::fit::deviation_from` are one union-and-refine routine in two crates (**D31**) | `geom-core/src/spline/knots.rs` (`runs_in`) |
 | Prefer-intrinsic upgrade rule | 3, with **3 different sample schedules**: validator uses `CERT_SAMPLES`; `revolve/upgrade.rs` hardcodes `let samples = 9u32`; `extrude.rs` uses a *single* midpoint with no lane gate. The doc claims "the SAME quantity, the same predicate name" — true only by coincidence of the literal 9 | `revolve/upgrade.rs:198`, `extrude.rs:1044`, `validate.rs:1994` |
 | Planar divergence-theorem volume | `step-export/volume.rs` re-derives what `props::planar_face` computes, strictly weaker (planes+lines only) and reading its sign with a raw `volume < 0.0` outside the trilean discipline | `step-export/src/volume.rs:88` |
 | Negative-zero flush helper | **FIXED by #704** — all four copies call one home, `step-import/src/signed_zero.rs`, and a CI gate now fails a fifth. The two later copies were byte-identical to *each other*; the home was the variant | `step-import/src/signed_zero.rs` |
@@ -2897,17 +2897,34 @@ be unified."
   copy nobody was tracking, and the row's own count of "≥4" was two short: this
   scan's fifth and sixth copies (`mesh/chords.rs`, `mesh/nurbs_cert.rs`) reduce
   it to a max-multiplicity predicate instead of collecting it, so no search for
-  an "interior" *helper* could reach them. One `interior_knots()` iterator now
-  serves all three result shapes across eleven call sites, and the awkwardness
-  was measurable: `fit.rs`'s `deviation_from` called the scan and then
-  `multiplicity_of` **per value**, paying an O(n) re-scan to rebuild a number
-  the scan it had just run already held.
+  an "interior" *helper* could reach them. **Two review passes then found two
+  more**, and the count is **eight**: `step-export/writer.rs`'s
+  `run_length_knots` (a fifth crate, three call sites, all handing it a
+  validated `KnotVector`'s knots — and self-declaring the duplication in its own
+  doc, the shape this postmortem already says nothing reads), and
+  `KnotVector::clamped`'s **own** interior-multiplicity validation, 180 lines
+  from where the home was put. The primitive is now `runs_in(&[f64])`, private
+  to `knots.rs`, with `interior_knots()` and `knot_runs()` as its two one-line
+  public faces; the awkwardness was measurable throughout — `fit.rs`'s
+  `deviation_from` called the scan and then `multiplicity_of` **per value**,
+  paying an O(n) re-scan to rebuild a number the scan it had just run already
+  held.
   *Lesson: a data structure whose API was frozen one PR before its first
   consumer is the tell; "did you have to hand-scan? why isn't that on the
   type?" is a cheap review question nobody is asked to ask.*
-  *Second lesson, from the miss: a duplication census counts the copies that
-  produce the same VALUE, and undercounts the ones that reduce it. The two
-  `mesh` copies were the same scan with an `any()` on the end.*
+  *Second lesson, from the misses — there were three shapes, and one census
+  pattern is blind to each.* A pattern keyed on the RESULT misses copies that
+  **reduce** it (the two `mesh` gates were the same scan with an `any()` on the
+  end). A pattern keyed on the interior BOUNDS (`p + 1 .. len - p - 1`) misses
+  the copy that scans the **whole** vector, because that one contains no degree
+  at all. And a pattern keyed on either misses the copy inside the **validating
+  constructor**, which runs before the type exists and so cannot call the type's
+  own method — the fix there is the one this PR had already made for the binary
+  search (lift the body to a free function over the slice) and did not
+  generalise until a reviewer pointed at the asymmetry inside its own diff.
+  *Third lesson: giving a query a home does not close the routine BUILT on the
+  query. `make_compatible` and `deviation_from` became legible as one routine
+  only once both opened with the same expression — see D31.*
 - **Prefer-intrinsic ×3** — **FLAGGED AND PARTLY FIXED.** #152's review raised
   the adjacent concern and got *"the demanded set equals the certifiable set
   through the one-home `geom_brep::tangent_certificate_lane`"* — one home **for
@@ -6909,7 +6926,7 @@ mutation-path correction also produced a **second witness for S14**, filed in
 *Open decisions* rather than settled here.
 
 **Reviews are style-only** (`docs/prompts/reviewer-style-lane.md`) except at
-the rows marked ADVERSARIAL — D2 and **D18** still live, with D1
+the rows marked ADVERSARIAL — D2, **D18** and **D30** still live, with D1
 (**retired, #710**), D9 (**retired, #712**), D15 (**retired, #718**), D16
 (**retired, #720**), D11 (**retired, #719**) and D8 (**retired, #744**)
 landed — and D5's `seqgen` half, landed with #713.
@@ -6940,10 +6957,14 @@ scheduled.
 
 ### Landed
 
-**D8 — FIXED by #744.** The census was **six**, not the row's "≥4":
-`mesh/chords.rs` and `mesh/nurbs_cert.rs` hold the same scan *reduced to a
-predicate*, which is why nobody found them. One `KnotVector::interior_knots()`
-iterator serves all three result shapes across eleven call sites in four crates.
+**D8 — FIXED by #744, and it placed D30 and D31.** The census was **eight**,
+not the row's "≥4", and the three extra copies each defeat a different search:
+two *reduce* the scan to a predicate (`mesh/chords.rs`, `mesh/nurbs_cert.rs`),
+one scans the **whole** vector so contains no degree to match on
+(`step-export/writer.rs`), and one is `KnotVector::clamped`'s own validation,
+which cannot call the type's method because it runs before the type exists. The
+primitive is `runs_in(&[f64])`, with `interior_knots()` and `knot_runs()` as its
+two one-line public faces across five crates.
 The span half is separate and landed with it: `span_offset`'s binary search moved
 to a free function the raw knot-algebra path calls, so the linear scan is gone
 without a `KnotVector` being rebuilt per insertion — and the substitution's
@@ -6952,7 +6973,11 @@ stated and checked at the frame that makes it. The coefficient arithmetic of the
 two insertion routines is deliberately **not** unified. See S18 for the full
 record, including the differential evidence, the invariant the slice-taking
 extraction moved from the type to a `pub(crate)` contract, and the note for
-Track C's C5 that this edits `mesh/`.
+Track C's C5 that this edits `mesh/`. Two review lanes ran; both found real
+work, and both suites are promoted as-is
+(`geom-core/tests/d8_knot_queries_adversarial.rs`,
+`sweep/tests/review_d8_consumer_differential.rs` — the latter needed a
+`test-utils` dev-dependency on `sweep`, which had none).
 
 **D1 — FIXED by #710.** **Ten** helpers across **twelve** sites: the row's
 nine names, of which one (`arc_apex`) had a third copy the name-based list
@@ -7145,6 +7170,8 @@ have failed loudly even if it had been attempted.
 | **D18** | **Two callers hand `link_half_edges` a `prev` nothing proves, and they are the last thing standing between W2c and done.** Both read `prev` straight out of the arena and splice through it, and in both cases the *symmetric* `next` **is** proven live in the same plan phase: `split.rs:253` passes `prev(hm)` while `:155-160` checks `next(hp)`; `euler_kill.rs:830` passes `a = prev(he)` while `b = next(he)` is proven by the cycle walk — **`loop_walk` steps `next`** (`body.rs:796-800`), so the walk proves one and not the other. `kef` is the outlier among the operators: `mev` (`euler.rs:1437-1443`), `mef` (`euler.rs:1701-1707`), `kev` (`euler_kill.rs:605-613`) and `mekr_cycles` (`euler_ring.rs:1032-1037`) each check their own `prev`s explicitly and say so. The fix is **one `contains_key` per site**, symmetric with the check each plan phase already has — `kev`'s four-link loop is the shape. **Why the row is worth doing rather than a tidy-up**: `link_half_edges` is the site S12 led with and the site the D2 addendum names, and #720 left its two discards unconverted for exactly this reason — so **D18 unblocks the last two sites of W2c**, after which the helper converts in one line. **Both** call sites are required: fixing only `split.rs` leaves `kef`'s `a` unproven and the helper still unconvertible. The distinction a future reader will not re-derive: the helper's old qualifier was *"cannot fail on **the operator paths**"*, and one of the two gaps is **inside an operator** — the qualifier was not merely narrow, it was wrong. **How it was found**: #720's own sibling sweep obligation, discharged late — the unit established that a `prev` is not proven by a `next`-walk and did not immediately run that read over the operators; its review did. | raised by D16 (#720) | `topo/src/split.rs`, `topo/src/euler_kill.rs`, then `topo/src/euler.rs`'s `link_half_edges` | **ADVERSARIAL** — it adds preconditions to a non-operator mutator and to a kill operator on the delicate-site path, then converts a discard behind them; getting any part wrong re-opens the hole #720 proved is real, and this time as a panic. | nothing (#720 leaves both call sites' code untouched, correcting only the false comments on them) |
 | **D19** | **The K roster's inventory method has a hole, and the roster is complete today by luck of era.** `K-REPORT.md:341` states the method as `grep -r 'decide("'` plus the census helpers plus — since #712 — the row-name TABLES, listing exactly one (`topo::ray_parity::ParityRows`). Two more name carriers already ship and are listed nowhere: `sweep/src/swept.rs:216`'s `CosurfaceNames` (a second table) and `topo/src/sector_shape.rs:169/172/176`'s three private `const &str`s, which are invisible to **both** halves of the method — not in the `decide("` grep, and their names postdate the M2 CSV column it is diffed against. The obligation is stated over *types*; the hole is over **anything not reachable as a bare literal at the call site**, of which a sweep at this head counts 37 across 24 files: 25 of them (in 20 files) are a bare `name` parameter — the thin per-crate wrappers, whose callers may still pass a literal one hop away — and the rest are carried by a const or a struct field, which nothing recovers. Cost the definition before counting. Restate the rule over that criterion, list what it catches, and say whether the enumeration is meant to be maintained by hand or by a test. | #719 (D11), which inherited the blind spot and verified the two unlisted carriers | `docs/K-REPORT.md`, and whatever the enforcement shape names | style | nothing |
 | **D20** | **D5's +46% on the `seqgen` lane is real, and after #722 it is unattributed.** #713 measured `split_edge`'s entry into the catalog at +0.9 s median (1.91 → 2.78 s) and charged it to the generator's eager candidate enumeration, which #722 placed as D14 and then **excluded by measurement**: `choose_op` is 2.4–2.7% of the lane on two independently built deterministic replays, so the whole of it cannot hold a 46% regression, and making it lazy moved no suite number. **What is left is the row.** The named candidates, in the order #722's measurement points at them: what a split *does* when applied (`EdgeCurve::certify` on both children), its inverse in the roundtrip arm, the isomorphism oracle's deep compare over the bodies splits make bigger, and the second-order cost of every later step running against a larger body. **Start by attributing, not by fixing** — the instrument is a deterministic replay of `run_properties` over a fixed stream set (S15 records its shape, its box and its spread), and the first deliverable is a per-phase attribution, which may find the cost is inherent to what the lane now covers rather than a defect. Two eager-enumeration instances have now been measured out of the frame (`choose_op` at 2.7% of the lane, `teardown` at 1.2% with the shape worth ~1% of that), so **the enumeration class is closed as a candidate**: do not re-open it without a number. `memories/test-suite-cost.md`'s rule still applies to whatever it finds. | S15 (`seqgen` half), via D14's refutation in **#722** | `topo/src/seqgen.rs` | style, and it **closes on an attribution**: a number that says where the 46% lives, or a written finding that it is inherent — not a shape | nothing |
+| **D30** | **`geom-brep/src/props/quad.rs` holds a second span search and a second index clamp, and the reason is more interesting than either.** `KnotVector` cannot represent what this module needs: `Dir::Raw` exists because a derivative direction's interior multiplicity exceeds its own degree and `clamped` refuses it, and `Dir::Const` is degree 0, which `clamped` refuses by design. So the file hand-rolls `raw_span` (`:925`, an O(n) walk per point) and `const_index` (`:1022`, another). **Neither is a duplicate to be collapsed** — D8 verified `raw_span` agrees with `find_span` on every *clamped* vector, which is exactly the set it is never called on, and the shared search cannot serve degree 0 at all. The row is the shape, not the copies: **a certified type that cannot represent an intermediate the code needs pushes the consumer into re-deriving the type's whole vocabulary.** That is S32's shape (`Surface`'s one-partial-per-call API is what created SSI's shadow surface enum) one module over. Three concrete things to settle at the site: whether `raw_span`'s and `const_index`'s clamps are load-bearing or vestigial (both are unexamined); why `const_index`'s result indexes raw at `:1260`/`:1263` when the same file uses `.get(…).unwrap_or_else(poison)` for the same kind of index thirty lines away — two spellings of one rule in one file; and whether the per-point O(n) walks matter on the Newton–Cotes lane. | S18 (knot-insertion row), via #744's census and both its review lanes | `geom-brep/src/props/quad.rs` | **ADVERSARIAL** — it is span arithmetic on knot lists the validated type refuses, so there is no constructor to lean on and no existing gate covers the derived vectors | nothing |
+| **D31** | **`sweep::skin::make_compatible` and `geom::curves::fit`'s `deviation_from` are ONE routine in two crates.** Both build a union of `(value, max multiplicity)` over a set of curves by linear `find`, both then walk each curve producing a repeat list of the values it is short, both then call `refine_knots` or clone when the list is empty. Two crates, two error types, one Book section (§5.3's knot merging). It predates #744; what #744 did was make it **legible**, by putting the same `interior_knots()` expression at the head of both. It is S18's own class — a certified numeric derivation duplicated across crates — and it is **not in S18's table**, which is the finding's own blind spot: the table censuses *primitives*, and this is a routine built on one. `geom-core::spline::algebra` sits below both in the DAG. Before unifying, check the two genuine differences: `skin` sorts the union by `total_cmp` and `fit` does not (both feed `refine_knots`, so decide whether the order is load-bearing), and `fit`'s copy carries a certified-deviation budget the `sweep` one has no analogue for. | S18 ("distinct interior knots" row), via #744's style review | `sweep/src/skin.rs`, `geom/src/curves/fit.rs`, home in `geom-core/src/spline/algebra.rs` | style, unless the union's sort order turns out to be load-bearing — then ADVERSARIAL | nothing (D8 landed) |
 
 **No row number is reserved; D20 is the highest one placed.** Placements:
 D15 by #710, D16 by #706, **D17** by #718, **D18** by #720, **D19** by #719
@@ -7353,7 +7380,8 @@ D13's gate — D5 as #713, D6 as #706, D9 as #712, D10 and D12 as #717, D15 as
 D8 as #744, which also edited `mesh/`, **under Track C's C5**: C5's two C¹
 carrier gates are now four lines each.
 **Nothing is in flight.**
-**D17, D18, D19 and D20 are edge-free and unstarted.** D17 is the only row in
+**D17, D18, D19, D20 and D8's two spawned rows (D30, D31) are edge-free and
+unstarted.** D17 is the only row in
 the track whose file set is `.github/workflows/`, so it collides with no
 kernel lane and can run at any time; D18's is
 `topo/src/{split,euler_kill,euler}.rs`, which #720 leaves at a state where
