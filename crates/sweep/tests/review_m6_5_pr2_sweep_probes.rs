@@ -1,8 +1,8 @@
-//! Adversarial-review probes for M6-5 PR-2 (#220), sweep side. NOT
-//! part of the PR. Written to run UNCHANGED at the merge-base too
-//! (they touch no PR-2 API), so the two X-claims they pin — the
-//! boolean frontier being pre-existing, and the whole-body geometry
-//! being bit-preserved — are measured across the merge, not asserted.
+//! Adversarial-review probes for the fillet naming work, sweep side.
+//! They touch no naming API, so each runs unchanged at any revision
+//! and measures rather than asserts: X4 pins where the boolean
+//! refuses a filleted operand, X3b prints a geometry fingerprint two
+//! revisions can be diffed on.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
@@ -39,14 +39,14 @@ fn filleted_die() -> Body<f64> {
     let cube0 = box_at(0.0, 1.0);
     let edges: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
     fillet_edges(&cube0, &edges, 0.125, band())
-        .expect("the whole-body rebuild")
+        .expect("the fillet")
         .body
 }
 
-/// X4: the kernel's boolean refuses a whole-body-filleted operand with
+/// X4: the kernel's boolean refuses a fully filleted operand with
 /// `FallbackExtentUnsupported` even when the second operand is far
 /// away and DISJOINT — the refusal is about carrying sphere octants at
-/// all, not about the cut. Runs unchanged at the merge-base.
+/// all, not about the cut.
 #[test]
 fn x4_disjoint_boolean_over_a_filleted_body_refuses_at_the_extent() {
     let a = filleted_die();
@@ -67,17 +67,17 @@ fn x4_disjoint_boolean_over_a_filleted_body_refuses_at_the_extent() {
     }
 }
 
-/// X3b: a stable fingerprint of the whole-body result's geometry —
-/// printed so the same probe at the merge-base and at HEAD can be
-/// diffed. `Debug` of the body covers arenas, keys, surfaces, points.
+/// X3b: a stable fingerprint of the every-edge fillet's geometry —
+/// printed so the same probe at two revisions can be diffed. `Debug`
+/// of the body covers arenas, keys, surfaces, points.
 #[test]
-fn x3b_print_whole_body_geometry_fingerprint() {
+fn x3b_print_every_edge_fillet_geometry_fingerprint() {
     let body = filleted_die();
     let repr = format!("{body:?}");
     let mut h = DefaultHasher::new();
     repr.hash(&mut h);
     println!(
-        "WHOLE-BODY-FINGERPRINT len={} hash={:016x}",
+        "EVERY-EDGE-FILLET-FINGERPRINT len={} hash={:016x}",
         repr.len(),
         h.finish()
     );
