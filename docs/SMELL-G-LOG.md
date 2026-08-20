@@ -133,12 +133,26 @@ from the orchestrator.
 | **G-a** | D71, D72 | S127, S128 |
 | ~~**G-b**~~ (landed, #787) | D73, D74 — **unused, returned**; **D79** used | S129 and **S130** used; S135, S136 free |
 | ~~**G-c**~~ (landed, #781) | D75–D77 — **unused, returned** | S131, S132, S133 — **all spent** |
-| unassigned | D72, D73, D74, D75, D76, D77, D80 | S128, S135, S136 |
+| ~~**G-f**~~ (G7, landed #PRNUM) | **D75** used; D76 returned | **S169** used; S170 returned |
+| unassigned | D72, D73, D74, D76, D77, D80 | S128, S135, S136, S170 |
 
 **G-a used D71 and D78, and S127 and S134** (see *Landings*); D72 and S128 came
 back. **The `unassigned` line above is a reconciliation across three landings**
 — G-a's, G-b's and G-c's — assembled while resolving a merge, from each lane's
 own record. It is the orchestrator's to confirm, not a lane's to assert.
+
+**G-f drew `S169`/`S170` from outside the `S127`–`S136` block**, on the
+orchestrator's assignment — the block is spent. §D's Track G number paragraph
+says so, so a reader of the schedule does not read it as a fourth
+double-allocation.
+
+**G-f was dispatched under a lane letter this roster gives to G8.** The brief
+opens *"implementer lane G-f on Track G, row G7, finding S106"*; the wave-2
+roster row for **G-f** is G8/S67 and the wave-3 row for G7/S106 was **G-h**.
+The lane did G7 on branch `smellg/g7-step-vocabulary` and deleted the **G-h**
+row, which is the row for the work it actually did. Recorded rather than
+silently reconciled: two lanes answering to one letter is how a roster row gets
+deleted by the wrong lane.
 
 **G-c's three findings are recorded without §D rows.** S133 routes to lanes
 that already own the files (G-d, G-f, G-g) and says so in its own text, so it
@@ -266,7 +280,6 @@ complete; wave 2 is the live one.
 | lane | row | gated on | why |
 |---|---|---|---|
 | **G-g** | **G9** (S95, S96) | **G-f**, and Track C for S96 | **G-R4** — file overlap on `chord_join.rs`; and S96's imports reach `splitting/rules.rs`, which §D says to confirm with Track C before touching |
-| **G-h** | **G7** (S106) | Track E's **#767** | **G-R6** — file overlap at `editor-core/src/eval/mod.rs` |
 | **G-j** | **G4** (S87, S88's `profile` half) | Track F's **F1** ← Track E's **#753** | **G-R7** — Evan's S87/S88 ruling, recorded in `SMELL-F-LOG`; two tracks deep and none of it Track G's to move |
 
 ---
@@ -280,6 +293,38 @@ complete; wave 2 is the live one.
 | lane | row | PR | note |
 |---|---|---|---|
 | **G-a** | **G1** — S72 + S110(h), S111(c), S112(b)(c), S114(a)(d), S116(r)(t) | **#786** | Fence published per **G-R3**: `ci.yml` hunks confined to the `interval-backend` job's header comment, ~790 lines from #753's. **NOT CLEARED on first review; fix pass landed in the same PR** — the tightness ceiling had reproduced S72's own defect (a max over a sample set the degradation empties), and the structural derivation beside it was wrong in the crate's favour (`4·pad+1`, not `2·pad+1`). One member came back correcting its finding: **S114(d)**'s decoration idiom is five sites, not six. **S111(c)'s first write-up over-corrected and is withdrawn** — the diagnostic was right about the code, only the remedy was wrong; see **G-R8** as amended. New findings taken: **S127**/D71, **S134**/D78. |
+
+### G-f — **G7**/S106, the `Step` vocabulary, #PRNUM
+
+**S106's diagnosis held; its mechanism did not, and correcting it was most of
+the unit.** Measured with a probe verb added to `transition_table!`: adding a
+verb breaks the workspace at **exactly two** sites, both exhaustive matches on
+`profile::Step` — `eval::feed_step` and `LoopProgram::from_recorded`. So the
+finding's *"one breaks loudly and two go silently short"* is wrong in both
+halves: two break loudly, and `WireStep` cannot go short of `ProgramStep` at
+all (`from_step`/`into_step` are exhaustive both ways). The real silence is
+upstream of both — two compile errors dischargeable without the verb reaching
+`ProgramStep`, after which `cargo check --workspace --all-targets` is clean
+over a document, wire, slot and Python vocabulary that never learned it.
+
+- **Closed by a census, not by prose**: `switch_program_vocabulary.rs`,
+  anchored on `profile::Verb::ALL` — the same anchor `profile` uses internally
+  — plus `verb_tag`, which makes the content-key tag a total function of
+  `Verb` and computes the injectivity the old comment asserted and
+  `verb_tags_are_structure` never checked. Both negative-controlled.
+- **`StepArg` is `node.rs:84`**, not `program.rs`, and is a role vocabulary,
+  not a verb one. **The count is six, not five**, and the five S4 names span
+  two crates, not three — **S169**/D75 records the sixth (`pncad-py`'s PATHS
+  surface and its `.pyi`), the only copy with neither compile guard nor
+  census.
+- **Issue #829** raised, not fixed: a hand-built fused step with two
+  `Sweep`/`ArcLen`/`Bulge` specs enumerates one role twice and leaves the
+  arrival spec's argument unaddressable. The fix adds variants to a persisted
+  enum, so it is a persistence decision.
+- **G-R6 discharged.** #767 is merged; its head was re-read before
+  `eval/mod.rs` was touched and it neither adds nor removes a `profile::Step`
+  match. Disjointness from the concurrent G-e confirmed by file: G-e is
+  `assembly.rs`/`mate.rs`/`py/{doc,select}.rs`, none of which this unit opens.
 
 ### G-b — **G2**, `demos/`, #787
 

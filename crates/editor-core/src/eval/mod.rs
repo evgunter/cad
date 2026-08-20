@@ -1796,33 +1796,6 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
     }
 }
 
-#[cfg(test)]
-mod verb_tag_tests {
-    use super::{RETIRED_VERB_TAGS, verb_tag};
-
-    /// [`verb_tag`]'s two properties, computed over the transition
-    /// table's own census rather than reviewed: every live verb gets a
-    /// distinct tag, and none re-uses a retired number. Anchored on
-    /// [`profile::Verb::ALL`], so a verb the table gains is measured
-    /// here the moment `verb_tag` grows an arm for it.
-    #[test]
-    fn verb_tags_are_injective() {
-        let mut seen: Vec<(profile::Verb, u8)> = Vec::new();
-        for verb in profile::Verb::ALL {
-            let tag = verb_tag(*verb);
-            assert!(
-                !RETIRED_VERB_TAGS.contains(&tag),
-                "{verb:?} re-uses retired tag {tag}"
-            );
-            if let Some((other, _)) = seen.iter().find(|(_, t)| *t == tag) {
-                panic!("{verb:?} and {other:?} share content-key tag {tag}");
-            }
-            seen.push((*verb, tag));
-        }
-        assert_eq!(seen.len(), profile::Verb::ALL.len());
-    }
-}
-
 /// Feeds a mate's alignment datum: the structural choices as tags, the
 /// authored coordinates as bits — the same (tag, payload) convention
 /// every other structural payload uses here.
@@ -2127,5 +2100,33 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
             h.write_tag(39);
             feed_stable_name(h, n);
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::panic)]
+mod verb_tag_tests {
+    use super::{RETIRED_VERB_TAGS, verb_tag};
+
+    /// [`verb_tag`]'s two properties, computed over the transition
+    /// table's own census rather than reviewed: every live verb gets a
+    /// distinct tag, and none re-uses a retired number. Anchored on
+    /// [`profile::Verb::ALL`], so a verb the table gains is measured
+    /// here the moment `verb_tag` grows an arm for it.
+    #[test]
+    fn verb_tags_are_injective() {
+        let mut seen: Vec<(profile::Verb, u8)> = Vec::new();
+        for verb in profile::Verb::ALL {
+            let tag = verb_tag(*verb);
+            assert!(
+                !RETIRED_VERB_TAGS.contains(&tag),
+                "{verb:?} re-uses retired tag {tag}"
+            );
+            if let Some((other, _)) = seen.iter().find(|(_, t)| *t == tag) {
+                panic!("{verb:?} and {other:?} share content-key tag {tag}");
+            }
+            seen.push((*verb, tag));
+        }
+        assert_eq!(seen.len(), profile::Verb::ALL.len());
     }
 }

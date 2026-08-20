@@ -66,7 +66,10 @@ fn chain_steps() -> Vec<ProgramStep> {
     vec![
         ProgramStep::At(pt(0.0, 0.0)),
         ProgramStep::Angle(ang(0.25)),
-        ProgramStep::Toward { dx: sca(1.0), dy: sca(0.5) },
+        ProgramStep::Toward {
+            dx: sca(1.0),
+            dy: sca(0.5),
+        },
         ProgramStep::Tangent,
         ProgramStep::Turn(ang(0.1)),
         ProgramStep::Line(len(1.0)),
