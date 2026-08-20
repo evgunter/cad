@@ -74,6 +74,86 @@ head, merge without waiting for a second CI run.**
 
 ---
 
+## The standing lane header — committed, because the last copy was not
+
+**2026-08-20, second container loss.** This text lived in
+`~/.local/share/cad-work/trackc-lane-header.md` and every lane was dispatched
+against it by path. The container was reclaimed and it went with the clones,
+the five review-findings files, and the container-local `new-lane.sh`. Nothing
+*pushed* was lost — all five lanes' fix-pass work survived, because the
+commit-and-push-at-every-seam rule held. The brief they were working from did
+not, because it was never committed.
+
+*That is this session's second instance of one lesson.* The first was
+**#745**: eight rulings written, committed and pushed to the orchestrator
+branch, cited by number in briefs, and unreachable because they had not
+**merged**. This one is a step worse — never committed at all. **A register
+that has not landed is not a register, and a brief that lives only in a
+container's home directory is not a brief.** It is now here, where it is read
+from the tree.
+
+---
+
+Binding on every Track C implementer lane, alongside the unit's own brief.
+
+**Read first, in this order:** `docs/prompts/implementer-discipline.md` in
+full; this file's *Review policy*, *Recording convention* and *Rulings*
+sections; then your finding's own text in `docs/SMELL-SCAN-2026-08.md`.
+
+**This track is outside the model A/B experiment.** No pairing, no ordinal, no
+row in `docs/MODEL-AB-LOG.md`. **Never edit that file.**
+
+**Where your files go.** Your clone is `~/.local/share/cad-work/<lane>/cad`;
+`export CARGO_TARGET_DIR=~/.local/share/cad-work/<lane>/target`, never shared
+with another lane. Heavy cargo goes through `local-scripts/with-build-slot.sh`
+(machine-wide mutex, width 1). **PR bodies and any other to-be-published text
+go to `~/.local/share/cad-work/<lane>-pr.md`** — never the session scratchpad,
+which is shared between concurrent agents.
+
+**Commit and push at every seam.** Three container losses have now killed lanes
+on this track. Every lane that had pushed lost nothing; the one that had not
+came within a disk reap of losing a day. Your brief names your seams; if it
+does not, invent them and say what they were.
+
+**Recording your own completion.** Your PR makes two edits to
+`docs/SMELL-SCAN-2026-08.md`: the finding's heading becomes
+`## SNN. FIXED by #NNN — …` with its **original problem statement replaced**
+by the record of what was done (version control keeps the original), and your
+row **leaves** §D's table. Check §D's surrounding prose too — the gating
+paragraph names findings by name, so a landing that leaves the table but stays
+in the paragraph makes the paragraph false. Delete your roster row here.
+**Row numbers are assigned by the orchestrator** (C-R20) — ask, never take the
+next visible gap. Conflicts in these files are expected: resolve by merging
+`origin/main`, **never rebase, never force-push**.
+
+**What this track's reviews actually catch.** Every unit so far was *not
+cleared* on first review, and in every case the finding was **a claim wider
+than its evidence**, not a shipped wrong answer: a mutation table that reported
+widenings leaving the suite green; *"bitwise the old code"* on a diff that
+changed behaviour at non-finite intermediates; *"preserved exactly, and
+strengthened"* on a falsifier whose population had silently narrowed;
+*"the last is a real hole"* where three existed. **Write claims you can survive
+having re-derived rather than re-read** — this track re-derives any claim once
+found overstated. State the qualifier that makes a claim exactly true
+("finite *arithmetic*", not "finite *inputs*"), and scope your evidence out
+loud: a green `-p onecrate` run is evidence about one crate.
+
+**A measurement is a measurement of a tree.** Name which tree each number came
+from. A cited line number matching neither base nor head is a receipt for the
+tree the measurement actually ran on.
+
+**Two obligations beyond the standing discipline.** *A claim about a shared
+helper is a claim about every caller* — collapsing N copies into one converts N
+local facts into one shared contract, and the guard obligation moves with it.
+And *a brief is a claim site too*: if a line number, path or citation in your
+brief does not resolve, **check rather than comply**, and say so (C-R11 — three
+of five briefs in one session carried one that did not).
+
+**Your final report**, ≤150 lines, states what you swept with and **what that
+pattern could not match**; every claim resting on a measurement and what guards
+it; and anything you are holding back — you will be asked before the merge, so
+answering saves a round.
+
 ## Lane roster
 
 Gates are the *live* ones as of 2026-08-20; §D's own edge list is
