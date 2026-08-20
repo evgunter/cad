@@ -319,13 +319,17 @@ EOF
 }
 
 # Scene names in scenes.json order. "montage" restricts to the cells
-# that reach a contact sheet (the STEP lane renders only those).
+# that reach a contact sheet (the STEP lane renders only those). The
+# manifest is walked through the shared reader (cwd is demos/, so it
+# imports), so this lister cannot disagree with the composer about
+# what "on the montage" means.
 scene_names() {
-    "$VENV/bin/python" -c 'import json, sys
+    "$VENV/bin/python" -c 'import sys
+import manifest
 only_montage = len(sys.argv) > 1 and sys.argv[1] == "montage"
-for s in json.load(open("out/scenes.json")):
-    if s.get("montage", True) or not only_montage:
-        print(s["name"])' "$@"
+for s in manifest.read_scenes("out"):
+    if s.montage or not only_montage:
+        print(s.name)' "$@"
 }
 
 # Wall-time summary of the pass — the per-scene distribution is the
