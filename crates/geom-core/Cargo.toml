@@ -21,6 +21,11 @@ interval = ["dep:interval-transcendentals"]
 # `Real` instantiation like `Interval`, so every generic-over-`Real` body
 # monomorphizes at it — measured 2026-08-12 at 20.0% of geom-brep's LLVM
 # IR, 15.6% of topo's, and 5.0% of the workspace's test-binary symbols.
+# They come from `docs/GENERICS-BUILD-COST.md` §7 ("Gating `Probe`"), a
+# dated writeup and not a re-measuring register: nothing in CI re-takes an
+# IR share, so no guard can go red when they drift. They do not need one —
+# the gate rests on Probe being an instantiation shipped to consumers who
+# never run it, which is true at any share.
 # It exists only to collect margin distributions for the K experiment
 # (docs/K-REPORT.md, scripts/k_probe_sweep.sh), so before this gate the
 # python wheel, both demos and the release renders all shipped a

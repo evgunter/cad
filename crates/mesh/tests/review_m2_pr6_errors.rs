@@ -46,7 +46,12 @@ fn survives_delta_fine_but_sane_still_tessellates() {
     // (spade insertion path) — washer at 1e-4/3e-6/1e-6 takes
     // 19ms/386ms/1.2s release; δ ≈ 1e-9 (n ≈ 2e5 per rim, well under
     // the cap) ran > 11 CPU-minutes without completing. The 2^24 cap
-    // bounds allocation, not wall-clock.
+    // bounds allocation, not wall-clock. Those three timings are a
+    // one-time release-build reading with nothing re-taking them; they
+    // can have no guard because the assertion below is about REFUSAL vs
+    // SUCCESS, not about duration, and a timing asserted in the suite
+    // would be box-dependent. The δ this row passes is chosen for the
+    // point-count regime, which the numbers only illustrate.
     let body = washer();
     let mesh = tessellate(&body, 1e-6);
     assert!(mesh.is_ok(), "fine-but-sane delta refused");
