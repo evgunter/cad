@@ -53,8 +53,8 @@
 //! extended to sphere faces), not in the body. The assembly does not
 //! pretend otherwise: it neither gates on it nor asserts tier 3.
 
+use geom::Surface;
 use geom_core::{Band, Bounds, Decide, Real, Vec3};
-use geom_surfaces::Surface;
 use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
 
 use super::FilletError;

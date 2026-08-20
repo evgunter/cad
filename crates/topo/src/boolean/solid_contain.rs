@@ -76,7 +76,7 @@ use crate::body::Body;
 use crate::entity::{FaceKey, LoopBoundary};
 use crate::splitting::containment::{LoopContainment, PointInLoopError, SCHEDULE, point_in_loop};
 use crate::validate::decide;
-use geom_surfaces::Surface;
+use geom::Surface;
 
 /// The trilean answer: is `q` in the solid's **material**?
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

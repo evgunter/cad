@@ -77,7 +77,7 @@ fn the_boss_union_lands_end_to_end() {
         let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
             continue;
         };
-        if let geom_curves::Curve3::Circle { center, radius, .. } = *c.carrier()
+        if let geom::Curve3::Circle { center, radius, .. } = *c.carrier()
             && (center.z - 1.0).abs() < 1e-9
             && (radius - 0.5).abs() < 1e-9
         {
@@ -179,7 +179,7 @@ fn a_touching_curved_assembly_validates_declared_and_refuses_undeclared() {
     let top_face = body
         .faces()
         .find_map(|(k, f)| match body.get_surface(f.surface) {
-            Some(geom_surfaces::Surface::Plane { origin, normal, .. })
+            Some(geom::Surface::Plane { origin, normal, .. })
                 if (origin.z - 1.0).abs() < 1e-9 && normal.z > 0.5 =>
             {
                 Some(k)
@@ -274,7 +274,7 @@ fn r1_probe_conformal_touch_between_instances_refuses_undecidable() {
                 && b.faces().any(|(_, f)| {
                     matches!(
                         b.get_surface(f.surface),
-                        Some(geom_surfaces::Surface::Cylinder { origin, radius, .. })
+                        Some(geom::Surface::Cylinder { origin, radius, .. })
                             if (origin.x - 2.0).abs() < 1e-9
                                 && (origin.y - 2.0).abs() < 1e-9
                                 && (radius - 0.5).abs() < 1e-9
@@ -295,7 +295,7 @@ fn r1_probe_conformal_touch_between_instances_refuses_undecidable() {
     let cyl_faces = |b: &Body<f64>| -> Vec<topo::FaceKey> {
         b.faces()
             .filter_map(|(k, f)| match b.get_surface(f.surface) {
-                Some(geom_surfaces::Surface::Cylinder { origin, radius, .. })
+                Some(geom::Surface::Cylinder { origin, radius, .. })
                     if (origin.x - 2.0).abs() < 1e-9
                         && (origin.y - 2.0).abs() < 1e-9
                         && (radius - 0.5).abs() < 1e-9 =>

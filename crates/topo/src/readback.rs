@@ -44,9 +44,9 @@
 //! with their op, phrased in its own result vocabulary, and delegate
 //! to [`face_pose`] for the read itself.
 
+use geom::Curve3;
+use geom::Surface;
 use geom_core::{Point3, Real, Vec3};
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, VertexKey};

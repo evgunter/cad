@@ -127,8 +127,8 @@ pub(super) fn build_sectors<T: Decide>(
             .and_then(crate::null::CurveGeom::certified)
             .ok_or_else(|| corrupt(operand, vertex))?;
         match curve.carrier() {
-            geom_curves::Curve3::Line { .. } | geom_curves::Curve3::Nurbs(_) => Ok(p_end - p_base),
-            geom_curves::Curve3::Circle { .. } | geom_curves::Curve3::Ellipse { .. } => {
+            geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => Ok(p_end - p_base),
+            geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
                 let (t0, t1) = curve.params();
                 let tangent = if he == edge.he_plus {
                     curve.carrier().deriv(t0)

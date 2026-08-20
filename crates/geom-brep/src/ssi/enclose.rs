@@ -65,8 +65,8 @@
 //! is the value, so this lane's numbers are what they were, up to the
 //! ring's outward rounding of the pad itself.
 
+use geom::{NurbsSurface, Surface, SurfaceWindow};
 use geom_core::{CertifiedBounds, CertifiedEnclosure, Point3, RingInterval, Vec3};
-use geom_surfaces::{NurbsSurface, Surface, SurfaceWindow};
 
 /// An axis-aligned ring box in ℝ³.
 #[derive(Clone, Copy, Debug)]

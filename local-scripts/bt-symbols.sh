@@ -5,7 +5,7 @@ printf '%-22s %10s %10s %10s %10s\n' crate rlib_MB text_syms obj_bytes metadata_
 for f in target/debug/deps/lib*.rlib; do
   base=$(basename "$f")
   case "$base" in
-    libeditor_core*|libtopo*|libgeom_brep*|libgeom_core*|libgeom_curves*|libgeom_surfaces*|libmesh*|libsweep*|libprofile*|libstep_import*|libstep_export*|libstl*|libpncad*|libbvh*|libquantity*) ;;
+    libeditor_core*|libtopo*|libgeom_brep*|libgeom_core*|libgeom-*|libmesh*|libsweep*|libprofile*|libstep_import*|libstep_export*|libstl*|libpncad*|libbvh*|libquantity*) ;;
     *) continue ;;
   esac
   syms=$(nm --defined-only "$f" 2>/dev/null | grep -cE ' [Tt] ')

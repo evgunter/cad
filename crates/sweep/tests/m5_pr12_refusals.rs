@@ -206,7 +206,7 @@ fn a_same_surface_smooth_split_refuses_with_a_zero_wedge() {
                     .and_then(|h| body.get_loop(h.parent_loop))
                     .and_then(|l| body.get_face(l.face))
                     .and_then(|f| body.get_surface(f.surface))
-                    .is_some_and(|s| matches!(s, geom_surfaces::Surface::Cylinder { .. }))
+                    .is_some_and(|s| matches!(s, geom::Surface::Cylinder { .. }))
             })
         })
         .map(|(k, _)| k)
@@ -241,7 +241,7 @@ fn corner_tag_indeterminate_is_reached_at_a_curved_neighbour() {
                     .and_then(|h| body.get_loop(h.parent_loop))
                     .and_then(|l| body.get_face(l.face))
                     .and_then(|f| body.get_surface(f.surface))
-                    .is_some_and(|s| matches!(s, geom_surfaces::Surface::Plane { .. }))
+                    .is_some_and(|s| matches!(s, geom::Surface::Plane { .. }))
             })
         })
         .map(|(k, _)| k);
@@ -285,7 +285,7 @@ fn spine_unsupported_names_the_canal_surface_unit() {
                     let f = body.get_face(body.get_loop(h.parent_loop)?.face)?;
                     Some(matches!(
                         body.get_surface(f.surface)?,
-                        geom_surfaces::Surface::Plane { .. }
+                        geom::Surface::Plane { .. }
                     ))
                 })
                 .collect();

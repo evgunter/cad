@@ -11,8 +11,8 @@
 //! `NonPlanarTrim`, never `MissingCache`, never a silent answer.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom::Surface;
 use geom_core::{Affine3, Band, Point2, Vec3};
-use geom_surfaces::Surface;
 use profile::{ProfileLoop, ProfileVertex, RawLoop};
 use topo::{Body, ChartRegionError, FaceKey, Pcurve, chart_region_overlap};
 

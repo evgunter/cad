@@ -221,10 +221,10 @@ fn probe_foreign_segmentation_certifies_through_the_same_door() {
             weights.push(*cw);
         }
     }
-    let nurbs = geom_surfaces::NurbsSurface::new(ku, kv, ctrl, weights).unwrap();
-    let surface = geom_surfaces::Surface::Nurbs(std::sync::Arc::new(nurbs));
+    let nurbs = geom::NurbsSurface::new(ku, kv, ctrl, weights).unwrap();
+    let surface = geom::Surface::Nurbs(std::sync::Arc::new(nurbs));
 
-    let carrier = geom_curves::Curve3::Circle {
+    let carrier = geom::Curve3::Circle {
         center,
         axis,
         radius,
@@ -279,8 +279,8 @@ fn probe_foreign_segmentation_certifies_through_the_same_door() {
             weights2.push(if *is_tan { bad_w * (cw / w) } else { *cw });
         }
     }
-    let nurbs2 = geom_surfaces::NurbsSurface::new(ku2, kv2, ctrl2, weights2).unwrap();
-    let surface2 = geom_surfaces::Surface::Nurbs(std::sync::Arc::new(nurbs2));
+    let nurbs2 = geom::NurbsSurface::new(ku2, kv2, ctrl2, weights2).unwrap();
+    let surface2 = geom::Surface::Nurbs(std::sync::Arc::new(nurbs2));
     let mut knots_b2 = vec![0.0, 0.0];
     #[allow(clippy::cast_precision_loss)]
     for k in 1..spans {

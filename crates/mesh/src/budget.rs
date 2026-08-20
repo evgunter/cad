@@ -362,7 +362,7 @@ impl FaceBudget {
 /// this mirrors).
 #[cfg(feature = "budget")]
 mod live {
-    use geom_surfaces::NurbsSurface;
+    use geom::NurbsSurface;
     use topo::FaceKey;
 
     use super::{Chart, FaceBudget, Mode, NurbsBudget, Sizing};
@@ -715,7 +715,7 @@ mod live {
 /// data, and unreferenced data costs nothing).
 #[cfg(not(feature = "budget"))]
 mod inert {
-    use geom_surfaces::NurbsSurface;
+    use geom::NurbsSurface;
     use topo::FaceKey;
 
     use super::{Chart, Sizing};

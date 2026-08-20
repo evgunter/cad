@@ -29,7 +29,7 @@ fn band() -> Band {
 }
 
 fn sphere() -> Surface {
-    geom_surfaces::Surface::Sphere {
+    geom::Surface::Sphere {
         center: Point3::new(0.0, 0.0, 0.0),
         radius: 1.0,
         axis: Vec3::new(0.0, 0.0, 1.0),
@@ -37,7 +37,7 @@ fn sphere() -> Surface {
     }
 }
 
-type Surface = geom_surfaces::Surface<f64>;
+type Surface = geom::Surface<f64>;
 
 fn run(cyl: Surface, d: SsiDomain) -> Result<geom_brep::SsiOutcome, SsiError> {
     ssi::cylinder_sphere_ssi(&cyl, &sphere(), d, band())

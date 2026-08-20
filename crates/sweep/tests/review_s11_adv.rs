@@ -16,8 +16,8 @@ mod revolve_common;
 use core::f64::consts::PI;
 use profile::RawLoop;
 
+use geom::Surface;
 use geom_core::{Band, Point3, Tolerance};
-use geom_surfaces::Surface;
 use profile::{ArcSweep, Center, Open, Profile, ProfileLoop, ProfileVertex, SketchPlane, Start};
 use revolve_common::{assert_all_tiers, axis_y, p2, validated};
 use sweep::{Extrusion, Revolution, extrude, revolve};

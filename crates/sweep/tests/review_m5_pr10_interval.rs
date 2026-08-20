@@ -6,9 +6,9 @@
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom::NurbsSurface;
 use geom_brep::SketchSegment;
 use geom_core::{Affine3, Bounds, Interval, Point2, Real, Vec3};
-use geom_surfaces::NurbsSurface;
 use sweep::skin::{lift_surface, loft_geometry, segment_curve, sweep_geometry};
 
 mod common;

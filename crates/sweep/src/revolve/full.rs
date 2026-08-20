@@ -26,9 +26,9 @@
 //! wire adds no handle — genus 0) and no null-edge `mekr` (the tips
 //! were never duplicated).
 
+use geom::Surface;
 use geom_brep::EdgeCurveSpec;
 use geom_core::{Band, Decide, Point3, Sign};
-use geom_surfaces::Surface;
 use topo::{Body, EdgeKey, FaceKey, FaceSurface, MefSite, MekrSite, MevSite};
 
 use super::axis::{AxisFrame, AxisRun, LoopClasses};
@@ -396,7 +396,7 @@ fn build_wire<T: Decide>(
                     angle: half,
                 },
             ),
-            carrier: geom_curves::Curve3::Circle {
+            carrier: geom::Curve3::Circle {
                 center,
                 axis: axis_c,
                 radius: cls.verts[wseg(i)].r,

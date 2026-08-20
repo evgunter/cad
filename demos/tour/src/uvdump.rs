@@ -69,10 +69,10 @@
 
 use std::fmt::Write as _;
 
+use pncad::geom::Curve3;
+use pncad::geom::Surface;
 use pncad::geom_brep::Pcurve;
 use pncad::geom_core::{Band, Point2, Point3};
-use pncad::geom_curves::Curve3;
-use pncad::geom_surfaces::Surface;
 use pncad::topo::{Body, HalfEdgeKey, LoopBoundary, LoopKey};
 
 /// Samples per curved half-edge image (a straight carrier draws with 2).

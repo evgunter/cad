@@ -51,7 +51,7 @@ use crate::body::Body;
 use crate::chord_join::SplitJoinError;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
 use crate::euler::{EulerOpError, FaceSurface};
-use geom_surfaces::Surface;
+use geom::Surface;
 
 /// One side of a split result: a real body, or the typed empty side
 /// (the plane missed the material on that side entirely — never an
@@ -400,13 +400,13 @@ fn describe_section_boundary<T: Decide>(
                 .and_then(crate::null::CurveGeom::certified)
                 .cloned();
             let conic = existing.as_ref().and_then(|c| match c.carrier() {
-                geom_curves::Curve3::Circle { .. } | geom_curves::Curve3::Ellipse { .. } => {
+                geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
                     let (t0, t1) = c.params();
                     let mid = c.carrier().eval(t0 + (t1 - t0) * T::from_f64(0.5));
                     let arm = geom_brep::edge_extent(c.carrier(), t0, t1, p0.distance(p1));
                     Some((c.clone(), mid, arm))
                 }
-                geom_curves::Curve3::Line { .. } | geom_curves::Curve3::Nurbs(_) => None,
+                geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => None,
             });
             let (witness, arm) = match &conic {
                 Some((_, mid, arm)) => (*mid, *arm),

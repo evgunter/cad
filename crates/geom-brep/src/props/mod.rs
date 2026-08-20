@@ -84,9 +84,9 @@ mod curved;
 mod loop_area;
 pub mod quad;
 
+use geom::Curve3;
 use geom_core::spline::SpanLocate;
 use geom_core::{Indeterminate, Point3, Real, Vec3};
-use geom_curves::Curve3;
 
 pub use curved::{MaterialSign, boundary_material_sign, curved_face};
 pub use loop_area::loop_vector_area;
