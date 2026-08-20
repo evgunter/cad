@@ -12390,6 +12390,63 @@ S60/S66's rows; and a general gate re-proposes exactly what Evan declined.
 
 ---
 
+## S162. A code merge's full run is cancelled by the docs-tier pushes behind it, and the board goes green having run two jobs
+
+**Found by Track F's lane F-b, 2026-08-20, in the composition of two
+corrections it made to the orchestrator after being told to stand down.
+Verified from the runs list; the mechanism is `ci.yml:8-10`.**
+
+`concurrency: { group: "${{ github.workflow }}-${{ github.ref }}",
+cancel-in-progress: true }` applies to `main` as much as to a branch. So a
+merge that lands **code** starts a full run, and any push arriving before it
+finishes **cancels it** — including a docs-tier push, whose own run skips
+every build, lint and test job and completes **green**.
+
+**The verified instance**, which is this track's own merge:
+
+| time | head | run |
+|---|---|---|
+| 21:51:05 | `d8fcdfe1` — F6's code merge | full run started, ended **15 success / 13 cancelled / 1 skipped** |
+| 21:53:06 | `29d79970` | **cancelled** |
+| 21:53:33 | `c3983195` | **success — 2 jobs**, i.e. docs-tier, everything skipped |
+
+`c3983195` **contains** `d8fcdfe1`. So two and a half minutes after code landed
+on `main`, `main`'s board read green on a run that compiled nothing.
+
+**Why this is a finding and not the ruled posture.** Evan ruled S61 *posture* —
+cheap docs CI stays, and a gate must be sited where it can fire on its own
+inputs. That ruling is about a change set skipping **its own** verification,
+which is a cost decision about that change. **This is different: a docs-tier
+push cancels and replaces the verification of somebody else's code**, already
+merged, that was in the middle of being checked. The cost argument does not
+reach it, because nothing is being saved — the run had already started.
+
+**The composite, in the finding's own terms.** A branch may decline to verify
+content on the ground that it is main's code and therefore main's problem —
+which is a sound inference, and the one this track's own F6 merge rested on. It
+is load-bearing on the premise that **main's board verifies main's code**. When
+the merge's run is cancelled and the replacing run is docs-tier, **neither party
+verified it, and neither was locally wrong.**
+
+**Second instance, and it is the one that matters practically: the remedy is
+subject to the defect.** Track F re-ran `32421453391` specifically to give F6's
+merge commit a verdict. **The re-run was itself cancelled** — at 22:09:50, by the
+merge that landed F1 — finishing **33 success / 3 cancelled**. It got far enough
+to settle the question (`clippy`, `k-lint`, `build + archive (default)` and both
+default `test` shards all **success**; the casualties were the two interval test
+shards and the archive cleanup), so F6 is substantively verified. But the general
+lesson is sharper than the finding: **on a busy `main`, "re-run it" is not a
+remedy**, because the re-run competes in the same concurrency group as every
+subsequent push. An orchestrator trying to close this hole by hand is racing the
+mechanism that opened it.
+
+**What is NOT claimed.** No defect is known to have reached `main` this way; the
+frequency is unmeasured; and whether the concurrency setting is right for `main`
+at all is a decision, not a defect — `cancel-in-progress` on a *branch* is
+plainly correct and is why the setting exists. **Row: D108.**
+
+---
+
 ## S157. Every gate's failure message is invisible on the half that gates
 
 **Found by Track F's lane F-f (#798) while demonstrating F2's re-siting, and
