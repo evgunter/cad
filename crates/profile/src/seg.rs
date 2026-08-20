@@ -2,7 +2,7 @@
 //!
 //! Everything here follows one rule, inherited from geom-core's Q1
 //! machinery: **every margin is a length in meters**, classified against
-//! the run's linear band through the [`crate::k_stats::decide`] funnel.
+//! the run's linear band through the [`geom_core::k_stats::decide`] funnel.
 //! Angular and dimensionless questions are converted to displacements by
 //! multiplying through their lever arm *in `T`* (D4 ¶1: d = r·θ — the
 //! displacement an angle induces at the arm the decision turns on), so
@@ -19,9 +19,8 @@
 //! carrier), or nothing. Ray casting ([`ray_crossings`]) reuses the same
 //! carrier closed forms for the containment forest's parity test.
 
+use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point2, Real, Sign, Vec2};
-
-use crate::k_stats::decide;
 
 /// The left normal: `v` rotated +90° counterclockwise, (−y, x).
 pub(crate) fn perp<T: Real>(v: Vec2<T>) -> Vec2<T> {

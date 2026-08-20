@@ -28,7 +28,7 @@ use profile::{ArcSweep, Center, Open};
 #[test]
 fn gate_sequence_is_data_independent_within_a_class() {
     use geom_core::Real;
-    use profile::k_stats::{self, Probe};
+    use geom_core::k_stats::{self, Probe};
 
     let pp = |x: f64, y: f64| Point2::new(Probe::from_f64(x), Probe::from_f64(y));
     let pr = Probe::from_f64;
