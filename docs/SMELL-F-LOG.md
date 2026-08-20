@@ -349,7 +349,6 @@ Track C's open lanes, or with Track E's.
 | lane | row | branch | scope | review | state |
 |---|---|---|---|---|---|
 | **F-a** | **F5** (S92) | `smellf/f5-door-registries` | `topo/src/review_m1_pr5_internal.rs`, `topo/src/pcurves.rs` | style | **dispatched** 2026-08-20 |
-| **F-b** | **F6** (S73 parts 1 and 3) | `smellf/f6-tess-lint` | `tools/tess-lint/` | style | **dispatched** 2026-08-20 |
 | **F-c** | **F7** (S110, sort first) | `smellf/f7-cannot-go-red` | six crates' `tests/`, `memories/test-suite-cost.md` | style | **dispatched** 2026-08-20 |
 
 Lane clones are `~/.local/share/cad-work/smellf-{a,b,c}/cad`. They are
@@ -467,6 +466,27 @@ record is prose that argues, and §S38 is the class it belongs to.
 register unless the entry is about that artefact's text.* Say what the matcher
 does, not what it says. Every one of these three defects was a verbatim quote
 of something that then changed.
+
+### The Actions-budget outage, 2026-08-20 — and the failure it invites
+
+Hosted CI was budget-blocked for roughly forty minutes. `change filter` failed
+in ~5 s with *"The job was not started because an Actions budget is preventing
+further use"*, and **every downstream job showed SKIPPED**. Repo-wide, not
+branch-specific; Evan restored it.
+
+**The hazard is not the outage, it is what a red board looks like during one.**
+Two Track F lanes hit it independently and both diagnosed it correctly — jobs
+dying in 2–4 s with zero steps recorded, before checkout — but as one of them
+wrote: *"other lanes pushing during that window may have read a red `change
+filter` as their own defect."* A build that never started and a build that
+failed are the same colour.
+
+**What both lanes did right, and it is the rule:** they ran the documented local
+mirror and named it **a stated fallback, never verification of record** — the
+distinction `docs/prompts/implementer-discipline.md` draws, and the one that is
+easiest to lose under time pressure. And they recorded the run IDs and the
+annotation text in the PR, so the red board reads as an environment fact rather
+than as a verdict on the branch.
 
 ## Standing rules this track derived
 
@@ -820,6 +840,92 @@ failure of the lane — every figure it reported reproduced under adversarial
 re-derivation, twice. It is what happens when a finding asks for a guard on a
 quantity that cannot carry one, and the honest end state took two attempts to
 reach because *"no honest box exists"* is the answer nobody reaches first.
+
+**What the lane landed, in its own words.**
+
+**F-b — F6 (S73 parts 1 and 3), PR #783.** *Recorded in the PR that
+carries it: this entry and the fix are one diff, so it lands when the PR
+does and not before. The `## Reviews` row above is the orchestrator's.*
+
+`ratio` is gone: the sizing columns are admitted or refused **per
+column** where they are parsed, so a broken measurement leaves in the
+harness voice instead of becoming the gate's pass value, while the one
+legitimately-absent column (`worst_dev`, `NaN` on every `--sizing-only`
+sweep — the CI gate's own) parses to `None` rather than to a float.
+`GROWTH_TOLERANCE` was boxed from `[1.0384615, 1.9615385]` (re-derived
+by bisection on `4f959cb4`, not transcribed) into `[1.04, 1.06)`, on
+both rules it governs.
+
+**Class check taken, and it ended somewhere better than the box it was
+sent for.** `tess-meter`'s `SPLIT_SCAN_DECADES` / `SPLIT_SCAN_SAMPLES`
+were pinned *non-monotonically* — an accident of sample placement, not
+a box. **Two replacements failed, the second under independent
+verification** (F-R14): the first pinned the answer and reds on
+improvements; the second pinned the answer's distance to a reference,
+and the verifier scanned every sample count in 322..2000 and found
+`323` — two steps above shipped, a strict refinement, 5.24% against a
+5% pin — plus an oracle guard that stayed green when its reference was
+replaced by its own subject, plus a tolerance fitted to its family (an
+ordinary sixth member puts shipped at 5.88%). **The first-principles
+fact is that the excess moves ~4 points between ADJACENT sample counts
+and does not converge**, so no tolerance on it can work. What landed is
+Q6's written reason at the claim site, carrying the measurement and its
+witness — and the finding that these constants guarantee a resolution
+in *aspect ratio* and no bound on the answer at all, because the
+discontinuity is the two `ceil`s and not the scan. The divisions pin on
+the ruled wall survives; the verification judged it a real property.
+
+**The proposal that came out of the failure is placed, not shipped:
+S160 / D105** — pin the *continuous* objective, which is smooth where the
+cell count is discontinuous, with the lane's evidence written into the
+finding so the taker inherits the argument. It is not in #783: F-R14
+forbade a third instrument in a row that had already shipped two.
+
+**Two new findings from the unit itself: S119 / D63** (`k-lint` scores a `NaN` margin CLEAN
+— S73's part one in the sibling instrument) and **S120 / D64** (four
+things the instruments still cannot see after F6, including the
+baseline-side direction argument F6's own sweep got half right). Both
+reserved numbers used. **The C15/#746 boundary is stated at the site**,
+in `compare`'s face loop, so it can be read out of the tree.
+
+### F1 (S59) — **CLEARED 2026-08-20**, the track's second and its most scrutinised
+
+A style review, an **independent verification**, and two fix passes on one row.
+Red count zero throughout, 302 files scanned, self-test cases individually
+load-bearing under nine mutations.
+
+**What clears it is how it handled a correction that went its own way.** The
+verifier's counterexample — `pub trait Bracket: CertifiedEnclosure where Self:
+Bounds {}` — **does** fire on the lane's branch, because the lane had added a
+third matcher alternative after the verifier's SHA. It could have used that to
+argue the mitigation survived. **It said instead that the refutation stands
+undamaged, because the decisive half is the rustfmt fact: the caught spelling
+formats into the silent one.** A fix that catches the *pre-formatted* spelling
+of a hole is not a fix for the hole, and saying so cost the author the easier
+answer.
+
+**GAP 4 now reads OPEN WITH NO MITIGATION, with the reason at the gap.**
+*"Disclosed with a mitigation that does not work"* was the one end state F-R15
+refused, because it tells the next author the door is shut.
+
+**The third alternative stays**, on the lane's own framing: it catches a real
+single-line spelling, reds nothing, and is described as what it does rather than
+as a defence — with the rustfmt fact adjacent, so a reader who sees it fire
+learns immediately that the neighbouring form is silent. That adjacency is the
+whole difference between a partial catch and false comfort.
+
+### D106 — the gate header, placed rather than argued a third time
+
+**131 lines at open → 157 → 195**, against S116(m)'s measured threshold of 130.
+The lane's argument is right and is in the tree — *a gate whose gaps are honest
+is longer than one whose gaps are silent* — and its conclusion is the structural
+one: **this directory wants its ratification ledger split out of the scripts.**
+
+But an argument recorded is not a row that executes (§C3), so it is a row.
+**The progression is the evidence**: the header grew twice, both times for
+honest reasons, which is what makes it structural rather than a discipline
+problem. Not the closing lane's to execute — it had already been through a
+review, a verification and two fix passes on one row.
 
 ### D105 / S160 — the proposal that came out of it
 

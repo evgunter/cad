@@ -8345,24 +8345,36 @@ them was the thing that would have caused a false red.
 
 **Verdict:** FIXED.
 
-## S73. The tessellation instruments resolve every broken measurement in the cannot-fire direction
+## S73. FIXED IN PART by #783 — parts one and three; part two remains as Track C's C15 (issue #746)
 
 Three findings on `tools/`, which is where the project's
 measure-don't-guess rule (`memories/tessellation-budget.md`) is
-implemented.
+implemented. **Parts one and three are closed by #783. Part two — the
+positional face-ordinal join — is Track C's row C15 and issue #746, is
+unstaffed, and stands below as it was found.**
 
-**`ratio` answers `1.0` on every broken input.**
-`tools/tess-lint/src/lib.rs:162-172` returns `1.0` whenever the
-denominator is non-positive or the numerator is non-finite, and the
-comment names this as a virtue: *"it is the reading that cannot
-manufacture a finding"*. For a gate that fires only on **growth**, `1.0`
-is the smallest possible slack — so a fresh row whose `span_opt_cells`
-collapsed to zero, or whose `grid_cells` came through as `NaN`, reads as
-a face that got dramatically better and is guaranteed to pass. `NaN` is
-not hypothetical here: `worst_dev` is legitimately `NaN` on every CI row
-(`--sizing-only`), so it is a value the parser is built to accept
-(`lib.rs:255`). **The instrument's failure mode and its pass condition
-are the same value.**
+**Part one is closed at the parse boundary rather than at the
+division.** `ratio` answered `1.0` on every broken input, which for a
+gate that fires only on growth is the smallest expressible slack and a
+guaranteed pass — the instrument's failure mode and its pass condition
+were the same value. The replacement draws the distinction the finding
+asked for **per column, and in the type**: a cell count is never absent
+(`tess_meter`'s `divisions` floors every count at one), so a
+non-positive or non-finite one is sweep drift and leaves through
+`main.rs`'s harness voice, the exit a renamed column already gets;
+`worst_dev` IS absent on every `--sizing-only` sweep — the CI gate's
+own — and now parses to `None` rather than to a float, so no arithmetic
+can read the absence as a small number. `ratio` is gone: with the
+inputs admitted, `span_held`, `recoverable` and the scene totals are
+plain divisions, and a scene with no Hessian-sized face reports `None`
+instead of 1.0. One policy table (`SIZING_COLUMNS`) covers the six
+measured columns and is checked against `EXPECTED_HEADER` itself.
+**Five rows red when the guarantee degrades**, not only when it is
+violated at a chosen fixture: the per-column admission table (whose
+width is a compile error if the block grows), the header-bracketing
+row, the harness-voice row, the CLI exit-code row (an unreadable
+denominator must reach exit 1 and never the clean 0), and the positive
+control — a denominator that *genuinely* collapses still fires.
 
 **The slack rule joins on a face ordinal that any geometry change
 re-keys.** `tools/tess-lint/src/lib.rs:451-460` keys per-face slack on
@@ -8377,15 +8389,73 @@ NURBS face that reroutes to a non-NURBS lane, which is the *"silent
 coverage loss reads as an improvement"* case `lib.rs:79-81` calls a
 finding rather than a footnote. No test covers scene-present-face-missing.
 
-**`GROWTH_TOLERANCE` can be loosened ~18× green.**
-`tools/tess-lint/src/lib.rs:377` is 5%, the tessellation gate's only
-threshold. The tests box it only into roughly `[1.039, 1.962)`, so
-someone facing a red gate can set it to `1.9` and every test still
-passes. Contrast `k-lint`, where `BASELINE_FLOOR_MARGIN` is pinned into
-`(3.9e-5, 4.7965e-5]` by two tests and additionally floored by the `#99`
-litmus — that is what a boxed constant looks like. Plausibly a class:
-`SPLIT_SCAN_DECADES` / `SPLIT_SCAN_SAMPLES` (renamed by #803;
-`tools/tess-meter/src/lib.rs:496-500`) are pinned by nothing at all.
+*Line numbers as found, and #783 moved them further: the join is
+`compare`'s `key` closure and the `else { continue }` arm below it,
+which that PR left untouched and marked at the site.*
+
+**Part three is closed by boxing the constant from both sides, on both
+rules it governs.** Re-derived on `4f959cb4` by bisecting
+`GROWTH_TOLERANCE` against the suite rather than transcribing the
+finding: the tests admitted `[1.0384615, 1.9615385]` — an 18×
+loosening of the 5% margin, and `1.9` did pass. Four rows now pin it: a
+scene exactly 4% larger stays clean, one exactly 6% larger fires, and
+the same pair on the slack rule. Measured box `[1.04, 1.06)`, verified
+by bisection at 1.0399 / 1.04 / 1.0599 / 1.06. Pinning both rules
+rather than one keeps the box intact if the constant is ever split in
+two. The `k-lint` shape the finding held up is the model, and the
+argument now lives at the constant, which is the claim site.
+
+**The class check reached a bigger result than the box it was sent
+for: these constants are not boxable, and the reason is a property of
+the quantity rather than of any attempt at it.**
+`SPLIT_SCAN_DECADES` / `SPLIT_SCAN_SAMPLES` (`tools/tess-meter/src/lib.rs`;
+the second was `SPLIT_SCAN_STEPS` until a naming pass renamed it) were
+**not** *"pinned by nothing"* as this finding said —
+`a_ruled_wall_pays_for_its_flat_direction` constrained them
+**non-monotonically**, green at 5 samples, red at 9/17/33/65, green at
+161, which is an accident of whether the scan's lattice held a point
+near the argmax.
+
+**Two attempts to replace that accident with a box both failed, the
+second under independent verification.** The first pinned the answer
+and its argmax and reproduced the original defect with the sign
+flipped — it reds on refinements that IMPROVE the number. The second
+pinned the answer's distance to a denser reference, and an independent
+lane scanned **every** sample count in 322..2000 and found the
+counterexample two steps from the shipped value: **323 samples, a
+strict refinement, 5.24% against a 5% pin.** The same verification
+found the row's oracle guard vacuous (the shipped sample set is a
+strict subset of the reference's, so *reference ≤ shipped* held by
+construction, and replacing the reference with the subject itself left
+the row green at 0.00%) and the tolerance fitted to its five-member
+family — a sixth ordinary member puts the shipped pair at **5.88%**.
+
+**The first-principles fact, measured.** The worst relative excess
+moves ~4 percentage points between ADJACENT sample counts (321: 5.88%,
+322: 3.64%, 323: 5.24%, 324: 1.79%, 325: 3.94%) and does not converge
+(2,000 samples is still 0.79%). **The quantity is discontinuous in the
+parameter it would be pinned against**, so no tolerance on it can
+admit every refinement and exclude every degradation: both attempts
+failed for this reason, wearing different clothes. What landed is
+therefore **Q6's third option — a written reason, at the claim site,
+carrying the measurement and `323` as its witness** — and the row that
+survives is the divisions pin on the ruled wall, which the verification
+judged a real property rather than a second accidental pin.
+
+**The result worth more than the box, and the answer to "what
+resolution guarantee do these constants provide":** a resolution in
+**aspect ratio**, and no bound on the answer. The discontinuity is the
+two `ceil`s, not the scan — the same worst excess computed without
+them moves by hundredths of a point across the same neighbours (0.017%,
+0.083%, 0.011%, 0.030%) and falls smoothly with resolution (65
+samples: 1.82%; 200: 0.096%; 1,000: 0.0034%). The `ceil` quantisation
+sits on top and is not these constants' to control. A guard on the
+continuous quantity is possible and is not written, because it measures
+something the columns do not report; a guard on the cell count is not
+possible at all — the guard that IS possible, with the measurements
+behind it, is **S160 / D105**. **Nobody should re-attempt the third box
+on the cell count**, and the
+claim site now says why.
 
 **Verdict:**
 
@@ -9851,6 +9921,120 @@ see §C.
   quibble"* — empirical rather than derived, harmless because
   over-gating only costs tightness, and the one number in that crate
   that is chosen rather than proven.
+
+## S119. `k-lint` scores an unreadable margin CLEAN, and the argument against that is already written at the site
+
+Found by lane F-b while closing S73's part one, which is this shape in
+the sibling instrument.
+
+`tools/k-lint/src/lib.rs`'s `lint_csv` parses `margin`, `band_zero` and
+`band_escalate` with `f64::parse` and checks nothing further, so
+`"NaN"`, `"inf"` and a negative all parse. Every rule in `lint_sample`
+is an `m < threshold` or `m > threshold` comparison, so a `NaN` margin
+makes all of them false: the row scores **clean** and still counts in
+`Scan::scanned`. A `NaN` `band_zero` is worse — `band_zero >=
+AMBIENT_BAND_MIN` is false, so the row falls through the `_ => {}` arm
+and answers to no rule at all, while the CLI still reports it as
+scanned. **A sweep the lint cannot read is not a corpus that got
+safer.**
+
+The argument is already at that site, for the column next door: the
+`outcome` string is checked against a five-name allow-list because
+*"scoring it silently CLEAN would let a sweep-format drift disarm the
+whole lint (review MIN-2)"*. The three floats beside it get no such
+check.
+
+**Not currently wrong, and that is the qualifier the finding owes**:
+the three committed sweeps under `docs/k-report-data/` carry no `NaN`
+or `inf`, and the margins are recorded kernel decisions rather than
+arithmetic that obviously produces one. The finding is that the
+instrument's answer to an unreadable measurement is its own pass value,
+and nothing upstream of the parser promises otherwise — which is
+exactly what S73's part one was, one tool over.
+
+**Fix shape, if taken:** the per-column admissibility S73's fix landed
+in `tess-lint` (`margin` finite; the two bands finite and
+non-negative), refused in the harness voice `lint_csv` already owns,
+with the same two guards — a policy table checked against the header,
+and a row that reds when a policy is loosened rather than only when one
+fixture breaks. **Not taken by F-b**: `tools/k-lint/` is outside F6's
+scope.
+
+## S120. What the tessellation and K instruments still cannot see, after F6 (roll-up)
+
+Recorded by lane F-b out of #783's style review. Four members, one
+subject: **readings and constants in `tools/` that nothing re-derives**.
+None is in F6's scope; each is a live gap rather than a residue, which
+is why they are scheduled (**D64**) rather than left in a PR body.
+
+- **(a) A fallback inside a COMPARISON has two sides, and a direction
+  argument taken on one of them is not an argument.** This is the
+  mechanism, and it is what makes the next instance findable: S73's
+  whole method is *"which way does a broken reading push the
+  verdict"*, and every instance of it so far has been checked on the
+  reading being taken. A differential gate reads TWO — `now` and
+  `was` — and a fallback that is safe in one is the opposite in the
+  other. **A disposition that names one side has answered half the
+  question, and reads as if it answered all of it.**
+
+  The two sites: `tess_meter::divisions` answers `1` on a non-finite
+  step, and `best_split_steps` answers `INFINITY` on a non-positive
+  `q`. #783's sweep dispositioned both as *"the opposite direction —
+  a broken reading shrinks the denominator, so the gate is MORE
+  likely to fire"*, which is true of the **fresh** row only: the rule
+  is `now > was · GROWTH_TOLERANCE`, so the same fallback in the
+  **committed baseline** inflates `was` and hides a real regression.
+  The lane found this in its own stated negative result, on being
+  asked to re-derive it. And `divisions`' fallback value is `1.0` —
+  the exact floor F6's parse guard now refuses in `tess-lint`,
+  tolerated one crate upstream where the number is produced.
+
+  **Not a one-line edit.** The doc's argument for answering one on a
+  genuinely unconstrained direction is sound *for a counterfactual
+  column*, so what is owed is a decision about which columns may carry
+  a fallback at all — and, with it, a re-check of every other
+  disposition in this document that reasoned about a gate's direction
+  from a single side.
+- **(b) The CSV already distinguishes the two `NaN`s and the parser
+  discards the column that does it.** `worst_dev` is `NaN` both when
+  the sweep did not resample and when it resampled and a sample came
+  back `NaN` — `crates/mesh/src/trimmed.rs`'s
+  `if dev_samples == 0 || d.is_nan() || …` deliberately lets the second
+  win. `dev_samples` is the discriminator, it is column 21, and
+  `tess_lint::parse` never reads it, so genuine deviation drift parses
+  as *"not resampled"*: a skip. F6 put that absence in the type; it did
+  not make the two states distinguishable, and the CSV already can.
+- **(c) `SPLIT_SCAN_DECADES` / `SPLIT_SCAN_SAMPLES` have neither a
+  guard nor a register, and the guard is impossible while the register
+  is merely absent.** The cell-count excess these constants produce is
+  **discontinuous in the constants** (~4 points between adjacent
+  sample counts — S73's record, with `323` as the witness), so a
+  tolerance on it cannot be written; #783 records that as Q6's written
+  reason at the claim site. The register is the part still open, and
+  the part CI cannot supply as it stands: a real `--sizing-only` sweep
+  is linted on every merge, and that gate **structurally cannot** see a
+  degraded scan, because a worse scan RAISES `span_opt_cells`, which
+  LOWERS the recoverable slack, and the gate fires only on growth. So
+  the constants are watched by one divisions pin and nothing else.
+  **What a register could measure is not the cell count**: the same
+  excess without the two `ceil`s is continuous, falls smoothly with
+  resolution, and depends only on the sampling step and the range —
+  i.e. on exactly what these constants set. That quantity, and the
+  guard on it, are **S160 / D105**, placed with their evidence; this
+  bullet is the register half only. Whoever takes it owns `ci.yml` and
+  should decide between a scheduled re-measure of S160's quantity and
+  an explicit "unwatched, and here is why" — **and should take D105
+  first or together**, since a register over a quantity nothing
+  computes yet is not a register.
+- **(d) `k-lint`'s other three constants are unpinned, and one sweep
+  shape is unswept.** `PROXIMITY_FACTOR`, `EPS_COUPLED_FLOOR_RATIO` and
+  `AMBIENT_BAND_MIN` were disclosed by #783 as outside its sweep, and
+  **S119 covers `lint_csv`'s float admission, not these**. Also
+  unswept, and disclosed the same way: fallbacks written as an
+  early-exit (`if !x.is_finite() { return … }`) rather than as an
+  `else` arm, and the whole of `scripts/gates/*.sh`, which #783's
+  `--include=*.rs` excluded. A disclosed blind spot is a work order,
+  which is what this bullet is.
 
 ---
 
@@ -11944,7 +12128,6 @@ which is why Track E did not take it.
 | **F3** | **Three of six grep gates pass the spellings they exist to forbid.** `no-extra-real-bounds.sh` greps `\bReal\s*\+` raw with no comment strip; `bit-identity-debug-only.sh` counts uses and `cfg(debug_assertions)` separately and prints an unsupported sentence; `interval-square-allowlist.sh`'s PCRE backreference cannot see `self.x * self.x`, and `geom-core/src/linalg/vec.rs:325-326` is a live unallowlisted instance. The cry-wolf-then-allowlist outcome is **already realised** at `linalg/mat.rs`. **Its line numbers are fiction — re-derive, do not transcribe.** | **S63** | `scripts/gates/{no-extra-real-bounds,bit-identity-debug-only,interval-square-allowlist,lib.sh}`, `scripts/ci-filter.py` | **ACCEPTED** | style for the gates; **ADVERSARIAL** for the `x*x → powi(2)` conversions, which change numerics in `Interval`-generic production code |
 | **F4** | **Guards whose failure mode is their pass condition** — four instances bound by one missing idiom rather than by files. The spent-graft hammer row lacks the `oks > 0` its twin has, and `ci.yml` cites it by name (**S76**); a fuzz corpus is built entirely behind `if let Ok` with no floor (**S78**); a floor row matches into a `println!("SKIPPED")` arm and returns green (**S84**); a new differential test compares an expression against itself (**S91**). | S76, S78, S84, S91 | `topo/src/review_d18.rs`, `sweep/tests/review_d2_adv_probes.rs`, `geom-brep/tests/*`, `geom-core/src/spline/knots.rs` | **ACCEPTED** on all four | **ADVERSARIAL** for S76 and S78 (each is a guard on a soundness contract); style for S84, S91 |
 | **F5** | **Two scraped-source registries of "what is a public mutation door", both classifying by `body.contains("literal")`** — so a comment satisfies the guard. The undisclosed string-match blind spot is the sharper half. | **S92** | `topo/src/review_m1_pr5_internal.rs`, `topo/src/pcurves.rs` | **ACCEPTED** | style |
-| **F6** | **`tess-lint` resolves broken measurements in the cannot-fire direction**: `ratio` returns `1.0` on a non-positive denominator or non-finite numerator and feeds `recoverable()`; `GROWTH_TOLERANCE = 1.05` is unpinned. **Part two of the finding — the positional-ordinal join — is already Track C's row C15 (#746) and is NOT this track's.** | **S73**, parts 1 and 3 | `tools/tess-lint/src/lib.rs` | **ACCEPTED IN PART** — parts 1 and 3 only | style |
 | **F7** | **Assertions that cannot go red, sorted.** The roll-up is **three dispositions, not one**: *(a)* genuinely vacuous assertions in shipped test files — a normal fix lane, cheap and edge-free; *(b)* hand-run diff artefacts whose comparison no longer exists (`probe_s5_sectors.rs` has no runner and says so in the file; `review_m6_5_pr2_sweep_probes.rs`'s printed hash; `review_d8_consumer_differential.rs`'s pinned seeds) — **§C23's class, and §A2 already routes them to the test-suite-cost sweep**; *(c)* equal-by-construction asserts in `demos/`, which go to **Track G**. **The skip-reads-as-a-pass shape is deliberately NOT here** — Evan ruled it un-rolled-up (C21), because a floor concedes the skip and *whether the test should skip at all* comes first. **Do not re-propose the floors.** | **S110** (10 members, enumerated) | six crates' `tests/`, plus `memories/test-suite-cost.md` | **ACCEPTED, SORT REQUIRED** — the sort is above and is the row's first deliverable | style |
 > **S110(a) joins F8, 2026-08-20 — it was D84's defect all along.** F7's review
 > found that S110(a)(b)(i) were routed to *"C23's class … the test-suite-cost
@@ -11995,6 +12178,13 @@ S60/S66's rows; and a general gate re-proposes exactly what Evan declined.
 | **D103** | **The allowlist is file-granular while its justifications are per-seam** (**S159**). Every entry is a path, so a second unrelated compound bound added to an allowlisted file inherits the first's ratification silently. **A different mechanism from D102 and it outlives whatever the matcher does** — S63's `linalg/mat.rs` is the same shape as one bad entry; this is the shape of every entry. Options to weigh rather than assume: line- or symbol-scoped entries, a per-file count pinned, or accepting file granularity and saying so at each entry. |
 | **D106** | **Split the ratification ledger out of `scripts/gates/`'s scripts.** `bounds-allowlist.sh`'s header is **204 lines in front of a 20-line function** — S116(m) measured 130, and #791 took it 131 → 157 → 195 → 204. **The progression is the evidence, and it is why this is structural rather than a discipline problem: the header grew three times and every time for an honest reason.** First, three newly disclosed blind spots (GAPs 3, 4, 5) plus the reason the definition skip is exact text. Second, retracting a mitigation that had been published false, and writing at the gap why no line-based matcher can close it. Third, a review condition that a partial catch must carry the reason it is partial *at the matcher*, not forty lines lower — which is correct, and which no amount of discipline makes shorter. **A gate whose gaps are honest is longer than one whose gaps are silent**, so cutting the header means either un-disclosing a hole or deleting a per-seam ratification argument, and both are worse than the length. What actually makes the file long is that the per-seam justifications are *a document that happens to live in a comment block* — every entry carries the ruling that admitted it, who ruled, and what the refusing lane is. **That is the thing to move**, not the gap list, which belongs beside the matcher it qualifies. A taker should decide where it goes (a `docs/` companion the gate cites by name, or a per-seam file the gate reads) and, whichever it is, keep the property that made #791 recoverable: **the argument and the enforcement must fail together**, so a ledger entry with no matching allowlist line, or the reverse, is itself a red. Not F-e's: that lane has been through a review, a verification and two fix passes on one row, and this is a change across the directory. **Sequence it after F-g**, which owns `lib.sh` and will have the harness open. |
 | **D69** | **`no-extra-real-bounds.sh` matches `Real +` and not `+ Real`** (**S125**) — S56's order-sensitivity defect, never swept to this gate, with one live invisible hit at `geom-core/src/spline/locate.rs:82`. **Belongs to F3 / lane F-g**, whose scope already holds this file; recorded here so it is scheduled rather than remembered. The fix is the shape #791 used: make the matcher order-insensitive **and** name-shaped in one move, since doing only the first is what produced S59 out of S56. |
+
+### Rows placed for Track F by lane F-b
+
+| # | Work |
+|---|---|
+| **D63** | **`k-lint` admits `NaN`, `inf` and negative floats and scores the row clean** (**S119**) — S73's part one in the sibling instrument, in the lint whose own site comment makes exactly this argument for the column next door. Scope: `tools/k-lint/src/lib.rs` (`lint_csv`'s three `f64::parse` calls, and `lint_sample`'s `_ => {}` arm, which a `NaN` `band_zero` falls through while still counting as scanned). **ACCEPTED**, style. The fix is the per-column admission F6 landed in `tess-lint`, in the harness voice `lint_csv` already has. **Edge:** F8/D44 reaches `scripts/k_probe_sweep.sh` and not this file, so the two are expected to be disjoint — check the branch, not this cell (F-R1). |
+| **D64** | **What the tessellation and K instruments still cannot see, after F6** (**S120**, four members). *(a)* **a fallback inside a comparison has two sides** — `tess-meter`'s `divisions`/`INFINITY` fallbacks move in the **pass** direction on the **baseline** side, which F6's sweep dispositioned by looking at the fresh side only, so the class is *direction arguments taken on one side of a differential gate* and not two sites; *(b)* `dev_samples` already separates "not resampled" from "resampled to NaN" and `tess_lint::parse` discards it; *(c)* `SPLIT_SCAN_*` has a test and no CI register, and the register that exists structurally cannot see a degraded scan; *(d)* `k-lint`'s `PROXIMITY_FACTOR`, `EPS_COUPLED_FLOOR_RATIO`, `AMBIENT_BAND_MIN` unpinned, plus two sweep shapes F6 disclosed and could not match. Scope: `tools/tess-meter/src/lib.rs`, `tools/tess-lint/src/lib.rs`, `tools/k-lint/src/lib.rs`, and — for *(c)* only — `.github/workflows/ci.yml`. **ACCEPTED**, style. **Sequence *(c)* behind whoever owns `ci.yml`**; the other three are edge-free. *(a)* is a decision (which columns may carry a fallback at all), not a one-line edit — do not take it as one. |
 
 ---
 
@@ -12062,6 +12252,62 @@ diagnostic path runs a pipeline or a command substitution under `errexit`.
 D101.** F-f owns only the two instances in its own new code and fixes those; the
 harness and the sweep are F-g's, and the sweep is the deliverable — *fifteen
 self-tests passing is not evidence here, because the harness is what hides it.*
+
+## S160. The split scan's constants can be guarded — on the continuous objective, which the cell count is not
+
+**Placed by the orchestrator out of #783's F-R14 ruling, with lane F-b's
+evidence, so the taker inherits the argument rather than re-deriving it.**
+
+`tools/tess-meter`'s `SPLIT_SCAN_DECADES` / `SPLIT_SCAN_SAMPLES` ship with
+**no mechanical guard and a written reason why** (S73's record, and the
+constants' own docstring): the cell-count excess they produce is
+**discontinuous in them**, moving ~4 percentage points between adjacent
+sample counts — 321: 5.88%, 322: 3.64%, **323: 5.24%**, 324: 1.79%, 325:
+3.94% — with no convergence (2,000 samples is still 0.79%). Two
+instruments were built against that quantity and both failed; `323` is
+the witness that killed the second, two samples above shipped and a
+strict refinement.
+
+**The guard that is possible is on a different quantity, and the
+discontinuity is the reason it works.** The jumps are *entirely* the two
+`ceil`s in `divisions`. Compute the same worst relative excess over the
+same family **without** them — the cost as a continuous function of the
+aspect ratio `t` — and it moves by **hundredths** of a point across the
+same neighbours (321: 0.017%, 322: 0.083%, 323: 0.011%, 324: 0.030%)
+and falls smoothly with resolution:
+
+| samples (8 decades) | 65 | 161 | 200 | 321 | 400 | 1,000 | 2,000 |
+|---|---|---|---|---|---|---|---|
+| continuous excess | 1.82% | 0.449% | 0.096% | 0.017% | 0.0069% | 0.0034% | 0.0022% |
+
+It is continuous because it is a sampled minimum of a smooth function of
+`log t` with no rounding in it, so it depends on the sampling step
+`2·DECADES/(SAMPLES−1)` and the range — **and on nothing else these
+constants do not set**. It reds on both failure modes with one number:
+too narrow (`DECADES = 2` → 10.44%, the optimum outside the scanned
+range) and too coarse (`DECADES = 40` → 1.82% at the shipped sample
+count).
+
+**The validation, and it is the part that should convince a taker rather
+than the argument above it:** `DECADES = 40` at 321 samples scores
+**1.82%**, *identical* to 8 decades at 65 samples — the two configurations
+that share a sampling step. A quantity that is equal wherever the step is
+equal is measuring resolution, not which lattice the count happened to
+land on, which is exactly what the cell-count excess could not do.
+
+**Why it is not in #783.** F-R14 forbade a third instrument in a row that
+had already shipped two; it needs `best_split_steps` parameterized by
+`(decades, samples)`, which is code #783's brief marked read-only; and it
+measures a quantity the budget CSV does not report, so it deserves its
+own review rather than riding another unit's clearance.
+
+**Scope:** `tools/tess-meter/src/lib.rs` (a parameterization, and the
+constants' docstring, which currently says a guard on this quantity is
+possible and unwritten) and `tools/tess-meter/tests/derivations.rs`.
+**Sequencing:** the register half of **S120(c)** asks whether CI should
+re-measure this and belongs with it — that gate structurally cannot see a
+degraded scan, so if the answer is a scheduled re-measure, this is the
+quantity it would measure. **Row: D105.**
 
 ---
 
