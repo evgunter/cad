@@ -211,6 +211,76 @@ first needed a sweep for siblings the PR had not named; the second needed the
 reviewer to go and check whether the stronger encoding was affordable, which is
 not a question the standing brief asks.
 
+### #705 (C-c / S31) — both lanes, 2026-08-20: **not cleared**
+
+This is the row that justifies the track's review policy in both directions at
+once: the **adversarial** lane found the defect, and the **style** lane found
+that the PR contradicted its own headline claim. Neither would have found the
+other's.
+
+**MAJOR-1 (adversarial).** The PR asserted, in its body *and* at
+`SMELL-SCAN:3520`, that the curve-projection lift is *"bitwise the old code at
+`T = f64` — the diff is only the wrapping."* It is not. `mid` is
+`lo + 0.5*(hi − lo)`, which at `f64` is `x + 0.5*(x − x)` — **NaN for any
+non-finite `x`** — so an overflowed residual now exits to
+`ProjectionInconclusive` where it used to return `Ok` with an infinite
+distance. The reviewer reproduced it **with all-finite inputs**: control points
+at `1e200`, where `d.dot(d)` overflows, and `NurbsCurve3::new` validates
+weights and counts but never coordinate magnitude. A semantic change riding
+inside a diff whose text said "only the wrapping" is the exact class an
+adversarial lane exists to catch, and no style reading would have found it.
+
+The other six claims survived, and the method is worth recording: claim 1 was
+verified by **whole-multiset numeric-literal extraction** across both old trees
+against the new one — no value appears or disappears, every count drop matching
+a named dedup — rather than by reading the diff. Claim 2 was tested literally
+(158 lines each, `diff` empty after the constant renames). Claim 5 was tested by
+**planting three un-aggregated suite files** and confirming the recursive guard
+fired on each.
+
+**RULED (C-R9):** keep the new refusal — an overflowed residual is not an honest
+answer, and refusing is the fail-loud posture — but **retract the bitwise claim
+in the durable record**, add a row using the finite-input fixture (none of the
+224 covers it), and correct `projection.rs:43`'s `mid` doc, which claims
+"bitwise the identity … no overflow at the representable extremes" and is false
+at ±∞. That sentence is inherited from the surface half on main, so it predates
+the PR; the curve half newly depends on it, which is what makes it this lane's.
+
+**What the style lane found that the adversarial lane could not.** The header
+merge's expensive failure did **not** occur — no normative sentence vanished or
+became two contradictory ones, verified paragraph by paragraph. The damage was
+in the *pointers*: type-level docs still say "see the crate docs" for material
+that stayed in the module docs, so a reader following `DESIGN.md:369`'s
+authoritative-text chain lands in the wrong file. And `geom::projection`
+promises the shared policy is *"declared here, once, and neither half may hold
+a private copy"* while **four paragraphs of that policy remain duplicated
+word-for-word** — in the PR that named header-merging as its own headline risk.
+
+Three findings reach past the PR:
+
+- **`geom-brep/src/nurbs_iso.rs`** — Q4's second sub-case, and the sharpest
+  finding of the night. The deleted acyclicity sentence recorded *where
+  iso-curve extraction belongs*, not merely a crate-graph fact; that file says
+  nothing about why it lives in `geom-brep`, and post-merge nothing structural
+  stops it moving into `geom`. Deleting the sentence erased the only record of
+  an intended invariant.
+- **`SMELL-SCAN:5362` is Track D's D8 row**, and its scope column names a
+  deleted path in a unit that has not run yet. Cross-track breakage, caught by a
+  reviewer rather than by either orchestrator.
+- **`docs/LIB-U1-SPEC.md:44` was misclassified as historical.** It is a
+  *binding* spec enumerating the pncad façade's re-exports, which this PR
+  changed.
+
+*And a measured lesson about the sweeps themselves.* The PR disclosed that
+`removal_pass_bound` — two line-for-line identical bodies — matched **none** of
+Q1's self-declaration vocabulary, and then did not compensate with a
+differently-shaped sweep of its own. The style reviewer ran two n-gram scans
+and found two more unconfessed twins: `azimuth_frame`, open-coded bit-identically
+at three sites plus three scaled variants, on a convention `DESIGN.md:1366`
+already ratifies as **one**; and four byte-identical test converters under two
+spellings. Q1's caveat that *the question is the instrument, not the pattern*
+now has three worked examples in one PR.
+
 ---
 
 ## Landings
