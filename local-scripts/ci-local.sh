@@ -201,12 +201,14 @@ discipline() {
     "$g" || rc=1
   done
   # The k-probe sweep's `run_dump` guards, proved against a stub cargo —
-  # milliseconds, no build. Mirrors ci.yml's step of the same subject.
+  # milliseconds, no build.
+  # HOSTED MIRROR: discipline / k-probe sweep guard selftest (run_dump)
   scripts/rundump-guard-selftest.sh || rc=1
-  # The `interval` feature must stay purely additive — mirror of ci.yml's
-  # step of the same name, calling the SAME script. This is what makes it
-  # sound for the interval rows below to run only the tests that feature
-  # ADDS; read the script's header before touching either half.
+  # The `interval` feature must stay purely additive, calling the SAME
+  # script the hosted step calls. This is what makes it sound for the
+  # interval rows below to run only the tests that feature ADDS; read
+  # the script's header before touching either half.
+  # HOSTED MIRROR: discipline / interval-feature additivity (gates the interval run legs)
   if ! (python3 scripts/check-interval-cfg-additive.py --selftest \
         && python3 scripts/check-interval-cfg-additive.py); then
     rc=1
@@ -223,8 +225,8 @@ discipline() {
 # stamp. Stdlib-only python3 (no venv, no
 # FreeCAD, milliseconds) — hence an always-run row, not a filtered one:
 # a guard that a tier selection can skip is not a guard. Runs its own
-# self-test first (the guard must be shown to fire). Hosted mirror: the
-# `k-lint` job's "demos render provenance" step.
+# self-test first (the guard must be shown to fire).
+# HOSTED MIRROR: discipline / render provenance (demos)
 render_provenance() {
   python3 demos/check_render_provenance.py --selftest && \
     python3 demos/check_render_provenance.py
@@ -237,6 +239,7 @@ render_provenance() {
 # and a silent drop is precisely what this lane exists to prevent. Its
 # self-test pins those, plus the fail-loud on a cell that does not match
 # the emitter's root-tag contract. Stdlib-only python3, milliseconds.
+# HOSTED MIRROR: discipline / uv composer selftest (demos)
 uv_composer_selftest() {
   python3 demos/compose_uv_montage.py --selftest
 }
@@ -356,6 +359,7 @@ doc_tests() { cargo test --doc $SCOPE; }
 # and for why it is sound (the feature is additive, and
 # check-interval-cfg-additive.py above gates that it stays so).
 INTERVAL_SEL="target/ci-local/interval-selection.txt"
+# HOSTED MIRROR: test-interval / derive the interval-only test selection
 # shellcheck disable=SC2086
 interval_selection() {
   mkdir -p target/ci-local \
@@ -484,8 +488,8 @@ demos_hygiene() {
 klint_tool() {
   (cd tools/k-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test)
 }
-# Mirror of hosted's `compile and list every probe-gated test target`
-# step, both commands: the build covers what the feature instantiates
+# HOSTED MIRROR: k-lint / compile and list every probe-gated test target
+# Both commands: the build covers what the feature instantiates
 # (`--all-targets` reaches the lib's own `#[cfg(test)]` modules, which
 # `--test all` never builds), and the listing asks which counted suites
 # were actually built.
@@ -538,8 +542,9 @@ tesslint_tool() {
       cargo doc --no-deps --document-private-items && \
     cargo test)
 }
-# The meter's CONSUMER half (mirrors ci.yml's row of the same name):
-# the CSV schema, the counterfactual schedules and the split optimizer
+# The meter's CONSUMER half.
+# HOSTED MIRROR: k-lint / tess-meter tool fmt + clippy + doc + tests
+# The CSV schema, the counterfactual schedules and the split optimizer
 # live here, outside the kernel, and so do their tests.
 tessmeter_tool() {
   # `cargo doc` too: scripts/doc-gate.sh is `cargo doc --workspace` and
@@ -552,7 +557,8 @@ tessmeter_tool() {
       cargo doc --no-deps --document-private-items && \
     cargo test)
 }
-# The meter's kernel half (mirrors ci.yml's row of the same name).
+# The meter's kernel half.
+# HOSTED MIRROR: k-lint / mesh budget meter + certificate falsifier (feature = budget)
 # `mesh::budget` is gated at its module boundary, so every row above
 # runs the INERT half — the live half needs its own row or it rots.
 #
@@ -565,6 +571,8 @@ budget_meter() {
   cargo clippy -p mesh --all-targets --features budget -- -D warnings && \
     cargo test -p mesh --features budget
 }
+# HOSTED MIRROR: k-lint / tessellation-budget sweep (every tour scene, per face)
+# HOSTED MIRROR: k-lint / tessellation-budget lint (gate — a grown budget fails this row)
 # `--sizing-only` mirrors ci.yml: the gate reads triangle counts and
 # the sizing columns, never `worst_dev`, so the default sweep's
 # per-triangle resampling (tens of millions of surface evaluations)
