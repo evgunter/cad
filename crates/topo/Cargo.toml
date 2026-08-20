@@ -42,6 +42,7 @@ interval = ["geom-core/interval", "geom-brep/interval"]
 probe = ["geom-core/probe", "geom-brep/probe"]
 
 [dependencies]
+getrandom = "0.3"
 # The boolean sweep's candidate generation (M5 PR 8): the tree prunes,
 # predicates decide — see boolean/reduce.rs module docs.
 bvh = { path = "../bvh" }
