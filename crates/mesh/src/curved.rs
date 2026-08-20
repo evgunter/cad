@@ -517,11 +517,11 @@ fn require_swept_rectangle(
     })
 }
 
-/// The pole-fan separation floor on the u step count (issue #678).
+/// The pole-fan separation rule on the u column count (issue #678).
 ///
 /// The module header's fan argument — one dropped triangle per
 /// collapsed side — needs the interior grid to SEPARATE the walk's two
-/// pole entries, and `nu == 2` is the one step count that does not:
+/// pole entries, and `nu == 2` is the one column count that does not:
 /// the single interior column at `u = (u0 + u1)/2` is equidistant from
 /// both, the CDT fans both over its upper half, and the identified
 /// mesh edge `(pole, column)` is used FOUR times. `check_mesh` reports
@@ -609,7 +609,7 @@ fn pole_columns(nu: usize, has_pole: bool) -> usize {
 /// Near the equator a full-step grid triangle's true deviation
 /// approaches 2·δ_s = δ from below, so sizing at exactly δ_s would
 /// lean on [`ceil_count`]'s step-shrink (`span/⌈span/h⌉ < h`) as the
-/// only slack. The margin buys real headroom cheaply (≈12% more steps
+/// only slack. The margin buys real headroom cheaply (≈12% more counts
 /// per axis) and keeps a future sizing change from silently landing on
 /// the certificate boundary; the certificate remains the backstop.
 const SPHERE_SIZING_MARGIN: f64 = 1.25;
