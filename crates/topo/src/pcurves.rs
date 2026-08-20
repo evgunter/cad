@@ -61,7 +61,7 @@
 //! — with a total azimuth advance of zero, or exactly one period for a
 //! loop that wraps the chart (the seam case).
 //!
-//! This is the M2 PR 5 meridian finding generalized (`docs/M2-LOG.md`:
+//! This is the M2 PR 5 meridian finding generalized:
 //! "the junction's meridian column unwrapped nearest prev_u, but past
 //! 3π/2 the wrong branch is closer"). The fix there was to anchor the
 //! unwrap to a point that is *exact by construction* rather than

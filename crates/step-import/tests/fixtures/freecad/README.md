@@ -27,5 +27,5 @@ freecadcmd gen_import_export.py
 
 The measured dialect inventory these files back (unit records, entity
 vocabulary, the ranked gap list, and a full 170-entity walk of
-`box.step`) is `docs/M7-2-SPEC.md`'s substrate; the relaxations the
-importer grew to accept them are that spec's legs A–E.
+`box.step`) is M7-2's substrate; the relaxations the importer grew to
+accept them are that unit's legs A–E.
