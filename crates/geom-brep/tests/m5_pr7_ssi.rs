@@ -62,7 +62,8 @@ use geom::{NurbsSurface, Surface};
 use geom_brep::CERT_SAMPLES;
 use geom_brep::ssi::BranchEnd;
 use geom_brep::ssi::{
-    self, SSI_FLOOR, SSI_TUBE_RADIUS, SsiDomain, SsiError, SsiLimb, SsiOperand, TubeScale,
+    self, SSI_FLOOR, SSI_MAX_CELLS, SSI_SEED_FLOOR, SSI_TUBE_RADIUS, SsiDomain, SsiError, SsiLimb,
+    SsiOperand, TubeScale,
 };
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Margin, Point3, Tolerance, Vec3};
@@ -1573,6 +1574,426 @@ fn an_unseeded_chart_run_refuses_typed_rather_than_receipting_an_unprovable_doma
         Ok(out) => panic!(
             "SILENT: an unprovable chart domain returned Ok with {} branches \
              and an exhaustiveness receipt {:?}",
+            out.branches.len(),
+            out.exhaustiveness
+        ),
+    }
+}
+
+// ---------------------------------------------------------------------
+// The sweeps' other never-silence doors
+// ---------------------------------------------------------------------
+
+// The rows above cover the floor refusal in three of its four
+// {lane} × {tube set} cells. The doors below are the rest of what the
+// two sweeps promise never to be silent about: the floor refusal's
+// fourth cell, the cell budget in both lanes, and each lane's own
+// enclosure-poison arm. Every one of them is a claim in `exhaust.rs`'s
+// module docs — "a typed refusal, never a silent truncation of the
+// search" — that no fixture drove.
+
+/// **The fourth cell of the {lane} × {tube set} cross product**: the
+/// chart lane refusing at the floor with a tube set that is NOT empty —
+/// the twin of [`the_floor_clamped_planted_fixture_refuses_typed`], one
+/// lane over.
+///
+/// The substrate wall genuinely meets its plane, so a branch is found,
+/// certified, and its pcurve's span windows are banked as tubes. The
+/// accounting floor is then clamped above the cell width at which the
+/// sweep resolves the domain, and the operation refuses rather than
+/// hand back a receipt for a domain it did not finish proving.
+///
+/// **What is new here is not the shared floor arm** — that is one
+/// generic `sweep`, exercised by all three rows above. It is
+/// `SweepDuty::accounts` running against a NON-empty chart tube set:
+/// `UvRect::contained_in`, over the rectangles `pcurve_windows` builds.
+/// Every other chart row reaches that predicate only in the direction
+/// where accepting MORE cells keeps the run green — an
+/// over-permissive containment turns cells nobody proved anything
+/// about into "accounted", which is the silent completeness claim
+/// `pcurve_windows`' own doc warns about, and before this row no
+/// assertion in the workspace went red when it did.
+///
+/// Two runs, in the shape the two unseeded rows use:
+///
+/// 1. **The mode pin, at a healthy floor.** `Ok`, with a branch, and
+///    with `accounted > 0` — so the tube set is non-empty AND the
+///    accounting pass actually consumed it. Without this the row could
+///    refuse for the empty-tube reason and read as a third spelling of
+///    the rows above.
+/// 2. **The claim, at a clamped floor.** Same seeding, same marching,
+///    same tubes — `floor_scale` feeds `SsiDomain::floor` and nothing
+///    else — and the operation refuses.
+///
+/// The two floors sit either side of a **dyadic** boundary, not a
+/// tuned one: the sweep resolves this domain by cell width 0.125 in
+/// chart units, so it is `Ok` for every floor below that and refuses
+/// for every floor at or above the next admitted width, 0.25 — a
+/// half-line in each direction rather than an interval. Stated in
+/// meters as `floor_m / eps()`, so both stay put at every battery ε.
+#[test]
+fn the_floor_clamped_chart_run_refuses_typed_with_a_banked_tube_set() {
+    let (p, w) = (cutting_plane(), certifiable_wall());
+    // `floor_m` is the accounting floor in meters, at every ε.
+    let domain = |floor_m: f64| SsiDomain {
+        floor_scale: floor_m / eps(),
+        ..wall_domain()
+    };
+
+    // ---- Run 1, the MODE PIN: a floor under the width at which the
+    // sweep resolves this domain.
+    let out = match ssi::plane_nurbs_ssi(&p, &w, domain(0.05), band()) {
+        Ok(out) => out,
+        // The fit budget refuses before any branch is fitted at the
+        // finest ε — a typed refusal of the same operation, and not
+        // silence, but it delivers none of this row's coverage. Say so
+        // by name, as every other ε stand-down in this file does.
+        Err(SsiError::FitSampleBudget { samples, budget }) => {
+            println!(
+                "SKIPPED (the chart floor-clamped refusal, eps = {:e}): the fit budget \
+                 ({samples} of {budget} samples) refused before a branch was fitted, so \
+                 THIS RUN ASSERTS NEITHER that a banked tube set is reached NOR that the \
+                 clamped floor refuses over one",
+                eps()
+            );
+            return;
+        }
+        Err(other) => panic!("the substrate wall must certify at a healthy floor: {other}"),
+    };
+    assert_eq!(
+        out.branches.len(),
+        1,
+        "MODE: the wall meets the plane in one branch, whose pcurve windows are the \
+         tube set this row exists to account against: {:?}",
+        out.exhaustiveness
+    );
+    assert!(
+        out.exhaustiveness.accounted > 0,
+        "MODE: the accounting pass must actually CONSUME the banked tubes — with no \
+         accounted cell this row would be covering the empty-tube mode the rows above \
+         already cover: {:?}",
+        out.exhaustiveness
+    );
+    let e = out.exhaustiveness;
+    assert_eq!(
+        e.examined,
+        e.excluded + e.accounted + e.refined,
+        "MODE RECEIPT: {e:?}"
+    );
+
+    // ---- Run 2, the CLAIM: the same branch, the same tubes, a floor
+    // above the width at which the sweep resolves the domain.
+    match ssi::plane_nurbs_ssi(&p, &w, domain(0.5), band()) {
+        Err(
+            ref err @ SsiError::ExhaustivenessInconclusive {
+                cell_width, floor, ..
+            },
+        ) => {
+            // As the rows above: the width/floor relation is `sweep`'s
+            // own guard read back out, so the content is the refusal's
+            // TEXT, which is what a caller acts on.
+            assert!(cell_width <= floor, "{cell_width} vs {floor}");
+            let msg = format!("{err}");
+            assert!(msg.contains("exhaustiveness inconclusive"), "{msg}");
+            assert!(msg.contains("refuses"), "{msg}");
+        }
+        Err(SsiError::FitSampleBudget { .. }) => {
+            println!(
+                "SKIPPED (the chart floor-clamped refusal at the clamped floor, eps = {:e}): \
+                 the fit budget preempted the accounting pass",
+                eps()
+            );
+        }
+        Err(other) => panic!("expected the exhaustiveness refusal, got {other}"),
+        Ok(out) => panic!(
+            "SILENT: a domain the sweep could not finish proving returned Ok with {} \
+             branches and an exhaustiveness receipt {:?}",
+            out.branches.len(),
+            out.exhaustiveness
+        ),
+    }
+}
+
+/// **The cell budget, ℝ³ lane** — `SSI_MAX_CELLS`, whose whole
+/// docstring is *"exceeding it is a typed refusal, never a silent
+/// truncation of the search"*, and which no fixture reached.
+///
+/// The road in is the **seeding** floor, and that is the point: it is
+/// the caller's named feature `extent`, not ε, that sizes it
+/// (`seed_floor = SSI_SEED_FLOOR · extent`). A caller who names a
+/// feature three orders finer than the slab it asked to be searched
+/// asks the subdivision for a tree it cannot afford, and the answer is
+/// the named budget rather than a truncated seed set — which would be
+/// silence of the exact kind this module exists to prevent, since a
+/// seed set truncated mid-enumeration loses whole components and
+/// nothing downstream could tell.
+///
+/// Two runs:
+///
+/// 1. **The mode pin**, at the extent the floor-clamped row uses: the
+///    same fixture, the same slab, and NOT a budget refusal. Without
+///    it the row would stay green on a fixture that had drifted into
+///    refusing for any reason at all.
+/// 2. **The claim**, at an extent 400× finer. The budget refuses, and
+///    the budget it names is the named constant.
+///
+/// **ε-free by construction**, unlike every other refusal row in this
+/// file: the seeding floor is a fraction of the extent, the exclusion
+/// rule is interval arithmetic over the operands, and neither reads
+/// the band. Only the mode pin's outcome moves with ε.
+#[test]
+fn an_unaffordable_seed_floor_refuses_the_cell_budget_typed() {
+    let (s, c) = (sphere(), threaded_cylinder());
+    let domain = |extent: f64| SsiDomain {
+        center: Point3::new(0.03, 0.0, 0.996),
+        half_extent: 0.2,
+        extent,
+        floor_scale: 1.0,
+    };
+
+    // ---- Run 1, the MODE PIN.
+    let pin = ssi::cylinder_sphere_ssi(&c, &s, domain(0.4), band());
+    assert!(
+        !matches!(pin, Err(SsiError::CellBudget { .. })),
+        "MODE: at a feature extent proportionate to the slab this fixture does not \
+         exhaust the budget — a row whose fixture refused here would be pinning the \
+         fixture rather than the floor that drives it"
+    );
+
+    // ---- Run 2, the CLAIM. The slab is 0.4 m across and the named
+    // feature is 1 mm, so the seeding floor is 1.56e-5 m: the
+    // subdivision would have to enumerate the locus at that width, and
+    // there are more such cells than the budget allows.
+    let extent = 1.0e-3;
+    assert!(
+        2.0 * 0.2 / (SSI_SEED_FLOOR * extent) > 1.0e4,
+        "FIXTURE: the named feature must be orders finer than the slab, which is what \
+         drives the seeding tree past what the budget can hold — the seeding floor is \
+         {:e} m across a 0.4 m slab",
+        SSI_SEED_FLOOR * extent
+    );
+    match ssi::cylinder_sphere_ssi(&c, &s, domain(extent), band()) {
+        Err(ref err @ SsiError::CellBudget { budget }) => {
+            assert_eq!(
+                budget, SSI_MAX_CELLS,
+                "the refusal must name the module's own budget"
+            );
+            let msg = format!("{err}");
+            assert!(msg.contains("refused rather than truncated"), "{msg}");
+        }
+        Err(other) => panic!("expected the cell-budget refusal, got {other}"),
+        Ok(out) => panic!(
+            "SILENT: a subdivision that cannot afford its own floor returned Ok with {} \
+             branches, {} seeds and a receipt {:?}",
+            out.branches.len(),
+            out.seeds,
+            out.exhaustiveness
+        ),
+    }
+}
+
+/// **The cell budget, chart lane** — the same door by the ℝ⁴ arm's own
+/// road, and not the same code above it: the seeding floor is
+/// translated through the certified chart speed
+/// (`domain.seed_floor() / speed`), and the cells being enumerated are
+/// parameter rectangles enclosed by first-order boxes over the control
+/// net rather than boxes in ℝ³.
+///
+/// Same two runs and the same ε-freedom as
+/// [`an_unaffordable_seed_floor_refuses_the_cell_budget_typed`].
+#[test]
+fn an_unaffordable_chart_seed_floor_refuses_the_cell_budget_typed() {
+    let (p, w) = (cutting_plane(), certifiable_wall());
+    let domain = |extent: f64| SsiDomain {
+        extent,
+        ..wall_domain()
+    };
+
+    // ---- Run 1, the MODE PIN.
+    let pin = ssi::plane_nurbs_ssi(&p, &w, domain(1.5), band());
+    assert!(
+        !matches!(pin, Err(SsiError::CellBudget { .. })),
+        "MODE: at the substrate row's own feature extent this wall does not exhaust \
+         the budget"
+    );
+
+    // ---- Run 2, the CLAIM.
+    match ssi::plane_nurbs_ssi(&p, &w, domain(1.0e-3), band()) {
+        Err(ref err @ SsiError::CellBudget { budget }) => {
+            assert_eq!(budget, SSI_MAX_CELLS);
+            let msg = format!("{err}");
+            assert!(msg.contains("refused rather than truncated"), "{msg}");
+        }
+        Err(other) => panic!("expected the cell-budget refusal, got {other}"),
+        Ok(out) => panic!(
+            "SILENT: a chart subdivision that cannot afford its own floor returned Ok \
+             with {} branches, {} seeds and a receipt {:?}",
+            out.branches.len(),
+            out.seeds,
+            out.exhaustiveness
+        ),
+    }
+}
+
+/// **The ℝ³ sweep's poison arm**: an operand whose certified implicit
+/// enclosure cannot be formed at all, so no cell can be excluded and
+/// the domain cannot be proved exhausted by any amount of refinement.
+///
+/// The fixture is a **zero-radius sphere** — a point, which the
+/// `Surface` enum admits (its radius is documented "positive by
+/// convention", and the convention is unchecked). The sphere's
+/// enclosure divides by `2r`, and the ring refuses a divisor that
+/// touches zero, so the very first cell poisons.
+///
+/// **What the refusal is reached by is not what its text describes**,
+/// and the row says so rather than hiding it: the arm's message names
+/// a surface KIND with no ring-computable implicit form (cone, torus,
+/// NURBS), and no such kind can get here — `cylinder_sphere_ssi`
+/// refuses `WrongLane` for anything but a cylinder and a sphere. The
+/// reachable cause is a degenerate INSTANCE of a supported kind. Both
+/// are the same obligation — an enclosure that cannot be formed is a
+/// typed refusal, never a sweep that quietly excludes nothing — and
+/// pinning the text is what keeps this row from passing on some other
+/// `UnsupportedCertificate`, of which the certificate stack has many.
+///
+/// Without the arm the sweep does not go wrong quietly in one step: a
+/// poisoned enclosure excludes nothing, so every cell refines to the
+/// floor and the caller gets `ExhaustivenessInconclusive` — a refusal
+/// that says "a branch may be hiding in that cell" when the truth is
+/// "this operand has no certificate". That is the silence this arm
+/// exists to prevent: not a wrong answer, a wrong DIAGNOSIS.
+#[test]
+fn a_degenerate_r3_operand_refuses_the_enclosure_typed() {
+    let point_sphere = Surface::Sphere {
+        center: Point3::new(0.0, 0.0, 0.0),
+        radius: 0.0,
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let c = threaded_cylinder();
+    match ssi::cylinder_sphere_ssi(&c, &point_sphere, slab(), band()) {
+        Err(ref err @ SsiError::UnsupportedCertificate { what }) => {
+            // The sweep's own arm, not one of the certificate stack's:
+            // this phrase appears at exactly one site in the kernel.
+            assert!(
+                what.contains("ring-computable implicit enclosure"),
+                "the refusal must be the SWEEP's poison arm: {what}"
+            );
+            assert!(what.contains("cannot be proved exhausted"), "{what}");
+            assert!(format!("{err}").starts_with("ssi: "), "{err}");
+        }
+        Err(other) => panic!("expected the enclosure refusal, got {other}"),
+        Ok(out) => panic!(
+            "SILENT: a domain no enclosure could be formed over returned Ok with {} \
+             branches and a receipt {:?}",
+            out.branches.len(),
+            out.exhaustiveness
+        ),
+    }
+}
+
+/// **The chart sweep's poison arm**: the same obligation in the ℝ⁴
+/// lane, where the enclosure is a first-order box over the control net
+/// rather than an implicit residual.
+///
+/// The fixture is a wall of **finite** control points with **finite**
+/// weights whose homogeneous products are not finite: the net sits at
+/// `1e308` m and the weights run 1, 2, 3, 4, so `w·P` overflows and the
+/// enclosure of `S` over the first cell poisons. The distinction is the
+/// one `projection.rs`'s `mid` doc already carries in this workspace —
+/// **finite inputs, non-finite arithmetic** — and the row asserts the
+/// input half rather than describing it, because a fixture that had
+/// drifted into holding an infinity would be testing the constructor
+/// instead of the sweep.
+///
+/// The wall is absurd as geometry and that is not a weakness of the
+/// row: the arm is a certificate obligation, and a certificate that
+/// cannot be formed must say so at any magnitude a caller can build.
+#[test]
+fn a_poisoning_control_net_refuses_the_enclosure_typed() {
+    let h = 1.0e308;
+    let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let mut control = Vec::with_capacity(8);
+    let mut weights = Vec::with_capacity(8);
+    for ((x, y), wt) in [(0.0, 0.0), (h, h), (h, h), (h, h)]
+        .into_iter()
+        .zip([1.0, 2.0, 3.0, 4.0])
+    {
+        control.push(Point3::new(x, y, 0.0));
+        control.push(Point3::new(x, y, 0.8));
+        weights.push(wt);
+        weights.push(wt);
+    }
+    assert!(
+        control
+            .iter()
+            .all(|p| p.x.is_finite() && p.y.is_finite() && p.z.is_finite())
+            && weights.iter().all(|w: &f64| w.is_finite()),
+        "FIXTURE: every input is finite — it is the ring arithmetic over them that is \
+         not, and a fixture holding an infinity would be testing the constructor"
+    );
+    let w = NurbsSurface::new(ku, kv, control, weights).expect("a wall a caller can build");
+    match ssi::plane_nurbs_ssi(&cutting_plane(), &w, wall_domain(), band()) {
+        Err(SsiError::UnsupportedCertificate { what }) => {
+            assert!(
+                what.contains("control-net enclosure poisoned"),
+                "the refusal must be the CHART sweep's poison arm: {what}"
+            );
+        }
+        Err(other) => panic!("expected the enclosure refusal, got {other}"),
+        Ok(out) => panic!(
+            "SILENT: a chart domain no enclosure could be formed over returned Ok with \
+             {} branches and a receipt {:?}",
+            out.branches.len(),
+            out.exhaustiveness
+        ),
+    }
+}
+
+/// **The chart-speed guard's blind spot, made executable.**
+///
+/// `plane_nurbs_ssi` translates the accounting floor from meters into
+/// the wall's parameter domain by dividing by a certified chart speed,
+/// and guards that translation against a speed that is `NaN` or
+/// non-positive. A speed of **+∞** passes the guard, and `floor / ∞` is
+/// exactly `0` — a floor no cell can ever reach, so the sweep cannot
+/// terminate at it.
+///
+/// The never-silence obligation still holds, and this row is what says
+/// so: the cell budget is what catches it, typed, and the operation
+/// never returns a receipt. Which of the two doors answers is not this
+/// row's claim — a guard widened to refuse a non-finite speed would
+/// answer at the guard instead, and the row accepts that arm and
+/// records which one fired. What it refuses to accept is `Ok`.
+///
+/// The fixture is a net at `1e200` m: the derivative boxes are finite
+/// intervals, their magnitudes overflow when squared, and the speed
+/// comes out `+∞`.
+#[test]
+fn an_infinite_chart_speed_refuses_rather_than_receipting() {
+    let m = 1.0e200;
+    let w = wall_from_cols([
+        (0.0, 0.0),
+        (0.35 * m, 0.14 * m),
+        (0.70 * m, 0.24 * m),
+        (1.05 * m, 0.30 * m),
+    ]);
+    match ssi::plane_nurbs_ssi(&cutting_plane(), &w, wall_domain(), band()) {
+        Err(SsiError::CellBudget { budget }) => {
+            assert_eq!(budget, SSI_MAX_CELLS);
+            println!(
+                "the infinite chart speed was answered by the CELL BUDGET: the floor \
+                 translated to 0 and the sweep ran until the budget stopped it"
+            );
+        }
+        Err(SsiError::UnsupportedCertificate { what }) if what.contains("chart speed") => {
+            println!("the infinite chart speed was answered by the CHART-SPEED GUARD");
+        }
+        Err(other) => panic!("expected the budget refusal or the chart-speed refusal, got {other}"),
+        Ok(out) => panic!(
+            "SILENT: a floor that translated to zero returned Ok with {} branches and \
+             a receipt {:?}",
             out.branches.len(),
             out.exhaustiveness
         ),
