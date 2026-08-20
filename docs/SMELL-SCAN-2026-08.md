@@ -6246,55 +6246,106 @@ K-REPORT provenance sentence was two separate untruths, not one.
 `ProfileLoop::tangent_joints`, `judge_joints` and
 `ProfileError::UndeclaredTangency`, and from that commit `ProfileLoop::new`
 documents itself as producing *no* declared-tangent joints. It touched eight
-files, **none under `crates/sweep/`**; its companion `0cda5f08` migrated
-editor-core's corpus. `k_report.rs`'s `rounded_prism` was missed, and its
-fixture is byte-identical from before `548c9618` to today — so the harness
-broke **four days after** the M2 CSVs were cut and stayed broken 26 days.
+files, none under `crates/sweep/` — **but its companion `0cda5f08` did**, and
+that is the evidence, not a footnote. `0cda5f08` migrated **ten files across
+six crates** the same day, among them `crates/sweep/tests/extrude_acceptance.rs`
+— where it added **eight `.declare_tangent()` calls to a rounded square** — and
+`crates/mesh/tests/common/mod.rs`, whose rounded square is byte-for-byte the
+same fixture (`r = 0.5`, `tan(π/8)`, the same eight vertices) and now reads
+`with_tangent_joints((0..n).collect())`: **the identical idiom D15 applied
+here.** So the migrator was inside `crates/sweep/tests/` that afternoon
+declaring eight joints on a rounded square, and `k_report.rs`'s `rounded_prism`
+is conspicuously absent from a commit whose message enumerates the fixtures it
+converted. Its fixture is byte-identical from before `548c9618` to today. What
+singled it out was being `#[ignore]`d. The harness broke **four days after**
+the M2 CSVs were cut and stayed broken 26 days.
+
 Of the row's three candidate causes it is the second (*the validator changed
 under the fixture*), but with no judgement to escalate: the refusal is
 **correct** — every joint of a rounded rectangle is a fillet arc meeting an
 edge at first-order contact, all eight confirmed tangent by the kernel — and
 the rule is ratified. The fix is #101's own migration path applied late:
 `.with_tangent_joints((0..8).collect())`. **No coordinate, bulge, radius or
-tolerance moved**, and validation verifies each declaration rather than
-trusting it.
+tolerance moved**, and validation **verifies** each declaration rather than
+trusting it — declare tangency on a polygon and it is refused as
+`TangencyContradicted`, so this is an assertion the kernel checks, not a
+silencer.
 
 **A second break the row did not know about.** The command K-REPORT documents,
-`cargo test -p sweep --test k_report`, has named no target since `81bf6f86`
-(2026-08-16) folded `sweep`'s 60 test binaries into one `tests/all.rs`. It
-fails before compiling. Selection is by `k_report::` module prefix now.
+`cargo test -p sweep --test k_report`, has named no target since **`d8b8f6a8`
+(2026-08-04, *collapse the remaining 122 test targets*)** folded `sweep`'s 60
+test binaries into one `tests/all.rs` — **dead 16 days**, and it fails before
+compiling anything. Selection is by `k_report::` module prefix now. So there
+were **two independent breaks ten days apart**, and the second alone would have
+hidden the first: a reader following the documented runbook got `no test target
+named k_report`, never the panic.
 
-**Why nothing noticed, which is the part worth keeping.** `dump_k_samples` is
-`#[ignore]`d *and* **no CI lane compiles `sweep --features probe` at all** —
-`ci.yml`'s only probe invocations are `scripts/k_probe_sweep.sh`'s, which build
-`editor-core` and `demos/tour`. The file is invisible to CI to the point that a
-type error in it would have gone unnoticed the same way. Cost was never the
-reason: the harness is **0.05 s** of test time per ε row. Closing that gap needs
-a `.github/workflows/` edit, outside this lane's file set, so it is **placed as
-D17** rather than left as a recommendation — §D's fourth ordering rule is *a
-verdict is not a placement*, and a verdict with a named mechanism and no owner
-is the exact thing this track was constituted to stop happening.
+**Why nothing noticed, which is the part worth keeping — stated precisely.**
+`dump_k_samples` is `#[ignore]`d, *and* **no CI lane builds sweep's test
+targets under `probe`**. The looser claim — that nothing compiles `sweep
+--features probe` — is **false**, and the distinction is load-bearing: the
+sweep *library* IS compiled under `probe` on every building merge, because
+`editor-core`'s `probe` feature forwards `sweep/probe` and
+`scripts/k_probe_sweep.sh:49` runs `cargo test -p editor-core --features probe`.
+What nothing does is type-check `crates/sweep/tests/` under that feature. So a
+type error in this file would have gone unnoticed the same way the panic did.
+Cost was never the reason: the harness is **0.05 s** of test time per ε row.
+Closing that gap needs a `.github/workflows/` edit, outside this lane's file
+set, so it is **placed as D17** rather than left as a recommendation — §D's
+fourth ordering rule is *a verdict is not a placement*, and a verdict with a
+named mechanism and no owner is the exact thing this track was constituted to
+stop happening. **D17 is scoped to the class, not to `sweep`**: 16 `probe`
+test files exist, only editor-core's 2 are compiled by CI, and
+`crates/topo/tests/probe_s5_sectors.rs:24-31` had already written the class
+down on 2026-08-19 — one day before this PR. D15 rediscovered it by tripping
+over it, which is why the row cites that prose rather than claiming the
+finding.
 
 **The provenance verdict, now written into K-REPORT.** The 2026-07-21
 byte-reproduction was real *against the tree of that day* and was never a
 standing property. A fresh cut of the same ten shapes on main's tip records
 **16 824 samples over 105 predicate names** against the committed **13 282 over
-63** — 42 names added (the `pcurve_*` chart/loop/trim family, the `tangent_*`
-family, `props_rim_*`/`props_meridian_*`, `bool_ring_run_winding`), none lost.
+63**. *(Every figure in this paragraph is measured against `9f559f6a` and is
+**unguarded**: it is a one-off reading of a moving quantity, nothing asserts it,
+and the next merge adding a predicate name falsifies it. Guarding it would mean
+committing a second baseline — the re-cut this unit deliberately did not do.
+K-REPORT carries the same warning where the numbers live.)*
+
+**The growth is not purely additive**, which is the part a "+42 names" summary
+hides: **+3 365** comes from the 42 new names, but **+177 is churn inside the
+original 63**, and **19 of those 63 changed their own counts** — one of them
+*downward*, `carrier_matches_mapped_source` **1 296 → 1 224 (−72)**. "None
+lost" is true at the *name* level only; K-REPORT's per-predicate tables are
+stale for 19 of 63 rows.
+
 **The committed CSVs are left exactly as cut**; re-cutting is the runbook's call
-and the orchestrator's. The conclusions survive: the fresh sweep is ε-stable in
-exactly the reported sense (shape/predicate/outcome columns byte-identical
-across all three ε rows) and lands **0 in (ε, Kε), 0 within a decade of Kε, 0
-indeterminate, 0 invalid**, definite-side minimum |m| = **1.0e-2 m**, three
-decades clear of the M7 lint floor. The band is still empty at 1.27× the sample
-count.
+and the orchestrator's. **The K = 10 conclusion survives**: the fresh sweep is
+ε-stable in exactly the reported sense (shape/predicate/outcome columns
+byte-identical across all three ε rows) and lands **0 in (ε, Kε), 0 within a
+decade of Kε, 0 indeterminate, 0 invalid**, definite-side minimum |m| =
+**1.0e-2 m** — **250× the M7 lint floor of 4.0e-5, i.e. 2.4 decades** (the "3
+decades" in K-REPORT's Finding 3 is against *Kε at ε = 1e-6*, a different
+comparand). The band is still empty at 1.27× the sample count. **One claim does
+not carry over unscoped**, and it is named rather than left: K-REPORT's
+zero-side bullet says the largest `zero`-classified |m| is 8.9e-16, *"≥ 3
+decades below ε = 1e-12"*; on the fresh cut it is **1.378e-15**
+(`pcurve_map_residual`, a new name) — **2.86 decades**. Restricted to the
+original 63 it is still 8.882e-16, so the sentence about *these CSVs* is intact
+and K = 10 is untouched; it is the generalisation to today's predicate set that
+fails, by 0.14 of a decade.
 
 **The gate was never at risk, and this row overstated its own consequence.**
 D15 was written from #710's reviewer's finding and carried its implication too
 far: that K-REPORT's provenance being unreproducible put the **k-lint gate** at
-risk. It did not. `tools/k-lint` gates on the M4/M5/M7 CSVs, which
-`scripts/k_probe_sweep.sh` produces over `editor-core` + `demos/tour` and which
-run on every building merge. `k_report.rs` is the **M2-era instrument only** —
+risk. It did not — and the truth is *stronger* than the correction I first
+wrote: **k-lint reads no committed CSV at all.** `ci.yml:1751-1758` sweeps
+`scripts/k_probe_sweep.sh` into `target/k-fresh` on every building merge and
+lints **that** against constants pinned in `tools/k-lint/src/lib.rs`
+(`BASELINE_FLOOR_MARGIN = 4.0e-5`). Nothing under `docs/k-report-data/` is
+opened at gate time — those files are a **record**, not an input, so no
+staleness in any of them, M2's included, can weaken the gate. (Its neighbour
+`tess-lint` *does* diff a committed baseline; k-lint deliberately does not.)
+`k_report.rs` is the **M2-era instrument only** —
 not, as the row said, *"the instrument that dumps `docs/k-report-data/`'s
 CSVs"*. That correction is recorded here in those terms deliberately: the row
 is the thing the next reader inherits, and it should not hand them the
@@ -6318,11 +6369,11 @@ have failed loudly even if it had been attempted.
 | **D13** | **S15's pcurve-staleness row, which is still open.** `pcurves.rs:124`: *"an op that mutates an already-minted body must either clear the map or re-mint before returning, and **should say which in its own docs**"* — a convention, with *"The lists above are a survey, not an enforced invariant"* four lines above it, and nothing that notices when a new op joins the wrong bucket. **What D5 verified before placing this**: #635 corrected the one entry the steelman caught (`merge_coplanar_faces` had started re-minting and the index had not moved), so the survey is *accurate today* — the row is that nothing keeps it accurate. The shape D5 used for its sibling row is available and cheap: a source-walking test over the three buckets, the way `review_m1_pr5_internal::every_public_mutation_path_preserves_tier1` now covers the mutation surface. | S15 (row 1) | `topo/src/pcurves.rs` and the test's home | style | **discharged — #707** (D4) landed the `pcurves.rs` edits this must not conflict with |
 | **D14** | **`seqgen`'s candidate enumeration is eager.** `choose_op` builds every candidate `Vec` on every call — including rows whose weight is zero because the body has stopped growing — and then discards all but one. D5's `split_edge` row is what makes that cost visible rather than what causes it: `split_edge_candidates` runs a full `EdgeCurve::recertify` plus an O(V) separation scan **per edge, per step** (~14 re-certifications and ~200 metered decisions at `GROW_CAP`), which is where its measured +46% went. `memories/test-suite-cost.md` is categorical that an ungated fuzzer is a defect in the fuzzer. The fix is not to drop the gates — they are what keep the lane honest — but to skip zero-weight rows and to enumerate lazily. | S15 (`seqgen` half) | `topo/src/seqgen.rs` | style, but **measure before and after**: the row exists because a number was measured, and it closes on a number, not on a shape | nothing |
 | **D16** | **W2c — the D2 addendum, executed in `crates/topo`.** S43's verdict (`:4517`) ratified the taxonomy on 2026-08-19 and named W2c as what remains: the ~60 silent `if let Some(...)` discards in `euler.rs`/`euler_ring.rs`/`euler_kill.rs` are the superseded idiom 4, and **silent discard is never an answer**. Each site sorts into row 4 (`unreachable!`, observable in a branch) or row 5 (`debug_assert`, detectable only by re-derivation) — the split is **re-derivation, not cost**. This is the topo half of the same addendum **D2** is applying in `sweep/src/fillet/`; the two must not diverge on how row 4 is spelled, so whoever takes the second one reads the first one's PR. Retiring the discards also changes what `release_corruption.rs`'s garbage-out row means — see S12. **The row existed only in S43's prose (`:4532`, "now unblocked and unstarted") until #706 placed it**; that miss is §D's fourth ordering rule failing on the section that states it. | S43 / Wave 0 D2 | `topo/src/euler{,_ring,_kill}.rs` | **ADVERSARIAL** — it converts ~60 silent no-ops into panics or debug asserts inside the mutation phase of a kernel whose D9 headline is *never a panic on any input*, so every row 4 needs its not-input-reachable argument made per site, not inherited. | nothing (the addendum opened the `unreachable` lint in both manifests) |
-| **D17** | **Nothing in CI compiles `sweep --features probe`, so that whole surface is invisible — not merely untested, *unbuilt*.** Raised by D15 (#718) as the reason its break went unnoticed for 26 days: `crates/sweep/tests/k_report.rs` is `#![cfg(feature = "probe")]` and `#[ignore]`d, and `ci.yml`'s only `--features probe` invocations are `scripts/k_probe_sweep.sh`'s, which build `editor-core` and `demos/tour`. The default clippy job skips `--all-features` deliberately and the `--all-features` doc pass does not build test targets, so **a type error in that file would red nothing**. Two candidate mechanisms, both named by D15 and neither chosen: (a) a `cargo check -p sweep --features probe --all-targets` step, or (b) fold the M2 corpus into `k_probe_sweep.sh` so the M2-era instrument runs beside the M4/M5/M7 one. **Cost, measured (this container, NOT a hosted runner — quote it as a ratio, not a hosted number):** the harness itself is **0.05 s** per ε row; (a) cold is **12.0 s** over 36 crates; (b) needs codegen + link, **35.2 s** cold. The honest counterweight is that `probe` is a `Real` instantiation, so it monomorphizes every generic-over-`Real` body — the *build* is the bill here, exactly as it is for `corrupt input (release profile)`, and it is not free even though the test is. **Read #706's job before designing this one** (`ci.yml:731`): same shape — a surface CI never compiled — and it shows how narrow such a job should be (one crate, its own cache key, filter-gated) plus the trap that matters most here, that **a name filter matching nothing exits 0**, which is precisely the silence an `--ignored` module-prefix selection would reintroduce. | raised by D15 (#718) | `.github/workflows/ci.yml`, and `scripts/k_probe_sweep.sh` if (b) | style | nothing |
+| **D17** | **No CI lane builds any crate's `probe` test targets except editor-core's — 14 suites across four crates are not type-checked, let alone run.** Stated precisely, because the loose version is false and the difference is the whole row: the `sweep`, `topo`, `profile` and `geom-brep` **libraries** ARE compiled under `probe` on every building merge (`editor-core`'s `probe` feature forwards `sweep/probe` et al., and `scripts/k_probe_sweep.sh:49` runs `cargo test -p editor-core --features probe`). What no workflow does is build those crates' **own `tests/` targets** under `probe`. `rg 'feature = "probe"' crates/*/tests/` returns **16 files**; only editor-core's 2 are compiled by CI. The other 14 — 5 `topo`, 4 `profile`, 4 `geom-brep`, 1 `sweep` — can bit-rot green or red with nothing noticing. **The diagnosis was already in the tree and this row is its fifth rediscovery**: `crates/topo/tests/probe_s5_sectors.rs:24-31` (`c0e05322`, 2026-08-19 — *one day before* #718) already says *"NOT run by CI, and not a gate … nothing in `.github/workflows/` runs `cargo test -p topo --features probe` … a class, not this suite's peculiarity"*. D15 then found the sweep instance by tripping over it. Finding the next instance by the same accident is the standing failure this track exists to break, so **the row is the class, not `sweep`**. Two mechanisms, and they are NOT interchangeable: (a) a `cargo check -p <crate> --features probe --all-targets` step per crate, or (b) fold the M2 corpus into `k_probe_sweep.sh` so the M2-era instrument runs beside the M4/M5/M7 one. **(a) would not have caught the defect that spawned this row** — the pre-fix `k_report.rs` compiled perfectly; its failure was a runtime panic, so only (b) would have gone red on 2026-07-25. Choose on that, not on cost; the costs below are close enough to mislead. **Cost, measured on an agent container — a RATIO, not a hosted number** (#706's comparable step was 93 s hosted cold): running the harness is **0.05 s** per ε row; (a) for `sweep` cold is **12.0 s** over 36 crates; (b) needs codegen + link, **35.2 s** cold. Honest counterweight: `probe` is a `Real` instantiation, so it monomorphizes every generic-over-`Real` body — **the build is the bill**, and it is not free even though the tests are. **Read #706's job before designing this one** (`ci.yml:731`): same shape — a surface CI never compiled — showing how narrow such a job should be (one crate, own cache key, filter-gated) and carrying the trap that matters most here, that **a name filter matching nothing exits 0**, which is exactly the silence an `--ignored` module-prefix selection would reintroduce. | raised by D15 (#718); class already stated at `probe_s5_sectors.rs:24-31` | `.github/workflows/ci.yml`, and `scripts/k_probe_sweep.sh` if (b) | style | nothing |
 
 **No row number is reserved any more.** D15 (D1's `k_report.rs` harness) landed
-with #710, D16 (D6's W2c discards) with #706, and **D17** (the unbuilt
-`sweep --features probe` surface) with #718 — assigned centrally on the spot
+with #710, D16 (D6's W2c discards) with #706, and **D17** (the 14 `probe` test
+suites no CI lane type-checks) with #718 — assigned centrally on the spot
 rather than left in that PR's prose, per the rule below. Row
 numbers are assigned centrally because several lanes mint rows in parallel and
 three collided once already: a lane that needs a row takes the next number the

@@ -7,8 +7,16 @@
 //!
 //! ```sh
 //! CAD_TOLERANCE_EPS=1e-9 CAD_K_REPORT_OUT=docs/k-report-data/eps-1e-9.csv \
-//!   cargo test -p sweep --test k_report -- --ignored --nocapture
+//!   cargo test -p sweep --features probe --test all \
+//!     -- --ignored --nocapture k_report::
 //! ```
+//!
+//! `sweep` sets `autotests = false` and aggregates every suite into one
+//! `tests/all.rs`, so there is no `--test k_report` target; the suite is
+//! selected by module prefix. `--features probe` is what compiles this
+//! file — it is `#![cfg(feature = "probe")]`, and **no CI lane builds
+//! sweep's test targets under `probe`**, so nothing here is type-checked
+//! by CI. Running it is the only check it has.
 //!
 //! Without `CAD_K_REPORT_OUT` the CSV goes to stdout (lines prefixed
 //! by nothing — pipe as needed). Columns:
