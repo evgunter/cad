@@ -746,14 +746,36 @@ shape: the insert door silently ADMITTED a mate head naming no node, and
 file that got one in could previously be opened and salvaged by deleting the
 mate, and now refuses to load at all.
 
-*Drift (b) CONFIRMED, and **FIXED by #632*** — see the §D H5 row for what the
-fix covered and what its review caught. The `Fragment(SideOf)` disagreement is
-**documented and intentional** and was preserved. Two residues went to §D:
-`resolve::apply_with_names`' `DocEdit` wildcard, correctly left alone but
-unscheduled until now, and a verbatim triplication of the name-free variant
-list that the fix grew (`select.rs`, `resolve/mod.rs`, `refactor.rs` — every
-copy compile-enforced, so churn rather than rot, and collapsing it needs a home
-`role.rs` does not have).
+*Drift (b) CONFIRMED, **FIXED by #632**, and its residues **FIXED by #731**
+(H11).* The `Fragment(SideOf)` disagreement is **documented and intentional**
+and was preserved. #632 disclosed two residues and #731 closed them, plus a
+third that #632 had asserted did not exist:
+
+- `resolve::apply_with_names`' `DocEdit` wildcard is now three named groups —
+  checked, name-carrying-and-deliberately-unchecked, name-free — which encodes
+  a policy the docs at both ends had already ratified in prose. **The same
+  wildcard, on the same enum, was live a second time** at `persist/check.rs`'s
+  `edit_non_finite`, the load door, which #632 set aside as *"different enum"*
+  and is not; a future float-carrying `DocEdit` variant would have been
+  classified "no floats". Both are closed, with `param_site`'s `DocParam`
+  wildcard beside them. A probe variant carrying a name and an `f64` broke one
+  site before and three after.
+- The triplicated 17-variant name-free list is one `name_free_seg!()`
+  or-pattern macro in `names/role.rs`. A pattern rather than a predicate,
+  because a predicate is a thing a caller may forget to call (**C-R5**); every
+  match stays exhaustive, and the delta is that "name-free" is one decision at
+  one site instead of three that can diverge. #632's stated obstacle — that
+  `role.rs` has no `impl RoleSeg` block to hang a classifier on — is not paid,
+  because a macro is the list rather than a classifier.
+- **`eval/anchor.rs`'s `remap_seg` was a live fail-quiet #632's scan could not
+  see**, contradicting its *"no fail-quiet wildcard in any `RoleSeg` or
+  `Qualifier` match in the workspace"*. Its catch-all was `other => other` — a
+  BINDING wildcard, not `_` — in a match written entirely through
+  `use RoleSeg as R`, so the literal `RoleSeg::` never appeared in the window
+  the scan required. Its twelve explicit arms are exactly the twelve variants
+  embedding a profile locator, so behaviour was right; a thirteenth carrier
+  would have crossed a profile re-anchor with a **stale locator**, silently.
+  See **C15**, which this corrects.
 
 *One confirmation this report did not cite: the hand-synced tag table has
 already produced a live measured bug.* `MODEL-AB-LOG.md:782` — *"**MAJOR-1 =
@@ -6568,8 +6590,8 @@ Two ordering rules survive unchanged, because both still bind:
 
 A third has been earned since:
 
-3. **A lane's own residues are rows, not footnotes.** Nine of the rows below
-   (H11–H17, and both #649 successors) exist because a fix pass or a review
+3. **A lane's own residues are rows, not footnotes.** Eight of the rows below
+   (H12–H17, and both #649 successors) exist because a fix pass or a review
    found something its own PR could not carry. Recording them as prose inside
    a merged PR body is how they get lost.
 
@@ -6698,7 +6720,7 @@ rewritten rather than appended to.
 | # | Work | Why it is here rather than in a track |
 |---|---|---|
 | **C1** | **H12–H15** — four lanes' own residues: the SSI sweeps' other never-silence doors (no acceptance row in either lane), `sweep_body`'s helix rows with no orientation coverage, #637's two jurisdiction residues, #635's unclassified siblings. | Each is small; together they are a lane. They are the clearest instance of ordering rule 3. |
-| **C2** | **H11, H16, H17** — #632's two residues; the STL header not being caller-settable while `StepOptions` carries `product_name`; and S37's rustdoc remainder, ~1115 lines across 130 files. | H17 is large and mechanical; H16 is a small asymmetry with a clear right answer. |
+| **C2** | **H16, H17** — the STL header not being caller-settable while `StepOptions` carries `product_name`; and S37's rustdoc remainder, ~1115 lines across 130 files. (H11, #632's residues, was the third member and is **FIXED by #731** — which found a third residue #632 had asserted did not exist; see S4's drift (b) and **C15**.) | H17 is large and mechanical; H16 is a small asymmetry with a clear right answer. |
 | **C3** | **S27, S29** — `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block; and the sizing vocabulary fragmented across five modules with self-admitted magic constants. (S30, the mesh crate's 1,060 lines of instrument, was the third member and is FIXED by #709.) **S29 is NOT blocked on a design conversation — corrected 2026-08-19.** This row previously said its policy question was routed to `docs/TESS-SPLIT-SPEC.md` and PR #568. #684's review checked: both are scoped **entirely to the NURBS per-cell schedule** (`nurbs_cert`'s `grid_steps`, certified cells, the first fundamental form — TESS-SPLIT-SPEC's D-1 replaces the AM-GM grouping, with `leaf_a f2` as its poster child). **Nothing in either covers analytic-chart sizing**, so `curved::grid_steps` has no venue at all — and #684 has since added a sixth rule to it. S29's own lesson applies to that: *N well-defended deviations read as N decisions when they are one undecided question.* S27 touches `props/`, so it must follow **A2**; S29 is edge-free. |
 | **C4** | **S32, S33** — `Surface`'s one-partial-per-call API, which is what created the shadow surface enum in SSI; and neither geometry enum being able to lift itself to another scalar. (S31, the `geom-curves`/`geom-surfaces` split, was the third member and is FIXED by #705.) | **S32 is now additionally gated on #705's merge**: the enum and its NURBS payload are one crate's two modules, so a `SurfaceJet` door at the enum no longer crosses a crate boundary. **S33 is coloured by D1**: several of its ~14 hand-written ladders exist only to reach `Dual`, and what `Bounds for Dual` changes there is written in S44's **D1 DECIDED** block. |
 | **C5** | **S26, S28's duplication half** — the certified area enclosure that is never metered against anything (`area.width()` appears nowhere in the file); and the three tessellation lanes that remain three pipelines now that #648/#674 have settled their ordering and column questions. (**S24 left this row FIXED by #702.**) | S26 was explicitly deferred in writing by #472 — *"metering against `area.lo()` … deserves its own proposal with re-measured floors"* — so it is a proposal, not a patch. S28's duplication half must follow **A3**. |
@@ -7488,7 +7510,20 @@ blind in exactly the shape it was hunting:
 
 - **#632** scanned for arms beginning `RoleSeg::` at the wildcard's
   indentation, so **every arm wrapped in `Some(…)`, `Ok(…)` or a tuple was
-  invisible** — which is the shape of what it missed.
+  invisible** — which is the shape of what it missed. **Its conclusion did not
+  survive** (established by #731, 2026-08-20): the same pattern was blind in a
+  second way it did not name — a **binding** catch-all (`other => other`) is
+  not `_`, and a match written through `use RoleSeg as R` never spells
+  `RoleSeg::` in the window the scan required — and `eval/anchor.rs`'s
+  `remap_seg` was both at once, a live fail-quiet of exactly the shape #632 was
+  hunting, under a body that reported *"no fail-quiet wildcard in any `RoleSeg`
+  or `Qualifier` match in the workspace."* The instrument that found it asks
+  **rustc** rather than the text — `--force-warn
+  clippy::wildcard_enum_match_arm`, reading each diagnostic's missing-variant
+  list — which no alias, wrapper or indentation can fool. Its own blind spot,
+  stated because that is this clause: an enum nested inside `Option`/`Result`
+  is attributed to the outer type, so the lint cannot see the very arms #632's
+  correction was about, and it says nothing about `if let` / `matches!`.
 - **#635** used a line-scoped `rg`, so a claim that **wrapped across a line
   break** could not match. Two survivors of the premise it was sweeping sat
   in the file it had just edited, one of them 25 lines above the list it
@@ -7502,8 +7537,12 @@ blind in exactly the shape it was hunting:
 This is C11/C13's mechanism one level down. Those say a class gets fixed at
 the reported instance; this says that even a lane *trying* to sweep the class
 will under-report by exactly the margin its pattern cannot express, and will
-then state the shortfall as a verified negative. In all three cases the
-conclusion happened to survive; in all three the method did not.
+then state the shortfall as a verified negative. In all three the method did
+not survive. **The conclusion survived in two of three** — #632's did not, and
+establishing that took a differently-shaped instrument — the conclusion had
+stood unchallenged in the durable record since the day it was written. Where a
+sweep's blind spot is unstated, *"the conclusion happened to survive anyway"*
+is itself an unverified claim.
 
 **Proposed in #666, awaiting Evan's sign-off** — it amends the review
 instrument, which is Protocol v5's territory. The rule text lives in
