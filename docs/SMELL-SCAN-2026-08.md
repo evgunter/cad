@@ -2764,7 +2764,7 @@ not earn it. Both sweeps also share #712's blind spot: ~30 sites pass
 the name through a parameter or a const, and the roster obligation at
 `K-REPORT.md:341` is stated over *types* holding row names where the
 hole is over anything not reachable as a bare literal at the call site.
-That is now **D19** — landed as #PRNUM, which re-derived the ~30 figure as
+That is now **D19** — landed as #747, which re-derived the ~30 figure as
 **37 sites carrying 83 names** and found the hole is over the funnel, not over
 types.
 
@@ -7296,7 +7296,7 @@ invariants do not propagate; only imports do* — with the aggravation that the
 sibling here was not merely unswept but **uncompiled**, so the sweep could not
 have failed loudly even if it had been attempted.
 
-**D19 — FIXED by #PRNUM.** D19 was placed by #719 rather than raised at a
+**D19 — FIXED by #747.** D19 was placed by #719 rather than raised at a
 numbered finding, so its full record is here.
 
 **The row's own figure reproduced exactly, which is how the criterion was
@@ -7422,7 +7422,7 @@ shape, reachable here only because it happens to spell "predicate name".
 | **D24** | **A `pub` item that is dead workspace-wide is invisible to every mechanical check this repo runs.** `dead_code` exempts anything `pub`, on the assumption that an external crate may call it — an assumption that is false for a workspace whose only consumers are its own members plus `pncad`/`pncad-py`. `[workspace.lints.rust]` (`Cargo.toml:130`) carries exactly `unsafe_code = "forbid"` and `missing_docs = "warn"` — plus D9's panic family under `clippy` — and **no `unreachable_pub`**, so nothing fires. The verified first instance is `MateRole::name` (`editor-core/src/mate/solve.rs`), deleted by #735: `pub`, documented *"The role's name, for messages"*, and never called anywhere in the workspace under default features, under `--features probe`, or from `pncad-py`. It was found by hand, by a lane that happened to open the file for an unrelated deletion — which is the finding. S11's whole dead-machinery table is drawn from the same blind spot. **Two fix shapes, and the row closes on choosing one, not on deleting anything**: (a) add `unreachable_pub` to the workspace lints, which demotes items that need not be `pub` and makes the genuinely-`pub`-and-dead ones visible as a residue — cheapest, but it will fire widely on first run and the triage is the real cost; (b) a `pub`-surface census job, in the shape D17's enforcement work takes, that enumerates the workspace's public items and reports the ones with no consumer, tests included. This is **enforcement work like D17, not a deletion row** — it does not itself condemn anything, and any item it surfaces still needs a verdict. The exact instrument for a single item is rename-and-rebuild, which #735's body documents; the row's job is to make that mechanical instead of manual. | S11 (the dead-machinery table's method), via #735 | `Cargo.toml`'s workspace lints, or `.github/workflows/` | style, and it **closes on a chosen mechanism** that runs in CI — not on a list of dead items | nothing |
 
 **No row number is reserved; D24 is the highest one placed.** Placements:
-D15 by #710, D16 by #706, **D17** by #718, **D18** by #720, **D19** by #719 (landed as #PRNUM),
+D15 by #710, D16 by #706, **D17** by #718, **D18** by #720, **D19** by #719 (landed as #747),
 **D20** by **#722** (D5's +46%, unattributed once that unit's measurement
 excluded the enumeration D14 blamed) and **D24** by **#735**. All four of
 the lanes that retired this hour placed their own residue on the way out
@@ -7626,14 +7626,14 @@ fillet-helper row, and nothing else in the track waits on anything. Landed: D1 a
 D13's gate — D5 as #713, D6 as #706, D9 as #712, D10 and D12 as #717, D15 as
 #718, D16 as #720, D11 as #719, D7's first two thirds as #721 and #735, and
 D13/D14 as #722, which **placed D20** — the +46% its measurement left
-unattributed — and D19 as #PRNUM.
+unattributed — and D19 as #747.
 **Nothing is in flight.**
 **D17, D18 and D20 are edge-free and unstarted.** D17 is the only row in
 the track whose file set is `.github/workflows/`, so it collides with no
 kernel lane and can run at any time; D18's is
 `topo/src/{split,euler_kill,euler}.rs`, which #720 leaves at a state where
 only the two `prev` checks and the conversion behind them remain. **D19 landed
-as #PRNUM**, and it named no enforcement shape: the roster is a record, nothing
+as #747**, and it named no enforcement shape: the roster is a record, nothing
 computes with it, and the deliverable was the criterion plus its measured
 residue.
 
