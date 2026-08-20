@@ -67,8 +67,8 @@ pub fn cube(l: f64) -> Body<f64> {
     extrude(&profile, Extrusion::Distance(l)).unwrap().body
 }
 
-/// Every edge of `body` resolved by the fillet battery, in edge order
-/// — the same list `whole_body_links` hands the plan.
+/// Every edge of `body` resolved by the fillet battery, in edge
+/// order.
 pub fn all_links(body: &Body<f64>) -> Vec<Link<f64>> {
     let tol = Tolerance::get();
     let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();

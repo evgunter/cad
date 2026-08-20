@@ -4,11 +4,10 @@
 //!
 //! `Node::Fillet` wires
 //! [`sweep::fillet::build::fillet_edges`](sweep::fillet::build::fillet_edges)
-//! over EVERY edge of its target body. It carries no edge selection on
-//! purpose: the assembly's front door is "every edge of a convex,
-//! planar-faced, trivalent-vertex polyhedron", so a whole-body request
-//! needs no stable edge names and cannot go stale under a parameter
-//! edit — which the bump row below executes rather than asserts.
+//! over an authored selection of its target body's edges — here every
+//! edge of the cube. A parameter edit that mints and retires no edge
+//! cannot make that selection stale, which the bump row below
+//! executes rather than asserts.
 //!
 //! The document under test is `corpus/die_fillet.rs`. It was written
 //! to registry shape but held out of it while the Interval blocker
@@ -86,8 +85,8 @@ fn die_fillet_evaluates_green_and_meters_the_closed_form() {
 /// **The bump row** (D2's incremental probe, the registry's third
 /// standard row): a parameter edit on the EXTRUDE recomputes exactly
 /// its downstream cone and reuses the rest — and the fillet node
-/// downstream of it survives the edit with NO re-selection, because a
-/// whole-body request has nothing to re-select.
+/// downstream of it survives the edit with NO re-selection, because
+/// the bump mints and retires no edge.
 #[test]
 fn the_extrude_bump_recomputes_the_cone_and_the_fillet_needs_no_reselection() {
     let d = die_fillet::document();

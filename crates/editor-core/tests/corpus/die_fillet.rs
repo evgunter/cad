@@ -5,13 +5,12 @@
 //! AND spheres at once (twelve quarter-cylinder blends, eight
 //! sphere-octant corners, six shrunken planar supports).
 //!
-//! The recipe is three nodes — profile → extrude → fillet — because
-//! `Node::Fillet` carries NO edge selection: the assembly's front door
-//! is "every edge of a convex, planar-faced, trivalent-vertex
-//! polyhedron", so the whole-body request needs no stable edge names
-//! and cannot go stale under the bump below. That is the point of the
-//! document: the bump edits the EXTRUDE's distance, the fillet node
-//! recomputes downstream of it, and there is no selection to repair.
+//! The recipe is three nodes — profile → extrude → fillet. The
+//! fillet's selection is every edge of the cube, AUTHORED, and the
+//! bump below mints and retires no edge, so it cannot go stale. That
+//! is the point of the document: the bump edits the EXTRUDE's
+//! distance, the fillet node recomputes downstream of it, and there
+//! is no selection to repair.
 //!
 //! # REGISTERED — and the blocker that once held it out
 //!
@@ -90,13 +89,11 @@ pub fn document() -> CorpusDoc {
         profile,
         distance: len(L),
     });
-    // Every edge of the cube, AUTHORED (M6-5): the whole-body
-    // assembly door is still what runs — the selection is exactly the
-    // edge set — but the recipe now STATES that set instead of
-    // meaning "whatever edges exist". The bump stretches the cube
-    // without minting or retiring an edge, so the frozen selection
-    // still resolves, which is what makes this document a covariance
-    // row as well as a shape row.
+    // Every edge of the cube, AUTHORED: the recipe STATES the set
+    // instead of meaning "whatever edges exist". The bump stretches
+    // the cube without minting or retiring an edge, so the frozen
+    // selection still resolves, which is what makes this document a
+    // covariance row as well as a shape row.
     let blank = r.insert(Node::fillet(cube, len(R), prism_edges(cube, 4)));
 
     CorpusDoc {
@@ -110,7 +107,7 @@ pub fn document() -> CorpusDoc {
         // D2's incremental probe: stretch the cube. The profile is
         // reused; the extrude and the fillet downstream of it
         // recompute — and the fillet needs no re-selection to survive
-        // the edit, which is the whole-body front door's point.
+        // the edit, since the bump mints and retires no edge.
         bump: DocEdit::SetParam {
             node: cube,
             slot: SlotId::Distance,
