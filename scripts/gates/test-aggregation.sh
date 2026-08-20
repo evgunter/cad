@@ -123,8 +123,9 @@ print(len(packages), targets)
 gate_plant_clean() {
   local t=$1
   printf '[workspace]\nmembers = ["crates/*"]\nresolver = "2"\n' > "$t/Cargo.toml"
-  [ -f "$GATE_REPO_ROOT/rust-toolchain.toml" ] &&
+  if [ -f "$GATE_REPO_ROOT/rust-toolchain.toml" ]; then
     cp "$GATE_REPO_ROOT/rust-toolchain.toml" "$t/rust-toolchain.toml"
+  fi
   mkdir -p "$t/crates/aggregated/src" "$t/crates/aggregated/tests"
   printf '[package]\nname = "aggregated"\nversion = "0.0.0"\nedition = "2021"\nautotests = false\n\n[[test]]\nname = "all"\npath = "tests/all.rs"\n' \
     > "$t/crates/aggregated/Cargo.toml"

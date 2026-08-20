@@ -16,21 +16,14 @@
 # next run, with nothing to remember.
 #
 # WHY THE PREDICATE IS THE CFG ATTRIBUTE, AND WHY IT IS NOT VERBATIM.
-# Matching a MENTION of the feature is wrong: an earlier version matched
-# the substring `feature = "probe"` anywhere in the file, so a doc
-# comment naming the feature satisfied the floor below — including prose
-# describing this very mechanism. Requiring the ATTRIBUTE form, anchored
-# to the whole line, is what makes the census a statement about what
-# compiles rather than about what is written.
-#
-# Requiring the attribute VERBATIM is the same mistake from the other
-# side. `#![cfg(all(feature = "probe", not(miri)))]` is a correct gate; a
-# verbatim predicate has no vocabulary for it, so such a file would be
-# uncounted — and a crate whose FIRST probe suite were spelled that way
-# would never enter the derived crate list at all, which is silence, not
-# a wrong number. So the condition is matched anywhere inside the
-# attribute's parentheses: `all(…)`, `any(…)` and feature conjunctions
-# all count.
+# Matching a MENTION of the feature is wrong: a doc comment naming it is
+# not a gate, and the substring form let prose satisfy the floor below —
+# including prose describing this very mechanism. Requiring the ATTRIBUTE
+# form, anchored to the whole line, is what makes the census a statement
+# about what compiles rather than about what is written. Requiring it
+# VERBATIM is the same mistake from the other side, which is case 2
+# below: the condition is therefore matched anywhere inside the
+# attribute's parentheses, so `all(…)`, `any(…)` and conjunctions count.
 #
 # THREE WAYS A GATE CAN BE UNCOVERED, AND WHICH MECHANISM ANSWERS EACH.
 # The predicate above is only one of them, and saying so is the point:
