@@ -52,4 +52,4 @@ pub use editor_core::{
 /// The frame type the geometry doors answer with, and its refusal —
 /// re-exported from the kernel's read-back module so a façade user
 /// names one crate, not two.
-pub use sweep::readback::{Pose, ReadbackError};
+pub use topo::readback::{Pose, ReadbackError};
