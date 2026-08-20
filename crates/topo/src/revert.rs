@@ -202,21 +202,27 @@ impl<T: Real> Body<T> {
 
         // ---- The map (infallible from here on). ----
         let mut out = self.clone();
+        // Every key below was iterated out of `self`, and `out` is a
+        // clone of `self` — cloning a slotmap preserves its keys — so
+        // each lookup resolves. The map removes nothing.
         for (he_key, start) in new_starts {
-            if let Some(he) = out.get_half_edge_mut(he_key) {
-                he.start = start;
-                core::mem::swap(&mut he.next, &mut he.prev);
-            }
+            let Some(he) = out.get_half_edge_mut(he_key) else {
+                unreachable!("revert: `he_key` was iterated out of the arena `out` clones")
+            };
+            he.start = start;
+            core::mem::swap(&mut he.next, &mut he.prev);
         }
         for (edge_key, _) in self.edges.iter() {
-            if let Some(edge) = out.get_edge_mut(edge_key) {
-                core::mem::swap(&mut edge.he_plus, &mut edge.he_minus);
-            }
+            let Some(edge) = out.get_edge_mut(edge_key) else {
+                unreachable!("revert: `edge_key` was iterated out of the arena `out` clones")
+            };
+            core::mem::swap(&mut edge.he_plus, &mut edge.he_minus);
         }
         for (vertex_key, anchor) in new_anchors {
-            if let Some(vertex) = out.get_vertex_mut(vertex_key) {
-                vertex.emanating = Some(anchor);
-            }
+            let Some(vertex) = out.get_vertex_mut(vertex_key) else {
+                unreachable!("revert: `vertex_key` was iterated out of the arena `out` clones")
+            };
+            vertex.emanating = Some(anchor);
         }
         for (_, surface) in out.surfaces.iter_mut() {
             if let Surface::Plane { normal, .. } = surface {

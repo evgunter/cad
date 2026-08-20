@@ -952,7 +952,10 @@ impl<T: Decide> Body<T> {
     fn normalize_merged_roles(&mut self, face: FaceKey) -> Result<(), MergeCoplanarError> {
         let band = Band::linear().map_err(|error| MergeCoplanarError::Band { error })?;
         let Some(f) = self.get_face(face) else {
-            return Ok(()); // unreachable: the survivor is live
+            unreachable!(
+                "normalize_merged_roles: the survivor was resolved by `merge_group`'s \
+                 curved-survivor gate, and the absorption kills no face after it"
+            )
         };
         // The face's OUTWARD normal (S10): "positively wound" means
         // CCW seen from OUTSIDE the material, so on a reversed face
@@ -979,7 +982,10 @@ impl<T: Decide> Body<T> {
                 // relabeling: loops, half-edges, and arena counts are
                 // untouched — both loops already belong to this face).
                 let Some(fm) = self.faces.get_mut(face) else {
-                    return Ok(()); // unreachable: checked live above
+                    unreachable!(
+                        "normalize_merged_roles: `face` resolved at the head of this \
+                         function and the winding pass is read-only"
+                    )
                 };
                 fm.outer = rings[i];
                 fm.rings[i] = outer;

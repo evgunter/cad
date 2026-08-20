@@ -24,10 +24,15 @@
 //!   footnote, is the bounded-traversal half: no panic, no hang, every
 //!   traversal bounded — plus a typed error where corruption is
 //!   detectable. **A mutation phase announces a failed lookup rather
-//!   than discarding it, at every write.** Every key a
+//!   than discarding it, at every write** — crate-wide, not only in
+//!   these operators: the non-operator structural mutators, the attach
+//!   setters, `revert`, the boolean graft and the splitting carve hold
+//!   it too. Every key a
 //!   mutation writes through is either minted in that phase or proven
-//!   live by the plan phase, which returns
-//!   [`EulerOpError::StaleKey`] otherwise; the writes themselves state
+//!   live by a check in the same call — here the plan phase, which
+//!   returns [`EulerOpError::StaleKey`] otherwise — and never by the
+//!   body's tier-1 validity, which is a whole-body property no single
+//!   call establishes; the writes themselves state
 //!   that impossibility as `unreachable!` (the addendum's row 4), and
 //!   the one write helper these modules share
 //!   ([`Body::link_half_edges`]) states it as a precondition its
