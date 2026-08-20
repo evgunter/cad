@@ -10,22 +10,24 @@
 # lane in topo, the evaluation-service seam in editor-core,
 # profile's pre-amendment fillet gate, and topo/props.rs — the
 # M5 PR 11 certified-quadrature plumbing (Evan's lane-split
-# ruling at that PR: certification is the bracket-carrying
-# lanes' business, statically split from the dual lane through
+# ruling at that PR: certification is the CERTIFYING lanes'
+# business, statically split from the dual lane through
 # `PropsQuadLane`), and — since M5 PR 12 — the fillet-battery
 # seam in sweep. That last one is an ORCHESTRATOR ruling
 # (2026-08-03) applying the PR 11 precedent, flagged for
-# retroactive Evan review per the self-merge convention: the battery's margins are certified metric quantities
-# (sup-κ curvature hulls, blend setback bounds) reported as
-# `f64` payloads, i.e. enclosure consumers of exactly the
-# quadrature's class; and no dual-scalar path can reach it —
-# `Bounds` is implemented only for `f64`, `Interval` and
-# `Probe`, never for `Dual`, and the one wiring that calls
-# fillets (editor-core's `wire_fillet`) sits under `evaluate<T>`,
-# which is itself already `Bounds`-bounded and instantiated at
-# `f64`/`Interval` only. With no dual lane to split, the
-# `PropsQuadLane` static split would have had nothing on its
-# refusing side, so the seam is ratified instead.
+# retroactive Evan review per the self-merge convention: the
+# battery's margins are certified metric quantities (sup-κ
+# curvature hulls, blend setback bounds) reported as `f64`
+# payloads, i.e. enclosure consumers of exactly the quadrature's
+# class.
+#
+# STANDING OBLIGATION (D1 ruling, 2026-08-19): the fillet seam is
+# the one allowlisted seam with NO refusing lane behind it, and
+# the guard that made that acceptable — `Bounds` having no `Dual`
+# impl — has lapsed. The argument, the reachability check and what
+# is owed live in ONE home: geom-core/src/real.rs, the M5 PR 12
+# entry of the `Bounds` scope rule. Not restated here; keep this a
+# pointer.
 # geom-brep/src/{ssi.rs,ssi/certify.rs,pcurve_cache.rs} is the
 # M6-2 SSI generic-T lift: the rung-3 certificate simultaneously
 # DECIDES (its `ssi_*` funnel margins) and reads brackets into the
@@ -33,7 +35,9 @@
 # `Decide + Bounds` is its honest signature — the same class as
 # the quadrature seam, and unlike the fillet seam its refusing
 # side is NOT empty: `PcurveFittedLane` splits f64/Probe/Interval
-# (certified) from `Dual` (typed refusal, no bracket to offer).
+# (certified) from `Dual` (typed refusal — since the D1 ruling a
+# dual DOES carry a bracket, the value channel's; what it may not
+# do is certify, which is `CertifiedEnclosure`'s job to refuse).
 # `ssi/enclose.rs` is deliberately absent, and still decides nothing —
 # it holds both BRACKET doors (stored endpoints, plus the fallible
 # certified bracket that refuses below `Decoration::Def`) and no
@@ -58,12 +62,23 @@
 # inventory gate (a Harmonic trig channel is straight only when
 # its bracket is a point at exactly 0.0, the props.rs
 # rectangle-trim read) and the bit-identical-region fast path —
-# so `Decide + Bounds` is its honest signature. No dual lane
-# exists to split today (Bounds has no Dual impl, so the
-# predicate is uninstantiable at duals); the PropsQuadLane-shape
-# static lane is the stated obligation of its first
-# Decide-generic consumer (M9-2 PR-2's census arms) — see the
-# real.rs rule entry.
+# so `Decide + Bounds` is its honest signature. The
+# PropsQuadLane-shape static lane that PR-1 owed its first
+# Decide-generic consumer (M9-2 PR-2's census arms) EXISTS:
+# `topo::chart_region::ChartRegionLane`, with a refusing `Dual`
+# impl. (This paragraph used to say "no dual lane exists to split
+# today (Bounds has no Dual impl, so the predicate is
+# uninstantiable at duals)". Both clauses are false: the lane
+# exists, and since the D1 ruling of 2026-08-19 `Bounds` IS
+# implemented for `Dual`.)
+#
+# SCOPE OF THE GUARD, since it is easy to overstate: the lane is
+# the whole guard on the CENSUS path, and only there. Alone among
+# the four lanes' doors this one's bound carries no
+# CertifiedEnclosure, and `chart_region_overlap` is `pub` and
+# re-exported from topo/src/lib.rs — so an EXTERNAL caller is
+# bounded by `Decide + Bounds`, which a dual satisfies, and the
+# lane is never consulted. See the real.rs rule entry.
 # Sole-bound `T: Bounds`
 # (certification/driver code) is untouched by this check. A NEW
 # file writing a compound Bounds bound fails here until it is
@@ -90,10 +105,30 @@
 # the skip to a file-wide entry makes that case fail.
 # The match is order-insensitive: `Decide + Bounds` and `Bounds + Decide`
 # both fire, and the self-test plants both spellings.
-# KNOWN GAP: the match is line-based, so a bound broken across lines —
+# KNOWN GAP 1: the match is line-based, so a bound broken across lines —
 # `T: Bounds` ending one line and `+ Foo` beginning the next — is
 # invisible to it. Stated rather than left to be discovered; closing it
 # needs a parser, not a grep.
+#
+# KNOWN GAP 2, and the ONE sanctioned use of it (D1, 2026-08-19):
+# an EQUIVALENT bound spelled through a supertrait obligation is
+# invisible too. `geom-core/src/dual.rs` writes
+#
+#     impl<T> Bounds for Dual<T> where Self: Real, T: Bounds
+#
+# and, because `impl<T: KinkJacobian> Real for Dual<T>`, that is
+# semantically `impl<T: Bounds + KinkJacobian> Bounds for Dual<T>` — a
+# compound bound in a file this allowlist does not name. Written in the
+# equivalent form it FIRES (planted below, so the evasion is a pinned
+# fact rather than a claim). On the RULE's own words the impl is fine:
+# `KinkJacobian` is neither an evaluation nor a decision parameter, so
+# the pairing this gate exists to catch — a parameter that DECIDES and
+# has also been handed bracket extraction — is not what is written
+# there. So this is the sanctioned spelling of that one impl, declared
+# here rather than left to read as "satisfied by construction": it is
+# satisfied by the RULE, and it evades the GREP. A second use of the
+# supertrait spelling to dodge this gate is a violation; ratify it here
+# first, exactly as a file entry would be.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -143,6 +178,16 @@ plant_bounds_first() {
 # those `grep -v` filters — someone loosening them for a reformat — would
 # blind the gate to the very file that defines the rule with nothing
 # going red.
+# KNOWN GAP 2's positive half: the equivalent spelling of dual.rs's
+# `where Self: Real` + sole `T: Bounds` impl. The gate MUST fire on it,
+# which is what makes the header's "the supertrait spelling evades the
+# grep" a measured fact rather than an assertion — this case goes red the
+# day someone widens the filters enough to stop catching the written form.
+plant_dual_equivalent_spelling() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'impl<T: Bounds + KinkJacobian> Bounds for Dual<T> {}\n' > "$1/crates/planted/src/lib.rs"
+}
+
 plant_real_rs_signature() {
   mkdir -p "$1/crates/geom-core/src"
   {
@@ -157,7 +202,8 @@ gate_selftest() {
   gate_selftest_case "compound Bounds bound outside the ratified seams" plant_decide_first
   gate_selftest_case "compound Bounds bound outside the ratified seams" plant_bounds_first
   gate_selftest_case "compound Bounds bound outside the ratified seams" plant_real_rs_signature
-  printf '%s selftest OK: passes a clean fixture, fires on both operand orders, and fires on a compound bound in real.rs beside the skipped definition lines\n' "$(gate_name)"
+  gate_selftest_case "compound Bounds bound outside the ratified seams" plant_dual_equivalent_spelling
+  printf '%s selftest OK: passes a clean fixture, fires on both operand orders, fires on a compound bound in real.rs beside the skipped definition lines, and fires on the equivalent spelling of dual.rs Bounds impl (KNOWN GAP 2)\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
