@@ -8061,7 +8061,7 @@ litmus — that is what a boxed constant looks like. Plausibly a class:
 
 **Verdict:**
 
-## S74. FIXED by #NNN — the swept-traversal builder has one home, and the class re-check ran over every *"deliberately NOT unified"* claim in the S6 record
+## S74. FIXED by #781 — the swept-traversal builder has one home, and the class re-check ran over every *"deliberately NOT unified"* claim in the S6 record
 
 **The instance.** `swept.rs:17-20` said the swept-traversal builder stayed
 out of the shared home because *"extrude's has a reversal arm and mints the
