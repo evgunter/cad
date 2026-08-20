@@ -453,6 +453,27 @@ register unless the entry is about that artefact's text.* Say what the matcher
 does, not what it says. Every one of these three defects was a verbatim quote
 of something that then changed.
 
+### The Actions-budget outage, 2026-08-20 — and the failure it invites
+
+Hosted CI was budget-blocked for roughly forty minutes. `change filter` failed
+in ~5 s with *"The job was not started because an Actions budget is preventing
+further use"*, and **every downstream job showed SKIPPED**. Repo-wide, not
+branch-specific; Evan restored it.
+
+**The hazard is not the outage, it is what a red board looks like during one.**
+Two Track F lanes hit it independently and both diagnosed it correctly — jobs
+dying in 2–4 s with zero steps recorded, before checkout — but as one of them
+wrote: *"other lanes pushing during that window may have read a red `change
+filter` as their own defect."* A build that never started and a build that
+failed are the same colour.
+
+**What both lanes did right, and it is the rule:** they ran the documented local
+mirror and named it **a stated fallback, never verification of record** — the
+distinction `docs/prompts/implementer-discipline.md` draws, and the one that is
+easiest to lose under time pressure. And they recorded the run IDs and the
+annotation text in the PR, so the red board reads as an environment fact rather
+than as a verdict on the branch.
+
 ## Standing rules this track derived
 
 ### A verification is valid for the PATHS it verified, not for the SHA it ran on
@@ -691,6 +712,45 @@ failure of the lane — every figure it reported reproduced under adversarial
 re-derivation, twice. It is what happens when a finding asks for a guard on a
 quantity that cannot carry one, and the honest end state took two attempts to
 reach because *"no honest box exists"* is the answer nobody reaches first.
+
+### F1 (S59) — **CLEARED 2026-08-20**, the track's second and its most scrutinised
+
+A style review, an **independent verification**, and two fix passes on one row.
+Red count zero throughout, 302 files scanned, self-test cases individually
+load-bearing under nine mutations.
+
+**What clears it is how it handled a correction that went its own way.** The
+verifier's counterexample — `pub trait Bracket: CertifiedEnclosure where Self:
+Bounds {}` — **does** fire on the lane's branch, because the lane had added a
+third matcher alternative after the verifier's SHA. It could have used that to
+argue the mitigation survived. **It said instead that the refutation stands
+undamaged, because the decisive half is the rustfmt fact: the caught spelling
+formats into the silent one.** A fix that catches the *pre-formatted* spelling
+of a hole is not a fix for the hole, and saying so cost the author the easier
+answer.
+
+**GAP 4 now reads OPEN WITH NO MITIGATION, with the reason at the gap.**
+*"Disclosed with a mitigation that does not work"* was the one end state F-R15
+refused, because it tells the next author the door is shut.
+
+**The third alternative stays**, on the lane's own framing: it catches a real
+single-line spelling, reds nothing, and is described as what it does rather than
+as a defence — with the rustfmt fact adjacent, so a reader who sees it fire
+learns immediately that the neighbouring form is silent. That adjacency is the
+whole difference between a partial catch and false comfort.
+
+### D106 — the gate header, placed rather than argued a third time
+
+**131 lines at open → 157 → 195**, against S116(m)'s measured threshold of 130.
+The lane's argument is right and is in the tree — *a gate whose gaps are honest
+is longer than one whose gaps are silent* — and its conclusion is the structural
+one: **this directory wants its ratification ledger split out of the scripts.**
+
+But an argument recorded is not a row that executes (§C3), so it is a row.
+**The progression is the evidence**: the header grew twice, both times for
+honest reasons, which is what makes it structural rather than a discipline
+problem. Not the closing lane's to execute — it had already been through a
+review, a verification and two fix passes on one row.
 
 ### D105 / S160 — the proposal that came out of it
 
