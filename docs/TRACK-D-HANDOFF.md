@@ -59,12 +59,12 @@ both used D10 and D11). Numbers are now assigned by the orchestrator:
 
 | Row | Owner | Subject |
 |---|---|---|
-| D17 | placed by #718 | No CI lane builds any crate's `probe` **test targets** but editor-core's — 14 suites unbuilt. **LANDED as #PRNUM**: both mechanisms, on the finding that they are red under disjoint conditions |
+| D17 | placed by #718 | No CI lane builds any crate's `probe` **test targets** but editor-core's — 14 suites unbuilt. **LANDED as #739**: both mechanisms, on the finding that they are red under disjoint conditions |
 | D18 | placed by #720 | `split.rs:253`'s unproven `prev`, **and** `kef`'s — unblocks W2c's last two sites |
 | D19 | placed by #719 | The K roster obligation reaches types, not names-not-reachable-as-bare-literals (37 sites across 24 files) |
 | D20 | placed by #722 | D5's +46% is real and **unattributed**; `choose_op` is excluded by measurement |
 
-All four are landed rows in §D now; **D17 has since landed as #PRNUM** and the
+All four are landed rows in §D now; **D17 has since landed as #739** and the
 other three are **edge-free and unstarted** — D20 is the highest number placed.
 
 **The rule, which a successor should keep:** a lane takes the next number the

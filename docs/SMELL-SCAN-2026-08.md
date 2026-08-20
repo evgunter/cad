@@ -7018,7 +7018,7 @@ named k_report`, never the panic.
 
 **Why nothing noticed, which is the part worth keeping — stated precisely.**
 *(Present tense throughout this paragraph describes the tree as D15 found it;
-the gap it names is closed by #PRNUM, D17's entry below.)*
+the gap it names is closed by #739, D17's entry below.)*
 `dump_k_samples` is `#[ignore]`d, *and* **no CI lane builds sweep's test
 targets under `probe`**. The looser claim — that nothing compiles `sweep
 --features probe` — is **false**, and the distinction is load-bearing: the
@@ -7097,7 +7097,7 @@ invariants do not propagate; only imports do* — with the aggravation that the
 sibling here was not merely unswept but **uncompiled**, so the sweep could not
 have failed loudly even if it had been attempted.
 
-**D17 — FIXED by #PRNUM.** D17 was raised by D15 rather than by a numbered
+**D17 — FIXED by #739.** D17 was raised by D15 rather than by a numbered
 finding, so its full record is here.
 
 **The census, re-verified on the merge base (`8a2d230`, after #719 touched one
@@ -7209,7 +7209,7 @@ and **D20** by **#722** (D5's +46%, unattributed once that unit's measurement
 excluded the enumeration D14 blamed). All four of the lanes that retired this
 hour placed their own residue on the way out rather than leaving it in a PR
 body — D15's as **D17** (the 14 `probe` test suites no CI lane type-checked;
-landed as #PRNUM),
+landed as #739),
 D16's as **D18** (`link_half_edges`' two unproven callers, which are W2c's
 last two sites), D11's as **D19** (the K roster's inventory hole) and
 D13/D14's as **D20** (D5's +46%, once the enumeration it was charged to was
@@ -7408,13 +7408,13 @@ fillet-helper row, and nothing else in the track waits on anything. Landed: D1 a
 D13's gate — D5 as #713, D6 as #706, D9 as #712, D10 and D12 as #717, D15 as
 #718, D16 as #720, D11 as #719, D7's first third as #721, D13/D14 as
 #722, which **placed D20** — the +46% its measurement left unattributed — and
-D17 as #PRNUM.
+D17 as #739.
 **Nothing is in flight.**
 **D18, D19 and D20 are edge-free and unstarted.** D18's file set is
 `topo/src/{split,euler_kill,euler}.rs`, which #720 leaves at a state where
 only the two `prev` checks and the conversion behind them remain; D19's is
 `docs/K-REPORT.md` plus whatever the enforcement shape names. **D17 landed as
-#PRNUM** — it was the only row in the track whose file set was
+#739** — it was the only row in the track whose file set was
 `.github/workflows/`, so it collided with no kernel lane; nothing waited on
 it and nothing waited for it.
 
