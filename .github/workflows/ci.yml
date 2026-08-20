@@ -1712,6 +1712,41 @@ jobs:
         run: cd demos/tour && cargo fmt --check && cargo clippy --all-targets -- -D warnings
       - name: demos wild fmt + clippy
         run: cd demos/wild && cargo fmt --check && cargo clippy --all-targets -- -D warnings
+      # THE #99 ε PIN, ARMED. `--all-targets` above type-checks the test
+      # targets and runs none of them, so until this row landed nothing
+      # in any gate had ever EXECUTED an assertion under `demos/`. The
+      # pin spawns the tour three times (default ε, 1e-6, 1e-12).
+      #
+      # COST, AND IT IS NOT FREE. This row builds `demo-tour` in release
+      # at DEFAULT features. The tess-budget sweep below builds the same
+      # crate at `--features budget` — a different feature unification,
+      # so the two share nothing and this job now pays two release
+      # builds of the kernel where it paid one. The runs themselves are
+      # ~7 s (measured on the lane's own box, warm cargo registry); the
+      # build in front of them took 1m06 there from a cold target and
+      # the sweep's own comment below prices such a build at "tens of
+      # seconds" on a runner with this job's cache warm. Folding the
+      # pin into `--features budget` would share that build, and is
+      # rejected: it would arm the per-face meter inside the run this
+      # pin is about, so the tour under test would not be the tour that
+      # ships.
+      #
+      # SCOPED TO THE INTEGRATION TEST, DELIBERATELY, AND NOT A
+      # SILENCING. A plain `cargo test --release` here would also run
+      # `--bin demo-tour`'s seven `lily::review_probes` unit tests, and
+      # two rows of `finding_13_tessellation_table_reproduces` are red
+      # on main today (issue #782: the two SWEPT blades tessellate to
+      # 1016/854 triangles against a pinned 976/826, while all five
+      # analytic rows are exact). Whether that new count is correct is a
+      # `mesh` question. **What stays unrun is load-bearing**: those
+      # seven include `the_spine_curl_wall_re_measured`, which pins a
+      # typed `LoftError::ReversedStacking` frontier from both sides,
+      # so `lily.rs` keeps its frontier pins in two spellings of which
+      # only the tour-runtime one (`wall_probes`) executes. Widening
+      # this row to the whole suite is owed the moment #782 is decided —
+      # #782 carries that obligation and the split.
+      - name: demos tour eps pin (#99)
+        run: cd demos/tour && cargo test --release --test eps_regression
       - name: k-lint tool fmt + clippy + tests (incl. the #99 litmus)
         run: cd tools/k-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
       # `cargo doc` here is the same stopgap #709 added to the

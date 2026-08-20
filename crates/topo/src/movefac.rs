@@ -139,17 +139,21 @@ impl<T: Decide> Body<T> {
         // Per-component face lists, preserving original relative order.
         let mut lists: Vec<Vec<FaceKey>> = vec![Vec::new(); count];
         for &face in &shell_data.faces {
-            // The label exists for every face of the list (labeled above).
-            if let Some(&label) = component.get(face) {
-                lists[label].push(face);
-            }
+            let Some(&label) = component.get(face) else {
+                unreachable!(
+                    "movefac: every face of `shell_data.faces` is labelled by the \
+                     component walk above"
+                )
+            };
+            lists[label].push(face);
         }
         let mut result = vec![shell];
         let mut lists = lists.into_iter();
         let first = lists.next().unwrap_or_default();
-        if let Some(shell_data) = self.get_shell_mut(shell) {
-            shell_data.faces = first;
-        }
+        let Some(shell_data) = self.get_shell_mut(shell) else {
+            unreachable!("movefac: `shell` resolved in the plan phase and this op kills no shell")
+        };
+        shell_data.faces = first;
         for faces in lists {
             let new_shell = self.add_shell(
                 Shell {
@@ -159,13 +163,21 @@ impl<T: Decide> Body<T> {
                 Provenance::Movefac { shell },
             );
             for face in faces {
-                if let Some(face_data) = self.get_face_mut(face) {
-                    face_data.shell = new_shell;
-                }
+                let Some(face_data) = self.get_face_mut(face) else {
+                    unreachable!(
+                        "movefac: every labelled face was resolved by the component walk \
+                         above and this op kills no face"
+                    )
+                };
+                face_data.shell = new_shell;
             }
-            if let Some(solid_data) = self.get_solid_mut(solid) {
-                solid_data.shells.push(new_shell);
-            }
+            let Some(solid_data) = self.get_solid_mut(solid) else {
+                unreachable!(
+                    "movefac: `solid` proven live by the plan phase's `contains_key` and \
+                     this op kills no solid"
+                )
+            };
+            solid_data.shells.push(new_shell);
             result.push(new_shell);
         }
 

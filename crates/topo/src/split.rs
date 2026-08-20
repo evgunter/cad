@@ -274,20 +274,28 @@ impl<T: Decide> Body<T> {
         he.start = w;
         // Parent edge → first-child curve; old curve killed iff
         // orphaned.
-        if let Some(e) = self.get_edge_mut(edge) {
-            e.curve = first_curve;
-        }
+        let Some(e) = self.get_edge_mut(edge) else {
+            unreachable!("split_edge: `edge` resolved in the plan phase and this op kills no edge")
+        };
+        e.curve = first_curve;
         let killed_curve = self
             .remove_curve_if_orphaned(edge_data.curve)
             .then_some(edge_data.curve);
-        // Emanating rules (documented above).
-        if let Some(vertex) = self.get_vertex_mut(w) {
-            vertex.emanating = Some(n_plus);
-        }
-        let v_emanating = self.get_vertex(v).and_then(|vd| vd.emanating);
-        if v_emanating == Some(hm.key())
-            && let Some(vertex) = self.get_vertex_mut(v)
-        {
+        // Emanating rules (documented above). `v` is read and written
+        // through ONE lookup: the condition is a field of the borrow
+        // that performs the write, so no path reaches the write with
+        // `v` unproven.
+        let Some(vertex) = self.get_vertex_mut(w) else {
+            unreachable!("split_edge: `w` is minted by this function, above")
+        };
+        vertex.emanating = Some(n_plus);
+        let Some(vertex) = self.get_vertex_mut(v) else {
+            unreachable!(
+                "split_edge: `v` proven live by the plan phase (resolve_vertex_point) and \
+                 this op kills no vertex"
+            )
+        };
+        if vertex.emanating == Some(hm.key()) {
             vertex.emanating = Some(n_minus);
         }
 

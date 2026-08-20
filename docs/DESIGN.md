@@ -1310,15 +1310,34 @@ question to ask FIRST at the next site of this shape is a ruling about
 how this addendum is applied, it bears on **S14**, and it is not
 settled here; it is open for Evan's sign-off in its own PR.
 
-*Still outstanding:* **discard sites elsewhere in `crates/topo`**,
-which the three-module census never counted and this addendum has
-never covered. A sweep finds **at least 14** — `split_edge`,
-`attach.rs`, `movefac.rs`, `revert.rs`, `splitting/finish.rs`,
-`boolean/combine.rs` — and that is a **floor from one spelling of the
-idiom**, not a census: successive sweeps have each found sites the
-previous pattern could not match (let-chains, field-access lookups).
-**Re-sweep rather than re-count** (`SMELL-SCAN-2026-08.md`'s **D21**,
-which carries the spellings that escaped). And, outside `crates/topo`,
+*The `crates/topo` sites outside W2c's three modules are done* (D21,
+PR #773) — **the sites, not the class**, and the difference is the
+part worth ratifying. The census re-derived to **17** under the stated
+reading *a lookup whose `None` is discarded at a write in a mutation
+phase*, and it found a **seventh** file the earlier floor of 14 did
+not name: `merge_faces.rs`, whose two sites spelled the discard
+`else { return Ok(()) }` under a comment that already said
+*unreachable*. The disposition is **16 row 4 + 1 row 0** — the odd one
+being `revert`'s edge loop, which carried no per-key value and so was
+rewritten to walk the arena directly and look nothing up, the shape
+this taxonomy should always prefer to a converted arm. Every converted
+key is minted in the same call or proven live by a check in the same
+call, **never** by tier-1 validity, and every arm was demonstrated
+live by poisoning its key and watching it fire with its own message.
+
+*Three things that closure does NOT cover, stated so no reader infers
+them.* **(a)** One `crates/topo` site cannot meet the standard and is
+deliberately unconverted: `merge_coplanar_faces`' ring re-homing reads
+its face key out of a loop's back-pointer, so its disposition is a
+typed error rather than a panic — `SMELL-SCAN-2026-08.md`'s **D88**,
+and the named exception to the enumeration in `topo::euler`'s module
+docs. **(b)** The **class is not confined to `crates/topo`**, and the
+crate clause is a scope of work rather than a claim about the class:
+verified instances live in `step-import`, `bvh` and `profile`, one of
+them five lines from a panicking `Index` on the same key — **D94**.
+**(c)** `boolean/combine.rs` answers one proof two ways — six
+minted-in-call keys refuse `row 1` where two identical ones now
+announce `row 4` — which is **D95**. And, outside `crates/topo`,
 idiom 2's `MissingEntity` router defects.
 
 **Replay with kills (M1, pinned in PRs #20/#23):** the determinism
