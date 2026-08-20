@@ -158,15 +158,25 @@ gathered across M2's full pipeline.
   committed CSV can weaken the gate, and `k_report.rs` is the M2-era
   instrument only.
 
-  **What *is* uncovered, stated precisely.** The `sweep` **library** is
-  compiled under `probe` on every building merge — `editor-core`'s
-  `probe` feature forwards `sweep/probe`, and the sweep script runs
-  `cargo test -p editor-core --features probe`. What no CI lane does is
-  build **sweep's own test targets** under `probe`: nothing in
-  `.github/workflows/` runs `cargo test -p sweep --features probe`, so
-  this file is not type-checked by CI, let alone run. That is a class,
-  not this file's peculiarity — placed as SMELL-SCAN row **D17**. Until
-  it closes, anyone re-running this harness is its only check.
+  **What CI now covers, stated precisely** (D17, closed 2026-08-20).
+  `k_report.rs` is both **type-checked and run** on every building
+  merge. The `k-lint` job's *"type-check every probe-gated test target"*
+  step covers the whole workspace — `scripts/gates/probe-suite-census.sh`
+  derives the owning crates from the tree and the step `cargo check`s
+  each `--features probe --all-targets`; the gate greps for that step
+  name, so this paragraph cannot go quietly false — and
+  `scripts/k_probe_sweep.sh` then *executes* this
+  harness at all three ε beside the Band 4 corpus and the tour scenes.
+  The two are not interchangeable: a type-check cannot see a panic, and
+  running one harness says nothing about the other thirteen suites.
+
+  **The M2 dump rides beside the gate, not inside it.** The sweep writes
+  it to `<outdir>/m2/<prefix><ε>.csv`; `tools/k-lint` is handed the
+  merged corpus+tour CSV only. Folding ten M2 shapes into the linted
+  distribution would move what the thresholds are argued over, which is
+  a K conversation and not a coverage one. So `k_report.rs` remains the
+  M2-era instrument, and re-cutting `docs/k-report-data/eps-1e-*.csv` is
+  now the same script CI runs rather than a hand-typed invocation.
 
 - Scope: the corpus is all-valid by construction, so refusal-path
   predicates that only fire on invalid input never sample here (dead

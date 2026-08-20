@@ -39,12 +39,13 @@ real risk, which took a full adversarial lane as well.
 | D7 (1 of 3) | `Mat2`/`Affine2` deleted, with the orphan its deletion made | #721 |
 | D13, D14 | The pcurve-staleness convention checked; D14 **refuted**, not closed | #722 |
 | D18 | The two unproven `prev`s proven; `link_half_edges` converted — **W2c done** | #736 |
+| D2 | S19's fillet half — 103 sites in, 108 out, partitioned 41/49/18; the row-4 reading **bounded, not refuted** | #740 |
 
-## In flight: D18 only
+## In flight
 
-The twelve units through #722 are merged; **D18 is open as #736** (W2c's last
-two sites plus the helper, and the release-corruption CI row's disposition —
-its PR body is the record). The four that were mid-fix-pass when the first
+The twelve units through #722 are merged, plus **D18 as #736** (W2c's last two
+sites plus the helper, and the release-corruption CI row's disposition — its PR
+body is the record) and **D2 as #740**. The four that were mid-fix-pass when the first
 version of this file was written — #719, #720, #721, #722 — each finished its
 pass and landed, so the table that listed them is gone rather than left to rot.
 What each pass actually turned up is in its PR body, which is the record.
@@ -63,14 +64,18 @@ both used D10 and D11). Numbers are now assigned by the orchestrator:
 
 | Row | Owner | Subject |
 |---|---|---|
-| D17 | placed by #718 | No CI lane builds any crate's `probe` **test targets** but editor-core's — 14 suites unbuilt |
+| D17 | placed by #718 | No CI lane builds any crate's `probe` **test targets** but editor-core's — 14 suites unbuilt. **LANDED as #739**: both mechanisms, on the finding that they are red under disjoint conditions |
 | D18 | placed by #720 | `split.rs:253`'s unproven `prev`, **and** `kef`'s — unblocked W2c's last two sites (**landed, #736**) |
 | D19 | placed by #719 | The K roster obligation reaches types, not names-not-reachable-as-bare-literals (37 sites across 24 files) |
 | D20 | placed by #722 | D5's +46% is real and **unattributed**; `choose_op` is excluded by measurement |
 | D21 | placed by #736 | The discard idiom's **11 sites in `crates/topo` outside W2c's three-module census** — 3 in `split_edge`, 2 `attach.rs`, 3 `movefac.rs`, 3 `revert.rs` |
 
-All five are landed rows in §D. D18 has since landed as #736; the other four
-are **edge-free and unstarted** — D21 is the highest number placed.
+All five are landed rows in §D. **D17 has since landed as #739 and D18 as
+#736**; the rest are **edge-free and unstarted**. The table above is the early
+roster only — placement continued past it (**D22**–**D23** by #739, **D24** by
+#735, **D25** by #736, **D26**–**D29** by #740, **D30**/**D31**/**D35** by
+#744, and **D32**–**D34** assigned), so **D35 is the highest number placed**
+and §D's own table is the live list.
 
 **The rule, which a successor should keep:** a lane takes the next number the
 orchestrator has assigned, never the next gap it can see. A roster with holes
@@ -88,17 +93,38 @@ fillet-helper row, and **D8**, whose `geom-curves/src/fit.rs` it relocated to
 
 What is unstarted is unstarted for schedule reasons only, not technical ones:
 
-- **D2** (B3 / S19, the fillet error catch-alls, ADVERSARIAL) is the widest
-  unblocked row and gates D7's fillet-helper row — the only edge left in the
-  track.
-- **D8**, **D17**, **D19**, **D20**, **D21** and **D25** are edge-free. D7's
+- **D7's fillet-helper row landed as #748**, closing D7 and **U1** in full. It
+  re-read all four `sweep/src/fillet/` files first, D2 having rewritten every
+  refusal site in `surgery.rs` and `build.rs`.
+- **D26**, **D27**, **D28** and **D29** were placed by #740: S19's four
+  unplaced rows; the surgery's front-door invariants carried in comments
+  (**ADVERSARIAL**, and it also owes the addendum a home for `EmptyChain`);
+  `editor-core`'s eight payload-discarding `Display` arms; and
+  `FilletError::Op`/`Certify`'s ~20 `format!` sites. **D27 and D29 share
+  `sweep/src/fillet/`** — the only edge left in the track.
+- **D19**, **D20**, **D21**, **D22**, **D23**, **D25**, **D30**, **D31** and
+  **D35** are edge-free. **D17 landed as #739**, placing D22 and D23. D7's
   **`PairSolve`** row was too, and landed as **#735**; its provenance note is a
   comment on **issue #611**, not the PR body, because R2's thread is live, and
-  the PR cites the commit the type is recoverable from. **D18 landed as #736**,
-  finishing W2c and placing D21 and D25. **D21 is now the ADVERSARIAL one**, for
-  the reason D18 was: each conversion turns a garbage-out into a panic, and #720
-  proved that hole is real. It should sequence after **D25**, which would
-  discharge its half-edge sites structurally rather than site by site.
+  the PR cites the commit the type is recoverable from. **D17 landed as #739**
+  and **D18 as #736**, the latter finishing W2c and placing D21 and D25. **D21
+  is now the ADVERSARIAL one**, for the reason D18 was: each conversion turns a
+  garbage-out into a panic, and #720 proved that hole is real. It should
+  sequence after **D25**, which would discharge its half-edge sites
+  structurally rather than site by site.
+- **D8 landed as #744** (ADVERSARIAL, S18's two knot-vector rows). The census
+  was **eight** copies, not four, so it edits `crates/mesh/` and
+  `crates/step-export/`, which its row did not name — **Track C's C5** now
+  finds two of its C¹ carrier gates already four lines each. It **placed D30**
+  (ADVERSARIAL, `geom-brep/props/quad.rs`: the type cannot represent the
+  intermediate, so the consumer re-derives the vocabulary — S32's shape) and
+  **D31** (style, `make_compatible`/`deviation_from` as one routine), and
+  **D35** — the `unreachable!` message convention, prose-held at 102 sites the
+  week the D2 addendum ratified the mechanism. **D35 is the time-critical one
+  in this track**: 101 of those sites were written inside one week, and the
+  message shape was settled by orchestrator ruling across #740 and #744 — a
+  mechanism that vanishes with the lanes. It closes on a decision plus its
+  reason, and "no gate" is a passing answer.
 
 ## For Evan — S14 now has three witnesses
 
@@ -113,9 +139,25 @@ it:
 2. **#720's review** — sharper: because these are slotmap keys, an unpatched
    source-internal key may **resolve to an unrelated live entity** rather than
    dangle. That is *live but wrong*, which no plan phase can refuse.
+3. **#740 (D2)** — a witness that **sharpened witness 1 and then failed to
+   use it**. #740 first argued that a spent graft destination reaches
+   `fillet_edges` and therefore that its 46 lookup sites must stay typed. The
+   argument is **false in both halves**: the public `instance` doors bridge with
+   `combine::Bridge::RemapKeys`, whose arm never reaches the only
+   `GraftRecertify` raise (so `instance.rs`'s `# Errors` named an error its own
+   door cannot return — fixed by #740), and a spent destination comes back with
+   ≥2 solids, which `fillet_surgery`'s entry gate refuses above all 46 sites.
+   **Witness 1 still stands as stated in #713** — a public door can leave a body
+   tier-1-invalid — but it is now known that reaching a *particular* consumer
+   with such a body is a separate question, and one nobody has answered for
+   `fillet`. #740's 46 sites stayed typed on that open question, not on a
+   demonstration.
 
-Both are the "reachable by API misuse" row S43 proposed and the ratified D2
-addendum's five classes do not contain.
+All three are the "reachable by API misuse" row S43 proposed and the ratified
+D2 addendum's five classes do not contain. **#740 adds a fourth gap, from the
+other side**: `FilletError::EmptyChain` is neither reachable by input nor
+locally provable, so none of the five classes fits it. That is
+`SMELL-SCAN-2026-08.md`'s **D27**.
 
 ## What the review lane actually caught
 
