@@ -4748,14 +4748,19 @@ library.
 
 **The shipped bytes.** The ASCII solid name is `cad-kernel` and the binary
 header `binary STL; CAD kernel tessellation export` — the milestone token
-only. **Q9 is untouched**; the placeholder is not a name proposal. **No new
-public API**: the finding's other half, that the STL header is not
-caller-settable while the STEP writer takes `product_name`, `author`,
-`organization` and `originating_system` as options, is a **residue for
-Evan**, because closing it is an API design call. The STEP side was checked
-and has no leak of its own — its defaults are `product_name: "part"` and
-empty fields, caller-supplied at every call site — so the asymmetry is
-purely that STL has no options struct. No byte-comparison golden moved,
+only. **Q9 is untouched**; the placeholder is not a name proposal. The
+finding's other half — that the STL header is not caller-settable while the
+STEP writer takes `product_name`, `author`, `organization` and
+`originating_system` as options — was scheduled as **H16** and left as a
+residue for Evan, because closing it is an API design call. **H16 is FIXED
+by #PRNUMBER** (ruling C-R1): `stl::StlOptions` carries `solid_name` and
+`header`, both writers take `&StlOptions` where `step_string` takes
+`&StepOptions`, and the two defaults are the bytes above — a cross-tree
+comparison of all thirteen export fixtures in both formats shows the default
+path byte-identical to its merge base. Three typed refusals guard what the
+options can break: a solid name outside the single-line grammar's printable
+ASCII, a header over 80 bytes, and a header that would sniff as ASCII STL.
+No byte-comparison golden moved,
 because there are none: the STL oracles compare exports to each other across
 ε rows and repeat runs, so they are header-blind. That blindness was itself
 the finding — the ASCII `solid` name had **zero test coverage anywhere**
@@ -6692,13 +6697,14 @@ and the width-1 build mutex, not dependency.**
 | # | Work | Why it is here rather than in a track |
 |---|---|---|
 | **C1** | **H12–H15** — four lanes' own residues: the SSI sweeps' other never-silence doors (no acceptance row in either lane), `sweep_body`'s helix rows with no orientation coverage, #637's two jurisdiction residues, #635's unclassified siblings. | Each is small; together they are a lane. They are the clearest instance of ordering rule 3. |
-| **C2** | **H11, H16, H17** — #632's two residues; the STL header not being caller-settable while `StepOptions` carries `product_name`; and S37's rustdoc remainder, ~1115 lines across 130 files. | H17 is large and mechanical; H16 is a small asymmetry with a clear right answer. |
+| **C2** | **H11, H17** — #632's two residues; and S37's rustdoc remainder, ~1115 lines across 130 files. (**H16**, the STL header not being caller-settable while `StepOptions` carries `product_name`, was the third member and is **FIXED by #PRNUMBER**.) | H17 is large and mechanical. |
 | **C3** | **S27, S29** — `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block; and the sizing vocabulary fragmented across five modules with self-admitted magic constants. (S30, the mesh crate's 1,060 lines of instrument, was the third member and is FIXED by #709.) **S29 is NOT blocked on a design conversation — corrected 2026-08-19.** This row previously said its policy question was routed to `docs/TESS-SPLIT-SPEC.md` and PR #568. #684's review checked: both are scoped **entirely to the NURBS per-cell schedule** (`nurbs_cert`'s `grid_steps`, certified cells, the first fundamental form — TESS-SPLIT-SPEC's D-1 replaces the AM-GM grouping, with `leaf_a f2` as its poster child). **Nothing in either covers analytic-chart sizing**, so `curved::grid_steps` has no venue at all — and #684 has since added a sixth rule to it. S29's own lesson applies to that: *N well-defended deviations read as N decisions when they are one undecided question.* S27 touches `props/`, so it must follow **A2**; S29 is edge-free. |
 | **C4** | **S32, S33** — `Surface`'s one-partial-per-call API, which is what created the shadow surface enum in SSI; and neither geometry enum being able to lift itself to another scalar. (S31, the `geom-curves`/`geom-surfaces` split, was the third member and is FIXED by #705.) | **S32 is now additionally gated on #705's merge**: the enum and its NURBS payload are one crate's two modules, so a `SurfaceJet` door at the enum no longer crosses a crate boundary. **S33 is coloured by D1**: several of its ~14 hand-written ladders exist only to reach `Dual`, and what `Bounds for Dual` changes there is written in S44's **D1 DECIDED** block. |
 | **C5** | **S26, S28's duplication half** — the certified area enclosure that is never metered against anything (`area.width()` appears nowhere in the file); and the three tessellation lanes that remain three pipelines now that #648/#674 have settled their ordering and column questions. (**S24 left this row FIXED by #702.**) | S26 was explicitly deferred in writing by #472 — *"metering against `area.lo()` … deserves its own proposal with re-measured floors"* — so it is a proposal, not a patch. S28's duplication half must follow **A3**. |
 | **C6** | **W2f remainder / S4** — `ProgramStep`/`WireStep`, `SegTag`, and the "no usable value" core. | Each is blocked on something real: the first behind OnArc + RESPELL-TABLE and crossing the same files, the second needs the workspace's first proc-macro crate, the third by a persisted format. |
 | **C7** | **W2a / S3 and W2b / S1+S2** — the lane-trait collapse, and `RingInterval` versus an always-on `Interval`. | **The S3 half no longer waits — D1 is ruled, and its report is S44's D1 DECIDED block.** The steelman's compiled collapse for S3 **predates #643's `Bounds`/`CertifiedEnclosure` split** and must be re-derived against the two-trait world; read *"What this does NOT settle"* first, in particular its per-lane correction — deleting a lane trait leaves **three of the four** seams still uninstantiable at a dual, and only `chart_region_overlap` would become instantiable. W2b's blast radius is 535 refs in 15 files with five carrying 60%. **Two rows joined this one on 2026-08-20**, both from the unscheduled audit: **S44's open residue** — whether the four lane traits survive and whether D9's four bit-identity assertions may be re-expressed, which is what S44 means by *"open for the part that matters"* now that its priced half (D1) is ruled — and **S55**, `Enclosure` as a live trait with no consumer, which Evan deferred *pending the `Bounds` narrow-vs-broad split* and which is therefore this row's, not a lane of its own. Whoever takes C7 absorbs both. |
 | **C8** | **#711 — S24's residues outside `editor-core`**: `step-import/src/recognize.rs:126`, whose `try_cylinder` promoting arm is documented unreachable and whose `Plane > Cylinder` preference order is *"unfalsifiable by execution"*; and `docs/ASM-R2A-SPEC.md:21`, a landed spec sentence (*"v1 admits `Rest`/`Tangent`"*) that is true of the door it binds and no longer of v1 as a whole. | Filed by #702's fix pass rather than left inside a finding marked FIXED. The first may want the tighter cylinder certificate rather than an encoding change; the second is a one-line ruling — clarifier, or "landed specs read as of their own date". Small, edge-free, and **not** a lane on its own: fold into whoever next opens `step-import`. |
+| **C9** | **#730 — the Python STEP door exposes one of `StepOptions`' six fields.** `pncad-py`'s `step_string(node, product_name=None)` sets `product_name` and silently takes the Rust defaults for `timestamp`, `author`, `organization`, `originating_system` and `uncertainty_m` — the last of which is the exported `UNCERTAINTY_MEASURE_WITH_UNIT` value, so a Python caller cannot override the ambient tolerance a Rust caller can. | Found by **H16**'s sweep and filed rather than left as a sentence in a PR body (**C-R7**). It is H16's own class one layer out: an export door writing caller-visible file content the caller cannot set. The fix may be a Python options object, keyword arguments, or a written argument for the narrowing — what is wrong today is that the narrowing is neither argued nor visible. Small, edge-free: fold into whoever next opens `pncad-py`. |
 
 ---
 

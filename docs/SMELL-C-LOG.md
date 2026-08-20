@@ -85,7 +85,6 @@ superseded for Track C by this table.
 | **C-l** | **C7 + S33** — the lane-trait collapse, `RingInterval`, the scalar ladders | `geom-core/`, and W2b's 535 refs across 15 files | **#682** | **adversarial** + style; expect to split into 2–3 lanes |
 | **C-m** | **S27** — `props/quad.rs`'s four quadrature engines | `geom-brep/src/props/quad.rs` | A2 / S56 / **#649** | **adversarial** + style |
 | **C-n** | **H17** — the rustdoc spec-code remainder, ~1115 lines / 130 files | per crate: `topo` 300, `editor-core` 267, `geom-brep` 192, `geom-core` 107, `sweep` 64, rest < 70 | **deliberately last** — it touches 130 files and would conflict with every open lane | style, per crate batch |
-| **C-o** | **H16** — the STL header is not caller-settable | `stl/` | none | style; design PR, waits for sign-off (**C-R1**) |
 
 **Not taken by Track C:** C6's rows (blocked on other programmes — OnArc
 + RESPELL-TABLE, the workspace's first proc-macro crate, a persisted
