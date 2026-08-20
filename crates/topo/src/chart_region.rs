@@ -246,13 +246,22 @@ impl std::error::Error for ChartRegionError {}
 /// `Decide`-generic consumer (the census arms; see the M9-2 entry in
 /// `geom-core/src/real.rs`'s Bounds scope rule): bracket-carrying
 /// scalars (`f64`, `Probe`, the interval scalar) reach
-/// [`chart_region_overlap`]; the dual scalar has no bracket to read
-/// the C6 structure gate from and REFUSES statically — its impl
-/// instantiates none of the predicate (the `PropsQuadLane` shape).
+/// [`chart_region_overlap`]; the dual scalar REFUSES statically — its
+/// impl instantiates none of the predicate (the `PropsQuadLane` shape).
+/// Since the D1 ruling (2026-08-19) a dual DOES carry a bracket, so this
+/// lane is no longer a restatement of what the type system already
+/// forbade: on the census path it is the entire guard, and the
+/// predicate is otherwise instantiable at a dual. Note the scope —
+/// [`chart_region_overlap`] is `pub` and re-exported from `topo`'s
+/// root, and its bound is `Decide + Bounds` with no
+/// [`geom_core::CertifiedEnclosure`], so an **external** caller can
+/// instantiate it at a dual without this lane ever being consulted.
+/// Unlike the other three lanes' doors, nothing but this lane keeps a
+/// dual out, and this lane only covers the census.
 pub trait ChartRegionLane: Decide {
-    /// The overlap door at this scalar, or `None` when the scalar
-    /// carries no bracket lane (dual) — the census maps `None` to its
-    /// typed unsupported refusal, never to a silent skip.
+    /// The overlap door at this scalar, or `None` when the scalar has
+    /// no certified lane (dual) — the census maps `None` to its typed
+    /// unsupported refusal, never to a silent skip.
     fn chart_overlap(
         body_a: &Body<Self>,
         face_a: FaceKey,
