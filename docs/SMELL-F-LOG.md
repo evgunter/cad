@@ -220,7 +220,21 @@ sub-block, from the orchestrator.
 | **F-a** | D61, D62 | S117, S118 |
 | **F-b** | D63, D64 | S119, S120 |
 | **F-c** | D65, D66, D67 | S121, S122, S123 |
-| unassigned | D68–D70 | S124–S126 |
+| **F-e** | D68, D69 | S124, S125 |
+| **F-d** | D70 | S126 |
+| **F-f** | **D101** | **S157** |
+| unassigned (2nd block) | D102–D110 | S158–S166 |
+
+**Second block claimed 2026-08-20: `D101`–`D110` and `S157`–`S166`.** The first
+block is spent. Taken beyond Track E's `D81`–`D100` / `S137`–`S156` and Track
+G's `D71`–`D80` / `S127`–`S136` rather than into any gap — **and the reason is
+now demonstrated rather than argued**: between Track F claiming D61–D70 and
+that claim landing, **Track E's orchestrator issued D61–D70 to five of its own
+lanes**, and had to reissue them as D82–D89 once both branches were visible.
+Two orchestrators, one sequence, neither able to see the other's unmerged
+work — the exact failure the block convention exists to prevent, caught only
+because both blocks were published. A block that is not landed is not a
+reservation.
 
 ---
 
