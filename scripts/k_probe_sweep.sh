@@ -126,7 +126,7 @@ run_plain() {
   local label=$1 pkg=$2 module=$3 log passed
   log=$(mktemp)
   echo "=== probe-lane precondition ($label) ==="
-  cargo test -p "$pkg" --features probe --test all -- --nocapture "$module::" | tee "$log"
+  cargo test -p "$pkg" --features probe --test all -- "$module::" | tee "$log"
   passed=$(passed_count "$log")
   rm -f "$log"
   record_ran plain "$pkg" "$module" "${passed:-0}"
