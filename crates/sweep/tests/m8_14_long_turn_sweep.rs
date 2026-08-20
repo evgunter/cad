@@ -281,7 +281,7 @@ fn assert_helix_walls_face_out(turns: f64, stations: usize) {
     assert!(
         worst < FIXED_AXIS_GUARD_COS,
         "{turns} turns: the level planes must NOT be orientable against the \
-         stacking chord (worst cos {worst}), or the loft corpus's fixed-axis \
+         stacking chord at their WORST level (cos {worst}), or the fixed-chord \
          index would answer here and this row restates it instead of reaching \
          past it"
     );
