@@ -1,7 +1,8 @@
 //! STEP (ISO 10303-21 / AP214) export of finished kernel bodies — the
 //! in-house analytic-subset writer (M4 PR 7, discharging the F6
-//! decision: docs/M4-LOG.md 2026-07-23, grounds in
-//! `references/notes/step-spike-report.md`).
+//! decision, 2026-07-23: in-house subset writer, adopt nothing at
+//! runtime — ruststep and truck-stepio stay dev-only parse-back
+//! oracles).
 //!
 //! # What this is, and what it is not
 //!
