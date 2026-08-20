@@ -50,6 +50,23 @@ const CASES_BINARY: usize = 300_000;
 
 /// Magnitude windows (binade exponents) swept per case batch: everyday
 /// values, subnormal/tiny, huge (argument-reduction stress).
+///
+/// **The tightness ceilings depend on window 3's `emin` and on the
+/// other three windows' `emax`, and this is the only place that says
+/// so.** Ratios can exceed any ceiling only through a FALSE extremum
+/// capture, which pins a bound at ±1 where the true image is a sliver.
+/// Its onset is `|x| ≈ 2^32` (`consts::grid_possibly_hits`), and window
+/// 3 — the one whose accumulator carries NO ceiling — begins at `2^30`.
+/// The ceiling-carrying windows top out at `2^8`, twenty-four binades
+/// below the onset.
+///
+/// So: **raising a ceiling-carrying window's `emax` past ~30, or
+/// raising window 3's `emin`, produces a red on a sound enclosure.**
+/// That is not a reason never to do it; it is a reason to move the
+/// ceiling in the same commit, with `Tightness::report`'s derivation
+/// re-read. The `4·10^15` figure the crate's prose quotes is the wrong
+/// number for this purpose — it is total degradation, seven binades
+/// later.
 // Upper cap 1022: log_mag's mantissa factor reaches 2, and 2·2^1022 is
 // still finite; endpoints may still overflow to +inf via width addition,
 // which is a deliberate unbounded-interval test case.

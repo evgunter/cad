@@ -47,7 +47,10 @@ any other.
 Our pole test for `tan` (and extremum tests for sin/cos) is an
 outward-rounded grid test: it can say "possibly a pole" for a pole-free
 interval that comes within ~|x|·2^-52 of a pole, and for ALL intervals
-with |x| ≳ 4·10^15. Consequences: `tan` may return Entire/`Trv` where
+with |x| ≳ 2^52 ≈ 4·10^15 (and loses it on SOME inputs from about
+|x| ≈ 2^32 — see `consts::grid_possibly_hits`, which records both
+thresholds and why the earlier one is the load-bearing
+one). Consequences: `tan` may return Entire/`Trv` where
 inari proves `Com` and a finite range; sin/cos may include ±1 where
 inari's bound is fractionally smaller. Direction: more poison / more
 width — sound by the escalate-never-guess policy. inari, with MPFR

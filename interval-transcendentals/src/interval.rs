@@ -30,10 +30,17 @@ impl Decoration {
     /// The decoration a TOTAL, CONTINUOUS function earns on an input box:
     /// `Com` when the box is bounded, `Dac` when it is not — `Com` is
     /// definitionally unavailable on an unbounded box (1788 §8, and the
-    /// [`DInterval`] type invariant). Every such operation in the crate
-    /// asks this rather than spelling the branch again; operations that
-    /// are NOT total (`sqrt`, `asin`, `acos`, `tan`) choose their own
-    /// decoration from their domain test instead.
+    /// [`DInterval`] type invariant).
+    ///
+    /// **Every site in the crate that CHOOSES between the two asks
+    /// this**: `sin`, `cos`, `atan`, `atan2`, `pow_pos`, and
+    /// [`DInterval::from_bounds`], where a freshly built interval earns
+    /// its own decoration the same way. The other `Dac` mentions in this
+    /// file are not that choice and are deliberately not routed here —
+    /// [`DInterval::entire`] names one specific value, and
+    /// [`DInterval::make`] CAPS a decoration the caller already chose.
+    /// Operations that are not total (`sqrt`, `asin`, `acos`, `tan`)
+    /// choose from their domain test instead.
     pub(crate) fn continuous_on(bounded: bool) -> Self {
         if bounded { Self::Com } else { Self::Dac }
     }
@@ -111,11 +118,7 @@ impl DInterval {
         if lo.is_nan() || hi.is_nan() || lo > hi || lo == f64::INFINITY || hi == f64::NEG_INFINITY {
             return Self::nai();
         }
-        let dec = if lo.is_finite() && hi.is_finite() {
-            Decoration::Com
-        } else {
-            Decoration::Dac
-        };
+        let dec = Decoration::continuous_on(lo.is_finite() && hi.is_finite());
         Self { lo, hi, dec }
     }
 

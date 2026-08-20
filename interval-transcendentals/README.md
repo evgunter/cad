@@ -109,6 +109,7 @@ by building GMP and MPFR from C source, not by the cases.
 
 Endpoint *values* are accurate for all finite arguments (libm does full
 Payne–Hanek reduction). Extremum/pole *localization* uses a conservative
-grid test that loses proving power for `|x| ≳ 4·10^15`: `sin`/`cos`
+grid test that loses proving power entirely for `|x| ≳ 2^52 ≈ 4·10^15`,
+and partially from about `|x| ≈ 2^32`: `sin`/`cos`
 degrade to `[-1, 1]` (sound, loose), `tan` returns the whole line with
 decoration `Trv` (loud refusal). Nothing returns a thin wrong interval.

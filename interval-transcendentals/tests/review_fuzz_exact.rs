@@ -1,6 +1,9 @@
-//! **Exact-rational fuzz of the exactness witnesses**, for every
-//! operation whose truth is computable without a multi-precision
-//! library: `÷`, `×` and `sqrt`. The division half was adopted verbatim
+//! **Exact-rational fuzz of the exactness witnesses** of `÷`, `×` and
+//! `sqrt` — the three operations that share one magnitude-gated 2Prod
+//! witness, which is the thing that can lie. (Not "every operation whose
+//! truth is exactly computable": `+ −` truth is exactly computable too,
+//! and they are excluded for a different reason, given below.) The
+//! division half was adopted verbatim
 //! (bar the case counts) from the M5 PR 1 adversarial review's scratch
 //! harness — an independent derivation, which is exactly its regression
 //! value: it shares no code with the implementation it checks. The `×`
@@ -22,10 +25,20 @@
 //! itself and `sqrt`, which share the identical witness, got nothing.
 //! They have it now. Addition does not, and the reason is structural
 //! rather than a deferral: TwoSum's error term is exactly representable
-//! for ALL finite doubles with no underflow proviso (derivations §1),
-//! so `add_lo`/`add_hi` have no validity floor to get wrong, and their
-//! outward pad is bounded from above in `pad_contract.rs` like every
-//! other.
+//! for ALL finite doubles with no underflow proviso (`derivations.md`
+//! §1 **Lemma P0**), so `add_lo`/`add_hi` have no validity floor to get
+//! wrong. What that buys is **F1** — a witness that cannot lie. It does
+//! NOT buy F2, and F2 for `+ −` is covered only by `pad_contract.rs`'s
+//! upper bound and by the oracle tier's `certify_arith`; mutating
+//! `add_lo`/`add_hi` to bare round-to-nearest leaves the whole cheap
+//! tier green, and only `certify_arith` reds. That is a real asymmetry
+//! with `÷ × sqrt`, it is recorded rather than argued away, and the
+//! reason it is not closed here is that the exact-rational comparator
+//! this file is built on **cannot serve addition**: aligning `2^1023`
+//! with `2^-1074` needs ~2100 bits and a u128 holds 128
+//! (`crates/geom-core/tests/ring_interval_fuzz.rs` reaches the same
+//! conclusion independently and generalises its own comparator to get
+//! past it).
 //!
 //! Why it earns a place in CI: it needs **no oracle library**, so it runs
 //! in the kernel's own pipeline with no C toolchain (README

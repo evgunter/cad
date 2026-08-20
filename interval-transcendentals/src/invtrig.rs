@@ -7,13 +7,29 @@
 //! domain miss CLAMPS the input and poisons the decoration to `Trv`; a
 //! full miss is Empty (`Trv`); the clamp never decides anything.
 
+use core::ops::ControlFlow;
+
 use crate::interval::{DInterval, Decoration};
 use crate::round::{step_down, step_up};
 use crate::trig::PAD_ULPS;
 
-/// Upper bound of π/2 (true π/2 lies above the f64 constant).
+/// Upper bound of π/2 (true π/2 lies above the f64 constant, see
+/// `consts.rs`' direction facts).
 fn half_pi_hi() -> f64 {
     core::f64::consts::FRAC_PI_2.next_up()
+}
+
+/// Upper bound of π, and its negation as a lower bound. The range clips
+/// of `acos` (`[0, π]`) and `atan2` (`(-π, π]`) both need them, and both
+/// need them to be the SAME number as each other: a sound clip must lie
+/// outside the true range, so an enclosure of π from above is the only
+/// legal choice and there is no room for two spellings of it.
+fn pi_hi() -> f64 {
+    core::f64::consts::PI.next_up()
+}
+
+fn neg_pi_lo() -> f64 {
+    (-core::f64::consts::PI).next_down()
 }
 
 impl DInterval {
@@ -24,16 +40,20 @@ impl DInterval {
     /// and drops the decoration to `Trv` so the clamp can never decide
     /// anything (the kernel's contract, `lib.rs`).
     ///
-    /// Returns the clamped endpoints and the result decoration, or the
-    /// early result in `Err`. What each function keeps for itself is the
-    /// part that genuinely differs: which endpoint feeds which bound
-    /// (`asin` increases, `acos` decreases) and the range it clips to.
-    fn clamp_to_unit(self) -> Result<(f64, f64, Decoration), Self> {
+    /// `Continue` carries the clamped endpoints and the result
+    /// decoration; `Break` carries a finished answer the caller must
+    /// return as-is. (`ControlFlow` rather than `Result`: neither arm is
+    /// an error, and `Err` naming the successful early return would say
+    /// the opposite of what happens.) What each function keeps for
+    /// itself is the part that genuinely differs: which endpoint feeds
+    /// which bound (`asin` increases, `acos` decreases) and the range it
+    /// clips to.
+    fn clamp_to_unit(self) -> ControlFlow<Self, (f64, f64, Decoration)> {
         if let Some(p) = Self::propagate1(&self) {
-            return Err(p);
+            return ControlFlow::Break(p);
         }
         if self.lo > 1.0 || self.hi < -1.0 {
-            return Err(Self::empty());
+            return ControlFlow::Break(Self::empty());
         }
         let inside = self.lo >= -1.0 && self.hi <= 1.0;
         let op_dec = if inside {
@@ -41,14 +61,14 @@ impl DInterval {
         } else {
             Decoration::Trv
         };
-        Ok((self.lo.max(-1.0), self.hi.min(1.0), self.dec.min(op_dec)))
+        ControlFlow::Continue((self.lo.max(-1.0), self.hi.min(1.0), self.dec.min(op_dec)))
     }
 
     /// Enclosure of `asin` over `self ∩ [-1, 1]` (monotone increasing).
     pub fn asin(self) -> Self {
         let (a, b, dec) = match self.clamp_to_unit() {
-            Ok(v) => v,
-            Err(early) => return early,
+            ControlFlow::Continue(v) => v,
+            ControlFlow::Break(early) => return early,
         };
         // Range ⊆ [-π/2, π/2]: clip pads to the π/2 enclosure's outer bounds.
         let lo = step_down(libm::asin(a), PAD_ULPS).max(-half_pi_hi());
@@ -60,12 +80,12 @@ impl DInterval {
     /// the lower bound comes from the upper endpoint).
     pub fn acos(self) -> Self {
         let (a, b, dec) = match self.clamp_to_unit() {
-            Ok(v) => v,
-            Err(early) => return early,
+            ControlFlow::Continue(v) => v,
+            ControlFlow::Break(early) => return early,
         };
         // Range ⊆ [0, π]: clip pads (true values ≥ 0, ≤ π < next_up(PI)).
         let lo = step_down(libm::acos(b), PAD_ULPS).max(0.0);
-        let hi = step_up(libm::acos(a), PAD_ULPS).min(core::f64::consts::PI.next_up());
+        let hi = step_up(libm::acos(a), PAD_ULPS).min(pi_hi());
         Self::make(lo, hi, dec)
     }
 
@@ -103,11 +123,7 @@ impl DInterval {
         }
         let y = self;
         let dec_in = y.dec.min(x.dec);
-        let full = || {
-            let lo = (-core::f64::consts::PI).next_down();
-            let hi = core::f64::consts::PI.next_up();
-            (lo, hi)
-        };
+        let full = || (neg_pi_lo(), pi_hi());
         // Case 1: origin in the box.
         if y.lo <= 0.0 && y.hi >= 0.0 && x.lo <= 0.0 && x.hi >= 0.0 {
             if y.lo == 0.0 && y.hi == 0.0 && x.lo == 0.0 && x.hi == 0.0 {
@@ -137,8 +153,8 @@ impl DInterval {
                 hi = hi.max(step_up(v, PAD_ULPS));
             }
         }
-        lo = lo.max((-core::f64::consts::PI).next_down());
-        hi = hi.min(core::f64::consts::PI.next_up());
+        lo = lo.max(neg_pi_lo());
+        hi = hi.min(pi_hi());
         let op_dec = Decoration::continuous_on(y.is_bounded() && x.is_bounded());
         Self::make(lo, hi, dec_in.min(op_dec))
     }

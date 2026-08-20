@@ -1,10 +1,18 @@
 //! Directed-rounding substitutes: outward padding of round-to-nearest
 //! results. Portable Rust cannot set the FPU rounding mode, so every
 //! inexact operation is padded outward by representable-neighbor steps.
-//! Soundness proofs are in `docs/derivations.md` (§1). Each helper
-//! restates the lemma it rests on, and the lemma more than one helper
-//! rests on has exactly one home here: [`two_prod_witness`], which
-//! `mul`, `div` and `sqrt` all call rather than respell.
+//! Soundness proofs are in `docs/derivations.md` (§1). **A lemma more
+//! than one helper rests on has exactly one home**: the 2Prod
+//! exactness test is [`two_prod_witness`], which `mul`, `div` and
+//! `sqrt` all call rather than respell, and the validity floor it gates
+//! on is [`TWO_PROD_VALID_MIN`]. A helper resting on a lemma of its own
+//! states it in its own doc.
+//!
+//! Nothing mechanical enforces that split — a fifth helper respelling
+//! `fma(x, y, -z) == 0.0` inline would compile and pass. What makes it
+//! discoverable is that `docs/derivations.md` §3 derives ONE floor for
+//! all three witnesses, so a second constant contradicts the
+//! derivation, and the crate's one `grep mul_add` is short.
 
 /// One representable step down, saturating at `-inf` (`next_down(-inf) =
 /// -inf`, which is the correct lower bound for an already-unbounded side).
@@ -84,10 +92,12 @@ pub(crate) fn sub_hi(a: f64, b: f64) -> f64 {
 }
 
 /// TwoSum (Knuth) rounding-error term of `s = RN(a + b)`; `0.0` iff the
-/// addition was exact. Exact for ALL finite doubles (the error of a
-/// rounded sum is always representable; no non-underflow proviso, unlike
-/// products). Infinite `s` (overflow) yields a NaN error term, which
-/// compares `!= 0.0` and therefore correctly takes the padded path.
+/// addition was exact. Exact for ALL finite doubles — no non-underflow
+/// proviso, unlike products — by `docs/derivations.md` §1 **Lemma P0**,
+/// which is where that theorem is stated and is the reason this witness
+/// needs no magnitude gate while [`two_prod_witness`] does. Infinite `s`
+/// (overflow) yields a NaN error term, which compares `!= 0.0` and
+/// therefore correctly takes the padded path.
 #[inline]
 fn two_sum_err(a: f64, b: f64, s: f64) -> f64 {
     let bp = s - a;

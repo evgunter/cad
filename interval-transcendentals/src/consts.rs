@@ -52,6 +52,17 @@ pub(crate) fn neg_frac_pi_2() -> DInterval {
     -frac_pi_2()
 }
 
+/// Exact enclosure of 0, the phase offset of `cos`'s maxima.
+///
+/// Here rather than inline in `trig.rs` for the same reason
+/// [`neg_frac_pi_2`] is here: `grid_possibly_hits`' four phase offsets
+/// (`frac_pi_2`, `neg_frac_pi_2`, `zero`, `pi`) are one family, and a
+/// family with three members in this module and one built at a call
+/// site is a family that can drift.
+pub(crate) fn zero() -> DInterval {
+    DInterval::make(0.0, 0.0, Decoration::Com)
+}
+
 /// Conservative test: might the arithmetic grid `{c + k·p : k ∈ ℤ}`
 /// intersect the (nonempty, non-NaI) interval `x`? `c` and `p` are tiny
 /// enclosures of the (irrational) offset and period, `p > 0`.
@@ -65,10 +76,19 @@ pub(crate) fn neg_frac_pi_2() -> DInterval {
 /// - `possibly == false` → PROOF that no grid point lies in `x`
 ///   (monotone-branch shortcut is then valid).
 ///
-/// For very large `|x|` (≳ 2^52·p / width-of-p, i.e. ~1e16 here) K is
+/// For very large `|x|` (≳ 2^52·p / width-of-p, i.e. ~4·10^15 here) K is
 /// wider than 1 and always contains an integer: the test degrades to
 /// "always possibly", which is exactly the documented graceful refusal
 /// for huge arguments. Infinite bounds likewise return `true`.
+///
+/// **That is TOTAL degradation. Partial degradation starts seven
+/// binades earlier, near `|x| ≈ 2^32`** — K's width passes 1 ulp of an
+/// integer long before it passes 1 — and a false "possibly" there costs
+/// a pinned extremum where the true image is a sliver. Measured: 0
+/// false captures per 200 000 thin `sin` points below 2^31, 1 at 2^32,
+/// 125 at 2^40, all 200 000 at 2^52. Sound throughout; loose from 2^32.
+/// **`certify.rs`'s tightness ceilings depend on that number**, not on
+/// the 2^52 one — see the constraint recorded on its `WINDOWS`.
 pub(crate) fn grid_possibly_hits(x: &DInterval, c: DInterval, p: DInterval) -> bool {
     debug_assert!(!x.is_empty() && !x.is_nai());
     if !x.lo.is_finite() || !x.hi.is_finite() {

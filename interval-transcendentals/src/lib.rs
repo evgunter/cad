@@ -58,8 +58,12 @@
 //! Endpoint values of `sin`/`cos`/`tan` are accurate for ALL finite
 //! arguments (libm uses full Payne–Hanek reduction). What degrades for
 //! huge inputs is *extremum/pole localization*: the conservative grid
-//! test loses the ability to prove absence once `|x| ≳ 4·10^15` (π-grid
-//! quotient enclosure wider than 1). Consequences, by design:
+//! test loses the ability to prove absence entirely once `|x| ≳ 2^52 ≈
+//! 4·10^15` (π-grid quotient enclosure wider than 1), and loses it on
+//! SOME inputs from about `|x| ≈ 2^32` — the two thresholds are seven
+//! binades apart and `consts::grid_possibly_hits` records both, because
+//! the harness's tightness ceilings depend on the earlier one.
+//! Consequences, by design:
 //! - `sin`/`cos`: widen toward the trivial enclosure `[-1, 1]` — sound,
 //!   maximally loose, decoration untouched;
 //! - `tan`: returns the whole line with decoration `Trv` (a loud refusal:
