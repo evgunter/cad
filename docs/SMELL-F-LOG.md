@@ -336,7 +336,6 @@ Track C's open lanes, or with Track E's.
 | lane | row | branch | scope | review | state |
 |---|---|---|---|---|---|
 | **F-a** | **F5** (S92) | `smellf/f5-door-registries` | `topo/src/review_m1_pr5_internal.rs`, `topo/src/pcurves.rs` | style | **dispatched** 2026-08-20 |
-| **F-b** | **F6** (S73 parts 1 and 3) | `smellf/f6-tess-lint` | `tools/tess-lint/` | style | **dispatched** 2026-08-20 |
 | **F-c** | **F7** (S110, sort first) | `smellf/f7-cannot-go-red` | six crates' `tests/`, `memories/test-suite-cost.md` | style | **dispatched** 2026-08-20 |
 
 Lane clones are `~/.local/share/cad-work/smellf-{a,b,c}/cad`. They are
@@ -713,6 +712,53 @@ re-derivation, twice. It is what happens when a finding asks for a guard on a
 quantity that cannot carry one, and the honest end state took two attempts to
 reach because *"no honest box exists"* is the answer nobody reaches first.
 
+**What the lane landed, in its own words.**
+
+**F-b — F6 (S73 parts 1 and 3), PR #783.** *Recorded in the PR that
+carries it: this entry and the fix are one diff, so it lands when the PR
+does and not before. The `## Reviews` row above is the orchestrator's.*
+
+`ratio` is gone: the sizing columns are admitted or refused **per
+column** where they are parsed, so a broken measurement leaves in the
+harness voice instead of becoming the gate's pass value, while the one
+legitimately-absent column (`worst_dev`, `NaN` on every `--sizing-only`
+sweep — the CI gate's own) parses to `None` rather than to a float.
+`GROWTH_TOLERANCE` was boxed from `[1.0384615, 1.9615385]` (re-derived
+by bisection on `4f959cb4`, not transcribed) into `[1.04, 1.06)`, on
+both rules it governs.
+
+**Class check taken, and it ended somewhere better than the box it was
+sent for.** `tess-meter`'s `SPLIT_SCAN_DECADES` / `SPLIT_SCAN_SAMPLES`
+were pinned *non-monotonically* — an accident of sample placement, not
+a box. **Two replacements failed, the second under independent
+verification** (F-R14): the first pinned the answer and reds on
+improvements; the second pinned the answer's distance to a reference,
+and the verifier scanned every sample count in 322..2000 and found
+`323` — two steps above shipped, a strict refinement, 5.24% against a
+5% pin — plus an oracle guard that stayed green when its reference was
+replaced by its own subject, plus a tolerance fitted to its family (an
+ordinary sixth member puts shipped at 5.88%). **The first-principles
+fact is that the excess moves ~4 points between ADJACENT sample counts
+and does not converge**, so no tolerance on it can work. What landed is
+Q6's written reason at the claim site, carrying the measurement and its
+witness — and the finding that these constants guarantee a resolution
+in *aspect ratio* and no bound on the answer at all, because the
+discontinuity is the two `ceil`s and not the scan. The divisions pin on
+the ruled wall survives; the verification judged it a real property.
+
+**The proposal that came out of the failure is placed, not shipped:
+S160 / D105** — pin the *continuous* objective, which is smooth where the
+cell count is discontinuous, with the lane's evidence written into the
+finding so the taker inherits the argument. It is not in #783: F-R14
+forbade a third instrument in a row that had already shipped two.
+
+**Two new findings from the unit itself: S119 / D63** (`k-lint` scores a `NaN` margin CLEAN
+— S73's part one in the sibling instrument) and **S120 / D64** (four
+things the instruments still cannot see after F6, including the
+baseline-side direction argument F6's own sweep got half right). Both
+reserved numbers used. **The C15/#746 boundary is stated at the site**,
+in `compare`'s face loop, so it can be read out of the tree.
+
 ### F1 (S59) — **CLEARED 2026-08-20**, the track's second and its most scrutinised
 
 A style review, an **independent verification**, and two fix passes on one row.
@@ -772,9 +818,6 @@ Placed rather than landed: no third instrument in a row that has shipped two, it
 needs a parameterization of code the brief marked read-only, and it deserves its
 own review rather than riding a clearance. **The evidence is written into the
 row, which is the thing that was at risk.**
-
-
-*(none yet)*
 
 ## Incidents
 
