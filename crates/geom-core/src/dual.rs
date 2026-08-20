@@ -103,30 +103,24 @@
 //!
 //! # [`crate::Bounds`] yes, [`crate::CertifiedEnclosure`] no
 //!
-//! A dual **carries a bracket** and **may not certify**. Those used to be
-//! one sentence, and the older text here answered them together with a
-//! single "no"; they are two traits since #643 (W1c/S41), and Evan ruled
-//! them apart on 2026-08-19 (Wave 0 decision D1 of
-//! `docs/SMELL-SCAN-2026-08.md`): *a `Dual` may not certify — at least for
-//! now — but it may have `Bounds`.*
-//!
-//! [`crate::Bounds`] is implemented, and it is the **value channel's**
-//! bracket with the tangent discarded — see the impl for why that is read
-//! off an existing contract rather than chosen. [`crate::CertifiedEnclosure`]
-//! is **not** implemented, which is what keeps a dual out of certified
-//! code; the old objection — *"a dual's bracket would have to certify the
-//! derivative enclosure too"* — was right about certification and was
-//! attached to the wrong trait, because at the time there was only one.
+//! A dual **carries a bracket** and **may not certify** — Wave 0 decision
+//! **D1** of `docs/SMELL-SCAN-2026-08.md` (Evan, 2026-08-19: *a `Dual` may
+//! not certify — at least for now — but it may have `Bounds`*), separable
+//! only because #643 (W1c/S41) made those two traits instead of one.
+//! [`crate::Bounds`] is implemented and is the **value channel's** bracket
+//! with the tangent discarded; [`crate::CertifiedEnclosure`] is not. **The
+//! argument for both halves lives at the `impl Bounds for Dual` below, not
+//! here** — one home, so there is one text to keep in step.
 //!
 //! Reading the derivative channel is still a **driver/harvest** activity
 //! through the public fields, at the same restricted scope as
 //! [`crate::Bounds`] itself (L7). `Bounds` offers no route to it: `lo()`
 //! and `hi()` never see a tangent.
 //!
-//! The other half of the ruling is a **compiler fact**, pinned here so it
-//! goes red the day someone writes the impl rather than the day something
-//! certifies wrongly — a dual satisfies the bracket door and not the
-//! certification door:
+//! The refusing half is pinned as a **compiler fact**, here rather than at
+//! the impl because there is no impl to hang it on — it goes red the day
+//! someone writes the certification impl, rather than the day something
+//! certifies wrongly:
 //!
 //! ```
 //! fn brackets<T: geom_core::Bounds>(_t: T) {}
@@ -760,28 +754,54 @@ where
 /// reason — the base scalar's accessors do, and this inherits their
 /// convention instead of re-implementing it.
 ///
-/// # Why the tangent is excluded — also ratified, not chosen
+/// # Why the tangent is excluded — an EXTENSION of E9, not a reading of it
 ///
-/// `docs/ERROR-DESIGN.md` **E9** is *tangent poison never refuses*: the
-/// derivative channel must never make the value channel's verdict worse.
-/// Hulling the tangent into `[lo, hi]` would do precisely that — a NaN or
-/// unbounded tangent, which E4 expects at a kink and `copysign`'s
+/// Stated as an extension deliberately, because the earlier draft of this
+/// paragraph called it *"also ratified, not chosen"* and that overclaims.
+/// `docs/ERROR-DESIGN.md` **E9** (*tangent poison never refuses*) is
+/// scoped to **leaf refusal**: "refusal is decided solely by
+/// value-channel predicates and W-certificates". It says nothing about
+/// [`Bounds::lo`]/[`Bounds::hi`], which did not exist for a dual when it
+/// was written. Dressing an extension by analogy as a settled contract is
+/// exactly the shape S44 exists to complain about, and this is the PR
+/// that closes S44's decision.
+///
+/// The extension, then, and the argument for it. E9's principle is that
+/// the derivative channel must never make the value channel's verdict
+/// worse. Hulling the tangent into `[lo, hi]` would do precisely that — a
+/// NaN or unbounded tangent, which E4 expects at a kink and `copysign`'s
 /// straddle rule mints deliberately, would poison a bracket the value
-/// channel is entitled to. [`Decide`] for `Dual` settled the same
-/// question the same way (value-part delegation, Q1 residue, PR #9/#10),
-/// so this is that rule applied to the other accessor, not a new one.
-/// The derivative stays where it is read: the public fields, a
+/// channel is entitled to, and every `Decide + Bounds` seam that refuses
+/// on a bracket would then refuse a dual run its `f64` run passes. That
+/// is E9's failure mode reached through a different accessor, so the same
+/// answer is the consistent one. [`Decide`] for `Dual` already settled
+/// the identical question by value-part delegation (Q1 residue, PR
+/// #9/#10), and `is_poison` is value-only for the same reason; a
+/// tangent-reading `Bounds` would be the one accessor out of three that
+/// disagrees. The derivative stays where it is read: the public fields, a
 /// driver/harvest activity under the same L7 scope as [`Bounds`] itself.
+///
+/// **What this costs, said out loud because E4 will otherwise rediscover
+/// it.** E9 pairs "never refuses" with a **forfeiture** half — a degraded
+/// tangent forfeits its uses, and affected `per_param`/`rss` entries
+/// report `UnavailableBecause` (E5). `Bounds` carries **no signal at all**
+/// that the tangent is degraded: `lo()` and `hi()` are the value
+/// channel's whether the tangent is `1.0` or NaN, and nothing downstream
+/// of a bracket can tell the difference. That is intended — a bracket is
+/// not the derivative channel's reporting surface — but it means E4's
+/// forfeiture reporting has to read the tangent through the public fields
+/// itself. It cannot be recovered from a bracket after the fact.
 ///
 /// # This grants no certification right
 ///
 /// [`crate::CertifiedEnclosure`] is deliberately unimplemented for
-/// `Dual`, and this impl does not change that. Every door that must not
-/// certify a domain violation is bounded by it — the props quadrature
-/// lane, the SSI rung-3 certificate, the fitted-pcurve and edge-NURBS
-/// lanes — and all of them stay uninstantiable at a dual. What opens is
-/// the bracket half only: boxes and pruning, and the `f64` margin
-/// payloads a typed refusal reports.
+/// `Dual`, and this impl does not change that. The doors that mint C9-ring
+/// certificates are bounded by it and stay uninstantiable at a dual. What
+/// opens is the bracket half: boxes and pruning, the `f64` margin payloads
+/// a typed refusal reports — and `topo::separation`'s placement
+/// certificate, which grants on a `Decide + Bounds` bound with no
+/// `CertifiedEnclosure` and is sound at a dual by delegation rather than
+/// by that guard. See `real.rs`'s `Bounds` scope rule for both.
 ///
 /// # On the spelling
 ///
@@ -789,9 +809,18 @@ where
 /// dual means `T: KinkJacobian`) plus a **sole** `Bounds` on the base
 /// scalar, rather than the file's usual `T: X + KinkJacobian` shape. It
 /// says the same thing and says it more directly — a dual brackets iff it
-/// is a `Real` over a bracket-carrying scalar — and it keeps `Bounds` out
-/// of a compound bound, so the 2026-07-29 `Bounds` scope rule is
-/// satisfied by construction rather than by allowlist.
+/// is a `Real` over a bracket-carrying scalar.
+///
+/// It is also, in the equivalent spelling `T: Bounds + KinkJacobian`, a
+/// compound bound in a file `scripts/gates/bounds-allowlist.sh` does not
+/// allowlist, and written that way the gate **fires** (verified by
+/// planting it; the gate's self-test now pins that). So this is not
+/// "satisfied by construction rather than by an allowlist entry", as an
+/// earlier draft claimed — it is satisfied by the RULE, whose subject is a
+/// parameter that DECIDES and has also been handed bracket extraction, and
+/// `KinkJacobian` is neither an evaluation nor a decision parameter. The
+/// spelling is declared sanctioned in the gate's header, so a second use
+/// of it to dodge the grep is a violation rather than a precedent.
 impl<T> Bounds for Dual<T>
 where
     Self: Real,

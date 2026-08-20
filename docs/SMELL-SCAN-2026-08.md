@@ -4390,12 +4390,27 @@ own operations in the written association — so whatever brackets the plain
 run brackets the dual run's value with nothing to re-establish per operation;
 the impl therefore *delegates* to the base scalar rather than restating a
 bracket (`lo = hi = value` at `Dual<f64>`, the value enclosure's endpoints at
-`Dual<Interval>`). The tangent half is `ERROR-DESIGN` **E9**, *tangent poison
-never refuses*: hulling the tangent into `[lo, hi]` would let a NaN or
-unbounded tangent — which E4 expects at a kink and `copysign`'s straddle rule
-mints deliberately — poison a bracket the value channel is entitled to.
-`Decide for Dual` settled the same question the same way in PR #9/#10
-(value-part delegation), so this is that rule applied to the other accessor.
+`Dual<Interval>`). The tangent half is an **extension of** `ERROR-DESIGN`
+**E9**, *tangent poison never refuses* — an extension, not a reading: E9 is
+scoped to **leaf refusal** ("refusal is decided solely by value-channel
+predicates and W-certificates") and says nothing about `Bounds::lo`/`hi`,
+which did not exist for a dual when it was written. The extension is that
+hulling the tangent into `[lo, hi]` would let a NaN or unbounded tangent —
+which E4 expects at a kink and `copysign`'s straddle rule mints deliberately —
+poison a bracket the value channel is entitled to, which is E9's failure mode
+reached through a different accessor. `Decide for Dual` settled the identical
+question the same way in PR #9/#10 (value-part delegation) and `is_poison` is
+value-only, so a tangent-reading `Bounds` would be the one accessor of three
+that disagrees.
+
+**What the exclusion costs, recorded so E4 does not rediscover it.** E9 pairs
+"never refuses" with a **forfeiture** half — a degraded tangent forfeits its
+uses, `per_param`/`rss` entries report `UnavailableBecause` (E5). `Bounds`
+carries **no signal** that the tangent is degraded: `lo()`/`hi()` are the value
+channel's whether the tangent is `1.0` or NaN. That is intended — a bracket is
+not the derivative channel's reporting surface — but it means E4's forfeiture
+reporting must read the tangent through the public fields; it cannot be
+recovered from a bracket after the fact.
 
 **Meaning (2) — "may enter certified code" — is refused.**
 `geom_core::CertifiedEnclosure` still has no `Dual` impl, and it is now the
@@ -4453,33 +4468,90 @@ the ruling. S2's cost analysis stands as a cost, not as a case for removal.
 
 ### What newly admits `Dual`, and the one thing that owes something
 
-The certification doors do **not**. Everything that builds a C9 ring or mints
-a certificate is bounded by `CertifiedEnclosure` since #643 — the props
-quadrature lane, the SSI rung-3 certificate and its limbs, the fitted-pcurve
-lane, the edge-NURBS lane — and all of them stay uninstantiable at a dual.
-That is the load-bearing verification, and it is what makes this ruling safe
-to implement now when it would not have been before #643.
+Every door that builds a **C9 ring** is bounded by `CertifiedEnclosure` since
+#643 — the props quadrature lane, the SSI rung-3 certificate and its limbs,
+the fitted-pcurve lane, the edge-NURBS lane — and all of them stay
+uninstantiable at a dual. That is the load-bearing verification, and it is
+what makes this ruling safe to implement now when it would not have been
+before #643.
+
+**Correction (2026-08-19 adversarial review): the stronger form of that
+sentence — *"everything that mints a certificate"* — is FALSE, and it was the
+sentence certifying the negative.** `topo::separation` mints one:
+`Separation::of`, `Separation::certify` and `image` are `T: Decide + Bounds`
+with **no** `CertifiedEnclosure`, the module opens *"prove that no two placed
+copies can touch"*, `certify`'s doc says *"`Ok(())` is the certificate"*, and
+`graft_disjoint_all_keyed` re-checks nothing (#382). It is instantiable at
+`Dual64` and `Dual<Interval>`, verified by compilation. The row for it in the
+admits-table below also had its reasoning backwards — *"its boxes only ever
+refuse"* — when box NON-overlap is precisely the grant.
+
+**No wrong certificate exists, and the correct justification is delegation**:
+every endpoint a dual's box carries is its value channel's, which is the
+plain-`T` run's bit-identically (D9), so a dual run's separation certificate
+is the base scalar's. Whether `separation` should nonetheless take
+`CertifiedEnclosure` is a **#643-completeness** question, not D1's, and is
+left open.
+
+**A gap in the METHOD, not only in the table** (same review): the enumeration
+was over `Bounds`-bounded signatures and so missed a trait.
+`geom-core/src/real.rs`'s `impl<T: Bounds> Enclosure for T` means this PR
+grants `Dual` the `Enclosure` trait as well, whose doc four lines above
+advertised it as what "certification helpers … take". Not a live hole —
+`spline::hull` moved to `CertifiedEnclosure` at #643 and no `Enclosure`-bounded
+signature remains in `crates/*/src` — but it is **ungated**:
+`bounds-allowlist.sh` greps `Bounds`, not `Enclosure`, so a future
+`T: Enclosure` bound on something that certifies would be a hole with no CI row
+against it. The stale sentence is fixed; the gate gap is recorded, not closed.
 
 What newly admits a dual is the **bracket half**: `Aabb` constructors and the
 curve/surface box builders, the boolean sweep's box lane, the placement
 certificate's `Aabb` images, the chart-region predicate, the arc-fillet
 carrier seam, and the fillet battery — all of them `T: Bounds` or
-`T: Decide + Bounds`, all of them reading endpoints to *prune*, to *refuse*,
-or to put an `f64` margin in a typed error payload. At `Dual<f64>` every one
-of those numbers is the `f64` run's number and every decision still goes
-through `Decide`, which delegates to the value part; so the dual run takes the
-`f64` run's path, which is what D9's bit-identity contract wants of it.
+`T: Decide + Bounds`. Most read endpoints to *prune*, to *refuse*, or to put
+an `f64` margin in a typed error payload; `topo::separation` is the exception
+and it **grants** (see the correction above), so "they only prune or refuse"
+is not the justification. The justification that covers all of them, grant
+included, is **delegation**: at `Dual<f64>` every one of those numbers is the
+`f64` run's number and every decision still goes through `Decide`, which
+delegates to the value part, so the dual run takes the `f64` run's path — and
+at `Dual<Interval>` the `Interval` run's. That is what D9's bit-identity
+contract wants of it.
 
 **One seam owes something, and it is worth recording precisely.**
 `sweep::fillet::{battery, build, surgery}` is the single allowlisted
 `Decide + Bounds` seam with **no lane trait behind it**, and the reason on the
 record (M5 PR 12, `real.rs`) is that a lane split *"would have had an EMPTY
-refusing side"* because `Bounds` had no `Dual` impl. That guard has now
-lapsed. Nothing reaches it at a dual today — its one production caller sits
-under `evaluate<T>`, which a dual still cannot instantiate — so this is a
-**standing obligation, not a live hole**: the day E4 seeds a dual through
-`evaluate`, that seam needs either the lane or a written reason it needs none.
-Recorded in `real.rs` and in the gate header as well as here.
+refusing side"* because `Bounds` had no `Dual` impl. That guard has now lapsed.
+
+**The mitigation is narrower than first written.** *"Nothing reaches it at a
+dual today"* is true of **in-repo** callers only: its one production caller
+sits under `evaluate<T>`, which a dual cannot instantiate. This is an
+API-first kernel, and `sweep::fillet::build::fillet_edges`,
+`battery::run_battery` and `surgery::ring_clearance` are `pub` in `pub mod`s
+of a library crate — an external crate instantiates them at `Dual64` today
+(compiled, 2026-08-19 review). The `ContentBits` lock guards
+`editor_core::evaluate`, not the public API.
+
+What makes it **a standing obligation and not a live hole** is therefore the
+AUDIT, not the reachability. All fourteen `Bounds` reads in
+`battery.rs`/`build.rs`/`surgery.rs` were enumerated: every predicate's
+`Ok`/`Err` comes from a `decide(...)` call (`face_clearance`,
+`ring_clearance`, `radius_headroom`, `spine_regularity`, `chain_g1`,
+`convexity_at`, `corner_config`), ten reads are typed-error payloads, and four
+are selections. **Correction to the first framing of those four:** calling
+them all *"representation-level selections among already-classified
+constructions"* — `sugar.rs`'s ratified justification — is inaccurate for two.
+`battery.rs:836` picks which endpoint's tangent is fed **into** `chain_g1`, an
+input to a classification; `surgery.rs:1184` picks the whole-turn `k` for a
+`t_split` fed **into** `body.split_edge`, a topological mutation. Their
+dual-safety is real but rests on **delegation** — at a dual each takes the
+value channel's branch, which is the base scalar's — not on being
+post-classification picks, and the `sugar.rs` precedent does not cover them.
+
+So the seam owes either the lane or a written reason it needs none, and it
+owes it on the **public** surface rather than from the day E4 seeds a dual.
+Recorded in `real.rs` (the home) and pointed at from the gate header.
 
 ### E4's door: the `Bounds` lock is open, and there is a second lock
 
@@ -4547,6 +4619,17 @@ Two observations W2a will want, from this lane rather than from a fresh scan:
   what would be lost there is the typed refusal a dual body currently
   receives, not the guarantee. W2a should price the four separately: three
   are about ergonomics and error shape, one is about access.
+
+- **The hardening path that exists at `Interval` does not exist at
+  `Dual<Interval>`, and nobody has written that down.** At plain `Interval` a
+  caller can harden a `Decide + Bounds` seam by adding `CertifiedEnclosure` to
+  its bound — the scalar satisfies both. At `Dual<Interval>` that upgrade
+  **evicts** rather than hardens: the dual satisfies `Bounds` and not
+  `CertifiedEnclosure`, so the seam silently stops admitting duals. That is
+  intended under D1, but it means "harden this seam" and "keep duals out of
+  this seam" are the same edit, and W2a will hit it first — a collapse that
+  reaches for `T: CertifiedEnclosure` as the one bound saying what all four
+  lanes said is also, at every seam it touches, a decision to evict duals.
 
 ## S45–S48 — reserved
 

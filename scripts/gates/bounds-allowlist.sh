@@ -101,10 +101,30 @@
 # the skip to a file-wide entry makes that case fail.
 # The match is order-insensitive: `Decide + Bounds` and `Bounds + Decide`
 # both fire, and the self-test plants both spellings.
-# KNOWN GAP: the match is line-based, so a bound broken across lines —
+# KNOWN GAP 1: the match is line-based, so a bound broken across lines —
 # `T: Bounds` ending one line and `+ Foo` beginning the next — is
 # invisible to it. Stated rather than left to be discovered; closing it
 # needs a parser, not a grep.
+#
+# KNOWN GAP 2, and the ONE sanctioned use of it (D1, 2026-08-19):
+# an EQUIVALENT bound spelled through a supertrait obligation is
+# invisible too. `geom-core/src/dual.rs` writes
+#
+#     impl<T> Bounds for Dual<T> where Self: Real, T: Bounds
+#
+# and, because `impl<T: KinkJacobian> Real for Dual<T>`, that is
+# semantically `impl<T: Bounds + KinkJacobian> Bounds for Dual<T>` — a
+# compound bound in a file this allowlist does not name. Written in the
+# equivalent form it FIRES (planted below, so the evasion is a pinned
+# fact rather than a claim). On the RULE's own words the impl is fine:
+# `KinkJacobian` is neither an evaluation nor a decision parameter, so
+# the pairing this gate exists to catch — a parameter that DECIDES and
+# has also been handed bracket extraction — is not what is written
+# there. So this is the sanctioned spelling of that one impl, declared
+# here rather than left to read as "satisfied by construction": it is
+# satisfied by the RULE, and it evades the GREP. A second use of the
+# supertrait spelling to dodge this gate is a violation; ratify it here
+# first, exactly as a file entry would be.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -154,6 +174,16 @@ plant_bounds_first() {
 # those `grep -v` filters — someone loosening them for a reformat — would
 # blind the gate to the very file that defines the rule with nothing
 # going red.
+# KNOWN GAP 2's positive half: the equivalent spelling of dual.rs's
+# `where Self: Real` + sole `T: Bounds` impl. The gate MUST fire on it,
+# which is what makes the header's "the supertrait spelling evades the
+# grep" a measured fact rather than an assertion — this case goes red the
+# day someone widens the filters enough to stop catching the written form.
+plant_dual_equivalent_spelling() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'impl<T: Bounds + KinkJacobian> Bounds for Dual<T> {}\n' > "$1/crates/planted/src/lib.rs"
+}
+
 plant_real_rs_signature() {
   mkdir -p "$1/crates/geom-core/src"
   {
@@ -168,7 +198,8 @@ gate_selftest() {
   gate_selftest_case "compound Bounds bound outside the ratified seams" plant_decide_first
   gate_selftest_case "compound Bounds bound outside the ratified seams" plant_bounds_first
   gate_selftest_case "compound Bounds bound outside the ratified seams" plant_real_rs_signature
-  printf '%s selftest OK: passes a clean fixture, fires on both operand orders, and fires on a compound bound in real.rs beside the skipped definition lines\n' "$(gate_name)"
+  gate_selftest_case "compound Bounds bound outside the ratified seams" plant_dual_equivalent_spelling
+  printf '%s selftest OK: passes a clean fixture, fires on both operand orders, fires on a compound bound in real.rs beside the skipped definition lines, and fires on the equivalent spelling of dual.rs Bounds impl (KNOWN GAP 2)\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

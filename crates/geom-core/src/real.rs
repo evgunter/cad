@@ -378,8 +378,27 @@ pub trait Real:
 /// (`topo::separation` — LIB-PLACEDUNION's placement certificate —
 /// falls under this same 2026-07-29 amendment rather than a new one:
 /// it is a certified box constructor beside its invariants plus a
-/// query driver over the C10 tree, decides no topology, and its boxes
-/// only ever refuse. It is on the CI allowlist for that reason.)
+/// query driver over the C10 tree, and decides no topology. It is on
+/// the CI allowlist for that reason.)
+///
+/// **Correction (2026-08-19, D1's adversarial review).** That entry used
+/// to end *"and its boxes only ever refuse"*. That is the wrong
+/// direction and it matters now that `Dual: Bounds`. `Separation::of`,
+/// `Separation::certify` and `image` are `T: Decide + Bounds` with **no**
+/// [`CertifiedEnclosure`], and box NON-overlap is precisely a GRANT:
+/// `certify`'s own doc says *"`Ok(())` is the certificate"*, and
+/// `topo::graft_disjoint_all_keyed` asserts nothing about its operands
+/// (#382), so nothing downstream re-checks it. The door is instantiable
+/// at `Dual64` and at `Dual<Interval>` — verified by compilation.
+///
+/// It is nonetheless **sound at a dual, on a different justification**:
+/// delegation. Every box endpoint a dual produces is its value channel's,
+/// which is the plain-`T` run's bit-identically (D9), so a dual run's
+/// certificate is the base scalar's certificate — the `f64` run's at
+/// `Dual<f64>`, the `Interval` run's at `Dual<Interval>`. No wrong
+/// certificate exists. Whether `separation` should nonetheless carry
+/// [`CertifiedEnclosure`] is a **#643-completeness** question, not D1's,
+/// and is deliberately left open here rather than answered in passing.
 ///
 /// **Ratified extension (M5 PR 11, Evan's lane-split ruling):**
 /// `topo::props`'s certified-quadrature plumbing joins the compound
@@ -423,15 +442,29 @@ pub trait Real:
 /// **That guard is gone as of the D1 ruling (2026-08-19).** `Bounds` is
 /// now implemented for `Dual` over a bracket-carrying base scalar, so
 /// these signatures ARE satisfiable at a dual and the refusing side is
-/// no longer empty in principle. Nothing reaches them at a dual today —
-/// the one production caller (`editor_core::eval`'s fillet wiring) sits
-/// beneath `evaluate<T>`, which additionally requires
-/// `editor_core::ContentBits`, and that has no `Dual` impl — so this is
-/// a **standing obligation, not a live hole**: the day E4 seeds a dual
-/// through `evaluate`, this seam is the one allowlisted `Decide + Bounds`
-/// seam with no lane to refuse on, and it owes either that lane or a
-/// reason it does not need one. Recorded here rather than in a lane's
-/// notes because this paragraph is what a reader consults.
+/// no longer empty in principle. No **in-repo** caller reaches them at a
+/// dual today — the one production caller (`editor_core::eval`'s fillet
+/// wiring) sits beneath `evaluate<T>`, which additionally requires
+/// `editor_core::ContentBits`, and that has no `Dual` impl.
+///
+/// **That is a statement about this repo, not about the API.** This is an
+/// API-first kernel: `sweep::fillet::build::fillet_edges`,
+/// `battery::run_battery` and `surgery::ring_clearance` are `pub` in
+/// `pub mod`s of a library crate, so an external caller instantiates them
+/// at `Dual64` today — compiled from an outside crate and confirmed
+/// (2026-08-19 adversarial review). The `ContentBits` lock guards
+/// `editor_core::evaluate`; it guards nothing on the public surface.
+///
+/// So this is a **standing obligation, not a live hole** — the audit
+/// below is what makes it "not a live hole", not the reachability: every
+/// `Bounds` read in the seam is a typed-error payload or a selection that
+/// takes the value channel's branch, and at a dual both are the base
+/// scalar's by delegation. What is owed is a lane, or a written reason it
+/// needs none, and it is owed on the **public** surface rather than from
+/// the day E4 seeds a dual through `evaluate`. This seam is the one
+/// allowlisted `Decide + Bounds` seam with no lane to refuse on.
+/// Recorded here rather than in a lane's notes because this paragraph is
+/// what a reader consults.
 ///
 /// **Extension (M6-2, authorized by `docs/M6-2-SPEC.md` §2 under the
 /// PR 11/PR 12 precedent; retroactive Evan review per the self-merge
@@ -605,8 +638,20 @@ pub trait Enclosure: Copy {
 }
 
 /// Every [`Bounds`] scalar is an [`Enclosure`] — the one-line seam that
-/// keeps `f64` and the interval scalar usable by certification helpers
-/// written against the smaller trait.
+/// keeps `f64` and the interval scalar usable by helpers written against
+/// the smaller trait.
+///
+/// **This blanket impl means [`Dual`](crate::Dual) is an `Enclosure` too,
+/// since the D1 ruling of 2026-08-19 gave it [`Bounds`].** Said out loud
+/// because the sentence above used to read *"usable by CERTIFICATION
+/// helpers"*, and post-#643 that is the wrong word for this trait:
+/// `Enclosure` is a bracket accessor, and the certification door is
+/// [`CertifiedEnclosure`]. Nothing in `crates/*/src` is
+/// `Enclosure`-bounded today (`spline::hull` moved to
+/// [`CertifiedEnclosure`] at #643), so this is not a live hole — but it
+/// is not gated either: `scripts/gates/bounds-allowlist.sh` greps for
+/// `Bounds`, not for `Enclosure`. **A new `T: Enclosure` bound on
+/// anything that certifies would be a hole, and no CI row would say so.**
 impl<T: Bounds> Enclosure for T {
     fn lo(self) -> f64 {
         Bounds::lo(self)
