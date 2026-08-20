@@ -251,8 +251,8 @@ sub-block, from the orchestrator.
 | **F-e** | D68, D69 — **both used** | S124, S125 — **both used** |
 | **F-d** | D70 | S126 |
 | **F-f** | **D101** | **S157** |
-| **F-e** (2nd) | D102, D103 — **both used** | S158, S159 — **both used** |
-| unassigned (2nd block) | D104–D110 | S160–S166 |
+| **F-e** (2nd) | D102, D103, **D106** — all used | S158, S159 — **both used** |
+| unassigned (2nd block) | D107–D110 | S161–S166 |
 
 **Second block claimed 2026-08-20: `D101`–`D110` and `S157`–`S166`.** The first
 block is spent. Taken beyond Track E's `D81`–`D100` / `S137`–`S156` and Track
@@ -690,9 +690,10 @@ when the review lands, which is why it trails.
 
 ## Landings
 
-- **F-e — F1 / S59**, PR **#791**, opened 2026-08-20; **style review returned
-  NOT CLEARED and its findings are addressed in the same PR** (F-R10, F-R11);
-  not merged by the lane. `bounds-allowlist.sh`'s matcher is now shaped by the
+- **F-e — F1 / S59**, PR **#791**, opened 2026-08-20; **CLEARED 2026-08-20**
+  after a style review (NOT CLEARED → F-R10, F-R11) and a targeted
+  verification pass (F-R15), both addressed in the same PR; **held for the
+  merge queue behind F6**, not merged by the lane. `bounds-allowlist.sh`'s matcher is now shaped by the
   trait **name** — `(\+\s*(\w+::)*\w*Bounds\b)|(\b(\w+::)*\w*Bounds\s*\+)`
   — rather than by a list of names, so `Decide + CertifiedBounds` fires in both
   operand orders and so does the alias after it. **Eight self-test cases**:
@@ -729,7 +730,7 @@ when the review lands, which is why it trails.
   it. The same group on the left of `+` was dead and is gone. The header's
   gap list gained **GAP 4** (an alias not named `…Bounds`, and see F-R15 — it
   is disclosed OPEN, with no mitigation) and **GAP 5** (the leading-only comment strip, F-g's to close).
-  **The header is 195 lines against 131 at open** — S116(m) measures this very
+  **The header is 202 lines against 131 at open** — S116(m) measures this very
   file at 130 and is re-measured in place rather than restored; five lines of
   comment archaeology were cut and the lane's own additions compressed twice.
   **The argument that came out of that row is worth more than the row**, and
@@ -737,7 +738,7 @@ when the review lands, which is why it trails.
   gaps are honest is longer than one whose gaps are silent, so **this
   directory wants the ratification ledger split out of the script**. The
   per-seam justifications are a document that happens to live in a comment
-  block, and they are what makes a 20-line function carry a 195-line header.
+  block, and they are what makes a 20-line function carry a 202-line header.
 - **The lane minted a fresh instance of the defect it closed.** GAP 4's
   mitigation was published as *"the declaration writes the pair literally and
   therefore fires"* — true only of `trait Bracket: Bounds +
@@ -786,10 +787,60 @@ when the review lands, which is why it trails.
   live on a real residue**, unlike this lane's empty one.
 - **The dead `\b` in `(\b\w*Bounds\s*\+)` removed**, symmetric with the dead
   path group: the tree-wide hit set is identical with and without it.
-- **Header now 195 lines against 131 at open**, and the growth is still the
-  argument recorded at S116(m): every line past the fix is a blind spot named
-  or a false claim retracted. This lane's own two retractions are three of
-  those lines.
+- **Header now 202 lines against 131 at open** (131 → 157 → 195 → 202), and the
+  growth is the argument recorded at S116(m): every line past the fix is a
+  blind spot named, a false claim retracted, or a repair the next reader is
+  told not to make. **Placed as D106** — *split the ratification ledger out of
+  `scripts/gates/`'s scripts* — with the progression and the reasoning written
+  into the row so its taker inherits both. **Not F-e's to execute** (one row,
+  one review, one verification, two fix passes) and **sequenced after F-g**,
+  which owns `lib.sh` and will have the harness open. The property D106 must
+  preserve is the one that made #791 recoverable: **the argument and the
+  enforcement have to fail together**, so a ledger entry with no matching
+  allowlist line — or the reverse — is itself a red.
+- **The third matcher alternative stays, on the orchestrator's condition**:
+  it catches a real single-line spelling and reds nothing, and the rustfmt
+  fact sits **adjacent to it** in the header, so a reader who sees it fire
+  learns in the same breath that the neighbouring multi-line form is silent.
+  That adjacency is the difference between a partial catch and false comfort.
+
+### F6 (S73 parts 1 and 3) — **CLEARED 2026-08-20**, the track's first
+
+**It cleared on a deletion**, which F-R14 had pre-authorised. The row that failed
+twice is gone; what replaces it is Q6's written reason living on the constants —
+the adjacent-sample table (321: 5.88%, 322: 3.64%, **323: 5.24%**, 324: 1.79%,
+325: 3.94%), the non-convergence at 2,000, and `323` named as the witness. **It
+carries the fact rather than the conclusion.** S73 part 3's actual subject,
+`GROWTH_TOLERANCE`, is boxed to `[1.04, 1.06)` from 1.889× wide and was never in
+question; what died was the class-check member, with its reason written where the
+constants live.
+
+**Route: two failed instruments, one deletion, one row placed.** That is not a
+failure of the lane — every figure it reported reproduced under adversarial
+re-derivation, twice. It is what happens when a finding asks for a guard on a
+quantity that cannot carry one, and the honest end state took two attempts to
+reach because *"no honest box exists"* is the answer nobody reaches first.
+
+### D105 / S160 — the proposal that came out of it
+
+**Pin the continuous objective, not the cell count.** The discontinuity is
+*entirely* the two `ceil`s: the unceiled worst excess moves by **hundredths** of
+a point across the same neighbours (321: 0.017%, 322: 0.083%, 323: 0.011%, 324:
+0.030%) against ~4 points for the ceiled quantity, and falls smoothly with
+resolution (65: 1.82%, 200: 0.096%, 400: 0.0069%, 1,000: 0.0034%). It is
+continuous because it is a sampled minimum of a smooth function of `log t` with
+no rounding, so it depends only on the sampling step and the range — *exactly
+what these two constants set*. It reds on both failure modes with one number.
+
+**The validation is the part that convinces, and it is not an argument:**
+**`D = 40` → 1.82% is identical to `S = 65`, which has the same sampling step.**
+That equality is evidence the quantity measures **resolution** rather than
+lattice luck.
+
+Placed rather than landed: no third instrument in a row that has shipped two, it
+needs a parameterization of code the brief marked read-only, and it deserves its
+own review rather than riding a clearance. **The evidence is written into the
+row, which is the thing that was at risk.**
 
 ## Incidents
 
