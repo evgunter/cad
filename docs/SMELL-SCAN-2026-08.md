@@ -12199,7 +12199,7 @@ has been discharged.
 | ~~**E-l**~~ | **#681**, still open | everything outside `crates/*/src` | style | **Swept as #810 — seven of #681's nine surfaces, the other two declared.** Instrument re-run rather than retyped; #667's 197 blocks over `crates/*/src` are **217** at this base, which is why the count is re-derived and not transcribed. Per-leg: `crates/*/tests` **189** blocks → 10 real claims (`mesh/tests/revolves.rs` unfenced when #803 merged mid-lane); manifests **8** → 4; the guide's five rustdoc-included `.md` files **11** → 1 (guarded, a doctest); `pncad-py` **6** with docstrings vs **1** without → 0; `crates/*/examples` **2** → 0; `docs/` prose **171** → 6; `local-scripts/` **21** → 3; `review/`+`review-probes/` **0**. **One unguarded row filed: #807** — the wasm32 "compiles clean today" claim, which nothing in CI takes and which a `cargo check --target` row would guard. **One class handed off: #808** — twelve copies of the 494-of-514 s build-cost measurement in the `crates/*/tests/all.rs` headers, every one of them inside #763's head. **Declared out of scope, with reasons in the PR:** `.github/workflows/` + `scripts/` and `tools/tess-lint` (Track F, live), `demos/` and `interval-transcendentals/` (Track G, live), `tools/k-lint` (its constants are `docs/K-REPORT.md`'s subject — a K question, not a sweep one; **no owner confirmed**). |
 | **E-m** | **#711** | `step-import/src/recognize.rs`, `docs/ASM-R2A-SPEC.md` | style | Wave 2. Was Track C's **C8**. Two items: a `try_cylinder` promoting arm documented unreachable with a preference order *"unfalsifiable by execution"*, and a one-line spec ruling. The first may want the tighter cylinder certificate rather than an encoding change. |
 | **E-n** | **D20** | `topo/src/seqgen.rs` | style; **closes on an attribution** — a number saying where the 46% lives, or a written finding that it is inherent | Last. It closes on a measurement, and *a timing is worth nothing without its box* (`memories/perf-measurement-lane.md`) — the attribution comes off hosted CI, not off whatever container the lane runs in. The enumeration class is closed as a candidate; do not re-open it without a number. |
-| **E-o** | **D86** | `scripts/interval-only-selection.py`, and whatever the class sweep finds | style | **Dispatched 2026-08-20, and it crosses a track boundary on Evan's ruling.** D86 sits on **Track F's** table, placed there by Track E's #794 — but `docs/SMELL-F-LOG.md` never mentioned it, so Track F's orchestrator never received it, while F2's lane (#798) read #794 and concluded the script was Track E's. **Both tracks believed the other owned it and neither scheduled it**, for hours, while it blocked #784 and D81's taker. That is **E-R8**: a row on another track's *table* is not a handoff. `SMELL-F-LOG.md` and `SMELL-G-LOG.md` were both checked for a claim on the file and neither had one. The fix is D22's, verbatim — anchor the cfg match to the attribute instead of testing a bare substring — which **#753, Track E's own lane E-a, already made one script over**. |
+| ~~**E-o**~~ | ~~**D86**~~ | ~~`scripts/interval-only-selection.py`, and whatever the class sweep finds~~ | ~~style~~ | **Landed as #821 — Track E closed a Track F row.** The bare substring was satisfied by ONE doc-comment line, and that line is identical boilerplate in **five** `tests/all.rs` files, so the block covered any closure inside {`bvh`, `mesh`, `step-export`, `step-import`, `stl`} — not `step-import` alone. Fixed in #753's shape and then one step further: the predicate has ONE home, `carries_interval_cfg` in `check-interval-cfg-additive.py`, which the selection **imports** rather than restating, so the two cannot drift again. Guarded in the tripwire's `--selftest` — the only wiring both CI halves already run, and the one that did not require a file #798 holds — and falsified both ways. Demonstrated on the tier it is about: a throwaway `step-import`-only closure (#822, closed) went green, all four interval legs, run 32419509144. **E-R8 is this row's own finding.** |
 | **E-p** | **S14** | `docs/` — a design conversation, plus one reachability test in `geom/tests/` | **no review; it goes to Evan** | **Dispatched 2026-08-20 as #823, and it is NOT a fix.** S14 had been open since 2026-08-18 with **no channel and no owner**: no design PR existed, and §S70's *"whoever takes S14"* pointed at nothing. The PR's own finding is that **S14 is two questions under one label** — the `Span` pairing (**S14(a)**, `geom-core`/`geom`) and the graft (**S14(b)**, of which §S70 is the documentation residue) — and that row 0's ratified text describes only the second. It answers (a) and scopes (b). Placed **D97**, **D98**, **D99**. **Waits for Evan; never self-merges** (`CLAUDE.md`: PRs that ratify design questions are design conversations). |
 | ~~**E-q**~~ | **#681**, still open | `memories/` | style | **Swept as #826 — the TENTH surface, which #681's list does not contain.** E-l reported it and did not sweep it; adding a surface is the issue owner's call, and Evan made it. **The disposition rule is NOT §Q6's**: *"most of the stuff in memories that cites a specific measurement should just be deleted. memories is definitely not the place for historical anecdotes, but it's also not really the place for live data."* So each block is an **anecdote** (delete the number, keep the rule — the default), **live data** (repoint at whatever re-takes it), or **neither** (a ratified constant or protocol threshold — kept, with the reason). **21 blocks re-derived at `e1500076`, E-l's count exactly, and it did not move.** Instrument run not retyped, but `--marker ''` alone yields **one block per file** — `find("")` is 0 on every line, so nothing ends a block; #681's `.md` row names *"paragraph-blocking"* as the replacement and that is not in the script, so it was added as a flag. That is the variant E-l ran. **Its own blind spot, and `min` is the sharp one**: the time-unit arm lists `seconds?|minutes?` and **not `min`**, so `memories/git-workflow.md` scored **zero blocks** while carrying `~5-7 min` / `35-70 min` / `30G cache` / `(then-5G-RAM)/251G box`. **Eight files carry measurement edits and in five of them at least one edit site was reached by reading, not by the instrument** — including `tessellation-budget.md`'s densest numbers, its findings list, which sits outside every flagged block. #681's carried hole (bytes, percent, counts and bare factors reach only through the vocabulary arm) is worst on exactly this surface. 21 is a floor, not a census. **The one live-data case the brief warned about checks out**: `docs/ASM-LOG.md:292` and `:361` route the **TESS-SPLIT dispatch** through this memory, so `SAFE_ASPECT = 5` could not simply be deleted — it now names `mesh::nurbs_cert::SAFE_ASPECT`, whose own doc carries the derivation. The two copies had **already diverged** (ASM-LOG says *"≤ ~4"*), as had `agent-lane-operations.md`'s `4–8 GB target/` against `disk-watchdog.sh`'s own `5-8G`. Second half of the unit: `memories/cad-working-style.md`'s memory-writing criteria gain the rule, in one bullet after *No live counters*. **D97 handed back unused.** |
 
@@ -12424,37 +12424,25 @@ than from the schedule** (F-R1, F-R2 in the track log):
   C's open #734 edits.** F4 waits on it as a whole rather than splitting, since
   its four members are one missing idiom and closing three of four is §C13.
 
-**BLOCKING, handed to Track F on 2026-08-20 by Track E, which found it and
-cannot fix it — `scripts/` is this track's.** **D86: `interval-only-selection.py`
-matches its feature cfg as a bare substring, so a doc comment quoting the
-attribute counts as a gate.** `FEATURE_CFG = 'feature = "interval"'` is tested by
-containment over the crate's whole source; `crates/step-import/tests/all.rs:6` is
-a **doc comment** reading *"attributes (`#![cfg(feature = "interval")]` and
-friends work as…"*, and it is the only match in a crate that contains no gated
-item at all. Reproduced by calling the script's own
-`crates_with_interval_gates(root, {"step-import"})`, which returns
-`{"step-import"}`.
+**D86 — FIXED by #821**, by **Track E's lane E-o**, which crossed into
+`scripts/` with Evan's approval rather than leave a Track F row blocking two
+Track E rows. `interval-only-selection.py`'s crate scan now asks what
+**compiles**, not what is written: the predicate has one home,
+`carries_interval_cfg` in `scripts/check-interval-cfg-additive.py`, and the
+selection script **imports** it instead of spelling a second one — which is the
+shape #753 gave `probe-suite-census.sh` for the identical defect (D22), with the
+narrowing shared by construction rather than by inspection. The doc-comment
+sentence was identical boilerplate in five crates' `tests/all.rs`, so the block
+covered any change closure inside {`bvh`, `mesh`, `step-export`, `step-import`,
+`stl`}, not `step-import` alone. **#784 and D81's taker are unblocked.**
 
-**Consequence: no PR whose change closure is `step-import` alone can go green.**
-All four `test (interval, …)` legs die at *derive the interval-only test
-selection* before anything compiles — twice, on two heads, with every
-code-running job green. It blocks Track E's **#784** now and **D81**'s taker
-next.
-
-**This is D22's defect verbatim, one script over.** D22 was *the probe census's
-first predicate matched the substring anywhere, so prose satisfied the floor —
-including doc comments the unit itself wrote*; #753 fixed it there by matching
-the cfg **attribute** with whole-line anchors. The same bug sat in a sibling
-script the whole time, and D34's own enumeration listed
-`interval-only-selection.py` among the ten `ci.yml` invokes with **no wiring
-check of any kind**. So this is not "the fix pass had the file open and swept
-one instance" (C19) — **the fix pass never had this file open, because the row
-named one script.** A predicate defect found in one gate is a class across the
-gate directory, and nothing asked.
-
-**The narrowing is shared with `check-interval-cfg-additive.py`**, whose
-tripwire this scan is deliberately matched to, so it is a plan and not a patch —
-which is why Track E did not take it.
+**Why it sat unscheduled, which is the part worth keeping.** Track E placed this
+row on Track F's table (#794); Track F's F2 (#798) read #794 and concluded the
+opposite ownership; and **`docs/SMELL-F-LOG.md` never received D86 at all**. Both
+tracks believed the other owned it. **A row placed on another track's table is
+not a handoff unless that track's own log receives it** — E-R5's rule one level
+up, and sharper there, because a lane that re-derives at least reads its row,
+while a row that never enters a log is read by no one.
 
 | # | Work | From | Scope | Proposed verdict | Review |
 |---|---|---|---|---|---|

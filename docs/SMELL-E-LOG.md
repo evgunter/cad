@@ -133,7 +133,7 @@ discharged before this track existed.
 | **E-j** | D31 | `sweep/src/skin.rs`, `geom/src/curves/fit.rs`, home in `geom-core/src/spline/algebra.rs` | **Track C (C-l, C-g)** | style, escalates if the sort order is load-bearing | unstarted |
 | **E-k** | D35 | `docs/DESIGN.md`'s D2 addendum, and whatever the answer names | ~~**E-g**, **E-h**~~ — both landed | style | **DISPATCHED** 2026-08-20, under row 0 |
 | **E-l** | #681 | everything outside `crates/*/src`, **less the six surfaces F and G own** | none | style | **DISPATCHED** 2026-08-20 |
-| **E-m** | #711 | `step-import/src/recognize.rs` | **BLOCKED by D86** (now on main, Track F's) | style | **#784** open, red on infrastructure only. Placed D86, D87, D93 |
+| **E-m** | #711 | `step-import/src/recognize.rs` | **UNBLOCKED — D86 fixed by #821** (lane E-o); a `step-import`-only closure derives its interval selection again | style | **#784** open, red on infrastructure only. Placed D86, D87, D93 |
 | **E-n** | D20 | `topo/src/seqgen.rs` | none | style; closes on an attribution off hosted CI | unstarted |
 
 **Not taken by Track E:** D30 and D32 (Track C's files — C-m, C-q); C11's #726
