@@ -37,15 +37,26 @@ rational arithmetic. This is the tier the kernel's CI runs.
 **What that tier catches, exactly.** A pad WIDENED — on any operation —
 goes red here, because `pad_contract.rs` bounds each endpoint's distance
 from the backend's own value by the derived pad. A pad DROPPED goes red
-here for `÷ × sqrt`, where the exact-rational fuzz can compute the truth
-itself. For the seven transcendentals it does not and cannot: their
-truth needs a multi-precision reference, so a too-small pad is the
-oracle tier's to catch — which it does, on every change to this crate,
-because `oracle-certify` is keyed on paths under
-`interval-transcendentals/`, not on a convention. Addition and
-subtraction have no exact-rational lane and do not need one: TwoSum's
-error term is representable for all finite doubles with no underflow
-proviso, so their witness has no validity floor to get wrong.
+here for `÷ × sqrt` only, where the exact-rational fuzz can compute the
+truth itself.
+
+Two families are outside that, in the same direction and for different
+reasons. **`+ −`:** their witness (TwoSum) has no validity floor to get
+wrong — its error term is representable for all finite doubles with no
+underflow proviso (`docs/derivations.md` §1 Lemma P0), so there is no
+lying-witness failure mode to fuzz — but their *containment* is
+genuinely unguarded here, and mutating `add_lo`/`add_hi` to bare
+round-to-nearest leaves this whole tier green. The u128 comparator this
+crate's fuzz is built on cannot serve them: aligning `2^1023` with
+`2^-1074` needs ~2100 bits. **The seven transcendentals:** their truth
+needs a multi-precision reference at all.
+
+Both are the oracle tier's, and it runs on **four paths** —
+`interval-transcendentals/src/`, `tests/`, `Cargo.toml`, `Cargo.lock`
+(`scripts/ci-filter.py`'s `ORACLE_PATHS`) — not on the whole directory.
+`docs/` is deliberately not among them, so a change to the derivation
+that sets `PAD_ULPS` does not by itself re-certify; changing the code it
+justifies does.
 
 The fuzz lanes draw from the tree's shared harness (`test-utils`, a
 dependency-free dev-only crate): the seed VARIES per run and is logged
@@ -96,10 +107,17 @@ the lane is rare: pinned, a decade of firings re-checks one sample.
 
 `.github/workflows/ci.yml`'s `oracle-certify` job runs this tier whenever
 anything under `interval-transcendentals/src/`, `tests/`, `Cargo.toml` or
-`Cargo.lock` changes (`scripts/ci-filter.py`'s `ORACLE_PATHS`). "Run it by
-hand when the pads change" was a convention with no enforcement, and it
-had already failed silently: the tier did not build at all once the floor
-above was retired, and nothing noticed, because nothing ran it.
+`Cargo.lock` changes (`scripts/ci-filter.py`'s `ORACLE_PATHS` — those four
+paths, not the whole directory). "Run it by hand when the pads change" was
+a convention with no enforcement, and it had already failed silently: the
+tier did not build at all once the floor above was retired, and nothing
+noticed, because nothing ran it.
+
+The **local** gate is a different story and is not covered by that:
+`local-scripts/ci-local.sh` mirrors the cheap row and has no
+`oracle-certify` row at all, so under `gate.sh` — the merge gate when
+hosted Actions is unavailable — a dropped transcendental pad is not
+caught. Recorded as smell-scan **S127**.
 
 Case depth is one env var away — the job's `CAD_FUZZ_EFFORT` multiplies
 every count — and depth is cheap here, because the job's cost is dominated

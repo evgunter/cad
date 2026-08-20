@@ -431,11 +431,28 @@ rebuild_latency() { cargo test -p editor-core --test all -- --ignored --nocaptur
 
 # M5 PR 1 (review NOTE-1): the interval backend crate's OWN tripwire, in
 # its own workspace, on its DEFAULT feature set — which reaches neither
-# inari nor a C toolchain, so it runs in seconds. This is the row that
-# catches a dropped outward round; the kernel's lane-agreement tests
-# provably cannot (both lanes share the round-to-nearest chain). The full
-# differential lane (certify.rs) is behind --features oracle-inari and
-# stays a by-hand gate. Hosted mirror: ci.yml's `interval-backend` job.
+# inari nor a C toolchain, so it runs in seconds. It catches what the
+# kernel's lane-agreement tests provably cannot (both lanes there share
+# the round-to-nearest chain).
+#
+# WHAT IT CATCHES, by direction, because the two are not the same job. A
+# pad WIDENED: every operation, via pad_contract.rs. A pad DROPPED:
+# division, multiplication and sqrt, via review_fuzz_exact.rs's exact
+# u128 rational arithmetic. NOT `+` and `-` (their pads are bounded from
+# above here but a dropped one shows only against the oracle), and NOT
+# the seven transcendentals (their truth needs a multi-precision
+# reference). Hosted mirror: ci.yml's `interval-backend` job.
+#
+# THIS SCRIPT HAS NO MIRROR OF ci.yml's `oracle-certify` JOB, which is
+# what covers the two directions above that this row cannot. So on the
+# hosted pipeline a dropped transcendental pad is caught; under
+# `gate.sh`, which documents itself as the merge gate when hosted Actions
+# is unavailable, it is not. Nothing enforces ci.yml <-> ci-local.sh JOB
+# parity (gate-roster.sh enforces gate-SCRIPT parity, which is a
+# different set), so this comment is the only thing recording the gap.
+# Filed as smell-scan S127 / §D row D71; adding the row here means a
+# ~250s GMP+MPFR build in the local gate, which is why it is a decision
+# rather than an oversight.
 interval_backend() {
   (cd interval-transcendentals \
     && cargo fmt --check \

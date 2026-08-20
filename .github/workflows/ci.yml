@@ -1106,13 +1106,20 @@ jobs:
     # which bounds each endpoint's distance from the backend's own value
     # by the derived pad — no oracle needed, since the comparison is
     # against libm, not against truth. A pad DROPPED: division,
-    # multiplication and sqrt, via review_fuzz_exact.rs, which computes
-    # the true value in exact u128 rational arithmetic. It is NOT the
-    # seven transcendentals: their truth needs a multi-precision
-    # reference, so a dropped pad there is invisible to any oracle-free
-    # row and belongs to oracle-certify below — which fires on every
-    # change under interval-transcendentals/, so nothing is left to a
-    # convention.
+    # multiplication and sqrt only, via review_fuzz_exact.rs, which
+    # computes the true value in exact u128 rational arithmetic.
+    #
+    # NOT `+` and `-`: their truth is exactly computable but not with a
+    # u128 comparator (aligning 2^1023 with 2^-1074 needs ~2100 bits),
+    # and mutating add_lo/add_hi to bare round-to-nearest leaves this
+    # whole row green — only certify_arith reds. NOT the seven
+    # transcendentals: their truth needs a multi-precision reference at
+    # all. Both belong to oracle-certify below, which fires on changes
+    # under interval-transcendentals/{src,tests}/, Cargo.toml or
+    # Cargo.lock (ci-filter.py's ORACLE_PATHS — four paths, not the whole
+    # directory: docs/ is NOT among them, so editing the derivation that
+    # sets PAD_ULPS does not by itself re-certify). That is a trigger
+    # set, not a convention.
     #
     # This row is deliberately the crate's DEFAULT feature set: without
     # `oracle-inari` there is no inari/gmp-mpfr-sys and no C toolchain in
