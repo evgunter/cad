@@ -100,6 +100,36 @@ fn a_drifted_header_exits_one_not_two() {
     );
 }
 
+/// VOICE (b) again, on the case the voices exist to separate. The
+/// gate fires only on growth, so a denominator resolved in band would
+/// be its own pass value: an unreadable `span_opt_cells` must reach
+/// exit 1, NOT the clean 0 it would reach if the lint answered a
+/// broken measurement with a number.
+#[test]
+fn an_unreadable_denominator_exits_one_not_zero() {
+    let base = csv("broken-base.csv", &scene(100, 2.5e1));
+    let fresh = csv(
+        "broken-fresh.csv",
+        &scene(100, 2.5e1).replace(",2.5e1,1e-4,", ",0e0,1e-4,"),
+    );
+    let out = run(&[
+        fresh.to_str().unwrap(),
+        "--baseline",
+        base.to_str().unwrap(),
+    ]);
+    assert_eq!(
+        out.status.code(),
+        Some(1),
+        "a zero denominator is harness breakage, never a clean gate: {}",
+        out_of(&out)
+    );
+    assert!(
+        err_of(&out).contains("span_opt_cells"),
+        "the message names the column: {}",
+        err_of(&out)
+    );
+}
+
 #[test]
 fn no_input_exits_one_with_usage() {
     let out = run(&[]);

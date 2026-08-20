@@ -124,7 +124,9 @@ fn main() {
     // Totals over the whole sweep: what the shipped per-cell schedule
     // holds, and what the same certificates would still allow. Cell
     // counts, not triangles — the triangle count of a trimmed face is
-    // not its grid.
+    // not its grid. One guard covers all three sums: no admitted row
+    // carries a cell count below one, so they are above zero together
+    // or not at all.
     let (mut cg, mut cp, mut cso) = (0.0, 0.0, 0.0);
     for r in &nurbs {
         if let Some(n) = r.nurbs {
@@ -158,15 +160,17 @@ fn main() {
             "scene (Hessian-sized faces)", "tris", "nurbs", "held", "split", "total"
         );
         for (scene, t) in ranked.iter().take(top) {
-            let total = t
-                .total_slack()
-                .map_or_else(|| "     -".to_string(), |s| format!("{s:5.1}x"));
+            // A column with nothing behind it prints as nothing: the
+            // report never spells an absent measurement as a number,
+            // for the same reason the gate refuses to read one.
+            let factor = |v: Option<f64>| v.map_or_else(|| "-".to_string(), |x| format!("{x:.1}x"));
             println!(
-                "  {scene:<34} {:>9} {:>9} {:>6.1}x {:>6.1}x {total:>8}",
+                "  {scene:<34} {:>9} {:>9} {:>7} {:>7} {:>8}",
                 t.triangles,
                 t.nurbs_triangles,
-                t.span_held(),
-                t.recoverable()
+                factor(t.span_held()),
+                factor(t.recoverable()),
+                factor(t.total_slack())
             );
         }
         if ranked.len() > top {
