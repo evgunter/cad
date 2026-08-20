@@ -1025,8 +1025,7 @@ fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
         Some(image),
         &operand(mate),
         &operand(surface),
-        arm,
-        geom_core::Bounds::hi(arm),
+        crate::ssi::TubeScale::uniform(arm),
         band,
     )
     .map(Some)

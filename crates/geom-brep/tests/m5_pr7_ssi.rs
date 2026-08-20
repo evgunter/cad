@@ -60,7 +60,7 @@
 use geom_brep::CERT_SAMPLES;
 use geom_brep::ssi::BranchEnd;
 use geom_brep::ssi::{
-    self, MarchTol, SSI_FLOOR, SSI_TUBE_RADIUS, SsiDomain, SsiError, SsiLimb, SsiOperand,
+    self, SSI_FLOOR, SSI_TUBE_RADIUS, SsiDomain, SsiError, SsiLimb, SsiOperand, TubeScale,
 };
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Margin, Point3, Tolerance, Vec3};
@@ -294,6 +294,25 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
             b.certificate.tube_boxes >= 1,
             "SHAPE-IV: {:?}",
             b.certificate
+        );
+        // MARCH-TOL: the tolerance the carrier was actually GENERATED
+        // at, read off the branch the door returned.
+        //
+        // The end-to-end counterpart of the `MarchTol` unit rows. Those
+        // test the derivation as a pure function; this one tests the
+        // door, which is where the divergence would be reintroduced —
+        // a certifying door minting its own decoupled generator
+        // tolerance is one line, changes no public signature, and every
+        // other assertion in this file stays green through it. This
+        // receipt does not, and the seam refuses before it is even
+        // reached.
+        assert_eq!(
+            b.march_tol,
+            band().zero(),
+            "MARCH-TOL: the carrier was generated at {:e} m while the run is banded \
+             at {:e} m — the certificate and the generator disagree about ε",
+            b.march_tol,
+            band().zero()
         );
         // TUBE-FLOOR: the certified tube is stated in the RUN's ε.
         //
@@ -859,8 +878,7 @@ fn the_uniqueness_tube_margin_dies_on_a_tangent_pair() {
         None,
         &SsiOperand::Analytic(&c),
         &SsiOperand::Analytic(&s),
-        1.0,
-        2.0,
+        TubeScale::split(1.0, 2.0),
         band(),
     )
     .expect_err("a tangency cannot certify a uniqueness tube");
@@ -904,8 +922,7 @@ fn certify_against(carrier: &NurbsCurve3<f64>) -> Result<geom_brep::SsiCertifica
         None,
         &SsiOperand::Analytic(&c),
         &SsiOperand::Analytic(&s),
-        0.08,
-        2.0,
+        TubeScale::split(0.08, 2.0),
         band(),
     )
 }
@@ -1128,8 +1145,7 @@ fn shape_iii_the_wall_cut_certifies_all_three_limbs_and_refuses_a_corrupted_pcur
         Some(&bad),
         &SsiOperand::Analytic(&p),
         &SsiOperand::Nurbs(&w),
-        wall_domain().extent,
-        wall_domain().extent,
+        TubeScale::uniform(wall_domain().extent),
         band(),
     )
     .expect_err("CORRUPT-PCURVE: a corrupted parameter map cannot certify");
@@ -1265,7 +1281,7 @@ fn the_composite_bound_tracks_dense_scan_truth_on_the_pr7_fixture() {
         &w,
         (0.5, 0.5),
         wall_domain(),
-        MarchTol::of(band()),
+        band().zero(),
         band(),
     ) {
         Ok(t) => t,
@@ -1327,7 +1343,7 @@ fn oq4_the_two_pcurves_share_the_carriers_own_parameter() {
         &w,
         (0.5, 0.5),
         wall_domain(),
-        MarchTol::of(band()),
+        band().zero(),
         band(),
     ) {
         Ok(t) => t,

@@ -123,40 +123,51 @@ use super::system::LocalSystem;
 /// It is a distinct type — not a bare `f64` beside the `Band` — because
 /// the two are the *same quantity* on every door that certifies, and a
 /// second `f64` copy of the run tolerance is exactly the shape that
-/// lets a caller march at one tolerance and certify at another. There
-/// is no `From<f64>`: a caller either derives it from the run band
-/// ([`MarchTol::of`]) or names the decoupling out loud
-/// ([`MarchTol::decoupled`]).
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
+/// lets a caller march at one tolerance and certify at another.
+///
+/// **Outside this crate the only constructor is
+/// [`MarchTol::from_band`].** A tolerance that is not the run band's is
+/// mintable only inside `ssi`, and only one door — the uncertified
+/// trace — reaches for it, from a bare `f64` its own caller named.
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MarchTol(f64);
 
 impl MarchTol {
     /// The generator's tolerance derived from the run's band — the run
-    /// tolerance ε itself, since a linear [`Band`]'s `zero()` **is** ε.
+    /// tolerance ε itself, since a linear [`Band`]'s `zero()` **is** ε,
+    /// stored unmodified by `Band::new`.
     ///
-    /// This is the only constructor a certifying door may use, which is
-    /// what ties the marcher's spacing, the accounting floor and the
-    /// certificate's floors to one number.
+    /// A tolerance built any other way cannot cross the certifying
+    /// seam — the finishers refuse with
+    /// [`SsiError::MarchTolMismatch`] — so the marcher's spacing, the
+    /// accounting floor and the certificate's floors are one number by
+    /// enforcement rather than by intent.
     #[must_use]
-    pub fn of(band: Band) -> Self {
+    pub fn from_band(band: Band) -> Self {
         Self(band.zero())
     }
 
     /// A generator tolerance **deliberately decoupled** from the run
-    /// band, for a door that returns no certificate.
+    /// band, for the door that returns no certificate.
     ///
-    /// The only legitimate use is measuring the marcher against itself
-    /// — how the fitted pair's deviation scales as the generator is
-    /// tightened, independently of the ambient tolerance the run is
-    /// banded at. Nothing built from one may reach a certificate: the
-    /// certifying doors do not accept a `MarchTol` at all, they derive
-    /// their own from the band.
+    /// Private to `ssi` on purpose: a `pub` version of this is the
+    /// second ε entering under a nicer name, and a maintainer editing a
+    /// certifying door is the caller who would reach for it. The only
+    /// legitimate use is measuring the marcher against itself — how the
+    /// fitted pair's deviation scales as the generator is tightened,
+    /// independently of the ambient tolerance the run is banded at.
+    ///
+    /// A decoupled march is **not** a hole in the certificate. Every
+    /// floor and every trilean downstream is stated in the `Band`, so a
+    /// generator run at some other tolerance can only produce a *worse
+    /// carrier*, which then certifies honestly at the band or refuses
+    /// on one of the three limbs.
     ///
     /// # Errors
     ///
     /// [`SsiError::InvalidMarchTol`] when `meters` is not finite and
     /// strictly positive — a typed refusal, never a silent clamp.
-    pub fn decoupled(meters: f64) -> Result<Self, SsiError> {
+    pub(super) fn decoupled(meters: f64) -> Result<Self, SsiError> {
         if !(meters.is_finite() && meters > 0.0) {
             return Err(SsiError::InvalidMarchTol { value: meters });
         }
@@ -279,7 +290,7 @@ pub struct Trace<const N: usize> {
 /// Everything the stepper needs that is not the system: the named
 /// domain, the lever arms, and the budgets.
 #[derive(Clone, Copy, Debug)]
-pub struct MarchContext<const N: usize> {
+pub(crate) struct MarchContext<const N: usize> {
     /// The domain box in state coordinates, `[lo, hi]` per coordinate.
     pub domain: [[f64; 2]; N],
     /// The caller's named feature extent, in meters — the lever arm of
@@ -864,7 +875,7 @@ mod tests {
     fn a_derived_march_tolerance_is_the_bands_own_zero() {
         for zero in [1.0e-3_f64, 1.0e-6, 1.0e-9, 1.0e-12] {
             let band = Band::new(zero, 10.0 * zero).unwrap();
-            assert_eq!(MarchTol::of(band).meters(), band.zero());
+            assert_eq!(MarchTol::from_band(band).meters(), band.zero());
         }
     }
 
@@ -878,7 +889,10 @@ mod tests {
                 Err(SsiError::InvalidMarchTol { value }) => {
                     assert!(value.is_nan() || value == bad, "{value:e} vs {bad:e}");
                     let msg = format!("{}", SsiError::InvalidMarchTol { value });
-                    assert!(msg.contains("MarchTol::of"), "the recourse sentence: {msg}");
+                    assert!(
+                        msg.contains("MarchTol::from_band"),
+                        "the recourse sentence: {msg}"
+                    );
                 }
                 other => panic!("expected a typed refusal for {bad:e}, got {other:?}"),
             }

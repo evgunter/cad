@@ -118,7 +118,7 @@ use crate::certify::CERT_SAMPLES;
 use crate::dihedral::decide;
 
 use super::enclose::{Box3, NurbsBoxes, graph_margin};
-use super::{SsiError, SsiOperand};
+use super::{SsiError, SsiOperand, TubeScale};
 
 /// The **largest** tube radius tried, as a fraction of the caller's
 /// named extent. The ladder halves from here.
@@ -741,9 +741,10 @@ pub(crate) fn tube_boxes<T: Decide + Bounds + CertifiedEnclosure>(
 /// [`SsiError::FootPointInconclusive`] when a NURBS foot will not
 /// converge, [`SsiError::Escalated`] for any in-band trilean.
 ///
-/// `arm` is the folded curvature/extent lever arm the transversality
-/// margin is stated over (metres); `extent` is the caller's named
-/// feature extent, which sets the tube ladder's widest rung.
+/// `scale` carries the two lengths the certificate is stated over: the
+/// folded curvature/extent lever arm the transversality margin is
+/// levered by, and the caller's named feature extent, which sets the
+/// tube ladder's widest rung.
 ///
 /// The tolerance is `band`'s and only `band`'s. A linear band's
 /// `zero()` **is** the run's ε, and every threshold this function
@@ -755,10 +756,10 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
     pcurve_b: Option<&NurbsCurve2<T>>,
     a: &SsiOperand<'_, T>,
     b: &SsiOperand<'_, T>,
-    arm: T,
-    extent: f64,
+    scale: TubeScale<T>,
     band: Band,
 ) -> Result<SsiCertificate<T>, SsiError> {
+    let TubeScale { arm, extent } = scale;
     let mut on_locus = T::zero();
     let mut hull_sup = T::zero();
     for (op, pc) in [(a, None), (b, pcurve_b)] {

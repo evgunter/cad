@@ -6,7 +6,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_brep::ssi::{self, MarchTol, SsiDomain, SsiError, SsiOperand};
+use geom_brep::ssi::{self, SsiDomain, SsiError, SsiOperand, TubeScale};
 use geom_core::spline::KnotVector;
 use geom_core::spline::compose::ComposeError;
 use geom_core::{Band, Point3, Tolerance, Vec3};
@@ -65,13 +65,12 @@ fn wall_domain() -> SsiDomain {
 /// The dense-scan max of |S(P(t)) − C(t)| for a traced pair, plus the
 /// argmax parameter.
 /// `e` is the **generator's** step tolerance, not the run's: this door
-/// returns no certificate, which is the whole reason a decoupled
-/// [`MarchTol`] can be built for it at all.
+/// returns no certificate, which is the whole reason it takes one at
+/// all. It is the only door in the module that does.
 fn trace_deviation(w: &NurbsSurface<f64>, e: f64, samples: u32) -> Option<(f64, f64)> {
     let p = cutting_plane();
-    let tol = MarchTol::decoupled(e).expect("a positive finite march tolerance");
     let (carrier, _pa, pb) =
-        match ssi::trace_plane_nurbs_uncertified(&p, w, (0.5, 0.5), wall_domain(), tol, band()) {
+        match ssi::trace_plane_nurbs_uncertified(&p, w, (0.5, 0.5), wall_domain(), e, band()) {
             Ok(t) => t,
             Err(SsiError::FitSampleBudget { .. }) => return None,
             Err(err) => panic!("trace: {err}"),
@@ -193,8 +192,9 @@ fn deviation2a_the_inflected_wall_deviation_is_real_geometry() {
 
 /// **This row is about the MARCH ε, not the ambient one.** The
 /// tolerance under test is the one handed to [`trace_deviation`]
-/// (`1e-9`, then `1e-9 / factor`), which lands in
-/// `SsiDomain::eps` and drives the stepper's spacing. The ambient
+/// (`1e-9`, then `1e-9 / factor`), which becomes the uncertified
+/// door's generator tolerance and drives the stepper's spacing — the
+/// one door in the module that names one. The ambient
 /// `CAD_TOLERANCE_EPS` is not the subject; its only bearing is that a
 /// tight ambient band can push the march past the SSI fit budget, at
 /// which point there is no fitted pair to measure at all.
@@ -278,7 +278,7 @@ fn deviation1_and_3_domain_mismatch_refuses_typed_with_the_recourse() {
         &w,
         (0.5, 0.5),
         wall_domain(),
-        MarchTol::of(band()),
+        band().zero(),
         band(),
     ) {
         Ok(t) => t,
@@ -295,8 +295,7 @@ fn deviation1_and_3_domain_mismatch_refuses_typed_with_the_recourse() {
         Some(&bad),
         &SsiOperand::Analytic(&p),
         &SsiOperand::Nurbs(&w),
-        1.5,
-        1.5,
+        TubeScale::uniform(1.5),
         band(),
     )
     .expect_err("a domain-mismatched pcurve cannot certify");

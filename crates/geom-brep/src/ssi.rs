@@ -196,6 +196,45 @@ pub enum SsiOperand<'a, T: geom_core::Real> {
     Nurbs(&'a NurbsSurface<T>),
 }
 
+/// The two lengths a rung-3 certificate is stated over: the lever arm
+/// the transversality margin is levered by, and the feature extent that
+/// sets the tube ladder's widest rung.
+///
+/// **One type rather than two parallel parameters**, for the reason
+/// that made the tolerance one type: at three of the four call sites
+/// they are the same quantity, so as a pair of positional arguments
+/// they are a second copy waiting to drift — the same shape S25 named
+/// for ε, one line below it. [`TubeScale::uniform`] is the common
+/// case; [`TubeScale::split`] is for the caller that genuinely has a
+/// curvature arm narrower than the feature it sits on.
+#[derive(Clone, Copy, Debug)]
+pub struct TubeScale<T> {
+    /// The lever arm the transversality margin is stated over.
+    pub(crate) arm: T,
+    /// The feature extent, in meters — the ladder's widest rung.
+    pub(crate) extent: f64,
+}
+
+impl<T: geom_core::Bounds> TubeScale<T> {
+    /// One length for both: the caller's named feature, used as the
+    /// transversality lever arm and as the ladder's widest rung.
+    #[must_use]
+    pub fn uniform(arm: T) -> Self {
+        Self {
+            arm,
+            extent: geom_core::Bounds::hi(arm),
+        }
+    }
+
+    /// A transversality lever arm distinct from the feature extent —
+    /// the ℝ³ analytic arm, where the folded curvature radius is
+    /// genuinely tighter than the domain's named extent.
+    #[must_use]
+    pub fn split(arm: T, extent: f64) -> Self {
+        Self { arm, extent }
+    }
+}
+
 /// A typed rung-3 refusal — D4 ¶3: actionable, closed, never silence.
 #[derive(Clone, Debug, PartialEq)]
 pub enum SsiError {
@@ -322,6 +361,18 @@ pub enum SsiError {
         /// The offending value, in meters.
         value: f64,
     },
+    /// A branch reached the certifying seam having been marched at a
+    /// tolerance that is not the run band's. **This is S25's divergence
+    /// caught at the one place both numbers are in scope**: the
+    /// certified doors derive the generator's tolerance from the band
+    /// and can only reach this by being edited, so it refuses rather
+    /// than certifying a carrier generated at some other ε.
+    MarchTolMismatch {
+        /// The tolerance the carrier was marched at, in meters.
+        marched: f64,
+        /// The run band's coincidence threshold, in meters.
+        band_zero: f64,
+    },
 }
 
 impl From<FitError> for SsiError {
@@ -437,7 +488,14 @@ impl core::fmt::Display for SsiError {
             Self::InvalidMarchTol { value } => write!(
                 f,
                 "ssi: the marcher's step tolerance {value:e} m is not a usable length \
-                 (finite and > 0); derive it from the run band with `MarchTol::of`"
+                 (finite and > 0); derive it from the run band with `MarchTol::from_band`"
+            ),
+            Self::MarchTolMismatch { marched, band_zero } => write!(
+                f,
+                "ssi: the carrier was marched at {marched:e} m but the run band's \
+                 tolerance is {band_zero:e} m — a certified branch may not be \
+                 generated at one tolerance and certified at another; build the \
+                 marcher's tolerance with `MarchTol::from_band`"
             ),
         }
     }
@@ -468,6 +526,12 @@ pub struct SsiBranch {
     pub pcurve_b: Option<NurbsCurve2<f64>>,
     /// The smallest transversality margin the march saw, in meters.
     pub min_transversality: f64,
+    /// The generator's step tolerance this carrier was marched at, in
+    /// meters — the receipt that makes the tie observable rather than
+    /// merely intended. Equal to the run band's coincidence threshold
+    /// on every certified door, enforced at the certifying seam
+    /// ([`SsiError::MarchTolMismatch`]).
+    pub march_tol: f64,
 }
 
 /// The result of a rung-3 intersection: the certified branches **and**
@@ -688,7 +752,7 @@ pub fn cylinder_sphere_ssi(
             [slab.z.lo(), slab.z.hi()],
         ],
         extent: domain.extent,
-        tol: MarchTol::of(band),
+        tol: MarchTol::from_band(band),
         max_steps: SSI_MAX_STEPS,
     };
     let mut branches: Vec<SsiBranch> = Vec::new();
@@ -709,7 +773,12 @@ pub fn cylinder_sphere_ssi(
         let probe = landed.map_or(*seed, |x| Point3::new(x[0], x[1], x[2]));
         if tubes
             .iter()
-            .any(|t| Box3::around(probe, ctx.tol.meters()).contained_in(*t))
+            // The band, not the marcher: this box decides whether two
+            // seeds name one component, and the tubes it gates feed the
+            // exhaustiveness accounting. It is a proof-relevant length,
+            // so it is stated where every other proof-relevant length
+            // in this door is stated.
+            .any(|t| Box3::around(probe, band.zero()).contained_in(*t))
         {
             continue;
         }
@@ -721,7 +790,7 @@ pub fn cylinder_sphere_ssi(
             Err(SsiError::SeedRefinementFailed { .. }) => continue,
             Err(e) => return Err(e),
         };
-        let branch = finish_r3(&sys, &trace, a, b, &domain, band)?;
+        let branch = finish_r3(&sys, &trace, a, b, &domain, ctx.tol, band)?;
         tubes.extend(branch_tubes(&branch));
         branches.push(branch);
     }
@@ -737,14 +806,35 @@ pub fn cylinder_sphere_ssi(
     })
 }
 
+/// **The certifying seam.** A carrier may not cross from the untrusted
+/// generator into the certificate unless the tolerance it was generated
+/// at is the run band's own. Returns the receipt on success.
+///
+/// This is the runtime counterpart of the signature rule: the doors
+/// derive their generator tolerance from the band and cannot reach this
+/// refusal, but a future edit to a door *can*, and that edit is exactly
+/// the divergence S25 is about. A door is maintained by someone, and a
+/// sentence in a doc comment does not stop them.
+fn seam_tol(tol: MarchTol, band: Band) -> Result<f64, SsiError> {
+    if tol != MarchTol::from_band(band) {
+        return Err(SsiError::MarchTolMismatch {
+            marched: tol.meters(),
+            band_zero: band.zero(),
+        });
+    }
+    Ok(tol.meters())
+}
+
 fn finish_r3(
     sys: &ImplicitPairR3<'_>,
     trace: &Trace<3>,
     a: &Surface<f64>,
     b: &Surface<f64>,
     domain: &SsiDomain,
+    tol: MarchTol,
     band: Band,
 ) -> Result<SsiBranch, SsiError> {
+    let march_tol = seam_tol(tol, band)?;
     let points = trace_points::<2, 3, _>(sys, trace);
     let (carrier, _, _) = fit_branch(&points, None)?;
     let arm = crate::implicit::curvature_lever_arm(a, points[0])
@@ -755,8 +845,7 @@ fn finish_r3(
         None,
         &SsiOperand::Analytic(a),
         &SsiOperand::Analytic(b),
-        arm,
-        domain.extent,
+        TubeScale::split(arm, domain.extent),
         band,
     )?;
     let params = carrier.domain();
@@ -770,6 +859,7 @@ fn finish_r3(
         pcurve_a: None,
         pcurve_b: None,
         min_transversality: trace.min_transversality,
+        march_tol,
     })
 }
 
@@ -851,7 +941,7 @@ pub fn plane_nurbs_ssi(
     let ctx = MarchContext::<4> {
         domain: [[pu.0, pu.1], [pv.0, pv.1], [ud.0, ud.1], [vd.0, vd.1]],
         extent: domain.extent,
-        tol: MarchTol::of(band),
+        tol: MarchTol::from_band(band),
         max_steps: SSI_MAX_STEPS,
     };
     let mut branches: Vec<SsiBranch> = Vec::new();
@@ -871,7 +961,7 @@ pub fn plane_nurbs_ssi(
             Err(SsiError::SeedRefinementFailed { .. }) => continue,
             Err(e) => return Err(e),
         };
-        let branch = finish_r4(&sys, &trace, plane, wall, &domain, band)?;
+        let branch = finish_r4(&sys, &trace, plane, wall, &domain, ctx.tol, band)?;
         if let Some(ref pc) = branch.pcurve_b {
             // The tube the CERTIFICATE earned, in chart units — the
             // same region limb 3 proved one-arc-ness over.
@@ -932,8 +1022,10 @@ fn finish_r4(
     plane: &Surface<f64>,
     wall: &NurbsSurface<f64>,
     domain: &SsiDomain,
+    tol: MarchTol,
     band: Band,
 ) -> Result<SsiBranch, SsiError> {
+    let march_tol = seam_tol(tol, band)?;
     let points = trace_points::<3, 4, _>(sys, trace);
     let chart_a: Vec<geom_core::Point2<f64>> = trace
         .states
@@ -951,8 +1043,7 @@ fn finish_r4(
         pb.as_ref(),
         &SsiOperand::Analytic(plane),
         &SsiOperand::Nurbs(wall),
-        domain.extent,
-        domain.extent,
+        TubeScale::uniform(domain.extent),
         band,
     )?;
     let params = carrier.domain();
@@ -966,6 +1057,7 @@ fn finish_r4(
         pcurve_a: pa,
         pcurve_b: pb,
         min_transversality: trace.min_transversality,
+        march_tol,
     })
 }
 
@@ -987,25 +1079,34 @@ fn finish_r4(
 /// the tensor composite bound that retired limb 2 (the fixture role
 /// the PR 7 refusal reserved for it).
 ///
-/// **The only door that takes the generator's tolerance separately.**
-/// `tol` is the marcher's step tolerance ([`MarchTol`]); every
+/// **The only door that names the generator's tolerance separately.**
+/// `march_tol` is the marcher's step tolerance in meters; every
 /// certifying door derives its own from `band` and has no such
-/// parameter. Naming it here is what lets the marcher be measured
-/// against itself at a tolerance the run is not banded at — the one
-/// legitimate reason the two numbers ever differ — without that
-/// freedom existing anywhere a certificate is produced.
+/// parameter. This door takes a bare `f64` and mints the private
+/// [`MarchTol`] itself, which is what keeps a decoupled tolerance
+/// unmintable anywhere else — including inside a certifying door, whose
+/// maintainer is the caller who would otherwise reach for it.
+///
+/// Naming it here is what lets the marcher be measured against itself
+/// at a tolerance the run is not banded at, which is the one legitimate
+/// reason the two numbers ever differ. A carrier so generated may still
+/// be handed to [`certify_rung3`]; it certifies at the `Band` like any
+/// other, so a decoupled march can only cost carrier quality, never
+/// buy a weaker certificate.
 ///
 /// # Errors
 ///
-/// Any [`SsiError`] the trace or the fit can produce.
+/// Any [`SsiError`] the trace or the fit can produce, plus
+/// [`SsiError::InvalidMarchTol`] when `march_tol` is not a length.
 pub fn trace_plane_nurbs_uncertified(
     plane: &Surface<f64>,
     wall: &NurbsSurface<f64>,
     seed_uv: (f64, f64),
     domain: SsiDomain,
-    tol: MarchTol,
+    march_tol: f64,
     band: Band,
 ) -> Result<TracedTriple, SsiError> {
+    let tol = MarchTol::decoupled(march_tol)?;
     let Surface::Plane {
         origin: p0,
         normal,
@@ -1076,16 +1177,22 @@ pub fn trace_plane_nurbs_uncertified(
 /// tube ladder's, in particular — are stated in `band.zero()`, which
 /// *is* the run tolerance, so the tolerance a branch is certified at
 /// cannot differ from the one its trileans decide against.
+///
+/// That identity is **contingent on `band` being a linear band**
+/// ([`Band::linear`]), whose `zero()` is the run's ε in meters, stored
+/// unmodified. An angular band ([`Band::angular_at`]) carries ε/r in
+/// radians, and this door would then floor the tube ladder in radians.
+/// Every caller passes a linear band today; the door is `pub`, so this
+/// is a stated contract, not a proof.
 pub fn certify_rung3<T: geom_core::Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
     pcurve_b: Option<&NurbsCurve2<T>>,
     a: &SsiOperand<'_, T>,
     b: &SsiOperand<'_, T>,
-    arm: T,
-    extent: f64,
+    scale: TubeScale<T>,
     band: Band,
 ) -> Result<SsiCertificate<T>, SsiError> {
-    certify::certify_branch(carrier, pcurve_b, a, b, arm, extent, band)
+    certify::certify_branch(carrier, pcurve_b, a, b, scale, band)
 }
 
 /// The idealized stepper's trace of an analytic pair from an explicit
@@ -1112,7 +1219,7 @@ pub fn idealized_trace_r3(
             [slab.z.lo(), slab.z.hi()],
         ],
         extent: domain.extent,
-        tol: MarchTol::of(band),
+        tol: MarchTol::from_band(band),
         max_steps: SSI_MAX_STEPS,
     };
     let trace = march_both::<2, 3, _>(

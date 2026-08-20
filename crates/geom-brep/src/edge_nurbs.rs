@@ -64,7 +64,7 @@ use geom_curves::{NurbsCurve2, NurbsCurve3};
 use geom_surfaces::{NurbsSurface, Surface};
 
 use crate::certify::CERT_SAMPLES;
-use crate::ssi::{SsiError, SsiLimb, SsiOperand, certify_rung3};
+use crate::ssi::{SsiError, SsiLimb, SsiOperand, TubeScale, certify_rung3};
 
 /// What the plane × NURBS lane proved, in meters unless noted.
 #[derive(Clone, Copy, Debug)]
@@ -338,8 +338,7 @@ fn lane<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         Some(&pcurve),
         &SsiOperand::Analytic(plane),
         &SsiOperand::Nurbs(&localized),
-        extent,
-        extent.hi(),
+        TubeScale::uniform(extent),
         band,
     )
     .map_err(refusal)?;
