@@ -160,10 +160,12 @@ gathered across M2's full pipeline.
 
   **What CI now covers, stated precisely** (D17, closed 2026-08-20).
   `k_report.rs` is both **type-checked and run** on every building
-  merge. The `k-lint` job type-checks every `probe`-gated test target in
-  the workspace — `scripts/probe-suite-census.sh` derives the owning
-  crates from the tree and the job `cargo check`s each `--features probe
-  --all-targets` — and `scripts/k_probe_sweep.sh` then *executes* this
+  merge. The `k-lint` job's *"type-check every probe-gated test target"*
+  step covers the whole workspace — `scripts/gates/probe-suite-census.sh`
+  derives the owning crates from the tree and the step `cargo check`s
+  each `--features probe --all-targets`; the gate greps for that step
+  name, so this paragraph cannot go quietly false — and
+  `scripts/k_probe_sweep.sh` then *executes* this
   harness at all three ε beside the Band 4 corpus and the tour scenes.
   The two are not interchangeable: a type-check cannot see a panic, and
   running one harness says nothing about the other thirteen suites.

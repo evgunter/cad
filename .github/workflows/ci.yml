@@ -303,6 +303,27 @@ jobs:
       # never opted in — that is the hole this closes.
       - name: test-aggregation discipline
         run: scripts/check-test-aggregation.sh
+      # The census half of the probe test surface. Its consumer — the
+      # `type-check every probe-gated test target` step in `k-lint` —
+      # `cargo check`s exactly the crates this prints, and this gate is
+      # what makes an empty or shrinking answer loud rather than silent.
+      # It rides here, not there, so the LOUD FAILURE IS OWNED BY A GATE
+      # rather than by the order of two steps in one job: it is
+      # roster-enforced like its siblings, its `--selftest` proves the
+      # guards fire, and the local half reaches it through the loop that
+      # runs this whole directory instead of a hand-written mirror row.
+      - name: probe-suite census + citation guard
+        run: |
+          scripts/gates/probe-suite-census.sh --selftest
+          scripts/gates/probe-suite-census.sh
+      # The run half's guards. `k_probe_sweep.sh`'s `run_dump` is the only
+      # thing between "the harness ran" and "the sweep recorded nothing
+      # and exited 0", and nothing else in the tree exercises it. No
+      # cargo: the function is extracted from the script under test and
+      # driven against a stub, so it costs milliseconds and cannot end up
+      # testing a fossil.
+      - name: k-probe sweep guard selftest (run_dump)
+        run: scripts/rundump-guard-selftest.sh
       # The `interval` feature must stay PURELY ADDITIVE. This is not a
       # style rule: the `test-interval` legs run only the tests that
       # feature ADDS (see that job's header), which is sound only while
@@ -1782,27 +1803,35 @@ jobs:
       # snapshot-goes-stale failure one level up.
       #
       # WHAT THAT COSTS, stated so a debugger is not surprised by it:
-      # COUPLING. A probe type-check failure in any of these crates now
-      # reds `k-lint`, which is otherwise the margin-distribution gate.
-      # If this job is red at one of the two steps below, the margins are
-      # not the subject — a probe-gated `tests/*.rs` stopped compiling,
-      # and nothing about the K thresholds has moved. The step names say
-      # which.
+      # COUPLING, and about 40 s a merge. A probe type-check failure now
+      # reds `k-lint`, which is otherwise the margin-distribution gate:
+      # if this job is red at the step below, the margins are not the
+      # subject — a probe-gated `tests/*.rs` stopped compiling, and
+      # nothing about the K thresholds has moved.
       #
-      # The selection is DERIVED, not listed: the census script scans the
-      # tree, and the loop checks exactly what it prints, so a crate that
-      # gains its first probe suite is covered with nothing to remember.
-      # A derived selection that matches nothing exits 0, which is the
-      # silence this pair of steps exists to remove — hence `--selftest`
-      # first, which proves the census refuses an empty answer, and hence
-      # the floor it enforces by name.
-      - name: probe-suite census (a selection that matches nothing is not a pass)
-        run: |
-          scripts/probe-suite-census.sh --selftest
-          scripts/probe-suite-census.sh
+      # The 40 s is the number to plan against, not the ~1 s a fully warm
+      # local tree shows. `rust-cache` does not cache workspace crates,
+      # only deps (see this file's cache header), so the operating point
+      # is a restored dep graph with every member recompiled: 37-41 s
+      # measured over two runs on a 4-vCPU agent container, against
+      # 43-61 s from an empty target dir. A RATIO, not a hosted number.
+      #
+      # The selection is DERIVED, not listed: the census gate (in the
+      # `discipline` job, which owns its guards and its self-test) scans
+      # the tree, and this loop checks exactly what it prints, so a crate
+      # that gains its first probe suite is covered with nothing to
+      # remember. THE SUBSTITUTION IS BOUND FIRST, deliberately: a
+      # command substitution inside a `for` list is not subject to
+      # `set -e`, so a census refusal there would print its error and
+      # leave this step green over zero crates — the silence one level
+      # up from the one the census exists to remove.
       - name: type-check every probe-gated test target
         run: |
-          for c in $(scripts/probe-suite-census.sh --crates); do
+          set -euo pipefail
+          crates=$(scripts/gates/probe-suite-census.sh --crates)
+          test -n "$crates"
+          echo "probe-gated crates to type-check: $(echo "$crates" | tr '\n' ' ')"
+          for c in $crates; do
             cargo check -p "$c" --features probe --all-targets
           done
       # Runs the M2-era harness (crates/sweep) beside the M4/M5/M7 one

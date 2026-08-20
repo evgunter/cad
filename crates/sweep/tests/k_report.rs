@@ -17,8 +17,10 @@
 //! file — it is `#![cfg(feature = "probe")]`.
 //!
 //! **CI both type-checks and runs this harness**, on every building
-//! merge: the `k-lint` job type-checks every probe-gated test target,
-//! and `scripts/k_probe_sweep.sh` executes exactly the invocation above
+//! merge. It is compiled by the `k-lint` job's step named
+//! *"type-check every probe-gated test target"* — a name the census gate
+//! greps for, so this sentence cannot go quietly false — and
+//! `scripts/k_probe_sweep.sh` executes exactly the invocation above
 //! at all three ε, dumping to `<outdir>/m2/`. That dump rides BESIDE the
 //! CSV k-lint gates, not inside it — the M2 shapes are not part of the
 //! distribution those thresholds were argued over. The command block

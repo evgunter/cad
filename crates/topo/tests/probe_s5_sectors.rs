@@ -22,10 +22,12 @@
 //! preserved — so the rows are NOT sorted.
 //!
 //! **TYPE-CHECKED by CI, but not run, and not a gate.** CI's `k-lint`
-//! job type-checks every `probe`-gated test target in the workspace
-//! (`scripts/probe-suite-census.sh` derives the crate set; the job
-//! `cargo check`s each one `--features probe --all-targets`), so this
-//! file can no longer rot into a build error unnoticed. Nothing
+//! job has a step named *"type-check every probe-gated test target"*
+//! (`scripts/gates/probe-suite-census.sh` derives the crate set; the
+//! step `cargo check`s each one `--features probe --all-targets`), so
+//! this file can no longer rot into a build error unnoticed. That step
+//! name is grepped for by the census gate, so this sentence cannot go
+//! quietly false. Nothing
 //! *executes* it: `cargo test -p topo --features probe` appears in no
 //! workflow, and the rows here are not asserted anywhere. So it stays a
 //! reproducible HAND-RUN artifact whose recorded stream can drift, and

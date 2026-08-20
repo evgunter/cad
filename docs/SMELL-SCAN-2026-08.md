@@ -893,8 +893,9 @@ branch on.
 *What that reproduction is and is not.* The regenerating probe,
 `crates/topo/tests/probe_s5_sectors.rs`, is **committed and type-checked
 but not run by CI**: it is `#![cfg(feature = "probe")]`, so since D17
-(#NNN) the `k-lint` job compiles it — `cargo check -p topo --features
-probe --all-targets` over a census derived from the tree — but nothing
+(#739) the `k-lint` job's *"type-check every probe-gated test target"*
+step compiles it — `cargo check -p topo --features probe --all-targets`
+over a census derived from the tree — but nothing
 in `.github/workflows/` *runs* `cargo test -p topo --features probe`.
 So it is a *reproducible hand-run* artifact, not a standing gate: it can
 no longer rot into a build error, but its recorded stream can still
@@ -7128,74 +7129,144 @@ probe-instantiated test-binary links instead of one, and eleven of the fourteen
 assert nothing about CI in the first place. So **both landed**: run the one
 suite whose failure mode is runtime, type-check the class.
 
-**(a), and why it is not a job of its own.** #706's `release-corruption` is
-separate because release artifacts share no fingerprint with any dev-profile
-job. The opposite holds here — `k-lint` is already the only job that passes
-`--features probe`, so the probe-instantiated graph is already in its cache,
-and its gate (`run_k_lint`, *"whenever anything builds"*) is already the right
-one: `probe` is a `Real` instantiation, so a change in **any** kernel crate can
-break a probe suite's type-check, and a new filter output keyed on a
-hand-written root set would have been the same snapshot-goes-stale failure one
-level up. Two steps were added to that job instead.
+**(a), and where it lives.** #706's `release-corruption` is a separate job
+because release artifacts share no fingerprint with any dev-profile job. The
+opposite holds here — `k-lint` is already the only job that passes `--features
+probe`, so the probe-instantiated graph is already in its cache, and its gate
+(`run_k_lint`, *"whenever anything builds"*) is already the right one: `probe`
+is a `Real` instantiation, so a change in **any** kernel crate can break a
+probe suite's type-check, and a new filter output keyed on a hand-written root
+set would have been the same snapshot-goes-stale failure one level up. So
+`k-lint` carries the `cargo check` loop and nothing else. **The guards live in
+`scripts/gates/probe-suite-census.sh`, run by the `discipline` job**, which is
+what makes the loud failure a gate's rather than a step order's: `gate-roster`
+enforces the wiring (deleting the workflow steps now reds it — verified), the
+`--selftest` proves the guards fire, and the local half reaches the gate
+through the loop that runs that whole directory instead of a hand-synced
+mirror row.
 
-**The selection is derived, not listed.** `scripts/probe-suite-census.sh`
-scans the tree for the owning crates and the job `cargo check`s exactly what it
-prints, so a crate that gains its first probe suite is covered with nothing to
-remember — the coverage follows the census instead of a literal that goes stale
-silently.
+**The selection is derived, not listed.** The gate scans the tree for the
+owning crates and the loop `cargo check`s exactly what it prints, so a crate
+that gains its first probe suite is covered with nothing to remember. The
+property worth testing is that one — adding a suite to a new crate grows the
+computed set with **no literal edited**. It is *not* that CI reds: under a
+derived design a new crate becoming covered and green is the correct
+behaviour.
+
+**The predicate is the cfg attribute, not a mention.** The first version
+matched the substring `feature = "probe"` anywhere in a file, which made the
+floor satisfiable by **prose** — a doc comment naming the feature counted as a
+suite, including doc comments this unit itself wrote. The census now matches
+the gate line (both spellings, because `topo/tests/review_m3_pr2.rs` gates a
+single test rather than a file), which also turns a file re-gated onto a
+misspelt feature into a **drop** that the per-crate floor catches.
 
 **The non-empty defence, and the proof that it reds.** A derived selection that
-matches nothing exits 0, exactly like #706's name filter. Three ways this one
-can go silently empty are refused by name, and all three are **proved** by
-`--selftest`, which CI runs immediately before the real pass: an absent
-`crates/*/tests` tree, a renamed feature (the census pattern stops matching),
-and a crate on the census **floor** losing its suites. Growth is free;
-shrinkage is a deliberate edit. The same trap is closed in
-`scripts/k_probe_sweep.sh`, whose harnesses are selected by `--ignored
-<module>::` — proved by running the script with a deliberately broken filter:
-cargo printed `test result: ok. 0 passed` and **exited 0**, and the new guard
-turned that into exit 1.
+matches nothing exits 0, exactly like #706's name filter. **Six** ways this can
+go silently empty are refused by name and **proved** by `--selftest`, which
+both halves of CI run before the real pass: an absent `crates/*/tests` tree;
+the gate spelling changed under every file; **one** file re-gated onto a
+misspelt feature (`topo` 5 → 4 reds); a gate line replaced by a prose mention
+(`sweep` 1 → 0 reds); a citing file dropping its citation; and the CI step
+renamed. Growth is free; shrinkage is a deliberate edit to `CENSUS_FLOOR`.
 
-**Cost, measured in an agent container (4 vCPU) — a ratio, not a hosted
-number.** (a) over all five crates: **61 s** cold from an empty target dir
-(editor-core 36 s of it), **~1 s** warm. (b): the marginal cold build of
-`sweep`'s probe test binary is **23 s** on top of the editor-core one `k-lint`
-already pays (68 s), and the harness itself runs in **0.05 s** per ε — the
-row's figure, reproduced, over 16 824 rows. The row's counterweight stands:
-the build is the bill.
+**The citation half, which #706 has and the first draft did not.** Four
+sentences in the tree describe what CI does to these suites. Nothing else
+grepped for the step that makes them true, so renaming it would have left all
+four quietly false — the exact shape that let their four predecessors rot. The
+gate now asserts that `topo/tests/probe_s5_sectors.rs`,
+`sweep/tests/k_report.rs`, `docs/K-REPORT.md` and this document each name the
+step `type-check every probe-gated test target`, and that `ci.yml` still has a
+step by that name.
+
+**The run half's guard failed open, and now has its own suite.**
+`k_probe_sweep.sh`'s `run_dump` checked `[ "$(wc -l < "$out")" -lt 2 ]`; when
+`$out` does not exist the substitution is empty, `[ "" -lt 2 ]` errors, and an
+error inside an `if` condition is **exempt from `set -e`** — so the guard took
+the false branch and passed in exactly the case its own message names. On the
+CI path nothing downstream reads the M2 dump, so M2 recording could have
+stopped entirely with `k-lint` green: this unit's own defect class, inside the
+guard built to close it. Fixed, and pinned by
+`scripts/rundump-guard-selftest.sh`, which extracts `run_dump` from the script
+under test — so it cannot test a fossil — and drives it against a stub `cargo`:
+four cases, milliseconds, no build, **red on the unfixed tree and green under
+the fix**. The `--ignored <module>::` selection guard is proved the same way,
+and by running the real script with a broken filter: cargo printed `test
+result: ok. 0 passed` and **exited 0**, and the guard turned that into exit 1.
+
+**Cost, measured on a 4-vCPU agent container — a ratio, not a hosted number.**
+(a) over all five crates: **43–61 s** from an empty target dir (n=3), **37–41 s**
+with workspace members cleaned and deps kept (n=2), **≤1 s** fully warm. The
+middle figure is the one to plan against, and quoting the third instead was the
+first draft's error: `rust-cache` does not cache workspace crates, only deps
+(`ci.yml`'s own cache header says so), so **~40 s lands on every building
+merge**. (b): the marginal cold build of `sweep`'s probe test binary is **23 s**
+on top of the editor-core one `k-lint` already pays (68 s), and the harness
+runs in **0.05 s** per ε — the row's figure, reproduced, over 16 824 rows. The
+row's counterweight stands: the build is the bill. **The coupling is stated in
+`ci.yml` beside the step**: a probe type-check failure now reds the
+margin-distribution gate, so a red `k-lint` has a second thing to rule out.
 
 **The M2 dump rides beside the linted CSV, not inside it** — `<outdir>/m2/`.
 `tools/k-lint` gates a distribution whose thresholds were argued over the Band
 4 corpus and the tour scenes; folding ten M2 shapes into it would move the
 gate's subject matter, which is a K conversation and not a coverage one.
 
-**The sweep over rotted premises, and what it could not match.** Pattern:
-`not type-checked|no CI lane|nothing in .github|not run by CI|hand-run|bit-rot|
-only check it has|no workflow|never compiled` over the whole tree, plus the
-sixteen census files read individually. Four sentences were falsified and
-rewritten — `topo/tests/probe_s5_sectors.rs`, `sweep/tests/k_report.rs`,
-`docs/K-REPORT.md`, and **S5's** *"what that reproduction is and is not"*
-paragraph, which the row did not name. That last one also turned out to be
-**wrong when written**: it listed `topo/tests/probe_f34_review.rs` as an
-uncompiled probe suite, but that file carries no `cfg(feature = "probe")` gate
-at all and has always been compiled and run by the default rows — the census is
-what surfaced it. **Blind spots.** (i) The census pattern `feature = "probe"`
-matches the file-level `#![cfg(...)]` and the per-item `#[cfg(...)]` alike and
-**cannot distinguish them**, so a suite whose header gate silently became
-per-item — or whose feature name was misspelled into a second, always-off
-feature — compiles to nothing and passes; the census would still count the
-file. (ii) The sweep was over English prose; a premise expressed only as a
-disabled test, a skipped assertion, or a name would not match. (iii) Six of the
-census files are named `*probe*` but say nothing about CI, so an absence of
-hits there is not evidence of an absence of premises.
+**The sweep over rotted premises, what it could not match, and the premise it
+missed.** Pattern: `not type-checked|no CI lane|nothing in .github|not run by
+CI|hand-run|bit-rot|only check it has|no workflow|never compiled` over the
+whole tree, plus the sixteen census files read individually. Four sentences
+were falsified and rewritten — `topo/tests/probe_s5_sectors.rs`,
+`sweep/tests/k_report.rs`, `docs/K-REPORT.md`, and **S5's** *"what that
+reproduction is and is not"* paragraph, which the row did not name. That last
+one also turned out to be **wrong when written**: it listed
+`topo/tests/probe_f34_review.rs` as an uncompiled probe suite, but that file
+carries no `cfg` gate at all and has always been compiled and run by the
+default rows — the census is what surfaced it (**D23**).
+
+**A fifth statement of the premise was missed entirely, and it is another
+programme's.** **Issue #601** — *"CI never compiles whole-file feature-gated
+test lanes (probe) — they rot silently"* — asks for exactly this mechanism, and
+its premise is asserted live at `docs/ASM-LOG.md:370`, `docs/LIB-LOG.md:879`,
+`docs/M9-LOG.md:255`, and as a **§0 pre-PR hand-run rule** in
+`docs/LIB-RTABLE-SPEC.md:30` (*"before the PR, slot-wrapped `cargo check
+--tests --features probe -p profile`"* — this PR's step, run by hand).
+`docs/LIB-PYPU-SPEC.md:27` cites #601 too but is **not** discharged by this
+change and is reported as such: its subject is `pncad-py`'s `python` feature
+gating a whole crate, not a `cfg` gate on a test file, so nothing in this
+census reaches it. The sweep could not
+match it because LIB spells the claim *"CI compiles no whole-file feature-gated
+test lane"* — no shared phrase with any of this row's five wordings. Verified
+here: the only feature strings gating anything under `crates/*/tests/` are
+`probe` (16 files by the census's gate-line predicate), `interval` (89 files,
+compiled by `build-interval`'s `cargo nextest archive --features interval` and
+`lint-interval`'s `clippy --all-targets --features interval`) and `budget` (2
+files, compiled by `k-lint`'s `clippy -p mesh --all-targets --features
+budget`). So with `probe` covered, no feature-gated test lane is uncompiled and
+#601's ask is discharged mechanically for the test-lane class it names. **It is
+not ours to close**: `ASM-LOG.md:370` says *"#601 … LIB owns the guard"*, so
+the evidence is posted as a comment on #601, RTABLE's §0 probe rule is flagged
+as apparently dischargeable and PYPU's as untouched, and the call is left to
+LIB. No LIB, ASM or M9 document is edited by this PR.
+
+**Blind spots that remain.** (i) The census predicate is now the cfg attribute
+rather than a mention, which closed the prose false-positive and the
+misspelt-feature drop for files already on the floor — what it cannot see is a
+**new** file authored with a misspelt or compound gate, which is never counted
+and never covered (**D22**). (ii) The sweep was over English prose; a premise
+expressed only as a disabled test, a skipped assertion, or a name would not
+match — #601 is the live instance, matched by no wording of this class in the
+tree. (iii) Six of the census files are named `*probe*` but say nothing about
+CI, so an absence of hits there is not evidence of an absence of premises.
 
 **Two residues, placed as rows rather than left in the PR body** (§D's third
-ordering rule). **D22** is a hole in the mechanism this unit built: a
-`#![cfg(feature = "…")]` typo compiles a suite to nothing, `--all-targets`
-stays green, and the census still counts the file — D17 does not close it, and
-the row carries the two fix shapes. **D23** is the class behind the wrong-when-
-written premise above: a claim load-bearing on a filename is invisible to every
-sweep pattern this project uses, because those are keyed on names too.
+ordering rule). **D22** is what the gate-line predicate still cannot see: a new
+suite whose gate is misspelt or compound is absent from the census, so the
+per-crate floor has nothing to miss and `--all-targets` compiles it to nothing.
+**D23** is the class behind the wrong-when-written premise above: enumerations
+produced by reading names rather than contents — of which this unit produced a
+second instance in its own blind spot (iii).
+
 
 **What this does NOT buy.** Thirteen of the fourteen suites are type-checked
 and still not run. They remain reproducible hand-run artifacts whose recorded
@@ -7210,8 +7281,8 @@ they are uncompiled.
 | **D18** | **Two callers hand `link_half_edges` a `prev` nothing proves, and they are the last thing standing between W2c and done.** Both read `prev` straight out of the arena and splice through it, and in both cases the *symmetric* `next` **is** proven live in the same plan phase: `split.rs:253` passes `prev(hm)` while `:155-160` checks `next(hp)`; `euler_kill.rs:830` passes `a = prev(he)` while `b = next(he)` is proven by the cycle walk — **`loop_walk` steps `next`** (`body.rs:796-800`), so the walk proves one and not the other. `kef` is the outlier among the operators: `mev` (`euler.rs:1437-1443`), `mef` (`euler.rs:1701-1707`), `kev` (`euler_kill.rs:605-613`) and `mekr_cycles` (`euler_ring.rs:1032-1037`) each check their own `prev`s explicitly and say so. The fix is **one `contains_key` per site**, symmetric with the check each plan phase already has — `kev`'s four-link loop is the shape. **Why the row is worth doing rather than a tidy-up**: `link_half_edges` is the site S12 led with and the site the D2 addendum names, and #720 left its two discards unconverted for exactly this reason — so **D18 unblocks the last two sites of W2c**, after which the helper converts in one line. **Both** call sites are required: fixing only `split.rs` leaves `kef`'s `a` unproven and the helper still unconvertible. The distinction a future reader will not re-derive: the helper's old qualifier was *"cannot fail on **the operator paths**"*, and one of the two gaps is **inside an operator** — the qualifier was not merely narrow, it was wrong. **How it was found**: #720's own sibling sweep obligation, discharged late — the unit established that a `prev` is not proven by a `next`-walk and did not immediately run that read over the operators; its review did. | raised by D16 (#720) | `topo/src/split.rs`, `topo/src/euler_kill.rs`, then `topo/src/euler.rs`'s `link_half_edges` | **ADVERSARIAL** — it adds preconditions to a non-operator mutator and to a kill operator on the delicate-site path, then converts a discard behind them; getting any part wrong re-opens the hole #720 proved is real, and this time as a panic. | nothing (#720 leaves both call sites' code untouched, correcting only the false comments on them) |
 | **D19** | **The K roster's inventory method has a hole, and the roster is complete today by luck of era.** `K-REPORT.md:341` states the method as `grep -r 'decide("'` plus the census helpers plus — since #712 — the row-name TABLES, listing exactly one (`topo::ray_parity::ParityRows`). Two more name carriers already ship and are listed nowhere: `sweep/src/swept.rs:216`'s `CosurfaceNames` (a second table) and `topo/src/sector_shape.rs:169/172/176`'s three private `const &str`s, which are invisible to **both** halves of the method — not in the `decide("` grep, and their names postdate the M2 CSV column it is diffed against. The obligation is stated over *types*; the hole is over **anything not reachable as a bare literal at the call site**, of which a sweep at this head counts 37 across 24 files: 25 of them (in 20 files) are a bare `name` parameter — the thin per-crate wrappers, whose callers may still pass a literal one hop away — and the rest are carried by a const or a struct field, which nothing recovers. Cost the definition before counting. Restate the rule over that criterion, list what it catches, and say whether the enumeration is meant to be maintained by hand or by a test. | #719 (D11), which inherited the blind spot and verified the two unlisted carriers | `docs/K-REPORT.md`, and whatever the enforcement shape names | style | nothing |
 | **D20** | **D5's +46% on the `seqgen` lane is real, and after #722 it is unattributed.** #713 measured `split_edge`'s entry into the catalog at +0.9 s median (1.91 → 2.78 s) and charged it to the generator's eager candidate enumeration, which #722 placed as D14 and then **excluded by measurement**: `choose_op` is 2.4–2.7% of the lane on two independently built deterministic replays, so the whole of it cannot hold a 46% regression, and making it lazy moved no suite number. **What is left is the row.** The named candidates, in the order #722's measurement points at them: what a split *does* when applied (`EdgeCurve::certify` on both children), its inverse in the roundtrip arm, the isomorphism oracle's deep compare over the bodies splits make bigger, and the second-order cost of every later step running against a larger body. **Start by attributing, not by fixing** — the instrument is a deterministic replay of `run_properties` over a fixed stream set (S15 records its shape, its box and its spread), and the first deliverable is a per-phase attribution, which may find the cost is inherent to what the lane now covers rather than a defect. Two eager-enumeration instances have now been measured out of the frame (`choose_op` at 2.7% of the lane, `teardown` at 1.2% with the shape worth ~1% of that), so **the enumeration class is closed as a candidate**: do not re-open it without a number. `memories/test-suite-cost.md`'s rule still applies to whatever it finds. | S15 (`seqgen` half), via D14's refutation in **#722** | `topo/src/seqgen.rs` | style, and it **closes on an attribution**: a number that says where the 46% lives, or a written finding that it is inherent — not a shape | nothing |
-| **D22** | **A `#![cfg(feature = "…")]` typo makes a whole test suite vanish, and every CI mechanism — including D17's — agrees the tree is clean.** This is **D17's own residue, and D17 does not close it**. #739 type-checks every `probe`-gated test target by deriving the owning crates from `crates/*/tests/**/*.rs` matching `feature = "probe"`, then `cargo check -p <crate> --features probe --all-targets`. But `--all-targets` compiles a `#![cfg(feature = "probe")]` file to **nothing** when the predicate is false, and nothing distinguishes that from a clean compile: misspell the feature (`"probe2"`, `"prboe"`) and the suite is silently excluded, `cargo check` is green, and **the census still counts the file** — its pattern matches the misspelt line just as happily. **Both gate spellings are live today**, which is why the census pattern cannot simply require the file-level form: `crates/topo/tests/review_m3_pr2.rs:342` carries a per-item `#[cfg(feature = "probe")]` inside an otherwise ungated suite, while the other fifteen census files carry the file-level `#![cfg(...)]`. So the census must accept both, and accepting both is exactly what makes it unable to tell a gate from a typo. **Fix shapes, in increasing cost:** (i) check each census file's gate spelling against the feature names its crate's `Cargo.toml` actually declares — pure grep, and it catches the typo class outright; (ii) `cargo test -p <crate> --features probe --test all -- --list` per crate and assert the probe-suite modules appear, which catches the typo AND a suite silently dropping out of `tests/all.rs`, at the cost of a link per crate (#739 measured sweep's at 23 s marginal, and it is four crates, not one). (i) is almost certainly the right trade; the row closes on a decision, not necessarily on (ii). **Do not treat this as hypothetical because no instance exists today**: the census was re-derived at `8a2d2305` and all sixteen spellings are correct. The row exists because the mechanism that would report an instance is the one with the hole. | D17 (#739), disclosed by the unit that built the mechanism | `scripts/probe-suite-census.sh`, and `.github/workflows/ci.yml` if the fix needs a step | style | nothing |
-| **D23** | **Two committed claims were load-bearing on a FILE'S NAME rather than its contents, and both were wrong when written — not rotted.** `crates/topo/tests/probe_f34_review.rs` was listed as an uncompiled, never-run `probe` suite in **two** places — §S5's *"what that reproduction is and is not"* paragraph and `crates/topo/tests/probe_s5_sectors.rs`'s header, which named it alongside `probe_census.rs` as *"in exactly the same position"*. It is neither. Verified at `8a2d2305`: the file contains **zero** occurrences of `cfg`, it is `#[path]`-aggregated at `crates/topo/tests/all.rs:171`, and `cargo test -p topo --test all -- --list` **with no features** lists two rows under `probe_f34_review::`. It has always been compiled and run by the default rows. The only thing it shares with the real probe suites is the word `probe` in its filename, which is what the claim was actually keyed on. #739 corrected both sites; **the class is the row.** **Why this is sharper than a rotted doc.** A rotted claim was true once and a `git log` explains it. This one was never true, so nothing in the history explains it — and it survived four rediscoveries of the surrounding class (§S5, `probe_s5_sectors.rs`, D15, D17) because every one of them read the same name and inferred the same contents. **Why no sweep this project runs would find the next one.** Every sweep pattern in the tree is itself keyed on names — `rg` over filenames, module prefixes, `feature = "…"` literals — so a claim whose only evidence is a name is invisible to exactly the instrument that would check it. The verification has to be a *behavioural* one: compile it, list it, run it. **Where to look first**, from D17's census: six files carry `probe` in their name and say nothing about CI, so their names have never been checked against their contents. Beyond that the question is general — *which claims in this tree rest on a file, module, or test being named as though it were something?* Scope the row by picking one criterion (asserted-in-prose claims naming a specific file) and reporting the count before proposing a mechanism. | D17 (#739), which found the first instance while correcting the second | `docs/SMELL-SCAN-2026-08.md` §S5 and `crates/topo/tests/probe_s5_sectors.rs` are already corrected; the row's file set is whatever the sweep finds | style, and it **closes on a count plus a verdict**, not necessarily on a mechanism | nothing |
+| **D22** | **The probe census can only floor what it has already seen, so a NEW suite authored with a misspelt or compound `cfg` gate is covered by nothing and reported by nothing.** This is **D17's residue, and #739 does not close it** — it narrows it, which is why the row is written over the predicate rather than over the two spellings. #739's census matches the gate ATTRIBUTE (`^\s*#!?\[cfg(feature = "probe")\]$`, file-level or per-item) and enforces a per-crate suite-count floor. That closed two holes outright: a prose MENTION of the feature no longer counts as a suite (the first predicate matched the substring anywhere, so a doc comment satisfied the floor — including doc comments #739 itself wrote), and an EXISTING file re-gated onto `"prboe"` now drops out and reds the floor. **What is left is the file the census never saw.** Author `crates/topo/tests/new_probe_thing.rs` with `#![cfg(feature = "prboe")]`, or with a legitimate compound `#![cfg(all(feature = "probe", not(miri)))]`: neither matches the predicate, so the file is not in the census, `topo`'s floor of 5 is still met, `cargo check --all-targets` compiles it to nothing, and every mechanism reports green. The compound case is the sharper one, because it is not a typo — the predicate is literal, and **there is no vocabulary in it for a gate that is correct but not verbatim**, so the honest state today is that a compound gate is unsupported and silently uncovered. **The fix shape is behavioural, not textual**: `cargo test -p <crate> --features probe --test all -- --list` per crate, asserting every `tests/*.rs` basename appears as a module prefix. That covers new files, typos and compound gates in one predicate, because it asks the compiler what it built instead of asking a regex what it reads. The cost is the reason #739 did not do it: a test-binary link per crate rather than a `cargo check` (sweep's was measured at 23 s marginal), across four crates. The row closes on the decision — behavioural check, or a documented rule that gates must be verbatim plus a lint for it. **Do not dismiss it because no instance exists**: the census was re-derived at `8a2d2305` and all sixteen gates are correct. The row exists because the mechanism that would report an instance is the one with the hole. | D17 (#739), disclosed and narrowed by the unit that built the mechanism | `scripts/gates/probe-suite-census.sh`, and `.github/workflows/ci.yml` if the fix needs a step | style | nothing |
+| **D23** | **Enumerations produced by reading NAMES rather than contents — and the tree has two, both minted by lanes that were being careful.** The instance: `crates/topo/tests/probe_f34_review.rs` was enumerated as an uncompiled, never-run `probe` suite in **two** places — §S5's *"what that reproduction is and is not"* paragraph and `crates/topo/tests/probe_s5_sectors.rs`'s header, which named it alongside `probe_census.rs` as *"in exactly the same position"*. It is neither. Verified at `8a2d2305` three ways: the file contains **zero** occurrences of `cfg`; it is `#[path]`-aggregated at `crates/topo/tests/all.rs:171`; and `cargo test -p topo --test all -- --list` **with no features** lists two rows under `probe_f34_review::`. It has always been compiled and run by the default rows. The only thing it shares with the real probe suites is the word `probe` in its filename, which is what the enumeration was actually keyed on. #739 corrected both sites; **the class is the row.** **The second instance is #739's own**, which is what makes this sweepable rather than an anecdote: that PR's blind spot (iii) enumerates *"six census files named `*probe*` that say nothing about CI"* — a set produced by reading filenames. And the same coin's other face is the defect #739's review found in its first predicate: a census keyed on a textual mention counted **prose** as a suite. Name-derived enumeration over-counts and under-counts by the same mechanism. **Why this is sharper than a rotted claim.** A rotted claim was true once and `git log` explains it. These were never true, so nothing in the history explains them — and the `probe_f34_review` one survived four rediscoveries of the surrounding class (§S5, `probe_s5_sectors.rs`, D15, D17) because every one of them read the same name and inferred the same contents. **Why no sweep this project runs would find the next one.** Every sweep pattern in the tree is itself keyed on names — `rg` over filenames, module prefixes, `feature = "…"` literals — so an enumeration whose only evidence is a name is invisible to exactly the instrument that would check it. The verification has to be behavioural: compile it, `--list` it, run it. **Scope it before proposing a mechanism**: enumerate the claims in `docs/` and in suite headers that name a *set* of files, modules or tests, re-derive each set behaviourally, and report the count of disagreements. `probe_census.rs`, `probe_f34_review.rs` and the four other `*probe*`-named files are the first six to check. The row closes on that count plus a verdict, not necessarily on a guard. | D17 (#739), which found the first instance while correcting the second and then produced a third in its own blind spot | `docs/SMELL-SCAN-2026-08.md` §S5 and `crates/topo/tests/probe_s5_sectors.rs` are already corrected; the row's file set is whatever the re-derivation finds | style, and it **closes on a count plus a verdict** | nothing |
 
 **No row number is reserved; D23 is the highest one placed.** Placements:
 D15 by #710, D16 by #706, **D17** by #718, **D18** by #720, **D19** by #719,
@@ -7425,10 +7496,11 @@ D13's gate — D5 as #713, D6 as #706, D9 as #712, D10 and D12 as #717, D15 as
 D17 as #739.
 **Nothing is in flight.**
 **D18, D19, D20, D22 and D23 are edge-free and unstarted.** D22 and D23 are
-#739's own residues — D22 is a hole in the census that PR added (a
-`#![cfg(feature = "…")]` typo compiles a suite to nothing and passes), D23 the
-class behind a claim that was load-bearing on a filename. Neither is gated on
-anything and neither gates anything. D18's file set is
+#739's own residues — D22 is what that PR's census predicate still cannot see
+(a NEW suite whose gate is misspelt or compound is never counted, so the floor
+has nothing to miss), D23 the class behind two enumerations built by reading
+names rather than contents. Neither is gated on anything and neither gates
+anything. D18's file set is
 `topo/src/{split,euler_kill,euler}.rs`, which #720 leaves at a state where
 only the two `prev` checks and the conversion behind them remain; D19's is
 `docs/K-REPORT.md` plus whatever the enforcement shape names. **D17 landed as

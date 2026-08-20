@@ -67,7 +67,11 @@ run_dump() {
     echo "ERROR: \`$filter\` matched no test in $pkg — the sweep recorded nothing and would have exited 0. Check the module name and its \`#[ignore]\`." >&2
     exit 1
   fi
-  if [ "$(wc -l < "$out")" -lt 2 ]; then
+  # `wc -l < missing` prints NOTHING, and `[ "" -lt 2 ]` errors — which
+  # inside an `if` condition is exempt from `set -e`, so the guard would
+  # take the false branch and pass in exactly the case it names. Default
+  # the count instead.
+  if [ "$(wc -l < "$out" 2>/dev/null || echo 0)" -lt 2 ]; then
     echo "ERROR: $label wrote no sample rows to $out — the harness ran but recorded no margins." >&2
     exit 1
   fi
