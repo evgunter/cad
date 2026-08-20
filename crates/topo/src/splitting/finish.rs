@@ -616,9 +616,10 @@ pub(crate) fn carve<T: Decide>(
     }
 
     // ---- Removal (crate-internal arena surgery; deterministic). ----
-    if let Some(solid_data) = body.solids.get_mut(solid) {
-        solid_data.shells.retain(|s| keep.contains(s));
-    }
+    let Some(solid_data) = body.solids.get_mut(solid) else {
+        unreachable!("carve: `solid` resolved above and nothing has been removed yet")
+    };
+    solid_data.shells.retain(|s| keep.contains(s));
     for &shell in &drop {
         body.shells.remove(shell);
         body.shell_provenance.remove(shell);
