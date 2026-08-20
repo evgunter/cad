@@ -175,6 +175,17 @@ fn a_span_from_a_longer_vector_indexes_past_a_shorter_curve() {
     )
     .expect("valid curve");
 
+    // The O(1) guard #475 never names would have refused this pairing
+    // here, from code that already exists, with no signature change:
+    // `Span` is `Eq`, so re-asking the curve's own vector for the span
+    // at this index either returns the identical value or does not.
+    assert_ne!(
+        curve.knots().span(span.index()),
+        Some(span),
+        "`kv.span(span.index()) == Some(span)` did not separate these two, \
+         so the cheap guard this row argues for is not the guard it needs"
+    );
+
     // Window base is 1, basis row is `degree + 1 = 3` long, so this
     // reads control[1], control[2], control[3] — and the curve has 3.
     let _ = curve.eval_in_span(span, 0.75);
@@ -209,5 +220,41 @@ fn swapped_span_arguments_build_a_different_window_without_refusing() {
         (right.span_u().index(), right.span_v().index()),
         (wrong.span_u().index(), wrong.span_v().index()),
         "the swapped call built the same window, so this row is no longer evidence"
+    );
+}
+
+/// The cheap O(1) guard's own blind spot, executed rather than
+/// conceded: when the two directions' knot vectors are structurally
+/// identical — the square Bézier patch this tree builds at 47 call
+/// sites via `KnotVector::unit_segment(1)` — a swapped pair passes
+/// `kv.span(span.index()) == Some(span)` in both directions and the
+/// wrong window is still built. The guard closes the panic (which is
+/// what D9 is about) and does not close wrong-rather-than-refused.
+#[test]
+fn the_cheap_guard_cannot_separate_a_swap_between_identical_directions() {
+    use geom::NurbsSurface;
+
+    let square = || KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).expect("valid");
+    let (ku, kv) = (square(), square());
+    let (nu, nv) = (ku.control_count(), kv.control_count());
+    #[allow(clippy::cast_precision_loss)]
+    let control: Vec<Point3<f64>> = (0..nu * nv)
+        .map(|i| Point3::new(i as f64, (i % 5) as f64, (i % 3) as f64))
+        .collect();
+    let surface = NurbsSurface::<f64>::new(ku, kv, control, vec![1.0; nu * nv]).expect("valid");
+
+    let su = surface.knots_u().span(2).expect("valid u span");
+    let sv = surface.knots_v().span(3).expect("valid v span");
+
+    // Both directions accept both spans: the guard has nothing to say.
+    assert_eq!(surface.knots_u().span(sv.index()), Some(sv));
+    assert_eq!(surface.knots_v().span(su.index()), Some(su));
+
+    // And the swap still builds a different window.
+    let right = surface.window_of(su, sv);
+    let wrong = surface.window_of(sv, su);
+    assert_ne!(
+        (right.span_u().index(), right.span_v().index()),
+        (wrong.span_u().index(), wrong.span_v().index())
     );
 }
