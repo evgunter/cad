@@ -24,9 +24,11 @@
 //! What lives here besides the entry point is the part of the
 //! derivation that is about a SOURCE body rather than about the
 //! mutation: a face's boundary cycle, a vertex's face orbit, a
-//! planar face's outward normal, and the two per-corner derivations
-//! ([`octant_chart`], [`corner_convexity`]) the surgery reads at each
-//! trivalent corner.
+//! planar face's outward normal, and the per-corner chart derivation
+//! ([`octant_chart`]) the surgery reads at each trivalent corner.
+//! The corner's ORIENTATION bit is not derived here at all: it is
+//! whatever its admitted links carry, which the surgery reads off
+//! `Corner`'s own field.
 //!
 //! # Naming
 //!
