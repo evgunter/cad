@@ -15,34 +15,53 @@ scripts/tess_budget_sweep.sh /tmp/b.csv
 cd tools/tess-lint && cargo run -- /tmp/b.csv --top 20
 ```
 
-Three pieces: `mesh::budget` (per-face meter behind the crate's
-`budget` feature — gated at the MODULE boundary with a no-op stub, so
-`armed()` folds to `const false` and the tessellation lane carries no
-`#[cfg]`; `probe_stats` was gated to the same shape by #558, behind
-its OWN `probe-stats` feature — deliberately not this one, because
-`scripts/tess_budget_sweep.sh` runs the tour at `--features budget`
-and a shared feature would put the falsifier's 12-sample-per-edge
-resampling and its `assert!` into that release artifact),
-`mesh::nurbs_cert::nurbs_cell_bounds` (the certificate assembly
-reported per knot-span cell — a SECOND path, so the shipped bound stays
-bit-identical), and `tools/tess-lint` (report + regression gate,
-`k-lint`'s posture). **When you gate telemetry behind a feature, budget
-for its CI row** — the default rows then only exercise the inert half,
-and that row has teeth only if it is unconditional. CI runs them in the
-`k-lint` job, plus a
-`--features budget` row for the armed half (and, beside it, a
-`--features probe-stats` row for the falsifier's); the committed
-baseline is `docs/tess-budget-data/`.
+Four pieces. `mesh::budget` is the KERNEL half and only that: the
+per-face measurements nothing downstream can recover — trim box, the
+cells the schedule built, the certified bounds the sizing read, the
+worst certificate, the sampled deviation — handed over once per NURBS
+face, behind the crate's `budget` feature, gated at the MODULE boundary
+so `armed()` folds to `const false` and the tessellation lane carries
+no `#[cfg]`. **The kernel derives nothing and asserts nothing**: the
+deviation samples are reduced to `worst_ratio` (the largest
+`|S − Π|/(cert + ε)` any sample on any triangle of the face reached),
+which is the per-triangle falsification as one number, and the SUITE
+asserts on it — so no build of `mesh` can turn `tessellate`'s
+typed-error contract into a panic. `tools/tess-meter` is the consumer
+half: CSV schema, counterfactual schedules, split optimizer, the row
+for every face (a planar cap's chart and triangle count are in the body
+and the mesh). `mesh::nurbs_cert::nurbs_cell_bounds` reports the
+certificate assembly per knot-span cell — a SECOND path, so the shipped
+bound stays bit-identical. `tools/tess-lint` is the report + regression
+gate, `k-lint`'s posture.
+
+**When you gate telemetry behind a feature, budget for its CI row** —
+the default rows then only exercise the inert half, and that row has
+teeth only if it is unconditional. CI runs them in the `k-lint` job:
+`mesh budget meter + certificate falsifier (feature = budget)` for the
+armed half AND the falsifier, and `tess-meter tool fmt + clippy +
+tests` for the derivations. The committed baseline is
+`docs/tess-budget-data/`.
+
+**The placement rule the instrument was rebuilt on (#709, SMELL-SCAN
+S30), because a gating rule does not imply it**: a gating rule answers
+"does it run in shipped builds?" and is easy to certify green; it says
+nothing about how much instrument the kernel should CONTAIN. The kernel
+keeps only what nothing downstream can recover from `(body, mesh,
+measurements)`; schema, arithmetic and prose live with the consumer.
+`mesh::budget` was 898 lines and `probe_stats` another 162, with eleven
+call sites in the dispatch and emit loops, and every review had asked
+only whether it was gated.
 
 ## TESS-SPAN landed the span half (2026-08-17, PR #594)
 
 The shipped NURBS schedule is now a **per-v-band tensor** from
-`NurbsCellGrid::band_schedule` (one derivation, consumed by the lane
-AND the meter's prediction — the `agree` column verifies the lane's
-realisation): per-band `(nuc, nvc)` through the UNCHANGED `grid_steps`
-point selection; bands subdividing `u` at realized aspect >
-`SAFE_ASPECT = 5` plus their ±1 neighbours snap `nuc` to the
-whole-patch count. THE LESSON PAID FOR SIX TIMES (each variant's
+`NurbsCellGrid::band_schedule` (one derivation, consumed by the lane —
+and by nothing else: the `agree` column claimed to verify the lane's
+realisation of it and never did, because both its numbers were the same
+`band_schedule` sum, so it is identically 1.0 — #709): per-band
+`(nuc, nvc)` through the UNCHANGED `grid_steps` point selection; bands
+subdividing `u` at realized aspect > `SAFE_ASPECT = 5` plus their ±1
+neighbours snap `nuc` to the whole-patch count. THE LESSON PAID FOR SIX TIMES (each variant's
 failing face + certificate in asm/tess-span's commit messages): an
 anisotropic lattice strip admits a Delaunay-legal sliver of cert
 ~`(aspect²+1)/8·δ_s` beside ANY off-lattice point (trim chords, band
@@ -54,8 +73,8 @@ load-bearing; the chord pass keeps whole-patch steps (D-2 safe arm,
 now deliberate). Results: leaf_a 3.35x fewer triangles, tour NURBS
 cells 390,100 → 158,444 (held 2.46x of the measured 2.5x span share),
 NURBS share of the mesh 68% → 33%, worst cert 0.60·δ. Meter columns
-re-derived (`grid_cells`/`patch_cells` counterfactual/`span_cells`
-prediction; report prints held/agree/split/total); baseline re-cut.
+re-derived (`grid_cells`/`patch_cells` counterfactual/`span_cells`;
+report prints held/agree/split/total); baseline re-cut.
 The SPLIT half (aspect policy) stays open — docs/TESS-SPLIT-SPEC.md.
 
 ## The findings, so they are not re-derived

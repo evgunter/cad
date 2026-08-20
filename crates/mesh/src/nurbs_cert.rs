@@ -369,7 +369,7 @@ pub(crate) fn nurbs_cell_bounds(
 ///   per face against `docs/tess-budget-data/tess-budget-baseline.csv`, a
 ///   grown budget failing the row. A scheduled register, not an assert;
 /// * SOUNDNESS, on a fixed corpus: `ci.yml`'s `k-lint (gate)` also runs
-///   `mesh certificate falsifier (feature = probe-stats)`, i.e.
+///   `mesh budget meter + certificate falsifier (feature = budget)`, i.e.
 ///   `probe_review::z1_per_triangle_certificate_falsification`, which
 ///   resamples every emitted triangle against its own certificate — but
 ///   over **four NURBS fixtures at two δ**, not the tour. It falsifies
