@@ -3,11 +3,11 @@
 # CI, and every sentence claiming so names the step that provides it.
 #
 # THE INVARIANT. `probe` (`geom_core::k_stats::Probe`) is an opt-in
-# feature, so a `tests/*.rs` behind `#![cfg(feature = "probe")]` is
-# invisible to every default row: it can rot into a build error, or out
-# of existence, with the whole matrix green. This gate derives the census
-# of such suites; `k-lint`'s *type-check every probe-gated test target*
-# step `cargo check`s exactly the crates it prints.
+# feature, so a `tests/*.rs` behind a `probe` cfg gate is invisible to
+# every default row: it can rot into a build error, or out of existence,
+# with the whole matrix green. This gate derives the census of such
+# suites; `k-lint`'s *type-check every probe-gated test target* step
+# `cargo check`s exactly the crates it prints.
 #
 # WHY DERIVED AND NOT LISTED. The set of crates owning such suites is not
 # a constant — it has grown four times — so a literal list in a workflow
@@ -15,20 +15,57 @@
 # level up. A crate that gains its first `probe` suite is covered by the
 # next run, with nothing to remember.
 #
-# WHY THE PREDICATE IS THE GATE LINE. An earlier version matched the
-# substring `feature = "probe"` anywhere in the file, which is a MENTION,
-# not a gate: a doc comment naming the feature satisfied it, so the floor
-# below was satisfiable by prose — including prose describing this very
-# mechanism. Matching the cfg attribute itself is what makes the census a
-# statement about what compiles.
+# WHY THE PREDICATE IS THE CFG ATTRIBUTE, AND WHY IT IS NOT VERBATIM.
+# Matching a MENTION of the feature is wrong: an earlier version matched
+# the substring `feature = "probe"` anywhere in the file, so a doc
+# comment naming the feature satisfied the floor below — including prose
+# describing this very mechanism. Requiring the ATTRIBUTE form, anchored
+# to the whole line, is what makes the census a statement about what
+# compiles rather than about what is written.
+#
+# Requiring the attribute VERBATIM is the same mistake from the other
+# side. `#![cfg(all(feature = "probe", not(miri)))]` is a correct gate; a
+# verbatim predicate has no vocabulary for it, so such a file would be
+# uncounted — and a crate whose FIRST probe suite were spelled that way
+# would never enter the derived crate list at all, which is silence, not
+# a wrong number. So the condition is matched anywhere inside the
+# attribute's parentheses: `all(…)`, `any(…)` and feature conjunctions
+# all count.
+#
+# WHAT THIS PREDICATE CANNOT MATCH, stated because the previous one's
+# blind spot was not: a gate broken across lines (rustfmt keeps these on
+# one); a gate reached through a `cfg_attr` or a macro; and
+# `cfg(not(feature = "probe"))`, which it counts as a probe suite though
+# it means the opposite — an over-count, and the harmless direction,
+# since such a file compiles under the DEFAULT rows and is covered there.
+#
+# WHY THERE IS NO BEHAVIOURAL CHECK HERE. The shape this gate does not
+# take is `cargo test -p <crate> --features probe --test all -- --list`
+# per crate, asserting every `tests/*.rs` basename appears as a module
+# prefix. It is not needed, and as stated it is not sound. Not needed,
+# because the case it was proposed for — a suite gated on a MISSPELT
+# feature, which compiles to nothing and is in no census — is already an
+# error: cargo emits `--check-cfg` for every declared feature, so rustc's
+# `unexpected_cfgs` fires on `#![cfg(feature = "prboe")]` even though the
+# condition is false and the module is stripped, and the workspace
+# `clippy` row turns that warning into a failure. Not sound, because a
+# `--list` under `--features probe` omits every suite gated on any OTHER
+# feature (`interval`, `budget`), so the assertion is false for most of
+# the gated files in this tree. Its cost is real too: a probe-instantiated
+# codegen+link per crate in place of a `cargo check`.
+#
+# WHICH MAKES THE `clippy` ROW PART OF THIS GATE'S COVERAGE ARGUMENT, so
+# it is checked here rather than assumed: the workspace clippy row must
+# keep `--all-targets` and `-D warnings`, and nothing under `crates/` may
+# silence `unexpected_cfgs`. Either one alone re-opens the misspelt-gate
+# hole, silently.
 #
 # WHAT MUST STILL BE LOUD. A derived selection that matches NOTHING exits
 # 0, which is the silence this mechanism exists to remove. So the census
 # refuses an empty answer, and refuses any crate on CENSUS_FLOOR falling
 # below the suite count its coverage was argued for. Growth is free — a
 # new suite or a new crate is simply covered; shrinkage is a deliberate
-# edit here. A file re-gated onto a misspelt feature drops out of the
-# census, which is exactly what the per-crate floor catches.
+# edit here.
 #
 # Usage: --selftest (prove the guards fire) | --crates (bare crate names
 # on stdout, for the type-check loop) | --root DIR | no args (report).
@@ -56,6 +93,14 @@ CITING_FILES=(
   docs/SMELL-SCAN-2026-08.md
 )
 
+# The workspace clippy row, which is what makes a misspelt cfg gate a
+# hard error. Every clause is load-bearing: the workspace scope reaches
+# every crate, `--all-targets` is what compiles the `tests/all.rs`
+# aggregate at all, and `-D warnings` is what promotes `unexpected_cfgs`.
+CLIPPY_ROW_RE='cargo clippy .*cargo_scope.*--all-targets.*-D warnings'
+# The other way to re-open the hole: silence the lint at the site.
+CFG_LINT_SILENCED_RE='(allow|expect)\(unexpected_cfgs\)|unexpected_cfgs[[:space:]]*=[[:space:]]*"allow"'
+
 CENSUS_CRATES=false
 gate_args=()
 for a in "$@"; do
@@ -67,9 +112,9 @@ done
 gate_parse_args ${gate_args[@]+"${gate_args[@]}"}
 
 # The cfg ATTRIBUTE, file-level or per-item — both spellings are live
-# (`crates/topo/tests/review_m3_pr2.rs` gates a single test), and both
-# need the feature to compile.
-PROBE_GATE_RE='^[[:space:]]*#!?\[cfg\(feature = "probe"\)\][[:space:]]*$'
+# (`crates/topo/tests/review_m3_pr2.rs` gates a single test) — with the
+# `probe` condition anywhere inside its parentheses.
+PROBE_GATE_RE='^[[:space:]]*#!?\[cfg\(.*feature = "probe".*\)\][[:space:]]*$'
 
 census_files() {
   find crates/*/tests -type f -name '*.rs' 2>/dev/null | sort |
@@ -82,7 +127,7 @@ census_tally() {
 }
 
 gate() {
-  local files tally rc=0 entry want n have
+  local files tally rc=0 entry want n have silenced
 
   # A CENSUS THAT SCANNED NOTHING IS NOT A PASS. `crates/*/tests` is a
   # glob; with no match `find` is handed the literal, prints nothing, and
@@ -105,7 +150,7 @@ gate() {
     have=$(printf '%s\n' "$tally" | awk -v c="$want" '$1==c {print $2}')
     have=${have:-0}
     if [ "$have" -lt "$n" ]; then
-      gate_error "$(gate_name): $want carries $have probe-gated test suite(s), below the $n its coverage was argued for. A suite deleted, renamed, or re-gated onto a misspelt feature reads exactly like this. If the drop is intended, lower it in CENSUS_FLOOR deliberately; do not let the loop quietly stop covering it."
+      gate_error "$(gate_name): $want carries $have probe-gated test suite(s), below the $n its coverage was argued for. A suite deleted, renamed, or re-gated onto a feature this predicate cannot see reads exactly like this. If the drop is intended, lower it in CENSUS_FLOOR deliberately; do not let the loop quietly stop covering it."
       rc=1
     fi
   done
@@ -128,19 +173,31 @@ gate() {
   if [ -f .github/workflows/ci.yml ]; then
     grep -qF "$CITED_STEP" .github/workflows/ci.yml ||
       { gate_error "$(gate_name): .github/workflows/ci.yml has no step named \`$CITED_STEP\`, which ${#CITING_FILES[@]} files cite as their mechanism"; rc=1; }
+    # THE MISSPELT-GATE HALF. This predicate cannot tell a typo from a
+    # feature it has not heard of; the compiler can, and says so through
+    # `unexpected_cfgs`. That only fails a run where the workspace clippy
+    # row still denies warnings over all targets, so the row is checked
+    # rather than assumed.
+    grep -vE '^[[:space:]]*#' .github/workflows/ci.yml | grep -qE "$CLIPPY_ROW_RE" ||
+      { gate_error "$(gate_name): .github/workflows/ci.yml has no workspace \`cargo clippy … --all-targets -- -D warnings\` row. That row is what turns a misspelt cfg gate (\`feature = \"prboe\"\`) into a failure, through rustc's \`unexpected_cfgs\`; without it such a suite compiles to nothing under every row and this census never sees it. Restore the row or re-argue the coverage here"; rc=1; }
   else
     gate_error "$(gate_name): .github/workflows/ci.yml does not exist under $PWD — the cited step cannot be checked"
+    rc=1
+  fi
+  silenced=$(grep -rlE "$CFG_LINT_SILENCED_RE" crates 2>/dev/null || true)
+  if [ -n "$silenced" ]; then
+    gate_error "$(gate_name): $(printf '%s' "$silenced" | tr '\n' ' ')silences \`unexpected_cfgs\`, which is the only thing that reports a test suite gated on a misspelt feature. Code that needs an unknown cfg name declares it in check-cfg values, never by allowing the lint"
     rc=1
   fi
   [ "$rc" -eq 0 ] || exit 1
 
   GATE_SCAN_FILES=$(printf '%s\n' "$files" | wc -l | tr -d ' ')
-  gate_ok "$(printf '%s\n' "$tally" | wc -l | tr -d ' ') crates own probe-gated suites, all at or above their floor, and ${#CITING_FILES[@]} citing files name the step that covers them"
+  gate_ok "$(printf '%s\n' "$tally" | wc -l | tr -d ' ') crates own probe-gated suites, all at or above their floor, ${#CITING_FILES[@]} citing files name the step that covers them, and the clippy row that reports a misspelt gate is wired"
   printf '%s\n' "$tally" | while read -r c n; do printf '  %-14s %s suite(s)\n' "$c" "$n"; done
 }
 
 # The fixture is a miniature repo: crate test trees, the four citing
-# files, and a ci.yml naming the cited step.
+# files, and a ci.yml carrying both rows this gate reads.
 gate_plant_clean() {
   local t=$1 entry c n i
   for entry in "${CENSUS_FLOOR[@]}"; do
@@ -153,8 +210,11 @@ gate_plant_clean() {
   mkdir -p "$t/crates/plain/tests"
   printf '// mentions feature = "probe" in prose only\n' > "$t/crates/plain/tests/all.rs"
   mkdir -p "$t/.github/workflows"
-  printf 'jobs: { k-lint: { steps: [{ name: %s }] } }\n' "$CITED_STEP" \
-    > "$t/.github/workflows/ci.yml"
+  {
+    printf 'jobs:\n  clippy:\n    steps:\n'
+    printf '      - run: cargo clippy ${{ needs.filter.outputs.cargo_scope }} --all-targets -- -D warnings\n'
+    printf '  k-lint:\n    steps:\n      - name: %s\n' "$CITED_STEP"
+  } > "$t/.github/workflows/ci.yml"
   for entry in "${CITING_FILES[@]}"; do
     mkdir -p "$t/$(dirname "$entry")"
     printf 'cites CI %s\n' "$CITED_STEP" > "$t/$entry"
@@ -175,16 +235,43 @@ plant_prose_only() {
 }
 plant_citation_dropped() { printf 'no longer cites it\n' > "$1/${CITING_FILES[1]}"; }
 plant_step_renamed() { printf 'jobs: {}\n' > "$1/.github/workflows/ci.yml"; }
+# The clippy row loses the flag that promotes `unexpected_cfgs`.
+plant_clippy_undenied() { sed -i 's/ -- -D warnings//' "$1/.github/workflows/ci.yml"; }
+# The lint silenced at the site instead.
+plant_cfg_lint_allowed() {
+  printf '#![allow(unexpected_cfgs)]\n#![cfg(feature = "probe")]\n' \
+    > "$1/crates/topo/tests/probe_0.rs"
+}
+
+# A COMPOUND GATE IS CORRECT, NOT A VIOLATION, and the fixture asserts
+# the census counts it — `sweep`'s floor is 1 over exactly one file, so
+# a predicate with no vocabulary for `all(…)` reds this case.
+selftest_compound_counted() {
+  local tmp out
+  tmp=$(mktemp -d)
+  gate_plant_clean "$tmp"
+  printf '#![cfg(all(feature = "probe", not(miri)))]\n' \
+    > "$tmp/crates/sweep/tests/probe_0.rs"
+  if ! out=$(cd "$tmp" && gate 2>&1); then
+    rm -rf "$tmp"
+    printf 'SELFTEST FAILED: a compound `probe` gate was not counted as a suite\n%s\n' "$out" >&2
+    exit 1
+  fi
+  rm -rf "$tmp"
+}
 
 gate_selftest() {
   gate_selftest_clean
+  selftest_compound_counted
   gate_selftest_case 'scanned nothing' plant_no_tests_dirs
   gate_selftest_case 'no longer matches it' plant_gate_renamed
   gate_selftest_case 'topo carries 4 probe-gated test suite(s), below the 5' plant_one_file_misgated
   gate_selftest_case 'sweep carries 0 probe-gated test suite(s), below the 1' plant_prose_only
   gate_selftest_case 'no longer names CI' plant_citation_dropped
   gate_selftest_case 'has no step named' plant_step_renamed
-  printf '%s selftest OK: passes a clean fixture; fires on an absent tests/ tree, a renamed gate spelling, one file re-gated onto a misspelt feature, a gate line replaced by a prose mention, a dropped citation, and a renamed CI step\n' "$(gate_name)"
+  gate_selftest_case 'no workspace `cargo clippy' plant_clippy_undenied
+  gate_selftest_case 'silences `unexpected_cfgs`' plant_cfg_lint_allowed
+  printf '%s selftest OK: passes a clean fixture and counts a compound gate; fires on an absent tests/ tree, a renamed gate spelling, one file re-gated onto a misspelt feature, a gate line replaced by a prose mention, a dropped citation, a renamed CI step, a clippy row that stopped denying warnings, and the cfg lint silenced at the site\n' "$(gate_name)"
 }
 
 gate_main

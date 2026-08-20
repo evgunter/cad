@@ -193,13 +193,6 @@ discipline() {
   # The k-probe sweep's `run_dump` guards, proved against a stub cargo —
   # milliseconds, no build. Mirrors ci.yml's step of the same subject.
   scripts/rundump-guard-selftest.sh || rc=1
-  # Test-aggregation discipline: one [[test]] target per crate. Mirrors
-  # ci.yml's step of the same name, calling the SAME script — see its
-  # header for why this is a gate (per-test-binary codegen+link was 96%
-  # of the build job, measured) and how #179 missed step-import.
-  if ! scripts/check-test-aggregation.sh; then
-    rc=1
-  fi
   # The `interval` feature must stay purely additive — mirror of ci.yml's
   # step of the same name, calling the SAME script. This is what makes it
   # sound for the interval rows below to run only the tests that feature

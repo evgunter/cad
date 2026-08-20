@@ -73,7 +73,7 @@ concurrency:
 # LINKER — mold RETIRED 2026-08-12. #174 adopted it on a -24%/-20% result
 # measured across 261 static links; that is the whole basis for it, and
 # the basis is gone. #179 and #387 took this workspace to 14 test targets
-# (`scripts/check-test-aggregation.sh` asserts the count), so the
+# (`scripts/gates/test-aggregation.sh` asserts the count), so the
 # per-binary link constant mold attacks now multiplies 14, not 261. Two
 # independent readings say it no longer pays:
 #   * LOCAL, measured 2026-08-11 at today's target count:
@@ -302,7 +302,9 @@ jobs:
       # `every_suite_file_is_aggregated` test cannot fire for a crate that
       # never opted in — that is the hole this closes.
       - name: test-aggregation discipline
-        run: scripts/check-test-aggregation.sh
+        run: |
+          scripts/gates/test-aggregation.sh --selftest
+          scripts/gates/test-aggregation.sh
       # The census half of the probe test surface. Its consumer — the
       # `type-check every probe-gated test target` step in `k-lint` —
       # `cargo check`s exactly the crates this prints, and this gate is

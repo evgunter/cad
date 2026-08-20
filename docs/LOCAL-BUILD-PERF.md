@@ -158,9 +158,9 @@ Collapsing it (#387) took the workspace 39 → 14 test targets:
 Single sample each and cache warmth may differ, so treat the percentage as
 indicative — but the direction is consistent with the per-binary cost model.
 
-**This is now gated.** `scripts/check-test-aggregation.sh` asserts at most
+**This is now gated.** `scripts/gates/test-aggregation.sh` asserts at most
 one `[[test]]` target per workspace member, wired into `ci.yml`'s
-discipline job and `ci-local.sh`'s discipline row. It is the complement to
+discipline job and reached locally by the loop over `scripts/gates/`. It is the complement to
 each crate's `every_suite_file_is_aggregated` test: that test catches a
 crate that opted in but forgot a `#[path]` line, and **cannot fire for a
 crate that never opted in** — which is exactly how step-import survived
@@ -224,8 +224,8 @@ Tooling is split by **who runs it**, because a change to a purely local
 script was forcing the full hosted matrix (`ci-filter.py` is an allowlist
 that fails closed, and `scripts/**` was unrecognised ⇒ `TIER=all`).
 
-* `scripts/` — the six things **hosted CI runs**: `ci-filter.py`,
-  `check-test-aggregation.sh`, `check_admesh.sh`, `check_step.sh`,
+* `scripts/` — the things **hosted CI runs**, `scripts/gates/` included:
+  `ci-filter.py`, `check_admesh.sh`, `check_step.sh`,
   `step_import_check.py`, `k_probe_sweep.sh`. Changes here still force
   `TIER=all`; they can move a hosted result.
 * `local-scripts/` — everything else (`ci-local.sh`, `gate.sh`,
