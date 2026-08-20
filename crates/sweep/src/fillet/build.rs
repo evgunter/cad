@@ -18,7 +18,7 @@
 //! blends — which is what carries a face's RINGS through and what
 //! replaces a pip rim with a torus band. That module's docs state the
 //! door as a predicate per chain kind, and what falls outside it
-//! refuses typed through [`FilletError::AssemblyUnsupported`], naming
+//! refuses typed through the `Unsupported*` frontier vocabulary, naming
 //! itself.
 //!
 //! What lives here besides the entry point is the part of the
@@ -105,8 +105,13 @@ pub struct Filleted<T: Real> {
 /// # Errors
 ///
 /// Any [`FilletError`] the battery produces;
-/// [`FilletError::AssemblyUnsupported`] when the request is outside
+/// [`FilletError::RepeatedEdge`] when the request names one edge
+/// twice; [`FilletError::UnsupportedBody`],
+/// [`FilletError::UnsupportedChain`], [`FilletError::UnsupportedCorner`]
+/// or [`FilletError::UnsupportedGeometry`] when the request is outside
 /// the assembly's front door ([`super::surgery`] names each case);
+/// [`FilletError::BodyNotIntact`] when the body does not hold together
+/// where the plan reads it;
 /// [`FilletError::RingClearance`] when a carried-through ring does not
 /// clear a trimline; [`FilletError::Op`] when an Euler operator
 /// refuses; [`FilletError::Certify`] when a blend description does not
@@ -122,11 +127,9 @@ pub fn fillet_edges<T: Decide + Bounds>(
     // anything.
     let mut requested = edges.to_vec();
     requested.sort_unstable();
-    requested.dedup();
-    if requested.len() != edges.len() {
-        return Err(FilletError::AssemblyUnsupported {
-            detail: "the request repeats an edge",
-        });
+    let repeated = requested.windows(2).find(|w| w[0] == w[1]).map(|w| w[0]);
+    if let Some(edge) = repeated {
+        return Err(FilletError::RepeatedEdge { edge });
     }
 
     // ---- The ordering contract: verdict first, unchanged. ----
@@ -179,7 +182,7 @@ pub(super) fn octant_chart<T: Decide + Bounds>(
     faces: &[FaceKey],
     links: &[&Link<T>],
 ) -> Result<(Vec3<T>, Vec3<T>), FilletError> {
-    let unsupported = |detail: &'static str| FilletError::AssemblyUnsupported { detail };
+    let unbuilt = |detail: &'static str| FilletError::UnsupportedCorner { vertex, detail };
     let mut best: Option<(f64, Vec3<T>, Vec3<T>)> = None;
     for l in links
         .iter()
@@ -187,7 +190,10 @@ pub(super) fn octant_chart<T: Decide + Bounds>(
     {
         let (Some(n_a), Some(n_b)) = (outward_of(body, l.face_a), outward_of(body, l.face_b))
         else {
-            return Err(unsupported("a corner edge has a non-planar support"));
+            return Err(unbuilt(
+                "a corner edge has a non-planar support; the octant corner is built \
+                 over three planes only",
+            ));
         };
         let axis = n_a.cross(n_b).normalize();
         // The third support of the corner — the one this edge does
@@ -197,14 +203,26 @@ pub(super) fn octant_chart<T: Decide + Bounds>(
             continue;
         };
         let Some(n_c) = outward_of(body, f_c) else {
-            return Err(unsupported("a corner edge has a non-planar support"));
+            return Err(unbuilt(
+                "a corner edge has a non-planar support; the octant corner is built \
+                 over three planes only",
+            ));
         };
         let score = n_c.cross(axis).norm().lo().abs();
         if best.as_ref().is_none_or(|(s, _, _)| score < *s) {
             best = Some((score, n_a, axis));
         }
     }
-    let (_, n_a, axis) = best.ok_or_else(|| unsupported("a vertex has no requested edge"))?;
+    // `best` stays `None` when no incident requested link contributed a
+    // candidate: either none touches this vertex, or every one of them
+    // has a support outside the corner's own three faces. Both are the
+    // same unbuilt configuration, and neither is the run-out door above.
+    let (_, n_a, axis) = best.ok_or_else(|| {
+        unbuilt(
+            "no requested link at this corner is supported by two of its three faces; \
+             corners assembled from other links are not implemented",
+        )
+    })?;
     Ok((n_a, axis))
 }
 
@@ -222,24 +240,40 @@ pub(super) fn octant_chart<T: Decide + Bounds>(
 /// **Neither refusal below is reachable through the front door**: it
 /// admits only convex chains, and a corner exists only where an open
 /// link terminates, so the links are always present and always agree.
-/// They are typed guards on the condition the derivation needs, in the
-/// shape [`super::surgery`]'s closure guard uses — so the bit is a
-/// consequence of the verdict rather than of the door's current
-/// predicate. Both arms are pinned directly
-/// (`surgery::tests::a_corner_plan_*`), which is how the guards stay
-/// honest without a reachable input.
-pub(super) fn corner_convexity<T: Real>(links: &[&Link<T>]) -> Result<Convexity, FilletError> {
-    let unsupported = |detail: &'static str| FilletError::AssemblyUnsupported { detail };
+///
+/// They stay TYPED rather than becoming the addendum's row 4, and the
+/// reason is not that a test reaches them — an in-crate test calling a
+/// private helper says nothing about input reachability. The reason is
+/// that **this function cannot observe the fact that would make them
+/// impossible**: `links` is a parameter, and the door that establishes
+/// convexity is two frames up in
+/// [`super::surgery::fillet_surgery`], which carries its verdict as
+/// prose rather than as a type. An `unreachable!` here would rest on a
+/// caller's behaviour, which is exactly the inheritance the D2
+/// addendum's row 4 forbids. Making it row 4 honestly needs the door to
+/// mint a type that says "convex link", not a comment that says so.
+///
+/// Both arms are exercised directly (`surgery::tests::a_corner_plan_*`)
+/// by falsifying the verdict — which pins the DEPENDENCY (the octant's
+/// sense is a consequence of the verdict, not of the door's current
+/// predicate), not the reachability.
+pub(super) fn corner_convexity<T: Real>(
+    vertex: VertexKey,
+    links: &[&Link<T>],
+) -> Result<Convexity, FilletError> {
+    let unbuilt = |detail: &'static str| FilletError::UnsupportedCorner { vertex, detail };
     let mut convexity: Option<Convexity> = None;
     for l in links {
         if *convexity.get_or_insert(l.convexity) != l.convexity {
-            return Err(unsupported(
+            return Err(unbuilt(
                 "a corner's incident links disagree on convexity (the corner ball is \
-                 not a sphere octant there)",
+                 not a sphere octant there); mixed-convexity corners are not implemented",
             ));
         }
     }
-    convexity.ok_or_else(|| unsupported("a corner has no requested incident link"))
+    convexity.ok_or_else(|| {
+        unbuilt("a corner has no requested incident link, so no octant sense is derivable")
+    })
 }
 
 /// A planar face's OUTWARD normal: the stored plane normal folded
