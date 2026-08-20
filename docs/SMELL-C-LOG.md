@@ -1916,6 +1916,23 @@ taker asks the orchestrator for a number **not because the hole is unreserved,
 but because from `main` alone you cannot tell** — which is exactly why the
 asking exists.
 
+### Sequencing note: C-k is held, and the reason is not capacity
+
+`mesh/` is free again now that #803 has landed, which would normally make **C-k**
+(S28's duplication half — three tessellation lanes, three pipelines) the next
+dispatch. **It is held anyway**, because #803's *post-hoc* style review is live
+and its output is a **follow-up PR in `mesh/`**. Dispatching C-k now would put an
+implementer and a corrective PR in the same crate on the same afternoon, and this
+track has already measured what that costs: §D's conflict window is shorter than
+one CI run, and `mesh/` would be a second such window one level down.
+
+*The distinction worth recording:* this is not the build mutex talking. Five
+lanes are live and the mutex is width 1, but review lanes are mostly reading and
+the contention is tolerable. **The reason to wait is that one of the live lanes
+can still change the file another would edit** — a dependency, not a queue. A
+sequencing decision that says "capacity" when it means "dependency" produces the
+wrong action later, because capacity frees on its own and a dependency does not.
+
 ### Reviewers age out of their own tree, twice now — and it is not their error
 
 Both style reviews today reported a finding that was **already false when they
@@ -1938,18 +1955,4 @@ measurement**. Stale numbers, unlabelled numbers, and now stale *findings*.
 
 It is not the reviewers' error. A review takes 20–40 minutes; lanes push fix
 passes and row numbers inside that window; nothing tells a reviewer the ground
-moved. The structural cause is the same one as §D's conflict window — **the tree
-now changes faster than a careful read of it takes.**
-
-**Operationally, and cheap:**
-
-- **A reviewer records the head SHA it reviewed**, at the top of its report. Both
-  of these would then have been self-evident rather than needing an orchestrator
-  check.
-- **Any finding of the form "X is missing / not written / not done" is
-  re-checked against the current head immediately before reporting.** Only
-  absence claims need it — a finding about what the code *says* stays true of the
-  tree it was read on, but a finding about what is *absent* is exactly the one a
-  push invalidates.
-- **The orchestrator verifies absence findings before relaying**, which is what
-  happened both times and should be the rule rather than the reflex.
+moved. The structural cause is the same one as �
