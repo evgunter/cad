@@ -4166,10 +4166,13 @@ are the new workspace-excluded crate **`tools/tess-meter`**, beside
 preserved and strengthened: the kernel reduces the deviation samples to
 `worst_ratio`, the largest `|S − Π| / (cert + ε)` any sample on any
 triangle of the face reached, and the suite asserts `≤ 1`. That is the
-per-**triangle** claim losslessly aggregated, so **no build of `mesh` can
-now convert `tessellate`'s typed-error contract into a panic** — the
-property #562 and #558 were both reaching for and neither could reach
-while the `assert!` was in the lane. That is also why folding the
+per-**triangle** claim losslessly aggregated, so **no `assert!` in `mesh`
+is reachable only under a feature any more** — no build flag can add a
+panic to the tessellation path, which is the property #562 and #558 were
+both reaching for and neither could reach while the `assert!` was in the
+lane. (Not the same as "the path cannot panic": the unconditional
+kernel-bug assertions in `nurbs_cert` and `walk` are untouched and are a
+different class.) That is also why folding the
 falsifier into `budget` no longer costs what #558 refused: there is no
 assertion left to put in a release artifact, and `Mode::Sizing` resamples
 nothing. The `probe-stats` feature and its NAME CAUTION paragraphs are

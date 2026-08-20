@@ -25,8 +25,11 @@ no `#[cfg]`. **The kernel derives nothing and asserts nothing**: the
 deviation samples are reduced to `worst_ratio` (the largest
 `|S − Π|/(cert + ε)` any sample on any triangle of the face reached),
 which is the per-triangle falsification as one number, and the SUITE
-asserts on it — so no build of `mesh` can turn `tessellate`'s
-typed-error contract into a panic. `tools/tess-meter` is the consumer
+asserts on it. The precise claim: **no `assert!` in `mesh` is
+reachable only under a feature**, so no build FLAG can add a panic to
+the tessellation path — which is not "the path cannot panic"
+(`NurbsCellGrid::from_cells` asserts its tensor invariant in every
+build). Instrument-added panics are the class that was closed. `tools/tess-meter` is the consumer
 half: CSV schema, counterfactual schedules, split optimizer, the row
 for every face (a planar cap's chart and triangle count are in the body
 and the mesh). `mesh::nurbs_cert::nurbs_cell_bounds` reports the

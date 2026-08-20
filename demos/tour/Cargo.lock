@@ -448,7 +448,7 @@ dependencies = [
 name = "tess-meter"
 version = "0.1.0"
 dependencies = [
- "geom-surfaces",
+ "geom",
  "mesh",
  "topo",
 ]

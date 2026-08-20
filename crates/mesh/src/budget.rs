@@ -32,8 +32,17 @@
 //! reached — which is the per-TRIANGLE falsification stated as one
 //! number per face: `worst_ratio ≤ 1` is exactly "every sample was
 //! dominated by its own triangle's certificate". The suite that drives
-//! the meter asserts on it, so no build of this crate can turn
-//! [`crate::tessellate()`]'s typed-error contract into a panic.
+//! the meter asserts on it.
+//!
+//! **The precise claim, because the sweeping one is false**: no
+//! `assert!` in this crate is reachable only under a feature, so no
+//! FEATURE can add a panic to the tessellation path. That is not "the
+//! path cannot panic" — `NurbsCellGrid::from_cells` asserts its tensor
+//! invariant on every NURBS face in every build, and `walk` has an
+//! `unreachable!`. Those are unconditional fail-loud kernel-bug
+//! assertions, present in and identical across every configuration,
+//! which is a different thing from an instrument that a build flag
+//! switches on.
 //!
 //! # Armed, or free — and what a DEFAULT build of this module is
 //!
@@ -134,9 +143,23 @@ pub struct FaceMeasure {
     /// The largest `|S − Π| / (cert + ε)` any sample reached — the
     /// per-triangle falsification as one number ([module docs](self)).
     /// `f64::NAN` when there was no deviation pass.
+    ///
+    /// **Taken independently of [`Self::worst_dev`]**, so the two need
+    /// not come from the same sample: the largest deviation and the
+    /// largest ratio-to-its-own-certificate are different questions on
+    /// a face whose triangles carry different certificates. Do not
+    /// print the `worst_dev` / `worst_dev_cert` pair as "the violating
+    /// sample" — it is headroom, and this is the verdict.
+    ///
+    /// **Accumulated over every attempt the face made**, retries that
+    /// were discarded included, unlike [`Self::worst_dev`] and
+    /// [`Self::dev_samples`], which describe the accepted attempt
+    /// only. A certificate that failed on a triangle the lane then
+    /// threw away has still failed.
     pub worst_ratio: f64,
-    /// How many deviation samples the two maxima are over (0 when not
-    /// armed for deviation).
+    /// How many deviation samples [`Self::worst_dev`] is over, on the
+    /// ACCEPTED attempt (0 when not armed for deviation).
+    /// [`Self::worst_ratio`] is over more than these — see there.
     pub dev_samples: u64,
 }
 

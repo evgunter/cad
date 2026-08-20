@@ -108,6 +108,31 @@ fn every_nurbs_face_is_measured_once_and_by_key() {
             "the trim box is a box: {m:?}"
         );
     }
+
+    // THE BOUND BELONGS TO THE FACE IT IS FILED UNDER.
+    //
+    // The whole-patch bound reaches this row through
+    // `nurbs_cert::face_bound`'s per-tessellation memo, which is keyed
+    // by `FaceKey` — and a memo that returns the wrong entry (or any
+    // entry) is invisible to every assertion above, because each one
+    // reads a single row in isolation. This fixture can see it: the
+    // loft's walls carry genuinely different Hessians (the two
+    // trapezoid-slanted walls, the two straight ones), so a lookup
+    // that stopped keying would collapse them all onto one value.
+    //
+    // Distinctness rather than pinned numbers on purpose — the values
+    // are a certified bound's business and may legitimately move; that
+    // they DIFFER between differently-shaped walls may not.
+    let bounds: Vec<(u64, u64, u64)> = measures
+        .iter()
+        .map(|m| (m.muu.to_bits(), m.muv.to_bits(), m.mvv.to_bits()))
+        .collect();
+    let distinct: std::collections::HashSet<_> = bounds.iter().collect();
+    assert!(
+        distinct.len() > 1,
+        "every measured face got the same whole-patch bound, so the per-face \
+         lookup is not keying on the face: {bounds:?}"
+    );
 }
 
 /// The deviation pass samples, and every sample is dominated by its

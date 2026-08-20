@@ -244,6 +244,20 @@ pub(crate) fn tessellate_trimmed(
     // cells, and dropping a location rather than one cell's copy of it
     // is what keeps the retry ladder strictly shrinking (module docs).
     let mut dropped: HashSet<usize> = HashSet::new();
+    // THE FALSIFICATION ACCUMULATOR, deliberately OUTSIDE the retry
+    // loop and reset by nothing.
+    //
+    // Two obligations share the deviation samples and they want
+    // different scopes. The CSV's `worst_dev` / `dev_samples` describe
+    // the mesh that was KEPT, so they are per-attempt (below). The
+    // falsification — was any triangle's measured deviation ever above
+    // its own certificate — is about every triangle this face
+    // TESSELLATED, discarded attempts included: a certificate that
+    // fails on a triangle we then threw away has still failed, and a
+    // falsifier that stops watching a case is the defect it exists to
+    // catch. So `worst_ratio` accumulates across attempts and is
+    // handed over once, at the end.
+    let (mut worst_ratio, mut ratio_samples) = (f64::NAN, 0u64);
     'retry: for attempt in 0..=MAX_GRID_RETRIES {
         let mut cdt: ConstrainedDelaunayTriangulation<SpadePoint<f64>> =
             ConstrainedDelaunayTriangulation::new();
@@ -398,11 +412,12 @@ pub(crate) fn tessellate_trimmed(
         };
         let mut triangles = Vec::new();
         let mut worst: f64 = 0.0;
-        // The deviation pass's accumulators. LOCAL to this attempt, so
-        // a retry's samples start over with it — a discarded attempt's
+        // The CSV's deviation columns. LOCAL to this attempt, so a
+        // retry's samples start over with them — a discarded attempt's
         // triangles must not contribute to numbers that describe the
-        // mesh that was KEPT.
-        let (mut worst_dev, mut worst_dev_cert, mut worst_ratio) = (f64::NAN, f64::NAN, f64::NAN);
+        // mesh that was KEPT. (`worst_ratio` deliberately does not
+        // live here; see above.)
+        let (mut worst_dev, mut worst_dev_cert) = (f64::NAN, f64::NAN);
         let mut dev_samples = 0u64;
         // CERT-DRIVEN REFINEMENT (TESS-SPAN; module docs): NURBS
         // triangles certifying above the per-face sizing target get
@@ -523,9 +538,10 @@ pub(crate) fn tessellate_trimmed(
                             worst_dev = d;
                             worst_dev_cert = bound;
                         }
-                        if dev_samples == 0 || r.is_nan() || r > worst_ratio {
+                        if ratio_samples == 0 || r.is_nan() || r > worst_ratio {
                             worst_ratio = r;
                         }
+                        ratio_samples += 1;
                         dev_samples += 1;
                     }
                 }

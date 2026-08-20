@@ -134,23 +134,39 @@ fn z1_per_triangle_certificate_falsification() {
                 "{name}: no NURBS face was measured — the falsifier sampled nothing"
             );
             let samples: u64 = measures.iter().map(|f| f.dev_samples).sum();
-            let worst = measures
+            assert!(samples > 0, "{name}: the deviation pass sampled nothing");
+            // ASSERT OVER EVERY FACE, not over a maximum. Picking the
+            // worst first and asserting on it makes the check only as
+            // NaN-robust as the comparator: `total_cmp` is IEEE
+            // totalOrder, which sorts a NEGATIVE NaN below −∞, so a
+            // face carrying one would come out "smallest" and escape.
+            // A loop has no comparator to get wrong, and `!(x <= 1.0)`
+            // is true for every NaN of either sign.
+            for f in &measures {
+                assert!(
+                    f.worst_ratio <= 1.0,
+                    "{name}: a triangle's samples exceeded its certificate ({:?}, \
+                     worst d/(cert+eps) = {})",
+                    f.face,
+                    f.worst_ratio
+                );
+            }
+            // Reporting only, after the assertion: this pair is the
+            // worst SAMPLE's deviation and its own triangle's
+            // certificate, which need not be the sample that produced
+            // `worst_ratio` — the two maxima are taken independently.
+            // Printed as headroom, never read as the violating pair.
+            let loudest = measures
                 .iter()
                 .max_by(|a, b| a.worst_ratio.total_cmp(&b.worst_ratio))
                 .expect("at least one measured face");
             println!(
                 "{name} delta={delta:.0e}: tris={} samples={samples} \
-                 worst|S-Pi|={:.3e} (its cert {:.3e}) max d/cert={:.4}",
+                 worst|S-Pi|={:.3e} (that sample's cert {:.3e}) max d/cert={:.4}",
                 m.patches.iter().map(|p| p.triangles.len()).sum::<usize>(),
-                worst.worst_dev,
-                worst.worst_dev_cert,
-                worst.worst_ratio,
-            );
-            assert!(samples > 0, "{name}: the deviation pass sampled nothing");
-            assert!(
-                worst.worst_ratio <= 1.0,
-                "{name}: a triangle's samples exceeded its certificate ({:?})",
-                worst.face
+                loudest.worst_dev,
+                loudest.worst_dev_cert,
+                loudest.worst_ratio,
             );
         }
     }
