@@ -79,7 +79,7 @@ cases. A finding is a *question worth answering*, not a defect.
 - [Tier 1 — architectural, load-bearing](#tier-1--architectural-load-bearing) (S1–S15)
 - [Tier 2 — significant](#tier-2--significant) (S16–S37)
 - [Tier 3 — real but lower stakes](#tier-3--real-but-lower-stakes) (S38–S48)
-- [Findings raised by the Wave-1 fix lanes](#findings-raised-by-the-wave-1-fix-lanes-2026-08-18) (S49–S56)
+- [Findings raised by the Wave-1 fix lanes](#findings-raised-by-the-wave-1-fix-lanes-2026-08-18) (S49–S58)
 - [§A. Where I would start](#a-where-i-would-start)
 - [§D. The schedule](#d-the-schedule) — live rows only, in tracks: **A** in flight, **B** the parallel orchestrator's, **C** unclaimed, **D** the audit's unscheduled rows plus B2/B3
 - [§C. Process observations](#c-process-observations)
@@ -5870,7 +5870,50 @@ blind the gate to the file that defines the rule.
 
 ---
 
-## S56. "This face's domain is an iso-rectangle" is re-derived per consumer, in three representations, and no two agree on what it means
+## S57. The `readback` class is alive one crate over, and the "one door" guard cannot see it
+
+- **Where**: `crates/editor-core/src/names/emit_topo.rs:48`,
+  `crates/sweep/src/fillet/build.rs:247`,
+  `crates/sweep/src/fillet/battery.rs:175`, `:183`, `:189`
+- **Confidence**: sure
+- **Raised by**: the S34 fix lane's review (#697), 2026-08-20, by running the
+  `face_pose`-shaped sweep that PR declined to run and stated as its blind
+  spot. **The blind spot was real and it hit.**
+
+**A sixth copy of the readback walk, in the crate the fix was about.**
+`emit_topo.rs:48`'s `face_plane` is `get_face` → dangling refusal →
+`get_surface` → dangling refusal → destructure `Surface::Plane`. It is not a
+literal copy — it folds `sense_sign` and refuses non-planar carriers — but it
+refuses with `NamingError::Emission { what: "face_plane: dangling" }`, which
+is **verbatim the `&'static str`-names-the-lookup defect #697 eliminated**,
+still standing in `editor-core`, the crate whose dependency on `sweep` the
+whole finding was about.
+
+**Four `Body`-only accessors housed in an op crate — S34's own shape, one
+crate away from where it was looked for.** `fillet/build.rs`'s `outward_of`
+and `battery.rs`'s `outward` / `face_of` / `carrier_of` each take a `&Body`
+plus an arena key and touch nothing from `sweep`. `outward_of` is a
+hand-written copy of `topo::face_normal::face_outward_normal` — the function
+whose module doc calls itself **"the one door"** and whose mechanical
+anti-re-fork guard walks `topo/src` **only**, and therefore cannot see a
+re-fork that lives in `sweep`.
+
+That last point is the finding's sharpest edge and generalises past these
+sites: **a guard scoped to one crate cannot enforce a rule stated about a
+concept.** The `face_normal` guard was built (#690) precisely because a fix
+pass re-forked the planar sense flip while creating the door, and it is
+correct and load-bearing within `topo` — but the copy it was built to catch
+already existed outside its walk.
+
+Where else to look, unswept: `crates/mesh/src/walk.rs:973`,
+`crates/step-export/src/`, and the three sites already named as D6's
+hand-multiply class (`boolean::solid_contain::face_plane`,
+`chord_join::face_plane_normal`, `merge_faces.rs`).
+
+**Verdict:** _(unreviewed)_
+
+---
+## S58. "This face's domain is an iso-rectangle" is re-derived per consumer, in three representations, and no two agree on what it means
 
 - **Where**: `crates/geom-brep/src/props/curved.rs:421` (`du_of_rims` /
   `props_du_consistent`), `crates/mesh/src/curved.rs`
@@ -5923,50 +5966,7 @@ Notes for whoever takes it, so the unit does not quietly become four:
   precondition is an argument for refusing such a body once at `validate`
   rather than at each door. Not decided here.
 
-## S57. The `readback` class is alive one crate over, and the "one door" guard cannot see it
-
-- **Where**: `crates/editor-core/src/names/emit_topo.rs:48`,
-  `crates/sweep/src/fillet/build.rs:247`,
-  `crates/sweep/src/fillet/battery.rs:175`, `:183`, `:189`
-- **Confidence**: sure
-- **Raised by**: the S34 fix lane's review (#697), 2026-08-20, by running the
-  `face_pose`-shaped sweep that PR declined to run and stated as its blind
-  spot. **The blind spot was real and it hit.**
-
-**A sixth copy of the readback walk, in the crate the fix was about.**
-`emit_topo.rs:48`'s `face_plane` is `get_face` → dangling refusal →
-`get_surface` → dangling refusal → destructure `Surface::Plane`. It is not a
-literal copy — it folds `sense_sign` and refuses non-planar carriers — but it
-refuses with `NamingError::Emission { what: "face_plane: dangling" }`, which
-is **verbatim the `&'static str`-names-the-lookup defect #697 eliminated**,
-still standing in `editor-core`, the crate whose dependency on `sweep` the
-whole finding was about.
-
-**Four `Body`-only accessors housed in an op crate — S34's own shape, one
-crate away from where it was looked for.** `fillet/build.rs`'s `outward_of`
-and `battery.rs`'s `outward` / `face_of` / `carrier_of` each take a `&Body`
-plus an arena key and touch nothing from `sweep`. `outward_of` is a
-hand-written copy of `topo::face_normal::face_outward_normal` — the function
-whose module doc calls itself **"the one door"** and whose mechanical
-anti-re-fork guard walks `topo/src` **only**, and therefore cannot see a
-re-fork that lives in `sweep`.
-
-That last point is the finding's sharpest edge and generalises past these
-sites: **a guard scoped to one crate cannot enforce a rule stated about a
-concept.** The `face_normal` guard was built (#690) precisely because a fix
-pass re-forked the planar sense flip while creating the door, and it is
-correct and load-bearing within `topo` — but the copy it was built to catch
-already existed outside its walk.
-
-Where else to look, unswept: `crates/mesh/src/walk.rs:973`,
-`crates/step-export/src/`, and the three sites already named as D6's
-hand-multiply class (`boolean::solid_contain::face_plane`,
-`chord_join::face_plane_normal`, `merge_faces.rs`).
-
-**Verdict:** _(unreviewed)_
-
 ---
-
 ---
 # §A. Where I would start
 
@@ -6071,7 +6071,7 @@ Do not take these. Each has a running lane.
 
 | # | Work | Scope |
 |---|---|---|
-| **A2** | **S56 / #649** — one named iso-rectangle predicate, generalising the torus's level rule to cylinder/cone/sphere. Closes the wrong-certified-volume defect (19% low at `pad = 0.0`). | `geom-brep/src/props/curved.rs`, `topo/src/validate.rs`, new STEP fixtures |
+| **A2** | **S58 / #649** — one named iso-rectangle predicate, generalising the torus's level rule to cylinder/cone/sphere. Closes the wrong-certified-volume defect (19% low at `pad = 0.0`). | `geom-brep/src/props/curved.rs`, `topo/src/validate.rs`, new STEP fixtures |
 | **A3** | **#678** — the slender partial-revolve cone wedge that meshes silently non-watertight, A/B against `main` first. | `crates/mesh/` |
 | **A4** | **#667** — the measured-claim sweep continuation, pattern fixed first. | docs + scattered claim sites |
 
