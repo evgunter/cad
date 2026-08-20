@@ -275,20 +275,19 @@ assert!(!Selector::default().matches(&seam));
 
 ## From a name to geometry
 
-A selection is only half a question. The other half — "so where
-IS the face I selected?" — used to have no answer at this façade:
-the naming table's `EntityRef`/`Entry` were exported, and reading
-a coordinate meant unwrapping one into a `topo` arena key and
-indexing the body yourself. Arena keys are body-lineage-scoped and
-meaningful only against the evaluation that built them; the naming
-layer's own rule is that they never leave `editor-core`, and that
-laundering is exactly what a consumer must never have to do.
+A selection is only half a question. The other half is "so where
+IS the face I selected?", and the answer is a door that speaks
+NAMES and hands back VALUES: `face_frame`, `edge_frame`,
+`vertex_position`, and `denotation` for how many entities a name
+denotes.
 
-**So they no longer leave.** `EntityRef` and `Entry` are gone from
-this surface, replaced by doors that speak names and answer with
-values: `face_frame`, `edge_frame`, `vertex_position`, and
-`denotation` for the tie information `Entry` used to carry (a
-count, not candidates — the candidates are keys).
+No arena key crosses this surface in either direction. Arena keys
+are body-lineage-scoped and meaningful only against the evaluation
+that built them, so the naming layer's rule is that they never
+leave `editor-core` — which means a consumer never holds one, and
+never has to launder one into a coordinate by indexing the body.
+That is also why `denotation` answers with a COUNT rather than a
+list of candidates: the candidates are keys.
 
 What comes back is a `Pose`: the carrier's own stored frame,
 copied out. A VALUE, never a verdict — no door here answers "is
