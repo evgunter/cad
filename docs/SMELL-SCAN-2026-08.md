@@ -9670,6 +9670,27 @@ track editing them is the collision this sequencing exists to prevent. **If
 Track C declines either, it returns to Track E** — not to nobody, which is the
 failure §C3 names.
 
+**A file overlap Track C should know about, found 2026-08-20.** This table
+describes **C-f (#731)** as scoped to `editor-core/src/{resolve/, select.rs,
+refactor.rs}`. Its actual diff also touches **`editor-core/src/eval/mod.rs`**
+and `eval/anchor.rs`, plus `doc.rs`, `expr.rs`, `names/{mod,role,select}.rs`,
+`node.rs` and `persist/check.rs`. Track E's **E-e (#767)** rewrote
+`eval/mod.rs`'s `Display` impl on the strength of the narrower description.
+
+**Nothing is broken and no action is needed beyond re-merging.** The two are
+disjoint **by item** — #731's `eval/mod.rs` hunks are the content-key hasher,
+about seven hundred lines from the `Display` impl — so the exposure is a merge
+conflict, not a semantic collision, and *whichever lands second re-merges rather
+than assumes* already covers it. It is recorded here rather than as a comment on
+#731 because this table is the shared register and is where the wrong scope was
+written.
+
+*The transferable half:* **a track's own table is the thing other tracks fence
+against, so a scope line that lags its lane's diff silently mis-fences someone
+else.** Track E built a brief on this row and would have shipped into a
+collision if the lane had not been told to verify the fence rather than trust
+it.
+
 ---
 
 ## Track D — COMPLETE (2026-08-20): every row landed or moved
@@ -10361,7 +10382,18 @@ enforces it only by an orchestrator's habit, would not match — and M9-3's
 shape, reachable here only because it happens to spell "predicate name".
 
 
-**No row number is reserved; D60 is the highest one placed.** Placements:
+**`D1`–`D60` are the closed pre-block sequence.** They were issued under the
+single-allocator rule, before Tracks F and G existed, and every one of them is
+placed or assigned — **none is available**, and the gaps in the range are
+assigned-and-unspent rather than free. That distinction is invisible from
+outside a branch, which is how ten numbers came to be double-allocated on
+2026-08-20, so it is stated here rather than left to be recomputed. **Blocks
+start at D61.** A number already placed keeps its identity when its track
+changes hands; renumbering a placed row breaks every PR body and finding that
+cites it, which is why Track D's rows kept their numbers when Track E took the
+register.
+
+**D60 is the highest one placed in that sequence.** Placements:
 D15 by #710, D16 by #706, **D17** by #718 (landed, #739), **D18** by #720 (landed, #736),
 **D19** by #719 (landed, #747, which **placed D32**, **D33** and **D34**), **D20** by **#722** (D5's +46%, unattributed once that unit's
 measurement excluded the enumeration D14 blamed), **D24** by **#735** (a `pub`
@@ -10783,6 +10815,24 @@ than from the schedule** (F-R1, F-R2 in the track log):
 | # | Work | From | Scope | Proposed verdict | Review |
 |---|---|---|---|---|---|
 | **F1** | **The compound-`Bounds` gate is blind to `CertifiedBounds`, and `real.rs` tells authors to write the invisible spelling.** Its matcher fires on `Decide + Bounds` and not on `Decide + CertifiedBounds`; `real.rs:46-48` and `:789` both assert that it does. **This is S56 returning one alias later**, and per the ruling above it now **gates S87/S88**. | **S59** `[verified]` | `scripts/gates/bounds-allowlist.sh`, `geom-core/src/real.rs` (two prose sites), plus whatever the widened matcher then reds | **ACCEPTED** — executed, self-evidencing | style; **ADVERSARIAL** for any conversion the widened matcher forces |
+
+**A sharper form of S59, found by Track E's lane E-g on 2026-08-20 and left here
+because this is Track F's row.** `bounds-allowlist.sh` caught that lane widening
+the fillet seam's *ratified* compound-`Bounds` allowlist as a refactor side
+effect — `admit.rs` had inherited `T: Decide + Bounds` from a file already on the
+allowlist, and `cargo check`, `clippy --workspace --all-targets`, `doc-gate.sh`
+and the whole suite all passed over it. **The gate did its job, and the right fix
+was not the allowlist**: the bound was not needed, `impl<T: Decide>` compiles,
+and the seam stays at three files.
+
+**That is the strongest evidence for the gate, and it sharpens the finding
+rather than softening it.** The same mistake spelled `Decide + CertifiedBounds`
+would **not** have been caught — and the gate's own header says that spelling
+*"is right, that is a parameter that decides AND brackets"*, i.e. **the header
+asserts the case the matcher cannot see.** So S59 is not "the matcher is
+incomplete"; it is *the gate documents a violation class it cannot detect*, on a
+seam whose whole purpose is that widening it requires ratification. Track E's
+**G4** (S87's `ArcCarrierScalar`) is gated on this row for the same reason.
 | **F2** | **Re-site the gates that cannot fire on their own inputs**, per Evan's S61 ruling. `probe-suite-census.sh:52-57` asserts two docs still name a CI step and cannot fire on a docs-only change; `gate-roster.sh:31-39` argues it need not read `local-scripts/` *because* the discipline job never runs there. Carries **D58**, **D59** and **D60** (below), which are E-a's own re-derived residues. | **S61**, **S62**, and E-a's report | `.github/workflows/ci.yml`, `scripts/ci-filter.py`, `scripts/gates/{probe-suite-census,gate-roster}.sh`, `local-scripts/ci-local.sh` | **ACCEPTED — RULED** (posture; re-site) | style |
 | **F3** | **Three of six grep gates pass the spellings they exist to forbid.** `no-extra-real-bounds.sh` greps `\bReal\s*\+` raw with no comment strip; `bit-identity-debug-only.sh` counts uses and `cfg(debug_assertions)` separately and prints an unsupported sentence; `interval-square-allowlist.sh`'s PCRE backreference cannot see `self.x * self.x`, and `geom-core/src/linalg/vec.rs:325-326` is a live unallowlisted instance. The cry-wolf-then-allowlist outcome is **already realised** at `linalg/mat.rs`. **Its line numbers are fiction — re-derive, do not transcribe.** | **S63** | `scripts/gates/{no-extra-real-bounds,bit-identity-debug-only,interval-square-allowlist,lib.sh}`, `scripts/ci-filter.py` | **ACCEPTED** | style for the gates; **ADVERSARIAL** for the `x*x → powi(2)` conversions, which change numerics in `Interval`-generic production code |
 | **F4** | **Guards whose failure mode is their pass condition** — four instances bound by one missing idiom rather than by files. The spent-graft hammer row lacks the `oks > 0` its twin has, and `ci.yml` cites it by name (**S76**); a fuzz corpus is built entirely behind `if let Ok` with no floor (**S78**); a floor row matches into a `println!("SKIPPED")` arm and returns green (**S84**); a new differential test compares an expression against itself (**S91**). | S76, S78, S84, S91 | `topo/src/review_d18.rs`, `sweep/tests/review_d2_adv_probes.rs`, `geom-brep/tests/*`, `geom-core/src/spline/knots.rs` | **ACCEPTED** on all four | **ADVERSARIAL** for S76 and S78 (each is a guard on a soundness contract); style for S84, S91 |
@@ -10829,6 +10879,25 @@ one sub-unit, which is the whole adversarial budget of the track — and it runs
 beside the model A/B experiment without touching `docs/MODEL-AB-LOG.md`. The
 lane roster, the rulings and the landings are in that file; this table stays the
 schedule and a row leaves it when it lands.
+
+**`D81`–`D100` and `S137`–`S156` are reserved to Track E**, claimed 2026-08-20
+after Track F's block paragraph pointed out that Tracks C and E owed themselves
+one. **They were owed it sooner than that.** Between Track F claiming D61–D70
+and this paragraph, Track E's orchestrator issued **D61–D70 to five of its own
+lanes** — a straight double-allocation of ten numbers, caught not by either
+register but by lane E-h, which read `SMELL-F-LOG.md` before writing a row and
+withdrew the D61 it had already placed. Nothing of F's or G's was overwritten
+because neither had placed into its block yet; **the only reason this cost
+nothing is that both new tracks were hours old.**
+
+*The mechanism, stated because the fix is not "be careful":* the register's rule
+was **take the next unassigned number from the orchestrator**, which is exactly
+right inside one track and silently wrong across four, because "unassigned" was
+a fact about a branch none of the other three could see. An orchestrator reading
+`main` correctly computed the next free number and four of them computed the
+same one. **A sequence with one allocator per branch is not a sequence.** Blocks
+are the fix; the numbers Track E issued out of F's block are reissued from
+D81–D100 below, and the lanes holding them were told individually.
 
 **`D71`–`D80` and `S127`–`S136` are reserved to Track G**, for the reason Track
 F's block records one section up: the *"take the next unassigned number from the
