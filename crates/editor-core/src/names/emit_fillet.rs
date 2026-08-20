@@ -48,6 +48,25 @@
 //! got caught would depend on whether the real owner of the name
 //! happened to collide at insertion. That is luck, not a guarantee.
 //! Same posture as `wire_fillet`'s refusal of `naming: None`.
+//!
+//! # KNOWN HAZARD — an upstream tie is not propagated (issue #708)
+//!
+//! `up()` reads the target's name through `NameTable::name_of` and
+//! never inspects the [`Entry`](super::table::Entry) behind it. Every
+//! member of an [`Entry::Tied`](super::table::Entry::Tied) row carries
+//! the SAME name, so two tied sources both filleted would hand two
+//! minted entities one upstream name and the second insertion would
+//! refuse [`NamingError::Duplicate`] — an error whose contract is "the
+//! no-silent-aliasing bug", reported for a legitimate N2 tie. The
+//! generic emitters in [`super::emit`] carry the propagation arm this
+//! one lacks (`Entry::Tied` → `insert_tied`).
+//!
+//! Unreachable today: nothing in production mints a tie —
+//! `insert_tied`'s only callers are those propagators and one unit
+//! test. The propagation shape here is a naming-design question (one
+//! `RoleSeg` slot holds one name; a tied source needs either N
+//! segments or a tied mint), so it must be decided WITH the unit that
+//! mints the first tie, not guessed against a hypothetical producer.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -60,7 +79,7 @@ use super::role::{EntityKind, RimSupport, RoleSeg, StableName};
 use super::table::{EntityKey, NameTable};
 use crate::node::RecipeNodeId;
 
-/// Names one fillet result, from either assembly door.
+/// Names one fillet result.
 ///
 /// `target` is the fillet's single operand's table (body index 0 —
 /// `body_operand` admits only single-body values), `body` the fillet
@@ -215,7 +234,9 @@ pub(crate) fn name_fillet<T: geom_core::Real>(
                     EntityKey::Vertex(k) => retired_v.contains(&k),
                     // Faces are never retired — a support shrinks, it
                     // does not die — so a face key can only be a real
-                    // survivor.
+                    // survivor, and `Retired` carries no face channel
+                    // to consult. Asserted in both directions by
+                    // `sweep/tests/m6_5_fillet_naming.rs`.
                     EntityKey::Face(_) | EntityKey::Body => false,
                 };
                 if dead {

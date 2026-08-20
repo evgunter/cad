@@ -40,12 +40,23 @@
 //!   a firing postcondition is a kernel bug by definition (the per-call
 //!   instance of the ch. 9 soundness theorem failing against our
 //!   transcription) — and since PR 5's raw-builder demotion **every
-//!   publicly-constructible input is tier-1-valid**, because the ten
-//!   operators plus the one public non-operator mutator
-//!   ([`Body::ring_move`]) are the only public mutation paths and each
-//!   preserves tier 1 (ring_move's case is the least obvious of the
-//!   eleven — it re-glues the per-shell component partition; the
-//!   separating-curve argument lives in its docs). The D9 taxonomy
+//!   publicly-constructible input is tier-1-valid**: raw insertion is
+//!   crate-internal, so a body can only be reached through the public
+//!   mutation paths, and every one of them preserves tier 1. Those
+//!   paths are the Euler operators with their chord/line sugar; the
+//!   non-operator structural mutators — [`Body::ring_move`],
+//!   [`Body::split_edge`], [`Body::movefac`],
+//!   [`Body::merge_coplanar_faces`] and [`crate::instance`]'s grafts —
+//!   each of which either declares the same debug postcondition or is
+//!   composed of operators that do; and the attach/metadata setters,
+//!   which re-certify against their own tier-1 assertion
+//!   ([`Body::set_face_surface`], [`Body::set_edge_curve`]) or write
+//!   fields tier 1 does not constrain at all. **The closure property
+//!   is the claim; a count of the doors is not** — an enumeration
+//!   frozen into this sentence is what rots as doors are added.
+//!   `ring_move`'s case is the least obvious of them: it re-glues the
+//!   per-shell component partition, and the separating-curve argument
+//!   lives in its docs. The D9 taxonomy
 //!   consequence: these debug panics are
 //!   **unreachable by input** through the public API — reaching one
 //!   requires in-crate raw corruption (which is what the validator's

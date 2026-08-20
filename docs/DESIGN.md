@@ -1107,10 +1107,17 @@ topology change is stated, not emergent.
 - The kernel never panics on any input: panics are bugs; every failure is
   a typed error. *(Honest M1 footnote: operator debug postconditions
   are `debug_assert`s, but they are unreachable by input through the
-  public API — raw insertion is crate-internal, and the eleven public
-  mutators all preserve tier 1: the ten Euler operators by the
-  soundness theorem, and `ring_move` — the one public non-operator
-  mutator — by the separating-curve argument documented on the method
+  public API — raw insertion is crate-internal, and every public
+  mutation path preserves tier 1: the Euler operators by the soundness
+  theorem; the non-operator structural mutators (`ring_move`,
+  `split_edge`, `movefac`, `merge_coplanar_faces`, `instance`'s grafts)
+  by declaring the same debug postcondition or by being composed of
+  operators that do; and the attach/metadata setters by re-certifying
+  under their own tier-1 assertion or by writing fields tier 1 does not
+  constrain. The claim is that closure property, deliberately not a
+  count of the doors — a frozen count is what rots as doors are added.
+  `ring_move` remains the least obvious case, by the separating-curve
+  argument documented on the method
   (a ring on a genus-0 component is a Jordan curve, so cross-component
   moves re-partition into legal pieces; non-separating rings force
   g ≥ 1). A firing postcondition is therefore a kernel bug by
