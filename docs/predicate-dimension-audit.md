@@ -11,6 +11,71 @@ linearization) before comparison; a product of two lengths is an
 area-dimensioned defect (the class of the fixed `du_of_rims` bug and
 the #89 in-band landing).
 
+**The two-crate bound is deliberate, and it binds the TABLE, not the
+document.** The sweep reads `geom-brep` and `topo` and stops, because
+the dimensional argument is answered where the comparand is built and
+the out-of-ledger crates make theirs at their own sites — the
+clause-(i) note below already says so of `profile`, `sweep`,
+`editor-core`'s eval/naming and `geom-curves`, and the funnel-bypass
+paragraph after the table calls its scoping *"on purpose"*. The
+**dispositions are not bounded the same way**: F12, F13, F14 and F15
+are `editor-core` rows, carried here because this is where the
+argument that named them lives. So **this document is not the
+workspace's predicate-name roster.** That is `docs/K-REPORT.md`
+§ *"The inventory method, restated"*, which sweeps every crate plus
+`demos/`; all seven names its orphan table records as absent from both
+documents are outside these two crates by construction (`profile` ×2,
+`sweep` ×2, `demos/tour` ×3), which is a fact about this bound and not
+a hole in it. One qualifier the first paragraph's *"every raw
+`sign_within` use"* leaves open: the sweep covers **shipped** code —
+`topo/src/seqgen.rs`'s candidate filter is a raw `sign_within` under
+`#[cfg(test)]`, never instantiated at the recording scalar, and is
+outside it.
+
+**Coverage of its own two crates, measured against main at `f87b203`**
+(carried explicitly, because this is a survey written into the tree it
+surveys). Applying K-REPORT's restated rule — a name is in scope if it
+reaches the `geom_core::k_stats` funnel *however it is spelled at the
+call site* — the two crates hold **313 funnel call sites** in shipped
+code under nine spellings (`decide`, `decide_flagged`,
+`decide_invariant`, and the `check_residual` / `classify` /
+`classify_len` / `require_zero` / `gap_is_zero` / `signed_is_zero`
+wrappers), of which 12 are forwarding hops inside those wrappers,
+leaving **299 decision sites** carrying **246 distinct predicate
+names**: 210 written as a literal at a spelled site, and **36 carried**
+by a module-private `const`, a struct field or a local table
+(`sector_shape.rs`'s three consts, `ray_parity::ParityRows` twice over,
+`transform.rs`'s two arrays, `carrier_eq.rs`'s margin tuples,
+`pcurve_cache.rs`'s winding closure, and four more). **The 143 rows of
+the two tables below reach 223 of those 246** — 124 verbatim, 99
+through a family cell (`bool_sphere_*`, `transform_rigid_*`) or an
+abbreviated slash-list (`carrier/tangent_on_surface_1/2`). The
+remaining **23 are recorded nowhere in this document under any
+reading**, and are enumerated under *Uncovered names* below the tables
+rather than audited in passing.
+
+**Both halves of that measurement have a blind spot, and neither is a
+roster alone** (K-REPORT's framing, and it reproduces here). A code
+scan misses names not written at a funnel site — the 36 carried ones,
+15% of the roster. A corpus column misses names the corpus never
+exercises — **80** of the 246 do not appear in the committed M7
+baseline at all, and that baseline in turn carries six spellings the
+tree has retired (`bool_sector_*` / `split_sector_*`, unified to
+`sector_*` by #652). Re-deriving:
+
+```sh
+# code half — every funnel site, all nine spellings, both crates
+grep -rnE '\b(decide|decide_flagged|decide_invariant|check_residual|classify|classify_len|require_zero|gap_is_zero|signed_is_zero)\s*(::<[^()]*>)?\s*\(' \
+  crates/geom-brep/src crates/topo/src
+# behavioural half — what the committed baseline emitted
+zcat docs/k-report-data/m7-eps-1e-9.csv.gz | tail -n +2 | cut -d, -f2 | sort -u
+```
+
+The first command is a **starting set, not an answer**: a site whose
+first argument is not a literal has to be read, and a spelling not in
+the alternation is invisible to it. That residue is this table's
+standing cost, disclosed rather than discovered.
+
 Trigger and method: the `props_rim_level_group` defect (fixed in this
 unit — `crates/geom-brep/src/props/curved.rs`, the `RimLevel` enum)
 metered a cone's already-length rim-level difference by `× arm`,
@@ -31,7 +96,7 @@ margin fold-in — one quantity, the NURBS carrier's metric rate, that
 three sites had handled three different ways).
 
 **Known rot in the `file:line` column, recorded rather than swept
-here.** Every pointer in the ~230-row table below is hand-written, and
+here.** Every pointer in the 143-row table below is hand-written, and
 no test, lint or CI row checks any of them: an edit to a cited file
 silently shifts every row below it. The two `splitting/rules.rs` rows
 were re-resolved in #661 because that PR moved them (+2 lines) — and
@@ -271,6 +336,7 @@ all stored surface axes/normals/`u_ref` unit; `implicit_residual` is
 | census.rs (M9-2 PR-2 fix pass) | census_backstop_gap | per-axis gap between two faces' SOUND reach boxes (plane hull ⊕ boundary-arc radius; cylinder axial span ⊕ radius; sphere ball — coordinate differences and radii, metres); only a DEFINITE positive clears the pair | m | OK (new in the union fix; boxes tightened to the face_box construction in the delta) |
 | census.rs (M9-2 PR-2 fix pass) | census_backstop_containment | per-axis extent margin between two solids' vertex hulls (coordinate differences — metres); containment = all six definitely positive, clearance = any definitely negative | m | OK (new in the union fix) |
 
+
 Funnel bypasses found: **boolean/ops.rs:634/649** (`sign_within`
 called directly on volume margins — was FLAG F3, **FIXED**: the gates
 now route through `k_stats::decide` under `volume_backstop_operand`,
@@ -287,6 +353,27 @@ tolerances and step-size control in ssi (documented structure
 parameters), `props.rs` trig pad (ε/radius, an enclosure pad, not a
 decision), test fixtures.
 
+### Uncovered names (measured at `f87b203`)
+
+Twenty-three names reach the funnel from `geom-brep` or `topo` and
+have **no row, no family cell and no mention** anywhere above. They are
+enumerated rather than audited: each wants its comparand read and a
+dimension verdict, which is a unit (§D's **D46**) and not a side errand
+of the measurement that found them. Three of the eight homes are files
+this document has never named at all — `edge_nurbs.rs`,
+`boolean/carrier_eq.rs`, `boolean/contact_verify.rs` — and the other
+five are named files whose rows predate these names.
+
+| home | names |
+|---|---|
+| `geom-brep/certify.rs` | `carrier_in_seam_halfplane`, `carrier_on_iso_curve`, `plane_nurbs_on_locus`, `plane_nurbs_hull_sup` |
+| `geom-brep/edge_nurbs.rs` | `plane_nurbs_transversality` |
+| `geom-brep/pcurve_cache.rs` | `pcurve_chart_polar_affine`, `pcurve_chart_polar_winding` (the polar twins of the azimuth pair one row up) |
+| `geom-brep/props/curved.rs` | `props_band_coplanar` |
+| `topo/pcurves.rs` | `pcurve_chart_u_closed`, `pcurve_iso_arc_direction`, `pcurve_iso_seam_column` |
+| `topo/census.rs` | `pm_census_bound_end`, `pm_census_bound_vertex` |
+| `topo/boolean/carrier_eq.rs` | `carrier_sphere_center`, `carrier_sphere_radius`, `carrier_cyl_axis_parallel`, `carrier_cyl_axis_offset`, `carrier_cyl_radius` (a `[(&'static str, Margin<T>)]` table — carried, so no literal at the funnel site) |
+| `topo/boolean/contact_verify.rs` | `contact_tangent_on_1`, `contact_tangent_on_2`, `contact_tangent_opposed`, `contact_tangent_parallel`, `contact_tangent_second_order` |
 ## Findings (dispositions)
 
 Fixed in this unit. Live-pin coverage, honestly (review MINOR-2):
