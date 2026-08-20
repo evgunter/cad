@@ -799,8 +799,8 @@ pub fn wall_probes<S: Scalar>() {
             }
         })
         .collect();
-    let path = pncad::geom_curves::NurbsCurve3::interpolate(&spine, 3)
-        .expect("the loop's spine interpolates");
+    let path =
+        pncad::geom::NurbsCurve3::interpolate(&spine, 3).expect("the loop's spine interpolates");
     let annulus: Vec<ProfileLoop<f64>> = vec![
         circle(p2(0.0, 0.0), R + WALL / 2.0).expect("outer").into(),
         circle(p2(0.0, 0.0), R - WALL / 2.0).expect("inner").into(),

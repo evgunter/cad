@@ -8,8 +8,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
+use geom::Surface;
 use geom_core::{Decide, Point3, Vec3};
-use geom_surfaces::Surface;
 use topo::splitting::{PlaneSide, SplitNaming};
 use topo::{Body, EdgeKey, FaceKey, Provenance, VertexKey};
 

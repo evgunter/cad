@@ -473,7 +473,7 @@ fn an_adopted_iso_column_is_a_knot_domain_end() {
     let (wall, _) = body
         .surfaces()
         .find(|(_, s)| match s {
-            geom_surfaces::Surface::Nurbs(n) => n.knots_u().domain() == (0.0, 3.0),
+            geom::Surface::Nurbs(n) => n.knots_u().domain() == (0.0, 3.0),
             _ => false,
         })
         .expect("the reparameterized wall survives the import");

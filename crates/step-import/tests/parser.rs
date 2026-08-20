@@ -24,7 +24,7 @@ fn nurbs_wireframe_disposition() {
     };
     assert_eq!(eps_in, 1e-9, "the file's declared uncertainty");
     assert_eq!(curves.len(), 1, "one curve in the set");
-    let geom_curves::Curve3::Nurbs(payload) = &curves[0] else {
+    let geom::Curve3::Nurbs(payload) = &curves[0] else {
         panic!("the curve is the rational quadratic");
     };
     // Exact reconstruction: the writer's record pin, inverted.

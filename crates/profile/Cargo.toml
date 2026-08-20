@@ -33,9 +33,9 @@ test-utils = { path = "../test-utils" }
 proptest = { workspace = true }
 # The promoted M2 PR 2 reviewer consumer suite
 # (tests/review_m2_pr2_consumers.rs) is the PR 4/PR 3 composition
-# dry-run: it lowers validated arc segments onto geom-curves Circle
-# carriers; geom-curves is acyclic here (it does not depend on profile).
-geom-curves = { path = "../geom-curves" }
+# dry-run: it lowers validated arc segments onto `geom` Circle
+# carriers; geom is acyclic here (it does not depend on profile).
+geom = { path = "../geom" }
 
 # ONE test binary for the whole suite (see tests/all.rs). Each extra test
 # target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.

@@ -615,9 +615,12 @@ impl<T: Decide> Body<T> {
         // Fan merge: everything starting at w except the doomed mate now
         // starts at v (the run move, reversed — module docs).
         for &moved in &fan {
-            if let Some(half_edge) = self.get_half_edge_mut(moved) {
-                half_edge.start = v;
-            }
+            let Some(half_edge) = self.get_half_edge_mut(moved) else {
+                unreachable!(
+                    "kev: the fan's members were resolved by the plan phase's bounded walk"
+                )
+            };
+            half_edge.start = v;
         }
         // Unsplice (derived as mev's exact inverse — module docs). The
         // adjacency cases collapse the two link writes into one.
@@ -625,33 +628,38 @@ impl<T: Decide> Body<T> {
         if segment_kill {
             // The 2-cycle loop empties: Empty at the survivor v — the
             // inverse of MevSite::Lone.
-            if let Some(loop_data) = self.get_loop_mut(l1) {
-                loop_data.boundary = LoopBoundary::Empty { vertex: v };
-            }
+            let Some(loop_data) = self.get_loop_mut(l1) else {
+                unreachable!("kev: `l1` resolved in the plan phase")
+            };
+            loop_data.boundary = LoopBoundary::Empty { vertex: v };
         } else if b == m {
             // Strut shape … a → he → m → d …: one write bridges both.
             self.link_half_edges(a, d);
-            if let Some(loop_data) = self.get_loop_mut(l1) {
-                loop_data.boundary = LoopBoundary::Cycle { first: d };
-            }
+            let Some(loop_data) = self.get_loop_mut(l1) else {
+                unreachable!("kev: `l1` resolved in the plan phase")
+            };
+            loop_data.boundary = LoopBoundary::Cycle { first: d };
         } else if d == he {
             // Mirror adjacency … c → m → he → b ….
             self.link_half_edges(c, b);
-            if let Some(loop_data) = self.get_loop_mut(l1) {
-                loop_data.boundary = LoopBoundary::Cycle { first: b };
-            }
+            let Some(loop_data) = self.get_loop_mut(l1) else {
+                unreachable!("kev: `l1` resolved in the plan phase")
+            };
+            loop_data.boundary = LoopBoundary::Cycle { first: b };
         } else {
             // General: unsplice each half from its own loop (one loop or
             // two). Re-anchor both; when l1 == l2 the second write wins
             // (deterministic).
             self.link_half_edges(a, b);
             self.link_half_edges(c, d);
-            if let Some(loop_data) = self.get_loop_mut(l1) {
-                loop_data.boundary = LoopBoundary::Cycle { first: b };
-            }
-            if let Some(loop_data) = self.get_loop_mut(l2) {
-                loop_data.boundary = LoopBoundary::Cycle { first: d };
-            }
+            let Some(loop_data) = self.get_loop_mut(l1) else {
+                unreachable!("kev: `l1` resolved in the plan phase")
+            };
+            loop_data.boundary = LoopBoundary::Cycle { first: b };
+            let Some(loop_data) = self.get_loop_mut(l2) else {
+                unreachable!("kev: `l2` resolved in the plan phase")
+            };
+            loop_data.boundary = LoopBoundary::Cycle { first: d };
         }
         // Emanating rule (unconditional, module docs): first merged-fan
         // member (which is next(he) — the clockwise orbit step from m is
@@ -663,9 +671,10 @@ impl<T: Decide> Body<T> {
         } else {
             Some(d)
         };
-        if let Some(vertex) = self.get_vertex_mut(v) {
-            vertex.emanating = v_anchor;
-        }
+        let Some(vertex) = self.get_vertex_mut(v) else {
+            unreachable!("kev: `v` resolved in the plan phase, and only `w` (!= v) is reaped")
+        };
+        vertex.emanating = v_anchor;
         // Kills, each with its provenance entry (kill order documented
         // above).
         self.half_edges.remove(he);
@@ -804,8 +813,16 @@ impl<T: Decide> Body<T> {
             });
         }
         // The dying loop's full cycle (bounded, D9): everything after he
-        // is the remnant that moves to the mate's loop. The walk resolves
-        // every member, so prev(he)/next(he) are already validated.
+        // is the remnant that moves to the mate's loop. The walk steps
+        // `next`, so it proves `b = next(he)` live and nothing else:
+        // `a = prev(he)` is live only by prev/next being mutual
+        // inverses, which is a tier-1 fact, not one this call
+        // establishes. `a` is therefore the one splice key here that no
+        // check in this operator proves; every sibling proves its own
+        // (`kev` below takes all four). It reaches only
+        // [`Body::link_half_edges`], which still discards — so the gap
+        // is garbage-out, not a panic, and closing it is the other half
+        // of what makes that helper convertible.
         let cycle = self
             .loop_cycle(he)
             .ok_or(EulerOpError::LoopCycleBroken { r#loop: l1 })?;
@@ -832,9 +849,12 @@ impl<T: Decide> Body<T> {
         // ---- Mutation (infallible from here on). ----
         // The remnant joins the mate's loop.
         for &moved in &remnant {
-            if let Some(half_edge) = self.get_half_edge_mut(moved) {
-                half_edge.parent_loop = l2;
-            }
+            let Some(half_edge) = self.get_half_edge_mut(moved) else {
+                unreachable!(
+                    "kef: the remnant's members were resolved by the plan phase's bounded walk"
+                )
+            };
+            half_edge.parent_loop = l2;
         }
         // Splice (derived as mef's exact inverse — module docs diagram).
         let he_alone = b == he; // dying loop was [he]
@@ -843,32 +863,36 @@ impl<T: Decide> Body<T> {
             (true, true) => {
                 // The Lone inverse: a self-loop edge whose halves were
                 // both one-half-edge loops. The surviving loop empties.
-                if let Some(loop_data) = self.get_loop_mut(l2) {
-                    loop_data.boundary = LoopBoundary::Empty { vertex: w };
-                }
+                let Some(loop_data) = self.get_loop_mut(l2) else {
+                    unreachable!("kef: `l2` resolved in the plan phase")
+                };
+                loop_data.boundary = LoopBoundary::Empty { vertex: w };
             }
             (true, false) => {
                 // Empty remnant: just unsplice the mate from its loop.
                 self.link_half_edges(c, d);
-                if let Some(loop_data) = self.get_loop_mut(l2) {
-                    loop_data.boundary = LoopBoundary::Cycle { first: d };
-                }
+                let Some(loop_data) = self.get_loop_mut(l2) else {
+                    unreachable!("kef: `l2` resolved in the plan phase")
+                };
+                loop_data.boundary = LoopBoundary::Cycle { first: d };
             }
             (false, true) => {
                 // The mate was alone: the remnant closes into itself and
                 // becomes the surviving loop's whole cycle.
                 self.link_half_edges(a, b);
-                if let Some(loop_data) = self.get_loop_mut(l2) {
-                    loop_data.boundary = LoopBoundary::Cycle { first: b };
-                }
+                let Some(loop_data) = self.get_loop_mut(l2) else {
+                    unreachable!("kef: `l2` resolved in the plan phase")
+                };
+                loop_data.boundary = LoopBoundary::Cycle { first: b };
             }
             (false, false) => {
                 // General: stitch the remnant across the mate's gap.
                 self.link_half_edges(c, b);
                 self.link_half_edges(a, d);
-                if let Some(loop_data) = self.get_loop_mut(l2) {
-                    loop_data.boundary = LoopBoundary::Cycle { first: d };
-                }
+                let Some(loop_data) = self.get_loop_mut(l2) else {
+                    unreachable!("kef: `l2` resolved in the plan phase")
+                };
+                loop_data.boundary = LoopBoundary::Cycle { first: d };
             }
         }
         // Emanating rule (unconditional, module docs): next(m) starts at
@@ -886,12 +910,14 @@ impl<T: Decide> Body<T> {
         };
         let u_anchor = survivor(d, b);
         let w_anchor = survivor(b, d);
-        if let Some(vertex) = self.get_vertex_mut(u) {
-            vertex.emanating = u_anchor;
-        }
-        if let Some(vertex) = self.get_vertex_mut(w) {
-            vertex.emanating = w_anchor;
-        }
+        let Some(vertex) = self.get_vertex_mut(u) else {
+            unreachable!("kef: `u` resolved in the plan phase")
+        };
+        vertex.emanating = u_anchor;
+        let Some(vertex) = self.get_vertex_mut(w) else {
+            unreachable!("kef: `w` resolved in the plan phase")
+        };
+        vertex.emanating = w_anchor;
         // Kills, each with its provenance entry (kill order documented
         // above), then the shell's face list and orphaned geometry.
         self.half_edges.remove(he);
@@ -907,9 +933,10 @@ impl<T: Decide> Body<T> {
         // Null-face record hygiene (M3 PR 1): a record never outlives
         // its face (crate::null).
         self.null_faces.remove(f1);
-        if let Some(shell_data) = self.get_shell_mut(shell) {
-            shell_data.faces.retain(|&face| face != f1);
-        }
+        let Some(shell_data) = self.get_shell_mut(shell) else {
+            unreachable!("kef: the shell resolved in the plan phase; only `f1` is reaped above")
+        };
+        shell_data.faces.retain(|&face| face != f1);
         let killed_curve = self
             .remove_curve_if_orphaned(edge_data.curve)
             .then_some(edge_data.curve);
@@ -1046,15 +1073,18 @@ impl<T: Decide> Body<T> {
             },
             Provenance::Mfkrh { ring },
         );
-        if let Some(old) = self.get_face_mut(old_face) {
-            old.rings.retain(|&l| l != ring);
-        }
-        if let Some(loop_data) = self.get_loop_mut(ring) {
-            loop_data.face = face;
-        }
-        if let Some(shell_data) = self.get_shell_mut(shell) {
-            shell_data.faces.push(face);
-        }
+        let Some(old) = self.get_face_mut(old_face) else {
+            unreachable!("mfkrh: the old face resolved in the plan phase")
+        };
+        old.rings.retain(|&l| l != ring);
+        let Some(loop_data) = self.get_loop_mut(ring) else {
+            unreachable!("mfkrh: the ring resolved in the plan phase")
+        };
+        loop_data.face = face;
+        let Some(shell_data) = self.get_shell_mut(shell) else {
+            unreachable!("mfkrh: the shell resolved in the plan phase")
+        };
+        shell_data.faces.push(face);
 
         #[cfg(debug_assertions)]
         self.assert_euler_postcondition(
@@ -1079,10 +1109,7 @@ impl<T: Decide> Body<T> {
     ///
     /// As [`Body::mfkrh`].
     pub fn mfkrh_plug(&mut self, ring: LoopKey) -> Result<MfkrhCreated, EulerOpError> {
-        self.mfkrh(
-            ring,
-            FaceSurface::New(geom_surfaces::Surface::nurbs_placeholder()),
-        )
+        self.mfkrh(ring, FaceSurface::New(geom::Surface::nurbs_placeholder()))
     }
 }
 

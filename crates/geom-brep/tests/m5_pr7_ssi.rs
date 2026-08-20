@@ -57,6 +57,8 @@
     clippy::unreachable
 )]
 
+use geom::{Curve3, NurbsCurve3};
+use geom::{NurbsSurface, Surface};
 use geom_brep::CERT_SAMPLES;
 use geom_brep::ssi::BranchEnd;
 use geom_brep::ssi::{
@@ -64,8 +66,6 @@ use geom_brep::ssi::{
 };
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Margin, Point3, Tolerance, Vec3};
-use geom_curves::{Curve3, NurbsCurve3};
-use geom_surfaces::{NurbsSurface, Surface};
 
 fn eps() -> f64 {
     Tolerance::get().eps
@@ -1137,7 +1137,7 @@ fn shape_iii_the_wall_cut_certifies_all_three_limbs_and_refuses_a_corrupted_pcur
     let mid = control.len() / 2;
     let d = definitely_positive();
     control[mid] = geom_core::Point2::new(control[mid].x + d, control[mid].y);
-    let bad = geom_curves::NurbsCurve2::new(pb.knots().clone(), control, pb.weights().to_vec())
+    let bad = geom::NurbsCurve2::new(pb.knots().clone(), control, pb.weights().to_vec())
         .expect("structure unchanged");
     let (p, w) = (cutting_plane(), certifiable_wall());
     let err = ssi::certify_rung3(

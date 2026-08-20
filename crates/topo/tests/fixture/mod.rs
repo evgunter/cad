@@ -42,11 +42,11 @@
 
 use std::sync::Arc;
 
+use geom::Surface;
+use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom_brep::ssi::{self, SsiDomain, SsiError};
 use geom_brep::{ChartWindow, EdgeCurveSpec, EdgeGeometry, Pcurve, PcurveCache};
 use geom_core::{Band, Point2, Point3, Real, Vec3};
-use geom_curves::{Curve3, NurbsCurve2, NurbsCurve3};
-use geom_surfaces::Surface;
 use topo::{Body, HalfEdgeKey};
 
 /// The fixture's cylinder: offset from the sphere's centre so the two

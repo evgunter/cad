@@ -124,13 +124,13 @@
 //! op that mutates an already-minted body must either clear the map or
 //! re-mint before returning, and should say which in its own docs.
 
+use geom::Surface;
 use geom_brep::{
     ChartWindow, Pcurve, PcurveCache, PcurveCertifyError, PcurveFittedLane, chart_pcurve,
 };
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
 use geom_core::{Decide, Indeterminate, Margin, Real, Sign};
-use geom_surfaces::Surface;
 
 use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey, LoopKey};
@@ -284,7 +284,7 @@ pub fn pcurve_of<T: Decide>(
 fn half_edge_carrier<T: Decide>(
     body: &Body<T>,
     half_edge: HalfEdgeKey,
-) -> Result<(geom_curves::Curve3<T>, T, T), PcurveMintError> {
+) -> Result<(geom::Curve3<T>, T, T), PcurveMintError> {
     let he = body
         .get_half_edge(half_edge)
         .ok_or(PcurveMintError::Corrupt)?;
@@ -537,8 +537,8 @@ fn nurbs_iso_derive<T: Decide>(
         geom_brep::EdgeGeometry::MappedCurve(
             geom_brep::MappedCurve::PlacedSegment { .. }
             | geom_brep::MappedCurve::RevolvedPoint { .. },
-        ) if matches!(carrier, geom_curves::Curve3::Circle { .. }) => {
-            let geom_surfaces::Surface::Nurbs(payload) = surface else {
+        ) if matches!(carrier, geom::Curve3::Circle { .. }) => {
+            let geom::Surface::Nurbs(payload) = surface else {
                 return Err(refuse("an arc cap rim on a non-NURBS chart"));
             };
             let ku = payload.knots_u();
@@ -655,7 +655,7 @@ fn nurbs_iso_derive<T: Decide>(
         // column under the chart's own parameterization refuses typed
         // and permanently (C5).
         geom_brep::EdgeGeometry::Intersection { .. } => {
-            if !matches!(carrier, geom_curves::Curve3::Nurbs(_)) {
+            if !matches!(carrier, geom::Curve3::Nurbs(_)) {
                 return Err(refuse(
                     "an Intersection carrier that is not a spline — the certified \
                      boundary-column class compares the carrier against the chart's own \

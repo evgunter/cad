@@ -59,6 +59,8 @@
 
 use core::fmt;
 
+use geom::Curve3;
+use geom::Surface;
 use geom_brep::{
     DihedralClass, EdgeCurveSpec, EdgeGeometry, MappedCurve, NewellError, classify_dihedral,
     newell_plane,
@@ -66,8 +68,6 @@ use geom_brep::{
 use geom_core::{
     Affine3, Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec3,
 };
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
 use profile::{SegmentKind, ValidatedLoop, ValidatedProfile};
 use topo::{
     Body, EdgeKey, EulerOpError, FaceKey, FaceSurface, MefSite, MevCreated, MevSite, ShellKey,

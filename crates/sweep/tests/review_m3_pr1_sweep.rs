@@ -116,7 +116,7 @@ fn split_circle_carrier_intersection_edge() {
         .edges()
         .find_map(|(k, e)| {
             let c = body.get_curve_geom(e.curve)?.certified()?.clone();
-            matches!(c.carrier(), geom_curves::Curve3::Circle { .. }).then_some((k, c))
+            matches!(c.carrier(), geom::Curve3::Circle { .. }).then_some((k, c))
         })
         .expect("the D-body must carry a circular rim");
     let (t0, t1) = parent.params();
@@ -167,7 +167,7 @@ fn split_circle_carrier_intersection_edge() {
     // r = 1/sqrt(2)) sits inside the zero band although the raw
     // angular margin is above eps.
     let eps = Tolerance::get().eps;
-    let geom_curves::Curve3::Circle { radius, .. } = parent.carrier().clone() else {
+    let geom::Curve3::Circle { radius, .. } = parent.carrier().clone() else {
         panic!("circle carrier vanished");
     };
     assert!(radius < 1.0);
@@ -294,7 +294,7 @@ fn split_then_null_lifecycle_on_prism() {
         .edges()
         .find_map(|(k, e)| {
             let c = body.get_curve_geom(e.curve)?.certified()?.clone();
-            matches!(c.carrier(), geom_curves::Curve3::Line { .. }).then_some((k, c))
+            matches!(c.carrier(), geom::Curve3::Line { .. }).then_some((k, c))
         })
         .unwrap();
     let (t0, t1) = curve.params();

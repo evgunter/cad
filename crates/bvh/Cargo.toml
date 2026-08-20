@@ -13,7 +13,7 @@ workspace = true
 # pure box structure over `geom_core::Bounds` brackets, so the curved
 # crates (and PR 7's SSI subdivision duty inside them) can consume it
 # without an upward dependency. Entity-specific box CONSTRUCTORS live
-# next to their invariants in `geom-curves`/`geom-surfaces`.
+# next to their invariants in `geom`.
 geom-core = { path = "../geom-core" }
 
 [dev-dependencies]

@@ -10,10 +10,10 @@
 //! at all.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom::Curve3;
+use geom::{NurbsSurface, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeGeometry};
 use geom_core::{Affine3, Band, Point2, Point3, Tolerance, Vec3};
-use geom_curves::Curve3;
-use geom_surfaces::{NurbsSurface, Surface};
 use profile::RawLoop;
 use std::sync::Arc;
 use topo::{Body, FaceSurface, Pcurve};

@@ -517,16 +517,16 @@ pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierD
     // signs (S10's exact-bit discipline).
     let outward = f.sense;
     match body.get_surface(f.surface) {
-        Some(geom_surfaces::Surface::Plane { origin, normal, .. }) => Some(CarrierDesc::Plane {
+        Some(geom::Surface::Plane { origin, normal, .. }) => Some(CarrierDesc::Plane {
             origin: *origin,
             normal: *normal * sign,
         }),
-        Some(geom_surfaces::Surface::Sphere { center, radius, .. }) => Some(CarrierDesc::Sphere {
+        Some(geom::Surface::Sphere { center, radius, .. }) => Some(CarrierDesc::Sphere {
             center: *center,
             radius: *radius,
             outward,
         }),
-        Some(geom_surfaces::Surface::Cylinder {
+        Some(geom::Surface::Cylinder {
             origin,
             axis,
             radius,
@@ -661,11 +661,11 @@ pub enum TangentLocusError {
 /// [`TangentLocusError`] — escalation, definite non-tangency, or a
 /// configuration outside the closed-form lane.
 pub fn tangent_locus<T: Decide>(
-    a: &geom_surfaces::Surface<T>,
-    b: &geom_surfaces::Surface<T>,
+    a: &geom::Surface<T>,
+    b: &geom::Surface<T>,
     band: Band,
 ) -> Result<TangentLocus<T>, TangentLocusError> {
-    use geom_surfaces::Surface;
+    use geom::Surface;
     let arm = T::one();
     let escalate = TangentLocusError::Escalated;
     match (a, b) {

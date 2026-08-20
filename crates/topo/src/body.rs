@@ -49,9 +49,9 @@
 //! catch it. The flip side of this same coin is load-bearing — see the
 //! [`Body`] docs on lineage-scoped keys.
 
+use geom::Surface;
 use geom_brep::{EdgeCurve, EdgeGeometry, PcurveCache};
 use geom_core::{Point3, Real};
-use geom_surfaces::Surface;
 use slotmap::{SecondaryMap, SlotMap};
 
 use crate::entity::{

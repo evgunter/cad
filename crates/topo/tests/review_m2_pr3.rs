@@ -14,10 +14,10 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom::Curve3;
+use geom::Surface;
 use geom_brep::{MappedCurve, SketchSegment, newell_plane};
 use geom_core::{Affine3, Band, Decide, Point2, Point3, Tolerance, Vec3};
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
 use topo::{
     Body, EdgeCurveSpec, EdgeGeometry, EulerOpError, FaceSurface, MefSite, MevSite, SurfaceKey,
     ValidationError, validate, validate_closed, validate_geometric,

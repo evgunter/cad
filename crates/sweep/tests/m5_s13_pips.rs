@@ -27,9 +27,9 @@
 use core::f64::consts::PI;
 use profile::RawLoop;
 
+use geom::Curve3;
+use geom::Surface;
 use geom_core::{Affine3, Band, Point2, Tolerance, Vec3};
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};

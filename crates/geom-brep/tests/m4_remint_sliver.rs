@@ -8,10 +8,10 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom::Curve3;
+use geom::Surface;
 use geom_brep::{CERT_SAMPLES, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeGeometry};
 use geom_core::{Band, Point3, Tolerance, Vec3};
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
 
 fn table(
     surfs: Vec<Surface<f64>>,

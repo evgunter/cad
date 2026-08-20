@@ -11,10 +11,10 @@
 //! surfaces are bitwise identical and every seam sits on the angle-0
 //! meridian (module docs).
 
+use geom::Curve3;
+use geom::Surface;
 use geom_brep::{EdgeCurveSpec, EdgeGeometry, MappedCurve};
 use geom_core::{Point2, Point3, Real, Vec3};
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
 
 use super::SweptSeg;
 use super::axis::{AxisFrame, WallKind};

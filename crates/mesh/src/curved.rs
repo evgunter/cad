@@ -57,8 +57,8 @@
 
 use std::collections::HashMap;
 
+use geom::Surface;
 use geom_core::Point3;
-use geom_surfaces::Surface;
 use spade::{ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulation};
 use topo::{Body, EdgeKey, FaceKey};
 
@@ -803,8 +803,15 @@ mod tests {
             vids.insert(vk, positions.len() as u32);
             positions.push(*body.get_point(v.point).unwrap());
         }
-        let (chords, _) =
-            crate::chords::compute_chords(body, 0.025, &vids, &mut positions).unwrap();
+        let chords = crate::chords::compute_chords(
+            body,
+            0.025,
+            &vids,
+            &mut positions,
+            &mut crate::nurbs_cert::FaceBounds::new(),
+        )
+        .unwrap()
+        .ids;
         let mut out = Vec::new();
         for (fk, face) in body.faces() {
             if crate::trimmed::has_trim_carrier(body, fk).unwrap() {

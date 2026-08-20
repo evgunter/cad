@@ -99,10 +99,10 @@
 
 use std::collections::HashMap;
 
+use geom::Curve3;
+use geom::Surface;
 use geom_brep::EdgeGeometry;
 use geom_core::{Point3, Vec3};
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
 use topo::{Body, EdgeKey, FaceKey, LoopBoundary, LoopKey};
 
 use crate::types::TessellateError;
