@@ -2884,9 +2884,14 @@ be unified."
   *Lesson: "the same derivation, twice" and "the same function, twice" are
   different claims. Only the first was true here, and unifying on the strength
   of the second would have been a wrong curve at the domain end.*
-- **"Distinct interior knots" — FIXED by #744, and there were SIX.** All the
-  copies appeared within **five days of the `KnotVector` type itself**, whose
-  accessor set was frozen in #125 *before any consumer existed*.
+- **"Distinct interior knots" — FIXED by #744, and there were SIX.** The dating
+  was re-checked against the full history (`git log -S`, the clone was shallow
+  when this row was written) and it is **sharper** than the row claimed: the
+  `KnotVector` type landed `a0c58ee5`, **2026-07-27 01:48**, and the first
+  hand-written scan landed `24442408` the **same day at 23:58** — twenty-two
+  hours, the very next PR. Four more followed within five days (`67aa508d`
+  07-28, `2bd911d5` and `92250b85` both 08-01); the sixth, `5484ecbf`, came at
+  nine days. The accessor set was frozen *before any consumer existed*.
   `multiplicity_of(u)` requires you to already know `u`, so every consumer
   needing *the list* hand-wrote the same scan. **NEVER FLAGGED** — by the fourth
   copy nobody was tracking, and the row's own count of "≥4" was two short: this
