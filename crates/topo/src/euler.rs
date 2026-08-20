@@ -2097,11 +2097,11 @@ impl<T: Decide> Body<T> {
     /// [`live`](crate::live) module docs.
     ///
     /// **A bounded walk proves its members, not their `prev` fields.**
-    /// [`Body::loop_cycle_live`] and [`Body::vertex_orbit_live`] hand
-    /// out a token per member and nothing else. `loop_cycle` steps
-    /// `next`, so having walked from `he` says nothing about
-    /// `prev(he)`: that key wants [`Body::certify_half_edge`] in the
-    /// plan phase, like any other value read out of the arena.
+    /// [`Body::loop_cycle_live`] hands out a token per member and
+    /// nothing else. The walk steps `next`, so having walked from `he`
+    /// says nothing about `prev(he)`: that key wants
+    /// [`Body::certify_half_edge`] in the plan phase, like any other
+    /// value read out of the arena.
     ///
     /// A failed lookup here is the D2 addendum's row 4 — a token that
     /// outlived the removal of its key. The two arms cannot name their
