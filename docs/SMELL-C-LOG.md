@@ -360,13 +360,31 @@ about the wrong quantity.
 
 ## Landings
 
-*(none merged yet)*
-
 | PR | unit | state |
 |---|---|---|
-| **#702** | C-a / S24 | green; style review returned a **MAJOR** and both of Evan's questions as **No** — in its fix pass (C-R5/6/7) |
-| **#705** | C-c / S31 | green (35 success, 1 conditional skip), 268 files; adversarial + style reviews running. Fix pass owes C-R8's `DESIGN.md:1132` rename. |
-| **smellc/s30-mesh-instrument** | C-b / S30 | resumed after the restart; no PR yet |
+| **#702** | C-a / S24 | **MERGED 2026-08-20** (`f382c4a`). 37 checks terminal, zero failures. Two review rounds plus an independent verification pass. **Unblocks Track D's D7.** |
+| **#705** | C-c / S31 | both reviews returned and both fix batches landed; adversarial MAJOR-1 **cleared on re-read**. Awaiting the nextest legs on the final head. |
+| **#709** | C-b / S30 | open — *the instrument leaves the kernel: `mesh::budget` measures, `tools/tess-meter` derives, `probe_stats` deleted*. Not yet reviewed. |
+
+### What #702 cost, and what that says about the policy
+
+Two review rounds and a verification pass on a row the track had classed
+**low-risk, style-review-only**. The style lane found a MAJOR anyway; the
+verification pass found a second dead arm the corrected evidence had not
+mentioned. Neither was a soundness bug — nothing shipped was ever wrong — and
+both were about **evidence claiming more than it had**.
+
+That is the calibration `REVIEW-STYLE-DISPATCH.md` predicted (*"expect findings
+counts to rise… that is the instrument changing, not implementation quality"*),
+and it is the argument for the two questions Evan added: neither MAJOR was
+reachable from the diff, and both were reachable from *"is this completely
+fixed, and is this the best way"*.
+
+The lane's own closing disclosure is the one to keep: every local run it made
+was `-p editor-core`, so its "575 passed" was evidence about **one crate**, and
+`pncad`'s façade-parity gate caught three new exports on CI. It said so in the
+PR rather than leaving it implicit. A green local count is scoped to the crates
+it names.
 
 ## Follow-ups this track raised about itself
 
