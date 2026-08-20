@@ -1335,189 +1335,207 @@ regeneration chore the steelman priced, not a contract.
 
 ## S8. The fitted (rung-3) pcurve lane has no producer anywhere in `src`
 
-- **Where**: `crates/geom-brep/src/pcurve_cache.rs:1379`,
-  `crates/geom-brep/src/pcurve_cache.rs:907`,
-  `crates/topo/src/pcurves.rs:1057`
-- **Confidence**: sure
+**FIXED by #707 — the lane stays; the sentence the finding rested on was
+the false thing, and the frontier now names itself.**
 
-`PcurveCache::certify_fitted` is called from no `src` file in the
-workspace — only from test fixtures and three probe tests. `mint_face`,
-the one minting pass, goes exclusively through the closed-form
-`PcurveCache::certify` door. That makes roughly 500 lines — the
-`PcurveFittedLane` trait and its four impls, `fitted_lane`,
-`rational_arc_chain`, `carrier_diameter`, `ssi_refusal`,
-`run_fitted_checks`, three `PcurveCertifyError` variants and two
-`EnvelopeStatement` variants — machinery with no caller.
+**What the sort found: KEEP.** The steelman (2026-08-18) graded the lane
+PLANNED-but-unscheduled with three named consumers, and removing it would
+reopen a design ratified three days before the scan (`PCURVE-UNIFY-DESIGN`
+U2 defines `General` as certifying *"at the honest Fitted grade"*).
+Removal is also all-or-nothing — `certify_fitted` is the variant's sole
+constructor — and would falsify ratified exit-walk rows and six test files.
 
-It is not free: the `Arc<NurbsCurve2>` payload costs `Pcurve` and
-`PcurveCache` their `Copy` for every *other* variant. And it is
-documented as "the general rung" and "LIVE since M6-2", which reads as
-shipped rather than as speculative.
+**What was false.** The `Copy` price. `pcurve_cache.rs` blamed `Fitted`'s
+`Arc<NurbsCurve2>` for costing `Pcurve`/`PcurveCache` their `Copy`.
+Re-verified on today's tree: `Pcurve::IsoArc` carries `breaks: KnotVector`
+and `KnotVector` is `Vec<f64>`-backed, so either variant alone denies
+`Copy` and deleting `Fitted` restores nothing. The residual cost is three
+`Pcurve` clones (`topo/src/pcurves.rs:269`, `:836`, `:1084`) plus one
+`PcurveCache` clone (`topo/src/boolean/combine.rs:343`, transient by its
+own comment). The finding's cost column was therefore zero, and the
+finding was built on it.
 
-**Verdict:** ACCEPTED, SORT REQUIRED (Evan, 2026-08-18). On this whole
-cluster: "a lot of these are to support planned work, so that'll need to
-be sorted out from the ones that are superseded." Steelman pass
-commissioned to make exactly that determination, and to price the
-concrete cost — `Arc<NurbsCurve2>` is what denies `Pcurve`/`PcurveCache`
-their `Copy` for every other variant.
-**Steelman (2026-08-18): PLANNED (unscheduled) — SURVIVES IN PART, and
-the stated price has already evaporated.**
+**Also false: "machinery with no caller", by ~10×.** Only `certify_fitted`
+is callerless. `PcurveCache::recertify` dispatches
+`Fitted → run_fitted_checks`, dispatched by the tier-3 validator at
+`topo/src/pcurves.rs:1379`, which is why `validate_pcurves` carries the
+`PcurveFittedLane` bound at all. **That is static reachability, not
+execution**, and the first draft of this fix said "runs in production",
+which is the same overclaim in the other direction: since
+`certify_fitted` is the variant's sole origin, no body this workspace
+builds holds a `Fitted` cache and the arm never executes in-tree. It is
+live for an out-of-tree caller attaching one through
+`topo::Body::attach_pcurve`, and the code now says exactly that.
 
-*It discharged a ratified acceptance obligation*, not a speculation:
-`M5-EXIT-WALK.md:110` records *"a non-vacuous fitted-cache-at-rest
-row… recorded as an **acceptance obligation** of that unit"*. The
-`Copy` cost was sized **in advance** (the *"~35-site ripple"*) and was a
-named reviewer attack at dispatch.
+**What was true.** The docs read as *shipped* where the truth is that the
+certified route exists and no kernel constructor mints one — which #176's
+merged body said and the code did not.
 
-*"LIVE since M6-2" meant the certified route exists, not that a
-constructor mints one* — and PR #176 **said so in the merged body**:
-*"no kernel constructor mints a `Fitted` cache into a body until the
-banked join lane lands."* It did not ship with a producer that was later
-removed; it shipped producerless, knowingly.
+**What the frontier now says about itself.** `certify_fitted` states that
+it has no `src` caller, that it is the lane's only callerless item, and
+names its three consumers in decreasing firmness: (a) mint-side wiring of
+the general-circle route for the oblique-trihedron octant, named as open
+in `DESIGN.md` and **in no milestone plan and no carried-items register**
+(re-verified 2026-08-20); (b) U2's `General` arm; (c) the germ-chord lane.
+`Pcurve::Fitted`'s own docs point at that door.
 
-*Three named consumers, decreasing firmness:* (a) the **mint-side
-general-circle wiring** for the oblique-trihedron octant — a
-*currently-reached* coverage gap (`pcurves.rs:940`), named in ratified
-`DESIGN.md:557`, but scheduled into **no milestone plan and absent from
-#250**, the carried-items register Evan asked to be total; (b) U2's
-`General` arm, **ratified 2026-08-15 — three days before this scan** —
-with lily wall 8 depending on it (`M9-LOG` tail); (c) the germ-chord
-lane, explicitly banked by Evan's M9-5 ruling.
+**Coupled with S9 in the removal direction**, which neither finding wrote
+down: most of S9's inventory is check-5-only only if this lane goes too.
 
-**The stated price is gone.** `Pcurve::IsoArc` carries a `Vec`-backed
-`KnotVector` and is minted in production since M8-3. **Deleting `Fitted`
-would not restore `Copy` to `Pcurve` or `PcurveCache`.** The doc at
-`pcurve_cache.rs:1242` blaming the `Arc` is **stale** — true at M6-2,
-false since M8-3. The residual cost is three `.clone()` sites.
+**Owed elsewhere: #250 needs a row** for (a). Not edited by this unit; the
+obligation is recorded at the `mint_pcurves` claim site, at
+`certify_fitted`, and in §D below.
 
-*"Machinery with no caller" is overstated by ~10×.* `PcurveCache::recertify`
-dispatches `Fitted → run_fitted_checks` and **is called from production
-tier-3** (`topo/src/pcurves.rs:1353`, check 8, ungated) — which is why
-`validate_pcurves` is `<T: PcurveFittedLane>` and why `PropsQuadLane`
-carries it as a supertrait. Only `certify_fitted` itself (~40 lines
-including docs) is genuinely callerless.
-
-*Hidden costs of removal:* it is all-or-nothing (`certify_fitted` is the
-sole constructor of the variant); ratified docs go false (`M6-EXIT-WALK`
-row 3 "MET… DISCHARGED non-vacuously", `DESIGN.md` frontier (b)
-"CLOSED (M6-2)"); six test files including adversarially-adopted probes
-delete or rewrite; and it **reopens a design ratified three days before
-this scan** (U2 defines `General` as certifying *"at the honest Fitted
-grade"*), against `CLAUDE.md`'s do-not-re-litigate rule.
+**Two sites read as shipped through the first pass, and the sweep is why.**
+`pcurve_cache.rs`'s `UnsupportedCarrier` refusal told a **user** that *"The
+general fitted/marched rung is live — store the chart image as
+`Pcurve::Fitted`"*, instructing a caller toward a rung no in-tree
+constructor mints; and `topo::pcurves`' module header still said in the
+present tense that the sphere's general circles *"route through the fitted
+lane"*, contradicted twenty lines into the function it describes. Both are
+fixed. **The sweep missed them because it was scoped to the phrases being
+removed** — a literal match over `crates/*/src` and `crates/*/tests` finds
+prose that *quotes* the false claim, and neither of these quotes it: one is
+a user-facing `write!` string, the other a present-tense paraphrase. The
+same blind spot left §A's roll-up saying *"S8 is why `Pcurve` is not
+`Copy`"* — the exact falsehood this unit exists to kill, in the document
+being edited. Sweep for the CLAIM, not for the sentence.
 
 ## S9. The trim-containment limb is vacuous on both production paths
 
-- **Where**: `crates/topo/src/pcurves.rs:1028`,
-  `crates/topo/src/pcurves.rs:1300`,
-  `crates/geom-brep/src/pcurve_cache.rs:2300`
-- **Confidence**: sure
+**FIXED by #707 — the mechanism claim was right, the justifying comment was
+false, and the limb's documented status is now "precondition on the public
+door".**
 
-In `mint_face` the face's `ChartWindow` is computed as the hull of
-exactly the chart boxes that are then checked against it, so containment
-holds by construction. `validate_pcurves` does the same at
-re-certification: window = hull of every stored cache's box, then each
-cache is re-certified against that hull. So check 5 cannot fail on
-either production path — it can only fail on an attach path that exists
-in tests.
+**What the sort found: KEEP.** The steelman graded this NEITHER planned nor
+superseded. Containment is an identity on both production paths, and there
+is no planned attach path — content-keyed cache transfer is banked
+(`DESIGN.md:1576`) and the one `src` site copying a cache between bodies is
+explicitly transient.
 
-The comment at `pcurves.rs:1028` acknowledges the first half and argues
-the check bites at re-certification; the re-certification code builds
-its window the same self-referential way. Sustained by that check: a
-public `ChartWindow` type, a `chart_box` arm per `Pcurve` variant, three
-lever-arm helpers (`azimuth_lever`/`chart_arms`/`chart_arms_at`) and a
-`TrimEscape` refusal.
+**What was false.** `pcurves.rs`'s *"where this limb has teeth"*. It
+conceded mint-time vacuity and argued the check bites at re-certification;
+`validate_pcurves` builds its window as the hull of exactly the stored
+caches it then re-certifies — the same self-referential construction. The
+comment also **post-dates the code that falsifies it**: `validate_pcurves`
+landed in `9e80547f`, the comment in the same PR's fix pass (`a842090b`),
+written in response to a reviewer's mint-time-vacuity note against code
+already in the branch.
 
-**Verdict:** ACCEPTED, SORT REQUIRED (Evan, 2026-08-18) — see S8. Specific
-question for the steelman: was the trim-containment check designed
-against an *attach path* that was planned and never built? If so this is
-a planned-work row, not a superseded one.
-**Steelman (2026-08-18): NEITHER planned nor superseded — SURVIVES IN
-PART. The mechanism claim held under attack; the inventory claim did
-not; and the justifying comment is demonstrably false.**
+**What was true, and is now what the code says.** Check 5 is a
+**precondition the caller supplies**, vacuous on both of `topo`'s callers.
+The design still buys something and the comment says what: check 5 is the
+cache's only **branch** constraint — on a periodic chart a τ-shifted pcurve
+certifies every other check identically. Those two facts now live in one
+home each, split by which crate can know them: the vacuity in
+`topo::pcurves`, which owns the callers, and the branch constraint in
+`geom_brep::pcurve_cache`, which owns the checks. The first draft of this
+fix put both in both, and the geom-brep copy asserted a fact about its
+consumer crate across a layering boundary, held by nothing.
 
-*The mechanism claim is correct and could not be broken.* Containment is
-an identity on **both** production paths (`pcurves.rs:1040` and `:1302`
-each hull exactly the set they then check), and there is **no planned
-attach path** — content-keyed cache transfer is banked (`DESIGN.md:1576`),
-and the one `src` site that copies a cache between bodies is explicitly
-transient. So this is a "neither" row.
+**This finding repeated itself inside its own fix.** S9's defect was a
+justification written to survive a review note, asserting teeth it did not
+have. The first replacement removed that clause and inserted a *new*
+empirical one of the same shape — *"the `TrimEscape` rows drive it from the
+tests' attach path"* — which is false: there are **zero** `TrimEscape`
+assertions under any `tests/`, and the tree's only one
+(`geom-brep/src/pcurve_cache.rs:3918`) is a geom-brep unit test handing
+`certify` two hand-built windows. One row, not rows; not an attach path.
+The clause is gone with nothing in its place. **The lesson, general:** the
+replacement for a false justification must not be another justification.
 
-*The justifying comment is false, and post-dates the code that falsifies
-it.* `validate_pcurves` landed in `9e80547f`; the *"where this limb has
-teeth"* comment at `pcurves.rs:1028` landed **later, in the same PR's
-fix pass** (`a842090b`, *"trim-limb teeth comment"*) — i.e. a reviewer
-NOTE flagged the mint-time vacuity, and the response was a comment
-asserting teeth at re-certification, written against code already in the
-same branch that builds its window the same self-referential way.
-
-*What the design genuinely buys.* `PcurveCache` is a **certify-only
-public door**, and this repo's review discipline treats attach-path
-inputs as in scope — M5 PR 6's best MINOR was exactly an attach-path
-falsification whose fix is now permanent production code. And check 5 is
-the cache's **only branch constraint**: on a periodic chart a τ-shifted
-pcurve certifies every other check identically, and `TrimEscape` is the
-only thing separating them.
-
-*The inventory claim does not survive.* Only `trim_containment`,
+**The inventory claim did not survive.** Only `trim_containment`,
 `TrimEscape`, `ChartWindow::hull`, the `window` threading and two hull
 loops are check-5-only. `ChartWindow` is `chart_box`'s return type;
 `chart_box` feeds check 2's azimuth headroom; `azimuth_lever` feeds
 harmonic check 2 and check 4's snap slack; `chart_arms` feeds the fitted
-lane's check 2. **They die only if S8 is acted on too — the two findings
-are coupled in the removal direction, which neither writes down.**
-
-*Cheaper action that captures most of the value:* truth the comment at
-`pcurves.rs:1028` and downgrade the limb's documented status from
-"bites at re-certification" to "a precondition on the public door,
-vacuous on every in-tree caller".
+lane's check 2. **They die only if S8 is acted on too** — the two findings
+are coupled in the removal direction, recorded here and at S8 because
+neither finding wrote it down.
 
 ## S10. The schema migration mechanism is dead, and fourteen versions are ceremony around it
 
-- **Where**: `crates/editor-core/src/persist/mod.rs:602`,
-  `crates/editor-core/src/persist/mod.rs:683`,
-  `crates/editor-core/src/persist/mod.rs:1`,
-  `crates/pncad-py/src/tags.rs:328`
-- **Confidence**: sure
+**FIXED by #707 — the mechanism is ratified doctrine and stays; the ledger
+had drifted worse than the finding recorded, and is repaired.**
 
-`migration_step` returns from a permanently empty `TABLE`, so any
-`version != SCHEMA_VERSION` errors `SchemaTooOld` before the body is
-touched. That makes the entire `else` branch in `load` (JSON-`Value`
-parse, step loop, `from_value`), plus `MigrationStep`, `MigrationError`
-and `PersistError::Migration`, unreachable code — nonetheless re-exported
-through `pncad` and given a tag string in `pncad-py`.
+**What the sort found: KEEP the mechanism.** The empty step table is doubly
+ratified — `docs/archive/M4-LOG.md:1933` (*"The migration MECHANISM stays
+(an explicit, currently empty step table)… the next non-breaking format
+change adds its step there"*) and **LQ7a** at `LIBRARY-DESIGN.md:332` (*"NO
+backwards-compatibility machinery of any kind before release"*). Both
+re-verified. The finding does not survive; the ledger does. Note **LQ7b**:
+version numbers reset immediately before release, so all fourteen numbers
+are planned to be thrown away.
 
-Around it, ~250 lines of doc-comment ledger narrate fourteen versions,
-several entries being post-mortems of merge races over a one-line
-constant rather than descriptions of formats. v12 has no entry at all,
-so the ledger the discipline depends on has already drifted. The goldens
-make the point concrete: `tests/golden/v10..v14_golden.cad` are
-byte-identical below the header line (as are v1–v3), so five "clean
-breaks" are pinned by the same document with a different number on top,
-each with its own test file.
+**What was false, twice over.**
 
-**Verdict:** ACCEPTED, SORT REQUIRED (Evan, 2026-08-18) — see S8. Specific
-question: is a migration mechanism planned for when the format
-stabilises (scaffolding awaiting its first real migration), or was
-"clean break, no migration" ratified — in which case the mechanism is
-dead by decision and the fourteen-version ledger is the residue.
-**Steelman (2026-08-18): DELIBERATE-FRONTIER with a PLANNED post-release
-consumer — the mechanism does not survive as a finding; the ledger does.**
+*First: v12 did not skip its entry.* A full Version 12 entry was written
+and **merged to main in #571** (recoverable at
+`git show 3931d68:crates/editor-core/src/persist/mod.rs`). It was then
+**deleted by #583's conflict resolution** — the v13 bump kept its own
+colliding paragraph and dropped the loser. Not an entry never written; an
+entry written, merged, and removed.
 
-The empty table is **doubly ratified doctrine**, not drift.
-`docs/archive/M4-LOG.md:1916` already records the emptiness decision verbatim:
-*"The migration MECHANISM stays (an explicit, currently empty step table)…
-the next non-breaking format change adds its step there."* And **LQ7a**
-(`LIBRARY-DESIGN.md:332`): *"NO backwards-compatibility machinery of any kind
-before release — no migration chains, no deprecation shims."* Restated as
-binding in three more specs. The future consumer is named in-code and in
-`DESIGN.md:1701` Band 4.
+*Second: this ledger never had a tripwire to lose.* The finding reads
+`memories/schema-claim-discipline.md` as calling **this** prose the
+tripwire for the same-number race. It does not. The memory's tripwire is
+*claim prose in the shared dispatch ledger*, and it names that ledger —
+`docs/MODEL-AB-LOG.md`, where a second claimant collides at dispatch time.
+The version ledger in `persist/mod.rs` is the memory's *other* half: the
+place the number and its reasoning are recorded, checked **by eye** at the
+final re-merge. So when #583's resolution dropped v12's entry, nothing was
+pointed at this file and nothing fired. The right account is neither "the
+entry was skipped" nor "the tripwire failed" — it is that a document
+everything assumed was guarded had no guard at all.
 
-What survives is the **ledger, not the mechanism** — and it has measurably
-drifted: there is **no "Version 12" entry** (v12 was LIB-PLACEDUNION #571,
-which took the number and skipped the entry), while
-`memories/schema-claim-discipline.md` calls that prose *the tripwire* for the
-same-number merge race. Note **LQ7b**: version numbers **reset immediately
-before release**, so all fourteen numbers are planned to be thrown away.
+**What was fixed.** v12's **format** paragraphs are restored from
+`3931d68` — what the version means and why it is a clean break. Its
+eleven-line merge-race post-mortem is **not** restored: this finding named
+exactly that prose as the ledger's problem, and reinstating it verbatim
+would have been fidelity to what the finding condemned. `migration_step`'s
+clean-break list, which stopped at `10 → 11`, now runs through `13 → 14`,
+and leads with *empty by RULING, not by omission*, citing LQ7a in place of
+*"the mechanism stays because it costs nothing"*. The `# Schema history`
+header, which narrates v1–v2 and drifted twelve versions ago, now says it
+covers only those two and points at `SCHEMA_VERSION` for the rest — the
+file narrates its versions in three places and this makes clear which one
+is the ledger.
+
+**And the ledger now has the guard it never had** —
+`crates/editor-core/tests/schema_ledger.rs`, beside the other per-version
+suites rather than inside the file S38/L2 will trim. Three rows, each
+proven red for its own reason:
+
+- *an entry for every `n` in `2..=SCHEMA_VERSION`* — excising the **v13**
+  entry (mid-ledger, not the tail) fails naming `[13]`;
+- *a golden per version whose header carries that version* — relabelling
+  `v7_golden.cad` to `schema: 6` fails naming it. This is the semantic
+  anchor: a deleted golden is already a compile error from the existing
+  suites, but a **mislabelled** one is caught by nothing else;
+- *no golden above the constant* — planting a `v15_golden.cad` fails,
+  catching a rolled-back bump or a golden written under a number main
+  never took.
+
+Stated at the suite: it cannot tell whether an entry describes the format
+the number shipped, and it says nothing about whether `SCHEMA_VERSION`
+holds the *right* number — that remains the by-eye read at the final
+re-merge, unautomated. Q6: the ledger's completeness is a mechanism now,
+not an assumption resting on a deleted pointer.
+
+**Deliberately not done.** The ledger is not trimmed and the five
+byte-identical goldens are untouched: comment trimming is **S38 / L2** and
+comes last on purpose. The drift was fixed, not the size.
+
+**The cited memory rotted between the scan and its execution.**
+`memories/schema-claim-discipline.md` was created at `151afc2b` and
+deleted at `dd6d1990` (*"cut unnecessary and harmful prescriptions from the
+orchestrator reading path"*) on **2026-08-18** — the day this scan was
+written — in a deliberate five-memory pruning pass that also added the
+memory-writing criteria to `cad-working-style`. So the citation was live
+when made and dead when executed: **S39's own genre, occurring inside the
+scan**. The pruning is not this track's to relitigate and no restoration is
+proposed; what the memory carried about this file is now held by the guard
+test instead of by a pointer.
 
 ## S11. Substantial machinery shipped as live, with no producer (roll-up)
 
@@ -1856,8 +1874,12 @@ is tracked as **issue #214** with a per-family retirement plan; `ledger_row` is
 `let _ =` at runtime, existing only to force the author to name a row; and the
 count **has moved exactly once, downward** (12 → 8, `d92f56b5`, authored by
 Evan, in the same diff that converted the ledger rows). Growth is the forbidden
-move. Its inherited weakness is the one `schema-claim-discipline.md` names: it
-asserts a **total**, so one site added and one retired nets to 8 and passes.
+move. Its weakness is that it asserts a **total**: one site added and one retired
+nets to 8 and passes. (The scan credited that observation to
+`memories/schema-claim-discipline.md`, which says nothing about censuses or
+totals — it is about `SCHEMA_VERSION` races merging clean. Same
+misattribution as S10's, corrected there; the observation itself stands on
+its own.)
 
 ## S14. `Span` validity is prose, and the guard's removal turned poison into a documented panic
 
@@ -5391,7 +5413,8 @@ but about which questions look most worth answering first.
 3. **S8, S9, S10, S11.** Deciding per-lane whether each is a *frontier*
    (keep, gate, say so) or a *deletion* would measurably shrink the
    surface, and several of these lanes are the reason other things are
-   awkward — S8 is why `Pcurve` is not `Copy`.
+   awkward. (Not S8, though: that lane was accused of costing `Pcurve`
+   its `Copy` and does not — see its record.)
 4. **S4.** The two observed drifts (mate names not rewritten by
    `Rebind`; `name_args`' fail-quiet wildcard) are worth checking
    regardless of what is decided about the pattern.
@@ -5573,12 +5596,33 @@ scheduled.
 | **D1** | **B2 / S6 — sweep helper unification.** ~230 token-identical lines: `cosurface`, `rim_spec`/`chain_spec`, `cap_points`, `arc_apex`, `arc_span`, `turn_axis`, `face_surface_key`, `decide`, `SweptKind` — all nine twins confirmed present on today's main. K-telemetry does **not** block it: both funnels already take the predicate name as a parameter. **Retracted by the steelman, do not "unify" these:** `SweptSeg` (the `wall_sense` divergence is load-bearing correctness, M5 S11), `strut_spec` (same name, different bodies), `full::build_lamina`, and the `let _ = k;` inference. The tightest duplication is one the finding missed: `partial.rs:73` vs `full.rs:73`, same module, same error type. | B2 | `sweep/src/{extrude.rs,revolve/}` | **ADVERSARIAL** — it edits the derivation of geometry four verbs share, and the steelman's retraction list is the shape a unifying pass is most likely to over-run. | nothing (B1 landed as #688) |
 | **D2** | **B3 / S19 — the fillet half of the error catch-alls.** D2's addendum is ratified, so these are row 4 (`unreachable!`) and the rename to `Unsupported*` is owed. **The count has moved: 102 construction sites on today's main, not 146** — 97 in `surgery.rs` through one closure, 5 in `build.rs` through two more — because B1's retirement took the rest with the whole-body door. Scope still excludes `MissingEntity` (mesh — Track A) and `SplitJoinError::Corrupt` (splitting — B4/#690). | B3 | `sweep/src/fillet/` | **ADVERSARIAL** — converting a refusal into `unreachable!` in a kernel whose D9 rule is *never a panic* is only sound if "cannot fail on a valid body" is **proven** per site rather than inherited from the closure's name. | **D1** (same crate) |
 | **D3** | **S18's negative-zero flush ×3 — one home.** `geometry::plus_zero`/`plus_zero_point` are already `pub(crate)` and already reachable from both later sites; `recognize.rs` and `recognize_curve.rs` each carry a private `flush_zero`/`flush_zero_point` pair and a third and fourth copy of the same doc argument. The scan called this *the cheapest one to have caught*. | U4 (row) | `step-import/src/{geometry,recognize,recognize_curve}.rs` | style | nothing |
-| **D4** | **U2 — S8, S9 and S10: the sort, executed as truth.** All three steelmen landed on *keep*, so the work is making the prose say what the sort found. S8: `pcurve_cache.rs:1242` blames an `Arc` for a `Copy` cost that `IsoArc` has carried since M8-3 — stale, and it is the sentence the finding was built on; the frontier and its three named consumers get stated, and the mint-side general-circle wiring gets a row in the #250 register it is currently absent from. S9: `pcurves.rs:1028`'s *"where this limb has teeth"* is false and postdates the code that falsifies it — the limb is a precondition on a public door, vacuous on every in-tree caller, and should say so. S10: the mechanism is doubly ratified doctrine and stays; the **ledger** has drifted and v12 has no entry. | U2 | `geom-brep/src/pcurve_cache.rs`, `topo/src/pcurves.rs`, `editor-core/src/persist/mod.rs` | style | nothing |
 | **D5** | **U6 — S15's stale-prose and accretion rows.** The steelman sorted nine rows into three dispositions; three need nothing. What is left: `iso.rs:56`'s stale "Placeholder ballast" sentence in front of a still-correct decision; `pcurves.rs:91`'s staleness index, which lists `merge_coplanar_faces` among the ops that neither clear nor re-mint and has been false since 2026-08-05; the frozen count of **eleven** public mutation paths, now ≥ sixteen, stale in four places (`euler.rs:47`, `seqgen.rs:15`, `seqgen.rs:96`, `DESIGN.md:1110`) with `split_edge` carrying `mev`'s Euler vector and never entering the fuzz lane; and `emit_fillet.rs:216`'s *"Faces are never retired"* — **check this one first: B1 retired the door the comment was false for, so it may now be true, in which case the row closes as a note rather than a fix.** | U6 | `topo/src/{iso.rs,euler.rs,seqgen.rs}`, `editor-core/src/names/emit_fillet.rs`, `DESIGN.md` | style, **plus ADVERSARIAL on the `seqgen` half** — adding `split_edge` to a randomised fuzz lane over cases `split.rs:94` calls delicate is the one part of the row that can find a real defect, and the one that can burn CI time on a bad schedule. | nothing |
 | **D6** | **U5 — S12's executable residue.** The finding's headline was overturned (`assert_euler_postcondition` runs full tier-1 validate after every operator under `debug_assertions`), and what remains of it is a **D9 question** — whether the write helpers should be unable to silently do nothing — which is Evan's, not this track's, and is filed above. What is executable now is the gap the steelman found underneath it: `review_m1_pr2/release_corruption.rs` instructs *"Run this under BOTH profiles"* and **CI runs it under one**. The only `cargo test --release` in `ci.yml` is the `oracle-inari` lane (`:1061`), verified on today's main. The unit adds the release run, or states at the instruction why it cannot have one — and measures what it costs before claiming either. | U5 | `.github/workflows/ci.yml`, `topo/src/review_m1_pr2/release_corruption.rs` | style | nothing |
 | **D7** | **U1 / D4 — the three decided deletions.** Decided by Evan 2026-08-19 and unexecuted. Each row owes a provenance note next to the thread that produced it (`PairSolve` → **#611**; the two fillet helpers → **#319**/**#554**; `Mat2`/`Affine2` → the deleting PR body, cross-referenced from **#614**), and the deleting PR must cite the **commit SHA** the code is recoverable from. `trimline_description`'s doc is the only place D7's prefer-intrinsic obligation is *named*: that sentence migrates, it does not die. | U1 | `geom-core/src/linalg/{mat,affine}.rs`, `editor-core/src/mate{.rs,/solve.rs}`, `sweep/src/fillet/{blend,battery}.rs` | style | **split by row.** `Mat2`/`Affine2` is free now. `PairSolve` waits on **#702**, which is editing `mate.rs`, `mate/solve.rs` and the `lib.rs` re-export block it lives in. The fillet helpers wait on **D2**. Evan placed the whole row *"back of the queue, but ahead of W3b"*, and its rationale — noise to lanes reading the same files — is what these two gates discharge. |
 | **D8** | **U4's remainder — the knot-vector queries.** `KnotVector` offers `multiplicity_of(u)`, which requires you to already know `u`; every consumer that needs *the list* of distinct interior knots hand-writes the same scan, four times (`compose.rs:274`, `algebra.rs:563`, `geom-curves/fit.rs:378`, `sweep/skin.rs:370`). Beside it, knot insertion exists twice in one module, one of them re-deriving the span with a linear scan where `find_span`'s binary search is one module away. The scan's own lesson: *a data structure whose API was frozen one PR before its first consumer is the tell.* | U4 (rows) | `geom-core/src/spline/{compose,algebra}.rs`, `geom-curves/src/fit.rs`, `sweep/src/skin.rs` | **ADVERSARIAL** — it adds to a certified type's API and replaces a linear scan with a binary search inside knot arithmetic, where an off-by-one is a wrong curve rather than a compile error. | nothing (but it edits `sweep/src/skin.rs`, so sequence it against D1/D2 within this track) |
 | **D9** | **U3 — S17's ray-parity twins.** `chart_region::point_in_polygon` is a line-for-line port of `splitting::containment::point_in_loop`, self-declared as one in its own doc. `profile::validate::point_in_loop` is a third and is **not** in scope: `topo` does not depend on `profile` and never has, so that copy is DAG-forced and the unit's job is to say so as a negative result rather than to close it. Both topo copies also reuse one predicate name for two different questions (`point_in_loop_boundary` decides both the degeneracy gate and the point-to-segment distance) — the drift `splitting/rules.rs:117` mints a distinct name to avoid. | U3 | `topo/src/{chart_region.rs,splitting/containment.rs}` and the shared home | **ADVERSARIAL** — the K-ledger convention makes new predicate names new K rows, so a unification *removes* rows, and the margins it merges were metered separately. This is also S15's byte-identical-ray-schedule row, whose determinism claim nothing checks. | **#690** (Track B's B4), which is editing `splitting/mod.rs`, `solid_contain.rs` and `topo/src/lib.rs` |
+
+**Left open by D4, needing an owner outside this track: #250 owes a row.**
+The mint-side wiring of the fitted general-circle route (the
+oblique-trihedron octant, S8 consumer (a)) is named as an open frontier in
+ratified `DESIGN.md` and appears in **no** milestone plan and in **no** row
+or comment of **#250**, the carried-items register Evan asked to be total
+— re-verified 2026-08-20. #707 did not edit the issue (out of its scope);
+the obligation's only in-tree home is now the claim site in
+`topo::mint_pcurves`, which says so. Adding the register row is a one-line
+job for whoever next touches #250.
+
+**Also left by D4, so it is not carried only in a PR body:** the steelman's
+*"three `.clone()` sites"* is a count of **explicit `.clone()` calls naming a
+`Pcurve` or a `PcurveCache`** — three in `topo/src/pcurves.rs`, and a fourth
+the steelman missed at `topo/src/boolean/combine.rs:343`. It is **not** a
+count of cache copies. `Body` derives `Clone` (`topo/src/body.rs:131`) and
+the boolean clones whole operands twice (`boolean/mod.rs:1265-1266`,
+`:1323-1324`), each copying every stored cache in the body. The real price
+of `Pcurve`'s non-`Copy`ness is therefore a body-sized quantity that no
+grep finds, and anyone pricing it should start from that rather than from
+four call sites. All four are correct as written; this is a count
+correction, not work, and `boolean/` is another track's file set.
 
 **Not taken, and why.** S18's `step-export/volume.rs` row stays out of Track D: its
 immediate cause is that `topo::props` exposes only body-scoped
@@ -5607,7 +5651,7 @@ Where each went:
 | Was | Now |
 |---|---|
 | **U1** — S11/D4's three decided deletions | **D7**, split by row: `Mat2`/`Affine2` free, `PairSolve` behind #702, the fillet helpers behind D2 |
-| **U2** — S8, S9, S10 | **D4** — the sort landed in the steelmen on 2026-08-18; what is left is truthing the prose it contradicts |
+| **U2** — S8, S9, S10 | **D4 — DONE, #707.** All three sorted to *keep*; the prose the sort contradicts is truthed at each finding |
 | **U3** — S17's ray-parity twins | **D9**, behind #690 |
 | **U4** — S18's duplicated derivations | **D3** (the negative-zero flush) and **D8** (the knot-vector queries); the `step-export/volume.rs` row goes to **C3**, because closing it needs a per-shell door in `props/` |
 | **U5** — S12's Euler atomicity | **D6** for the executable residue (the release profile CI never runs); the rest is a D9 question, now in *Open decisions* |
@@ -5649,7 +5693,7 @@ all deletions        ──────────────► L2 (S38 comme
 had, are Track D's D1/D2.
 
 **Track D's own edges are all inside `sweep/`, plus two on other tracks' open
-PRs.** D3, D4, D5, D6 and D8 are edge-free and can start today; D8 edits
+PRs.** D3, D5, D6 and D8 are edge-free and can start today (D4 is done, #707); D8 edits
 `sweep/src/skin.rs`, so it sequences against D1/D2 within the track rather than
 across it.
 
