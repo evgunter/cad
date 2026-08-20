@@ -61,7 +61,8 @@ realisation of it and never did, because both its numbers were the same
 `band_schedule` sum, so it is identically 1.0 — #709): per-band
 `(nuc, nvc)` through the UNCHANGED `grid_steps` point selection; bands
 subdividing `u` at realized aspect > `SAFE_ASPECT = 5` plus their ±1
-neighbours snap `nuc` to the whole-patch count. THE LESSON PAID FOR SIX TIMES (each variant's
+neighbours snap `nuc` to the whole-patch count. THE LESSON PAID FOR SIX
+TIMES (each variant's
 failing face + certificate in asm/tess-span's commit messages): an
 anisotropic lattice strip admits a Delaunay-legal sliver of cert
 ~`(aspect²+1)/8·δ_s` beside ANY off-lattice point (trim chords, band
