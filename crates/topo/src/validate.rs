@@ -534,8 +534,23 @@ pub enum ValidationError {
     /// Tier 3: the exact-B-rep volume for the +V invariant could not
     /// be computed — a face's boundary fell outside the M2
     /// iso-rectangle inventory or its closed-form classification
-    /// failed. At rest every M2-constructible body computes; this is
-    /// corruption surfaced loudly, not an exemption.
+    /// failed.
+    ///
+    /// **This is D2-addendum row 2 — valid input, lane not built —
+    /// not row 1.** The doc used to read *"at rest every
+    /// M2-constructible body computes; this is corruption surfaced
+    /// loudly"*, and #649 falsified that with an executed
+    /// counterexample: an imported keyed shaft (`cross.step`, a real
+    /// manifold closed solid whose cylindrical walls have a
+    /// cross-shaped iso domain) is not corruption, and neither is the
+    /// same solid produced from rectangular sub-faces by the public
+    /// `Body::merge_coplanar_faces`. What this variant reports is that
+    /// the body carries a face whose measurement lane the kernel has
+    /// not built — today the closed forms need an iso-parameter
+    /// rectangle (`geom_brep::props`'s `props_rim_level`, S56) and the
+    /// certified-quadrature lane consumes only conic/NURBS trims. A
+    /// body reaching it may still be perfectly valid; corruption
+    /// reaches this validator through the checks that name it.
     VolumeUncomputable {
         /// The mass-properties failure.
         source: crate::props::MassPropsError,

@@ -75,7 +75,21 @@
 //! consistency residuals through the crate's
 //! [`decide`](crate::dihedral) funnel, and a definite failure of any
 //! of them is a typed [`PropsError`] — scope-boxed fail-loud, no
-//! silent quadrature fallback. Outside that verification: the
+//! silent quadrature fallback.
+//!
+//! **The rectangle itself is ONE named predicate** —
+//! `curved::require_rims_at_extremes` (`props_rim_level`), which every
+//! curved kind runs before any closed form integrates: *every rim sits
+//! at one of the face's two extreme `v`-levels*. The total `u`-measure
+//! `w(v)` changes only where a rim is (between rim levels the boundary
+//! is meridians, which move no `u`-endpoint), so that forces
+//! `w ≡ Δu` — the premise `area = r·Δu·(hi − lo)` and its siblings
+//! integrate. Before S56 the property was re-derived per consumer to
+//! three different strengths; the rim-group span-sum rule that stood
+//! in for it on three of the four kinds admitted a cross-shaped domain
+//! and certified a 19%-low volume with `pad = 0.0` (#649).
+//!
+//! Outside that verification: the
 //! loop-local vertex **tags** are trusted as declared (the [`LoopEdge`]
 //! trust boundary), and the residuals certify carriers, not that the
 //! traversed arcs jointly close a loop.

@@ -376,11 +376,90 @@ fn same_level<T: Decide>(
     }
 }
 
+/// **The iso-rectangle predicate**: every rim sits at one of the
+/// face's two extreme `v`-levels.
+///
+/// This is the one named test of *"this face's domain is an
+/// iso-parameter rectangle"* — the premise the closed forms in this
+/// module integrate against (`super`'s module docs; `cylinder()`'s
+/// `area = r·Δu·(hi − lo)`). Before S56 it existed on **one** arm,
+/// inside `torus()`, for a periodicity reason rather than as a
+/// decision about how the property should be tested; the other three
+/// kinds tested rim-group span SUMS instead, and a sum is not a shape
+/// (#649: a cross-shaped domain passed, and `topo::mass_properties`
+/// certified a 19%-low volume with `volume_pad = 0.0`).
+///
+/// **Why the level rule is sufficient.** Let `w(v)` be the total
+/// `u`-measure of the domain at height `v`. Between consecutive rim
+/// levels the boundary consists of meridians only — iso-`u` curves,
+/// which move no `u`-endpoint — so `w` is constant there, and it can
+/// change ONLY at a level carrying a rim. If every rim sits at `lo` or
+/// at `hi`, then `w` is constant on the whole open interval
+/// `(lo, hi)`: `w ≡ Δu`, which is exactly what the closed forms
+/// assume. (`du_of_rims` supplies the `Δu` value and, once this holds,
+/// its span-sum agreement is a genuine rectangle test rather than a
+/// proxy for one.)
+///
+/// **Deliberately a little stricter than necessary.** An interior
+/// level carrying matching `+`/`−` groups would leave `w` unchanged
+/// and is refused here anyway. Erring strict is the right direction
+/// for a precondition: the refusal is D2-addendum row 2 (valid input,
+/// lane not built — [`PropsError::NotIsoRectangle`]), and the
+/// capability answer for such a domain is the certified-quadrature
+/// lane, not a wider closed form.
+///
+/// `ends` are the two extreme levels in the SAME representation the
+/// rims carry ([`RimLevel`]), so the margin is metered by the level's
+/// own dimension: bare for `Length` (already meters), `× arm` for the
+/// dimensionless `Unit` direction pair. The torus passes its
+/// meridian-derived `[v0, v1]` endpoints; the linearly-leveled kinds
+/// pass `min_max`'s `(lo, hi)`.
+fn require_rims_at_extremes<T: Decide>(
+    rims: &[Rim<T>],
+    ends: (RimLevel<T>, RimLevel<T>),
+    arm: T,
+    band: Band,
+) -> Result<(), PropsError> {
+    for rim in rims {
+        let margin = match (rim.level, ends.0, ends.1) {
+            (RimLevel::Length(v), RimLevel::Length(lo), RimLevel::Length(hi)) => {
+                Margin::of((v - lo).abs().min((v - hi).abs()))
+            }
+            (RimLevel::Unit(s, c), RimLevel::Unit(s0, c0), RimLevel::Unit(s1, c1)) => {
+                // powi(2), not x*x: the interval square is tight and
+                // nonnegative, so the sqrt stays fully in-domain even
+                // when the difference encloses zero (an x*x interval
+                // product has a negative lower bound there, and the
+                // domain-clamped sqrt's decoration would poison the
+                // margin — found live on the interval-lane donut).
+                let d0 = ((s - s0).powi(2) + (c - c0).powi(2)).sqrt();
+                let d1 = ((s - s1).powi(2) + (c - c1).powi(2)).sqrt();
+                Margin::levered(d0.min(d1), arm)
+            }
+            // One surface builds every rim of a face AND both ends, so
+            // mixed representations are structurally impossible; a
+            // poisoned margin turns it into a typed escalation rather
+            // than a panic (D9).
+            _ => Margin::of(T::from_f64(f64::NAN)),
+        };
+        require_zero("props_rim_level", margin, band)?;
+    }
+    Ok(())
+}
+
 /// Check all rims agree on `Δu`; returns the face's `Δu`. `arm` is
 /// the azimuthal lever arm (meters), metering the DIMENSIONLESS
 /// margins here (`Unit` level components, the ±1 traversal-direction
 /// difference, the `Δu` angle difference); `Length` level margins are
 /// already meters and never touch it.
+///
+/// **This is the Δu VALUE, not the shape test.** Every caller runs
+/// [`require_rims_at_extremes`] first, which is what makes the domain
+/// a rectangle; with all rims at the two extreme levels the span-sum
+/// agreement checked here says the two ends carry the same total
+/// `u`-measure, i.e. it pins the value the rectangle's `w ≡ Δu`
+/// already guarantees is constant. Standing alone — as it did before
+/// S56 — it guaranteed only `w(v) ∈ {k·Δu}`, which is #649.
 fn du_of_rims<T: Decide>(rims: &[Rim<T>], arm: T, band: Band) -> Result<T, PropsError> {
     if rims.is_empty() {
         return Err(PropsError::NotIsoRectangle {
@@ -472,9 +551,19 @@ fn cylinder<T: Decide>(
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
     let (rims, levels) = cylinder_boundary(origin, axis, radius, edges, band)?;
-    let du = du_of_rims(&rims, radius, band)?;
     let (lo, hi) = min_max(&levels)?;
     require_extent(Margin::of(hi - lo), band)?;
+    // The iso-rectangle premise, before anything integrates against it
+    // (S56/#649): cylinder levels are `Length` (axial arc length), so
+    // the extremes go in bare and `radius` meters only the Δu margins
+    // inside `du_of_rims`.
+    require_rims_at_extremes(
+        &rims,
+        (RimLevel::Length(lo), RimLevel::Length(hi)),
+        radius,
+        band,
+    )?;
+    let du = du_of_rims(&rims, radius, band)?;
     // `radius` is the azimuthal lever arm; the rim-side margin itself
     // is Length-leveled (meters) and never touches it.
     let s_f = t_sign::<T>(s_f_from_rim(&rims[0], lo, hi, radius, band)?);
@@ -602,9 +691,18 @@ fn cone<T: Decide>(
     let (sin_a, cos_a) = half_angle.sin_cos();
     let (rims, levels) = cone_boundary(apex, axis, sin_a, cos_a, edges, band)?;
     let arm = cone_arm(&rims, sin_a);
-    let du = du_of_rims(&rims, arm, band)?;
     let (lo, hi) = min_max(&levels)?;
     require_extent(Margin::of(hi - lo), band)?;
+    // The iso-rectangle premise (S56/#649). Cone levels are the signed
+    // SLANT arc length — `Length`, so bare — and `arm` (the first rim's
+    // own radius) meters only the dimensionless margins downstream.
+    require_rims_at_extremes(
+        &rims,
+        (RimLevel::Length(lo), RimLevel::Length(hi)),
+        arm,
+        band,
+    )?;
+    let du = du_of_rims(&rims, arm, band)?;
     // Single-nappe check: definitely-negative low AND definitely-positive
     // high would straddle the apex through both nappes.
     let s_lo = classify("props_cone_nappe", Margin::of(lo), band)?;
@@ -765,6 +863,16 @@ fn sphere<T: Decide>(
         // the face's sense IS `s_f` here, not a cross-check of it.
         s_f = sense_sign;
     } else {
+        // The iso-rectangle premise (S56/#649). Sphere levels are
+        // latitude SINES — dimensionless `Unit` with a zero second
+        // component — so the extremes are lifted into the same
+        // representation and metered at the sphere radius.
+        require_rims_at_extremes(
+            &rims,
+            (RimLevel::Unit(lo, T::zero()), RimLevel::Unit(hi, T::zero())),
+            radius,
+            band,
+        )?;
         du = du_of_rims(&rims, radius, band)?;
         s_f = t_sign::<T>(s_f_from_rim(&rims[0], lo, hi, radius, band)?);
     }
@@ -883,7 +991,6 @@ fn torus<T: Decide>(
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
     let (rims, meridians) = torus_boundary(center, axis, major, minor, edges, band)?;
-    let du = du_of_rims(&rims, major, band)?;
     let Some(m0) = meridians.first() else {
         return Err(PropsError::NotIsoRectangle {
             what: "torus face without a meridian",
@@ -915,25 +1022,20 @@ fn torus<T: Decide>(
         }
         Sign::Zero => unreachable_zero(),
     };
-    // Rim levels must sit at the interval ends.
-    for rim in &rims {
-        // Torus rims are minted `Unit` a page up; the refusal arm is
-        // structurally unreachable but stays typed, never a panic (D9).
-        let RimLevel::Unit(rs, rc) = rim.level else {
-            return Err(PropsError::NotIsoRectangle {
-                what: "torus rim carries a non-angular level",
-            });
-        };
-        // powi(2), not x*x: the interval square is tight and
-        // nonnegative, so the sqrt stays fully in-domain even when the
-        // difference encloses zero (an x*x interval product has a
-        // negative lower bound there, and the domain-clamped sqrt's
-        // decoration would poison the margin — found live on the
-        // interval-lane donut).
-        let d0 = ((rs - s0).powi(2) + (rc - c0).powi(2)).sqrt();
-        let d1 = ((rs - s1).powi(2) + (rc - c1).powi(2)).sqrt();
-        require_zero("props_rim_level", Margin::levered(d0.min(d1), minor), band)?;
-    }
+    // The iso-rectangle premise (S56/#649) — the SAME predicate the
+    // other three kinds now run, which is where it came from: this arm
+    // was the only one #649's adversarial probe could not break, and
+    // generalising it is the fix. The torus's `v` is periodic, so its
+    // two extreme levels come from the anchor meridian's stored
+    // `[v0, v1]` rather than from `min_max`, and they are dimensionless
+    // `Unit` direction pairs metered at the minor radius.
+    require_rims_at_extremes(
+        &rims,
+        (RimLevel::Unit(s0, c0), RimLevel::Unit(s1, c1)),
+        minor,
+        band,
+    )?;
+    let du = du_of_rims(&rims, major, band)?;
     // s_f: the rim topologically adjacent to the anchor endpoint; the
     // interior sweeps from it in the `dv/dt = −orient` direction.
     let rim_a = torus_anchor_rim(&rims, m0)?;
