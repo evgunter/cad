@@ -12287,6 +12287,18 @@ is load-bearing on the premise that **main's board verifies main's code**. When
 the merge's run is cancelled and the replacing run is docs-tier, **neither party
 verified it, and neither was locally wrong.**
 
+**Second instance, and it is the one that matters practically: the remedy is
+subject to the defect.** Track F re-ran `32421453391` specifically to give F6's
+merge commit a verdict. **The re-run was itself cancelled** — at 22:09:50, by the
+merge that landed F1 — finishing **33 success / 3 cancelled**. It got far enough
+to settle the question (`clippy`, `k-lint`, `build + archive (default)` and both
+default `test` shards all **success**; the casualties were the two interval test
+shards and the archive cleanup), so F6 is substantively verified. But the general
+lesson is sharper than the finding: **on a busy `main`, "re-run it" is not a
+remedy**, because the re-run competes in the same concurrency group as every
+subsequent push. An orchestrator trying to close this hole by hand is racing the
+mechanism that opened it.
+
 **What is NOT claimed.** No defect is known to have reached `main` this way; the
 frequency is unmeasured; and whether the concurrency setting is right for `main`
 at all is a decision, not a defect — `cancel-in-progress` on a *branch* is
