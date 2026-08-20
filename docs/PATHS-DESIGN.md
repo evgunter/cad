@@ -684,7 +684,11 @@ lattice doors and plain `fillet(r)` never carry it. MEASURED
 (2026-08-12): every scalar that drives an authoring chain (f64,
 Interval, Probe) implements Bounds; Dual reaches profiles only
 by lifting lowered ProfileLoop data. The bound is free in
-practice either way.
+practice either way. That last sentence is **guarded by the
+compiler** (§Q6) and needs no register: the obligation is a trait
+bound, so a scalar that stopped satisfying it fails to build at
+every arc-involving call site rather than falsifying this
+paragraph quietly.
 
 **Honest residuals:** (a) a generic motif that fillets off a
 RECEIVED tip of unknown leg kind cannot be written — the caller
