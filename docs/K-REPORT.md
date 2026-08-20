@@ -4,7 +4,10 @@
 2026-07-21 after the adversarial review byte-reproduced the CSVs at all
 three ε rows and independently re-derived every reported number. The
 outcome is ratified into DESIGN.md's Q1 residue by the M2-exit sweep.
-Per Evan on #41, the value needed no separate sign-off.)
+Per Evan on #41, the value needed no separate sign-off. That
+byte-reproduction was a check against the tree of that day and is not
+a standing property of the committed CSVs — see "Provenance of the M2
+CSVs" under Methodology.)
 
 ## Background
 
@@ -32,10 +35,65 @@ gathered across M2's full pipeline.
 
   ```sh
   CAD_TOLERANCE_EPS=1e-9 CAD_K_REPORT_OUT=docs/k-report-data/eps-1e-9.csv \
-    cargo test -p sweep --test k_report -- --ignored --nocapture
+    cargo test -p sweep --features probe --test all \
+      -- --ignored --nocapture k_report::
   ```
 
+  (`sweep` sets `autotests = false` and aggregates every suite into one
+  `tests/all.rs` binary, so `--test k_report` names no target; the
+  suite is selected by the `k_report::` module prefix instead. The
+  `probe` feature is what compiles the file at all — it is
+  `#![cfg(feature = "probe")]`.)
+
 - Rows: ε ∈ {1e-6, 1e-9, 1e-12}. Raw CSVs: `docs/k-report-data/`.
+
+  **Provenance of the M2 CSVs — what byte-reproduction does and does
+  not mean here (corrected 2026-08-20, D15).** The status line above is
+  a statement about 2026-07-21: the adversarial review byte-reproduced
+  `docs/k-report-data/eps-*.csv` against the tree as it stood at
+  finalization, and that check was real. It is **not** a standing
+  claim, and re-running the harness on a later tree has never
+  reproduced these files. Two things happened after the cut:
+
+  - **2026-07-25, #101 (`548c9618`, declared-tangency discipline)**
+    added `ProfileLoop::tangent_joints`, `judge_joints` and
+    `ProfileError::UndeclaredTangency`. It migrated the corpora it
+    exercised; `k_report.rs` is `#[ignore]`d and runs in no CI row, so
+    its `rounded_prism` fixture — a rounded rectangle, tangent at all
+    eight fillet-to-edge joints by construction — was missed and the
+    harness has panicked at profile validation ever since. Nothing
+    noticed for 26 days. Fixed by declaring the eight joints (D15); the
+    fixture's coordinates and bulges are unchanged and the kernel
+    verifies each declaration.
+  - **2026-08-16 (`81bf6f86`)** consolidated `sweep`'s 60 test targets
+    into one `tests/all.rs` binary, which retired the `--test k_report`
+    target this section's command named. The command above is the
+    working one.
+
+  **The M2 CSVs are therefore a historical snapshot, not a
+  reproducible artifact.** A fresh cut of the same ten shapes on main's
+  tip (2026-08-20, `9f559f6a`) records **16 824 samples over 105
+  predicate names** against the committed **13 282 over 63** — 42 names
+  added, none lost, the `pcurve_*` chart/loop family (PCURVE-UNIFY),
+  the `tangent_*` family, `props_rim_*`/`props_meridian_*` and
+  `bool_ring_run_winding` among them. The committed files are left as
+  cut: they are the M2-era record this report's numbers describe, and
+  re-cutting them is the runbook's and the orchestrator's call, not a
+  lane's.
+
+  **The conclusions survive the re-cut**, which is the part that
+  mattered. The fresh sweep is ε-stable exactly as reported here
+  (shape/predicate/outcome columns byte-identical across all three ε
+  rows), and lands **0 samples in (ε, Kε), 0 within a decade of Kε, 0
+  indeterminate and 0 invalid** at every row, with a definite-side
+  minimum |m| of 1.0e-2 m — three decades clear of the M7 lint floor.
+  The band is still empty on this corpus at 1.27× the sample count.
+
+  **This break never touched the gate.** `tools/k-lint` gates on the
+  M4/M5/M7 CSVs, which come from `scripts/k_probe_sweep.sh`
+  (`editor-core`'s `m4_pr8_k_probe` + the tour's `k-probe` mode) and
+  run on every CI build (ci.yml's *K-telemetry probe sweep*).
+  `k_report.rs` is the M2-era instrument only.
 - Scope: the corpus is all-valid by construction, so refusal-path
   predicates that only fire on invalid input never sample here (dead
   on this corpus: `carrier_circles_internal`, `collinear_overlap`,
@@ -206,7 +264,10 @@ margin sources, exactly the pressure source Finding 4 anticipated:
   `enters_material_arm`.
 
 (Inventory method: `grep -r 'decide("' crates/*/src` diffed against
-this report's M2 CSV predicate column, plus the census's
+this report's M2 CSV predicate column — which is a 2026-07-21
+snapshot and today lists 63 of the funnel's names, so the diff is
+sound only in the direction that matters, catching a name in the code
+that no CSV column carries — plus the census's
 `gap_is_zero`/`signed_is_zero` helper call sites, which pass names
 into the same funnel, plus — **since #712** — the row-name TABLES.
 A predicate name supplied as a parameter is invisible to the `decide("`

@@ -110,7 +110,12 @@ fn shapes() -> Vec<(&'static str, Vec<MarginSample>)> {
                     v(r, 2.0, b),
                     v(0.0, 2.0 - r, 0.0),
                     v(0.0, r, b),
-                ]);
+                ])
+                // Every joint of a rounded rectangle is a fillet arc
+                // meeting an edge at first-order carrier contact:
+                // tangency is declared intent, verified at validation,
+                // never inferred.
+                .with_tangent_joints((0..8).collect());
                 extrude(&validated(vec![lp]), Extrusion::Distance(Probe(1.0)))
                     .unwrap()
                     .body
