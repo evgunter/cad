@@ -93,7 +93,11 @@ gathered across M2's full pipeline.
   M4/M5/M7 CSVs, which come from `scripts/k_probe_sweep.sh`
   (`editor-core`'s `m4_pr8_k_probe` + the tour's `k-probe` mode) and
   run on every CI build (ci.yml's *K-telemetry probe sweep*).
-  `k_report.rs` is the M2-era instrument only.
+  `k_report.rs` is the M2-era instrument only, and nothing in CI compiles
+  `sweep --features probe` at all — so this file is invisible to CI even
+  to the extent of *building*. That gap is placed as SMELL-SCAN row
+  **D17**; until it closes, anyone re-running this harness is its only
+  check.
 
 - Scope: the corpus is all-valid by construction, so refusal-path
   predicates that only fire on invalid input never sample here (dead
