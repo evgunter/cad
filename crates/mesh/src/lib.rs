@@ -233,7 +233,7 @@
 // a `const fn armed()` answering `false`, and no way to arm anything.
 pub mod budget;
 pub mod cert;
-pub mod chords;
+mod chords;
 mod curved;
 mod nurbs_cert;
 mod planar;

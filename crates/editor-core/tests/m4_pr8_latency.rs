@@ -335,7 +335,11 @@ fn emit(rows: &[Row], path: &str) {
 /// paid for it 5×.** It is not a gate (see the module docs: no
 /// threshold, a slow row is a report), so the only thing the ε battery
 /// bought was ~18 s × 5 rows of wall clock printing a table nobody
-/// reads per-ε.
+/// reads per-ε. That ~18 s is a dated reading and nothing re-takes it:
+/// the timing register this file feeds (`docs/perf-data/rebuild-latency/`)
+/// re-measures per-DOCUMENT rebuild latency, not this row's own wall
+/// clock, and no assertion reads either number. The `#[ignore]` rests on
+/// the coverage argument below, which holds at any wall clock.
 ///
 /// INVARIANT: nothing is uncovered by ignoring it here. Its
 /// green-document and counted-reuse assertions are a strict subset of
