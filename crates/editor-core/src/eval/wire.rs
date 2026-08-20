@@ -622,19 +622,14 @@ fn wire_revolve<T: Decide>(
 ///
 /// # Naming
 ///
-/// **Both assembly doors emit a FULL table** ([`names::name_fillet`]):
-/// each hands over per-entity birth records and the emitter translates
-/// them, never matching geometry.
+/// **The assembly emits a FULL table** ([`names::name_fillet`]): it
+/// hands over per-entity birth records and the emitter translates
+/// them, never matching geometry. A fillet result therefore always
+/// carries birth records, and the totality check covers every role it
+/// mints; an empty table would be a silent naming dead end, so this
+/// layer refuses rather than accepting one.
 ///
-/// The whole-body door was the milestone's last naming dead end — for
-/// M6-5 PR-1 it emitted the EMPTY table, because its rebuild mints
-/// every face fresh and kept no birth records, so there was nothing to
-/// emit honestly. That was loud rather than silent (every downstream
-/// reference into such a body failed to resolve), and it is now CLOSED
-/// (M6-5 PR-2): `Plan` carries each slot's provenance, `Plan::assemble`
-/// writes the records, and the totality check covers both doors.
-///
-/// What that closure is worth, precisely (`m6_5_downstream.rs`): the
+/// What that is worth, precisely (`m6_5_downstream.rs`): the
 /// appearance store resolves an attribute onto a fillet-minted face,
 /// the resolve ladder answers `Resolved` for every role this door
 /// mints, and such a reference survives an upstream bump. A BOOLEAN
@@ -657,10 +652,10 @@ fn wire_fillet<T: Decide + geom_core::Bounds>(
     let edges = resolve_selection(selection, doc, &target_table)?;
     let filleted = sweep::fillet::build::fillet_edges(&body, &edges, radius, band()?)
         .map_err(NodeErrorKind::Fillet)?;
-    // Both doors keep records now (M6-5 PR-2), so `None` is a kernel
-    // bug, not a door this layer knows about: refuse loudly rather
-    // than fall back to an empty table, which would silently
-    // resurrect the dead end.
+    // The assembly always keeps records, so `None` is a kernel bug:
+    // refuse loudly rather than fall back to an empty table, which
+    // would leave every downstream reference into this body silently
+    // unresolvable.
     let rec =
         filleted
             .naming

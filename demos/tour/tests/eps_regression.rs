@@ -1,7 +1,24 @@
 //! Regression pin for #99: the full tour must run green at every
-//! supported tolerance row — a panic is always a bug; the only legal
-//! outcomes are a working run or a typed refusal (which the tour
-//! surfaces as a clean nonzero exit, not an abort).
+//! supported tolerance row. **Green means exit 0, and that is the
+//! whole contract** — [`run_tour`] asserts nothing else, and nothing
+//! else is available to assert.
+//!
+//! The tour has no clean-refusal exit. Every typed refusal it can meet
+//! on the scene path is a panic by construction (`run_body` panics on
+//! a failed validation tier, a failed tessellation, a failed STL write
+//! and any STEP refusal at all); its only `std::process::exit(2)`
+//! sites are the two feature-gated modes reporting a usage error, and
+//! neither runs from here. So "a working run or a typed refusal" is
+//! not a distinction this pin can draw, and asserting `success()`
+//! loses nothing: a demo whose scenes are all inside the kernel's
+//! shipped surface has no refusal that is not a regression.
+//!
+//! **Whether that is the right posture is a real question, and it has
+//! a register rather than a resolution here: issue #795.** If a scene
+//! ever legitimately reaches a frontier, the tour has to grow a way to
+//! SAY so at that scene — and this file has to grow the arm that
+//! accepts it — before any exit code could carry the news; #795 is
+//! where the three candidate shapes are written down.
 //!
 //! The escalation that motivated this pin: the bracket fillet's via
 //! point was decimally rounded (1.146 vs the exact 1.5 − 0.5/√2 =

@@ -174,6 +174,16 @@ fn an_inadmissible_radius_fails_the_node_typed() {
                     text.contains("cannot certify"),
                     "the refusal must carry the kernel's own wording: {text}"
                 );
+                // The kernel's wording must survive the RENDER too, not
+                // just the variant. A caller who cannot match the enum
+                // — the Python bindings, whose exception carries a tag
+                // plus this string — has no other channel to the face,
+                // the margin and the recourse the kernel named.
+                let rendered = e.to_string();
+                assert!(
+                    rendered.ends_with(&text),
+                    "the node error's message must forward the kernel's own: {rendered}"
+                );
             }
             other => panic!("expected a typed Fillet refusal, got {other:?}"),
         },
