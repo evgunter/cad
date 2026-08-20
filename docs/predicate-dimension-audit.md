@@ -168,7 +168,7 @@ all stored surface axes/normals/`u_ref` unit; `implicit_residual` is
 | props/curved.rs:430 | props_meridian_apex | apex-line distance | m | OK |
 | props/curved.rs:487/488 | props_cone_nappe | slant levels (m) bare | m | OK |
 | props/curved.rs:576/598/695/706/728 | sphere/torus meridian checks | lengths / sin×R / cos×minor | m | OK |
-| props/curved.rs:777 | props_rim_level | rooted (sin,cos) chord × minor | m | OK (note N1) |
+| props/curved.rs (`require_rims_at_extremes`) | props_rim_level | per-kind: bare level difference (cylinder/cone `Length`) / rooted (sin,cos) chord × arm (sphere ×R, torus ×minor) | m | OK (notes N1, N7; generalised from the torus-only site to all four kinds by S58/#649 — one predicate, metering still carried by [`RimLevel`]. N1 now has a second, sharper reading: the torus levers THIS predicate at `minor`, the exact arm, and its sibling `props_rim_level_group` at `major` one line later — the two are reconciled in `du_of_rims`' docs rather than unified, because unifying them resolves N1. N7's near-polar sphere understatement applies here too, and here it is a REFUSAL that is affected. Pinned as scale twins by `geom-brep/tests/rim_dim_scale_twins.rs`.) |
 | props/quad.rs:453 | props_quad_converged | ε·F − flux-width(m³)/(3·area(m²)) | m | OK |
 | props/quad.rs:461 | props_quad_face_extent | area/perimeter (mean width) | m | OK |
 | ssi.rs:645 | ssi_cs_tangency | radius/axis distance differences | m | OK |
@@ -515,6 +515,17 @@ Notes (verified honest, kept for the design conversation):
   sibling `props_rim_level` uses × minor). Overstates by R/r —
   conservative (escalates a truly-coincident pair, never merges a
   distinct one). Lever-magnitude question, deferred to typed-margin.
+  **Sharper since #714** (S58): the two now sit on consecutive lines in
+  `torus()` — `require_rims_at_extremes(&rims, …, minor, …)` then
+  `du_of_rims(&rims, major, …)` — so the discrepancy is visible at a
+  glance and reads as an inconsistency unless N1 is known. #714's fix
+  pass reconciled them in `du_of_rims`' own docs (which arm is exact,
+  which is N1, and why the safe direction is the overstating one)
+  rather than unifying them, because splitting `du_of_rims`' single
+  `arm` in two would resolve this note in passing. The unification is
+  still the thing to do when typed margins land: `arm` there is doing
+  double duty for a minor-circle level difference AND an azimuthal
+  angle difference.
 - **N2** `props_rim_dir_group` compares a structural ±1 through the
   numeric funnel (margin 0 or ±2·arm). Guarded upstream: a rim with
   arm ≲ K·ε cannot reach it (`props_circle_axis_class` escalates
