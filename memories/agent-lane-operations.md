@@ -32,7 +32,8 @@ header carries the current size, and the script its own WARN/CRITICAL
 thresholds — read them there); never share `CARGO_TARGET_DIR` across
 parallel builds (cargo's lock serializes them); `~/.cache/gmp-mpfr-sys`
 IS shared safely. Session start: arm `disk-watchdog.sh` from the
-installed monitor copies. Under pressure: `local-scripts/clean-lanes.sh [--dry-run]`
+installed monitor copies. Under pressure:
+`local-scripts/clean-lanes.sh [--dry-run]`
 (re-checks pushed/clean/no-stash before each rm and refuses loudly);
 NEVER touch a running gate's target; confirm the OWNING agent has
 terminated before cleaning its lane. After a disk-full crash, purge torn

@@ -17,7 +17,8 @@ is its mirror and `gate.sh` a billing-outage fallback only.
 **It is also the CHEAP option, and that is the point.** The hosted
 matrix runs its rows in parallel on GitHub hardware; the same rows
 locally are serialized behind one box's cores, and a cold local
-build alone can outlast the whole hosted matrix. Spare the local machine
+build alone can outlast the whole hosted matrix. Spare the local
+machine
 wherever practical: push and let the gate run. A local run is
 justified exactly when it is likely to surface a failure faster
 than pushing — that is the whole calculus. Corollaries:

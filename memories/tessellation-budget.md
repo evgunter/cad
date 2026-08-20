@@ -78,7 +78,8 @@ now deliberate). It cut the tour's NURBS cell count hard, held most of
 the span share the budget said was there, and left the worst
 certificate inside δ — the figures are `docs/TESS-BUDGET.md`'s and the
 committed baseline's, not this file's. Meter columns re-derived
-(`grid_cells`, `patch_cells` counterfactual); baseline re-cut. The report prints held/split/total. (It also added an `agree`
+(`grid_cells`, `patch_cells` counterfactual); baseline re-cut. The
+report prints held/split/total. (It also added an `agree`
 column, retired by #738 — `docs/TESS-BUDGET.md`, "Why there is no
 realisation column".)
 The SPLIT half (aspect policy) stays open — docs/TESS-SPLIT-SPEC.md.
