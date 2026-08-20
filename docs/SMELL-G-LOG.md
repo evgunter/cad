@@ -168,11 +168,19 @@ have minted one, and a returned number that is never re-spent is a slow leak:
 | lane | row | §D rows | findings |
 |---|---|---|---|
 | **G-d** | G5 | D72 | S128, S135 |
-| **G-e** | G6 | D73, D74 | S136, S167, S168 |
+| ~~**G-e**~~ (#833, in review) | G6 | D73, D74 — **unused, returned** | **S136, S167, S168 spent** |
 | **G-f** | G7 | D75, D76 | S169, S170 |
 | **G-g** | G8 | D77, D80 | S171, S172, S173 |
 | **G-h** | G11 | D111, D112 | S174, S175 |
-| unassigned | — | D113–D125 | S176–S181 |
+| unassigned | — | D73, D74, D113–D125 | S176–S181 |
+
+**`S136` is spent, by G-e, and the `unassigned` line above no longer lists it.**
+It was allocated to G-e in this table and *also* left in the free pool by the
+wave-2 reconciliation — my error, caught by the lane, which declined to edit the
+table itself on the grounds that the line says reconciliation is the
+orchestrator's. That was the right call: **a lane silently correcting a number
+table is how two lanes mint the same number**, which is the incident the whole
+per-track block exists to prevent.
 
 ## The standing lane header
 
