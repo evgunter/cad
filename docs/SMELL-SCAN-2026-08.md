@@ -5188,23 +5188,76 @@ duplication it licensed accumulated underneath it. Nothing in CI, review
 or the logs reads a crate-doc sentence, so the only thing that could have
 caught it was someone diffing two manifests.
 
-## S32. `Surface`'s one-partial-per-call API created a second surface enum
+## S32. FIXED IN PART by #804 — the API half; the "second surface enum" half was FALSE
 
-- **Where**: `crates/geom/src/surfaces.rs:333` (`deriv_u`), `:434`
-  (`normal`), `crates/geom/src/surfaces/nurbs.rs:736` (`ders`),
-  `crates/geom-brep/src/ssi/system.rs:225` — paths re-anchored by #705's
-  crate merge; the finding is unchanged
+- **Where**: `crates/geom/src/surfaces.rs` (`Surface::jet` and the six
+  projections), `crates/step-import/src/chart.rs` (`metric_floor`),
+  `crates/geom/tests/surfaces/s32_jet_projection.rs` (the pin)
 - **Confidence**: sure
 
-`NurbsSurface` computes point and all `k+l ≤ 2` partials in one pass
-(`ders`), but the `Surface` enum exposes six separate accessors, each of
-whose NURBS arm calls `n.ders(u, v)` and throws away five of six
-results. `Surface::normal` costs two full jets. `SurfaceJet`/
-`SurfaceJet3` are publicly exported yet the enum never offers one — so
-`geom-brep`'s SSI built a shadow surface enum (`Chart { Plane, Nurbs }`)
-with its own `eval`/`jet3`, re-implementing plane evaluation and
-hand-filling a `SurfaceJet3` of zeros. The natural query being
-unavailable at the enum is what created the second enum.
+**The API half is FIXED.** `Surface::jet(u, v) -> SurfaceJet<T>` is the
+enum's derivative primitive: one match, the point and every partial with
+`k + l ≤ 2`, the analytic arms building the azimuthal frame and
+`sin_cos(v)` once, the NURBS arm making a single `ders` pass. The five
+partial accessors and `normal` are now its projections — one
+implementation where six stood, which is the change's justification;
+there is no performance claim here, because none was measured.
+`step-import`'s `metric_floor` was the only production caller of any of
+them and asks once per sample instead of twice. Preservation is
+**bitwise, not tolerated**: a 23904-row dump of all seven doors over 9
+charts (five analytic, a rational NURBS patch, the placeholder, two
+degenerate charts) × 2656 parameter pairs is byte-identical between
+`1a94204d` and the shipped head, md5 `d80a47f4cb63eda6ad2b0670f5a4f0ab`,
+including the 8042 rows whose fields are NaN — NaN **payloads** match,
+which is where an order change would have shown.
+
+**Three clauses of the original finding were false, and correcting them
+is the more valuable half.**
+
+1. *"The natural query being unavailable at the enum is what created the
+   second enum."* No. `Chart` was born at `ffc0b0fa` carrying the doc it
+   still carries, and **three independent reasons survive a jet door,
+   any one sufficient**: it is **third**-order where `SurfaceJet` is
+   second, and `Surface` exposes no `∂³` for any variant (writing four
+   analytic third-order ladders is a new feature, not a cleanup); its
+   `Plane` variant carries `u_range`/`v_range` because *"a plane is
+   unbounded, so the domain is the caller's named extent, never a
+   guess"*, and `Surface::Plane` has nowhere to put a domain; and a
+   `Surface`-wide constructor is **deliberately refused** under a named
+   rule — *"Adding a chart is adding an arm, per C12.1's per-arm
+   retirement rule."* `Chart` stays, and nothing in `ssi/system.rs`
+   changed.
+2. *"hand-filling a `SurfaceJet3` of zeros"* reads a right answer as a
+   workaround. A plane's second and third partials **are** exactly zero;
+   those fields are the correct analytic values. `Chart`'s own doc says
+   so: *"whose second and third partials vanish identically, so the
+   cubic term costs nothing."*
+3. *"re-implementing plane evaluation"* is one notch too strong. What
+   `Chart::Plane` holds is `Surface::Plane`'s own arithmetic **hoisted**
+   — `dv = normal.cross(u_ref)` resolved once in `plane_of` — plus the
+   window. A hoisted cross product, not an independent implementation.
+
+**The population, measured rather than read.** Five accessors discard
+five of six, not six: `eval`'s NURBS arm is not a member, because
+`NurbsSurface::eval` is its own cheaper pass. `Surface::normal` had
+**zero** production callers — every call site sits in a `#[cfg(test)]`
+module or a `tests/` file — and two crates' module docs already said so
+in prose (`mesh/src/lib.rs`: *"`Surface::normal` is never sampled
+anywhere"*; `geom-brep/src/implicit.rs`: *"nothing here ever calls
+`Surface::normal`"*). `deriv_uu`/`deriv_uv`/`deriv_vv` have no caller
+outside `crates/geom` at all. **Four of `Surface`'s seven public
+evaluation doors are exercised only by `geom`'s own tests** — recorded
+because it will decide a future question and nobody will re-measure it
+cheaply; it is not a mandate to delete them.
+
+**The class's curve-side member is filed, not fixed** — §D row **C24**.
+`Curve3::deriv`/`deriv2` are the identical shape one file over, and
+`topo/src/splitting/neighborhood.rs` calls both at the same `t` under a
+comment naming the result *"the base-endpoint jet"*. **C-R6 does not
+reach it** even though it is the same crate: the surface side had a
+ratified `SurfaceJet` to project onto, and the curve side has no
+`CurveJet` at all, so that work is minting a public type — a design
+element, C-R19 tier two.
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
 baffle me with how they ever happened." Postmortem pass commissioned.
@@ -9916,8 +9969,8 @@ to make and record.
 The 2026-08-19 statement of this paragraph is superseded: every gate it
 named has since fallen. **A1 (#682), A3 (issue #678, landed as #684), #690
 and #692 are all merged**, and **#705** merged the two geometry crates into
-one `geom`. So C1's one remaining member (H13), C3's S29, C4 in full,
-C5's S28 half,
+one `geom`. So C1's one remaining member (H13), C3's S29, C4's remaining
+member (S33), C5's S28 half,
 C7 and C10 are edge-free and takeable today. (**C9 — the `agreement`
 column — is FIXED by #738**, which deleted it rather than re-deriving
 it; the similarly-numbered **§C9** is an unrelated process
@@ -9944,16 +9997,18 @@ last**: it touches ~130 files and would conflict with every open lane.
 written proposal rather than a lane. **The binding constraint on the rest is
 capacity and the width-1 build mutex, not dependency.**
 
-**S31, S24 and S30 are FIXED** by #705, #702 and #709 — and a landing leaves
-this paragraph as well as the table, which is why this paragraph is
-rewritten rather than appended to.
+**S31, S24 and S30 are FIXED** by #705, #702 and #709, and **S32 is FIXED
+IN PART** by #804 — its API half closed, its *"this is what created the
+shadow enum"* half established FALSE, which is why the finding keeps a
+heading rather than losing one. A landing leaves this paragraph as well as
+the table, which is why this paragraph is rewritten rather than appended to.
 
 | # | Work | Why it is here rather than in a track |
 |---|---|---|
 | **C1** | **H13** — a lane's own residue: `sweep_body`'s helix rows with no orientation coverage. (**H12**, the SSI sweeps' other never-silence doors, left this row **FIXED by #734**; **H14**, #637's two jurisdiction residues, left it **FIXED by #737**; **H15**, #635's unclassified siblings, left it **FIXED by #775** — three sites as recorded, twenty as they existed.) | Small on its own; it is the clearest instance of ordering rule 3. |
 | **C2** | **H17** — S37's rustdoc remainder, ~1115 lines across 130 files. (Both other members have landed. **H11**, #632's residues, is **FIXED by #731** — the residues were two as recorded and ten as they existed; see S4's drift (b) for the seven further fail-quiet classifications in the same crate, **§C15** for what each sweep could not match, and **C12** for what #731 filed rather than fixed. **H16**, the STL header not being caller-settable while `StepOptions` carries `product_name`, is **FIXED by #732**.) | H17 is large and mechanical. |
 | **C3** | **S27, S29** — `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block; and the sizing vocabulary fragmented across five modules with self-admitted magic constants. (S30, the mesh crate's 1,060 lines of instrument, was the third member and is FIXED by #709.) **S29 is NOT blocked on a design conversation — corrected 2026-08-19.** This row previously said its policy question was routed to `docs/TESS-SPLIT-SPEC.md` and PR #568. #684's review checked: both are scoped **entirely to the NURBS per-cell schedule** (`nurbs_cert`'s `grid_steps`, certified cells, the first fundamental form — TESS-SPLIT-SPEC's D-1 replaces the AM-GM grouping, with `leaf_a f2` as its poster child). **Nothing in either covers analytic-chart sizing**, so `curved::grid_steps` has no venue at all — and #684 has since added a sixth rule to it. S29's own lesson applies to that: *N well-defended deviations read as N decisions when they are one undecided question.* S27 touches `props/`, so it must follow **A2** (#714) **and #723**, which re-opens the same file on the same closed forms — see the gating note above; S29 is edge-free. |
-| **C4** | **S32, S33** — `Surface`'s one-partial-per-call API, which is what created the shadow surface enum in SSI; and neither geometry enum being able to lift itself to another scalar. (S31, the `geom-curves`/`geom-surfaces` split, was the third member and is FIXED by #705.) | **S32 is now additionally gated on #705's merge**: the enum and its NURBS payload are one crate's two modules, so a `SurfaceJet` door at the enum no longer crosses a crate boundary. **S33 is coloured by D1**: several of its ~14 hand-written ladders exist only to reach `Dual`, and what `Bounds for Dual` changes there is written in S44's **D1 DECIDED** block. |
+| **C4** | **S33** — neither geometry enum can lift itself to another scalar. (**S32**, `Surface`'s one-partial-per-call API, was the second member and is **FIXED IN PART by #804**: the enum now has `Surface::jet` and the six accessors are its projections, while the finding's *"this is what created the shadow SSI enum"* claim is established **false** — `Chart` survives on three independent grounds and did not change. **S31**, the `geom-curves`/`geom-surfaces` split, was the third and is FIXED by #705.) | **S33 is coloured by D1**: several of its ~14 hand-written ladders exist only to reach `Dual`, and what `Bounds for Dual` changes there is written in S44's **D1 DECIDED** block. Edge-free.
 | **C5** | **S26, S28's duplication half** — the certified area enclosure that is never metered against anything (`area.width()` appears nowhere in the file); and the three tessellation lanes that remain three pipelines now that #648/#674 have settled their ordering and column questions. (**S24 left this row FIXED by #702.**) | S26 was explicitly deferred in writing by #472 — *"metering against `area.lo()` … deserves its own proposal with re-measured floors"* — so it is a proposal, not a patch. S28's duplication half must follow **A3**. |
 | **C6** | **W2f remainder / S4** — `ProgramStep`/`WireStep`, `SegTag`, and the "no usable value" core. | Each is blocked on something real: the first behind OnArc + RESPELL-TABLE and crossing the same files, the second needs the workspace's first proc-macro crate, the third by a persisted format. |
 | **C7** | **W2a / S3 and W2b / S1+S2** — the lane-trait collapse, and `RingInterval` versus an always-on `Interval`. | **The S3 half no longer waits — D1 is ruled, and its report is S44's D1 DECIDED block.** The steelman's compiled collapse for S3 **predates #643's `Bounds`/`CertifiedEnclosure` split** and must be re-derived against the two-trait world; read *"What this does NOT settle"* first, in particular its per-lane correction — deleting a lane trait leaves **three of the four** seams still uninstantiable at a dual, and only `chart_region_overlap` would become instantiable. W2b's blast radius is 535 refs in 15 files with five carrying 60%. **Two rows joined this one on 2026-08-20**, both from the unscheduled audit: **S44's open residue** — whether the four lane traits survive and whether D9's four bit-identity assertions may be re-expressed, which is what S44 means by *"open for the part that matters"* now that its priced half (D1) is ruled — and **S55**, `Enclosure` as a live trait with no consumer, which Evan deferred *pending the `Bounds` narrow-vs-broad split* and which is therefore this row's, not a lane of its own. Whoever takes C7 absorbs both. |
@@ -9969,6 +10024,7 @@ rewritten rather than appended to.
 | **C18** | **Three residues of H12's own enumeration, left open by #734** — a tests-only unit, so all three are coverage or prose, none a source change. **(a) The four Account-duty cells of the sweeps' never-silence grid have no acceptance row.** The grid is thirteen, not the nine #734 first claimed: the cell budget and both enclosure-poison arms sit in `exhaust.rs`'s ONE shared recursion, which runs under both values of `SweepDuty` on separate calls with separate floors, so **duty is an axis** — and it is the axis S23's own bug lived on. Three cells had rows before #734 and five more do now, all five under the **seeding** duty, because seeding runs first on both lanes. The residue is {cell budget, poison arm} × {ℝ³, chart} under **Account**. **What was tried and did not reach them, so the next taker does not repeat it:** the accounting floor is routinely orders finer than the seeding one (measured on the substrate wall, `8.8e-10` against `2.1e-2` in chart units), so the road looks open — but at `floor_scale` of 0, 1e-12 and 1e-9 both lanes' fixtures still terminate `Ok`, because exclusion and the banked tubes between them resolve every cell above any floor. What is needed is a fixture leaving a region neither excluded nor accounted at every width, and that is a new fixture, not a new assertion. **(b) The macro blind spot on #734's population sweep is open.** The 1-vs-3 containment measurement rests on `plane_nurbs_ssi` having exactly the callers a whole-tree name grep finds; a caller reaching it through a macro-generated path would not be matched. There is no such macro in this workspace to the lane's knowledge, and the reviewer did not close it either — but it is the one declared blind spot on the measurement and it should not live only in a PR body. **(c) `m5_pr7_ssi.rs`'s header claims the battery runs it "at the interval scalar", and the interval CI leg runs only the set difference of the two nextest lists** — so rows present in both configs never run there, and every row in that file is. A coverage claim about the file, false as the workflow stands; either the claim goes or the selection does, and which is a question for whoever owns the interval leg. | **C-R19 tier one — a lane takes it.** No design fork: (a) is test coverage needing a fixture whose non-existence is established rather than assumed, (b) is a sweep widened or a blind spot restated, (c) is one sentence corrected against one workflow file. Nothing here is a kernel change — H12's only source-side residue is **issue #762** (the chart-speed guard's `+∞` hole), which is deliberately NOT part of this row. |
 | **C19** | **`step-import/src/assemble.rs`'s `build`/`build_one_solid` pair — #635's residue B, and DEAD CODE rather than a stale claim.** `build(&[SolidSpec])` has exactly one caller, `build_one_solid`, which always passes a one-element slice; the multi-solid door retired with M8 instancing (a `SolidSpec`'s maps are keyed by file entity ids, so two copies in one arena would collide id for id). **The distinction is this row's content.** #635 named it under *"Still not swept, and why"*, and #775 — the lane that swept the rest of that list — established that its **prose is TRUE today**: `assemble.rs:817` already says *"One door reaches it today … The multi-solid door retired with M8 instancing"*. So there is nothing here for a stale-claims pass to fix, which is exactly why **C-R6 does not reach it**: C-R6 fixes in-crate members of the *class*, and this is not a member of the class. A reader who arrives assuming another stale-claim site re-derives that for nothing. | **C-R19 tier one — a lane takes it.** ~10 lines: fold `build`'s loop into `build_one_solid` and keep the retirement reason at the surviving door. No design element, no public API (`build_one_solid` is `pub(crate)`, `build` private), one crate, edge-free. Not taken by #775 because `step-import` is outside that lane's scope column and the change is code, not prose — the lane asked for this number rather than taking one (**C-R20/C-R21**). Fold into whoever next opens `step-import`; **C8** already routes two `step-import` rows the same way. |
 | **C21** | **Two measured populations from #775's sweeps, neither read per item — and one of them has already hidden a live member.** **(a) I1's 102 live-scope hits**: comment clauses carrying a milestone token with a live-scope marker in the 40 characters before it, workspace-wide, of 2,206 such clauses. The class is *"an `at M<n>` scope label whose milestone has shipped and whose substance may or may not still be true"* — mostly benign, individually cheap, and only decidable by reading the code each one describes. **(b) I3's 411 fan-in variants**: typed refusals whose ONE rustdoc and ONE `Display` arm must cover N > 1 construction sites. Fan-in is a *necessary condition* for the defect it found, not the defect — separating the real ones needs a per-variant read. **What makes this a row and not a note:** bucket (a) is where `geom-brep/src/edge_geometry.rs:285` sat — a **public enum variant doc** whose prediction had come true the other way — and it survived **all four** of #775's instruments, then went undetected until a style reviewer read for it by hand. I1 bucketed it *historical* because its live-scope marker follows the milestone token (*"SSI arrives (M3+)"*) instead of preceding it. **A population that has already concealed one live member is not a backlog; it is an unread result**, and calling it *"named as a population"* was the same sentence as *"recorded as a pickup"* (Q6). | **C-R19 tier: the MIDDLE one — a plan goes to Evan before implementation, not a patch.** A per-item read of 513 items is not a patch, and the design element is the triage itself: how to decide these without committing **§C16**'s move — a prose-hygiene pass that launders a guess into an assertion, which is exactly what bulk-rewriting 102 dated scope labels would be. #775 declined the rewrite on that ground and was right to; declining the rewrite is not the same as declining the schedule, and this row is the schedule. Whoever takes it starts from the two instruments' stated selection rules — **each dropped `edge_geometry.rs:285` by its rule, not by its regex** — because the triage design has to survive the same failure. Both instruments' patterns are written out in #775's body. |
+| **C24** | **S32's class on the curve side, which S32 does not name.** `NurbsCurve::deriv_in_span`/`deriv2_in_span` (`geom/src/curves/nurbs.rs`) are `ders_in_span(..).1` and `.2`, so `Curve3::deriv` and `Curve3::deriv2` each run a full order-2 basis pass and discard two of three — and `topo/src/splitting/neighborhood.rs` calls **both at the same `t`**, under a comment that names what it is building: *"The base-endpoint jet: outgoing tangent, plus the raw second derivative and squared speed."* The missing type is already named, in prose, by the code that needs it. | **C-R19 tier TWO — a plan goes to Evan before implementation.** And the reason **C-R6 does not reach this**, though it is the same crate #804 edited, is the whole content of the row: the surface side had a **ratified type to project onto** — `SurfaceJet` already existed and was already publicly exported, which was half of S32's own complaint — whereas the curve side has **no `CurveJet` at all**. So this is not "apply the same fix one type over"; it is **mint a new public type**, which is a design element, not a lane's discretion. That distinction is the difference between using a decision already made and making one. Filed by #804 rather than left as a sentence in a PR body (**C-R7**). |
 
 **Three ownership changes made to this table from outside the track (2026-08-20,
 Track E), stated here rather than only in Track E so this table is not read as
