@@ -620,17 +620,31 @@ started, and one because sealing MOVED where the coverage gap lives:
 
 Two of these have **already drifted, observably**:
 
-- `Node::named_nodes` lists `Declare`, `Mate`, `Fillet` and its comment
-  states `Rebind` is the repair for all three. `DocEdit::Rebind`'s
-  rewrite loop in `apply` matches only `Declare` and `Fillet` (`_ =>
-  {}`); `refactor::payload_names` returns names only for those two. A
-  mate head is validated at insertion, documented as repairable, and
-  silently not rewritten.
-- **FIXED by #632.** Three of the four `RoleSeg` sites carried comments
-  insisting the match is exhaustive "so a future variant must be classified
-  here or the compile breaks"; `select::name_args` was the fourth and
-  wildcarded. All four are now exhaustive on both the `RoleSeg` and the
-  `Qualifier` axis.
+- **CLOSED by #618, and this bullet outlived it — corrected by #731.** As
+  written it says `Rebind`'s rewrite loop in `apply` matches only
+  `Declare` and `Fillet` (`_ => {}`), that `refactor::payload_names`
+  returns names only for those two, and that a mate head is therefore
+  silently not rewritten. **All three clauses are false today**:
+  `edit.rs`'s loop routes through `Node::rebind_payload_names`, and that
+  function and `Node::payload_names` both carry an explicit
+  `Node::Mate { a, b, .. }` arm with no wildcard, as does
+  `refactor::payload_names`. The drift was real when reported; the
+  record of it was left standing as live for two weeks after the fix,
+  which is Q4's sub-case rather than a second drift.
+- **FIXED by #632; the population was wrong and is corrected by #731.**
+  Three of the sites #632 counted carried comments insisting the match is
+  exhaustive "so a future variant must be classified here or the compile
+  breaks"; `select::name_args` was the fourth and wildcarded, and #632
+  closed it. **There were five**: `eval::anchor::remap_seg` classifies
+  `RoleSeg` too and ended in a BINDING catch-all (`other => other`) that
+  #632's scan could not express, so it was neither counted nor fixed. All
+  five are now exhaustive on the `RoleSeg` axis, and the four that see a
+  `Qualifier` are exhaustive on that axis too. **Five is #632's population
+  plus that one, not the tree's**: a probe `RoleSeg` variant demands a
+  decision at **seven** matches on today's head — those five, plus
+  `eval::feed_role_seg` and `resolve`'s `visit`, which were already
+  exhaustive and so were never anyone's residue. The distinction is the
+  one this row is about, so it is spelled rather than left to the count.
 
 **The `BooleanOp` mirror is FIXED by #642.** It was the tell that these
 copies are accretion rather than principle — one vocabulary **mirrored**
@@ -726,8 +740,8 @@ hand-shaped matcher is S4's failure mode wearing an enforcement badge.
 |---|---|
 | profile `Step` verbs | **SURVIVES** — `WireStep`/`WireTarget`/`WireArcData` are field-for-field mirrors differing in **nothing**. Only `WireSide`/`WireWinding` wrap kernel-foreign types (two two-variant tags), plus `SketchPlane<f64>` needing `WirePlacement`. The scheduled RESPELL-TABLE unit does **not** reach these. |
 | `RoleSeg` → `SegTag` | **SURVIVES IN PART** — three of four links are compile-enforced and the python lane runs in CI. Genuine gaps: the `.pyi`'s 40 members are **unpinned** (`test_stubs.py` parses only top-level names, never class bodies), and the py mirror is **forced by the orphan rule** — not collapsible, only generatable. |
-| node kinds (~10 tables) | **DOES NOT SURVIVE as stated** — 10 operations over a 12-variant sum type is the design working. Re-scoped to *wildcard* arms it survives: `node.rs` 9, `eval/mod.rs` 5, `resolve/mod.rs` 4, `edit.rs` 3, `refactor.rs` 3, `persist/check.rs` 2. |
-| `RoleSeg` arg sites | **SURVIVED IN PART; FIXED by #632.** The four answer four genuinely different questions and *should* differ — what survived was the fourth site's wildcard, now closed. |
+| node kinds (~10 tables) | **DOES NOT SURVIVE as stated** — 10 operations over a 12-variant sum type is the design working. Re-scoped to *wildcard* arms it survived, and was measured (2026-08-18) as `node.rs` 9, `eval/mod.rs` 5, `resolve/mod.rs` 4, `edit.rs` 3, `refactor.rs` 3, `persist/check.rs` 2 — **a count whose counting rule was never stated, so it cannot be re-derived**. #731 closed seven of the arms it covers (`persist/check.rs` both, `resolve/mod.rs` one, `node.rs` three, `eval/mod.rs` one) and did not re-cut the measurement, because there is no instrument to re-run. Whoever takes this row states the rule first. The live instrument for the class is `--force-warn clippy::wildcard_enum_match_arm`, whose blind spot is recorded at **§C15**. **The count above is stale and is left as a dated record, not as a claim about today's tree.** |
+| `RoleSeg` arg sites | **SURVIVED IN PART; FIXED by #632, population corrected by #731.** The sites answer genuinely different questions and *should* differ — what survived was the fourth site's wildcard, closed by #632. The count was wrong: a **fifth** classifier, `eval::anchor::remap_seg`, partitions `RoleSeg` by profile-locator carriage and was fail-quiet until #731. #731 also gave the one partition three of them share — the name-free variants — a single home (`names::role::name_free_seg!`), so it is one decision rather than three that can diverge. |
 | `StableName` payload lists | **SURVIVES** — see the confirmed drift below. |
 | "no usable value" | **SURVIVES IN PART** — the four enums have genuinely different membership and closure (`RunStatus` is serde-persisted), but all four embed the identical triple, and the stringly fifth is a real fail-quiet. |
 | units | **DOES NOT SURVIVE as counted; the residue FIXED by #646.** `parse.rs` uses the shared table; `step-import`'s `UnitKind` is a *different vocabulary* (STEP `SI_UNIT` names). Real duplicates: two-and-a-half, one of them **measured and justified** (PR #291 MAJOR-2: inlining the 32-byte row grew every `Expr` by ~40 bytes). #646 enumerated the two-and-a-half the steelman never named — (1) `expr.rs`'s `UnitSym` enum + its `def()` map, the measured one; (½) that file's *second* table, `from_def`'s six string literals, which the measurement never covered; (2) `pncad-py`'s six module bindings + stub lines, forced by PyO3 — and dissolved (1) and (½) together by making the code an INDEX into `quantity::UNITS`. The code is still one byte, so the measurement stands, and it now has a mechanical guard (a `size_of::<Lit>()` assertion) rather than only clippy's threshold-dependent `large_enum_variant`. (2) is untouched: forced — **and unpinned**, its stub pinned only at one of six names. A residue in `expr.rs` was filed rather than fixed: #650, `literal_with_unit` checks the caller's `UnitDef.quantity` and then stores the table's, so a mismatched pair builds an `Expr` the load door refuses. **#650 is now CLOSED STRUCTURALLY, not by a check** (see the `units`/#650 note below): `quantity::UnitDef` is sealed — private fields, no constructor at all, and `LengthUnit::def`/`AngleUnit::def` demoted to `pub(crate)` because a public `def()` on a still-public-fielded typed view was a *second* mint for the same illegal row. The vocabulary count is unchanged by that; what changed is that the shared table is now the ONLY source of a row, which is the property S4 was arguing for all along. |
@@ -748,14 +762,95 @@ shape: the insert door silently ADMITTED a mate head naming no node, and
 file that got one in could previously be opened and salvaged by deleting the
 mate, and now refuses to load at all.
 
-*Drift (b) CONFIRMED, and **FIXED by #632*** — see the §D H5 row for what the
-fix covered and what its review caught. The `Fragment(SideOf)` disagreement is
-**documented and intentional** and was preserved. Two residues went to §D:
-`resolve::apply_with_names`' `DocEdit` wildcard, correctly left alone but
-unscheduled until now, and a verbatim triplication of the name-free variant
-list that the fix grew (`select.rs`, `resolve/mod.rs`, `refactor.rs` — every
-copy compile-enforced, so churn rather than rot, and collapsing it needs a home
-`role.rs` does not have).
+*Drift (b) CONFIRMED, **FIXED by #632**, and its residues **FIXED by #731**
+(H11).* The `Fragment(SideOf)` disagreement is **documented and intentional**
+and was preserved. #632 disclosed two residues; #731 closed them, and closed
+**eight further fail-quiet classifications of the same shape in the same
+crate** — two that #632's own body had ruled out in writing, five that
+neither #632 nor #731's first pass found, and one that **neither of #731's
+own instruments could express**, found by its verification pass. The class as
+reported was *"#632's two residues"*; the class as it existed was **ten**.
+That gap, not either fix, is the finding — and the count moved three times
+(two, four, nine, ten), each time because a differently shaped instrument
+was run, which is §C15's clause arriving as a measurement rather than as a
+warning.
+
+- `resolve::apply_with_names`' `DocEdit` wildcard is now three named groups —
+  checked, name-carrying-and-deliberately-unchecked, name-free — which encodes
+  a policy the docs at both ends had already ratified in prose. **The same
+  wildcard, on the same enum, was live a second time** at `persist/check.rs`'s
+  `edit_non_finite`, the load door, which #632 set aside as *"different enum"*
+  and is not; a future float-carrying `DocEdit` variant would have been
+  classified "no floats". Both are closed, with `param_site`'s `DocParam`
+  wildcard beside them. A probe variant carrying a name and an `f64` broke one
+  site before and three after.
+- The triplicated 17-variant name-free list is one `name_free_seg!()`
+  or-pattern macro in `names/role.rs`. A pattern rather than a predicate,
+  because a predicate is a thing a caller may forget to call (**C-R5**); every
+  match stays exhaustive, and the delta is that "name-free" is one decision at
+  one site instead of three that can diverge. #632's stated obstacle — that
+  `role.rs` has no `impl RoleSeg` block to hang a classifier on — is not paid,
+  because a macro is the list rather than a classifier.
+- **`eval/anchor.rs`'s `remap_seg` was a live fail-quiet #632's scan could not
+  see**, contradicting its *"no fail-quiet wildcard in any `RoleSeg` or
+  `Qualifier` match in the workspace"*. Its catch-all was `other => other` — a
+  BINDING wildcard, not `_` — in a match written entirely through
+  `use RoleSeg as R`, so the literal `RoleSeg::` never appeared in the window
+  the scan required. Its twelve explicit arms are exactly the twelve variants
+  embedding a profile locator, so behaviour was right; a thirteenth carrier
+  would have crossed a profile re-anchor with a **stale locator**, silently.
+  See **§C15**, which this corrects.
+- **The five #731's own first pass missed, found by its style review**, all
+  in `editor-core` and all closed under **C-R17** (orchestrator, 2026-08-20: fix in-crate residues rather than reporting them). The one that carries the
+  argument is `eval::content_key`'s structural-payload match: its **tag**
+  half was exhaustive and its **payload** half wildcarded, so the compiler
+  forced a decision at one half of one key and silently defaulted at the
+  other. A `Node` variant whose recipe payload lives outside its slots would
+  hash identically to one that differs in it, and the memo would serve
+  another node's geometry — which is not hypothetical, and is recorded two
+  paragraphs below as `Step::AtToward`'s tag-28 collision, *caught by a
+  reviewer, not by a type*. The others: `Node::expr`/`expr_mut` and
+  `placement_rule_fault` on the `Node` axis, and `Expr::child` and
+  `with_replaced` on the `ExprKind` axis. `node.rs`'s two nameless-payload
+  lists — #618's own growth of the same duplication — and `expr.rs`'s four
+  arity lists took the same treatment as the triplication above
+  (`name_free_node!`, `binary_kind!`/`unary_kind!`/`leaf_kind!`).
+- **The tenth, found by this PR's verification pass, and it is the one
+  neither instrument could see.** `doc.rs`'s `DocParam::bit_eq` matched
+  `(self, other)` and closed with `_ => false`. Invisible to the type-aware
+  instrument because the scrutinee is a **tuple** — its declared blind spot,
+  exactly — and invisible to the arm-content instrument because the arms are
+  spelled `Self::Continuous` / `Self::Count` and name no enum, which is the
+  **same alias tell** as the `use RoleSeg as R` miss that started this. Its
+  consequence is a wrong value, not a missed check: a future `DocParam`
+  variant would have compared unequal to ITSELF, and `Doc::bit_eq` and
+  `diff.rs` would have read that answer — D7's replay identity and the
+  document diff both reporting a change that is not there. Closed
+  exhaustively on both sides of the pair; a probe `DocParam` variant carrying
+  an `f64` breaks **4** sites on the head against **2** on `origin/main`.
+- **What the second sweep changed about the method.** #731's first
+  instrument was type-aware (`--force-warn
+  clippy::wildcard_enum_match_arm`) and it *declared* a blind spot — an
+  enum nested in `Option`/`Result`/a tuple is attributed to the outer type —
+  and then did not compensate for it, which is the exact failure **§C15**
+  names and which #731 was simultaneously correcting C15 about. The
+  compensating instrument is **arm-content-directed**: find every `match`
+  whose ARMS mention a target vocabulary's variants and which has a
+  catch-all, `_` or a bare binding, never consulting the scrutinee's type.
+  It is self-tested — run against `origin/main` it re-derives
+  `eval::anchor::remap_seg` unaided, through both the alias and the binding
+  catch-all. **That property was re-verified, but not that script**: no
+  sweep script ships with the fix, so the verification pass wrote its own
+  instrument of the same family (whole-file brace tracking rather than a
+  window, `if let`/`while let`/`matches!` as well as `match`, keyed on every
+  enum-variant name in `crates/` rather than a target list) and it re-derives
+  `remap_seg` on `origin/main` too. A claim that cannot be re-executed is
+  weaker than one that can, and this one is the weaker kind: what stands is
+  the property, held by a second instrument, not the run. **Its own blind spot**: a brace-balance window, so it
+  false-positives across a long `impl` (it flagged `pncad-py`'s
+  `select_refusal_tag`, whose wildcard is forced by `#[non_exhaustive]` and
+  compensated by a pin test), and it cannot see a classification written as
+  `if let` / `matches!` chains rather than a `match`.
 
 *One confirmation this report did not cite: the hand-synced tag table has
 already produced a live measured bug.* `MODEL-AB-LOG.md:782` — *"**MAJOR-1 =
@@ -767,8 +862,10 @@ Caught by a reviewer, not a type. S4's failure mode, realised.
 `serde(with)` — **DONE, #642** (cheaper than listed: the `From` pair was
 already the identity, so nothing had to be preserved; dearer in one place
 the ranking could not see — the read direction needs a run-time write-door
-check, because safe Rust cannot make it exhaustive); (2) `name_args`' wildcard → exhaustive — **DONE, #632**; (3) the `Mate` arms —
-small but a **behaviour** fix; (4) the Euler 7-tuple → named struct
+check, because safe Rust cannot make it exhaustive); (2) `name_args`' wildcard → exhaustive — **DONE, #632**, with the fifth
+site it could not see **DONE, #731**; (3) the `Mate` arms —
+small but a **behaviour** fix — **DONE, #618**, and the drift bullet above
+went on describing it as live until #731; (4) the Euler 7-tuple → named struct
 (debug-only) — **DONE, #625**; (5) units — **DONE, #646** (and smaller than
 listed: the only unforced `src` copy was inside one file; the residue it
 found and filed rather than fixed, #650, is now **DONE** too — sealed
@@ -3952,8 +4049,13 @@ the floor refusal's fourth {lane}×{tube set} cell, and the cell budget
 and the poison arm in each lane under the **seeding** duty — verified by
 instrumenting both `exhaust` entry points on each new row. The eight
 cells that had a row and the five that still do not are enumerated at
-the block itself in `geom-brep/tests/m5_pr7_ssi.rs`. A sixth row landed
-that covers no cell: it is the executable record of a live defect, below.
+the block itself in `geom-brep/tests/m5_pr7_ssi.rs`. **The four
+Account-duty cells are §D row C18**, together with the two other
+residues of this enumeration — the macro blind spot on the containment
+measurement below, and the file header's claim that the battery runs it
+at the interval scalar when the interval leg runs only the set
+difference of the two test lists. A sixth row landed that covers no
+cell: it is the executable record of a live defect, below.
 
 The one that matters beyond the count is the **chart lane's containment
 test**. Each lane's accounting predicate reaches the sweep through one
@@ -7406,8 +7508,8 @@ Two ordering rules survive unchanged, because both still bind:
 
 A third has been earned since:
 
-3. **A lane's own residues are rows, not footnotes.** Nine of the rows below
-   (H11–H17, and both #649 successors) exist because a fix pass or a review
+3. **A lane's own residues are rows, not footnotes.** Eight of the rows below
+   (H12–H17, and both #649 successors) exist because a fix pass or a review
    found something its own PR could not carry. Recording them as prose inside
    a merged PR body is how they get lost.
 
@@ -7553,7 +7655,7 @@ rewritten rather than appended to.
 | # | Work | Why it is here rather than in a track |
 |---|---|---|
 | **C1** | **H13, H15** — two lanes' own residues: `sweep_body`'s helix rows with no orientation coverage, and #635's unclassified siblings. (**H12**, the SSI sweeps' other never-silence doors, left this row **FIXED by #734**; **H14**, #637's two jurisdiction residues, left it **FIXED by #737**.) | Each is small; together they are a lane. They are the clearest instance of ordering rule 3. |
-| **C2** | **H11, H16, H17** — #632's two residues; the STL header not being caller-settable while `StepOptions` carries `product_name`; and S37's rustdoc remainder, ~1115 lines across 130 files. | H17 is large and mechanical; H16 is a small asymmetry with a clear right answer. |
+| **C2** | **H16, H17** — the STL header not being caller-settable while `StepOptions` carries `product_name`; and S37's rustdoc remainder, ~1115 lines across 130 files. (H11, #632's residues, was the third member and is **FIXED by #731**. The residues were two as recorded and ten as they existed — see S4's drift (b) for the seven further fail-quiet classifications in the same crate, **§C15** for what each sweep could not match, and **C12** for what #731 filed rather than fixed.) | H17 is large and mechanical; H16 is a small asymmetry with a clear right answer. |
 | **C3** | **S27, S29** — `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block; and the sizing vocabulary fragmented across five modules with self-admitted magic constants. (S30, the mesh crate's 1,060 lines of instrument, was the third member and is FIXED by #709.) **S29 is NOT blocked on a design conversation — corrected 2026-08-19.** This row previously said its policy question was routed to `docs/TESS-SPLIT-SPEC.md` and PR #568. #684's review checked: both are scoped **entirely to the NURBS per-cell schedule** (`nurbs_cert`'s `grid_steps`, certified cells, the first fundamental form — TESS-SPLIT-SPEC's D-1 replaces the AM-GM grouping, with `leaf_a f2` as its poster child). **Nothing in either covers analytic-chart sizing**, so `curved::grid_steps` has no venue at all — and #684 has since added a sixth rule to it. S29's own lesson applies to that: *N well-defended deviations read as N decisions when they are one undecided question.* S27 touches `props/`, so it must follow **A2** (#714) **and #723**, which re-opens the same file on the same closed forms — see the gating note above; S29 is edge-free. |
 | **C4** | **S32, S33** — `Surface`'s one-partial-per-call API, which is what created the shadow surface enum in SSI; and neither geometry enum being able to lift itself to another scalar. (S31, the `geom-curves`/`geom-surfaces` split, was the third member and is FIXED by #705.) | **S32 is now additionally gated on #705's merge**: the enum and its NURBS payload are one crate's two modules, so a `SurfaceJet` door at the enum no longer crosses a crate boundary. **S33 is coloured by D1**: several of its ~14 hand-written ladders exist only to reach `Dual`, and what `Bounds for Dual` changes there is written in S44's **D1 DECIDED** block. |
 | **C5** | **S26, S28's duplication half** — the certified area enclosure that is never metered against anything (`area.width()` appears nowhere in the file); and the three tessellation lanes that remain three pipelines now that #648/#674 have settled their ordering and column questions. (**S24 left this row FIXED by #702.**) | S26 was explicitly deferred in writing by #472 — *"metering against `area.lo()` … deserves its own proposal with re-measured floors"* — so it is a proposal, not a patch. S28's duplication half must follow **A3**. |
@@ -7562,8 +7664,10 @@ rewritten rather than appended to.
 | **C8** | **#711 — S24's residues outside `editor-core`**: `step-import/src/recognize.rs:126`, whose `try_cylinder` promoting arm is documented unreachable and whose `Plane > Cylinder` preference order is *"unfalsifiable by execution"*; and `docs/ASM-R2A-SPEC.md:21`, a landed spec sentence (*"v1 admits `Rest`/`Tangent`"*) that is true of the door it binds and no longer of v1 as a whole. | Filed by #702's fix pass rather than left inside a finding marked FIXED. The first may want the tighter cylinder certificate rather than an encoding change; the second is a one-line ruling — clarifier, or "landed specs read as of their own date". Small, edge-free, and **not** a lane on its own: fold into whoever next opens `step-import`. |
 | **C10** | **`geom_core::k_stats` is S30's class one crate over** — 598 lines, ~96 of them separable instrument, in the kernel's own core crate. | Reported by #709 and deliberately untouched, for a reason that is the whole row: the recording sits **inside** `decide`/`decide_flagged`/`decide_invariant`, which are load-bearing kernel predicate doors, so the `mesh::budget` split does **not** transfer mechanically. Whoever takes this must first decide whether the instrument can leave a door that certifies, and record that decision — it is not a cut-and-paste of #709. Note also `profile::k_stats`, a self-declared compatibility shim whose retirement is **STILL OPEN** at S40. Edge-free but not small. |
 | **C11** | **#726 and #727 — A2/#714's own two residues.** #726: fold the iso-rectangle SHAPE question out of `mesh::curved`'s `require_swept_rectangle` and onto the named predicate, leaving `entries_off_bbox` only #653's walk-consistency question. #727: which door owns the refusal — `mesh` and (once its curved-pierce door lands) the boolean are still protected **transitively**, through tier 3's check 7 calling `mass_properties`, which is the pre-#648 mesher's shape. | Both were footnotes inside a finding marked fixed until #714's style review applied ordering rule 3. #726 is a lane; #727 is a **decision** with a written answer to react to (S58's entry), not a patch. Whoever takes either reads **#723** first — `props_rim_level` is not the whole closed-form premise, so "protected by `props` refusing" is weaker than it reads. |
+| **C12** | **`editor-core`'s remaining classification residues, from #731's style review** — filed here rather than left inside a finding marked FIXED (**C-R7**). Three things. **(a)** `tests/m4_pr4_resolve.rs`'s `embeds_structurally` reimplements `walk_names`' structural half with a `_ => false` arm, so a future name-embedding variant makes the test oracle under-report silently; it is **S52**'s shape (the `tests/`-is-another-crate boundary) and S52 has no row of its own, which is why this one is written out rather than pointed at. **(b)** `resolve/mod.rs`'s undeclared duplication, found by a whole-file read: `qualifier_delta`, `merge_offers` and `rebind_suggestions` open with a byte-identical table scan differing only in the predicate (`lookup` is a fourth, shallower spelling), and `ResolveError::Ambiguous` + `TieWitness` is minted at three sites with different `candidates`/`at` and no constructor. Nothing self-declares, so **§C11**'s confessed-copy grep cannot see any of it (the clause, not the §D row of that number). **(c)** `merge_offers` scans only top-level `path` segments for `Merged` while `rebind_suggestions` uses the recursive `walk_names`, so a `Merged` nested inside `FromA` is visible to one offer ladder and not the other — an undeclared asymmetry between adjacent doors, and it is not established whether it is intended. **(d) An open QUESTION, not a defect — `persist::check::edit_non_finite`'s `Node` axis.** #731 made that match exhaustive on `DocEdit` and left `InsertNode { .. } => None`, so a future `Node` variant carrying a raw float is still classified silently at the load door. It is correct today, and the fix is not mechanical: two of the variants it already classifies — `Node::Mate`'s `alignment` and `SetPlacement`'s `frame` — hold raw `f64` and are safe only because `apply` refuses them on replay, which is the door this function's own doc says it does **not** rely on (*"a saved log is DATA — it has not necessarily been applied by this process"*). Closing the axis means ruling whether the load door may lean on `apply`, which is a policy call. | Small, edge-free, in one crate. (a) is a one-function fix once someone decides whether a test may call the crate's own walk; (b) is the same collapse S4 has done four times; (c) is a question before it is a fix. **(d) is a design element under C-R19** (orchestrator, 2026-08-20) — **middle tier: a plan goes to Evan before implementation, not a patch.** Fold (a)–(c) into whoever next opens `editor-core/src/resolve/`. |
 | **C15** | **#746 — `tess-lint`'s budget gate joins baseline to fresh rows on the face ORDINAL**, so a face reorder either compares two unrelated faces or drops one from the gate with no finding at all. `compare`'s key is `(scene, face)`; when a permutation lands a baseline NURBS ordinal on a fresh NON-NURBS face, `fresh_faces.get` misses, `recoverable()` is `None`, and the loop `continue`s — under a comment explaining the miss as *"the scene's absence is already a Vanished finding"*, which is not what happened. One key, both directions, one defect. | **Live today, measured, not hypothetical**: #738's sweep found `diefillet/diefillet` with **16 face ordinals permuted** against the committed baseline, deterministic across two machines. It does not fire only because that scene has no NURBS faces. Filed by #738's style review rather than left as a sentence in the body of a finding marked FIXED (**C-R7**). **Not a re-cut** — re-cutting hides the instance and leaves the key; the unit must choose between a reorder-proof join and an explicit refusal when a scene's ordinal→chart mapping moves, and record which. May reach `topo`/`mesh` for a stable per-face identity. |
 | **C17** | **Two of four excluded cargo roots now carry a hand-copied `cargo doc` step, and nothing gates the copies against drift.** `scripts/doc-gate.sh` is `cargo doc --workspace`, which sees workspace MEMBERS only; `tools/tess-meter` has a step copied into its CI row by #709 and `tools/tess-lint` one copied by #738, while `tools/k-lint`, `demos/tour` and `demos/wild` have none. The copies are prose in a YAML row: nothing checks that a root has one, that it matches its siblings, or that the sentences describing the arrangement are still true. | **The drift is measured, not predicted.** `doc-gate.sh:50` asserted *"**none** of those rows runs `cargo doc`"* four lines above its own record of #709's stopgap — false BEFORE #738 and falsified twice over by it — and `ci.yml:1718` said tess-meter documents *"unlike its sibling rows"*, and `local-scripts/ci-local.sh:518`, whose header says it mirrors ci.yml's row of the same name, stopped mirroring it the moment the hosted row gained a step. Three sites, all corrected by hand in #738, none of them caught by anything. **Tier (C-R19): the middle one — this asks for a plan before implementation, not a patch.** The row is not "add three more copies": the mechanism question is whether the doc gate stops being workspace-scoped and iterates every cargo root (changing what the gate IS, and its cost on every tier), or whether the copies stay and a gate asserts each excluded root's row carries one. That choice has a design element, and the local mirror is a second copy set that either answer has to account for. |
+| **C18** | **Three residues of H12's own enumeration, left open by #734** — a tests-only unit, so all three are coverage or prose, none a source change. **(a) The four Account-duty cells of the sweeps' never-silence grid have no acceptance row.** The grid is thirteen, not the nine #734 first claimed: the cell budget and both enclosure-poison arms sit in `exhaust.rs`'s ONE shared recursion, which runs under both values of `SweepDuty` on separate calls with separate floors, so **duty is an axis** — and it is the axis S23's own bug lived on. Three cells had rows before #734 and five more do now, all five under the **seeding** duty, because seeding runs first on both lanes. The residue is {cell budget, poison arm} × {ℝ³, chart} under **Account**. **What was tried and did not reach them, so the next taker does not repeat it:** the accounting floor is routinely orders finer than the seeding one (measured on the substrate wall, `8.8e-10` against `2.1e-2` in chart units), so the road looks open — but at `floor_scale` of 0, 1e-12 and 1e-9 both lanes' fixtures still terminate `Ok`, because exclusion and the banked tubes between them resolve every cell above any floor. What is needed is a fixture leaving a region neither excluded nor accounted at every width, and that is a new fixture, not a new assertion. **(b) The macro blind spot on #734's population sweep is open.** The 1-vs-3 containment measurement rests on `plane_nurbs_ssi` having exactly the callers a whole-tree name grep finds; a caller reaching it through a macro-generated path would not be matched. There is no such macro in this workspace to the lane's knowledge, and the reviewer did not close it either — but it is the one declared blind spot on the measurement and it should not live only in a PR body. **(c) `m5_pr7_ssi.rs`'s header claims the battery runs it "at the interval scalar", and the interval CI leg runs only the set difference of the two nextest lists** — so rows present in both configs never run there, and every row in that file is. A coverage claim about the file, false as the workflow stands; either the claim goes or the selection does, and which is a question for whoever owns the interval leg. | **C-R19 tier one — a lane takes it.** No design fork: (a) is test coverage needing a fixture whose non-existence is established rather than assumed, (b) is a sweep widened or a blind spot restated, (c) is one sentence corrected against one workflow file. Nothing here is a kernel change — H12's only source-side residue is **issue #762** (the chart-speed guard's `+∞` hole), which is deliberately NOT part of this row. |
 
 **Three ownership changes made to this table from outside the track (2026-08-20,
 Track E), stated here rather than only in Track E so this table is not read as
@@ -9000,7 +9104,20 @@ blind in exactly the shape it was hunting:
 
 - **#632** scanned for arms beginning `RoleSeg::` at the wildcard's
   indentation, so **every arm wrapped in `Some(…)`, `Ok(…)` or a tuple was
-  invisible** — which is the shape of what it missed.
+  invisible** — which is the shape of what it missed. **Its conclusion did not
+  survive** (established by #731, 2026-08-20): the same pattern was blind in a
+  second way it did not name — a **binding** catch-all (`other => other`) is
+  not `_`, and a match written through `use RoleSeg as R` never spells
+  `RoleSeg::` in the window the scan required — and `eval/anchor.rs`'s
+  `remap_seg` was both at once, a live fail-quiet of exactly the shape #632 was
+  hunting, under a body that reported *"no fail-quiet wildcard in any `RoleSeg`
+  or `Qualifier` match in the workspace."* The instrument that found it asks
+  **rustc** rather than the text — `--force-warn
+  clippy::wildcard_enum_match_arm`, reading each diagnostic's missing-variant
+  list — which no alias, wrapper or indentation can fool. Its own blind spot,
+  stated because that is this clause: an enum nested inside `Option`/`Result`
+  is attributed to the outer type, so the lint cannot see the very arms #632's
+  correction was about, and it says nothing about `if let` / `matches!`.
 - **#635** used a line-scoped `rg`, so a claim that **wrapped across a line
   break** could not match. Two survivors of the premise it was sweeping sat
   in the file it had just edited, one of them 25 lines above the list it
@@ -9014,8 +9131,27 @@ blind in exactly the shape it was hunting:
 This is C11/C13's mechanism one level down. Those say a class gets fixed at
 the reported instance; this says that even a lane *trying* to sweep the class
 will under-report by exactly the margin its pattern cannot express, and will
-then state the shortfall as a verified negative. In all three cases the
-conclusion happened to survive; in all three the method did not.
+then state the shortfall as a verified negative.
+
+*The original entry read "in all three cases the conclusion happened to
+survive; in all three the method did not." **Corrected by #731**, and the
+correction turns on which conclusion is meant, so the reading is stated
+rather than assumed.* Take **the conclusion** to be **the negative result
+the lane reported at the time** — *"nothing else matches", "the class is
+closed"*. On that reading **none of the three survived**, and the bullets
+above are the evidence for all three: #635's two survivors sat in the file
+it had just edited, #639 shipped an instance in a crate its body reported
+at zero, and #632's *"no fail-quiet wildcard in any `RoleSeg` or
+`Qualifier` match in the workspace"* was falsified by #731's
+`eval::anchor::remap_seg`. The original sentence was true of a different
+quantity — whether the class turned out to be closed once each lane's own
+correction had landed — and that is a claim about the corrected state, not
+about the sweep. It is the sweep this clause is about.
+
+What differed is only how the shortfall surfaced: #635's and #639's inside
+their own programme, #632's not until a lane a day later ran an instrument
+of a different shape. Where a sweep's blind spot is unstated, *"the
+conclusion happened to survive anyway"* is itself an unverified claim.
 
 **Proposed in #666, awaiting Evan's sign-off** — it amends the review
 instrument, which is Protocol v5's territory. The rule text lives in
