@@ -412,11 +412,12 @@ constituted.**
 | D58–D60 | **Track F**, via E-a | S61's docs-tier conditionality, the mode-0644 registration hole, S62's four remaining hand-named checks |
 | D61–D62 | E-h (D21) | reserved 2026-08-20 |
 | D63–D64 | E-a's fix pass (#753) | reserved 2026-08-20 |
+| D65–D66 | E-b's fix pass (#763) | reserved 2026-08-20 |
 | D54 | E-e (D28) | **used** — five arms that still render prose, each with a stated reason |
 | D55 | E-e | **returned unused** |
 | D46 | E-d (D33) | reserved 2026-08-20 |
 
-Next unassigned: **D65**; D42 and D43 are back in the pool and deliberately not
+Next unassigned: **D67**; D42 and D43 are back in the pool and deliberately not
 re-issued — a number that has appeared in a lane's report, even as *unused*, is
 cheaper to skip than to explain.
 
@@ -446,7 +447,7 @@ serialized here and each lane re-merges `origin/main` when one lands.
 | **E-c** | D26 | `smelle/d26` | **#752** | **MERGED 2026-08-20** — Track E's first landing |
 | **E-a** | D22 + D34 | `smelle/d22-d34` | **#753** | **NOT CLEARED** — 4 MAJOR incl. a live wrong answer in the census; fix pass running. **Track F is gated on this landing** |
 | **E-f** | D25 | `smelle/d25` | **#755** | **CLEARED by both lanes**; combined fix pass running (3 must-fix, 2 → rows D49/D50). Merges after #752 |
-| **E-b** | D23 | `smelle/d23` | **#763** | reported; **style review running**. Placed D44 and D45 |
+| **E-b** | D23 | `smelle/d23` | **#763** | **NOT CLEARED** — a live wrong answer inside D45, plus 4 MAJOR; fix pass running |
 | **E-d** | D33 | `smelle/d33` | **#761** | **MERGED 2026-08-20.** Placed D46, D51, D57; handed D56 back |
 | **E-e** | D28 + #693 | `smelle/d28` | **#767** | reported; **style review running**. Census re-derived at **12** arms, not 8; placed D54, returned D55 |
 | **E-h** | D21 | `smelle/d21` | — | dispatched — **unblocked by #755**, whose lane verified D21 inherits nothing from D25 |
@@ -690,6 +691,57 @@ dispatcher who cannot verify a fence must say which fences those are**, because 
 brief states them all in the same voice otherwise.
 
 Corrected in the roster above, and in §D's E-e row by the lane.
+
+### #763 (E-b / D23) — style lane, 2026-08-20: **not cleared**, and the finding turned on its own author
+
+Claims 1–4 held under independent re-derivation, and the **code half is judged
+close to best available**: eleven prose counts removed behind an existing
+directory-derived guard, with two of the replacements improving on their
+originals. The verdict half did not survive.
+
+**A live wrong answer, inside the row the unit placed.** D45 says
+`PERF-SCAN`'s *"367 `tests/*.rs` files exist"* does not re-derive at its stated
+base. **At `870c7a9` the literal single-level glob the sentence writes is exactly
+367.** Its sibling leg is the same shape: *"all 14 crates with tests carry the
+aggregator"* is **true at the stated base** — 15 `tests/` directories, one of them
+Python — and the lane's "13" is the count at a *different* commit. **The lane
+measured a scan-base claim at the wrong commit, in the row whose entire thesis is
+measure at the stated base.** D23's *"none of which re-derive at their own stated
+scan bases"* is false for two of four, and the verdict's third leg drops from
+three-of-six to two-of-six.
+
+**Three more of the same shape, all self-inflicted:** the survey's own headline
+instance counts are **off by one, all three** (and one is the post-merge number
+inside a row declaring its survey commit); a four-criterion list **switches
+criterion mid-list**, which is the exact defect the unit corrected two paragraphs
+earlier in the same file; and the unit **minted a fresh drifted enumeration in
+`K-REPORT.md`** — *"2 of the 16 probe-gated suites"* — at the one site where the
+tree already derives that number every merge.
+
+**The verdict needs re-arguing, not editing.** *"No mechanism; this class is
+found by reading"* was concluded after defeating only the weakest candidate. The
+tree already carries the shape the row says does not exist:
+`probe-suite-census.sh` pairs a derived count with a `CITING_FILES` list and
+**fails when the prose stops naming its step** — a doc-prose gate keyed to a
+derived quantity, in the same subsystem that produced the row's sharpest
+instance. And the largest sub-class, eleven near-verbatim aggregator headers, has
+an exact cheap guard nobody costed.
+
+**A correction to the dispatcher, and it is the named exposure.** I repeated the
+lane's PERF-SCAN error back to it **with my authority**, as claim 5 of the review
+brief. `REVIEW-STYLE-DISPATCH` §3 says exactly this: *a lane's unverified
+observation, repeated back to it as an instruction, arrives carrying the
+dispatcher's authority and is one commit from a ratified doc.* It was one commit
+from a ratified doc. The reviewer caught it because the brief also told it to
+correct my framing — which is the second time today that instruction has been the
+thing that worked.
+
+*The shape worth keeping:* **a unit whose subject is unverified enumerations is
+the hardest kind to write, because every number it publishes is an instance of
+its own class.** This one published ~25 and got at least four wrong. That is not
+an argument against the unit — it is the strongest available argument *for* the
+finding, and the fix pass should say so rather than quietly correcting the
+numbers.
 
 ---
 
