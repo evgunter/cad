@@ -2861,28 +2861,73 @@ it.
 duties, the duty must become a parameter the caller states — otherwise duty B's
 acceptance row gets written on a fixture that guarantees duty B.
 
-## S24. The assembly gate's success path is documented as unreachable
+## S24. FIXED by #702 — the intended frontier, but stated only in prose, in a door that reported it as a raw kernel enum
 
-- **Where**: `crates/editor-core/src/assembly.rs:42`, `:314`,
-  `crates/editor-core/src/mate.rs:44`
-- **Confidence**: likely
+- **Where**: `crates/editor-core/src/assembly.rs`,
+  `crates/editor-core/src/mate.rs` (+ three lines of
+  `crates/editor-core/src/mate/solve.rs`), and the ASM-R2b acceptance suite
+- **Confidence**: sure
+- **Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
+  baffle me with how they ever happened." Postmortem pass commissioned.
 
-The module doc states plainly that a declared cross-instance contact
-"still ends at the chart door's typed refusal, surfacing as
-`CensusUnsupported`" — i.e. `assemble` cannot return `Ok` for any
-document whose mates actually declare something. On top of that, `mint`
-refuses every class but `Rest` with `NoAtRestRecord`, so `Tangent` —
-which `mate.rs` advertises as admitted in v1, and which the solver folds
-happily — can never assemble.
+**The lane's decision: frontier, not drift** — established from the ASM
+documents, not assumed. `ASM-R2B-SPEC.md` D-3 anticipates the arm ("where the
+census inventory refuses a carrier kind, the refusal passes through typed —
+honest boundary, state it"); the ASM-R2b implementer REPORTED the F1 deviation
+rather than absorbing it; its review adjudicated that as MAJOR-1 and steered the
+gap to M9, where `ASM-LOG.md` still carries it as an open finding. The mechanism
+is structural and was never open: the census's `chart_region_overlap` gates on
+`same_chart`, which wants a shared `SurfaceKey` within one body or the same
+`GeomSource` across bodies, and two instances of one part satisfy neither by
+construction. So the missing capability is a census rung, and building it was
+explicitly NOT this lane's patch.
 
-This may well be the intended frontier posture rather than drift; the
-scanning agent could not tell. What makes it a finding either way is
-that a shipped door whose success arm is known-unreachable, with the
-explanation living in prose rather than in the type or a feature gate,
-is hard to tell apart from a bug when it fires.
+**What was actually wrong was the encoding, and it was two defects.** First, the
+class policy was stated three times — the solve door's match (`Rest | Tangent`),
+the mint door's match (`Rest`), and prose in `mate.rs` claiming v1 "admits" both
+— so a capability the library advertised could not execute. Second, a caller who
+declared a `Rest` mate received `AtRest { findings: [CensusUnsupported {
+entity: Face(..) }] }`: a raw kernel enum, indistinguishable from a verdict
+against their own geometry, with the explanation of the difference living in a
+module doc they were not reading.
 
-**Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
-baffle me with how they ever happened." Postmortem pass commissioned.
+**Executed by #702.** The class policy is now one value, `mate::class_admission`
+→ `ClassAdmission::{Mints, NoAtRestRecord, NotAdmitted}`, that both enforcing
+doors read; `ContactClass` being `#[non_exhaustive]`, a class the kernel grows
+is deferred by default and admitted only by an edit there. `Tangent` stays
+admitted at the solve door — that is ratified, and the defect was the word
+"assembles", not the solve — and the prose a user sees (`CLASS_DEFERRAL`, which
+renders inside `MateFault::ClassNotAdmitted`) now says v1 SOLVES Rest and
+Tangent and ASSEMBLES Rest alone. The frontier itself became
+`AssemblyError::is_declared_frontier` (built on
+`AtRestFinding::declaration_declined`): true when the gate refused and every
+finding is the census DECLINING a declared pair — no certifier lane, nothing
+decided either way — as against contradicting one. The kernel's finding still
+travels verbatim and nothing is re-labelled; the predicate classifies the
+kernel's own answer, which is what `attribute()` already did. `Display` names
+the frontier when it holds.
+
+**The acceptance rows could not see the transition, which is the part worth
+keeping.** `row2_a` and `row2_b` matched `Ok(..) | Err(AtRest { .. })` and
+asserted through either arm — `row2_a`'s `Ok` arm had never executed once — so
+the census growing its rung would have reddened nothing. One helper now pins the
+boundary through the door's own predicate and every declaring row reads its
+minting through it; `row4_a` pins the other side, that a REFUTED declaration is
+never dressed as the frontier. Three mutations verified red:
+`is_declared_frontier` widened (`row4_a`), stubbed false (`row2_a`, `row3_b`),
+and `class_admission(Tangent) → Mints` (the tangent row).
+
+**Residue, stated rather than left to be found:**
+`crates/editor-core/src/node.rs:700` repeats the false advertisement verbatim in
+the `Node::Mate { class }` field doc, and conflates two refusals (the wire door
+refuses an unknown *spelling*, not a class outside v1). Outside the lane's scope
+column, so reported not taken; the one-line remedy is a pointer to
+`class_admission`. A sibling instance of the same class also sits at
+`crates/step-import/src/recognize.rs:126`, where `try_cylinder`'s success arm is
+prose-declared unreachable ("the first-order envelope refuses every cylinder
+certificate"); better pinned than S24 was, but still stated in a comment rather
+than in a type.
+
 ## S25. Two ε vocabularies flow through SSI with nothing reconciling them
 
 - **Where**: `crates/geom-brep/src/ssi.rs:488`, `:507`,
@@ -5211,8 +5256,8 @@ because several rows want a decision inside them that the taker should expect
 to make and record.
 
 **Gating, stated 2026-08-19, because "nothing here is blocked" was too loose.**
-Six of these are edge-free and could start today: **C1**, **C2**, **S30**,
-**S31**, **S32**, **S24**. Three unblock when **A1** (#682) lands — **C7**
+Five of these are edge-free and could start today: **C1**, **C2**, **S30**,
+**S31**, **S32**. Three unblock when **A1** (#682) lands — **C7**
 entirely and **C4's S33** — and their input is now better than "wait for the
 report": #682's adversarial pass produced a *compile-verified* table of which
 lanes sit behind `CertifiedEnclosure`, which is the premise W2a would otherwise
@@ -5230,7 +5275,7 @@ and the width-1 build mutex, not dependency.**
 | **C2** | **H11, H16, H17** — #632's two residues; the STL header not being caller-settable while `StepOptions` carries `product_name`; and S37's rustdoc remainder, ~1115 lines across 130 files. | H17 is large and mechanical; H16 is a small asymmetry with a clear right answer. |
 | **C3** | **S27, S29, S30** — `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block; the sizing vocabulary fragmented across five modules with self-admitted magic constants; and ~1,050 lines of instrument in the mesh crate's hot loop. **S29 is NOT blocked on a design conversation — corrected 2026-08-19.** This row previously said its policy question was routed to `docs/TESS-SPLIT-SPEC.md` and PR #568. #684's review checked: both are scoped **entirely to the NURBS per-cell schedule** (`nurbs_cert`'s `grid_steps`, certified cells, the first fundamental form — TESS-SPLIT-SPEC's D-1 replaces the AM-GM grouping, with `leaf_a f2` as its poster child). **Nothing in either covers analytic-chart sizing**, so `curved::grid_steps` has no venue at all — and #684 has since added a sixth rule to it. S29's own lesson applies to that: *N well-defended deviations read as N decisions when they are one undecided question.* S27 touches `props/`, so it must follow **A2**; S29 and S30 are edge-free. |
 | **C4** | **S31, S32, S33** — the `geom-curves`/`geom-surfaces` split that buys nothing; `Surface`'s one-partial-per-call API, which is what created the shadow surface enum in SSI; and neither geometry enum being able to lift itself to another scalar. | **S33 is coloured by A1**: several of its ~14 hand-written ladders exist only to reach `Dual`, and what `Bounds for Dual` changes there is A1's report to give. |
-| **C5** | **S24, S26, S28's duplication half** — the assembly gate whose success arm is documented unreachable; the certified area enclosure that is never metered against anything (`area.width()` appears nowhere in the file); and the three tessellation lanes that remain three pipelines now that #648/#674 have settled their ordering and column questions. | S26 was explicitly deferred in writing by #472 — *"metering against `area.lo()` … deserves its own proposal with re-measured floors"* — so it is a proposal, not a patch. S28's duplication half must follow **A3**. |
+| **C5** | **S26, S28's duplication half** — the certified area enclosure that is never metered against anything (`area.width()` appears nowhere in the file); and the three tessellation lanes that remain three pipelines now that #648/#674 have settled their ordering and column questions. (**S24 left this row FIXED by #702.**) | S26 was explicitly deferred in writing by #472 — *"metering against `area.lo()` … deserves its own proposal with re-measured floors"* — so it is a proposal, not a patch. S28's duplication half must follow **A3**. |
 | **C6** | **W2f remainder / S4** — `ProgramStep`/`WireStep`, `SegTag`, and the "no usable value" core. | Each is blocked on something real: the first behind OnArc + RESPELL-TABLE and crossing the same files, the second needs the workspace's first proc-macro crate, the third by a persisted format. |
 | **C7** | **W2a / S3 and W2b / S1+S2** — the lane-trait collapse, and `RingInterval` versus an always-on `Interval`. | **Both wait on A1's report.** The steelman's compiled collapse for S3 **predates #643's `Bounds`/`CertifiedEnclosure` split** and must be re-derived against the two-trait world; W2b's blast radius is 535 refs in 15 files with five carrying 60%. |
 
