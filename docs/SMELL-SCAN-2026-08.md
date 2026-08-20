@@ -5312,7 +5312,7 @@ blind the gate to the file that defines the rule.
 
 ---
 
-## S56. "This face's domain is an iso-rectangle" is re-derived per consumer, in three representations, and no two agree on what it means
+## S56. FIXED by #714 — "This face's domain is an iso-rectangle" was re-derived per consumer, in three representations, and no two agreed on what it meant
 
 - **Where**: `crates/geom-brep/src/props/curved.rs:421` (`du_of_rims` /
   `props_du_consistent`), `crates/mesh/src/curved.rs`
@@ -5364,6 +5364,69 @@ Notes for whoever takes it, so the unit does not quietly become four:
 - **Ask whether it is a tier property.** Three consumers sharing one
   precondition is an argument for refusing such a body once at `validate`
   rather than at each door. Not decided here.
+
+**Executed by #714 (2026-08-19), and it subsumed #649 as prescribed.**
+
+The predicate is `geom_brep::props::curved::require_rims_at_extremes`,
+decided under the name the torus already used — **`props_rim_level`**:
+*every rim sits at one of the face's two extreme `v`-levels*. `w(v)`
+changes only where a rim is (between rim levels the boundary is
+meridians, which move no `u`-endpoint), so the rule forces `w ≡ Δu`,
+which is exactly what `area = r·Δu·(hi − lo)` and its per-kind siblings
+integrate. Cylinder, cone and sphere adopt it, each passing its own two
+extremes in its own `RimLevel` representation (`Length` bare;
+`Unit` direction pairs levered — sphere `× R`, torus `× minor`); the
+torus's private loop **became** the shared call rather than a second
+copy. `du_of_rims` keeps its M5-PR-9 span-sum check, which now pins the
+`Δu` VALUE of a domain already known to be a rectangle instead of
+standing in for the shape test — its doc says so, and a multi-arc-rim
+row proves PR 9's reason survives.
+
+Measured: the plus domain now refuses on **all four** kinds
+(cylinder/cone/sphere were accepting it at −28.57 %/−29.91 %/−29.30 %),
+the tall-arm, double-plus and Z-staircase rows with it, and every
+control iso-rectangle still measures **exactly**. Both proven doors are
+closed with #649's own fixtures, committed under
+`crates/step-import/tests/fixtures/iso-rect/` with their generator and
+pinned in `tier_gate`'s corpus: `cross.step` refuses at import, and
+`merge_coplanar_faces()` on `xsplit.step` — which used to turn an exact
+`8.96e-7 m³` into `7.2533e-7` with `pad = 0.0` — now refuses instead of
+mis-measuring.
+
+Over-refusal: nothing legitimate newly refuses. The wild and FreeCAD
+corpora, the whole `tier_gate` matrix (62 files × 3 ambient ε × 3 ε_in),
+the volume oracle at its `1e-11` budget, and the `geom-brep` / `topo` /
+`mesh` / `sweep` / `step-import` suites are all green; the only
+dispositions that moved are the two intended ones.
+
+**The third consumer's prose was also wrong, and that is fixed.**
+`ValidationError::VolumeUncomputable`'s doc read *"at rest every
+M2-constructible body computes; this is corruption surfaced loudly"* —
+D2-addendum **row 1** framing, falsified by an executed counterexample:
+an imported keyed shaft is not corruption. It now says what it reports,
+which is **row 2** — the body carries a face whose measurement lane the
+kernel has not built.
+
+**Two residues, deliberately left.**
+
+- **`mesh`'s half of the fragmentation still stands**, because
+  `entries_off_bbox` answers a second question the face predicate cannot
+  (#653's walk consistency; the bar is spatial for that reason). Its
+  prose now names the shared predicate instead of calling the agreement
+  a coincidence, so the fold-in is a stated follow-up rather than an
+  unrecorded one. **Nothing was loosened** — #648 is what makes
+  tightening `props` safe at all.
+- **The tier-property question is answered "no, and here is the real
+  gap"** by #714's report, not by this unit: the predicate is a
+  **capability boundary** (D2 row 2), not a validity property, so a body
+  that trips it is *valid* and a tier property asserting otherwise would
+  have to be deleted the day the certified-quadrature lane can measure
+  such a domain. What the question is really pointing at is that `mesh`
+  and (once its curved-pierce door lands) the boolean are still
+  protected **transitively**, through tier 3's check 7 calling
+  `mass_properties` — the same shape as the pre-#648 mesher. The thing
+  worth writing down is which door owns the refusal, not a new
+  invariant. Left open for Evan.
 
 ---
 # §A. Where I would start
@@ -5468,7 +5531,7 @@ Do not take these. Each has a running lane.
 
 | # | Work | Scope |
 |---|---|---|
-| **A2** | **S56 / #649** — one named iso-rectangle predicate, generalising the torus's level rule to cylinder/cone/sphere. Closes the wrong-certified-volume defect (19% low at `pad = 0.0`). | `geom-brep/src/props/curved.rs`, `topo/src/validate.rs`, new STEP fixtures |
+| **A2** | **DONE — #714.** **S56 / #649** — one named iso-rectangle predicate, generalising the torus's level rule to cylinder/cone/sphere. Closed the wrong-certified-volume defect (19% low at `pad = 0.0`). | `geom-brep/src/props/curved.rs`, `topo/src/validate.rs`, new STEP fixtures |
 | **A3** | **#678** — the slender partial-revolve cone wedge that meshes silently non-watertight, A/B against `main` first. | `crates/mesh/` |
 | **A4** | **#667** — the measured-claim sweep continuation, pattern fixed first. | docs + scattered claim sites |
 
