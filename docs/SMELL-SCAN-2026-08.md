@@ -5941,8 +5941,52 @@ The `gate_planar` → `gate_operand_kinds` rename went with it. Its first pass
 missed four sites **outside the workspace** — `demos/` is `exclude`d, so
 `cargo check` never compiled the files, one of which printed *"gate_planar refuses
 curved operands"* **to the user**. Lesson recorded: a rename spanning excluded
-members wants its own PR and its own `--manifest-path` check. Two residues are
-**H14**.
+members wants its own PR and its own `--manifest-path` check.
+
+### H14 — FIXED by #NNN. The two residues, and the one that was a live wrong answer
+
+#637 left two residues, both recorded in its own body under *"Found, NOT fixed"*.
+
+**Residue 1 — arm 2's `bridged` skip — was S49's defect with a live wrong answer
+attached.** The skip suppressed the containment test for any solid pair linked
+by a contact record, on the ground that such a pair is *"under the confirm
+pass's examination"*. The confirm pass asks of each record whether that record's
+own coincidence is real; no variant of `ContactRecords` states a placement
+relation, so it never asks where one instance sits relative to another.
+Measured on a 1 m cube sitting wholly inside a 4 m cube, flush at `z = 0`, with
+its four bottom corners declared v-on-f and every record confirming:
+`validate_pseudomanifold` answered **`Ok(())` declared** and
+**`CensusUndecidable` on the solid pair undeclared**. Declaring a true contact
+was what switched the examination off. The skip is deleted — a solid pair
+carrying records is examined exactly like one carrying none — and the arm's
+docs state the vocabulary that *would* license a deferral (C6's recorded
+gate-skips, a statement about placement) and that keying one on contact again is
+the unsound direction. The only row the skip ever had bridged its nested pair
+with a **bogus** record and measured the confirm pass's staleness refusal, so it
+stays green under the reverted fix; the new row forbids `StaleContactDeclaration`
+and `ContactContradicted` outright.
+
+**Residue 2 — `splitting/rules.rs`'s `face_extent`** walked past a
+`LoopBoundary::Empty` loop with *"an empty loop contributes no extent"*. The arm
+must OVER-estimate the displacement it divides out of, so an isolated **ring**
+vertex now contributes its distance and an empty **outer** loop — an unbounded
+face, which has no finite arm — refuses. The zero answer was loud at one caller
+by accident (`apply_rule_a` gates on the extent being definitely positive) and
+silent at `chord_join`'s two.
+
+**The sweep found a third instance of residue 1's shape in the arm above it**,
+and this one was S49's own sentence with the sides swapped: arm 1's v-on-f
+deferral tested `planar_face_bridged(a.face, b.solid)` — a record naming the
+planar face and any vertex of the other **solid** — while the finding it
+suppresses is about the **face pair**. One declared interface silenced that
+planar face against every other face of the same solid. It now requires the
+record's vertex to be a boundary vertex of the other face of the pair.
+
+The reviewer's third bullet — arm 1's placeholder-NURBS exclusion — is **not**
+protection by accident: `validate_pseudomanifold` is `census_and_certify`'s only
+production caller and runs it solely when `tier3_local_checks` came back empty,
+whose check 1 refuses every placeholder face. That is now stated at the skip,
+with the drift direction (a second, ungated caller) named.
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18) — *"should be scheduled but i have no
 opinion on when"*. The jurisdiction call was part of the unit, not a prerequisite
@@ -6836,7 +6880,7 @@ rewritten rather than appended to.
 
 | # | Work | Why it is here rather than in a track |
 |---|---|---|
-| **C1** | **H12–H15** — four lanes' own residues: the SSI sweeps' other never-silence doors (no acceptance row in either lane), `sweep_body`'s helix rows with no orientation coverage, #637's two jurisdiction residues, #635's unclassified siblings. | Each is small; together they are a lane. They are the clearest instance of ordering rule 3. |
+| **C1** | **H12, H13, H15** — three lanes' own residues: the SSI sweeps' other never-silence doors (no acceptance row in either lane), `sweep_body`'s helix rows with no orientation coverage, #635's unclassified siblings. (**H14**, #637's two jurisdiction residues, left this row FIXED by #NNN.) | Each is small; together they are a lane. They are the clearest instance of ordering rule 3. |
 | **C2** | **H11, H16, H17** — #632's two residues; the STL header not being caller-settable while `StepOptions` carries `product_name`; and S37's rustdoc remainder, ~1115 lines across 130 files. | H17 is large and mechanical; H16 is a small asymmetry with a clear right answer. |
 | **C3** | **S27, S29** — `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block; and the sizing vocabulary fragmented across five modules with self-admitted magic constants. (S30, the mesh crate's 1,060 lines of instrument, was the third member and is FIXED by #709.) **S29 is NOT blocked on a design conversation — corrected 2026-08-19.** This row previously said its policy question was routed to `docs/TESS-SPLIT-SPEC.md` and PR #568. #684's review checked: both are scoped **entirely to the NURBS per-cell schedule** (`nurbs_cert`'s `grid_steps`, certified cells, the first fundamental form — TESS-SPLIT-SPEC's D-1 replaces the AM-GM grouping, with `leaf_a f2` as its poster child). **Nothing in either covers analytic-chart sizing**, so `curved::grid_steps` has no venue at all — and #684 has since added a sixth rule to it. S29's own lesson applies to that: *N well-defended deviations read as N decisions when they are one undecided question.* S27 touches `props/`, so it must follow **A2**; S29 is edge-free. |
 | **C4** | **S32, S33** — `Surface`'s one-partial-per-call API, which is what created the shadow surface enum in SSI; and neither geometry enum being able to lift itself to another scalar. (S31, the `geom-curves`/`geom-surfaces` split, was the third member and is FIXED by #705.) | **S32 is now additionally gated on #705's merge**: the enum and its NURBS payload are one crate's two modules, so a `SurfaceJet` door at the enum no longer crosses a crate boundary. **S33 is coloured by D1**: several of its ~14 hand-written ladders exist only to reach `Dual`, and what `Bounds for Dual` changes there is written in S44's **D1 DECIDED** block. |
