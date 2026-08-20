@@ -93,7 +93,9 @@ gathered across M2's full pipeline.
   **The M2 CSVs are therefore a historical snapshot, not a
   reproducible artifact.**
 
-  > **Measured against `9f559f6a` (2026-08-20) and NOT GUARDED.** Every
+  > **Measured against `9f559f6a` (2026-08-20), re-verified BYTE-IDENTICAL
+  > after merging `origin/main` through `f382c4aa` (12 commits), and
+  > still NOT GUARDED.** Every
   > figure in the next two paragraphs is a one-off observation of a
   > moving quantity: the next merge that adds a predicate name
   > falsifies the sample count, the name count and the ratio. It is not

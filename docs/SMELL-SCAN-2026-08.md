@@ -6408,7 +6408,8 @@ finding.
 byte-reproduction was real *against the tree of that day* and was never a
 standing property. A fresh cut of the same ten shapes on main's tip records
 **16 824 samples over 105 predicate names** against the committed **13 282 over
-63**. *(Every figure in this paragraph is measured against `9f559f6a` and is
+63**. *(Every figure in this paragraph is measured against `9f559f6a`, re-cut
+byte-identical after merging `origin/main` through `f382c4aa`, and still
 **unguarded**: it is a one-off reading of a moving quantity, nothing asserts it,
 and the next merge adding a predicate name falsifies it. Guarding it would mean
 committing a second baseline — the re-cut this unit deliberately did not do.
@@ -6594,15 +6595,17 @@ all deletions        ──────────────► L2 (S38 comme
 **Track B is now edge-free in full** — B1 landed, and B2/B3, the only chain it
 had, are Track D's D1/D2.
 
-**Track D's own edges are all inside `sweep/`, plus one on another track's open
-PR.** D8, D10, D11, D12, D13, D14, D16 and D17 are edge-free and unstarted (D1
+**Track D's own edges are now all inside `sweep/`.** D8, D10, D11, D12, D13,
+D14, D16 and D17 are edge-free and unstarted (D1
 landed as #710, D3 as #704, D4 as #707 — which also discharges D13's gate —
 D5 as #713, D6 as #706, D9 as #712, D15 as #718). **D17 is the only row in
 the track whose file set is `.github/workflows/`**, so it collides with no
 kernel lane and can run at any time. D8 edits `sweep/src/skin.rs`, so it
 sequences against **D2** alone within the track: D1 has landed and left
-`skin.rs` untouched. The one remaining external edge is D7's `PairSolve` row,
-behind **#702**.
+`skin.rs` untouched. The last external edge — D7's `PairSolve` row, behind
+**#702** — **is discharged: #702 merged as `f382c4aa`.** D7's row and the U1
+mapping above still read *"behind #702"*; correcting D7's own bookkeeping
+belongs to D7's lane, and is noted here rather than done from #718.
 
 ---
 
