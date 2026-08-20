@@ -18,7 +18,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::entity::EntityId;
-use crate::fixtures::{ops_cube, pillow, prov};
+use crate::fixtures::{ops_cube, pillow, prov, public_fns};
 use crate::validate::{ValidationError, validate, validate_closed};
 
 /// Pass 12, all seven arenas, MISSING direction: remove each kind's
@@ -373,85 +373,4 @@ fn every_public_mutation_path_preserves_tier1() {
         asserting.len(),
         listed.len(),
     );
-}
-
-/// Every `pub fn` in `text`, as `(name, parameter list, body)`.
-///
-/// Deliberately a source read: Rust offers no way to enumerate a
-/// type's methods at runtime, and the property being checked is about
-/// the SOURCE surface — what a future door will look like when someone
-/// adds one.
-fn public_fns(text: &str) -> Vec<(&str, &str, &str)> {
-    let mut out = Vec::new();
-    let bytes = text.as_bytes();
-    let mut from = 0usize;
-    while let Some(rel) = text[from..].find("pub fn ") {
-        let at = from + rel;
-        from = at + "pub fn ".len();
-        // Item position only: a `pub fn` glued to another identifier is
-        // not a definition.
-        if at > 0 && !matches!(bytes[at - 1], b'\n' | b' ') {
-            continue;
-        }
-        let rest = &text[from..];
-        let Some(name_end) = rest.find(|c: char| !c.is_alphanumeric() && c != '_') else {
-            continue;
-        };
-        let name = &rest[..name_end];
-        let Some(open) = text[from..].find('(') else {
-            continue;
-        };
-        let Some(close) = matching(text, from + open, b'(', b')') else {
-            continue;
-        };
-        let params = &text[from + open..close];
-        let Some(brace) = text[close..].find('{') else {
-            continue;
-        };
-        let Some(end) = matching(text, close + brace, b'{', b'}') else {
-            continue;
-        };
-        out.push((name, params, &text[close + brace..end]));
-        from = end;
-    }
-    out
-}
-
-/// The index of the delimiter closing the one at `open`, skipping
-/// string and comment content.
-fn matching(text: &str, open: usize, l: u8, r: u8) -> Option<usize> {
-    let b = text.as_bytes();
-    let (mut depth, mut i) = (0usize, open);
-    while i < b.len() {
-        match b[i] {
-            b'"' => {
-                i += 1;
-                while i < b.len() && b[i] != b'"' {
-                    i += usize::from(b[i] == b'\\') + 1;
-                }
-            }
-            b'/' if b.get(i + 1) == Some(&b'/') => {
-                while i < b.len() && b[i] != b'\n' {
-                    i += 1;
-                }
-            }
-            b'/' if b.get(i + 1) == Some(&b'*') => {
-                i += 2;
-                while i + 1 < b.len() && !(b[i] == b'*' && b[i + 1] == b'/') {
-                    i += 1;
-                }
-                i += 1;
-            }
-            c if c == l => depth += 1,
-            c if c == r => {
-                depth -= 1;
-                if depth == 0 {
-                    return Some(i);
-                }
-            }
-            _ => {}
-        }
-        i += 1;
-    }
-    None
 }

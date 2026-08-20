@@ -273,63 +273,116 @@ const GROW_CAP: usize = 28;
 pub(crate) fn choose_op(body: &Body<f64>, d1: u32, d2: u32) -> Option<OpChoice> {
     let grow = body.half_edges().count() < GROW_CAP;
     let w = |grown: u32, shrunk: u32| if grow { grown } else { shrunk };
-    // (weight, candidates) per op kind, in fixed catalog order.
-    let kinds: Vec<(u32, Vec<OpChoice>)> = vec![
+    type Enumerate = fn(&Body<f64>) -> Vec<OpChoice>;
+    type Probe = fn(&Body<f64>) -> bool;
+    // (weight, enumerator, short-circuiting emptiness probe) per op
+    // kind, in fixed catalog order.
+    //
+    // **What the roll actually needs from a row.** Its weight, and
+    // whether it has any candidate at all — the list itself only for
+    // the one row the roll lands on. A zero-weight row is asked
+    // nothing: it adds nothing to the total and the selection loop
+    // skips it, so its candidates cannot change the choice. A row
+    // whose enumeration is cheap answers emptiness by building the
+    // list, which is then kept for the roll; a row that carries a
+    // `Some(probe)` is one whose enumeration is expensive enough that
+    // building a list the roll then discards is not affordable —
+    // `split_edge_candidates` re-certifies every edge and meters its
+    // split point against every vertex, and the roll lands on that
+    // row a small fraction of the times the row is asked. No ratio is
+    // written here: it is a function of the weights below and of the
+    // body, and a constant beside a table that determines it is a
+    // constant nothing keeps true.
+    let kinds: [(u32, Enumerate, Option<Probe>); 14] = [
         (
             if body.solids().count() < 2 {
                 w(1, 0)
             } else {
                 0
             },
-            vec![OpChoice::Mvfs],
+            mvfs_candidates,
+            None,
         ),
-        (w(5, 0), mev_lone_candidates(body)),
-        (w(6, 0), mev_fan_candidates(body)),
-        (w(6, 0), mef_chords_candidates(body)),
-        (w(2, 0), mef_lone_candidates(body)),
-        (3, kemr_candidates(body)),
-        (w(3, 1), mekr_candidates(body)),
-        (2, kfmrh_candidates(body)),
-        (w(2, 1), mfkrh_candidates(body)),
+        (w(5, 0), mev_lone_candidates, None),
+        (w(6, 0), mev_fan_candidates, None),
+        (w(6, 0), mef_chords_candidates, None),
+        (w(2, 0), mef_lone_candidates, None),
+        (3, kemr_candidates, None),
+        (w(3, 1), mekr_candidates, None),
+        (2, kfmrh_candidates, None),
+        (w(2, 1), mfkrh_candidates, None),
         // The non-Euler public mutator rides along at modest weight:
         // candidates exist whenever any face carries a ring, which kemr
         // (always-on weight) produces steadily.
-        (w(2, 1), ring_move_candidates(body)),
+        (w(2, 1), ring_move_candidates, None),
         // `split_edge` is make-direction (mev's vector), so it is
         // weighted out once the body stops growing. Candidates exist
         // whenever any edge does, which is nearly always — modest
         // weight keeps it from crowding out the sites only the other
         // make ops reach.
-        (w(3, 0), split_edge_candidates(body)),
-        (w(2, 6), kev_candidates(body)),
-        (w(2, 6), kef_candidates(body)),
+        (w(3, 0), split_edge_candidates, Some(any_split_edge)),
+        (w(2, 6), kev_candidates, None),
+        (w(2, 6), kef_candidates, None),
         // kvfs candidates are rare (a solid must be exactly skeletal),
         // so give the row real weight when one exists — otherwise the
         // random arm almost never rolls it (review SHOULD-3). Teardown
         // still exercises kvfs deterministically at the end of every
         // proptest case; this weight only adds mid-sequence coverage.
-        (4, kvfs_candidates(body)),
+        (4, kvfs_candidates, None),
     ];
-    let total: u32 = kinds
-        .iter()
-        .filter(|(_, c)| !c.is_empty())
-        .map(|(weight, _)| weight)
-        .sum();
+    // The rows the roll can land on — weighted in, and non-empty — in
+    // catalog order, so the total and the walk below are the ones the
+    // eager form computed.
+    let mut rows: Vec<(u32, Rolled)> = Vec::new();
+    for (weight, enumerate, probe) in kinds {
+        if weight == 0 {
+            continue;
+        }
+        match probe {
+            None => {
+                let candidates = enumerate(body);
+                if !candidates.is_empty() {
+                    rows.push((weight, Rolled::Built(candidates)));
+                }
+            }
+            Some(any) => {
+                if any(body) {
+                    rows.push((weight, Rolled::Deferred(enumerate)));
+                }
+            }
+        }
+    }
+    let total: u32 = rows.iter().map(|(weight, _)| weight).sum();
     if total == 0 {
         return None;
     }
     let mut roll = d1 % total;
-    for (weight, candidates) in kinds {
-        if candidates.is_empty() || weight == 0 {
-            continue;
-        }
+    for (weight, row) in rows {
         if roll < weight {
+            let candidates = match row {
+                Rolled::Built(candidates) => candidates,
+                Rolled::Deferred(enumerate) => enumerate(body),
+            };
             let index = (d2 as usize) % candidates.len();
             return Some(candidates[index]);
         }
         roll -= weight;
     }
     None // unreachable: roll < total by construction
+}
+
+/// A row that survived the weight and emptiness gates, holding either
+/// the candidates already built or the enumerator that will build them
+/// if the roll lands here.
+enum Rolled {
+    Built(Vec<OpChoice>),
+    Deferred(fn(&Body<f64>) -> Vec<OpChoice>),
+}
+
+/// `mvfs` needs no site — it mints a fresh solid — so its single
+/// candidate exists whenever the row carries weight.
+fn mvfs_candidates(_body: &Body<f64>) -> Vec<OpChoice> {
+    vec![OpChoice::Mvfs]
 }
 
 fn mev_lone_candidates(body: &Body<f64>) -> Vec<OpChoice> {
@@ -487,11 +540,22 @@ fn ring_move_candidates(body: &Body<f64>) -> Vec<OpChoice> {
 /// is forward by construction, so an interior fraction of it is
 /// definitely interior on both sides.
 fn split_edge_candidates(body: &Body<f64>) -> Vec<OpChoice> {
+    split_edge_sites(body).collect()
+}
+
+/// Whether [`split_edge_candidates`] would return anything, without
+/// building it. Same iterator, stopped at the first item: the two
+/// cannot disagree about emptiness, which is what [`choose_op`]'s roll
+/// needs from this row and all it needs.
+fn any_split_edge(body: &Body<f64>) -> bool {
+    split_edge_sites(body).next().is_some()
+}
+
+fn split_edge_sites(body: &Body<f64>) -> impl Iterator<Item = OpChoice> + '_ {
     body.edges()
         .map(|(e, _)| e)
-        .filter(|e| split_site(body, *e).is_some())
+        .filter(move |e| split_site(body, *e).is_some())
         .map(OpChoice::SplitEdge)
-        .collect()
 }
 
 /// Where in an edge's interval a split lands. **Not the midpoint.**
@@ -899,6 +963,15 @@ pub(crate) fn roundtrip(
 /// structure, mfkrh/mekr/kfmrh resolve rings and empty-outer faces, and
 /// kvfs retires each skeletal solid. Panics if no progress is possible
 /// (a completeness bug) or the step cap is exceeded.
+///
+/// **The `*_candidates(body).first()` reads below build a list to take
+/// one element, and that is deliberate.** It is the shape
+/// [`choose_op`] does not use, for a reason that does not carry here:
+/// these three enumerators are pointer walks over the arenas, and the
+/// cost of the shape is a rounding error against what the kill ops
+/// themselves cost — the whole of teardown is ~1% of this lane, and
+/// making these reads lazy moved ~1% of THAT. Enumerate lazily where
+/// the enumerator is expensive, which here it is not.
 pub(crate) fn teardown(body: &mut Body<f64>) {
     let cap =
         10 * (body.half_edges().count() + body.faces().count() + body.vertices().count()) + 100;
@@ -1277,6 +1350,68 @@ mod tests {
         assert_eq!(
             crate::fixtures::deep_snapshot(&a),
             crate::fixtures::deep_snapshot(&b)
+        );
+    }
+
+    /// **What op a given roll selects, pinned over a fixed stream
+    /// set.** 64 deterministic decision streams of 32 steps each,
+    /// replayed through [`choose_op`] and [`apply`], fingerprinted by
+    /// the sequence of ops chosen. Every candidate filter in the
+    /// catalog feeds this, so the pin covers the whole selection path:
+    /// the weights, the catalog order, the emptiness tests, and the
+    /// enumerators' order.
+    ///
+    /// **Why a pin and not a property.** Making enumeration lazy — or
+    /// reordering a filter, or short-circuiting one — is supposed to
+    /// leave the choice for a given roll alone, and nothing else here
+    /// can tell: the properties hold for any distribution, and
+    /// `generator_is_deterministic_for_equal_decisions` compares a run
+    /// against itself, so it stays green while the walk moves under
+    /// it. This is the differential the in-process comparison is not.
+    ///
+    /// **The constant is not a target to preserve.** It is a report of
+    /// what this generator selects. If it moves, the question is
+    /// whether the new distribution is the one intended: re-pin
+    /// deliberately and say in the PR what moved the walk and why —
+    /// never adjust a filter to bring the old number back.
+    #[test]
+    fn selection_is_pinned_over_a_fixed_stream_set() {
+        const FINGERPRINT: u64 = 8_352_206_392_020_392_659;
+        let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+        let mut fold = |bytes: &[u8]| {
+            for b in bytes {
+                hash ^= u64::from(*b);
+                hash = hash.wrapping_mul(0x100_0000_01b3);
+            }
+        };
+        let mut chosen = 0_usize;
+        for seed in 0..64_u32 {
+            let mut x = seed.wrapping_mul(2_654_435_761).wrapping_add(12_345);
+            let mut roll = || {
+                x = x.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                x
+            };
+            let mut body = Body::<f64>::new();
+            let mut counter = 0_u32;
+            for _ in 0..32 {
+                let (d1, d2) = (roll(), roll());
+                let Some(choice) = choose_op(&body, d1, d2) else {
+                    fold(b"NONE");
+                    continue;
+                };
+                fold(format!("{choice:?}").as_bytes());
+                apply(&mut body, choice, &mut counter);
+                chosen += 1;
+            }
+        }
+        // A walk that chose nothing would fingerprint stably too.
+        assert_eq!(chosen, 64 * 32, "every step should have an applicable op");
+        assert_eq!(
+            hash, FINGERPRINT,
+            "the generator selects a different op sequence than this pin records. \
+             That is a change to the DISTRIBUTION, not a test failure to paper over: \
+             decide whether the new walk is the one intended, then re-pin here and say \
+             in the PR what moved it.",
         );
     }
 }
