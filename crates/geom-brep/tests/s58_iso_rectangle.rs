@@ -27,10 +27,10 @@
 //! a rule that refused everything could not make this suite green.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom::Curve3;
+use geom::Surface;
 use geom_brep::props::{LoopEdge, PropsError, curved_face};
 use geom_core::{Band, Point3, Vec3};
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
 
 fn v3(x: f64, y: f64, z: f64) -> Vec3<f64> {
     Vec3::new(x, y, z)
