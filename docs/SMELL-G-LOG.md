@@ -131,6 +131,11 @@ from the orchestrator.
 | lane | §D rows | findings |
 |---|---|---|
 | **G-a** | D71, D72 | S127, S128 |
+<<<<<<< HEAD
+| **G-b** *(landed)* | D73, D74 — **neither used**; **D79** used | S129, **S130** used; S135, S136 free |
+| **G-c** | D75, D76 | S131, S132 |
+| unassigned | D77–D80 | S133–S136 |
+=======
 | **G-b** | D73, D74 | S129, S130 |
 | ~~**G-c**~~ (landed, #781) | D75–D77 — **unused, returned** | S131, S132, S133 — **all spent** |
 | unassigned | D75–D80 | S134–S136 |
@@ -139,6 +144,7 @@ from the orchestrator.
 that already own the files (G-d, G-f, G-g) and says so in its own text, so it
 needs no row. **S131 and S132 are unscheduled and may want one** — that is a
 scheduling call, not a lane's.
+>>>>>>> origin/main
 
 ---
 
@@ -248,7 +254,11 @@ C's open lanes (#732, `stl/`), with Track E's (#753 `scripts/`+`ci.yml`, #763
 | lane | row | scope | review | state |
 |---|---|---|---|---|
 | **G-a** | **G1** (S72 + S110(h), S111(c), S112(b)(c), S114(a)(d), S116(r)(t)) | `interval-transcendentals/` (its own workspace), and `ci.yml`'s oracle-job comments only — see **G-R3** | **ADVERSARIAL** | — |
+<<<<<<< HEAD
+| **G-c** | **G3** (S74, and the *"deliberately NOT unified"* class re-check) | `sweep/src/{swept,revolve/mod,extrude,loft,revolve/tube}.rs` | style | — |
+=======
 | **G-b** | **G2** (S110(g)(j), S112(h), S113(a)(b), S114(b)(c), S116(d)) | `demos/` | style; **S114(c) is a design PR to Evan** | — |
+>>>>>>> origin/main
 
 **Wave 2 — opens as wave 1 lanes free up; edge-free today.**
 
@@ -274,7 +284,52 @@ C's open lanes (#732, `stl/`), with Track E's (#753 `scripts/`+`ci.yml`, #763
 
 ## Landings
 
-*(none yet)*
+### G-b — **G2**, `demos/`, #787
+
+**Seven of the nine members closed**, S114(c) surveyed and left open as §D
+required, one new finding and one issue raised.
+
+- **S110(g)(j), S112(h), S113(a)(b), S114(b), S116(d)** — FIXED, each recorded
+  at its own bullet in §D's document.
+- **S114(c)** — **the census exists and the schema does not.** The lane
+  produced the full producer/consumer survey (three emitters, five readers,
+  field by field, each disagreement with both sides' `file:line`) and stopped.
+  **The design-conversation PR asking Evan is the orchestrator's to open**, and
+  the census is in the lane's report. Two halves did not wait for it, because
+  they are wrong under every schema: S112(h) itself, and
+  `check_render_provenance.py:104,112`'s two *"keep in sync"* claims, which are
+  now read out of the scripts and compared in the selftest.
+- **G-R1 discharged.** The routing to E-b was void, as ruled; S113(a)(b) were
+  this lane's work and there was nothing to consume.
+- **Numbers.** D73 and D74 stay free. **S129** (no runner under `demos/`) came
+  from the first pass; **S130** and **D79** came from the fix pass — the
+  `lily.rs` roll-up the review raised over free ground, recorded and *not*
+  fixed, with D79 scheduling it. **S135 and S136 stay free.**
+
+**Fix pass (style review: NOT CLEARED, ten must-fixes).** All ten addressed.
+Three mattered: `run_body`'s `Option` return had no `None` path left and four
+things still believed it did — **S112's own class, created by the PR that closed
+S112(h)** — plus a doc paragraph describing the staged-stop world the code had
+left; `render_freecad.py:153` was the *same* guard-against-nothing one file over,
+under a new and false docstring claim that the two readers read the field the
+same way; and the `loft_prism` volume pin checked a `9.0` literal against an
+**unbounded** `volume_pad`, which is G-a's `assert_contains` shape reproduced in
+`demos/`. The uv winding contradiction is now **fatal in the tour**, per the
+orchestrator's ruling — see the lane's report for which escalation target it
+argues for. Two issues filed: **#795** (should a demo surface a typed refusal as
+a clean nonzero exit — S110(j)'s deferral, now scheduled) and **#796** (`Vec3`
+ergonomics, a library finding in the `memories/demo-purpose.md` sense).
+
+**What it turned up that was not on the list.** Establishing S110(j) required
+knowing what runs the tour, and **nothing ran `cargo test` anywhere under
+`demos/`** — `--all-targets` clippy type-checks the test targets and runs none
+of them, S110(a)'s shape one tree over. Ten assertions unguarded, and **two of
+them red on main**: `demos/tour/src/lily.rs`'s finding-13 tessellation pin
+disagrees on both SWEPT-blade rows (1016/854 against a pinned 976/826) while
+all five analytic rows are exact. That is a `mesh` question, so it is **issue
+#782** and the lane did **not** re-baseline. The #99 ε pin is armed in `k-lint`;
+the `--bin demo-tour` unit tests are deliberately not, and **S129 stays open**
+until #782 decides them.
 
 ## Incidents
 

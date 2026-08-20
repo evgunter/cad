@@ -30,7 +30,7 @@ probe = ["pncad/probe"]
 budget = ["pncad/budget"]
 
 # The façade carries the tour. The tour is the façade's acceptance
-# corpus (LIB-U1): eighteen scenes, every kernel type they touch
+# corpus (LIB-U1): every scene, and every kernel type they touch
 # reached through `pncad::`, including the error payloads. It used to
 # name eleven crates here — among them `geom-brep`, present for no
 # reason but to spell `SurfaceKind`, the payload of
@@ -62,8 +62,8 @@ profile = { path = "../../crates/profile" }
 # nextest legs are opt-2 DEV builds — `CARGO_PROFILE_{DEV,TEST}_OPT_LEVEL`
 # in ci.yml, which leaves cargo's dev default of debug-assertions ON, so
 # the fail-loud postconditions keep their teeth there). Cargo's release
-# default turns them OFF, so without this the eighteen scenes were the
-# one lane exercising the kernel with every `debug_assert` compiled out
+# default turns them OFF, so without this the tour was the one lane
+# exercising the kernel with every `debug_assert` compiled out
 # — D9's operator postconditions, the Euler-vector arena deltas, the N6
 # bitwise-agreement check, all vacuous.
 #

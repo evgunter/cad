@@ -6,9 +6,9 @@
 <line x1="18" y1="92" x2="40" y2="92" stroke="#1f4e79" stroke-width="2.4"/><text x="46" y="96" font-family="monospace" font-size="10.5" fill="#444">harmonic — the closed-form chart image</text>
 <line x1="418" y1="92" x2="440" y2="92" stroke="#b03060" stroke-width="2.4" stroke-dasharray="5 3"/><text x="446" y="96" font-family="monospace" font-size="10.5" fill="#444">the chart’s periodic seam (u = k·2π)</text>
 <line x1="18" y1="107" x2="40" y2="107" stroke="#1b7a3d" stroke-width="2.4"/><text x="46" y="111" font-family="monospace" font-size="10.5" fill="#444">isoline — the exact u/v-const image (NURBS walls)</text>
-<line x1="418" y1="107" x2="440" y2="107" stroke="#777777" stroke-width="2.4" stroke-dasharray="5 3"/><text x="446" y="111" font-family="monospace" font-size="10.5" fill="#444">dashed loop — pcurve DERIVED on demand, not cached</text>
+<line x1="418" y1="107" x2="440" y2="107" stroke="#1f4e79" stroke-width="2.4" stroke-dasharray="5 3"/><text x="446" y="111" font-family="monospace" font-size="10.5" fill="#444">dashed, in the form’s own color — pcurve DERIVED, not cached</text>
 <line x1="18" y1="122" x2="40" y2="122" stroke="#c1590a" stroke-width="2.4"/><text x="46" y="126" font-family="monospace" font-size="10.5" fill="#444">fitted — the rung-3 SSI-trace chart projection</text>
-<line x1="418" y1="122" x2="440" y2="122" stroke="#333333" stroke-width="2.4"/><text x="446" y="126" font-family="monospace" font-size="10.5" fill="#444">dot — a loop junction;  arrow — traversal direction</text>
+<line x1="418" y1="122" x2="440" y2="122" stroke="#333" stroke-width="2.4"/><text x="446" y="126" font-family="monospace" font-size="10.5" fill="#444">dot — a loop junction;  arrow — traversal direction</text>
 <g transform="translate(18, 148)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">bossplate  ·  face 6</text>
