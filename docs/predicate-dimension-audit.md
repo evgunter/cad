@@ -1,95 +1,43 @@
 # Predicate-comparand dimensional audit (M7, rim-dimensional unit)
 
-Every decision-boundary comparand in `geom-brep` and `topo` (every
-`classify`/`require_zero`/`require_extent`/`decide` funnel call and
-every raw `sign_within` use), audited for the ratified ε semantics
-(D4): **a margin classified against the linear band must be a LENGTH
-in meters — the point deviation from specified geometry**. Angles and
-dimensionless quantities meter through a named lever arm (θ·r);
-squared quantities are rooted (or divided by a length, the `/2r`
-linearization) before comparison; a product of two lengths is an
-area-dimensioned defect (the class of the fixed `du_of_rims` bug and
+Decision-boundary comparands in `geom-brep` and `topo` — every
+`classify` / `require_zero` / `require_extent` / `decide` funnel call
+and every raw `sign_within` use in shipped code — audited for the
+ratified ε semantics (D4): **a margin classified against the linear
+band must be a LENGTH in meters — the point deviation from specified
+geometry**. Angles and dimensionless quantities meter through a named
+lever arm (θ·r); squared quantities are rooted (or divided by a length,
+the `/2r` linearization) before comparison; a product of two lengths is
+an area-dimensioned defect (the class of the fixed `du_of_rims` bug and
 the #89 in-band landing).
 
-**The two-crate bound is deliberate, and it binds the TABLE, not the
-document.** The sweep reads `geom-brep` and `topo` and stops, because
-the dimensional argument is answered where the comparand is built and
-the out-of-ledger crates make theirs at their own sites — the
-clause-(i) note below already says so of `profile`, `sweep`,
-`editor-core`'s eval/naming and `geom-curves`, and the funnel-bypass
-paragraph after the table calls its scoping *"on purpose"*. The
-**dispositions are not bounded the same way**: F12, F13, F14 and F15
-are `editor-core` rows, carried here because this is where the
-argument that named them lives. So **this document is not the
-workspace's predicate-name roster.** That is `docs/K-REPORT.md`
-§ *"The inventory method, restated"*, which sweeps every crate plus
-`demos/`; all seven names its orphan table records as absent from both
-documents are outside these two crates by construction (`profile` ×2,
-`sweep` ×2, `demos/tour` ×3), which is a fact about this bound and not
-a hole in it. One qualifier the first paragraph's *"every raw
-`sign_within` use"* leaves open: the sweep covers **shipped** code —
-`topo/src/seqgen.rs`'s candidate filter is a raw `sign_within` under
-`#[cfg(test)]`, never instantiated at the recording scalar, and is
-outside it.
+**Not *every* comparand, and not the workspace's.** Two bounds, both
+deliberate, both measured rather than asserted — see *Coverage of the
+two crates, measured* below the head matter. **(1) Two crates.** The
+sweep reads `geom-brep` and `topo` and stops, because the dimensional
+argument is made where the comparand is built and the out-of-ledger
+crates make theirs at their own sites; the clause-(i) note below says
+so of `profile`, `sweep`, `editor-core`'s eval/naming and
+`geom-curves`, and the funnel-bypass paragraph after the tables calls
+its scoping *"on purpose"*. The bound binds the **table**, not the
+document: F12, F13, F14 and F15 are `editor-core` rows, carried here
+because this is where the argument that named them lives. So **this is
+not the workspace's predicate-name roster** — that is
+`docs/K-REPORT.md` § *"The inventory method, restated"*, whose seven
+orphans are all outside these two crates by construction (`profile`
+×2, `sweep` ×2, `demos/tour` ×3), a fact *about* this bound and not a
+hole in it. **(2) Not complete inside them.** Of **246** funnel-reaching
+names in the two crates the tables and their prose reach **223**, carry
+an individual `dim` verdict for **121**, and miss **23** entirely; the
+23 are listed under *Uncovered names* below the tables and are §D's
+**D46**. The word *every* was this document's for a year and it was
+never true of the second bound; it is retired here rather than
+footnoted.
 
-**Coverage of its own two crates, measured against main at `a0a6e1a5`**
-(carried explicitly, because this is a survey written into the tree it
-surveys). Applying K-REPORT's restated rule — a name is in scope if it
-reaches the `geom_core::k_stats` funnel *however it is spelled at the
-call site* — the two crates hold **313 funnel call sites** in shipped
-code under nine spellings (`decide`, `decide_flagged`,
-`decide_invariant`, and the `check_residual` / `classify` /
-`classify_len` / `require_zero` / `gap_is_zero` / `signed_is_zero`
-wrappers), of which 12 are forwarding hops inside those wrappers,
-leaving **299 decision sites** carrying **246 distinct predicate
-names**: 210 written as a literal at a spelled site, and **36 carried**
-by a module-private `const`, a struct field or a local table
-(`sector_shape.rs`'s three consts, `ray_parity::ParityRows` twice over,
-`transform.rs`'s two arrays, `carrier_eq.rs`'s margin tuples,
-`pcurve_cache.rs`'s winding closure, and four more). **The 143 rows of
-the two tables below reach 223 of those 246** — 124 verbatim, 99
-through a family cell (`bool_sphere_*`, `transform_rigid_*`) or an
-abbreviated slash-list (`carrier/tangent_on_surface_1/2`). The
-remaining **23 are recorded nowhere in this document under any
-reading**, and are enumerated under *Uncovered names* below the tables
-rather than audited in passing.
-
-**23 is a FLOOR on the hole, not an estimate of it**, and 223 a ceiling
-on the coverage. The 99 family matches are a judgement — glosses like
-*"pm_census vv/ve/vf/ef gaps, spans, residuals"* and *"sphere/torus
-meridian checks"* were read as covering every name they plausibly reach,
-which is the reading most favourable to this document. A stricter reader
-moves names out of the 99 and into the 23. **Nothing can move one out of
-the 23**, because those names have no mention here of any kind — not a
-row, not a family cell, not a slash-list, not a gloss, not a sentence of
-prose. That asymmetry is what makes the number safe to build on.
-
-**Both halves of that measurement have a blind spot, and neither is a
-roster alone** (K-REPORT's framing, and it reproduces here). A code
-scan misses names not written at a funnel site — the 36 carried ones,
-15% of the roster. A corpus column misses names the corpus never
-exercises — **80** of the 246 do not appear in the committed M7
-baseline at all, and that baseline in turn carries six spellings the
-tree has retired (`bool_sector_*` / `split_sector_*`, unified to
-`sector_*` by #652). Re-deriving:
-
-```sh
-# code half — every funnel site, all nine spellings, both crates
-grep -rnE '\b(decide|decide_flagged|decide_invariant|check_residual|classify|classify_len|require_zero|gap_is_zero|signed_is_zero)\s*(::<[^()]*>)?\s*\(' \
-  crates/geom-brep/src crates/topo/src
-# behavioural half — what the committed baseline emitted
-zcat docs/k-report-data/m7-eps-1e-9.csv.gz | tail -n +2 | cut -d, -f2 | sort -u
-```
-
-The first command is a **starting set, not an answer**: a site whose
-first argument is not a literal has to be read, and a spelling not in
-the alternation is invisible to it. That residue is this table's
-standing cost, disclosed rather than discovered.
-
-*(The figures were first taken at `f87b203` and re-taken at
-`a0a6e1a5` after main moved `census.rs` and `splitting/rules.rs` under
-them; every one reproduced. A count of a tree belongs to a commit, and
-this one names both.)*
+**One qualifier the first paragraph's *"every raw `sign_within` use"*
+leaves open**: the sweep covers **shipped** code — `topo/src/seqgen.rs`'s
+candidate filter is a raw `sign_within` under `#[cfg(test)]`, never
+instantiated at the recording scalar, and is outside it.
 
 Trigger and method: the `props_rim_level_group` defect (fixed in this
 unit — `crates/geom-brep/src/props/curved.rs`, the `RimLevel` enum)
@@ -186,6 +134,127 @@ all stored surface axes/normals/`u_ref` unit; `implicit_residual` is
 `/2r`-normalized to meters; `implicit_gradient` unit on-locus;
 `curvature_lever_arm` meters; `TangentJet.kappa_rel` 1/m;
 `speed_lower_bound()` meters per parameter unit.
+
+## Coverage of the two crates, measured
+
+**Against main at `a0a6e1a5`** — carried explicitly, because this is a
+survey written into the tree it surveys (§D's D23). *(First taken at
+`f87b203`; re-taken here after main moved `census.rs` and
+`splitting/rules.rs` under it. Every figure reproduced.)*
+
+**What is in scope.** K-REPORT's restated rule: a name is in scope if
+it reaches the `geom_core::k_stats` funnel *however it is spelled at
+the call site*. In these two crates that is ten spellings — `decide`,
+`decide_flagged`, `decide_invariant`, and the `check_residual` /
+`classify` / `classify_len` / `require_zero` / `require_extent` /
+`gap_is_zero` / `signed_is_zero` wrappers.
+
+**Names — the deliverable.** **246** distinct predicate names: **210**
+written as a literal at one of those spellings, and **36 carried** by a
+module-private `const`, a struct field or a local table
+(`sector_shape.rs`'s three consts, `ray_parity::ParityRows` twice over,
+`transform.rs`'s two arrays, `carrier_eq.rs`'s margin tuples,
+`contact_verify.rs`'s and `splitting/order.rs`'s loop tuples,
+`pcurve_cache.rs`'s winding closure, `pcurves.rs`'s two closures).
+
+| the document's relation to a name | count |
+|---|---|
+| carries an individual row with a `dim` verdict | **121** |
+| named only in prose, no `dim` column | 3 |
+| reached only through a family cell or slash-list | 99 |
+| **reached, on the most generous reading** | **223** |
+| **recorded nowhere, under any reading** | **23** |
+
+**Reach is not verdict, and the asymmetry runs one way.** The 99 family
+matches are a judgement: glosses like *"pm_census vv/ve/vf/ef gaps,
+spans, residuals"* and *"sphere/torus meridian checks"* were read as
+covering every name they plausibly reach, which is the reading most
+favourable to this document. So **223 is a ceiling on REACH**, **23 a
+floor on the hole** — a stricter reader moves names out of the 99 and
+into the 23, and nothing can move one out of the 23, because those
+names appear nowhere above this section in any form. And **reach is not
+a dimensional verdict**: the number of names this document has actually
+dimensioned, one row and one `dim` cell each, is **121**. The other 102
+are covered by a family gloss or a sentence, which is a claim about a
+family and not a check on a comparand.
+
+**Sites are NOT the deliverable, and this is why.** Counting them is
+still useful as a cross-check, so the ledger is below — but D19's
+lesson (*"a count of SITES was never the right measure of a NAME
+roster"*) has a second edge here: **about thirty helpers in these two
+crates fix a name internally and have more than one caller** —
+`require_extent`, `require_rim_incidence`, `du_of_rims`,
+`classify_dihedral`, `enters_material`, `point_in_loop`,
+`volume_backstop`, `tangent_locus_relation` and the rest — so *"where a
+decision is posed"* and *"where the funnel is called"* differ by a wide,
+convention-dependent margin. The roster is unharmed (every one of those
+names is a literal at the wrapper's own funnel call, so all are in the
+210), which is exactly the point: the name count is stable under the
+convention and the site count is not.
+
+| | |
+|---|---|
+| raw matches of the ten spellings | 322 |
+| − prose inside doc comments (`boolean/ops.rs:3`, `chord_join.rs:188`, `sector_shape.rs:412`, `:456`) | 4 |
+| − a `format!("decide({rung}"` string inside a test (`chord_join.rs:2481`) | 1 |
+| − two calls to an unrelated local `classify` closure (`splitting/join.rs:278`) | 2 |
+| **= funnel call sites** | **315** |
+| − forwarding hops (first argument is a name *parameter* of the enclosing fn or closure, so the name is chosen by its caller) | 13 |
+| **= sites at which a name is fixed** | **302** |
+
+**Both halves of the measurement have a blind spot, and neither is a
+roster alone** (K-REPORT's framing; it reproduces here). A code scan
+misses names not written at a funnel site — the 36 carried ones, 15% of
+the roster. A corpus column misses names the corpus never exercises —
+**80** of the 246 do not appear in the committed M7 baseline at all,
+and that baseline in turn still carries six spellings the tree has
+retired (`bool_sector_*` / `split_sector_*`, unified to `sector_*` by
+#652). Re-deriving:
+
+```sh
+# code half — every funnel site, all ten spellings, both crates.
+# It also matches doc-comment prose and `fn` definitions; the ledger
+# above says which, and they are subtractions, not sites.
+grep -rnE '\b(decide|decide_flagged|decide_invariant|check_residual|classify|classify_len|require_zero|require_extent|gap_is_zero|signed_is_zero)\s*(::<[^()]*>)?\s*\(' \
+  crates/geom-brep/src crates/topo/src
+# behavioural half — what the committed baseline emitted
+zcat docs/k-report-data/m7-eps-1e-9.csv.gz | tail -n +2 | cut -d, -f2 | sort -u
+# coverage — compare against THIS FILE WITH ITS TWO SELF-DESCRIBING
+# SECTIONS REMOVED. `Uncovered names` lists the 23 and this section
+# names helpers that share spellings with predicates, so a re-derivation
+# that reads the whole file finds a hole of zero and calls it closed.
+sed -e '/^## Coverage of the two crates/,/^## geom-brep/d' \
+    -e '/^### Uncovered names/,/^## Findings/d' \
+    docs/predicate-dimension-audit.md
+```
+
+The first command is a **starting set, not an answer**: a site whose
+first argument is not a literal has to be read, and a spelling not in
+the alternation is invisible to it — `require_extent` was, until this
+measurement, absent from the alternation while being named in this
+file's own first paragraph. That residue is this table's standing cost,
+disclosed rather than discovered.
+
+**Nine names carry the K vocabulary and never reach the funnel**, so
+they are correctly outside the 246 and a reader who greps for one
+should know why. They live only in an `Indeterminate.predicate` —
+seven through `predicate: Some("…")` (`carrier_kind`,
+`contact_tangent_independent`, `contact_rest_senses_opposed`,
+`contact_rest_ladder_invariant`, `transversality`,
+`plane_nurbs_transversality_reported`, `validate_probe`) and two
+through an `invalid(band, "…")` helper (`bool_contfp_boundary`,
+`pm_census_containment`). None decides anything, none appears in the M7
+baseline, and none has a comparand to dimension.
+
+**Why no gate on 121 / 223 / 246 / 302 — the third answer to Q6.**
+Not "it is guarded" and not "dating it is enough": a gate would have to
+fix the family-matching convention in code, and that convention is the
+judgement this section is careful to expose rather than freeze. A green
+gate would assert a reading, not a fact. What *is* mechanical is
+already elsewhere — `geom-core/tests/flagged_census.rs` pins the
+`decide_flagged` count, and the K sweep recomputes the emitted-name set
+on every merge. The 23 are scheduled as their own unit (§D's **D46**),
+which is what actually moves the number.
 
 ## geom-brep
 
@@ -351,7 +420,6 @@ all stored surface axes/normals/`u_ref` unit; `implicit_residual` is
 | census.rs (M9-2 PR-2 fix pass) | census_backstop_gap | per-axis gap between two faces' SOUND reach boxes (plane hull ⊕ boundary-arc radius; cylinder axial span ⊕ radius; sphere ball — coordinate differences and radii, metres); only a DEFINITE positive clears the pair | m | OK (new in the union fix; boxes tightened to the face_box construction in the delta) |
 | census.rs (M9-2 PR-2 fix pass) | census_backstop_containment | per-axis extent margin between two solids' vertex hulls (coordinate differences — metres); containment = all six definitely positive, clearance = any definitely negative | m | OK (new in the union fix) |
 
-
 Funnel bypasses found: **boolean/ops.rs:634/649** (`sign_within`
 called directly on volume margins — was FLAG F3, **FIXED**: the gates
 now route through `k_stats::decide` under `volume_backstop_operand`,
@@ -362,8 +430,7 @@ every margin the recorder sees is attributed to the predicate that
 actually decided it. The claim is scoped on purpose. One shipped raw
 `sign_within` exists elsewhere in the workspace — `editor-core`'s
 expression evaluator — and is carried below as **F12** rather than
-swept under the headline. Raw ε reads
-outside decisions: solver
+swept under the headline. Raw ε reads outside decisions: solver
 tolerances and step-size control in ssi (documented structure
 parameters), `props.rs` trig pad (ε/radius, an enclosure pad, not a
 decision), test fixtures.
@@ -371,13 +438,20 @@ decision), test fixtures.
 ### Uncovered names (measured at `a0a6e1a5`)
 
 Twenty-three names reach the funnel from `geom-brep` or `topo` and
-have **no row, no family cell and no mention** anywhere above. They are
-enumerated rather than audited: each wants its comparand read and a
-dimension verdict, which is a unit (§D's **D46**) and not a side errand
-of the measurement that found them. Three of the eight homes are files
-this document has never named at all — `edge_nurbs.rs`,
-`boolean/carrier_eq.rs`, `boolean/contact_verify.rs` — and the other
-five are named files whose rows predate these names.
+have **no row, no family cell and no mention** anywhere above this
+section. They are enumerated rather than audited: each wants its
+comparand read and a dimension verdict, which is a unit (§D's **D46**)
+and not a side errand of the measurement that found them. Three of the
+eight homes are files this document has never named at all —
+`edge_nurbs.rs`, `boolean/carrier_eq.rs`, `boolean/contact_verify.rs` —
+and the other five are named files whose rows predate these names.
+
+**Where the 23 verdicts land when D46 does them**: one row each in the
+`## geom-brep` or `## topo` table above, with `site`, `predicate`,
+`comparand`, `dim` and `status` filled the way every other row is —
+plus a disposition entry in *Findings* for any that come back FLAG, and
+its `F`-number. A name leaves this section only by acquiring that row;
+the section is empty when the two counts above meet at 246.
 
 | home | names |
 |---|---|
@@ -389,6 +463,7 @@ five are named files whose rows predate these names.
 | `topo/census.rs` | `pm_census_bound_end`, `pm_census_bound_vertex` |
 | `topo/boolean/carrier_eq.rs` | `carrier_sphere_center`, `carrier_sphere_radius`, `carrier_cyl_axis_parallel`, `carrier_cyl_axis_offset`, `carrier_cyl_radius` (a `[(&'static str, Margin<T>)]` table — carried, so no literal at the funnel site) |
 | `topo/boolean/contact_verify.rs` | `contact_tangent_on_1`, `contact_tangent_on_2`, `contact_tangent_opposed`, `contact_tangent_parallel`, `contact_tangent_second_order` |
+
 ## Findings (dispositions)
 
 Fixed in this unit. Live-pin coverage, honestly (review MINOR-2):
