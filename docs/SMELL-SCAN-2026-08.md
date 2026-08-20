@@ -3359,7 +3359,9 @@ representation and both of its sites are gone. The five classes stand unamended,
 and `DESIGN.md`'s retraction claims nothing beyond this one state: **whether
 "can the type stop representing it?" is the question to ask FIRST at the next
 site of this shape is a ruling about how the addendum is applied, it bears on
-S14, and it is open for Evan in its own PR** — not settled by #768. The pin behind the
+S14, and it went to Evan in its own PR** — not settled by #768. **That PR is
+#777 and it has merged**: the ruling is row 0, and it *reframed* S14's first
+question rather than answering it. S14 itself is still open. The pin behind the
 old sentence also **re-derived to 305 verdicts per run, not 343**; #768 retired
 it, because `Chain`'s type now carries what it asserted and an assertion that
 cannot fail is §C8.
