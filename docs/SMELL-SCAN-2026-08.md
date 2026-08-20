@@ -2408,7 +2408,7 @@ cites that gate as its justification — and when a scan finds a stale premise,
 the fix is to re-derive **all** arms resting on it, not the one that matched
 the search term.
 
-## S17. FIXED by #712 — the two topo ray-parity copies now share one home, and the K convention did not forbid it
+## S17. FIXED by #712 and #719 — the two topo ray-parity copies now share one home, the K convention did not forbid it, and the drift class is closed
 
 - **Where**: `crates/topo/src/chart_region.rs:897`,
   `crates/topo/src/splitting/containment.rs:154`,
@@ -2462,14 +2462,62 @@ anchors is `boolean/solid_contain.rs:76` vs
 `chart_region`'s `SCHEDULE_2D` is a different table by dimension, not
 a re-declaration. It is scheduled as **D10**.
 
-**This is a half-fix on the class, deliberately.** S17 named the drift
-— one predicate name for two questions — as a *class*, and #712 closed
-it where the finding pointed and nowhere else. `bool_join_nearest`
-(`boolean/join.rs:564,600,804,818`) pools a distance and a difference
-of distances under one name across four sites in the same crate, which
-is the same drift and worse by site count; it is **D11**, with
-`bool_join_facing`, `bool_point_in_solid_plane` and `bool_dir_same`
-behind it.
+**The class is closed — #719 (D11).** #712 closed the drift where the
+finding pointed and nowhere else, and labelled that a half-fix on the
+*class*: one predicate name deciding two questions. The instance it
+pointed at was `bool_join_nearest`, which asked *"is this chord
+degenerate?"* (`Margin::of(dist)`) and *"is this candidate nearer than
+the incumbent?"* (`Margin::of(dist - bd)`) under one name — a distance
+and a difference of distances. #719 split it: the degeneracy gate is
+`bool_join_chord`, and `bool_join_nearest` keeps the selection it
+names, its two sites untouched in the diff. The row named four sites;
+the name had **six** — `boolean/rest.rs` reuses the join's matcher, so
+the split covers the name rather than the file.
+
+**What that measured, which the argument alone could not.** The two
+populations are not merely different, they are disjoint: on the twin
+boolean configurations the 228 `Margin::of(dist)` samples per scale are
+`Definite(Positive)` at the model's own scale and the 100
+`Margin::of(dist - bd)` samples are `Definite(Zero)` at exactly 0. One
+K row was carrying the report's bimodal split *inside a single
+predicate name*. The rename is value-preserving by measurement, not
+just by the funnel's construction: with the predicate column stripped
+the base and branch sample streams are byte-identical in order, and
+byte-identical in full under the inverse rename.
+
+**Nothing would have gone red, and that is the finding.** No test in
+the workspace names `bool_join_nearest`; the boolean suites assert
+verdicts, not populations, and the twins suite's predicate-set equality
+holds by construction under any static rename. The sites are covered by
+execution (328 samples per twin, so a moved *verdict* would surface as
+a refusal) but the population split ships unpinned.
+
+**The three candidates behind it are negative results.**
+`bool_join_facing` (4 sites) is `dir·chord` at both ends of one chord;
+`bool_point_in_solid_plane` (3) is the signed distance to a face's
+surface for plane, cylinder and sphere; `bool_dir_same` (3) is
+`levered(a·b, arm)` on already-parallel directions. Each decides one
+question at several sites — the useful half of the sweep. The residue
+it flagged instead is `pm_census_ef_cut_span` / `pm_census_bound_end`
+(`Margin::of(s)` beside `Margin::of(e.len - s)`, the same pooling one
+line apart), `tangent_locus_side`, `props_rim_level_group` and
+`fillet_leg_fit` — recorded, not taken.
+
+**The sweeps' blind spots, stacked.** #712's was door-based: it finds
+names decided through two different `Margin` doors and misses one
+decided through the *same* door on two different quantities — which is
+precisely what `bool_join_nearest` was. #719 swept the complement
+(group call sites by name; flag any name whose sites disagree in door
+*or* in plain-quantity-vs-difference; 251 names, 14 flagged, widened to
+307/19 over wrapper-shaped calls) and inherits a different one: it keys
+on syntax, so two plain `Margin::of(x)` sites measuring different
+quantities stay invisible — `bool_point_in_solid_plane`'s exact shape,
+which had to be read. Both sweeps share #712's third blind spot: ~30
+sites pass the name through a parameter or a const, and
+`K-REPORT.md:203`'s roster obligation names only one such table
+(`ParityRows`) where at least three exist —
+`sector_shape.rs`'s `BOOL_SECTOR_PREDICATES` and `swept.rs`'s name
+struct are the others.
 
 ### What the unit is evidence about: the convention charges, but not what the spec inferred
 
@@ -6183,9 +6231,9 @@ mutation-path correction also produced a **second witness for S14**, filed in
 *Open decisions* rather than settled here.
 
 **Reviews are style-only** (`docs/prompts/reviewer-style-lane.md`) except at
-the rows marked ADVERSARIAL — D2, D8, D11 and D15 still live, with D1
-(**retired, #710**) and D9 (**retired, #712**) landed — and D5's `seqgen`
-half, landed with #713.
+the rows marked ADVERSARIAL — D2, D8 and D15 still live, with D1
+(**retired, #710**), D9 (**retired, #712**) and D11 (**retired, #719**)
+landed — and D5's `seqgen` half, landed with #713.
 Those are where a wrong answer is reachable; everywhere else the risk is
 that the fix is ugly or incomplete, which is the style lane's question. The style review carries two questions beyond its
 standing brief: whether the finding's *original* stylistic problem is now
@@ -6241,7 +6289,6 @@ set, and D1 declined to widen into it.
 | **D7** | **U1 / D4 — the three decided deletions.** Decided by Evan 2026-08-19 and unexecuted. Each row owes a provenance note next to the thread that produced it (`PairSolve` → **#611**; the two fillet helpers → **#319**/**#554**; `Mat2`/`Affine2` → the deleting PR body, cross-referenced from **#614**), and the deleting PR must cite the **commit SHA** the code is recoverable from. `trimline_description`'s doc is the only place D7's prefer-intrinsic obligation is *named*: that sentence migrates, it does not die. | U1 | `geom-core/src/linalg/{mat,affine}.rs`, `editor-core/src/mate{.rs,/solve.rs}`, `sweep/src/fillet/{blend,battery}.rs` | style | **split by row.** `Mat2`/`Affine2` is free now. `PairSolve` waits on **#702**, which is editing `mate.rs`, `mate/solve.rs` and the `lib.rs` re-export block it lives in. The fillet helpers wait on **D2**. Evan placed the whole row *"back of the queue, but ahead of W3b"*, and its rationale — noise to lanes reading the same files — is what these two gates discharge. |
 | **D8** | **U4's remainder — the knot-vector queries.** `KnotVector` offers `multiplicity_of(u)`, which requires you to already know `u`; every consumer that needs *the list* of distinct interior knots hand-writes the same scan, four times (`compose.rs:274`, `algebra.rs:563`, `geom-curves/fit.rs:378`, `sweep/skin.rs:370`). Beside it, knot insertion exists twice in one module, one of them re-deriving the span with a linear scan where `find_span`'s binary search is one module away. The scan's own lesson: *a data structure whose API was frozen one PR before its first consumer is the tell.* | U4 (rows) | `geom-core/src/spline/{compose,algebra}.rs`, `geom-curves/src/fit.rs`, `sweep/src/skin.rs` | **ADVERSARIAL** — it adds to a certified type's API and replaces a linear scan with a binary search inside knot arithmetic, where an off-by-one is a wrong curve rather than a compile error. | nothing (but it edits `sweep/src/skin.rs`, so sequence it against D1/D2 within this track) |
 | **D10** | **S15's ray-schedule row — the close D9 could not reach.** `boolean/solid_contain.rs:76` re-declares `splitting/containment.rs:102`'s 16-entry 3-D table verbatim, justified by *"to keep the module boundaries thin"*, with determinism depending on byte-identity and nothing checking. Byte-diffed entry for entry by D9's reviewer and confirmed identical. Drop the private const, import `containment::SCHEDULE`, raise its `pub(super)` to `pub(crate)` — `boolean` is not a descendant of `splitting`, so `pub(crate)` is the minimum that reaches, and `splitting/order.rs:77` already imports the same const and is unaffected. One table means the row needs no guard. | S15 (row) | `topo/src/boolean/solid_contain.rs`, `topo/src/splitting/containment.rs` | style | **#712** (D9), which is editing `containment.rs` |
-| **D11** | **S17's drift class where it bites hardest: `bool_join_nearest`.** `topo/src/boolean/join.rs:564,600,804,818` decides two different questions under one K name — `Margin::of(dist)` (*"is this chord length zero?"*) and `Margin::of(dist - bd)` (*"is this candidate nearer?"*). A distance and a difference of distances, pooled into one row across four sites in one crate: the same drift D9 closed in `point_in_loop`, worse by site count. D9 closed the class where S17 pointed and nowhere else, which is what makes this a row rather than a residue. Next candidates behind it, from the same sweep: `bool_join_facing` (4 sites), `bool_point_in_solid_plane` (3), `bool_dir_same` (3) — cost each before taking them. | S17 (class) | `topo/src/boolean/join.rs` | **ADVERSARIAL** — it splits a shipped K row into two, and unlike D9's split the two questions here are decided at *different* sites rather than three lines apart, so which site gets which name is a judgement the diff must argue rather than inherit. | **#712** (D9) for the convention precedent, not for files |
 | **D12** | **`chart_region.rs:1363`'s self-declared verbatim derivation.** *"the `split_section_area` derivation verbatim, chart-space edition"* — a disclosed copy sitting one screen from the code D9 de-duplicated, in a file D9 edited, and D9's sweep pattern could not match it. **A row, not a verdict**: it may be dimension-forced exactly as the two ray schedules are (`split_section_area` is 3-D, this is chart space), in which case the deliverable is the negative result and a doc line, not a shared home. Establish which before writing any code. The standing `rg -n 'verbatim|re-derived|ported from|mirror of'` is the pattern that finds this class; D9's blind-spot list did not name it. | new (D9's sweep residue) | `topo/src/chart_region.rs`, `topo/src/splitting/join.rs` | style | nothing |
 | **D13** | **S15's pcurve-staleness row, which is still open.** `pcurves.rs:124`: *"an op that mutates an already-minted body must either clear the map or re-mint before returning, and **should say which in its own docs**"* — a convention, with *"The lists above are a survey, not an enforced invariant"* four lines above it, and nothing that notices when a new op joins the wrong bucket. **What D5 verified before placing this**: #635 corrected the one entry the steelman caught (`merge_coplanar_faces` had started re-minting and the index had not moved), so the survey is *accurate today* — the row is that nothing keeps it accurate. The shape D5 used for its sibling row is available and cheap: a source-walking test over the three buckets, the way `review_m1_pr5_internal::every_public_mutation_path_preserves_tier1` now covers the mutation surface. | S15 (row 1) | `topo/src/pcurves.rs` and the test's home | style | **discharged — #707** (D4) landed the `pcurves.rs` edits this must not conflict with |
 | **D14** | **`seqgen`'s candidate enumeration is eager.** `choose_op` builds every candidate `Vec` on every call — including rows whose weight is zero because the body has stopped growing — and then discards all but one. D5's `split_edge` row is what makes that cost visible rather than what causes it: `split_edge_candidates` runs a full `EdgeCurve::recertify` plus an O(V) separation scan **per edge, per step** (~14 re-certifications and ~200 metered decisions at `GROW_CAP`), which is where its measured +46% went. `memories/test-suite-cost.md` is categorical that an ungated fuzzer is a defect in the fuzzer. The fix is not to drop the gates — they are what keep the lane honest — but to skip zero-weight rows and to enumerate lazily. | S15 (`seqgen` half) | `topo/src/seqgen.rs` | style, but **measure before and after**: the row exists because a number was measured, and it closes on a number, not on a shape | nothing |
@@ -6263,8 +6310,10 @@ now covers explicitly — but it **did not forbid sharing**. Zero rows
 removed, two added, no margin moved, k-lint roster-independent, no
 re-baseline owed or taken. The unit also corrected two of its own
 premises: S15's ray-schedule row is a different pair (now **D10**), and
-the fix is a half-fix on the drift *class* S17 named (now **D11**).
-Its sweep residue is **D12**.
+the fix is a half-fix on the drift *class* S17 named — closed as
+**#719** (D11), which split `bool_join_nearest`'s chord-length gate off
+as `bool_join_chord` and returned negative results on the three
+candidates behind it. Its sweep residue is **D12**.
 
 **D6 is retired — done as #706** (`ci.yml`, `ci-filter.py`, `ci-local.sh`,
 the two corrupt-input suites). The unit's own finding turned out to be two
@@ -6325,7 +6374,7 @@ Where each went:
 |---|---|
 | **U1** — S11/D4's three decided deletions | **D7**, split by row: `Mat2`/`Affine2` free, `PairSolve` behind #702, the fillet helpers behind D2 |
 | **U2** — S8, S9, S10 | **D4 — DONE, #707.** All three sorted to *keep*; the prose the sort contradicts is truthed at each finding |
-| **U3** — S17's ray-parity twins | **D9** — done as **#712**, which spawned three rows: **D10** (the S15 ray-schedule row, a different pair), **D11** (`bool_join_nearest`, the drift class D9 closed only at S17's anchor) and **D12** (its sweep residue) |
+| **U3** — S17's ray-parity twins | **D9** — done as **#712**, which spawned three rows: **D10** (the S15 ray-schedule row, a different pair), **D11** (`bool_join_nearest`, the drift class D9 closed only at S17's anchor — done as **#719**) and **D12** (its sweep residue) |
 | **U4** — S18's duplicated derivations | **D3** (the negative-zero flush) — **landed as #704**, row retired — and **D8** (the knot-vector queries); the `step-export/volume.rs` row goes to **C3**, because closing it needs a per-shell door in `props/` |
 | **U5** — S12's Euler atomicity | Executable residue **fixed by #706** (the release-profile run the suite instructed and `ci.yml` never did). The rest is **not** an open question: the **D2 addendum** settled it on 2026-08-19 and the execution is **W2c**, placed by #706 as **D16** |
 | **U6** — S15's prose-held invariants | **D5**, landed as **#713**; the three rows it could not close carry placements — **#708** (tie propagation), **D13** (the pcurve convention), **D14** (the fuzz lane's eager enumeration) |
@@ -6358,7 +6407,7 @@ A3 (#678)            ──► C5  (S28's duplication half)
 D1 (#710, landed) ─────► D2 (S19 fillet errors) ──► D7's fillet-helper row
 #702 (assembly door) ──► D7's PairSolve row
 #690 (B4, splitting) ──► D9 (S17's ray-parity twins, #712) ──► D10 (S15's schedule)
-                                                          └─► D11 (bool_join_nearest)
+                                                          └─► D11 (bool_join_nearest, #719)
 all deletions        ──────────────► L2 (S38 comments)
                                  └─► L1 (S36 suites, per suite)
 ```
@@ -6367,9 +6416,9 @@ all deletions        ──────────────► L2 (S38 comme
 had, are Track D's D1/D2.
 
 **Track D's own edges are all inside `sweep/`, plus one on another track's open
-PR.** D8, D10, D11, D12, D13, D14, D15 and D16 are edge-free and unstarted (D1
+PR.** D8, D10, D12, D13, D14, D15 and D16 are edge-free and unstarted (D1
 landed as #710, D3 as #704, D4 as #707 — which also discharges D13's gate —
-D5 as #713, D6 as #706, D9 as #712). D8 edits `sweep/src/skin.rs`, so it
+D5 as #713, D6 as #706, D9 as #712, D11 as #719). D8 edits `sweep/src/skin.rs`, so it
 sequences against **D2** alone within the track: D1 has landed and left
 `skin.rs` untouched. The one remaining external edge is D7's `PairSolve` row,
 behind **#702**.
