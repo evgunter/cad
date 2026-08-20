@@ -14,9 +14,9 @@ fn no_params() -> std::collections::BTreeMap<editor_core::ParamName, Dimension> 
     std::collections::BTreeMap::new()
 }
 
-/// A table row by symbol. `quantity::UnitDef` is sealed (issue #650) —
-/// `LengthUnit::def()` is `pub(crate)` to `quantity`, so this is the
-/// public route to a row, and it is the same route the wire door takes.
+/// A table row by symbol. `quantity::UnitDef` is sealed (issue #650),
+/// as are its typed views (issue #669), so this is the public route to
+/// a row, and it is the same route the wire door takes.
 fn table_row(symbol: &str) -> quantity::UnitDef {
     quantity::unit_by_symbol(symbol).unwrap_or_else(|| panic!("{symbol} is a table row"))
 }
@@ -49,11 +49,13 @@ fn twenty_five_mm_round_trips_value_and_unit() {
     let back_unit = back.display_unit().expect("unit survives the load door");
     assert_eq!(back_unit.symbol(), "mm");
     // Format: the READ-BACK unit (not a hardcoded constant) drives
-    // the renderer back to the source text (review NOTE-5).
-    let render = quantity::LengthUnit {
-        symbol: back_unit.symbol(),
-        factor: back_unit.factor(),
-    };
+    // the renderer back to the source text (review NOTE-5). The row is
+    // converted to its typed view rather than re-assembled from its
+    // fields: since #669 sealed `LengthUnit` the fields cannot be
+    // re-paired, and `as_length` is the only door.
+    let render = back_unit
+        .as_length()
+        .expect("mm is a length row, so it has a length view");
     assert_eq!(
         quantity::fmt_length(back.literal_value().unwrap(), render).unwrap(),
         "25 mm"

@@ -517,12 +517,11 @@ pub enum Node<P> {
     /// deliberate act, which is the point of freezing.
     ///
     /// Note also that nothing today can quietly widen a selection
-    /// even if it wanted to: the kernel's assembly doors admit only
-    /// the whole-body request or a fully-requested chain set
-    /// (`sweep::fillet`'s front doors), so a partially-grown
-    /// selection refuses typed rather than blending something the
-    /// author never picked. Freeze is enforced structurally, and its
-    /// breaks are loud.
+    /// even if it wanted to: the kernel's assembly admits only a
+    /// fully-requested chain set (`sweep::fillet`'s front door), so a
+    /// partially-grown selection refuses typed rather than blending
+    /// something the author never picked. Freeze is enforced
+    /// structurally, and its breaks are loud.
     ///
     /// # Canonical form
     ///
