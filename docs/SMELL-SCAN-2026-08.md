@@ -5512,7 +5512,25 @@ Three process facts worth carrying, all from this lane:
   (`FullRevolveHoles`' Display: *"sweeps produce genus, never voids; voids are born
   only from booleans"*). Q1 — grep the file you are in.
 
-Unclassified siblings went to **H15**; the `enters.rs` question was **D5**, answered by #665 (the newtype).
+Unclassified siblings went to **H15**, **FIXED by #775**; the `enters.rs`
+question was **D5**, answered by #665 (the newtype).
+
+**What H15 found, because it corrects this entry's own arithmetic.** H15 named
+three sites; the population was twenty, and two of them falsify records written
+here. (i) *"Unclassified siblings"* omitted the **"Still not swept, and why"**
+list above — four more residues, of which two were still live. (ii) The sibling
+table's `topo/src/entity.rs` row is marked **Swept**, and the identical sentence
+(*"multi-shell solids arrive at M3"*, false since M3) was live in two other
+files of the same crate. (iii) `splitting/mod.rs`'s *"unimplemented until SSI"*
+was not one site: the literal phrase stood at **eight** places in `src/` across
+`topo` and `geom-brep`, plus two test pins, while the corrected form was already
+in the same file it most often appeared in. (iv) The not-yet-checked list's
+*"M6 interval clearance"* contradicted `DESIGN.md`, which schedules it at
+**M10** in two places. None of the three sites was a lost invariant:
+`planar.rs`'s outward-normal claim is TRUE and survives S10 because it reads the
+walk and never a chart; the other two were benign rot whose substance is now
+stated against a name (`ContactMark::Unmarked`) or against the per-arm
+retirement rule, rather than against a date.
 
 **Two rows were added after that fix**, both from #647's style review. The first
 needed Evan, because `DESIGN.md` is the ratified contract — he authorised the edit
@@ -9597,7 +9615,7 @@ rewritten rather than appended to.
 
 | # | Work | Why it is here rather than in a track |
 |---|---|---|
-| **C1** | **H13, H15** — two lanes' own residues: `sweep_body`'s helix rows with no orientation coverage, and #635's unclassified siblings. (**H12**, the SSI sweeps' other never-silence doors, left this row **FIXED by #734**; **H14**, #637's two jurisdiction residues, left it **FIXED by #737**.) | Each is small; together they are a lane. They are the clearest instance of ordering rule 3. |
+| **C1** | **H13** — a lane's own residue: `sweep_body`'s helix rows with no orientation coverage. (**H12**, the SSI sweeps' other never-silence doors, left this row **FIXED by #734**; **H14**, #637's two jurisdiction residues, left it **FIXED by #737**; **H15**, #635's unclassified siblings, left it **FIXED by #775** — three sites as recorded, twenty as they existed.) | Small on its own; it is the clearest instance of ordering rule 3. |
 | **C2** | **H16, H17** — the STL header not being caller-settable while `StepOptions` carries `product_name`; and S37's rustdoc remainder, ~1115 lines across 130 files. (H11, #632's residues, was the third member and is **FIXED by #731**. The residues were two as recorded and ten as they existed — see S4's drift (b) for the seven further fail-quiet classifications in the same crate, **§C15** for what each sweep could not match, and **C12** for what #731 filed rather than fixed.) | H17 is large and mechanical; H16 is a small asymmetry with a clear right answer. |
 | **C3** | **S27, S29** — `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block; and the sizing vocabulary fragmented across five modules with self-admitted magic constants. (S30, the mesh crate's 1,060 lines of instrument, was the third member and is FIXED by #709.) **S29 is NOT blocked on a design conversation — corrected 2026-08-19.** This row previously said its policy question was routed to `docs/TESS-SPLIT-SPEC.md` and PR #568. #684's review checked: both are scoped **entirely to the NURBS per-cell schedule** (`nurbs_cert`'s `grid_steps`, certified cells, the first fundamental form — TESS-SPLIT-SPEC's D-1 replaces the AM-GM grouping, with `leaf_a f2` as its poster child). **Nothing in either covers analytic-chart sizing**, so `curved::grid_steps` has no venue at all — and #684 has since added a sixth rule to it. S29's own lesson applies to that: *N well-defended deviations read as N decisions when they are one undecided question.* S27 touches `props/`, so it must follow **A2** (#714) **and #723**, which re-opens the same file on the same closed forms — see the gating note above; S29 is edge-free. |
 | **C4** | **S32, S33** — `Surface`'s one-partial-per-call API, which is what created the shadow surface enum in SSI; and neither geometry enum being able to lift itself to another scalar. (S31, the `geom-curves`/`geom-surfaces` split, was the third member and is FIXED by #705.) | **S32 is now additionally gated on #705's merge**: the enum and its NURBS payload are one crate's two modules, so a `SurfaceJet` door at the enum no longer crosses a crate boundary. **S33 is coloured by D1**: several of its ~14 hand-written ladders exist only to reach `Dual`, and what `Bounds for Dual` changes there is written in S44's **D1 DECIDED** block. |
