@@ -453,13 +453,18 @@ over-strip defects (byte raw strings, char-literal escapes), that
 argument for staying textual rather than parsing existed nowhere — all now
 fixed or written at the site.
 
-**Residue: S117 / D61**, **nine** further source-text guards across five
-crates, not the seven this lane first wrote. The count and the disposition were
-both wrong: `include_str!` is a spelling none of the lane's six patterns
-reached, and of the nine, **five** are served by `CodeOnly` as shipped, **three**
-need a comments-only variant and one needs the inverse. Nine is a floor.
-`topo/src/{face_normal,chord_join}.rs` are Track G's G8/G9 — flagged there, not
-taken. **S118 and D62 were reserved to F-a and are unused.**
+**Residue: S117 / D61**, **eleven** further source-text guards, not the seven
+this lane first wrote — the count moved 7 → 9 → 11 inside one review cycle,
+each step a differently-shaped sweep (`include_str!` was the spelling all six
+of the lane's patterns missed). The sharper framing came with the third sweep:
+**four hand-rolled Rust readers exist in this workspace and no two lex the same
+language**, and `pncad/tests/all.rs`'s `code_without_comments` carries the same
+`'"'` defect this lane's review found, worked around in a comment rather than
+fixed. Of the eleven, **seven** are served by `CodeOnly` as shipped, **three**
+need a comments-only variant and one needs the inverse; five are outside `topo`,
+so the row's real question is whether this warrants a test-support crate.
+`topo/src/{face_normal,chord_join}.rs` are Track G's G8/G9 and
+`pncad/tests/all.rs` is Track E's #763 — flagged there, not taken. **S118 and D62 were reserved to F-a and are unused.**
 
 ## Incidents
 
