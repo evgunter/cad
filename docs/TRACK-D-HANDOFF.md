@@ -64,14 +64,15 @@ both used D10 and D11). Numbers are now assigned by the orchestrator:
 
 | Row | Owner | Subject |
 |---|---|---|
-| D17 | placed by #718 | No CI lane builds any crate's `probe` **test targets** but editor-core's — 14 suites unbuilt |
+| D17 | placed by #718 | No CI lane builds any crate's `probe` **test targets** but editor-core's — 14 suites unbuilt. **LANDED as #739**: both mechanisms, on the finding that they are red under disjoint conditions |
 | D18 | placed by #720 | `split.rs:253`'s unproven `prev`, **and** `kef`'s — unblocked W2c's last two sites (**landed, #736**) |
 | D19 | placed by #719 | The K roster obligation reaches types, not names-not-reachable-as-bare-literals (37 sites across 24 files) |
 | D20 | placed by #722 | D5's +46% is real and **unattributed**; `choose_op` is excluded by measurement |
 | D21 | placed by #736 | The discard idiom's **11 sites in `crates/topo` outside W2c's three-module census** — 3 in `split_edge`, 2 `attach.rs`, 3 `movefac.rs`, 3 `revert.rs` |
 
-All five are landed rows in §D. D18 has since landed as #736; the other four
-are **edge-free and unstarted** — D21 is the highest number placed.
+All five are landed rows in §D. **D17 has since landed as #739 and D18 as
+#736**; the rest are **edge-free and unstarted** — D25 is the highest number
+placed.
 
 **The rule, which a successor should keep:** a lane takes the next number the
 orchestrator has assigned, never the next gap it can see. A roster with holes
@@ -98,14 +99,16 @@ What is unstarted is unstarted for schedule reasons only, not technical ones:
   `editor-core`'s eight payload-discarding `Display` arms; and
   `FilletError::Op`/`Certify`'s ~20 `format!` sites. **D27 and D29 share
   `sweep/src/fillet/`** — the only edge left in the track.
-- **D8**, **D17**, **D19**, **D20**, **D21** and **D25** are edge-free. D7's
+- **D8**, **D19**, **D20**, **D21**, **D22**, **D23** and **D25** are
+  edge-free. **D17 landed as #739**, placing D22 and D23. D7's
   **`PairSolve`** row was too, and landed as **#735**; its provenance note is a
   comment on **issue #611**, not the PR body, because R2's thread is live, and
-  the PR cites the commit the type is recoverable from. **D18 landed as #736**,
-  finishing W2c and placing D21 and D25. **D21 is now the ADVERSARIAL one**, for
-  the reason D18 was: each conversion turns a garbage-out into a panic, and #720
-  proved that hole is real. It should sequence after **D25**, which would
-  discharge its half-edge sites structurally rather than site by site.
+  the PR cites the commit the type is recoverable from. **D17 landed as #739**
+  and **D18 as #736**, the latter finishing W2c and placing D21 and D25. **D21
+  is now the ADVERSARIAL one**, for the reason D18 was: each conversion turns a
+  garbage-out into a panic, and #720 proved that hole is real. It should
+  sequence after **D25**, which would discharge its half-edge sites
+  structurally rather than site by site.
 
 ## For Evan — S14 now has three witnesses
 

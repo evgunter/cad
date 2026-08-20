@@ -190,6 +190,9 @@ discipline() {
     "$g" --selftest || rc=1
     "$g" || rc=1
   done
+  # The k-probe sweep's `run_dump` guards, proved against a stub cargo —
+  # milliseconds, no build. Mirrors ci.yml's step of the same subject.
+  scripts/rundump-guard-selftest.sh || rc=1
   # Test-aggregation discipline: one [[test]] target per crate. Mirrors
   # ci.yml's step of the same name, calling the SAME script — see its
   # header for why this is a gate (per-test-binary codegen+link was 96%
@@ -478,6 +481,22 @@ demos_hygiene() {
 klint_tool() {
   (cd tools/k-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test)
 }
+# Mirror of hosted's `type-check every probe-gated test target` step.
+# The census half needs no mirror: it is `scripts/gates/`, so the
+# discipline loop above already runs it and its --selftest.
+#
+# `crates` is BOUND FIRST, not expanded inside the `for` list: a command
+# substitution in a `for` list is not subject to `set -e` and would leave
+# this row green over zero crates if the census refused — the same
+# silence one level up from the one the census exists to remove.
+probe_targets() {
+  local crates c
+  crates=$(scripts/gates/probe-suite-census.sh --crates) || return 1
+  [ -n "$crates" ] || { echo "ERROR: the probe census printed no crates"; return 1; }
+  for c in $crates; do
+    cargo check -p "$c" --features probe --all-targets || return 1
+  done
+}
 klint_gate() {
   scripts/k_probe_sweep.sh target/k-fresh || return 1
   (cd tools/k-lint && cargo run -- \
@@ -582,6 +601,7 @@ run_row_if "$RUN_INTERVAL_BACKEND" "interval backend crate" interval_backend
 run_row_if "$RUN_K_LINT" "demos tour (fmt + clippy)"       demos_hygiene
 run_row_if "$RUN_K_LINT" "uv sheet drift (demos)"          uv_sheet_drift
 run_row_if "$RUN_K_LINT" "k-lint tool (fmt+clippy+litmus)" klint_tool
+run_row_if "$RUN_K_LINT" "probe test targets (type-check)"  probe_targets
 run_row_if "$RUN_K_LINT" "k-lint sweep + gate"             klint_gate
 run_row_if "$RUN_K_LINT" "tess-lint tool (fmt+clippy+cli)" tesslint_tool
 run_row_if "$RUN_K_LINT" "tess-meter tool (fmt+clippy+tests)" tessmeter_tool

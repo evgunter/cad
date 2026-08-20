@@ -303,6 +303,27 @@ jobs:
       # never opted in — that is the hole this closes.
       - name: test-aggregation discipline
         run: scripts/check-test-aggregation.sh
+      # The census half of the probe test surface. Its consumer — the
+      # `type-check every probe-gated test target` step in `k-lint` —
+      # `cargo check`s exactly the crates this prints, and this gate is
+      # what makes an empty or shrinking answer loud rather than silent.
+      # It rides here, not there, so the LOUD FAILURE IS OWNED BY A GATE
+      # rather than by the order of two steps in one job: it is
+      # roster-enforced like its siblings, its `--selftest` proves the
+      # guards fire, and the local half reaches it through the loop that
+      # runs this whole directory instead of a hand-written mirror row.
+      - name: probe-suite census + citation guard
+        run: |
+          scripts/gates/probe-suite-census.sh --selftest
+          scripts/gates/probe-suite-census.sh
+      # The run half's guards. `k_probe_sweep.sh`'s `run_dump` is the only
+      # thing between "the harness ran" and "the sweep recorded nothing
+      # and exited 0", and nothing else in the tree exercises it. No
+      # cargo: the function is extracted from the script under test and
+      # driven against a stub, so it costs milliseconds and cannot end up
+      # testing a fossil.
+      - name: k-probe sweep guard selftest (run_dump)
+        run: scripts/rundump-guard-selftest.sh
       # The `interval` feature must stay PURELY ADDITIVE. This is not a
       # style rule: the `test-interval` legs run only the tests that
       # feature ADDS (see that job's header), which is sound only while
@@ -1788,7 +1809,64 @@ jobs:
           cd tools/tess-lint && cargo run -- \
             ../../target/tess-budget-fresh.csv \
             --baseline ../../docs/tess-budget-data/tess-budget-baseline.csv
-      - name: K-telemetry probe sweep (corpus + demo scenes, 3 eps rows)
+      # THE PROBE TEST SURFACE. `probe` is an opt-in feature, so a
+      # `tests/*.rs` behind `#![cfg(feature = "probe")]` is invisible to
+      # every default row in this file: it can rot into a build error, or
+      # out of existence, with the whole matrix green. Sixteen such
+      # suites exist across five crates and only editor-core's two were
+      # ever compiled — as a side effect of the sweep below, not by
+      # anything that meant to.
+      #
+      # WHY HERE AND NOT IN A JOB OF ITS OWN, which is the shape
+      # `release-corruption` above would suggest. That job is separate
+      # because release artifacts share no fingerprint with any
+      # dev-profile job, so it had to own a cache key. The opposite holds
+      # here: this is already the only job that passes `--features
+      # probe`, so its cache is where the probe-instantiated graph lives,
+      # and its gate (`run_k_lint`, "whenever anything builds") is
+      # already the right one — `probe` is a `Real` instantiation, so a
+      # change in ANY kernel crate can break a probe suite's type-check,
+      # and a job keyed on a hand-written root set would be the same
+      # snapshot-goes-stale failure one level up.
+      #
+      # WHAT THAT COSTS, stated so a debugger is not surprised by it:
+      # COUPLING, and about 40 s a merge. A probe type-check failure now
+      # reds `k-lint`, which is otherwise the margin-distribution gate:
+      # if this job is red at the step below, the margins are not the
+      # subject — a probe-gated `tests/*.rs` stopped compiling, and
+      # nothing about the K thresholds has moved.
+      #
+      # The 40 s is the number to plan against, not the ~1 s a fully warm
+      # local tree shows. `rust-cache` does not cache workspace crates,
+      # only deps (see this file's cache header), so the operating point
+      # is a restored dep graph with every member recompiled: 37-41 s
+      # measured over two runs on a 4-vCPU agent container, against
+      # 43-61 s from an empty target dir. A RATIO, not a hosted number.
+      #
+      # The selection is DERIVED, not listed: the census gate (in the
+      # `discipline` job, which owns its guards and its self-test) scans
+      # the tree, and this loop checks exactly what it prints, so a crate
+      # that gains its first probe suite is covered with nothing to
+      # remember. THE SUBSTITUTION IS BOUND FIRST, deliberately: a
+      # command substitution inside a `for` list is not subject to
+      # `set -e`, so a census refusal there would print its error and
+      # leave this step green over zero crates — the silence one level
+      # up from the one the census exists to remove.
+      - name: type-check every probe-gated test target
+        run: |
+          set -euo pipefail
+          crates=$(scripts/gates/probe-suite-census.sh --crates)
+          test -n "$crates"
+          echo "probe-gated crates to type-check: $(echo "$crates" | tr '\n' ' ')"
+          for c in $crates; do
+            cargo check -p "$c" --features probe --all-targets
+          done
+      # Runs the M2-era harness (crates/sweep) beside the M4/M5/M7 one
+      # (editor-core + tour) — see the script header for why its dump
+      # rides beside the linted CSV rather than inside it. A type-check
+      # would not have caught what that harness actually did: it compiled
+      # perfectly and panicked, unnoticed, for 26 days.
+      - name: K-telemetry probe sweep (corpus + M2 corpus + demo scenes, 3 eps rows)
         run: scripts/k_probe_sweep.sh target/k-fresh
       - name: large-K lint (gate — a flagged margin fails this row)
         run: |
