@@ -72,6 +72,9 @@ head, merge without waiting for a second CI run.**
 | **C-R19** | **What this track may take, restated.** The working rule had drifted to *style fixes only; anything cross-crate or public-API gets filed and left*, which is what sent H16's ε item out as a parked issue. | **Cross-crate and public-API changes are within scope** (Evan, 2026-08-20): *"cross crate and public api is potentially within scope for these style fixes, though it may have a design element that means the plan should go by me before implementation."* So the discriminator is **not** where the change lands — it is whether a **design element** is present. Three tiers: a style or encoding fix is taken by the lane; a change with a design element is written up as a **plan that goes to Evan before implementation**; **implementing a new feature or fixing a logic bug is never this track's** and gets a GitHub issue. The middle tier is new and is where the ε item, the two Part-21 user-assigned STEP header fields, and anything like them now sit — **takeable Track C rows asking for a plan, not parked issues.** A filed row must say which tier it is in, or the next reader re-derives the judgement. | Evan, 2026-08-20 |
 | **C-R20** | **Two lanes minted §D row `C11` independently**, an hour apart, in two unmerged branches (#732's `pncad-py` option surface and #731's `editor-core` residues). Neither could see the other's number. | **Row numbers are assigned by the orchestrator, never taken from the next visible gap.** Assigned: **C11** C-o/#732 (issue #730), **C12** C-f/#731, **C13** and **C14** C-o's ε and Part-21 rows, **C15** reserved for C-p's per-face slack gate hole. A lane needing a row asks for the number. **This rule already existed one track over** — Track D hit the identical collision when three lanes minted in parallel and two landed on D10/D11 — and its handoff states it explicitly. I read that handoff at session start and did not apply it, which is the whole failure: *a rule recorded in another track's operational file is not carried by reading it once.* The cost was small only because both PRs were still unmerged. | orchestrator, 2026-08-20 |
 | **C-R21** | **C-R20 is not sufficient, and its third instance proved it.** I assigned §D row numbers centrally *within Track C*. Track A's #714 fix pass then landed its own **C11** on `main` — roughly ten minutes after I assigned C11 to #732, and cited from three other places in the document. Neither track could see the other's unmerged branch. | **A row number is not owned until it is on `main`, and a lane mints against the merged tree, never against an assignment.** Central assignment prevents *intra*-track collisions and cannot prevent cross-track ones, because **§D is shared by every track**. So: the orchestrator still assigns, but the assignment is a *reservation against a tree that may move*, and a lane re-verifies against `origin/main` immediately before it writes the number — exactly what C-o did, which is why this cost a relabel instead of a silent duplicate. **Holes in the sequence are named in the gating paragraph** so the next reader does not tidy them away. Settled state: C11 Track A; C12 #731; C13/C14/C16 #732; C15/C17 #738. | orchestrator, 2026-08-20 |
+| **C-R22** | **C10 asks for work the ratified design forbids, and nothing in the row knows it.** The row instructs its taker to lift the instrument out of `geom-core`, S30-style. C-q's compile oracle — a scratch crate against `geom-core --features probe` — walked the three escapes and hit an escalating wall: `impl Decide for P` → E0277 (`P: SpanLocate` unsatisfied); `impl SpanLocate for P` → E0277 (`P: locate::sealed::Sealed` unsatisfied); `impl …sealed::Sealed for P` → **E0603, module `sealed` is private**. The seal is what closes **Q1's ratified instantiation set**. | **Refuse the split, and record the refusal as the unit's answer** — C10's own text asks the taker to *"decide whether the instrument can leave a door that certifies, and record that decision"*, so a reasoned no **is** the deliverable, not a declined lane. Take instead: consolidate the three doors' identical bodies into one private `classify<T: Decide>` (in-crate, no public API, no behaviour change); **D32 option (b)** — make `ledger_row` load-bearing by extending `flagged_census.rs`; and **retire `profile::k_stats`** (S40's shim, whose own docs say to stop using it — tier 1.5, executing a decision recorded at M2 PR 7, not making one). Also correct **two wrong premises in C10 itself**: the instrument is **263 lines, not ~96** (the row's figure omits `Probe`'s own trait impls, and a type's impls travel with the type), and *"S30's class one crate over"* is wrong **at the level of the diagnosis** — the volume question S30 found unasked **was** asked here, in `geom-core/Cargo.toml`'s `probe` feature comment, measurement and placement argument attached. | orchestrator, 2026-08-20 (from C-q's oracle) |
+| **C-R23** | **S32's causal sentence is false, and two more of its clauses with it.** The finding says *"the natural query being unavailable at the enum is what created the second enum"* — i.e. give `Surface` a jet door and `geom-brep`'s `Chart` dissolves. C-g's archaeology found `Chart` born at `ffc0b0fa` carrying today's doc verbatim, and `ssi/system.rs:150-235` on main confirms it. | **`Chart` stays; S32 lands as `FIXED IN PART`** (#714/S58's precedent for this exact shape). The API half is real and is fixed — one `jet` door, the five partials and `normal` become projections of it, `normal` and `metric_floor` each drop from two passes to one. The causal half is **corrected, not closed**, on three independent grounds any one of which is sufficient: `Chart` is **third order** (`jet3`, `k+l ≤ 3`) where `SurfaceJet` is second; it **carries a domain** (`u_range`/`v_range`, `domain()`) because a plane is unbounded and `Surface::Plane` has nowhere to put a window; and a `Surface`-wide constructor is **deliberately refused by a named rule**, C12.1's per-arm retirement rule — so the narrowness is a ratified property, not a workaround. **A third clause is also false:** S32 reads the *"hand-filled `SurfaceJet3` of zeros"* as placeholder filler, but a plane's second and third partials **are** exactly zero — the finding mistook a right answer for a smell. The fourth clause, *"re-implementing plane evaluation"*, is the weak one and is to be stated at the notch it can hold: a hoisted cross product plus a window, not an independent implementation. | orchestrator, 2026-08-20 (from C-g's archaeology, verified against main) |
+| **C-R24** | **Where C-R6 stops and C-R19 tier two starts.** C-g found the identical class on the curve side — `NurbsCurve::deriv_in_span`/`deriv2_in_span` discard 2 of 3, and `topo/src/splitting/neighborhood.rs:180,184` runs two full order-2 passes at the same `t` **under a comment calling the result *"the base-endpoint jet"***. It is the **same crate**, which normally puts it under C-R6 (in-crate residues are fixed, not reported). | **File it (row C24), and the row states the discriminator.** The surface side has a **ratified type to project onto**: `SurfaceJet` already exists and is already publicly exported — which is half of S32's own complaint. The curve side has **no `CurveJet` at all**, so the work is not *apply the same fix one type over*, it is **mint a new public type** — a design element, C-R19 tier two, a plan rather than a lane's discretion. That is the line: **using a decision already made is tier one; making one is tier two, in-crate or not.** C-R6 is about *ownership* (do not hand an in-crate residue to someone else), not about *authority* (a lane may not ratify a new public type because it happens to be nearby). | orchestrator, 2026-08-20 |
 
 ---
 
@@ -1749,6 +1752,45 @@ fix pass corrects the source file, not only the PR body.
 attached, ask **at how many points** before relaying it. If the answer is one
 and the claim says *every*, the claim is the derivation's, not the
 measurement's — relay it that way or make the lane widen the run.
+
+### A guarantee's own rustdoc claimed it enforced itself, and it does not
+
+C-q, extending `flagged_census.rs` under D32, measured the census's matcher: it
+greps the literal `k_stats::decide_flagged(`, so a site spelled **bare** after a
+`use` is invisible to it. Three such sites exist today — `topo/tests/common/mod.rs`,
+`geom/tests/curves/review_m5_pr4_adversarial.rs`, `demos/tour/src/booleans.rs` —
+none under `crates/*/src`, so **the shipped count is honest today**.
+
+That is where a lane would normally stop, and it is one clause short. The
+shipped rustdoc at `decide_flagged` says:
+
+> *"The census count assertion … pins the shipped-site count to the ledger's
+> inventory, so adding a site without updating both the ledger and the assertion
+> fails the suite — **the rule enforces itself**."*
+
+**That sentence is false for one spelling**, and the sentence is what a reader
+consults instead of reading the matcher. So this is not a fragility note about a
+test; it is a **false guarantee shipping in rustdoc** — §S39's class, found
+inside the machinery a lane was sent to extend rather than by looking for it.
+
+*Three things generalise.*
+
+- **"Honest today" and "self-enforcing" are different claims, and the gap
+  between them is invisible from the doc.** The count is right; the mechanism
+  that is supposed to keep it right has a hole. A reader who trusts the sentence
+  will add a bare-spelled site and get a green suite.
+- **The remedy is not "note the limitation".** Ruled: either widen the pattern
+  to match every spelling, or correct the sentence to say which spellings
+  self-enforce — and the limitation goes **at the pattern**, not in a report.
+  §C15 says a sweep's result is worth nothing without a statement of what its
+  pattern cannot match; the corollary earned here is that **the statement has to
+  live where the pattern lives**, because a limitation recorded in a report dies
+  with the report. This track has now paid for that lesson three times in one
+  session.
+- **A lane sent to extend a guarantee is the best-placed instrument for
+  falsifying it**, and worse-placed for noticing it should. C-q found this while
+  reading the matcher to reuse it. Nobody auditing rustdoc for false sentences
+  would have gone looking in a test's grep pattern.
 
 ### Reviewers age out of their own tree, twice now — and it is not their error
 
