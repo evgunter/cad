@@ -572,12 +572,7 @@ pub fn extrude<T: Decide>(
     hes.push(close.he_plus);
     let top_face = seed.face;
     let bottom_face = close.face;
-    let bottom_surface = body
-        .get_face(bottom_face)
-        .ok_or(EulerOpError::StaleKey {
-            key: topo::EntityId::Face(bottom_face),
-        })?
-        .surface;
+    let bottom_surface = face_surface_key(&body, bottom_face)?;
     let mut bases = Vec::with_capacity(loops.len());
     bases.push(LoopBase { hes });
 

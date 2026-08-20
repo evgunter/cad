@@ -9,10 +9,12 @@
 //! parameters here, so the operator sequence itself exists once.
 
 use geom_core::{Decide, Point3};
-use topo::{Body, FaceKey, FaceSurface, HalfEdgeKey, LoopKey, MefSite, MevSite, VertexKey};
+use topo::{
+    Body, EulerOpError, FaceKey, FaceSurface, HalfEdgeKey, LoopKey, MefSite, MevSite, VertexKey,
+};
 
+use super::SweptSeg;
 use super::axis::AxisFrame;
-use super::{RevolveError, SweptSeg};
 use crate::swept::placed_segment_spec;
 
 /// What one meridian chain left behind.
@@ -35,6 +37,10 @@ pub(super) struct MeridianChain {
 /// laid down at the sketch placement: the wedge's end chain is not
 /// built here but swept from this one, and a full period is
 /// definitionally the identity.
+///
+/// The only thing that can go wrong here is an operator fault, so that
+/// is what it returns; each caller's `?` lifts it through its own
+/// `From<EulerOpError>`.
 pub(super) fn build_chain<T: Decide>(
     body: &mut Body<T>,
     frame: &AxisFrame<T>,
@@ -43,7 +49,7 @@ pub(super) fn build_chain<T: Decide>(
     segs: &[SweptSeg<T>],
     qs: &[Point3<T>],
     cap: FaceSurface<T>,
-) -> Result<MeridianChain, RevolveError> {
+) -> Result<MeridianChain, EulerOpError> {
     let (place, normal) = (frame.place, frame.n3);
     let n = segs.len();
     let mut hes = Vec::with_capacity(n);
