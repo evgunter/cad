@@ -41,7 +41,6 @@ pub enum UnitQuantity {
     Angle,
 }
 
-
 /// One row of the unit table: a display/parse symbol, the quantity it
 /// measures, and the exact factor into canonical units.
 ///
