@@ -312,7 +312,7 @@ serialized here and each lane re-merges `origin/main` when one lands.
 |---|---|---|---|---|
 | **E-c** | D26 | `smelle/d26` | **#752** | **CLEARED**; fix pass running (8 findings, 2 → rows D47/D48). Merges first |
 | **E-a** | D22 + D34 | `smelle/d22-d34` | — | implementing |
-| **E-f** | D25 | `smelle/d25` | **#755** | reported, 23 checks started on the merge head; **both reviewers running**. One doc correction requested and in flight |
+| **E-f** | D25 | `smelle/d25` | **#755** | style lane **CLEARED** (1 must-fix, 11 findings); **adversarial lane still running**. One combined fix pass when it reports |
 | **E-b** | D23 | `smelle/d23` | — | dispatched. **Fenced off `scripts/gates/probe-suite-census.sh` and `ci.yml`** while E-a holds them |
 | **E-d** | D33 | `smelle/d33` | — | dispatched |
 
@@ -360,6 +360,63 @@ without being re-derived at each stop.** All three above are one mechanism —
 prose is cheap to move and expensive to check, so it moves. §D's own rows are
 now a place this happens, which is new: the register was built to stop findings
 being lost, and it can lose their *accuracy* instead.
+
+### #755 (E-f / D25) — style lane, 2026-08-20: **CLEARED**, one must-fix; adversarial lane still running
+
+**Question 1 came back split, and the split is the useful part.** The
+*precondition* is genuinely no longer prose — the compiler carries it at all 44
+sites, and that half is completely gone, not narrowed. But **prose reappeared
+wearing a module-doc hat, three times bigger**: across `crates/topo/src` the
+diff is **+152 comment lines against −51**, so ~78% of the unit's net growth is
+comment. `live.rs` retired ~22 doc lines on `link_half_edges` and shipped ~82.
+Two pieces of it argue rather than describe — a **rejected alternative** (the
+GhostCell brand) and an anticipated objection — which is §S38's pattern
+exactly, and S38 is ACCEPTED with Evan's *"should definitely be trimmed"*. L2
+inherits it.
+
+The lane judged the residue an **honest, correctly-scoped narrowing** rather
+than the defect re-minted, and the reasoning is worth keeping: the obligation
+went from *seven callers must each prove a key resolves* to *one crate-wide
+ordering rule whose violation is loud*, and the failure mode is unchanged
+because slotmaps version their keys. What shrank was the obligation; what grew
+was the word count. Those are different axes and the review is the first thing
+on this track to separate them.
+
+**MAJOR (must fix before merge): `docs/DESIGN.md` still says this cannot be
+done.** The D2 addendum reads *"…carry a precondition rather than a per-site
+proof, **and cannot carry one** … Retiring that asymmetry — a `Live` key type
+that makes the discharge structural — **is** `SMELL-SCAN-2026-08.md`'s D25."*
+The unit removed the identical sentence from `link_half_edges`' own doc and did
+not sweep for it. It is in the **ratified contract**, and it is precisely what
+this track's recording convention exists to prevent: a closed finding that still
+reads as open. **The trap is worth more than the instance** — a citation sweep
+that filters out lines mentioning `SMELL-SCAN-2026-08.md` hides this line,
+*because the line contains that string*. The reviewer's own first grep missed it
+for that reason.
+
+**Question 2 found a better option available and not taken: the name.**
+`certify` was already this codebase's word for **geometric** certification —
+`geom-brep/src/certify.rs`, `certify_edge_spec`, `CertifiedEnclosure`, 279
+occurrences of *certified* in `topo` alone, essentially all geometric. In one
+function, `split.rs:162` (`certify_half_edge`, liveness) and `:224`
+(`certify_edge_spec`, geometry) sit sixty lines apart with comments at `:158`
+and `:222` both saying *certify* about different things. The type is already
+called `Live`; `require_live` / `Live::of` / *proven* were free. **This is §S4
+inverted — one spelling, two concepts** — and it is the clearest thing on this
+track so far where the best answer was available and a working one was taken.
+
+**Two findings feed the adversarial lane and were forwarded mid-review**, per
+the precedent: *"one constructor"* is false (four mint doors, and
+`resolve_half_edge_live` mints raw rather than through `Live::certify`, at ten
+call sites), and the unforgeability claim is guarded by nothing, with the
+crate's usual `compile_fail` instrument unable to reach a `pub(crate)` type.
+
+**The class the review would look at next** (orchestrator's call whether it is a
+row): the literal block D25 named survives ~9 times for the **other five
+arenas** — shells, faces, vertices, loops, solids, surfaces. The *token* half
+correctly does not transfer, and the PR says so; the **token-free** half does —
+`certify_half_edge` is now a one-line refusal helper and the other five arenas
+still spell four lines out longhand.
 
 ---
 
