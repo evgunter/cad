@@ -9084,16 +9084,82 @@ Beyond S64, S67, S74 and S98:
   byte-equality claim nothing computes. `fn quad` now has four homes
   (`sweep`, `mesh`, `step-export` test-commons, plus the demo);
   `ELBOW_H = 0.25` is copied with a comment saying it is *"shared"*.
-- (c) The demo manifest and UV cell formats have no definition: three
-  hand-rolled JSON emitters, four readers, one field
-  (`transparency`) written by one producer and `.get(…, 0)`-defaulted by
-  both readers; `View.up` re-encoded in the inverse direction across
-  `render.py:51-57` and `render_freecad.py:105-133`;
-  `compose_uv_montage.py`'s six-entry `LEGEND` mirroring
-  `uvdump.rs:81-91` **unverified** while the cell size is verified.
-  `check_render_provenance.py:104,112` announces the shape outright —
-  *"Kept in sync with render.sh's `--montage=` arguments"*, *"keep the
-  three spellings in sync"* (there are two).
+- (c) **THE QUESTION FOR EVAN — design row, not a patch (PR #NNN).** The demo
+  manifest and UV cell formats have **no definition**: nothing declares them,
+  nothing validates them, and every producer and consumer hand-rolls its own
+  serialisation. The census below was taken by the G2 lane and **re-derived
+  independently by its reviewer**; the counts and the `View.up` composition are
+  confirmed from the tree, not transcribed.
+
+  **Three emitters, five readers** — §D's own text said four, and the fifth is
+  an inline Python reader at `demos/render.sh:326` that nobody had counted.
+
+  | emitter | writes |
+  |---|---|
+  | `tour/src/main.rs:367` `scene_json` | `name, caption, montage, view{elev,azim,up}, bodies[{stl, step, color, transparency}]` |
+  | `wild/src/main.rs:~272` | the same **minus `transparency`**, with `step` always `null` |
+  | `tour/src/uvdump.rs` `manifest_json` | 16 fields: `scene, body, face, chart, svg, curved, loops, half_edges, cached, forms, area, sense, winding_ok, gap, chart_jump, note` |
+
+  | reader | reads |
+  |---|---|
+  | `render.py:149` (matplotlib) | `view, bodies, stl, color, transparency` (`.get(…,0)`) |
+  | `render_freecad.py:212` | `bodies, step` (`.get`), `stl, color, transparency` (`.get`), `name, view` |
+  | `compose_montage.py:83` | `montage` (`.get(…,True)`), `name, caption` |
+  | `render.sh:326` (inline python) | `montage` (`.get(…,True)`), `name` |
+  | `compose_uv_montage.py:192` | 8 of the 16 uv fields |
+
+  **The disagreements, each confirmed from both sides.**
+
+  1. **`transparency` is written by one producer and defaulted by both
+     readers.** The wild emitter omits the field entirely. Correct today only
+     because the default happens to mean "opaque"; nothing states the field is
+     optional.
+  2. **`step` is nullable in fact and not in either producer's type.** `wild`
+     writes `"step": null` unconditionally; the tour writes a `String` always.
+     One reader guards, one never reads it.
+  3. **`View.up` is encoded in *opposite directions* in the two renderers, and
+     neither cites the other.** `render.py:52-57` maps world→display
+     (`(x,y,z) ↦ (x,−z,y)`); `render_freecad.py:117` maps display→world
+     (`(a,b,c) ↦ (a,c,−b)`). **Composed, they are exact inverses**, so the two
+     cameras agree today — by coincidence of two independently-written idioms,
+     checked by nothing, and either is individually "fixable".
+  4. **`compose_uv_montage.py`'s six-entry `LEGEND` mirrors `uvdump.rs`'s
+     colours, unverified — while the cell *size* is verified hard.** And it has
+     already drifted: the fourth entry's swatch `#777777` appears in no cell,
+     because a derived pcurve is dashed in its own form's colour.
+  5. **`uv.json` writes 16 fields and its only reader reads 8.** Eight fields
+     are written and read by nothing.
+  6. **`montage` is `.get(…, True)`-defaulted in two readers for a key both
+     producers always write** — S112(h)'s shape, as a one-line default rather
+     than a whole branch.
+
+  **The options, and their real costs.**
+
+  - **(a) Leave it; write the format down.** One prose spec, still unenforced.
+    Cheapest, and does nothing about 1–6 except make them findable.
+  - **(b) One serde type per manifest in a small shared crate, and one
+    `dataclass`/`TypedDict` the readers share.** Kills 1, 2, 5 and 6
+    structurally. Cost: a new dependency edge from `demos/wild` to `demos/tour`
+    or to a third crate.
+  - **(c) Emit a schema from the Rust types and validate in the readers.**
+    Heaviest; catches drift at the boundary rather than at review.
+  - **(d) Attack only the asymmetries.** One home for the `up` convention
+    (fixes 3), a generated legend (fixes 4), drop the eight unread uv fields
+    (fixes 5). Leaves the format undeclared.
+
+  **The tension worth naming, and the reason this is Evan's and not a lane's:**
+  **(b) and (c) both move a demo from *the natural spelling a user would write*
+  toward *a demo with a schema library*.** `memories/demo-purpose.md` and
+  `docs/prompts/implementer-discipline.md` §3 make the demos evidence about
+  what using this kernel is actually like, from an outside consumer's seat —
+  and a consumer wiring a renderer to a CAD kernel probably *does* hand-roll
+  the JSON, which is what makes today's mess honest evidence. Against that:
+  item 3 is a real trap that two independent authors walked into and nothing
+  catches, and item 4 has already drifted.
+
+  **Nobody has picked, and no lane may.** The G2 lane produced the census and
+  stopped, per §D's *"a design row, not a patch"*. **Answer in place here.**
+
 - (d) `interval-transcendentals/src/trig.rs:30-58` vs `:62-88` and
   `invtrig.rs:21-39` vs `:43-61` — `sin`/`cos` and `asin`/`acos` are
   ~25-line near-verbatim twins differing in two constants and a libm
