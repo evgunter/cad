@@ -6,8 +6,8 @@
 use proptest::prelude::*;
 
 use crate::{
-    CENTI, CM, DEG, FmtQuantityError, IN, M, MILLI, MM, RAD, UNITS, UnitDef, UnitQuantity,
-    fmt_angle, fmt_length, unit_by_symbol,
+    Angle, CENTI, CM, DEG, FmtQuantityError, IN, Length, M, MILLI, MM, RAD, UNITS, UnitDef,
+    UnitQuantity, fmt_angle, fmt_length, unit_by_symbol,
 };
 
 #[test]
@@ -215,7 +215,16 @@ fn every_obtainable_typed_view_pairs_its_symbol_with_the_tables_factor() {
                     "{} multiplied by the wrong factor",
                     row.symbol()
                 );
-                assert_eq!((2.5 * view).in_unit(view), 2.5);
+                // `in_unit` DIVIDES by the table's factor. Asserted
+                // against the row rather than as `x * f / f == x`,
+                // which holds for any factor at all and is an exact
+                // float comparison across a divide besides.
+                assert_eq!(
+                    Length::from_meters(2.5).in_unit(view).to_bits(),
+                    (2.5_f64 / row.factor()).to_bits(),
+                    "{} divided by the wrong factor",
+                    row.symbol()
+                );
                 // The suffix names the factor that was applied — the
                 // `parse(fmt(x, unit))` pin's other half.
                 assert_eq!(
@@ -241,7 +250,12 @@ fn every_obtainable_typed_view_pairs_its_symbol_with_the_tables_factor() {
                     "{} multiplied by the wrong factor",
                     row.symbol()
                 );
-                assert_eq!((2.5 * view).in_unit(view), 2.5);
+                assert_eq!(
+                    Angle::from_radians(2.5).in_unit(view).to_bits(),
+                    (2.5_f64 / row.factor()).to_bits(),
+                    "{} divided by the wrong factor",
+                    row.symbol()
+                );
                 assert_eq!(
                     fmt_angle(2.5 * row.factor(), view).unwrap(),
                     format!("2.5 {}", row.symbol())
@@ -260,8 +274,13 @@ fn every_obtainable_typed_view_pairs_its_symbol_with_the_tables_factor() {
     // pass as green — and so that both arms above are known to have run.
     assert_eq!(lengths, 4, "four length rows");
     assert_eq!(angles, 2, "two angle rows");
-    // The six exported constants are exactly the six views, so the
-    // loop above covers them and no seventh constant escapes it.
+    // The six exported constants are exactly the six rows, so the loop
+    // above covers all of them. What makes that a closure rather than a
+    // coincidence is upstream of this assertion: a typed view is an
+    // INDEX into `UNITS`, so a constant naming a unit the table does
+    // not have fails to compile, and one naming a row it does have is
+    // already in the loop. This row catches the remaining case — a row
+    // added to the table with no constant exported for it.
     let constants: [&str; 6] = [
         MM.symbol(),
         CM.symbol(),

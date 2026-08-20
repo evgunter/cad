@@ -63,12 +63,11 @@ pub enum UnitQuantity {
 /// illegal state unrepresentable", not row 1's typed error, because the
 /// input was never legitimate in the first place.
 ///
-/// The two typed views [`LengthUnit`] and [`AngleUnit`] are sealed the
-/// same way and by the same mechanism — each WRAPS a row of this table
-/// (issue #669), so "a typed view of a `UnitDef` row" is what the type
-/// literally is rather than a claim about how it is used.
-/// [`UnitDef::as_length`] and [`UnitDef::as_angle`] are the public
-/// route from a row to its view;
+/// The two typed views [`LengthUnit`] and [`AngleUnit`] are sealed by a
+/// stronger mechanism (issue #669): each is a private INDEX into
+/// [`UNITS`], so "is a row of the table" is what the value is, not a
+/// convention about how it is built. [`UnitDef::as_length`] and
+/// [`UnitDef::as_angle`] are the public route from a row to its view;
 /// `LengthUnit::def` / `AngleUnit::def` are the inverse and stay
 /// `pub(crate)` only because nothing outside the crate needs them —
 /// the seal no longer depends on their visibility.
@@ -98,37 +97,27 @@ pub enum UnitQuantity {
 /// let bogus = quantity::UnitDef { quantity: quantity::UnitQuantity::Angle, ..mm };
 /// ```
 ///
-/// Nor the route through the typed views, which since #669 have no
-/// public constructor either — so there is no second mint to demote:
-///
-/// ```compile_fail
-/// let bogus = quantity::AngleUnit { symbol: "mm", factor: 1.0 };
-/// ```
+/// Both are refused on PRIVACY (`E0451`), which is the property that
+/// has to hold: they redden the moment a field is made public, and a
+/// row that merely named a field that does not exist would not.
 ///
 /// A `compile_fail` row proves only that the snippet does not build,
 /// not that it fails for the intended reason — a typo would pass it
 /// just as well. Each block above therefore has its legal twin here,
-/// differing from it by exactly the illegal step:
+/// differing from it in exactly one respect: the twin never names a
+/// field.
 ///
 /// ```
-/// // Twin of blocks 1 and 2: the path `quantity::UnitDef` names this
-/// // exported type, the row and the enum variant exist, and every
-/// // field is READABLE through its accessor. Naming the type binds
-/// // the twin to it, so a rename or an un-export reddens here rather
-/// // than quietly satisfying the `compile_fail` blocks for the wrong
-/// // reason.
+/// // The path `quantity::UnitDef` names this exported type, the row
+/// // and the enum variant exist, and every field is READABLE through
+/// // its accessor. Naming the type binds the twin to it, so a rename
+/// // or an un-export reddens here rather than quietly satisfying the
+/// // `compile_fail` blocks for the wrong reason.
 /// let mm: quantity::UnitDef = quantity::unit_by_symbol("mm").expect("mm is a table row");
 /// assert_eq!(mm.symbol(), "mm");
 /// assert_eq!(mm.quantity(), quantity::UnitQuantity::Length);
 /// assert_eq!(mm.factor(), quantity::MILLI);
 /// assert_eq!(quantity::UnitQuantity::Angle, quantity::UnitQuantity::Angle);
-///
-/// // Twin of block 3: `quantity::AngleUnit` is exported, its two
-/// // readers exist, and the ONLY difference from the illegal step is
-/// // where the value came from — the table, not a field list.
-/// let view: quantity::AngleUnit = quantity::DEG;
-/// assert_eq!(view.symbol(), "deg");
-/// assert_eq!(view.factor(), core::f64::consts::PI / 180.0);
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct UnitDef {
@@ -158,13 +147,12 @@ impl UnitDef {
     /// builds a [`crate::Length`].
     ///
     /// Partial, and necessarily so: the quantity is what decides which
-    /// view a row has, and it is data. The refusal is the only place a
-    /// dimension is still CHECKED rather than typed, and it can only
-    /// answer `None` for a row whose own `quantity` says so — never for
-    /// a caller-assembled pair, which no longer exists.
+    /// view a row has, and it is data. The refusal can only answer
+    /// `None` for a row whose own `quantity` says so — never for a
+    /// caller-assembled pair, which no longer exists.
     pub const fn as_length(self) -> Option<LengthUnit> {
         match self.quantity {
-            UnitQuantity::Length => Some(LengthUnit(self)),
+            UnitQuantity::Length => Some(LengthUnit::of_row(self.symbol)),
             UnitQuantity::Angle => None,
         }
     }
@@ -173,62 +161,156 @@ impl UnitDef {
     /// length — the mirror of [`UnitDef::as_length`].
     pub const fn as_angle(self) -> Option<AngleUnit> {
         match self.quantity {
-            UnitQuantity::Angle => Some(AngleUnit(self)),
+            UnitQuantity::Angle => Some(AngleUnit::of_row(self.symbol)),
             UnitQuantity::Length => None,
         }
     }
 }
 
+/// The whole closed unit table, as data — the expression text parser's
+/// suffix vocabulary and the formatter's display vocabulary are both
+/// exactly this list, and a typed view is an index into it.
+pub const UNITS: [UnitDef; 6] = [
+    // Millimeter: a `MILLI`-prefixed metre.
+    UnitDef {
+        symbol: "mm",
+        quantity: UnitQuantity::Length,
+        factor: MILLI,
+    },
+    // Centimeter: a `CENTI`-prefixed metre.
+    UnitDef {
+        symbol: "cm",
+        quantity: UnitQuantity::Length,
+        factor: CENTI,
+    },
+    // Meter — the canonical length unit, factor exactly 1.0.
+    UnitDef {
+        symbol: "m",
+        quantity: UnitQuantity::Length,
+        factor: 1.0,
+    },
+    // International inch: EXACTLY 25.4 mm (module docs) — the factor
+    // is the correctly-rounded f64 of the exact decimal 0.0254.
+    UnitDef {
+        symbol: "in",
+        quantity: UnitQuantity::Length,
+        factor: 0.0254,
+    },
+    // Degree: π/180 radians — inexact by nature (module docs).
+    UnitDef {
+        symbol: "deg",
+        quantity: UnitQuantity::Angle,
+        factor: core::f64::consts::PI / 180.0,
+    },
+    // Radian — the canonical angle unit, factor exactly 1.0.
+    UnitDef {
+        symbol: "rad",
+        quantity: UnitQuantity::Angle,
+        factor: 1.0,
+    },
+];
+
+// A typed view is one byte, so the table it indexes must fit in one —
+// the same bound `editor_core::expr::UnitSym` asserts over the same
+// table. A table grown past 255 rows fails the BUILD here rather than
+// truncating an index.
+const _: () = assert!(
+    UNITS.len() <= u8::MAX as usize,
+    "a typed unit view is one byte: this table has outgrown its index space"
+);
+
+/// Byte-wise `str` equality, because `==` is not available in a const
+/// fn on this toolchain.
+const fn str_eq(a: &str, b: &str) -> bool {
+    let (a, b) = (a.as_bytes(), b.as_bytes());
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut i = 0;
+    while i < a.len() {
+        if a[i] != b[i] {
+            return false;
+        }
+        i += 1;
+    }
+    true
+}
+
+/// The position of `symbol` in [`UNITS`] — the ONE mint for a typed
+/// view, and the reason `LengthUnit`/`AngleUnit` cannot name a unit the
+/// table does not have.
+///
+/// Two callers, both of which make the miss unreachable rather than
+/// merely unlikely: the six unit constants, where a miss is a
+/// compile-time const-eval failure, and [`UnitDef::as_length`] /
+/// [`UnitDef::as_angle`], where the argument is a sealed row and so is
+/// a copy of an entry of this very array (D2 addendum row 4 — a kernel
+/// bug observable in a branch, announced, never discarded). Spelled
+/// `panic!` rather than `unreachable!` only because the latter formats
+/// its message and formatting is not available in a const fn; the
+/// mechanism and the intent are row 4's.
+const fn row_index(symbol: &str) -> u8 {
+    let mut i = 0;
+    while i < UNITS.len() {
+        if str_eq(UNITS[i].symbol, symbol) {
+            return i as u8;
+        }
+        i += 1;
+    }
+    panic!("unreachable: a typed unit view can only name a row of UNITS")
+}
+
 /// A length unit — a typed view of a [`UnitDef`] row, so `25.0 * MM`
 /// can only build a [`crate::Length`] (never an angle), and the row it
-/// views is a row of [`UNITS`].
+/// views is a row of [`UNITS`] **by construction**: the value is that
+/// row's index and nothing else.
 ///
-/// **SEALED, by wrapping the row rather than copying it (issue #669) —
-/// the narrative lives on [`UnitDef`].** Both halves of the pair are
-/// now typed: the DIMENSION by which view this is, the symbol/factor
-/// pairing by the table. Obtain one from a unit constant ([`MM`],
-/// [`CM`], [`M`], [`IN`]) or from [`UnitDef::as_length`].
+/// **SEALED (issue #669) — the narrative lives on [`UnitDef`].** Both
+/// halves of the pair are typed: the DIMENSION by which view this is,
+/// the symbol/factor pairing by the index. Obtain one from a unit
+/// constant ([`MM`], [`CM`], [`M`], [`IN`]) or from
+/// [`UnitDef::as_length`].
 ///
-/// **Five public doors apply a unit's factor and print its symbol
-/// without checking either**, which is why the pairing has to be typed
-/// rather than validated: [`crate::fmt_length`],
+/// **Eight public functions apply a unit's factor and print its symbol
+/// without checking either** — which is why the pairing has to be typed
+/// rather than validated. Four take a `LengthUnit`: [`crate::fmt_length`],
 /// [`crate::Length::in_unit`], and the two `Mul` impls
-/// (`f64 * LengthUnit`, `LengthUnit * f64`) — mirrored on
-/// [`AngleUnit`] by [`crate::fmt_angle`], [`crate::Angle::in_unit`] and
-/// its own two. The `Mul` pair IS the D6 typed-units boundary, and
-/// `fmt.rs`'s `parse(fmt(x, unit))` pin makes the formatter's suffix
-/// parser input, so a symbol paired with a foreign factor would be a
-/// wrong VALUE reaching an `Expr` and a document — not a display
-/// string. Issue #669 has the executed reproductions.
+/// (`f64 * LengthUnit` and `LengthUnit * f64`, the two spellings of one
+/// multiply); [`AngleUnit`] mirrors all four. The `Mul` impls ARE the
+/// D6 typed-units boundary, and `fmt.rs`'s `parse(fmt(x, unit))` pin
+/// makes the formatter's suffix parser input, so a symbol paired with a
+/// foreign factor would be a wrong VALUE reaching an `Expr` and a
+/// document — not a display string. Issue #669 has the executed
+/// reproductions.
 ///
 /// The seal is a claim about what COMPILES, so it is pinned by rows
-/// that must fail to compile, each with the legal twin that differs
-/// from it by exactly the illegal step.
+/// that must fail to compile — and each pins a PRIVACY refusal, so that
+/// opening the field reddens it. A row that named a field this type
+/// does not have would fail forever, however open the seal became, and
+/// is worth nothing.
 ///
-/// A symbol paired with a factor of the caller's choosing does not
-/// exist:
+/// The index cannot be supplied:
 ///
 /// ```compile_fail
-/// let bogus = quantity::LengthUnit { symbol: "mm", factor: 1.0 };
+/// let bogus = quantity::LengthUnit(0);
 /// ```
 ///
-/// Nor by struct-update out of a real unit constant — the form a seal
-/// on a constructor alone would leave open:
+/// Nor read off a real constant and re-used:
 ///
 /// ```compile_fail
-/// let bogus = quantity::LengthUnit { factor: 1.0, ..quantity::MM };
+/// let stolen = quantity::MM.0;
 /// ```
 ///
-/// Nor with another quantity's symbol, the pairing that renders as an
-/// [`crate::Angle`] literal under the round-trip pin:
+/// Nor written through:
 ///
 /// ```compile_fail
-/// let bogus = quantity::LengthUnit { symbol: "deg", factor: 1e-3 };
+/// let mut mm = quantity::MM;
+/// mm.0 = 4;
 /// ```
 ///
 /// The legal twin of all three: the type is exported, both readers
-/// exist, and the only difference is that the value comes from the
-/// table.
+/// exist, and the twin differs from each block above in exactly one
+/// respect — it never names the field.
 ///
 /// ```
 /// let mm: quantity::LengthUnit = quantity::MM;
@@ -241,113 +323,136 @@ impl UnitDef {
 /// assert_eq!(row.as_length(), Some(quantity::MM));
 /// assert_eq!(row.as_angle(), None);
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct LengthUnit(UnitDef);
+pub use view::LengthUnit;
 
-/// An angle unit — the typed view for [`crate::Angle`] construction,
-/// wrapping a row of [`UNITS`].
+/// An angle unit — the typed view for [`crate::Angle`] construction, an
+/// index into [`UNITS`].
 ///
 /// **SEALED for the reason and by the mechanism on [`LengthUnit`]**;
-/// obtain one from [`DEG`], [`RAD`], or [`UnitDef::as_angle`].
-///
-/// The pairing that would make `90.0 * deg` ninety RADIANS does not
-/// exist:
+/// obtain one from [`DEG`], [`RAD`], or [`UnitDef::as_angle`]. The same
+/// three privacy refusals pin it, so the two types stay symmetric.
 ///
 /// ```compile_fail
-/// let bogus = quantity::AngleUnit { symbol: "deg", factor: 1.0 };
+/// let bogus = quantity::AngleUnit(4);
 /// ```
 ///
-/// Its legal twin:
+/// ```compile_fail
+/// let stolen = quantity::DEG.0;
+/// ```
+///
+/// ```compile_fail
+/// let mut deg = quantity::DEG;
+/// deg.0 = 5;
+/// ```
+///
+/// Their legal twin:
 ///
 /// ```
 /// let deg: quantity::AngleUnit = quantity::DEG;
 /// assert_eq!(deg.symbol(), "deg");
 /// assert!(((90.0 * deg).radians() - core::f64::consts::FRAC_PI_2).abs() < 1e-15);
+/// let row = quantity::unit_by_symbol("deg").expect("deg is a table row");
+/// assert_eq!(row.as_angle(), Some(quantity::DEG));
+/// assert_eq!(row.as_length(), None);
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct AngleUnit(UnitDef);
+pub use view::AngleUnit;
 
-impl LengthUnit {
-    /// The surface symbol (`"mm"`), as displayed and as parsed back.
-    pub const fn symbol(self) -> &'static str {
-        self.0.symbol
+/// The typed views live behind a private module boundary, so the mints
+/// below are the only code ANYWHERE — inside this file included — that
+/// can build one. That is what makes "a `LengthUnit` is a `Length` row
+/// of [`UNITS`]" a compiler-enforced invariant rather than a convention
+/// this file keeps: a hand-written `LengthUnit(4)` does not compile
+/// here either.
+mod view {
+    use super::{UNITS, UnitDef, UnitQuantity, row_index};
+
+    /// See [`super::LengthUnit`].
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    pub struct LengthUnit(u8);
+
+    /// See [`super::AngleUnit`].
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    pub struct AngleUnit(u8);
+
+    impl LengthUnit {
+        /// The length view of the [`UNITS`] row named `symbol` — the
+        /// ONE mint. Both refusals are const-evaluated at every
+        /// caller: a symbol the table does not have and a row of the
+        /// wrong quantity are compile errors, so neither a seventh
+        /// unit nor a mislabelled one can be written.
+        pub(super) const fn of_row(symbol: &str) -> Self {
+            let i = row_index(symbol);
+            assert!(
+                matches!(UNITS[i as usize].quantity(), UnitQuantity::Length),
+                "a LengthUnit can only view a Length row of UNITS"
+            );
+            Self(i)
+        }
+
+        /// The surface symbol (`"mm"`), as displayed and as parsed back.
+        pub const fn symbol(self) -> &'static str {
+            self.def().symbol()
+        }
+
+        /// Meters per one of this unit.
+        pub const fn factor(self) -> f64 {
+            self.def().factor()
+        }
+
+        /// The table row this view indexes — the inverse of
+        /// [`UnitDef::as_length`], and total, because the view IS an
+        /// index. `pub(crate)` because nothing outside the crate needs
+        /// it, not because the seal depends on it.
+        pub(crate) const fn def(self) -> UnitDef {
+            UNITS[self.0 as usize]
+        }
     }
 
-    /// Meters per one of this unit.
-    pub const fn factor(self) -> f64 {
-        self.0.factor
+    impl AngleUnit {
+        /// The angle mirror of [`LengthUnit::of_row`].
+        pub(super) const fn of_row(symbol: &str) -> Self {
+            let i = row_index(symbol);
+            assert!(
+                matches!(UNITS[i as usize].quantity(), UnitQuantity::Angle),
+                "an AngleUnit can only view an Angle row of UNITS"
+            );
+            Self(i)
+        }
+
+        /// The surface symbol (`"deg"`), as displayed and as parsed back.
+        pub const fn symbol(self) -> &'static str {
+            self.def().symbol()
+        }
+
+        /// Radians per one of this unit.
+        pub const fn factor(self) -> f64 {
+            self.def().factor()
+        }
+
+        /// The table row this view indexes — see [`LengthUnit::def`].
+        pub(crate) const fn def(self) -> UnitDef {
+            UNITS[self.0 as usize]
+        }
     }
-
-    /// This unit as a table row — the inverse of
-    /// [`UnitDef::as_length`], and total, because the view IS a row.
-    /// `pub(crate)` because nothing outside the crate needs it, not
-    /// because the seal depends on it: since #669 a `LengthUnit` can
-    /// only be a table row, so this cannot mint anything
-    /// [`unit_by_symbol`] would not also hand out.
-    pub(crate) const fn def(self) -> UnitDef {
-        self.0
-    }
-}
-
-impl AngleUnit {
-    /// The surface symbol (`"deg"`), as displayed and as parsed back.
-    pub const fn symbol(self) -> &'static str {
-        self.0.symbol
-    }
-
-    /// Radians per one of this unit.
-    pub const fn factor(self) -> f64 {
-        self.0.factor
-    }
-
-    /// This unit as a table row — see [`LengthUnit::def`].
-    pub(crate) const fn def(self) -> UnitDef {
-        self.0
-    }
-}
-
-/// The one place a length row is written down; private, so the six
-/// constants below are the only length units that exist.
-const fn length(symbol: &'static str, factor: f64) -> LengthUnit {
-    LengthUnit(UnitDef {
-        symbol,
-        quantity: UnitQuantity::Length,
-        factor,
-    })
-}
-
-/// The angle mirror of [`length`].
-const fn angle(symbol: &'static str, factor: f64) -> AngleUnit {
-    AngleUnit(UnitDef {
-        symbol,
-        quantity: UnitQuantity::Angle,
-        factor,
-    })
 }
 
 /// Millimeter: a `MILLI`-prefixed metre.
-pub const MM: LengthUnit = length("mm", MILLI);
+pub const MM: LengthUnit = LengthUnit::of_row("mm");
 
 /// Centimeter: a `CENTI`-prefixed metre.
-pub const CM: LengthUnit = length("cm", CENTI);
+pub const CM: LengthUnit = LengthUnit::of_row("cm");
 
 /// Meter — the canonical length unit, factor exactly 1.0.
-pub const M: LengthUnit = length("m", 1.0);
+pub const M: LengthUnit = LengthUnit::of_row("m");
 
-/// International inch: EXACTLY 25.4 mm (module docs) — the factor is
-/// the correctly-rounded f64 of the exact decimal 0.0254.
-pub const IN: LengthUnit = length("in", 0.0254);
+/// International inch: EXACTLY 25.4 mm (module docs).
+pub const IN: LengthUnit = LengthUnit::of_row("in");
 
 /// Degree: π/180 radians — inexact by nature (module docs).
-pub const DEG: AngleUnit = angle("deg", core::f64::consts::PI / 180.0);
+pub const DEG: AngleUnit = AngleUnit::of_row("deg");
 
 /// Radian — the canonical angle unit, factor exactly 1.0.
-pub const RAD: AngleUnit = angle("rad", 1.0);
-
-/// The whole closed unit table, as data — the expression text parser's
-/// suffix vocabulary and the formatter's display vocabulary are both
-/// exactly this list.
-pub const UNITS: [UnitDef; 6] = [MM.def(), CM.def(), M.def(), IN.def(), DEG.def(), RAD.def()];
+pub const RAD: AngleUnit = AngleUnit::of_row("rad");
 
 /// The table row for a surface symbol, or `None` when the symbol is
 /// not one of the six.

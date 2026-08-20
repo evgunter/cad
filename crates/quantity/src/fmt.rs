@@ -53,12 +53,12 @@ pub enum FmtQuantityError {
 /// the text parses back to `meters`' exact bits).
 ///
 /// `unit` is not checked here and does not need to be: a
-/// [`crate::LengthUnit`] IS a row of the unit table (the seal on
-/// [`crate::UnitDef`]), so its symbol and its factor are the table's
-/// pairing and the rendered suffix names the factor that was applied.
-/// That is what makes this module's `parse(fmt(x, unit))` pin a
-/// statement about the whole surface rather than about well-behaved
-/// callers.
+/// [`crate::LengthUnit`] is an INDEX into [`crate::UNITS`] (the seal,
+/// whose narrative lives on [`crate::UnitDef`]), so its symbol and its
+/// factor are one row's and the rendered suffix names the factor that
+/// was applied. That is what makes this module's `parse(fmt(x, unit))`
+/// pin a statement about the whole surface rather than about
+/// well-behaved callers.
 ///
 /// # Errors
 ///
