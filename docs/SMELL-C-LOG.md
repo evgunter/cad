@@ -779,7 +779,7 @@ cannot know who else is in it.
 | **C-e** | H13 — `sweep_body`'s helix orientation coverage | **#779** | **MERGED** `db241875` — verified independently on `main`: `orient.rs` 805 lines, rows **C20** and **C25** both present, **C1 gone from §D**, and the false `0.0635` sentence replaced by the measured table at `orient.rs:584-592` |
 | **C-i** | H15 — #635's unclassified siblings (**23 rows**, not the three the finding names) | **#775** | **MERGED** `3fa135fa` |
 | **C-q** | C10 — `geom_core::k_stats`, S30's class one crate over | **#801** | complete, **CI green on `9fb929d2`** (full matrix, TIER=all); adversarial + style reviews dispatched. Answer to C10 is **no, with the compiler as witness** (C-R22). Row **C22 released unused** — the lane declined to mint a row to have minted one. |
-| **C-j** | S29 — the mesh sizing vocabulary (mechanical half) | **#803** | **MERGED** `d6b5ae01` — **before its style review, which is my dispatch gap, not the lane's**: the brief said a style review would happen and never said it was a merge gate. Post-hoc style review dispatched; its output is a follow-up PR. Row C23 landed. Policy half is a plan, unimplemented, waiting on Evan (C-R2). |
+| **C-j** | S29 — the mesh sizing vocabulary (mechanical half) | **#803** + follow-up **#816** | **MERGED** `d6b5ae01`, style review **NOT CLEARED** post-hoc; #816 carries the prose sweep #803 never ran, `pub mod chords` → private, three module-doc exactness fixes, the `torus_grid_step` claim **verified correct and now guarded**, two mutation-checked tests, and the §S29 record corrections. Rows **C22** and **C26** assigned to it. — **before its style review, which is my dispatch gap, not the lane's**: the brief said a style review would happen and never said it was a merge gate. Post-hoc style review dispatched; its output is a follow-up PR. Row C23 landed. Policy half is a plan, unimplemented, waiting on Evan (C-R2). |
 | **C-g** | S32 — `Surface`'s one-partial-per-call API and SSI's shadow enum | — | dispatched **plan-first** (C-R19 tier 2); **adversarial** + style; row **C24** reserved |
 
 **Three reservations, and what they are reservations against.** C22/C23/C24
@@ -2141,6 +2141,39 @@ the script records that both directions were tried and what each returned. An
 oracle that tested one direction and read as universal is the same defect as a
 sweep whose blind spot went unstated — and this track already has a rule for
 that, one level over.
+
+### The recording convention has a hazard, and #803 walked into it
+
+**The convention** (Evan, 2026-08-20): a landing unit replaces the finding's
+original problem statement with the record of what was done, because version
+control keeps the original. **The hazard, which nobody had named:** the
+replacement is then **the only in-tree account of a document it may be getting
+wrong**, and the thing it is getting wrong is no longer beside it to check
+against.
+
+#803 hit it exactly. Its §S29 replacement listed `NurbsCellGrid::row_bound` and
+`trimmed::uniform_candidates` as *"unnamed by the finding"*. **Both are named
+verbatim in the original**, along with a third, `per_cell_candidates`, dropped
+entirely. Four entry points were genuinely unnamed, not seven — the correction's
+*direction* stood and its *size* was overstated, which is this session's most
+repeated shape, now committed against a text that had just been deleted.
+
+*Why this is worse than an ordinary miscount.* An overstated claim about live
+code gets falsified by the next reader of that code. An overstated claim about a
+**replaced** text has no such reader: `git show <sha>^1:` is the only witness, and
+nobody runs it unless already suspicious. The convention is right — inline
+originals rot and duplicate — but it **moves the burden of accuracy onto the
+replacing sentence entirely**, and that burden was not stated anywhere.
+
+**Rule taken:** a replacement that characterises the original — *"the finding
+said N"*, *"unnamed by the finding"*, *"the finding claimed X"* — is **quoting a
+document it is deleting**, and must be checked against `^1` before it lands, not
+from memory of having read it. Characterising is the risky verb; simply recording
+what was done carries no such exposure.
+
+*Found by the post-hoc style lane*, which had to read the pre-PR tree anyway to
+do its job — which is also why a review that runs **after** the merge is not
+worthless: it is the only reader positioned to catch this class at all.
 
 ### Reviewers age out of their own tree, twice now — and it is not their error
 
