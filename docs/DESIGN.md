@@ -1509,9 +1509,7 @@ precursor of the error-propagation feature.
   *(First useful parts.)*
 - **M4** — Parametric model layer: parameter vector → feature DAG →
   solid; provenance-based naming; replay. STEP export. *(Complete
-  2026-07-27. The shipped-unit list and the fork-outcome record
-  F1–F8 are recorded in `docs/archive/M4-LOG.md` (appendix; relocated from
-  this doc) and `docs/archive/M4-EXIT-WALK.md`.)* Standing design outcome
+  2026-07-27.)* Standing design outcome
   stated here because it still binds: **production bit-identity
   coincidence checking is RETIRED** (Evan, #53; executed M4 PR 5,
   #102). The ratified mechanism is NAMING-DESIGN N6 recipe-source
@@ -1588,17 +1586,6 @@ precursor of the error-propagation feature.
 - **Assemblies** — Band 3, designed as `docs/ASSEMBLY-DESIGN.md`
   and RUNNING as its own program (`docs/ASM-PLAN.md` /
   `docs/ASM-LOG.md`), concurrently with the above.
-
-### M4 fork outcomes (F1–F8)
-
-Resolved and ratified at the 8c exit sweep (2026-07-27). The
-distilled outcome record — each fork: decision, landing site,
-notable deviations — was relocated to `docs/archive/M4-LOG.md` (appendix,
-2026-08-05); the full trail is M4-LOG/M4-PLAN (#80). Still-live
-outcomes are stated where they bind: the dimension lattice and node
-vocabulary in the M4 roadmap entry and D8, persistence schema rules
-in D6.3/F3's clean-break record, the STEP posture in D7 and the
-crate table.
 
 ## Beyond the kernel: the usability gap
 
