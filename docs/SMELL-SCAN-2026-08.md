@@ -4841,9 +4841,13 @@ and `demos` — an instrument shaped differently from the finding's list.
 **What #803 did.** One module, `crate::sizing`, owns the vocabulary and
 its module doc fixes one word per quantity: a **target** (δ_s — one of
 them, `sizing_target(δ)`, carried by `Tol`, which moved out of `curved`);
-a **step** (an `f64` parameter increment, always `*_step`); a **count**
-(a `usize` division count, always `*_count`, always `ceil_count(span,
-step)` or a floor applied to one). Under that rule:
+a **step** (an `f64` parameter increment); a **count** (a `usize`
+division count, always `ceil_count(span, step)` or a rule applied to
+one). The doc states the enforced rule as one sentence — *"step" names
+an `f64` increment and nothing else; a `usize` count is never called a
+step, and neither is a sample count* — rather than as a suffix
+convention, because a suffix convention would have been false at
+`pole_columns` and `cap_angular` the moment it was written. Under it:
 `sagitta_angle` → `sagitta_step` (it was a step named "angle");
 `curved::grid_steps` → `grid_counts` (it returned counts, and shared its
 name with `NurbsFaceBound::grid_steps`, which returns steps — a collision
@@ -4863,7 +4867,14 @@ source, was rewritten as the invariant.
 
 **Proof, and its exact limits.** No meshing decision moved: every
 arithmetic expression is preserved operation-for-operation. Two oracles,
-base (`origin/main@1a94204d`) vs head, separate target dirs. (1)
+base vs head as worktrees, separate target dirs. **Naming the trees:**
+oracle 1 was run at `1a94204d` vs `2e9206a1` (whose difference is exactly
+this PR's code) and **re-derived** at `90b5e178` (`main` after an
+unrelated `crates/sweep` landing) vs this PR's tip; both identical, and
+the re-derivation also shows `main`'s own output over these rows did not
+move between those two `main` commits. Oracle 2 ran once, at `1a94204d`
+vs `2e9206a1`; the only `crates/mesh`/`tools` delta from there to the tip
+is comments, checked mechanically. (1)
 f64-bitwise `dump()` hashes — positions' `to_bits`, triangle indices,
 boundary polylines — over 17 bodies × 8 deltas = **136 rows, all
 identical**, including the trimmed lane's split-cylinder halves and two
