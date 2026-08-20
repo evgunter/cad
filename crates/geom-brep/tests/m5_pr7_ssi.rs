@@ -1650,9 +1650,12 @@ fn an_unseeded_chart_run_refuses_typed_rather_than_receipting_an_unprovable_doma
 //     units) — but the naive road in does not get there: with
 //     `floor_scale` at 0, 1e-12 and 1e-9 both fixtures' accounting
 //     passes still terminate `Ok`, because exclusion and the banked
-//     tubes between them resolve every cell above any floor. A fixture
-//     that leaves a region neither excluded nor accounted at every
-//     width is a research question, not a row.
+//     tubes between them resolve every cell above any floor. What is
+//     needed is a fixture leaving a region neither excluded nor
+//     accounted at every width — a new fixture, not a new assertion.
+//     Scheduled as §D row C18 in `docs/SMELL-SCAN-2026-08.md`, which
+//     carries this negative result so the next taker does not repeat
+//     it.
 //   - the chart-speed guard itself. Both of its arms are unreachable
 //     as written, and the hole beside them is a LIVE source defect,
 //     open as issue #762 — see
