@@ -12782,6 +12782,24 @@ remedy**, because the re-run competes in the same concurrency group as every
 subsequent push. An orchestrator trying to close this hole by hand is racing the
 mechanism that opened it.
 
+**A remedy that does work, found by trying the obvious one first.** A full
+`gh run rerun` re-queues **every** job, so it occupies the concurrency group for
+the whole matrix duration and is itself easy to evict — attempt 2 was cancelled
+that way. **`rerun-failed-jobs` re-queues only what did not already succeed**, so
+its window is a fraction as wide. Attempt 3 of `32421453391`, issued that way,
+completed **36 success / 0 failed / 0 cancelled** — a complete verdict for F6's
+merge commit, obtained without a push. **The smaller the re-run, the smaller the
+target it presents to the next push.**
+
+**And the capability is per session, not per repo.** A parallel orchestrator
+recorded that *"nobody in this session can trigger or re-run CI — only a push
+can"*, having hit `403 Resource not accessible by integration` on both
+endpoints, and published a rule telling lanes not to escalate re-runs. Both
+endpoints work from Track F's session; `gh run view --json attempt` reads **3**
+on the run above. **Re-run capability must be tested per session, never assumed
+either way** — and a rule built on an untested capability sends lanes to a human
+for something an orchestrator can do in one call.
+
 **What is NOT claimed.** No defect is known to have reached `main` this way; the
 frequency is unmeasured; and whether the concurrency setting is right for `main`
 at all is a decision, not a defect — `cancel-in-progress` on a *branch* is
