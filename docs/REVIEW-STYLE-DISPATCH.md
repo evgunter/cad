@@ -24,16 +24,36 @@ confidence bar, actively discourages.
 
 ---
 
-## 2. Calibration, and what this lane must not become
+## 2. Two shapes worth naming in the emphasis
 
-**Calibration.** Expect findings counts to rise, and the docs column to widen
-downward. Per Protocol v5 that is the instrument changing, not implementation
-quality. A style lane producing nothing on most PRs is under-calibrated, not
-clean — though that expectation is inferred from the scan's hit rate on merged
-code, not measured on single diffs, so revisit it after a few rows.
+**The fix reproducing the defect it closes.** A unit that unifies duplicates can
+mint one; a unit that adds a guard can leave it failing open.
 
-**What this lane must not become.** A second amnesty channel. §C2/§C7 found
-that disclosure currently functions as immunity — a disclosed deviation scores
-as a *positive* on the "silent devs" column with no counter-metric asking
-whether it was acceptable. The reviewer brief's Q6 exists to close that; do not let a `## Style` section
-become the place where known problems go to be recorded and forgotten.
+**A disclosed blind spot read as a discharge.** A lane's own "my pattern could
+not match X" is a work order, not an absolution.
+
+Both are invisible to the falsification lane, which asks whether the claims
+hold rather than whether the shape is right.
+
+---
+
+## 3. The dispatcher's own exposure
+
+**Reviewers correcting the dispatcher is a working lane, not a malfunction** —
+say so in the brief.
+
+**The rule against enshrining an unchecked causal story binds the dispatcher
+hardest** (`memories/review-and-dependency-policy.md`). A lane's unverified
+observation, repeated back to it as an instruction, arrives carrying the
+dispatcher's authority and is one commit from a ratified doc. Check a lane's
+claim before you build a brief on it.
+
+---
+
+## 4. What this lane must not become
+
+A second amnesty channel. §C2/§C7 found that disclosure currently functions as
+immunity — a disclosed deviation scores as a *positive* on the "silent devs"
+column with no counter-metric asking whether it was acceptable. The reviewer
+brief's Q6 exists to close that; do not let a `## Style` section become the
+place where known problems go to be recorded and forgotten.

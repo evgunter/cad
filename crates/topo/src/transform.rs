@@ -126,6 +126,10 @@ fn map_vec<T: Real>(map: &Affine3<T>, v: Vec3<T>) -> Vec3<T> {
 fn check_rigid<T: Decide>(map: &Affine3<T>, band: Band) -> Result<(), TransformError> {
     let l = &map.linear;
     let one = T::one();
+    // A table of K row names: they reach the funnel through the loop
+    // variable below, so no grep for a literal at the decide site finds
+    // them. A row added here is a roster change (`docs/K-REPORT.md`,
+    // "The inventory method, restated").
     let checks: [(&'static str, T); 7] = [
         ("transform_rigid_col0_unit", l.c0.dot(l.c0) - one),
         ("transform_rigid_col1_unit", l.c1.dot(l.c1) - one),

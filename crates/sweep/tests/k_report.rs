@@ -14,9 +14,18 @@
 //! `sweep` sets `autotests = false` and aggregates every suite into one
 //! `tests/all.rs`, so there is no `--test k_report` target; the suite is
 //! selected by module prefix. `--features probe` is what compiles this
-//! file — it is `#![cfg(feature = "probe")]`, and **no CI lane builds
-//! sweep's test targets under `probe`**, so nothing here is type-checked
-//! by CI. Running it is the only check it has.
+//! file — it is `#![cfg(feature = "probe")]`.
+//!
+//! **CI both type-checks and runs this harness**, on every building
+//! merge. It is compiled by the `k-lint` job's step named
+//! *"type-check every probe-gated test target"* — a name the census gate
+//! greps for, so this sentence cannot go quietly false — and
+//! `scripts/k_probe_sweep.sh` executes exactly the invocation above
+//! at all three ε, dumping to `<outdir>/m2/`. That dump rides BESIDE the
+//! CSV k-lint gates, not inside it — the M2 shapes are not part of the
+//! distribution those thresholds were argued over. The command block
+//! above is therefore the same command CI runs, and it must stay that
+//! way: a runbook nothing executes cannot tell you it has gone stale.
 //!
 //! Without `CAD_K_REPORT_OUT` the CSV goes to stdout (lines prefixed
 //! by nothing — pipe as needed). Columns:

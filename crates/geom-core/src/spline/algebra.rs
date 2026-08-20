@@ -275,6 +275,13 @@ pub fn insert_knot_plan(
 /// One insertion pass — preconditions established by the callers
 /// (`u` strictly interior, multiplicity budget available, weights
 /// validated).
+///
+/// **The Boehm structure is shared with
+/// [`super::compose`]'s `insert_once_ring`; the coefficient arithmetic
+/// is deliberately not** — see that function's docs for why. In short:
+/// this one exists to emit a replayable [`CurvePlan`] over `f64`
+/// weights; that one folds `RingInterval` coefficients with an
+/// outward-rounding quotient and has no weights to form `λ` from.
 fn insert_once(kv: &KnotVector, weights: &[f64], u: f64) -> CurvePlan {
     let p = kv.degree();
     let knots = kv.knots();
@@ -559,19 +566,9 @@ fn remove_once(kv: &KnotVector, weights: &[f64], u: f64) -> Result<CurvePlan, Kn
 pub fn elevate_plan(kv: &KnotVector, weights: &[f64]) -> Result<Vec<CurvePlan>, KnotAlgebraError> {
     check_weights(kv, weights)?;
     let p = kv.degree();
-    let knots = kv.knots();
-    // Distinct interior values with multiplicities (structure scan).
-    let mut interior: Vec<(f64, usize)> = Vec::new();
-    let mut idx = p + 1;
-    while idx < knots.len() - p - 1 {
-        let v = knots[idx];
-        let mut m = 1;
-        while idx + m < knots.len() - p - 1 && knots[idx + m] == v {
-            m += 1;
-        }
-        interior.push((v, m));
-        idx += m;
-    }
+    // Collected, not iterated: `cur_kv` below is rebuilt inside the
+    // loop, so the list must outlive the borrow of `kv`.
+    let interior: Vec<(f64, usize)> = kv.interior_knots().collect();
 
     let mut plans: Vec<CurvePlan> = Vec::new();
     let mut cur_kv = kv.clone();

@@ -753,9 +753,9 @@ impl<T: Decide> Body<T> {
     /// (`StaleKey`); the dying face is ring-free
     /// ([`EulerOpError::FaceHasRings`]); its shell resolves
     /// (`StaleKey`); the dying loop's cycle closes
-    /// ([`EulerOpError::LoopCycleBroken`]); the mate's `prev`/`next`
-    /// resolve (`StaleKey`); both endpoint vertices resolve
-    /// (`StaleKey`).
+    /// ([`EulerOpError::LoopCycleBroken`]); `prev(he)` and the mate's
+    /// `prev`/`next` resolve (`StaleKey` — `next(he)` is proven by the
+    /// cycle walk); both endpoint vertices resolve (`StaleKey`).
     ///
     /// # Errors
     ///
@@ -814,22 +814,21 @@ impl<T: Decide> Body<T> {
         }
         // The dying loop's full cycle (bounded, D9): everything after he
         // is the remnant that moves to the mate's loop. The walk steps
-        // `next`, so it proves `b = next(he)` live and nothing else:
-        // `a = prev(he)` is live only by prev/next being mutual
-        // inverses, which is a tier-1 fact, not one this call
-        // establishes. `a` is therefore the one splice key here that no
-        // check in this operator proves; every sibling proves its own
-        // (`kev` below takes all four). It reaches only
-        // [`Body::link_half_edges`], which still discards — so the gap
-        // is garbage-out, not a panic, and closing it is the other half
-        // of what makes that helper convertible.
+        // `next` and resolves every member it returns, so it proves
+        // `b = next(he)` live and nothing else — `prev/next` being
+        // mutual inverses is a tier-1 fact, not one this call
+        // establishes.
         let cycle = self
             .loop_cycle(he)
             .ok_or(EulerOpError::LoopCycleBroken { r#loop: l1 })?;
         let remnant: Vec<HalfEdgeKey> = cycle[1..].to_vec();
+        // The unsplice writes through all four neighbor links; `b` is
+        // the one the walk above already proved, so validate the other
+        // three now so the mutation below cannot fail midway
+        // (atomicity).
         let (a, b) = (he_data.prev, he_data.next);
         let (c, d) = (m_data.prev, m_data.next);
-        for link in [c, d] {
+        for link in [a, c, d] {
             if !self.half_edges.contains_key(link) {
                 return Err(EulerOpError::StaleKey {
                     key: EntityId::HalfEdge(link),
