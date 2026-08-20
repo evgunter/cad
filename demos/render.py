@@ -86,20 +86,25 @@ def cull_backfaces(verts, elev, azim):
 
 
 def draw(ax, scene, stl_dir):
+    """Draw every body of one scene and frame the axes around them.
+
+    Every body in a manifest has an STL: both generators write the stem
+    unconditionally and fail rather than omit it, and a scene with no
+    bodies is never emitted at all. So there is no skip path here and
+    no empty-scene path below — and `render_freecad.py:159` reads
+    `stl` unguarded for the same reason.
+
+    That is a claim about `stl` only. `step` genuinely differs between
+    the two producers — the tour always writes a stem, the wild
+    generator always writes null — but this renderer never reads it.
+    (What the manifest FORMAT promises is undefined and is smell-scan
+    S114(c); this is what its two producers do.)
+    """
     view = scene["view"]
     elev, azim, up = view["elev"], view["azim"], view["up"]
     lo = np.full(3, np.inf)
     hi = np.full(3, -np.inf)
-    drawn = 0
     for body in scene["bodies"]:
-        if body["stl"] is None:
-            # A #111-pinned body: the STL writer refused its defective
-            # tessellation typed; only the FreeCAD/STEP lane can draw
-            # it. Contributes nothing here (including to the axis
-            # bounds below).
-            print(f"WARNING: {scene['name']}: body has no STL (#111 pin) — skipped")
-            continue
-        drawn += 1
         verts = orient(read_binary_stl(stl_dir / body["stl"]), up)
         # Transparency (a scene property, carried in the manifest):
         # backfaces are what a see-through body is FOR, so a
@@ -124,11 +129,6 @@ def draw(ax, scene, stl_dir):
         )
         lo = np.minimum(lo, verts.reshape(-1, 3).min(axis=0))
         hi = np.maximum(hi, verts.reshape(-1, 3).max(axis=0))
-    if drawn == 0:
-        # Nothing rendered (every body #111-pinned): lo/hi are still
-        # ±inf, so skip the axis math and tell the caller not to save
-        # a blank panel.
-        return False
     c, half = (lo + hi) / 2, (hi - lo).max() / 2 * 1.02
     ax.set_xlim(c[0] - half, c[0] + half)
     ax.set_ylim(c[1] - half, c[1] + half)
@@ -137,7 +137,6 @@ def draw(ax, scene, stl_dir):
     ax.view_init(elev, azim)
     ax.set_proj_type("ortho")
     ax.set_axis_off()
-    return True
 
 
 def main():
@@ -156,10 +155,7 @@ def main():
     for scene in scenes:
         fig = plt.figure(figsize=(5, 5), dpi=130)
         ax = fig.add_subplot(projection="3d")
-        if not draw(ax, scene, stl_dir):
-            plt.close(fig)
-            print(f"skipped {scene['name']} (no STL bodies — #111 pin)")
-            continue
+        draw(ax, scene, stl_dir)
         fig.tight_layout(pad=0.1)
         fig.savefig(
             out_dir / f"{scene['name']}.png", facecolor="white", metadata=metadata

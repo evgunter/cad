@@ -167,7 +167,8 @@ pub struct PairRoute {
 
 impl PairRoute {
     /// The typed-refusal sentence for an unimplemented arm — names the
-    /// routing per C5 ("this pair routes to …, unimplemented until …").
+    /// routing per C5 ("this pair routes to …") and what that arm is
+    /// still missing.
     pub fn refusal(&self, a: SurfaceKind, b: SurfaceKind) -> String {
         format!(
             "{}×{} routes to {} — {}",
@@ -218,7 +219,8 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
             note: "exact-degenerate cases only (apex-through lines/tangent/point, \
                    axis-normal Circle); generic tilt routes to the general rung \
                    PERMANENTLY (parabola and hyperbola are outside the conic \
-                   inventory by decision, not by omission); unimplemented until SSI",
+                   inventory by decision, not by omission) — a routing that no \
+                   general-rung arm retires",
         },
         // ---- Rung 1, implemented (M5 S13): the closed-form Circle —
         // never a fitted chord (the die-pips premise). ----
@@ -244,10 +246,12 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
             note: "equal radii (structural/declared ONLY — never inferred from \
                    values) with intersecting axes split into two Ellipses \
                    (cylinder_cylinder_section); unequal, undeclared, or skew routes \
-                   to the general rung, unimplemented until SSI",
+                   to the general rung, whose cylinder×cylinder arm has not retired \
+                   (arms retire one at a time, each with its proof)",
         },
-        // ---- Rung 3: quartic-and-worse loci; the general rung is not
-        // ready until PR 7, so these refuse typed naming the routing.
+        // ---- Rung 3: quartic-and-worse loci. The general rung is
+        // implemented, but it retires per arm (C12.1), so these still
+        // refuse typed, naming the routing AND what each one lacks.
         (Plane, Torus) | (Torus, Plane) => PairRoute {
             rung: Rung::General,
             implemented: false,
@@ -399,9 +403,10 @@ pub enum SectionError {
     /// or poisoned (F6): the operand pair is ill-conditioned at this ε.
     Escalated(Indeterminate),
     /// The configuration routes to the general rung — a documented arm
-    /// decision (no runtime fallback exists; C5): unimplemented until
-    /// SSI (M5 PR 7), or permanently routed (plane×cone generic tilt,
-    /// R1).
+    /// decision (no runtime fallback exists; C5). The general rung is
+    /// implemented; its arms retire one at a time, so a pair reaching
+    /// here is one whose arm has not retired — or one routed there
+    /// permanently (plane×cone generic tilt, R1).
     RoutesToGeneralRung {
         /// The pair, for the message.
         pair: &'static str,
@@ -832,7 +837,7 @@ pub fn cylinder_cylinder_section<T: Decide>(
             pair: "cylinder×cylinder",
             why: "radius equality is not structural/declared — never inferred from \
                   values (the coincidence ladder); the undeclared pair routes to the \
-                  general rung, unimplemented until SSI",
+                  general rung, whose cylinder×cylinder arm has not retired",
         });
     }
     // 2. Verify the declaration (declared ≠ unchecked).
@@ -902,7 +907,8 @@ pub fn cylinder_cylinder_section<T: Decide>(
                     return Err(SectionError::RoutesToGeneralRung {
                         pair: "cylinder×cylinder",
                         why: "skew axes have no conic section; this configuration routes \
-                              to the general rung, unimplemented until SSI",
+                              to the general rung, whose cylinder×cylinder arm has not \
+                              retired",
                     });
                 }
             }
@@ -1071,7 +1077,8 @@ pub fn plane_cone_section<T: Decide>(
                     why: "generic tilt routes to the general rung PERMANENTLY — the \
                           conic trio is outside the closed-form inventory by \
                           decision, and only an arm that adds parabola/hyperbola \
-                          moves it; unimplemented until SSI",
+                          moves it. The general rung is implemented; this routing is \
+                          not waiting on it",
                 }),
             }
         }

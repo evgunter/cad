@@ -1265,8 +1265,9 @@ in two — partitioned **41 row 2**, **49 row 1** and **18 row 4**. Row 2
 is four variants that each name the class they refuse (chain, run-out,
 stored geometry, body), plus the corner CONFIGURATION refusals routed
 into the existing `FilletCornerUnsupported`; row 1 is
-`BodyNotIntact`/`EmptyChain`/`RepeatedEdge`, and every payload that
-names an entity is `topo::EntityId`, not a second spelling of it.
+`BodyNotIntact`/`RepeatedEdge` (and `EmptyChain`, until D27 dissolved
+it — below), and every payload that names an entity is
+`topo::EntityId`, not a second spelling of it.
 
 **The 18 is a bounded claim, and the bound is the interesting part.**
 Every key an `unreachable!` there dereferences is minted by an operator
@@ -1286,24 +1287,57 @@ classification. The open question is **S14** — a public door that can
 leave a body tier-1-invalid, and slotmap keys that resolve to *live but
 wrong* entities rather than dangling.
 
-*One state this taxonomy does not contain, found by executing it.*
-`FilletError::EmptyChain` is not reachable by input (the battery seeds
-every chain with a link) and not locally provable (the emptiness is a
-property of the verdict handed in), so it is neither row 1 nor row 4.
-It is filed under row 1 today, failing that row's own definition.
-`SMELL-SCAN-2026-08.md`'s **D27** carries it, together with the
-front-door invariants whose absence as *types* is why the surgery has
-such states at all.
+*The one state this taxonomy did not contain — RETRACTED by D27 (PR
+#768), because the state is gone.* `FilletError::EmptyChain` was not
+reachable by input (the battery seeds every chain with a link) and not
+locally provable (the emptiness was a property of the verdict handed
+in), so it was neither row 1 nor row 4, and it sat under row 1 failing
+that row's own definition. It is no longer representable: `Chain` holds
+its first link in its own private field, `walk_chains` mints it from
+the seed link it already had, and the variant is deleted. **The five
+rows stand unamended** — nothing was added to the taxonomy and nothing
+in it was reclassified. The same unit retired the front-door invariants
+the surgery was carrying as prose: `crates/sweep/src/fillet/admit.rs`
+mints one value per admitted clause, and the helpers that used to
+re-refuse a state their caller had already excluded now take the value
+and have no branch to write. **Nothing there became an `unreachable!`**
+— each refusal moved to the door that decides it rather than becoming a
+panic.
 
-*Still outstanding:* **discard sites elsewhere in `crates/topo`**,
-which the three-module census never counted and this addendum has
-never covered. A sweep finds **at least 14** — `split_edge`,
-`attach.rs`, `movefac.rs`, `revert.rs`, `splitting/finish.rs`,
-`boolean/combine.rs` — and that is a **floor from one spelling of the
-idiom**, not a census: successive sweeps have each found sites the
-previous pattern could not match (let-chains, field-access lookups).
-**Re-sweep rather than re-count** (`SMELL-SCAN-2026-08.md`'s **D21**,
-which carries the spellings that escaped). And, outside `crates/topo`,
+*This paragraph records what happened to one state and claims nothing
+beyond it.* Whether "can the type stop representing it?" is the
+question to ask FIRST at the next site of this shape is a ruling about
+how this addendum is applied, it bears on **S14**, and it is not
+settled here; it is open for Evan's sign-off in its own PR.
+
+*The `crates/topo` sites outside W2c's three modules are done* (D21,
+PR #773) — **the sites, not the class**, and the difference is the
+part worth ratifying. The census re-derived to **17** under the stated
+reading *a lookup whose `None` is discarded at a write in a mutation
+phase*, and it found a **seventh** file the earlier floor of 14 did
+not name: `merge_faces.rs`, whose two sites spelled the discard
+`else { return Ok(()) }` under a comment that already said
+*unreachable*. The disposition is **16 row 4 + 1 row 0** — the odd one
+being `revert`'s edge loop, which carried no per-key value and so was
+rewritten to walk the arena directly and look nothing up, the shape
+this taxonomy should always prefer to a converted arm. Every converted
+key is minted in the same call or proven live by a check in the same
+call, **never** by tier-1 validity, and every arm was demonstrated
+live by poisoning its key and watching it fire with its own message.
+
+*Three things that closure does NOT cover, stated so no reader infers
+them.* **(a)** One `crates/topo` site cannot meet the standard and is
+deliberately unconverted: `merge_coplanar_faces`' ring re-homing reads
+its face key out of a loop's back-pointer, so its disposition is a
+typed error rather than a panic — `SMELL-SCAN-2026-08.md`'s **D88**,
+and the named exception to the enumeration in `topo::euler`'s module
+docs. **(b)** The **class is not confined to `crates/topo`**, and the
+crate clause is a scope of work rather than a claim about the class:
+verified instances live in `step-import`, `bvh` and `profile`, one of
+them five lines from a panicking `Index` on the same key — **D94**.
+**(c)** `boolean/combine.rs` answers one proof two ways — six
+minted-in-call keys refuse `row 1` where two identical ones now
+announce `row 4` — which is **D95**. And, outside `crates/topo`,
 idiom 2's `MissingEntity` router defects.
 
 **Replay with kills (M1, pinned in PRs #20/#23):** the determinism

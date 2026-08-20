@@ -311,9 +311,12 @@ pub enum ProgramRefusal {
     Validate(profile::ProfileError),
 }
 
-// LIB-DOORS F6 (reopened on review): a human-readable rendering,
-// problem-stating per arm; the geometry class already carries the
-// driver's rendered prose and passes it through.
+// LIB-DOORS F6 (reopened on review): a human-readable rendering. Each
+// arm names the failing stage and then forwards its payload's own
+// prose — the geometry class the driver's rendered refusal, the
+// validate class `ProfileError`'s `Display`. `Resolve` states its
+// problem instead because `EvalError` has no `Display` to forward;
+// `Transition` holds a lattice state rather than a refusal.
 impl core::fmt::Display for ProgramRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -329,7 +332,7 @@ impl core::fmt::Display for ProgramRefusal {
                 step,
                 rendered,
             } => write!(f, "loop {loop_} step {step}: {rendered}"),
-            Self::Validate(_) => f.write_str("the replayed loops failed profile validation"),
+            Self::Validate(e) => write!(f, "the replayed loops failed profile validation: {e}"),
         }
     }
 }

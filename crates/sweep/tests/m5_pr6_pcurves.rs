@@ -500,8 +500,18 @@ fn a_seam_closed_tube_split_is_typed_either_way() {
         Err(e) => {
             // A typed refusal is an acceptable outcome for a frontier
             // configuration; a panic or a silently wrong body is not.
+            // `split`'s signature is what makes the refusal typed, so
+            // what is left to check at runtime is that it reaches a
+            // human as prose: every arm of `SplitError` names the split
+            // — three through their own stage (`split_reduce`, `split
+            // join`, `split finish`), one through the door's name —
+            // and none of them renders a payload's `Debug`.
             let msg = format!("{e}");
-            assert!(msg.starts_with("split: "), "{msg}");
+            assert!(
+                msg.contains("split"),
+                "the refusal must name its door: {msg}"
+            );
+            assert!(!msg.contains('{'), "Debug guts leaked: {msg}");
         }
     }
 }

@@ -28,17 +28,42 @@ Two tiers, split so that the cheap one can run in kernel CI:
 
 **`cargo test`** (no features) needs **no oracle and no C toolchain** —
 unit tests, the `edges.rs` sweep (signed zeros, subnormals,
-extremum-straddling, huge arguments, poison propagation), and
-`review_fuzz_div.rs`'s exact-rational division fuzz, which needs no
-oracle at all because it compares against exact `u128` rational
-arithmetic. This is the tier the kernel's CI runs,
-so a dropped pad is caught by the same pipeline that gates the kernel.
+extremum-straddling, huge arguments, poison propagation),
+`pad_contract.rs`'s upper bound on every pad, and
+`review_fuzz_exact.rs`'s exact-rational fuzz of `÷`, `×` and `sqrt`,
+which needs no oracle at all because it compares against exact `u128`
+rational arithmetic. This is the tier the kernel's CI runs.
 
-The division fuzz draws from the tree's shared harness (`test-utils`, a
-dependency-free dev-only crate): its seed VARIES per run and is logged
-unconditionally, and its depth is one env var away — the shipped level is
-a ~63k-case smoke sweep, `CAD_FUZZ_EFFORT=280` restores the full
-17.5M-case sweep the M5 PR 1 adversarial review ran, and
+**What that tier catches, exactly.** A pad WIDENED — on any operation —
+goes red here, because `pad_contract.rs` bounds each endpoint's distance
+from the backend's own value by the derived pad. A pad DROPPED goes red
+here for `÷ × sqrt` only, where the exact-rational fuzz can compute the
+truth itself.
+
+Two families are outside that, in the same direction and for different
+reasons. **`+ −`:** their witness (TwoSum) has no validity floor to get
+wrong — its error term is representable for all finite doubles with no
+underflow proviso (`docs/derivations.md` §1 Lemma P0), so there is no
+lying-witness failure mode to fuzz — but their *containment* is
+genuinely unguarded here, and mutating `add_lo`/`add_hi` to bare
+round-to-nearest leaves this whole tier green. The u128 comparator this
+crate's fuzz is built on cannot serve them: aligning `2^1023` with
+`2^-1074` needs ~2100 bits. **The seven transcendentals:** their truth
+needs a multi-precision reference at all.
+
+Both are the oracle tier's, and it runs on **four paths** —
+`interval-transcendentals/src/`, `tests/`, `Cargo.toml`, `Cargo.lock`
+(`scripts/ci-filter.py`'s `ORACLE_PATHS`) — not on the whole directory.
+`docs/` is deliberately not among them, so a change to the derivation
+that sets `PAD_ULPS` does not by itself re-certify; changing the code it
+justifies does.
+
+The fuzz lanes draw from the tree's shared harness (`test-utils`, a
+dependency-free dev-only crate): the seed VARIES per run and is logged
+unconditionally, and depth is one env var away — the shipped level is a
+~150k-case smoke sweep across the three operations, `CAD_FUZZ_EFFORT=280`
+restores the full 17.5M-case division sweep the M5 PR 1 adversarial
+review ran (and scales the `×`/`sqrt` lanes with it), and
 `CAD_FUZZ_SEED=0x…` replays any run exactly.
 
 **`cargo test --release --features oracle-inari`** adds `certify.rs`, the
@@ -82,10 +107,17 @@ the lane is rare: pinned, a decade of firings re-checks one sample.
 
 `.github/workflows/ci.yml`'s `oracle-certify` job runs this tier whenever
 anything under `interval-transcendentals/src/`, `tests/`, `Cargo.toml` or
-`Cargo.lock` changes (`scripts/ci-filter.py`'s `ORACLE_PATHS`). "Run it by
-hand when the pads change" was a convention with no enforcement, and it
-had already failed silently: the tier did not build at all once the floor
-above was retired, and nothing noticed, because nothing ran it.
+`Cargo.lock` changes (`scripts/ci-filter.py`'s `ORACLE_PATHS` — those four
+paths, not the whole directory). "Run it by hand when the pads change" was
+a convention with no enforcement, and it had already failed silently: the
+tier did not build at all once the floor above was retired, and nothing
+noticed, because nothing ran it.
+
+The **local** gate is a different story and is not covered by that:
+`local-scripts/ci-local.sh` mirrors the cheap row and has no
+`oracle-certify` row at all, so under `gate.sh` — the merge gate when
+hosted Actions is unavailable — a dropped transcendental pad is not
+caught. Recorded as smell-scan **S127**.
 
 Case depth is one env var away — the job's `CAD_FUZZ_EFFORT` multiplies
 every count — and depth is cheap here, because the job's cost is dominated
@@ -95,6 +127,7 @@ by building GMP and MPFR from C source, not by the cases.
 
 Endpoint *values* are accurate for all finite arguments (libm does full
 Payne–Hanek reduction). Extremum/pole *localization* uses a conservative
-grid test that loses proving power for `|x| ≳ 4·10^15`: `sin`/`cos`
+grid test that loses proving power entirely for `|x| ≳ 2^52 ≈ 4·10^15`,
+and partially from about `|x| ≈ 2^32`: `sin`/`cos`
 degrade to `[-1, 1]` (sound, loose), `tan` returns the whole line with
 decoration `Trv` (loud refusal). Nothing returns a thin wrong interval.

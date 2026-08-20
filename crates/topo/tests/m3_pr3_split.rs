@@ -689,3 +689,39 @@ fn empty_sides_are_typed() {
     assert!(matches!(r.above, SplitPart::Empty));
     assert_eq!(validate_closed(body_of(&r.below)), Ok(()));
 }
+
+/// **Every arm of [`SplitError`] names the split in its message.**
+///
+/// Three stages carry the door's name inside their own (`split_reduce`,
+/// `split join`, `split finish`), so `SplitError` does not re-state it
+/// and a forwarded refusal says "split" once instead of twice.
+/// `Pcurves` is the one stage whose error is shared with callers that
+/// are not splits, so that arm supplies the name itself. A stage
+/// renamed without this in mind would silently drop the door from every
+/// message a consumer sees, which is what this pins.
+#[test]
+fn every_split_refusal_names_its_door_exactly_once() {
+    let band = geom_core::BandError::Empty {
+        zero: 1.0,
+        escalate: 0.5,
+    };
+    let cases = [
+        SplitError::Reduce(topo::splitting::SplitReduceError::Band(band)),
+        SplitError::Join(SplitJoinError::Band(band)),
+        SplitError::Finish(SplitFinishError::Band(band)),
+        SplitError::Pcurves(topo::pcurves::PcurveMintError::Band(band)),
+    ];
+    for e in cases {
+        let msg = e.to_string();
+        assert!(
+            msg.contains("split"),
+            "the refusal must name its door: {msg}"
+        );
+        assert_eq!(
+            msg.matches("split").count(),
+            1,
+            "the door is named twice: {msg}"
+        );
+        assert!(!msg.contains('{'), "Debug guts leaked: {msg}");
+    }
+}

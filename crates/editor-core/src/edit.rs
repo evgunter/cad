@@ -721,9 +721,10 @@ impl core::fmt::Display for EditError {
                 f,
                 "edit: tolerance {value:e} is not finite and strictly positive"
             ),
-            Self::MetaUnversioned { name, key, .. } => write!(
+            Self::MetaUnversioned { name, key, error } => write!(
                 f,
-                "edit: metadata {key:?} on {name:?} lacks the integer \"v\" version field"
+                "edit: metadata {key:?} on {name:?} does not carry the D7 integer \"v\" \
+                 version field: {error}"
             ),
             Self::MetaNonFinite { name, key, path } => write!(
                 f,
