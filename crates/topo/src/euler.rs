@@ -1789,20 +1789,14 @@ impl<T: Decide> Body<T> {
     }
 
     /// Resolves a vertex's point coordinates (the certification gate's
-    /// endpoints): [`EulerOpError::StaleKey`] on the vertex,
+    /// endpoints), the read-back door's walk with its unresolved
+    /// reference renamed: [`EulerOpError::StaleKey`] on the vertex,
     /// [`EulerOpError::StaleGeometry`] on the point.
     pub(crate) fn resolve_vertex_point(
         &self,
         vertex: VertexKey,
     ) -> Result<Point3<T>, EulerOpError> {
-        let vertex_data = self.get_vertex(vertex).ok_or(EulerOpError::StaleKey {
-            key: EntityId::Vertex(vertex),
-        })?;
-        self.get_point(vertex_data.point)
-            .copied()
-            .ok_or(EulerOpError::StaleGeometry {
-                key: GeomRef::Point(vertex_data.point),
-            })
+        crate::readback::vertex_point_ref(self, vertex).map_err(Into::into)
     }
 
     /// The attachment gate (D4 ¶2 at operation time): certifies an

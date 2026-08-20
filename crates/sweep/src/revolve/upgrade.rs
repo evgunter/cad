@@ -45,23 +45,14 @@ struct EdgeData<T: Real> {
     extent: T,
 }
 
-/// A vertex's point (total: stale keys surface as operator-layer typed
-/// errors).
+/// A vertex's point, with the kernel read-back door's unresolved
+/// reference renamed into the operator layer's stale-key vocabulary
+/// (total: stale keys surface as operator-layer typed errors).
 pub(super) fn vertex_point<T: Real>(
     body: &Body<T>,
     vertex: topo::VertexKey,
 ) -> Result<Point3<T>, RevolveError> {
-    let point_key = body
-        .get_vertex(vertex)
-        .ok_or(EulerOpError::StaleKey {
-            key: topo::EntityId::Vertex(vertex),
-        })?
-        .point;
-    Ok(*body
-        .get_point(point_key)
-        .ok_or(EulerOpError::StaleGeometry {
-            key: topo::GeomRef::Point(point_key),
-        })?)
+    topo::readback::vertex_point_ref(body, vertex).map_err(|what| EulerOpError::from(what).into())
 }
 
 fn edge_data<T: SpanLocate>(body: &Body<T>, edge: EdgeKey) -> Result<EdgeData<T>, RevolveError> {

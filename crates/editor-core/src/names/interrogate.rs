@@ -21,7 +21,7 @@
 //!
 //! # What comes back
 //!
-//! `sweep::readback`'s [`Pose`] — the carrier's own stored frame,
+//! `topo::readback`'s [`Pose`] — the carrier's own stored frame,
 //! copied out. The rules that module states hold verbatim here:
 //! values never verdicts (no door answers "is this face planar"),
 //! definitional re-reads carry no pad, and no convention is invented
@@ -29,8 +29,8 @@
 //! resolution and the typed refusals that go with it.
 
 use geom_core::Decide;
-use sweep::readback::{self, Pose, ReadbackError};
 use topo::Body;
+use topo::readback::{self, Pose, ReadbackError};
 
 use crate::eval::{BooleanValue, Evaluation, NodeResult, SplitSide, ValuePayload};
 use crate::names::{EntityKey, EntityKind, Entry, StableName};
