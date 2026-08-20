@@ -37,10 +37,8 @@ grinding exactly such runs).
 
 **Never enshrine a causal story you have not checked** — a lane's, a
 reviewer's, or a warning's. Fix the facts and write no account of how they came
-to be that way. **This binds the dispatcher too**: an unverified observation
-repeated back as an instruction is one commit from a ratified doc. And when you
-retract one, grep for the claim, not the sentence — a correction made where you
-first wrote it leaves every other copy standing.
+to be that way. And when you retract one, grep for the claim, not the sentence —
+a correction made where you first wrote it leaves every other copy standing.
 
 **Reviewer suites get promoted into CI.** A review charter has the
 reviewer write their OWN consumer test suite — an independent

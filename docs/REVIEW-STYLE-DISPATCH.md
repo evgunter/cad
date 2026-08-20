@@ -62,6 +62,13 @@ its docs advertise, and an instruction to publish a *ceiling* where the true
 figure was a floor. Reviewers correcting the dispatcher is a working lane, not a
 malfunction, and the dispatcher should say so in the brief.
 
+**The rule against enshrining an unchecked causal story binds the dispatcher
+hardest.** A lane's unverified observation, repeated back to it as an
+instruction, arrives carrying the dispatcher's authority and is one commit from
+a ratified doc — both of the errors above are that shape. Check a lane's claim
+before you build a brief on it, and when a review corrects one of yours, say so
+where the lane can see it.
+
 **What this lane must not become.** A second amnesty channel. §C2/§C7 found
 that disclosure currently functions as immunity — a disclosed deviation scores
 as a *positive* on the "silent devs" column with no counter-metric asking
