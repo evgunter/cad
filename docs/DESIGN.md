@@ -1307,8 +1307,9 @@ same call, **never** by tier-1 validity), and every arm was proved
 live by poisoning its key and watching it fire with the right message.
 One site could **not** meet it and is deliberately not converted:
 `merge_faces.rs`'s ring re-homing reads its face key out of a loop's
-back-pointer, so nothing in the call proves it — carried as **D61**,
-whose disposition is a typed error rather than a panic. And, outside
+back-pointer, so nothing in the call proves it, and its disposition is a
+typed error rather than a panic. It is recorded at D21's own entry in
+`SMELL-SCAN-2026-08.md` and still wants a row number. And, outside
 `crates/topo`, idiom 2's `MissingEntity` router defects.
 
 **Replay with kills (M1, pinned in PRs #20/#23):** the determinism
