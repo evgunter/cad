@@ -32,7 +32,7 @@ a hole in it. One qualifier the first paragraph's *"every raw
 `#[cfg(test)]`, never instantiated at the recording scalar, and is
 outside it.
 
-**Coverage of its own two crates, measured against main at `f87b203`**
+**Coverage of its own two crates, measured against main at `a0a6e1a5`**
 (carried explicitly, because this is a survey written into the tree it
 surveys). Applying K-REPORT's restated rule — a name is in scope if it
 reaches the `geom_core::k_stats` funnel *however it is spelled at the
@@ -75,6 +75,11 @@ The first command is a **starting set, not an answer**: a site whose
 first argument is not a literal has to be read, and a spelling not in
 the alternation is invisible to it. That residue is this table's
 standing cost, disclosed rather than discovered.
+
+*(The figures were first taken at `f87b203` and re-taken at
+`a0a6e1a5` after main moved `census.rs` and `splitting/rules.rs` under
+them; every one reproduced. A count of a tree belongs to a commit, and
+this one names both.)*
 
 Trigger and method: the `props_rim_level_group` defect (fixed in this
 unit — `crates/geom-brep/src/props/curved.rs`, the `RimLevel` enum)
@@ -353,7 +358,7 @@ tolerances and step-size control in ssi (documented structure
 parameters), `props.rs` trig pad (ε/radius, an enclosure pad, not a
 decision), test fixtures.
 
-### Uncovered names (measured at `f87b203`)
+### Uncovered names (measured at `a0a6e1a5`)
 
 Twenty-three names reach the funnel from `geom-brep` or `topo` and
 have **no row, no family cell and no mention** anywhere above. They are
