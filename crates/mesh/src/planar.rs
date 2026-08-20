@@ -60,7 +60,8 @@
 //!   consecutive point pairs (left-to-right, wrapping), normalized.
 //!   Newell orients the normal so the walk is CCW about it, and by
 //!   interior-left the outer walk is CCW about the face's OUTWARD
-//!   normal — so this is the outward normal by construction;
+//!   normal — so this is the outward normal by construction (the
+//!   section below says on what);
 //! * **u** — toward the walk point farthest from the anchor (the
 //!   first such point in walk order on exact ties), shed of its
 //!   normal component and normalized; **v** = normal × u.
@@ -121,6 +122,31 @@
 //! so the slit's doubled traversal cancels and classification proceeds
 //! exactly as if the slit were absent — the same cancellation the
 //! even-odd crossing count used to get, now exact.
+//!
+//! # What "the outward normal by construction" rests on
+//!
+//! One rule, stated once in `topo::entity` and not restated here: by
+//! interior-left, a face's outer loop runs CCW about the face's
+//! **outward** normal. Newell orients its cross-sum so the walk is CCW
+//! about it, so the Newell normal of the outer walk IS the outward
+//! normal whenever the body honours the rule.
+//!
+//! **The S10 identity does not enter.** Outward = `sense_sign` · chart
+//! normal only relates the outward normal to a STORED chart, and
+//! [`chart_frame`] reads no chart — only walk indices and 3-D points.
+//! So the premise that S10 retired (*"a face's stored normal is the
+//! outward normal"*) is a different claim from this one, and its
+//! retirement does not reach here.
+//!
+//! **What checks the rule, and what does not.** A body whose stored
+//! `sense` disagrees with its stored winding violates it, and `topo`'s
+//! tier-3 validator refuses such a body by name (check 6,
+//! `LoopRoleInverted`). **This crate does not run that check and does
+//! not re-derive it** — tessellation does not re-validate, as
+//! [`chart_frame`] says in its own docs. So the honest statement is:
+//! the rule is ratified, its violation is *refusable* upstream, and
+//! the mesher assumes a body that has been through the door rather
+//! than certifying one that has not.
 
 use std::collections::HashMap;
 
