@@ -5011,10 +5011,12 @@ byte; only who computes it moved. Both sweeps (`--sizing-only` and
 `--deviation`) are byte-identical to main's, all 1,050 rows.
 
 **The same question one crate over — `geom_core::k_stats` — was §D's row
-C10, and #801 answers it NO. It is not this class.** C10 read the two files
-as siblings ("S30's class one crate over") and instructed its taker to split
-the instrument out; the resemblance does not survive contact with the tree.
-Three corrections, all measured at `1a94204d`:
+C10, and #801 answers it NO: the RECORDER cannot leave this crate, in either
+direction, because it is an impl of a sealed `geom-core` trait. It is not
+S30's class.** C10 read the two files as siblings ("S30's class one crate
+over") and instructed its taker to split the instrument out; the resemblance
+does not survive contact with the tree. Three corrections, all measured at
+`1a94204d`:
 
 - **The recorder does not sit inside the predicate doors.** What
   `decide`/`decide_flagged`/`decide_invariant` carry is one thread-local
@@ -5026,16 +5028,31 @@ Three corrections, all measured at `1a94204d`:
   is `k_stats.rs:275-532` contiguous, plus the `SINK` thread-local and its
   gated `use`. ~96 reconstructs exactly as the recording machinery minus
   `Probe`'s `Real`/ops/`Bounds`/`CertifiedEnclosure`/`SpanLocate` impls — 165
-  lines that cannot stay behind if the type leaves. A type's impls travel
-  with the type.
-- **`Probe` cannot be defined outside `geom-core`, and the compiler says so.**
-  `Decide: SpanLocate` and `SpanLocate: sealed::Sealed`, where `sealed` is a
-  `pub(crate)` module whose impl list *is* the kernel's scalar set. A scratch
-  crate depending on `geom-core --features probe` gets E0277 (`P: SpanLocate`)
-  on `impl Decide`, E0277 (`P: locate::sealed::Sealed`) on `impl SpanLocate`,
-  and **E0603, "module `sealed` is private"**, on naming the seal. Lifting the
-  lane out needs an unseal, and the seal is what closes Q1's ratified
-  instantiation set.
+  lines the row's figure leaves out. **The first version of this bullet
+  justified that with "a type's impls travel with the type", which is exactly
+  backwards here** and is corrected in the bullet below: the `core::ops` impls
+  travel and the kernel-trait impls cannot.
+- **The RECORDER is pinned to `geom-core` from both directions; the TYPE is
+  not.** `impl Decide for Probe` is the recorder, and it can live nowhere
+  else. *Below* geom-core: `Decide: SpanLocate` and `SpanLocate:
+  sealed::Sealed`, where `sealed` is a `pub(crate)` module whose impl list
+  *is* the kernel's scalar set — a scratch crate depending on
+  `geom-core --features probe` gets E0277 (`P: SpanLocate`) on `impl Decide`,
+  E0277 (`P: locate::sealed::Sealed`) on `impl SpanLocate`, and **E0603,
+  "module `sealed` is private"**, on naming the seal. *Above* geom-core:
+  naming `Decide` means depending on geom-core, which must depend back —
+  **cargo refuses with "cyclic package dependency"**. Both directions are in
+  `local-scripts`' seal oracle rather than argued.
+  **What is NOT pinned is the `Probe` type**, and #801's first version claimed
+  otherwise — *"`Probe` cannot be defined outside `geom-core`"* was **false**,
+  found by #801's adversarial review and reproduced here: a `crates/adv-probe`
+  holding the newtype and its five `core::ops` impls, with every kernel-trait
+  impl staying in geom-core (a local trait on a foreign type is legal), builds
+  and passes geom-core's suite with **no unseal and no new public API**. It
+  moves **48 lines** of newtype-and-operators out of a 263-line instrument and
+  leaves every line C10 is about where it was. So the disposition is unchanged
+  and the ground under it is smaller and firmer: the thing that pins the
+  instrument is the sealed *trait*, not a property of the *type*.
 
 **And the volume question S30 found unasked WAS asked here.**
 `geom-core/Cargo.toml`'s `probe` feature comment carries both the argument and
@@ -5058,10 +5075,11 @@ dominant shape stated in the imperative mood.
 It also reduces from three to one the number of sites reading the shape the
 UNRESOLVED fence is about, which is the direction that fence permits.
 
-**And the row asked for work the ratified design forbids, which is a finding
-about §D rather than about C10.** Executing C10's instruction requires
-unsealing `sealed::Sealed`; nothing in the row knew that, because the row was
-written from a resemblance rather than from the tree.
+**And the row asked for a split that the tree will not give, which is a finding
+about §D rather than about C10.** Moving the *recorder* out requires unsealing
+`sealed::Sealed`, and moving the *type* out — which needs no unseal — relocates
+48 lines and none of the instrument. Nothing in the row knew either, because the
+row was written from a resemblance rather than from the tree.
 
 **One finding surfaced here and deliberately NOT fixed here — the
 `agreement` column, which measured nothing. FIXED by #738**, which took
@@ -5851,17 +5869,22 @@ of the two happened?**
   the crate's own decision-making modules"** — the eighth mention,
   `profile/src/lift.rs:636`, is a doc line saying there is *no* funnel
   call site there, so the count was raised by a sentence stating its own
-  negation. **The three workspace-EXCLUDED roots were swept and then
-  BUILT** — `demos/`, `tools/` and `interval-transcendentals/` are
-  `exclude`d, so a green root `cargo check` is no evidence about them;
-  `demos/tour --features probe`, `demos/wild` and `tools/k-lint` all
-  build. **Which of them reached what, exactly**: `tools/k-lint` names
-  `geom_core::k_stats` directly (`tests/litmus.rs:33`); `demos/tour`
-  reaches it as `pncad::geom_core::k_stats` (`src/probe.rs:29`,
-  `src/booleans.rs:68`) — **through a re-export**, which is the same
-  shape as the consumer this PR's sweep missed; and `demos/wild`
-  contains no `k_stats` token at all. None of the three named the
-  retired shim, which is what mattered. **The sweep pattern still missed one consumer, and that is
+  negation. **Everything the workspace EXCLUDES was swept and then
+  BUILT.** `demos/`, `tools/` and `interval-transcendentals/` are
+  `exclude`d, so a green root `cargo check` is no evidence about them —
+  and *three excluded directories* hold **six crates**, which is not the
+  same number: `demos/tour` (with `--features probe`), `demos/wild`,
+  `tools/k-lint`, `tools/tess-lint`, `tools/tess-meter` (which does
+  depend on `profile`) and `interval-transcendentals`. All six build.
+  (#801's first record named three of the six — the stated population
+  smaller than the real one, which is the defect this whole unit is
+  about, committed inside its own evidence.) **Which of them reached
+  what, exactly**: `tools/k-lint` names `geom_core::k_stats` directly
+  (`tests/litmus.rs:33`); `demos/tour` reaches it as
+  `pncad::geom_core::k_stats` (`src/probe.rs:29`, `src/booleans.rs:68`)
+  — **through a re-export**, the same shape as the consumer this PR's
+  sweep missed; the other four contain no `k_stats` token at all. None
+  named the retired shim, which is what mattered. **The sweep pattern still missed one consumer, and that is
   the transferable part**: `profile::k_stats` matched nothing outside
   `crates/profile`, but `crates/pncad/src/profile.rs:53` re-exported the
   module as `pub use ::profile::{k_stats, lift, path};` — a **brace-list
@@ -10430,8 +10453,9 @@ named has since fallen. **A1 (#682), A3 (issue #678, landed as #684), #690
 and #692 are all merged**, and **#705** merged the two geometry crates into
 one `geom`. So C4 in full, C5's S28 half and
 C7 are edge-free and takeable today (**C10 — `geom_core::k_stats` — is
-FIXED by #801**, which answered its embedded question *no*, with the
-compiler as the witness). (**C1 has left this table
+FIXED by #801**, which answered its embedded question *no* — the
+**recorder** is pinned to the crate in both directions by a sealed trait,
+though the `Probe` *type* is not, and #801's first answer conflated them). (**C1 has left this table
 entirely**: H13, its last live member, is FIXED by #779, and H12, H14 and
 H15 went before it.) (**C9 — the `agreement`
 column — is FIXED by #738**, which deleted it rather than re-deriving

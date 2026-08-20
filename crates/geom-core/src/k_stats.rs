@@ -80,18 +80,28 @@
 //! thread-local and explicitly installed ([`start_recording`] /
 //! [`take_samples`]), so tests never race and production never records.
 //!
-//! **The recorder cannot be defined outside this crate, and that is by
-//! construction rather than by placement.** `Probe` records by
-//! implementing [`Decide`], whose supertrait
+//! **The recorder is pinned to this crate from both directions — and it
+//! is the IMPL that is pinned, not the type.** `Probe` records by
+//! implementing [`Decide`], and that impl can live nowhere else.
+//! *Below* geom-core: `Decide`'s supertrait
 //! [`SpanLocate`](crate::spline::SpanLocate) is sealed by a
-//! `pub(crate)` module — and that seal's impl list *is* the kernel's
-//! scalar set, so no downstream crate can define a type that decides.
-//! Lifting the recording lane into a separate crate would mean
-//! unsealing the set the seal exists to close, and exporting the
-//! predicate-name channel [`decide`] writes so an outside `Decide` impl
-//! could read it. What keeps the scalar out of shipped builds is the
-//! `probe` feature, not the crate boundary; geom-core's manifest
-//! carries the monomorphization measurement that gate was cut on.
+//! `pub(crate)` module whose impl list is the kernel's scalar set, so a
+//! downstream type cannot decide. *Above* it: naming `Decide` at all
+//! means depending on geom-core, and geom-core would have to depend
+//! back — a dependency cycle, which cargo refuses outright.
+//!
+//! **The `Probe` type is NOT pinned**, and conflating the two is easy
+//! enough to be worth a sentence. Nothing stops the newtype being
+//! defined in a crate above this one and re-exported here; its five
+//! `core::ops` impls are the only things that would travel with it, and
+//! every kernel-trait impl — `Real`, `Bounds`, `CertifiedEnclosure`,
+//! `SpanLocate`, `Decide` — stays, because a local trait on a foreign
+//! type is legal and the reverse is not. That move relocates a newtype
+//! and leaves the recorder exactly where it was.
+//!
+//! What keeps the scalar out of shipped builds is the `probe` feature,
+//! not the crate boundary; geom-core's manifest carries the
+//! monomorphization measurement that gate was cut on.
 
 use core::cell::{Cell, RefCell};
 
