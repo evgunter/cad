@@ -219,6 +219,7 @@ use crate::entity::{
     LoopKey, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
+use crate::live::Live;
 use crate::provenance::Provenance;
 #[cfg(debug_assertions)]
 use crate::test_support_impl::ArenaCounts;
@@ -422,10 +423,14 @@ pub(crate) struct MevFanPlan<T: Real> {
     pub(crate) p_old: Point3<T>,
     /// The clockwise orbit run `[he1 .. he2)` to reassign.
     pub(crate) run: Vec<HalfEdgeKey>,
-    /// `prev(he1)` (validated resolvable).
-    pub(crate) he1_prev: HalfEdgeKey,
-    /// `prev(he2)` (validated resolvable).
-    pub(crate) he2_prev: HalfEdgeKey,
+    /// The two fan half-edges, certified.
+    pub(crate) he1: Live,
+    /// See [`MevFanPlan::he1`].
+    pub(crate) he2: Live,
+    /// `prev(he1)`, certified.
+    pub(crate) he1_prev: Live,
+    /// `prev(he2)`, certified.
+    pub(crate) he2_prev: Live,
     /// `he1`'s parent loop.
     pub(crate) he1_loop: LoopKey,
     /// `he2`'s parent loop.
@@ -1389,8 +1394,6 @@ impl<T: Decide> Body<T> {
         let certified = self.certify_edge_spec(curve, plan.p_old, point)?;
         // ---- Mutation (infallible from here on). ----
         Ok(self.mev_fan_execute(
-            he1,
-            he2,
             plan,
             point,
             MevCurveMint::Certified(certified),
@@ -1432,19 +1435,16 @@ impl<T: Decide> Body<T> {
                 .ok_or(EulerOpError::FanOrbitBroken { he1, he2 })?;
             orbit[..position].to_vec()
         };
-        // The splice writes through both prev links; validate them now
+        // The splice writes through both prev links; certify them now
         // so the mutation below cannot fail midway (atomicity).
-        for prev in [he1_prev, he2_prev] {
-            if !self.half_edges.contains_key(prev) {
-                return Err(EulerOpError::StaleKey {
-                    key: EntityId::HalfEdge(prev),
-                });
-            }
-        }
+        let he1_prev = self.certify_half_edge(he1_prev)?;
+        let he2_prev = self.certify_half_edge(he2_prev)?;
         Ok(MevFanPlan {
             v,
             p_old,
             run,
+            he1: self.certify_half_edge(he1)?,
+            he2: self.certify_half_edge(he2)?,
             he1_prev,
             he2_prev,
             he1_loop,
@@ -1460,8 +1460,6 @@ impl<T: Decide> Body<T> {
     /// vertex must exist first (mev_null's documented order).
     pub(crate) fn mev_fan_execute(
         &mut self,
-        he1: HalfEdgeKey,
-        he2: HalfEdgeKey,
         plan: MevFanPlan<T>,
         point: Point3<T>,
         mint: MevCurveMint<T>,
@@ -1471,6 +1469,8 @@ impl<T: Decide> Body<T> {
             v,
             p_old: _,
             run,
+            he1,
+            he2,
             he1_prev,
             he2_prev,
             he1_loop,
@@ -1506,6 +1506,8 @@ impl<T: Decide> Body<T> {
             self.link_half_edges(he2_prev, he_minus);
             self.link_half_edges(he_minus, he2);
         }
+        // The splice is done; past it the halves are ordinary keys.
+        let (he_plus, he_minus) = (he_plus.key(), he_minus.key());
         // Reassign the clockwise run to the new vertex.
         for &moved in &run {
             let Some(he) = self.get_half_edge_mut(moved) else {
@@ -1593,6 +1595,8 @@ impl<T: Decide> Body<T> {
         // The two halves form the whole cycle: v → w → v.
         self.link_half_edges(he_plus, he_minus);
         self.link_half_edges(he_minus, he_plus);
+        // The splice is done; past it the halves are ordinary keys.
+        let (he_plus, he_minus) = (he_plus.key(), he_minus.key());
         let Some(l) = self.get_loop_mut(loop_key) else {
             unreachable!("mev lone: `loop_key` proven live by mev_lone_plan")
         };
@@ -1698,13 +1702,12 @@ impl<T: Decide> Body<T> {
                 .ok_or(EulerOpError::LoopCycleBroken { r#loop: loop_key })?;
             cycle[..position].to_vec()
         };
-        for prev in [he1_prev, he2_prev] {
-            if !self.half_edges.contains_key(prev) {
-                return Err(EulerOpError::StaleKey {
-                    key: EntityId::HalfEdge(prev),
-                });
-            }
-        }
+        // The splice writes through both prev links; certify them now
+        // so the mutation below cannot fail midway (atomicity).
+        let he1_prev = self.certify_half_edge(he1_prev)?;
+        let he2_prev = self.certify_half_edge(he2_prev)?;
+        // The splice also writes through the two chords themselves.
+        let (he1, he2) = (self.certify_half_edge(he1)?, self.certify_half_edge(he2)?);
         let face_data = self.get_face(face_key).ok_or(EulerOpError::StaleKey {
             key: EntityId::Face(face_key),
         })?;
@@ -1757,6 +1760,8 @@ impl<T: Decide> Body<T> {
             self.link_half_edges(he1_prev, he_plus);
             self.link_half_edges(he_plus, he2);
         }
+        // The splice is done; past it the halves are ordinary keys.
+        let (he_plus, he_minus) = (he_plus.key(), he_minus.key());
         // Move he1's side into the new loop.
         for &moved in &run {
             let Some(he) = self.get_half_edge_mut(moved) else {
@@ -1835,6 +1840,8 @@ impl<T: Decide> Body<T> {
         // association as Chords — he1's "side" is the new loop).
         self.link_half_edges(he_plus, he_plus);
         self.link_half_edges(he_minus, he_minus);
+        // The splice is done; past it the halves are ordinary keys.
+        let (he_plus, he_minus) = (he_plus.key(), he_minus.key());
         let Some(l) = self.get_loop_mut(loop_key) else {
             unreachable!("mef lone: `loop_key` proven live by this function's plan phase")
         };
@@ -1994,14 +2001,16 @@ impl<T: Decide> Body<T> {
     /// part of every op's documented minting order) and wires the
     /// edge ↔ half-edge bijection. Each half is described by its
     /// `(start vertex, parent loop)` pair; `next`/`prev` are left
-    /// provisional (null keys) for the caller's splice.
+    /// provisional (null keys) for the caller's splice — which is why
+    /// the halves come back [`Live`]: they were just inserted, and the
+    /// caller's next act is to splice them.
     pub(crate) fn mint_halves(
         &mut self,
         edge: EdgeKey,
         plus: (VertexKey, LoopKey),
         minus: (VertexKey, LoopKey),
         provenance: &Provenance,
-    ) -> (HalfEdgeKey, HalfEdgeKey) {
+    ) -> (Live, Live) {
         let half = |(start, parent_loop): (VertexKey, LoopKey)| HalfEdge {
             edge,
             start,
@@ -2018,6 +2027,11 @@ impl<T: Decide> Body<T> {
         };
         e.he_plus = he_plus;
         e.he_minus = he_minus;
+        let (Some(he_plus), Some(he_minus)) =
+            (Live::certify(self, he_plus), Live::certify(self, he_minus))
+        else {
+            unreachable!("mint_halves: both halves were inserted two statements ago")
+        };
         (he_plus, he_minus)
     }
 
@@ -2074,40 +2088,36 @@ impl<T: Decide> Body<T> {
 
     /// Writes the mutual `next`/`prev` link `a → b`.
     ///
-    /// **Precondition: both keys are live, and the caller discharges
-    /// that in its own call.** The closure property is the claim; a
-    /// list of the ways to discharge it is not — an enumeration frozen
-    /// here is what rots as callers are added. A key qualifies when
-    /// *this call* has already established it resolves: minted in this
-    /// mutation phase, or refused by this plan phase if it did not.
-    /// Never because the body is tier-1 valid, which is a whole-body
-    /// property no single call establishes.
+    /// **The precondition is the argument type.** [`Live`] is minted
+    /// only by a lookup ([`Live::certify`], and the doors built on it),
+    /// so a key nothing has resolved cannot arrive here. What the token
+    /// does and does not claim — in particular that it is a statement
+    /// about the moment it was made, and that half-edge removal is
+    /// therefore the last thing a mutation phase may do — is the
+    /// [`live`](crate::live) module docs.
     ///
     /// **A bounded walk proves its members, not their `prev` fields.**
-    /// [`Body::loop_cycle`] and [`Body::vertex_orbit`] resolve every
-    /// member they return, so a walk hands you those keys proven — and
-    /// nothing else. `loop_cycle` steps `next`, so having walked from
-    /// `he` proves `next(he)` and says nothing about `prev(he)`. That
-    /// inference is the one that put an unproven key here, so it is
-    /// named rather than left to be re-derived.
+    /// [`Body::loop_cycle_live`] and [`Body::vertex_orbit_live`] hand
+    /// out a token per member and nothing else. `loop_cycle` steps
+    /// `next`, so having walked from `he` says nothing about
+    /// `prev(he)`: that key wants [`Body::certify_half_edge`] in the
+    /// plan phase, like any other value read out of the arena.
     ///
-    /// A failed lookup here is therefore the D2 addendum's row 4. The
-    /// two arms below cannot name their call site the way a per-site
-    /// `unreachable!` does — a shared helper knows none of its
-    /// callers — so it is `#[track_caller]` and the panic reports the
-    /// caller's location instead. `SMELL-SCAN-2026-08.md`'s **D25**
-    /// proposes retiring the prose precondition for a `Live` key type
-    /// that makes the discharge structural.
+    /// A failed lookup here is the D2 addendum's row 4 — a token that
+    /// outlived the removal of its key. The two arms cannot name their
+    /// call site the way a per-site `unreachable!` does, a shared
+    /// helper knowing none of its callers, so this is `#[track_caller]`
+    /// and the panic reports the caller's location instead.
     #[track_caller]
-    pub(crate) fn link_half_edges(&mut self, a: HalfEdgeKey, b: HalfEdgeKey) {
-        let Some(he) = self.get_half_edge_mut(a) else {
-            unreachable!("link_half_edges: `a` was not proven live by its caller")
+    pub(crate) fn link_half_edges(&mut self, a: Live, b: Live) {
+        let Some(he) = self.get_half_edge_mut(a.key()) else {
+            unreachable!("link_half_edges: `a`'s certification outlived its key")
         };
-        he.next = b;
-        let Some(he) = self.get_half_edge_mut(b) else {
-            unreachable!("link_half_edges: `b` was not proven live by its caller")
+        he.next = b.key();
+        let Some(he) = self.get_half_edge_mut(b.key()) else {
+            unreachable!("link_half_edges: `b`'s certification outlived its key")
         };
-        he.prev = a;
+        he.prev = a.key();
     }
 
     /// D1's ratified postcondition-assert clause: after a successful

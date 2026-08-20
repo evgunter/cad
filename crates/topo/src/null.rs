@@ -214,8 +214,6 @@ impl<T: geom_core::Decide> Body<T> {
                 let plan = self.mev_fan_plan(he1, he2)?;
                 let point = plan.p_old; // bitwise coincident copy
                 self.mev_fan_execute(
-                    he1,
-                    he2,
                     plan,
                     point,
                     crate::euler::MevCurveMint::Null(new_side),

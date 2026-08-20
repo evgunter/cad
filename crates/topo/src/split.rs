@@ -153,19 +153,15 @@ impl<T: Decide> Body<T> {
         let (hp, hm) = (edge_data.he_plus, edge_data.he_minus);
         let hp_data = self.resolve_half_edge(hp)?;
         let hm_data = self.resolve_half_edge(hm)?;
-        // The two splices write through `next(hp)` and `prev(hm)`;
-        // validate both now so the mutation below cannot fail midway
-        // (atomicity). `prev(hm)` is re-read after splice 1 — see the
-        // splice for why the value read there is covered by this check.
-        let hp_next = hp_data.next;
-        let hm_prev = hm_data.prev;
-        for link in [hp_next, hm_prev] {
-            if !self.half_edges.contains_key(link) {
-                return Err(EulerOpError::StaleKey {
-                    key: EntityId::HalfEdge(link),
-                });
-            }
-        }
+        // The two splices write through `next(hp)` and `prev(hm)` and
+        // through the parent's own halves; certify all four now so the
+        // mutation below cannot fail midway (atomicity). `prev(hm)`
+        // changes under splice 1 — see the splice for the case that
+        // moves it, and for why the new value is certified too.
+        let hp_next = self.certify_half_edge(hp_data.next)?;
+        let hm_prev = self.certify_half_edge(hm_data.prev)?;
+        let hp = self.certify_half_edge(hp)?;
+        let hm = self.certify_half_edge(hm)?;
         let entry = self
             .get_curve_geom(edge_data.curve)
             .ok_or(EulerOpError::StaleGeometry {
@@ -255,28 +251,23 @@ impl<T: Decide> Body<T> {
         // Splice 1: hp → n⁺ → old next(hp), in hp's loop.
         self.link_half_edges(hp, n_plus);
         self.link_half_edges(n_plus, hp_next);
-        // Splice 2: current prev(hm) → n⁻ → hm, in hm's loop. The
-        // prev is re-read AFTER splice 1 so the strut case
-        // (next(hp) == hm ⇒ prev(hm) is now n⁺) chains correctly.
-        // Splice 1 writes two `prev` fields: `n_plus`'s and
-        // `hp_next`'s. `hm != n_plus` — `n_plus` is minted in this
-        // call and `hm` came out of the arena — so the only one that
-        // can be `hm`'s is `hp_next`'s, which splice 1 set to the
-        // minted `n_plus`. The value read here is therefore `n_plus`
-        // when `hm == hp_next` and the plan phase's `hm_prev`
-        // otherwise. Both are live: the first is minted above, the
-        // second is proven by the plan phase's link check.
-        let Some(hm_data_spliced) = self.get_half_edge(hm) else {
-            unreachable!(
-                "split_edge: `hm` resolved in the plan phase and this op kills no half-edge"
-            )
-        };
-        self.link_half_edges(hm_data_spliced.prev, n_minus);
+        // Splice 2: current prev(hm) → n⁻ → hm, in hm's loop. Splice 1
+        // moved that prev in the strut case (next(hp) == hm ⇒ prev(hm)
+        // is now n⁺), and the two cases are exhaustive: splice 1 writes
+        // exactly two `prev` fields, `n_plus`'s and `hp_next`'s, and
+        // `hm != n_plus` because `n_plus` was minted in this call while
+        // `hm` came out of the arena — so the only one that can be
+        // `hm`'s is `hp_next`'s. Deriving the value rather than
+        // re-reading it keeps both branches certified: the mint above,
+        // and the plan phase.
+        let hm_prev = if hm == hp_next { n_plus } else { hm_prev };
+        self.link_half_edges(hm_prev, n_minus);
         self.link_half_edges(n_minus, hm);
+        // The splice is done; past it the new halves are ordinary keys.
+        let (n_plus, n_minus) = (n_plus.key(), n_minus.key());
         // The parent's minus half now starts at w (the parent derives
-        // its new end w through n⁺/n⁻'s starts). Same key, same proof
-        // as the re-read above.
-        let Some(he) = self.get_half_edge_mut(hm) else {
+        // its new end w through n⁺/n⁻'s starts).
+        let Some(he) = self.get_half_edge_mut(hm.key()) else {
             unreachable!(
                 "split_edge: `hm` resolved in the plan phase and this op kills no half-edge"
             )
@@ -295,7 +286,7 @@ impl<T: Decide> Body<T> {
             vertex.emanating = Some(n_plus);
         }
         let v_emanating = self.get_vertex(v).and_then(|vd| vd.emanating);
-        if v_emanating == Some(hm)
+        if v_emanating == Some(hm.key())
             && let Some(vertex) = self.get_vertex_mut(v)
         {
             vertex.emanating = Some(n_minus);
