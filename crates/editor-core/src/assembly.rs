@@ -680,6 +680,7 @@ fn attribute(error: &ValidationError, minted: &[MintedDeclaration]) -> Attributi
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
 mod attribution {
     //! **[`attribute`]'s classification, pinned per arm.**
     //!
