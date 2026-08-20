@@ -27,12 +27,12 @@
 //! is documented at each impl; the wire records the one unified
 //! [`ArcData`](super::program::ArcData) enum.
 
+use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Margin, Point2, Real, Sign, Tolerance, Vec2};
 
 use super::arc_fillet::{ArcFilletTrims, FilletSide, SideCarrier};
 use super::{Dir, PathError, unit_from_components};
 use crate::sugar::ArcSweep;
-use geom_core::k_stats::decide;
 
 /// A monomorphized handle on the arc-carrier resolution machinery
 /// (`arc_fillet::resolve`), captured by the arc-involving verb AT CALL

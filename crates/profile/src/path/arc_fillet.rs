@@ -60,6 +60,7 @@
 //! only thing that can move an ulp is step 1 — hence the squared-radius
 //! rule.
 
+use geom_core::k_stats::decide;
 use geom_core::{Band, Bounds, Decide, Margin, Point2, Real, Sign, Tolerance, Vec2};
 
 use super::{ArcData, Dir, PathError, PathNoCornerReason};
@@ -69,7 +70,6 @@ use crate::sugar::{
     arc_fillet_trims, signed_swept,
 };
 use crate::validate::FilletLegCarrier;
-use geom_core::k_stats::decide;
 
 /// A fillet side's carrier, as the algebra binds it: a straight ray, or
 /// a circle about a centre with a structural winding.

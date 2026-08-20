@@ -101,6 +101,7 @@
 
 use core::fmt;
 
+use geom_core::k_stats::decide;
 use geom_core::{
     Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point2, Real, Sign,
     Tolerance, Vec2,
@@ -108,7 +109,6 @@ use geom_core::{
 
 use crate::seg::{self, CKind, PairOutcome, Seg, SegIssue, SegKind, build_seg};
 use crate::{Profile, ProfileLoop, ProfileVertex};
-use geom_core::k_stats::decide;
 
 /// Identifies a segment of the *input* profile: `segment_index` k is the
 /// segment from vertex k to vertex k+1 (mod n) of loop `loop_index`, in

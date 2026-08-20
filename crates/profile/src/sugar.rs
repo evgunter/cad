@@ -26,12 +26,12 @@
 //! that [`crate::Profile::validate`] rejects with typed errors — the
 //! sugar never guesses and never panics.
 
+use geom_core::k_stats::decide;
 use geom_core::{
     Band, BandError, Decide, Indeterminate, Margin, Point2, Real, Sign, Tolerance, Vec2,
 };
 
 use crate::validate::{FilletLeg, NoCornerReason};
-use geom_core::k_stats::decide;
 
 /// The sweep direction hint for [`bulge_from_center`] /
 /// the closing arc constructors: which way the arc winds about its

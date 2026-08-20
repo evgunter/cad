@@ -19,9 +19,8 @@
 //! carrier), or nothing. Ray casting ([`ray_crossings`]) reuses the same
 //! carrier closed forms for the containment forest's parity test.
 
-use geom_core::{Band, Decide, Indeterminate, Margin, Point2, Real, Sign, Vec2};
-
 use geom_core::k_stats::decide;
+use geom_core::{Band, Decide, Indeterminate, Margin, Point2, Real, Sign, Vec2};
 
 /// The left normal: `v` rotated +90° counterclockwise, (−y, x).
 pub(crate) fn perp<T: Real>(v: Vec2<T>) -> Vec2<T> {
