@@ -140,6 +140,18 @@ pub enum MetaVersionError {
     VersionNotInt,
 }
 
+impl std::fmt::Display for MetaVersionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NotAMap => f.write_str("the stored value is not a map"),
+            Self::MissingVersion => f.write_str("the map has no \"v\" entry"),
+            Self::VersionNotInt => f.write_str("the \"v\" entry is not an integer"),
+        }
+    }
+}
+
+impl std::error::Error for MetaVersionError {}
+
 /// Typed refusal from the producer boundary ([`to_value`] /
 /// [`from_value`]).
 #[derive(Debug, Clone, PartialEq, Eq)]
