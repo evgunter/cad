@@ -258,7 +258,6 @@ complete; wave 2 is the live one.
 | lane | row | scope | review |
 |---|---|---|---|
 | **G-d** | **G5** (S71) + **G10** (S112, re-scoped by **G-R2**) | `profile/tests/review_s2.rs`, `profile/src/sugar.rs` (re-read for G5, edited for S112(f)), `crates/pncad/src/lib.rs` | style |
-| **G-e** | **G6** (S104) | `editor-core/src/assembly.rs`, `pncad-py/src/py/doc.rs`, plus `editor-core/src/mate.rs` and `pncad-py/src/py/select.rs`, which the scan did not read | **ADVERSARIAL** |
 | **G-f** | **G8** (S67) | `topo/src/face_normal.rs` (docs), `topo/src/chord_join.rs` (the real question) | style **+ one ADVERSARIAL sub-unit**, not folded together |
 
 **Wave 3 — gated, and on what.**

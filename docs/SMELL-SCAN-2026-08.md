@@ -9369,33 +9369,140 @@ move the rule forbids, and the one the merge made structurally possible
 
 **Verdict:**
 
-## S104. `attribute()` re-introduces the wildcard over a closed enum the same wave removed elsewhere
+## S104. FIXED by #NNN — `attribute()`'s wildcard over a closed enum, and the raise-site tag literal
 
-`ValidationError`'s doc says it is a closed enum precisely so *"every
-match site is forced to say what it does with the new failure kinds"*,
-and this same fix wave spent two diffs de-wildcarding fault
-classification (`crates/pncad/src/workspace.rs:427-460`'s
-`resolve_fault`/`load_fault`, with a paragraph explaining why a wildcard
-is forbidden there; `crates/editor-core/src/names/select.rs:274-330`).
-`crates/editor-core/src/assembly.rs:541` then adds
-`_ => (None, Attribution::Refuted)` over that same closed enum, and the
-classification is load-bearing — it decides between
-`AssemblyError::AtRest` and `AssemblyError::Uncertified`. A future
-variant carrying a declared face pair becomes `Unattributed` silently.
-The `Attribution::Refuted` in that tuple is also dead: the `(None, _)`
-arm at `:544-546` discards it.
+`attribute` (`crates/editor-core/src/assembly.rs`) now matches
+`ValidationError` **exhaustively**, in the shape the same wave used at
+`crates/pncad/src/workspace.rs`'s `resolve_fault`/`load_fault` and
+`crates/editor-core/src/names/select.rs`: grouped or-patterns and the
+argument at the site. The dividing line is stated once at the function
+— *a finding is attributable only where its subject is a CONTACT
+RECORD; every other variant states something about the body's own
+structure or geometry, which no declaration can answer for, and
+sharing a face with a declaration is not being named by one* — and
+each group cites it.
 
-The sibling instance is `crates/pncad-py/src/py/doc.rs:206-218`, where
-`"randomness_unavailable"` is written as a **literal at the raise site**
-— every other `variant` string in that crate comes from a `*_tag`
-function in `tags.rs` whose premise is one home per enum→string map —
-and the closure labels *any* of `WorkspaceError`'s nine variants with
-it, no match. True today only because `random_document_id` has a single
-failure arm, in another crate, with nothing tying the two. Sites not
-read end to end and likely in the same class:
-`crates/editor-core/src/mate.rs`, `crates/pncad-py/src/py/select.rs`.
+**The five arms the wildcard used to hold were decided, not swept up**,
+and the two whose classification could have gone either way are argued
+from `topo::census` rather than from taste:
 
-**Verdict:**
+- `CensusUndecidable` is **unattributed in both its arms** — the
+  cross-solid backstop `continue`s on a pair the records declare (in
+  both orientations, `Declared::index`), so a declared pair never
+  reaches it, and the instance-containment arm names SOLIDS, which no
+  lookup over face keys can match.
+- `CensusEscalated` is unattributed because an escalation is
+  indeterminate geometry at rest — a refusal under the trilean
+  discipline, never the census declining a lane — and it carries no
+  entity, so there is nothing to attribute either way.
+- The **vertex-granular** staleness arms and every **non-face**
+  `CensusUnsupported` entity are unattributable by construction:
+  `mint` makes `PatchContact` and nothing else, so no declaration of
+  this document is their subject.
+
+`Attribution::Refuted` in the old wildcard was dead **by
+construction** — the arm hard-coded `None`, which the `(None, _)` arm
+discarded — so the `(Option, constructor)` tuple went with it; each arm
+now returns its `Attribution` directly, with the lookup and the
+relation still chosen together in one arm.
+
+**Seven rows pin the classification per arm** (`assembly::attribution`),
+including the three no end-to-end row can reach — which is what let a
+wildcard hold them, and why the pins call the classifier directly.
+Both directions were mutation-checked: relabelling `CensusUnsupported`
+`Refuted` and `CensusUndecidable` `Declined` reds two rows.
+
+`crates/pncad-py/src/py/doc.rs`'s `"randomness_unavailable"` literal is
+gone; the tag comes from `tags::workspace_error_tag`, exhaustive over
+`WorkspaceError` and pinned in `src/tests.rs`. **The finding's count is
+one short**: the enum has **ten** variants, not nine (`Update`), as of
+`c3983195`. `pncad.pyi`'s claim is narrowed to what is now true — the
+tag names the refusal that occurred, and the single-reachable-arm fact
+is marked as a fact about `random_document_id`, in another crate.
+
+**The two files the scan flagged and never read come back split.**
+`crates/editor-core/src/mate.rs` **is** a member, in two places, and is
+fixed — **S136**. `crates/pncad-py/src/py/select.rs` is **not**: it
+carries `growth_tripwire`, a never-called exhaustive match per mirrored
+kernel enum, and its one wildcard is forced by a `#[non_exhaustive]`
+kernel type with a named test pin standing in for the compile alarm.
+It is the crate's own best answer to this defect, not an instance of
+it.
+
+## S136. FIXED by #NNN — `MatePrimitive`'s two wildcards, where the omission is the unsound direction
+
+**Found by lane G-e** reading S104's unread member
+`crates/editor-core/src/mate.rs`.
+
+`Alignment::lever_arm` and `Alignment::is_finite` each matched the
+**local, closed** `MatePrimitive` with a `_ =>` arm. A primitive that
+grows an authored length would therefore contribute nothing to the
+lever arm — and a smaller lever admits a **bigger** angle for the same
+induced gap, so the mate's angular threshold loosens — and would skip
+the finiteness admission the edit door runs, whose own doc says a
+non-finite alignment could never decide anything. Both are the unsound
+direction; neither has a row that can go red, because the variants that
+exist today are the ones the named arm already handles. `Fit` is the
+class the crate has already reserved (`CLASS_DEFERRAL`) and a designed
+clearance is a length.
+
+Closed **in code, not by two exhaustive matches that must agree**:
+`MatePrimitive::authored_lengths` is the one home for *what does a
+primitive carry that has a scale*, read by both. Its array is as wide
+as the widest variant, and `None` means *carries fewer than the widest
+does* rather than a zero standing in for an absent length. No number
+moves today — the compile break is the whole point.
+
+**Not a member, checked: `class_admission`** in the same file. Its
+wildcard is FORCED (`ContactClass` is `#[non_exhaustive]`, in `topo`),
+documented at the site, and defaults to the safe side (`NotAdmitted` —
+refuse); `asm_r2b_assembly.rs` already carries roster rows with that
+blind spot disclosed, which is the same remedy `pncad-py` adopted after
+`Tangent` sat behind the sibling wildcard for a whole PR.
+
+## S167. `attribute`'s decline lookup is width-1 where the finding's subject is a pair
+
+**Found by lane G-e** closing S104, and **left open: the fix is
+`topo`'s.**
+
+`crates/editor-core/src/assembly.rs`'s `CensusUnsupported` arm resolves
+the declaration from the ONE face the error carries, but the census's
+subject is a face **pair**. Two consequences, both now stated at the
+site and neither guarded:
+
+- a face that **two** mates declare answers to whichever declaration
+  comes first in document order;
+- `topo::census`'s conformal-patch sweep reaches this refusal on an
+  **undeclared** pair (the `None` and typed-refusal arms of
+  `chart_overlap` fire before declaredness is consulted), and one of
+  that pair's faces may still be declared against a third — so the
+  finding is attributed to a mate whose declaration the census never
+  looked at.
+
+The **relation** survives both: `CensusUnsupported` refutes nothing, so
+the `AtRest`/`Uncertified` split stays sound and only the mate the
+message names can be wrong. `AssemblyError::Uncertified`'s doc claimed
+*"every finding is the census DECLINING a declared pair"*, which is not
+what the code establishes; it is corrected to the claim `attribute`
+does establish — *declining to certify a face that a declaration
+names*.
+
+Narrowing the lookup needs the PAIR in
+`ValidationError::CensusUnsupported`, which is `topo`'s to carry.
+
+## S168. FIXED by #NNN — the validator door's doc says `ValidationError` has no `Display`
+
+**Found by lane G-e** sweeping `ValidationError`'s match sites.
+
+`crates/pncad-py/src/py/value.rs`'s `run_validator` says
+*"`ValidationError` has no `Display` and no curated tag mapping"*. The
+second half is true — `crate::tags` maps the document layer's refusals
+and not the kernel validator's. The first has not been true since
+`validate.rs`'s `impl fmt::Display for ValidationError`, which is
+exhaustive and renders one prose sentence with recourse per finding.
+The sentence now says what is DEFERRED — the tag map, and the choice to
+render the list with `Debug` — instead of denying a capability the
+kernel has, which is what would have sent the next reader to build one.
 
 ## S105. The shared refusal ladder retired one duplication and minted a documented hand-synced one
 
@@ -10114,8 +10221,9 @@ see §C.
   `#[allow(dead_code)]` is gone.
 - (u) Residue: `crates/sweep/tests/m5_pr12_refusals.rs:518` has a
   leftover `let p = Point3::new(0.0,0.0,0.0); let _ = p;`.
-  `crates/pncad-py/src/py/doc.rs:206-218`'s raise-site literal is
-  S104's sibling.
+  `crates/pncad-py/src/py/doc.rs`'s raise-site literal was S104's
+  sibling and is **FIXED with it** by #NNN — the tag now comes from
+  `tags::workspace_error_tag`.
   `interval-transcendentals`' `2^-960` vs the literature's `~2^-969` is
   a nine-binade round-up justified as absorbing *"every boundary
   quibble"* — empirical rather than derived, harmless because
@@ -12672,7 +12780,6 @@ tessellation pin are red on main).
 > into a conflict.
 
 | **G5** | **`profile`'s ONARC prose outlived the boundary it describes.** Per the ruling above, this is **not** the capability question the finding posed: `review_s2.rs:45` claims the class *"is built"* and cites a test the deleting commit removed, while the shipped pin records the boundary the commit deliberately established. Correct the prose to state the boundary; **do not delete `sugar.rs`'s machinery**, which is the raw-builder path the boundary is defined against. | **S71** | `profile/tests/review_s2.rs`, and only a re-read of `profile/src/sugar.rs` | **ACCEPTED IN PART — RULED** | style |
-| **G6** | **A wildcard over a deliberately closed enum, in the wave that de-wildcarded two siblings** — `attribute()`'s `_ =>` decides `AtRest` vs `Uncertified`, and a literal tag string bypasses the one-home tag map; the dead `Attribution::Refuted` corroborates. | **S104** | `editor-core/src/assembly.rs`, `pncad-py/src/py/doc.rs`, and two files the scan did not read | **ACCEPTED** | **ADVERSARIAL** |
 | **G7** | **The `Step` vocabulary was unified inside `profile` only** — of the three cross-crate copies, one breaks loudly and two go silently short. S4 named five copies across three crates; one crate was swept. **Partly collides with Track E's E-e** (`editor-core/src/eval/`) — sequence after it. | **S106** | `profile/src/path/program.rs`, `editor-core/src/{program,persist/wire,eval/mod}.rs` | **ACCEPTED** | style |
 | **G8** | **`face_normal.rs`'s one-door module names three flip sites: one does not flip, and at least five that do are unlisted.** The enumeration repair is style — but the sub-question it parks (*is `chord_join`'s missing flip a defect, given it feeds `point_in_loop` for ring re-homing?*) is a **correctness** question and must be a separate adversarial unit, not folded into a doc edit. Overlaps the standing open decision **D6**, whose stated sweep shape is `grep sense_sign`. | **S67** | `topo/src/face_normal.rs` (docs), `topo/src/chord_join.rs` (the real question) | **ACCEPTED**, with the routing caveat | style + one **ADVERSARIAL** sub-unit |
 | **G9** | **Two operand gates with different admitted kind sets and a doc that describes only one** (S95), and **`chord_join`'s top-level-sibling placement argument contradicted by its own imports from `splitting/`** (S96). S96's imports reach `splitting/rules.rs`, which is Track C's — **confirm with Track C before touching it**. | S95, S96 | `topo/src/boolean/{ops,reduce}.rs`, `topo/src/chord_join.rs` | **ACCEPTED** on both | style; S95 escalates only if the drift ever admits a kind |
