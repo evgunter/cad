@@ -418,6 +418,25 @@ lane that raised it**: F-f had the run open, knew what its own gate printed, and
 said so against a document that had just credited it. That is worth more than
 the finding was.
 
+### Two more register defects, found by a verifier reading the log itself (2026-08-20)
+
+`docs/SMELL-F-LOG.md` **quoted the pre-fix matcher in F-R10 while the fix-pass
+entry two paragraphs below said that group was gone** — one entry contradicting
+itself — and said *"Eight self-test cases"* immediately before enumerating ten.
+Found by the F1 verifier, which read the record as a claim site rather than as
+background. Both corrected.
+
+**That is the second orchestrator over-claim in one session** (the first: S157
+as filed). The pattern is now clear enough to name: **the register accumulates
+quoted fragments — a regex, a count, a file list — and quoted fragments go
+stale exactly like the code comments this scan exists to find.** A finding's
+record is prose that argues, and §S38 is the class it belongs to.
+
+**The mitigation that costs nothing:** *do not quote a mutable artefact in the
+register unless the entry is about that artefact's text.* Say what the matcher
+does, not what it says. Every one of these three defects was a verbatim quote
+of something that then changed.
+
 ## Standing rules this track derived
 
 ### A verification is valid for the PATHS it verified, not for the SHA it ran on
@@ -566,7 +585,7 @@ actually writes, so a green gate there is not ratification evidence.**
 
 | # | Ruling |
 |---|---|
-| **F-R10** | **The gate is blind to the two edits that would defeat it.** *(a)* The `trait CertifiedBounds:` definition skip is anchored on the **name**, so `pub trait CertifiedBounds: Decide + Bounds + CertifiedEnclosure {}` is **silently skipped** — planted, exit 0. That is the single edit that would turn every sole-bound site in the tree into a decide-and-bracket parameter at a stroke, and it is **undisclosed**. *(b)* The direct S59 successor — `trait Bracket: Bounds + CertifiedEnclosure` used as `Decide + Bracket` — is invisible, and neither it nor its mitigation is in the gap list. The unit's own argument was that *"an enumerating matcher is blind to the next alias the day it is written"*; **a name-shaped matcher is blind to the next alias that does not carry the name.** Not a reason to return to a list — a reason the gap list must say it. *(c)* **A hole in the self-test itself:** deleting `(\w+::)*` from the right of `+` leaves `--selftest` **green** while `Decide + geom_core::CertifiedBounds` goes blind — *a spelling the tree already uses*; the mirror group on the left is dead code. The mutation check covered the matcher wholesale and missed a mutation **inside** it. |
+| **F-R10** | **The gate is blind to the two edits that would defeat it.** *(a)* The `trait CertifiedBounds:` definition skip is anchored on the **name**, so `pub trait CertifiedBounds: Decide + Bounds + CertifiedEnclosure {}` is **silently skipped** — planted, exit 0. That is the single edit that would turn every sole-bound site in the tree into a decide-and-bracket parameter at a stroke, and it is **undisclosed**. *(b)* The direct S59 successor — `trait Bracket: Bounds + CertifiedEnclosure` used as `Decide + Bracket` — is invisible, and neither it nor its mitigation is in the gap list. The unit's own argument was that *"an enumerating matcher is blind to the next alias the day it is written"*; **a name-shaped matcher is blind to the next alias that does not carry the name.** Not a reason to return to a list — a reason the gap list must say it. *(c)* **A hole in the self-test itself:** deleting the path-prefix group from **one** side of `+` leaves `--selftest` **green** while `Decide + geom_core::CertifiedBounds` goes blind — *a spelling the tree already uses*; the group on the **other** side is dead code, later confirmed by mutation and removed rather than planted around. **(Corrected 2026-08-20: this entry originally quoted the pre-fix matcher and named the wrong side, while the fix-pass entry below says the group is gone — one entry contradicting itself two paragraphs apart.)** The mutation check covered the matcher wholesale and missed a mutation **inside** it. |
 | **F-R11** | **Striking a row deleted the evidence, and the defect is in this track's convention rather than in the lane's judgement.** Removing the F1 row from §D removed the E-g `admit.rs` narrative — the gate's strongest single piece of evidence — with no relocation. The *Recording convention* says a row leaves §D when it lands and says nothing about a row that **carries evidence the finding's record does not**. **Amended below.** Version control keeping something is not the same as a reader finding it. |
 
 **A third thing, small and sharp.** The gate header grew **131 → 168 lines** — and
