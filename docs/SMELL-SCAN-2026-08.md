@@ -516,7 +516,8 @@ could have been cosmetic, one because the seal's own cleanup was nearly
 missed, one because the residual was measured wrong before the work
 started, and one because sealing MOVED where the coverage gap lives:
 
-- **The second mint.** `LengthUnit`/`AngleUnit` keep PUBLIC fields, and
+- **The second mint — now CLOSED by #686, see the `#669` note below.**
+  `LengthUnit`/`AngleUnit` kept PUBLIC fields, and
   their `def()` was a public `const fn` — so `AngleUnit { symbol: "mm",
   factor: 1.0 }.def()` rebuilt #650's exact counterexample with `UnitDef`
   sealed. Sealing `UnitDef` alone would have renamed the hole. `def()` is
@@ -543,28 +544,50 @@ started, and one because sealing MOVED where the coverage gap lives:
   cost of keeping one testable is a cargo feature plus two dependency
   edges — price that before paying it, and check whether a neighbouring
   function in the same block already answered the question.**
-- **`pncad-py` is NOT in the blast radius**, contrary to the count this
-  work was scoped from. Its six `self.0.symbol`/`self.0.factor` reads are
-  on `LengthUnit`/`AngleUnit`, whose fields stay public — so #639's live
-  diff on that file was never touched. The residual is that those two
-  typed views are still openly constructible, and **this note first
-  scoped it wrong in two directions; corrected here and filed as
-  #669.** It is not formatter-only and it is not a display string: (a)
-  `fmt.rs`'s own pin is `parse(fmt(x, unit))`, so `fmt_length(0.025,
-  LengthUnit { symbol: "deg", factor: 1e-3 })` → `Ok("25 deg")` is
-  parser input BY DESIGN and `25 deg` parses to an Angle literal that
-  enters an `Expr` and a document; (b) `25.0 * LengthUnit { symbol:
-  "mm", factor: 1.0 }` is a 25-METRE `Length` labelled `mm`, via
-  `impl Mul`/`in_unit` — a wrong VALUE at the D6 boundary. Five public
-  entry points trust the caller's `symbol`/`factor`, not the one this
-  note named. **Scheduled at #669**, not #639 (which is the S37
-  de-milestoning lane and will not close it); closing it needs a
-  `UnitDef → LengthUnit` conversion plus edits in the file #639 owns,
-  which is why the two lanes were confused. The lesson for a sealing
-  diff: seal the ROW and the residue moves to the VIEW of the row —
-  the dimension stays typed, the symbol and factor go free, and that
-  asymmetry is invisible unless the residual is executed rather than
-  reasoned about.
+- **The view of a sealed row — #669, FIXED by #686.** Sealing `UnitDef`
+  moved the hole rather than closing it: the dimension stayed typed while
+  the symbol and factor went free one level out, and that asymmetry was
+  invisible until the residual was *executed* rather than reasoned about.
+  It was neither formatter-only nor a display string, as #662's note had
+  scoped it: `fmt.rs`'s own pin is `parse(fmt(x, unit))`, so a mislabelled
+  view reached an `Expr` and a document along the route the module
+  guarantees, and `25.0 * LengthUnit { symbol: "mm", factor: 1.0 }` was a
+  25-METRE `Length` labelled `mm` — a wrong VALUE at the D6 boundary,
+  across five public entry points (eight functions).
+
+  **#686 made it unrepresentable, and the first attempt was not enough.**
+  The views became newtypes wrapping the sealed row; review then
+  demonstrated by mutation that the `compile_fail` guard was **already
+  dead** — every view row failed `E0560` (*no field named `symbol`*), a
+  SHAPE mismatch that stays true however open the seal becomes, so
+  reopening the field left all seven rows green. It also planted
+  `pub const MM_BAD: LengthUnit = length("mm", 1.0)` INSIDE `units.rs`,
+  using the private helper the docs called the only place a row is
+  written down, and reproduced #669's headline defect with every guard
+  green: the real guarantee was *"constructed inside `units.rs`"*, not
+  *"is a row of `UNITS`"*, which the rustdoc claimed in four places.
+
+  What landed instead is what `editor-core` had already invented for this
+  same table in `UnitSym(u8)`: **the view is a private INDEX into
+  `UNITS`**, behind a private module, so `of_row` and `UnitDef::as_*` are
+  the only mints *anywhere* — `units.rs` included. *"Is a row of
+  `UNITS`"* is now true by construction rather than by a convention
+  confined to one file, the duplicated `quantity` field is gone, and a
+  seventh constant or a mislabelled one is a **const-eval** error rather
+  than a lint. The guard rows are now refused on **privacy** (`E0423` /
+  `E0616`), verified by mutation off-branch: opening the field reddens
+  six view rows and correctly leaves the two `UnitDef` rows green.
+
+  Two things the fix found that #669 did not name: a **sixth,
+  non-public trust point** — `def()` built `UNITS` *from* the views, so
+  the table's own rows were minted through the unsealed surface, which is
+  why #662 had to demote it — and that the **Python mirror was never
+  open**: `pncad.LengthUnit`/`AngleUnit` are `#[pyclass(frozen)]` with no
+  `#[new]`, so the anticipated `pncad-py` work was six `.symbol` →
+  `.symbol()` reads and no `.pyi` change. The lesson stands generalised:
+  seal the ROW and the residue moves to the VIEW of the row — and a
+  guard that pins the seal by quoting the PRE-SEAL spelling tests the
+  shape, not the seal.
 - **Sealing moves the coverage gap to the load door.** With construction
   closed by the type, the only production-realistic route to a corrupt
   document is a `.cad` file carrying a TABLED symbol on the wrong
@@ -5198,7 +5221,6 @@ mutually independent and independent of the B1–B3 chain.
 | **B3** | **W2c / S19 — the fillet half of the error catch-alls.** `AssemblyUnsupported { detail: &'static str }` at **146 sites**, of which ~120 are arena lookups that cannot fail on a valid body and five say "(kernel bug)" outright. D2's addendum is ratified, so these are row 4 (`unreachable!`) and the rename to `Unsupported*` is owed. | `sweep/src/fillet/` | **Must follow B1** (the retirement deletes some of the 146). Scope deliberately excludes `MissingEntity` (mesh — Track A) and `SplitJoinError::Corrupt` (splitting — B4). |
 | **B4** | **W2e remainder / S5 — `splitting/` vs `boolean/`.** The forked sector predicates are done (#647, #661); what remains is the `sector_face` twins, the duplicated pipeline, and the wrong-way dependency — the shared core lives inside one half by a one-sentence instruction in `M3-PLAN.md:230`. Fold in `SplitJoinError::Corrupt`'s 42 payload-free sites while you are in the file. | `topo/src/{splitting,boolean}/` | The steelman weakened two sub-claims: the shared error variants are **not** simple duplicates (every boolean twin carries `operand: Operand`, so unification touches a public API re-exported into four crates), and `SectorEntry` vs `BoolSector` is a **correct** divergence — only the producer is duplicated. |
 | **B5** | **S20 + S21 — the façade's invented vocabulary, and the two Python holes.** `closure.rs` is 151 lines compiling to nothing; `select.rs` is 449 comment lines before one `pub use`; `lib.rs:36` claims the façade has "no behavior of its own" while `workspace.rs` is 260 lines of real subsystem. And **every Python-authored document carries an identical constant `DocumentId`**, so two of them cannot coexist in a workspace — a hole, not a gap. | `pncad/`, `pncad-py/` | #639 has merged, so `pncad-py` is free. The `DocumentId` constant was a lane-contention artifact, disclosed and then deferred into a register that had closed the day before — §C3's worked example. |
-| **B6** | **#669 — seal `LengthUnit` / `AngleUnit`.** The same decision as #650's, one type over: their public fields produce **wrong values** at the D6 boundary (`25.0 * LengthUnit { symbol: "mm", factor: 1.0 }` is a 25-metre `Length` labelled mm), and reach an `Expr` and a document through `parse(fmt(x, unit))`, which is the module's own contract. | `quantity/`, `editor-core/src/expr.rs` | #662 sealed `UnitDef` and took `def() -> pub(crate)`; this is the bigger diff it declined, needing a `UnitDef -> LengthUnit` conversion. Evan approved the pattern. |
 | **B7** | **S25 — two ε vocabularies flow through SSI with nothing reconciling them.** Every entry point takes both a `Band` (whose `zero()` *is* the run tolerance) and a separate `eps`; two of four `certify_rung3` call sites already derive `eps = band.zero()` and say so, the SSI arms keep the independent knob. | `geom-brep/src/ssi/`, `certify.rs` | Both were born in one commit for a real reason — the marcher is deliberately the untrusted f64 candidate generator — but nobody wrote the bridge. `M4-PR6-SPEC.md:51`'s "a process may not host two ε values simultaneously" was scoped to ambient ε and never read as applying to a parameter list. |
 | **B8** | **S34 — `readback.rs` is a body-wide accessor module housed in `sweep`.** `face_pose`, `edge_pose`, `vertex_point` take a `topo::Body` and touch nothing from `sweep`, so `editor-core` and `pncad` depend on the whole sweep crate — NURBS skinning included — to read a face's plane. | `sweep/src/readback.rs` and its new home | Small and clear. Two of the three op-specific doors have no callers outside their own doctests; `vertex_point` is a near-copy of `revolve/upgrade.rs`'s. **Sequence after B1/B2** if the mover wants to avoid the fillet lanes, or take it first — it is nearly disjoint from both. |
 
