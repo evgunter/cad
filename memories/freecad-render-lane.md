@@ -184,8 +184,8 @@ is `tour` + `kernel montage` and nothing else.
   reports `full match: true` and every workspace crate still rebuilds —
   the action evicts workspace members from what it restores, by design.
   Caching what the tour PRODUCES (`demos/out`, keyed on an exact hash
-  of its sources) skips both halves and is most of what a 4-lane run
-  costs.
+  of its sources) skips both halves — and the tour is most of what a
+  4-lane run costs.
 * **`CAD_RENDER_JOBS`** (render.sh's concurrency knob) shortens both
   render loops. Contention then shows up exactly where the compile/
   render split predicts — a slower median scene — and still far under
