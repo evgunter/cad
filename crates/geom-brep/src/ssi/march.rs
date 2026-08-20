@@ -848,3 +848,41 @@ where
         steps: fwd.steps + bwd.steps,
     })
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::{MarchTol, SsiError};
+    use geom_core::Band;
+
+    /// The bridge, stated as a row: a marcher tolerance derived from a
+    /// band **is** that band's coincidence threshold. Nothing scales it,
+    /// pads it, or rounds it — the marcher's step rule and the
+    /// certificate's floors are the same number, so a run cannot march
+    /// at one tolerance and certify at another.
+    #[test]
+    fn a_derived_march_tolerance_is_the_bands_own_zero() {
+        for zero in [1.0e-3_f64, 1.0e-6, 1.0e-9, 1.0e-12] {
+            let band = Band::new(zero, 10.0 * zero).unwrap();
+            assert_eq!(MarchTol::of(band).meters(), band.zero());
+        }
+    }
+
+    /// The decoupled constructor is the only other door, and it refuses
+    /// typed rather than clamping: a generator tolerance that is not a
+    /// length is a caller error, not a value to repair silently.
+    #[test]
+    fn a_decoupled_march_tolerance_refuses_typed_on_a_non_length() {
+        for bad in [0.0_f64, -1.0e-9, f64::NAN, f64::INFINITY] {
+            match MarchTol::decoupled(bad) {
+                Err(SsiError::InvalidMarchTol { value }) => {
+                    assert!(value.is_nan() || value == bad, "{value:e} vs {bad:e}");
+                    let msg = format!("{}", SsiError::InvalidMarchTol { value });
+                    assert!(msg.contains("MarchTol::of"), "the recourse sentence: {msg}");
+                }
+                other => panic!("expected a typed refusal for {bad:e}, got {other:?}"),
+            }
+        }
+        assert_eq!(MarchTol::decoupled(1.0e-9).unwrap().meters(), 1.0e-9);
+    }
+}
