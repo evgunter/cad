@@ -45,7 +45,7 @@ set -euo pipefail
 GATE_SCAN_NOUN="workspace member"
 
 gate() {
-  local meta detail rc
+  local meta detail rc err
 
   # A GATE THAT SCANNED NOTHING IS NOT A PASS. `--root` makes an empty
   # or non-cargo tree reachable, and `cargo metadata` in one reports no
@@ -54,11 +54,19 @@ gate() {
     gate_error "$(gate_name): no Cargo.toml under $PWD — the gate has no workspace to read, which is not a pass"
     exit 1
   fi
-  if ! meta=$(cargo metadata --no-deps --format-version 1 2>&1); then
+  # STDERR STAYS OUT OF `meta`. Folding it in corrupts the SUCCESS path,
+  # not just the failure one: cargo's own progress and rustup's toolchain
+  # chatter go to stderr, and a JSON reader handed them fails on a
+  # perfectly good workspace. That is what a first hosted run of this
+  # gate did, on a runner that had to fetch the pinned toolchain.
+  err=$(mktemp)
+  if ! meta=$(cargo metadata --no-deps --format-version 1 2>"$err"); then
     gate_error "$(gate_name): cargo metadata failed under $PWD, so the target counts are unknown; that is not a pass"
-    printf '%s\n' "$meta" >&2
+    cat "$err" >&2
+    rm -f "$err"
     exit 1
   fi
+  rm -f "$err"
 
   # Exit 3 is the VIOLATION, and nothing else is: any other non-zero is
   # the reader itself failing, which must not be reported as a clean
@@ -141,11 +149,36 @@ plant_second_test_target() {
 # manifest at all must fail rather than report a clean workspace.
 plant_no_manifest() { rm -f "$1/Cargo.toml"; }
 
+# CARGO'S STDERR IS NOT ITS OUTPUT, and the clean fixture cannot show
+# that on a machine where cargo happens to be quiet — a shim ahead of the
+# real one on PATH makes it deterministic. The chatter modelled here is
+# rustup fetching the pinned toolchain, which is exactly what a runner
+# does on a cold job and what a local run never sees.
+selftest_stderr_noise() {
+  local tmp bin out
+  tmp=$(mktemp -d)
+  bin=$(mktemp -d)
+  gate_plant_clean "$tmp"
+  {
+    printf '#!/usr/bin/env bash\n'
+    printf 'echo "info: downloading component" >&2\n'
+    printf 'exec %s "$@"\n' "$(command -v cargo)"
+  } > "$bin/cargo"
+  chmod +x "$bin/cargo"
+  if ! out=$(cd "$tmp" && PATH="$bin:$PATH" gate 2>&1); then
+    rm -rf "$tmp" "$bin"
+    printf 'SELFTEST FAILED: the gate FAILED on a clean fixture when cargo wrote to stderr\n%s\n' "$out" >&2
+    exit 1
+  fi
+  rm -rf "$tmp" "$bin"
+}
+
 gate_selftest() {
   gate_selftest_clean
+  selftest_stderr_noise
   gate_selftest_case '2 test targets' plant_second_test_target
   gate_selftest_case 'no Cargo.toml under' plant_no_manifest
-  printf '%s selftest OK: passes a workspace whose members each declare one [[test]]; fires on a member with two, and on a root with no manifest\n' "$(gate_name)"
+  printf '%s selftest OK: passes a workspace whose members each declare one [[test]], and one whose cargo writes to stderr; fires on a member with two test targets, and on a root with no manifest\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

@@ -1861,7 +1861,8 @@ jobs:
           test -n "$crates"
           echo "probe-gated crates to type-check: $(echo "$crates" | tr '\n' ' ')"
           for c in $crates; do
-            cargo check -p "$c" --features probe --all-targets
+            cargo test -p "$c" --features probe --all-targets --no-run
+            cargo test -p "$c" --features probe --test all -- --list >/dev/null
           done
       # Runs the M2-era harness (crates/sweep) beside the M4/M5/M7 one
       # (editor-core + tour) — see the script header for why its dump

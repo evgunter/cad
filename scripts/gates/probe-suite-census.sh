@@ -32,33 +32,52 @@
 # attribute's parentheses: `all(…)`, `any(…)` and feature conjunctions
 # all count.
 #
+# THREE WAYS A GATE CAN BE UNCOVERED, AND WHICH MECHANISM ANSWERS EACH.
+# The predicate above is only one of them, and saying so is the point:
+#
+#   1. MISSPELT — `#![cfg(feature = "prboe")]`. Not this gate's, and it
+#      does not need to be. Cargo emits `--check-cfg` for every feature a
+#      manifest declares, so rustc's `unexpected_cfgs` fires on an
+#      unknown feature VALUE even where the condition is false and the
+#      module is stripped, and the workspace `clippy` row's `-D warnings`
+#      makes it an error. That row is therefore part of THIS gate's
+#      coverage argument, so it is checked below rather than assumed:
+#      neither may the row lose `--all-targets` or `-D warnings`, nor may
+#      anything under `crates/` silence the lint.
+#
+#   2. COMPOUND — `#![cfg(all(feature = "probe", not(miri)))]`. Correct,
+#      and covered, once the predicate has vocabulary for it: the file is
+#      counted, so its crate enters the derived type-check list. A
+#      verbatim predicate is what made this case silent, and only for the
+#      crate whose FIRST probe suite is spelled that way.
+#
+#   3. REQUIRES A SECOND FEATURE — `all(feature = "probe", feature =
+#      "interval")`. Correctly spelled, counted, and compiled by nothing:
+#      no CI row builds `probe` with another feature. The compiler cannot
+#      object, so it is REFUSED below, loudly, rather than counted.
+#
+# WHAT IS LEFT, AND WHY IT IS LEFT. A gate whose extra condition is not a
+# feature and is false on every runner — `not(target_os = "linux")`,
+# `miri` — is correctly spelled, counted, silenced by nothing, and
+# compiled nowhere. Only a behavioural check sees it: `cargo test -p
+# <crate> --features probe --test all -- --list` per crate, asserting
+# every counted suite appears as a module prefix. It was built, it works
+# (planting such a gate reds the listing while `cargo clippy -p topo
+# --all-targets -- -D warnings` stays green), and it was rejected ON A
+# MEASUREMENT. From an empty target dir on a 4-vCPU container, the
+# `k-lint` job's probe steps cost 141 s today (55 s type-check loop, 85 s
+# for the sweep's own probe binaries); building every probe target and
+# listing the aggregate costs 205 s. +64 s on every merge buys the case
+# above and nothing else, and the three cases that are actually plausible
+# are answered for free. If that trade ever changes, the check is four
+# lines and this paragraph is the argument to re-run.
+#
 # WHAT THIS PREDICATE CANNOT MATCH, stated because the previous one's
 # blind spot was not: a gate broken across lines (rustfmt keeps these on
 # one); a gate reached through a `cfg_attr` or a macro; and
 # `cfg(not(feature = "probe"))`, which it counts as a probe suite though
 # it means the opposite — an over-count, and the harmless direction,
 # since such a file compiles under the DEFAULT rows and is covered there.
-#
-# WHY THERE IS NO BEHAVIOURAL CHECK HERE. The shape this gate does not
-# take is `cargo test -p <crate> --features probe --test all -- --list`
-# per crate, asserting every `tests/*.rs` basename appears as a module
-# prefix. It is not needed, and as stated it is not sound. Not needed,
-# because the case it was proposed for — a suite gated on a MISSPELT
-# feature, which compiles to nothing and is in no census — is already an
-# error: cargo emits `--check-cfg` for every declared feature, so rustc's
-# `unexpected_cfgs` fires on `#![cfg(feature = "prboe")]` even though the
-# condition is false and the module is stripped, and the workspace
-# `clippy` row turns that warning into a failure. Not sound, because a
-# `--list` under `--features probe` omits every suite gated on any OTHER
-# feature (`interval`, `budget`), so the assertion is false for most of
-# the gated files in this tree. Its cost is real too: a probe-instantiated
-# codegen+link per crate in place of a `cargo check`.
-#
-# WHICH MAKES THE `clippy` ROW PART OF THIS GATE'S COVERAGE ARGUMENT, so
-# it is checked here rather than assumed: the workspace clippy row must
-# keep `--all-targets` and `-D warnings`, and nothing under `crates/` may
-# silence `unexpected_cfgs`. Either one alone re-opens the misspelt-gate
-# hole, silently.
 #
 # WHAT MUST STILL BE LOUD. A derived selection that matches NOTHING exits
 # 0, which is the silence this mechanism exists to remove. So the census
@@ -126,8 +145,21 @@ census_tally() {
     while read -r n c; do printf '%s %s\n' "$c" "$n"; done
 }
 
+# `<file>: feature = "X"` for every feature a counted gate names besides
+# `probe` itself. Read off the MATCHED LINES, not the whole file: a
+# probe suite may of course carry `#[cfg(feature = "interval")]` on some
+# item inside it, and that is not this question.
+census_second_features() {
+  local suite
+  while IFS= read -r suite; do
+    grep -hE "$PROBE_GATE_RE" "$suite" |
+      grep -oE 'feature = "[^"]*"' | grep -vFx 'feature = "probe"' |
+      sed "s|^|$suite: |" || true
+  done <<<"$1" | sort -u
+}
+
 gate() {
-  local files tally rc=0 entry want n have silenced
+  local files tally rc=0 entry want n have silenced extra
 
   # A CENSUS THAT SCANNED NOTHING IS NOT A PASS. `crates/*/tests` is a
   # glob; with no match `find` is handed the literal, prints nothing, and
@@ -154,6 +186,21 @@ gate() {
       rc=1
     fi
   done
+  [ "$rc" -eq 0 ] || exit 1
+
+  # A COUNTED GATE MAY REQUIRE `probe` AND NOTHING ELSE THAT IS A
+  # FEATURE. No CI row builds `probe` together with another one — the
+  # interval legs are their own build graph, `budget` is its own row —
+  # so `#![cfg(all(feature = "probe", feature = "interval"))]` is a
+  # correctly spelled gate that compiles under no configuration anyone
+  # runs. The compiler cannot object (both names exist) and the floor
+  # above still counts it, so without this the file is exactly as
+  # invisible as the misspelt one, and considerably more plausible.
+  extra=$(census_second_features "$files")
+  if [ -n "$extra" ]; then
+    gate_error "$(gate_name): a probe suite's gate requires a SECOND feature, and no CI row builds \`probe\` with another one, so the file compiles under no configuration this repo runs: $(printf '%s' "$extra" | tr '\n' ' '). Split the suite, or add the row that builds the combination and teach this gate about it"
+    rc=1
+  fi
   [ "$rc" -eq 0 ] || exit 1
 
   if [ "$CENSUS_CRATES" = true ]; then
@@ -242,6 +289,12 @@ plant_cfg_lint_allowed() {
   printf '#![allow(unexpected_cfgs)]\n#![cfg(feature = "probe")]\n' \
     > "$1/crates/topo/tests/probe_0.rs"
 }
+# A gate no CI row builds, spelled correctly. Nothing else in the tree
+# can object to it: both feature names exist, so the compiler is silent.
+plant_second_feature() {
+  printf '#![cfg(all(feature = "probe", feature = "interval"))]\n' \
+    > "$1/crates/topo/tests/probe_0.rs"
+}
 
 # A COMPOUND GATE IS CORRECT, NOT A VIOLATION, and the fixture asserts
 # the census counts it — `sweep`'s floor is 1 over exactly one file, so
@@ -271,7 +324,8 @@ gate_selftest() {
   gate_selftest_case 'has no step named' plant_step_renamed
   gate_selftest_case 'no workspace `cargo clippy' plant_clippy_undenied
   gate_selftest_case 'silences `unexpected_cfgs`' plant_cfg_lint_allowed
-  printf '%s selftest OK: passes a clean fixture and counts a compound gate; fires on an absent tests/ tree, a renamed gate spelling, one file re-gated onto a misspelt feature, a gate line replaced by a prose mention, a dropped citation, a renamed CI step, a clippy row that stopped denying warnings, and the cfg lint silenced at the site\n' "$(gate_name)"
+  gate_selftest_case 'requires a SECOND feature' plant_second_feature
+  printf '%s selftest OK: passes a clean fixture and counts a compound gate; fires on an absent tests/ tree, a renamed gate spelling, one file re-gated onto a misspelt feature, a gate line replaced by a prose mention, a dropped citation, a renamed CI step, a clippy row that stopped denying warnings, the cfg lint silenced at the site, and a gate requiring a second feature no CI row builds\n' "$(gate_name)"
 }
 
 gate_main
