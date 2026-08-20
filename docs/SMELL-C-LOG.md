@@ -159,6 +159,41 @@ says is worth a replay.
 
 ---
 
+## Reviews
+
+### #702 (C-a / S24) — style lane, 2026-08-20: **not cleared**
+
+The first test of this track's *style-review-only* policy on a low-risk row,
+and it argues for the policy rather than against it: **a style lane with no
+adversarial partner found a MAJOR anyway**, because it treated the PR's
+mutation table as a claim to run rather than as evidence to read.
+
+**The MAJOR.** The PR reported *"widen `is_declared_frontier` and this row goes
+red"*. Three genuine widenings leave the whole 567-row suite green —
+`all(…)` → `any(…)`, dropping the `mate.is_some()` conjunct, and relaxing
+`CensusUnsupported { entity: Face(_) }` to `{ .. }`. Only constant-true on any
+non-empty `AtRest` reddens `row4_a`, whose fixture contains no
+`CensusUnsupported` at all, and **no row in the suite mixes a declined finding
+with a refuted one** — the exact case the `all` exists to exclude. Q3's shape
+#2, and the overstatement was on its way into this document's permanent record.
+
+**Rulings on the fix pass** (orchestrator, 2026-08-20):
+
+| # | Ruling |
+|---|---|
+| **C-R5** | **Take the variant encoding.** The reviewer produced the fact that decides it: `editor_core::assemble` has **no consumer in the workspace** outside its own test file, so a distinct `AssemblyError` variant costs nothing and never will be cheaper. A predicate a caller may forget to call leaves them exactly where S24 found them; the finding's thesis was the compiler, and the PR's own title conceded *"a compiler **or a test**"*. Direction ruled, shape left to the lane. |
+| **C-R6** | **Fix the two in-crate residues rather than reporting them.** `node.rs:700` was declined on a merge-conflict argument (#683 live) that has expired — #683 merged — and was never a scope argument, in a PR that already reached outside its scope column. `persist/mod.rs:285` carries the identical false advertisement in the same crate and **the sweep did not find it**, which the PR owes an account of. |
+| **C-R7** | **Out-of-crate residues get an issue number and a §D row, not a sentence.** The PR marks S24 FIXED and deletes its Track C row, which would leave `step-import/recognize.rs:126` alive only inside the body of a finding labelled FIXED. That is the failure `REVIEW-STYLE-DISPATCH.md` names: the style lane becoming where known problems go to be recorded and forgotten. |
+
+*What this row teaches the track:* the two questions Evan added to the style
+brief did the work. Both came back **No** — not completely fixed, and not fixed
+in the best way — and neither answer was reachable from the diff alone. The
+first needed a sweep for siblings the PR had not named; the second needed the
+reviewer to go and check whether the stronger encoding was affordable, which is
+not a question the standing brief asks.
+
+---
+
 ## Landings
 
 *(none yet — #702 is green and in style review)*
