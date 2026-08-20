@@ -88,6 +88,9 @@ use super::{FilletError, FilletSite, decide};
 
 /// The one new margin this unit decides (module docs): the exact
 /// clearance between a support face's ring and a blend trimline.
+/// A K row name reaching the funnel through a const, not a literal at
+/// the decide site, so it is a roster carrier (`docs/K-REPORT.md`,
+/// "The inventory method, restated").
 const RING_CLEARANCE: &str = "fillet3_ring_clearance";
 
 // ------------------------------------------------------------------

@@ -212,6 +212,11 @@ pub(crate) fn cap_points<T: Real, S: SweptChord<T>>(
 /// the K recorder meters each sweep's line and arc margins separately,
 /// so the names are per-verb data passed into the shared body rather
 /// than a property of the body.
+///
+/// **A table of row names, so a new value here is a roster change**
+/// (`docs/K-REPORT.md`, "The inventory method, restated"): a name
+/// reaching the funnel as a field is invisible to any grep for a
+/// literal at the decide site.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct CosurfaceNames {
     /// The line/line predicate (chord collinearity).
