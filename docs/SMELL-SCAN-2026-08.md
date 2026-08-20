@@ -8429,7 +8429,7 @@ what makes the divergence visible.
 
 **Verdict:**
 
-## S67. FIXED by #NNN — the enumeration is COMPUTED, and `chord_join`'s missing flip is not a defect
+## S67. FIXED by #834 — the enumeration is COMPUTED, and `chord_join`'s missing flip is not a defect
 
 **The list is gone, replaced by a gate.** The three copies of the
 three-name enumeration — `face_normal.rs:31-36` (module header),
@@ -10823,7 +10823,7 @@ scope and dispositioning what it returns. The one-command version is in
 
 **Verdict:**
 
-**chord_join.rs discharged by #NNN (G8).** The vocabulary
+**chord_join.rs discharged by #834 (G8).** The vocabulary
 (`verbatim|re-derived|ported from|mirror|copy|copies|duplicat|identical|twin|hand-appl|hand-writ|parallel`,
 case-insensitive) returns **37 hits** in that file, re-derived on `origin/main` at the
 merge (`3ddd6011`), and S131's warning that the grep is a candidate list
@@ -10840,7 +10840,7 @@ split's above-side vertex duplicates (`:39`, `:176-202`, `:1554`), which
 is the one shape the vocabulary cannot be narrowed against without
 losing real markers.
 
-**One was stale, and is fixed by #NNN:** `:1232` said the boolean
+**One was stale, and is fixed by #834:** `:1232` said the boolean
 planar-side lane's *"selection logic mirrors `chord_spec`'s S9 block
 deliberately — same margins, same predicate names, same refusal
 cases"*, but since S5 both lanes call the one `select_arc` body
@@ -10874,7 +10874,7 @@ exists and is green: `sweep/tests/m5_s12_curved_ops.rs`'s
 
 **Three copies, and the hit list.**
 `chord_join.rs:1788-1794` (*"SENSE HAZARD (M5 S11, banked)"*) —
-**FIXED by #NNN**, replaced by the invariant and its guard.
+**FIXED by #834**, replaced by the invariant and its guard.
 `attach.rs:104-105` and `:123-138` — **not this unit**: outside G8's
 scope cell, and §C and §B each cite `attach.rs:119`'s KNOWN HAZARD
 block as the exemplar of *a named-and-pinned gap*, so correcting it
@@ -12859,7 +12859,7 @@ the track log):
   G8 goes first; G9 sequences behind it. They are not merged — G8's row already
   requires its `chord_join` question be a separate adversarial sub-unit, and
   folding G9's placement argument in would put that sub-unit inside a doc edit.
-  (G-R4.) **Landed: #NNN.** The sub-unit came back *not a defect*
+  (G-R4.) **Landed: #834.** The sub-unit came back *not a defect*
   (`point_in_loop` is exactly sign-blind, and the derivation is now at the
   site), so nothing of G8's is owed to an issue and G9 is unblocked; G9
   inherits **S171** and the `chord_join.rs` half of **S133**, both discharged
