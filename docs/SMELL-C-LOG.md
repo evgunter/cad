@@ -99,6 +99,28 @@ is. The pattern must cover **bare** clause letters (`F5`, `G1`, `U7`,
 `R3`, `C4`, `S13`) as well as prefixed codes, and must follow
 `\`-continued multi-line literals.
 
+### The distinction C-c derived while re-anchoring, which generalises
+
+Re-anchoring a renamed crate across a 6,800-line document forced a rule that
+did not exist, and it is worth keeping:
+
+> **A pointer that tells someone where to go is re-anchored; a record of what
+> was observed at a place and time keeps the name it was observed under.**
+
+Twelve live sites moved under it; twenty-two survivors are accounted for by it
+— closed findings, records of what was merged, and one case worth naming:
+**S41's `Trv`-crossing table and its `cargo test -p geom-curves --features
+interval` line are measurements, not directions.** Renaming a measurement's
+command would make a record of what was *run* look re-runnable when it is not.
+That line keeps its command and gains a bracket saying the crate is now `geom`.
+
+This is the discriminator the project's invalidation discipline has been
+missing. That discipline is symbol-scoped, and the repeated failure — S39, Q4's
+second sub-case, `nurbs_iso.rs` in this very PR — is prose that outlived what
+it described. But the fix is not "rename every mention": half of them are
+history, and renaming history is its own corruption. The question is what the
+sentence is *for*.
+
 ---
 
 ## Coordination with Track D
@@ -446,7 +468,7 @@ untouched and unclaimed.
 | unit | state | who finishes it |
 |---|---|---|
 | **#702** C-a / S24 | **MERGED** `f382c4a` | — |
-| **#705** C-c / S31 | reviews cleared, held-merge item done, merging against a moving main | its lane, self-merge on green |
+| **#705** C-c / S31 | **MERGED** `2e861932` | — |
 | **#709** C-b / S30 | both reviews running to completion; PR is CONFLICTING and must be un-conflicted first | its lane, self-merge on green after the fix pass |
 
 **Review artefacts survive the session** even if the reports do not reach the
@@ -479,7 +501,7 @@ untouched because its recording sits *inside* `decide`/`decide_flagged`/
 | PR | unit | state |
 |---|---|---|
 | **#702** | C-a / S24 | **MERGED 2026-08-20** (`f382c4a`). 37 checks terminal, zero failures. Two review rounds plus an independent verification pass. **Unblocks Track D's D7.** |
-| **#705** | C-c / S31 | both reviews returned and both fix batches landed; adversarial MAJOR-1 **cleared on re-read**. Awaiting the nextest legs on the final head. |
+| **#705** | C-c / S31 | **MERGED 2026-08-20** (`2e861932`). 37 checks, zero failures; the three carrying rows pulled from the job logs individually rather than read off green ticks. Two crates → one `geom`. **Unblocks S32.** |
 | **#709** | C-b / S30 | open — *the instrument leaves the kernel: `mesh::budget` measures, `tools/tess-meter` derives, `probe_stats` deleted*. Not yet reviewed. |
 
 ### What #702 cost, and what that says about the policy
