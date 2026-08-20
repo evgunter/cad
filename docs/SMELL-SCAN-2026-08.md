@@ -1274,9 +1274,18 @@ surface.
 vs 178 normalised chars) by exactly the `wall_sense` bit whose three
 per-verb rules are the M5 S11 fix. `strut_spec` — 223 vs 350 chars,
 different arity, `ExtrudedPoint` on a line against `RevolvedPoint` on a
-circle; a name collision. `swept_segments` — 813 vs 643 chars, and only
-extrude has a reversal arm. `full::build_lamina` and the `let _ = k;`
-inference, both retracted by the steelman and both confirmed here.
+circle; a name collision. `swept_segments` — 813 vs 643 chars.
+**CORRECTED at S74, by #781:** this entry originally continued *"and
+only extrude has a reversal arm"*, which was false when written —
+`revolve::swept_segments` took `reverse: bool` and implemented the same
+involution. It is the sentence S74 was raised about, and it stood in
+two places, `swept.rs` and here; the record is corrected rather than
+deleted because a claim this unit's own class re-check read and failed
+to correct is worth being able to find. **The two are now unified** in
+`swept.rs`, so the entry is void either way. `full::build_lamina` and
+the `let _ = k;` inference, both retracted by the steelman and both
+confirmed here (the `let _ = k;` binding was simply dead, and #781
+deleted it).
 `skin.rs` was swept for the same closed forms and shares none of them:
 it discretises arcs in `f64` with a signed `θ = 4·atan(bulge)`, a
 different derivation that happens to look similar.
@@ -8099,18 +8108,37 @@ record and *"never reads it, so there is no defect — but that is loft's habit,
 not a structural guarantee."* Loft now imports `swept::SweptSeg`; the record it
 carries has no such field, so the guarantee is structural.
 
+**The fix pass, and what its review found.** #781's first head closed the
+false sentence by writing new unenforced prose — and two of those sentences
+were **already wrong**, which is S74's own mechanism committed inside the fix
+for S74. The style review caught it and the record is corrected in place
+rather than appended to: the funnel-bypass claim went stale in the opposite
+direction (below), the arc-sense reconciliation and the `SweptKind`
+correspondence were prose where a mechanism was available, and the deleted-
+marker arithmetic did not add up. **The code half was confirmed and stands** —
+the reviewer re-derived the index algebra two ways and identified
+`m5_s11_concave_sense.rs:165` as the row that reddens on a mis-indexed
+orientation bit. Three things this pass could not close became **S131**,
+**S132** and **S133**.
+
 **The class re-check — every *"deliberately NOT unified"* claim in the S6
 record and in `swept.rs`'s own paragraph, read against the code:**
 
 - **The swept-traversal builder** — FALSE as stated (above). Closed by
   unifying; the sentence is gone rather than corrected.
-- **The wall-orientation sense is per-verb** — SURVIVES, with a corrected
-  parenthetical. `swept.rs` said *"revolve reads the wall class"*; revolve's
-  sphere and torus walls read the **canonical turn**, by the same
-  `turn == Positive` criterion extrude uses for every wall, and
-  `revolve/axis.rs:328-329` says so. Only revolve's cylinder, cone and plane
-  annulus walls read a canonical Δz or Δr. The rule sets share one arm and no
-  body, so the claim holds; the shared arm is now marked at both ends.
+- **The wall-orientation sense is per-verb** — SURVIVES, and the shared arm
+  is now **one body rather than three prose sites**. `swept.rs` originally
+  said *"revolve reads the wall class"*, which was wrong; the first correction
+  said revolve reads the turn *"where its carrier centre is on the meridian
+  (sphere, torus)"*, which is **vacuous** — every sketch arc's centre is on
+  the meridian, and the real discriminator at `revolve/axis.rs` is *arc versus
+  line*. Both spellings were prose reconciling `extrude::wall_sense_of`'s
+  `matches!(turn, Positive | Zero)` with `classify_segment`'s
+  `!matches!(canonical(turn), Negative)`. The fix pass gave the rule one home
+  in code — `swept::centre_on_material_side` — called from both verbs, so the
+  `Zero` totality posture is decided once and the reconciling prose is
+  deleted rather than corrected. The claim itself holds: on LINE walls the
+  verbs genuinely diverge and share no body.
 - **The strut carrier is per-verb** — SURVIVES intact. `extrude::strut_spec`
   and `revolve::surfaces::strut_spec` agree on neither arity, `MappedCurve`
   variant (`ExtrudedPoint` / `RevolvedPoint`), carrier (`Curve3::Line` /
@@ -8130,30 +8158,78 @@ record and in `swept.rs`'s own paragraph, read against the code:**
 - **Residue (c), the second funnel** — SURVIVES; `sweep/src/fillet/mod.rs:86`
   is still a second funnel in the crate. Not this unit's: `fillet/` is Track
   E's (#768).
-- **Residue (e), the funnel bypasses** — the count was wrong.
-  `swept.rs:31` said *"`loft` and three other sites"*, which reads as four;
-  there are three. The number is **deleted rather than corrected**: the three
-  are now named (`loft`'s stacking test, `extrude`'s tangent test,
-  `revolve::tube`'s angle window), because a name goes stale visibly and a
-  count does not.
+- **Residue (e), the funnel bypasses** — the claim went stale **twice, in
+  opposite directions**, and the third answer is neither a count nor a list.
+  `swept.rs:31` said *"`loft` and three other sites"*, which reads as four.
+  The first correction named three sites — and **undercounted**:
+  `revolve/tube.rs` alone makes four direct recorder calls under four
+  predicate names (`tube_frame_unit`, `tube_frame_orthogonal`,
+  `tube_window_span`, `tube_window_headroom`), three of them frame validity
+  rather than the angle window the sentence named. Re-derived on `6a479c94`:
+  **three modules bypass a funnel, at six call sites** — `loft.rs`,
+  `extrude.rs`, and `revolve/tube.rs`'s four. Neither number is now in the
+  tree. The claim site states **a command instead**:
+  `rg 'geom_core::k_stats::decide' crates/sweep/src` catches every module that
+  reaches the recorder, because the only two ways to reach it are that path at
+  the call site and that path in a `use` — which is exactly why grepping
+  `decide(` misses `tube`, and why the name-list missed it too. The rule
+  over-catches by doc mentions and says so; it has no false negatives, and
+  that is the property a count and a list both lacked.
 - **Residue (f), `face_surface_key` not moved to `topo`** — SURVIVES;
   it returns `EulerOpError` and lives in `swept.rs`, as recorded.
 - **Observation: `SweptKind` against `profile::SegmentKind`** — SURVIVES and
   was **unmarked**: the two are field-for-field the same shape, separated only
-  by whose orientation `turn` carries. `SweptKind` now says so.
+  by whose orientation `turn` carries. The first fix asserted *"a change to
+  either enum's arms is a change to both"* — a hand-kept invariant, which is
+  the shape this whole finding exists to distrust. It is now stated as its
+  enforcement instead: `swept_segments` is the only place one is built from
+  the other and its `match` is exhaustive, so an arm added to
+  `profile::SegmentKind` stops this crate compiling.
 
-**The deleted-marker sweep**, which is the half nobody had run:
-`git log -S'<phrase>' -- crates/sweep/` over *Mirror of / mirror of / verbatim /
-re-derived / ported from / one dimension down / the twin of / twin of / copy of /
-duplicate of / hand-synced / kept in sync*. Exactly one commit in that history
-deletes markers, `6b9c1236`; of the seven it deleted, five named helpers it had
-genuinely unified (`SweptKind`, `arc_apex`, `cap_points`, `cosurface`,
-`face_surface_key`, `chain_spec`) and **two named copies it left standing** —
-S74's two. No third. **What it cannot match:** a marker phrased in words nobody
-has used, a copy that never declared itself at all (`SweptKind` was found by
-reading, not by grep), and — workspace-wide — `-S` cannot tell an added marker
-from a deleted one, so outside `crates/sweep/` this pass is not a negative
-result.
+**The deleted-marker sweep**, re-derived rather than transcribed (the
+first published version of this paragraph did not add up; #781's fix
+pass re-ran it against `main` at `6a479c94`).
+
+`git log -S PHRASE -- crates/sweep/` over *Mirror of / mirror of /
+verbatim / re-derived / ported from / one dimension down / the twin of /
+twin of / copy of / duplicate of / hand-synced / kept in sync*, then
+every deleted comment line it surfaces read in context.
+
+**Counted by a stated criterion**, because that is what makes the number
+re-derivable: a *marker* is a sentence declaring **this item is the same
+code as a named item elsewhere**. Exactly one commit in that history
+deletes any, `6b9c1236` — S6's own fix pass — and it deletes **seven**:
+
+- **Five named helpers it genuinely unified**, so the marker went with
+  the copy: `SweptKind`, `arc_apex`, `cap_points`, `cosurface`,
+  `face_surface_key`.
+- **Two named copies it left standing**: `SweptSeg` and
+  `swept_segments`. S74's two. No third.
+
+Three deleted lines the phrase list surfaced are **not** markers under
+that criterion and are excluded: `chain_spec`'s *"passes the sketch
+placement verbatim"* (that "verbatim" modifies a placement value, not a
+body — `chain_spec` was unified, but it never declared itself), and
+`turn_axis`'s two *"extrude's convention"* notes (attribution of a sign
+convention, not of a body). **The vocabulary produces false positives as
+well as false negatives**, which is the argument for reading every hit
+rather than counting the grep.
+
+**What it cannot match**, and one of these was demonstrated on this very
+unit:
+
+- A marker phrased in words nobody has used, and a copy that never
+  declared itself at all — `SweptKind`'s correspondence to
+  `profile::SegmentKind` was found by reading, not by grep.
+- **A live marker in the working tree.** This sweep runs over *history*,
+  for markers whose copy outlived them. Run over the tree instead, the
+  same vocabulary immediately returns three self-declared duplications
+  inside these very files that this pass had not dispositioned —
+  `revolve/tube.rs:216`, `revolve/tube.rs:169`, `loft.rs:400`. That gap
+  is **S131**, and it is the sharper half of the two directions.
+- Workspace-wide, `git log -S` cannot tell an added marker from a
+  deleted one, so outside `crates/sweep/` this is not a negative result.
+  Where to look next is **S133**.
 
 **Verdict:** FIXED.
 
@@ -9473,6 +9549,102 @@ they pin: `review_d2_adv_probes`, `review_d2_recourse_at_the_site`,
 `d8_knot_queries_adversarial`, `probe_s5_sectors`, `e4_dual_door`. Per
 Evan's Tier-3 verdict on S36, renaming waits on an actual review and
 fixup of each suite.
+
+## S131. A unification declares "one home" while self-declared hand-copies of the same rule stand inside its own scope
+
+**[verified, #781's fix pass]** S74 unified the two swept-traversal
+builders and `swept.rs` then claimed `swept_segments` was *"the one home
+of the profile crate's reversal involution."* It was not.
+`revolve/tube.rs:216` builds two `SweptSeg` values by hand under a
+comment that **says so**: *"the same transform `swept_segments` applies
+to a canonical CCW loop: endpoints swapped, bulge −1, turn Negative."*
+A self-declared copy of the exact rule being unified, in a file §D
+listed inside the unit's own scope.
+
+**This is the class, and it has three members in these files alone.**
+Run the marker vocabulary over the **working tree** rather than over
+history and `crates/sweep/src` returns, outside `fillet/`:
+
+- **`revolve/tube.rs:216`** — the reversal involution, hand-applied.
+- **`revolve/tube.rs:169`** — *"mirrors revolve's angle
+  classification"*: `revolve/mod.rs:640-648` decides span and headroom
+  under `revolve_angle` / `revolve_angle_headroom`, `tube.rs:174-179`
+  decides the same pair under `tube_window_span` /
+  `tube_window_headroom`. Live and true.
+- **`loft.rs:400`** — *"extrude's phase verbatim, loft rim specs"*:
+  `extrude.rs:537` is the same `mev_line` → `kemr` → `mev` hole phase,
+  differing only in the rim specs. Live and true.
+
+**All three are honest markers and all three stay.** The tube ones
+cannot share code: that door exists to store the caller's centre and
+radii bit-exactly rather than reconstruct them from bulges, so it cannot
+hand the shared builder a `ValidatedLoop` at all. `loft.rs:400` is a
+real candidate for sharing and nobody has costed it.
+
+**The defect is not the copies; it is that a unification asserted "one
+home" without looking for them**, and that both of the unit's sweeps
+were structurally blind to them — Sweep 1 grepped the *not-sharing*
+vocabulary, Sweep 2 grepped the *marker* vocabulary but over `git log`,
+never over the tree. **The cheap generalisation: any claim of the form
+"X now has one home" is owed a marker-vocabulary grep of the tree in
+the scope it claims**, and that is one command.
+
+`swept.rs`'s sentence is corrected to state the qualifier that makes it
+true (*from a validated loop*) and to name `tube.rs` as the exception.
+Recorded because the *shape* — a consolidation's headline claim
+falsified by a marker already in the tree — is not specific to `sweep`.
+
+**Verdict:**
+
+## S132. `strut_spec` — one name, two different rules, in one crate
+
+**[verified]** `extrude.rs:384` and `revolve/surfaces.rs:75` are both
+`strut_spec`. They share nothing else: different arity (five parameters
+against six), different description (`MappedCurve::ExtrudedPoint`
+against `RevolvedPoint`), different carrier (`Curve3::Line` against
+`Curve3::Circle`) and different parameter intervals (`0..w_norm` against
+`0..|θ|`).
+
+S6 saw it, called it *"a name collision"*, and correctly left it
+unified-nothing. S74's class re-check saw it again, confirmed the
+non-unification claim was sound, and **put it in a lane report**. That
+is the inverse of S4's shape — one vocabulary, N implementations — and
+it is the project's standing failure in miniature: **an instance
+recorded outside the register is not recorded.** The register is here.
+
+Not obviously a defect: two verbs each naming their own strut spec after
+the thing it specifies is defensible. What is not defensible is that a
+reader who greps `strut_spec` gets two functions with incompatible
+contracts and nothing at either site saying the other exists. Minimum
+close: a marker at each. Fuller close: name them for what differs.
+
+**Verdict:**
+
+## S133. The consolidation-deletes-its-own-evidence sweep was run over one crate, and the mechanism is not crate-specific
+
+**[disclosed, #781]** S74's mechanism is *a consolidation pass removed
+the prose that was its own evidence and left a positive claim behind
+that is now false.* The class re-check that closed it swept
+`crates/sweep/` — honestly scoped and said so — but #710 was one of
+several consolidation passes this milestone, and the mechanism has
+nothing to do with `sweep`.
+
+**Why the disclosure could not be discharged in place:** run
+workspace-wide, `git log -S` cannot distinguish a marker being *added*
+from one being *deleted*, so the phrase families return dozens of
+commits that are mostly additions. Separating them needs a per-commit
+read, which is a lane, not a paragraph.
+
+**Where to look, and who owns it.** `topo/src/chord_join.rs` and
+`profile/src/path/` are the other trees that took consolidation passes
+this milestone. Both are already staffed — `chord_join.rs` is G-f's
+(G8) and G-g's (G9), `profile/` is G-d's (G5) — so this is **not a new
+lane**: it is an obligation those lanes can discharge cheaply while they
+are in the file, by running the marker vocabulary over the tree in their
+scope and dispositioning what it returns. The one-command version is in
+**S131**.
+
+**Verdict:**
 
 ---
 
