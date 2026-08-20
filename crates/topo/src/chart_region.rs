@@ -1370,14 +1370,29 @@ fn overlap_of_regions<T: Decide + Bounds>(
     }
 
     // The area margin: `over_lever(2A, P)` — the intersection
-    // region's MEAN WIDTH in metres (`2A/P` is the width of the
-    // constant-width strip with this area and boundary length; the
-    // `split_section_area` derivation verbatim, chart-space edition:
-    // `2A` IS the shoelace sum, so dividing by the full perimeter
-    // yields `2·|A|/P` for a CCW region). Positive certifies; an
-    // exact Zero or a definite Negative after the conservative ring
-    // deduction cannot certify EITHER direction (the region exists;
-    // only its hole-adjusted area is unresolved) and escalates typed.
+    // region's MEAN WIDTH in metres. The dimensional argument has one
+    // home, `Margin::over_lever`'s door: `2A/P` is the width of the
+    // constant-width strip with this area and boundary length.
+    // `net_2a` IS the shoelace sum, not half of it, so the divisor is
+    // the FULL perimeter.
+    //
+    // `split_section_area` asks the same question in 3-D through that
+    // same door, and the two stop sharing there. Neither accumulator
+    // can be the other's: this one sums `perp_dot` over chart
+    // `Point2`s, that one sums `a×b·n̂` over `Point3`s precisely so
+    // that no in-plane basis is chosen, and projecting either into
+    // the other's space to share ten lines would move the shoelace
+    // sum's last bits and with them a shipped margin. Past the
+    // accumulator each runs a correction the other has no counterpart
+    // for — conic excess there, the conservative ring deduction here
+    // — and takes the opposite sign convention (`|2A|` there, signed
+    // here, because a ring deduction may legitimately drive this one
+    // negative).
+    //
+    // Positive certifies; an exact Zero or a definite Negative after
+    // the conservative ring deduction cannot certify EITHER direction
+    // (the region exists; only its hole-adjusted area is unresolved)
+    // and escalates typed.
     let area_margin = Margin::over_lever(net_2a, tot_p);
     match decide("chart_region_area", area_margin, band) {
         Ok(Sign::Positive) => Ok(ChartOverlap::PositiveArea),

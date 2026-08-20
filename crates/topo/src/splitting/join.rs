@@ -369,10 +369,12 @@ impl<T: Decide> Sweep<T> {
         }
         // `twice_area` IS 2A (shoelace), so dividing by the full
         // perimeter yields the documented margin 2·|A|/P — the mean
-        // width in meters. (Rim-dimensional audit: the previous
-        // `/ (perimeter * 0.5)` computed 4·|A|/P, double the
-        // documented spec — dimensionally identical, but the doc is
-        // the contract.)
+        // width in meters, the dimensional argument stated once at
+        // `Margin::over_lever`'s door. `chart_region`'s
+        // `chart_region_area` asks the same question two dimensions
+        // down and reaches it through that same door; the two
+        // accumulators are separate by dimension and stay so (the
+        // reasons are written at that site).
         let margin = Margin::over_lever(twice_area.abs(), perimeter);
         match decide("split_section_area", margin, self.band) {
             Ok(Sign::Positive) => Ok(()),

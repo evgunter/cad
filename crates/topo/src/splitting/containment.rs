@@ -129,7 +129,18 @@ impl std::error::Error for PointInLoopError {}
 /// three axes plus golden-angle-spread oblique members — for any unit
 /// plane normal, most members project to a definitely-nonzero in-plane
 /// direction (an all-graze outcome is the typed exhaustion error).
-pub(super) const SCHEDULE: [[f64; 3]; 16] = [
+///
+/// **The one table.** Three consumers read it: this module's in-plane
+/// ray parity, [`crate::splitting::order`]'s point ordering, and
+/// [`crate::boolean::solid_contain`]'s 3-D containment sweep, which
+/// casts along these triples unprojected. Each depends on sweeping
+/// the same directions in the same order every run, and a single
+/// definition makes that true by construction — there is nothing for
+/// a guard to check. `pub(crate)` is the minimum visibility that
+/// reaches `boolean`, a sibling of `splitting` rather than a
+/// descendant. `chart_region`'s `SCHEDULE_2D` is a different table by
+/// dimension, not a fourth reader of this one.
+pub(crate) const SCHEDULE: [[f64; 3]; 16] = [
     [1.0, 0.0, 0.0],
     [0.0, 1.0, 0.0],
     [0.0, 0.0, 1.0],
