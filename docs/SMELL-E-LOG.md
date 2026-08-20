@@ -281,9 +281,10 @@ constituted.**
 | D42–D43 | E-f (D25) | **returned unused** — the unit's two findings were corrections recorded at their own entries, and neither leaves work behind |
 | D44–D45 | E-b (D23) | reserved 2026-08-20 |
 | D47–D48 | E-c's fix pass (#752) | assigned 2026-08-20 — the `pncad-py` `Debug`-dump class and its unguarded rule; `select_refusal_tag`'s vacuous alarm |
+| D49–D50 | E-f's fix pass (#755) | assigned 2026-08-20 — the token-free half of the liveness block, alive in five more arenas; the `Live` unforgeability gate (**sequences after E-a**, which holds `scripts/gates/` and `ci.yml`) |
 | D46 | E-d (D33) | reserved 2026-08-20 |
 
-Next unassigned: **D49**; D42 and D43 are back in the pool and deliberately not
+Next unassigned: **D51**; D42 and D43 are back in the pool and deliberately not
 re-issued — a number that has appeared in a lane's report, even as *unused*, is
 cheaper to skip than to explain.
 
@@ -312,7 +313,7 @@ serialized here and each lane re-merges `origin/main` when one lands.
 |---|---|---|---|---|
 | **E-c** | D26 | `smelle/d26` | **#752** | **CLEARED**; fix pass running (8 findings, 2 → rows D47/D48). Merges first |
 | **E-a** | D22 + D34 | `smelle/d22-d34` | — | implementing |
-| **E-f** | D25 | `smelle/d25` | **#755** | style lane **CLEARED** (1 must-fix, 11 findings); **adversarial lane still running**. One combined fix pass when it reports |
+| **E-f** | D25 | `smelle/d25` | **#755** | **CLEARED by both lanes**; combined fix pass running (3 must-fix, 2 → rows D49/D50). Merges after #752 |
 | **E-b** | D23 | `smelle/d23` | — | dispatched. **Fenced off `scripts/gates/probe-suite-census.sh` and `ci.yml`** while E-a holds them |
 | **E-d** | D33 | `smelle/d33` | — | dispatched |
 
@@ -417,6 +418,52 @@ arenas** — shells, faces, vertices, loops, solids, surfaces. The *token* half
 correctly does not transfer, and the PR says so; the **token-free** half does —
 `certify_half_edge` is now a one-line refusal helper and the other five arenas
 still spell four lines out longhand.
+
+### #755 (E-f / D25) — adversarial lane, 2026-08-20: **CLEARED**, nothing broken
+
+**All nine claims survive, and none of them survived by assertion.** What makes
+this report worth keeping is its instrument discipline, not its verdict:
+
+- **Unforgeability was compiled, not read.** Six forge attempts from a scratch
+  module inside the crate, every one a hard error — `Live(k)` E0423, struct
+  literal and functional-update E0451, destructuring E0532, `default()` E0599,
+  `into()` E0277, and `mem::zeroed` refused by the workspace's
+  `unsafe_code = "forbid"`. Field privacy is module-scoped, which the E0451 case
+  demonstrates rather than asserts.
+- **The loud-failure claim was planted.** A residue violation (`remove` between
+  certify and splice) run in **release**, where the debug postcondition is
+  compiled out: the `unreachable!` fires, `#[track_caller]` names the splice site
+  rather than the helper, 14 tests red. Plus a null-key probe that matters
+  because `mint_halves` leaves `next`/`prev` null, and a stale-key probe over
+  200 000 insert/remove cycles on one slot.
+- **The two arguments the style lane declined to check were made executable.**
+  `kef`'s `remnant.first()` ⟺ `next(he) == he` and `split_edge`'s two-case
+  exhaustiveness became assertions run over the lib *and* the 339-test
+  integration suite, **each proved live by inverting it** (25 tests red, 16 red,
+  8 red respectively). An assertion that has not been inverted is not evidence.
+
+**The sharpest negative result: the cross-body hole is real, reachable and
+pre-existing.** `merge_faces.rs:468` stages `let mut work = self.clone()` and
+commits at `:540`; `Body: Clone` preserves slotmap keys, so a token certified on
+`self` certifies equally on `work` and would write into a body that has since
+diverged. `revert.rs`, `transform.rs` and two `body.rs` doors are the same
+shape. **No token reaches any of them today** — `Live` and its four doors live
+in five files, none holding two bodies — and on the merge base the identical
+misuse was equally available through raw keys. So: no regression, and a named
+shape for whoever widens `Live`'s reach.
+
+**Two corrections to the dispatcher, both mine:** hosted run 32387970145 was
+**cancelled** (superseded when the lane pushed the E-R4 correction), and the
+green run is 32388486531; and the release-profile selection is **25** tests, not
+17. I cited a run number from a report rather than from the runs list — the same
+class as E-R4 and §C13, one level down.
+
+*Worth carrying:* **the two lanes found different things and neither would have
+found the other's.** The style lane found the ratified contract still saying the
+thing had been proved impossible; the adversarial lane found the cross-body
+shape and proved the arms. The only overlap was *"one constructor"* is false —
+which both found independently, from opposite directions, which is why it is the
+one finding recorded as certain.
 
 ---
 
