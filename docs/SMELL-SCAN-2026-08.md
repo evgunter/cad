@@ -8211,6 +8211,19 @@ continue }` and its inner loop are two separate ways for the row to
 assert nothing, and a run of verdicts that all carry zero chains reaches
 no `chain.links` at all.
 
+**The hypothetical was already actual.** The finding said *"if
+`boolean_op_with` or `revolve` ever starts refusing these fixtures, the
+sweep degrades"*. On this branch it already has, partially: the corpus
+mints **8 of the 11** bodies the file writes, and `die_two_pips`,
+`die_edge_straddling_pip` and `die_corner_pip` — three `subtract`
+requests — are absent at the default ε. Nothing said so before this
+change, and nothing would have said so if it had been eleven of eleven
+yesterday and one of eleven tomorrow. The three absentees are typed
+refusals from a boolean on a hard case, not a kernel defect, which is
+why they are recorded here and not filed; the floors are set so that a
+boolean's honest refusal cannot red the row, and the coverage the file's
+claims rest on can.
+
 `d2_reached_variants` keeps no floor: it declares itself evidence rather
 than a gate, and that declaration is accurate.
 
