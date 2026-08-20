@@ -247,7 +247,9 @@ impl UnitSym {
         // rather than `index out of bounds: the len is 6 ...`.
         let Some(row) = quantity::UNITS.get(usize::from(self.0)) else {
             unreachable!(
-                "display-unit code {} is not a row of quantity::UNITS ({} rows)",
+                "display-unit code {} is not a row of quantity::UNITS ({} rows), yet the \
+                 code is minted only by `from_def`, as a position in this very table, and \
+                 `UnitSym`'s field is private to this module",
                 self.0,
                 quantity::UNITS.len()
             )
