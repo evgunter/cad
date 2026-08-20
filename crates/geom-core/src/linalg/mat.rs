@@ -1,9 +1,9 @@
 //! Linear maps of the 3-D tangent space.
 //!
 //! See the [module docs](super) for the affine/linear split: a matrix here
-//! is a linear endomorphism of the tangent space — it acts on
-//! [`Vec3`], never directly on points (affine maps, which also
-//! move points, are [`super::Affine3`]).
+//! is a linear endomorphism of the tangent space — it acts on [`Vec3`],
+//! never directly on points (affine maps, which also move points, are
+//! [`super::Affine3`]).
 //!
 //! Storage is column-major through *named column fields* (`c0`, `c1`,
 //! `c2`), each a vector — the columns are the images of the standard basis
@@ -271,7 +271,7 @@ mod tests {
         /// re-add rounds once at ≤ EPSILON/2). Everything is therefore
         /// within 5e-16 of the embedded 2-D rotation entrywise.
         #[test]
-        fn rodrigues_z_axis_matches_embedded_rotation2(theta in angle()) {
+        fn rodrigues_z_axis_matches_embedded_planar_rotation(theta in angle()) {
             let r3 = Mat3::<f64>::rotation_about(Vec3::unit_z(), theta);
             let (s, c) = theta.sin_cos();
             let embedded = Mat3::from_cols(

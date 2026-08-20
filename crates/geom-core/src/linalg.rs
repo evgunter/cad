@@ -1,5 +1,6 @@
-//! Fixed-dimension linear algebra: vectors, points, matrices, and affine
-//! maps for the 2-D/3-D evaluation layer.
+//! Fixed-dimension linear algebra for the 2-D/3-D evaluation layer:
+//! vectors and points in both dimensions, matrices and affine maps in
+//! 3-D only (see the omission below).
 //!
 //! Hand-rolled per `docs/DESIGN.md`'s layering table — small, fixed
 //! dimension, and generic over our own [`Real`](crate::real::Real) scalar
@@ -31,6 +32,12 @@
 //!
 //! # Deliberate omissions
 //!
+//! - **No 2-D linear or affine maps.** [`Vec2`] and [`Point2`] have no
+//!   `Mat2`/`Affine2` to move them: the asymmetry with the 3-D half is
+//!   intended, not an oversight. Nothing in the kernel maps the 2-D
+//!   tangent space through a stored matrix — chart work carries its own
+//!   parameterization — and this layer adds only on consumer demand, so
+//!   the pair is absent until something asks for it.
 //! - **No array storage, no indexing, no `Index` impls.** Indexing has a
 //!   panic path on out-of-range input, and D9 forbids panic paths; named
 //!   fields (`x`, `y`, `z`, `c0`, …) make every component access total
