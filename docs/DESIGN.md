@@ -1265,8 +1265,9 @@ in two — partitioned **41 row 2**, **49 row 1** and **18 row 4**. Row 2
 is four variants that each name the class they refuse (chain, run-out,
 stored geometry, body), plus the corner CONFIGURATION refusals routed
 into the existing `FilletCornerUnsupported`; row 1 is
-`BodyNotIntact`/`EmptyChain`/`RepeatedEdge`, and every payload that
-names an entity is `topo::EntityId`, not a second spelling of it.
+`BodyNotIntact`/`RepeatedEdge` (and `EmptyChain`, until D27 dissolved
+it — below), and every payload that names an entity is
+`topo::EntityId`, not a second spelling of it.
 
 **The 18 is a bounded claim, and the bound is the interesting part.**
 Every key an `unreachable!` there dereferences is minted by an operator
@@ -1286,14 +1287,28 @@ classification. The open question is **S14** — a public door that can
 leave a body tier-1-invalid, and slotmap keys that resolve to *live but
 wrong* entities rather than dangling.
 
-*One state this taxonomy does not contain, found by executing it.*
-`FilletError::EmptyChain` is not reachable by input (the battery seeds
-every chain with a link) and not locally provable (the emptiness is a
-property of the verdict handed in), so it is neither row 1 nor row 4.
-It is filed under row 1 today, failing that row's own definition.
-`SMELL-SCAN-2026-08.md`'s **D27** carries it, together with the
-front-door invariants whose absence as *types* is why the surgery has
-such states at all.
+*The one state this taxonomy did not contain — RETRACTED by D27 (PR
+#768), because the state is gone.* `FilletError::EmptyChain` was not
+reachable by input (the battery seeds every chain with a link) and not
+locally provable (the emptiness was a property of the verdict handed
+in), so it was neither row 1 nor row 4, and it sat under row 1 failing
+that row's own definition. It is no longer representable: `Chain` holds
+its first link in its own private field, `walk_chains` mints it from
+the seed link it already had, and the variant is deleted. **The five
+rows stand unamended** — nothing was added to the taxonomy and nothing
+in it was reclassified. The same unit retired the front-door invariants
+the surgery was carrying as prose: `crates/sweep/src/fillet/admit.rs`
+mints one value per admitted clause, and the helpers that used to
+re-refuse a state their caller had already excluded now take the value
+and have no branch to write. **Nothing there became an `unreachable!`**
+— each refusal moved to the door that decides it rather than becoming a
+panic.
+
+*This paragraph records what happened to one state and claims nothing
+beyond it.* Whether "can the type stop representing it?" is the
+question to ask FIRST at the next site of this shape is a ruling about
+how this addendum is applied, it bears on **S14**, and it is not
+settled here; it is open for Evan's sign-off in its own PR.
 
 *The `crates/topo` sites outside W2c's three modules are done* (D21,
 PR #773) — **the sites, not the class**, and the difference is the
