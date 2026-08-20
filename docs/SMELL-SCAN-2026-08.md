@@ -7671,71 +7671,79 @@ disposition; that premise was wrong (§C15).
 
 **Verdict:**
 
-## S61. Every one of the 14 new gates is skipped on docs-tier and `local-scripts/`-only changes, and one gate offers that hole as its reason not to close another
+## S61. FIXED by #798 — two gates were sited in a job that skips on the only change class that can break them
 
-**[verified]** `.github/workflows/ci.yml:234`: the whole `discipline`
-job is `if: needs.filter.outputs.run_build == 'true'`.
-`scripts/ci-filter.py`'s `_is_docs` (`:108-114`) returns true for any
-`.md` path **and any `local-scripts/` path**; an all-docs change set is
-`TIER=docs`, `RUN_BUILD=false`, `discipline` skipped.
+**Evan ruled the docs-tier skip POSTURE, 2026-08-20**: cheap docs CI stays, and
+the rule it implies is the deliverable — **a gate must be sited where it can fire
+on its own inputs.** `discipline` keeps its `if: run_build == 'true'` and every
+build, lint and test job keeps skipping on a docs-only change set. What #798
+moved is the guards whose *inputs* are that change class.
 
-Two gates exist to catch changes in exactly the classes that skip it:
+A new `ci.yml` job, **`mirror`**, carries no `if:` and so runs on every tier; it
+is greps over three files, and it is the one job that does not delete
+`local-scripts/`, because its subject is the agreement between the two halves of
+CI. `gate-roster.sh` moved there and now **reads the local half**: it asserts
+`ci-local.sh` still loops `scripts/gates/*.sh`, still runs each gate's
+`--selftest` and then the gate, and still excludes `lib.sh` by name. Its header's
+argument that it need not read `local-scripts/` *because* a deletion there
+classifies TIER=docs — the C2 shape, a hole offered as the reason not to close it
+— is gone.
 
-- `scripts/gates/probe-suite-census.sh:52-57` asserts that
-  `docs/K-REPORT.md` and `docs/SMELL-SCAN-2026-08.md` still name the
-  cited CI step. A PR editing only those files is docs-tier, so the
-  guard cannot fire on the only change class that can break it.
-- `scripts/gates/gate-roster.sh:31-39` argues it need not read
-  `local-scripts/` because *"a deletion touching only
-  `local-scripts/ci-local.sh` classifies TIER=docs, so the `discipline`
-  job never runs."* That is a description of the hole offered as the
-  reason not to close it. Nothing verifies that
-  `local-scripts/ci-local.sh:188-190` still loops the gate directory;
-  a PR deleting the loop is invisible to hosted CI by construction.
+`probe-suite-census.sh`'s citation half moved there too, as `--citations`; the
+census, floor and clippy-row checks stayed in `discipline`, where their inputs
+are.
 
-`gate-roster.sh:13-22` names the `if:` hole honestly. Honest disclosure
-of a hole that makes the disclosing guard inert is the C2 shape, one
-level up.
+**The residue this finding named is closed rather than relocated.** The citation
+half made `docs/SMELL-SCAN-2026-08.md` — this document — a hard CI dependency on
+a literal string, and re-siting it into an always-run job would have made that
+worse. So the dated scan **left `CITING_FILES`**: a scan records what CI did on
+the day it was written and stays correct when the step is renamed, which is a
+different kind of claim from the live ones. `local-scripts/ci-local.sh` joined the
+list, being a live claim no hosted gate could previously see, and the list is now
+**checked for completeness** — every file in the tree naming the step must be a
+live claim or declared history (`CITATION_EXEMPT`, globs with reasons), with a
+negative control proving the check does not simply fire on every citation.
 
-Related, same file: `probe-suite-census.sh:56` makes
-`docs/SMELL-SCAN-2026-08.md` — a dated historical scan — a **hard CI
-dependency**, so archiving or reorganising it reds the build.
+## S62. FIXED by #798 — the checks outside `scripts/gates/` are now enumerated by a gate rather than by reading
 
-**Verdict:**
+**The class, not the instances.** Every check outside `scripts/gates/` is named
+by hand in both halves of CI, and nothing detected a lost row on either side.
+Two separate enumerations of that population had already been written when Track
+E found a **sixth** member by accident (#794/D86,
+`scripts/interval-only-selection.py`) — so a hand list of six would have bought
+one instance and left the class.
 
-## S62. S13's dual-maintenance defect survives for the checks outside `scripts/gates/` — four of the five after #753 — and its prose has already drifted
+`scripts/gates/ci-mirror-parity.sh` **derives** the population instead: every
+`scripts/**` or `demos/**` executable named on a non-comment line of `ci.yml`
+must be named in `local-scripts/ci-local.sh` and the reverse, excluding
+`scripts/gates/**` (a directory is its own roster) and `MIRROR_EXEMPT` entries
+carrying the reason they are one-sided. Today there is exactly one:
+`demos/render-uv.sh`, whose hosted mirror was retired 2026-08-17. All eleven
+others were already mirrored — **the defect was never a missing row, it was that
+nothing would have noticed one.**
 
-**Five when this was written; four now.** `rundump-guard-selftest.sh`,
-`check-interval-cfg-additive.py`, `demos/check_render_provenance.py` and
-`demos/compose_uv_montage.py` are gates by every criterion the directory
-uses, run in the same `discipline` job, and are **named by hand in both
-halves**. They are outside `scripts/gates/`, therefore outside the roster
-and outside the local loop; nothing detects a lost row on either side.
-Whether a check is a "gate" is itself an unenforced judgement call.
+This also *replaces* the judgement call the finding named rather than making it:
+the criterion is mechanical and total, so it admits things nobody would call
+gates (`ci-filter.py`, `k_probe_sweep.sh`). "Is this a gate" is what let a row go
+unmirrored.
 
-The fifth was **`check-test-aggregation.sh`**, and **#753 moved it** to
-`scripts/gates/test-aggregation.sh` under `lib.sh`'s contract as D34's
-one move — so its hand-named local row is gone, the directory loop
-reaches it, and `gate-roster.sh` now requires `ci.yml` to wire it. That
-is one instance closed, not the class: the line anchors above are the
-ones this finding was written against and #753 moved them, which is
-itself the reason a finding cites a shape and not only a line.
+Two further claims ride the same gate. **The prune exception is exactly one
+job** — every checked-out job in `.github/workflows/*.yml`, `render.yml`
+included, deletes `local-scripts/` and `.claude/` except `mirror`, which is what
+keeps `ci-filter.py` right to classify a change under either tree as
+non-triggering. And **mirror citations resolve**: `ci-local.sh` carries
+`# HOSTED MIRROR: <job> / <step name>` markers, each of which must name a step
+`ci.yml` carries under that job, with a floor so deleting the markers is not a
+pass. The drifted prose this finding recorded — *"the `k-lint` job's 'demos
+render provenance' step"* for what is `render provenance (demos)` in
+**`discipline`** — is corrected, and reds as a marker.
 
-The prose has already drifted: `local-scripts/ci-local.sh:224` says the
-hosted mirror is *"the `k-lint` job's 'demos render provenance' step"*,
-but that step is `render provenance (demos)` in the **`discipline`** job
-at `ci.yml:392`. That is S13's own defect, in the same file pair, after
-the fix.
-
-Adjacent: a gate that lands mode `0644` is invisible to **both** halves —
-each derives the roster with `[ -x "$script" ] || continue`
-(`gate-roster.sh:70-73`, `ci-local.sh:189`), so the executable bit *is*
-the registration mechanism. A fixture with an unwired non-executable
-`newgate.sh` beside a wired gate reports *"ci.yml wires a self-tested
-step for all 1 gates"* and exits 0. The `-x` filter exists to exclude
-`lib.sh` — a filename problem solved with a permission bit.
-
-**Verdict:**
+**The `0644` blind spot is closed.** Re-confirmed by planting first: on the merge
+base, a mode-0644 `zz-unwired-nonexec.sh` beside fourteen wired gates left
+`gate-roster.sh` reporting *"all 14 gates"*, exit 0. The `-x` filter existed to
+exclude `lib.sh` — a filename problem solved with a permission bit. It is a
+filename problem again: **both halves skip `lib.sh` by name, and a member of that
+directory that is not executable is a failure, not a skip.**
 
 ## S63. Three of the six grep gates pass the spellings they exist to forbid, and one has already produced the cry-wolf-then-allowlist outcome
 
@@ -11136,8 +11144,8 @@ runs beside the model A/B experiment without touching `docs/MODEL-AB-LOG.md`.
 The lane roster, the rulings and the landings are in that file; this table stays
 the schedule and a row leaves it when it lands.
 
-**Its gate is Track E's lane E-a (#753)**, which is in review now. Nothing in
-F1–F3 or F8 may open until that lands. **This is a file-overlap gate, not a
+**Its gate was Track E's lane E-a (#753), which landed 2026-08-20**; the rows it
+held — F1, F3 and F8 — opened with it. **It was a file-overlap gate, not a
 dependency gate** — see the Track E log's E-R4: a lane that disproves the
 *reason* for a gate has not disproved the gate.
 
@@ -11209,7 +11217,6 @@ asserts the case the matcher cannot see.** So S59 is not "the matcher is
 incomplete"; it is *the gate documents a violation class it cannot detect*, on a
 seam whose whole purpose is that widening it requires ratification. Track E's
 **G4** (S87's `ArcCarrierScalar`) is gated on this row for the same reason.
-| **F2** | **Re-site the gates that cannot fire on their own inputs**, per Evan's S61 ruling. `probe-suite-census.sh:52-57` asserts two docs still name a CI step and cannot fire on a docs-only change; `gate-roster.sh:31-39` argues it need not read `local-scripts/` *because* the discipline job never runs there. Carries **D58**, **D59** and **D60** (below), which are E-a's own re-derived residues. | **S61**, **S62**, and E-a's report | `.github/workflows/ci.yml`, `scripts/ci-filter.py`, `scripts/gates/{probe-suite-census,gate-roster}.sh`, `local-scripts/ci-local.sh` | **ACCEPTED — RULED** (posture; re-site) | style |
 | **F3** | **Three of six grep gates pass the spellings they exist to forbid.** `no-extra-real-bounds.sh` greps `\bReal\s*\+` raw with no comment strip; `bit-identity-debug-only.sh` counts uses and `cfg(debug_assertions)` separately and prints an unsupported sentence; `interval-square-allowlist.sh`'s PCRE backreference cannot see `self.x * self.x`, and `geom-core/src/linalg/vec.rs:325-326` is a live unallowlisted instance. The cry-wolf-then-allowlist outcome is **already realised** at `linalg/mat.rs`. **Its line numbers are fiction — re-derive, do not transcribe.** | **S63** | `scripts/gates/{no-extra-real-bounds,bit-identity-debug-only,interval-square-allowlist,lib.sh}`, `scripts/ci-filter.py` | **ACCEPTED** | style for the gates; **ADVERSARIAL** for the `x*x → powi(2)` conversions, which change numerics in `Interval`-generic production code |
 | **F4** | **Guards whose failure mode is their pass condition** — four instances bound by one missing idiom rather than by files. The spent-graft hammer row lacks the `oks > 0` its twin has, and `ci.yml` cites it by name (**S76**); a fuzz corpus is built entirely behind `if let Ok` with no floor (**S78**); a floor row matches into a `println!("SKIPPED")` arm and returns green (**S84**); a new differential test compares an expression against itself (**S91**). | S76, S78, S84, S91 | `topo/src/review_d18.rs`, `sweep/tests/review_d2_adv_probes.rs`, `geom-brep/tests/*`, `geom-core/src/spline/knots.rs` | **ACCEPTED** on all four | **ADVERSARIAL** for S76 and S78 (each is a guard on a soundness contract); style for S84, S91 |
 | **F5** | **Two scraped-source registries of "what is a public mutation door", both classifying by `body.contains("literal")`** — so a comment satisfies the guard. The undisclosed string-match blind spot is the sharper half. | **S92** | `topo/src/review_m1_pr5_internal.rs`, `topo/src/pcurves.rs` | **ACCEPTED** | style |
@@ -11231,11 +11238,7 @@ S60/S66's rows; and a general gate re-proposes exactly what Evan declined.
 
 ### Rows placed for Track F by lane E-a
 
-| # | Work |
-|---|---|
-| **D58** | **S61's docs-tier conditionality as it lands on `probe-suite-census.sh`'s citation half.** Re-derived by E-a at `ci-filter.py:108-114`: an all-`.md` change is docs-tier, so the citation half cannot fire on the only change class that breaks it. Now **ruled** (re-site), so this is scoped work rather than an open question. |
-| **D59** | **The executable bit is the registration mechanism.** Both halves derive the roster with `[ -x "$script" ] || continue`, so a gate landing mode `0644` is invisible to both — **confirmed by planting** a mode-0644 `zz-unwired-nonexec.sh`, which `gate-roster.sh` reports as *"all 14 gates"*, exit 0. Squarely D34's subject and past its one-move budget. |
-| **D60** | **S62's four remaining hand-named checks, plus the `ci-local.sh:217` drift** — the mirror prose names *"the `k-lint` job's 'demos render provenance' step"* when that step is `render provenance (demos)` in the **`discipline`** job. S13's own defect, in the same file pair, after S13's fix. E-a's own D34 enumeration was over `scripts/…` paths in `ci.yml`, so `demos/check_render_provenance.py` and `demos/compose_uv_montage.py` were invisible to it. |
+*(empty — D58, D59 and D60 all landed with F2 in #798; see S61 and S62.)*
 
 ---
 

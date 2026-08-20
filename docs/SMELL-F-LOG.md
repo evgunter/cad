@@ -320,9 +320,11 @@ live in that directory and two of them share `scripts/ci-filter.py`.
 |---|---|---|---|---|---|
 | **F-d** | **F4** (S76, S78, S84, S91) | `smellf/f4-guards-that-pass` | `topo/src/review_d18.rs`, `sweep/tests/review_d2_adv_probes.rs`, `geom-brep/tests/`, `geom-core/src/spline/knots.rs` | **ADVERSARIAL** (S76, S78) + style | **dispatched** |
 | **F-e** | **F1** (S59) | `smellf/f1-certifiedbounds-gate` | `scripts/gates/bounds-allowlist.sh`, `geom-core/src/real.rs` | style; **ADVERSARIAL** for forced conversions | **dispatched** |
-| **F-f** | **F2** (S61/S62 + D58–D60) | — | `ci.yml`, `ci-filter.py`, `probe-suite-census.sh`, `gate-roster.sh`, `ci-local.sh` | style | queued behind F-e |
 | **F-g** | **F3** (S63) | — | `scripts/gates/{no-extra-real-bounds,bit-identity-debug-only,interval-square-allowlist,lib.sh}`, `ci-filter.py` | style; **ADVERSARIAL** for the `x*x → powi(2)` conversions | queued — owns `lib.sh` |
-| **F-h** | **F8** (D44, D45) | — | `scripts/k_probe_sweep.sh`, `ci.yml`, `docs/` | style | queued behind F-f |
+| **F-h** | **F8** (D44, D45) | — | `scripts/k_probe_sweep.sh`, `ci.yml`, `docs/` | style | queued — F-f's row is closed by #798 |
+
+**F-f's PR is open** (#798); its roster row left the table above per the
+recording convention, which the landing PR carries.
 
 **F-e is first because Track G's G4 is blocked on it** — per Evan's S87/S88
 ruling, the sentence that makes the `CertifiedBounds` conversion safe is
@@ -452,7 +454,35 @@ when the review lands, which is why it trails.
 
 ## Landings
 
-*(none yet)*
+### F-f / F2 (S61, S62, D58–D60) — #798, opened 2026-08-20; style review pending
+
+**What it built.** A new `ci.yml` job, `mirror`, with no `if:` — so it runs on
+every tier, including the docs-only runs where every other job is skipped — and
+the single declared exception to the `rm -rf local-scripts .claude` prune,
+because its subject is the agreement between the two halves of CI. Three gates
+are sited in it: `gate-roster.sh` (moved, and now reading the local half's
+loop), `probe-suite-census.sh --citations` (the citation half, whose inputs are
+prose), and a new `ci-mirror-parity.sh`.
+
+**What is worth carrying forward, beyond the row.**
+
+- **The docs-tier skip is untouched**, per Evan's ruling. The unit moved guards,
+  not the posture. `discipline` still skips on docs tier and still should.
+- **A hand-maintained roster gets a completeness check, not a longer list.**
+  Both halves of this unit take that shape: the citation half's `CITING_FILES`
+  is now checked against every citation in the tree, and the population of
+  checks outside `scripts/gates/` is *derived* from the two halves rather than
+  enumerated. Two prior enumerations of that population had each missed a member
+  — the second found by another track by accident (#794/D86) — which is the
+  argument for the shape.
+- **A permission bit is not a registration mechanism.** `lib.sh` is excluded by
+  name in both halves now, and a non-executable member of `scripts/gates/` is a
+  failure rather than a skip. Re-confirmed by planting on the merge base first:
+  fifteen files on disk, *"all 14 gates"*, exit 0.
+- **The exception to a structural rule is itself gated.** `mirror` keeping
+  `local-scripts/` weakens `ci-filter.py`'s claim unless exactly one job does
+  it, so `ci-mirror-parity.sh` checks that over every workflow file —
+  `render.yml` included, which is the file a sweep reading `ci.yml` would miss.
 
 ## Incidents
 
