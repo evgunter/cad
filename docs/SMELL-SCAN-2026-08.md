@@ -5190,8 +5190,8 @@ caught it was someone diffing two manifests.
 
 ## S32. FIXED IN PART by #804 — the API half; the "second surface enum" half was FALSE
 
-- **Where**: `crates/geom/src/surfaces.rs` (`Surface::jet` and the six
-  projections), `crates/step-import/src/chart.rs` (`metric_floor`),
+- **Where**: `crates/geom/src/surfaces.rs` (`Surface::jet`, and the five
+  partial accessors plus `normal` as its projections), `crates/step-import/src/chart.rs` (`metric_floor`),
   `crates/geom/tests/surfaces/s32_jet_projection.rs` (the pin)
 - **Confidence**: sure
 
@@ -5199,15 +5199,16 @@ caught it was someone diffing two manifests.
 enum's derivative primitive: one match, the point and every partial with
 `k + l ≤ 2`, the analytic arms building the azimuthal frame and
 `sin_cos(v)` once, the NURBS arm making a single `ders` pass. The five
-partial accessors and `normal` are now its projections — one
-implementation where six stood, which is the change's justification;
-there is no performance claim here, because none was measured.
+partial accessors and `normal` are now its projections — **one
+per-variant implementation where five stood, plus a `normal` that ran
+two of them**, and that is the change's justification; there is no
+performance claim here, because none was measured.
 `step-import`'s `metric_floor` was the only production caller of any of
 them and asks once per sample instead of twice. Preservation is
 **bitwise, not tolerated**: a 23904-row dump of all seven doors over 9
 charts (five analytic, a rational NURBS patch, the placeholder, two
 degenerate charts) × 2656 parameter pairs is byte-identical between
-`1a94204d` and the shipped head, md5 `d80a47f4cb63eda6ad2b0670f5a4f0ab`,
+`1a94204d` and `61f6d218`, md5 `d80a47f4cb63eda6ad2b0670f5a4f0ab`,
 including the 8042 rows whose fields are NaN — NaN **payloads** match,
 which is where an order change would have shown.
 
