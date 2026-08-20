@@ -91,6 +91,80 @@ waiting for a second CI run** (Evan, 2026-08-20).
 
 ---
 
+## The standing lane header
+
+**Committed, not kept in a container.** Track C lost this text twice in one
+session — once to a reclaimed container, once to a branch that was pushed and
+never merged. *A register that has not landed is not a register, and a brief
+that lives only in a home directory is not a brief.* Binding on every Track F
+implementer lane, alongside the unit's own brief.
+
+**Read first, in this order:** `docs/prompts/implementer-discipline.md` in
+full; this file's *Review policy*, *What a lane does with what it finds*,
+*Recording convention* and *Rulings* sections; then your finding's own text in
+`docs/SMELL-SCAN-2026-08.md`, and §D's Track F row for it.
+
+**This track is outside the model A/B experiment.** No pairing, no ordinal, no
+row in `docs/MODEL-AB-LOG.md`. **Never open that file.**
+
+**Where your files go.** Your clone is `~/.local/share/cad-work/<lane>/cad`;
+`export CARGO_TARGET_DIR=~/.local/share/cad-work/<lane>/target`, never shared
+with another lane — a shared one will serve you another lane's binary, and it
+has already produced a green claim over ten broken assertions. Heavy cargo goes
+through `local-scripts/with-build-slot.sh` (machine-wide mutex, width 1).
+**PR bodies and any other to-be-published text go to
+`~/.local/share/cad-work/<lane>-pr.md`** — never the session scratchpad, which
+is shared between concurrently running agents. **Disk is tight** (~20 GB): do
+not start a second `target/`, and say so if you need one.
+
+**Commit and push at every seam.** Everything pushed survives a container
+reclaim; nothing else does. If your brief does not name your seams, invent them
+and say what they were.
+
+**Recording your own completion.** Your PR makes two edits to
+`docs/SMELL-SCAN-2026-08.md`: the finding's heading becomes
+`## SNN. FIXED by #NNN — …` with its **original problem statement replaced** by
+the record of what was done (version control keeps the original), and your row
+**leaves** §D's Track F table. Check the surrounding prose as well — Track F's
+preamble names rows by name, so a landing that leaves the table and stays in
+the paragraph makes the paragraph false. Delete your roster row in this file
+too. **Row and finding numbers are assigned by the orchestrator** — ask, never
+take the next visible gap; two lanes on another track minted the same number an
+hour apart doing exactly that. Conflicts in these two files are expected and
+survivable: resolve by merging `origin/main`, **never rebase, never
+force-push**, and keep both sides.
+
+**A brief is a claim site.** If a line number, path or citation in your brief —
+or in §D's Scope cell, or in the finding itself — does not resolve, **check
+rather than comply**, and report what the line actually contains. Three of five
+briefs in one session on another track carried one that did not, and this
+track's own table was already found stating a file set nobody had read (F-R1).
+The second scan's own instruction on F3 is *"its line numbers are fiction —
+re-derive, do not transcribe"*; treat that as the default everywhere here.
+
+**What Track F units are especially exposed to.** This track's subject is
+guards, so its characteristic failure is not a broken build — it is **a guard
+that now passes for a new reason**. Two shapes to write against:
+
+- *The fix reproducing the defect it closes.* A unit that makes an assertion
+  able to fail can mint a new assertion that cannot, one line down.
+- *A disclosed blind spot read as a discharge.* Your own "my pattern could not
+  match X" is a work order, not an absolution — and it is the sentence a
+  reviewer will start from.
+
+**Write claims you can survive having re-derived rather than re-read.** State
+the qualifier that makes a claim exactly true, and scope your evidence out
+loud: a green `-p onecrate` run is evidence about one crate. **A measurement is
+a measurement of a tree** — name which tree each number came from.
+
+**Your final report**, ≤150 lines, states: what you changed and why that shape;
+what you swept with and **what that pattern could not match**; every claim
+resting on a measurement and what guards it; which of the style brief's
+questions you exercised; and anything you are holding back — you will be asked
+before the merge, so answering saves a round.
+
+---
+
 ## Lane roster
 
 **Wave 1 — open now.** These three share no file with each other, with
