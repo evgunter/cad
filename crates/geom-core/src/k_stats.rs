@@ -1,26 +1,29 @@
 //! Margin-statistics collection for the K-value experiments — a
-//! recording wrapper, not telemetry infrastructure (M2-PLAN PR 2's
-//! K-experiment hook; Q1's "ambiguity constant K" residue; unified
-//! here from `profile::k_stats` in M2 PR 7 so every crate's decisions
-//! share one recorder).
+//! recording wrapper, not telemetry infrastructure (Q1's "ambiguity
+//! constant K" residue). One recorder serves every crate's decisions;
+//! there is no second one.
 //!
 //! Every decision the kernel makes goes through one funnel, [`decide`]:
 //! it notes the predicate's static name in a thread-local, classifies
 //! the margin through the one sanctioned door ([`Decide::sign_within`]),
 //! and attaches the name to any indeterminate outcome. Each deciding
 //! crate re-exports or wraps this funnel as its single greppable
-//! `sign_within` call site (the `geom-brep` funnel pattern); after the
-//! PR 7 unification a [`Probe`]-lane run tags every sample with its
-//! real predicate name — `<unnamed>` is unreachable from shipped decide
-//! paths.
+//! `sign_within` call site (the `geom-brep` funnel pattern), so a
+//! [`Probe`]-lane run tags every sample with its real predicate name —
+//! `<unnamed>` is unreachable from shipped decide paths.
+//!
+//! All three doors — [`decide`], [`decide_flagged`], [`decide_invariant`]
+//! — delegate to one private `classify`, so the name channel and the
+//! verdict channel are written in exactly one place and no door can
+//! carry one without the other.
 //!
 //! Cost on the production path: one thread-local `Cell` write per
 //! decision, plus — **whenever a verdict log is installed** — one
 //! `Vec` push per definite outcome (see [`start_verdict_log`] and
 //! `decide`'s own contract below, which has always said this). That
 //! caveat is not hypothetical: `editor_core`'s evaluator brackets
-//! **every node evaluation** in a verdict log (M4 PR 4 / NAMING-DESIGN
-//! N5, so the verdict-diff engine can attribute flips), and retains the
+//! **every node evaluation** in a verdict log (NAMING-DESIGN N5, so
+//! the verdict-diff engine can attribute flips), and retains the
 //! result on the node. So production *does* record, on the one path
 //! that asks to.
 //!
@@ -57,11 +60,6 @@
 //! and can be fixed directly. Do not add call sites that deepen the
 //! dependency on the current shape.
 //!
-//! (This paragraph used to read "Production code pays one thread-local
-//! `Cell` write per decision and records nothing." That stopped being
-//! true when M4 PR 4 added the verdict log, and it contradicted
-//! `decide`'s own doc sixty lines below.)
-//!
 //! Recording happens through the [`Probe`] scalar: a transparent `f64`
 //! wrapper whose `Decide` implementation logs `(predicate, margin,
 //! band, outcome)` to a thread-local sink before delegating. Running
@@ -71,6 +69,19 @@
 //! bit-identical decisions to `f64` (delegation is exact). The sink is
 //! thread-local and explicitly installed ([`start_recording`] /
 //! [`take_samples`]), so tests never race and production never records.
+//!
+//! **The recorder cannot be defined outside this crate, and that is by
+//! construction rather than by placement.** `Probe` records by
+//! implementing [`Decide`], whose supertrait
+//! [`SpanLocate`](crate::spline::SpanLocate) is sealed by a
+//! `pub(crate)` module — and that seal's impl list *is* the kernel's
+//! scalar set, so no downstream crate can define a type that decides.
+//! Lifting the recording lane into a separate crate would mean
+//! unsealing the set the seal exists to close, and exporting the
+//! predicate-name channel [`decide`] writes so an outside `Decide` impl
+//! could read it. What keeps the scalar out of shipped builds is the
+//! `probe` feature, not the crate boundary; geom-core's manifest
+//! carries the monomorphization measurement that gate was cut on.
 
 use core::cell::{Cell, RefCell};
 
@@ -94,9 +105,9 @@ thread_local! {
     /// The installed sample sink, if any.
     #[cfg(feature = "probe")]
     static SINK: RefCell<Option<Vec<MarginSample>>> = const { RefCell::new(None) };
-    /// The installed verdict-log sink, if any (NAMING-DESIGN N5 /
-    /// M4 PR 4: evaluations record their verdict vectors so the
-    /// verdict-diff engine can attribute flips).
+    /// The installed verdict-log sink, if any (NAMING-DESIGN N5:
+    /// evaluations record their verdict vectors so the verdict-diff
+    /// engine can attribute flips).
     static VERDICTS: RefCell<Option<Vec<Verdict>>> = const { RefCell::new(None) };
 }
 
@@ -581,5 +592,75 @@ mod tests {
         let log = take_verdict_log();
         assert_eq!(log.len(), 1);
         assert_eq!(log[0].predicate, "vlog_h");
+    }
+
+    /// The three doors write ONE verdict stream, in decision order,
+    /// and each door's own name reaches it. Order is the property the
+    /// consumer needs: `resolve::vdiff` compares two runs' logs
+    /// positionally, so a stream with the right multiset in the wrong
+    /// order is a wrong diff, not a slower one.
+    ///
+    /// The fixture interleaves the doors deliberately — a run that
+    /// grouped them would pass under any per-door ordering.
+    #[test]
+    fn the_three_doors_share_one_verdict_stream_in_decision_order() {
+        let b = band();
+        let mid = f64::midpoint(b.zero(), b.escalate());
+        start_verdict_log();
+        assert_eq!(decide("door_a", Margin::of(1.0f64), b), Ok(Sign::Positive));
+        assert_eq!(decide_invariant("door_b", -1.0f64, b), Ok(Sign::Negative));
+        assert_eq!(
+            decide_flagged("door_c", 1.0f64, b, "F2"),
+            Ok(Sign::Positive)
+        );
+        // One indeterminate per door: escalated outcomes are not verdicts,
+        // so none of these may appear or shift the positions after them.
+        assert!(decide("door_d", Margin::of(mid), b).is_err());
+        assert!(decide_flagged("door_e", mid, b, "F10").is_err());
+        assert!(decide_invariant("door_f", mid, b).is_err());
+        assert_eq!(decide_flagged("door_g", 0.0f64, b, "F13"), Ok(Sign::Zero));
+        assert_eq!(decide("door_h", Margin::of(-1.0f64), b), Ok(Sign::Negative));
+        assert_eq!(
+            take_verdict_log(),
+            vec![
+                Verdict {
+                    predicate: "door_a",
+                    sign: Sign::Positive
+                },
+                Verdict {
+                    predicate: "door_b",
+                    sign: Sign::Negative
+                },
+                Verdict {
+                    predicate: "door_c",
+                    sign: Sign::Positive
+                },
+                Verdict {
+                    predicate: "door_g",
+                    sign: Sign::Zero
+                },
+                Verdict {
+                    predicate: "door_h",
+                    sign: Sign::Negative
+                },
+            ]
+        );
+    }
+
+    /// The other channel every door writes: the predicate name the
+    /// recording scalar reads. Same fixture shape, same reason —
+    /// a door that stopped setting the name would tag its sample with
+    /// whatever the previous decision left behind, which is a silently
+    /// misattributed margin rather than a missing one.
+    #[test]
+    #[cfg(feature = "probe")]
+    fn every_door_names_its_own_sample_for_the_recording_scalar() {
+        let b = band();
+        start_recording();
+        decide("name_a", Margin::of(Probe(1.0)), b).unwrap();
+        decide_invariant("name_b", Probe(-1.0), b).unwrap();
+        decide_flagged("name_c", Probe(1.0), b, "F2").unwrap();
+        let names: Vec<&str> = take_samples().iter().map(|s| s.predicate).collect();
+        assert_eq!(names, vec!["name_a", "name_b", "name_c"]);
     }
 }
