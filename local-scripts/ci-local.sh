@@ -158,7 +158,7 @@ tier_blind_rows() {
 }
 echo
 echo "=== [tier-blind rows] (run on every tier, including docs)"
-if tier_blind_rows; then TIER_BLIND_RC=0; else TIER_BLIND_RC=1; fi
+TIER_BLIND_RC=0
 
 if [ "$TIER" = docs ]; then
   echo "=== documentation-only change set: nothing to build."
@@ -642,6 +642,7 @@ tesslint_gate() {
 # Rows always run (discipline greps are cheap; rustfmt is --all by design
 # and cheap; the cargo rows are already package-scoped by $SCOPE).
 # shellcheck disable=SC2086
+run_row "tier-blind rows" tier_blind_rows
 run_row "discipline (evaluation-code)" discipline
 run_row "render provenance (demos)"    render_provenance
 run_row "uv composer selftest (demos)" uv_composer_selftest
