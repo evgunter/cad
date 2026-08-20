@@ -1148,8 +1148,9 @@ Three decisions carry the retractions:
 - **Predicate names are a parameter.** `cosurface` takes a
   `CosurfaceNames { lines, arcs }`. The K-telemetry premise held, and
   the conclusion was checked rather than assumed: the string-literal
-  multiset of `crates/sweep/src` is byte-identical before and after, so
-  no K row moves.
+  multiset of `crates/sweep/src` is byte-identical before and after —
+  60 literals either side, re-verified against `origin/main` at
+  **7eaf43b7** after the base moved — so no K row moves.
 - **`face_surface_key` returns `EulerOpError`.** A stale key is an
   operator fault and nothing else, so each verb's `?` lifts it through
   the `From<EulerOpError>` it already has. The generic-or-lossy bind
@@ -1238,12 +1239,16 @@ discarded error is spelled `EulerOpError` at the call site.
 
 (c) **A half-fix on a class, stated as such.** `sweep/src` held three
 copies of the classification funnel; this unit collapsed two and left
-the third, `sweep/src/fillet/mod.rs:76`, which is identical to
-`swept.rs`'s down to the parameter names. **`sweep/src/fillet/` is
-D2's**, so it is handed over rather than widened into here. Until it
-goes, `swept.rs`'s own doc names itself the funnel of the shared
-lowering and of `extrude` and `revolve` — and says plainly that it is
-not the crate's only one — rather than claiming to be *the* funnel.
+the third, `sweep/src/fillet/mod.rs:76`, identical to `swept.rs`'s down
+to the parameter names. The convention is **one funnel per crate** —
+re-swept against `origin/main` at 7eaf43b7, the workspace has exactly
+one each in `topo` (`validate.rs:266`) and two in `geom-brep`
+(`enters.rs:279`, `dihedral.rs:103`), so what makes `sweep` anomalous
+is having a *second*, not having one. **`sweep/src/fillet/` is D2's**,
+so it is handed over rather than widened into here. Until it goes,
+`swept.rs`'s own doc names itself the funnel of the shared lowering and
+of `extrude` and `revolve` — and says plainly that it is not the
+crate's only one — rather than claiming to be *the* funnel.
 
 (d) **The K-report harness does not run**, so the "byte-reproduce the
 CSVs" provenance behind `docs/K-REPORT.md` is currently unreproducible
@@ -1259,6 +1264,21 @@ funnel four lines from the top) and `loft.rs:321` (`loft_stacking`).
 Equivalent today, since every funnel is a pure delegation; they are the
 places a predicate name could stop being funnel-visible if a funnel
 ever stopped being pure.
+
+(f) **The shared home holds one member of S34/S57's class**, and it
+holds it once instead of twice. `swept.rs`'s `face_surface_key` is the
+`get_face` → dangling-refusal → read-a-field shape that #697 relocated
+on the rule *a door lives in the crate whose types it reads* — it reads
+`topo`'s. It is the weakest member: one lookup deep, and it returns a
+`SurfaceKey` the verbs feed straight back into `FaceSurface::Shared`
+and `EdgeGeometry::IsoCurve`, so it is a build-side key lookup rather
+than a read-back of geometry, and `topo::readback` offers no door for
+it (`face_pose` resolves through to a `Pose`). Deliberately not moved:
+`topo/` is outside this unit's scope, and the honest change is one
+`topo` door, not a fourth home. What this unit did do is take the site
+count from **two to one** — `extrude.rs` and `revolve/upgrade.rs` each
+had a copy, plus a hand-inlined third. Recorded against **S57**, whose
+"Where" list does not name it.
 
 **Observations, recorded and deliberately not acted on** — each may be
 boundary-forced, and none was investigated far enough to say:
