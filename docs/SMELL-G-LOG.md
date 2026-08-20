@@ -107,7 +107,7 @@ waiting for a second CI run** (Evan, 2026-08-20).
 | **G-R1** | **G2's note says S113(a)(b) collide with Track E's E-b on `demos/tour/Cargo.toml`**, and routes them to E-b to be consumed back. | **The collision does not exist, and there is nothing to consume.** E-b is **#763**, and its file set was read from the branch rather than from §D's Scope cell: sixteen files — thirteen `crates/*/tests/all.rs`, `geom-core/tests/tolerance_init.rs`, `step-import/tests/tier_gate.rs`, `topo/tests/common/mod.rs`, plus `docs/K-REPORT.md` and the scan doc. **Nothing under `demos/`.** S113(a)(b) stay with G2 and are its work. Recorded rather than silently acted on, because a §D cell is a claim site (`SMELL-C-LOG` C-R11) and this is the third such cell on this scan found describing a branch nobody opened. | orchestrator, 2026-08-20 |
 | **G-R2** | **G10 says *"three of them are Track C's … the rest are free"*, and the same section's rides-along paragraph says S112(a) is Track E's E-g.** Both cannot be operative, and the row's member count decides how it retires. | **The rides-along paragraph is right; G10's sentence over-counts by one.** S112's eight members: **(a)** `sweep/src/fillet/naming.rs` → **E-g**; **(d)** and **(e)** `geom-brep/` → **Track C**; **(b)** and **(c)** `interval-transcendentals/` → **G-a**, which owns that workspace; **(f)** `profile/src/sugar.rs` → **G-d**, which is already in that file for G5; **(h)** `demos/render.py` → **G-b**, which §D already names. **(g)** `crates/pncad/src/lib.rs` is the only member with no other home. **G10 is therefore re-scoped to (g) plus the class ledger**, and assigned to **G-d**: it closes (f) and (g) in its own files and records at S112 *which lane and which PR* closed each of the eight members. **The row leaves §D when that ledger is complete, not when G-d's own member lands** — a class row retiring on its leader's member is §C13's half-fix, and this document exists partly to stop minting those. | orchestrator, 2026-08-20 |
 | **G-R3** | **G1 must edit `.github/workflows/ci.yml`** — S72's overreach claim is at `:1097-1099` and S112(b)'s stale *"stays a by-hand gate"* at `:1106-1107` — and Track E's **#753** holds that file. Track F treated an overlap on `ci.yml` as a hard gate (F-R1). | **G-a opens, and declares the fence rather than assuming it.** #753's `ci.yml` diff is **two hunks**, re-derived from the branch: `:73-79` (the mold retirement comment's script path) and `:302-308` (the test-aggregation step). G1's sites are ~790 lines away, in the `oracle-*` job region. F-R1's gate was real because F8's fix *lands in* the hunk #753 rewrites; this one does not, and holding an edge-free row against a disjoint hunk in a 2000-line file is how a register stops executing (§C3). **The fence is the lane's to publish**: its PR says its `ci.yml` edits are confined to the `oracle-certify` / `oracle-inari` job comments, and that it touched neither the gate roster nor the test-aggregation step. If a conflict arrives anyway, merge `origin/main` — the recorded remedy, and cheap here. | orchestrator, 2026-08-20 |
-| **G-R4** | **G8 and G9 both name `topo/src/chord_join.rs`.** §D carries no edge between them. | **G-f (G8) opens first; G9 sequences behind it, and they are not merged.** The two questions are different kinds: G8's is *does `chord_join::face_plane_normal`'s missing `sense_sign` matter, given it feeds `point_in_loop` for ring re-homing* — a predicate, and G8's own row already requires it be a **separate adversarial sub-unit**. G9's is *does the module header's top-level-sibling argument survive its own imports from `splitting/`* — a paragraph. Folding them puts an adversarial correctness unit inside a doc edit, which is exactly what the row forbids one level down. | orchestrator, 2026-08-20 |
+| **G-R4** | **G8 and G9 both name `topo/src/chord_join.rs`.** §D carries no edge between them. | **The G8 lane opens first; G9 sequences behind it, and they are not merged.** *(This ruling originally said "G-f (G8)", from the planning table since deleted; G8 was dispatched as **G-g**. Rewritten to name the row rather than a letter — a ruling that outlives a roster should not depend on one.)* The two questions are different kinds: G8's is *does `chord_join::face_plane_normal`'s missing `sense_sign` matter, given it feeds `point_in_loop` for ring re-homing* — a predicate, and G8's own row already requires it be a **separate adversarial sub-unit**. G9's is *does the module header's top-level-sibling argument survive its own imports from `splitting/`* — a paragraph. Folding them puts an adversarial correctness unit inside a doc edit, which is exactly what the row forbids one level down. | orchestrator, 2026-08-20 |
 | **G-R5** | **S67 quotes `face_normal.rs:26-31` as *"Three such sites exist and are NAMED (smell-scan D6: …)"*.** That sentence is not in the tree. | **The quote is a paraphrase; the substance holds, and the brief quotes the tree.** What `face_normal.rs:26-31` actually says is *"**"One door" is true of these consumers, not of the workspace.** `boolean::solid_contain::face_plane`, `chord_join`'s `face_plane_normal` and `merge_faces.rs` each still carry their own hand-multiply (smell-scan D6)."* — three sites named, `chord_join` among them, so the finding's defect is intact: `chord_join.rs:2020-2026` returns the raw chart normal with **no `sense_sign` at all** (verified), and the paragraph's *"naming them here rather than leaving the claim unqualified is the point"* is what makes an inaccurate list the whole gap. **A brief is a claim site**; three of five briefs in one session on another track carried a citation that did not resolve, and this one would have made a lane rewrite a sentence that does not exist. | **AMENDED 2026-08-20 — this ruling was half wrong, and lane G-g caught it by re-deriving rather than complying.** The sentence **is** in the tree, **verbatim**, at `face_normal.rs:93-98` — the guard test's gap-#1 bullet, which the finding itself cites as `:88-92`. So it was a **line-number misattribution, not a paraphrase**, and my correction was itself the thing it warned about: a claim about the tree made without re-deriving it. Worse for the original ruling and better for the finding: `:26-31` held a **second copy** of the same three names, and a **third** sat at `boolean/reduce.rs:248-251`, which the finding never named. The lane also found three of the finding's five "unlisted" citations off — `rest.rs:512` is the `let sign =` binding (the multiply is `:521`), `validate.rs` is `:2168` not `:2161`, and **`props.rs:264` is not a normal multiply at all** (the ±1 is an argument to `curved_face`'s closed form). **Both corrections verified from the tree by the orchestrator before acceptance.** The finding's shape held; its count was **low, not high**. | orchestrator, 2026-08-20 |
 | **G-R6** | **G7's gate on Track E's E-e**, which §D states as *"partly collides … sequence after it"* without naming the file or the PR. | **Confirmed, and it is a file-overlap gate, not a dependency one.** E-e is **#767**, open, in `editor-core/src/eval/`; S106's own load-bearing citation is `editor-core/src/eval/mod.rs:1565-1730` (`feed_step`, the one cross-crate copy that breaks loudly). Same file. **G7 waits for #767 to land**, and per Track E's own E-R4 a lane that later disproves the *reason* for a gate has not disproved the gate — re-read #767's head, not this sentence. | orchestrator, 2026-08-20 |
 | **G-R8** | **May `interval-transcendentals`' `DInterval::intersection` be deleted?** S111(c) reads as a deletion warrant — *"outside the crate's declared scope, in neither of `docs/inventory.md`'s lists, and **zero call sites anywhere** (every other public method has 1–1375)"* — and the orchestrator put that framing to Evan as a small take-it-unless-you-object. Evan pushed back: *"is that making it private, or deleting functionality? i also don't really see the benefit of either?"* | **No, and the finding does not survive contact with the tree.** Three corrections, all from `interval-transcendentals/` itself. **(a)** `docs/semantics-diffs.md` §D7 documents the `Trv` cap in full, and **`intersection` is load-bearing inside `hull`'s justification**: §D7's subject is that `hull()` deliberately diverges from 1788 by keeping `min(dec)`, and its stated recourse for a consumer wanting 1788-strict behaviour is that they *"can call `intersection`-style code or drop the decoration themselves."* Deleting it removes the thing a surviving argument points at — **S74's mechanism, committed on the track constituted to catch it.** **(b)** *"Zero call sites anywhere"* is false **as stated**: five, at `ops.rs:196-209`, in `intersection_trv_cap_and_taxonomy`, which pins the `Trv` cap, the empty/disjoint taxonomy and NaI propagation. **AMENDED 2026-08-20, and the amendment matters more than the original point** — #786's style reviewer ran `git grep '\.intersection('` over the whole tree and got **only that `#[cfg(test)]` block**, and the lane's own new inventory table honestly records `intersection | none today`. So the finding's diagnostic — *a `pub` function with no production caller* — was **correct about the code**; what it got wrong was only the **remedy**, because §D7 points at it. My ruling said *"the finding does not survive contact with the tree"*, which overstates it, and the lane wrote that overstatement into the register before the reviewer caught it. **The lane has withdrawn it at the finding, in the PR body and in its Landings row.** This is G-R9's shape a third time and the first instance where the unchecked claim was *mine and exculpatory* — a correction that made my own earlier error look smaller than it was. **(c)** The surviving half indicts the **document**: `inventory.md`'s exact-surface list omits `hull` too, and `hull` is unquestionably used — so the finding's own diagnostic convicts a function nobody would delete. **Disposition:** inventory both set ops (or narrow the scope sentence to what it actually claims), and treat **S116(r)** as what it now is — *a pointer problem, not a missing caveat*: §D7 has the analysis, and the reader who needs it is at the type or at `geom-core/src/interval.rs:135-143`. **Do not restate §D7 at the type**; a second home for that argument is S13's defect. | orchestrator, from Evan's question, 2026-08-20 |
@@ -295,17 +295,21 @@ the one constraint on this track that is not mine to lift.
 | **G-g** | **G8** (S67) | `topo/src/face_normal.rs` (docs) + `topo/src/chord_join.rs` (the real question) | style **+ one ADVERSARIAL sub-unit** | running |
 | **G-h** | **G11** (S114(c)'s residue) | `demos/render.py`, `demos/render_freecad.py`, `demos/wild/src/main.rs`, `demos/tour/src/uvdump.rs` | style | running |
 
-**The planning table below this one is SUPERSEDED and its lane letters are
-wrong.** It was written at constitution time and I dispatched wave 2 without
-reconciling it, so it assigns **G-f** to G8, **G-g** to G9 and **G-h** to G7 —
-none of which match the live roster above or the numbers table. **Lane G-g
-flagged the collision from inside its own lane rather than guessing which
-letter it was**, which is the right move and is why two PRs did not get read as
-one lane. **The live roster is the table above; the one below is kept only for
-its gate reasoning, and every lane letter in it is void.** This is the same
-defect this track exists to find — a stale table that is still true-looking —
-in this orchestrator's own log, and it is the second one (cf. the G3 row cited
-by name after it was deleted).
+**The constitution-time planning table that used to sit here is DELETED.**
+It assigned different lane letters to every row than the live roster above —
+G-f to G8, G-g to G9, G-h to G7 — and **three separate lanes tripped on it**:
+G-g flagged the collision from inside its own lane rather than guessing which
+letter it was, G-d found its own row saying something its brief did not, and
+G-h found itself listed against a row it was never given. Marking it *void* was
+not enough, because a void table still reads like a table. **Version control
+keeps it.** The live roster is the table above and the number-reservation table
+is the one under *Track G's second number block*; nothing else in this file
+assigns a lane letter.
+
+Recorded rather than quietly deleted, because it is this track's own subject
+turned on its own log: **a stale artifact that is still true-looking outlives
+every warning attached to it, and the third lane to trip on it was tripping on
+the warning.**
 
 **Sequenced, not gated:** **G9** waits on G-g because both edit
 `topo/src/chord_join.rs` — G-g's question there is whether a missing
@@ -320,34 +324,6 @@ classified — so the unit's own failure mode is invisible to the gate. G7's thr
 copies go *silently short* rather than wrong, which is a real defect and a
 visible one. That is Evan's criterion (`SMELL-C-LOG` C-R12) applied, not row
 size.
-
-
-
-**Wave 1 — open now.** These lanes share no file with each other, with Track
-C's open lanes (#732, `stl/`), with Track E's (#753 `scripts/`+`ci.yml`, #763
-`crates/*/tests/all.rs`, #767 `editor-core/src/eval/`, #768
-`sweep/src/fillet/`), or with Track F's. **All three have landed and left this
-roster** — G-c as #781, G-b as #787, G-a as #786 (see *Landings*). Wave 1 is
-complete; wave 2 is the live one.
-
-
-**Wave 2 — opens as wave 1 lanes free up; edge-free today.**
-
-| lane | row | scope | review |
-|---|---|---|---|
-| ~~**G-d**~~ | **G5** (S71) + **G10** (S112, re-scoped by **G-R2**) | `profile/tests/review_s2.rs`, `profile/src/sugar.rs` (re-read for G5, edited for S112(f)), `crates/pncad/src/lib.rs` | style |
-| **G-e** | **G6** (S104) | `editor-core/src/assembly.rs`, `pncad-py/src/py/doc.rs`, plus `editor-core/src/mate.rs` and `pncad-py/src/py/select.rs`, which the scan did not read | **ADVERSARIAL** |
-| **G-f** | **G8** (S67) | `topo/src/face_normal.rs` (docs), `topo/src/chord_join.rs` (the real question) | style **+ one ADVERSARIAL sub-unit**, not folded together |
-
-**Wave 3 — gated, and on what.**
-
-| lane | row | gated on | why |
-|---|---|---|---|
-| **G-g** | **G9** (S95, S96) | **G-f**, and Track C for S96 | **G-R4** — file overlap on `chord_join.rs`; and S96's imports reach `splitting/rules.rs`, which §D says to confirm with Track C before touching |
-| **G-h** | **G7** (S106) | Track E's **#767** | **G-R6** — file overlap at `editor-core/src/eval/mod.rs` |
-| **G-j** | **G4** (S87, S88's `profile` half) | Track F's **F1** ← Track E's **#753** | **G-R7** — Evan's S87/S88 ruling, recorded in `SMELL-F-LOG`; two tracks deep and none of it Track G's to move |
-
----
 
 ## Reviews
 
