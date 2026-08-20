@@ -6830,7 +6830,54 @@ paths named (`point_in_loop` is `pub` but takes `(&Body, LoopKey, …, Band)`; t
 other two are private; and reusing a `Decide`-certified door would reintroduce
 #619's ε-fragility). #619's residual still stands: **no tier, prop or boolean in
 the kernel reads a lofted wall's sense**, so on these shapes these rows are the
-only thing pinning the bit. `sweep_body`'s helix rows are **H13**.
+only thing pinning the bit. `sweep_body`'s helix rows were **H13**.
+
+### H13 — FIXED by #779. The helix rows have an oracle, and it is not this one widened
+
+#636 left `m8_14_long_turn_sweep.rs`'s three helical sweeps unpinned and said
+why: its level-plane index refuses at `cos ≈ 0.011` on a half turn rather than
+answering, and *"reaching a helix needs a different oracle, not a wider bound
+here"*. That reading was right and understated. Measured on the shipped tree,
+BOTH halves of that index fail, and neither is a bound that could be loosened:
+
+- **there is no fixed axis to orient the level planes against.** They are the
+  path's normal planes, so their normals sweep a cone about the helix axis
+  while the stacking chord is nearly the axis itself. `cos = 0.0635` at EVERY
+  level of a whole-turn sweep — not only at the ends — and `0.011` at both ends
+  of a half turn.
+- **a query point's level is not unique.** For `c(a) = (R cos a, R sin a, k a)`
+  the height against the normal plane at `a` is `−R² sin a − k² a + k z₀` up to
+  the speed, so `dh/da ∝ −R² cos a − k²` is positive over most of the second
+  and third quadrants. Monotonicity is gone after about a quarter turn, and a
+  probe point genuinely lies on 2 level planes on the whole-turn fixture and up
+  to 9 on the two-turn one. Bisecting would return whichever root it landed on.
+
+The replacement (`crates/sweep/tests/common/orient.rs`, `LevelIndex`) keeps the
+level rings — which are planar for any placements, since a skinned iso-`v` ring
+is one affine map applied to a planar section — and changes how a point is
+matched to a level: orient by CONTINUITY from `t = 0` so no global direction is
+needed, then ENUMERATE every root of the height rather than assume one, and
+require at most one level's ring to claim the point. That is the loft index
+wherever the loft index is valid, and defined where it is not.
+
+Three helix rows (½, 1, 2 turns) and the rational-section elbow at
+`m7_skin_integral.rs:381` — #636's other named uncovered caller — now probe
+every wall at fifteen chart samples, **and both caps**: a body whose two cap
+bits are inverted leaves the point set untouched, every wall bit honest, and
+every wall probe passing, which the wall grid alone cannot see.
+
+One figure worth keeping, because the first version of this record got it
+wrong. The fixed-chord index's cosine against the stacking chord is
+`k/√(R²+k²) = 0.0635` **as a model**; the shipped bodies' level planes deviate
+from the model by up to ~3.8°, so the measured cosine RANGES — `0.0575`–`0.1292`
+over 513 levels on the whole and two-turn fixtures, `0.0111`–`0.9935` on the
+half turn — and clears the `0.1` guard at some levels on every fixture. The
+conclusion is unchanged and rests on the **minimum**, since that index needs
+every level orientable and refuses on the first that is not; but *"0.0635 at
+every level"* was a measurement of level 0 stated as a measurement of all of
+them. `step-export/tests/common/mod.rs`'s
+`swept_elbow`, the third caller #636 named, is the square elbow *constant for
+constant*, so #636's own row already pins that body.
 
 ## S52. An in-crate test helper is invisible from `tests/`, so every integration suite mints its own
 
@@ -10452,24 +10499,29 @@ to make and record.
 The 2026-08-19 statement of this paragraph is superseded: every gate it
 named has since fallen. **A1 (#682), A3 (issue #678, landed as #684), #690
 and #692 are all merged**, and **#705** merged the two geometry crates into
-one `geom`. So C1's one remaining member (H13), C4 in full,
-C5's S28 half,
-C7 and C10 are edge-free and takeable today. (**C9 — the `agreement`
+one `geom`. So C4 in full, C5's S28 half,
+C7 and C10 are edge-free and takeable today. (**C1 has left this table
+entirely**: H13, its last live member, is FIXED by #779, and H12, H14 and
+H15 went before it.) (**C9 — the `agreement`
 column — is FIXED by #738**, which deleted it rather than re-deriving
 it; the similarly-numbered **§C9** is an unrelated process
 observation. **C15** and **C17** are new, both filed by #738's review,
 and both collide the same way — **§C15** and **§C17** are process
 observations with nothing to do with either row. The convention is
 #731's and it is the only thing separating them: a bare `CNN` is a §D
-schedule row, a `§CNN` is a §C observation.) **C13, C14 and C16 are this PR's own filed rows**, all three edge-free, with the caveat that **C13 and C14 want a plan signed off by Evan before implementation**, being cross-crate public-API changes with a design element rather than cleanups. **C16 is displaced and the displacement is the record, not an error:** C-R20 assigned it **C11**, and #714's fix pass landed a `C11` of its own first — `main`'s C11 stands and C16 is confirmed. Row numbers on this track are assigned by the orchestrator and **a number is not owned until it is on `main`**, so a lane mints against the merged tree rather than against an assignment. **C12** has since arrived with #731, so the table read **C1–C8, C10–C17** with no hole at all — C9 the only number missing, and missing because it landed. **Re-derived at #803's merge, since a landing leaves this paragraph too:** the table reads **C1–C8, C10–C19, C21, C23**. Two numbers are absent and they are absent for different reasons — **C9** landed, and **C20** has never been assigned on `main` at all, so it is a gap and not a reservation. That is exactly the state C-R20 forbids a lane to read as an invitation: a taker asks for a number rather than filling the hole.
+schedule row, a `§CNN` is a §C observation.) **C13, C14 and C16 are this PR's own filed rows**, all three edge-free, with the caveat that **C13 and C14 want a plan signed off by Evan before implementation**, being cross-crate public-API changes with a design element rather than cleanups. **C16 is displaced and the displacement is the record, not an error:** C-R20 assigned it **C11**, and #714's fix pass landed a `C11` of its own first — `main`'s C11 stands and C16 is confirmed. Row numbers on this track are assigned by the orchestrator and **a number is not owned until it is on `main`**, so a lane mints against the merged tree rather than against an assignment. **C12** has since arrived with #731, so the table read **C1–C8, C10–C17** with no hole at all — C9 the only number missing, and missing because it landed. **Re-derived at #803's merge, since a landing leaves this paragraph too:** the table reads **C1–C8, C10–C19, C21, C23**. Two numbers are absent and they are absent for **three** different reasons, which is one more than the count suggests. **C9** landed and left. **C20 is assigned** — to #779, unmerged at the time of writing — and the earlier version of this sentence said it *"has never been assigned on `main` at all, so it is a gap and not a reservation"*. The premise was true and **the inference was not**: C-R21 says a number is not owned until it is on `main`, which tells a lane what it may not *rely* on, not what is *true*. A hole on `main` is consistent with an unmerged reservation, and here it was one. **So the reading rule is unchanged and the description is corrected:** a taker still asks the orchestrator for a number rather than filling a hole — not because the hole is unreserved, but because **from `main` alone you cannot tell**, and that is precisely why the asking exists. Live reservations at the time of writing: **C22** (C-q, released unused), **C24** (C-g), **C25** (#779's second row).
 
 **C11 joined 2026-08-19**, as A2/#714's own two residues (§D ordering rule 3),
 and it is edge-free in the same sense C9 is: its #727 half is a **decision**
 reacting to an answer already written down at S58, and its #726 half sequences
 with **#723** and C3's S27 for the same `props/curved.rs` reason.
 
-**Two gates remain, and they are different in kind.** **C3's S27** waits on
-**A2** (#649, open as #714) for file overlap in `props/` — as does the
+**Two gates remain, and they are different in kind.** **C3's S27** no longer
+waits on **A2** — #714 **merged** 2026-08-20 — but it does wait on **#723**,
+which re-opens `props/curved.rs` on the same closed forms and is **open**: a
+sphere meridian arc crossing a pole, tier 3 green at `pad = 0.0`, volume
+−47.19%. That gate is a live kernel defect rather than a queued lane, so S27
+does not unblock by waiting on Track C. It also had file overlap in `props/` — as does the
 `step-export/volume.rs` row Track D handed over, whose immediate cause is
 that `topo::props` exposes only body-scoped `mass_properties` while the
 exporter needs *per-shell* volume. And **C2's H17** is held **deliberately
@@ -10487,7 +10539,6 @@ this paragraph is rewritten rather than appended to.
 
 | # | Work | Why it is here rather than in a track |
 |---|---|---|
-| **C1** | **H13** — a lane's own residue: `sweep_body`'s helix rows with no orientation coverage. (**H12**, the SSI sweeps' other never-silence doors, left this row **FIXED by #734**; **H14**, #637's two jurisdiction residues, left it **FIXED by #737**; **H15**, #635's unclassified siblings, left it **FIXED by #775** — three sites as recorded, twenty as they existed.) | Small on its own; it is the clearest instance of ordering rule 3. |
 | **C2** | **H17** — S37's rustdoc remainder, ~1115 lines across 130 files. (Both other members have landed. **H11**, #632's residues, is **FIXED by #731** — the residues were two as recorded and ten as they existed; see S4's drift (b) for the seven further fail-quiet classifications in the same crate, **§C15** for what each sweep could not match, and **C12** for what #731 filed rather than fixed. **H16**, the STL header not being caller-settable while `StepOptions` carries `product_name`, is **FIXED by #732**.) | H17 is large and mechanical. |
 | **C3** | **S27** — `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block. (Both other members have landed. S30, the mesh crate's 1,060 lines of instrument, is **FIXED by #709**; **S29**, the sizing vocabulary fragmented across five modules, had its mechanical half **FIXED by #803** — its *policy* half is open and is a design PR under **C-R2**, not a schedule row, and S116(h) is that half.) S27 touches `props/`, so it must follow **A2** (#714) **and #723**, which re-opens the same file on the same closed forms — see the gating note above. |
 | **C4** | **S32, S33** — `Surface`'s one-partial-per-call API, which is what created the shadow surface enum in SSI; and neither geometry enum being able to lift itself to another scalar. (S31, the `geom-curves`/`geom-surfaces` split, was the third member and is FIXED by #705.) | **S32 is now additionally gated on #705's merge**: the enum and its NURBS payload are one crate's two modules, so a `SurfaceJet` door at the enum no longer crosses a crate boundary. **S33 is coloured by D1**: several of its ~14 hand-written ladders exist only to reach `Dual`, and what `Bounds for Dual` changes there is written in S44's **D1 DECIDED** block. |
@@ -10505,8 +10556,10 @@ this paragraph is rewritten rather than appended to.
 | **C17** | **Two of four excluded cargo roots now carry a hand-copied `cargo doc` step, and nothing gates the copies against drift.** `scripts/doc-gate.sh` is `cargo doc --workspace`, which sees workspace MEMBERS only; `tools/tess-meter` has a step copied into its CI row by #709 and `tools/tess-lint` one copied by #738, while `tools/k-lint`, `demos/tour` and `demos/wild` have none. The copies are prose in a YAML row: nothing checks that a root has one, that it matches its siblings, or that the sentences describing the arrangement are still true. | **The drift is measured, not predicted.** `doc-gate.sh:50` asserted *"**none** of those rows runs `cargo doc`"* four lines above its own record of #709's stopgap — false BEFORE #738 and falsified twice over by it — and `ci.yml:1718` said tess-meter documents *"unlike its sibling rows"*, and `local-scripts/ci-local.sh:518`, whose header says it mirrors ci.yml's row of the same name, stopped mirroring it the moment the hosted row gained a step. Three sites, all corrected by hand in #738, none of them caught by anything. **Tier (C-R19): the middle one — this asks for a plan before implementation, not a patch.** The row is not "add three more copies": the mechanism question is whether the doc gate stops being workspace-scoped and iterates every cargo root (changing what the gate IS, and its cost on every tier), or whether the copies stay and a gate asserts each excluded root's row carries one. That choice has a design element, and the local mirror is a second copy set that either answer has to account for. |
 | **C18** | **Three residues of H12's own enumeration, left open by #734** — a tests-only unit, so all three are coverage or prose, none a source change. **(a) The four Account-duty cells of the sweeps' never-silence grid have no acceptance row.** The grid is thirteen, not the nine #734 first claimed: the cell budget and both enclosure-poison arms sit in `exhaust.rs`'s ONE shared recursion, which runs under both values of `SweepDuty` on separate calls with separate floors, so **duty is an axis** — and it is the axis S23's own bug lived on. Three cells had rows before #734 and five more do now, all five under the **seeding** duty, because seeding runs first on both lanes. The residue is {cell budget, poison arm} × {ℝ³, chart} under **Account**. **What was tried and did not reach them, so the next taker does not repeat it:** the accounting floor is routinely orders finer than the seeding one (measured on the substrate wall, `8.8e-10` against `2.1e-2` in chart units), so the road looks open — but at `floor_scale` of 0, 1e-12 and 1e-9 both lanes' fixtures still terminate `Ok`, because exclusion and the banked tubes between them resolve every cell above any floor. What is needed is a fixture leaving a region neither excluded nor accounted at every width, and that is a new fixture, not a new assertion. **(b) The macro blind spot on #734's population sweep is open.** The 1-vs-3 containment measurement rests on `plane_nurbs_ssi` having exactly the callers a whole-tree name grep finds; a caller reaching it through a macro-generated path would not be matched. There is no such macro in this workspace to the lane's knowledge, and the reviewer did not close it either — but it is the one declared blind spot on the measurement and it should not live only in a PR body. **(c) `m5_pr7_ssi.rs`'s header claims the battery runs it "at the interval scalar", and the interval CI leg runs only the set difference of the two nextest lists** — so rows present in both configs never run there, and every row in that file is. A coverage claim about the file, false as the workflow stands; either the claim goes or the selection does, and which is a question for whoever owns the interval leg. | **C-R19 tier one — a lane takes it.** No design fork: (a) is test coverage needing a fixture whose non-existence is established rather than assumed, (b) is a sweep widened or a blind spot restated, (c) is one sentence corrected against one workflow file. Nothing here is a kernel change — H12's only source-side residue is **issue #762** (the chart-speed guard's `+∞` hole), which is deliberately NOT part of this row. |
 | **C19** | **`step-import/src/assemble.rs`'s `build`/`build_one_solid` pair — #635's residue B, and DEAD CODE rather than a stale claim.** `build(&[SolidSpec])` has exactly one caller, `build_one_solid`, which always passes a one-element slice; the multi-solid door retired with M8 instancing (a `SolidSpec`'s maps are keyed by file entity ids, so two copies in one arena would collide id for id). **The distinction is this row's content.** #635 named it under *"Still not swept, and why"*, and #775 — the lane that swept the rest of that list — established that its **prose is TRUE today**: `assemble.rs:817` already says *"One door reaches it today … The multi-solid door retired with M8 instancing"*. So there is nothing here for a stale-claims pass to fix, which is exactly why **C-R6 does not reach it**: C-R6 fixes in-crate members of the *class*, and this is not a member of the class. A reader who arrives assuming another stale-claim site re-derives that for nothing. | **C-R19 tier one — a lane takes it.** ~10 lines: fold `build`'s loop into `build_one_solid` and keep the retirement reason at the surviving door. No design element, no public API (`build_one_solid` is `pub(crate)`, `build` private), one crate, edge-free. Not taken by #775 because `step-import` is outside that lane's scope column and the change is code, not prose — the lane asked for this number rather than taking one (**C-R20/C-R21**). Fold into whoever next opens `step-import`; **C8** already routes two `step-import` rows the same way. |
+| **C20** | **Every turning-path swept or lofted chart shape that is NOT a quarter-turn arc or a constant-pitch helix is unpinned for orientation — including the one the tree itself authors a ROLL on.** #779's class sweep (pattern `sweep_body::<` / `loft_body::<` / `sweep_body(` / `loft_body(` over `crates/`, `demos/`, `tools/`; blind spot: a caller reached through a macro-generated path or a re-export under another name, or a body hand-assembled from euler ops) found that every turning-path `sweep_body` caller builds one of four fixtures, and three are now pinned: the **square elbow** — six callers (`sweep/tests/m5_s11_concave_sense.rs`, `m7_skin_integral.rs` ×2, `mesh/tests/probe_review.rs`, `mesh/tests/m7_nurbs_trimmed.rs`, `step-export/tests/common/mod.rs`), all the same body *constant for constant*, so #636's one row covers all six; the **rational circle-section elbow** (`m7_skin_integral.rs:381`) and the **helices at ½, 1 and 2 turns** (`m8_14_long_turn_sweep.rs`), both closed by #779. **What is left, and it is the hard end of the class:** **(a) `demos/tour/src/lily.rs:863`'s `lofted_blade`** — the sharpest member and the one #779's first draft of this row missed. It is a `loft_body` on an arching spine with **sections that change station to station AND a frame authored to ROLL about the spine's own tangent**, which is S51's own named worst case crossed with H13's, and it builds a real body with three demo callers. **(b) `demos/tour/src/skinned.rs`'s S path** (two OPPOSED `R = 2` arcs, so curvature reverses sign and the minimal-rotation frame's turn is not monotone through the inflection) **and its twisted cubic** `(At, Bt², Ct³)` (curvature and torsion both varying, where a helix holds both fixed). **(c) `crates/editor-core/src/eval/wire.rs`'s `loft_body` door is PRODUCTION** and takes its placements from the document, so a user can mint an arbitrarily rolled loft through it — with S51's residual (*no tier, prop or boolean in the kernel reads a lofted wall's sense*) still standing behind it. Nothing pins that door's orientation either. **(`klein.rs`'s U-turn is NOT a member and a taker should not go looking for a body there**: that `sweep_body` call is passed to `walls::wall` under a matcher for `LoftError::ReversedStacking`, and `walls::wall` panics if the call returns `Ok`. It builds nothing. The extreme case is closed by refusal rather than by a bit.) **This inverts the usual coverage-gap argument.** A gap normally sits at the easy end. Every pinned fixture has constant curvature, a monotone frame roll and a centrally symmetric section — a quarter-turn planar arc, or a helix, carrying a centred square or a circle. Every member above breaks at least one of those, and (a) breaks all three. So the class is closed where the argument is easiest to make and open where the bit is most likely to be wrong. **Disposition, so it is not re-decided.** #779 deferred this, and its stated reason — *"it is out of `sweep/tests/`"* — **was wrong and is corrected here**: nothing about the fix lands in `demos/`. Demos are the library's USAGE oracle (`memories/demo-purpose.md`) and hanging orientation assertions off them would contort what they measure, so the classification *coverage row, not a demo edit* stands; but covering the class means **reproducing those chart shapes as fixtures in `sweep/tests/`**, which is exactly where every #779 row lives. The honest reason for deferring is size, not scope. `common::orient::LevelIndex` is the oracle it needs and already exists; it is verified against an independent mesh oracle on 360 row probes and 800 random points, and `assert_caps_face_out` covers the caps. **A rolled loft is the fixture to write first**, because it is (a)'s shape and needs no demo at all. | **C-R19 tier one — a lane takes it.** No design fork: the oracle exists, the shapes are authored in the tree already, and what is missing is fixtures and rows. Not gated on anything. |
 | **C21** | **Two measured populations from #775's sweeps, neither read per item — and one of them has already hidden a live member.** **(a) I1's 102 live-scope hits**: comment clauses carrying a milestone token with a live-scope marker in the 40 characters before it, workspace-wide, of 2,206 such clauses. The class is *"an `at M<n>` scope label whose milestone has shipped and whose substance may or may not still be true"* — mostly benign, individually cheap, and only decidable by reading the code each one describes. **(b) I3's 411 fan-in variants**: typed refusals whose ONE rustdoc and ONE `Display` arm must cover N > 1 construction sites. Fan-in is a *necessary condition* for the defect it found, not the defect — separating the real ones needs a per-variant read. **What makes this a row and not a note:** bucket (a) is where `geom-brep/src/edge_geometry.rs:285` sat — a **public enum variant doc** whose prediction had come true the other way — and it survived **all four** of #775's instruments, then went undetected until a style reviewer read for it by hand. I1 bucketed it *historical* because its live-scope marker follows the milestone token (*"SSI arrives (M3+)"*) instead of preceding it. **A population that has already concealed one live member is not a backlog; it is an unread result**, and calling it *"named as a population"* was the same sentence as *"recorded as a pickup"* (Q6). | **C-R19 tier: the MIDDLE one — a plan goes to Evan before implementation, not a patch.** A per-item read of 513 items is not a patch, and the design element is the triage itself: how to decide these without committing **§C16**'s move — a prose-hygiene pass that launders a guess into an assertion, which is exactly what bulk-rewriting 102 dated scope labels would be. #775 declined the rewrite on that ground and was right to; declining the rewrite is not the same as declining the schedule, and this row is the schedule. Whoever takes it starts from the two instruments' stated selection rules — **each dropped `edge_geometry.rs:285` by its rule, not by its regex** — because the triage design has to survive the same failure. Both instruments' patterns are written out in #775's body. |
 | **C23** | **One rational refinement schedule, hand-synced across a crate boundary.** `mesh::nurbs_cert::RATIONAL_CERT_SPLITS = 16` and `geom::curves`' `RATIONAL_METER_SPLITS = 16` are the same schedule — every nonempty span of every direction split into this many equal pieces before the hull assembly — and the `mesh` copy's own doc names the other as its precedent (*"the `RATIONAL_METER_SPLITS = 16` precedent of `geom::curves`' rational speed meter, mirrored"*), which makes this S4's dominant shape: one vocabulary, N hand-synced copies, with the copy **declaring itself** and being left anyway. `geom` is already a dependency of `mesh` and the constant is private there, so the mechanical move is one `pub` and one import. Found by #803's census; deliberately not taken by it. | **C-R19 tier: the MIDDLE one — a plan goes to Evan before implementation, not a patch.** Sharing the constant is not an encoding change: it **binds two independently-argued schedules to move together**, and the two arguments are different (a speed meter's scan resolution against a certificate assembly's cell size). Whoever takes it decides whether they are one quantity or two that happen to be 16, and records that — the third option, a shared constant with a doc saying the two consumers may diverge, is the worst of both. Neither value may move while deciding: `geom`'s own tests warn that `RATIONAL_METER_SPLITS` cannot be changed freely. |
+| **C25** | **One swept body, built from scratch six times across three crates — enumerated by #779's class sweep and reported there as COVERAGE rather than as the duplication it is.** The square elbow (path: a quarter arc to `(3, 3)` at `bulge = tan(π/8)`, placed by `−π/2` about world y; section: a centred square of half-width `0.25`; 9 stations, `v_degree` 3) is **constructed independently six times** — `sweep/tests/m5_s11_concave_sense.rs:948`, `sweep/tests/m7_skin_integral.rs:247` (`elbow_path()`), `mesh/tests/probe_review.rs:56`, `mesh/tests/m7_nurbs_trimmed.rs:56`, `step-export/tests/common/mod.rs:854` (`swept_elbow()`), and `step-export/examples/review_elbow_probe.rs:30` — and reached by **seven `sweep_body` call sites**, since `m7`'s two rows share its file-local pair. **Say which count you mean**: six constructions is the duplication (each is a separate place the constants can drift); seven call sites is the blast radius (each is a row that would change answer if one drifted); and the same path additionally carries two RATIONAL-section bodies at `m7_skin_integral.rs:381` and `:460`, which are a different body on a shared path and are not part of this count. **They are byte-identical today and that is measured, not assumed**: #779's adversarial reviewer checked all of them down to `R = 3.0`, `H = 0.25`, `bulge = tan(π/8)`, the `−π/2`-about-`y` placement, identity profile placement, 9 stations, `v_degree` 3, **and the same four centred-square vertices in the same order, written three ways** (`ProfileLoop::polygon`, `common::quad`, a file-local `square`). **Why it matters, and why #779 could not close it.** The fact that one row covers all of them is exactly what #779 leaned on to declare the class closed for the elbow — #636's single orientation row is asserted to cover six callers *because they build one body*. That is a claim over six unsynchronised copies held by nothing, so a drift in any one of them silently narrows a closure argument that three crates now rest on. #779 stated it in a PR body under a heading that reads FIXED, which is **C-R7's named failure** and is why it is a row. **What a taker must decide, because the copies are not gratuitous.** #636 re-typed `m5_s11`'s copy deliberately and said why (`all.rs` requires each aggregated file to behave as it did when it was its own crate root), and `step-export`'s own docstring records its copy as intentional, *"constant for constant"*, next to `loft_prism`'s. So the question is not *collapse them* but **where a cross-crate fixture lives given that `sweep::test_support` (#668, S52) exists and is already the home for exactly this** — it is `sweep`-owned, feature-gated and dev-only, and **both `mesh` and `step-export` already dev-depend on `sweep`** — today with no features, so the edges exist and the question is whether `test-support` may ride them. That is not a formality: `sweep`'s own manifest carries the measured reason to be careful, because a featured edge is what turned `topo`'s failure-injection doors on for every production dependent until S52 measured it, and the argument that saves it here is that a **dev**-dependency is in no consumer's build graph — the same argument the self dev-dependency already rests on, applied one crate further out. If it turns out the fixture cannot be reached from all three, the finding is that S52's routing rule has no cross-crate arm and the copies are the correct answer, which is a result worth writing down rather than a fix. | **C-R19 tier one — a lane takes it.** No design fork on the mechanical half: either the fixture moves to `sweep::test_support` and the six constructions become one call, or it is established that it cannot and the copies get a stated reason each, as two of the six already have. Touches `sweep`, `mesh` and `step-export` test trees only; no `src/` change and no public API. Not gated. Small, and it is the second half of **S52**, which collapsed six `cube`s inside one crate and never asked the same question across crates. |
 
 **Three ownership changes made to this table from outside the track (2026-08-20,
 Track E), stated here rather than only in Track E so this table is not read as
@@ -11792,18 +11845,28 @@ S60/S66's rows; and a general gate re-proposes exactly what Evan declined.
 **Found by Track F's lane F-f (#798) while demonstrating F2's re-siting, and
 handed over rather than taken — `scripts/gates/lib.sh` is lane F-g's file.**
 
-On hosted CI a failing gate prints **no readable reason**. On run
-`32408775985` — a deliberate breakage, so the failure is known and expected —
-the only failure text anywhere, in the job log *and* in the check-run
-annotations queried across every check run on the head SHA, is:
+> **NARROWED 2026-08-20, and the over-claim was Track F's own.** This finding
+> was first written as *"all fifteen gates currently fail on the hosted half
+> without saying why"* and *"readable only by re-running locally"*. **That is
+> false, and it was refuted by the lane that raised it**, on run `32413754011`:
+> `ERROR:` and `##[error]` lines both appear, carrying the full diagnosis. The
+> `::error::` plumbing works when it is reached. **What is true is only the
+> narrower mechanism below** — a gate that dies under `errexit` never reaches
+> it. The original text generalised one silent run into a property of fifteen
+> gates on the strength of a single observation. **That is the *claim wider
+> than its evidence* failure this track has ruled on four times today,
+> committed by the orchestrator in the register itself**, which is the one
+> place it is hardest to notice: a lane's over-claim gets a reviewer, and the
+> record's does not.
+
+On run `32408775985` — a deliberate breakage, so the failure was known and
+expected — the only failure text anywhere, in the job log *and* in the
+check-run annotations queried across every check run on the head SHA, was:
 
     Process completed with exit code 1
 
-`gate_error` emits `::error::<msg>` when `GITHUB_ACTIONS` is set; **that line
-appears in neither.** The plain `ERROR:` branch is local-only. So **all fifteen
-gates currently fail on the hosted half without saying why**, and this
-directory's carefully written failure messages are readable only by re-running
-locally — which is the half that does not gate.
+**not because `::error::` is unavailable, but because the gate died before
+emitting it.**
 
 ### The mechanism, found by #798's style review — and it is larger than the finding
 
@@ -11818,8 +11881,9 @@ empty-scan guard.
 
 So the finding is not *"gates print nothing on hosted CI"*. It is:
 
-> **Every gate can die before its own error message, and every gate's self-test
-> is blind to that by construction.**
+> **A gate whose diagnostic path runs a pipeline or a command substitution can
+> die before its own error message — and every gate's self-test is blind to
+> that by construction.**
 
 The harness suppresses the exact condition that kills the diagnostic. **That is
 a guard whose verification mechanism cannot observe its own failure mode** — the
