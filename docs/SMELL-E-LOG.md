@@ -96,7 +96,7 @@ re-derived against the tree before it is written*.
 This orchestrator runs in a Claude-Code-on-the-web container, not on the box
 `memories/agent-lane-operations.md` was written for. What differs:
 
-- **No `ssh`**, so `local-scripts/new-lane.sh` cannot run — it clones over SSH.
+- ~~**No `ssh`**, so `local-scripts/new-lane.sh` cannot run~~ — **stale, and it steered a lane wrong.** The script derives its URL from `origin` and falls back to HTTPS, so it runs here fine, and it is the required way to make a lane (E-R6). Note `$HOME` is `/root`, so lane clones land at `/root/.local/share/cad-work/<lane>/cad`, not under `/home/user`.
   Lanes clone the orchestrator checkout locally and repoint `origin` at HTTPS,
   which is the credentialed path here. This is a container fact, not a repo one;
   the committed script is right for the environment it was written for.
@@ -615,7 +615,7 @@ placed. Reissued:
 | D69–D70 | **D86–D87** | E-m |
 | D61–D62 | **D88–D89** | E-h — D88 is `merge_faces.rs:766`'s `unwrap_or_default` discard |
 
-Next unassigned in Track E's block: **D96**.
+Next unassigned in Track E's block: **D97**. (**D96** is E-k's — the thirteen row-0 candidates out of D35.)
 re-issued — a number that has appeared in a lane's report, even as *unused*, is
 cheaper to skip than to explain.
 
@@ -649,7 +649,7 @@ serialized here and each lane re-merges `origin/main` when one lands.
 | **E-d** | D33 | `smelle/d33` | **#761** | **MERGED 2026-08-20.** Placed D46, D51, D57; handed D56 back |
 | **E-e** | D28 + #693 | `smelle/d28` | **#767** | **MERGED 2026-08-20** — 37/37 finished, 0 failed. Census 12 arms not 8; placed D54, D81 |
 | **E-h** | D21 | `smelle/d21` | **#773** | **style lane NOT CLEARED** — 8 MAJOR; adversarial lane running. Placed D88, D89 |
-| **E-k** | D35 | — | — | **dispatched** 2026-08-20. Its blockers #768 and #773 are both in; the brief reframes D35's four options against **row 0** |
+| **E-k** | D35 | `smelle/d35` | **#809** | **reported.** Closes on **(d) — no gate**, reason beside row 0. Population re-derived: **103** sites, 7 crates; **76 are one state** (already answered *no* by #755), **13 row-0 candidates** → **D96**, 3 defective messages fixed. Found that **#777 never reached `main`** → **#817** |
 | **E-l** | #681 | `smelle/681` | **#810** | **reported, green on `dc78a98f` by the run's own conclusion.** 7 of 9 surfaces swept, 2 declared; 24 claims, **1 unguarded (#807, Track F's surface)**; #808 handed off per E-R7; `memories/` raised as a tenth surface for Evan. Merges after #763 |
 
 **E-g dispatched 2026-08-20** (`smelle/d27-d29`), D27 then D29 — one lane
@@ -1469,7 +1469,36 @@ document. The file answers one proof two ways and the unit owes the reason.
 once an earlier lib test panics — the reviewer's first inversion scored it 0 for
 exactly that reason and it caught its own instrument before reporting.
 
-### Row 0 is ratified and in `DESIGN.md` — #777, merged 2026-08-20
+### Row 0 is ratified — and it was NOT on `main` until #817 (corrected 2026-08-20)
+
+> **This heading was wrong for eight hours and I repeated it to Evan and into a
+> dispatch brief.** #777 merged, but its base was `smelle/d27-d29`, not `main`.
+> #768 merged that branch into `main` at `12:09:59`; #777 merged **into the
+> branch** at `12:10:18` — nineteen seconds later, so GitHub's retarget never
+> fired and `c4d284aa` never became an ancestor of `main`. Row 0's text sat on
+> an already-merged branch, reachable from nothing.
+>
+> **`main` was left self-contradictory in its ratified contract**: D21's
+> paragraph cites *"16 row 4 + 1 row 0"* while the taxonomy's own closing
+> sentence twelve lines down reads *"The five rows stand unamended"*, and the
+> superseded *"open for Evan's sign-off in its own PR"* line was still there.
+> Recovered as **#817**, `docs/DESIGN.md`'s added lines verified identical to
+> #777's.
+>
+> **Found by lane E-k, and only because its brief told it to read the addendum
+> as it stands today rather than as the brief described it.** I had written
+> *"#777 merged and promoted row 0"* into that brief as a fact. The lane read
+> the file.
+>
+> **E-R5 said a row is not placed until it is on `main`. This is the same rule
+> one level up: a PR is not landed because it says "merged".** *Merged* names an
+> event, not a destination — and the destination is the whole content of the
+> claim. What I checked was #777's state; what I needed was its base. **A
+> green checkmark on a PR whose base is a lane branch looks exactly like a green
+> checkmark on a PR whose base is `main`**, which is why nobody caught it for
+> eight hours and why the check is now `merge-base --is-ancestor`, not the
+> word on the PR.
+
 
 *Can this error state be made unrepresentable?* — asked of every state **before**
 rows 1–5, and **preferred over every row below whenever it is available.** It
