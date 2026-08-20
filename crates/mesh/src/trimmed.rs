@@ -444,14 +444,15 @@ pub(crate) fn tessellate_trimmed(
             // THE DEVIATION PASS (`crate::budget`, issue #320):
             // barycentric samples of |S(w) − Π(w)| on this triangle,
             // reduced to the largest ratio against the triangle's OWN
-            // certificate. That ratio is the per-triangle
-            // falsification carried out of the kernel as one number
-            // per face — `worst_ratio ≤ 1` says every sample on every
-            // triangle was dominated by its own certificate, which is
-            // strictly what an in-place assertion would have checked,
-            // and the suite that drives the meter asserts it. Nothing
-            // here can turn `tessellate`'s typed-error contract into a
-            // panic.
+            // certificate.
+            //
+            // INVARIANT: that maximum is the per-TRIANGLE claim, not a
+            // per-face average — `worst_ratio ≤ 1` holds exactly when
+            // every sample on every triangle was dominated by the
+            // certificate of the triangle it was taken on. The suite
+            // that drives the meter asserts it, and this lane does
+            // not: no build of this crate may turn `tessellate`'s
+            // typed-error contract into a panic.
             //
             // INVARIANT: this whole block is ABSENT from a default
             // build, and there is deliberately no `#[cfg]` here saying
