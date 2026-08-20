@@ -948,6 +948,55 @@ orchestrator reading `main` sees them as taken rather than recomputing them as
 free. One paragraph closes it for everyone instead of moving two rows for one
 track.
 
+### #768 (E-g / D27 + D29) — style lane, 2026-08-20: **D29 cleared, D27 not**, and the correction is to my framing
+
+**The headline I reported was true and I drew the wrong conclusion from it.** The
+lane's result was *"none of the three refusal arms had to become row 4"*, and I
+carried that as *the refusals did not become panics, so nothing was lost.* The
+style lane's correction is exact:
+
+> **"None had to become row 4" is true and is not the same as "no refusal was
+> lost."** Two of the three sites lost their branch because a value carries the
+> fact. The third lost half its branch because a *different* fact — one nothing
+> carries — was assumed.
+
+**`octant_chart` is the third.** The old code filtered incident links and
+skipped one whose two supports were **not among the corner's three faces**,
+refusing if none contributed. The incidence half is genuinely gone and is a real
+improvement. The **membership** half is not: `CornerFaces::third(a, b)` is
+*total*, so a link whose supports are not the corner's three now **scores a
+candidate off an arbitrary face** instead of being skipped — and the only
+statement that this is acceptable is `third`'s own doc, in another module.
+
+**That is D27's own defect, reproduced by D27's fix**: *a fact held in prose one
+or two frames from where it is needed.* `octant_chart`'s new sentence — *"there
+is no 'no candidate here' state left to refuse"* — is true and is not the
+property that was lost. **Totality is not meaningfulness.** And the assumption
+holds only on a manifold-consistent body, which `surgery.rs`'s own header
+doctrine refuses to assume anywhere else: *"No site inherits its proof from
+whole-body validity."*
+
+The style lane deliberately did **not** claim a live wrong answer: reaching it
+needs a body where the vertex orbit and the edge's two faces disagree **while
+both walks succeed**. Forwarded to the adversarial lane, whose claim 3 is
+exactly `third`'s totality, as the highest-value thing left on the PR.
+
+**Three more worth keeping.** D29's sweep **did not run the pattern it
+disclosed** — `loft.rs:518,520` discard a typed error through `map_err(|_| …)`,
+the shape the PR body names as its blind spot, in the crate the unit was already
+editing. The **guard test's blind spot was demonstrated rather than described**:
+a forged constructor written `-> Self { Self { faces } }` reds, the same one
+written `-> CornerFaces { CornerFaces { faces } }` stays green. And `admit.rs`
+added **3.6× the prose it retired** (comments +313/−86 against code +514/−379),
+nine sites of it narrating what the code *used to* do, one narrating **another
+PR's** incident — which is §4's rule and #755's finding, at a larger multiple.
+
+*The generalisable half:* **a unit that replaces a refusal with a type has two
+ways to succeed and they look identical in a diff** — the value carries the
+fact, or the fact stops being checked. Only the first is what the row asked for,
+and the PR body cannot tell them apart because in both cases the branch is
+simply gone.
+
 ---
 
 ## Landings
