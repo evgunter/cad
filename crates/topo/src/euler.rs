@@ -24,10 +24,22 @@
 //!   footnote, is the bounded-traversal half: no panic, no hang, every
 //!   traversal bounded — plus a typed error where corruption is
 //!   detectable. **A mutation phase announces a failed lookup rather
-//!   than discarding it, at every write.** Every key a
+//!   than discarding it, at every write in these modules** — and, as
+//!   of D21, at every write in `split_edge`, the attach setters,
+//!   `movefac`, `revert`, `merge_coplanar_faces`' role pass, the
+//!   boolean graft and the splitting carve. That enumeration is the
+//!   claim; it is not "the whole crate", and it has **one named
+//!   exception**: `merge_coplanar_faces`' ring re-homing still
+//!   defaults a failed face lookup to an empty ring list, because its
+//!   key arrives from a loop's back-pointer and no check in the call
+//!   proves it — so its disposition is a typed error rather than a
+//!   panic, and it is open as `SMELL-SCAN-2026-08.md`'s **D88**. Every
+//!   key a
 //!   mutation writes through is either minted in that phase or proven
-//!   live by the plan phase, which returns
-//!   [`EulerOpError::StaleKey`] otherwise; the writes themselves state
+//!   live by a check in the same call — here the plan phase, which
+//!   returns [`EulerOpError::StaleKey`] otherwise — and never by the
+//!   body's tier-1 validity, which is a whole-body property no single
+//!   call establishes; the writes themselves state
 //!   that impossibility as `unreachable!` (the addendum's row 4), and
 //!   the one write helper these modules share
 //!   ([`Body::link_half_edges`]) states it as a precondition its
