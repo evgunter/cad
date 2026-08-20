@@ -23,9 +23,9 @@
 //!   do not add or scale; the operations are `Point − Point = Vec`,
 //!   `Point ± Vec = Point`, and affine combinations ([`Point3::lerp`]).
 //!   `Point + Point` does not typecheck, by design.
-//! - [`Mat2`] / [`Mat3`] are **linear endomorphisms of the tangent
-//!   space**, stored column-major as named column fields.
-//! - [`Affine2`] / [`Affine3`] are **affine maps**: a linear part (the
+//! - [`Mat3`] is a **linear endomorphism of the tangent space**, stored
+//!   column-major as named column fields.
+//! - [`Affine3`] is an **affine map**: a linear part (the
 //!   map's differential, which is all a pushed-forward tangent vector
 //!   feels) plus a translation (which only points feel).
 //!
@@ -89,9 +89,9 @@ mod point;
 pub mod svd;
 mod vec;
 
-pub use affine::{Affine2, Affine3};
+pub use affine::Affine3;
 pub use frame::{FrameError, FrameInput};
-pub use mat::{Mat2, Mat3};
+pub use mat::Mat3;
 pub use point::{Point2, Point3};
 pub use svd::{Svd, Svd2x3, Svd3x4};
 pub use vec::{Vec2, Vec3};
