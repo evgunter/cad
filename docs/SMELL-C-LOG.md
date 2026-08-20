@@ -1397,3 +1397,41 @@ a mechanical filter down to a readable set, or a statement that its tail was
 sampled rather than read. C-i's own recovery is the cheap check — **after the
 fix pass, re-run the narrowest literal query the class admits and confirm it
 returns zero.**
+
+### I nudged a finished lane, on two bad liveness signals — both are in my own check-in instructions
+
+C-o was done, pushed and green. I read it as an hour with no work, and both
+signals I used were wrong:
+
+- **`target/` directory mtime is not a build-activity signal.** I read
+  `c-o/target` at 15:09 and concluded nothing had been built in two and a half
+  hours. Measured after the fact: **2,655 files under it are newer than 16:00.**
+  A directory's mtime moves only when its own entries are added or removed;
+  cargo rewrites fingerprints and artefacts *deeper in the tree*, so a busy
+  `target/` can keep a stale mtime indefinitely. The correct probe is
+  `find <target> -type f -newermt <time> | head`, not `stat` on the directory.
+- **`git log --oneline -6` is too shallow when `main` merges hourly.** The
+  lane's two work commits were four and five deep behind `origin/main` merges
+  it had taken on top of them. The window has to be sized against main's merge
+  rate, or the query has to exclude merges (`--no-merges`) — which is what I
+  had used earlier in the session and stopped using.
+
+**My own check-in prompt tells a successor to use both**, which is how this
+would have recurred. Corrected there.
+
+*What it cost, and what it did not.* One round of the lane's attention and a
+status message that read as doubt of a lane that had done the work. Cheap, and
+the lane corrected me flatly and with evidence, which is the behaviour the
+briefs ask for. **What it nearly cost is the interesting part**: the escalation
+order in `memories/agent-lane-operations.md` is nudge → check the lane → TaskStop
+after a full battery-length window. Had I trusted these two signals one step
+further I would have killed a finished, green unit — and the memory's own rule
+that *"transcript-mtime is NOT a liveness signal"* is the same lesson about a
+different clock, already written down, already generalising further than I
+applied it.
+
+*The rule underneath all three:* **a liveness signal must be something the work
+necessarily touches.** A transcript, a directory's own mtime and the tip of a
+merge-heavy log are all things a working lane can leave untouched for hours. A
+new commit reachable with `--no-merges`, or a file written under `target/`, are
+not.
