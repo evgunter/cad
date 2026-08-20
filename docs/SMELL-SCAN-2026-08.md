@@ -1684,32 +1684,72 @@ hang."* The census stands (58 discarding sites; `link_half_edges` exactly as
 described), and **S43** carries the larger question this turned out to be part
 of.
 
-*What is Evan's, not a lane's.* Making the write helpers unable to silently do
-nothing — a sticky corruption flag that `validate` and every public entry
-refuse on, converting silent release corruption into a typed refusal at the
-next public call, for one branch per write. The steelman's own closing sentence
-is that whether that is worth paying is a **D9 question**. It sits in *Open
-decisions — Evan only*, alongside S14's reframe, which is the same question
-about the same principle. #706 does not touch `euler.rs`, and does not propose
-an implementation.
+*What is already ratified, and what is left of it.* The steelman's closing
+sentence — that whether to make the write helpers unable to silently do nothing
+is a D9 question — **was answered the next day.** The **D2 addendum to D9**
+(`DESIGN.md:1123`, ratified 2026-08-19, PR #628) says *"silent discard is never
+an answer"* and **explicitly supersedes** the footnote's original *"typed errors
+where cheaply detectable, or documented garbage-out in release"*; S43's verdict
+`:4148` records it ACCEPTED AND SETTLED and closes *"S12's residue and S14's
+disposition follow from this rule and should be re-read against it rather than
+re-argued."* So there is no open decision here. What is left is **execution**:
+the ~60 silent discards in `euler{,_ring,_kill}.rs` are a known deviation from a
+ratified rule, and converting them is **W2c**, which had a verdict and no row anywhere until
+#706 placed it as Track D's **D10**.
+
+> **A note on how this row was dispatched.** D6's brief sent its lane to fix the
+> CI gap while telling it the rest of S12 was an open D9 question sitting in
+> *Open decisions*. Both halves were false — the question was ratified the day
+> before, and no such row exists. The brief was written from S12's steelman
+> without reading S43's verdict twenty lines further down this same file, which
+> is the Q8 failure this document warns about, committed while writing the
+> briefs. W2c's absence below (it appeared **once**, in S43's prose, as *"now
+> unblocked and unstarted"*) is the same miss one step earlier: §D's fourth
+> ordering rule is *a verdict is not a placement*, and the verdict that added
+> the rule went unplaced four sections from where the rule is written.
 
 *What was fixed.* The gap underneath both: `release_corruption.rs` instructed
 *"Run this under BOTH profiles"* and **CI ran one** — the only `cargo test
 --release` in `ci.yml` was the `oracle-inari` lane, and unlike the file's other
 profile choices (`:1165`, `:1210`) this one was an instruction with no
 mechanism, the §C14/Q6 shape. #706 adds the job `corrupt input (release
-profile)`: `-p topo --lib` filtered to the suite, gated on topo being in the
-change closure, and the header now names that job instead of instructing a
-reader to be the mechanism. **Correcting the instruction instead would have
+profile)`: `-p topo --lib` filtered to the suites, gated by a new
+`RUN_TOPO_RELEASE` root in `ci-filter.py`'s `JOB_ROOTS` (the idiom every other
+closure-gated job uses, and the thing that lets `ci-local.sh` mirror the row —
+it parses only `TIER`, `CARGO_SCOPE` and `RUN_*`), mirrored there per
+`ci.yml:134`'s sync obligation, and the suite headers now name that job instead
+of instructing a reader to be the mechanism. It fires on **89 of the last 128
+first-parent merges** and costs **93 s cold** on a hosted runner. **Correcting the instruction instead would have
 been the wrong outcome** — two of the six rows are not profile-independent.
-`foreign_parent_loop_garbage_in_garbage_out_release` is
-`#[cfg(not(debug_assertions))]` and is the only executable check of the
-ratified garbage-out contract, so off a release job it was neither run nor even
-*compiled* anywhere (clippy is a debug pass too); and
 `large_torn_body_terminates_quickly` attacks 3000 struts in release against 500
-under debug-assertions. The run step also asserts its own selection is
-non-empty, because a `cargo test` name filter that matches nothing exits 0 —
-the same silence, one level up.
+under debug-assertions, and the clause it defends — *"the bounded-traversal half
+stands: never a hang; every traversal is bounded"* — is the one clause of the
+corrupt-input disposition the D2 addendum kept. And
+`foreign_parent_loop_garbage_in_garbage_out_release` is the file's only
+`#[cfg(not(debug_assertions))]` item, so off a release job it was neither run
+nor even *compiled* anywhere (clippy is a debug pass too) — a **profile**-level
+rot hazard, independent of what the row asserts, which matters because what it
+asserts is scheduled to change: it certifies the very garbage-out W2c converts,
+and W2c will change its meaning or retire it. #706 says so at the job and at
+the suite rather than leaving the next reader to discover it. The run step also
+asserts its own selection is non-empty, because a `cargo test` name filter that
+matches nothing exits 0 — the same silence, one level up.
+
+*The stale-contract class, swept.* Three sentences in `euler.rs` (`:22`, `:52`,
+`:2010`) still asserted the superseded garbage-out disposition as ratified;
+#706 retimes all three to "today's behaviour, pending W2c" — prose only, the
+code is W2c's. Pattern: `grep -rn garbage crates/topo/src` plus the footnote's
+own wording across `crates/`. **What it could not match**: a site that describes
+the superseded disposition without the word, and it deliberately leaves the
+`geom-curves`/`geom-core`/`geom-surfaces` "documented garbage-out" hits alone —
+those are the addendum's **row 3** (value-domain poison), a different rule.
+
+*Two more sites whose release semantics nothing executed.*
+`review_m1_pr4.rs`'s section 9, headed *"Release-mode garbage-in"*, is now in
+the job's filter. `geom-core/src/spline/knots.rs:507` (`from_algebra`) has a
+`#[cfg(not(debug_assertions))]` arm that **no test runs in any profile and no
+CI job type-checks** — same class, different crate, and out of this unit's
+scope; it belongs with whoever next opens `spline/`.
 
 ## S13. Load-bearing invariants held by CI grep, allowlists, and a magic count
 
@@ -4160,9 +4200,11 @@ untouched: `unreachable!` is by construction not input-reachable.
 perform it. Until that lands, the ~60 `if let Some` discards across
 `euler.rs`/`euler_ring.rs`/`euler_kill.rs`, idiom 2's `MissingEntity` router
 defects, and `AssemblyUnsupported`'s rename are all still the superseded
-idiom — which is **W2c**, now unblocked and unstarted. S12's residue and
-S14's disposition follow from this rule and should be re-read against it
-rather than re-argued.
+idiom — which is **W2c**, scheduled as Track D's **D10** (#706; it had a
+verdict here and no row anywhere for two days, which is §D's fourth ordering
+rule failing on the section that states it). S12's residue and S14's
+disposition follow from this rule and should be re-read against it rather than
+re-argued.
 
 ## S44. The founding ruling for the lane-trait pattern exists only as an agent's paraphrase
 
@@ -5250,6 +5292,7 @@ scheduled.
 | **D7** | **U1 / D4 — the three decided deletions.** Decided by Evan 2026-08-19 and unexecuted. Each row owes a provenance note next to the thread that produced it (`PairSolve` → **#611**; the two fillet helpers → **#319**/**#554**; `Mat2`/`Affine2` → the deleting PR body, cross-referenced from **#614**), and the deleting PR must cite the **commit SHA** the code is recoverable from. `trimline_description`'s doc is the only place D7's prefer-intrinsic obligation is *named*: that sentence migrates, it does not die. | U1 | `geom-core/src/linalg/{mat,affine}.rs`, `editor-core/src/mate{.rs,/solve.rs}`, `sweep/src/fillet/{blend,battery}.rs` | style | **split by row.** `Mat2`/`Affine2` is free now. `PairSolve` waits on **#702**, which is editing `mate.rs`, `mate/solve.rs` and the `lib.rs` re-export block it lives in. The fillet helpers wait on **D2**. Evan placed the whole row *"back of the queue, but ahead of W3b"*, and its rationale — noise to lanes reading the same files — is what these two gates discharge. |
 | **D8** | **U4's remainder — the knot-vector queries.** `KnotVector` offers `multiplicity_of(u)`, which requires you to already know `u`; every consumer that needs *the list* of distinct interior knots hand-writes the same scan, four times (`compose.rs:274`, `algebra.rs:563`, `geom-curves/fit.rs:378`, `sweep/skin.rs:370`). Beside it, knot insertion exists twice in one module, one of them re-deriving the span with a linear scan where `find_span`'s binary search is one module away. The scan's own lesson: *a data structure whose API was frozen one PR before its first consumer is the tell.* | U4 (rows) | `geom-core/src/spline/{compose,algebra}.rs`, `geom-curves/src/fit.rs`, `sweep/src/skin.rs` | **ADVERSARIAL** — it adds to a certified type's API and replaces a linear scan with a binary search inside knot arithmetic, where an off-by-one is a wrong curve rather than a compile error. | nothing (but it edits `sweep/src/skin.rs`, so sequence it against D1/D2 within this track) |
 | **D9** | **U3 — S17's ray-parity twins.** `chart_region::point_in_polygon` is a line-for-line port of `splitting::containment::point_in_loop`, self-declared as one in its own doc. `profile::validate::point_in_loop` is a third and is **not** in scope: `topo` does not depend on `profile` and never has, so that copy is DAG-forced and the unit's job is to say so as a negative result rather than to close it. Both topo copies also reuse one predicate name for two different questions (`point_in_loop_boundary` decides both the degeneracy gate and the point-to-segment distance) — the drift `splitting/rules.rs:117` mints a distinct name to avoid. | U3 | `topo/src/{chart_region.rs,splitting/containment.rs}` and the shared home | **ADVERSARIAL** — the K-ledger convention makes new predicate names new K rows, so a unification *removes* rows, and the margins it merges were metered separately. This is also S15's byte-identical-ray-schedule row, whose determinism claim nothing checks. | **#690** (Track B's B4), which is editing `splitting/mod.rs`, `solid_contain.rs` and `topo/src/lib.rs` |
+| **D10** | **W2c — the D2 addendum, executed in `crates/topo`.** S43's verdict (`:4148`) ratified the taxonomy on 2026-08-19 and named W2c as what remains: the ~60 silent `if let Some(...)` discards in `euler.rs`/`euler_ring.rs`/`euler_kill.rs` are the superseded idiom 4, and **silent discard is never an answer**. Each site sorts into row 4 (`unreachable!`, observable in a branch) or row 5 (`debug_assert`, detectable only by re-derivation) — the split is **re-derivation, not cost**. This is the topo half of the same addendum **D2** is applying in `sweep/src/fillet/`; the two must not diverge on how row 4 is spelled, so whoever takes the second one reads the first one's PR. Retiring the discards also changes what `release_corruption.rs`'s garbage-out row means — see S12. **The row existed only in S43's prose (`:4163`, "now unblocked and unstarted") until #706 placed it**; that miss is §D's fourth ordering rule failing on the section that states it. | S43 / Wave 0 D2 | `topo/src/euler{,_ring,_kill}.rs` | **ADVERSARIAL** — it converts ~60 silent no-ops into panics or debug asserts inside the mutation phase of a kernel whose D9 headline is *never a panic on any input*, so every row 4 needs its not-input-reachable argument made per site, not inherited. | nothing (the addendum opened the `unreachable` lint in both manifests) |
 
 **Not taken, and why.** S18's `step-export/volume.rs` row stays out of Track D: its
 immediate cause is that `topo::props` exposes only body-scoped
@@ -5281,7 +5324,7 @@ Where each went:
 | **U2** — S8, S9, S10 | **D4** — the sort landed in the steelmen on 2026-08-18; what is left is truthing the prose it contradicts |
 | **U3** — S17's ray-parity twins | **D9**, behind #690 |
 | **U4** — S18's duplicated derivations | **D3** (the negative-zero flush) and **D8** (the knot-vector queries); the `step-export/volume.rs` row goes to **C3**, because closing it needs a per-shell door in `props/` |
-| **U5** — S12's Euler atomicity | Executable residue **fixed by #706** (the release-profile run the suite instructed and `ci.yml` never did); the rest is a D9 question, in *Open decisions* |
+| **U5** — S12's Euler atomicity | Executable residue **fixed by #706** (the release-profile run the suite instructed and `ci.yml` never did). The rest is **not** an open question: the **D2 addendum** settled it on 2026-08-19 and the execution is **W2c**, placed by #706 as **D10** |
 | **U6** — S15's prose-held invariants | **D5** |
 | **U7** — S14's proposed reframe | ***Open decisions — Evan only***. It was the one row here that was a decision rather than work, and the one with no channel at all. |
 | **U8** — S44's open residue | **C7**, with the rest of the lane-trait question |
@@ -5320,7 +5363,7 @@ all deletions        ──────────────► L2 (S38 comme
 had, are Track D's D1/D2.
 
 **Track D's own edges are all inside `sweep/`, plus two on other tracks' open
-PRs.** D3, D4, D5, D6 and D8 are edge-free and can start today; D8 edits
+PRs.** D3, D4, D5, D8 and D10 are edge-free and can start today; D8 edits
 `sweep/src/skin.rs`, so it sequences against D1/D2 within the track rather than
 across it.
 

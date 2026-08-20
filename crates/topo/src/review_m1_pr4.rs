@@ -1191,8 +1191,14 @@ fn kef_rejects_a_corrupt_edge_bijection() {
 }
 
 // =====================================================================
-// 9. Release-mode garbage-in (no panic, no hang). These also run in
-//    debug where the errors are precondition-caught.
+// 9. Release-mode garbage-in. The surviving half of the contract is
+//    "never a hang; every traversal is bounded" (D9's footnote as
+//    amended by the D2 addendum, which retired the garbage-out half).
+//    These rows also run in debug, where the errors are
+//    precondition-caught. The release side is the
+//    `corrupt input (release profile)` job in .github/workflows/ci.yml,
+//    which greps that job name out of this comment, so a rename is loud
+//    rather than quietly falsifying this sentence.
 // =====================================================================
 
 #[test]

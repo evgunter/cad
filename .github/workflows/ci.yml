@@ -179,6 +179,7 @@ jobs:
       run_pncad_py: ${{ steps.classify.outputs.RUN_PNCAD_PY }}
       run_interval_backend: ${{ steps.classify.outputs.RUN_INTERVAL_BACKEND }}
       run_interval_oracle: ${{ steps.classify.outputs.RUN_INTERVAL_ORACLE }}
+      run_topo_release: ${{ steps.classify.outputs.RUN_TOPO_RELEASE }}
       run_k_lint: ${{ steps.classify.outputs.RUN_K_LINT }}
     steps:
       - uses: actions/checkout@v4
@@ -667,53 +668,63 @@ jobs:
       - name: run archived tests
         run: ${{ matrix.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', matrix.eps) || '' }} cargo nextest run --archive-file nextest-default.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2
 
-  # THE RELEASE-PROFILE ROW. crates/topo/src/review_m1_pr2/
-  # release_corruption.rs feeds tier-1-INVALID bodies to the Euler
-  # operators and pins D9's disposition for them: typed errors or garbage
-  # bodies, never a panic, never a hang. Its debug and its release
-  # expectations are DIFFERENT ASSERTIONS behind `cfg(debug_assertions)`,
-  # so the archive matrix above cannot cover the file: that matrix is the
-  # dev profile at opt-2 with debug-assertions ON, and of the file's six
-  # rows one does not exist under them and one is a sixth of its size.
+  # THE RELEASE-PROFILE ROW. Two adversarial suites in `crates/topo` feed
+  # tier-1-INVALID bodies to the Euler operators and are written about
+  # RELEASE semantics; the archive matrix above is the dev profile at
+  # opt-2 with debug-assertions ON, so it cannot be what runs them.
+  # `review_m1_pr2::release_corruption` splits its expectations on
+  # `cfg(debug_assertions)` outright, so no single profile covers the
+  # file; `review_m1_pr4`'s section 9 ("Release-mode garbage-in") is not
+  # cfg-split but had never once run in the profile it is named for.
   #
-  #   * `foreign_parent_loop_garbage_in_garbage_out_release` is
-  #     `#[cfg(not(debug_assertions))]`, and is the only executable check
-  #     of the ratified garbage-out contract — the op returns Ok on
-  #     corruption its preconditions cannot see, without panicking or
-  #     hanging, and `validate` then reports the wreckage. Off this job
-  #     it is not merely unrun but never COMPILED (clippy is a debug pass
-  #     too), so it can rot into a build error with the gate green.
-  #   * `large_torn_body_terminates_quickly` builds 3000 struts here and
-  #     500 under debug-assertions, where the per-op postcondition sweep
-  #     makes the construction loop quadratic. The bounded-walk case the
-  #     gate actually sees is 6x larger in this job.
+  # WHAT IT BUYS, stated against the ratified text rather than against
+  # the code's current behaviour, because those have diverged:
   #
-  # Of the other four rows, three are profile-independent — they fail a
-  # precondition and return before the mutation phase, so the
-  # postcondition never runs and the assertion is the same either way —
-  # and are now covered twice. The fourth,
-  # `debug_postcondition_fires_on_corrupt_input`, is
-  # `#[cfg(debug_assertions)]` and belongs to the matrix above.
+  #   * BOUNDED TRAVERSAL. DESIGN.md's D9 footnote, as amended by the D2
+  #     addendum, keeps exactly one clause of the old corrupt-input
+  #     disposition: "The bounded-traversal half stands: never a hang;
+  #     every traversal is bounded." That is
+  #     `large_torn_body_terminates_quickly`, which attacks 3000 struts
+  #     here and 500 under debug-assertions (where the per-op
+  #     postcondition sweep makes the construction loop quadratic). The
+  #     case the gate sees is six times larger in this job, and the
+  #     clause it defends is not superseded by anything.
+  #   * COMPILE ROT, which is a PROFILE-level hazard and independent of
+  #     what any row asserts: a `#[cfg(not(debug_assertions))]` item that
+  #     no CI job ever type-checks can rot into a build error with every
+  #     check green, because clippy and the matrix are both debug passes.
+  #     `foreign_parent_loop_garbage_in_garbage_out_release` and the
+  #     `use crate::validate;` it needs are exactly that shape.
+  #
+  # WHAT IT DOES NOT BUY, and the scheduled change underneath it. That
+  # same row also certifies today's silent-discard behaviour — the op
+  # returns Ok on corruption its preconditions cannot see. That was D9's
+  # ratified disposition until 2026-08-19, when the **D2 addendum**
+  # superseded it: "Silent discard is never an answer." The ~60 discards
+  # in `euler{,_ring,_kill}.rs` are now a known deviation pending **W2c**,
+  # and WHEN W2C LANDS THIS ROW CHANGES MEANING OR DIES — it will be
+  # asserting a converted mechanism, not garbage-out. The two bullets
+  # above are what survives that; whoever lands W2c should re-read this
+  # row rather than assume the job still means what it meant.
+  #
+  # The other rows in the file are profile-independent — `pillow()` runs
+  # three SUCCESSFUL operators, so they do fire the debug postcondition
+  # during setup, but the operator each one asserts on fails a
+  # precondition and returns before its mutation phase, so no
+  # postcondition runs over the asserted call and the expectation is the
+  # same in both profiles. `debug_postcondition_fires_on_corrupt_input`
+  # is `#[cfg(debug_assertions)]` and belongs to the matrix above.
   #
   # SCOPED to one crate's lib unittests, deliberately, not a release
   # build of the workspace: `-p topo --lib` compiles topo's closure plus
-  # its dev-dependencies and links one binary. The rows themselves
-  # execute in milliseconds — the compile IS the cost of this job.
-  #
-  # Gated on topo being in the change closure, read off PKGS rather than
-  # through a new ci-filter.py signal: topo is the crate the suite lives
-  # in, and every crate whose movement can reach it puts it in the
-  # closure by construction. `tier == 'all'` is honoured separately so
-  # the job still runs in the one case where the member scan bails and
-  # leaves PKGS empty.
+  # its dev-dependencies and links one binary. The rows execute in
+  # milliseconds — the compile IS the cost of this job (93 s hosted on a
+  # cold cache, measured on this job's first run).
   release-corruption:
     name: corrupt input (release profile)
     runs-on: ubuntu-latest
     needs: filter
-    if: >-
-      needs.filter.outputs.run_build == 'true' &&
-      (needs.filter.outputs.tier == 'all' ||
-      contains(needs.filter.outputs.pkgs, 'topo'))
+    if: needs.filter.outputs.run_topo_release == 'true'
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL — see the full note on the `filter` job above.
@@ -725,20 +736,29 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: topo-release
-      - name: corrupt-input suite, release profile
+      - name: corrupt-input suites, release profile
         run: |
           set -o pipefail
-          cargo test --release -p topo --lib -- review_m1_pr2::release_corruption \
+          cargo test --release -p topo --lib -- \
+            review_m1_pr2::release_corruption \
+            review_m1_pr4::kill_ops_survive_torn_bodies_without_panicking \
             | tee release-corruption.log
-          # A name filter that matches NOTHING exits 0 — which is the
-          # exact silence this job exists to remove. So assert the
-          # selection is non-empty, and that the release-only
-          # garbage-out row is in it. Rename either and this is the
-          # line that tells you to come here.
+          # A name filter that matches NOTHING exits 0 — the exact
+          # silence this job exists to remove. So assert the selection is
+          # non-empty AND name the rows the job is justified by: delete
+          # or rename one and this reds, rather than quietly returning to
+          # zero coverage.
           passed=$(sed -n 's/^test result: ok\. \([0-9]\{1,\}\) passed.*/\1/p' release-corruption.log)
           echo "release-profile rows run: ${passed:-0}"
           test "${passed:-0}" -gt 0
           grep -q 'garbage_in_garbage_out_release \.\.\. ok' release-corruption.log
+          grep -q 'large_torn_body_terminates_quickly \.\.\. ok' release-corruption.log
+          grep -q 'kill_ops_survive_torn_bodies_without_panicking \.\.\. ok' release-corruption.log
+          # Both suite headers name this job as their mechanism. Nothing
+          # else greps for that name, so renaming the job would leave two
+          # doc comments quietly false; this is what makes it loud.
+          grep -q 'corrupt input (release profile)' crates/topo/src/review_m1_pr2/release_corruption.rs
+          grep -q 'corrupt input (release profile)' crates/topo/src/review_m1_pr4.rs
 
   # BUILD job, interval features — the ONE genuinely different build
   # graph in the matrix. Owns the interval clippy pass and the interval

@@ -19,11 +19,14 @@
 //!   ([`EulerOpError`], closed enum) — never panics (D9). Checks run in
 //!   the documented order per op, and the first failure is returned.
 //! - **Tier-1-valid input assumed.** The operators are specified on
-//!   euler-valid bodies (what [`fn@crate::validate`] accepts). Corrupt
-//!   input is tolerated only to the D9 extent — no panic, no hang (the
-//!   bounded walks guarantee that), and a typed error where corruption
-//!   is cheaply detectable — but the *output* on corrupt input carries
-//!   no validity promise.
+//!   euler-valid bodies (what [`fn@crate::validate`] accepts). What D9
+//!   guarantees on corrupt input, after the **D2 addendum** amended its
+//!   footnote, is the bounded-traversal half: no panic, no hang, every
+//!   traversal bounded — plus a typed error where corruption is cheaply
+//!   detectable. The *output* on corrupt input still carries no validity
+//!   promise, but that is now a known deviation pending **W2c**, not a
+//!   ratified disposition: the addendum's rule is that silent discard is
+//!   never an answer.
 //! - **Deterministic minting order** (D9 + lineage replay): each op's
 //!   doc comment states the exact arena-insertion order of everything it
 //!   mints. Two bodies built by identical operator sequences mint
@@ -51,7 +54,8 @@
 //!   requires in-crate raw corruption (which is what the validator's
 //!   own tests do deliberately). Release builds carry no check either
 //!   way: on corrupt in-crate input they return `Ok` with garbage
-//!   instead (the documented garbage-in contract above).
+//!   instead — what the kernel does today, and what **W2c** converts
+//!   under the D2 addendum, not a promise it is entitled to keep.
 //!
 //! # Geometry policy at M2 (PR 3 — the M0 placeholders retired)
 //!
@@ -2007,7 +2011,9 @@ impl<T: Decide> Body<T> {
     /// by input through the public API. It remains reachable from
     /// in-crate raw corruption that slips past an op's preconditions
     /// (e.g. consistently swapped `parent_loop`s); release builds
-    /// return garbage instead (module docs, operator contracts).
+    /// return garbage instead — today's behaviour, pending **W2c**'s
+    /// conversion of the silent discards under the D2 addendum, not a
+    /// ratified disposition (module docs, operator contracts).
     #[cfg(debug_assertions)]
     pub(crate) fn assert_euler_postcondition(
         &self,
