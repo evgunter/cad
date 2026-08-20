@@ -60,11 +60,18 @@
 //! `real.rs`, Bounds scope rule (the CI discipline grep allowlists
 //! exactly these seams).
 //!
-//! # The SSI-cell seam (PR 7, wiring deferred — API must not preclude)
+//! # The SSI-cell seam (wiring deferred, and UNSCHEDULED)
+//!
+//! The seam was written against PR 7 and PR 7 shipped without it:
+//! `geom-brep` does not depend on this crate, and the marcher
+//! subdivides with its own boxes. So the deferral is live and has no
+//! date — recorded rather than deleted, because a flat present-tense
+//! sentence here would erase the only marker that something is owed.
 //!
 //! Items are addressed by dense input index, so any payload (entity
-//! keys today; C3 subdivision cells carrying C9 enclosures at PR 7)
-//! rides in a caller-side parallel array indexed the same way. Cells
+//! keys today; C3 subdivision cells carrying C9 enclosures if the seam
+//! is wired) rides in a caller-side parallel array indexed the same
+//! way. Cells
 //! with payloads need no change here: the box tree *is* the
 //! subdivision structure, the payloads live beside it.
 
