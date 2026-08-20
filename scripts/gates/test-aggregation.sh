@@ -32,9 +32,10 @@
 # this directory for the local one). This check meets that contract: its
 # subject is `cargo metadata`, so its fixture root is a miniature
 # dependency-free workspace rather than a source tree, which resolves
-# offline in milliseconds. Before it moved it had NEITHER flag, a
-# hand-synced mirror row in `local-scripts/ci-local.sh`, and no wiring
-# check of any kind.
+# offline in milliseconds. Living here is what buys it a `--selftest`
+# that has been shown to fire, a roster gate that fails if `ci.yml` stops
+# wiring it, and a local half that reaches it through the directory loop
+# rather than through a row hand-synced against this one.
 #
 # Adding a suite: put the file in `tests/` and add its `#[path]` line to
 # that crate's `tests/all.rs`. Never add a second `[[test]]`.
