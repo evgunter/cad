@@ -24,53 +24,36 @@ confidence bar, actively discourages.
 
 ---
 
-## 2. Calibration, and what this lane must not become
+## 2. Two shapes worth naming in the emphasis
 
-**Calibration — measured 2026-08-20, over Track D's six units.** The
-expectation above was inferred from the scan's hit rate on merged code and
-asked to be revisited after a few rows. It has been, and it holds: **no style
-review in the wave produced nothing.**
+**The fix reproducing the defect it closes.** A unit that unifies duplicates can
+mint one; a unit that adds a guard can leave it failing open.
 
-What they found, on units that had already passed their author's own checks:
+**A disclosed blind spot read as a discharge.** A lane's own "my pattern could
+not match X" is a work order, not an absolution.
 
-- **D18** — three MAJORs, including two rotted premises in `euler.rs`'s module
-  header, the file the PR edited most and two thousand lines above its diff.
-- **D2** — a new type that was `topo::EntityId` with two arms removed and a
-  byte-identical `Display`, minted inside the PR closing a duplication finding,
-  with the worked precedent recorded one screen away in the same document.
-- **D17** — a guard that failed open in exactly the case its own message names,
-  in the half that PR added; and a fifth statement of the unit's own premise,
-  live in another programme's issue, that no wording of the lane's sweep reached.
-- **D8** — an eighth copy of the scanned-for pattern, in a fifth crate, plus the
-  observation that the PR had already performed the extraction that would have
-  prevented it, for the *other* primitive, in the same diff.
-- **D7** — a dead `pub` accessor ten lines above the deleted struct, in the file
-  the diff opened, which the unit's own disclosed blind spot said it could not
-  see and did not go look for.
+Both are invisible to the falsification lane, which asks whether the claims
+hold rather than whether the shape is right.
 
-**Two shapes recur and are worth dispatching against.** First, *the fix
-reproducing the defect it closes* — three of the six. Second, *a disclosed blind
-spot treated as a discharge*: the reviewer brief's stance makes "I could not
-tell" a complete finding, and the correlate is that a lane's own "my pattern
-could not match X" is a **work order**, not an absolution. Both are invisible to
-the falsification lane, which is asking whether the claims hold rather than
-whether the shape is right.
+---
 
-**Two of the errors corrected in this wave originated in orchestrator briefs**,
-not lanes — a graft-door argument built on a door that cannot raise the error
-its docs advertise, and an instruction to publish a *ceiling* where the true
-figure was a floor. Reviewers correcting the dispatcher is a working lane, not a
-malfunction, and the dispatcher should say so in the brief.
+## 3. The dispatcher's own exposure
+
+**Reviewers correcting the dispatcher is a working lane, not a malfunction** —
+say so in the brief.
 
 **The rule against enshrining an unchecked causal story binds the dispatcher
-hardest.** A lane's unverified observation, repeated back to it as an
-instruction, arrives carrying the dispatcher's authority and is one commit from
-a ratified doc — both of the errors above are that shape. Check a lane's claim
-before you build a brief on it, and when a review corrects one of yours, say so
-where the lane can see it.
+hardest** (`memories/review-and-dependency-policy.md`). A lane's unverified
+observation, repeated back to it as an instruction, arrives carrying the
+dispatcher's authority and is one commit from a ratified doc. Check a lane's
+claim before you build a brief on it.
 
-**What this lane must not become.** A second amnesty channel. §C2/§C7 found
-that disclosure currently functions as immunity — a disclosed deviation scores
-as a *positive* on the "silent devs" column with no counter-metric asking
-whether it was acceptable. The reviewer brief's Q6 exists to close that; do not let a `## Style` section
-become the place where known problems go to be recorded and forgotten.
+---
+
+## 4. What this lane must not become
+
+A second amnesty channel. §C2/§C7 found that disclosure currently functions as
+immunity — a disclosed deviation scores as a *positive* on the "silent devs"
+column with no counter-metric asking whether it was acceptable. The reviewer
+brief's Q6 exists to close that; do not let a `## Style` section become the
+place where known problems go to be recorded and forgotten.
