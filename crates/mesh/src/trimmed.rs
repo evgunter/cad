@@ -488,12 +488,16 @@ pub(crate) fn tessellate_trimmed(
                         // dust as a violation.
                         let r = d / (bound + tol.eps);
                         // A first sample replaces the NaN seed; after
-                        // that, max.
-                        if dev_samples == 0 || d > worst_dev {
+                        // that, max — sticky-NaN, the same rule the
+                        // certificate accumulation below follows,
+                        // because a `>` comparison silently DROPS a
+                        // NaN and a NaN here is the loudest reading
+                        // there is.
+                        if dev_samples == 0 || d.is_nan() || d > worst_dev {
                             worst_dev = d;
                             worst_dev_cert = bound;
                         }
-                        if dev_samples == 0 || r > worst_ratio {
+                        if dev_samples == 0 || r.is_nan() || r > worst_ratio {
                             worst_ratio = r;
                         }
                         dev_samples += 1;
