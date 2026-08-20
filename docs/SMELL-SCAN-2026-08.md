@@ -5997,7 +5997,9 @@ deferral named "the conformal arm's pair" while that arm walks curved faces only
 now guarded, and provably behaviour-neutral because `same_key ⇒ a.planar ==
 b.planar`.
 
-**Not a live wrong answer, and the reason is an accident worth recording.** The
+**Not a live wrong answer — of the skip S49 itself names.** (One of its residues
+was, and the two verdicts are about different skips: see the H14 subsection
+below, which is the arm-2 `bridged` skip, not this arm-1 one.) The
 *pair* was genuinely unowned; the *body* refused anyway via a neighbouring pair,
 because contact at a planar face is contact in its plane and every adjacent curved
 face reaches that plane by construction — an arc lies in two distinct planes only
@@ -6016,7 +6018,20 @@ members wants its own PR and its own `--manifest-path` check.
 
 ### H14 — FIXED by #737. The two residues, and the one that was a live wrong answer
 
+**This verdict does not contradict the *"Not a live wrong answer"* paragraph
+above.** That one is about the arm-1 planar × planar skip S49 was raised on;
+this one is about arm 2's `bridged` skip, a residue #637 recorded and did not
+fix. S49's escape — the *pair* was unowned but the *body* refused anyway via a
+neighbouring pair — does not transfer, because arm 2 reports at solid
+granularity and no other arm reports on a solid pair at all.
+
 #637 left two residues, both recorded in its own body under *"Found, NOT fixed"*.
+Its scope cell in the Track C roster cited `splitting/rules.rs:268` for both,
+which is **C-R11**'s worked example: on the merge base that line is
+`let face_data = body.get_face(face)…` inside `face_extent`, six lines above the
+`continue; // an empty loop contributes no extent` that IS residue 2 — so the
+citation resolved to the right function for one residue and to nothing for the
+other. Checked rather than complied with, per C-R11.
 
 **Residue 1 — arm 2's `bridged` skip — was S49's defect with a live wrong answer
 attached.** The skip suppressed the containment test for any solid pair linked
@@ -6054,10 +6069,67 @@ planar face against every other face of the same solid. It now requires the
 record's vertex to be a boundary vertex of the other face of the pair.
 
 The reviewer's third bullet — arm 1's placeholder-NURBS exclusion — is **not**
-protection by accident: `validate_pseudomanifold` is `census_and_certify`'s only
-production caller and runs it solely when `tier3_local_checks` came back empty,
-whose check 1 refuses every placeholder face. That is now stated at the skip,
-with the drift direction (a second, ungated caller) named.
+protection by accident, and it is stronger than "only caller": `census_and_certify`
+is `pub(crate)` in a `pub(crate)` module, so nothing outside `topo` can reach it
+by any re-export or alias, and its one production caller
+`validate_pseudomanifold` runs it solely when `tier3_local_checks` came back
+empty, whose check 1 refuses every placeholder face. So a placeholder there is
+**a state no production path can mint** — which is not "an unreachable state":
+the in-src scaffold rows are in it, deliberately, by calling the census directly.
+Both facts are now at the skip, with the drift direction named.
+
+**Both reviews then found that the arm 2 half of that had been left undone, and
+it mattered.** `boxes::face_box_rule` routes a NURBS placeholder to
+`ControlNet`, whose net is poison points; census's fold is `min`/`max`, which
+propagate NaN, so `reach_box` answered `Some((NaN, NaN))` — a value that is
+neither a claim nor a refusal. Every containment margin taken against it decides
+neither sign, so arm 2 fell out at its **in-band** refusal having compared no
+geometry at all, and the typed *"unclaimable extent"* refusal was dead code for
+the case it was written for. Measured: moving one scaffold sheet a kilometre away
+produced the byte-identical refusal. The PR had reported those refusals as the
+arm measuring two overlapping sheets, which was false as to mechanism.
+
+`reach_box` now answers `None` for a placeholder net, which is what its own
+contract says an unboxable kind answers; the whole solid becomes unclaimable and
+the typed refusal fires. **It is `None`, not an exclusion**: dropping the face
+from a solid's reach would shrink a box required to be a superset and could clear
+a body nested inside it — the unsound direction. That asymmetry between the two
+arms (arm 1 excludes the FACE, arm 2 refuses the SOLID) is written at both sites,
+and `a_placeholder_seed_leaves_the_containing_extent_unclaimable` pins the typed
+verdict and the position-independence together.
+
+**Two more skips in the same function were brought to the bar this record
+sets.** Arm 1 dropped a face with no boundary vertices — an unbounded face — out
+of the sweep with a bare `continue`, in the function whose header forbids exactly
+that; it now refuses `CensusUnsupported`. And the same-`SurfaceKey` deferral
+tested only that the conformal arm *walks* the pair: that arm `continue`s on a
+same-sense pair without deciding it, so a cross-solid same-key **same-sense**
+pair was deferred by one arm and dropped by the other. The deferral now requires
+opposed senses, which is the configuration the conformal arm returns a verdict
+on; the rest fall through to the box test.
+
+**The capability cost is real and is filed as §D row C16.** Deleting the
+`bridged` skip means no assembly with a non-convex container — L-bracket, blind
+bore, pocket, cavity — can pass `validate_pseudomanifold` by any declaration,
+where before a declaration was the only route it had. Measured on an L-bracket
+with a part resting on its inner wall, all records confirming, no placeholder
+anywhere: `Ok(())` at base, one `CensusUndecidable` at head. That is not a false
+refusal — the arm genuinely cannot separate it from the embedded cube — but the
+cause is the coarseness of an extent-box test, not interference, so C6's recorded
+gate-skips (scoped by `ASSEMBLY-DESIGN.md:199` to deliberate interference fits)
+are **not** the remedy, and the pointer that named them is withdrawn.
+
+**No instrument was added, and the recurrence is not addressed.** This defect has
+now been found four times — S49, #637's two residues, and this PR's third
+instance in arm 1 — each time by someone reading the code. What this PR leaves is
+a paragraph stating the bar (*a deferral names an arm that asks the SAME question
+about the SAME pair*), not a token, a convention, a test or a gate; a `continue`
+with a prose justification remains indistinguishable to grep and to CI from one
+without. Residue 2's class is measurably larger than its instance: a
+differently-shaped sweep for `LoopBoundary::Cycle { first } = … else { continue }`
+returns **29 sites in 18 files**, and this PR audits the three inside
+`census.rs`/`rules.rs` and none of the rest. `scripts/gates/` already holds three
+allowlist-shaped gates, which is the shape a deferral register would take.
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18) — *"should be scheduled but i have no
 opinion on when"*. The jurisdiction call was part of the unit, not a prerequisite
@@ -6961,6 +7033,7 @@ rewritten rather than appended to.
 | **C8** | **#711 — S24's residues outside `editor-core`**: `step-import/src/recognize.rs:126`, whose `try_cylinder` promoting arm is documented unreachable and whose `Plane > Cylinder` preference order is *"unfalsifiable by execution"*; and `docs/ASM-R2A-SPEC.md:21`, a landed spec sentence (*"v1 admits `Rest`/`Tangent`"*) that is true of the door it binds and no longer of v1 as a whole. | Filed by #702's fix pass rather than left inside a finding marked FIXED. The first may want the tighter cylinder certificate rather than an encoding change; the second is a one-line ruling — clarifier, or "landed specs read as of their own date". Small, edge-free, and **not** a lane on its own: fold into whoever next opens `step-import`. |
 | **C9** | **The `tess-meter` CSV's `agreement` column measures nothing**, and its `≤ 1%` assertion in `budget_meter` was vacuous. `grid_cells` and `span_cells` are the same `Σ nuc·nvc` from the same `band_schedule`, so the ratio is `≡ 1.0` by arithmetic — while the module docs claimed it *"verifies the lane's REALISATION of the schedule (candidate generation, dedup, counting)"*, which was never true because neither number counts a candidate. `tess-lint`'s own report legend already printed *"1.00 by construction"*: **the tool knew and the docs disagreed.** #709 corrected the column's doc to stop claiming a check; making the column *real* needs a CSV schema change and a re-cut committed baseline. | Disclosed in #709's body and correctly out of that unit's scope — **and it had no row until now, which is this track's own instance of §C3.** The substantive question is whether a realisation check is worth having at all: if the answer is no, the honest fix is to delete the column rather than re-derive it, and that is a decision the lane should make and record. Edge-free; `tools/tess-meter/`, `tools/tess-lint/`, the committed baseline, `docs/TESS-BUDGET.md`. |
 | **C10** | **`geom_core::k_stats` is S30's class one crate over** — 598 lines, ~96 of them separable instrument, in the kernel's own core crate. | Reported by #709 and deliberately untouched, for a reason that is the whole row: the recording sits **inside** `decide`/`decide_flagged`/`decide_invariant`, which are load-bearing kernel predicate doors, so the `mesh::budget` split does **not** transfer mechanically. Whoever takes this must first decide whether the instrument can leave a door that certifies, and record that decision — it is not a cut-and-paste of #709. Note also `profile::k_stats`, a self-declared compatibility shim whose retirement is **STILL OPEN** at S40. Edge-free but not small. |
+| **C16** | **The certifying door now refuses every assembly whose container is non-convex, and a declaration can no longer get one through.** #737 deleted arm 2's record-keyed skip because no `ContactRecords` variant states a placement relation — correct, and it closed a live false accept (a solid embedded in another's material validated clean when its contact was declared truthfully). The cost, measured by #737's adversarial reviewer on an L-bracket with a part resting flat on its inner wall, four v-on-f records all confirming, plain `Plane` surfaces, no placeholder anywhere: `validate_pseudomanifold` answered **`Ok(())` at `793a7ae` and `Err([CensusUndecidable])` at #737's head**. Not a *false* refusal — `CensusUndecidable` claims undecidability and the arm genuinely cannot separate this from the embedded cube; both are the same input to an extent-box test. **The actual cause is that the test is an axis-aligned extent box**, which cannot distinguish "inside the material" from "inside the bounding box of a concavity". Before #737 a declaration was the only route by which an L-bracket, blind bore, pocket, C-channel or cavity assembly could pass that door; after it, none can, by any declaration. | **Middle tier under C-R19: this asks for a plan that goes to Evan before implementation, not a patch.** What arm 2 needs is a container test finer than an extent box — a containment predicate against the solid's own boundary, which is a design element (C9's exclusion ring is the named eventual home). **C6's recorded gate-skips are NOT the remedy and #737's pointer at them is withdrawn**: `ASSEMBLY-DESIGN.md:199` scopes them to deliberate *interference fits* — overlapping shells — and the L-bracket has no overlap at all, so a gate-skip would suppress the refusal rather than fix it. **Two open questions ride here.** (i) Is a certifying door that refuses this class acceptable until the finer predicate lands, or does the refusal need a narrower trigger first? (ii) `Declared::faces` is built with no cross-solid test, so a curve/patch record naming two faces of the **same** solid would back vertex-granular events within it — raised by #737's style lane, adjudicated as not-H14 by its adversarial lane (the locus is implied by the incidence for the cross-solid case), and explicitly not ruled out for the same-solid case. Neither was measured. |
 
 ---
 
