@@ -555,16 +555,16 @@ fn plane_nurbs_seams(
     body: &topo::Body<f64>,
 ) -> Vec<(
     geom_brep::keys::CurveKey,
-    geom_surfaces::Surface<f64>,
-    geom_surfaces::NurbsSurface<f64>,
+    geom::Surface<f64>,
+    geom::NurbsSurface<f64>,
 )> {
     let surfaces: std::collections::BTreeMap<_, _> = body.surfaces().collect();
     let described = |k| match surfaces.get(&k) {
-        Some(geom_surfaces::Surface::Nurbs(n)) if !n.is_placeholder() => Some((**n).clone()),
+        Some(geom::Surface::Nurbs(n)) if !n.is_placeholder() => Some((**n).clone()),
         _ => None,
     };
     let plane = |k| match surfaces.get(&k) {
-        Some(p @ geom_surfaces::Surface::Plane { .. }) => Some((*p).clone()),
+        Some(p @ geom::Surface::Plane { .. }) => Some((*p).clone()),
         _ => None,
     };
     body.curves()

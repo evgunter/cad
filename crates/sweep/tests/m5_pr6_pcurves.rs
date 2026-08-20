@@ -9,8 +9,8 @@
 use core::f64::consts::TAU;
 use profile::RawLoop;
 
+use geom::Surface;
 use geom_core::{Band, Point2, Point3, Tolerance, Vec3};
-use geom_surfaces::Surface;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::splitting::{SplitPart, SplitPlane, split};
@@ -129,7 +129,7 @@ fn section_edges_carry_a_cylinder_chart_cache_and_no_plane_chart_one() {
         let Some(curve) = above.get_curve_geom(edge.curve).and_then(|g| g.certified()) else {
             continue;
         };
-        if !matches!(curve.carrier(), geom_curves::Curve3::Ellipse { .. }) {
+        if !matches!(curve.carrier(), geom::Curve3::Ellipse { .. }) {
             continue;
         }
         sections += 1;

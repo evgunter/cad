@@ -70,7 +70,7 @@ use crate::node::RecipeNodeId;
 /// — the same fail-loud tripwire `SegTag::of` uses for role segments.
 ///
 /// (Placement: `SurfaceKind` lives in `geom-brep` rather than beside
-/// `Surface` in `geom-surfaces`, so "the mirror lives where it is
+/// `Surface` in `geom`, so "the mirror lives where it is
 /// used" is the shipped precedent; this one lives in the crate that
 /// selects with it. Moving it down beside `Curve3` later is additive.)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]

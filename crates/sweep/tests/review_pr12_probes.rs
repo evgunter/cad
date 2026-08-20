@@ -154,7 +154,7 @@ fn probe_d_rim_arc_orientation() {
         let c0 = carrier.eval(t0);
         let c1e = carrier.eval(t1);
         let aligned = (c0 - sp).norm() <= (c1e - sp).norm();
-        let is_circle = matches!(carrier, geom_curves::Curve3::Circle { .. });
+        let is_circle = matches!(carrier, geom::Curve3::Circle { .. });
         if is_circle {
             let req = FilletRequest {
                 body: &pipped,
@@ -206,9 +206,9 @@ fn probe_e_hexagon_tier3_error() {
                         println!(
                             "PROBE E: failing face {k:?} kind {:?} corner? {} blend? {}",
                             f.body.get_surface(fc.surface).map(|s| match s {
-                                geom_surfaces::Surface::Plane { .. } => "plane",
-                                geom_surfaces::Surface::Cylinder { .. } => "cylinder",
-                                geom_surfaces::Surface::Sphere { .. } => "sphere",
+                                geom::Surface::Plane { .. } => "plane",
+                                geom::Surface::Cylinder { .. } => "cylinder",
+                                geom::Surface::Sphere { .. } => "sphere",
                                 _ => "other",
                             }),
                             f.corner_faces.contains(&k),

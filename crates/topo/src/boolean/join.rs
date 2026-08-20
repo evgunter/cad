@@ -312,13 +312,12 @@ pub(super) fn bool_connect<T: Decide>(
         // the sphere chart's azimuth window; any other pair refuses
         // typed citing its C5 routing (per-arm, C12.1).
         let germ = open[m.entry].a[m.entry_slot].0;
-        let surf_of =
-            |body: &Body<T>, f: FaceKey| -> Result<geom_surfaces::Surface<T>, BooleanError> {
-                body.get_face(f)
-                    .and_then(|fd| body.get_surface(fd.surface))
-                    .cloned()
-                    .ok_or(desync("germ face surface no longer resolves"))
-            };
+        let surf_of = |body: &Body<T>, f: FaceKey| -> Result<geom::Surface<T>, BooleanError> {
+            body.get_face(f)
+                .and_then(|fd| body.get_surface(fd.surface))
+                .cloned()
+                .ok_or(desync("germ face surface no longer resolves"))
+        };
         // The germ faces' SURFACES, deliberately unoriented (S10): what
         // the curved lanes below take from a plane germ is a
         // [`SplitPlane`] — a section datum, an operation input whose
@@ -332,7 +331,7 @@ pub(super) fn bool_connect<T: Decide>(
         let gb = surf_of(&red.b, germ.b_face)?;
         use crate::chord_join::{JoinLane, SectionCtx, face_azimuth_window};
         use crate::splitting::SplitPlane;
-        use geom_surfaces::Surface as Sf;
+        use geom::Surface as Sf;
         match (&ga, &gb) {
             (Sf::Plane { .. }, Sf::Plane { .. }) => {
                 sa.joiner
@@ -630,7 +629,7 @@ fn germ_section_frame<T: Decide>(
     band: Band,
 ) -> Result<Option<(geom_core::Point3<T>, geom_core::Vec3<T>)>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    let surf = |body: &Body<T>, f: FaceKey| -> Result<geom_surfaces::Surface<T>, BooleanError> {
+    let surf = |body: &Body<T>, f: FaceKey| -> Result<geom::Surface<T>, BooleanError> {
         body.get_face(f)
             .and_then(|fd| body.get_surface(fd.surface))
             .cloned()
@@ -638,7 +637,7 @@ fn germ_section_frame<T: Decide>(
     };
     let sa = surf(&red.a, germ.a_face)?;
     let sb = surf(&red.b, germ.b_face)?;
-    use geom_surfaces::Surface as Sf;
+    use geom::Surface as Sf;
     let (plane_s, cyl_s, radius) = match (&sa, &sb) {
         (Sf::Plane { .. }, Sf::Cylinder { radius, .. }) => (&sa, &sb, *radius),
         (Sf::Cylinder { radius, .. }, Sf::Plane { .. }) => (&sb, &sa, *radius),
@@ -651,7 +650,7 @@ fn germ_section_frame<T: Decide>(
                 (&sb, &sa)
             };
             return match geom_brep::plane_sphere_section(plane_s, sph_s, band) {
-                Ok(geom_brep::PlaneSphereSection::Circle(geom_curves::Curve3::Circle {
+                Ok(geom_brep::PlaneSphereSection::Circle(geom::Curve3::Circle {
                     center,
                     axis,
                     ..
@@ -675,12 +674,8 @@ fn germ_section_frame<T: Decide>(
         _ => return Ok(None),
     };
     match geom_brep::plane_cylinder_section(plane_s, cyl_s, radius, band) {
-        Ok(geom_brep::PlaneCylinderSection::Rim(geom_curves::Curve3::Circle {
-            center,
-            axis,
-            ..
-        }))
-        | Ok(geom_brep::PlaneCylinderSection::TiltedEllipse(geom_curves::Curve3::Ellipse {
+        Ok(geom_brep::PlaneCylinderSection::Rim(geom::Curve3::Circle { center, axis, .. }))
+        | Ok(geom_brep::PlaneCylinderSection::TiltedEllipse(geom::Curve3::Ellipse {
             center,
             axis,
             ..
@@ -988,7 +983,7 @@ fn ring_run_ccw<T: Decide>(
         .get_face(face)
         .and_then(|f| body.get_surface(f.surface).map(|s| (f, s)))
     {
-        Some((f, geom_surfaces::Surface::Plane { normal, .. })) => *normal * f.sense_sign::<T>(),
+        Some((f, geom::Surface::Plane { normal, .. })) => *normal * f.sense_sign::<T>(),
         _ => return Err(desync("ring-lane face has no planar carrier")),
     };
     let point_of = |he: HalfEdgeKey| -> Result<geom_core::Point3<T>, BooleanError> {
@@ -1046,11 +1041,11 @@ fn ring_run_ccw<T: Decide>(
         };
         let (t0, t1) = curve.params();
         let (axis, sa, sb) = match *curve.carrier() {
-            geom_curves::Curve3::Circle { axis, radius, .. } => (axis, radius, radius),
-            geom_curves::Curve3::Ellipse {
+            geom::Curve3::Circle { axis, radius, .. } => (axis, radius, radius),
+            geom::Curve3::Ellipse {
                 axis, major, minor, ..
             } => (axis, major, minor),
-            geom_curves::Curve3::Line { .. } | geom_curves::Curve3::Nurbs(_) => {
+            geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => {
                 return Ok((zero, chord()?));
             }
         };

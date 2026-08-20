@@ -57,7 +57,7 @@ pub(crate) fn face_outward_normal<T: Decide>(
 ) -> Option<OutwardNormal<T>> {
     let f = body.get_face(face)?;
     match body.get_surface(f.surface) {
-        Some(geom_surfaces::Surface::Plane { normal, .. }) => {
+        Some(geom::Surface::Plane { normal, .. }) => {
             Some(OutwardNormal::from_chart(*normal, f.sense))
         }
         _ => None,

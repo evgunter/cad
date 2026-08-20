@@ -54,8 +54,8 @@ mod revolve_common;
 use core::f64::consts::{FRAC_PI_2, FRAC_PI_8, PI};
 use profile::RawLoop;
 
+use geom::{NurbsSurface, Surface};
 use geom_core::{Affine3, Band, Point3, Tolerance, Vec3};
-use geom_surfaces::{NurbsSurface, Surface};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use revolve_common::{assert_all_tiers, axis_y, p2, validated};
 use sweep::{

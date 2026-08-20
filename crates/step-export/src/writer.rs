@@ -13,10 +13,10 @@
 
 use std::fmt::Write as _;
 
+use geom::Curve3;
+use geom::Surface;
 use geom_core::spline::KnotVector;
 use geom_core::{Point3, Tolerance, Vec3};
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
 use topo::{Body, CurveGeom, Edge, EdgeKey, FaceKey, LoopBoundary, LoopKey, ShellKey, VertexKey};
 
 use crate::real::fmt_real;
@@ -326,7 +326,7 @@ impl<'a> Writer<'a> {
                 self.emit(&format!("ELLIPSE('', #{placement}, {a}, {b})"))
             }
             Curve3::Nurbs(ref payload) => {
-                if payload.control().iter().all(|p| !p.x.is_finite()) {
+                if payload.is_placeholder() {
                     // The "no description yet" carrier placeholder —
                     // the curve-side twin of the mvfs surface
                     // placeholder. Mid-surgery, never exportable.
@@ -438,7 +438,7 @@ impl<'a> Writer<'a> {
     ///   OF LIST in the same layout, printed round-trip exact.
     fn b_spline_surface(
         &mut self,
-        surface: &geom_surfaces::NurbsSurface<f64>,
+        surface: &geom::NurbsSurface<f64>,
     ) -> Result<u64, StepExportError> {
         let (nu, nv) = surface.control_counts();
         let mut rows = Vec::with_capacity(nu);
@@ -954,9 +954,9 @@ mod tests {
 
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+    use geom::NurbsCurve3;
     use geom_core::Point3;
     use geom_core::spline::KnotVector;
-    use geom_curves::NurbsCurve3;
 
     use super::*;
 
@@ -1057,7 +1057,7 @@ mod tests {
         let placeholder = Surface::<f64>::nurbs_placeholder();
         assert_eq!(surface_kind(&placeholder), "nurbs placeholder");
 
-        let patch = geom_surfaces::NurbsSurface::new(
+        let patch = geom::NurbsSurface::new(
             KnotVector::unit_segment(1),
             KnotVector::unit_segment(1),
             vec![
@@ -1087,7 +1087,7 @@ mod tests {
             w.data
         );
 
-        let rational = geom_surfaces::NurbsSurface::new(
+        let rational = geom::NurbsSurface::new(
             KnotVector::unit_segment(1),
             KnotVector::unit_segment(1),
             patch.control().to_vec(),
@@ -1118,7 +1118,7 @@ mod tests {
         let Curve3::Nurbs(ref payload) = placeholder else {
             panic!("the placeholder is a NURBS curve");
         };
-        assert!(payload.control().iter().all(|p| !p.x.is_finite()));
+        assert!(payload.is_placeholder());
         assert_eq!(carrier_kind(&placeholder), "nurbs curve");
     }
 }

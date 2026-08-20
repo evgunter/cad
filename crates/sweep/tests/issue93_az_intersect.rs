@@ -253,7 +253,7 @@ fn az_coupled_flush_refuses_undeclared_succeeds_declared() {
     let y_planes = |body: &Body<f64>| -> Vec<(topo::FaceKey, f64)> {
         body.faces()
             .filter_map(|(k, f)| match body.get_surface(f.surface) {
-                Some(&geom_surfaces::Surface::Plane { origin, normal, .. })
+                Some(&geom::Surface::Plane { origin, normal, .. })
                     if normal.x == 0.0 && normal.z == 0.0 =>
                 {
                     Some((k, origin.y))

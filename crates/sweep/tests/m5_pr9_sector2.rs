@@ -181,7 +181,7 @@ fn the_must_carry_fires_when_the_description_is_conventional() {
         })
         .expect("a tangent strut exists");
     let (t0, t1) = curve.params();
-    let geom_curves::Curve3::Line { origin, dir } = *curve.carrier() else {
+    let geom::Curve3::Line { origin, dir } = *curve.carrier() else {
         panic!("a strut is a line");
     };
     // The conventional description extrude would have kept: the
@@ -192,7 +192,7 @@ fn the_must_carry_fires_when_the_description_is_conventional() {
             place: geom_core::Affine3::identity(),
             vec: dir * (t1 - t0),
         }),
-        carrier: geom_curves::Curve3::Line { origin, dir },
+        carrier: geom::Curve3::Line { origin, dir },
         param_start: t0,
         param_end: t1,
     };
@@ -231,7 +231,7 @@ fn a_g2_underdetermined_join_must_not_carry() {
             continue;
         };
         if matches!(c.description(), geom_brep::EdgeGeometry::MappedCurve(_))
-            && matches!(c.carrier(), geom_curves::Curve3::Line { .. })
+            && matches!(c.carrier(), geom::Curve3::Line { .. })
         {
             assert_eq!(
                 marks.get(k),

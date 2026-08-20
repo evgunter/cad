@@ -16,11 +16,11 @@ mod revolve_common;
 use profile::RawLoop;
 use std::f64::consts::{FRAC_PI_2, FRAC_PI_8, PI, TAU};
 
+use geom::Curve3;
+use geom::Surface;
 use geom_brep::EdgeGeometry;
 use geom_core::Tolerance;
 use geom_core::{Point2, Point3, Vec2, Vec3};
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use revolve_common::*;
 use sweep::{Revolution, RevolveAxis, RevolveError, Revolved, RevolvedKind, revolve};

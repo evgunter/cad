@@ -323,8 +323,8 @@ pub fn stops() -> Vec<Stop> {
             Point3::new(0.0, S_R + S_R * ph.sin(), 2.0 * S_R - S_R * ph.cos())
         }))
         .collect();
-    let path = pncad::geom_curves::NurbsCurve3::interpolate(&s_points, 3)
-        .expect("the S path interpolates");
+    let path =
+        pncad::geom::NurbsCurve3::interpolate(&s_points, 3).expect("the S path interpolates");
     let s_duct = pncad::sweep::sweep_body::<f64>(
         &quad([
             (-ELBOW_H, -ELBOW_H),
@@ -494,8 +494,8 @@ pub fn stops() -> Vec<Stop> {
             Point3::new(tc_a * t, tc_b * t * t, tc_c * t * t * t)
         })
         .collect();
-    let cubic_path = pncad::geom_curves::NurbsCurve3::interpolate(&cubic_points, 3)
-        .expect("the cubic interpolates");
+    let cubic_path =
+        pncad::geom::NurbsCurve3::interpolate(&cubic_points, 3).expect("the cubic interpolates");
     // Profile plane normal to the start tangent (the same frame
     // recipe the narration uses).
     let place = {

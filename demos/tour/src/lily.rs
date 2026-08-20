@@ -591,8 +591,7 @@ fn leaf<S: Scalar>(
             )
         })
         .collect();
-    let path =
-        pncad::geom_curves::NurbsCurve3::interpolate(&pts, 3).expect("the leaf spine interpolates");
+    let path = pncad::geom::NurbsCurve3::interpolate(&pts, 3).expect("the leaf spine interpolates");
     let place = SketchPlane::from_frame(
         pt3(base.0, base.1, base.2),
         v3(u.0, u.1, u.2),
@@ -2053,7 +2052,7 @@ mod review_probes {
         let lant = body(&ps, "lily_lantern");
         let mut centre = None;
         for (_, f) in lant.faces() {
-            if let Some(pncad::geom_surfaces::Surface::Sphere { center, radius, .. }) =
+            if let Some(pncad::geom::Surface::Sphere { center, radius, .. }) =
                 lant.get_surface(f.surface)
             {
                 assert!((radius - FLOWER_GLOBE).abs() < 1e-12);
@@ -2151,7 +2150,7 @@ mod review_probes {
                 let b = body(&ps, n);
                 let mut found = None;
                 for (_, f) in b.faces() {
-                    if let Some(pncad::geom_surfaces::Surface::Sphere { center, axis, .. }) =
+                    if let Some(pncad::geom::Surface::Sphere { center, axis, .. }) =
                         b.get_surface(f.surface)
                     {
                         // Stored axes may point either way along the
@@ -2220,7 +2219,7 @@ mod review_probes {
             let a = segs[i].1;
             let mut halves: Vec<Vec3<f64>> = Vec::new();
             for (_, f) in b.faces() {
-                let Some(&pncad::geom_surfaces::Surface::Plane { origin, normal, .. }) =
+                let Some(&pncad::geom::Surface::Plane { origin, normal, .. }) =
                     b.get_surface(f.surface)
                 else {
                     continue;
@@ -2300,7 +2299,7 @@ mod review_probes {
     /// The single stored sphere of a body: (centre, radius).
     fn sphere_of(b: &Body<f64>) -> (Point3<f64>, f64) {
         for (_, f) in b.faces() {
-            if let Some(pncad::geom_surfaces::Surface::Sphere { center, radius, .. }) =
+            if let Some(pncad::geom::Surface::Sphere { center, radius, .. }) =
                 b.get_surface(f.surface)
             {
                 return (*center, *radius);
@@ -2326,7 +2325,7 @@ mod review_probes {
     fn cap_frames(b: &Body<f64>) -> Vec<Cap> {
         let mut out = Vec::new();
         for (_, f) in b.faces() {
-            let Some(&pncad::geom_surfaces::Surface::Plane { origin, normal, .. }) =
+            let Some(&pncad::geom::Surface::Plane { origin, normal, .. }) =
                 b.get_surface(f.surface)
             else {
                 continue;

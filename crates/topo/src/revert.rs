@@ -88,8 +88,8 @@
 use core::fmt;
 use std::collections::BTreeSet;
 
+use geom::Surface;
 use geom_core::Real;
-use geom_surfaces::Surface;
 
 use crate::body::Body;
 use crate::entity::HalfEdgeKey;

@@ -110,8 +110,8 @@ fn rim_edges(body: &Body<f64>) -> Vec<EdgeKey> {
                     let h = body.get_half_edge(*he)?;
                     let f = body.get_face(body.get_loop(h.parent_loop)?.face)?;
                     Some(match body.get_surface(f.surface)? {
-                        geom_surfaces::Surface::Plane { .. } => "plane",
-                        geom_surfaces::Surface::Sphere { .. } => "sphere",
+                        geom::Surface::Plane { .. } => "plane",
+                        geom::Surface::Sphere { .. } => "sphere",
                         _ => "other",
                     })
                 })
@@ -312,7 +312,7 @@ fn p4_chain_g1_refuses_at_a_cornered_junction() {
     let bottom = body
         .faces()
         .find(|(_, f)| {
-            matches!(body.get_surface(f.surface), Some(geom_surfaces::Surface::Plane { normal, .. })
+            matches!(body.get_surface(f.surface), Some(geom::Surface::Plane { normal, .. })
                 if normal.z.abs() > 0.9)
         })
         .map(|(k, _)| k)

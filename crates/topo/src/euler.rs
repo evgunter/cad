@@ -190,9 +190,9 @@
 
 use core::fmt;
 
+use geom::Surface;
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec};
 use geom_core::{Band, Decide, Point3, Real};
-use geom_surfaces::Surface;
 
 use crate::body::Body;
 use crate::entity::{

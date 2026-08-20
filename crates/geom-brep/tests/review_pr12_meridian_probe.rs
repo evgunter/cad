@@ -4,10 +4,10 @@
 //! of revolution about that circle's axis.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom::Curve3;
+use geom::Surface;
 use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeGeometry, SurfaceKey, tangent_certificate_lane};
 use geom_core::{Band, Point3, Tolerance, Vec3};
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
 use slotmap::SlotMap;
 
 fn band() -> Band {

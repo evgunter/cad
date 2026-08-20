@@ -51,12 +51,12 @@
 use core::fmt;
 use std::sync::Arc;
 
+use geom::Curve3;
+use geom::{NurbsSurface, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeGeometry, NewellError, newell_plane};
 use geom_core::{
     Affine3, Band, BandError, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3,
 };
-use geom_curves::Curve3;
-use geom_surfaces::{NurbsSurface, Surface};
 use profile::{
     Profile, ProfileError, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile,
 };
@@ -588,7 +588,7 @@ pub fn loft_body<T: Decide>(
 pub fn sweep_body<T: Decide>(
     profile: &[ProfileLoop<f64>],
     place: Affine3<f64>,
-    path: &geom_curves::NurbsCurve3<f64>,
+    path: &geom::NurbsCurve3<f64>,
     stations: usize,
     v_degree: usize,
 ) -> Result<Lofted<T>, LoftError> {
