@@ -9793,7 +9793,7 @@ Beyond S64, S67, S74 and S98:
   **Not this unit**: the byte-identical three-way `fn quad` across
   `sweep/`, `mesh/` and `step-export/` test-commons lives in three
   crates' test trees, not in `demos/`.
-- (c) **FIXED by #808** (the design question was closed by Evan,
+- (c) **FIXED by #837** (the design question was closed by Evan,
   2026-08-20; the schema framing was refused and the emitter half
   ruled *no shared type*). **The duplication was in the READERS**, and
   the fix is one: `demos/manifest.py`, which owns the walk, the field
@@ -12041,7 +12041,7 @@ has been discharged.
 | **E-i** | **D24** | `Cargo.toml`'s workspace lints, or `.github/workflows/` | style; **closes on a chosen mechanism** that runs in CI | Wave 2. The choice is the deliverable. If it chooses `unreachable_pub`, the first-run triage collides with every open lane, so the triage is a separate row and the lane says so. |
 | **E-j** | **D31** | `sweep/src/skin.rs`, `geom/src/curves/fit.rs`, proposed home `geom-core/src/spline/algebra.rs` | style, **ADVERSARIAL** if the union's sort order is load-bearing | Wave 2, **and it is the one row with a live Track C edge**: the proposed home is in **C-l**'s crate and `geom/` is **C-g**'s. Confirm with Track C before opening, or site the home outside `geom-core`. |
 | **E-k** | **D35** | `docs/DESIGN.md`'s D2 addendum, and whatever the answer names | style; **closes on a decision plus its reason** — *"no gate"* is a passing answer | After ~~**E-g**~~ and **E-h**. **E-g (#768) is in and moved the population by exactly one: `crates/sweep/src` goes 18 → 19 `unreachable!` CALL SITES.** Two earlier figures for this were wrong and both are corrected here, because this row is a decision about the size of that population and will be read for the number: the PR first reported *"unchanged at 23"*, which counted **tokens** — 23 on both sides, but 5 of main's were prose and only 4 of the new tree's are, so the code count moved; its review then corrected that to *"22 → 23"*, which is the token count minus one prose mention rather than the call-site count. Re-derived with `unreachable!(`: **main 18** (all in `surgery.rs`), **#768 19** (`surgery.rs` 17, `admit.rs` 1, `battery.rs` 1). The one net new site is `walk_chains`', and it is the interesting one for this row — **D27 minted no row-4 site for any of its own three named helpers** (a fact carried in a value leaves no branch to convert), so the single site it did mint is the one place its own thesis was not applied: `order: Vec<usize>` is the third non-empty-by-construction sequence in that file and the only one still a `Vec`. |
-| ~~**E-l**~~ | **#681**, still open | everything outside `crates/*/src` | style | **Swept as #810 — seven of #681's nine surfaces, the other two declared.** Instrument re-run rather than retyped; #667's 197 blocks over `crates/*/src` are **217** at this base, which is why the count is re-derived and not transcribed. Per-leg: `crates/*/tests` **189** blocks → 10 real claims (`mesh/tests/revolves.rs` unfenced when #803 merged mid-lane); manifests **8** → 4; the guide's five rustdoc-included `.md` files **11** → 1 (guarded, a doctest); `pncad-py` **6** with docstrings vs **1** without → 0; `crates/*/examples` **2** → 0; `docs/` prose **171** → 6; `local-scripts/` **21** → 3; `review/`+`review-probes/` **0**. **One unguarded row filed: #807** — the wasm32 "compiles clean today" claim, which nothing in CI takes and which a `cargo check --target` row would guard. **One class handed off: #808** — twelve copies of the 494-of-514 s build-cost measurement in the `crates/*/tests/all.rs` headers, every one of them inside #763's head. **Declared out of scope, with reasons in the PR:** `.github/workflows/` + `scripts/` and `tools/tess-lint` (Track F, live), `demos/` and `interval-transcendentals/` (Track G, live), `tools/k-lint` (its constants are `docs/K-REPORT.md`'s subject — a K question, not a sweep one; **no owner confirmed**). |
+| ~~**E-l**~~ | **#681**, still open | everything outside `crates/*/src` | style | **Swept as #810 — seven of #681's nine surfaces, the other two declared.** Instrument re-run rather than retyped; #667's 197 blocks over `crates/*/src` are **217** at this base, which is why the count is re-derived and not transcribed. Per-leg: `crates/*/tests` **189** blocks → 10 real claims (`mesh/tests/revolves.rs` unfenced when #803 merged mid-lane); manifests **8** → 4; the guide's five rustdoc-included `.md` files **11** → 1 (guarded, a doctest); `pncad-py` **6** with docstrings vs **1** without → 0; `crates/*/examples` **2** → 0; `docs/` prose **171** → 6; `local-scripts/` **21** → 3; `review/`+`review-probes/` **0**. **One unguarded row filed: #807** — the wasm32 "compiles clean today" claim, which nothing in CI takes and which a `cargo check --target` row would guard. **One class handed off: #837** — twelve copies of the 494-of-514 s build-cost measurement in the `crates/*/tests/all.rs` headers, every one of them inside #763's head. **Declared out of scope, with reasons in the PR:** `.github/workflows/` + `scripts/` and `tools/tess-lint` (Track F, live), `demos/` and `interval-transcendentals/` (Track G, live), `tools/k-lint` (its constants are `docs/K-REPORT.md`'s subject — a K question, not a sweep one; **no owner confirmed**). |
 | **E-m** | **#711** | `step-import/src/recognize.rs`, `docs/ASM-R2A-SPEC.md` | style | Wave 2. Was Track C's **C8**. Two items: a `try_cylinder` promoting arm documented unreachable with a preference order *"unfalsifiable by execution"*, and a one-line spec ruling. The first may want the tighter cylinder certificate rather than an encoding change. |
 | **E-n** | **D20** | `topo/src/seqgen.rs` | style; **closes on an attribution** — a number saying where the 46% lives, or a written finding that it is inherent | Last. It closes on a measurement, and *a timing is worth nothing without its box* (`memories/perf-measurement-lane.md`) — the attribution comes off hosted CI, not off whatever container the lane runs in. The enumeration class is closed as a candidate; do not re-open it without a number. |
 | ~~**E-q**~~ | **#681**, still open | `memories/` | style | **Swept as #826 — the TENTH surface, which #681's list does not contain.** E-l reported it and did not sweep it; adding a surface is the issue owner's call, and Evan made it. **The disposition rule is NOT §Q6's**: *"most of the stuff in memories that cites a specific measurement should just be deleted. memories is definitely not the place for historical anecdotes, but it's also not really the place for live data."* So each block is an **anecdote** (delete the number, keep the rule — the default), **live data** (repoint at whatever re-takes it), or **neither** (a ratified constant or protocol threshold — kept, with the reason). **21 blocks re-derived at `e1500076`, E-l's count exactly, and it did not move.** Instrument run not retyped, but `--marker ''` alone yields **one block per file** — `find("")` is 0 on every line, so nothing ends a block; #681's `.md` row names *"paragraph-blocking"* as the replacement and that is not in the script, so it was added as a flag. That is the variant E-l ran. **Its own blind spot, and `min` is the sharp one**: the time-unit arm lists `seconds?|minutes?` and **not `min`**, so `memories/git-workflow.md` scored **zero blocks** while carrying `~5-7 min` / `35-70 min` / `30G cache` / `(then-5G-RAM)/251G box`. **Eight files carry measurement edits and in five of them at least one edit site was reached by reading, not by the instrument** — including `tessellation-budget.md`'s densest numbers, its findings list, which sits outside every flagged block. #681's carried hole (bytes, percent, counts and bare factors reach only through the vocabulary arm) is worst on exactly this surface. 21 is a floor, not a census. **The one live-data case the brief warned about checks out**: `docs/ASM-LOG.md:292` and `:361` route the **TESS-SPLIT dispatch** through this memory, so `SAFE_ASPECT = 5` could not simply be deleted — it now names `mesh::nurbs_cert::SAFE_ASPECT`, whose own doc carries the derivation. The two copies had **already diverged** (ASM-LOG says *"≤ ~4"*), as had `agent-lane-operations.md`'s `4–8 GB target/` against `disk-watchdog.sh`'s own `5-8G`. Second half of the unit: `memories/cad-working-style.md`'s memory-writing criteria gain the rule, in one bullet after *No live counters*. **D97 handed back unused.** |
@@ -12484,7 +12484,7 @@ quantity it would measure. **Row: D105.**
 
 ## S174. S113(a)'s sweep stopped one paragraph short, in the file it edited
 
-**Raised by G11 / #808 while regenerating the uv lane to check for
+**Raised by G11 / #837 while regenerating the uv lane to check for
 drift.** S113(a) is recorded FIXED by #787 and its record names the
 exact corrections — *"982 → 1049 faces, 879 → 946 checkable, and
 `9.4e-16` → `9.93e-16` for the worst 3-D loop gap"* — and says the
@@ -12520,14 +12520,14 @@ the prose should point at the run and state the RULE, exactly as
 `uvdump.rs` and `compose_uv_montage.py` now do. A corrected number
 here is a number that drifts again on the next scene.
 
-**Why it is not fixed in #808:** `demos/README.md` is outside G11's
+**Why it is not fixed in #837:** `demos/README.md` is outside G11's
 scope cell, and the honest fix is an editorial pass over that whole
 section — the half of it that can only be restated has to say at the
 site why. A partial recount is §C13's half-fix. **Row: D111.**
 
 ## S175. The FreeCAD render lane runs on no pull request
 
-**Raised by G11 / #808, as the disclosure its own change owes.**
+**Raised by G11 / #837, as the disclosure its own change owes.**
 `.github/workflows/render.yml` is `workflow_dispatch:` only. Nothing
 on a PR, a push or a schedule executes `demos/render.sh`,
 `demos/render_freecad.py` or the FreeCAD/OCC lane at all; `ci.yml`
@@ -12540,7 +12540,7 @@ lifecycle and offscreen-renderer workarounds — is checked by nothing
 automatic**, and that is *the mechanism* behind S114(c)'s sharpest
 item: a `view.up` map could sit there facing the wrong way and only a
 human dispatching the workflow and looking at the pixels would ever
-learn. #808 closed the duplication; it did not close this.
+learn. #837 closed the duplication; it did not close this.
 
 **This is S129 one lane over** and should be read with it: S129 is
 *nothing runs an assertion under `demos/`* on the Rust side, PARTLY
@@ -12548,7 +12548,7 @@ FIXED. This is the Python/FreeCAD side, and it is not the same
 question — arming it means either a FreeCAD-provisioning job on every
 PR (the render lane exists precisely because that is expensive: ~106 s
 per scene on this host) or a cheaper substitute that exercises the
-camera without a renderer. **#808 built the substitute for its own
+camera without a renderer. **#837 built the substitute for its own
 change and did not commit it** — extracting `camera_rotation` under an
 `App.Vector` shim and comparing bases — because a shim of a
 third-party API is a fixture that can drift into agreeing with itself.
@@ -12637,7 +12637,7 @@ are recorded FIXED at their own bullets, and the lane raised **S129**
 (nothing runs an assertion under `demos/`) and **issue #782** (two rows of
 `demos/tour`'s tessellation pin are red on main). **S114(c)** was the design
 question it was always going to be: Evan closed it on 2026-08-20 and the
-ordinary work it left behind landed as **G11 / #808**, which raised **S174**
+ordinary work it left behind landed as **G11 / #837**, which raised **S174**
 and **S175**.
 
 | # | Work | From | Scope | Proposed verdict | Review |
