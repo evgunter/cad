@@ -237,7 +237,7 @@ fn eye_pick_narration(vp: &ValidatedProfile<f64>) -> String {
     // the moment two blends shared a radius, and nothing at all if
     // the stored radius drifted an ulp.
     let eye_loop = vp.loops().last().expect("the profile has loops");
-    let blends = pncad::sweep::readback::blend_arcs(eye_loop);
+    let blends = eye_loop.blend_arcs();
     let [blend] = blends.as_slice() else {
         panic!(
             "the eye slot has exactly one filleted corner, found {}",
