@@ -5511,22 +5511,56 @@ Do not take these. Each has a running lane.
 
 ---
 
-## Track B — ready now, for a parallel orchestrator
+## Track B — COMPLETE (2026-08-20)
 
-**These are chosen to be file-disjoint from Track A**, so both orchestrators
-can run at full width without coordination. The scope column is the contract:
-a lane that needs to edit outside it should stop and say so rather than widen.
+**All six rows this track ran are merged**, and the two it did not run were
+handed to Track D. A row leaves §D when it lands, so this section is kept
+only as the record of what the track was and where its residues went; delete
+it once those are picked up.
 
-**Do not touch, while Track A runs:** `crates/geom-core/src/{dual,real}.rs`,
-`crates/geom-brep/src/props/`, `crates/mesh/`, `crates/editor-core/src/eval/`.
+| row | landed as | finding |
+|---|---|---|
+| **B1** | **#688** | S7 — the whole-body fillet door retired; `filleted_die.probe.py` now checks orientation mechanically |
+| **B4** | **#690** | S5 — the join core, the sector-face producer and the planar sense flip get homes, with two standing gates |
+| **B5** | **#689** | S20 + S21 — the façade forwards; Python documents get identities |
+| **B6** | **#686** | S4's `units` row / #669 — typed unit views become private indices into `UNITS` |
+| **B7** | **#692** | S25 — one tolerance per run, enforced at a certifying seam |
+| **B8** | **#697** | S34 — body-wide readback moves to the crate whose types it reads |
 
-**Four have landed — B1 (#688), B6 (#686), B7 (#692) and B4 (#690)** — and
-**B2 and B3 were handed to Track D on 2026-08-20**, where they are D1 and D2
-and the `sweep/` crate is Track D's for the duration. What is left here is
-mutually independent and edge-free.
+**B2 and B3 went to Track D** on 2026-08-20 as D1 and D2; `sweep/` is Track
+D's for the duration.
 
-| # | Work | Scope | Note |
-|---|---|---|---|
+**Residues this track opened, all with owners:**
+
+| # | What |
+|---|---|
+| **#693** | Three stale descriptions of the retired fillet door in `editor-core/src/eval/` — Track A's files, so the lane stopped. One quotes the deleted predicate verbatim while naming no door and no deleted symbol, so no symbol-scoped sweep can reach it |
+| **#694** | The load path stringifies structured kernel refusals, contradicting the bindings' "never strings" contract — seven of ten `DimensionError` arms reach Python through `load` today |
+| **#695** | Two shared cores still hosted inside one half (`carve`/`single_solid`, and `conic_plane_crossing_roots`, which decides four `split_*` K predicates from the boolean lane), plus the question of whether the crate root is an architecture or an accumulation |
+| **#696** | The rustdoc-JSON check three separate façade guards had been deferring to an unscheduled nightly |
+| **#699** | S25's class in `props/` — three signatures and two call sites, twice what the fixing PR first disclosed |
+| **S57** | The readback class alive one crate over, and a "one door" guard that cannot see outside its own crate |
+
+**What this track learned that outlived its rows**, since the rows are gone
+and these are the transferable part:
+
+- **A regenerated golden cannot be its own evidence.** B1's byte-golden was
+  rewritten by the change that needed checking; what establishes the result is
+  a mechanical probe of properties the format cannot fake.
+- **A reproduction is only evidence about the rows its fixtures generate.**
+  B4's K-probe reproduced 26541 rows byte-identically and was **blind to the
+  change being made** — its fixtures are all-planar and carry zero arc-rung
+  rows. "The probe reproduced" is not "the change was neutral".
+- **A guard that pins a seal by quoting the pre-seal spelling tests the shape,
+  not the seal.** B6's `compile_fail` rows stayed green with the field made
+  public.
+- **A skip reads as a pass.** B7's decoupling mutation looked green because a
+  tighter generator blew the sample budget and the row skipped.
+- **Reachability argued from the authoring doors misses the deserialization
+  doors.** B5's central justification failed because every `Deserialize` impl
+  re-runs a smart constructor.
+- **A guard scoped to one crate cannot enforce a rule stated about a concept**
+  (S57).
 
 ---
 
