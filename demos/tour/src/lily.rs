@@ -121,11 +121,11 @@ use pncad::profile::{ArcSweep, Center, ProfileLoop, ProfileVertex, SketchPlane, 
 // vocabulary, off the façade, so the one scene that needs it names the
 // kernel crate directly.
 use pncad::sweep::fillet::FilletError;
-use pncad::sweep::{WedgeFrames, revolved_caps};
 use pncad::sweep::{
     ExtrudeError, Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, loft_body, revolve,
     sweep_body, tube_along_arc,
 };
+use pncad::sweep::{WedgeFrames, revolved_caps};
 use pncad::topo::{Body, BooleanError, BooleanOp, Operand, TransformError};
 use profile::RawLoop;
 
