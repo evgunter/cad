@@ -125,7 +125,7 @@ discharged before this track existed.
 | **E-b** | D23 | `docs/` + suite headers; code set is what the re-derivation finds | none | style | **in flight** |
 | **E-c** | D26 | `docs/SMELL-SCAN-2026-08.md` §D and §S19 | none | style | **DONE — #752 merged**; discharged into D36–D39, plus D47/D48 from its review, all unstaffed |
 | **E-d** | D33 | `docs/predicate-dimension-audit.md` | none | style | **#761, in review** |
-| **E-e** | D28 + issue #693 | `editor-core/src/eval/` | **confirm against C-f (#731)** — same crate, disjoint files | style | **in flight** |
+| **E-e** | D28 + issue #693 | `editor-core/src/eval/` | **#731 EDITS `eval/mod.rs` — the file, not just the crate.** Disjoint by *item* (~700 lines apart), not by file. Whichever merges second re-merges | style | **#767, in review** |
 | **E-f** | D25 | `topo/src/euler.rs` and every `link_half_edges` caller | none | **ADVERSARIAL** | **#755, in review** |
 | **E-g** | D27, then D29 | `sweep/src/fillet/{build,surgery,mod}.rs` | none | **ADVERSARIAL** (D27), style (D29) | **in flight** |
 | **E-h** | D21 | `topo/src/{split,attach,movefac,revert}.rs`, `splitting/finish.rs`, `boolean/combine.rs` | **E-f, for file overlap on `split.rs`** — see E-R4 | **ADVERSARIAL** | unstarted |
@@ -412,7 +412,8 @@ constituted.**
 | D58–D60 | **Track F**, via E-a | S61's docs-tier conditionality, the mode-0644 registration hole, S62's four remaining hand-named checks |
 | D61–D62 | E-h (D21) | reserved 2026-08-20 |
 | D63–D64 | E-a's fix pass (#753) | reserved 2026-08-20 |
-| D54–D55 | E-e (D28 + #693) | reserved 2026-08-20 |
+| D54 | E-e (D28) | **used** — five arms that still render prose, each with a stated reason |
+| D55 | E-e | **returned unused** |
 | D46 | E-d (D33) | reserved 2026-08-20 |
 
 Next unassigned: **D65**; D42 and D43 are back in the pool and deliberately not
@@ -447,7 +448,7 @@ serialized here and each lane re-merges `origin/main` when one lands.
 | **E-f** | D25 | `smelle/d25` | **#755** | **CLEARED by both lanes**; combined fix pass running (3 must-fix, 2 → rows D49/D50). Merges after #752 |
 | **E-b** | D23 | `smelle/d23` | **#763** | reported; **style review running**. Placed D44 and D45 |
 | **E-d** | D33 | `smelle/d33` | **#761** | **MERGED 2026-08-20.** Placed D46, D51, D57; handed D56 back |
-| **E-e** | D28 + #693 | `smelle/d28` | **#767** | reported; **style review running** |
+| **E-e** | D28 + #693 | `smelle/d28` | **#767** | reported; **style review running**. Census re-derived at **12** arms, not 8; placed D54, returned D55 |
 | **E-h** | D21 | `smelle/d21` | — | dispatched — **unblocked by #755**, whose lane verified D21 inherits nothing from D25 |
 
 **E-g dispatched 2026-08-20** (`smelle/d27-d29`), D27 then D29 — one lane
@@ -657,6 +658,38 @@ red; two fixtures reverted to their pre-fix form, both red; two of
 `test-aggregation.sh`'s own guards mutated out and the selftest stayed **green**,
 which is how the vacuous pair was found. C22's *"executing the mutation beats
 reading the code, and it was rare"* is no longer rare here.
+
+### The fence I gave E-e was false, and the lane checked it because I told it not to trust me (2026-08-20)
+
+**I wrote, in E-e's brief and in §D's lane table, that Track C's C-f (#731) is on
+`editor-core/src/{resolve/, select.rs, refactor.rs}` and therefore disjoint from
+`eval/`.** #731's actual file set includes **`crates/editor-core/src/eval/mod.rs`**
+and `eval/anchor.rs`, plus six more files. It touches E-e's file.
+
+They are disjoint **by item, not by file**: #731's `eval/mod.rs` hunks are the
+content-key hasher, ~700 lines from the `Display` impl E-e rewrote. So the
+exposure is a merge conflict, not a semantic collision, and the standing rule
+covers it — *whichever is second re-merges rather than assumes*. **E-e continued
+rather than stopping, and was right to**: stopping bought nothing the serialized
+merge does not already provide, and flagging it loudly is the useful half.
+
+*Where the claim came from, which is the point:* **§D's Track C table**, written
+by that track's orchestrator, transcribed into my brief without being re-derived
+against #731's actual diff. That is the same mechanism as #752's inherited gate
+and as my own stale index — **a claim that travels between documents without
+being checked at each stop** — and it is the third instance on this track in one
+day. The register is where this happens, because a register is exactly a place
+where claims are written to be copied.
+
+**What stopped it costing anything was one sentence in the brief:** *"Disjoint by
+inspection — so read C-f's head and confirm it, do not trust this sentence."*
+That sentence has now paid for itself twice (E-f's line numbers were the other),
+and it is worth keeping in every dispatch whose fence I did not personally
+verify. **The honest generalisation is not "check your citations" — it is that a
+dispatcher who cannot verify a fence must say which fences those are**, because a
+brief states them all in the same voice otherwise.
+
+Corrected in the roster above, and in §D's E-e row by the lane.
 
 ---
 
