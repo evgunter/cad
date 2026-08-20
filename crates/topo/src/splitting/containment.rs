@@ -129,7 +129,29 @@ impl std::error::Error for PointInLoopError {}
 /// three axes plus golden-angle-spread oblique members — for any unit
 /// plane normal, most members project to a definitely-nonzero in-plane
 /// direction (an all-graze outcome is the typed exhaustion error).
-pub(super) const SCHEDULE: [[f64; 3]; 16] = [
+///
+/// **The one table**, and no consumer owns it: this module's in-plane
+/// ray parity (which projects each triple into the loop plane and
+/// skips the near-parallel members), [`crate::splitting::order`]'s
+/// point ordering, and [`crate::boolean::solid_contain`]'s
+/// containment sweep (which normalizes the raw triple). They do not
+/// sweep the same directions. What each needs is only that its own
+/// schedule is a `const` in a fixed order every run, which holds per
+/// site — so a single definition buys the absence of drift between
+/// copies, not determinism, which was never at risk.
+///
+/// **Editing an entry is not free, and what catches you is
+/// incidental.** `tests/review_m3_pr3_pil.rs` hand-copies the fifteen
+/// non-degenerate `+z` in-plane projections of this table (values),
+/// and `splitting::order`'s sort tests pin the iteration order. Both
+/// pin it as a side effect of testing something else; nothing pins it
+/// on purpose.
+///
+/// `pub(crate)` is the minimum visibility that reaches `boolean`, a
+/// sibling of `splitting` rather than a descendant. `chart_region`'s
+/// `SCHEDULE_2D` is a different table by dimension, not a fourth
+/// reader of this one.
+pub(crate) const SCHEDULE: [[f64; 3]; 16] = [
     [1.0, 0.0, 0.0],
     [0.0, 1.0, 0.0],
     [0.0, 0.0, 1.0],
