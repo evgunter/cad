@@ -460,23 +460,24 @@ log's own roster row (now fixed) — the class, not the instance.
 
 ## Where this stands — session handoff, 2026-08-20
 
-**Nothing new starts from here** (Evan, on the approaching usage limit); the
-units below finish, reviews and fix passes included, and their lanes have
-authority to **self-merge on a green head**. Everything else on the roster is
-untouched and unclaimed.
+**All three units in flight landed.** Nothing new was started after the
+wind-down (Evan, on the approaching usage limit); the three below finished
+completely — reviews, fix passes and self-merges — and everything else on the
+roster is untouched and unclaimed, exactly as it was.
 
 | unit | state | who finishes it |
 |---|---|---|
 | **#702** C-a / S24 | **MERGED** `f382c4a` | — |
 | **#705** C-c / S31 | **MERGED** `2e861932` | — |
-| **#709** C-b / S30 | both reviews running to completion; PR is CONFLICTING and must be un-conflicted first | its lane, self-merge on green after the fix pass |
+| **#709** C-b / S30 | **MERGED** `33fff6f9` | — |
 
 **Review artefacts survive the session** even if the reports do not reach the
 orchestrator: `~/.local/share/cad-work/rev-709-findings.md` (adversarial) and
 `rev-709-style-findings.md` (style), both written incrementally for exactly
 this reason.
 
-**Owed and unwritten — the one loose end this session leaves.** #709 found that
+**Owed and unwritten — the loose ends this session leaves, all stated in
+#709's body rather than left to be rediscovered.** #709 found that
 the CSV's `agreement` column **measures nothing**: both sides of the ratio are
 the same `Σ nuc·nvc` from the same `band_schedule`, so it is `≡ 1.0` by
 arithmetic, the `≤ 1%` assertion on it was vacuous, and the module docs claimed
@@ -548,7 +549,7 @@ lesson one level up, applied to S30's own fix.
 |---|---|---|
 | **#702** | C-a / S24 | **MERGED 2026-08-20** (`f382c4a`). 37 checks terminal, zero failures. Two review rounds plus an independent verification pass. **Unblocks Track D's D7.** |
 | **#705** | C-c / S31 | **MERGED 2026-08-20** (`2e861932`). 37 checks, zero failures; the three carrying rows pulled from the job logs individually rather than read off green ticks. Two crates → one `geom`. **Unblocks S32.** |
-| **#709** | C-b / S30 | open — *the instrument leaves the kernel: `mesh::budget` measures, `tools/tess-meter` derives, `probe_stats` deleted*. Not yet reviewed. |
+| **#709** | C-b / S30 | **MERGED 2026-08-20** (`33fff6f9`). 37 checks, zero failures. `mesh::budget` 898 → ~275 lines, eleven recording sites → one; the schema and the optimizer to `tools/tess-meter`; `probe_stats` deleted. |
 
 ### What #702 cost, and what that says about the policy
 
