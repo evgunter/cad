@@ -1796,6 +1796,16 @@ fn loop_walk_face<T: Decide>(
 /// carrier and describe it as the tangential contact locus of its two
 /// adjacent faces' surfaces — over the rim arcs' stored carriers as
 /// well as over the straight trimlines.
+///
+/// **A blend trimline is BORN with its intrinsic description**, never a
+/// `MappedCurve` pushforward of the construction that happened to
+/// produce it: the rolling ball supplies the witness and the initial
+/// caches, and nothing else of the construction survives into the
+/// geometry. That is what makes an imported fillet's trimline a
+/// reconstruction into a variant this kernel already stores and
+/// certifies, rather than a taxonomy scramble at adoption time
+/// (`CURVED-DESIGN.md` §D7, fifth leave-room obligation; the rule
+/// itself is `DESIGN.md`'s prefer-intrinsic paragraph under D2).
 fn attach_contact<T: Decide + Bounds>(
     body: &mut Body<T>,
     edge: EdgeKey,
