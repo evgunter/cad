@@ -1241,13 +1241,13 @@ never by the body's tier-1 validity** — which is a whole-body property
 no single call establishes, and which would have been falsified across
 roughly half the sites.
 
-*Still outstanding:* **eleven discard sites elsewhere in
-`crates/topo`**, which the three-module census never counted and this
-addendum has never covered — three in `split_edge`, two in
-`attach.rs`, three in `movefac.rs`, three in `revert.rs`
-(`SMELL-SCAN-2026-08.md`'s **D21**). And, outside `crates/topo`, idiom
-2's `MissingEntity` router defects and `AssemblyUnsupported`'s rename
-to `Unsupported*`.
+*Still outstanding:* **discard sites elsewhere in `crates/topo`**,
+which the three-module census never counted and this addendum has
+never covered — a grep finds at most 11 (`split_edge`, `attach.rs`,
+`movefac.rs`, `revert.rs`), but that is a ceiling awaiting a per-site
+re-derivation, not a census (`SMELL-SCAN-2026-08.md`'s **D21**). And,
+outside `crates/topo`, idiom 2's `MissingEntity` router defects and
+`AssemblyUnsupported`'s rename to `Unsupported*`.
 
 **Replay with kills (M1, pinned in PRs #20/#23):** the determinism
 contract holds with destructive operators in the history. Identical
