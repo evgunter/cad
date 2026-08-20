@@ -10,17 +10,25 @@
 //!   is exactly one, δ_s = [`sizing_target`]`(δ)`, and it is carried
 //!   with the run's other tolerances by [`Tol`].
 //! - a **step** — an increment in a *parameter* (a curve parameter, a
-//!   chart angle, a UV coordinate), always `f64`, always named
-//!   `*_step` or `*_steps`. Steps come from a closed-form deviation
-//!   bound: [`sagitta_step`] and [`ellipse_step`] here,
-//!   [`curvature_step`] for a second-derivative bound,
+//!   chart angle, a UV coordinate), always `f64`. Steps come from a
+//!   closed-form deviation bound: [`sagitta_step`] and [`ellipse_step`]
+//!   here, [`curvature_step`] for a second-derivative bound,
 //!   [`torus_grid_step`] for the torus chart, and
 //!   [`crate::nurbs_cert::NurbsFaceBound::grid_steps`] for a certified
-//!   NURBS patch.
+//!   NURBS patch. The cap on an angular one is [`MAX_ANGULAR_STEP`],
+//!   applied by [`cap_angular`] and nowhere else.
 //! - a **count** — how many chords or grid divisions a span is cut
-//!   into, always `usize`, always named `*_count` or `*_counts`. Every
-//!   count in the crate is [`ceil_count`]`(span, step)` or a floor
-//!   applied to one (`curved::pole_columns`).
+//!   into, always `usize`. Every count in the crate is
+//!   [`ceil_count`]`(span, step)` or a rule applied to one
+//!   (`curved::pole_columns` floors the pole case;
+//!   `NurbsCellGrid::band_schedule` snaps a malign band's).
+//!
+//! **The rule that is enforced, and it is one sentence:** *"step" names
+//! an `f64` increment and nothing else; a `usize` count is never called
+//! a step.* Both halves used to be false — `sagitta_angle` was a step
+//! that did not say so, and `curved::grid_steps`, `MAX_STEPS` and
+//! `tess_meter::SPLIT_SCAN_STEPS` were a count pair, a count cap and a
+//! sample count that all did.
 //!
 //! The one deliberate second spelling is `tess_meter::divisions`, in
 //! the consumer half of the budget meter: a different cargo root, so
