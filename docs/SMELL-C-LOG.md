@@ -356,6 +356,57 @@ inputs"**, and it is a distinction a reviewer only reaches by constructing the
 case where they come apart. The first claim was not sloppy — it was precise
 about the wrong quantity.
 
+### The finding a lane volunteered about itself, 2026-08-20
+
+After both reviews cleared #705 and the merge was staged, the lane was asked
+whether it was holding anything back. It was, and it is the sharpest self-report
+of the night:
+
+> **The overflow row exists on the curve half only. The surface half has the
+> identical exposure and no guard.** … I fixed it at the reported instance and
+> left the class — with the aggravating detail that **I am the one who made it a
+> class.**
+
+`mid`'s NaN-at-±∞ is, after this PR, a **stated contract on a shared helper**
+pinned by exactly one of its callers. Someone who reads `mid`'s own doc — which
+flags the asymmetry, because this PR added that — and makes it total gets a red
+curve row and a **silent behaviour change in the surface half's certified
+path**.
+
+**RULED (C-R10): hold the merge, add the surface row.** The lane recommended
+landing it as a follow-up. Overridden, on its own reasoning: this is the
+standing failure the whole scan was raised to catch, stated in the first person,
+on a live PR, by the lane that caused it — landing it as a follow-up would be
+the report documenting its own thesis and then doing the thing anyway. And a
+guard that tells the next person *half* the truth is worse than no guard,
+because they will trust it. That trap is created by this PR and should not
+outlive it by one merge.
+
+*Generalisable, and it is MAJOR-1 one level up:* **a claim about a shared helper
+is a claim about every caller, not the one whose diff you are looking at.** The
+lane named its own cause exactly — *"I was reasoning about my diff rather than
+about the mechanism I had just created."* Collapsing N copies into one helper
+converts N independent local facts into one shared contract, and the guard
+obligation moves with it. Neither review lane caught this; the lane did, after
+the reviews had cleared it, when asked a direct question.
+
+*Operationally:* **ask the lane whether it is holding anything back, after the
+reviews clear and before the merge.** Both reviewers had finished. The question
+cost one message.
+
+### A monitor that failed silent
+
+The lane's CI monitor used unauthenticated `curl` against a **private** repo:
+every poll 404s, its filter read that as "no data", and it would have run its
+full window and reported *"still running"* — silence indistinguishable from a
+green wait. The lane noticed and fell back to hand-polling.
+
+This is `memories/agent-lane-operations.md`'s **waiter self-test** rule earning
+its keep: run a background waiter's detection expression *once in the
+foreground* before arming it, because a catch-all arm converts a permanent error
+into silent eternal waiting. Recorded as an instance rather than a new rule —
+the rule already exists and is correct.
+
 ---
 
 ## Landings
