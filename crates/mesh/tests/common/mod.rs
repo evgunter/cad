@@ -126,6 +126,21 @@ pub fn cone_wedge(s: f64, theta: f64) -> Body<f64> {
         .body
 }
 
+/// A PARTIAL revolve of the unit half-disc — the ball's profile swept
+/// `theta` — so the sphere face carries BOTH poles as chart
+/// singularities and has a bounded azimuth span. The sphere twin of
+/// [`cone_wedge`], and the shape that reaches `curved::pole_columns`'s
+/// sphere arm.
+pub fn sphere_wedge(theta: f64) -> Body<f64> {
+    let lp = ProfileLoop::new(vec![
+        ProfileVertex::new(p2(0.0, -1.0), 1.0),
+        ProfileVertex::new(p2(0.0, 1.0), 0.0),
+    ]);
+    revolve(&validated(vec![lp]), axis_y(), Revolution::Partial(theta))
+        .unwrap()
+        .body
+}
+
 /// The washer: rectangle [1,2]×[0,1] revolved fully (genus 1, slit
 /// annuli + full-2π cylinder walls).
 pub fn washer() -> Body<f64> {

@@ -323,6 +323,15 @@ fn triangulate_chart(
             meta[vs[1].fix().index()],
             meta[vs[2].fix().index()],
         ];
+        // #678's sibling sweep (C10): the curved lane's identical
+        // idiom hid a silent non-manifold fan when a SINGLE interior
+        // grid column sat equidistant from two entries sharing one
+        // mesh vertex. Inert here, structurally: this lane inserts
+        // boundary polygon vertices ONLY — there is no interior grid
+        // at all — so there is no column to be equidistant from
+        // anything. The duplicate ids it does see are a slit's two
+        // traversals, which land at the SAME UV and dedupe to one CDT
+        // vertex (the `a == b` skip in the constraint pass above).
         if ids[0] == ids[1] || ids[1] == ids[2] || ids[0] == ids[2] {
             continue; // slit-degenerate sliver
         }

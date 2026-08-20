@@ -34,6 +34,18 @@
 //! non-collapsed edges become the identified fan edges — manifoldness
 //! is re-checked by the mesh validator).
 //!
+//! **That count — ONE dropped triangle per collapsed side — is a
+//! claim about the grid, not a theorem** (issue #678). It holds only
+//! while the interior grid SEPARATES the two pole entries, and
+//! `nu == 2` does not: the single interior column at `u = (u0+u1)/2`
+//! is equidistant from both, the CDT fans both of them over it, and
+//! the identified edge `(pole, column)` is then used FOUR times —
+//! silently, because `tessellate` does not run the validator.
+//! [`pole_columns`] is what makes the premise true (it floors `nu` at
+//! 3 on a walk carrying a pole), and a `debug_assert` over the
+//! emitted patch re-derives the conclusion (D2 addendum row 5). Read
+//! the sentence above as conditional on both.
+//!
 //! Grid sizing (heuristic; the certificates are the guarantee), from
 //! δ_s = δ/2 and φ = [`crate::chords::sagitta_angle`]:
 //! cylinder — hu = φ(δ_s, r), no interior rows (ruled in v);
@@ -153,6 +165,21 @@ pub(crate) fn tessellate_curved(
     // reads do not overlap.)
     let flip = area2 < 0.0;
 
+    // The walk's chart singularity, as `grid_steps` reads it: whether
+    // a pole/apex entry is present, and how many INTERIOR chord points
+    // the meridian sides carry between the pole row and the opposite
+    // row. Zero on a cone (its meridian is a straight ruling); always
+    // several on a sphere (an arc) — which is the occlusion #678's
+    // sphere-arm unreachability argument rests on, so it is measured
+    // and asserted rather than assumed. `u0`/`u1` are the polygon's
+    // own extremes and an iso side is bitwise straight since #653, so
+    // the side test is exact.
+    let has_pole = polygon.iter().any(|e| e.pole);
+    let meridian_interior = polygon
+        .iter()
+        .filter(|e| !e.pole && e.v > v0 && e.v < v1 && (e.u <= u0 || e.u >= u1))
+        .count();
+
     // Grid steps per kind (module docs).
     let (nu, nv) = grid_steps(
         &chart,
@@ -160,7 +187,8 @@ pub(crate) fn tessellate_curved(
         u1 - u0,
         v1 - v0,
         v0.abs().max(v1.abs()),
-        polygon.iter().any(|e| e.pole),
+        has_pole,
+        meridian_interior,
     )?;
 
     // CDT: boundary entries (fixed walk order) + constraints + grid.
@@ -260,6 +288,45 @@ pub(crate) fn tessellate_curved(
         }
         triangles.push(if flip { [ids[0], ids[2], ids[1]] } else { ids });
     }
+
+    // D2 addendum row 5 (`DESIGN.md`: kernel bug detectable only by
+    // re-derivation -> `debug_assert`). The pole-fan argument in the
+    // module header is structural, and the one thing that ever
+    // falsified it — #678's two entries fanning over one shared
+    // column — surfaced by accident, in a review of an unrelated PR.
+    // Nothing else re-derives manifoldness in any build: `tessellate`
+    // does not run `check_mesh`, so with `pole_columns` in place a
+    // three-line arithmetic coincidence is otherwise the only thing
+    // between a pole face and a silently non-manifold mesh. Re-derive
+    // the conclusion here, over THIS patch's pole-incident edges only
+    // (the class's whole footprint, and O(triangles)): a fan edge is
+    // interior to the patch and used twice, or on its boundary and
+    // used once with the neighbouring face supplying the other use.
+    // Four uses is the #678 signature.
+    #[cfg(debug_assertions)]
+    if has_pole {
+        let poles: std::collections::HashSet<u32> =
+            polygon.iter().filter(|e| e.pole).map(|e| e.id).collect();
+        let mut uses: HashMap<(u32, u32), usize> = HashMap::new();
+        for t in &triangles {
+            for k in 0..3 {
+                let (a, b) = (t[k], t[(k + 1) % 3]);
+                if poles.contains(&a) || poles.contains(&b) {
+                    *uses.entry((a.min(b), a.max(b))).or_insert(0) += 1;
+                }
+            }
+        }
+        let over = uses.iter().find(|&(_, &n)| n > 2).map(|(&e, &n)| (e, n));
+        debug_assert!(
+            over.is_none(),
+            "face {fk:?}: pole-fan edge {:?} used {} times in one patch \
+             (nu = {nu}, nv = {nv}); the collapse-and-drop argument is \
+             falsified — see curved::pole_columns, issue #678",
+            over.map(|(e, _)| e),
+            over.map_or(0, |(_, n)| n)
+        );
+    }
+
     if worst.is_nan() || worst > tol.delta {
         return Err(TessellateError::CertificateExceeded {
             face: fk,
@@ -474,46 +541,100 @@ fn require_swept_rectangle(
 
 /// The pole-fan separation floor on the u step count (issue #678).
 ///
-/// A chart singularity inside the domain enters the CDT as TWO polygon
-/// entries, at `(u0, v_pole)` and `(u1, v_pole)`, that map to ONE mesh
-/// vertex. The module header's fan argument — "one dropped triangle per
-/// collapsed side; its two non-collapsed edges become the identified
-/// fan edges" — holds only when those two entries share exactly that
-/// one triangle, and `nu == 2` is the one step count that breaks it:
-/// there is a SINGLE interior grid column, at `u = (u0 + u1)/2`, and it
-/// is equidistant from both pole entries, so the Delaunay triangulation
-/// gives BOTH of them a fan over its upper half. Every column vertex in
-/// the overlap is an interior fan vertex twice over, so the identified
-/// mesh edge `(pole, column)` is used FOUR times: `check_mesh` reports
-/// `NonManifoldEdge`, and `tessellate` — which does not run it —
-/// returns that mesh as `Ok`.
+/// The module header's fan argument — one dropped triangle per
+/// collapsed side — needs the interior grid to SEPARATE the walk's two
+/// pole entries, and `nu == 2` is the one step count that does not:
+/// the single interior column at `u = (u0 + u1)/2` is equidistant from
+/// both, the CDT fans both over its upper half, and the identified
+/// mesh edge `(pole, column)` is used FOUR times. `check_mesh` reports
+/// `NonManifoldEdge`; `tessellate`, which does not run it, returns
+/// that mesh as `Ok`.
 ///
-/// `nu == 2` is singular, which is why the floor is written as an
-/// equality and not as `max(3)`. With `nu == 1` the inner grid range
-/// `1..nu` is empty, so there is no interior column at all and the two
-/// entries fan over the BOUNDARY walk, which is ordered along the rim
-/// and splits between them at one shared vertex. With `nu >= 3` each
-/// entry's nearest column occludes the other's, so the fans are
-/// disjoint again.
+/// `nu == 2` is singular, which is why this is an equality and not
+/// `max(3)`. At `nu == 1` the inner grid range `1..nu` is empty, so
+/// the entries fan over the BOUNDARY walk, which is ordered along the
+/// rim and splits between them at one shared vertex. At `nu >= 3` each
+/// entry's nearest column occludes the other's.
 ///
-/// The floor is a step count, not a manifoldness test, so it also
-/// re-sizes the `nu == 2` pole faces whose fans happened NOT to overlap
-/// — the ones with too few interior rows for the overlap to contain an
-/// edge (a pi/4 cone wedge at delta = 0.1 goes 10 -> 14 triangles; a
-/// pi/2 sphere wedge at delta = 0.2 goes 18 -> 24). Those meshes were
-/// watertight before and are watertight after; the alternative is a
-/// per-face manifoldness re-derivation of the emitted patch, which is
-/// the D2-addendum row-5 backstop, not the sizing rule.
+/// # Corrective on the cone, prophylactic on the sphere
 ///
-/// Reached only where the sagitta cap already rules (`hu = pi/4`) or
-/// the wedge is narrow: `uspan <= 2*hu`. A full revolve spans `2*pi`
-/// and is never affected; the executed cases are partial revolves whose
-/// cone/sphere face contains the apex or pole.
+/// A/B over 281 public-API configurations (cone wedges, sphere lunes,
+/// sphere caps): **7 rows go dirty -> clean, every one of them cone**;
+/// 57 clean rows re-size, **49 of them sphere**; and **no sphere row
+/// has ever been measured dirty**, out of ~200.
+///
+/// **Cone — corrective, and genuinely clean-by-luck when it is clean.**
+/// A cone's meridian is a straight RULING, so it carries ZERO interior
+/// chord points (`npoly = 5` = 2 apex + 3 rim) and nothing sits between
+/// an apex entry and the rim. `nv` alone then decides: `nu == 2` is
+/// clean at `nv <= 3` — too few interior rows for the overlap to
+/// contain an edge — and dirty at `nv >= 4`. `cone_wedge(1, pi/4)` is
+/// clean at delta = 0.1 (`nv = 3`) and dirty at delta = 0.05
+/// (`nv = 4`): one delta-step from the defect.
+///
+/// **Sphere — prophylactic, and NOT clean by luck.** The same reading
+/// is false here, and a single row falsifies it: `sphere_wedge(pi/4)`
+/// at delta = 0.05 is `nu = 2, nv = 8` — seven interior column
+/// vertices, an overlap that could hold six edges — and it is clean. A
+/// sphere's meridian is an ARC and always carries interior chord
+/// points (lune `npoly = 10`, cap `npoly = 6`); those points occlude
+/// the cross-fan. Structural, not lucky: dirty needs `nv >= 3`, and
+/// the meridian's chord step `phi(delta_s, r)` and the grid's
+/// `phi(delta_s / 1.25, r)` are never more than ~12% apart with both
+/// pi/4-capped, so `nv >= 3` FORCES at least two interior meridian
+/// points. The sphere arm is kept anyway (Evan, 2026-08-19) so the
+/// rule reads as one sentence rather than one chart but not the other
+/// — and what it rests on is CHECKED, not just written down: see the
+/// `debug_assert` in [`grid_steps`]'s sphere arm, which asserts the
+/// mechanism (the occluding points exist) rather than the conclusion.
+///
+/// # The option this doc used to exclude by silence
+///
+/// The choice here is three-way, and an earlier draft of this comment
+/// offered two — floor-as-written versus per-face manifoldness
+/// re-derivation — which makes the missing one look unconsidered
+/// rather than rejected. It is `nu == 2 && nv >= 3`: available right
+/// here, since both counts are in the same arm, and it would preserve
+/// all eight cone re-sizings. Not taken, for two reasons — it makes
+/// `nu` a function of `nv`, so the schedule's two axes stop being
+/// independent, and it leaves the `ceil` knife edge live at `nv <= 3`
+/// instead of removing the class. The remaining option, per-face
+/// manifoldness re-derivation over the emitted patch, is the
+/// D2-addendum row-5
+/// mechanism (`DESIGN.md`'s row 5 says `debug_assert`, not "make it
+/// unreachable"), which now ships BESIDE this floor in
+/// [`tessellate_curved`]'s emit pass rather than instead of it.
+///
+/// # Blast radius, and #678's two open questions
+///
+/// Only pole faces with `nu == 2` re-size. A full revolve can never be
+/// one: [`sagitta_angle`] hard-caps at pi/4 on both branches, and
+/// [`torus_grid_step`] is `.min`'d against the same cap, so a `2*pi`
+/// span gives `nu >= 8` — confirmed in the A/B, where no full-revolve
+/// face appears with `nu <= 2`.
+///
+/// `Fixes #678` closes the only other home of that issue's two open
+/// questions, so both answers live here. *Does the sphere lane reach
+/// the defect in practice?* **No** — ~200 configurations, including
+/// the cap shape the issue named and nobody had built. *Is any corpus
+/// body in the changed class?* **No** — `demos/renders`,
+/// `demos/renders-wild` and `demos/renders-freecad` all report zero
+/// drift.
 fn pole_columns(nu: usize, has_pole: bool) -> usize {
     if has_pole && nu == 2 { 3 } else { nu }
 }
 
 /// Interior grid step counts (nu, nv) for the face's UV spans.
+///
+/// `has_pole` and `meridian_interior` describe the boundary walk's
+/// chart singularity: whether it carries a pole/apex entry at all, and
+/// how many interior chord points its meridian sides carry between the
+/// pole row and the opposite row ([`pole_columns`]). Only the cone and
+/// sphere arms read them, and that is STRUCTURAL rather than an
+/// oversight — [`Chart::poles`] returns an empty vector for a cylinder
+/// and for a torus, so `has_pole` is false on those two arms for every
+/// input there is, and the `debug_assert`s below say so in a form that
+/// fails if it ever stops being true.
 fn grid_steps(
     chart: &Chart,
     delta_s: f64,
@@ -521,10 +642,12 @@ fn grid_steps(
     vspan: f64,
     v_absmax: f64,
     has_pole: bool,
+    meridian_interior: usize,
 ) -> Result<(usize, usize), TessellateError> {
     let cap = core::f64::consts::FRAC_PI_4;
     match chart.kind {
         ChartKind::Cylinder { r } => {
+            debug_assert!(!has_pole, "Chart::poles() is empty for a cylinder");
             let hu = sagitta_angle(delta_s, r);
             Ok((ceil_count(uspan, hu)?, 1))
         }
@@ -547,12 +670,28 @@ fn grid_steps(
             // sizing tweaks from silently landing on the certificate
             // boundary; the certificate remains the backstop.
             let h = sagitta_angle(delta_s / 1.25, r);
-            Ok((
-                pole_columns(ceil_count(uspan, h)?, has_pole),
-                ceil_count(vspan, h)?,
-            ))
+            let (nu, nv) = (ceil_count(uspan, h)?, ceil_count(vspan, h)?);
+            // D2 addendum row 5 — and the whole warrant for calling
+            // this arm PROPHYLACTIC rather than corrective
+            // (`pole_columns`). Assert the MECHANISM, not the
+            // conclusion: a sphere pole face that reaches `nu == 2`
+            // with enough rows to be dirty (`nv >= 3`) is claimed to
+            // be saved by the interior chord points its ARC meridians
+            // always carry. If one ever arrives without them, the
+            // unreachability argument is false — and we want that
+            // from this line rather than from another accident, since
+            // the class was found by accident once already.
+            debug_assert!(
+                !(has_pole && nu == 2) || nv < 3 || meridian_interior >= 2,
+                "sphere pole face at nu == 2, nv = {nv} carries \
+                 {meridian_interior} interior meridian chord points; \
+                 #678's unreachability argument needs >= 2 (one per \
+                 meridian side)"
+            );
+            Ok((pole_columns(nu, has_pole), nv))
         }
         ChartKind::Torus { major, minor } => {
+            debug_assert!(!has_pole, "Chart::poles() is empty for a torus");
             let h = torus_grid_step(delta_s, major, minor).min(cap);
             Ok((ceil_count(uspan, h)?, ceil_count(vspan, h)?))
         }
