@@ -82,13 +82,17 @@ struct Cell {
     delta_frac: f64,
 }
 
-/// **The pinned cell set: 6 cells.** Derivation (audit table +
-/// `wild.rs` + the tessellation record in the module docs): 13 wild
-/// fixtures − 4 stepcode (license-EXCLUDED, D2) = 9 render-OK, − 1
-/// typed import refusal (`b123d_nema17_bracket`, [`WILD_REFUSALS`])
-/// = **8** — the two onetime tessellation refusals joined the sheet
-/// when #284's boundary-derived chart frame landed. Any other
-/// outcome fails loudly below.
+/// **The pinned cell set.** Derivation (audit table + `wild.rs` + the
+/// tessellation record in the module docs): 13 wild fixtures − 4
+/// stepcode (license-EXCLUDED, D2) = 9 render-OK, − 1 typed import
+/// refusal (`b123d_nema17_bracket`, [`WILD_REFUSALS`]) = **8** — the
+/// two onetime tessellation refusals joined the sheet when #284's
+/// boundary-derived chart frame landed.
+///
+/// The derivation's answer is stated once, as this array's own length:
+/// a cell added or dropped without re-deriving is a type error here,
+/// and every other drift fails loudly below. No count is written in
+/// prose a second time, because the second copy is the one that rots.
 const WILD_CELLS: [Cell; 8] = [
     Cell {
         fixture: "adafruit/64_Halfsize_Breadboard.step",
@@ -296,6 +300,29 @@ fn main() {
         "cell law: docs/WILD-CORPUS-LICENSES.md (render-OK only; stepcode/ EXCLUDED, untouched)"
     );
 
+    // Cell NAMES are the sheet's identity: each is an STL stem, a
+    // scene name and a PNG stem at once, so two cells sharing one
+    // would write one file twice and put the same body on the sheet
+    // under two captions — silently, and after the first STL had
+    // already been clobbered. Checked here, before any cell runs.
+    //
+    // This is the whole of what the retired `scenes.len() ==
+    // WILD_CELLS.len()` assertion was reaching for. There is no
+    // separate "every scene got a file" check, because with distinct
+    // names there is nothing left for one to catch: `run_cell` writes
+    // `{name}.stl` from the same field the manifest then names, and
+    // panics on a failed write. A second assertion there would be the
+    // equal-by-construction shape again, one line down.
+    for (i, cell) in WILD_CELLS.iter().enumerate() {
+        if let Some(other) = WILD_CELLS[..i].iter().find(|c| c.name == cell.name) {
+            panic!(
+                "two pinned cells share the scene name {:?} ({} and {}): the name is \
+                 the STL/PNG stem, so one would overwrite the other's export",
+                cell.name, other.fixture, cell.fixture
+            );
+        }
+    }
+
     let scenes: Vec<String> = WILD_CELLS
         .iter()
         .map(|cell| {
@@ -324,11 +351,6 @@ fn main() {
         }
     }
 
-    assert_eq!(
-        scenes.len(),
-        WILD_CELLS.len(),
-        "every pinned cell must emit a scene"
-    );
     let json = format!("[\n{}\n]\n", scenes.join(",\n"));
     std::fs::write(format!("{outdir}/scenes.json"), json).expect("write scenes.json");
     println!(
