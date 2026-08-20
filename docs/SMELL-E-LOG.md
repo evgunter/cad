@@ -515,7 +515,7 @@ placed. Reissued:
 | D69–D70 | **D86–D87** | E-m |
 | D61–D62 | **D88–D89** | E-h — D88 is `merge_faces.rs:766`'s `unwrap_or_default` discard |
 
-Next unassigned in Track E's block: **D93**.
+Next unassigned in Track E's block: **D94**.
 re-issued — a number that has appeared in a lane's report, even as *unused*, is
 cheaper to skip than to explain.
 
@@ -1174,6 +1174,56 @@ which was the right call; **D87** carries what it leaves behind — the ledger's
 *"no file was deleted that a live pointer depends on for its content"* misses a
 live pointer depending on a deleted file **as a target**, which is what silently
 voided half of C8's option set.
+
+### The same number, wrong three times, and the third correction is the right one (2026-08-20)
+
+`sweep`'s `unreachable!` population has now been counted three times by three
+parties and every count was wrong in a different way:
+
+- **E-g's first report: "unchanged at 23 tokens."**
+- **The adversarial lane's correction: "22 → 23 code sites"** — because the
+  base's `build.rs` hit was **prose inside `corner_convexity`'s doc comment**.
+- **E-g's fix pass: 18 → 19.** Both prior figures counted `unreachable!`
+  *tokens*, which include the macro's own definition sites and mentions. Actual
+  **call sites**: `main` 18 (all `surgery.rs`); #768 19 (`surgery.rs` 17,
+  `admit.rs` 1, `battery.rs` 1). The **+1 direction** of the correction was right
+  every time; the magnitude was wrong twice.
+
+**E-k's row carries the derivation and both retractions**, because that row is a
+decision about bounding the row-4 population and is the one place the number will
+be read rather than restated. *A count corrected without its derivation is a
+fourth number waiting to happen* — which is D21's own lesson, applied to a
+different quantity by a different lane on the same day.
+
+### D91, and a stated blind spot that was a claim
+
+E-g ran D29's disclosed pattern rather than leaving it disclosed:
+`map_err(|_| …)` has **exactly two hits in `crates/sweep/src`**, both
+`loft.rs:518/520`, and **zero** in `revolve/`, `skin.rs`, `extrude.rs` or
+`fillet/`. And it is **not** the two-line fix the finding implied — both variants
+are *also* constructed payload-free at `:273`/`:302`, so carrying a payload is a
+**variant-meaning decision**, not a field addition.
+
+The row records the method lesson in the lane's own words: **a stated blind spot
+is a claim, and publishing one unrun is an unverified negative.** That is the
+third time today this track has found a disclosure standing in for a discharge.
+
+### D92 declined, and the reason is the register's own rule
+
+Offered a row for row 0's S14 reframing, E-g **declined it**: the reframing is a
+paragraph, not a row, because *its premise is unratified* — placing
+implementation work against an unanswered question would be a register entry that
+**cannot execute**, which is §C3's failure exactly. S14 is already an entry in
+*Open decisions — Evan only*, and the reframing is recorded there with its
+precedent (`merge_faces.rs:468`'s `let mut work = self.clone();` under its own
+*"Never a partial commit: each sub-stage is tier-2-gated before adoption"* —
+checked rather than carried). **If Evan answers "yes, restructure it", that is
+the moment a row is worth minting**, and #777 says so in those words.
+
+*Worth keeping:* a lane declining a number it was offered, on the grounds that
+the row could not be executed, is the opposite failure mode from the one this
+whole register exists to prevent — and it is the right call. **A placement whose
+premise is open is not a placement; it is a deferral wearing a row number.**
 
 ---
 
