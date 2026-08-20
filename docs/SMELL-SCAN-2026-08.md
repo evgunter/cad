@@ -2481,17 +2481,18 @@ the name had **six** — `boolean/rest.rs` decides the same two questions
 under the same name, so the split covers the name rather than the file.
 
 **The same standard #712 was held to applies here: this closes one
-instance and samples the rest.** #719's sweep left thirteen other names
-flagged, and the residue set is *criterion-dependent* rather than a
-bounded enumeration: re-run at the post-#717 head, #719's own criterion
-flags 14 of 251 names, and a criterion that first RESOLVES each
-argument to its `let` definition flags **42 of 267** — including all
-four of the negative results below, whose sites differ textually while
-deciding one question. So the larger number is not a count of defects;
-it is a count of names that need reading. Nobody has counted the class.
-What both criteria agree on is that `bool_join_nearest` and
-`bool_join_chord` are each now single-expression and neither is flagged
-by either.
+instance and samples the rest.** #719's own criterion flagged **14 of
+251** names before the split and **13 of 252** after — the one that
+left the set is `bool_join_nearest` itself, and `bool_join_chord` never
+enters it. Thirteen names stay flagged.
+
+The residue set is *criterion-dependent* rather than a bounded
+enumeration, which is the more useful half: a criterion that first
+RESOLVES each argument to its `let` definition flags **42 of 267** at
+the same head — including all four of the negative results below, whose
+sites differ textually while deciding one question. The larger number
+counts names that need READING, not defects. Nobody has counted the
+class, and no sweep here can: the count moves with the definition.
 
 **What the measurement pins, and what it does not.** On the twin
 boolean configurations the base and branch `bool_join*` streams were
@@ -2564,8 +2565,8 @@ names decided through two different `Margin` doors and misses one
 decided through the *same* door on two different quantities — which is
 precisely what `bool_join_nearest` was. #719 swept the complement
 (group call sites by name; flag any name whose sites disagree in door
-*or* in plain-quantity-vs-difference; 251 names, 14 flagged at the
-post-#717 head, widened to 307/19 over wrapper-shaped calls) and inherits a different one: it keys
+*or* in plain-quantity-vs-difference; 14 of 251 names at the pre-split
+head, widened to 19 of 307 over wrapper-shaped calls) and inherits a different one: it keys
 on syntax, so two plain `Margin::of(x)` sites measuring different
 quantities stay invisible — `bool_point_in_solid_plane`'s exact shape,
 which had to be read. **A fourth, found in review and not by either
