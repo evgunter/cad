@@ -71,8 +71,11 @@ both used D10 and D11). Numbers are now assigned by the orchestrator:
 | D21 | placed by #736 | The discard idiom's **11 sites in `crates/topo` outside W2c's three-module census** — 3 in `split_edge`, 2 `attach.rs`, 3 `movefac.rs`, 3 `revert.rs` |
 
 All five are landed rows in §D. **D17 has since landed as #739 and D18 as
-#736**; the rest are **edge-free and unstarted** — D25 is the highest number
-placed.
+#736**; the rest are **edge-free and unstarted**. The table above is the early
+roster only — placement continued past it (**D22**–**D23** by #739, **D24** by
+#735, **D25** by #736, **D26**–**D29** by #740, **D30**/**D31**/**D35** by
+#744, and **D32**–**D34** assigned), so **D35 is the highest number placed**
+and §D's own table is the live list.
 
 **The rule, which a successor should keep:** a lane takes the next number the
 orchestrator has assigned, never the next gap it can see. A roster with holes
@@ -99,8 +102,8 @@ What is unstarted is unstarted for schedule reasons only, not technical ones:
   `editor-core`'s eight payload-discarding `Display` arms; and
   `FilletError::Op`/`Certify`'s ~20 `format!` sites. **D27 and D29 share
   `sweep/src/fillet/`** — the only edge left in the track.
-- **D8**, **D19**, **D20**, **D21**, **D22**, **D23** and **D25** are
-  edge-free. **D17 landed as #739**, placing D22 and D23. D7's
+- **D19**, **D20**, **D21**, **D22**, **D23**, **D25**, **D30**, **D31** and
+  **D35** are edge-free. **D17 landed as #739**, placing D22 and D23. D7's
   **`PairSolve`** row was too, and landed as **#735**; its provenance note is a
   comment on **issue #611**, not the PR body, because R2's thread is live, and
   the PR cites the commit the type is recoverable from. **D17 landed as #739**
@@ -109,6 +112,19 @@ What is unstarted is unstarted for schedule reasons only, not technical ones:
   garbage-out into a panic, and #720 proved that hole is real. It should
   sequence after **D25**, which would discharge its half-edge sites
   structurally rather than site by site.
+- **D8 landed as #744** (ADVERSARIAL, S18's two knot-vector rows). The census
+  was **eight** copies, not four, so it edits `crates/mesh/` and
+  `crates/step-export/`, which its row did not name — **Track C's C5** now
+  finds two of its C¹ carrier gates already four lines each. It **placed D30**
+  (ADVERSARIAL, `geom-brep/props/quad.rs`: the type cannot represent the
+  intermediate, so the consumer re-derives the vocabulary — S32's shape) and
+  **D31** (style, `make_compatible`/`deviation_from` as one routine), and
+  **D35** — the `unreachable!` message convention, prose-held at 102 sites the
+  week the D2 addendum ratified the mechanism. **D35 is the time-critical one
+  in this track**: 101 of those sites were written inside one week, and the
+  message shape was settled by orchestrator ruling across #740 and #744 — a
+  mechanism that vanishes with the lanes. It closes on a decision plus its
+  reason, and "no gate" is a passing answer.
 
 ## For Evan — S14 now has three witnesses
 
