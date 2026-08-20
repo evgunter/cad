@@ -38,11 +38,20 @@
 //!
 //! `class` is the KERNEL [`ContactClass`] (M9-1), re-exported rather
 //! than re-minted, so a mate's declaration is already the currency the
-//! boolean wrapper's records speak. v1 admits `Rest` and `Tangent`
-//! structurally; every other class — `Fit { gap }` when it lands —
-//! refuses typed at the solve door naming the deferral, because a
-//! declared clearance changes what "coincide" means and this unit
-//! solves coincidence only.
+//! boolean wrapper's records speak.
+//!
+//! **Which classes v1 admits is [`class_admission`], not a sentence
+//! here.** A class passes TWO doors — the solve, which folds cosets,
+//! and the assembly gate's mint, which needs a kernel record type to
+//! carry the declaration at rest — and the two do not admit the same
+//! set. The table is one function both doors read, so a class can
+//! never be admitted at one and refused at the other without saying
+//! so: `Rest` clears both, `Tangent` solves and then refuses typed at
+//! the mint door (an at-rest contact has no witness edge for its
+//! `CurveContact` — [`crate::AssemblyError::NoAtRestRecord`]), and
+//! every later class — `Fit { gap }` when it lands — refuses at the
+//! solve door, because a declared clearance changes what "coincide"
+//! means and this unit solves coincidence only.
 
 use crate::node::RecipeNodeId;
 use geom_core::linalg::frame::FrameError;
@@ -242,8 +251,61 @@ pub const UNDER_RECOURSE: &str = "add the complementary mate, or delete the mate
 /// built; a mate cannot declare a designed clearance until the kernel
 /// variant lands with its first consumer, and AQ6 is where the
 /// cross-document detail is still open.
-pub const CLASS_DEFERRAL: &str = "v1 mates admit Rest and Tangent; the cross-document detail of \
-                                  a designed clearance is undischarged";
+pub const CLASS_DEFERRAL: &str = "v1 mates SOLVE Rest and Tangent and ASSEMBLE Rest alone; the \
+                                  cross-document detail of a designed clearance is undischarged";
+
+/// **How far a contact class gets in v1** — the whole class policy as
+/// a value, read by both doors that enforce it.
+///
+/// The two doors want different things of a class: the solve needs a
+/// coset the alignment table can fold, the assembly gate's mint needs
+/// a KERNEL RECORD TYPE that can carry the declaration at rest. A
+/// class can satisfy the first and not the second, so the admitted
+/// sets differ — and the gap is stated here, once, rather than
+/// asserted separately by each door's own match (which is how they
+/// drift apart, and how a door comes to advertise what it cannot
+/// execute).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ClassAdmission {
+    /// Both doors: the solve folds it, and [`crate::assemble`] mints
+    /// it into the product's record set as the kernel's own record
+    /// type. Whether the census then CERTIFIES that record is the
+    /// census's verdict, not this table's.
+    Mints,
+    /// The solve door only. No kernel record carries this class at
+    /// rest, so [`crate::assemble`] refuses
+    /// [`crate::AssemblyError::NoAtRestRecord`] naming the mate — a
+    /// solved placement that cannot be verified at rest, never a
+    /// record minted with an invented witness.
+    NoAtRestRecord,
+    /// Neither: outside v1's vocabulary, so the solve door refuses
+    /// [`MateFault::ClassNotAdmitted`] and the mate never reaches the
+    /// gate at all.
+    NotAdmitted,
+}
+
+/// The class table itself ([`ClassAdmission`]).
+///
+/// INVARIANT: every door that ENFORCES the class policy reads it
+/// here, so the admitted sets cannot drift apart.
+/// `ContactClass` is `#[non_exhaustive]`, so a class the kernel grows
+/// arrives in the wildcard arm as [`ClassAdmission::NotAdmitted`] —
+/// deferred by default, admitted only by an edit HERE that both doors
+/// then obey.
+pub fn class_admission(class: ContactClass) -> ClassAdmission {
+    match class {
+        // Face granularity: a rest between two placed faces IS a
+        // `PatchContact` (M9-1).
+        ContactClass::Rest => ClassAdmission::Mints,
+        // A tangent contact's record is `CurveContact`, keyed by the
+        // WITNESS EDGE whose carrier is the contact locus; an assembly
+        // at rest has no such edge, because nothing zipped the
+        // instances together — which is what "at rest, not a boolean"
+        // means.
+        ContactClass::Tangent => ClassAdmission::NoAtRestRecord,
+        _ => ClassAdmission::NotAdmitted,
+    }
+}
 
 /// A typed mate refusal (D9: fail loud, never a guess). Every arm names
 /// its subject — the mate, the pair, the predicate, or the residual.

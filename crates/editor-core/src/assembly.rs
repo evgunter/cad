@@ -28,38 +28,41 @@
 //! whether two faces touch, which is the whole point of minting into
 //! the kernel's own currency instead of an assembly-side shadow.
 //!
-//! # The honest boundary
+//! # The two frontiers, and where each one is written
 //!
-//! A `Rest` mate's kernel record is [`topo::PatchContact`] — face
-//! granularity, the rung M9-1 landed. A `Tangent` mate's would be
-//! `CurveContact`, which is keyed by the WITNESS EDGE whose carrier is
-//! the contact locus; an assembly at rest has no such edge (nothing
-//! zipped the instances together, which is exactly what "at rest, not
-//! a boolean" means). So a Tangent mate refuses typed at the mint door
-//! naming the deferral, rather than minting a record with an invented
-//! witness.
+//! Both are the same shape — this door admits less than the shape of
+//! its types suggests — and neither is stated here in prose alone,
+//! because a boundary a caller can only read about is one they cannot
+//! tell apart from a defect when it fires.
 //!
-//! **And the declared direction does not reach `Ok(())` today.** The
-//! census's patch certifier gates on STRUCTURAL chart identity — a
-//! shared `SurfaceKey` within one body, or the same `GeomSource`
-//! across bodies. Two instances of one part satisfy neither by
-//! construction (the disjoint graft mints fresh keys; each instance's
-//! descriptions are stamped with its own placing node), so a declared
-//! cross-instance pair that Door 1 certifies still ends at the chart
-//! door's typed refusal, surfacing as `CensusUnsupported`. That is the
-//! honest boundary: the certifier is built for pairs arising INSIDE
-//! one body, and an assembly's contacts are cross-instance by
-//! definition. It passes straight through here — stated, never
-//! swallowed — and closing it is a cross-instance chart rung in the
-//! census, not work this layer can do. The declaration still does its
-//! job: it is what suppresses the F1 `UndeclaredContact` refusal.
+//! - **Which classes mint** is [`crate::mate::class_admission`], the
+//!   one table this door and the solve door both read. `Rest` mints a
+//!   [`topo::PatchContact`]; `Tangent` refuses
+//!   [`AssemblyError::NoAtRestRecord`], because its record would be a
+//!   `CurveContact` keyed by the WITNESS EDGE whose carrier is the
+//!   contact locus, and an assembly at rest has no such edge —
+//!   nothing zipped the instances together, which is exactly what "at
+//!   rest, not a boolean" means.
+//! - **What a declared contact can reach** is
+//!   [`AssemblyError::is_declared_frontier`], which puts the census's
+//!   chart-identity gap in a value: today every declared
+//!   cross-instance pair is DECLINED by the certifier rather than
+//!   refuted by it, so `assemble` returns `Ok` only for a document
+//!   whose mates declared nothing the census had to certify. The
+//!   kernel's finding still passes straight through — stated, never
+//!   swallowed, never re-labelled — and closing the gap is a
+//!   cross-instance chart rung in the census, not work this layer can
+//!   do.
+//!
+//! The declaration does its job either way: it is what suppresses the
+//! F1 `UndeclaredContact` refusal.
 
 use geom_core::Decide;
 use topo::{ContactRecords, FaceKey, PatchContact, PropsQuadLane, ValidationError};
 
 use crate::doc::Doc;
 use crate::eval::{Evaluation, NodeResult, ValuePayload};
-use crate::mate::{ContactClass, MateSide};
+use crate::mate::{ClassAdmission, ContactClass, MateSide, class_admission};
 use crate::names::{EntityKey, EntityKind, Entry, NameTable, StableName};
 use crate::node::{Node, RecipeNodeId};
 use crate::product::{Product, ProductError, product_recorded};
@@ -139,6 +142,29 @@ pub struct AtRestFinding {
     pub error: ValidationError,
 }
 
+impl AtRestFinding {
+    /// Whether the census DECLINED this declaration rather than
+    /// refuting it: [`ValidationError::CensusUnsupported`] on a face
+    /// some mate's own declaration named.
+    ///
+    /// The distinction a caller needs and cannot otherwise make: a
+    /// refuted declaration says the document is wrong (the faces do
+    /// not touch as declared), a declined one says the certifier had
+    /// no lane for the pair and therefore said NOTHING about it —
+    /// neither certified nor contradicted. Both refuse, because A5
+    /// decides or refuses and never silently blesses; only the first
+    /// is a finding about the caller's geometry.
+    pub fn declaration_declined(&self) -> bool {
+        self.mate.is_some()
+            && matches!(
+                self.error,
+                ValidationError::CensusUnsupported {
+                    entity: topo::EntityId::Face(_)
+                }
+            )
+    }
+}
+
 /// Why the assembly gate refused.
 #[derive(Debug)]
 pub enum AssemblyError {
@@ -155,8 +181,8 @@ pub enum AssemblyError {
         /// Why it did not resolve.
         why: RefusedRef,
     },
-    /// The mate's class has no at-rest kernel record (module docs: the
-    /// honest boundary).
+    /// The mate's class mints nothing at rest
+    /// ([`crate::mate::ClassAdmission::NoAtRestRecord`]).
     NoAtRestRecord {
         /// The mate.
         mate: RecipeNodeId,
@@ -171,6 +197,40 @@ pub enum AssemblyError {
         /// Every finding.
         findings: Vec<AtRestFinding>,
     },
+}
+
+impl AssemblyError {
+    /// **The declared direction's frontier, executable** — the
+    /// negation of [`assemble`]'s success arm, as a value rather than
+    /// a sentence in a module doc.
+    ///
+    /// True when the gate refused and EVERY finding is a declined
+    /// declaration ([`AtRestFinding::declaration_declined`]): nothing
+    /// was contradicted, nothing was undeclared, and the assembly is
+    /// unrefuted but uncertified.
+    ///
+    /// Today that is the whole declared direction. The census's patch
+    /// certifier gates on STRUCTURAL chart identity — a shared
+    /// `SurfaceKey` within one body, or the same `GeomSource` across
+    /// bodies — which two instances of a part satisfy neither of by
+    /// construction: the disjoint graft mints fresh keys, and each
+    /// instance's descriptions are stamped with its own placing node.
+    /// So a declared cross-instance pair the Rest ladder certifies
+    /// still ends at the chart door, whatever its geometry. The
+    /// certifier is built for pairs arising INSIDE one body; an
+    /// assembly's contacts are cross-instance by definition, and
+    /// closing that is a cross-instance chart rung in the census, not
+    /// work this layer can do.
+    ///
+    /// So this predicate is what a caller reads to tell a known
+    /// frontier from a defect in their own document, and what a test
+    /// pins so the frontier cannot move in silence: the day the
+    /// census grows that rung, `assemble` returns `Ok` and every row
+    /// asserting this goes red.
+    pub fn is_declared_frontier(&self) -> bool {
+        matches!(self, Self::AtRest { findings }
+            if !findings.is_empty() && findings.iter().all(AtRestFinding::declaration_declined))
+    }
 }
 
 impl core::fmt::Display for AssemblyError {
@@ -204,6 +264,16 @@ impl core::fmt::Display for AssemblyError {
                     "assembly: the at-rest gate refused ({} findings)",
                     findings.len()
                 )?;
+                if self.is_declared_frontier() {
+                    write!(
+                        f,
+                        " — every one the census DECLINING a declared \
+                         cross-instance pair, not contradicting it: no \
+                         certifier lane, so nothing was decided about this \
+                         geometry either way (the declared direction's \
+                         frontier, not a finding against the document)"
+                    )?;
+                }
                 for finding in findings {
                     match &finding.mate {
                         Some(m) => write!(
@@ -239,8 +309,15 @@ impl core::error::Error for AssemblyError {}
 /// # Errors
 ///
 /// [`AssemblyError`]: the gather's own refusals, a mate reference that
-/// names no product face, a class with no at-rest record, and the
-/// kernel's tier-3′ findings attributed back to their mates.
+/// names no product face, a class with no at-rest record
+/// ([`crate::mate::class_admission`]), and the kernel's tier-3′
+/// findings attributed back to their mates.
+///
+/// The success arm is narrower than the signature: a document whose
+/// mates declare a cross-instance contact refuses at the census's
+/// chart-identity gap, which [`AssemblyError::is_declared_frontier`]
+/// names so a caller can tell that frontier from a defect of their
+/// own.
 pub fn assemble<P, T: Decide + PropsQuadLane>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
@@ -307,16 +384,17 @@ fn mint<P, T: Decide>(
         }
         let face_a = resolve_face(names, id, MateSide::A, a)?;
         let face_b = resolve_face(names, id, MateSide::B, b)?;
-        match class {
-            // The face-granularity rung (M9-1): a planar or conformal
-            // rest between two placed faces IS a `PatchContact`. Same
-            // type as the boolean wrapper's records, no adapter.
-            ContactClass::Rest => contacts.patches.push(PatchContact { face_a, face_b }),
-            // The honest boundary (module docs).
-            other => {
+        // The class table is the policy (`mate::class_admission`); this
+        // door enforces its own half of it and nothing more.
+        match class_admission(*class) {
+            // Face granularity (M9-1): a rest between two placed faces
+            // IS a `PatchContact`. Same type as the boolean wrapper's
+            // records, no adapter.
+            ClassAdmission::Mints => contacts.patches.push(PatchContact { face_a, face_b }),
+            ClassAdmission::NoAtRestRecord | ClassAdmission::NotAdmitted => {
                 return Err(AssemblyError::NoAtRestRecord {
                     mate: id,
-                    class: *other,
+                    class: *class,
                 });
             }
         }

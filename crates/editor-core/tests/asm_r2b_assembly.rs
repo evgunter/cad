@@ -5,40 +5,34 @@
 //! One assertion per acceptance row, each comment stating the
 //! INVARIANT the row pins rather than the mechanics it exercises.
 //!
-//! # The F1 declared direction does NOT go green — the honest boundary
+//! # The F1 declared direction does NOT go green — and the door says so
 //!
 //! **Stated as executed, not as hoped.** The spec's F1 sentence says a
 //! declared planar Rest between two touching instances VALIDATES. It
-//! does not, in this tree, with M9-2 PR-2 (#564) merged. The root
-//! cause is structural and is worth naming precisely, because it is
-//! not the surface KIND:
+//! does not, in this tree. The root cause is structural and is not the
+//! surface KIND:
 //!
-//! The patch certifier runs two doors. **Door 1** — `carrier_pair_verdict`
-//! through the Rest ladder — PASSES for the assembled pair: two planes
-//! with opposed senses at a decided-zero offset is exactly what it
-//! certifies. **Door 2** — `chart_region_overlap` — gates first on
-//! `same_chart`, which demands STRUCTURAL chart identity: a shared
-//! `SurfaceKey` within one body, or the same `GeomSource` across
-//! bodies. Two instances of one part can satisfy neither by
-//! construction: the disjoint graft mints fresh surface keys, and
-//! `compose_placed` stamps each instance's descriptions with its OWN
-//! placing node. So Door 2 answers `ChartDivergence`, which the
-//! certifier maps to `CensusUnsupported { entity: Face(..) }`.
+//! The patch certifier runs two doors. **Door 1** —
+//! `carrier_pair_verdict` through the Rest ladder — PASSES for the
+//! assembled pair: two planes with opposed senses at a decided-zero
+//! offset is exactly what it certifies. **Door 2** —
+//! `chart_region_overlap` — gates first on `same_chart`, which demands
+//! STRUCTURAL chart identity: a shared `SurfaceKey` within one body,
+//! or the same `GeomSource` across bodies. Two instances of one part
+//! satisfy neither by construction: the disjoint graft mints fresh
+//! surface keys, and `compose_placed` stamps each instance's
+//! descriptions with its OWN placing node. So Door 2 answers
+//! `ChartDivergence`, which the certifier maps to `CensusUnsupported
+//! { entity: Face(..) }` — it DECLINES the pair rather than deciding
+//! it, and closing that needs a cross-instance chart rung in the
+//! census.
 //!
-//! In other words the census's face-granularity certifier is built for
-//! pairs that arise INSIDE one body (a boolean's seam), and an
-//! assembly's touching faces are cross-instance by definition. The
-//! declared direction therefore ends in the typed carrier-inventory
-//! passthrough — loudly, never a silent bless — and closing it needs a
-//! cross-instance chart rung in the census. Raised with M9 on the PR;
-//! reported as a deviation rather than absorbed.
-//!
-//! What the rows below DO pin, exactly: the declaration is what
-//! suppresses the F1 `UndeclaredContact` refusal (row 3), and the
-//! residual verdict is PINNED by kind and count (`row3_b`) so this
-//! boundary can never move — in either direction — without a test
-//! going red and being re-blessed deliberately.
-
+//! What matters for these rows is that the boundary is not prose any
+//! more: `AssemblyError::is_declared_frontier` is the door's own
+//! statement of it, [`declared_frontier`] is where these rows read it,
+//! and `row4_a` pins the other side — a REFUTED declaration is never
+//! dressed as the frontier. The declaration still does its job: it is
+//! what suppresses the F1 `UndeclaredContact` refusal (row 3).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod fixture;
@@ -244,6 +238,36 @@ fn findings(result: &Result<editor_core::Assembly<f64>, AssemblyError>) -> Vec<S
     }
 }
 
+/// **The declared direction's frontier, pinned in ONE place.**
+///
+/// `assemble` does not reach its success arm for a document whose
+/// mates declare a cross-instance contact: the census's patch
+/// certifier gates on structural chart identity, which two instances
+/// of a part satisfy by neither half, so it DECLINES every declared
+/// pair instead of certifying or refuting it. Every row that needs a
+/// declared document's minting reads it through here, and the door's
+/// own predicate is what is asserted — so the day the census grows
+/// its cross-instance chart rung, `assemble` returns `Ok`, this
+/// function goes RED, and every row using it moves with the prose.
+fn declared_frontier(
+    result: &Result<editor_core::Assembly<f64>, AssemblyError>,
+) -> &[editor_core::AtRestFinding] {
+    let err = result.as_ref().expect_err(
+        "a declared cross-instance contact does not reach the success arm \
+         in this tree — if it now does, the frontier moved and the door's \
+         own statement of it must move with the census",
+    );
+    assert!(
+        err.is_declared_frontier(),
+        "the refusal is the census DECLINING the declarations, never a \
+         finding against the geometry: {err}"
+    );
+    match err {
+        AssemblyError::AtRest { findings } => findings,
+        other => panic!("the frontier is an at-rest verdict: {other}"),
+    }
+}
+
 fn names_of(table: &editor_core::NameTable, key: EntityKey) -> Option<StableName> {
     table
         .name_of(&EntityRef { body: 0, key })
@@ -329,66 +353,53 @@ fn row1_a_parts_declared_contacts_survive_instantiation() {
 /// record set at FACE granularity with the mate's class, keyed to the
 /// placed faces its references resolve to — the kernel's own record
 /// type, no adapter (A3).
+///
+/// Read through [`declared_frontier`]: the declaration is what the
+/// gate EXAMINED, and the finding it declined names the very face the
+/// reference resolved to, which is only possible because the record
+/// went in at face granularity.
 #[test]
 fn row2_a_solved_rest_mate_mints_its_declaration() {
     let (doc, ids, mate, store) = stacked("asm-r2b-row2", 1.0);
     let ev = run(&doc, &opts(store));
+
+    // The gather itself mints nothing: minting is the assembly door's
+    // act, not the product's.
+    let product = product_recorded(&doc, &ev).expect("gathers");
+    assert_eq!(product.contacts.patches.len(), 0);
+
     let result = assemble(&doc, &ev);
-    let minted = match &result {
-        Ok(a) => a.minted.clone(),
-        Err(AssemblyError::AtRest { .. }) => {
-            // The gate's verdict is row 3's subject; the MINT is this
-            // row's, and it happens either way. Re-derive it from a
-            // second gather so the row asserts about minting alone.
-            let product = product_recorded(&doc, &ev).expect("gathers");
-            assert_eq!(
-                product.contacts.patches.len(),
-                0,
-                "the gather itself mints nothing — minting is the \
-                 assembly door's, not the product's"
-            );
-            Vec::new()
-        }
-        Err(other) => panic!("unexpected refusal: {other}"),
+    let findings = declared_frontier(&result);
+    assert_eq!(findings.len(), 1, "one mate, one examined declaration");
+    let declared = findings[0]
+        .mate
+        .clone()
+        .expect("the declined finding names the declaration it examined");
+    assert_eq!(declared.mate, mate, "the declaration names its mate");
+    assert_eq!(declared.class, ContactClass::Rest, "with the mate's class");
+    assert_eq!(
+        (declared.a, declared.b),
+        (
+            in_part(ids[0], CapEnd::Top),
+            in_part(ids[1], CapEnd::Bottom)
+        ),
+        "and both of its references"
+    );
+    // Face granularity, keyed to what the references resolved to: the
+    // entity the census weighed is one of the declaration's own faces.
+    let topo::ValidationError::CensusUnsupported { entity } = &findings[0].error else {
+        panic!(
+            "the frontier is the census's decline: {:?}",
+            findings[0].error
+        )
     };
-    // Whether or not the kernel certifies the pair, the DECLARATION is
-    // what this row is about, so it is re-checked through the door
-    // that always reports it.
-    let (mate_row, class) = match assemble(&doc, &ev) {
-        Ok(a) => {
-            assert_eq!(a.minted.len(), 1, "one mate, one declaration");
-            assert_eq!(
-                a.contacts.patches.len(),
-                1,
-                "the declaration is a PatchContact — face granularity"
-            );
-            assert_eq!(
-                (a.contacts.patches[0].face_a, a.contacts.patches[0].face_b),
-                a.minted[0].faces,
-                "the record is keyed to the faces the references resolved to"
-            );
-            (a.minted[0].mate, a.minted[0].class)
-        }
-        Err(AssemblyError::AtRest { findings }) => {
-            // Every finding the kernel raised is about a face the
-            // declaration named — which is only possible because the
-            // declaration was minted and fed to the gate.
-            let attributed = findings
-                .iter()
-                .filter_map(|f| f.mate.clone())
-                .collect::<Vec<_>>();
-            assert!(
-                !attributed.is_empty(),
-                "the minted declaration reached the gate: {findings:?}"
-            );
-            (attributed[0].mate, attributed[0].class)
-        }
-        Err(other) => panic!("unexpected refusal: {other}"),
-    };
-    assert_eq!(mate_row, mate, "the declaration names its mate");
-    assert_eq!(class, ContactClass::Rest, "with the mate's class");
-    assert_eq!(ids.len(), 2);
-    let _ = minted;
+    assert!(
+        matches!(entity, topo::EntityId::Face(f)
+            if *f == declared.faces.0 || *f == declared.faces.1),
+        "the record went in keyed to the resolved faces: {entity} vs \
+         {:?}",
+        declared.faces
+    );
 }
 
 /// INVARIANT: minting is DECLARATION, not verification — a NON-TREE
@@ -440,20 +451,22 @@ fn row2_b_a_declaring_mate_mints_identically() {
         "the cycle-closing mate solved nothing"
     );
 
+    // The column's two tree mates seat their instances a unit apart
+    // from the gauge's top face, so this document's verdict is NOT the
+    // frontier — one declaration is genuinely contradicted, and the
+    // gate refuses either way. What the row reads out of the refusal
+    // is who was ATTRIBUTED, which is the set that got minted.
     let ev = run(&doc, &opts(store));
-    let declared: Vec<RecipeNodeId> = match assemble(&doc, &ev) {
-        Ok(a) => a.minted.iter().map(|m| m.mate).collect(),
-        Err(AssemblyError::AtRest { findings }) => {
-            let mut v: Vec<RecipeNodeId> = findings
-                .iter()
-                .filter_map(|f| f.mate.as_ref().map(|m| m.mate))
-                .collect();
-            v.sort();
-            v.dedup();
-            v
-        }
-        Err(other) => panic!("unexpected refusal: {other}"),
+    let err = assemble(&doc, &ev).expect_err("the column's declarations do not all hold");
+    let AssemblyError::AtRest { findings } = &err else {
+        panic!("expected the at-rest verdict, got {err}");
     };
+    let mut declared: Vec<RecipeNodeId> = findings
+        .iter()
+        .filter_map(|f| f.mate.as_ref().map(|m| m.mate))
+        .collect();
+    declared.sort();
+    declared.dedup();
     assert!(
         declared.contains(&second),
         "the DECLARING mate minted too — role does not enter minting: \
@@ -490,13 +503,14 @@ fn row3_a_an_undeclared_touching_pair_is_the_hard_error() {
 ///
 /// **And the residual verdict is PINNED, exactly** (review MAJOR-1).
 /// The declared direction does not reach `Ok(())`: the certifier's
-/// chart-identity door cannot see two instances as one chart (module
-/// docs), so it answers the typed carrier-inventory passthrough. That
-/// is a real boundary, so it is pinned by KIND and COUNT rather than
-/// described by a `.all()` that an empty vector would satisfy
-/// vacuously. If the census grows a cross-instance chart rung this row
-/// goes RED and must be re-blessed deliberately — which is the only
-/// way a boundary claim stays honest as the kernel moves.
+/// chart-identity door cannot see two instances as one chart, so it
+/// DECLINES the pair — the door says so itself, in
+/// `AssemblyError::is_declared_frontier`, and that is what this row
+/// asserts, by KIND and COUNT rather than by a `.all()` an empty
+/// vector would satisfy vacuously. If the census grows a
+/// cross-instance chart rung this row goes RED and must be re-blessed
+/// deliberately — which is the only way a boundary claim stays honest
+/// as the kernel moves.
 #[test]
 fn row3_b_the_declared_touching_pair_is_not_an_undeclared_contact() {
     let (doc, _, mate, store) = stacked("asm-r2b-row3b", 1.0);
@@ -510,27 +524,21 @@ fn row3_b_the_declared_touching_pair_is_not_an_undeclared_contact() {
     // The pin: exactly one residual finding, of exactly this kind,
     // attributed to exactly this mate. Not "all of them are X" — a
     // vacuous truth over an empty vector is how a weakened row hides.
-    let AssemblyError::AtRest { findings } = result
-        .as_ref()
-        .expect_err("the declared pair does NOT validate today — see the module docs")
-    else {
-        panic!("expected the at-rest verdict, got {errs:?}");
-    };
-    assert_eq!(
-        findings.len(),
-        1,
-        "exactly one residual finding: {:?}",
-        errs
-    );
-    assert!(
-        errs[0].contains("CensusUnsupported"),
-        "and it is the typed carrier-inventory passthrough — the \
-         certifier's chart-identity door, never a silent bless: {errs:?}"
-    );
+    // The KIND is asserted through the door's own predicate, so the
+    // claim this row makes is the claim the door makes.
+    let findings = declared_frontier(&result);
+    assert_eq!(findings.len(), 1, "exactly one residual finding: {errs:?}");
     assert_eq!(
         findings[0].mate.as_ref().map(|m| m.mate),
         Some(mate),
         "attributed to the mate whose declaration was examined"
+    );
+    // And the whole refusal RENDERS as the frontier, so a caller who
+    // only has the Display can tell it from a defect of their own.
+    let msg = result.as_ref().expect_err("refused").to_string();
+    assert!(
+        msg.contains("frontier"),
+        "the rendering names the frontier: {msg}"
     );
 }
 
@@ -622,6 +630,14 @@ fn row4_a_gapped_rest_declaration_refuses_naming_its_mate() {
     assert!(
         msg.contains(&format!("mate {}", mate.0)),
         "the rendering names the mate: {msg}"
+    );
+    // The other side of the frontier predicate: a REFUTED declaration
+    // is a finding against this document and must never be dressed as
+    // the frontier. Widen `is_declared_frontier` to swallow this and
+    // the row goes red.
+    assert!(
+        !err.is_declared_frontier(),
+        "a contradicted declaration is not the frontier: {msg}"
     );
 }
 
@@ -1040,21 +1056,55 @@ fn row7_the_minted_record_set_is_deterministic() {
 
 // ---- The typed refusals the mint door owns ----
 
-/// INVARIANT: a class with no at-rest kernel record refuses TYPED
-/// naming the deferral, rather than minting a record with an invented
-/// witness (module docs' honest boundary).
+/// INVARIANT: the two doors admit DIFFERENT class sets, and
+/// `class_admission` is the one statement of both. `Tangent` solves —
+/// it folds a coset and places its instance — and then refuses TYPED
+/// at the mint door, because no kernel record carries a tangency at
+/// rest and one is never minted with an invented witness.
+///
+/// The row asserts the table and the two doors TOGETHER: teach either
+/// door a class the table does not give it and this goes red, which
+/// is what stops a door advertising what it cannot execute.
 #[test]
-fn a_tangent_mate_refuses_at_the_mint_door() {
+fn a_tangent_mate_solves_and_then_refuses_at_the_mint_door() {
+    assert_eq!(
+        editor_core::class_admission(ContactClass::Rest),
+        editor_core::ClassAdmission::Mints,
+        "Rest clears both doors"
+    );
+    assert_eq!(
+        editor_core::class_admission(ContactClass::Tangent),
+        editor_core::ClassAdmission::NoAtRestRecord,
+        "Tangent clears the solve door only"
+    );
+
     let (doc, ids, _, store) = stacked("asm-r2b-tangent", 1.0);
     let mut node = rest_mate(ids[0], ids[1], 1.0);
     if let Node::Mate { class, .. } = &mut node {
         *class = ContactClass::Tangent;
     }
-    let (doc, _) = step(doc, DocEdit::InsertNode { node });
+    let (doc, tangent) = step(doc, DocEdit::InsertNode { node });
+    let tangent = tangent.expect("the tangent mate mints");
+
+    // Door one: the solve admits it — no fault, and it took a role in
+    // the pair. (A class the table DEFERS refuses here instead.)
+    let poses = editor_core::solve_document(&doc);
+    assert!(
+        poses.fault(tangent).is_none(),
+        "the solve door admits Tangent: {:?}",
+        poses.fault(tangent)
+    );
+    assert!(
+        poses.role(tangent).is_some(),
+        "and folds it into the pair like any admitted class"
+    );
+
+    // Door two: the mint refuses it, naming the class.
     let ev = run(&doc, &opts(store));
     match assemble(&doc, &ev) {
-        Err(AssemblyError::NoAtRestRecord { class, .. }) => {
+        Err(AssemblyError::NoAtRestRecord { class, mate }) => {
             assert_eq!(class, ContactClass::Tangent);
+            assert_eq!(mate, tangent, "naming the mate that declared it");
         }
         other => panic!("a Tangent mate must refuse at the mint door: {other:?}"),
     }
