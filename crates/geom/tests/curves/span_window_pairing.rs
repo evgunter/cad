@@ -117,3 +117,211 @@ fn degree_one_and_degree_five_read_exactly_their_windows() {
         5,
     );
 }
+
+// ---------------------------------------------------------------------
+// S14(a), half two: the pairing refusal, and the panic it replaces.
+//
+// A `Span` carries "in range and nonempty" for the vector it was drawn
+// from, and no borrow of that vector — so a span of a DIFFERENT
+// `KnotVector` is a representable input at every door that takes one.
+// Handed to a curve built on a shorter vector, it used to index past
+// the end of that curve's control array and panic, through public
+// constructors only, in safe Rust, with no kernel bug in the trace:
+// a violation of D9's "the kernel never panics on any input".
+//
+// `KnotVector::admits` is the refusal — two integer compares — and
+// these rows are its evidence. Two of them are the two compares: the
+// first fails only the index bound, the second only the degree
+// agreement, so deleting either compare turns exactly one of them red.
+// The third and fourth are the other direction, which is the failure
+// mode a guard has when it cannot fail: that nothing correctly paired
+// is refused, and that the refusal is actually reached.
+//
+// What is NOT closed, and no row here should be read as claiming it:
+// two vectors of equal degree and equal control count but different
+// interior knots admit each other's spans, and evaluation is then a
+// wrong answer rather than a refusal. `admits` relates a span to a
+// vector's SHAPE, never to its knot values.
+
+/// A span drawn from a **longer** vector of the same degree names a
+/// control point the shorter curve does not have. This is the row that
+/// panicked: window base 1, basis row 3 long, `control[3]` of a
+/// 3-element array. It must now poison.
+#[test]
+fn a_span_from_a_longer_vector_is_refused_by_a_shorter_curve() {
+    // Degree 2, three control points, one span (index 2).
+    let short = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).expect("valid");
+    // Degree 2, four control points, two spans (indices 2 and 3).
+    let long = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).expect("valid");
+    assert_eq!(short.degree(), long.degree());
+    assert_eq!((short.control_count(), long.control_count()), (3, 4));
+
+    // Public, checked constructor: `span` returns `Some` because span 3
+    // IS in range and nonempty — for `long`.
+    let span = long.span(3).expect("span 3 is valid for `long`");
+
+    // Exactly one of the two compares separates this pairing: the
+    // degrees agree, the index does not fit.
+    assert_eq!(span.degree(), short.degree());
+    assert!(span.index() > short.last_span());
+    assert!(!short.admits(span));
+
+    let curve = NurbsCurve3::<f64>::new(
+        short,
+        vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 1.0, 0.0),
+            Point3::new(2.0, 0.0, 0.0),
+        ],
+        vec![1.0, 1.0, 1.0],
+    )
+    .expect("valid curve");
+
+    let p = curve.eval_in_span(span, 0.75);
+    assert!(
+        p.x.is_nan() && p.y.is_nan() && p.z.is_nan(),
+        "a refused span must poison, not answer: {p:?}"
+    );
+    let (c, d1, d2) = curve.ders_in_span(span, 0.75);
+    assert!(c.x.is_nan() && d1.x.is_nan() && d2.x.is_nan());
+    assert!(curve.deriv_in_span(span, 0.75).x.is_nan());
+    assert!(curve.deriv2_in_span(span, 0.75).x.is_nan());
+}
+
+/// A span of a **lower degree** whose index is comfortably inside the
+/// curve's span range. The index bound alone admits it; the recursion
+/// then reads `u[span + 1 + r − j]` at `j = degree`, which underflows
+/// below zero. Only the degree compare separates this one.
+#[test]
+fn a_lower_degree_span_is_refused_although_its_index_is_in_range() {
+    // Degree 1, two control points, one span — index 1.
+    let linear = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("valid");
+    let span = linear
+        .span(1)
+        .expect("span 1 is valid for the linear vector");
+
+    // Degree 3 Bézier: four control points, last span 3.
+    let cubic =
+        KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).expect("valid");
+    assert!(
+        span.index() <= cubic.last_span(),
+        "this row is only evidence about the degree compare if the index compare passes"
+    );
+    assert_ne!(span.degree(), cubic.degree());
+    assert!(!cubic.admits(span));
+
+    let curve = NurbsCurve3::<f64>::new(
+        cubic,
+        vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 2.0, 0.0),
+            Point3::new(2.0, 2.0, 0.0),
+            Point3::new(3.0, 0.0, 0.0),
+        ],
+        vec![1.0, 1.0, 1.0, 1.0],
+    )
+    .expect("valid curve");
+
+    let p = curve.eval_in_span(span, 0.5);
+    assert!(p.x.is_nan() && p.y.is_nan() && p.z.is_nan(), "{p:?}");
+    assert!(curve.ders_in_span(span, 0.5).0.x.is_nan());
+}
+
+/// The other direction, which is how a guard fails when it cannot fail:
+/// **every** span of a vector — by index and by location — is admitted
+/// by that vector, at every degree the suite builds. A guard that
+/// refused a correctly paired span would red here rather than in a
+/// caller three crates away.
+#[test]
+fn a_vector_admits_every_span_of_its_own() {
+    let mut checked = 0usize;
+    for (knots, p) in span_families() {
+        let kv = KnotVector::clamped(knots, p).expect("valid");
+        for index in kv.first_span()..=kv.last_span() {
+            if let Some(span) = kv.span(index) {
+                assert!(kv.admits(span), "p{p} refused its own span {index}");
+                checked += 1;
+            }
+        }
+        let (lo, hi) = kv.domain();
+        for t in [lo, hi, f64::NAN, lo - 1.0, hi + 1.0, 0.5 * (lo + hi)] {
+            assert!(
+                kv.admits(kv.span_at(t)),
+                "p{p} refused its own located span at {t}"
+            );
+            checked += 1;
+        }
+    }
+    assert!(
+        checked >= 40,
+        "the family stopped covering spans: {checked}"
+    );
+}
+
+/// The whole cross product of the family against itself: **no pairing
+/// panics**, which is the D9 claim.
+///
+/// The three outcome classes are counted separately and each floored —
+/// admitted, refused on the degree, refused on the index — because a
+/// class that reaches zero means the family stopped exercising one of
+/// the two compares, and the row would be green over a guard half of
+/// which it never drove.
+#[test]
+fn no_cross_vector_pairing_panics_and_every_outcome_occurs() {
+    let vectors: Vec<KnotVector> = span_families()
+        .into_iter()
+        .map(|(knots, p)| KnotVector::clamped(knots, p).expect("valid"))
+        .collect();
+    let (mut admitted, mut by_degree, mut by_index) = (0usize, 0usize, 0usize);
+    for source in &vectors {
+        for index in source.first_span()..=source.last_span() {
+            let Some(span) = source.span(index) else {
+                continue;
+            };
+            for target in &vectors {
+                let c = curve(target.knots().to_vec(), target.degree());
+                let pt = c.eval_in_span(span, 0.5);
+                let (_, d1, _) = c.ders_in_span(span, 0.5);
+                if target.admits(span) {
+                    admitted += 1;
+                } else {
+                    if span.degree() == target.degree() {
+                        by_index += 1;
+                    } else {
+                        by_degree += 1;
+                    }
+                    assert!(
+                        pt.x.is_nan() && d1.x.is_nan(),
+                        "a refused pairing answered instead of poisoning"
+                    );
+                }
+            }
+        }
+    }
+    for (class, n) in [
+        ("admitted", admitted),
+        ("refused on the degree compare", by_degree),
+        ("refused on the index compare", by_index),
+    ] {
+        assert!(n > 0, "the family no longer produces any pairing {class}");
+    }
+}
+
+/// The knot vectors the two sweeps above range over: several degrees,
+/// several lengths, clamped and interior-knotted.
+fn span_families() -> Vec<(Vec<f64>, usize)> {
+    vec![
+        (vec![0.0, 0.0, 1.0, 1.0], 1),
+        (vec![0.0, 0.0, 0.5, 1.0, 1.0], 1),
+        (vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2),
+        (vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2),
+        (vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3),
+        (vec![0.0, 0.0, 0.0, 0.0, 0.25, 0.5, 1.0, 1.0, 1.0, 1.0], 3),
+        (
+            vec![
+                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.4, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+            ],
+            5,
+        ),
+    ]
+}

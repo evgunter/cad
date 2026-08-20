@@ -169,3 +169,110 @@ fn the_derivative_window_is_the_window_minus_its_top() {
         }
     }
 }
+
+// ---------------------------------------------------------------------
+// The pairing refusal at `geom-core`'s own doors.
+//
+// `basis_funs`, `ders_basis_funs` and every span-restricted `hull`
+// entry point are `pub` and take a `(kv, span)` pair that nothing tied
+// together. A span of a different vector used to index past the knot
+// array (or underflow below it) and panic; each door now asks
+// `KnotVector::admits` and poisons instead.
+//
+// The residue these rows must NOT be read as excluding: a span from a
+// different vector of the same degree and control count is admitted,
+// and the bound is then computed over the wrong window — wrong rather
+// than refused. `admits` relates a span to a vector's shape only.
+
+/// Every `(source, target)` pair of the spread, at every span: nothing
+/// panics, and a pair the target refuses yields **poison** from the
+/// hull doors and an all-NaN basis row.
+///
+/// The three outcome classes are counted **separately** and each
+/// floored — admitted, refused on the degree, refused on the index —
+/// because a class that reaches zero means the spread stopped
+/// exercising one of the two compares, and the row would then be green
+/// over a guard half of which it never drove. That is not
+/// hypothetical here: the shared [`vectors()`] fixture has five vectors
+/// of four distinct degrees and its two cubics are the same length, so
+/// on that list alone the index compare never separates anything.
+/// [`same_degree_different_length`] is what supplies it.
+#[test]
+fn a_foreign_span_poisons_every_span_door_and_panics_at_none() {
+    let (mut admitted, mut by_degree, mut by_index) = (0usize, 0usize, 0usize);
+    for (source_name, source) in spread() {
+        for index in source.first_span()..=source.last_span() {
+            let Some(span) = source.span(index) else {
+                continue;
+            };
+            for (target_name, target) in spread() {
+                let coeffs = base_coeffs(target.control_count());
+                let weights = vec![1.0; target.control_count()];
+                let h = hull::span_hull(&target, &coeffs, span);
+                let r = hull::span_hull_rational(&target, &coeffs, &weights, span);
+                let d = hull::derivative_span_hull(&target, &coeffs, span);
+                let s = hull::sup_norm_bound_span(&target, &coeffs, span);
+                let row = basis_funs::<f64>(&target, span, 0.5);
+                let ders = geom_core::spline::basis::ders_basis_funs::<f64>(&target, span, 0.5, 2);
+                assert_eq!(row.len(), target.degree() + 1);
+                assert_eq!(ders.len(), 3);
+                if target.admits(span) {
+                    admitted += 1;
+                } else {
+                    if span.degree() == target.degree() {
+                        by_index += 1;
+                    } else {
+                        by_degree += 1;
+                    }
+                    let where_ = format!("{source_name} span {index} against {target_name}");
+                    assert!(h.is_poison(), "{where_}: span_hull answered");
+                    assert!(r.is_poison(), "{where_}: span_hull_rational answered");
+                    assert!(d.is_poison(), "{where_}: derivative_span_hull answered");
+                    assert!(s.is_nan(), "{where_}: sup_norm_bound_span answered {s}");
+                    assert!(
+                        row.iter().all(|n| n.is_nan()),
+                        "{where_}: basis_funs answered"
+                    );
+                    assert!(
+                        ders.iter().flatten().all(|n| n.is_nan()),
+                        "{where_}: ders_basis_funs answered"
+                    );
+                }
+            }
+        }
+    }
+    for (class, n) in [
+        ("admitted", admitted),
+        ("refused on the degree compare", by_degree),
+        ("refused on the index compare", by_index),
+    ] {
+        assert!(n > 0, "the spread no longer produces any pairing {class}");
+    }
+}
+
+/// [`vectors()`] plus two vectors that are the **same degree as an
+/// existing one and a different length**, which is the only shape the
+/// index compare can separate on its own.
+fn same_degree_different_length() -> Vec<(&'static str, KnotVector)> {
+    vec![
+        (
+            "degree 1, shorter",
+            KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("valid"),
+        ),
+        (
+            "cubic, longer",
+            KnotVector::clamped(
+                vec![0.0, 0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 5.0, 5.0, 5.0],
+                3,
+            )
+            .expect("valid"),
+        ),
+    ]
+}
+
+/// The pairing sweep's knot-vector spread.
+fn spread() -> Vec<(&'static str, KnotVector)> {
+    let mut v = vectors();
+    v.extend(same_degree_different_length());
+    v
+}
