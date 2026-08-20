@@ -323,14 +323,14 @@ pub(super) fn classify_loop<T: Decide>(
 ///   above exactly when the canonical traversal runs outward, so
 ///   `sense = (canonical Δr < 0)`.
 /// - **Sphere & torus** (chart normal away from the on-meridian
-///   carrier center): the center lies left of the traversal iff the
-///   canonical turn is `Positive` (a counterclockwise arc curves
-///   around its center), so `sense = (canonical turn == Positive)` —
-///   the same concave-arc criterion as extrude's cylinder walls.
+///   carrier center): the sense is
+///   [`crate::swept::centre_on_material_side`] of the canonical turn —
+///   one body, shared with extrude's cylinder walls, which carries the
+///   derivation and the `Zero` totality posture.
 ///
-/// Unreachable `Zero` signs (a degenerate segment survives to here
-/// only as a kernel bug) keep the convex/outward arm, `sense: true` —
-/// the `turn_axis` totality posture.
+/// Unreachable `Zero` signs on the LINE arms (a degenerate segment
+/// survives to here only as a kernel bug) keep the convex/outward arm,
+/// `sense: true` — the `turn_axis` totality posture.
 #[allow(clippy::too_many_arguments)] // one internal call site (classify_loop).
 fn classify_segment<T: Decide>(
     s: &SweptSeg<T>,
@@ -392,9 +392,9 @@ fn classify_segment<T: Decide>(
             radius,
             turn,
         } => {
-            // Arc walls' sense (doc above): the carrier center is on
-            // the material side iff the canonical turn is Positive.
-            let sense = !matches!(canonical(turn), Sign::Negative);
+            // Arc walls' sense (doc above), through the shared rule —
+            // the same body extrude's cylinder walls read.
+            let sense = crate::swept::centre_on_material_side(canonical(turn));
             let rc = frame.r(center);
             match decide("axis_arc_center", Margin::of(rc), band).map_err(escalated)? {
                 Sign::Zero => {
