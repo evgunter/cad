@@ -784,7 +784,76 @@ crate); (9) `profile::Step` re-parameterised — *"I would not do it."*
   `crates/topo/src/boolean/mod.rs:548`
 - **Confidence**: sure
 
-**PARTIALLY FIXED by #647 and #661 — the sector-predicate fork only.**
+**MOSTLY FIXED by #647, #661 and #690; the remainder is #695.**
+
+**#690 gave the three shared things homes of their own.** The `sector_face`
+twins became one producer (`sector_face.rs`), the ch. 14 join core left
+`splitting/join.rs` for `chord_join.rs` — 2,714 lines down to 400 — and
+`SplitJoinError::Corrupt` gained a required `entity: EntityId` across its
+sites, so the compiler proved that sweep complete rather than a grep. Eleven
+sites that were **not** corruption were retyped (ten to the existing
+`SectionInvariant`, one to `Band`), minting no sixth bug channel. What did
+**not** move, on the steelman's reasoning: `SectorEntry` vs `BoolSector`
+(a correct divergence — only the producer was duplicated) and the shared
+error variants (every boolean twin carries `operand`, so unification touches
+a public API re-exported into four crates).
+
+**The fix's own review is the more useful record.** Two independent lanes
+found what the diff hid:
+
+*A load-bearing invariant was falsified inside the PR's own scope.*
+`boolean/reduce.rs` stated as an INVARIANT that the planar sense flip lives
+in one door *"so there is one flip, not two that could drift"* — and the new
+shared producer re-derived it, making two. Fixed by **routing, not
+rewording**: `face_normal.rs` is now the door's home (it had to leave
+`boolean/`, since a crate-root module importing from one half is the same
+wrong-way edge pointed the other way), and the invariant is a **standing
+gate** — `the_planar_sense_flip_lives_in_one_place` walks `topo/src` and
+fails if any file but the door both destructures a plane surface and mints
+an `OutwardNormal`. Four blind spots are written out beside it, chiefly that
+`normal * f.sense_sign()` is invisible to it — which is exactly what the
+three known D6 sites do.
+
+*The module built to end "built twice" contained a self-declared mirror.*
+`chord_spec` and `bool_planar_chord_spec` sat 500 lines apart in the new
+`chord_join.rs`, the second saying outright *"Selection logic mirrors
+[`chord_spec`]'s S9 block deliberately"* — the C11 vocabulary §C11 says
+nobody ever reads, in the file whose subject was that residue. Unified into
+`section_case` and `select_arc`, with `Straight`/`Tangent` handed back
+because that is the one thing the lanes genuinely disagree about. Its
+adjacency-guard twin went the same way, as a class rather than an instance.
+Also a standing gate: `the_arc_side_rungs_are_decided_in_one_place` **counts**
+decide-sites and requires exactly one each — a cross-file guard that would
+have been green throughout the mirror's life, with the rung names assembled
+from parts so the guard's own file is subject to it.
+
+**K-neutrality, reproduced twice — and the first instrument was blind.**
+`probe_s5_sectors` reproduces 26541 rows at SHA `7c0e4ee0…` between base and
+tip, matching #647's precedent. But that probe's fixtures are **all-planar
+and contain zero arc-rung rows**, so it could not have seen the mirror
+unification at all — the lane noticed and added a Band-4 corpus sweep at
+ε=1e-9: 306,143 rows, `cmp`-identical, carrying 400 `split_arc_window`, 80
+`split_arc_chart_orientation`, 64 `split_sphere_section_polar` and 16
+`bool_between_arc_window`. *The general lesson: a reproduction is only
+evidence about the rows its fixtures actually generate, and "the probe
+reproduced" is not the same claim as "the change was neutral."*
+
+**What is left, and it is more than the fix first estimated — #695.** The
+pipeline is not "one built twice" any more, but two shared cores still live
+inside one half: `carve`/`single_solid` (already imported by `boolean/`), and
+`conic_plane_crossing_roots`, which `boolean/reduce.rs` calls on the
+**production** path and which decides four `split_*`-named K predicates from
+the boolean lane — the same *"bidirectional in fact"* shape this finding
+cited, refuting the PR's own "nothing shared to extract" for the vertex
+sweep. The gate's **edge** halves are token-identical modulo the error
+constructor and want the same treatment. `DESIGN.md:1275`'s *"the boolean
+engine and its splitting/census machinery"* is now **less** false and shown
+to be unmakeable as written: the honest sentence names two peer lanes over a
+shared core, which is a design conversation, not a lane's call.
+
+---
+
+*The sector-predicate fork, fixed earlier by #647 and #661:*
 The vertex-neighborhood sector-shape rungs — the metering arm, the
 wideness verdict, and the subdivision direction — are ONE
 implementation, `crates/topo/src/sector_shape.rs`, a top-level sibling
@@ -5308,7 +5377,6 @@ mutually independent and edge-free.
 
 | # | Work | Scope | Note |
 |---|---|---|---|
-| **B4** | **W2e remainder / S5 — `splitting/` vs `boolean/`.** The forked sector predicates are done (#647, #661); what remains is the `sector_face` twins, the duplicated pipeline, and the wrong-way dependency — the shared core lives inside one half by a one-sentence instruction in `M3-PLAN.md:230`. Fold in `SplitJoinError::Corrupt`'s 42 payload-free sites while you are in the file. | `topo/src/{splitting,boolean}/` | The steelman weakened two sub-claims: the shared error variants are **not** simple duplicates (every boolean twin carries `operand: Operand`, so unification touches a public API re-exported into four crates), and `SectorEntry` vs `BoolSector` is a **correct** divergence — only the producer is duplicated. |
 | **B5** | **S20 + S21 — the façade's invented vocabulary, and the two Python holes.** `closure.rs` is 151 lines compiling to nothing; `select.rs` is 449 comment lines before one `pub use`; `lib.rs:36` claims the façade has "no behavior of its own" while `workspace.rs` is 260 lines of real subsystem. And **every Python-authored document carries an identical constant `DocumentId`**, so two of them cannot coexist in a workspace — a hole, not a gap. | `pncad/`, `pncad-py/` | #639 has merged, so `pncad-py` is free. The `DocumentId` constant was a lane-contention artifact, disclosed and then deferred into a register that had closed the day before — §C3's worked example. |
 | **B8** | **S34 — `readback.rs` is a body-wide accessor module housed in `sweep`.** `face_pose`, `edge_pose`, `vertex_point` take a `topo::Body` and touch nothing from `sweep`, so `editor-core` and `pncad` depend on the whole sweep crate — NURBS skinning included — to read a face's plane. | `sweep/src/readback.rs` and its new home | Small and clear. Two of the three op-specific doors have no callers outside their own doctests; `vertex_point` is a near-copy of `revolve/upgrade.rs`'s. In flight as **#697**. |
 
