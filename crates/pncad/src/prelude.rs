@@ -127,7 +127,10 @@ pub use topo::{MassProperties, MassPropsError, PropsQuadLane, mass_properties};
 pub use mesh::{Mesh, TessellateError, tessellate};
 pub use step_export::{StepExportError, StepOptions, step_string, write_step};
 pub use step_import::{ImportOptions, StepImportError, import_step};
-pub use stl::{write_ascii, write_binary};
+pub use stl::{
+    AsciiOptions, BinaryHeader, BinaryHeaderError, BinaryOptions, SolidName, SolidNameError,
+    write_ascii, write_binary,
+};
 
 // --- 8. The document layer ------------------------------------
 // `parse_expr` is the expression TEXT door: the checking
