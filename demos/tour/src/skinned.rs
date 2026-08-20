@@ -17,10 +17,13 @@
 //!
 //! # The scenes and the corpus (montage-v2 curation)
 //!
-//! - `loft_prism` — corpus fixture VERBATIM:
+//! - `loft_prism` — the same BODY as the corpus fixture
 //!   `step-export/tests/common/mod.rs::loft_prism()` (recipe-layer
 //!   twin: `editor-core/tests/corpus/loft_prism.rs`; acceptance + the
-//!   derived V = 9 m³ bracket: `sweep/tests/m6_loft_body.rs`).
+//!   derived V = 9 m³ bracket: `sweep/tests/m6_loft_body.rs`). Same
+//!   sections, same placements, same degree — re-authored here rather
+//!   than shared, and pinned by the volume its derivation produces
+//!   (see [`stops`]), which is what the cross-link is actually for.
 //! - `nonuniform_loft` — since montage-v2 the scene LEADS the corpus
 //!   (the lily/s_duct precedent): the corpus fixture
 //!   (`common/mod.rs::nonuniform_loft()`, #210/#207) keeps its
@@ -192,30 +195,53 @@ pub fn narration() {
     );
 }
 
-// ---- The scene constructions (corpus fixtures, constant for
-// constant — `step-export/tests/common/mod.rs`) -------------------
+// ---- The scene constructions -------------------------------------
+//
+// THE CORPUS SHAPES ARE COPIED HERE, DELIBERATELY, AND NOTHING LINKS
+// THE COPIES. Their other home is `step-export/tests/common/mod.rs`
+// (and `sweep/tests/m7_skin_integral.rs` for the elbow), which is
+// another crate's TEST-SUPPORT module: not published, not reachable
+// from outside that crate's test build, and not something a user of
+// this library could import. A demo exists to show the library the way
+// a user would meet it, so reaching into a test module would make this
+// file worse evidence, not better — and there is no public door that
+// hands out corpus fixtures.
+//
+// What that costs is exactly one thing: these numbers can drift apart
+// from the corpus's silently. So the cross-link is pinned where it is
+// load-bearing rather than asserted in prose — `stops` checks the
+// prism body against the volume `sweep/tests/m6_loft_body.rs` DERIVES
+// for the fixture, and `loft_parameters` is ASKED rather than
+// re-derived. Byte-equality of the source was never checkable from
+// here and is no longer claimed.
 
 /// A closed four-line quad section (one loop) — the plainest
 /// INTEGRAL profile: unit weights, no arc anywhere.
-/// `common/mod.rs::quad`, verbatim (LIB-U3 profile vocabulary).
+///
+/// The same section as `common/mod.rs::quad`, by value; not the same
+/// code. The corpus builds it with `ProfileLoop::polygon`, this builds
+/// it through the PATHS lattice ([`crate::paths::path_polygon`]),
+/// which is the spelling this tour is here to show.
 fn quad(pts: [(f64, f64); 4]) -> Section {
     vec![crate::paths::path_polygon(&pts)]
 }
 
-/// The prism's end sections (`common/mod.rs::PRISM_SQUARE`).
+/// The prism's end sections (also `common/mod.rs::PRISM_SQUARE`).
 const PRISM_SQUARE: [(f64, f64); 4] = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
 /// Its middle section: the NON-AFFINE trapezoid whose two bottom
-/// corners flare by ±d, d = 0.375 (`common/mod.rs::PRISM_TRAPEZOID`).
+/// corners flare by ±d, d = 0.375 (also `common/mod.rs::PRISM_TRAPEZOID`).
 const PRISM_TRAPEZOID: [(f64, f64); 4] = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)];
 
 /// The S-duct's arc radius (scene-local; the corpus elbow's is
 /// `m7_skin_integral.rs::ELBOW_R` = 3 — see the S-path note below).
 const S_R: f64 = 2.0;
-/// The profile half-width (`m7_skin_integral.rs::ELBOW_H`, shared).
+/// The profile half-width. The same value as
+/// `m7_skin_integral.rs::ELBOW_H`, copied — the two are not linked and
+/// nothing would notice if one moved.
 const ELBOW_H: f64 = 0.25;
 
-/// Section placements: pure translations up the world z-axis
-/// (`common/mod.rs::lofted_at_z`).
+/// Section placements: pure translations up the world z-axis (also
+/// `common/mod.rs::lofted_at_z`).
 fn lofted_at_z(zs: &[f64]) -> Vec<Affine3<f64>> {
     zs.iter()
         .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
@@ -268,6 +294,54 @@ pub fn stops() -> Vec<Stop> {
         pncad::sweep::loft_body::<f64>(&prism_sections(), &lofted_at_z(&[0.0, 1.0, 2.0]), 2)
             .expect("shape (iii) loft builds")
             .body;
+    // THE STOP'S OWN NARRATION, PINNED AGAINST THE KERNEL — the same
+    // move `loft_parameters` gets twenty lines below, and the same
+    // scope. **What this does NOT check, stated:** agreement with
+    // `step-export/tests/common/mod.rs::loft_prism()`. Nothing here
+    // reads that file, this demo cannot (it is another crate's
+    // test-support module — see the copy note above), and two
+    // different prisms can share a volume anyway. A section drifting
+    // in the CORPUS leaves this green, and that gap is the price of
+    // the copy, recorded rather than papered over.
+    //
+    // What it does check is the note's arithmetic against the kernel's
+    // answer, with the note's number DERIVED from the sections rather
+    // than typed: each slice is a trapezoid of area 4 + 2·d·λ(v) with
+    // λ = 4v(1−v) and z = 2v exactly, so V = 8 + 8d/3, d being the
+    // trapezoid's flare. Typing `9.0` would have let a section here
+    // drift while the pin stayed green on a number that no longer
+    // followed from it.
+    let flare = PRISM_TRAPEZOID[1].0 - PRISM_SQUARE[1].0;
+    let narrated = 8.0 + 8.0 * flare / 3.0;
+    assert_eq!(
+        narrated, 9.0,
+        "the stop's note narrates V = 9 m³ exactly; these sections (flare d = {flare}) \
+         now give {narrated}, so the note is wrong before the kernel is asked"
+    );
+    let prism_props = pncad::topo::mass_properties(&prism).expect("the prism has a volume");
+    // The enclosure is asked to BRACKET the derivation — and is
+    // bounded from above first, because `volume_pad` is the props
+    // door's own certified half-width with nothing constraining it:
+    // `|V − v| ≤ pad` alone gets EASIER as the enclosure degrades, and
+    // a bracket wide enough to swallow any answer proves nothing. The
+    // door reports ~1e-13 on this body at this δ; 1e-9 leaves four
+    // orders of headroom and still fails long before the quadrature
+    // has stopped saying anything about a 9 m³ solid.
+    const PRISM_PAD_MAX: f64 = 1e-9;
+    assert!(
+        prism_props.volume_pad <= PRISM_PAD_MAX,
+        "loft_prism's certified volume enclosure widened to ± {} (> {PRISM_PAD_MAX:e}): \
+         the bracket check below stops meaning anything at that width",
+        prism_props.volume_pad
+    );
+    assert!(
+        (prism_props.volume - narrated).abs() <= prism_props.volume_pad,
+        "the skin changed: loft_prism's V = {} ± {} no longer brackets the {narrated} m³ \
+         its own sections derive (the derivation is this stop's note, and \
+         sweep/tests/m6_loft_body.rs derives the same number for the corpus fixture)",
+        prism_props.volume,
+        prism_props.volume_pad
+    );
     // Montage-v2 spacing: z = 0/0.15/2, not the corpus fixture's
     // 0/1/3. Measured on the #218 sheet, 0/1/3 was invisible as a
     // pair member: its bulge peaks at 48.8% of height with half-width
@@ -358,8 +432,9 @@ pub fn stops() -> Vec<Stop> {
             ops: "sweep::loft_body(square, trapezoid, square @ z = 0/1/2, v_degree 2)",
             delta: 6e-3,
             note: Some(
-                "the corpus fixture VERBATIM (step-export/tests/common/mod.rs::loft_prism, \
-                 editor-core/tests/corpus/loft_prism.rs, sweep/tests/m6_loft_body.rs); \
+                "the corpus fixture's body, section for section (step-export/tests/common/\
+                 mod.rs::loft_prism, editor-core/tests/corpus/loft_prism.rs, \
+                 sweep/tests/m6_loft_body.rs — and the volume below is checked against it); \
                  volume is DERIVED, not measured: the degree-2 skin through sections at \
                  (0, 1/2, 1) is the quadratic Lagrange interpolant, corner paths \
                  S + lambda(v)*D with lambda = 4v(1-v), z = 2v exactly, each slice a \
