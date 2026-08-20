@@ -188,6 +188,7 @@ mod normalize;
 mod parse;
 mod recognize;
 mod recognize_curve;
+mod signed_zero;
 mod units;
 
 pub use error::{AdoptionAttempt, AdoptionCandidate, StepImportError};

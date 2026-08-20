@@ -2169,7 +2169,7 @@ parameterizing**.
 | "Distinct interior knots with multiplicities" | ≥4, because `KnotVector` only offers `multiplicity_of(u)` — the query every consumer actually needs is the one the data structure makes awkward | `compose.rs:274`, `algebra.rs:563`, `geom-curves/fit.rs:378`, `sweep/skin.rs:370` |
 | Prefer-intrinsic upgrade rule | 3, with **3 different sample schedules**: validator uses `CERT_SAMPLES`; `revolve/upgrade.rs` hardcodes `let samples = 9u32`; `extrude.rs` uses a *single* midpoint with no lane gate. The doc claims "the SAME quantity, the same predicate name" — true only by coincidence of the literal 9 | `revolve/upgrade.rs:198`, `extrude.rs:1044`, `validate.rs:1994` |
 | Planar divergence-theorem volume | `step-export/volume.rs` re-derives what `props::planar_face` computes, strictly weaker (planes+lines only) and reading its sign with a raw `volume < 0.0` outside the trilean discipline | `step-export/src/volume.rs:88` |
-| Negative-zero flush helper | **FIXED by #704** — all four copies gone; `geometry::plus_zero`/`plus_zero_point`/`plus_zero_scalar` is the importer's one flush. The three vector copies were **not** textually identical (`x + 0.0` versus a branch on `x == 0.0`); see the postmortem | `step-import/src/geometry.rs:19` (the one home) |
+| Negative-zero flush helper | **FIXED by #704** — all four copies call one home, `step-import/src/signed_zero.rs`, and a CI gate now fails a fifth. The two later copies were byte-identical to *each other*; the home was the variant | `step-import/src/signed_zero.rs` |
 | Deep-snapshot test helper | ≥4 in `topo` alone, duplication named as intentional in its own doc comment | `fixtures.rs:87`, `review_m1_pr2/mod.rs:35`, `review_m1_pr3.rs:44`, `tests/box_with_hole.rs:368` |
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18) — see S16. "They should certainly
@@ -2221,34 +2221,24 @@ be unified."
   *documented* the divergence rather than closing it.
   *Lesson: a module that keeps being edited to explain how it differs from the
   canonical one is a duplication signal the process has no rule for reading.*
-- **Negative-zero flush ×3** — **FIXED by #704**, and as cheap as the scan
-  said: `geometry::plus_zero`/`plus_zero_point` is the one home, the two private
-  pairs are deleted at nine call sites, and the 4th (inline, in the reader's
-  `as_real`) calls the same predicate through a `plus_zero_scalar` the home now
-  exposes. No visibility change was needed for the vector door; the scalar one
-  is new. Same crate, three units, one week. **NEVER FLAGGED** — the concept was
-  tracked only as a *fixture* property (`M7-LOG.md:694`, a byte-divergence
-  class), never as code ownership.
-
-  Execution adds two things to that diagnosis, and they are different failures.
-  **(a)** The copies were not byte-identical to the home — `x + 0.0` against a
-  branch on `x == 0.0` — so a reviewer diffing text would have seen three
-  different functions. They agree on every `f64` that can reach a printed token
-  (the exporter refuses non-finite reals typed before then), but that
-  equivalence has to be argued from IEEE semantics, which is exactly the
-  argument a duplicated numeric helper makes nobody do. **(b)** The 4th copy
-  survived a different way: the helpers were `Vec3`/`Point3` while `as_real`
-  holds one `f64`, so the shared thing — a one-line scalar predicate — was
-  wrapped one level above the site that needed it and no site was shaped to own
-  it. Closing the row meant naming the predicate, not just the wrapper.
-
-  A **fifth** occurrence of the same line, `pncad-py/src/py/doc.rs:1101`, is
-  **not** this class: it folds `-0.0` so `__hash__` agrees with `__eq__`, in a
-  crate from which no home here is reachable.
-  *Lessons: "is this the same code?" and "is this the same function?" are
-  different questions, and only the second one is the duplication — and a helper
-  typed one level up from the predicate it wraps cannot be reused by a caller
-  holding the scalar, so it gets re-derived instead.*
+- **Negative-zero flush ×3** — **FIXED by #704**: `step-import/src/signed_zero.rs`
+  is the one home, all four copies call it, and `scripts/gates/signed-zero-one-home.sh`
+  fails a fifth. Same crate, three units, one week. **NEVER FLAGGED** — the concept
+  was tracked only as a *fixture* property (`M7-LOG.md:694`, a byte-divergence
+  class), never as code ownership. That citation was closer than it looked: the
+  recognition flush **is** pinned, by `corpus_fold.rs:130`'s promoted one-cycle
+  fixed point, in the file `M7-LOG.md:694` names. Two survival mechanisms: **(a)**
+  the two copies were byte-identical to *each other* and the home was the variant
+  (`x + 0.0` against a branch on `x == 0.0`), so the available catch — a diff
+  between the copies — pointed at collapsing them into each other rather than into
+  the home that already existed; **(b)** the helpers were `Vec3`/`Point3` while the
+  reader's `as_real` holds one `f64`, so the shared thing sat one type level above
+  the site that needed it. `pncad-py/src/py/doc.rs:1101` is the same line under a
+  different rule (`__hash__`/`__eq__` consistency) and stays: no shared home exists
+  today, and whether one should is a separate question.
+  *Lesson: copies that match each other and not the original point away from the
+  home that already exists, and a helper typed above its predicate cannot be
+  called by the site holding the scalar.*
 - **Deep-snapshot helper ≥4** — **policy, not drift**, and **FLAGGED AND
   OVERRULED** in the standing sense: the reviewer-suite independence exemption
   is ratified, and Evan re-affirmed it on this scan (S36). The fourth copy is a

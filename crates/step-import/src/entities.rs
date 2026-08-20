@@ -26,6 +26,7 @@ use crate::normalize;
 use crate::parse::{Instance, Record, StepFile, Value};
 use crate::recognize;
 use crate::recognize_curve;
+use crate::signed_zero;
 use crate::units::{self, UnitKind};
 use crate::{CurvePromotion, FaceCensus, NormalizationKind, StructureNormalization};
 
@@ -316,17 +317,13 @@ fn as_ref(id: u64, value: &Value, expected: &'static str) -> Result<u64, StepImp
 
 /// `value` as a real (`str::parse::<f64>` — bit-exact against the
 /// writer's printer), with **negative zero normalized to `+0.0`**
-/// through the importer's one flush ([`crate::geometry::plus_zero_scalar`],
-/// which carries the argument).
-///
-/// `-0.` is common in the foreign dialect (`DIRECTION('',(1.,0.,-0.))`
-/// on nearly every FreeCAD placement), and this is the only
-/// normalization the numeric path performs.
+/// through [`crate::signed_zero`], which carries the argument. This is
+/// the only normalization the numeric path performs.
 fn as_real(id: u64, value: &Value, expected: &'static str) -> Result<f64, StepImportError> {
     match value {
         Value::Number(raw) => raw
             .parse::<f64>()
-            .map(crate::geometry::plus_zero_scalar)
+            .map(signed_zero::plus_zero_scalar)
             .map_err(|_| StepImportError::MalformedReal {
                 id,
                 token: raw.clone(),
@@ -1565,9 +1562,9 @@ impl<'a> Resolver<'a> {
         // axis ∓v_ref and reference direction the sphere's own axis
         // starts AT the north pole (angle 0) and reaches the south at
         // angle π, sweeping through u = π and u = 0 respectively.
-        let v_ref = geometry::plus_zero(axis.cross(u_ref));
-        let north = geometry::plus_zero_point(center + axis * radius);
-        let south = geometry::plus_zero_point(center - axis * radius);
+        let v_ref = signed_zero::plus_zero(axis.cross(u_ref));
+        let north = signed_zero::plus_zero_point(center + axis * radius);
+        let south = signed_zero::plus_zero_point(center - axis * radius);
         let (nv, sv) = (self.mint_id(), self.mint_id());
         vertices.insert(nv, north);
         vertices.insert(sv, south);
@@ -1575,7 +1572,7 @@ impl<'a> Resolver<'a> {
             let eid = self.mint_id();
             let carrier = Curve3::Circle {
                 center,
-                axis: geometry::plus_zero(circle_axis),
+                axis: signed_zero::plus_zero(circle_axis),
                 radius,
                 u_ref: axis,
             };

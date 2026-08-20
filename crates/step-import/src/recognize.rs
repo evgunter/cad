@@ -61,6 +61,10 @@
 //! estimator can therefore never make promotion incorrect, only
 //! incomplete.
 //!
+//! Every DERIVED frame here (origin/normal/axis/u_ref) goes through
+//! [`crate::signed_zero`], for the reason that module states — the same
+//! posture [`crate::recognize_curve`] takes for curves.
+//!
 //! # Conditioning (D7's typed ambiguity, its only stage-1 site)
 //!
 //! The cylinder estimator carries its own margin trilean: a patch
@@ -77,7 +81,7 @@
 use geom_core::{Point3, Vec3};
 use geom_surfaces::{NurbsSurface, Surface};
 
-use crate::geometry::{plus_zero, plus_zero_point};
+use crate::signed_zero::{plus_zero, plus_zero_point};
 
 pub(crate) use crate::PromotedKind;
 

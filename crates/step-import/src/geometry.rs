@@ -11,55 +11,10 @@
 //! kernel's own certification gates when the edge is adopted — a wrong
 //! derivation cannot survive to rest.
 
-use geom_core::{Point3, Real, Vec3};
+use geom_core::{Point3, Real};
 use geom_curves::Curve3;
 
 use crate::error::StepImportError;
-
-/// Negative zero normalized to `+0.0`, componentwise. The importer has
-/// exactly one flush and this is it: [`plus_zero_scalar`] underneath is
-/// what the record reader applies to every literal it parses
-/// (`entities::as_real`), and these two apply it to the values the
-/// importer DERIVES.
-///
-/// It matters for two reasons beyond tidiness. A minted direction like
-/// `−(axis × u_ref)` picks up `−0.0` components from negating exact
-/// zeros, the writer prints them as `-0.0`, and a re-import normalizes
-/// them back to `0.0` — so the adoption pass would not be a fixed
-/// point of the writer over a single printed sign. And the importer
-/// compares surface records **bitwise** to restore writer-side key
-/// sharing, so two records identical as geometry would fail to share a
-/// key on a printed sign alone. Normalizing at the mint keeps one
-/// representative everywhere and moves no value (`-0.0 == 0.0`).
-///
-/// The same argument covers every frame RECOGNITION derives —
-/// `center`/`axis`/`u_ref`/`origin` on a promoted analytic surface or
-/// curve are minted, not read, so a promoted body's one-cycle
-/// re-export fixed point misses by exactly those sign bits unless they
-/// are normalized here too.
-pub(crate) fn plus_zero(v: Vec3<f64>) -> Vec3<f64> {
-    Vec3::new(
-        plus_zero_scalar(v.x),
-        plus_zero_scalar(v.y),
-        plus_zero_scalar(v.z),
-    )
-}
-
-/// [`plus_zero`] for a point.
-pub(crate) fn plus_zero_point(p: Point3<f64>) -> Point3<f64> {
-    Point3::new(
-        plus_zero_scalar(p.x),
-        plus_zero_scalar(p.y),
-        plus_zero_scalar(p.z),
-    )
-}
-
-/// [`plus_zero`] on one component — the predicate itself, which the
-/// reader's numeric path calls per parsed literal. NaN passes through
-/// unchanged: this states a representative, it never certifies one.
-pub(crate) fn plus_zero_scalar(x: f64) -> f64 {
-    if x == 0.0 { 0.0 } else { x }
-}
 
 /// The carrier parameters of `p_start` / `p_end` (module docs).
 ///

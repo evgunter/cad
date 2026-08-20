@@ -13,11 +13,8 @@
 //!   estimate fails certification and the carrier stays NURBS, so an
 //!   estimator can never make promotion incorrect, only incomplete;
 //! * **conditioning-gated typed ambiguity** ([`CurveRecognition::IllConditioned`]);
-//! * **[`crate::geometry::plus_zero`] on every DERIVED frame**
-//!   (center/axis/u_ref/origin/dir): the reader's numeric path states
-//!   `+0.0` as the one representative, so a promoted carrier's derived
-//!   frame must state it too or the promoted one-cycle re-export fixed
-//!   point misses by exactly those sign bits;
+//! * **[`crate::signed_zero`] on every DERIVED frame**
+//!   (center/axis/u_ref/origin/dir), for the reason that module states;
 //! * **a carrier that certifies nowhere stays NURBS silently** — the
 //!   pre-#327 state; recognition failing must never refuse an edge
 //!   that imports today.
@@ -150,7 +147,7 @@ use geom_core::spline::compose::{self, CurveRingData, ImplicitSurface};
 use geom_core::{Point3, Vec3};
 use geom_curves::{Curve3, NurbsCurve3};
 
-use crate::geometry::{plus_zero, plus_zero_point};
+use crate::signed_zero::{plus_zero, plus_zero_point};
 
 pub(crate) use crate::PromotedCurveKind;
 
