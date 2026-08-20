@@ -263,7 +263,9 @@ C's open lanes (#732, `stl/`), with Track E's (#753 `scripts/`+`ci.yml`, #763
 
 ## Reviews
 
-*(none yet)*
+| lane | PR | lanes | state |
+|---|---|---|---|
+| **G-c** | **#781** (G3/S74) | style only | **running.** CI 22 green / 0 failed / 3 in flight at dispatch. Claims handed over for falsification: *geometry does not move* (the index algebra of the reverse arm is the one where a wrong answer ships wrong geometry), *the duplication is removed not relocated*, *loft's orientation bit is now structurally absent*, and the deleted-marker sweep's **"no third"** negative result. Emphasis: **a unification is the shape that mints duplicates**, the lane's two disclosed blind spots are work orders, and the reviewer is asked to say explicitly if the unit should have carried an adversarial review after all |
 
 ## Landings
 
@@ -292,3 +294,27 @@ one level out — *a claim in prose ("the standard way") that a mechanism no
 longer supports*, invisible until someone stood in an environment the author
 did not have. It is local tooling and not a smell-scan row, so it is recorded
 here and nowhere else.
+
+### Wave 1 was dispatched before this file was on `main`
+
+**2026-08-20, and the mistake is the orchestrator's.** The three wave-1 lanes
+were dispatched with briefs pointing at `docs/SMELL-G-LOG.md` **by path**, two
+minutes before #772 merged it. G-c hit it immediately: the file was not on
+`main`, not on any branch it could see, and not an open PR. It recovered by
+working from `SMELL-F-LOG.md`'s equivalent sections — correctly, since #772's
+own body says Track G's policy is Track F's verbatim — then merged `main`
+mid-lane, read the standing header and rulings, and confirmed nothing
+contradicted what it had already done.
+
+**No damage, and the recovery was the right one**, but the near-miss is worth
+the row: *point, never paste* (`docs/prompts/README.md`) makes a dispatch a
+promise that the path resolves, and this dispatch made that promise against a
+branch. **Merge the constitution before dispatching against it** — the ordering
+is free and there is no version of this that fails loudly.
+
+It is also the third instance this track has recorded of one shape (**G-R9**):
+a claim in a brief that did not survive being checked. The first two were
+citations; this one was the brief's own foundation. The lane checked rather
+than complied, which is exactly what the standing header asks for — so the
+mechanism that is supposed to catch this worked, on its first day, on the
+orchestrator.
