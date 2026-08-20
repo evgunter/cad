@@ -2,10 +2,10 @@
 //! crate (each extra test target cost ~1.9 s of codegen+link on the
 //! 2-vCPU CI runner).
 //!
-//! What this file pins is the **closure property** (`pncad::closure`):
-//! every type reachable through the public API of the re-exported
-//! surface — every error-enum payload included — is nameable from
-//! `pncad` without naming a second crate.
+//! What this file pins is the **closure property** (the crate docs'
+//! contract clause 1): every type reachable through the public API of
+//! the re-exported surface — every error-enum payload included — is
+//! nameable from `pncad` without naming a second crate.
 //!
 //! # How the pin is enforced, precisely
 //!
@@ -167,9 +167,9 @@ fn node_error_payload(e: &pncad::document::NodeErrorKind) {
     }
 }
 
-// #234: `DuplicateName` — the refusal of `NameTable::insert` — was the
-// closure property's second stated exception until `editor_core`
-// re-exported it at its root. Destructuring it by a `pncad::` path is
+// `DuplicateName` — the refusal of `NameTable::insert` — is
+// re-exported at `editor_core`'s root and carried beside `NameTable`
+// by `pncad::select`. Destructuring it by a `pncad::` path is
 // what "nameable" means here; the field's type is named too, so the
 // whole payload has a writable path and not just the outer struct.
 fn duplicate_name_payload(e: &pncad::select::DuplicateName) {
@@ -538,6 +538,23 @@ fn this_file_reaches_the_kernel_only_through_pncad() {
 // LB13: the document layer's boundary, guarded.
 // ---------------------------------------------------------------
 
+/// Every file of the façade's own source, name and text. The
+/// source-scanning guards below all read this one list;
+/// `the_boundary_guard_scans_every_facade_source_file` pins it
+/// against the directory, so a new module cannot arrive unguarded.
+const FACADE_SOURCES: [(&str, &str); 10] = [
+    ("lib.rs", include_str!("../src/lib.rs")),
+    ("prelude.rs", include_str!("../src/prelude.rs")),
+    ("profile.rs", include_str!("../src/profile.rs")),
+    ("select.rs", include_str!("../src/select.rs")),
+    ("document.rs", include_str!("../src/document.rs")),
+    ("authoring.rs", include_str!("../src/authoring.rs")),
+    ("export.rs", include_str!("../src/export.rs")),
+    ("guide.rs", include_str!("../src/guide.rs")),
+    ("tolerance.rs", include_str!("../src/tolerance.rs")),
+    ("workspace.rs", include_str!("../src/workspace.rs")),
+];
+
 /// **No arena key is nameable through the façade's document-layer
 /// surface** — the LB13 boundary, enforced rather than asserted in a
 /// report.
@@ -559,32 +576,20 @@ fn this_file_reaches_the_kernel_only_through_pncad() {
 /// What this fallback CANNOT see (stated so the next reader does not
 /// over-trust it): a key type re-exported under an alias, or one
 /// reachable as an associated type or a public field of something
-/// this list does allow. A rustdoc-JSON check would catch those; when
-/// a nightly is available to CI, replace this test with one.
+/// this list does allow. A rustdoc-JSON check would catch those;
+/// whether CI grows one is **#696**, which carries this deferral and
+/// the two others that share it.
 #[test]
 fn no_arena_key_is_nameable_through_the_facade_document_surface() {
     // Every file of the façade's own source. A new module added here
     // without being listed is caught by the companion test below.
-    const SOURCES: [(&str, &str); 11] = [
-        ("lib.rs", include_str!("../src/lib.rs")),
-        ("prelude.rs", include_str!("../src/prelude.rs")),
-        ("profile.rs", include_str!("../src/profile.rs")),
-        ("select.rs", include_str!("../src/select.rs")),
-        ("document.rs", include_str!("../src/document.rs")),
-        ("authoring.rs", include_str!("../src/authoring.rs")),
-        ("closure.rs", include_str!("../src/closure.rs")),
-        ("export.rs", include_str!("../src/export.rs")),
-        ("guide.rs", include_str!("../src/guide.rs")),
-        ("tolerance.rs", include_str!("../src/tolerance.rs")),
-        ("workspace.rs", include_str!("../src/workspace.rs")),
-    ];
     // Assembled at runtime: this file is itself scanned by the U1
     // guard, and a contiguous literal would be its own first match.
     let module_reexport = ["pub use editor", "core;"].join("_");
     let keys = ["EntityRef", "EntityKey", "Entry"];
 
     let mut violations: Vec<String> = Vec::new();
-    for (name, src) in SOURCES {
+    for (name, src) in FACADE_SOURCES {
         let code = code_without_comments(src);
         for (n, line) in code.lines().enumerate() {
             let t = line.trim();
@@ -636,8 +641,8 @@ fn no_arena_key_is_nameable_through_the_facade_document_surface() {
 /// report.
 ///
 /// Same fallback shape as the LB13 guard above (rustdoc JSON is
-/// nightly-gated on this toolchain), aimed at the exact regression the
-/// ruling forbids:
+/// nightly-gated on this toolchain — **#696**), aimed at the exact
+/// regression the ruling forbids:
 ///
 /// 1. `pub use profile;` — the whole-crate re-export whose removal IS
 ///    the demotion. Re-adding it makes `pncad::profile::RawLoop`
@@ -663,19 +668,6 @@ fn no_arena_key_is_nameable_through_the_facade_document_surface() {
 /// neither alone is the claim.
 #[test]
 fn no_raw_loop_minting_door_is_nameable_through_the_facade() {
-    const SOURCES: [(&str, &str); 11] = [
-        ("lib.rs", include_str!("../src/lib.rs")),
-        ("prelude.rs", include_str!("../src/prelude.rs")),
-        ("profile.rs", include_str!("../src/profile.rs")),
-        ("select.rs", include_str!("../src/select.rs")),
-        ("document.rs", include_str!("../src/document.rs")),
-        ("authoring.rs", include_str!("../src/authoring.rs")),
-        ("closure.rs", include_str!("../src/closure.rs")),
-        ("export.rs", include_str!("../src/export.rs")),
-        ("guide.rs", include_str!("../src/guide.rs")),
-        ("tolerance.rs", include_str!("../src/tolerance.rs")),
-        ("workspace.rs", include_str!("../src/workspace.rs")),
-    ];
     // Assembled at runtime for the same reason as the LB13 guard's: this
     // file is scanned by the U1 guard, and a contiguous literal would be
     // its own first match.
@@ -688,7 +680,7 @@ fn no_raw_loop_minting_door_is_nameable_through_the_facade() {
     ];
 
     let mut violations: Vec<String> = Vec::new();
-    for (name, src) in SOURCES {
+    for (name, src) in FACADE_SOURCES {
         let code = code_without_comments(src);
         for (n, line) in code.lines().enumerate() {
             let t = line.trim();
@@ -743,19 +735,10 @@ fn the_boundary_guard_scans_every_facade_source_file() {
         .filter(|n| n.ends_with(".rs"))
         .collect();
     on_disk.sort();
-    let mut listed = vec![
-        "lib.rs".to_string(),
-        "prelude.rs".to_string(),
-        "profile.rs".to_string(),
-        "select.rs".to_string(),
-        "document.rs".to_string(),
-        "authoring.rs".to_string(),
-        "closure.rs".to_string(),
-        "export.rs".to_string(),
-        "guide.rs".to_string(),
-        "tolerance.rs".to_string(),
-        "workspace.rs".to_string(),
-    ];
+    let mut listed: Vec<String> = FACADE_SOURCES
+        .iter()
+        .map(|(name, _)| (*name).to_string())
+        .collect();
     listed.sort();
     assert_eq!(
         on_disk, listed,
@@ -2526,4 +2509,360 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
     let bytes = std::fs::read_to_string(&out).expect("probe wrote");
     let _ = std::fs::remove_file(&out);
     bytes
+}
+
+// ---------------------------------------------------------------
+// The curated re-export lists, kept complete by a test.
+// ---------------------------------------------------------------
+
+/// `editor-core`'s root exports that the façade deliberately does
+/// NOT carry. Names, not reasons: the reasons cluster, and the
+/// clusters are what the header below states.
+///
+/// The families here, and why each stays interior:
+///
+/// - **Arena keys and the naming table's interior** (`EntityRef`,
+///   `EntityKey`, `Entry`, `NamingKey`, `MeshPatchKey`, `TieWitness`,
+///   `entity_name`, `body_name`, `vertex_name`): body-lineage-scoped,
+///   meaningful only against the evaluation that minted them. Not
+///   carrying them IS the LB13 boundary the guard above enforces.
+/// - **Appearance** (`Appearance*`, `Attr*`, `Rgba8`,
+///   `*rebind_suggestions`, `enrich_appearance_loss*`): a GUI-side
+///   presentation layer with no authoring door yet.
+/// - **The witness/verdict/diff instrumentation** (`Branch*`,
+///   `Summary*`, `Verdict*`, `Witness*`, `NodeVerdict*`, `FlipSet`,
+///   `Diagnosis`, `Implicated`, `PredicateDivergence`, `SideVerdict`,
+///   `DocDiff`, `NodeChange`, `diff_*`, `verdict_summary`, `Epoch`,
+///   `Tombstone`, `RecipeEditRef`): the editor's own re-evaluation
+///   telemetry, not a modelling vocabulary.
+/// - **Resolution plumbing** (`Resolution`, `Resolved`, `RefusedRef`,
+///   `ResolveError`, `ResolveIndeterminate`, `ResolutionFailure`,
+///   `Qualifier`, `Coset`, `HitTestError`, `resolve*`): the interior
+///   of name→entity resolution, whose curated face is
+///   `crate::select`'s doors.
+/// - **Evaluation interior** (`EvalError`, `EvalScalar`, `RunCtx`,
+///   `RunStatus`, `ContentKey`, `eval`, `eval_count`,
+///   `apply_with_names`, `derivation_nodes`): the service's own
+///   machinery behind `evaluate`.
+/// - **Types whose curated face is a different shape**
+///   (`ProfilePayload`, `ProgramRefusal`, `ExprPath`, `ParamValue`,
+///   `Product`, `product_recorded`, `Assembly`, `AssemblyError`,
+///   `assemble`, `AtRestFinding`, `MintedDeclaration`,
+///   `BifurcationKind`, `NamingError`, `MetaValue`, `MetaError`,
+///   `MetaVersionError`, `from_value`, `to_value`): each has a
+///   curated door of its own or is machinery behind one.
+/// - **`MigrationStep`**: the stated exception in the crate docs —
+///   its signature speaks `serde_json::Value`, which does not cross
+///   the curated surface.
+const NOT_CARRIED: [&str; 87] = [
+    "AppearanceLoss",
+    "AppearanceLossCause",
+    "AppearanceMap",
+    "AppearanceRecord",
+    "AppearanceResolution",
+    "Assembly",
+    "AssemblyError",
+    "AtRestFinding",
+    "Attr",
+    "AttrKind",
+    "AttrSet",
+    "BifurcationKind",
+    "BranchCertification",
+    "BranchMarginEvidence",
+    "ContentKey",
+    "Coset",
+    "Diagnosis",
+    "DocDiff",
+    "EntityKey",
+    "EntityRef",
+    "Entry",
+    "Epoch",
+    "EvalError",
+    "EvalScalar",
+    "ExprPath",
+    "FlipSet",
+    "HitTestError",
+    "Implicated",
+    "MeshPatchKey",
+    "MetaError",
+    "MetaValue",
+    "MetaVersionError",
+    "MigrationStep",
+    "MintedDeclaration",
+    "NamingError",
+    "NamingKey",
+    "NodeChange",
+    "NodeVerdictDelta",
+    "NodeVerdicts",
+    "ParamValue",
+    "PredicateDivergence",
+    "Product",
+    "ProfilePayload",
+    "ProgramRefusal",
+    "Qualifier",
+    "RecipeEditRef",
+    "RefusedRef",
+    "Resolution",
+    "ResolutionFailure",
+    "ResolveError",
+    "ResolveIndeterminate",
+    "Resolved",
+    "Rgba8",
+    "RunCtx",
+    "RunStatus",
+    "SideVerdict",
+    "SummaryDelta",
+    "SummaryDivergence",
+    "SummaryFlip",
+    "SummaryFlipSet",
+    "TieWitness",
+    "Tombstone",
+    "VerdictFlip",
+    "VerdictSummary",
+    "WitnessAge",
+    "WitnessBifurcation",
+    "WitnessDatum",
+    "appearance_rebind_suggestions",
+    "apply_with_names",
+    "assemble",
+    "body_name",
+    "derivation_nodes",
+    "diff_summaries",
+    "diff_verdicts",
+    "enrich_appearance_loss",
+    "enrich_appearance_loss_with_prior",
+    "entity_name",
+    "eval",
+    "eval_count",
+    "from_value",
+    "product_recorded",
+    "rebind_suggestions",
+    "resolve",
+    "resolve_with_prior",
+    "to_value",
+    "verdict_summary",
+    "vertex_name",
+];
+
+/// Every name a `pub use` statement of `src` introduces, restricted
+/// to statements whose path ROOT is `root` — so the answer is "which
+/// of that crate's names does this file carry", not "which leaf
+/// identifiers appear anywhere".
+///
+/// The restriction is what keeps the completeness check below from
+/// being satisfied by a coincidence: without it, a name re-exported
+/// from `sweep` or `topo` would count as carrying an identically
+/// spelled document-layer name, and the guard would pass while the
+/// name was uncarried.
+///
+/// Comments are stripped first, so prose naming a type is not read as
+/// an export. A statement with no `::` (a whole-crate `pub use foo;`)
+/// introduces the crate name itself and belongs to no root.
+fn pub_use_names(src: &str, root: &str) -> std::collections::BTreeSet<String> {
+    let code = code_without_comments(src);
+    let prefix = format!("{root}::");
+    let mut names = std::collections::BTreeSet::new();
+    let mut rest: &str = &code;
+    while let Some(at) = rest.find("pub use ") {
+        rest = &rest[at + "pub use ".len()..];
+        let Some(end) = rest.find(';') else { break };
+        let stmt = rest[..end].trim_start();
+        rest = &rest[end + 1..];
+        if !stmt.starts_with(&prefix) {
+            continue;
+        }
+        let items = match (stmt.find('{'), stmt.rfind('}')) {
+            (Some(open), Some(close)) if open < close => stmt[open + 1..close].to_string(),
+            // A single path: the leaf is the name it introduces.
+            _ => stmt.rsplit("::").next().unwrap_or(stmt).to_string(),
+        };
+        for item in items.split(',') {
+            let item = item.trim();
+            if !item.is_empty() {
+                names.insert(item.rsplit("::").next().unwrap_or(item).to_string());
+            }
+        }
+    }
+    names
+}
+
+/// Every name a `pub use` statement introduces, with no root
+/// restriction — the form for reading a crate's OWN `lib.rs`, where
+/// each statement's root is one of that crate's modules.
+fn module_pub_use_names(src: &str) -> std::collections::BTreeSet<String> {
+    let code = code_without_comments(src);
+    let mut names = std::collections::BTreeSet::new();
+    let mut rest: &str = &code;
+    while let Some(at) = rest.find("pub use ") {
+        rest = &rest[at + "pub use ".len()..];
+        let Some(end) = rest.find(';') else { break };
+        let stmt = &rest[..end];
+        rest = &rest[end + 1..];
+        let items = match (stmt.find('{'), stmt.rfind('}')) {
+            (Some(open), Some(close)) if open < close => stmt[open + 1..close].to_string(),
+            _ => stmt.rsplit("::").next().unwrap_or(stmt).to_string(),
+        };
+        for item in items.split(',') {
+            let item = item.trim();
+            if !item.is_empty() {
+                names.insert(item.rsplit("::").next().unwrap_or(item).to_string());
+            }
+        }
+    }
+    names
+}
+
+/// **The curated lists are complete, and the incompleteness is a
+/// test rather than a habit.**
+///
+/// The façade exposes the document layer through hand-written `pub
+/// use` lists (`crate::document`, `crate::select`, `crate::prelude`)
+/// rather than a whole-crate re-export, because a whole-crate
+/// re-export would hand out arena keys. That choice buys the LB13
+/// boundary and costs a standing sync obligation: when the document
+/// layer grows a public name, nothing makes anyone carry it.
+///
+/// This is the mechanism. Every name the document layer exports at
+/// its root is either carried by one of the façade's `pub use` lists
+/// or listed in `NOT_CARRIED` above — and a name that is neither
+/// fails here, at the moment it lands, naming itself.
+///
+/// What it does NOT claim: that each `NOT_CARRIED` entry is
+/// individually argued (they are argued by family, in that constant's
+/// docs), and that the same completeness holds for the other kernel
+/// crates. It does not need to for them — they are re-exported whole,
+/// so their surfaces cannot drift from the façade's by construction.
+///
+/// Two blind spots, both needing rustdoc JSON to close (**#696**):
+///
+/// 1. A public name reachable only by module path
+///    (`editor_core::persist::Foo`) and never lifted to that crate's
+///    root. This scan reads the root, exactly as the first closure
+///    audit did, and that is the same structural hole that audit's
+///    second pass found.
+/// 2. A `pub` item written DIRECTLY in `editor-core/src/lib.rs`
+///    rather than re-exported. That file has no direct `pub` items
+///    today, so this one is held shut by a coincidence, not a rule.
+///
+/// A third — a leaf name colliding across crates, so that carrying
+/// `Foo` from `sweep` looked like carrying the document layer's
+/// `Foo` — is CLOSED: the façade side counts only names introduced
+/// by a `pub use editor_core::…` statement, not every leaf in the
+/// file.
+#[test]
+fn every_document_layer_root_export_is_carried_or_listed() {
+    let kernel_lib =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../editor-core/src/lib.rs");
+    let src = std::fs::read_to_string(&kernel_lib)
+        .unwrap_or_else(|e| panic!("reading {}: {e}", kernel_lib.display()));
+    let exported = module_pub_use_names(&src);
+    assert!(
+        exported.len() > 150,
+        "the scanner found only {} root exports — the file's shape changed \
+         and this guard was about to pass vacuously",
+        exported.len()
+    );
+
+    // The façade side: only what it carries FROM the document layer.
+    // `prelude` re-exports through `crate::document`/`crate::select`,
+    // which are themselves scanned, so nothing is lost by the
+    // restriction — a prelude entry has an origin in this same list.
+    let mut carried = std::collections::BTreeSet::new();
+    for (_, facade_src) in FACADE_SOURCES {
+        carried.append(&mut pub_use_names(facade_src, "editor_core"));
+    }
+
+    let uncarried: Vec<&String> = exported
+        .iter()
+        .filter(|n| !carried.contains(*n) && !NOT_CARRIED.contains(&n.as_str()))
+        .collect();
+    assert!(
+        uncarried.is_empty(),
+        "the document layer exports {} name(s) the façade neither carries \
+         nor lists as deliberately interior:\n  {}\n\
+         Carry each through `crate::document` or `crate::select`, or add it \
+         to NOT_CARRIED with the family it belongs to.",
+        uncarried.len(),
+        uncarried
+            .iter()
+            .map(|n| n.as_str())
+            .collect::<Vec<_>>()
+            .join("\n  ")
+    );
+
+    // The list decays in the other direction too: an entry that is no
+    // longer exported, or that the façade has since started carrying,
+    // is a stale exclusion claiming a decision nobody is making.
+    let stale: Vec<&str> = NOT_CARRIED
+        .iter()
+        .copied()
+        .filter(|n| !exported.contains(*n) || carried.contains(*n))
+        .collect();
+    assert!(
+        stale.is_empty(),
+        "NOT_CARRIED lists {} name(s) that are no longer uncarried root \
+         exports — remove them:\n  {}",
+        stale.len(),
+        stale.join("\n  ")
+    );
+}
+
+/// **The crate doc's claim about the authoring seams, guarded.**
+///
+/// The claim is that every [`pncad::authoring`] seam is a single
+/// kernel constructor call except `validated`, which is the two-call
+/// form. Its predecessor was a COUNT ("six of the seven"), and the
+/// count went stale the moment the `polygon` door was removed —
+/// nothing was watching, so the sentence outlived the surface it
+/// described by two units.
+///
+/// This watches the failure mode that actually happened: the roster
+/// moving under a sentence about it. Adding or removing a seam fails
+/// here, and so does a second seam chaining a follow-up kernel call
+/// onto its constructor.
+///
+/// **Not guarded, stated:** "a single kernel constructor call" is
+/// about a body's SHAPE, and counting calls in source text is the
+/// kind of scan that reports its own parser rather than the code. The
+/// roster plus the chain check is what a text scan can honestly
+/// assert; the rest is the per-function rustdoc and its doctests.
+#[test]
+fn the_authoring_seam_roster_is_what_the_crate_doc_claims() {
+    let code = code_without_comments(include_str!("../src/authoring.rs"));
+    let mut seams: Vec<&str> = Vec::new();
+    let mut chaining: Vec<&str> = Vec::new();
+    let mut current: Option<&str> = None;
+    for line in code.lines() {
+        if let Some(rest) = line.strip_prefix("pub fn ") {
+            let name = rest
+                .split(|c: char| !(c.is_alphanumeric() || c == '_'))
+                .next()
+                .unwrap_or("");
+            seams.push(name);
+            current = Some(name);
+            continue;
+        }
+        // A body line: column 0 `}` closes the function.
+        if line.starts_with('}') {
+            current = None;
+        } else if let Some(name) = current
+            && line.contains(").validate(")
+        {
+            chaining.push(name);
+        }
+    }
+    seams.sort_unstable();
+    assert_eq!(
+        seams,
+        ["p2", "p3", "real", "v2", "v3", "validated"],
+        "the authoring seam roster moved — re-read the crate doc's \
+         sentence about it before changing this list"
+    );
+    assert_eq!(
+        chaining,
+        ["validated"],
+        "`validated` is documented as the ONE two-call seam; another \
+         seam now chains a follow-up kernel call, so the crate doc's \
+         claim needs re-wording"
+    );
 }

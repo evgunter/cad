@@ -102,6 +102,7 @@ use core::fmt;
 use geom_brep::NewellError;
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point2, Real, Sign, Vec2};
 use profile::ValidatedProfile;
+use topo::readback::{Pose, ReadbackError, face_pose};
 use topo::{Body, EdgeKey, EulerOpError, FaceKey, ShellKey, SolidKey, VertexKey};
 
 use crate::swept::{SweptChord, SweptKind, decide};
@@ -220,6 +221,89 @@ pub enum RevolvedKind {
         /// vertex.
         pi_rims: Vec<Option<EdgeKey>>,
     },
+}
+
+/// The two wedge-cap frames of a PARTIAL revolve, in the operation's
+/// own vocabulary.
+#[derive(Clone, Copy, Debug)]
+pub struct WedgeFrames<T: Real> {
+    /// The start cap's carrier frame (the sketch plane).
+    pub start: Pose<T>,
+    /// The end cap's carrier frame (the sketch plane rotated by θ).
+    pub end: Pose<T>,
+}
+
+/// Typed refusal of [`revolved_caps`] (closed enum, D4 ¶3).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WedgeCapsError {
+    /// The revolve has no caps to read: [`RevolvedKind::Full`] closes
+    /// on itself, so there is no start or end plane. A fact about the
+    /// operation, not an empty answer.
+    NoCaps,
+    /// A cap face's frame could not be read.
+    Read(ReadbackError),
+}
+
+impl From<ReadbackError> for WedgeCapsError {
+    fn from(e: ReadbackError) -> Self {
+        Self::Read(e)
+    }
+}
+
+/// **Where did the partial revolve's wedge caps land?** — the joint
+/// frames of a tube: each cap plane's origin and normal, which is
+/// exactly the tube's end tangent there when the profile is a
+/// cross-section.
+///
+/// The op-specific half of the read: the cap faces live inside
+/// [`RevolvedKind::Partial`], so the case analysis is the door's
+/// content and [`topo::readback::face_pose`] does the reading.
+///
+/// # Errors
+///
+/// [`WedgeCapsError::NoCaps`] for a full revolve; every
+/// [`topo::readback::face_pose`] refusal.
+///
+/// ```
+/// use geom_core::{Point2, Tolerance, Vec2};
+/// use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
+/// use sweep::{Revolution, RevolveAxis, revolve, revolved_caps};
+///
+/// // A quarter tube: a small circle a distance 5 from the axis,
+/// // revolved a quarter turn about the sketch frame's +v.
+/// let circle = profile::circle(Point2::new(5.0, 0.0), 0.5).expect("a positive radius");
+/// // The complete-loop primitives answer with a `ClosedLoop` (the
+/// // lowered loop plus its program); `Profile` takes the loop.
+/// let sketch = Profile::new(SketchPlane::xy(), vec![circle.into()])
+///     .validate(Tolerance::get())
+///     .expect("the circle validates");
+/// let axis = RevolveAxis { origin: Point2::new(0.0, 0.0), dir: Vec2::new(0.0, 1.0) };
+/// let quarter = revolve::<f64>(
+///     &sketch,
+///     axis,
+///     Revolution::Partial(std::f64::consts::FRAC_PI_2),
+/// )
+/// .expect("the tube revolves");
+///
+/// let caps = revolved_caps(&quarter).expect("a partial revolve has caps");
+/// // The start cap IS the sketch plane, so its normal is the sketch
+/// // normal (+z) — and that is the tube's end tangent there.
+/// assert!(caps.start.axis.z.abs() > 0.99);
+/// // A quarter turn about +y later, the end cap's normal has turned
+/// // with it, onto x.
+/// assert!(caps.end.axis.x.abs() > 0.99);
+/// ```
+pub fn revolved_caps<T: Real>(r: &Revolved<T>) -> Result<WedgeFrames<T>, WedgeCapsError> {
+    let RevolvedKind::Partial {
+        start_cap, end_cap, ..
+    } = r.kind
+    else {
+        return Err(WedgeCapsError::NoCaps);
+    };
+    Ok(WedgeFrames {
+        start: face_pose(&r.body, start_cap)?,
+        end: face_pose(&r.body, end_cap)?,
+    })
 }
 
 /// Typed failure of [`revolve`] (closed enum, D4 ¶3). Loop indices

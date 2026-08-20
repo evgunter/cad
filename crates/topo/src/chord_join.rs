@@ -407,15 +407,14 @@ pub(crate) fn corrupt_vertex(vertex: VertexKey) -> SplitJoinError {
 /// order (naming emission, M4 PR 3).
 pub(crate) type FragmentRows = Vec<(FaceKey, FaceKey)>;
 
-/// The point of a vertex.
+/// The point of a vertex. Either empty lookup means the same thing
+/// here — a body that reached this lane corrupt — so the read-back
+/// door's discriminated reference collapses to one verdict.
 pub(crate) fn vertex_point<T: Decide>(
     body: &Body<T>,
     v: VertexKey,
 ) -> Result<Point3<T>, SplitJoinError> {
-    let vertex = body.get_vertex(v).ok_or_else(|| corrupt_vertex(v))?;
-    body.get_point(vertex.point)
-        .copied()
-        .ok_or_else(|| corrupt_vertex(v))
+    crate::readback::vertex_point_ref(body, v).map_err(|_| corrupt_vertex(v))
 }
 
 /// The outcome of retiring a fully-joined null edge (`cut`):
