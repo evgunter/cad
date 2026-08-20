@@ -1362,3 +1362,38 @@ grepping `C19` across `docs/`.
 which sequence should move is a §D-shape question belonging to whoever owns that
 document — the same owner as the conflict-window problem recorded above. Track C
 produced both measurements and neither ruling.
+
+### A companion clause to §C15, earned by C-i and worth having
+
+§C15 says a sweep's result is worth nothing without a statement of what its
+pattern cannot match. C-i's closing disclosure found the other half:
+
+> sites 7, 11 and 12 were **in** I2's and I4's output and I missed them by
+> reading a 390-line list from its tail; a literal `rg 'until SSI'` after the
+> first fix pass recovered them.
+
+The instrument matched correctly. **The reading of its output failed.** And the
+cheapest of four instruments — a bare `rg` for a literal string — is what
+finally proved the class closed, after three elaborate ones had produced the
+material and had it misread.
+
+The clause, as the lane stated it:
+
+> §C15 asks a sweep to declare what its pattern cannot match; this asks it to
+> declare **how its output was actually read** — because an instrument that
+> matched correctly and a reader who skimmed its tail produce the identical
+> artefact, **a confident negative result**, and only the second is invisible in
+> the record.
+
+*Why this is not a restatement of §C15.* Every previous lesson on this track has
+been about an instrument's blind spot — the pattern could not reach the site, so
+the negative result was honestly wrong. This one is about a **reading** blind
+spot, where the negative result is dishonestly right: the evidence was in hand
+and the conclusion was drawn past it. Nothing in the existing discipline asks
+after that, and a 390-line hit list is exactly the artefact that invites it.
+
+*Operationally:* a sweep reporting more hits than a person will read owes either
+a mechanical filter down to a readable set, or a statement that its tail was
+sampled rather than read. C-i's own recovery is the cheap check — **after the
+fix pass, re-run the narrowest literal query the class admits and confirm it
+returns zero.**
