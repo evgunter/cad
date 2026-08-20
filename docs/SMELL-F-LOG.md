@@ -333,6 +333,35 @@ the qualifier that makes a claim exactly true, and scope your evidence out
 loud: a green `-p onecrate` run is evidence about one crate. **A measurement is
 a measurement of a tree** — name which tree each number came from.
 
+**If you run mutations, read your own diff before you open.** `git diff
+origin/main...HEAD --name-only -- ':(exclude)docs'` — two seconds. A lane here
+shipped a planted mutation into `geom-core` production code because it ran
+`git add -A && git commit` from a second shell **while its mutation script was
+mid-run**: the commit captured the mutated file, and the script's own
+`git checkout --` then restored it to the mutated *committed* state. Nothing that
+lane ran would have caught it; that one command would have, by showing a single
+non-test hunk in a lane whose whole subject is tests. (F-d, 2026-08-20.)
+**Never blanket-substitute a string over a document that contains a template of
+it** — the same lane's `#NNN` → `#825` pass corrupted the two template lines
+every future lane reads.
+
+**When you disclose that something cannot be demonstrated, say what class of
+demonstration you tried.** This is sharper than the standing *a disclosed blind
+spot is a work order, not a discharge*, and it was earned the hard way: a lane
+reported in complete good faith that an assertion had no possible receipt,
+because *"two `loft_body` mutations were both rejected by certification"*. The
+receipt was one line away — a **fixture swap**, not a code mutation. Its own
+verdict afterwards: *"a claim about my method wearing the clothes of a claim
+about the world — and disclosing it honestly made it **harder** to catch, not
+easier."*
+
+**The refinement, which inverts the obvious reading:** what made that lid hold
+was that the disclosure was **specific**. *"Two mutations, both rejected by
+certification"* reads as a search, and a search that names its results invites
+trust rather than a second look — where a vague *"I could not"* would have
+invited one. **Specificity about the conclusion is what closes the question;
+specificity about the method is what reopens it.** (F-c, 2026-08-20.)
+
 **Your final report**, ≤150 lines, states: what you changed and why that shape;
 what you swept with and **what that pattern could not match**; every claim
 resting on a measurement and what guards it; which of the style brief's
