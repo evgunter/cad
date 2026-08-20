@@ -146,6 +146,22 @@ running it **once, outside the loop** is both cheaper and a truer statement of
 what it checks. A lane that drops it into the loop because that is where the
 other invocations are has paid 3× for a claim that is not per-ε.
 
+**The counts in this ruling are withdrawn as prose, 2026-08-20** — by Track E's
+own re-derivation of D23, landed after this ruling was written. *"2 of 16"* and
+*"14 type-checked and never run"* are **prose counts of a set the census gate
+derives every merge**, so quoting them pins a number that moves. **The ruling
+does not change**: it is about *dispositions* — thirteen `--ignored` dump
+harnesses are posture, the one non-`#[ignore]`d test is not — and a disposition
+does not depend on the cardinality. What F-h must not do is restate the totals.
+
+**And F-h inherits a warning that arrived with the withdrawal: the obvious floor
+is unsound.** `run_dump` passes `--ignored`, and `m5_pr5_corpus_probe.rs`'s test
+is **not** `#[ignore]`d — so a floor built on filter-reachability would score it
+**covered while it executes nothing**. That is the exact shape of the finding,
+reproduced inside its own fix, and it is now foreseen rather than discovered.
+**D45 is withdrawn entirely and D85 replaces it**; F8's rows are **D84/D85**,
+not D44/D45.
+
 **DISCHARGED by Evan, 2026-08-20**, on the measurement above: *"ok yeah k lint
 is consistently shorter, sounds like there's no worry about test time then."*
 So **the cost condition on F-R5 is settled and is no longer a gate on F-h.**
