@@ -79,7 +79,8 @@ reads as an editing error otherwise.
 ## Blocked, and on what
 
 **Nothing is blocked by another track any more.** Both external edges closed
-on 2026-08-20: **#702** (`f382c4aa`) discharged D7's `PairSolve` row, and
+on 2026-08-20: **#702** (`f382c4aa`) discharged D7's `PairSolve` row, which
+then landed as **#735**, and
 **#705** — the ≥200-file `geom-curves` + `geom-surfaces` merge that had been
 the track's single largest scheduling constraint — discharged **D2**, D7's
 fillet-helper row, and **D8**, whose `geom-curves/src/fit.rs` it relocated to
@@ -90,13 +91,14 @@ What is unstarted is unstarted for schedule reasons only, not technical ones:
 - **D2** (B3 / S19, the fillet error catch-alls, ADVERSARIAL) is the widest
   unblocked row and gates D7's fillet-helper row — the only edge left in the
   track.
-- **D8**, **D17**, **D19**, **D20**, **D21** and D7's **`PairSolve`** row are
-  edge-free. `PairSolve`'s provenance note goes to **issue #611**, not the PR
-  body, because R2's thread is live; the deleting PR must cite the recoverable
-  commit SHA. **D21 is ADVERSARIAL** for the reason D18 was: each conversion
-  turns a garbage-out into a panic, and #720 proved that hole is real. D18
-  itself landed as #736 — its record, including why the release-corruption CI
-  row survived the conversion, is in that PR and at S12.
+- **D8**, **D17**, **D19**, **D20**, **D21** and **D25** are edge-free. D7's
+  **`PairSolve`** row was too, and landed as **#735**; its provenance note is a
+  comment on **issue #611**, not the PR body, because R2's thread is live, and
+  the PR cites the commit the type is recoverable from. **D18 landed as #736**,
+  finishing W2c and placing D21 and D25. **D21 is now the ADVERSARIAL one**, for
+  the reason D18 was: each conversion turns a garbage-out into a panic, and #720
+  proved that hole is real. It should sequence after **D25**, which would
+  discharge its half-edge sites structurally rather than site by site.
 
 ## For Evan — S14 now has three witnesses
 
