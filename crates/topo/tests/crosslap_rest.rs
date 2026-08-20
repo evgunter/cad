@@ -144,7 +144,7 @@ fn declared_crosslap_union_exports_watertight() {
         "planar mesh volume matches the exact one: {v_mesh} vs {exact}"
     );
     let mut stl = Vec::new();
-    stl::write_binary(&mesh, &mut stl).expect("STL row");
+    stl::write_binary(&mesh, &stl::BinaryOptions::default(), &mut stl).expect("STL row");
     assert!(!stl.is_empty());
     let step = step_export::step_string(&glued.body, &step_export::StepOptions::default())
         .expect("STEP row");
@@ -171,7 +171,7 @@ fn declared_crosslap_union_rerun_is_bit_identical() {
     let stl_of = |g: &topo::BooleanBody<f64>| {
         let mesh = mesh::tessellate(&g.body, 1e-2).expect("tessellate");
         let mut buf = Vec::new();
-        stl::write_binary(&mesh, &mut buf).expect("stl");
+        stl::write_binary(&mesh, &stl::BinaryOptions::default(), &mut buf).expect("stl");
         buf
     };
     assert_eq!(stl_of(&g1), stl_of(&g2), "STL bytes bit-identical");

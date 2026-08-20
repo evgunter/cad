@@ -737,8 +737,20 @@ let step = step_string(&result.body, &StepOptions {
 })?;
 assert!(step.starts_with("ISO-10303-21;"));
 
+// STL's two formats carry different things, so they take different
+// options. The binary format's 80 bytes are free text — conventionally
+// the producer; the ASCII format's `solid <name>` names the part. Each
+// is a validated newtype, so a name that cannot be written is refused
+// here rather than when you export.
 let mut stl = Vec::new();
-write_binary(&mesh, &mut stl)?;
+write_binary(&mesh, &BinaryOptions {
+    header: BinaryHeader::new("bracket, exported by the tour")?,
+}, &mut stl)?;
+let mut stl_text = Vec::new();
+write_ascii(&mesh, &AsciiOptions {
+    solid_name: SolidName::new("bracket")?,
+}, &mut stl_text)?;
+assert!(String::from_utf8(stl_text)?.starts_with("solid bracket\n"));
 let declared = u32::from_le_bytes(stl[80..84].try_into().unwrap()) as usize;
 assert_eq!(declared, pncad::mesh::validate::triangle_count(&mesh));
 
