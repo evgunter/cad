@@ -721,6 +721,99 @@ impl<T: Real> ValidatedLoop<T> {
     pub fn tangent_joints(&self) -> &[usize] {
         &self.tangent_joints
     }
+
+    /// **Which segment is the fillet at corner k?** — every arc
+    /// segment this loop declares TANGENT at both of its junctions, in
+    /// CANONICAL segment order.
+    ///
+    /// **Authored order is not preserved, and entry `k` is not the
+    /// k-th fillet you wrote.** Validation canonicalizes: it rotates
+    /// the chain to its lex-min vertex, and it REVERSES a loop wound
+    /// the wrong way for its role — so a hole authored with fillets
+    /// `[r1, r2]` answers `[r2, r1]`. Correlate by
+    /// [`BlendArc::segment`] (a canonical index, which is the only
+    /// index this layer has) or by the arc data itself, which is
+    /// self-identifying; do not index by authoring position.
+    ///
+    /// A corner fillet leaves exactly this shape behind: an arc that
+    /// meets both legs tangentially, with both junctions declared (and
+    /// verified — validation refuses an unmet declaration). So the
+    /// answer is STRUCTURAL — it reads [`ValidatedLoop::tangent_joints`],
+    /// decides nothing, and compares no floats. That is what makes it
+    /// a replacement for the alternative every caller wrote instead:
+    /// scanning the segments for "the arc whose radius equals R",
+    /// which finds the wrong arc as soon as two blends share a radius,
+    /// and silently finds nothing when the stored radius drifts an
+    /// ulp.
+    ///
+    /// **What it reports, exactly.** Any tangent-continuous arc
+    /// answers, not only arcs an author reached through fillet sugar —
+    /// a full circle lowered as two tangent semicircles presents the
+    /// same shape and is listed too. This is a read of the loop's
+    /// structure, not a verdict about intent, and the docs say so
+    /// rather than the answer guessing.
+    ///
+    /// ```
+    /// use geom_core::{Point2, Tolerance};
+    /// use profile::{ArcSweep, Center, Open, Profile, SegmentKind, SketchPlane, Start};
+    ///
+    /// // The tour rocker's eye slot: two R = 1 lobes meeting tip to
+    /// // tip, the TOP tip filleted at R = 1/4, the bottom left sharp.
+    /// let tip = 0.75f64.sqrt();
+    /// let eye = Open
+    ///     .arc_fillet_arc(
+    ///         Center {
+    ///             c: Point2::new(-0.5, 0.0),
+    ///             winding: ArcSweep::Ccw,
+    ///             p: Point2::new(0.0, -tip),
+    ///         },
+    ///         0.25,
+    ///         Center {
+    ///             c: Point2::new(0.5, 0.0),
+    ///             winding: ArcSweep::Ccw,
+    ///             p: Start,
+    ///         },
+    ///     )
+    ///     .expect("the near candidate resolves the tip");
+    /// let slot = Profile::new(SketchPlane::xy(), vec![eye.into()])
+    ///     .validate(Tolerance::get())
+    ///     .expect("the eye slot validates");
+    ///
+    /// // One filleted corner, found by structure — no radius scan.
+    /// let blends = slot.loops()[0].blend_arcs();
+    /// assert_eq!(blends.len(), 1);
+    /// match blends[0].kind {
+    ///     SegmentKind::Arc { center, radius, .. } => {
+    ///         assert!((radius - 0.25).abs() < 1e-12);
+    ///         assert!(center.x.abs() < 1e-12);
+    ///     }
+    ///     SegmentKind::Line => panic!("a fillet is an arc"),
+    /// }
+    /// ```
+    #[must_use]
+    pub fn blend_arcs(&self) -> Vec<BlendArc<T>> {
+        let n = self.segments.len();
+        let tangent_at = |v: usize| self.tangent_joints.binary_search(&v).is_ok();
+        (0..n)
+            .filter(|&j| matches!(self.segments[j].kind, SegmentKind::Arc { .. }))
+            .filter(|&j| tangent_at(j) && tangent_at((j + 1) % n))
+            .map(|j| BlendArc {
+                segment: j,
+                kind: self.segments[j].kind,
+            })
+            .collect()
+    }
+}
+
+/// One blend arc of a validated loop: which canonical segment it is,
+/// and the arc data the classifier gave it.
+#[derive(Clone, Copy, Debug)]
+pub struct BlendArc<T: Real> {
+    /// The canonical segment index within the loop (segment `j` runs
+    /// from vertex `j` to vertex `j + 1 mod n`).
+    pub segment: usize,
+    /// The classified carrier — always [`SegmentKind::Arc`] here.
+    pub kind: SegmentKind<T>,
 }
 
 /// A validated, canonicalized profile — the only thing sweeps accept.

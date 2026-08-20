@@ -194,8 +194,13 @@ margin sources, exactly the pressure source Finding 4 anticipated:
   `split_join_frame_arm`, `split_section_area`,
   `split_sector_{arm,coplanar,extent,reflex,straight}`,
   `split_vertex_side`.
-- **4 `point_in_loop_*`** (trilean containment, `laringmv`/F8 ray
-  parity): `point_in_loop_{advance,arm,boundary,side}`.
+- **5 `point_in_loop_*`** (trilean containment, `laringmv`/F8 ray
+  parity): `point_in_loop_{advance,arm,boundary,segment,side}`.
+  `_segment` (the segment-length degeneracy gate) was split off
+  `_boundary` (the point-to-segment distance) by #712, which found one
+  name deciding two questions; the family's samples and margins are
+  unchanged, the 49 290 `_boundary` samples of the M7 sweep now
+  splitting 24 645 / 24 645.
 - **2 `enters_material*`** (the F3 sign-chain primitive;
   `crates/geom-brep/src/enters.rs`): `enters_material`,
   `enters_material_arm`.
@@ -203,7 +208,18 @@ margin sources, exactly the pressure source Finding 4 anticipated:
 (Inventory method: `grep -r 'decide("' crates/*/src` diffed against
 this report's M2 CSV predicate column, plus the census's
 `gap_is_zero`/`signed_is_zero` helper call sites, which pass names
-into the same funnel. The three M2 refusal-path predicates dead on
+into the same funnel, plus — **since #712** — the row-name TABLES.
+A predicate name supplied as a parameter is invisible to the `decide("`
+grep, so any type holding row names must be listed here for the
+inventory to stay complete. Today there is exactly one:
+`topo::ray_parity::ParityRows`, whose two values
+(`splitting::containment::ROWS`, `chart_region::ROWS`) carry four
+names each — `grep -rn 'ParityRows {' -A 6 crates/*/src`, which also
+surfaces a third, `#[cfg(test)]`-only value that ships in nothing.
+Adding a
+name table without adding it here silently drops its rows from the
+roster, which is the standing cost of parameterising a predicate name
+and the reason it is written down rather than discovered. The three M2 refusal-path predicates dead on
 the M2 corpus — `carrier_circles_internal`, `collinear_overlap`,
 `extrusion_obliquity` — are M2-era, not counted here.)
 

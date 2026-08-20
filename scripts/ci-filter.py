@@ -62,6 +62,7 @@ $GITHUB_OUTPUT and to parse with `while IFS='=' read -r k v`.
   RUN_PNCAD_PY=true|false       python suite (wheel + unittest) row
   RUN_INTERVAL_BACKEND=true|false   interval-transcendentals' own workspace
   RUN_INTERVAL_ORACLE=true|false    its oracle-inari certification tier
+  RUN_TOPO_RELEASE=true|false   corrupt input (release profile) row
   RUN_K_LINT=true|false         k-lint (gate) row
 """
 
@@ -247,11 +248,17 @@ def _all_tier(root: str) -> dict[str, str]:
 #               "something the wheel compiles moved"; the crate's own .py
 #               test/stub files live under its member directory, so they
 #               seed the same closure.
+# topo          the release-profile corrupt-input row compiles
+#               `-p topo --lib`, so topo's own closure membership is
+#               exactly the condition under which anything it runs can
+#               have moved. It is the one job whose root is the crate the
+#               suite lives in rather than a downstream consumer.
 JOB_ROOTS = {
     "RUN_EDITOR_CORE": {"editor-core"},
     "RUN_STL": {"stl"},
     "RUN_STEP_EXPORT": {"step-export"},
     "RUN_PNCAD_PY": {"pncad-py"},
+    "RUN_TOPO_RELEASE": {"topo"},
 }
 
 

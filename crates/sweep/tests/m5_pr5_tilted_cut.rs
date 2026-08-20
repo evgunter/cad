@@ -414,7 +414,7 @@ fn wall_contained_ellipse_spans(part: &Body<f64>, height: f64) -> Vec<f64> {
 /// **the certified-pass row since M5 S9**, and the row that pins the
 /// repaired arc-side rule end to end.
 ///
-/// PR 5's arc-side rule (`splitting::join::chord_spec`,
+/// PR 5's arc-side rule (`topo::chord_join`'s `chord_spec`,
 /// `split_conic_arc_side`) picked which of the section conic's two arcs
 /// bounds the divided face from a single azimuth sample taken on the
 /// RUN the chord co-bounds, premised on that sample's azimuth "lying

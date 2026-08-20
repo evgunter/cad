@@ -221,3 +221,237 @@ fn tier2_strut_scan_echoes_on_dangling_start() {
         "expected the ungated tier-2 strut scan to echo: {errs:?}"
     );
 }
+
+/// **The closure property the module docs of [`crate::euler`] and D9's
+/// footnote both rest on, checked instead of asserted.** Every public
+/// mutation path into a [`crate::Body`] — `pub fn` taking `&mut self`,
+/// plus the free functions taking `&mut Body<T>` — either declares the
+/// shared tier-1 debug postcondition (`assert_euler_postcondition`) or
+/// appears below with the reason it does not need one.
+///
+/// **Why a test and not a sentence.** The claim these documents make
+/// used to be an enumeration ("the eleven public mutators"), and it
+/// rotted: five more doors landed and the count stayed. Replacing the
+/// count with prose about a closure property fixes the arithmetic and
+/// keeps the failure mode — the next door added is still a door
+/// nothing checks. This goes red the day one lands, which is the whole
+/// point, and it is why neither document carries a number.
+///
+/// **What the allowlist is, and what it is not.** Not a waiver list.
+/// Each entry states why tier 1 survives that door, and the entries
+/// divide into four kinds: sugar delegating to an asserting operator;
+/// pipelines composed of asserting operators; setters carrying their
+/// own tier-1 `debug_assert`; and setters writing fields tier 1 does
+/// not constrain. The fifth kind has exactly one member and is the
+/// finding that produced this test — `instance`'s grafts do NOT
+/// preserve tier 1 on their failure path, which their own docs
+/// concede, and which is open as S14.
+///
+/// Stale entries are caught in both directions: an entry naming a door
+/// that no longer exists, or one that has since started asserting,
+/// fails as loudly as an unlisted door.
+#[test]
+fn every_public_mutation_path_preserves_tier1() {
+    // `(door, why tier 1 survives it)`.
+    const ALLOWED: &[(&str, &str)] = &[
+        // ---- Sugar: delegates to an asserting operator. ----
+        ("mev_line", "derives the spec, then calls `mev`"),
+        ("mef_chord", "derives the spec, then calls `mef`"),
+        ("mekr_chord", "derives the spec, then calls `mekr`"),
+        ("mfkrh_plug", "calls `mfkrh` with a placeholder surface"),
+        (
+            "set_edge_curve_nurbs_lane",
+            "`set_edge_curve` with the NURBS certifier injected — same body, same assertion",
+        ),
+        // ---- Pipelines composed of asserting operators. ----
+        (
+            "merge_coplanar_faces",
+            "calls `merge_coplanar_faces_declared` with no declarations",
+        ),
+        (
+            "merge_coplanar_faces_declared",
+            "gates on `validate_closed` at entry and mutates only through `ring_move`/`kef`",
+        ),
+        // ---- Setters carrying their own tier-1 debug_assert. ----
+        (
+            "set_face_surface",
+            "asserts tier 1 directly (a surface swap can orphan a key)",
+        ),
+        (
+            "set_edge_curve",
+            "asserts tier 1 directly (a curve swap can orphan a key)",
+        ),
+        // ---- Writes fields tier 1 does not constrain. ----
+        ("set_face_sense", "writes one `bool`; sense is tier 3's"),
+        ("set_surface_source", "GeomSource metadata, no arena key"),
+        ("set_curve_source", "GeomSource metadata, no arena key"),
+        ("set_point_source", "GeomSource metadata, no arena key"),
+        ("clear_geom_sources", "GeomSource metadata, no arena key"),
+        ("attach_pcurve", "pcurve cache; coherence is tier 3's"),
+        ("detach_pcurve", "pcurve cache; coherence is tier 3's"),
+        ("mint_pcurves", "pcurve caches only; no topology touched"),
+        (
+            "set_null_face_pair",
+            "null-face annotation; tier 2 bans it at rest, tier 1 does not see it",
+        ),
+        ("clear_null_face_pair", "removes that annotation"),
+        // ---- The exception. Not a waiver: a recorded hole. ----
+        (
+            "graft_disjoint",
+            "RAW TRANSPLANT — see `graft_disjoint_all_keyed`",
+        ),
+        (
+            "graft_disjoint_all",
+            "RAW TRANSPLANT — see `graft_disjoint_all_keyed`",
+        ),
+        (
+            "graft_disjoint_all_keyed",
+            "RAW TRANSPLANT, and the one door that does NOT preserve tier 1: it mints an \
+             empty destination solid per source solid before transplanting, and a refusal \
+             raised mid-transplant leaves `dst` partially written (its own docs: spent, \
+             never resumable). An empty solid IS `SolidWithoutShells`, a tier-1 error. A \
+             caller that discards the `Err` can fire a later operator's postcondition from \
+             API MISUSE rather than a kernel bug — the state class D9's footnote says \
+             cannot occur. Open as S14; this entry records it, it does not excuse it.",
+        ),
+        (
+            "graft_disjoint_all_onto_keyed",
+            "RAW TRANSPLANT — see `graft_disjoint_all_keyed`",
+        ),
+    ];
+
+    let files = crate::fixtures::crate_sources();
+    let mut asserting: Vec<String> = Vec::new();
+    let mut listed: Vec<String> = Vec::new();
+    let mut unlisted: Vec<String> = Vec::new();
+
+    for path in &files {
+        let text = std::fs::read_to_string(path).expect("a readable source file");
+        for (name, params, body) in public_fns(&text) {
+            if !params.contains("&mut self") && !params.contains("&mut Body") {
+                continue;
+            }
+            let where_ = format!("{}::{name}", path.display());
+            if body.contains("assert_euler_postcondition") {
+                asserting.push(where_);
+            } else if ALLOWED.iter().any(|(n, _)| *n == name) {
+                listed.push(name.to_string());
+            } else {
+                unlisted.push(where_);
+            }
+        }
+    }
+
+    assert!(
+        unlisted.is_empty(),
+        "public mutation path(s) that neither declare the tier-1 debug postcondition nor \
+         appear on this test's allowlist: {unlisted:?}. Either call \
+         `assert_euler_postcondition` at the end of the door, or add it above WITH the \
+         reason tier 1 survives it — and if the reason is that it does not, that is a \
+         finding, not an entry.",
+    );
+    // The allowlist rots in the other direction too.
+    for (name, _) in ALLOWED {
+        assert!(
+            listed.iter().any(|n| n == name),
+            "the allowlist names `{name}`, which is no longer a non-asserting public \
+             mutation path — it was renamed, deleted, or has started asserting. Drop the \
+             entry.",
+        );
+    }
+    // A walk that found nothing would pass every assertion above.
+    assert!(
+        asserting.len() >= 10 && listed.len() >= 10,
+        "the walk found {} asserting and {} allowlisted door(s) — it is not reading the \
+         real surface",
+        asserting.len(),
+        listed.len(),
+    );
+    println!(
+        "[mutation surface] {} public door(s): {} assert tier 1, {} allowlisted",
+        asserting.len() + listed.len(),
+        asserting.len(),
+        listed.len(),
+    );
+}
+
+/// Every `pub fn` in `text`, as `(name, parameter list, body)`.
+///
+/// Deliberately a source read: Rust offers no way to enumerate a
+/// type's methods at runtime, and the property being checked is about
+/// the SOURCE surface — what a future door will look like when someone
+/// adds one.
+fn public_fns(text: &str) -> Vec<(&str, &str, &str)> {
+    let mut out = Vec::new();
+    let bytes = text.as_bytes();
+    let mut from = 0usize;
+    while let Some(rel) = text[from..].find("pub fn ") {
+        let at = from + rel;
+        from = at + "pub fn ".len();
+        // Item position only: a `pub fn` glued to another identifier is
+        // not a definition.
+        if at > 0 && !matches!(bytes[at - 1], b'\n' | b' ') {
+            continue;
+        }
+        let rest = &text[from..];
+        let Some(name_end) = rest.find(|c: char| !c.is_alphanumeric() && c != '_') else {
+            continue;
+        };
+        let name = &rest[..name_end];
+        let Some(open) = text[from..].find('(') else {
+            continue;
+        };
+        let Some(close) = matching(text, from + open, b'(', b')') else {
+            continue;
+        };
+        let params = &text[from + open..close];
+        let Some(brace) = text[close..].find('{') else {
+            continue;
+        };
+        let Some(end) = matching(text, close + brace, b'{', b'}') else {
+            continue;
+        };
+        out.push((name, params, &text[close + brace..end]));
+        from = end;
+    }
+    out
+}
+
+/// The index of the delimiter closing the one at `open`, skipping
+/// string and comment content.
+fn matching(text: &str, open: usize, l: u8, r: u8) -> Option<usize> {
+    let b = text.as_bytes();
+    let (mut depth, mut i) = (0usize, open);
+    while i < b.len() {
+        match b[i] {
+            b'"' => {
+                i += 1;
+                while i < b.len() && b[i] != b'"' {
+                    i += usize::from(b[i] == b'\\') + 1;
+                }
+            }
+            b'/' if b.get(i + 1) == Some(&b'/') => {
+                while i < b.len() && b[i] != b'\n' {
+                    i += 1;
+                }
+            }
+            b'/' if b.get(i + 1) == Some(&b'*') => {
+                i += 2;
+                while i + 1 < b.len() && !(b[i] == b'*' && b[i + 1] == b'/') {
+                    i += 1;
+                }
+                i += 1;
+            }
+            c if c == l => depth += 1,
+            c if c == r => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(i);
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    None
+}

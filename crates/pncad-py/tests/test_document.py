@@ -335,7 +335,11 @@ class TestD9BitReplaySeed(unittest.TestCase):
 
     def test_replay_of_the_same_recipe_is_bit_identical(self):
         def build():
-            doc = Doc()
+            # `bit_eq` compares identity too, so the two builds are
+            # the SAME part on purpose — the labelled constructor is
+            # what says that. `Doc()` mints a fresh id and would (and
+            # should) compare unequal.
+            doc = Doc(label="replay-of-the-same-recipe")
             box = unit_box(doc, 2 * m, 3 * m, 0.5 * m)
             return doc, evaluate(doc).value(box).body().mass_properties()
 
@@ -350,6 +354,58 @@ class TestD9BitReplaySeed(unittest.TestCase):
             struct.pack(">d", first.surface_area),
             struct.pack(">d", second.surface_area),
         )
+
+
+class TestDocumentIdentity(unittest.TestCase):
+    """A document id answers WHICH PART, and the workspace store's
+    uniqueness invariant is keyed on it — so an id that is the same
+    for every Python-authored document makes them all one part, and
+    makes two of them unstorable side by side."""
+
+    def test_two_authored_documents_are_two_parts(self):
+        first, second = Doc(), Doc()
+        self.assertNotEqual(
+            first.id, second.id, "two documents authored here are one part"
+        )
+
+    def test_an_id_is_the_canonical_thirty_two_hex_digits(self):
+        doc_id = Doc().id
+        self.assertEqual(len(doc_id), 32)
+        self.assertEqual(doc_id, doc_id.lower())
+        int(doc_id, 16)  # parses, or this raises
+
+    def test_the_id_is_what_the_save_header_carries(self):
+        # The workspace scan reads exactly this line to build its
+        # id -> path map, so two saved documents landing in one
+        # directory are distinguishable by the store.
+        first, second = Doc(), Doc()
+        headers = [
+            next(
+                line
+                for line in doc.save().splitlines()
+                if line.startswith("id: ")
+            )
+            for doc in (first, second)
+        ]
+        self.assertEqual(headers[0], f"id: {first.id}")
+        self.assertEqual(headers[1], f"id: {second.id}")
+        self.assertNotEqual(headers[0], headers[1])
+
+    def test_identity_survives_every_edit(self):
+        doc = Doc()
+        before = doc.id
+        unit_box(doc, 1 * m, 1 * m, 1 * m)
+        self.assertEqual(doc.id, before, "an edit does not change which part")
+
+    def test_a_labelled_document_is_the_same_part_every_time(self):
+        self.assertEqual(Doc(label="plate-param").id, Doc(label="plate-param").id)
+        self.assertEqual(Doc("plate-param").id, Doc(label="plate-param").id)
+        self.assertNotEqual(Doc(label="plate-param").id, Doc(label="bracket").id)
+
+    def test_a_loaded_document_keeps_the_id_it_was_saved_under(self):
+        doc = Doc()
+        unit_box(doc, 1 * m, 1 * m, 1 * m)
+        self.assertEqual(load(doc.save()).doc.id, doc.id)
 
 
 class TestPersistence(unittest.TestCase):
