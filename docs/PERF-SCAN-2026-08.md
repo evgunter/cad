@@ -561,13 +561,22 @@ Hard call-count evidence, recomputed from
 284 178 decisions): `point_in_loop_boundary` 49 290 (17.3%),
 `point_in_loop_side` 22 831 (8.0%), `point_in_loop_arm` 7 755 (2.7%),
 `point_in_loop_advance` 5 632 (2.0%) — **85 508, or 30.1% of every
-decision the corpus makes.** `point_in_loop_boundary` alone is the
-single largest predicate in the corpus, ahead of
-`bool_point_in_solid_plane` (6.8%) and `carrier_on_surface_1` (6.5%).
+decision the corpus makes.** The `point_in_loop_*` family is the
+largest in the corpus, ahead of `bool_point_in_solid_plane` (6.8%)
+and `carrier_on_surface_1` (6.5%).
+
+**Name split since #712.** That 49 290 was ONE name deciding two
+questions. #712 split it: the degeneracy gate is now
+`point_in_loop_segment` and the distance keeps
+`point_in_loop_boundary`, at **24 645 each** — exactly half, because
+the pre-pass asks both once per segment per query. The family total,
+the margins and the decision sequence are unchanged; a reader chasing
+the 49 290 figure in a fresh CSV must add the two rows.
 
 Three query-independent wastes:
 
-- `containment.rs:180` — `decide("point_in_loop_boundary", Margin::norm3(e), band)`
+- the pre-pass's degeneracy gate — `point_in_loop_segment` since #712,
+  now decided inside `ray_parity::on_boundary` —
   asks *"is this loop segment degenerate?"*. `e` depends only on the
   loop, not the query point, and it runs once per segment **per query**.
   That is ~24 600 corpus decisions — **8.7% of all decisions** —
