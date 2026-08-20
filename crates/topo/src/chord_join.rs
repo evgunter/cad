@@ -78,11 +78,11 @@
 
 use geom_brep::{EdgeCurveSpec, Pcurve, chart_pcurve};
 use geom_core::spline::SpanLocate;
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign};
+use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point3, Real, Sign};
 use slotmap::SecondaryMap;
 
 use crate::body::Body;
-use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
+use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::euler::{EulerOpError, FaceSurface, MefSite};
 use crate::euler_ring::MekrSite;
 use crate::geometry::SurfaceKey;
@@ -212,8 +212,24 @@ pub enum SplitJoinError {
         /// The null edge being retired.
         edge: EdgeKey,
     },
-    /// A traversal failed mid-join (corrupt body).
-    Corrupt,
+    /// A traversal failed mid-join: the arena did not resolve a key the
+    /// join was handed, or a cycle did not close on the half-edge it
+    /// was walking to. `entity` is what the join was reading — the
+    /// TOPOLOGICAL entity even when the lookup that failed was the
+    /// geometry hanging off it (a vertex's point, a face's surface, an
+    /// edge's curve), because that is the entity a caller can find in
+    /// the body it holds.
+    ///
+    /// This arm is corruption ONLY. A state the join's own construction
+    /// rules out is [`Self::SectionInvariant`], which says which.
+    Corrupt {
+        /// The entity the join was reading when it could not continue.
+        entity: EntityId,
+    },
+    /// The exact-order band's constants did not construct —
+    /// structurally impossible for the two literal bit patterns, typed
+    /// rather than panicked (no panic paths in operator code).
+    Band(BandError),
     /// An underlying Euler operation refused.
     Euler(EulerOpError),
     /// The C5 section classification refused while minting a curved
@@ -313,7 +329,10 @@ impl core::fmt::Display for SplitJoinError {
                 f,
                 "split join: neither face flanking null edge {edge:?} is a sliver (kernel bug)"
             ),
-            Self::Corrupt => write!(f, "split join: traversal failed (corrupt body)"),
+            Self::Corrupt { entity } => {
+                write!(f, "split join: traversal failed at {entity} (corrupt body)")
+            }
+            Self::Band(e) => write!(f, "split join: invalid band: {e}"),
             Self::Euler(e) => write!(f, "split join: euler operation refused: {e}"),
             Self::Section { face, source } => {
                 write!(f, "split join: section chord in face {face:?}: {source}")
@@ -349,6 +368,41 @@ impl core::fmt::Display for SplitJoinError {
 
 impl std::error::Error for SplitJoinError {}
 
+/// The corruption refusal naming the half-edge the join was reading.
+pub(crate) fn corrupt_he(he: HalfEdgeKey) -> SplitJoinError {
+    SplitJoinError::Corrupt {
+        entity: EntityId::HalfEdge(he),
+    }
+}
+
+/// The corruption refusal naming the loop the join was reading.
+pub(crate) fn corrupt_loop(r#loop: LoopKey) -> SplitJoinError {
+    SplitJoinError::Corrupt {
+        entity: EntityId::Loop(r#loop),
+    }
+}
+
+/// The corruption refusal naming the face the join was reading.
+pub(crate) fn corrupt_face(face: FaceKey) -> SplitJoinError {
+    SplitJoinError::Corrupt {
+        entity: EntityId::Face(face),
+    }
+}
+
+/// The corruption refusal naming the edge the join was reading.
+pub(crate) fn corrupt_edge(edge: EdgeKey) -> SplitJoinError {
+    SplitJoinError::Corrupt {
+        entity: EntityId::Edge(edge),
+    }
+}
+
+/// The corruption refusal naming the vertex the join was reading.
+pub(crate) fn corrupt_vertex(vertex: VertexKey) -> SplitJoinError {
+    SplitJoinError::Corrupt {
+        entity: EntityId::Vertex(vertex),
+    }
+}
+
 /// Chord-mef fragment rows: `(new face, divided-from face)` in mint
 /// order (naming emission, M4 PR 3).
 pub(crate) type FragmentRows = Vec<(FaceKey, FaceKey)>;
@@ -358,10 +412,10 @@ pub(crate) fn vertex_point<T: Decide>(
     body: &Body<T>,
     v: VertexKey,
 ) -> Result<Point3<T>, SplitJoinError> {
-    let vertex = body.get_vertex(v).ok_or(SplitJoinError::Corrupt)?;
+    let vertex = body.get_vertex(v).ok_or_else(|| corrupt_vertex(v))?;
     body.get_point(vertex.point)
         .copied()
-        .ok_or(SplitJoinError::Corrupt)
+        .ok_or_else(|| corrupt_vertex(v))
 }
 
 /// The outcome of retiring a fully-joined null edge (`cut`):
@@ -562,12 +616,11 @@ fn chord_spec<T: Decide>(
     u1: VertexKey,
     u2: VertexKey,
 ) -> Result<Option<EdgeCurveSpec<T>>, SplitJoinError> {
-    let corrupt = || SplitJoinError::Corrupt;
     // Self-loop chords keep the scaffolding-circle convention.
     if u1 == u2 {
         return Ok(None);
     }
-    let face_data = body.get_face(face).ok_or_else(corrupt)?;
+    let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
     let wall_key = face_data.surface;
     let (o_c, a_c, r_c, u_ref_c) = match body.get_surface(wall_key) {
         Some(geom_surfaces::Surface::Plane { .. }) => {
@@ -623,7 +676,10 @@ fn chord_spec<T: Decide>(
         });
     };
     // The wall surface (cylinder OR sphere since M5 S13).
-    let cyl_s = body.get_surface(wall_key).cloned().ok_or_else(corrupt)?;
+    let cyl_s = body
+        .get_surface(wall_key)
+        .cloned()
+        .ok_or_else(|| corrupt_face(face))?;
     // A transient classification value: only origin/normal are read by
     // the table (u_ref is a placement convention the classification
     // never consumes; the STORED aux plane below gets an honest one).
@@ -632,7 +688,7 @@ fn chord_spec<T: Decide>(
         normal: ctx.plane.normal,
         u_ref: ctx.plane.normal,
     };
-    let extent = face_extent(body, u1, face).map_err(|_| corrupt())?;
+    let extent = face_extent(body, u1, face).map_err(|_| corrupt_face(face))?;
     // The conic frame (center, plane normal, major dir, semi-axes) —
     // per wall kind: the sphere lane (M5 S13) classifies through THE
     // table's plane_sphere_section (an exact Circle, never a fitted
@@ -1055,14 +1111,15 @@ pub(crate) fn face_azimuth_window<T: Decide>(
     face: FaceKey,
     band: Band,
 ) -> Result<Option<(T, T)>, SplitJoinError> {
-    let corrupt = || SplitJoinError::Corrupt;
-    let outer = body.get_face(face).ok_or_else(corrupt)?.outer;
-    let crate::entity::LoopBoundary::Cycle { first } =
-        body.get_loop(outer).ok_or_else(corrupt)?.boundary
+    let outer = body.get_face(face).ok_or_else(|| corrupt_face(face))?.outer;
+    let crate::entity::LoopBoundary::Cycle { first } = body
+        .get_loop(outer)
+        .ok_or_else(|| corrupt_loop(outer))?
+        .boundary
     else {
         return Ok(None);
     };
-    let halves = body.loop_cycle(first).ok_or_else(corrupt)?;
+    let halves = body.loop_cycle(first).ok_or_else(|| corrupt_he(first))?;
     run_azimuth_window(body, surface, face, &halves, band)
 }
 
@@ -1088,7 +1145,6 @@ fn bool_planar_chord_spec<T: Decide>(
     u1: VertexKey,
     u2: VertexKey,
 ) -> Result<Option<EdgeCurveSpec<T>>, SplitJoinError> {
-    let corrupt = || SplitJoinError::Corrupt;
     // The wall's chart frame — cylinder (PR 9, untouched) or sphere
     // (M5 S13: center, polar axis, radius, seam u_ref).
     let (o_c, a_c, r_c, u_ref_c) = match *wall {
@@ -1114,9 +1170,14 @@ fn bool_planar_chord_spec<T: Decide>(
     };
     let (p_o, p_n) = match body.get_surface(plane_key) {
         Some(&geom_surfaces::Surface::Plane { origin, normal, .. }) => (origin, normal),
-        _ => return Err(corrupt()),
+        _ => {
+            return Err(SplitJoinError::SectionInvariant {
+                face,
+                what: "the section context's auxiliary plane key does not name a plane surface",
+            });
+        }
     };
-    let extent = face_extent(body, u1, face).map_err(|_| corrupt())?;
+    let extent = face_extent(body, u1, face).map_err(|_| corrupt_face(face))?;
     let plane_s = geom_surfaces::Surface::Plane {
         origin: p_o,
         normal: p_n,
@@ -1403,10 +1464,17 @@ fn between_edge_in_plane<T: Decide>(
     he: HalfEdgeKey,
     band: Band,
 ) -> Result<Option<bool>, SplitJoinError> {
-    let corrupt = || SplitJoinError::Corrupt;
+    let he_data = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?;
     let edge = body
-        .get_edge(body.get_half_edge(he).ok_or_else(corrupt)?.edge)
-        .ok_or_else(corrupt)?;
+        .get_edge(he_data.edge)
+        .ok_or_else(|| corrupt_edge(he_data.edge))?;
+    // Named only by the two invariant arms below, which are off the
+    // hot path.
+    let owning_face = || {
+        body.get_loop(he_data.parent_loop)
+            .map(|l| l.face)
+            .ok_or_else(|| corrupt_loop(he_data.parent_loop))
+    };
     let Some(CurveGeom::Certified(curve)) = body.get_curve_geom(edge.curve) else {
         return Ok(Some(true)); // null scaffolding: zero-length, ON
     };
@@ -1416,7 +1484,11 @@ fn between_edge_in_plane<T: Decide>(
             let (t0, t1) = curve.params();
             let mid = curve.carrier().eval(t0 + (t1 - t0) * T::from_f64(0.5));
             match lane {
-                JoinLane::Planar => Err(corrupt()),
+                JoinLane::Planar => Err(SplitJoinError::SectionInvariant {
+                    face: owning_face()?,
+                    what: "the all-planar join lane reached a conic run edge (the operand \
+                           gate promises every carrier planar)",
+                }),
                 JoinLane::Split(ctx) => {
                     let margin = Margin::of((mid - ctx.plane.origin).dot(ctx.plane.normal));
                     match decide("split_conic_inplane_mid", margin, band) {
@@ -1454,7 +1526,13 @@ fn between_edge_in_plane<T: Decide>(
                             axis,
                             u_ref,
                         } => (center, axis, radius, u_ref),
-                        _ => return Err(corrupt()),
+                        _ => {
+                            return Err(SplitJoinError::SectionInvariant {
+                                face: owning_face()?,
+                                what: "boolean planar-side germ partner is neither a cylinder \
+                                       nor a sphere (arm not wired)",
+                            });
+                        }
                     };
                     let (w_min, w_max) = *window;
                     let half = T::from_f64(0.5);
@@ -1564,14 +1642,15 @@ fn run_azimuth_window<T: Decide>(
     halves: &[HalfEdgeKey],
     band: Band,
 ) -> Result<Option<(T, T)>, SplitJoinError> {
-    let corrupt = || SplitJoinError::Corrupt;
     let tau = T::tau();
     let half = T::from_f64(0.5);
     let mut acc: Option<(T, T)> = None;
     let mut prev_exit: Option<T> = None;
     for &he in halves {
-        let he_data = body.get_half_edge(he).ok_or_else(corrupt)?;
-        let edge = body.get_edge(he_data.edge).ok_or_else(corrupt)?;
+        let he_data = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?;
+        let edge = body
+            .get_edge(he_data.edge)
+            .ok_or_else(|| corrupt_edge(he_data.edge))?;
         let Some(CurveGeom::Certified(curve)) = body.get_curve_geom(edge.curve) else {
             continue; // null scaffolding: zero-length, no azimuth extent
         };
@@ -1621,7 +1700,7 @@ fn run_azimuth_window<T: Decide>(
                 } = surface
                 {
                     let entry_v = he_data.start;
-                    let p = vertex_point(body, entry_v).map_err(|_| corrupt())?;
+                    let p = vertex_point(body, entry_v).map_err(|_| corrupt_vertex(entry_v))?;
                     let d = (p - *center).dot(*axis);
                     match decide(
                         "split_sphere_window_pole",
@@ -1631,7 +1710,13 @@ fn run_azimuth_window<T: Decide>(
                     .map_err(|diag| SplitJoinError::Escalated { face, diag })?
                     {
                         Sign::Positive => {}
-                        Sign::Negative => return Err(corrupt()),
+                        Sign::Negative => {
+                            return Err(SplitJoinError::SectionInvariant {
+                                face,
+                                what: "a run vertex lies off its sphere face's carrier (its \
+                                       axial offset exceeds the radius)",
+                            });
+                        }
                         Sign::Zero => {
                             let south =
                                 match decide("split_sphere_window_pole_side", Margin::of(d), band)
@@ -1639,9 +1724,16 @@ fn run_azimuth_window<T: Decide>(
                                 {
                                     Sign::Negative => true,
                                     Sign::Positive => false,
-                                    Sign::Zero => return Err(corrupt()),
+                                    Sign::Zero => {
+                                        return Err(SplitJoinError::SectionInvariant {
+                                            face,
+                                            what: "a run vertex reads as both a pole and an \
+                                                   equator point — a zero-radius sphere face",
+                                        });
+                                    }
                                 };
-                            let sense = body.get_face(face).ok_or_else(corrupt)?.sense;
+                            let sense =
+                                body.get_face(face).ok_or_else(|| corrupt_face(face))?.sense;
                             let advancing = south == sense;
                             k = if advancing {
                                 q.floor() + T::one()
@@ -1651,7 +1743,12 @@ fn run_azimuth_window<T: Decide>(
                         }
                     }
                 }
-                base.shift_branch(k, tau).ok_or_else(corrupt)?
+                base.shift_branch(k, tau)
+                    .ok_or(SplitJoinError::SectionInvariant {
+                        face,
+                        what: "a run edge's chart image could not be branch-shifted (the \
+                               re-validated rebuild refused)",
+                    })?
             }
         };
         let (lo, hi) =
@@ -1677,8 +1774,7 @@ fn run_between<T: Decide>(
     from: HalfEdgeKey,
     to: HalfEdgeKey,
 ) -> Result<Vec<HalfEdgeKey>, SplitJoinError> {
-    let corrupt = || SplitJoinError::Corrupt;
-    let cycle = body.loop_cycle(from).ok_or_else(corrupt)?;
+    let cycle = body.loop_cycle(from).ok_or_else(|| corrupt_he(from))?;
     let mut out = Vec::new();
     for he in cycle.into_iter().skip(1) {
         if he == to {
@@ -1686,7 +1782,7 @@ fn run_between<T: Decide>(
         }
         out.push(he);
     }
-    Err(corrupt())
+    Err(corrupt_he(to))
 }
 
 impl ChordJoiner {
@@ -1701,18 +1797,23 @@ impl ChordJoiner {
         h2: HalfEdgeKey,
         mut lane: JoinLane<'_, T>,
     ) -> Result<Vec<EdgeKey>, SplitJoinError> {
-        let corrupt = || SplitJoinError::Corrupt;
-        let l1 = body.get_half_edge(h1).ok_or_else(corrupt)?.parent_loop;
-        let l2 = body.get_half_edge(h2).ok_or_else(corrupt)?.parent_loop;
-        let oldf = body.get_loop(l1).ok_or_else(corrupt)?.face;
+        let l1 = body
+            .get_half_edge(h1)
+            .ok_or_else(|| corrupt_he(h1))?
+            .parent_loop;
+        let l2 = body
+            .get_half_edge(h2)
+            .ok_or_else(|| corrupt_he(h2))?
+            .parent_loop;
+        let oldf = body.get_loop(l1).ok_or_else(|| corrupt_loop(l1))?.face;
         let next = |body: &Body<T>, he: HalfEdgeKey| -> Result<HalfEdgeKey, SplitJoinError> {
-            Ok(body.get_half_edge(he).ok_or(SplitJoinError::Corrupt)?.next)
+            Ok(body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.next)
         };
         let prev = |body: &Body<T>, he: HalfEdgeKey| -> Result<HalfEdgeKey, SplitJoinError> {
-            Ok(body.get_half_edge(he).ok_or(SplitJoinError::Corrupt)?.prev)
+            Ok(body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.prev)
         };
         let start_of = |body: &Body<T>, he: HalfEdgeKey| -> Result<VertexKey, SplitJoinError> {
-            Ok(body.get_half_edge(he).ok_or(SplitJoinError::Corrupt)?.start)
+            Ok(body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.start)
         };
 
         let mut chords = Vec::new();
@@ -1797,7 +1898,7 @@ impl ChordJoiner {
             // Structural ring choice (module docs): kill the loop that
             // is not the face's outer; if both are rings, keep the
             // book's order (kill h2's loop).
-            let outer = body.get_face(oldf).ok_or_else(corrupt)?.outer;
+            let outer = body.get_face(oldf).ok_or_else(|| corrupt_face(oldf))?.outer;
             let (target, ring) = if l2 == outer {
                 (next(body, h2)?, h1)
             } else {
@@ -1809,7 +1910,7 @@ impl ChordJoiner {
             // any curved fixture in this PR — typed doors downstream,
             // and a cycle that wraps the chart refuses `BothContained`
             // rather than guessing).
-            let target_cycle = body.loop_cycle(target).ok_or_else(corrupt)?;
+            let target_cycle = body.loop_cycle(target).ok_or_else(|| corrupt_he(target))?;
             let spec = chord_spec(
                 body,
                 self.band,
@@ -1850,9 +1951,12 @@ impl ChordJoiner {
             // call time, BEFORE the surgery moves loops.
             let l2_now = body
                 .get_half_edge(h2)
-                .ok_or(SplitJoinError::Corrupt)?
+                .ok_or_else(|| corrupt_he(h2))?
                 .parent_loop;
-            let owner = body.get_loop(l2_now).ok_or(SplitJoinError::Corrupt)?.face;
+            let owner = body
+                .get_loop(l2_now)
+                .ok_or_else(|| corrupt_loop(l2_now))?
+                .face;
             let site = MefSite::Chords {
                 he1: h2,
                 he2: next(body, h1)?,
@@ -1900,7 +2004,10 @@ impl ChordJoiner {
         // between the two chords, which bounds no ring-holding region);
         // that placement is kept.
         if let Some((newf, outside)) = newf {
-            let remainder = body.get_half_edge(outside).ok_or_else(corrupt)?.parent_loop;
+            let remainder = body
+                .get_half_edge(outside)
+                .ok_or_else(|| corrupt_he(outside))?
+                .parent_loop;
             self.rehome_rings(body, oldf, newf, remainder)?;
         }
         Ok(chords)
@@ -1926,12 +2033,15 @@ impl ChordJoiner {
         newf: FaceKey,
         remainder: LoopKey,
     ) -> Result<(), SplitJoinError> {
-        let corrupt = || SplitJoinError::Corrupt;
-        let rings = body.get_face(oldf).ok_or_else(corrupt)?.rings.clone();
+        let rings = body
+            .get_face(oldf)
+            .ok_or_else(|| corrupt_face(oldf))?
+            .rings
+            .clone();
         if rings.iter().all(|&r| r == remainder) {
             return Ok(());
         }
-        let run = body.get_face(newf).ok_or_else(corrupt)?.outer;
+        let run = body.get_face(newf).ok_or_else(|| corrupt_face(newf))?.outer;
         let normal = face_plane_normal(body, oldf)?;
         for ring in rings {
             if ring == remainder {
@@ -1957,12 +2067,14 @@ impl ChordJoiner {
         body: &mut Body<T>,
         edge: EdgeKey,
     ) -> Result<CutOutcome, SplitJoinError> {
-        let corrupt = || SplitJoinError::Corrupt;
-        let edge_data = body.get_edge(edge).ok_or_else(corrupt)?.clone();
+        let edge_data = body
+            .get_edge(edge)
+            .ok_or_else(|| corrupt_edge(edge))?
+            .clone();
         let loop_of = |body: &Body<T>, he: HalfEdgeKey| -> Result<LoopKey, SplitJoinError> {
             Ok(body
                 .get_half_edge(he)
-                .ok_or(SplitJoinError::Corrupt)?
+                .ok_or_else(|| corrupt_he(he))?
                 .parent_loop)
         };
         let l_plus = loop_of(body, edge_data.he_plus)?;
@@ -1970,7 +2082,10 @@ impl ChordJoiner {
         if l_plus == l_minus {
             // The last null edge of a section polygon: kemr leaves the
             // 2-loop null face.
-            let face = body.get_loop(l_plus).ok_or_else(corrupt)?.face;
+            let face = body
+                .get_loop(l_plus)
+                .ok_or_else(|| corrupt_loop(l_plus))?
+                .face;
             let result = body.kemr(edge_data.he_plus, edge_data.he_minus)?;
             Ok(CutOutcome::Completed {
                 face,
@@ -1980,8 +2095,14 @@ impl ChordJoiner {
             // Interior null edge: kef merges the two slivers. Kill a
             // sliver side (never a real face), deterministically
             // preferring he_plus's side.
-            let f_plus = body.get_loop(l_plus).ok_or_else(corrupt)?.face;
-            let f_minus = body.get_loop(l_minus).ok_or_else(corrupt)?.face;
+            let f_plus = body
+                .get_loop(l_plus)
+                .ok_or_else(|| corrupt_loop(l_plus))?
+                .face;
+            let f_minus = body
+                .get_loop(l_minus)
+                .ok_or_else(|| corrupt_loop(l_minus))?
+                .face;
             let victim = if self.slivers.contains_key(f_plus) {
                 edge_data.he_plus
             } else if self.slivers.contains_key(f_minus) {
@@ -2001,10 +2122,14 @@ fn face_plane_normal<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<geom_core::Vec3<T>, SplitJoinError> {
-    let f = body.get_face(face).ok_or(SplitJoinError::Corrupt)?;
+    let f = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
     match body.get_surface(f.surface) {
         Some(geom_surfaces::Surface::Plane { normal, .. }) => Ok(*normal),
-        _ => Err(SplitJoinError::Corrupt),
+        _ => Err(SplitJoinError::SectionInvariant {
+            face,
+            what: "ring re-homing reads the divided face's plane; this face's carrier is not \
+                   a plane (arm not wired)",
+        }),
     }
 }
 
@@ -2013,9 +2138,16 @@ fn ring_representative<T: Decide>(
     body: &Body<T>,
     ring: LoopKey,
 ) -> Result<Point3<T>, SplitJoinError> {
-    let corrupt = || SplitJoinError::Corrupt;
-    let v = match body.get_loop(ring).ok_or_else(corrupt)?.boundary {
-        LoopBoundary::Cycle { first } => body.get_half_edge(first).ok_or_else(corrupt)?.start,
+    let v = match body
+        .get_loop(ring)
+        .ok_or_else(|| corrupt_loop(ring))?
+        .boundary
+    {
+        LoopBoundary::Cycle { first } => {
+            body.get_half_edge(first)
+                .ok_or_else(|| corrupt_he(first))?
+                .start
+        }
         LoopBoundary::Empty { vertex } => vertex,
     };
     vertex_point(body, v)

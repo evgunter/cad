@@ -43,7 +43,8 @@ use super::order;
 use super::{SplitPlane, SplitReduction};
 use crate::body::Body;
 use crate::chord_join::{
-    ChordJoiner, CutOutcome, FragmentRows, JoinLane, SectionCtx, SplitJoinError, vertex_point,
+    ChordJoiner, CutOutcome, FragmentRows, JoinLane, SectionCtx, SplitJoinError, corrupt_edge,
+    corrupt_face, corrupt_he, corrupt_loop, vertex_point,
 };
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::null::{CurveGeom, NullFacePair};
@@ -66,7 +67,7 @@ pub(super) fn split_connect<T: Decide>(
     red: &mut SplitReduction<T>,
     band: Band,
 ) -> Result<(Vec<CompletedSection>, FragmentRows), SplitJoinError> {
-    let exact = order::exact_band().map_err(|_| SplitJoinError::Corrupt)?;
+    let exact = order::exact_band().map_err(SplitJoinError::Band)?;
 
     // The minted above-copy set (role resolution is key membership).
     let mut above_set: SecondaryMap<VertexKey, ()> = SecondaryMap::new();
@@ -100,7 +101,7 @@ pub(super) fn split_connect<T: Decide>(
         let edge = red
             .body
             .get_edge(record.edge)
-            .ok_or(SplitJoinError::Corrupt)?
+            .ok_or_else(|| corrupt_edge(record.edge))?
             .clone();
         // Data order: the up half (starting at below_end) first — the
         // book's he1-first as data (module docs).
@@ -108,7 +109,7 @@ pub(super) fn split_connect<T: Decide>(
             let plus_start = red
                 .body
                 .get_half_edge(edge.he_plus)
-                .ok_or(SplitJoinError::Corrupt)?
+                .ok_or_else(|| corrupt_he(edge.he_plus))?
                 .start;
             if plus_start == record.attr.below_end {
                 (edge.he_plus, edge.he_minus)
@@ -127,7 +128,7 @@ pub(super) fn split_connect<T: Decide>(
                 // Retire the consumed end's edge if its other half is
                 // no longer loose.
                 let end_edge = he_edge(&red.body, end)?;
-                let mate = red.body.mate(end).ok_or(SplitJoinError::Corrupt)?;
+                let mate = red.body.mate(end).ok_or_else(|| corrupt_he(end))?;
                 if !st.is_loose(mate) {
                     st.cut(&mut red.body, end_edge)?;
                 }
@@ -149,16 +150,16 @@ pub(super) fn split_connect<T: Decide>(
 
 /// The edge of a half-edge.
 fn he_edge<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<EdgeKey, SplitJoinError> {
-    Ok(body.get_half_edge(he).ok_or(SplitJoinError::Corrupt)?.edge)
+    Ok(body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.edge)
 }
 
 /// The face owning a half-edge's loop.
 fn he_face<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<FaceKey, SplitJoinError> {
     let l = body
         .get_half_edge(he)
-        .ok_or(SplitJoinError::Corrupt)?
+        .ok_or_else(|| corrupt_he(he))?
         .parent_loop;
-    Ok(body.get_loop(l).ok_or(SplitJoinError::Corrupt)?.face)
+    Ok(body.get_loop(l).ok_or_else(|| corrupt_loop(l))?.face)
 }
 
 /// The sweep state.
@@ -188,7 +189,7 @@ impl<T: Decide> Sweep<T> {
     /// The up/down sense of a null-edge half — data from the vertex
     /// key (`start ∈ above_set` ⇒ down half).
     fn is_down<B: Decide>(&self, body: &Body<B>, he: HalfEdgeKey) -> Result<bool, SplitJoinError> {
-        let start = body.get_half_edge(he).ok_or(SplitJoinError::Corrupt)?.start;
+        let start = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.start;
         Ok(self.above_set.contains_key(start))
     }
 
@@ -218,11 +219,10 @@ impl<T: Decide> Sweep<T> {
     /// `cut` with the split lane's role resolution, area certification,
     /// and F9 record-keeping layered on the shared core.
     fn cut(&mut self, body: &mut Body<T>, edge: EdgeKey) -> Result<(), SplitJoinError> {
-        let corrupt = || SplitJoinError::Corrupt;
         match self.joiner.cut_core(body, edge)? {
             CutOutcome::Merged => Ok(()),
             CutOutcome::Completed { face, ring } => {
-                let outer_loop = body.get_face(face).ok_or_else(corrupt)?.outer;
+                let outer_loop = body.get_face(face).ok_or_else(|| corrupt_face(face))?.outer;
                 let (above_loop, below_loop) = self.resolve_roles(body, face, outer_loop, ring)?;
                 self.certify_section_area(body, face, below_loop)?;
                 body.set_null_face_pair(
@@ -294,7 +294,6 @@ impl<T: Decide> Sweep<T> {
         face: FaceKey,
         below_loop: LoopKey,
     ) -> Result<(), SplitJoinError> {
-        let corrupt = || SplitJoinError::Corrupt;
         let points = loop_points_of(body, below_loop)?;
         let origin = points[0];
         let mut twice_area = T::zero();
@@ -306,13 +305,18 @@ impl<T: Decide> Sweep<T> {
             perimeter = perimeter + (b - a).norm();
         }
         // The conic excess pass (adds nothing for all-planar loops).
-        let LoopBoundary::Cycle { first } = body.get_loop(below_loop).ok_or_else(corrupt)?.boundary
+        let LoopBoundary::Cycle { first } = body
+            .get_loop(below_loop)
+            .ok_or_else(|| corrupt_loop(below_loop))?
+            .boundary
         else {
-            return Err(corrupt());
+            return Err(corrupt_loop(below_loop));
         };
-        for he in body.loop_cycle(first).ok_or_else(corrupt)? {
-            let he_data = body.get_half_edge(he).ok_or_else(corrupt)?;
-            let edge = body.get_edge(he_data.edge).ok_or_else(corrupt)?;
+        for he in body.loop_cycle(first).ok_or_else(|| corrupt_he(first))? {
+            let he_data = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?;
+            let edge = body
+                .get_edge(he_data.edge)
+                .ok_or_else(|| corrupt_edge(he_data.edge))?;
             let Some(CurveGeom::Certified(curve)) = body.get_curve_geom(edge.curve) else {
                 continue;
             };
@@ -336,7 +340,7 @@ impl<T: Decide> Sweep<T> {
             let span = t1 - t0;
             let forward = edge.he_plus == he;
             let a_pt = vertex_point(body, he_data.start)?;
-            let b_pt = vertex_point(body, body.half_edge_end(he).ok_or_else(corrupt)?)?;
+            let b_pt = vertex_point(body, body.half_edge_end(he).ok_or_else(|| corrupt_he(he))?)?;
             let dt_signed = if forward { span } else { T::zero() - span };
             let a = a_pt - origin;
             let b = b_pt - origin;
@@ -366,13 +370,13 @@ pub(crate) fn loop_starts<T: Decide>(
     body: &Body<T>,
     l: LoopKey,
 ) -> Result<Vec<VertexKey>, SplitJoinError> {
-    let corrupt = || SplitJoinError::Corrupt;
-    let LoopBoundary::Cycle { first } = body.get_loop(l).ok_or_else(corrupt)?.boundary else {
-        return Err(corrupt());
+    let LoopBoundary::Cycle { first } = body.get_loop(l).ok_or_else(|| corrupt_loop(l))?.boundary
+    else {
+        return Err(corrupt_loop(l));
     };
     let mut out = Vec::new();
-    for he in body.loop_cycle(first).ok_or_else(corrupt)? {
-        out.push(body.get_half_edge(he).ok_or_else(corrupt)?.start);
+    for he in body.loop_cycle(first).ok_or_else(|| corrupt_he(first))? {
+        out.push(body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.start);
     }
     Ok(out)
 }
