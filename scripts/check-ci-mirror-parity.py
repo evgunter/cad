@@ -116,6 +116,26 @@ MARKER_RE = re.compile(r"#\s*HOSTED MIRROR:\s*(.*?)\s*$")
 class Bail(Exception):
     """Structure this reader does not RECOGNISE. Never a pass."""
 
+# WHERE TO GO WHEN THIS REFUSES YOUR FILE. A `Bail` that only says *no* is what
+# makes the next person reach for an exemption entry instead of a fix, so every
+# one of them names the file, the line, the text that was not recognised, and
+# the symbol to extend. Growing the recogniser is the intended response and is
+# a small diff someone reviews; that is the whole trade this strictness rests
+# on.
+SELF = "scripts/check-ci-mirror-parity.py"
+
+# Some refusals have no shape to learn — a tab, a non-UTF-8 byte, a file that is
+# not there. They still owe the reader an action, and they say this so the
+# self-test can tell "no guidance needed" from "guidance forgotten".
+NO_TEACH = "There is nothing to extend here"
+
+
+def teach(where: str) -> str:
+    return (f" To accept this shape, extend {where} in {SELF} — that is the intended fix here, and it "
+            "is a small reviewable diff. Do NOT route around it with an exemption entry: exemptions in "
+            "this file are for asymmetries that exist, not for input the reader cannot read.")
+
+
 
 # THE RECOGNISER ENUMERATES; THE READER NEVER SKIPS.
 #
@@ -184,11 +204,14 @@ def _significant(path: str) -> list[tuple[int, int, str]]:
         with open(path, encoding="utf-8") as fh:
             raw = fh.read()
     except UnicodeDecodeError as exc:
-        raise Bail(f"{path} is not UTF-8 ({exc}) — this reader will not guess at the bytes") from exc
+        raise Bail(f"{path} is not UTF-8 ({exc}) — this reader will not guess at the bytes. "
+                   f"Re-encode the workflow as UTF-8. {NO_TEACH}: the bytes are the problem, not the "
+                   "shape") from exc
     if "\t" in raw:
         n = raw[: raw.index("\t")].count("\n") + 1
-        raise Bail(f"{path}:{n}: a TAB character. YAML forbids tab indentation and this reader "
-                   "will not guess what it was meant to be")
+        raise Bail(f"{path}:{n}: a TAB character. YAML forbids tab indentation and this reader will "
+                   "not guess what it was meant to be — re-indent that line with spaces. "
+                   f"{NO_TEACH}; GitHub rejects a tab-indented workflow too")
     out = []
     for n, line in enumerate(raw.splitlines(), 1):
         if not line.strip() or COMMENT_RE.match(line):
@@ -201,12 +224,18 @@ def read_workflow(path: str) -> list[Job]:
     items = _significant(path)
     start = next((i for i, (_, ind, t) in enumerate(items) if ind == 0 and t.rstrip() == "jobs:"), None)
     if start is None:
-        raise Bail(f"{path}: no top-level `jobs:` key — this reader recognises GitHub workflow files "
-                   "and refuses to guess about anything else in this directory")
+        raise Bail(f"{path}: no top-level `jobs:` key at column 0. This reader recognises GitHub "
+                   "workflow files and refuses to guess about anything else under "
+                   f"{WORKFLOW_DIR}/. If this file belongs here and spells `jobs:` another way,"
+                   + teach("`read_workflow`'s search for the `jobs:` key"))
     end = next((i for i in range(start + 1, len(items)) if items[i][1] == 0), len(items))
     block = items[start + 1:end]
     if not block:
-        raise Bail(f"{path}: `jobs:` has no body")
+        raise Bail(f"{path}:{items[start][0]}: `jobs:` has no body — every line after it is at column "
+                   "0. A workflow with no jobs is not something this check can say anything about, and "
+                   "reporting OK about it would be the silence this file exists to remove. Give the "
+                   f"file jobs, or take it out of {WORKFLOW_DIR}/. {NO_TEACH}: the shape was understood, "
+                   "there was simply nothing in it")
 
     job_indent = block[0][1]
     jobs: list[Job] = []
@@ -214,11 +243,15 @@ def read_workflow(path: str) -> list[Job]:
     while i < len(block):
         n, ind, text = block[i]
         if ind != job_indent:
-            raise Bail(f"{path}:{n}: expected a job name at indent {job_indent}, found indent {ind}: "
-                       f"{text.strip()!r}")
+            raise Bail(f"{path}:{n}: expected a job name at indent {job_indent} (the indent the first "
+                       f"job in this file uses), found indent {ind}: {text.strip()!r}. Re-indent it to "
+                       f"match, or if mixed job indents are meant to be legal here,"
+                       + teach("`read_workflow`'s `job_indent` rule"))
         m = JOB_NAME_RE.fullmatch(text.strip())
         if not m:
-            raise Bail(f"{path}:{n}: not a job name at job indent: {text.strip()!r}")
+            raise Bail(f"{path}:{n}: not a job name at job indent: {text.strip()!r}. A job key must be "
+                       f"a bare `name:` on its own line (`JOB_NAME_RE`)."
+                       + teach("`JOB_NAME_RE`"))
         job = Job(m.group(1), n)
         jobs.append(job)
         j = i + 1
@@ -227,28 +260,35 @@ def read_workflow(path: str) -> list[Job]:
         _read_job(path, job, block[i + 1:j])
         i = j
     if not jobs:
-        raise Bail(f"{path}: no jobs found — the reader scanned nothing, which is not a pass")
+        raise Bail(f"{path}: `jobs:` parsed to no jobs at all — the reader scanned nothing, which is "
+                   f"not a pass." + teach("`read_workflow`"))
     return jobs
 
 
 def _read_job(path: str, job: Job, body: list[tuple[int, int, str]]) -> None:
     if not body:
-        raise Bail(f"{path}:{job.line}: job `{job.name}` has an empty body")
+        raise Bail(f"{path}:{job.line}: job `{job.name}` has an empty body. A job with no keys cannot "
+                   f"be checked for a prune step or an `if:`." + teach("`_read_job`"))
     key_indent = body[0][1]
     i = 0
     while i < len(body):
         n, ind, text = body[i]
         if ind != key_indent:
-            raise Bail(f"{path}:{n}: expected a key of job `{job.name}` at indent {key_indent}, "
-                       f"found indent {ind}: {text.strip()!r}")
+            raise Bail(f"{path}:{n}: expected a key of job `{job.name}` at indent {key_indent} (the "
+                       f"indent this job's first key uses), found indent {ind}: {text.strip()!r}. "
+                       f"Re-indent it to match, or" + teach("`_read_job`'s `key_indent` rule"))
         m = KEY_RE.fullmatch(text.strip())
         if not m:
-            raise Bail(f"{path}:{n}: not a `key:` line in job `{job.name}`: {text.strip()!r}")
+            raise Bail(f"{path}:{n}: not a `key:` line in job `{job.name}`: {text.strip()!r}. This is "
+                       "where a YAML merge key (`<<: *anchor`) lands: anchors are refused, not "
+                       f"supported." + teach("`KEY_RE` and `_read_job`"))
         key, value = m.group(1), (m.group(2) or "").strip()
         if key not in JOB_KEYS:
             raise Bail(f"{path}:{n}: job `{job.name}` carries the key `{key}`, which this recogniser "
-                       "does not know. Teach it the key and what it means for the claims here, or "
-                       "spell the job in a shape it already recognises")
+                       f"does not know. Add `{key}` to `JOB_KEYS` — and, if a claim here depends on what "
+                       "it means (the way `if:`, `needs:` and `continue-on-error:` decide whether a job "
+                       f"can be skipped), read its value in `_read_job` at the same time."
+                       + teach("`JOB_KEYS`"))
         # The key's own nested block: everything more indented, plus — for a
         # sequence — the flush-style `- ` items at the key's own indent.
         j = i + 1
@@ -274,7 +314,9 @@ def _read_needs(path: str, n: int, value: str, nested: list[tuple[int, int, str]
     dependency is skipped is skipped, so claim 7 has to read this."""
     if value.startswith("["):
         if not value.endswith("]"):
-            raise Bail(f"{path}:{n}: `needs:` flow sequence is not closed on one line: {value!r}")
+            raise Bail(f"{path}:{n}: `needs:` flow sequence is not closed on one line: {value!r}. "
+                       f"Claim 7 has to know what this job waits on and will not guess."
+                       + teach("`_read_needs`"))
         return [p.strip().strip("'\"") for p in value[1:-1].split(",") if p.strip()]
     if value:
         return [value.strip("'\"")]
@@ -282,7 +324,8 @@ def _read_needs(path: str, n: int, value: str, nested: list[tuple[int, int, str]
     for ln, _, text in nested:
         t = text.strip()
         if not t.startswith("- "):
-            raise Bail(f"{path}:{ln}: expected a `- job` item under `needs:`, found {t!r}")
+            raise Bail(f"{path}:{ln}: expected a `- job` item under `needs:`, found {t!r}."
+                       + teach("`_read_needs`"))
         out.append(t[2:].strip().strip("'\""))
     return out
 
@@ -293,18 +336,20 @@ def _read_steps(path: str, job: Job, key_indent: int, nested: list[tuple[int, in
     named `- uses` is how a checked-out job that read `local-scripts/` came back
     OK from the version this replaced."""
     if not nested:
-        raise Bail(f"{path}:{job.line}: job `{job.name}` has `steps:` with no steps")
+        raise Bail(f"{path}:{job.line}: job `{job.name}` has `steps:` with no steps under it."
+                   + teach("`_read_steps`"))
     item_indent = nested[0][1]
     if item_indent not in (key_indent, key_indent + 2):
         raise Bail(f"{path}:{nested[0][0]}: `steps:` items of job `{job.name}` sit at indent "
-                   f"{item_indent}, which is neither flush with `steps:` ({key_indent}) nor the "
-                   f"usual one in ({key_indent + 2})")
+                   f"{item_indent}, which is neither flush with `steps:` ({key_indent}) nor the usual "
+                   f"one in ({key_indent + 2}). Both of those are recognised;"
+                   + teach("`_read_steps`'s `item_indent` rule"))
     i = 0
     while i < len(nested):
         ln, ind, text = nested[i]
         if ind != item_indent or not text.lstrip().startswith("- "):
             raise Bail(f"{path}:{ln}: expected a `- ` step item at indent {item_indent} in job "
-                       f"`{job.name}`, found {text.strip()!r}")
+                       f"`{job.name}`, found {text.strip()!r}." + teach("`_read_steps`"))
         j = i + 1
         while j < len(nested) and nested[j][1] > item_indent:
             j += 1
@@ -325,16 +370,19 @@ def _read_step(path: str, job: Job, step: Step, item_indent: int,
         n, ind, text = rows[k]
         step.lines.append(text)
         if ind != inner:
-            raise Bail(f"{path}:{n}: expected a key of a step in job `{job.name}` at indent {inner}, "
-                       f"found indent {ind}: {text.strip()!r}")
+            raise Bail(f"{path}:{n}: expected a key of a step in job `{job.name}` at indent {inner} "
+                       f"(the column just after `- `), found indent {ind}: {text.strip()!r}."
+                       + teach("`_read_step`"))
         m = KEY_RE.fullmatch(text.strip())
         if not m:
             raise Bail(f"{path}:{n}: not a `key:` line inside a step of job `{job.name}`: "
-                       f"{text.strip()!r}")
+                       f"{text.strip()!r}." + teach("`KEY_RE` and `_read_step`"))
         key, value = m.group(1), (m.group(2) or "").strip()
         if key not in STEP_KEYS:
             raise Bail(f"{path}:{n}: a step of job `{job.name}` carries the key `{key}`, which this "
-                       "recogniser does not know")
+                       f"recogniser does not know. Add `{key}` to `STEP_KEYS`, and if its body is a "
+                       "nested block rather than a scalar, list it beside `with:` and `env:` in "
+                       f"`_read_step`." + teach("`STEP_KEYS`"))
         if key == "name":
             step.name = value.strip("'\"")
         # A block scalar's body is opaque text, not keys — `run: |` is where
@@ -346,8 +394,9 @@ def _read_step(path: str, job: Job, step: Step, item_indent: int,
                 j += 1
                 continue
             raise Bail(f"{path}:{rows[j][0]}: content nested under `{key}:` in a step of job "
-                       f"`{job.name}`, which this recogniser only expects under a block scalar, "
-                       "`with:` or `env:`")
+                       f"`{job.name}`. Nested content is only expected under a block scalar (`|`, `>`), "
+                       f"`with:` or `env:`; the nested text is scanned for invocations and never parsed."
+                       + teach("`_read_step`'s list of keys that may carry a nested block"))
         k = j
 
 
@@ -440,8 +489,13 @@ def local_docs_exit_line(lines: list[str]) -> int:
             for j in range(i, min(i + 12, len(lines))):
                 if re.match(r'\s*exit (0|"?\$[A-Za-z_]\w*"?)\s*$', lines[j]):
                     return j
-            raise Bail("the local half's docs-tier branch no longer exits — re-read claim 7")
-    raise Bail("the local half has no docs-tier branch — re-read claim 7")
+            raise Bail(f"{LOCAL_HALF}:{i + 1}: the docs-tier branch opens here and no `exit` follows "
+                       f"it within 12 lines: {l.strip()!r}. Claim 7's whole question is which rows run "
+                       "BEFORE that exit, so this reader will not guess where the branch ends. If the "
+                       f"branch now ends another way," + teach("`local_docs_exit_line`"))
+    raise Bail(f"{LOCAL_HALF}: no docs-tier branch found — nothing matches `\"$TIER\" = docs`. Claim 7 "
+               "measures every tier-blind row against that branch, so without it the claim has no "
+               f"reference point and would pass vacuously." + teach("`local_docs_exit_line`"))
 
 
 # THE SHELL HALF'S RECOGNISER, on the same inverted default as the YAML one.
@@ -476,13 +530,16 @@ def shell_functions(lines: list[str]) -> dict[str, tuple[int, int]]:
             continue
         m = FUNC_OPEN_RE.fullmatch(l)
         if not m:
-            raise Bail(f"{LOCAL_HALF}: line {i + 1} looks like a shell function definition and is not "
-                       f"a spelling this recogniser knows: {l.strip()!r}. Claim 7 has to know where a "
-                       "row is RUN, not where it is written, and it will not guess")
+            raise Bail(f"{LOCAL_HALF}:{i + 1}: looks like a shell function definition and is not a "
+                       f"spelling this recogniser knows: {l.strip()!r}. Recognised today: `name() {{`, "
+                       "`name () {`, `function name {`, and the one-line `name() { …; }`. Claim 7 "
+                       "has to know where a row is RUN, not where it is written, and it will not guess."
+                       + teach("`FUNC_OPEN_RE` / `FUNC_ONELINE_RE`, beside `FUNC_HINT_RE`"))
         open_at = (m.group(1), i)
     if open_at is not None:
-        raise Bail(f"{LOCAL_HALF}: function `{open_at[0]}` opened at line {open_at[1] + 1} is never "
-                   "closed by a `}` at column 0")
+        raise Bail(f"{LOCAL_HALF}:{open_at[1] + 1}: function `{open_at[0]}` is opened here and never "
+                   "closed by a `}` at column 0, so this reader cannot tell which lines are its body "
+                   f"and which run at top level." + teach("`shell_functions`'s close rule"))
     return funcs
 
 
@@ -554,9 +611,10 @@ def check(root: str) -> list[str]:
     for required in (HOSTED_HALF, LOCAL_HALF):
         if not os.path.isfile(required):
             raise Bail(
-                f"{required} does not exist under {root} — half of this check's subject is "
-                "missing. This runs in the one job that does NOT prune local-scripts/; if a "
-                "runner reports this, the prune has spread to that job"
+                f"{required} does not exist under {root} — half of this check's subject is missing. "
+                "This runs in the one job that does NOT prune local-scripts/, so if a runner reports "
+                "this, the prune has spread to that job: remove it from that job rather than making "
+                f"this check tolerate the absence. {NO_TEACH}"
             )
 
     hosted_lines = non_comment(HOSTED_HALF)
@@ -564,7 +622,9 @@ def check(root: str) -> list[str]:
     hosted = invocations(hosted_lines)
     local = invocations(local_lines)
     if not hosted or not local:
-        raise Bail("one half names no scripts/ or demos/ invocation at all — the matcher scanned nothing")
+        raise Bail(f"{HOSTED_HALF if not hosted else LOCAL_HALF} names no scripts/ or demos/ path at "
+                   "all. Every claim below is a comparison between two populations, and a comparison "
+                   f"against an empty one passes for the wrong reason." + teach("`SCRIPT_RE`"))
 
     # CLAIM 1 — invocation parity outside scripts/gates/, both directions.
     for path in sorted((hosted | local) - {p for p in hosted | local if p.startswith("scripts/gates/")}):
@@ -838,7 +898,30 @@ def _append(path: str, text: str):
     return go
 
 
+def selftest_bail_messages() -> None:
+    """EVERY `Bail` TELLS THE READER WHAT TO DO. A refusal that only says *no*
+    is what sends the next person to the exemption list instead of to a
+    two-minute fix, so each one either names the symbol to extend (`teach`) or
+    says plainly that there is nothing to extend (`NO_TEACH`). Checked here
+    rather than asserted in the header, because a convention about messages is
+    exactly the kind that rots quietly."""
+    with open(os.path.abspath(__file__), encoding="utf-8") as fh:
+        src = fh.read()
+    bad = []
+    for i, chunk in enumerate(src.split("raise Bail(")[1:], 1):
+        head = chunk[:900]
+        stop = head.find("\n\n")
+        body = head[:stop] if stop > 0 else head
+        if "teach(" not in body and "NO_TEACH" not in body:
+            bad.append(f"#{i}: {body.splitlines()[0].strip()[:90]}")
+    if bad:
+        raise SystemExit("SELFTEST FAILED: these Bail messages tell the reader nothing to do — add a "
+                         "`teach(...)` pointer naming the symbol to extend, or `NO_TEACH` if there is "
+                         "genuinely no shape to learn:\n  " + "\n  ".join(bad))
+
+
 def selftest() -> None:
+    selftest_bail_messages()
     with tempfile.TemporaryDirectory() as t:
         plant_clean(t)
         rc, out = _run(t)
@@ -917,7 +1000,8 @@ def selftest() -> None:
     _case("carries an `if:`", _hollow_siting_job)
     _case("a definition above the exit is not a run", _local_row_below_exit)
     _case("never runs", _local_row_deleted)
-    print("check-ci-mirror-parity selftest OK: passes a clean fixture; fires on a one-sided row, a "
+    print("check-ci-mirror-parity selftest OK: every Bail names the symbol to extend or says there is "
+          "none; passes a clean fixture; fires on a one-sided row, a "
           "one-sided gate MODE, a path both halves name that does not exist, an orphan script, a "
           "one-sided tools/ crate, a checked-out job that keeps either tree, an UPPERCASE job name doing "
           "the same, a second workflow file growing one, a prune that comes after the read, the siting job "
