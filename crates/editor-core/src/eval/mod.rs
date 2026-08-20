@@ -655,14 +655,14 @@ pub enum NodeErrorKind {
 // re-states a payload it holds in its own words invents a second
 // vocabulary for a refusal that already has one.
 //
-// Four arms render prose over a payload they hold, each for a stated
-// reason. `Expr`, `DeclareResolve`, `FilletSelectionResolve` and
-// `WitnessBifurcation` carry editor-core's OWN types, and `EvalError`,
-// `ResolveError` and `WitnessBifurcation` have no `Display` to forward
-// — so those messages are as good as the crate can currently make
-// them. `UndeclaredContact` owns a two-armed recourse menu (F6) that
-// its `Indeterminate` diagnostic does not carry, and its prose is
-// pinned by test in both languages.
+// Five arms render prose over a payload they hold, each for a stated
+// reason. Four of them — `Expr`, `DeclareResolve`,
+// `FilletSelectionResolve`, `WitnessBifurcation` — carry editor-core's
+// OWN types, and `EvalError`, `ResolveError` and `WitnessBifurcation`
+// have no `Display` to forward, so those messages are as good as the
+// crate can currently make them. The fifth, `UndeclaredContact`, owns a
+// two-armed recourse menu (F6) that its `Indeterminate` diagnostic does
+// not carry, and its prose is pinned by test in both languages.
 impl core::fmt::Display for NodeErrorKind {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
