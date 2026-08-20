@@ -467,27 +467,48 @@ when the review lands, which is why it trails.
 
 ## Landings
 
-- **F-e — F1 / S59**, PR **#791**, opened 2026-08-20 (review pending; not
-  merged by the lane). `bounds-allowlist.sh`'s matcher is now shaped by the
+- **F-e — F1 / S59**, PR **#791**, opened 2026-08-20; **style review returned
+  NOT CLEARED and its findings are addressed in the same PR** (F-R10, F-R11);
+  not merged by the lane. `bounds-allowlist.sh`'s matcher is now shaped by the
   trait **name** — `(\+\s*(\w+::)*\w*Bounds\b)|(\b(\w+::)*\w*Bounds\s*\+)`
   — rather than by a list of names, so `Decide + CertifiedBounds` fires in both
-  operand orders and so does the alias after it. The self-test plants both
-  orders, an alias name not in the tree, and a **negative** case (sole bracket
-  bounds must not fire); reverting only the matcher makes `--selftest` red, so
-  the cases are load-bearing. Three prose sites corrected — the gate header, two
+  operand orders and so does the alias after it. **Eight self-test cases**:
+  both `Decide + Bounds` orders, both `Decide + CertifiedBounds` orders, a
+  path-qualified alias after the `+`, an alias name not in the tree, a
+  non-`Bounds`-named alias *declaration* (KNOWN GAP 4's mitigation, planted
+  rather than promised), real.rs beside its skipped definition lines, real.rs
+  with the alias **redefined to carry `Decide`**, the `dual.rs` equivalent
+  spelling — plus a **negative** case (sole bracket bounds must not fire).
+  Each of four mutations reds exactly one case. Three prose sites corrected — the gate header, two
   `real.rs` paragraphs — plus S56's own record, which asserted the same false
   thing. **Red count before allowlisting: zero; no allowlist entry written**
   (F-R6 discharged empty, above). Sweep raised **S124/D68** (`ArcCarrierScalar`
   invisible at 49 use sites — handed to **G4**, which owns the alias's bound)
   and **S125/D69** (`no-extra-real-bounds.sh` is order-sensitive, S56's own
   defect un-swept to a third gate — handed to **F-g**, whose scope holds the
-  file).
+  file). **D68 is a visibility row and G4 does NOT discharge it**; the review
+  caught the first draft handing it to G4 as if it did.
+- **The style review (F-R10, F-R11) found three further evasions of this gate,
+  all now planted.** The alias-definition skip was anchored on the *name*, so
+  redefining `CertifiedBounds` to carry `Decide` was silently skipped — the
+  one edit that turns every sole-bound site in the tree into a
+  decide-and-bracket parameter; the skip is now exact text. The path prefix
+  after `+` was untested while a spelling the tree already uses depended on
+  it. The same group on the left of `+` was dead and is gone. The header's
+  gap list gained **GAP 4** (an alias not named `…Bounds`) with its mitigation
+  planted, and **GAP 5** (the leading-only comment strip, F-g's to close).
+  **The header is 157 lines against 131 at open** — S116(m) measures this very
+  file at 130 and is re-measured in place rather than restored; five lines of
+  comment archaeology were cut and the lane's own additions compressed twice.
 - **A helper this lane needed and did not put in `lib.sh`.** `selftest_passes`
   — the negative twin of `gate_selftest_case` — is local to
-  `bounds-allowlist.sh`. `lib.sh` is **F-g**'s file (F3), so promoting it is a
-  sequencing decision, not this lane's. Every gate in the directory could use
-  it: today the only fixture any of them proves *passes* is the empty clean
-  tree, which says nothing about a spelling that must not fire.
+  `bounds-allowlist.sh` and is named `bounds_selftest_passes`, deliberately
+  gate-specific: a generically-named local definition is sourced *after*
+  `lib.sh` and would silently shadow a promoted one. `lib.sh` is **F-g**'s
+  file (F3), so promoting it is a sequencing decision, not this lane's. Every
+  gate in the directory could use it: today the only fixture any of them
+  proves *passes* is the empty clean tree, which says nothing about a spelling
+  that must not fire.
 
 ## Incidents
 
