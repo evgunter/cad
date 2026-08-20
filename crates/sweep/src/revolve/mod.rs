@@ -90,6 +90,7 @@
 //! `geom_core::k_stats::decide` (M2 PR 7).
 
 mod axis;
+mod chain;
 mod full;
 mod partial;
 mod surfaces;

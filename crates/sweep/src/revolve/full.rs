@@ -32,6 +32,7 @@ use geom_surfaces::Surface;
 use topo::{Body, EdgeKey, FaceKey, FaceSurface, MefSite, MekrSite, MevSite};
 
 use super::axis::{AxisFrame, AxisRun, LoopClasses};
+use super::chain::build_chain;
 use super::partial::{he_edge, sweep_loop};
 use super::surfaces::{strut_spec, wall_surface};
 use super::upgrade::{upgrade_intersection, upgrade_meridian_seam};
@@ -76,38 +77,17 @@ fn build_lamina<T: Decide>(
     // face keeps an honest Nurbs no-description, like the mvfs seed.
     let mut body = Body::<T>::new();
     let seed = body.mvfs(qs[0])?;
-    let mut hes = Vec::with_capacity(n);
-    let first = body.mev(
-        MevSite::Lone {
-            r#loop: seed.r#loop,
-        },
-        qs[1 % n],
-        placed_segment_spec(&segs[0], place, frame.n3, qs[0], qs[1 % n]),
-    )?;
-    hes.push(first.he_plus);
-    let mut prev = first;
-    for j in 2..n {
-        let m = body.mev(
-            MevSite::Fan {
-                he1: prev.he_minus,
-                he2: prev.he_minus,
-            },
-            qs[j],
-            placed_segment_spec(&segs[j - 1], place, frame.n3, qs[j - 1], qs[j]),
-        )?;
-        hes.push(m.he_plus);
-        prev = m;
-    }
-    let close = body.mef(
-        MefSite::Chords {
-            he1: prev.he_minus,
-            he2: first.he_plus,
-        },
-        placed_segment_spec(&segs[n - 1], place, frame.n3, qs[n - 1], qs[0]),
+    let lamina = build_chain(
+        &mut body,
+        frame,
+        seed.r#loop,
+        seed.vertex,
+        segs,
+        &qs,
         FaceSurface::New(Surface::nurbs_placeholder()),
     )?;
-    hes.push(close.he_plus);
-    let start_disc = close.face;
+    let hes = lamina.hes;
+    let start_disc = lamina.face;
 
     // ---- Phase 2: the one-band sweep (the generic pinned-aware sweep
     // with nothing pinned; rotated copies at the original coordinates
