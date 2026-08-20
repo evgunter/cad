@@ -2169,7 +2169,7 @@ parameterizing**.
 | "Distinct interior knots with multiplicities" | ≥4, because `KnotVector` only offers `multiplicity_of(u)` — the query every consumer actually needs is the one the data structure makes awkward | `compose.rs:274`, `algebra.rs:563`, `geom-curves/fit.rs:378`, `sweep/skin.rs:370` |
 | Prefer-intrinsic upgrade rule | 3, with **3 different sample schedules**: validator uses `CERT_SAMPLES`; `revolve/upgrade.rs` hardcodes `let samples = 9u32`; `extrude.rs` uses a *single* midpoint with no lane gate. The doc claims "the SAME quantity, the same predicate name" — true only by coincidence of the literal 9 | `revolve/upgrade.rs:198`, `extrude.rs:1044`, `validate.rs:1994` |
 | Planar divergence-theorem volume | `step-export/volume.rs` re-derives what `props::planar_face` computes, strictly weaker (planes+lines only) and reading its sign with a raw `volume < 0.0` outside the trilean discipline | `step-export/src/volume.rs:88` |
-| Negative-zero flush helper | **FIXED by #704.** One home now: both later copies call `geometry::plus_zero`/`plus_zero_point`, and the argument is stated once, there. What execution found that the finding did not: the three bodies were **not** textually identical — the home branches (`if x == 0.0 { 0.0 }`), both copies added `+ 0.0` — though they agree on every `f64` that can reach a printed token, so the collapse is a provable no-op and not merely an observed one. The 4th, inline copy is `entities.rs:332`, the reader's **scalar** parse path; it is outside the unit's file scope and stays, with the home's new private `plus_zero_scalar` as the door it would call. The sweep also turned up a **fifth** site of the same one-line predicate, `pncad-py/src/py/doc.rs:1101`, and it is **not** this class: it folds `-0.0` for `__hash__`/`__eq__` consistency, not for printed-token hygiene, and no home is reachable across that crate boundary | `step-import/src/geometry.rs:19` (the one home) |
+| Negative-zero flush helper | **FIXED by #704** — all four copies gone; `geometry::plus_zero`/`plus_zero_point`/`plus_zero_scalar` is the importer's one flush. The three vector copies were **not** textually identical (`x + 0.0` versus a branch on `x == 0.0`); see the postmortem | `step-import/src/geometry.rs:19` (the one home) |
 | Deep-snapshot test helper | ≥4 in `topo` alone, duplication named as intentional in its own doc comment | `fixtures.rs:87`, `review_m1_pr2/mod.rs:35`, `review_m1_pr3.rs:44`, `tests/box_with_hole.rs:368` |
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18) — see S16. "They should certainly
@@ -2221,20 +2221,34 @@ be unified."
   *documented* the divergence rather than closing it.
   *Lesson: a module that keeps being edited to explain how it differs from the
   canonical one is a duplication signal the process has no rule for reading.*
-- **Negative-zero flush ×3** — **FIXED by #704**, and it was as cheap as the
-  scan said: deletion plus a rename at nine call sites, no visibility change
-  needed. Same crate, three units, one week. **NEVER FLAGGED** — the concept
-  was tracked only as a *fixture* property (`M7-LOG.md:694`, a byte-divergence
-  class), never as code ownership. Two things the execution adds to that
-  diagnosis. The copies were **not** byte-identical to the home (`x + 0.0`
-  versus a branch on `x == 0.0`), so a reviewer diffing text would have seen
-  three different functions — the equivalence has to be argued from IEEE
-  semantics, which is exactly the argument a duplicated numeric helper makes
-  nobody do. And the 4th copy is the reader's **scalar** `as_real` flush, which
-  the Vec3/Point3 helpers cannot type-fit: the shared thing was a one-line
-  scalar predicate that no site was shaped to own.
-  *Lesson: "is this the same code?" and "is this the same function?" are
-  different questions, and only the second one is the duplication.*
+- **Negative-zero flush ×3** — **FIXED by #704**, and as cheap as the scan
+  said: `geometry::plus_zero`/`plus_zero_point` is the one home, the two private
+  pairs are deleted at nine call sites, and the 4th (inline, in the reader's
+  `as_real`) calls the same predicate through a `plus_zero_scalar` the home now
+  exposes. No visibility change was needed for the vector door; the scalar one
+  is new. Same crate, three units, one week. **NEVER FLAGGED** — the concept was
+  tracked only as a *fixture* property (`M7-LOG.md:694`, a byte-divergence
+  class), never as code ownership.
+
+  Execution adds two things to that diagnosis, and they are different failures.
+  **(a)** The copies were not byte-identical to the home — `x + 0.0` against a
+  branch on `x == 0.0` — so a reviewer diffing text would have seen three
+  different functions. They agree on every `f64` that can reach a printed token
+  (the exporter refuses non-finite reals typed before then), but that
+  equivalence has to be argued from IEEE semantics, which is exactly the
+  argument a duplicated numeric helper makes nobody do. **(b)** The 4th copy
+  survived a different way: the helpers were `Vec3`/`Point3` while `as_real`
+  holds one `f64`, so the shared thing — a one-line scalar predicate — was
+  wrapped one level above the site that needed it and no site was shaped to own
+  it. Closing the row meant naming the predicate, not just the wrapper.
+
+  A **fifth** occurrence of the same line, `pncad-py/src/py/doc.rs:1101`, is
+  **not** this class: it folds `-0.0` so `__hash__` agrees with `__eq__`, in a
+  crate from which no home here is reachable.
+  *Lessons: "is this the same code?" and "is this the same function?" are
+  different questions, and only the second one is the duplication — and a helper
+  typed one level up from the predicate it wraps cannot be reused by a caller
+  holding the scalar, so it gets re-derived instead.*
 - **Deep-snapshot helper ≥4** — **policy, not drift**, and **FLAGGED AND
   OVERRULED** in the standing sense: the reviewer-suite independence exemption
   is ratified, and Evan re-affirmed it on this scan (S36). The fourth copy is a

@@ -16,17 +16,21 @@ use geom_curves::Curve3;
 
 use crate::error::StepImportError;
 
-/// Negative zero normalized to `+0.0`, componentwise — the same
-/// hygiene the record reader applies to every literal it parses
-/// (`entities::as_real`), applied to values the importer DERIVES.
+/// Negative zero normalized to `+0.0`, componentwise. The importer has
+/// exactly one flush and this is it: [`plus_zero_scalar`] underneath is
+/// what the record reader applies to every literal it parses
+/// (`entities::as_real`), and these two apply it to the values the
+/// importer DERIVES.
 ///
-/// It matters for one reason beyond tidiness: a minted direction like
+/// It matters for two reasons beyond tidiness. A minted direction like
 /// `−(axis × u_ref)` picks up `−0.0` components from negating exact
 /// zeros, the writer prints them as `-0.0`, and a re-import normalizes
 /// them back to `0.0` — so the adoption pass would not be a fixed
-/// point of the writer over a single printed sign. Normalizing at the
-/// mint keeps one representative everywhere and moves no value
-/// (`-0.0 == 0.0`).
+/// point of the writer over a single printed sign. And the importer
+/// compares surface records **bitwise** to restore writer-side key
+/// sharing, so two records identical as geometry would fail to share a
+/// key on a printed sign alone. Normalizing at the mint keeps one
+/// representative everywhere and moves no value (`-0.0 == 0.0`).
 ///
 /// The same argument covers every frame RECOGNITION derives —
 /// `center`/`axis`/`u_ref`/`origin` on a promoted analytic surface or
@@ -50,9 +54,10 @@ pub(crate) fn plus_zero_point(p: Point3<f64>) -> Point3<f64> {
     )
 }
 
-/// [`plus_zero`] on one component. NaN passes through unchanged: this
-/// states a representative, it never certifies one.
-fn plus_zero_scalar(x: f64) -> f64 {
+/// [`plus_zero`] on one component — the predicate itself, which the
+/// reader's numeric path calls per parsed literal. NaN passes through
+/// unchanged: this states a representative, it never certifies one.
+pub(crate) fn plus_zero_scalar(x: f64) -> f64 {
     if x == 0.0 { 0.0 } else { x }
 }
 

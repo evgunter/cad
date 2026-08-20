@@ -315,21 +315,18 @@ fn as_ref(id: u64, value: &Value, expected: &'static str) -> Result<u64, StepImp
 }
 
 /// `value` as a real (`str::parse::<f64>` — bit-exact against the
-/// writer's printer), with **negative zero normalized to `+0.0`**.
+/// writer's printer), with **negative zero normalized to `+0.0`**
+/// through the importer's one flush ([`crate::geometry::plus_zero_scalar`],
+/// which carries the argument).
 ///
 /// `-0.` is common in the foreign dialect (`DIRECTION('',(1.,0.,-0.))`
-/// on nearly every FreeCAD placement). It denotes the same real number
-/// as `0.`, but it is a different f64 bit pattern, and the importer
-/// compares surface records **bitwise** to restore writer-side key
-/// sharing — so two records identical as geometry would fail to share
-/// a key purely on a printed sign. Normalizing here moves no value
-/// (`-0.0 == 0.0`), states one representative, and is the only
+/// on nearly every FreeCAD placement), and this is the only
 /// normalization the numeric path performs.
 fn as_real(id: u64, value: &Value, expected: &'static str) -> Result<f64, StepImportError> {
     match value {
         Value::Number(raw) => raw
             .parse::<f64>()
-            .map(|v| if v == 0.0 { 0.0 } else { v })
+            .map(crate::geometry::plus_zero_scalar)
             .map_err(|_| StepImportError::MalformedReal {
                 id,
                 token: raw.clone(),
