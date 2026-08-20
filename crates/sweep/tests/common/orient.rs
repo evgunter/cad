@@ -182,11 +182,26 @@ pub fn assert_walls_face_out(
 /// [`level_ring`] rather than argued at the call site.
 pub const LEVEL_SAMPLES: usize = 64;
 
+/// The least number of samples that must go round a level ring before
+/// its Newell sum means anything. A ring read at ONE sample per wall
+/// degenerates when the profile has fewer than three walls: a circle
+/// section is two semicircular arcs, its two midpoints make a 2-gon,
+/// and the Newell terms of a 2-gon cancel exactly — the sum is the zero
+/// vector and normalizing it yields NaN, silently, at every level.
+const RING_PLANE_MIN_SAMPLES: usize = 4;
+
+/// How large the Newell sum must be against the ring's own extent for
+/// its direction to be a plane normal rather than rounding noise. Twice
+/// the ring's projected area over the square of its diameter, so a
+/// square reads ≈ 1 and a ring collapsed onto a line reads 0.
+const RING_PLANE_MIN_AREA: f64 = 1e-6;
+
 /// The plane of the level ring at `v`-fraction `t`, normal UNORIENTED:
 /// a point on it and a unit normal whose sign follows the ring's
-/// traversal. Read off one mid-`u` sample per wall of the first loop —
-/// the ring is planar ([`level_ring`] asserts it on the full sample),
-/// so the wall midpoints fix its plane.
+/// traversal. Read off the first loop's walls — the ring is planar
+/// ([`level_ring`] asserts it on the full sample), so a handful of
+/// samples fixes its plane and an index need not pay for a whole
+/// polyline per step.
 ///
 /// Newell over the whole ring, rather than three picked points, so no
 /// one near-collinear sample can decide the normal. Hand-rolled rather
@@ -196,19 +211,34 @@ pub const LEVEL_SAMPLES: usize = 64;
 /// geometric bound.
 pub fn level_ring_plane(lofted: &Lofted<f64>, t: f64) -> (Point3<f64>, Vec3<f64>) {
     let walls = &lofted.side_faces[0];
-    let ring: Vec<Point3<f64>> = walls
-        .iter()
-        .map(|&fk| wall_point_at(&lofted.body, fk, 0.5, t))
-        .collect();
+    let per_wall = RING_PLANE_MIN_SAMPLES.div_ceil(walls.len());
+    let mut ring: Vec<Point3<f64>> = Vec::with_capacity(walls.len() * per_wall);
+    for &fk in walls {
+        for k in 0..per_wall {
+            #[allow(clippy::cast_precision_loss)]
+            let su = (k as f64 + 0.5) / per_wall as f64;
+            ring.push(wall_point_at(&lofted.body, fk, su, t));
+        }
+    }
     let mut n = Vec3::new(0.0, 0.0, 0.0);
+    let mut diameter = 0.0_f64;
     for i in 0..ring.len() {
         let (a, b) = (ring[i], ring[(i + 1) % ring.len()]);
+        diameter = diameter.max((a - ring[0]).norm());
         n = n + Vec3::new(
             (a.y - b.y) * (a.z + b.z),
             (a.z - b.z) * (a.x + b.x),
             (a.x - b.x) * (a.y + b.y),
         );
     }
+    assert!(
+        n.norm() > RING_PLANE_MIN_AREA * diameter * diameter,
+        "the level ring at v-fraction {t} encloses no area to take a normal from \
+         ({} over a diameter of {diameter}) — {} samples round the ring is not a \
+         ring",
+        n.norm(),
+        ring.len()
+    );
     (ring[0], n.normalize())
 }
 

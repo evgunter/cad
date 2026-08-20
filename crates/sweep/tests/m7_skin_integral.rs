@@ -41,6 +41,7 @@ use sweep::skin::{LoftGeometry, Section, loft_geometry, segment_curve, sweep_geo
 use sweep::{SketchSegment, loft_body, sweep_body};
 
 mod common;
+use common::orient::{LevelIndex, along_v, assert_walls_face_out, chart_at, chart_normal_turn};
 use common::quad;
 
 /// A closed square section of half-width `h`, centred on the sketch
@@ -409,4 +410,54 @@ fn a_rational_section_on_a_curved_path_meters_at_the_span_meter() {
         "the rational sweep produced no NURBS carrier at all — the fixture stopped \
          exercising the thing it pins"
     );
+}
+
+/// **The rational swept chart's walls face out of the material.**
+///
+/// The orientation half of the fixture above. It is here rather than in
+/// the orientation suite next door because this is the tree's only
+/// RATIONAL swept chart, and the alternative to putting the row beside
+/// its fixture is typing that fixture a third time.
+///
+/// `m5_s11_concave_sense`'s elbow row makes this claim for an INTEGRAL
+/// square section on this very path. What is unpinned until here is the
+/// rational arm: `S_u × S_v` off a chart whose weight channel is not
+/// `1`, which is a different jet through different code even though the
+/// `sense` it is signed by is minted by the same traversal argument.
+///
+/// ANTI-VACUITY, both directions of the thing that makes this row
+/// distinct: the chart must genuinely turn along `v`, and the walls
+/// must genuinely be rational.
+#[test]
+fn a_rational_section_on_a_curved_path_faces_out_along_the_turn() {
+    let swept = sweep_body::<f64>(
+        &circle_section(ELBOW_H),
+        Affine3::identity(),
+        &elbow_path(),
+        9,
+        3,
+    )
+    .expect("the rational elbow sweeps");
+    assert_eq!(topo::validate(&swept.body), Ok(()), "tier 1");
+    assert_eq!(topo::validate_closed(&swept.body), Ok(()), "tier 2");
+
+    let wall = swept.side_faces[0][0];
+    let turned = chart_normal_turn(&swept.body, wall, 64);
+    assert!(
+        turned >= 0.9 * FRAC_PI_2,
+        "the elbow must turn a wall's outward normal a quarter turn along v, not \
+         {turned} rad — a straight path would hold it fixed"
+    );
+    let (surface, _, _) = chart_at(&swept.body, wall, 0.5, 0.5);
+    assert!(
+        surface.weights().iter().any(|w| *w != 1.0),
+        "the fixture stopped exercising a RATIONAL chart: every weight is 1.0, so \
+         this row now restates the integral elbow next door"
+    );
+
+    let index = LevelIndex::build(&swept);
+    let samples = along_v();
+    let oracle = |q| index.contains(q);
+    let probes = assert_walls_face_out(&swept, &oracle, &samples, 0.06, 2);
+    assert_eq!(probes, 2 * samples.len(), "both walls at every level");
 }
