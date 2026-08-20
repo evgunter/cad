@@ -29,12 +29,27 @@
 //!    façade that panicked where the kernel refused would be a worse
 //!    library than no façade.
 //!
-//! The façade contains no geometry and no numeric behavior of its
-//! own. Every item below is either a re-export or a thin wrapper that
-//! does nothing but call into the kernel: six of the seven seam
-//! functions are a single kernel constructor call, and [`validated`]
-//! is the one two-call form (`Profile::new` then `Profile::validate`)
-//! — the exact pair the demo corpus wrote by hand at every scene.
+//! # What the façade itself contains
+//!
+//! No geometry and no numeric behavior. The **authoring** surface is
+//! re-exports and thin wrappers that do nothing but call into the
+//! kernel: six of the seven seam functions are a single kernel
+//! constructor call, and [`validated`] is the one two-call form
+//! (`Profile::new` then `Profile::validate`) — the exact pair the
+//! demo corpus wrote by hand at every scene.
+//!
+//! **[`workspace`] is not that, deliberately.** It is a real
+//! subsystem: it scans a directory of save files, reads each one's
+//! `id:` header, refuses a duplicate id naming both claimants,
+//! resolves a `DocRef` through the full load door and checks the
+//! content pin it recomputes, writes new and rewritten files, mints
+//! random document ids from OS entropy, and implements
+//! [`document::PartResolver`] so an evaluation can cross the
+//! document seam. It lives here rather than in `editor-core` because
+//! the kernel is deterministic by construction: ambient randomness
+//! and the filesystem are exactly what must stay out of it, so the
+//! layer allowed to hold them is this one. What it adds is I/O and
+//! identity — still no geometry and still no numerics.
 //!
 //! [`validated`]: authoring::validated
 //!
