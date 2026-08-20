@@ -207,12 +207,7 @@ fn a_lofted_operand_is_refused_at_its_nurbs_edges_before_any_face_box() {
     // the change that makes the end-to-end path reachable.
     let nurbs_faces = a
         .faces()
-        .filter(|(_, f)| {
-            matches!(
-                a.get_surface(f.surface),
-                Some(geom::Surface::Nurbs(_))
-            )
-        })
+        .filter(|(_, f)| matches!(a.get_surface(f.surface), Some(geom::Surface::Nurbs(_))))
         .count();
     assert!(
         nurbs_faces > 0,
