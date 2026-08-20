@@ -273,63 +273,112 @@ const GROW_CAP: usize = 28;
 pub(crate) fn choose_op(body: &Body<f64>, d1: u32, d2: u32) -> Option<OpChoice> {
     let grow = body.half_edges().count() < GROW_CAP;
     let w = |grown: u32, shrunk: u32| if grow { grown } else { shrunk };
-    // (weight, candidates) per op kind, in fixed catalog order.
-    let kinds: Vec<(u32, Vec<OpChoice>)> = vec![
+    type Enumerate = fn(&Body<f64>) -> Vec<OpChoice>;
+    type Probe = fn(&Body<f64>) -> bool;
+    // (weight, enumerator, short-circuiting emptiness probe) per op
+    // kind, in fixed catalog order.
+    //
+    // **What the roll actually needs from a row.** Its weight, and
+    // whether it has any candidate at all — the list itself only for
+    // the one row the roll lands on. A zero-weight row is asked
+    // nothing: it adds nothing to the total and the selection loop
+    // skips it, so its candidates cannot change the choice. A row
+    // whose enumeration is cheap answers emptiness by building the
+    // list, which is then kept for the roll; a row that carries a
+    // `Some(probe)` is one whose enumeration is expensive enough that
+    // asking it 34 times per chosen op was the cost this catalog
+    // could not afford (`split_edge_candidates` re-certifies every
+    // edge and meters its split point against every vertex).
+    let kinds: [(u32, Enumerate, Option<Probe>); 14] = [
         (
             if body.solids().count() < 2 {
                 w(1, 0)
             } else {
                 0
             },
-            vec![OpChoice::Mvfs],
+            mvfs_candidates,
+            None,
         ),
-        (w(5, 0), mev_lone_candidates(body)),
-        (w(6, 0), mev_fan_candidates(body)),
-        (w(6, 0), mef_chords_candidates(body)),
-        (w(2, 0), mef_lone_candidates(body)),
-        (3, kemr_candidates(body)),
-        (w(3, 1), mekr_candidates(body)),
-        (2, kfmrh_candidates(body)),
-        (w(2, 1), mfkrh_candidates(body)),
+        (w(5, 0), mev_lone_candidates, None),
+        (w(6, 0), mev_fan_candidates, None),
+        (w(6, 0), mef_chords_candidates, None),
+        (w(2, 0), mef_lone_candidates, None),
+        (3, kemr_candidates, None),
+        (w(3, 1), mekr_candidates, None),
+        (2, kfmrh_candidates, None),
+        (w(2, 1), mfkrh_candidates, None),
         // The non-Euler public mutator rides along at modest weight:
         // candidates exist whenever any face carries a ring, which kemr
         // (always-on weight) produces steadily.
-        (w(2, 1), ring_move_candidates(body)),
+        (w(2, 1), ring_move_candidates, None),
         // `split_edge` is make-direction (mev's vector), so it is
         // weighted out once the body stops growing. Candidates exist
         // whenever any edge does, which is nearly always — modest
         // weight keeps it from crowding out the sites only the other
         // make ops reach.
-        (w(3, 0), split_edge_candidates(body)),
-        (w(2, 6), kev_candidates(body)),
-        (w(2, 6), kef_candidates(body)),
+        (w(3, 0), split_edge_candidates, Some(any_split_edge)),
+        (w(2, 6), kev_candidates, None),
+        (w(2, 6), kef_candidates, None),
         // kvfs candidates are rare (a solid must be exactly skeletal),
         // so give the row real weight when one exists — otherwise the
         // random arm almost never rolls it (review SHOULD-3). Teardown
         // still exercises kvfs deterministically at the end of every
         // proptest case; this weight only adds mid-sequence coverage.
-        (4, kvfs_candidates(body)),
+        (4, kvfs_candidates, None),
     ];
-    let total: u32 = kinds
-        .iter()
-        .filter(|(_, c)| !c.is_empty())
-        .map(|(weight, _)| weight)
-        .sum();
+    // The rows the roll can land on — weighted in, and non-empty — in
+    // catalog order, so the total and the walk below are the ones the
+    // eager form computed.
+    let mut rows: Vec<(u32, Rolled)> = Vec::new();
+    for (weight, enumerate, probe) in kinds {
+        if weight == 0 {
+            continue;
+        }
+        match probe {
+            None => {
+                let candidates = enumerate(body);
+                if !candidates.is_empty() {
+                    rows.push((weight, Rolled::Built(candidates)));
+                }
+            }
+            Some(any) => {
+                if any(body) {
+                    rows.push((weight, Rolled::Deferred(enumerate)));
+                }
+            }
+        }
+    }
+    let total: u32 = rows.iter().map(|(weight, _)| weight).sum();
     if total == 0 {
         return None;
     }
     let mut roll = d1 % total;
-    for (weight, candidates) in kinds {
-        if candidates.is_empty() || weight == 0 {
-            continue;
-        }
+    for (weight, row) in rows {
         if roll < weight {
+            let candidates = match row {
+                Rolled::Built(candidates) => candidates,
+                Rolled::Deferred(enumerate) => enumerate(body),
+            };
             let index = (d2 as usize) % candidates.len();
             return Some(candidates[index]);
         }
         roll -= weight;
     }
     None // unreachable: roll < total by construction
+}
+
+/// A row that survived the weight and emptiness gates, holding either
+/// the candidates already built or the enumerator that will build them
+/// if the roll lands here.
+enum Rolled {
+    Built(Vec<OpChoice>),
+    Deferred(fn(&Body<f64>) -> Vec<OpChoice>),
+}
+
+/// `mvfs` needs no site — it mints a fresh solid — so its single
+/// candidate exists whenever the row carries weight.
+fn mvfs_candidates(_body: &Body<f64>) -> Vec<OpChoice> {
+    vec![OpChoice::Mvfs]
 }
 
 fn mev_lone_candidates(body: &Body<f64>) -> Vec<OpChoice> {
@@ -487,11 +536,22 @@ fn ring_move_candidates(body: &Body<f64>) -> Vec<OpChoice> {
 /// is forward by construction, so an interior fraction of it is
 /// definitely interior on both sides.
 fn split_edge_candidates(body: &Body<f64>) -> Vec<OpChoice> {
+    split_edge_sites(body).collect()
+}
+
+/// Whether [`split_edge_candidates`] would return anything, without
+/// building it. Same iterator, stopped at the first item: the two
+/// cannot disagree about emptiness, which is what [`choose_op`]'s roll
+/// needs from this row and all it needs.
+fn any_split_edge(body: &Body<f64>) -> bool {
+    split_edge_sites(body).next().is_some()
+}
+
+fn split_edge_sites(body: &Body<f64>) -> impl Iterator<Item = OpChoice> + '_ {
     body.edges()
         .map(|(e, _)| e)
-        .filter(|e| split_site(body, *e).is_some())
+        .filter(move |e| split_site(body, *e).is_some())
         .map(OpChoice::SplitEdge)
-        .collect()
 }
 
 /// Where in an edge's interval a split lands. **Not the midpoint.**
