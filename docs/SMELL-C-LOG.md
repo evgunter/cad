@@ -1922,16 +1922,51 @@ asking exists.
 (S28's duplication half — three tessellation lanes, three pipelines) the next
 dispatch. **It is held anyway**, because #803's *post-hoc* style review is live
 and its output is a **follow-up PR in `mesh/`**. Dispatching C-k now would put an
-implementer and a corrective PR in the same crate on the same afternoon, and this
-track has already measured what that costs: §D's conflict window is shorter than
-one CI run, and `mesh/` would be a second such window one level down.
+implementer and a corrective PR in the same crate on the same afternoon.
 
-*The distinction worth recording:* this is not the build mutex talking. Five
-lanes are live and the mutex is width 1, but review lanes are mostly reading and
-the contention is tolerable. **The reason to wait is that one of the live lanes
-can still change the file another would edit** — a dependency, not a queue. A
-sequencing decision that says "capacity" when it means "dependency" produces the
-wrong action later, because capacity frees on its own and a dependency does not.
+*The distinction worth recording:* this is not the build mutex talking. The
+reason to wait is that **one of the live lanes can still change the file another
+would edit** — a dependency, not a queue. A sequencing decision that says
+"capacity" when it means "dependency" produces the wrong action later, because
+capacity frees on its own and a dependency does not.
+
+### The disk filled, and the failure it would have caused is a false finding
+
+**2026-08-20, ~20:35.** The container's disk hit 99% with five lanes holding
+private `CARGO_TARGET_DIR`s — 14 GB across ten lane directories, `c-q` alone at
+5.2 GB. Writes began failing with ENOSPC while deletes still succeeded.
+
+The operational fix was routine: drop the three discharged lanes' trees and the
+finished lane's target, 12 GB used and 26 GB free. **Two things it cost are
+worth more than the fix.**
+
+**1. It silently truncated this file, and the truncation was committed.** A
+`docs/SMELL-C-LOG.md` write died mid-sentence at a 132 KiB block boundary,
+ending inside a UTF-8 sequence. The next command in the same chain ran
+`git add -A && git commit && git push` and **succeeded** — git does not care that
+a file is half-written, and neither did the pipeline. It surfaced only because
+the *next* edit tried to read the file back and hit a decode error. Restored from
+the last intact commit and fixed forward, never by rewriting history.
+
+*The generalisable part:* **a write-then-commit chain has no integrity check in
+it**, so a partial write becomes a pushed artefact in one step. What caught it was
+a **reader**, one step later, by accident. An edit that validates what it read is
+the cheap version of that accident.
+
+**2. It would have manufactured a false finding.** Four review and implementer
+lanes were mid-build. A lane that hits ENOSPC sees a **build failure**, and a
+build failure in a review lane reads as *a finding about the diff*. Nothing
+distinguishes "this code does not compile" from "this box could not write the
+object file" unless someone reads the error text closely — and a reviewer just
+told to go hard at a claim is primed to read a red build as confirmation.
+
+*So the rule is not about disk.* **An environmental failure that arrives wearing
+the costume of a result is the same class as §S39's stale documentation**, and
+this track has now hit three in one session: a shallow clone that silently
+disabled `git log -S`, a CI budget lapse that produced runs with no runner, and
+a full disk. Each looked like a fact about the work. **Told to every live lane
+the moment it was fixed** — a lane cannot know the box ran out of space, and only
+the orchestrator can see all of them at once.
 
 ### Reviewers age out of their own tree, twice now — and it is not their error
 
@@ -1955,4 +1990,18 @@ measurement**. Stale numbers, unlabelled numbers, and now stale *findings*.
 
 It is not the reviewers' error. A review takes 20–40 minutes; lanes push fix
 passes and row numbers inside that window; nothing tells a reviewer the ground
-moved. The structural cause is the same one as �
+moved. The structural cause is the same one as §D's conflict window — **the tree
+now changes faster than a careful read of it takes.**
+
+**Operationally, and cheap:**
+
+- **A reviewer records the head SHA it reviewed**, at the top of its report. Both
+  of these would then have been self-evident rather than needing an orchestrator
+  check.
+- **Any finding of the form "X is missing / not written / not done" is
+  re-checked against the current head immediately before reporting.** Only
+  absence claims need it — a finding about what the code *says* stays true of the
+  tree it was read on, but a finding about what is *absent* is exactly the one a
+  push invalidates.
+- **The orchestrator verifies absence findings before relaying**, which is what
+  happened both times and should be the rule rather than the reflex.
