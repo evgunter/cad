@@ -1186,7 +1186,7 @@ exists so that arrival does not reopen the question.
 "valid input, the kernel has not built this yet" and nothing else —
 which makes the frontier inventory grep-able. The convention is already
 dominant (13 distinct variant names in `src`); `AssemblyUnsupported`
-was renamed to match (D2, PR #NNN — into four variants that each name
+was renamed to match (D2, PR #740 — into four variants that each name
 the refused class and carry the offending entity). A macro (`not_implemented!`) was considered and
 **rejected**: these refusals are reachable by valid user input and must
 stay recoverable, so a panicking macro would convert a user-facing
@@ -1236,7 +1236,7 @@ remain, both in `link_half_edges`, because two of its callers pass a
 documented garbage-out into a panic, which this addendum's headline
 forbids. Those two call sites are `SMELL-SCAN-2026-08.md`'s **D18**.
 
-*The `crates/sweep/src/fillet` half is also done* (D2, PR #NNN).
+*The `crates/sweep/src/fillet` half is also done* (D2, PR #740).
 `AssemblyUnsupported`'s **103** construction sites re-derived to
 **105** sites — two conflated arms split — partitioned
 **38 row 2** (four `Unsupported*` variants naming chain, corner,

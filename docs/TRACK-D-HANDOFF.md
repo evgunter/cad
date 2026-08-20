@@ -37,7 +37,7 @@ real risk, which took a full adversarial lane as well.
 | D16 | W2c — the D2 addendum executed over 58 discard sites | #720 |
 | D7 (1 of 3) | `Mat2`/`Affine2` deleted, with the orphan its deletion made | #721 |
 | D13, D14 | The pcurve-staleness convention checked; D14 **refuted**, not closed | #722 |
-| D2 | S19's fillet half — 103 sites partitioned 38/47/18; the row-4 reading **partly refuted** | #NNN |
+| D2 | S19's fillet half — 103 sites partitioned 38/47/18; the row-4 reading **partly refuted** | #740 |
 
 ## Nothing is in flight
 
@@ -83,7 +83,7 @@ fillet-helper row, and **D8**, whose `geom-curves/src/fit.rs` it relocated to
 
 What is unstarted is unstarted for schedule reasons only, not technical ones:
 
-- **D7's fillet-helper row** is unblocked now that **D2** landed as #NNN,
+- **D7's fillet-helper row** is unblocked now that **D2** landed as #740,
   which was the last edge in the track. It must re-read all four
   `sweep/src/fillet/` files first: D2 rewrote every refusal site in
   `surgery.rs` and `build.rs`.
@@ -106,7 +106,7 @@ it:
 2. **#720's review** — sharper: because these are slotmap keys, an unpatched
    source-internal key may **resolve to an unrelated live entity** rather than
    dangle. That is *live but wrong*, which no plan phase can refuse.
-3. **#NNN (D2)** — the first witness that **changed a disposition**. The
+3. **#740 (D2)** — the first witness that **changed a disposition**. The
    fillet surgery's 46 "this lookup cannot fail on a valid body" sites stayed
    typed errors rather than becoming `unreachable!`, and witness 1 is the whole
    reason: a caller that keeps a spent graft destination hands `fillet_edges` a
