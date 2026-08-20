@@ -146,11 +146,22 @@ not schedules. Flag any deviation that is disclosed but unscheduled.
 
 **A claim resting on a measurement is the same shape.** What it owes is a
 mechanical guard — something that goes red when the number stops being true —
-or a scheduled register that re-measures it (`ci.yml`'s `rebuild latency
-(reporting)` is one), or a written reason it can have neither. That reason
-goes **at the claim site**, not only in a PR body: *"unguardable, and here is
-why"* is complete where nothing computes with the number, and is a deferral
-owing a schedule where something does. (#651.)
+or a scheduled register that re-measures it, or a written reason it can have
+neither. That reason goes **at the claim site**, not only in a PR body:
+*"unguardable, and here is why"* is complete where nothing computes with the
+number, and is a deferral owing a schedule where something does. (#651.)
+
+**Registers are neither rare nor necessarily advisory** — check for one before
+accepting an "unguardable" (#667). `ci.yml` runs three: `rebuild latency
+(reporting)`, which measures and commits to `docs/perf-data/rebuild-latency/`
+without gating; and, inside `k-lint (gate)`, `tessellation-budget sweep` +
+`tessellation-budget lint` (re-measures every tour scene per face against a
+committed baseline — a grown budget FAILS the run) and `K-telemetry probe
+sweep` + `large-K lint` (re-measures the margin distribution at three ε rows —
+a margin crowding a decision boundary FAILS the run). So `docs/TESS-BUDGET.md`
+and `docs/K-REPORT.md` are re-taken per merge, not dated observations, and a
+constant retained on either is a *scheduled register* row rather than an
+unguarded extraction.
 
 ### Q7. Is this how you would have done it?
 

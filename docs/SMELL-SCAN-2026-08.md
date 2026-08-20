@@ -5534,11 +5534,18 @@ Nothing re-derives a pin when a new caller arrives. And a stale comment on a
 still-passing test reads as **evidence the invariant holds**.
 
 **The weaker case — no pin at all — is #651**, raised by the style review of
-#646. The rule it produced is in `docs/REVIEW-STYLE-BRIEF.md` §Q6 (a
+#646. The rule it produced is in `docs/prompts/reviewer-style-lane.md` §Q6 (a
 measured claim owes a mechanical guard, a scheduled register that
 re-measures it, or a written reason at the claim site that it can have
 neither); the classification sweep is a comment on #651, and is not
-repeated here.
+repeated here. #667 continued it over a corrected population (a
+provenance-vocabulary pattern restricted to comment text: 256 comment
+blocks against #663's 146 `measured` lines) and its rows are the second
+comment on the same issue. Its finding for THIS clause: two of the three
+registers `ci.yml` runs — `tessellation-budget lint` and `large-K lint`,
+both inside `k-lint (gate)` — are gating, so `DEFAULT_K = 10.0` and the
+whole tessellation-budget family are re-measured per merge rather than
+pinned once.
 
 ---
 

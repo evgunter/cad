@@ -47,6 +47,22 @@
 //! while still certifying is invisible to the growth-only gate and to
 //! `agree` (docs/TESS-BUDGET.md records it).
 //!
+//! **Where those guards live, named** (issue #667's Q6 — this meter's
+//! numbers are a scheduled register, not a dated observation):
+//! `ci.yml`'s `k-lint (gate)` job runs `mesh budget meter
+//! (feature = budget)` and `mesh certificate falsifier
+//! (feature = probe-stats)` — the two gated halves of this module and
+//! `crate::probe_stats`, which the default `cargo test -p mesh` row
+//! cannot reach — then re-measures the whole tour with
+//! `tessellation-budget sweep (every tour scene, per face)`
+//! (`scripts/tess_budget_sweep.sh`) and lints the fresh CSV against
+//! `docs/tess-budget-data/tess-budget-baseline.csv` in
+//! `tessellation-budget lint (gate — a grown budget fails this row)`.
+//! The job is unconditional on anything that builds, so
+//! `docs/TESS-BUDGET.md`'s numbers are re-taken per merge rather than
+//! kept as a one-shot writeup — and the blind spot above is a blind
+//! spot of THAT register, not of a document nobody re-runs.
+//!
 //! | factor | ratio | what it says |
 //! |---|---|---|
 //! | **span held** | `patch_cells / grid_cells` | the gain TESS-SPAN holds over whole-patch-sup sizing. Falls toward 1.0 if the shipped schedule regresses toward the patch sup. |

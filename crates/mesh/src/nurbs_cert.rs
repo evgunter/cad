@@ -353,6 +353,29 @@ pub(crate) fn nurbs_cell_bounds(
 /// step to the realized one cost +3.0% of the tour's cells (leaf_a
 /// 3.35x → 3.10x, still over the acceptance line) for correctly
 /// snapping the near-one-step bands the ideal-step test missed.
+///
+/// **What goes red, named** (issue #667's Q6), and it is three different
+/// things — none of which re-runs the tour measurement above:
+///
+/// * the constant itself is BRACKETED by `band_schedule_snaps_on_realized_aspect`
+///   below, whose fixture is benign at 4.79 and malign at 9.09: any move
+///   outside `(4.79, 9.09]` fails that row. That is a guard on the value,
+///   not on the margin that chose it inside the bracket;
+/// * the OUTCOME is guarded per-merge and unconditionally — `ci.yml`'s
+///   `k-lint (gate)` runs `mesh certificate falsifier (feature = probe-stats)`,
+///   i.e. `probe_review::z1_per_triangle_certificate_falsification`, which
+///   resamples every emitted triangle against its own certificate; a snap
+///   line loose enough to ship an under-certified triangle fails there;
+/// * the COST side is a scheduled register: the same job's
+///   `tessellation-budget sweep` + `tessellation-budget lint (gate)` re-measure
+///   every tour scene per face against `docs/tess-budget-data/tess-budget-baseline.csv`,
+///   so a move that buys margin by growing the mesh fails too.
+///
+/// What has no guard, stated so the reader does not over-read the three
+/// above: the *worst tour face certificate 0.60·δ* figure. It is a
+/// one-shot corpus observation, nothing computes with it, and the
+/// backstop it motivates ([`TessellateError::CertificateExceeded`]) is
+/// what actually holds the lane in the `(3.87, SAFE_ASPECT]` gap.
 pub(crate) const SAFE_ASPECT: f64 = 5.0;
 
 /// One v-band of the shipped schedule ([`NurbsCellGrid::band_schedule`]).

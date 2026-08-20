@@ -1470,3 +1470,92 @@ fn freecad_oracle_reads_back_every_reexported_fixture() {
     );
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// **The corpus DIALECT facts two modules rest on, made mechanical**
+/// (issue #667).
+///
+/// Three of this importer's design decisions are justified by a claim
+/// about what the committed FreeCAD files literally say, and all three
+/// were measured once, by hand, with nothing re-measuring them:
+///
+/// * `chart`'s module header — *"FreeCAD 1.1.2 never writes
+///   `FACE_OUTER_BOUND` at all (0 occurrences in the 13 measured
+///   files)"*. The entire geometric outerness-inference lane, with its
+///   three typed refusals, exists **because** of it;
+/// * `units`' header — *"FreeCAD 1.1.2 writes `SI_UNIT(.MILLI.,
+///   .METRE.)` on every file it emits, and its declared uncertainty
+///   (`1.E-07`) is in those millimeters too"* — the reason the prefix
+///   table is data rather than a millimetre special case; and
+/// * the same header's *"a `.MILLI. .RADIAN.` context is … absent from
+///   every file measured"*, which is why the angle path refuses a
+///   prefixed SI angle instead of folding in a second scale.
+///
+/// A fourteenth fixture, or a regenerated one from a writer whose
+/// dialect moved, would leave all three sentences quietly false while
+/// every acceptance row above stayed green — the inference and the
+/// prefix table are still *correct*, they would just no longer be
+/// answering the situation their prose describes. So the corpus is the
+/// guard, and this row reads it: cheap (a text scan of committed bytes,
+/// no import), and it pins the COUNT as well as the contents, because
+/// "the 13 measured files" is half of each claim.
+///
+/// Deliberately NOT a claim about FreeCAD in general — it pins what the
+/// committed corpus says, which is all either module ever had. If a
+/// later FreeCAD moves, this goes red and the headers get rewritten with
+/// the new corpus in hand.
+#[test]
+fn the_committed_freecad_corpus_still_says_what_chart_and_units_quote() {
+    let dir: std::path::PathBuf = [env!("CARGO_MANIFEST_DIR"), "tests", "fixtures", "freecad"]
+        .iter()
+        .collect();
+    let mut on_disk: Vec<String> = std::fs::read_dir(&dir)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .filter(|n| n.ends_with(".step"))
+        .collect();
+    on_disk.sort();
+    let mut named: Vec<String> = FREECAD_FIXTURES
+        .iter()
+        .map(|n| format!("{n}.step"))
+        .collect();
+    named.sort();
+    assert_eq!(
+        on_disk, named,
+        "the committed corpus and `FREECAD_FIXTURES` disagree — both quoted claims are \
+         scoped to \"the 13 measured files\", so a file in one and not the other leaves \
+         them measured over the wrong set"
+    );
+
+    let mut wrong: Vec<String> = Vec::new();
+    for name in FREECAD_FIXTURES {
+        let text = freecad_fixture(name);
+        if text.contains("FACE_OUTER_BOUND") {
+            wrong.push(format!(
+                "{name}: states FACE_OUTER_BOUND (`chart`'s premise)"
+            ));
+        }
+        if !text.contains("SI_UNIT(.MILLI.,.METRE.)") {
+            wrong.push(format!(
+                "{name}: no `SI_UNIT(.MILLI.,.METRE.)` (`units`' premise)"
+            ));
+        }
+        if !text.contains("LENGTH_MEASURE(1.E-07)") {
+            wrong.push(format!(
+                "{name}: declared uncertainty is not 1.E-07 (`units`' premise)"
+            ));
+        }
+        // The prefixed SI ANGLE `units` refuses on sight, and says it has
+        // never had to: any `SI_UNIT(<prefix>., .RADIAN.)`. `$` is the
+        // no-prefix slot, which is the form every file actually uses.
+        if text.contains(".RADIAN.") && !text.contains("SI_UNIT($,.RADIAN.)") {
+            wrong.push(format!(
+                "{name}: a PREFIXED SI angle unit appeared (`units`' premise)"
+            ));
+        }
+    }
+    assert!(
+        wrong.is_empty(),
+        "a corpus dialect fact that `chart` and `units` quote has moved: {wrong:#?} — \
+         re-measure and rewrite those headers; do not delete this row"
+    );
+}

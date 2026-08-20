@@ -81,6 +81,20 @@ pub const ENV_K: &str = "CAD_AMBIGUITY_K";
 /// Compiled default for the ambiguity multiplier K = 10 (the ratified
 /// M0 starting value; the M2 K report found no empirical pressure to
 /// move it — `docs/K-REPORT.md`).
+///
+/// **The measurement behind that sentence is re-run on every build, and
+/// gates** (issue #667's Q6 classification — a scheduled register, not
+/// an excuse): `ci.yml`'s `k-lint (gate)` job runs
+/// `scripts/k_probe_sweep.sh` over the Band-4 corpus and the demo tour
+/// at ε ∈ {1e-6, 1e-9, 1e-12}, then lints the fresh margin distribution
+/// against the thresholds and baseline pinned in `tools/k-lint`
+/// (provenance: `tools/k-lint/src/lib.rs`). A margin that starts
+/// crowding a decision boundary the committed baseline says is empty
+/// FAILS the run. So "no empirical pressure to move K" is not a dated
+/// observation this constant inherited — it is a claim something
+/// re-measures per merge, and the honest reading of a fired lint is
+/// evidence about the distribution, never a cue to nudge geometry until
+/// it goes quiet (`tools/k-lint`'s own failure text says so).
 pub const DEFAULT_K: f64 = 10.0;
 
 /// The kernel's global tolerance (D4 ¶1, as revised 2026-07-16): one ε per
