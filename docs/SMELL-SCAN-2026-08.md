@@ -8844,8 +8844,9 @@ separate them. The doc was written against the pre-consolidation world.
 
 ## S92. FIXED by #788 — one home for the mutation-door set, and a classifier that reads code rather than prose
 
-`crates/topo/src/fixtures.rs` now owns the shared concept as
-`mutation_doors()`: every `pub fn` in `topo/src` taking `&mut self` or
+`crates/topo/src/source_walk.rs` — a new sibling of `fixtures.rs`,
+because that module's subject is canonical bodies and this one's is a
+Rust reader — owns the shared concept as `mutation_doors()`: every `pub fn` in `topo/src` taking `&mut self` or
 `&mut Body<T>`, as a `MutationDoor { file, name, code }`. Both
 consumers — `review_m1_pr5_internal`'s tier-1 postcondition guard and
 `pcurves`' staleness-posture guard — iterate it; neither spells the
@@ -8877,14 +8878,15 @@ held nothing but two comments naming `assert_euler_postcondition` and
 `mint_pcurves(`; both guards stayed green and both counted it compliant
 (38 doors: 15 asserting / 23 allowlisted; 2 re-minting / 36 declared).
 A `MutationDoor` now carries its body with every comment, string literal
-and char literal blanked (`fixtures::code_only`), reached only through
-`MutationDoor::calls` — a consumer is not handed a raw body, so it
-cannot re-open the hole with `body.contains`. The same plant now reds
-both guards. `fixtures::source_reader` pins the mechanism in both
-directions: six spellings of the plant that must not read as calls, and
-seven real calls reached past each construct the blanker walks, which is
-what stops the fix from being a classifier that answers `false` to
-everything.
+and char literal blanked (`source_walk::CodeOnly`), reached only through
+`MutationDoor::code_contains` — a consumer is not handed a raw body, so
+it cannot re-open the hole with `body.contains`. The same plant now reds
+both guards. `source_walk::tests` pins the mechanism in three
+directions: nine spellings of the plant that must not read as calls, ten
+real calls reached past each construct the blanker walks — which is what
+stops the fix from being a classifier that answers `false` to everything
+— and one whole-pipeline row, text in and doors out, over the constructs
+the first scan could not survive.
 
 **Blind spots** live once, on `mutation_doors`, and both guards point at
 it: delegation, `topo/src` only, module visibility, `cfg`, and aliasing.

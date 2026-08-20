@@ -718,8 +718,9 @@ row, which is the thing that was at risk.**
 ### F-a — F5 (S92) — PR #788, **NOT CLEARED on first pass**, fixed in the same PR
 
 One home for
-the mutation-door set (`topo/src/fixtures.rs`'s `mutation_doors()`), and a
-classifier that reads code rather than prose. Measured at merge base
+the mutation-door set and for the Rust reader under it
+(`topo/src/source_walk.rs`, a new sibling of `fixtures.rs`), and a classifier
+that reads code rather than prose. Measured at merge base
 `4f959cb4`: the walk finds **37** doors; the duplicated `&mut self` /
 `&mut Body` predicate was **byte-identical** at the two sites, not merely
 near-identical; the two tables (23 and 36 entries, **22 names in both**) were
@@ -733,9 +734,9 @@ guards green and counted compliant (38 doors: 15 asserting / 23 allowlisted;
 2 re-minting / 36 declared). After the change the same plant reds both.
 `MutationDoor` hands out a body with comments, string and char literals
 blanked, so a consumer is never given a raw body to `contains` on, and
-`fixtures::source_reader` pins the mechanism in both directions — six
-spellings of the plant that must not read as calls, seven real calls that
-must. Door counts are unchanged by the fix, so nothing was over-stripped.
+`source_walk::tests` pins the mechanism in both directions — nine
+spellings of the plant that must not read as calls, ten real calls that must,
+and one whole-pipeline row over text the earlier scan could not survive. Door counts are unchanged by the fix, so nothing was over-stripped.
 
 **Not cleared on first pass (F-R8, F-R9), fixed in the same PR.** The style
 review reproduced the finding's own defect one layer beneath the fix: the
