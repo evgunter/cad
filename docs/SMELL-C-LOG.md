@@ -1330,3 +1330,35 @@ The mitigation already in use is #731's `§CNN` convention (bare `CNN` is a §D
 schedule row, `§CNN` a §C observation), now stated once for all three colliding
 numbers rather than re-derived per row. It does not survive a second document
 adopting the same letter, which is now the live situation.
+
+### The `C<n>` namespace is saturated, and it always was
+
+Assigning C19 I mapped the whole namespace rather than checking one number, after
+being corrected twice on exactly this. The result:
+
+**§C's process observations in `docs/SMELL-SCAN-2026-08.md` run C1 through C25.**
+§D's Track C schedule rows currently run C1–C8, C10, C11, C12, C15, C17, C18.
+
+So **every Track C row number from C1 up has a §C twin in the same document, and
+has had from the first row.** C15 and C17 were noticed as collisions; C18 was
+noticed as an impending one; C19 turned out to be already taken. None of those
+was an accident — the two sequences share a letter and a document and have
+always overlapped completely.
+
+*What this corrects, and it is mine:* I checked C18 by grepping one file for one
+number and reported *"no §C18 exists to collide with it"*. That was wrong twice
+over — §C18 was minted by the time I said it, and the correct question was never
+"is this number taken" but **"do these two sequences share a namespace at all"**,
+which is answered once and for good rather than per row. **A per-instance check
+cannot discover a structural collision**; it can only keep failing to notice one.
+
+The mitigation in use is #731's convention — bare `CNN` is a §D schedule row,
+`§CNN` a §C observation — applied per citation. It works, and it is a convention
+rather than a mechanism: nothing enforces it, and it does not survive a reader
+grepping `C19` across `docs/`.
+
+**Not fixed here.** Renaming one sequence touches every citation in a
+6,800-line document that five live programmes are editing concurrently, and
+which sequence should move is a §D-shape question belonging to whoever owns that
+document — the same owner as the conflict-window problem recorded above. Track C
+produced both measurements and neither ruling.
