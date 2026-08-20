@@ -387,6 +387,41 @@ constraint is, and it is stated here so a Track G taker can read it.
 
 ---
 
+## Standing rules this track derived
+
+### A verification is valid for the PATHS it verified, not for the SHA it ran on
+
+Two correct rules pulled against each other: **a PR must never sit CONFLICTING**
+(it runs *no* checks at all and reads as CI being absent rather than failing),
+and **a head must not move under a running verification**. Freezing the branch
+resolves it in the wrong direction — it trades a real risk for a bookkeeping
+convenience.
+
+The resolution costs one command. A verification names **the SHA it measured**
+and **the path set it is about**; the lane, after any merge, reports the new
+SHA **paired with**
+
+    git diff <verified-sha> <new-head> -- <that path set>
+
+**Empty → the verification still holds, whatever else moved.** Non-empty → it
+is re-run rather than reasoned about. Neither party has to wait for the other,
+and each half is checkable by the other.
+
+**Two refinements the lane added, both better than the rule as issued.** *Merge
+while still `MERGEABLE` rather than waiting to conflict* — same move, strictly
+cheaper, and it never passes through the state where CI is silent. And *widen
+the path-diff past the paths under verification to the whole subtree the unit
+owns*, so the answer covers the rest of the unit rather than only the row being
+checked.
+
+**Report the merge and the diff together.** A merge reported without its
+path-diff is a claim the orchestrator then has to go and check; the diff is the
+thing that makes the merge harmless, so it travels with it.
+
+*(Second instance today of two correct rules colliding. The first: a unit records
+its completion in its own PR, yet cannot cite a PR number before the PR exists —
+resolved by opening with an honest placeholder rather than a claim.)*
+
 ## Reviews
 
 ### #783 (F-b / S73 parts 1 and 3) — style lane, 2026-08-20: **NOT CLEARED**

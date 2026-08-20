@@ -1097,18 +1097,34 @@ jobs:
     # The `interval` feature's backend lives in its own workspace
     # (interval-transcendentals/), so the kernel's workspace rows never
     # build its tests. Its pad tripwire therefore had no CI at all until
-    # M5 PR 1's review asked for one — and that tripwire is what catches a
-    # dropped outward round, which the kernel's own lane-agreement tests
-    # provably cannot (both lanes share the round-to-nearest chain).
+    # M5 PR 1's review asked for one — and it catches what the kernel's
+    # own lane-agreement tests provably cannot, both lanes there sharing
+    # the round-to-nearest chain.
     #
-    # This row is deliberately the crate's DEFAULT feature set: unit
-    # tests, the edges sweep's oracle-free half, and review_fuzz_div's
-    # exact-rational division fuzz, which needs no oracle at all because
-    # it compares against u128 rational arithmetic. Without
+    # WHAT THIS ROW CATCHES, by direction, because the two are not the
+    # same job. A pad WIDENED: every operation, via pad_contract.rs,
+    # which bounds each endpoint's distance from the backend's own value
+    # by the derived pad — no oracle needed, since the comparison is
+    # against libm, not against truth. A pad DROPPED: division,
+    # multiplication and sqrt only, via review_fuzz_exact.rs, which
+    # computes the true value in exact u128 rational arithmetic.
+    #
+    # NOT `+` and `-`: their truth is exactly computable but not with a
+    # u128 comparator (aligning 2^1023 with 2^-1074 needs ~2100 bits),
+    # and mutating add_lo/add_hi to bare round-to-nearest leaves this
+    # whole row green — only certify_arith reds. NOT the seven
+    # transcendentals: their truth needs a multi-precision reference at
+    # all. Both belong to oracle-certify below, which fires on changes
+    # under interval-transcendentals/{src,tests}/, Cargo.toml or
+    # Cargo.lock (ci-filter.py's ORACLE_PATHS — four paths, not the whole
+    # directory: docs/ is NOT among them, so editing the derivation that
+    # sets PAD_ULPS does not by itself re-certify). That is a trigger
+    # set, not a convention.
+    #
+    # This row is deliberately the crate's DEFAULT feature set: without
     # `oracle-inari` there is no inari/gmp-mpfr-sys and no C toolchain in
-    # the graph, so the row takes seconds. The full differential lane
-    # (certify.rs, behind --features oracle-inari) stays a by-hand gate;
-    # see the crate README's "Certification" section.
+    # the graph, so it takes seconds. See the crate README's
+    # "Certification" section.
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
