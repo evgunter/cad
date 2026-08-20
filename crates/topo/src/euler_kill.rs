@@ -519,6 +519,19 @@ impl<T: Decide> Body<T> {
     /// `None` (segment kill — the loop is [`LoopBoundary::Empty`] at the
     /// survivor again).
     ///
+    /// **The merged fan's carriers are NOT re-described.** The far
+    /// vertex's surviving edges are re-based onto `start(he)` and each
+    /// keeps the curve it was certified with against the dead vertex's
+    /// point. If the two points differ, every merged edge is left
+    /// describing a locus that no longer ends where the edge does:
+    /// tier 1 does not constrain it and no operator re-checks it,
+    /// tier 3 reports it at rest, and the next `split_edge` or
+    /// `set_edge_curve` on such an edge refuses typed. **Re-describe
+    /// the merged fan** (via [`Body::set_edge_curve`]) whenever the two
+    /// points differ. This is the exact inverse of [`Body::mev`]'s fan
+    /// note, and the same posture as
+    /// [`Body::set_face_surface`]'s.
+    ///
     /// # Precondition check order
     ///
     /// `he` resolves ([`EulerOpError::StaleKey`]); its edge resolves
