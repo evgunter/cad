@@ -1274,9 +1274,18 @@ surface.
 vs 178 normalised chars) by exactly the `wall_sense` bit whose three
 per-verb rules are the M5 S11 fix. `strut_spec` — 223 vs 350 chars,
 different arity, `ExtrudedPoint` on a line against `RevolvedPoint` on a
-circle; a name collision. `swept_segments` — 813 vs 643 chars, and only
-extrude has a reversal arm. `full::build_lamina` and the `let _ = k;`
-inference, both retracted by the steelman and both confirmed here.
+circle; a name collision. `swept_segments` — 813 vs 643 chars.
+**CORRECTED at S74, by #781:** this entry originally continued *"and
+only extrude has a reversal arm"*, which was false when written —
+`revolve::swept_segments` took `reverse: bool` and implemented the same
+involution. It is the sentence S74 was raised about, and it stood in
+two places, `swept.rs` and here; the record is corrected rather than
+deleted because a claim this unit's own class re-check read and failed
+to correct is worth being able to find. **The two are now unified** in
+`swept.rs`, so the entry is void either way. `full::build_lamina` and
+the `let _ = k;` inference, both retracted by the steelman and both
+confirmed here (the `let _ = k;` binding was simply dead, and #781
+deleted it).
 `skin.rs` was swept for the same closed forms and shares none of them:
 it discretises arcs in `f64` with a signed `θ = 4·atan(bulge)`, a
 different derivation that happens to look similar.
@@ -1412,7 +1421,10 @@ the `Plan`/`Build`/`Runway` stack, the eleven unreachable `unsupported(…)`
 refusal strings, `build.rs:213`'s dead `Err(other) => Err(other)` arm, and
 `build.rs:26`'s *"kept (not subsumed) … bit-preserved"* sentence going with
 it. The five shared helpers (`face_cycle`, `vertex_faces`, `outward_of`,
-`octant_chart`, `corner_convexity`) stay and are called from the surgery.
+`octant_chart`, `corner_convexity`) stayed and were called from the surgery.
+(`corner_convexity` was **deleted by #768**, D27: with the corner's incident
+links carried as a type its body was `links.first().convexity()`, and both of
+its refusals were unreachable.)
 `FilletNaming::supports` was **assessed rather than assumed**: dead, and
 deleted *with* its consumer rather than left as a permanently-empty loop —
 S11's shape, refused. The three naming tests were rewritten, not deleted;
@@ -3274,7 +3286,7 @@ reported as *"an open chain with **more than one** link"*.
 | Row | Sites | What they became |
 |---|---|---|
 | 2 — valid input, unbuilt | **41** | `UnsupportedChain{edge,detail}` 16, `UnsupportedGeometry{at,detail}` 14, `UnsupportedRunOut{at,detail}` 7, `FilletCornerUnsupported{vertex,corner,policy}` 3, `UnsupportedBody{solids,shells}` 1 |
-| 1 — invalid input | **49** | `BodyNotIntact{at,detail}` 46, `EmptyChain` 2, `RepeatedEdge{edge}` 1 |
+| 1 — invalid input | **49** | `BodyNotIntact{at,detail}` 46, `EmptyChain` 2 (**both retired by #768**, D27 — the variant no longer exists), `RepeatedEdge{edge}` 1 |
 | 4 — kernel bug, observable | **18** | `unreachable!`, each carrying its own per-site proof |
 | 5 — re-derivation | **0** | rows 4/5 split on re-derivation; a failed lookup is observed |
 
@@ -3299,9 +3311,20 @@ inherited from "the body is valid"; and **(ii)** the condition it observes is a
 property of state that call itself produced. Three sites failed clause (i) as
 first written — their proofs cited checks one frame up — and were **made
 provable rather than downgraded**, by adding the two local checks the fusion
-argument needs. `corner_convexity`'s arms stay typed because their fact is about
-a caller's behaviour, not about data in hand, and that is now the stated line
+argument needs. `corner_convexity`'s arms stayed typed because their fact was about
+a caller's behaviour, not about data in hand, and that is the stated line
 between the two dispositions.
+
+**That line stands; its worked example does not, and the reversal is the
+point — REVISED by #768 (D27).** `corner_convexity` is deleted. A fact about a
+caller's behaviour is not condemned to stay a typed refusal forever: it can be
+**put into the data in hand**, at which point clause (i) is satisfied honestly
+and there is no arm left to dispose of either way. #768's tokens do exactly
+that, and none of the three helpers this document cited as row-4 candidates
+became an `unreachable!` — each lost its branch instead. So the line to cite
+here is *"is the fact in the data this call holds?"*, and the third disposition
+it admits, beside typed-refusal and `unreachable!`, is **change what the call
+holds**.
 
 **On the finding's number, and on the retracted refutation.** #740's first
 revision claimed the row-4 reading was *refuted*, on the argument that
@@ -3326,13 +3349,20 @@ among the 18 `unreachable!`s. So the comparison is 14 against ~120, on a family
 of 63; the other four row-4 sites are not lookups but shape observations on
 entities the call minted.
 
-**`EmptyChain` is filed under row 1 and does not meet its definition.** Row 1 is
-*"reachable by input, invalid"*, and `walk_chains` (`battery.rs:655`) seeds every
-chain with one link, so no input reaches it (pinned over 343 verdicts per run,
-1,292 at `CAD_FUZZ_EFFORT=10`). It is
-not row 4 either, by clause (ii). **The addendum has no home for "not locally
-provable, not input-reachable"** — a gap found by executing it, carried by
-**D27**.
+**`EmptyChain` was filed under row 1 and did not meet its definition — FIXED by
+#768 (D27), by deleting the state rather than the row.** Row 1 is *"reachable by
+input, invalid"*, and `walk_chains` seeds every chain with one link, so no input
+reached it; it was not row 4 either, by clause (ii). The addendum had no home
+for *"not locally provable, not input-reachable"*, and **it did not need one**:
+`Chain` now holds its first link in its own private field, so the variant has no
+representation and both of its sites are gone. The five classes stand unamended,
+and `DESIGN.md`'s retraction claims nothing beyond this one state: **whether
+"can the type stop representing it?" is the question to ask FIRST at the next
+site of this shape is a ruling about how the addendum is applied, it bears on
+S14, and it is open for Evan in its own PR** — not settled by #768. The pin behind the
+old sentence also **re-derived to 305 verdicts per run, not 343**; #768 retired
+it, because `Chain`'s type now carries what it asserted and an assertion that
+cannot fail is §C8.
 
 **The `Display` recourse — the finding's concrete user-facing wrong.**
 `FILLET3_ASSEMBLY_RECOURSE` (*fillet a set of edges whose open chains are single
@@ -6670,9 +6700,11 @@ decision, and #637 made it and argued it in the code.
 
 ## S50. Fillet corner patches mint `sense` bare, between siblings that derive it
 
-**FIXED by #640.** Both corner mint sites now derive the bit from
-`link.convexity.blend_sense()` through one `corner_convexity` helper, as their
-blend and rim-band siblings in the same loops already did. Output-identical
+**FIXED by #640.** Both corner mint sites derive the bit from
+`link.convexity.blend_sense()`, as their blend and rim-band siblings in the same
+loops already did — through a `corner_convexity` helper until **#768** (D27)
+retired it and the corner read the bit straight off its admitted links, which is
+the same derivation with one fewer frame. Output-identical
 today — three typed front doors refuse concave chains upstream of any corner
 minting — and pinned by four in-crate rows at the deepest point the doors leave
 reachable.
@@ -8102,40 +8134,162 @@ litmus — that is what a boxed constant looks like. Plausibly a class:
 
 **Verdict:**
 
-## S74. `swept.rs`'s new shared home states a reason for not unifying that is factually false, and the same commit deleted the duplication markers
+## S74. FIXED by #781 — the swept-traversal builder has one home, and the class re-check ran over every *"deliberately NOT unified"* claim in the S6 record
 
-**[verified]** `crates/sweep/src/swept.rs:17` says the traversal builder
-stays out because *"extrude's has a reversal arm and mints the
-orientation bit, revolve's has neither."*
+**The instance.** `swept.rs:17-20` said the swept-traversal builder stayed
+out of the shared home because *"extrude's has a reversal arm and mints the
+orientation bit, revolve's has neither."* Half of that was false:
+`revolve::swept_segments` took `reverse: bool` and its own doc stated the full
+involution. The same commit (`6b9c1236`) had deleted the two self-declared
+duplication markers at the copy site — *"Mirror of `extrude`'s `SweptSeg`"* and
+*"Mirror of `extrude`'s `swept_segments`"* — while leaving the copies in place.
 
-`crates/sweep/src/revolve/mod.rs:625`'s `swept_segments` takes
-`reverse: bool` and its own doc says it implements the full involution
-(*"endpoints swapped, bulge negated, turn flipped"*). Half the stated
-reason is simply untrue. The two bodies compute `a`/`b`/`bulge`/`kind`/
-`canonical_vertex`/`canonical_segment` identically; the only real
-divergence is extrude's extra `wall_sense` field — which is exactly what
-`SweptChord` was introduced to fence off elsewhere.
+**What was done: the two builders were unified**, on Evan's ruling
+(2026-08-20) that the burden had moved to whoever wanted them kept apart.
+`crates/sweep/src/swept.rs` now owns `SweptSeg` (the six shared fields) and
+`swept_segments` (the one implementation of the profile crate's reversal
+involution). `revolve` re-exports both under its own names. `extrude`'s record
+became `WallSeg` — *the shared record plus the wall-orientation bit*, wrapping
+it rather than re-declaring its fields — built by `wall_segments`, which is the
+shared traversal plus `wall_sense_of` read off the canonical segment the
+traversal already records. **`SweptChord` stayed the mechanism**: it is what
+keeps `wall_sense` out of every shared body, and no second fence was invented.
 
-Worse, the same commit **deleted the two self-declared duplication
-markers at the copy site** (`revolve/mod.rs`'s *"Mirror of `extrude`'s
-`SweptSeg`"* and *"Mirror of `extrude`'s `swept_segments`"*) while
-leaving the copies in place. The only greppable evidence that these are
-twins is now gone, replaced by a sentence asserting they are not.
+Output is bit-identical by construction — each field is computed by the same
+expression on the same input, and `wall_sense` by the same function on the same
+canonical segment — which is how the shape was *chosen among* equivalents, not
+why the change was made. `cargo test -p sweep`: 410 passed, 0 failed.
 
-This is C11's mechanism running in reverse. C11 observed that every
-duplication in this codebase is self-declared in prose and nothing ever
-reads that prose. Here the prose was the only record, and a
-consolidation pass removed it.
+**A residue closed on the way.** S6 recorded that `SweptChord` kept the
+orientation bit out of revolve but not out of loft, which imported extrude's
+record and *"never reads it, so there is no defect — but that is loft's habit,
+not a structural guarantee."* Loft now imports `swept::SweptSeg`; the record it
+carries has no such field, so the guarantee is structural.
 
-**Class, not instance:** every *"deliberately NOT unified"* claim in the
-S6 record should be re-checked against the code it describes —
-`strut_spec` and `SweptSeg` at minimum. And `swept.rs:31`'s
-funnel-bypass count is wrong on its first day: *"loft and three other
-sites"* reads as four; there are three (`loft.rs:321`,
-`extrude.rs:886`, `revolve/tube.rs:29`), which is exactly the
-three-member class S6's residue (e) recorded.
+**The fix pass, and what its review found.** #781's first head closed the
+false sentence by writing new unenforced prose — and two of those sentences
+were **already wrong**, which is S74's own mechanism committed inside the fix
+for S74. The style review caught it and the record is corrected in place
+rather than appended to: the funnel-bypass claim went stale in the opposite
+direction (below), the arc-sense reconciliation and the `SweptKind`
+correspondence were prose where a mechanism was available, and the deleted-
+marker arithmetic did not add up. **The code half was confirmed and stands** —
+the reviewer re-derived the index algebra two ways and identified
+`m5_s11_concave_sense.rs:165` as the row that reddens on a mis-indexed
+orientation bit. Three things this pass could not close became **S131**,
+**S132** and **S133**.
 
-**Verdict:**
+**The class re-check — every *"deliberately NOT unified"* claim in the S6
+record and in `swept.rs`'s own paragraph, read against the code:**
+
+- **The swept-traversal builder** — FALSE as stated (above). Closed by
+  unifying; the sentence is gone rather than corrected.
+- **The wall-orientation sense is per-verb** — SURVIVES, and the shared arm
+  is now **one body rather than three prose sites**. `swept.rs` originally
+  said *"revolve reads the wall class"*, which was wrong; the first correction
+  said revolve reads the turn *"where its carrier centre is on the meridian
+  (sphere, torus)"*, which is **vacuous** — every sketch arc's centre is on
+  the meridian, and the real discriminator at `revolve/axis.rs` is *arc versus
+  line*. Both spellings were prose reconciling `extrude::wall_sense_of`'s
+  `matches!(turn, Positive | Zero)` with `classify_segment`'s
+  `!matches!(canonical(turn), Negative)`. The fix pass gave the rule one home
+  in code — `swept::centre_on_material_side` — called from both verbs, so the
+  `Zero` totality posture is decided once and the reconciling prose is
+  deleted rather than corrected. The claim itself holds: on LINE walls the
+  verbs genuinely diverge and share no body.
+- **The strut carrier is per-verb** — SURVIVES intact. `extrude::strut_spec`
+  and `revolve::surfaces::strut_spec` agree on neither arity, `MappedCurve`
+  variant (`ExtrudedPoint` / `RevolvedPoint`), carrier (`Curve3::Line` /
+  `Curve3::Circle`) nor parameter interval. A name collision, as S6 said.
+- **`SweptSeg`, "the two records differ by exactly the `wall_sense` bit"** —
+  was true, and is now superseded: the six shared fields have one declaration
+  and extrude's record wraps them.
+- **`SweptChord` is a trait, not a struct; `sketch_segment` a free function
+  over its accessors** — both SURVIVE, verified at `swept.rs`.
+- **`full::build_lamina` and loft's `let _ = k;`, "retracted by the
+  steelman"** — retractions rather than claims; `build_lamina` calls the shared
+  `build_chain`, so nothing is held apart. `let _ = k;` was a dead local
+  (`k` bound and immediately discarded) and is deleted.
+- **`skin.rs` "shares none of the closed forms"** — SURVIVES; its arc
+  arithmetic is `f64` with a signed `θ = 4·atan(bulge)`, and where it does
+  reuse a profile-crate closed form it says so verbatim at `skin.rs:302`.
+- **Residue (c), the second funnel** — SURVIVES; `sweep/src/fillet/mod.rs:86`
+  is still a second funnel in the crate. Not this unit's: `fillet/` is Track
+  E's (#768).
+- **Residue (e), the funnel bypasses** — the claim went stale **twice, in
+  opposite directions**, and the third answer is neither a count nor a list.
+  `swept.rs:31` said *"`loft` and three other sites"*, which reads as four.
+  The first correction named three sites — and **undercounted**:
+  `revolve/tube.rs` alone makes four direct recorder calls under four
+  predicate names (`tube_frame_unit`, `tube_frame_orthogonal`,
+  `tube_window_span`, `tube_window_headroom`), three of them frame validity
+  rather than the angle window the sentence named. Re-derived on `6a479c94`:
+  **three modules bypass a funnel, at six call sites** — `loft.rs`,
+  `extrude.rs`, and `revolve/tube.rs`'s four. Neither number is now in the
+  tree. The claim site states **a command instead**:
+  `rg 'geom_core::k_stats::decide' crates/sweep/src` catches every module that
+  reaches the recorder, because the only two ways to reach it are that path at
+  the call site and that path in a `use` — which is exactly why grepping
+  `decide(` misses `tube`, and why the name-list missed it too. The rule
+  over-catches by doc mentions and says so; it has no false negatives, and
+  that is the property a count and a list both lacked.
+- **Residue (f), `face_surface_key` not moved to `topo`** — SURVIVES;
+  it returns `EulerOpError` and lives in `swept.rs`, as recorded.
+- **Observation: `SweptKind` against `profile::SegmentKind`** — SURVIVES and
+  was **unmarked**: the two are field-for-field the same shape, separated only
+  by whose orientation `turn` carries. The first fix asserted *"a change to
+  either enum's arms is a change to both"* — a hand-kept invariant, which is
+  the shape this whole finding exists to distrust. It is now stated as its
+  enforcement instead: `swept_segments` is the only place one is built from
+  the other and its `match` is exhaustive, so an arm added to
+  `profile::SegmentKind` stops this crate compiling.
+
+**The deleted-marker sweep**, re-derived rather than transcribed (the
+first published version of this paragraph did not add up; #781's fix
+pass re-ran it against `main` at `6a479c94`).
+
+`git log -S PHRASE -- crates/sweep/` over *Mirror of / mirror of /
+verbatim / re-derived / ported from / one dimension down / the twin of /
+twin of / copy of / duplicate of / hand-synced / kept in sync*, then
+every deleted comment line it surfaces read in context.
+
+**Counted by a stated criterion**, because that is what makes the number
+re-derivable: a *marker* is a sentence declaring **this item is the same
+code as a named item elsewhere**. Exactly one commit in that history
+deletes any, `6b9c1236` — S6's own fix pass — and it deletes **seven**:
+
+- **Five named helpers it genuinely unified**, so the marker went with
+  the copy: `SweptKind`, `arc_apex`, `cap_points`, `cosurface`,
+  `face_surface_key`.
+- **Two named copies it left standing**: `SweptSeg` and
+  `swept_segments`. S74's two. No third.
+
+Three deleted lines the phrase list surfaced are **not** markers under
+that criterion and are excluded: `chain_spec`'s *"passes the sketch
+placement verbatim"* (that "verbatim" modifies a placement value, not a
+body — `chain_spec` was unified, but it never declared itself), and
+`turn_axis`'s two *"extrude's convention"* notes (attribution of a sign
+convention, not of a body). **The vocabulary produces false positives as
+well as false negatives**, which is the argument for reading every hit
+rather than counting the grep.
+
+**What it cannot match**, and one of these was demonstrated on this very
+unit:
+
+- A marker phrased in words nobody has used, and a copy that never
+  declared itself at all — `SweptKind`'s correspondence to
+  `profile::SegmentKind` was found by reading, not by grep.
+- **A live marker in the working tree.** This sweep runs over *history*,
+  for markers whose copy outlived them. Run over the tree instead, the
+  same vocabulary immediately returns three self-declared duplications
+  inside these very files that this pass had not dispositioned —
+  `revolve/tube.rs:216`, `revolve/tube.rs:169`, `loft.rs:400`. That gap
+  is **S131**, and it is the sharper half of the two directions.
+- Workspace-wide, `git log -S` cannot tell an added marker from a
+  deleted one, so outside `crates/sweep/` this is not a negative result.
+  Where to look next is **S133**.
+
+**Verdict:** FIXED.
 
 ## S75. The recourse-contract guard's central assertion is a tautology, and two suites defer their completeness obligation to it
 
@@ -8153,7 +8307,10 @@ the decision and a witness value of its own variant — so the two cannot
 drift apart by omission, which is exactly how a hand-kept witness list
 lets a wrong decision ship green."* That mechanism is described and not
 implemented; what actually constrains the test is `seeds()`, which **is**
-a hand-kept list, seeding 8 of ~21 variants.
+a hand-kept list, seeding 8 of ~21 variants. **Both numbers moved under
+#768 (D27/D29), which deleted `FilletError::EmptyChain`: the list seeds 7
+of ~20 today. Re-derive rather than transcribe** — the count is a
+property of an enum this track is still editing.
 
 Two other rows defer completeness to it:
 `crates/sweep/tests/m5_pr12_refusals.rs:509` (*"the standing check on
@@ -8950,17 +9107,23 @@ written for. Beyond S60, S75, S76, S78, S84 and S91 above:
 
 ## S111. Frontier vocabulary and API surface with no reachable caller (roll-up)
 
-- (a) `crates/sweep/src/fillet/surgery.rs:1144,1209,492,447` and
-  `fillet/build.rs:228,280` — S7's charge against the retired door
-  included *"eleven `unsupported(…)` refusal strings, all provably
-  unreachable."* The **surviving** door now carries the same shape and
-  self-declares it: `build.rs:247` says outright *"Neither refusal below
-  is reachable through the front door"*; `resolve_rim`'s one-link guard
-  is *"Likely dead in practice"*; `links_here.is_empty()` cannot hold;
-  `corner_plan`'s `faces.len() != 3` cannot disagree with the valence
-  the door just checked; `EmptyChain` is not something the battery
-  emits. Each argument is individually reasonable; the aggregate is the
-  defect the deletion was meant to close, on the door that survived.
+- (a) **PARTLY CLOSED by #768 (D27), which was aimed at D27's three sites
+  and reached four of this member's five.** S7's charge against the
+  retired door included *"eleven `unsupported(…)` refusal strings, all
+  provably unreachable"*, and the surviving door carried the same shape
+  while self-declaring it. Of the five self-declarations this member
+  listed: `build.rs`'s *"Neither refusal below is reachable through the
+  front door"* is **gone with the function that carried it**;
+  `links_here.is_empty()` is **gone** (a corner's incidence list is
+  non-empty by shape); `corner_plan`'s `faces.len() != 3` is **no longer
+  a self-declared-dead branch** — it is `CornerFaces::admit`, a door
+  whose whole job is to decide it, and the derivation downstream reads a
+  type instead of re-testing; `EmptyChain` is **gone**, variant and all.
+  **What survives is `resolve_rim`'s one-link guard** (*"Likely dead in
+  practice"*, `surgery.rs`), which stays typed for the reason written on
+  it: nothing in that call proves the battery's screen ran, and no token
+  in this unit attests it. **This member is not fully closed and has no
+  row** — the orchestrator owns whether the residue earns one.
 - (b) `crates/sweep/src/fillet/surgery.rs:778` — `pub fn ring_clearance`
   is production API whose only caller outside the module is
   `crates/sweep/tests/m6_surgery.rs:434`, and whose doc says so. S52
@@ -9454,6 +9617,126 @@ they pin: `review_d2_adv_probes`, `review_d2_recourse_at_the_site`,
 Evan's Tier-3 verdict on S36, renaming waits on an actual review and
 fixup of each suite.
 
+## S131. A unification declares "one home" while self-declared hand-copies of the same rule stand inside its own scope
+
+**[verified, #781's fix pass]** S74 unified the two swept-traversal
+builders and `swept.rs` then claimed `swept_segments` was *"the one home
+of the profile crate's reversal involution."* It was not.
+`revolve/tube.rs:216` builds two `SweptSeg` values by hand under a
+comment that **says so**: *"the same transform `swept_segments` applies
+to a canonical CCW loop: endpoints swapped, bulge −1, turn Negative."*
+A self-declared copy of the exact rule being unified, in a file §D
+listed inside the unit's own scope.
+
+**This is the class, and it has three members in these files alone.**
+Run the marker vocabulary over the **working tree** rather than over
+history and `crates/sweep/src` returns, outside `fillet/`:
+
+- **`revolve/tube.rs:216`** — the reversal involution, hand-applied.
+- **`revolve/tube.rs:169`** — *"mirrors revolve's angle
+  classification"*: `revolve/mod.rs:640-648` decides span and headroom
+  under `revolve_angle` / `revolve_angle_headroom`, `tube.rs:174-179`
+  decides the same pair under `tube_window_span` /
+  `tube_window_headroom`. Live and true.
+- **`loft.rs:400`** — *"extrude's phase verbatim, loft rim specs"*:
+  `extrude.rs:537` is the same `mev_line` → `kemr` → `mev` hole phase,
+  differing only in the rim specs. Live and true.
+
+**All three are honest markers and all three stay.** The tube ones
+cannot share code: that door exists to store the caller's centre and
+radii bit-exactly rather than reconstruct them from bulges, so it cannot
+hand the shared builder a `ValidatedLoop` at all. `loft.rs:400` is a
+real candidate for sharing and nobody has costed it.
+
+**The defect is not the copies; it is that a unification asserted "one
+home" without looking for them**, and that both of the unit's sweeps
+were structurally blind to them — Sweep 1 grepped the *not-sharing*
+vocabulary, Sweep 2 grepped the *marker* vocabulary but over `git log`,
+never over the tree. **The cheap generalisation: any claim of the form
+"X now has one home" is owed a marker-vocabulary grep of the tree in
+the scope it claims**, and that is one command.
+
+**Two measurements on the vocabulary itself**, from running it over
+`crates/sweep/src` (minus `fillet/`) at `6a479c94` — 13 hits:
+
+- **It is mostly false positives here: 9 or 10 of the 13.** *"verbatim"*
+  overwhelmingly modifies a **value** carried through unchanged — a
+  carrier, a parameter interval, the caller's centre and radii
+  (`extrude.rs:47,983`, `upgrade.rs:8,199`, `tube.rs:190`) — not a body
+  being a copy. *"re-derived"* twice cites Mäntylä, a book
+  (`lib.rs:8`, `extrude.rs:4`). Only 3 clearly declare duplicated code
+  (`tube.rs:169`, `loft.rs:400`, `skin.rs:302`, the last cross-crate and
+  already recorded at S6), plus `skin.rs:1121` arguably. **Every hit has
+  to be read**; the grep is a candidate list, never a count.
+- **It cannot see a marker written in fresh words.** `tube.rs:216`'s
+  marker existed and was honest, and the vocabulary missed it because it
+  said *"the same transform `swept_segments` applies"* — none of the
+  eleven phrases. #781's first fix pass then rewrote it as *"a
+  HAND-APPLICATION of"*, which was **still invisible to the grep**. It
+  now reads *"a hand-written COPY OF"* and says at the site why the
+  wording is not free. **A duplication declared in words the tree's own
+  greps do not carry is a duplication nothing will find** — which is
+  C11's observation with the mechanism named, and it is the argument for
+  a fixed vocabulary being written down somewhere a marker's author will
+  read.
+
+`swept.rs`'s sentence is corrected to state the qualifier that makes it
+true (*from a validated loop*) and to name `tube.rs` as the exception.
+Recorded because the *shape* — a consolidation's headline claim
+falsified by a marker already in the tree — is not specific to `sweep`.
+
+**Verdict:**
+
+## S132. `strut_spec` — one name, two different rules, in one crate
+
+**[verified]** `extrude.rs:384` and `revolve/surfaces.rs:75` are both
+`strut_spec`. They share nothing else: different arity (five parameters
+against six), different description (`MappedCurve::ExtrudedPoint`
+against `RevolvedPoint`), different carrier (`Curve3::Line` against
+`Curve3::Circle`) and different parameter intervals (`0..w_norm` against
+`0..|θ|`).
+
+S6 saw it, called it *"a name collision"*, and correctly left it
+unified-nothing. S74's class re-check saw it again, confirmed the
+non-unification claim was sound, and **put it in a lane report**. That
+is the inverse of S4's shape — one vocabulary, N implementations — and
+it is the project's standing failure in miniature: **an instance
+recorded outside the register is not recorded.** The register is here.
+
+Not obviously a defect: two verbs each naming their own strut spec after
+the thing it specifies is defensible. What is not defensible is that a
+reader who greps `strut_spec` gets two functions with incompatible
+contracts and nothing at either site saying the other exists. Minimum
+close: a marker at each. Fuller close: name them for what differs.
+
+**Verdict:**
+
+## S133. The consolidation-deletes-its-own-evidence sweep was run over one crate, and the mechanism is not crate-specific
+
+**[disclosed, #781]** S74's mechanism is *a consolidation pass removed
+the prose that was its own evidence and left a positive claim behind
+that is now false.* The class re-check that closed it swept
+`crates/sweep/` — honestly scoped and said so — but #710 was one of
+several consolidation passes this milestone, and the mechanism has
+nothing to do with `sweep`.
+
+**Why the disclosure could not be discharged in place:** run
+workspace-wide, `git log -S` cannot distinguish a marker being *added*
+from one being *deleted*, so the phrase families return dozens of
+commits that are mostly additions. Separating them needs a per-commit
+read, which is a lane, not a paragraph.
+
+**Where to look, and who owns it.** `topo/src/chord_join.rs` and
+`profile/src/path/` are the other trees that took consolidation passes
+this milestone. Both are already staffed — `chord_join.rs` is G-f's
+(G8) and G-g's (G9), `profile/` is G-d's (G5) — so this is **not a new
+lane**: it is an obligation those lanes can discharge cheaply while they
+are in the file, by running the marker vocabulary over the tree in their
+scope and dispositioning what it returns. The one-command version is in
+**S131**.
+
+**Verdict:**
+
 ---
 
 # §A. Where I would start
@@ -9541,7 +9824,7 @@ And a fourth, from the audit that produced Track D:
 | # | Decision | Gates |
 |---|---|---|
 | **D6** | **D5's contract is still untyped at two more doors.** #665 typed `enters_material` and `sector_shape`; a differently-shaped sweep (`grep sense_sign`) reaches the rest. This is a schedule, not a sentence — the question is how far the newtype goes, not whether it was right. | nothing hard; colours the sense-carrying surface |
-| **S14** | **What the no-panic principle actually says.** Evan's own reframe, 2026-08-18: *"maybe we need to update that principle to 'no panic on any reachable state, yes panic on things that can only indicate bugs'"*. The steelman split it — the first half is a **clarification** (D9 already says "on any input" and no existing `debug_assert` moves); the second is an **amendment**, because it licenses panics in release, which D9 does not, and on the one such class D9 disposes of it chose typed error or garbage-out. The reframe is also already in the tree unnoticed: PR #447 argued for panicking indexing on the merits and never took it back to D9, while `crates/topo` was ratified the other way. And the honesty defence for `hull.rs:80` fails on reachability — two clamped `KnotVector`s of equal degree and different length, `long_kv.span(k)` handed to a curve built on the short one, indexes out of bounds through the public API with no kernel bug in the trace. Issue **#475** costs out Options A/B/C and misses the cheap third (`kv.span(span.index()) == Some(span)`, O(1), the deleted guard exactly). **Second witness (added by #713, D5).** `topo::instance`'s graft is a public door that can leave a body **tier-1-invalid**: `graft_disjoint_all_keyed` mints an empty destination solid per source solid before transplanting, and its own docs state that a refusal raised mid-transplant leaves `dst` partially written and *spent, never resumable* — an empty solid being `SolidWithoutShells`, a tier-1 error. So a caller that discards the `Err` and keeps the body makes the next Euler operator's `debug_assert` fire from **API misuse, not a kernel bug**, which is precisely the class D9's footnote asserts cannot occur and which S43's proposed sixth state class named and the ratified five do not cover. It is the same question as `Span`'s, one crate over and through a door that already concedes the state in writing — where `Span` needed a somewhat contrived pairing to reach, this is a documented failure mode of a shipping API. #713 recorded the exception at both sites (`euler.rs`, `DESIGN.md`) and proposed no fix. **Correction, #740 (D2):** the door's `# Errors` section named `GraftRecertify` as the mid-transplant refusal, and **that variant cannot be raised at this door at all** — both public `instance` doors bridge with `combine::Bridge::RemapKeys`, whose arm never reaches the only site that raises it. The witness is unharmed: the mid-transplant refusal these doors *can* raise is `JoinDesync`, from the reference remap, and it writes as it goes just the same. #740 corrected the doc. **Third witness, from the other side:** executing the addendum over `sweep/src/fillet` produced a state none of the five classes fits — `FilletError::EmptyChain`, neither reachable by input nor locally provable — carried as **D27**. And the practical bite of this row is now measurable: #740 left 46 lookup sites as typed errors rather than `unreachable!` **because this question is open**, so S14 is no longer only a taxonomy gap, it is a bound on how much of the kernel can be converted. | This is a **decision, not work** — it was the one row of *Accepted, unscheduled* that had no channel at all, which is why it is here. Nothing in Track D touches it. |
+| **S14** | **What the no-panic principle actually says.** Evan's own reframe, 2026-08-18: *"maybe we need to update that principle to 'no panic on any reachable state, yes panic on things that can only indicate bugs'"*. The steelman split it — the first half is a **clarification** (D9 already says "on any input" and no existing `debug_assert` moves); the second is an **amendment**, because it licenses panics in release, which D9 does not, and on the one such class D9 disposes of it chose typed error or garbage-out. The reframe is also already in the tree unnoticed: PR #447 argued for panicking indexing on the merits and never took it back to D9, while `crates/topo` was ratified the other way. And the honesty defence for `hull.rs:80` fails on reachability — two clamped `KnotVector`s of equal degree and different length, `long_kv.span(k)` handed to a curve built on the short one, indexes out of bounds through the public API with no kernel bug in the trace. Issue **#475** costs out Options A/B/C and misses the cheap third (`kv.span(span.index()) == Some(span)`, O(1), the deleted guard exactly). **Second witness (added by #713, D5).** `topo::instance`'s graft is a public door that can leave a body **tier-1-invalid**: `graft_disjoint_all_keyed` mints an empty destination solid per source solid before transplanting, and its own docs state that a refusal raised mid-transplant leaves `dst` partially written and *spent, never resumable* — an empty solid being `SolidWithoutShells`, a tier-1 error. So a caller that discards the `Err` and keeps the body makes the next Euler operator's `debug_assert` fire from **API misuse, not a kernel bug**, which is precisely the class D9's footnote asserts cannot occur and which S43's proposed sixth state class named and the ratified five do not cover. It is the same question as `Span`'s, one crate over and through a door that already concedes the state in writing — where `Span` needed a somewhat contrived pairing to reach, this is a documented failure mode of a shipping API. #713 recorded the exception at both sites (`euler.rs`, `DESIGN.md`) and proposed no fix. **Correction, #740 (D2):** the door's `# Errors` section named `GraftRecertify` as the mid-transplant refusal, and **that variant cannot be raised at this door at all** — both public `instance` doors bridge with `combine::Bridge::RemapKeys`, whose arm never reaches the only site that raises it. The witness is unharmed: the mid-transplant refusal these doors *can* raise is `JoinDesync`, from the reference remap, and it writes as it goes just the same. #740 corrected the doc. **Third witness, from the other side — RETRACTED by #768 (D27):** executing the addendum over `sweep/src/fillet` produced a state none of the five classes fits — `FilletError::EmptyChain`, neither reachable by input nor locally provable. It is not a witness for this row after all: the state was representable only because `Chain` held its links in a `Vec`, and #768 removed the representation rather than adding a class. **The distinction that leaves is the one this row still turns on, and it is now a question in front of Evan rather than an answer** — `EmptyChain` was a state a type could stop spelling; the graft class above is a state a public door genuinely produces, and no type change removes it. Whether *"can the type stop representing it?"* is therefore the FIRST question at a site of this shape is a ruling about how the D2 addendum is applied; #768 deliberately does **not** make it, and it is open in its own docs-only PR. And the practical bite of this row is now measurable: #740 left 46 lookup sites as typed errors rather than `unreachable!` **because this question is open**, so S14 is no longer only a taxonomy gap, it is a bound on how much of the kernel can be converted. | This is a **decision, not work** — it was the one row of *Accepted, unscheduled* that had no channel at all, which is why it is here. Nothing in Track D touches it. |
 | **S22 row 1** | **ε ambience** — *settled 2026-08-19*: keep the `OnceLock`, add provenance (#659), no threading, no session object, no mixed-ε assemblies. Listed here only because the row's *other* halves are now closed and the finding should not read as open. | — |
 
 **D1 was ruled 2026-08-19** (a `Dual` may not certify, but it may have
@@ -10667,11 +10950,11 @@ has been discharged.
 | ~~**E-d**~~ | ~~**D33**~~ | `docs/predicate-dimension-audit.md` | style; **closed on a coverage number plus a scope verdict** | **DONE — #761.** The bound is deliberate and binds the table, not the document; of the two crates' **246** funnel names the document reaches 223 but **dimensions only 121**, and the **23** no reading covers are enumerated in the file and placed as **D46**. Residues **D51** and **D57**; **D56 handed back**. |
 | ~~**E-e**~~ | ~~**D28**~~, and issue ~~**#693**~~ | ~~`editor-core/src/eval/`~~ | ~~style~~ | **Landed as #767.** Twelve payload-discarding arms in one `Display`, not the row's eight, plus two more elsewhere in the crate (`program.rs`, and `edit.rs`, where the dropped payload made the message wrong rather than thin). `TransformError` and `MetaVersionError` had no `Display` to forward and both gain one. The C-f note above was **wrong**: #731 does touch `eval/mod.rs` and `eval/anchor.rs` — disjoint by item, not by file. Review found that the forwarding made two `Debug` renderings in `topo/splitting/finish.rs` reachable through the FFI; those are fixed and the class is **D81**. Six arms whose payload is an editor-core type with no `Display` are **D54**. #693 discharged. |
 | ~~**E-f**~~ | ~~**D25**~~ | ~~`topo/src/euler.rs` and every `link_half_edges` caller~~ | ~~**ADVERSARIAL**~~ | **Landed as #755.** 44 call sites, all type-checked; the seven liveness blocks are one constructor. **E-h inherits nothing from it** — none of D21's sites is a half-edge key handed to a splice — but **still sequences after it**, on file overlap: #755 rewrites `split_edge`, which is where three of D21's sites live. |
-| **E-g** | **D27, then D29** | `sweep/src/fillet/{build,surgery,mod}.rs`, `docs/DESIGN.md`'s D2 addendum if D27 needs a sentence | **ADVERSARIAL** for D27, style for D29 | Wave 1. One lane because the two rows share the files and §D's edge list already says sequence them. D29 is the cheaper half and can land first if D27's newtype stalls. |
+| **E-g** | ~~**D27, then D29**~~ **— both closed, #768** | `sweep/src/fillet/{admit,battery,build,surgery,mod}.rs`, `docs/DESIGN.md`'s D2 addendum | **ADVERSARIAL** for D27, style for D29 | Wave 1, landed as one PR. The D2-addendum edit is real and is a **design question the orchestrator owes a verdict on** before #768 merges. **S111(a)(b)(d), S112(a) and S75 were routed to this lane after it was dispatched and are NOT in #768** — #768 partly closes S111(a) as a side effect and says so at that finding; the rest are unstarted. |
 | **E-h** | **D21** | `topo/src/{split,attach,movefac,revert}.rs`, `splitting/finish.rs`, `boolean/combine.rs` | **ADVERSARIAL** | After **E-f**, which landed as **#755** — **for file overlap, not inheritance**: #755 rewrites `split_edge` (its post-splice re-read is now an executable case analysis and `split.rs:163`'s liveness block is gone) and three of this row's sites are in that function. Re-derive the census against #755's head. The deliverable is a sweep with a stated blind spot, not a count — three spellings escaped the last one. |
 | **E-i** | **D24** | `Cargo.toml`'s workspace lints, or `.github/workflows/` | style; **closes on a chosen mechanism** that runs in CI | Wave 2. The choice is the deliverable. If it chooses `unreachable_pub`, the first-run triage collides with every open lane, so the triage is a separate row and the lane says so. |
 | **E-j** | **D31** | `sweep/src/skin.rs`, `geom/src/curves/fit.rs`, proposed home `geom-core/src/spline/algebra.rs` | style, **ADVERSARIAL** if the union's sort order is load-bearing | Wave 2, **and it is the one row with a live Track C edge**: the proposed home is in **C-l**'s crate and `geom/` is **C-g**'s. Confirm with Track C before opening, or site the home outside `geom-core`. |
-| **E-k** | **D35** | `docs/DESIGN.md`'s D2 addendum, and whatever the answer names | style; **closes on a decision plus its reason** — *"no gate"* is a passing answer | After **E-g** and **E-h**, both of which mint `unreachable!` sites and so change the population the decision is about. |
+| **E-k** | **D35** | `docs/DESIGN.md`'s D2 addendum, and whatever the answer names | style; **closes on a decision plus its reason** — *"no gate"* is a passing answer | After ~~**E-g**~~ and **E-h**. **E-g (#768) is in and moved the population by exactly one: `crates/sweep/src` goes 18 → 19 `unreachable!` CALL SITES.** Two earlier figures for this were wrong and both are corrected here, because this row is a decision about the size of that population and will be read for the number: the PR first reported *"unchanged at 23"*, which counted **tokens** — 23 on both sides, but 5 of main's were prose and only 4 of the new tree's are, so the code count moved; its review then corrected that to *"22 → 23"*, which is the token count minus one prose mention rather than the call-site count. Re-derived with `unreachable!(`: **main 18** (all in `surgery.rs`), **#768 19** (`surgery.rs` 17, `admit.rs` 1, `battery.rs` 1). The one net new site is `walk_chains`', and it is the interesting one for this row — **D27 minted no row-4 site for any of its own three named helpers** (a fact carried in a value leaves no branch to convert), so the single site it did mint is the one place its own thesis was not applied: `order: Vec<usize>` is the third non-empty-by-construction sequence in that file and the only one still a `Vec`. |
 | **E-l** | **#681** | everything outside `crates/*/src` | style | Wave 2. Was Track A's **A4**; #683 closed the `crates/*/src` half and this is the remainder. Fix the pattern first — §C15, and the row's own statement that the real population is unknown. |
 | **E-m** | **#711** | `step-import/src/recognize.rs`, `docs/ASM-R2A-SPEC.md` | style | Wave 2. Was Track C's **C8**. Two items: a `try_cylinder` promoting arm documented unreachable with a preference order *"unfalsifiable by execution"*, and a one-line spec ruling. The first may want the tighter cylinder certificate rather than an encoding change. |
 | **E-n** | **D20** | `topo/src/seqgen.rs` | style; **closes on an attribution** — a number saying where the 46% lives, or a written finding that it is inherent | Last. It closes on a measurement, and *a timing is worth nothing without its box* (`memories/perf-measurement-lane.md`) — the attribution comes off hosted CI, not off whatever container the lane runs in. The enumeration class is closed as a candidate; do not re-open it without a number. |
@@ -10690,6 +10973,24 @@ all `pncad-py`'s error surface, and D37(a) and D39 are literally one mechanism
 (a `PathError` discriminant that lives in `profile`), so a lane taking D37+D39
 or D37+D47+D48 is cheaper than any of them alone.
 
+**D27 and D29 are struck — FIXED by #768 (E-g), landed as one PR.** D27's
+mechanism is `crates/sweep/src/fillet/admit.rs`: four tokens, one per clause the
+surgery's door decides, each with a private field and one constructor. **None of
+D27(a)'s arms became `unreachable!`** — a fact carried in a value leaves no
+branch to convert, which is the outcome that matters in the crate whose D9 rule
+is *never a panic*. **D27(b) is answered by dissolution, not by a sixth class**:
+`Chain` holds its first link in its own field, `FilletError::EmptyChain` is
+deleted, and the addendum's *"one state this taxonomy does not contain"*
+paragraph is **retracted as a matter of fact** — the state is gone, so the
+sentence would otherwise be a stale claim inside the ratified contract. **The
+generalisation was split out and is NOT in #768**: *"ask whether the type can
+stop representing the state before asking the taxonomy to grow"* is a ruling
+about how the addendum is applied and reaches into **S14**, so it goes to Evan
+as its own docs-only design conversation, stacked on #768 and left open. D29 is `Op { site, source: EulerOpError }` and
+`Certify { site, source: PcurveMintError }`; `crates/sweep` now has no `String`
+payload in any error type. Full record, both re-derived censuses and the three
+citations that did not resolve: **#768**.
+
 | # | Work | Was | Scope | Review | Gated on |
 |---|---|---|---|---|---|
 | **D20** | **D5's +46% on the `seqgen` lane is real, and after #722 it is unattributed.** #713 measured `split_edge`'s entry into the catalog at +0.9 s median (1.91 → 2.78 s) and charged it to the generator's eager candidate enumeration, which #722 placed as D14 and then **excluded by measurement**: `choose_op` is 2.4–2.7% of the lane on two independently built deterministic replays, so the whole of it cannot hold a 46% regression, and making it lazy moved no suite number. **What is left is the row.** The named candidates, in the order #722's measurement points at them: what a split *does* when applied (`EdgeCurve::certify` on both children), its inverse in the roundtrip arm, the isomorphism oracle's deep compare over the bodies splits make bigger, and the second-order cost of every later step running against a larger body. **Start by attributing, not by fixing** — the instrument is a deterministic replay of `run_properties` over a fixed stream set (S15 records its shape, its box and its spread), and the first deliverable is a per-phase attribution, which may find the cost is inherent to what the lane now covers rather than a defect. Two eager-enumeration instances have now been measured out of the frame (`choose_op` at 2.7% of the lane, `teardown` at 1.2% with the shape worth ~1% of that), so **the enumeration class is closed as a candidate**: do not re-open it without a number. `memories/test-suite-cost.md`'s rule still applies to whatever it finds. | S15 (`seqgen` half), via D14's refutation in **#722** | `topo/src/seqgen.rs` | style, and it **closes on an attribution**: a number that says where the 46% lives, or a written finding that it is inherent — not a shape | nothing |
@@ -10697,9 +10998,7 @@ or D37+D47+D48 is cheaper than any of them alone.
 | **D23** | **Enumerations produced by reading NAMES rather than contents — and the tree has two, both minted by lanes that were being careful.** The instance: `crates/topo/tests/probe_f34_review.rs` was enumerated as an uncompiled, never-run `probe` suite in **two** places — §S5's *"what that reproduction is and is not"* paragraph and `crates/topo/tests/probe_s5_sectors.rs`'s header, which named it alongside `probe_census.rs` as *"in exactly the same position"*. It is neither. Verified at `8a2d2305` three ways: the file contains **zero** occurrences of `cfg`; it is `#[path]`-aggregated at `crates/topo/tests/all.rs:171`; and `cargo test -p topo --test all -- --list` **with no features** lists two rows under `probe_f34_review::`. It has always been compiled and run by the default rows. The only thing it shares with the real probe suites is the word `probe` in its filename, which is what the enumeration was actually keyed on. #739 corrected both sites; **the class is the row.** **The second instance is #739's own**, which is what makes this sweepable rather than an anecdote: that PR's blind spot (iii) enumerates *"six census files named `*probe*` that say nothing about CI"* — a set produced by reading filenames. And the same coin's other face is the defect #739's review found in its first predicate: a census keyed on a textual mention counted **prose** as a suite. Name-derived enumeration over-counts and under-counts by the same mechanism. **A third instance arrived from #747 (D19), and it is the sharpest because it is self-referential**: that unit measured how many carried predicate names were unaccounted for in `docs/K-REPORT.md` and got **53 / 17 / 7** under three criteria — then, re-running the same measurement after its own restatement had tabled the seven orphans, got **45 / 0 / 0**. The enumeration was keyed on a document the enumerating change edits, so the act of recording the answer changes it. Nothing was wrong with either number; what was missing was the baseline. Both figures now carry *"measured against the document as the row found it"*. **Any re-derivation this row prompts will have the same property** — a survey of name-derived enumerations, written into the tree it surveys — so state the commit each count is against before running one. **Why this is sharper than a rotted claim.** A rotted claim was true once and `git log` explains it. These were never true, so nothing in the history explains them — and the `probe_f34_review` one survived four rediscoveries of the surrounding class (§S5, `probe_s5_sectors.rs`, D15, D17) because every one of them read the same name and inferred the same contents. **Why no sweep this project runs would find the next one.** Every sweep pattern in the tree is itself keyed on names — `rg` over filenames, module prefixes, `feature = "…"` literals — so an enumeration whose only evidence is a name is invisible to exactly the instrument that would check it. The verification has to be behavioural: compile it, `--list` it, run it. **Scope it before proposing a mechanism**: enumerate the claims in `docs/` and in suite headers that name a *set* of files, modules or tests, re-derive each set behaviourally, and report the count of disagreements. `probe_census.rs`, `probe_f34_review.rs` and the four other `*probe*`-named files are the first six to check. The row closes on that count plus a verdict, not necessarily on a guard. **See D22**: the same defect from the other side — D22's predicate counted prose as a suite, this row's enumerations counted a name as a gate. | D17 (#739), which found the first instance while correcting the second and then produced a third in its own blind spot | `docs/SMELL-SCAN-2026-08.md` §S5 and `crates/topo/tests/probe_s5_sectors.rs` are already corrected; the row's file set is whatever the re-derivation finds | style, and it **closes on a count plus a verdict** | nothing |
 | **D24** | **A `pub` item that is dead workspace-wide is invisible to every mechanical check this repo runs.** `dead_code` exempts anything `pub`, on the assumption that an external crate may call it — an assumption that is false for a workspace whose only consumers are its own members plus `pncad`/`pncad-py`. `[workspace.lints.rust]` (`Cargo.toml:130`) carries exactly `unsafe_code = "forbid"` and `missing_docs = "warn"` — plus D9's panic family under `clippy` — and **no `unreachable_pub`**, so nothing fires. **The class has two witnesses, not one.** `MateRole::name` (`editor-core/src/mate/solve.rs`, deleted by #735) and `BlendArm::name` (`sweep/src/fillet/blend.rs`, deleted by #748) are the same shape twice, in two unrelated crates: `pub`, documented *"for messages"* / *"for refusal text and report rows"*, and called by no message and no report anywhere in the workspace — under default features, under `--features probe`, and from `pncad-py`. **Both were found by hand, by a lane that happened to open the file for an unrelated deletion**, which is the finding: neither was reachable by any check, and nothing would have surfaced either. Two independent instances make this a class rather than an anecdote, and they say where it lives — enum-name accessors written alongside a refusal vocabulary that ended up formatting its own text. S11's whole dead-machinery table is drawn from the same blind spot. **Two fix shapes, and the row closes on choosing one, not on deleting anything**: (a) add `unreachable_pub` to the workspace lints, which demotes items that need not be `pub` and makes the genuinely-`pub`-and-dead ones visible as a residue — cheapest, but it will fire widely on first run and the triage is the real cost; (b) a `pub`-surface census job, in the shape D17's enforcement work takes, that enumerates the workspace's public items and reports the ones with no consumer, tests included. This is **enforcement work like D17, not a deletion row** — it does not itself condemn anything, and any item it surfaces still needs a verdict. The exact instrument for a single item is rename-and-rebuild, which #735's body documents and #748 extended (it over-answers LIVE for types *and* struct fields); the row's job is to make that mechanical instead of manual. | S11 (the dead-machinery table's method), via #735 and #748 | `Cargo.toml`'s workspace lints, or `.github/workflows/` | style, and it **closes on a chosen mechanism** that runs in CI — not on a list of dead items | nothing |
 | **D25** | **FIXED by #755.** `Live` is a half-edge key a lookup has returned: private field, own module, one private raw constructor, and **four doors that each perform the lookup** — `Live::of` (the bare `contains_key`), `Body::require_live` (the plan-phase door, typed `StaleKey`), `Body::resolve_half_edge_live` (the operator's own resolve, keeping the proof its `Some` arm earns — the door at 10 of the mint sites) and `Body::loop_cycle_live` (the walk, which resolved every member it returns). `mint_halves` returns its halves through `Live::of`. With `link_half_edges(a: Live, b: Live)`, the seven per-caller liveness blocks are gone and all **44** call sites are type-checked. The `&mut self` question the row flagged is answered in the PR body and in `topo/src/live.rs`: a token states what was true when it was made, the residue is *do not remove half-edges between proving a key and splicing it*, and the arenas being slotmaps means a token that outlived its key fails the lookup and announces rather than corrupting. Note the doors are **not** named `certify*` — that word is this codebase's for geometric certification and reusing it for liveness was S4 inverted. | raised by #736's style review, via the seven-block enumeration and the licensed inference in the helper's own replacement comment | `topo/src/euler.rs` and every `link_half_edges` caller | **ADVERSARIAL** — it changes a signature threaded through every Euler operator's mutation phase, and a `Live` that can outlive the mutation that kills its key would be worse than the prose it replaces | nothing (but D21 should follow it) |
-| **D27** | **The fillet surgery's front-door invariants are carried in comments, and the D2 addendum has no home for what that leaves.** Two halves, one mechanism. **(a)** Three private helpers cannot observe the fact that would make their refusals impossible, because the door that establishes it is one or two frames up and carries its verdict as prose: `build::corner_convexity`'s two arms (*"neither refusal is reachable through the front door"*), `build::octant_chart`'s `best`-is-`None`, and `blank_phase`'s `surgery.rs`-documented *"the front-door invariant: a face touched by an open link has its ENTIRE outer cycle requested"*, which two refusals hang off. #740 converted three neighbouring sites only after adding the local checks that make them provable; these are the ones no local check can reach. The mechanism is a **newtype minted at the door** — a value that says "this link was admitted as convex", "this face's boundary is wholly requested" — after which those arms are honestly row 4. **(b)** #740 found a state the addendum's five classes do not contain: `FilletError::EmptyChain` is **not input-reachable** (`walk_chains` seeds every chain with one link — pinned over 343 verdicts per run) and **not locally provable** (clause (ii): the emptiness is a property of the verdict handed in), so it is filed under row 1 while failing row 1's own definition of *"reachable by input"*. Either (a)'s newtype dissolves it, or the addendum owes a sentence. Decide (b) with (a), not separately. | #740 (D2) | `sweep/src/fillet/{build,surgery}.rs`, and `docs/DESIGN.md`'s D2 addendum if (b) needs a sentence | **ADVERSARIAL** — it converts refusals to panics behind a type, in the crate whose D9 rule is *never a panic*; the newtype must be unforgeable outside the door or it proves nothing | nothing |
 | **D28** | **FIXED by #767.** The re-derived census is **twelve** payload-discarding arms in that one `Display`, not the row's eight: the eight op arms plus `Profile`, `ProfileReplay`, `Band` and `Escalated`, all of which forward now, plus two more of the same class elsewhere in the crate found by a shape sweep rather than a symbol one — `program.rs`'s `ProgramRefusal::Validate`, and `edit.rs`'s `EditError::MetaUnversioned`, whose dropped `MetaVersionError` made the message **wrong** rather than merely thin (two of that payload's three arms are not a missing `"v"` field). **Two payload types had no `Display` at all** — `topo::transform::TransformError`, public through `pncad::prelude`, and `MetaVersionError`; both are minted here. `UndeclaredContact` renders its `Indeterminate` too: a recourse menu the payload cannot spell buys an arm prose, never the right to drop the payload. Review found the fix's own live consequence and it is fixed with it: forwarding made `topo/splitting/finish.rs`'s two `Debug` renderings reachable through the FFI, so a `BandError` shipped to Python as `Empty { zero: 1.0, escalate: 0.5 }` — that class, outside `pncad-py` where **D47** cannot see it, is **D81**. `SplitError` also stopped re-prefixing three stages that already name themselves. Five arms whose payload is an editor-core type with no `Display` are **D54**. The row's *"the payload is already gone by the time the tag map runs"* is **wrong and was already retracted by D37**: `node_error_tag` takes `&NodeErrorKind` intact and the render is a separate call at `py/value.rs:99`, so the loss was the **message**, never the tag. Guarded by `a_kernel_payload_arm_forwards_the_payloads_own_message` over an eight-arm roster (representative, not exhaustive — nothing makes it exhaustive), by that same roster carrying the no-`Debug`-guts property, by three `MetaVersionError` message rows, and by one assertion on the live fillet refusal in `m5_pr12_fillet_node.rs`. **Issue #693 discharged in the same PR.** | #740 (D2), via its FFI-boundary check | `editor-core/src/eval/mod.rs` | style | nothing |
-| **D29** | **`FilletError::Op { detail: String }` and `Certify { detail: String }` are now the biggest stringly-typed thing left in the enum D2 just closed a row of.** ~20 sites reach them through **three more closure factories** (`surgery.rs`'s `let op = \|what: &'static str\| move \|e: topo::EulerOpError\| …`, at three heads), each `format!`ing a **typed** `topo::EulerOpError` — which carries `StaleKey` and the operator's own refusal vocabulary — into prose. That is exactly the `SkippedMerge` lesson S19 records (*a finding phrased as an information requirement gets discharged by `format!` unless phrased as a type requirement*), and D2 left it alone correctly: it is outside the scope the row named. It is not outside this document's. The shape is settled by precedent — `SplitJoinError::Corrupt` took `entity: EntityId` in #690 — so this is `Op { site: &'static str, source: EulerOpError }`, with the same question for `Certify`. Note the closure factories are the #171 idiom surviving in the same file it was removed from. **Sibling of D28** — both are a typed error becoming a string; different crates, different mechanisms, one class (S19's `SkippedMerge` lesson). | #740 (D2) | `sweep/src/fillet/{surgery,mod}.rs` | style | **D27** touches the same two files; sequence them |
 | **D30** | **`geom-brep/src/props/quad.rs` holds a second span search and a second index clamp, and the reason is more interesting than either.** `KnotVector` cannot represent what this module needs: `Dir::Raw` exists because a derivative direction's interior multiplicity exceeds its own degree and `clamped` refuses it, and `Dir::Const` is degree 0, which `clamped` refuses by design. So the file hand-rolls `raw_span` (`:925`, an O(n) walk per point) and `const_index` (`:1022`, another). **Neither is a duplicate to be collapsed** — D8 verified `raw_span` agrees with `find_span` on every *clamped* vector, which is exactly the set it is never called on, and the shared search cannot serve degree 0 at all. The row is the shape, not the copies: **a certified type that cannot represent an intermediate the code needs pushes the consumer into re-deriving the type's whole vocabulary.** That is S32's shape (`Surface`'s one-partial-per-call API is what created SSI's shadow surface enum) one module over. Three concrete things to settle at the site: whether `raw_span`'s and `const_index`'s clamps are load-bearing or vestigial (both are unexamined); why `const_index`'s result indexes raw at `:1260`/`:1263` when the same file uses `.get(…).unwrap_or_else(poison)` for the same kind of index thirty lines away — two spellings of one rule in one file; and whether the per-point O(n) walks matter on the Newton–Cotes lane. | S18 (knot-insertion row), via #744's census and both its review lanes | `geom-brep/src/props/quad.rs` | **ADVERSARIAL** — it is span arithmetic on knot lists the validated type refuses, so there is no constructor to lean on and no existing gate covers the derived vectors | nothing; **handed to Track C (C-m)** — `props/quad.rs` is C-m's whole scope, and its A2 gate fell when #714 merged. Track E does not take this row |
 | **D31** | **`sweep::skin::make_compatible` and `geom::curves::fit`'s `deviation_from` are ONE routine in two crates.** Both build a union of `(value, max multiplicity)` over a set of curves by linear `find`, both then walk each curve producing a repeat list of the values it is short, both then call `refine_knots` or clone when the list is empty. Two crates, two error types, one Book section (§5.3's knot merging). It predates #744; what #744 did was make it **legible**, by putting the same `interior_knots()` expression at the head of both. It is S18's own class — a certified numeric derivation duplicated across crates — and it is **not in S18's table**, which is the finding's own blind spot: the table censuses *primitives*, and this is a routine built on one. `geom-core::spline::algebra` sits below both in the DAG. Before unifying, check the two genuine differences: `skin` sorts the union by `total_cmp` and `fit` does not (both feed `refine_knots`, so decide whether the order is load-bearing), and `fit`'s copy carries a certified-deviation budget the `sweep` one has no analogue for. | S18 ("distinct interior knots" row), via #744's style review | `sweep/src/skin.rs`, `geom/src/curves/fit.rs`, home in `geom-core/src/spline/algebra.rs` | style, unless the union's sort order turns out to be load-bearing — then ADVERSARIAL | nothing (D8 landed) |
 | **D32** | **A spec obligation is discharged by a discard: `decide_flagged`'s `ledger_row` argument is `let _ = ledger_row;`.** `geom_core::k_stats::decide_flagged` takes a fourth parameter, `ledger_row: &'static str`, and its body throws it away — the value reaches no recorder, no CSV column, and no assertion. Meanwhile `docs/M9-2-SPEC.md:69` makes it an obligation on implementers (*"every decision through named decide/Margin doors; **ledger rows for any `decide_flagged`**"*), `docs/M9-3-SPEC.md:77` routes a new metered name to *"a named row plus its predicate-dimension audit entry"*, and `docs/SELECT-DESIGN.md:41/85` refuses a comparand *"without a ledger row in `docs/predicate-dimension-audit.md`"*. **Measured at `ff5ad78e`**: 8 `decide_flagged` sites pass 5 distinct rows — `"F2"` ×4, `"F10"`, `"F13"`, `"F14"`, `"F15"`. Every one is a correct citation today. Nothing checks that, and nothing would notice a sixth spelled `"F16"` with no such row in the audit, or an existing row renumbered out from under a call site. **Why it is a row and not a tidy-up.** The parameter is the only place in the tree where the K funnel and the dimensional-audit ledger touch, and the touch is inert: it reads as an enforced link and is a comment with a type. The question to answer first is which of the three it should be — (a) **delete it**, and let the ledger citation live in a normal comment, which is honest and costs nothing; (b) **check it**, in the shape D17's census gate takes, asserting every literal passed here resolves to a row heading in `docs/predicate-dimension-audit.md`; or (c) **use it**, emitting the row into the recorded sample so the CSV can be grouped by ledger row, which is the only option that buys anything at runtime and the only one that costs. **It closes on that choice**, not on a rename. | D19 (#747), which found it while establishing what computes with predicate names | `crates/geom-core/src/k_stats.rs`, and whatever the choice names | style | nothing; **handed to Track C (C-q)** — `geom-core/src/k_stats.rs` is C-q's whole scope. Track E does not take this row |
@@ -10707,6 +11006,8 @@ or D37+D47+D48 is cheaper than any of them alone.
 | **D35** | **The `unreachable!` message convention is prose-held at 102 sites, the week after the mechanism was ratified — and nothing can tell a good message from a bad one.** The D2 addendum (ratified **2026-08-19**) made `unreachable!` row 4's mechanism. Six days later the tree has **101** of them across **nine** crates (`topo` 62, `sweep` 18, `geom` 6, `editor-core` 6, `geom-brep` 5, four crates with one each), and **#744** adds the 102nd — `geom-core`'s first. **The convention itself is not written down anywhere as a rule about the message.** `docs/DESIGN.md:1239` is its only trace, and what it records is the *conversion standard* — "each carrying its own per-site not-input-reachable proof" — not the shape that proof takes at the call site. The shape actually applied is: **the message states WHY the state cannot occur (the caller's proof), not merely WHAT was violated**, plus the observed values a reader debugging it would want first. **Nothing mechanically distinguishes the two, because to a grep they are identical**: both are `unreachable!("…")` with a string literal. A lint cannot read a sentence, so there is no existing check — and no cheaply constructible one — that separates "proven live by the check three lines up" from "key missing". **Why this is a row and not a note: it is time-critical, and the others are not.** 101 of the 102 sites were written inside one week, by lanes that are still running; the message shape was settled *this session* by **orchestrator ruling across two lanes** (#740's and #744's), which is exactly the mechanism that disappears when the lanes do. A convention held only by a ruling nobody wrote down is S15's finding in its purest form, and the window in which the authors can still say what they meant is now. **Four shapes, with their costs — and "none" is a legitimate answer.** *(a) A grep gate on message shape* (require a `because`/`proven`/`by` clause, a minimum length, or an observed-value tail): cheap, mechanical, and **checks spelling rather than content** — a site can satisfy it and say nothing, which buys false confidence, the one outcome worse than no gate. *(b) A ratified sentence in `DESIGN.md` plus a standing reviewer question* ("does this message say why it cannot happen?"): honest about being prose-held, but at least **findable**, and reviewer questions are the mechanism this scan keeps finding nobody is asked. *(c) A `kernel_bug!(reason = …, observed = …)` macro* making the proof a named parameter, so omitting it is a compile error: structural, but the addendum **explicitly rejected** a macro (`not_implemented!`) for the adjacent case, it forces the reason to be *present* and not to be *true*, and it is a 102-site migration. *(d) Nothing — sample and move on*: the sites are concentrated (80 of 102 in two crates), the panic is by construction not input-reachable, so a bad message costs one debugging session and never a user. Read the 102 once, fix what is wrong, and let the class live. **Close on whichever is right, including (d).** A row that closes on *"no, and here is why"* has done its job; this one exists so the question is asked while the answer is still cheap, not so a gate gets built. | S15 (prose-held invariants), applied to D2's addendum; raised by **#744** after **#740** landed the 18 that make it a class | `docs/DESIGN.md` (the addendum), and whatever the answer names — the sites are `crates/{topo,sweep,geom,editor-core,geom-brep,geom-core,mesh,profile,quantity,step-import}/src` | style — it closes on a **decision plus its reason**, not on a shape, and "no gate" is a passing answer | nothing (both #740 and #744 are its evidence, and both are in) |
 | **D36** | **`PcurveCertifyError::UnsupportedCarrier` is payload-free and means three different things, beside a sibling in the same enum that names its class at every site.** Re-derived at `87e565b`: **22** construction sites, all in `crates/geom-brep/src/pcurve_cache.rs`. The doc and the `Display` both say one specific thing — *"a closed-form (Harmonic) chart image was offered for a carrier with no {1, cos, sin, t} form"* — and **six** sites mean that (`:1021`, `:1994`, `:2412`, `:3198`, `:3372`, `:3485`). **Three** mean something else entirely: the refused thing is the *image* kind, not the carrier (`:1338` `Pcurve::Fitted`, `:1822` and `:2025` a non-`Harmonic` pcurve). The remaining **thirteen** are the #192 Leg E class — a carrier that IS harmonic, refused for its *placement* on the chart: a circle not centred on the axis, a carrier plane not ⊥ to the axis, an apex-level rim, a `Sign::Zero` traversal rate, a tilted cone section. `IsoUnsupported { what }` sits in the same file and the same enum and names its refused class every time: **15 constructions written out at a site, plus a `let bad = \|what: &'static str\| …` closure factory at `:2612` reached from 8 call sites — 23 refusal sites on the counting-through-the-closure reading, 16 on the syntactic one.** This variant carries nothing on either reading. **Both figures for `UnsupportedCarrier` are the same number** — its 22 are all written out at their site; the file has two closure factories (`bad`, and `esc` for `Escalated`) and neither mints this variant. **The overload is load-bearing, not cosmetic**: `topo/src/pcurves.rs:1003` matches on `UnsupportedCarrier` specifically and responds by clearing the face's caches and continuing — so a degenerate-configuration refusal is silently absorbed by a handler written for an uncovered-class one, and the module's own comment (*"Every OTHER failure … is a genuine defect and propagates"*) is narrower than the variant it keys on. The shape is settled by the sibling: `UnsupportedCarrier { what: &'static str }`, `Copy` preserved. **The deliverable is which of the three classes `topo::pcurves` should keep absorbing**, not the 22-site rename. | S19, via **D26** (#752) | `crates/geom-brep/src/pcurve_cache.rs`, and the consumer at `crates/topo/src/pcurves.rs` | style, **escalating to ADVERSARIAL** if the split changes which refusals `topo::pcurves` swallows | nothing |
 | **D37** | **`pncad-py`'s tag map re-derives a discriminant that belongs on the kernel error, and its field-projection deferral has no owner.** S19's row (*"384 lines of hand-maintained enum→`&'static str` that drops every payload"*) is **refuted as stated** and re-derived to what survives — see S19. A tag map is the right FFI shape: the tag is the branchable machine payload, the message is the kernel error's own `Display`, and the matches are exhaustive so a new kernel variant breaks the build in CI rather than arriving in Python untagged. Two things survive. **(a) A duplicated vocabulary (S4's shape).** `tags.rs`'s `path_error_tag` is 26 hand-written arms projecting `profile::PathError` to a stable name — a projection the *kernel* has no way to spell, which is why **D39 needs the same thing** and would have to invent it a second time. One `PathError` discriminant, minted in `profile`, serves both and deletes 26 arms here. **(b) An unowned deferral (§C3).** The module doc banks *"full per-variant field projection (node ids, slots, operand roles) … to the unit that binds the complete surface"*; no such unit is scheduled anywhere, so the deferral is a sentence in a source file, which is precisely the register-that-does-not-execute failure. Close on a scope verdict for (b) — *"the tag plus the message is the surface, and here is why"* is a passing answer — and on (a) being minted once. **D28 does not block this row, and the sentence that said it did was wrong.** `node_error_tag` takes `&NodeErrorKind` (`tags.rs:205`) — the typed value, every payload intact — and the `Display` render is a separate call at a separate site (`py/value.rs:99` renders, `:108` tags), so the eight `write_str` arms D28 owns destroy nothing a field projection here would want. **What a taker must NOT conclude from that:** the three mechanisms checked and found absent are a *data* dependency (the payloads are in hand), a *file* overlap (`editor-core/src/eval/` is disjoint from this row's scope), and a *visibility* one (`ExtrudeError` and its siblings are nameable from `pncad-py` via `pncad::prelude`). What remains, and is not a gate, is an **answer** dependency on half (b) alone: what D28 makes the message say is an input to *"is the tag plus the message the whole surface?"*, so read D28's outcome before answering (b) — and disproving one of the three mechanisms above does not license deleting that. | S19, via **D26** (#752) | `crates/pncad-py/src/tags.rs`, `crates/profile/src/path.rs` | style; **closes on a scope verdict**, not necessarily on a projection | nothing hard; half (a) is shared with **D39**, whichever lands first mints it, and half (b) should read **D28**'s outcome first |
+| **D90** | **`octant_chart` scores a chart off two faces it never checks belong to the corner, and a wrong chart is the failure mode nothing downstream would catch.** `l.face_a` / `l.face_b` come off the verdict's link; the corner's three faces come off the body's vertex orbit. The function reads normals from the first pair and the complement from the second and **never asserts `faces.contains(l.face_a)`**. If the verdict's supports for a link are not among the vertex's orbit faces — a verdict/body disagreement, not a kernel bug in this call — the axis `n_a × n_b` is computed from strangers and the octant gets a chart with no relation to its trihedron. **Pre-existing on `main`, not chargeable to D27, and unchanged by #768** — which was checked rather than assumed, by an exhaustive differential over the deleted `find` and its replacement `CornerFaces::third`: 3125 cases over a 5-key alphabet, **2960/2960 agreements wherever the old lookup answered**, and all 165 of its `None` cases carry a **duplicated** orbit, which `CornerFaces::admit` now refuses as `BodyNotIntact` before any mutation where the old code merely `continue`d past it. Detection went up. **What makes this worth a row is the failure mode, not the missing line.** The intuition that a bad chart surfaces downstream as a late `Op`/`Certify` is **probably wrong**: the corner patch is a sphere and the chart is a reparameterization of it, so the point set is unchanged and `mint_pcurves` has nothing to refuse — a silently wrong `u_ref`/`axis` reaches the user as a body that validates, with tier-3 mass properties computed against the wrong iso-structure (the module's own KNOWN LIMITATION is about exactly this chart). So the deliverable is **whether a wrong chart is detectable at all**, and the check is the cheap half: #768 already added `CornerFaces::contains`, so the guard is one line, and the open question is what it should refuse as and whether anything downstream would ever have said so. | #768's style review (D27), re-derived and re-scoped by its adversarial review | `crates/sweep/src/fillet/build.rs`, and whatever the detectability answer names | style, **escalating to ADVERSARIAL** if the answer is that a wrong chart is undetectable | nothing |
+| **D91** | **`map_err(\|_\| …)` — a typed error discarded into a payload-free variant — is D29's own disclosed blind spot, and D29 never ran it inside its own crate.** #768's body names *"a payload laundered through a non-String lossy type"* and *"one dropped by `map_err(\|_\| …)`"* as what its sweep could not match, and its hit table has no row for either. Running it: **`crates/sweep/src` has exactly two hits, both in `loft.rs`** (`:518` `map_err(\|_\| LoftError::SectionStructure)`, `:520` `map_err(\|_\| LoftError::SeamStructure)`), and **zero elsewhere** — `revolve/`, `skin.rs`, `extrude.rs` and `fillet/` are clean under it, so the class is small and bounded rather than a sweep. **It is not a two-line fix, which is why it is a row.** Both variants are also constructed payload-free at `loft.rs:273` and `:302` from checks with no underlying error at all, so nesting a source is not adding a field — it is deciding whether the variant means one thing with a source or two things with an `Option`, which is the same shape D38 hits from the other side (`SkippedMerge`'s equality-derive squeeze). **The lesson this row records about method, beyond the two sites:** a stated blind spot is a claim, and a lane that states one without running it has published an unverified negative — §C15's rule applied to the disclosure rather than to the pattern. **Sibling of D29 (same crate), D38 (`topo`) and D28 (`editor-core`)**: four instances of S19's *"a finding phrased as an information requirement gets discharged by `format!` unless phrased as a type requirement"*, and this is the variant where there is no `format!` to grep for at all. | #768's style review (D29), which ran the pattern the PR disclosed and did not run | `crates/sweep/src/loft.rs` | style | nothing |
 | **D38** | **`merge_coplanar_faces` runs two incompatible failure regimes on one door, and the one that `format!`s is cited in the tree as the precedent for the other.** Confirmed live at `merge_faces.rs:496` and `:508` (S19's `:489` is the enclosing `match`, seven lines up). An unlicensed planar group propagates its typed `MergeCoplanarError` with `?` and refuses the **whole call**; a licensed-or-curved group stages a trial and, on refusal, records `SkippedMerge { faces, reason: String }` and **continues** — so which of two incompatible contracts a caller gets depends on a property of the input it did not ask about. The `reason` is built two ways, and the tier-2 one `{:?}`-dumps `errors.first()`, whose `ValidationError` has had a `Display` since `validate.rs:1089` — **not a format-spec swap**, because `first()` is an `Option<&ValidationError>` and the `Display` is on the referent, so the empty case has to be decided rather than formatted. S19's lesson for this row (*a finding phrased as an **information** requirement gets discharged by `format!` unless phrased as a **type** requirement*) is the one this document keeps re-finding — **D29** is the same class in `sweep`. **The constraint a taker hits first**: `SkippedMerge` derives `PartialEq, Eq`, and `MergeCoplanarError` derives only `PartialEq`, so nesting the typed error whole costs the record its `Eq` — the same equality-derive squeeze **D39** is about, one crate over. **Two citations to reconcile before typing anything** (both corrected at S19): `DESIGN.md` D4 2(ii) cites this call's already-collapsed error as an in-repo precedent for **message** policy, not for this; and `boolean/mod.rs:828` cites `SkippedMerge` as the precedent for *"refused typed, never a laundered catch-all"*, which is the opposite of what it does. | S19, via **D26** (#752) | `crates/topo/src/merge_faces.rs`; the citation at `crates/topo/src/boolean/mod.rs` | style | nothing; **sibling of D29**, same class, different crate |
 | **D39** | **A typed refusal degrades to `String` at the edit door because two derive sets do not meet, and a test in the tree is already substring-matching prose to get the class back.** The constraint is unchanged on main: `EditError` derives `PartialEq` (`edit.rs:246`), `profile::PathError<T: Real>` derives only `Clone, Debug` (`path.rs:516`), so `ProgramRefusal::Geometry` carries `rendered: String` (`program.rs:862`; S19's `:846` is the enclosing `check`). **The enum's own defence holds and is not the question**: the full typed error *is* on the evaluation surface (`NodeErrorKind::ProfileReplay { error: profile::ReplayError<f64> }`, unaltered), the rendering is `Display` and not `Debug`, and the edit door is documented as an early ergonomic mirror. **What the defence does not cover is that the mirror is unbranchable.** `editor-core/tests/switch_slots.rs:184` can only tell which geometry refusal fired by asserting `rendered.contains("radius")` — an invariant held by substring match (S13's shape) because the type offers nothing else. **The cheap answer is not `PartialEq` on `PathError`**, which would put float equality on a geometry refusal — the thing `topo`'s `Body` refuses to derive for exactly this reason (`body.rs:101`) — but a fieldless, `Copy + Eq` discriminant on `PathError`, which `EditError`'s `PartialEq` admits and which `pncad-py/src/tags.rs` **has already hand-written as 26 arms** (`path_error_tag`). One discriminant in `profile` closes this row and deletes that map. Close on the discriminant, or on a written *"the mirror is prose and here is why that is enough"*. | S19, via **D26** (#752) | `crates/profile/src/path.rs`, `crates/editor-core/src/program.rs`, `crates/editor-core/tests/switch_slots.rs` | style | nothing; shares its mechanism with **D37**(a), whichever lands first mints it |
 | **D40** | **`scripts/doc-gate.sh` is the repo's only rustdoc gate and has never been shown to fire.** It is the sole guard for the lints `cargo check` and `clippy -- -D warnings` are both silent about — rustdoc lints exist only when rustdoc builds the docs — and it has reddened **three** changes in one session: **#740** (an intra-doc link to a renamed item), **#744** (a link to a private sibling), and **#755**, where a lane deleted a helper the compiler had shown was dead and orphaned a doc link to it, which `cargo build` and `cargo clippy -p topo --lib` both passed over. The third is the class: **a deletion orphaning a doc link is what a lane produces when it is doing the right thing**, so it keeps arriving after the other two shapes stop. **What is missing is the guard on the guard.** Every gate in `scripts/gates/` runs a `--selftest` first, on the standing rule that *a guard that has never been shown to fire is not a guard*; this one has none, so dropping `-D warnings` from its `RUSTDOCFLAGS`, or `--document-private-items` from its invocation, leaves it green over a broken tree and nothing says so. **The fixture is cheap and it was measured, not estimated**: a dependency-free two-file crate with a planted broken intra-doc link, run under this gate's real flags, fails in **1.4 s** on a 4-vCPU container — a thousand times its source-scanning siblings' fixtures and nothing beside a CI job. **The cost is not the obstacle; the home is.** `scripts/gates/` is `lib.sh`'s contract, and the local half runs that whole directory in a loop — so moving this script there would put `cargo doc --workspace --all-features --document-private-items` inside the discipline row, which is otherwise greps plus one `cargo metadata`, and which `ci-local.sh` already runs as its own row. So the fixture wants to live in the script where it is, wired as a `--selftest` in `ci.yml`'s `doc` job and in `ci-local.sh`'s docs row — **and that leaves its wiring uncovered by `gate-roster.sh`, which is the trade to make deliberately and to write down.** *"No fixture, and here is why"* is a passing answer; leaving the question unasked is not. | D34 (#753), which decided the fixture is worth having and that it is not that row's one move | `scripts/doc-gate.sh`, `.github/workflows/ci.yml`'s `doc` job, `local-scripts/ci-local.sh` | style; **closes on a verdict plus, if it is yes, a `--selftest` that fires** | nothing |
@@ -10855,6 +11156,38 @@ than from the schedule** (F-R1, F-R2 in the track log):
   C's open #734 edits.** F4 waits on it as a whole rather than splitting, since
   its four members are one missing idiom and closing three of four is §C13.
 
+**BLOCKING, handed to Track F on 2026-08-20 by Track E, which found it and
+cannot fix it — `scripts/` is this track's.** **D86: `interval-only-selection.py`
+matches its feature cfg as a bare substring, so a doc comment quoting the
+attribute counts as a gate.** `FEATURE_CFG = 'feature = "interval"'` is tested by
+containment over the crate's whole source; `crates/step-import/tests/all.rs:6` is
+a **doc comment** reading *"attributes (`#![cfg(feature = "interval")]` and
+friends work as…"*, and it is the only match in a crate that contains no gated
+item at all. Reproduced by calling the script's own
+`crates_with_interval_gates(root, {"step-import"})`, which returns
+`{"step-import"}`.
+
+**Consequence: no PR whose change closure is `step-import` alone can go green.**
+All four `test (interval, …)` legs die at *derive the interval-only test
+selection* before anything compiles — twice, on two heads, with every
+code-running job green. It blocks Track E's **#784** now and **D81**'s taker
+next.
+
+**This is D22's defect verbatim, one script over.** D22 was *the probe census's
+first predicate matched the substring anywhere, so prose satisfied the floor —
+including doc comments the unit itself wrote*; #753 fixed it there by matching
+the cfg **attribute** with whole-line anchors. The same bug sat in a sibling
+script the whole time, and D34's own enumeration listed
+`interval-only-selection.py` among the ten `ci.yml` invokes with **no wiring
+check of any kind**. So this is not "the fix pass had the file open and swept
+one instance" (C19) — **the fix pass never had this file open, because the row
+named one script.** A predicate defect found in one gate is a class across the
+gate directory, and nothing asked.
+
+**The narrowing is shared with `check-interval-cfg-additive.py`**, whose
+tripwire this scan is deliberately matched to, so it is a plan and not a patch —
+which is why Track E did not take it.
+
 | # | Work | From | Scope | Proposed verdict | Review |
 |---|---|---|---|---|---|
 | **F1** | **The compound-`Bounds` gate is blind to `CertifiedBounds`, and `real.rs` tells authors to write the invisible spelling.** Its matcher fires on `Decide + Bounds` and not on `Decide + CertifiedBounds`; `real.rs:46-48` and `:789` both assert that it does. **This is S56 returning one alias later**, and per the ruling above it now **gates S87/S88**. | **S59** `[verified]` | `scripts/gates/bounds-allowlist.sh`, `geom-core/src/real.rs` (two prose sites), plus whatever the widened matcher then reds | **ACCEPTED** — executed, self-evidencing | style; **ADVERSARIAL** for any conversion the widened matcher forces |
@@ -10980,7 +11313,6 @@ recorded at G-R5 so a lane does not go looking for text that is not there.
 |---|---|---|---|---|---|
 | **G1** | **`interval-transcendentals`: nothing constrains the pads from above.** `assert_contains` checks containment only; `Tightness::report` contains no assertion; `PAD_ULPS = 4` is unpinned; the cheap tier catches a dropped outward round for division only — while `ci.yml` and the README make broader claims. **The finding is careful that the derivations are sound and the defect is in what the tests can see; keep that framing.** Seven Tier-3 members live in the same workspace and come with it: S110(h), S111(c), S112(c), S114(a)(d), S116(r)(t) — and **S112(c) bears on S1**, since the `RingInterval` question leaves an exact-surface op hosted in a consumer. | **S72** + 7 roll-up members | `interval-transcendentals/` (its own workspace) | **ACCEPTED** | **ADVERSARIAL** |
 | **G2** | **`demos/` — nine roll-up members, one tree, no owner.** Equal-by-construction asserts (S110(g)(j)), prose describing a world the code left (S112(h)), two drifted counts (S113(a)(b) — **give these to E-b and let this lane consume the result**, or the two collide on `demos/tour/Cargo.toml`), duplications the fix passes did not reach (S114(b)), and **the one design question in the cluster: three hand-rolled JSON emitters, four readers, no schema (S114(c))**. | S110(g)(j), S112(h), S113(a)(b), S114(b)(c), S116(d) | `demos/` | **ACCEPTED**; S114(c) is a design row, not a patch | style |
-| **G3** | **`swept.rs`'s new shared home states a reason for not unifying that is factually false, and the same commit deleted the duplication markers.** `swept.rs:17-20` says revolve's builder has neither a reversal arm nor the orientation bit; `revolve/mod.rs:625` is `swept_segments(lp, reverse: bool)` and its own doc states the full involution. **The class claim is the valuable half**: re-check every *"deliberately NOT unified"* sentence in the S6 record. | **S74** | `sweep/src/{swept,revolve/mod,extrude,loft,revolve/tube}.rs` | **ACCEPTED** — and the deliverable is the class re-check, not the single fix | style |
 | **G4** | **`profile`'s fifth lane trait, blanket-implemented, which D1 never looked at** — `ArcCarrierScalar` over `T: Decide + Bounds`, so `Dual64` carries the whole `path::family` arc surface today, re-exported from `pncad`. **Per Evan's ruling this is mechanical**: `CertifiedBounds` is the bound that excludes a dual. **Gated on F1** — the gate that is supposed to force ratification of the new spelling is blind to it until S59 lands. | **S87** (and S88's `profile` half) | `profile/src/path/{arc_fillet,family}.rs`, `profile/src/lib.rs`, `pncad/src/profile.rs` | **ACCEPTED — RULED** (the admitting set) | **ADVERSARIAL** |
 | **G5** | **`profile`'s ONARC prose outlived the boundary it describes.** Per the ruling above, this is **not** the capability question the finding posed: `review_s2.rs:45` claims the class *"is built"* and cites a test the deleting commit removed, while the shipped pin records the boundary the commit deliberately established. Correct the prose to state the boundary; **do not delete `sugar.rs`'s machinery**, which is the raw-builder path the boundary is defined against. | **S71** | `profile/tests/review_s2.rs`, and only a re-read of `profile/src/sugar.rs` | **ACCEPTED IN PART — RULED** | style |
 | **G6** | **A wildcard over a deliberately closed enum, in the wave that de-wildcarded two siblings** — `attribute()`'s `_ =>` decides `AtRest` vs `Uncertified`, and a literal tag string bypasses the one-home tag map; the dead `Attribution::Refuted` corroborates. | **S104** | `editor-core/src/assembly.rs`, `pncad-py/src/py/doc.rs`, and two files the scan did not read | **ACCEPTED** | **ADVERSARIAL** |
@@ -11319,10 +11651,10 @@ were unstarted. Fourteen are now Track E's, D30 and D32 are Track C's.
 D21's edge on **D25** was recorded as a structural discharge of its half-edge
 sites, and that reason is gone — #755 landed and D21 has no such sites. The
 edge stands on its own terms: these are file-overlap and instrument-ordering
-gates, and #755 rewrote `split_edge`, where three of D21's sites are. **D27**
-and **D29** sequence against
-each other, both being `sweep/src/fillet/` — D7's row, the third file-sharer,
-has landed and no longer constrains them. **D22 and D23 are #739's own
+gates, and #755 rewrote `split_edge`, where three of D21's sites are. ~~**D27** and **D29** sequence against each other, both being
+`sweep/src/fillet/`~~ — **both landed together as #768**, one lane, one PR, D27
+first as the edge required; its newtype dissolved part of D29's surface before
+D29 retyped anything, which is what sequencing them bought. **D22 and D23 are #739's own
 residues** — D22 is what that PR's census predicate still cannot see (a NEW
 suite whose gate is misspelt or compound is never counted, so the per-crate
 floor has nothing to miss), D23 the class behind two enumerations built by

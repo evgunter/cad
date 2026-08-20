@@ -162,10 +162,7 @@ fn probe_d_rim_arc_orientation() {
                 radius: 0.02,
             };
             let verdict = run_battery(&req, band());
-            let conv = verdict
-                .as_ref()
-                .ok()
-                .map(|v| v.chains[0].links[0].convexity);
+            let conv = verdict.as_ref().ok().map(|v| v.chains[0].first().convexity);
             println!(
                 "PROBE D: rim arc {k:?}: he_plus aligned with carrier = {aligned}, single-edge battery => {:?} (err: {})",
                 conv,
