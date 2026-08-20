@@ -122,7 +122,7 @@ discharged before this track existed.
 | lane | row(s) | scope | gate | review | state |
 |---|---|---|---|---|---|
 | **E-a** | D22 + D34 | `scripts/gates/`, `.github/workflows/ci.yml` | none | style | **DONE — #753 merged** |
-| **E-b** | D23 | `docs/` + suite headers; code set is what the re-derivation finds | none | style | **in flight** |
+| **E-b** | D23 | `docs/` + suite headers; code set is what the re-derivation finds | none | style | **#763, green and re-merged** — awaiting its rerun |
 | **E-c** | D26 | `docs/SMELL-SCAN-2026-08.md` §D and §S19 | none | style | **DONE — #752 merged**; discharged into D36–D39, plus D47/D48 from its review, all unstaffed |
 | **E-d** | D33 | `docs/predicate-dimension-audit.md` | none | style | **#761, in review** |
 | **E-e** | D28 + issue #693 | `editor-core/src/eval/` | — | style | **DONE — #767 merged** |
@@ -131,8 +131,8 @@ discharged before this track existed.
 | **E-h** | D21 | `topo/src/{split,attach,movefac,revert}.rs`, `splitting/finish.rs`, `boolean/combine.rs` | **E-f, for file overlap on `split.rs`** — see E-R4 | **ADVERSARIAL** | unstarted |
 | **E-i** | D24 | `Cargo.toml` workspace lints, or `.github/workflows/` | none | style | unstarted |
 | **E-j** | D31 | `sweep/src/skin.rs`, `geom/src/curves/fit.rs`, home in `geom-core/src/spline/algebra.rs` | **Track C (C-l, C-g)** | style, escalates if the sort order is load-bearing | unstarted |
-| **E-k** | D35 | `docs/DESIGN.md`'s D2 addendum, and whatever the answer names | **E-g**, **E-h** | style | unstarted |
-| **E-l** | #681 | everything outside `crates/*/src` | none | style | unstarted |
+| **E-k** | D35 | `docs/DESIGN.md`'s D2 addendum, and whatever the answer names | ~~**E-g**, **E-h**~~ — both landed | style | **DISPATCHED** 2026-08-20, under row 0 |
+| **E-l** | #681 | everything outside `crates/*/src`, **less the six surfaces F and G own** | none | style | **DISPATCHED** 2026-08-20 |
 | **E-m** | #711 | `step-import/src/recognize.rs` | **BLOCKED by D86** (now on main, Track F's) | style | **#784** open, red on infrastructure only. Placed D86, D87, D93 |
 | **E-n** | D20 | `topo/src/seqgen.rs` | none | style; closes on an attribution off hosted CI | unstarted |
 
@@ -480,6 +480,36 @@ that moves S14 moves them.
 **#777 is now a ratified-decision PR rather than a proposal** and self-merges
 once written and green.
 
+### E-R6 — "work in your own lane" is not a dispatch instruction (2026-08-20)
+
+**E-k and E-l were dispatched in the same turn and both checked out a branch in
+`/home/user/cad`, the shared main checkout.** E-l's `smelle/681` switched E-k's
+`smelle/d35` out from under it; an orchestrator commit written between the two
+checkouts landed on `smelle/d35` instead of the orchestrator branch, and was
+recovered from the reflog. Nothing was lost, and only because the window was
+minutes wide.
+
+**The brief is what failed, not the lanes.** Both briefs said *"work in your own
+lane"* and gave a private `CARGO_TARGET_DIR` — which reads as a rule about
+**disk**, and both lanes obeyed exactly that rule. Neither said how a lane is
+made. `memories/agent-lane-operations.md` has the answer
+(`local-scripts/new-lane.sh <lane> <branch>`, which also sets `core.hooksPath`
+so the committed pre-push fmt hook is live), and the standing header's rule 1
+points at `memories/MEMORY.md`'s index — but a pointer two hops from the
+instruction is not an instruction. **Every dispatch now names the clone command
+and its path, in the brief.**
+
+**The orchestrator was the third party in the same tree**, which is why this cost
+a commit rather than merely a branch switch: the orchestrator now works from its
+own worktree too. *A working tree has one branch, so it has one occupant* — the
+shared checkout is for reading `main`, and nothing else.
+
+**Note the shape.** The private-target-dir rule exists because six lanes filled
+the disk; it was written as the fix to *that* incident and inherited none of the
+lane-creation rule it sits beside. **A rule extracted from an incident carries
+that incident's scope, not the scope of the thing it is a rule about** — which is
+S15's finding, arriving in the dispatch process rather than in the kernel.
+
 ### E-R5 — a row is not placed until it is on `main` (2026-08-20)
 
 **Twice in one session the orchestrator wrote a row, told a lane it existed, and
@@ -590,6 +620,8 @@ serialized here and each lane re-merges `origin/main` when one lands.
 | **E-d** | D33 | `smelle/d33` | **#761** | **MERGED 2026-08-20.** Placed D46, D51, D57; handed D56 back |
 | **E-e** | D28 + #693 | `smelle/d28` | **#767** | **MERGED 2026-08-20** — 37/37 finished, 0 failed. Census 12 arms not 8; placed D54, D81 |
 | **E-h** | D21 | `smelle/d21` | **#773** | **style lane NOT CLEARED** — 8 MAJOR; adversarial lane running. Placed D88, D89 |
+| **E-k** | D35 | — | — | **dispatched** 2026-08-20. Its blockers #768 and #773 are both in; the brief reframes D35's four options against **row 0** |
+| **E-l** | #681 | — | — | **dispatched** 2026-08-20, scoped to `crates/*/tests`, manifests, the guide rustdoc, `pncad-py`, `crates/*/examples` and non-register `docs/` — six surfaces fenced to F and G and **declared**, not silently dropped |
 
 **E-g dispatched 2026-08-20** (`smelle/d27-d29`), D27 then D29 — one lane
 because both edit `sweep/src/fillet/`, and D27 first because its newtype may
