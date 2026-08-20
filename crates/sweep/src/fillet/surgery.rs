@@ -1388,7 +1388,9 @@ fn rim_phase<T: Decide + Bounds>(
                 "the sphere trimline does not cross a rim meridian inside its span",
             ));
         };
-        let created = body.split_edge(m, t_split).map_err(|e| op("meridian split", e))?;
+        let created = body
+            .split_edge(m, t_split)
+            .map_err(|e| op("meridian split", e))?;
         // The upper remnant is whichever piece still ends at the rim
         // vertex.
         let touches_v = |body: &Body<T>, e: EdgeKey| -> bool {

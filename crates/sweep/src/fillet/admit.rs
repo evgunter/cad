@@ -49,8 +49,8 @@ use super::battery::{Chain, Convexity, Link};
 use super::blend::BlendArm;
 use super::build::{face_cycle, outward_of, vertex_faces};
 use super::surgery::{
-    CORNER_SUPPORT_NOT_PLANAR, not_intact, unbuilt_chain, unbuilt_corner_config,
-    unbuilt_geometry, unbuilt_run_out,
+    CORNER_SUPPORT_NOT_PLANAR, not_intact, unbuilt_chain, unbuilt_corner_config, unbuilt_geometry,
+    unbuilt_run_out,
 };
 use super::{CornerConfig, FilletError};
 
@@ -208,10 +208,7 @@ impl CornerFaces {
     /// when it returns a face twice;
     /// [`FilletError::FilletCornerUnsupported`] when the corner is not
     /// trivalent.
-    pub(super) fn admit<T: Decide>(
-        body: &Body<T>,
-        vertex: VertexKey,
-    ) -> Result<Self, FilletError> {
+    pub(super) fn admit<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Result<Self, FilletError> {
         let faces = vertex_faces(body, vertex).ok_or_else(|| {
             not_intact(
                 EntityId::Vertex(vertex),
