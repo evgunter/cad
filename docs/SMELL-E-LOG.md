@@ -394,6 +394,59 @@ actually exercised, what you could not check, and anything in this header or in
 your brief that turned out to be wrong. Reviewers correcting the dispatcher is a
 working lane, not a malfunction.
 
+### Evan's ruling on #777: representability becomes **row 0** (2026-08-20)
+
+E-g's D27 dissolved `FilletError::EmptyChain` structurally rather than
+classifying it, which retired the D2 addendum's *"one state this taxonomy does
+not contain"* paragraph. I split the factual retraction (kept in #768) from the
+generalisation it suggested (lifted into **#777**, a design-conversation PR left
+open for Evan, which argued the three strongest cases **against** itself).
+
+**Evan ruled bigger than the PR asked:**
+
+> the sentiment is great — so great that i think it should be promoted from an
+> addendum to **row 0** — *can this error state be made unrepresentable?* —
+> **better than all other resolutions if possible**
+
+So it is not a paragraph beside the classification. **It is the first question
+asked of any state, ahead of rows 1–5, and when the answer is yes that is the
+answer** — the preferred resolution rather than one of six.
+
+**Why "row 0" and not "row 6" is the whole ruling.** Rows 1–5 classify a state
+that exists; row 0 asks whether it should exist at all. It is answered *before*
+the classification begins, so it renumbers nothing and is not a sixth bucket. A
+lane that reaches row 1 has already answered row 0, and a lane filing a state
+under any row owes the reason row 0 did not apply.
+
+**Three consequences, and the third is the long one.**
+
+*The counter-argument the PR made against itself is now more load-bearing, not
+less.* **"Only if it cannot" is a judgement with no cost threshold** — readable
+as licensing type churn to dodge a classification. That mattered when the rule
+sat beside the alternatives; it matters more now it outranks them. The rule owes
+a statement of what *"if possible"* excludes, and the calibration already exists
+at both ends: `EmptyChain` dissolved for a private field and a constructor
+signature, while **#755 rejected a generative brand for `Live` because a `Body`
+lifetime would infect every public signature in the workspace.**
+
+*That rejection is row 0 being answered "no" in the field, before row 0
+existed.* It is the best available evidence that the rule describes what careful
+lanes already do rather than inventing an obligation.
+
+***S14's first question changes.*** It has been *"which row does the graft's
+partially-written destination fall under, and does the no-panic principle need
+amending"*. Under row 0 it becomes **"can `graft_disjoint_all_keyed` be
+restructured so a partially-written destination is unrepresentable?"** — staging
+into a fresh body and committing on success, which is the shape
+`merge_faces.rs:468` already uses and the shape D27 itself used. **That reframes
+S14 and does not answer it**; the cost of the restructuring is exactly the
+*"if possible"* judgement above, and S14 stays Evan's. It has reach: **#740 left
+46 lookup sites typed rather than converted because S14 is open**, so anything
+that moves S14 moves them.
+
+**#777 is now a ratified-decision PR rather than a proposal** and self-merges
+once written and green.
+
 ---
 
 ## Rulings made in this track
@@ -442,7 +495,7 @@ placed. Reissued:
 | D69–D70 | **D86–D87** | E-m |
 | D61–D62 | **D88–D89** | E-h — D88 is `merge_faces.rs:766`'s `unwrap_or_default` discard |
 
-Next unassigned in Track E's block: **D92**.
+Next unassigned in Track E's block: **D93**.
 re-issued — a number that has appeared in a lane's report, even as *unused*, is
 cheaper to skip than to explain.
 
