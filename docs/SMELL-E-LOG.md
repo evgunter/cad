@@ -411,10 +411,11 @@ constituted.**
 | D57 | E-d | **used** — the nine diagnostic-only K names (seven by one spelling, nine by two) |
 | D58–D60 | **Track F**, via E-a | S61's docs-tier conditionality, the mode-0644 registration hole, S62's four remaining hand-named checks |
 | D61–D62 | E-h (D21) | reserved 2026-08-20 |
+| D63–D64 | E-a's fix pass (#753) | reserved 2026-08-20 |
 | D54–D55 | E-e (D28 + #693) | reserved 2026-08-20 |
 | D46 | E-d (D33) | reserved 2026-08-20 |
 
-Next unassigned: **D63**; D42 and D43 are back in the pool and deliberately not
+Next unassigned: **D65**; D42 and D43 are back in the pool and deliberately not
 re-issued — a number that has appeared in a lane's report, even as *unused*, is
 cheaper to skip than to explain.
 
@@ -442,7 +443,7 @@ serialized here and each lane re-merges `origin/main` when one lands.
 | lane | row(s) | branch | PR | state |
 |---|---|---|---|---|
 | **E-c** | D26 | `smelle/d26` | **#752** | **MERGED 2026-08-20** — Track E's first landing |
-| **E-a** | D22 + D34 | `smelle/d22-d34` | **#753** | reported; **style review running**. Placed D40, D41, and D58–D60 for Track F |
+| **E-a** | D22 + D34 | `smelle/d22-d34` | **#753** | **NOT CLEARED** — 4 MAJOR incl. a live wrong answer in the census; fix pass running. **Track F is gated on this landing** |
 | **E-f** | D25 | `smelle/d25` | **#755** | **CLEARED by both lanes**; combined fix pass running (3 must-fix, 2 → rows D49/D50). Merges after #752 |
 | **E-b** | D23 | `smelle/d23` | **#763** | reported; **style review running**. Placed D44 and D45 |
 | **E-d** | D33 | `smelle/d33` | **#761** | **MERGED 2026-08-20.** Placed D46, D51, D57; handed D56 back |
@@ -606,6 +607,56 @@ thing had been proved impossible; the adversarial lane found the cross-body
 shape and proved the arms. The only overlap was *"one constructor"* is false —
 which both found independently, from opposite directions, which is why it is the
 one finding recorded as certain.
+
+### #753 (E-a / D22 + D34) — style lane, 2026-08-20: **not cleared**, and the review is the strongest instrument work on this track
+
+Most of the unit held under a genuinely adversarial re-derivation: D22's premise
+being false on main reproduced **verbatim at rustc 1.97.0**, the narrower-silence
+argument confirmed by construction, the move and its fixture timed independently,
+the `.py` refusal confirmed, and **six guards mutated out of the census one at a
+time, 6/6 red**. Both rows are credited as *decided and defended, not deferred
+behind work*, which is what they close on.
+
+**Four MAJORs, and the first is a live wrong answer in a gate this PR wrote.**
+
+- **A refusal that states a falsehood and refuses gates CI actually builds.** The
+  census refuses a second-feature gate on the ground that *"no CI row builds
+  `probe` with another one"*. `topo` and `sweep` carry **self dev-dependencies**
+  that turn `test-support` / `sweep-testing` on for every one of that crate's own
+  test builds — the two crates owning 6 of the 16 censused suites. Demonstrated
+  by planting a `compile_error!` in such a suite and watching **the census's own
+  type-check loop** fail with it: the file compiles, and the gate refuses it
+  anyway, with a wrong explanation. Two further false positives on the same
+  predicate, one of them contradicting the header two screens above it.
+- **The widening opened a hole it is presented as leaving.** For a *re-gated
+  existing* suite, main reds (the crate drops below its floor) and this head does
+  not. That may be the right trade — a textual predicate cannot tell `not(miri)`
+  from `not(target_os="linux")` — but it is a **cost of the change** written up as
+  a standing gap.
+- **The number carrying D34's rejection is n=1 per arm and inside its own
+  variance.** Two runs give 219 s vs 196 s; **a third, same-config, in this PR's
+  own run list gives 212 s** — a 16 s move between identical configurations
+  against a claimed 23 s delta. And *"196 s today"* was the PR's **first commit**.
+  The pair-sum unit was checked and is right; the basis is not.
+- **The structural half of the rejection is falsified by `ci.yml:1873`**, which
+  already invokes this script from the `k-lint` job — the one with the cargo
+  build. So the assertion *could* live as a second mode with `--root` and a
+  `--selftest`, and what actually remains is fixture cost — **which the same PR
+  rules affordable two rows apart**, at D40.
+
+**Two corrections to the dispatcher, both accepted.** The two defects I recorded
+as *"found by hosted CI and not reachable locally"* were **minted by this PR** —
+the stderr fold arrived with the rewrite, and the SIGPIPE check is new in the same
+commit. That is REVIEW-STYLE-DISPATCH §2's *"a unit that adds a guard can leave it
+failing open"*, not a discovery about hosted CI, and recording it the way I did
+would have flattered the unit. Also three positive controls, not two.
+
+*Worth carrying:* **the review's instrument was mutation, and it is the third time
+on this track that mutating a guard beat reading it.** Six guards mutated, 6/6
+red; two fixtures reverted to their pre-fix form, both red; two of
+`test-aggregation.sh`'s own guards mutated out and the selftest stayed **green**,
+which is how the vacuous pair was found. C22's *"executing the mutation beats
+reading the code, and it was rare"* is no longer rare here.
 
 ---
 
