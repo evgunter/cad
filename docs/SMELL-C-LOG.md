@@ -791,3 +791,45 @@ seventh in-crate door); it is the **disclosure** that was incomplete, which is
 §C15's question one turn further in: *a sweep's result is worth nothing
 without a statement of what its pattern cannot match* — and a path glob is
 part of the pattern.
+
+### The C9 row I wrote this morning carried two stale claims — and the mechanism generalises
+
+C-p checked its brief rather than complying with it (**C-R11**) and found that
+**two of the claims in §D's C9 row are false against the tree**, not merely
+imprecise:
+
+- *"#709 corrected the sentence at two of four sites, leaving it in the lint
+  docs and `TESS-BUDGET.md`"* — **true at review time, false on main.** #709's
+  own fix-pass commit `46b44fd` is literally titled *"sweep the agreement
+  correction to all four sites"*, and did.
+- *"its `≤ 1%` assertion in `budget_meter` was vacuous"* — **that assertion no
+  longer exists.** It went with the schema when #709 moved the columns;
+  `budget_meter.rs` has carried no agreement assertion since.
+
+Both came from the same place: **I wrote C9 out of #709's review record rather
+than out of the tree.** The review record was accurate about the moment it
+described. The fix pass then changed the tree, and nothing updated the record —
+because a review record is not supposed to be updated. It is a record.
+
+*Generalisable, and it is **C-c's pointer-versus-record discriminator turned on
+this log itself**:* a review finding is **a record of what was observed at a
+place and time**; a schedule row is **a pointer telling someone where to go**.
+Writing the first into the second silently converts a dated observation into a
+present-tense instruction, and it will be wrong exactly as often as the fix
+pass that followed it did its job. **A row minted from a review finding is
+re-derived against the tree before it is written**, not transcribed.
+
+That is now the third of five briefs this session to carry a citation that did
+not resolve (C-h's line number, C-f's scope path, and this). The rate is no
+longer anecdotal, and C-R11's instruction — *check rather than comply* — has
+paid for itself three times. What is new here is the **direction**: the earlier
+two were stale *locations*, this one is a stale *claim*, and a stale claim is
+the more expensive kind because a lane cannot discover it by failing to find
+the file.
+
+What C-p found live instead, once it stopped trusting the row: the column
+itself, `TESS-BUDGET.md`'s *"A REAL agreement check is owed and unscheduled"*,
+and **seven item-doc and report-legend sites** #709's module-doc sweep missed —
+including `main.rs:181`'s legend, still reading *"agree = the lane's realised
+cell count vs the same schedule's sum"* with *"(1.00 by construction)"*
+appended after it. The tool's own legend disagreed with itself in one sentence.
