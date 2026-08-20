@@ -10443,7 +10443,7 @@ overstatement.
 
 **The shape, for §C10's file.** #101 established an invariant and swept the
 corpora it knew about; `k_report.rs` was not one of them, and no import
-carried the invariant to it. That is C10's rule exactly — *cross-lane
+carried the invariant to it. That is §C10's rule exactly — *cross-lane
 invariants do not propagate; only imports do* — with the aggravation that the
 sibling here was not merely unswept but **uncompiled**, so the sweep could not
 have failed loudly even if it had been attempted.
