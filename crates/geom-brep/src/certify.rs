@@ -134,7 +134,7 @@ pub enum CertCheck {
     SeamSide,
     /// IsoCurve: the genuinely metric residual
     /// `|carrier(tᵢ) − S(u, v(tᵢ))|` at a sample (M6-3; the
-    /// wall–wall-seam class of `docs/M5-LOG.md` PR 9c item 6(iii)).
+    /// wall–wall-seam class).
     IsoResidual,
     /// Intersection, plane × NURBS (M7-8): limb 1's largest sampled
     /// on-locus residual over both operands — the closed-form plane

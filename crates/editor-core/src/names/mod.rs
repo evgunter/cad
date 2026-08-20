@@ -1,5 +1,5 @@
 //! Persistent naming (M4 PR 3; NAMING-DESIGN N1–N4 made concrete —
-//! ratified #74, binding; spec `docs/M4-PR3-SPEC.md` D1–D6).
+//! ratified #74, binding).
 //!
 //! A [`StableName`] is a **derivation path**: the minting recipe node
 //! plus an op-typed [`RolePath`] of closed-enum [`RoleSeg`]s (N1).

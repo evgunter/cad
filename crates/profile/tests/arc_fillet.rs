@@ -5,8 +5,8 @@
 //! point (the entry anchor, the incoming ray's origin, the arrival
 //! spec's `p`, or `Start`).
 //!
-//! The suite covers the four acceptance groups of `docs/M5-S2-SPEC.md`
-//! §5 in the algebra's own vocabulary: one fixture per corner class
+//! The suite covers M5 S2's four acceptance groups in the algebra's
+//! own vocabulary: one fixture per corner class
 //! (each verifying that the constructed tangencies verify clean and the
 //! loop closes and validates), the refusal rows of the taxonomy as
 //! [`PathError`] variants, the definitely/exactly/in-band trio of every

@@ -1695,21 +1695,34 @@ jobs:
         run: cd demos/wild && cargo fmt --check && cargo clippy --all-targets -- -D warnings
       - name: k-lint tool fmt + clippy + tests (incl. the #99 litmus)
         run: cd tools/k-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
-      - name: tess-lint tool fmt + clippy + tests (the three exit voices)
-        run: cd tools/tess-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
+      # `cargo doc` here is the same stopgap #709 added to the
+      # tess-meter row below, for the same reason: `scripts/doc-gate.sh`
+      # covers workspace MEMBERS only, so this crate's prose — which
+      # carries the gate's own rules and its report legend — is outside
+      # it. The general hole (k-lint, demos/tour, demos/wild) is still
+      # open and is stated at the gate itself.
+      - name: tess-lint tool fmt + clippy + doc + tests (the three exit voices)
+        run: |
+          cd tools/tess-lint
+          cargo fmt --check
+          cargo clippy --all-targets -- -D warnings
+          RUSTDOCFLAGS="-D warnings -A rustdoc::private_intra_doc_links" \
+            cargo doc --no-deps --document-private-items
+          cargo test
       # The meter's CONSUMER half: the CSV schema, the counterfactual
       # schedules and the split optimizer, which is where they live now
       # that the kernel records measurements and derives nothing. Its
       # tests are the derivations' tests — the split optimizer's answer
       # against the certificate it claims to satisfy, and the row
       # shapes' agreement about their width.
-      # `cargo doc` too, unlike its sibling rows. `scripts/doc-gate.sh`
-      # is `cargo doc --workspace` and the root manifest excludes
-      # `tools/`, so this crate's ~1,050 lines of prose — the slack
-      # factors, the anisotropy caveat, the boundary rule — are outside
-      # that gate. Documenting them here is a stopgap for THIS crate;
-      # the same hole covers every excluded root and is stated at the
-      # gate itself.
+      # `cargo doc` too, as the tess-lint row above now also does.
+      # `scripts/doc-gate.sh` is `cargo doc --workspace` and the root
+      # manifest excludes `tools/`, so this crate's ~1,050 lines of
+      # prose — the slack factors, the anisotropy caveat, the boundary
+      # rule — are outside that gate. Documenting them here is a
+      # stopgap for THIS crate; the same hole still covers `k-lint`,
+      # `demos/tour` and `demos/wild`, and is stated at the gate
+      # itself.
       - name: tess-meter tool fmt + clippy + doc + tests
         run: |
           cd tools/tess-meter

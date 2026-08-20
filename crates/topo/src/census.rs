@@ -59,14 +59,23 @@
 //!
 //! # The D3 segment-reconstruction rule (derived, pinned here)
 //!
-//! Contact records are vertex-granularity (`VvContact`, `VfContact`).
+//! The records this rule reconstructs FROM are vertex-granularity
+//! (`VvContact`, `VfContact`). Since M9-2 `ContactRecords` also carries
+//! face-granularity records (`curves`, `patches`), and each bullet
+//! below has a corresponding face rung — `Declared::vv_face_backed` /
+//! `vf_face_backed`, which back a subordinate vertex event from a
+//! declared FACE pair holding it on both boundaries. Those rungs are
+//! named in the bullets rather than left out of the derivation that
+//! licenses them.
 //! Continuous overlaps — two collinear edges sharing a positive-length
 //! segment, an edge resting in a face's region — are certified by
 //! **reconstruction from their bounding vertex events**:
 //!
 //! - An **edge-edge collinear overlap** is certified iff at each of
 //!   its two bounds both edges hold a vertex there and the pair is
-//!   v-v-declared (or is one shared vertex — structural). Derivation:
+//!   v-v-declared, or backed by a declared face pair holding the two
+//!   vertices on its two boundaries (`vv_face_backed`), or is one
+//!   shared vertex — structural. Derivation:
 //!   the overlap of two collinear spans is an interval whose each
 //!   bound is an endpoint of at least one span; if the *other* edge
 //!   has no vertex there, that endpoint rests on the other edge's
@@ -80,8 +89,10 @@
 //! - An **edge-on-face overlap** is certified iff at each bound the
 //!   edge holds a vertex there and that vertex is either
 //!   v-on-f-declared on this face, v-v-declared with a coincident
-//!   vertex of the face's boundary, or itself a vertex of the face's
-//!   boundary (structural). Same argument: an uncertified bound
+//!   vertex of the face's boundary, backed by a declared face pair
+//!   naming this face and one holding the vertex (`vf_face_backed`),
+//!   or itself a vertex of the face's boundary (structural). Same
+//!   argument: an uncertified bound
 //!   configuration implies a vertex-on-edge / edge-edge-cross finding
 //!   that hard-errors independently.
 //!
@@ -1044,8 +1055,10 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
 ///    closure's own comment says why the arithmetic, and only the
 ///    arithmetic, is separate). A kind with no cheap sound box refuses
 ///    WITHOUT a distance test rather than under-claiming its reach. A
-///    planar face vf-NAMED by the other solid's records defers to the
-///    confirm pass (the declared boss-on-plate class).
+///    planar face vf-NAMED by a record whose vertex is on the OTHER
+///    FACE OF THIS PAIR defers to the confirm pass (the declared
+///    boss-on-plate class) — the record has to name both sides of the
+///    pair it defers.
 /// 2. **Instance containment** (C6's interference class): one solid's
 ///    vertex-extent box inside another's REACH box (the containing
 ///    side must be a superset; the contained side is a subset of its
@@ -1091,12 +1104,31 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
 /// groups [`Geo::curved_faces`], so a same-key PLANAR pair is not on
 /// its list and stays here; record-NAMED face pairs are the
 /// patch/curve certifier's (a cross-key record escalates loudly
-/// there — skipping it here loses no loudness); and a solid pair
-/// BRIDGED by any contact record (vv, v-on-f, curve, patch) is
-/// under the confirm pass's examination — its records either
-/// confirm (the declared touching class) or error as
-/// stale/contradicted, so the containment arm defers to that
-/// verdict rather than double-refusing a certified assembly.
+/// there — skipping it here loses no loudness). Every deferral above
+/// names an arm that asks the SAME question about the SAME pair; that
+/// is the bar a deferral has to clear, and it is what makes a skip
+/// something other than a silent not-examine (A5's letter).
+///
+/// **Contact records do not license a deferral in arm 2, and this is
+/// the one place the rule had to be derived rather than inherited.**
+/// The four record kinds each state one coincidence — vv a coincident
+/// vertex pair, v-on-f a vertex resting in a face's region, `curves` a
+/// tangent locus along one witness edge, `patches` a conformal region
+/// overlap — and the confirm pass asks exactly that of each: is THIS
+/// coincidence geometrically real. Arm 2's question is different in
+/// kind: where does one instance sit relative to another. No record
+/// type in [`crate::boolean::ContactRecords`] states a placement
+/// relation, so no set of them can answer it, and the confirm pass
+/// never asks. A solid pair carrying records is therefore examined
+/// here exactly like a pair carrying none.
+///
+/// The unsound direction is a deferral keyed on *whether* records
+/// exist: a truthful declaration then switches the containment
+/// examination off, and an instance embedded in another's material
+/// validates clean — which it did, until §H14. The vocabulary that
+/// WOULD license a skip here is C6's recorded gate-skips, which are a
+/// statement about placement and do not exist yet; when they do, the
+/// deferral they license is keyed on the gate-skip, not on contact.
 fn sweep_cross_solid_backstop<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -1113,6 +1145,15 @@ fn sweep_cross_solid_backstop<T: Decide>(
         Some(body.get_shell(shell)?.solid)
     };
     // Boundary-vertex hull of a face (every loop), as raw points.
+    //
+    // A loop this cannot walk contributes nothing, and an EMPTY loop is
+    // one of them: a lone-vertex loop has no cycle, and a face whose
+    // OUTER loop is empty is unbounded — there is no hull of it. This
+    // closure does not decide what that means, because its two callers
+    // want opposite things from it; each answers emptiness itself, and
+    // both say so at the call site. What is never allowed is the third
+    // reading, "empty means nothing to look at": §H14's residue 2 is the
+    // same `continue` in `splitting/rules.rs` under exactly that reading.
     let face_points = |f: FK| -> Vec<Point3<T>> {
         let mut out = Vec::new();
         let Some(face) = body.get_face(f) else {
@@ -1188,6 +1229,16 @@ fn sweep_cross_solid_backstop<T: Decide>(
     // only the min/max is re-derived. An unboxable kind is `None` here
     // and poison there — refuse without a distance test, versus never
     // prune. Both loud.
+    //
+    // "Unboxable" is a property of the DESCRIPTION, not only of the
+    // surface kind, and the two lanes part company on it. A NURBS
+    // placeholder has a poison control net: `face_box` folding it to a
+    // poison box is correct there, because poison never prunes. Folding
+    // it here would produce `Some((NaN, NaN))`, which is neither a claim
+    // nor a refusal — every margin against it decides NEITHER sign — so
+    // `reach_box` answers `None` for it, which is what the sentence above
+    // promises. That is the one place this instantiation must diverge
+    // from the `f64` one rather than merely re-derive its arithmetic.
     //
     // **The reason for the duplication has LAPSED, and its replacement is
     // weaker.** It used to read: `face_box` reads `[lo(), hi()]` under a
@@ -1292,6 +1343,29 @@ fn sweep_cross_solid_backstop<T: Decide>(
             crate::boolean::boxes::FaceBoxRule::NoSoundBox => None,
             crate::boolean::boxes::FaceBoxRule::BoundaryHull => boundary_reach(f),
             crate::boolean::boxes::FaceBoxRule::ControlNet(patch) => {
+                if patch.is_placeholder() {
+                    // The mvfs placeholder's control net is poison
+                    // points, and this fold is `min`/`max`, which
+                    // propagate NaN by contract. Folding it would
+                    // return `Some((NaN, NaN))` — a box that is
+                    // neither a claim nor a refusal: every margin
+                    // taken against it decides NEITHER sign, so the
+                    // arm falls out at its in-band refusal having
+                    // compared no geometry at all, and the typed
+                    // "unclaimable extent" refusal below never fires.
+                    // `None` is what this closure's contract already
+                    // says an unboxable kind answers, and a
+                    // placeholder is the unboxable case par
+                    // excellence: it is "no description yet".
+                    //
+                    // NOT an exclusion. Dropping the face from a
+                    // solid's reach would UNDER-claim the container
+                    // and could clear a body nested inside it; `None`
+                    // makes the whole solid unclaimable, which is the
+                    // conservative direction and the one arm 2's fold
+                    // is already written for.
+                    return None;
+                }
                 let mut it = patch.control().iter();
                 let first = *it.next()?;
                 let (mut lo, mut hi) = (first, first);
@@ -1377,9 +1451,20 @@ fn sweep_cross_solid_backstop<T: Decide>(
         .chain(planar_keys.iter().map(|f| (f, true)))
     {
         // A placeholder surface is "no description yet" (mid-surgery
-        // scaffolding): there is no geometry to be within reach OF,
-        // and a body carrying one never reaches 3′ (the tier-3 local
-        // battery refuses it first) — excluded from the backstop.
+        // scaffolding): there is no geometry to be within reach OF —
+        // excluded from the backstop. What licenses the exclusion is a
+        // named check, not an accident: the census's only production
+        // caller is [`crate::validate::validate_pseudomanifold`], and
+        // it runs `census_and_certify` ONLY when `tier3_local_checks`
+        // came back empty, whose check 1 pushes `UncertifiableSurface`
+        // for every placeholder face. So no body reaching this arm
+        // through the public door carries one. The unsound direction is
+        // a SECOND caller of `census_and_certify` that does not gate on
+        // tier 3 — this skip would go quiet on faces the arm can say
+        // nothing about. (The in-src rows below are exactly that
+        // caller, deliberately: they run open euler scaffolds below
+        // tier 3's bar, and their seed faces still carry the mvfs
+        // placeholder. They are why this line is reachable at all.)
         if matches!(
             body.get_face(f).and_then(|d| body.surfaces.get(d.surface)),
             Some(geom::Surface::Nurbs(p)) if p.is_placeholder()
@@ -1389,6 +1474,21 @@ fn sweep_cross_solid_backstop<T: Decide>(
         let Some(solid) = solid_of(f) else { continue };
         let pts = face_points(f);
         if pts.is_empty() {
+            // No boundary vertex at all: an unbounded face (empty outer
+            // loop) or one whose boundary does not resolve. Either way
+            // this arm cannot bound it, and A5's letter is that it must
+            // then REFUSE rather than drop the face out of the sweep —
+            // which is what this early-out did, silently, in the
+            // function whose header forbids exactly that.
+            //
+            // `validate_closed`'s tier-2 check 1 refuses every empty
+            // loop and `validate_pseudomanifold` runs it before the
+            // census, so no body reaching here through the public door
+            // is in this state; the refusal costs nothing and stays
+            // loud if a second, ungated caller ever appears.
+            errors.push(ValidationError::CensusUnsupported {
+                entity: EntityId::Face(f),
+            });
             continue;
         }
         let verts = geo
@@ -1407,43 +1507,37 @@ fn sweep_cross_solid_backstop<T: Decide>(
             line_bounded: planar && line_bounded(f),
         });
     }
-    // The record-bridged solid pairs (doc comment): any record
-    // linking a vertex/face of one solid to a vertex/face of another
-    // puts that PAIR under the confirm pass's jurisdiction.
-    let vertex_solid = |v: VertexKey| -> Option<SolidKey> {
-        geo.vertex_faces
-            .get(&v)
-            .and_then(|fs| fs.iter().next())
-            .and_then(|&f| solid_of(f))
-    };
-    let mut bridged: BTreeSet<(SolidKey, SolidKey)> = BTreeSet::new();
-    let mut bridge = |sa: Option<SolidKey>, sb: Option<SolidKey>| {
-        if let (Some(sa), Some(sb)) = (sa, sb) {
-            bridged.insert((sa, sb));
-            bridged.insert((sb, sa));
-        }
-    };
-    for &(va, vb) in &declared.vv {
-        bridge(vertex_solid(va), vertex_solid(vb));
-    }
-    for &(v, f) in &declared.vf {
-        bridge(vertex_solid(v), solid_of(f));
-    }
-    for &(fa, fb) in &declared.faces {
-        bridge(solid_of(fa), solid_of(fb));
-    }
-
     // The vf-record deferral for the curved × planar arm (F5): a
-    // planar face NAMED by a v-on-f record whose vertex belongs to
-    // the other solid is the declared interface the confirm pass and
-    // the exact sweeps examine (the boss-on-plate acceptance class) —
-    // its curved neighbours defer to that verdict; a bogus record
-    // still errors there as stale, so nothing blesses silently.
-    let planar_face_bridged = |f_planar: FK, other: SolidKey| -> bool {
+    // planar face NAMED by a v-on-f record is the declared interface
+    // the confirm pass and the exact sweeps examine (the boss-on-plate
+    // acceptance class), so the face on the other side of THAT
+    // interface defers to that verdict; a bogus record still errors
+    // there as stale, so nothing blesses silently.
+    //
+    // The record's vertex must be a boundary vertex of the other face
+    // of the pair, not merely a vertex of the other SOLID. The finding
+    // being deferred is about the face pair, so the record that defers
+    // it has to name both of its sides. A solid-granular test lets one
+    // declared interface silence every other face of the same solid
+    // against `f_planar` — including a face resting on it somewhere
+    // else with no vertex evidence of its own, which is the class this
+    // arm exists for. Widening this back to the solid is the UNSOUND
+    // direction.
+    //
+    // The narrowing is a narrowing on every body that can reach here,
+    // and that rests on a tier-1 fact rather than on the shape of the
+    // test: `Reach::verts` is `{ v : vertex_faces[v] ∋ f }`, and the
+    // old test read the solid of `vertex_faces[v]`'s smallest member,
+    // so the new test could be true where the old was false ONLY for a
+    // vertex incident to faces of two different solids — a vertex
+    // orbit spanning two shells, which tier 1 pass 6 forbids and
+    // `validate_pseudomanifold` checks (`validate_closed(body)?`)
+    // before the census runs. So new ⊆ old here, strictly.
+    let planar_face_bridged = |f_planar: FK, other: &BTreeSet<VertexKey>| -> bool {
         declared
             .vf
             .iter()
-            .any(|&(v, vf)| vf == f_planar && vertex_solid(v) == Some(other))
+            .any(|&(v, vf)| vf == f_planar && other.contains(&v))
     };
     for (i, a) in reaches.iter().enumerate() {
         for b in &reaches[i + 1..] {
@@ -1460,18 +1554,42 @@ fn sweep_cross_solid_backstop<T: Decide>(
             // The conformal arm groups CURVED faces by carrier, so a
             // same-key planar pair would be on no list at all; the
             // deferral may only name an arm that takes the pair.
-            // The added conjunct is a TAUTOLOGY, deliberately: one
+            // The `!planar` conjunct is a TAUTOLOGY, deliberately: one
             // surface key is one surface kind, and `planar` is
             // derived from the kind, so `same_key` already implies
             // `a.planar == b.planar`. It is written so the deferral
             // cannot quietly start covering pairs the conformal arm
             // never walks — which is what it did until §S49 narrowed
             // the skip above and made a planar pair reach this line.
-            if (same_key && !a.planar && !b.planar) || declared.faces.contains(&(a.face, b.face)) {
+            //
+            // **Opposed senses is not a tautology, and it is the half
+            // that makes the deferral true.** The bar this arm's docs
+            // set is that a deferral names an arm which asks the SAME
+            // question about the SAME pair; "the conformal arm walks
+            // it" is a weaker test, and the gap between them is real.
+            // [`sweep_conformal_patches`] reaches a same-sense pair and
+            // `continue`s on it — aligned coincidence is flush material
+            // within one solid, not contact (C1) — so it WALKS such a
+            // pair and DECIDES nothing about it. Deferring on carrier
+            // identity alone therefore hands a cross-solid same-key
+            // same-sense pair to an arm that will drop it, and neither
+            // arm ever answers this one's question (are these two
+            // within reach and unexamined). Requiring opposed senses
+            // here keeps exactly the pairs that arm returns a verdict
+            // on; the rest fall through to the box test below, where a
+            // separated pair still clears.
+            let same_key_conformal = same_key
+                && !a.planar
+                && !b.planar
+                && body
+                    .get_face(a.face)
+                    .zip(body.get_face(b.face))
+                    .is_some_and(|(da, db)| da.sense != db.sense);
+            if same_key_conformal || declared.faces.contains(&(a.face, b.face)) {
                 continue; // the conformal arm's / the certifier's pair
             }
-            let vf_deferred = (a.planar && planar_face_bridged(a.face, b.solid))
-                || (b.planar && planar_face_bridged(b.face, a.solid));
+            let vf_deferred = (a.planar && planar_face_bridged(a.face, &b.verts))
+                || (b.planar && planar_face_bridged(b.face, &a.verts));
             if vf_deferred {
                 continue; // the declared interface — confirm pass's pair
             }
@@ -1526,6 +1644,13 @@ fn sweep_cross_solid_backstop<T: Decide>(
     for (f, _) in body.faces.iter() {
         let Some(solid) = solid_of(f) else { continue };
         let pts = face_points(f);
+        // The CONTAINED side's hull, and it may be any subset of the
+        // solid's locus (this arm's own comment below). A face that
+        // contributes no vertices shrinks the hull, which makes
+        // containment easier to claim and separation harder — the loud
+        // direction on both branches — so skipping it here is sound
+        // where the same skip in the `reaches` build above is not.
+        // Arm 1 has already refused the face itself.
         let Some((lo, hi)) = hull(&pts) else { continue };
         solid_boxes
             .entry(solid)
@@ -1564,9 +1689,11 @@ fn sweep_cross_solid_backstop<T: Decide>(
     let solids: Vec<_> = solid_boxes.iter().collect();
     for (i, &(&sa, (alo, ahi))) in solids.iter().enumerate() {
         for &(&sb, (blo, bhi)) in solids.iter().skip(i + 1) {
-            if bridged.contains(&(sa, sb)) {
-                continue; // under the confirm pass's jurisdiction
-            }
+            // No deferral on records here, deliberately (arm 2's docs
+            // carry the argument): every record in `ContactRecords`
+            // states one coincidence, and this arm's question is where
+            // one instance sits relative to another. A pair carrying
+            // records is examined exactly like a pair carrying none.
             for (outer, inner, ilo, ihi) in [(sa, sb, blo, bhi), (sb, sa, alo, ahi)] {
                 let Some((olo, ohi)) = solid_reach.get(&outer).copied().flatten() else {
                     errors.push(ValidationError::CensusUndecidable {
@@ -2014,6 +2141,104 @@ mod tests {
         assert_eq!(hit.verdict, crate::contact::ContactVerdict::Definite);
     }
 
+    /// Every error these scaffold rows may legitimately still carry:
+    /// the containment arm's solid-granular refusal.
+    ///
+    /// **Why it fires, exactly — and it is not about where the sheets
+    /// are.** Each `cyl_sheet` is its own `mvfs` seed, so a two-sheet
+    /// fixture is a two-INSTANCE body; and each seed FACE keeps the
+    /// mvfs NURBS placeholder, whose control net is poison. A solid
+    /// carrying a face with no claimable box can never be the container
+    /// ([`sweep_cross_solid_backstop`] arm 2), so both directions refuse
+    /// with *"a surface kind with no cheap sound box leaves the
+    /// containing instance's extent unclaimable"*. The refusal is
+    /// therefore position-independent: moving one sheet a kilometre
+    /// away produces the identical pair of errors, because no extent
+    /// comparison happens at all. Do not read these rows as the arm
+    /// measuring the sheets.
+    ///
+    /// These fixtures sit below tier 3's closed-body bar and call
+    /// `census_and_certify` directly, which is the only door that
+    /// reaches a placeholder face; through `validate_pseudomanifold` the
+    /// state cannot be minted.
+    ///
+    /// The filter is by ENTITY GRANULARITY rather than by count, so a
+    /// face-granular finding — which is what these rows are about —
+    /// can never hide inside the allowance. What it does admit,
+    /// deliberately and without bound, is any number of `Solid`×`Solid`
+    /// refusals of EITHER of arm 2's two `what` strings. That width is
+    /// the price of not pinning a `what` string in a row about the
+    /// conformal doors; the paragraph above is what keeps it honest,
+    /// and it is a paragraph, not a check.
+    fn face_findings(errors: &[ValidationError]) -> Vec<&ValidationError> {
+        errors
+            .iter()
+            .filter(|e| {
+                !matches!(
+                    e,
+                    ValidationError::CensusUndecidable {
+                        a: EntityId::Solid(_),
+                        b: EntityId::Solid(_),
+                        ..
+                    }
+                )
+            })
+            .collect()
+    }
+
+    /// **§H14 — what the containment arm actually says about these
+    /// scaffolds, and that it is not about where they are.**
+    ///
+    /// Each `cyl_sheet` keeps its `mvfs` NURBS placeholder on the seed
+    /// face. A placeholder net is poison, so the solid has no claimable
+    /// extent and can never be the container: arm 2 must reach its
+    /// TYPED refusal for that case. Folding the poison net instead
+    /// yields `Some((NaN, NaN))`, every margin decides neither sign,
+    /// and the arm falls out at its in-band refusal having compared no
+    /// geometry — which reads, in a suite, exactly like the arm
+    /// measuring two overlapping sheets.
+    ///
+    /// The second half is what makes that unmistakable: a sheet a
+    /// KILOMETRE away produces the byte-identical refusal. If this row
+    /// ever fails there, an extent comparison has started happening and
+    /// the `face_findings` allowance above needs re-reading.
+    #[test]
+    fn a_placeholder_seed_leaves_the_containing_extent_unclaimable() {
+        let refusals = |z0: f64, z1: f64| -> Vec<String> {
+            let mut body = Body::<f64>::new();
+            let (_w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
+            let (_w2, _) = cyl_sheet(&mut body, Some(cyl), 1.0, 2.4, z0, z1, false);
+            crate::pcurves::mint_pcurves(&mut body).unwrap();
+            census_and_certify(&body, &ContactRecords::default(), band())
+                .into_iter()
+                .filter_map(|e| match e {
+                    ValidationError::CensusUndecidable {
+                        a: EntityId::Solid(a),
+                        b: EntityId::Solid(b),
+                        what,
+                    } => Some(format!("{a:?}~{b:?}: {what}")),
+                    _ => None,
+                })
+                .collect()
+        };
+        let near = refusals(0.3, 0.7);
+        assert!(
+            !near.is_empty()
+                && near.iter().all(|r| r.contains(
+                    "a surface kind with no cheap sound box leaves the containing \
+                     instance's extent unclaimable"
+                )),
+            "the placeholder seed must reach the TYPED refusal, not the in-band \
+             fallout of a NaN box: {near:?}"
+        );
+        assert_eq!(
+            near,
+            refusals(1000.3, 1000.7),
+            "the refusal is about an unclaimable extent, so moving a sheet a \
+             kilometre away must not change it"
+        );
+    }
+
     #[test]
     fn a_patch_record_backs_the_pair_and_confirms_through_both_doors() {
         let (body, w1, w2) = conformal_pair();
@@ -2023,9 +2248,10 @@ mod tests {
             face_b: w2,
         });
         let errors = census_and_certify(&body, &records, band());
+        let findings = face_findings(&errors);
         assert!(
-            errors.is_empty(),
-            "the declared conformal patch certifies: {errors:?}"
+            findings.is_empty(),
+            "the declared conformal patch certifies: {findings:?} (all: {errors:?})"
         );
     }
 
@@ -2131,9 +2357,10 @@ mod tests {
             face_b: w2,
         });
         let cert = census_and_certify(&body, &records, band());
+        let findings = face_findings(&cert);
         assert!(
-            cert.is_empty(),
-            "the backed next-branch pair certifies: {cert:?}"
+            findings.is_empty(),
+            "the backed next-branch pair certifies: {findings:?} (all: {cert:?})"
         );
     }
 
