@@ -121,7 +121,7 @@ discharged before this track existed.
 
 | lane | row(s) | scope | gate | review | state |
 |---|---|---|---|---|---|
-| **E-a** | D22 + D34 | `scripts/gates/`, `.github/workflows/ci.yml` | none | style | **in flight** |
+| **E-a** | D22 + D34 | `scripts/gates/`, `.github/workflows/ci.yml` | none | style | **DONE — #753 merged** |
 | **E-b** | D23 | `docs/` + suite headers; code set is what the re-derivation finds | none | style | **in flight** |
 | **E-c** | D26 | `docs/SMELL-SCAN-2026-08.md` §D and §S19 | none | style | **DONE — #752 merged**; discharged into D36–D39, plus D47/D48 from its review, all unstaffed |
 | **E-d** | D33 | `docs/predicate-dimension-audit.md` | none | style | **#761, in review** |
@@ -368,6 +368,17 @@ whenever main moves while it is open.** A PR that goes CONFLICTING runs **no**
 check runs at all — it reads as CI absent, not CI failing. After any push,
 confirm checks actually **started** by reading the workflow *runs* list.
 
+**And report a run by how many of its jobs FINISHED, not by how many were
+green.** *"22 of 26 green"* is true and unfalsifiable at once: nothing in it
+distinguishes *four still pending* from *all done*. One lane reported exactly
+that and three shards failed eight minutes later; on another run the last job
+finished **fourteen minutes** after the first. **Two instrument traps, both
+observed here:** a jobs listing saying `unfinished: []` can mean *not yet
+spawned* rather than *done*; and the listing endpoint returned **30 rows while
+reporting `total_count: 37` in the same response** — the two disagreed, and only
+`get_check_runs` returned all 37. A lane taking its denominator from the listing
+under-counts by seven and can report a clean sweep over a partial set.
+
 **8. Record your completion at the finding, in your own PR.** A bolded
 `FIXED by #NNN` lead at the finding in `docs/SMELL-SCAN-2026-08.md`, the
 **original problem statement removed** (version control keeps it), and your row
@@ -459,7 +470,7 @@ serialized here and each lane re-merges `origin/main` when one lands.
 | lane | row(s) | branch | PR | state |
 |---|---|---|---|---|
 | **E-c** | D26 | `smelle/d26` | **#752** | **MERGED 2026-08-20** — Track E's first landing |
-| **E-a** | D22 + D34 | `smelle/d22-d34` | **#753** | fix pass complete, run 2140 in flight. **Track F is gated on this landing** |
+| **E-a** | D22 + D34 | `smelle/d22-d34` | **#753** | **MERGED 2026-08-20** — 37/37 jobs finished, 36 success, 1 skipped, 0 failures. **Track F is unblocked** |
 | **E-f** | D25 | `smelle/d25` | **#755** | **CLEARED by both lanes**; combined fix pass running (3 must-fix, 2 → rows D49/D50). Merges after #752 |
 | **E-b** | D23 | `smelle/d23` | **#763** | **NOT CLEARED** — a live wrong answer inside D45, plus 4 MAJOR; fix pass running |
 | **E-d** | D33 | `smelle/d33` | **#761** | **MERGED 2026-08-20.** Placed D46, D51, D57; handed D56 back |
