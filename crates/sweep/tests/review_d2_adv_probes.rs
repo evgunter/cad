@@ -313,7 +313,6 @@ fn class(e: &FilletError) -> &'static str {
         FilletError::UnsupportedChain { .. } => "UnsupportedChain(row 2)",
         FilletError::UnsupportedRunOut { .. } => "UnsupportedRunOut(row 2)",
         FilletError::UnsupportedGeometry { .. } => "UnsupportedGeometry(row 2)",
-        FilletError::EmptyChain => "EmptyChain(row 1)",
         FilletError::BodyNotIntact { .. } => "BodyNotIntact(row 1)",
         FilletError::RingClearance { .. } => "RingClearance",
         FilletError::Certify { .. } => "Certify",
@@ -395,7 +394,7 @@ fn d2_the_battery_never_hands_the_surgery_an_empty_chain() {
                 verdicts += 1;
                 for (i, chain) in v.chains.iter().enumerate() {
                     assert!(
-                        !chain.links.is_empty(),
+                        chain.len() >= 1,
                         "{name}: the battery emitted chain {i} with no links \
                          (radius {r}, {}) — `FilletError::EmptyChain` would then \
                          have an input witness",

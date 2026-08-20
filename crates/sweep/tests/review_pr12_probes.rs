@@ -165,7 +165,7 @@ fn probe_d_rim_arc_orientation() {
             let conv = verdict
                 .as_ref()
                 .ok()
-                .map(|v| v.chains[0].links[0].convexity);
+                .map(|v| v.chains[0].first().convexity);
             println!(
                 "PROBE D: rim arc {k:?}: he_plus aligned with carrier = {aligned}, single-edge battery => {:?} (err: {})",
                 conv,
