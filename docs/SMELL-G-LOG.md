@@ -426,6 +426,42 @@ longer supports*, invisible until someone stood in an environment the author
 did not have. It is local tooling and not a smell-scan row, so it is recorded
 here and nowhere else.
 
+### Reviewers were pointed at the orchestrator's own checkout, and one left it detached
+
+**2026-08-20, and the cause is a brief I wrote five times.** Every wave-1 and
+wave-2 **reviewer** dispatch said *"work read-only from `/home/user/cad`"* — the
+orchestrator's own working checkout. Read-only was the intent and no reviewer
+edited a file; but **`git checkout` is not an edit**, and one reviewer resolving
+a branch left the shared checkout in **detached HEAD from
+`origin/smellg/g8-face-normal-enumeration`**. The orchestrator's next
+`git pull --no-rebase origin main` then merged `main` **into that detached
+HEAD**, producing a commit belonging to no branch.
+
+**Nothing was lost** — the last orchestrator commit had already pushed, the
+working tree was clean, and `git checkout <branch>` restored it. **But the
+failure mode is bad**: for one turn the orchestrator was reading a *lane's*
+branch while believing it was reading `main`, and it very nearly filed a defect
+against `main` that existed only on an unmerged branch. The tell was a
+disagreement between `grep` on the working tree and `git show origin/main:`,
+which is the only reason it was caught.
+
+**The rule: reviewers never work in `/home/user/cad`.** `memories/agent-lane-operations.md`
+already says working clones go under `~/.local/share/cad-work/<purpose>/`, and I
+read that at session start and then wrote the opposite into five briefs, because
+"read-only" felt like it made the location harmless. It does not — **a shared
+checkout has one HEAD, and a reviewer needs to move it to do its job.** Future
+reviewer dispatches get their own clone, or are told to read via
+`git show <ref>:<path>` and `git diff <a>...<b>` without ever checking anything
+out.
+
+**And for the orchestrator specifically:** `git pull` and `git merge` in a
+directory other agents can touch must be preceded by confirming the branch —
+`git branch --show-current` returning empty is the whole signal, and it costs
+nothing. This is the third incident on this track in the same family: **a
+command whose failure or misdirection is silent** (a pipe swallowing a merge's
+exit status; a marker-bearing merge landing green; a pull onto a detached HEAD).
+The family, not the instances, is the thing to design against.
+
 ### The same defect reached `main`, and the orchestrator merged it there
 
 **2026-08-20, ~one hour after the incident below, and this one is the
