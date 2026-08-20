@@ -4967,7 +4967,7 @@ Three corrections, all measured at `1a94204d`:
   `pub(crate)` module whose impl list *is* the kernel's scalar set. A scratch
   crate depending on `geom-core --features probe` gets E0277 (`P: SpanLocate`)
   on `impl Decide`, E0277 (`P: locate::sealed::Sealed`) on `impl SpanLocate`,
-  and **E0603 `module `sealed` is private`** on naming the seal. Lifting the
+  and **E0603, "module `sealed` is private"**, on naming the seal. Lifting the
   lane out needs an unseal, and the seal is what closes Q1's ratified
   instantiation set.
 
@@ -4986,8 +4986,9 @@ feature gate instead of a crate move.
 *inside* the crate: a private `classify` the three doors delegate to. That
 converts an asserted sameness into a compiled one — `decide_flagged` and
 `decide_invariant` each carried a rustdoc sentence promising they were
-"[`decide`] verbatim", three hand-maintained identity claims with nothing
-enforcing them, which is S4's dominant shape stated in the imperative mood.
+"[`decide`] verbatim", two hand-maintained identity claims over three
+separately-written bodies, with nothing enforcing either, which is S4's
+dominant shape stated in the imperative mood.
 It also reduces from three to one the number of sites reading the shape the
 UNRESOLVED fence is about, which is the direction that fence permits.
 
