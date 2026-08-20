@@ -1350,7 +1350,7 @@ constructor — and would falsify ratified exit-walk rows and six test files.
 Re-verified on today's tree: `Pcurve::IsoArc` carries `breaks: KnotVector`
 and `KnotVector` is `Vec<f64>`-backed, so either variant alone denies
 `Copy` and deleting `Fitted` restores nothing. The residual cost is three
-`Pcurve` clones (`topo/src/pcurves.rs:269`, `:836`, `:1077`) plus one
+`Pcurve` clones (`topo/src/pcurves.rs:269`, `:836`, `:1084`) plus one
 `PcurveCache` clone (`topo/src/boolean/combine.rs:343`, transient by its
 own comment). The finding's cost column was therefore zero, and the
 finding was built on it.
@@ -1358,7 +1358,7 @@ finding was built on it.
 **Also false: "machinery with no caller", by ~10×.** Only `certify_fitted`
 is callerless. `PcurveCache::recertify` dispatches
 `Fitted → run_fitted_checks` and runs in production tier-3 at
-`topo/src/pcurves.rs:1372`, which is why `validate_pcurves` carries the
+`topo/src/pcurves.rs:1379`, which is why `validate_pcurves` carries the
 `PcurveFittedLane` bound at all.
 
 **What was true.** The docs read as *shipped* where the truth is that the
