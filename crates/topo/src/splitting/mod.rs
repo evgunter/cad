@@ -18,7 +18,9 @@
 //!    ([`SplitReduceError::CurvedBooleanUnsupported`] — per-arm
 //!    retirement, C12.1). Edge carriers `Line`/`Circle`/`Ellipse`
 //!    pass; `Nurbs` refuses
-//!    ([`SplitReduceError::CurvedEdgeUnsupported`]).
+//!    ([`SplitReduceError::CurvedEdgeUnsupported`]) — a rung-3 carrier
+//!    in the input operand, refused on this gate's own footing: the
+//!    general rung is implemented, and gates retire per arm.
 //! 2. **Vertex sweep (F6)**: every vertex classified against the plane
 //!    through the Q1 trilean `split_vertex_side` — definitely-off ⇒
 //!    clean side, coincident ⇒ [`PlaneSide::On`], in-band ⇒ the typed
@@ -191,9 +193,12 @@ pub enum SplitReduceError {
         /// Its surface kind (the table row).
         kind: geom_brep::SurfaceKind,
     },
-    /// An edge carrier is the `Nurbs` fallback — rung 3, unimplemented
-    /// until SSI (M5 PR 7). Line/circle/ellipse carriers all pass the
-    /// gate since M5 PR 5.
+    /// An edge carrier is the `Nurbs` fallback — a rung-3 carrier in
+    /// the INPUT operand. The general rung itself is implemented (SSI);
+    /// this gate is what has not retired, and gates retire per arm,
+    /// never wholesale (C12.1) — so the refusal rests on its own
+    /// footing, not on SSI's absence. Line/circle/ellipse carriers all
+    /// pass the gate.
     CurvedEdgeUnsupported {
         /// The offending edge.
         edge: EdgeKey,
@@ -311,8 +316,9 @@ impl core::fmt::Display for SplitReduceError {
             ),
             Self::CurvedEdgeUnsupported { edge } => write!(
                 f,
-                "split_reduce: edge {edge:?} has a NURBS carrier — this routes to the \
-                 general rung, unimplemented until SSI (M5 PR 7)"
+                "split_reduce: edge {edge:?} has a NURBS carrier — a rung-3 carrier in \
+                 an INPUT operand. The general rung itself is implemented (SSI); this \
+                 gate has not retired, and gates retire one arm at a time"
             ),
             Self::CrossingEscalated { edge, diag } => write!(
                 f,
