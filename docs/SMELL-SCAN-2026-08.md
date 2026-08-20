@@ -1783,7 +1783,12 @@ types" is largely false.**
 the work: `Real` is comparison-free **by construction**; `Bounds`/`Decide`/
 `SpanLocate` are separate subtraits; **`Bounds` has no `Dual` impl**, so the
 whole bracket-reading surface is uninstantiable at duals; and three static lane
-splits with refusing arms exist (S3). Each ledger amendment litigates a *type*
+splits with refusing arms exist (S3). *(That middle clause was true when this
+steelman was written on 2026-08-18 and is false as of the **D1** ruling of
+2026-08-19: `Bounds` is implemented for `Dual`, and what is uninstantiable at a
+dual is the `CertifiedEnclosure`-bounded surface. The steelman's conclusion is
+unaffected — the type-level encoding still does most of the work — so the
+sentence is amended rather than rewritten.)* Each ledger amendment litigates a *type*
 question, and M5 PR 12 **explicitly costs the type-level fix and rejects it on
 the merits** (*"would have had an EMPTY refusing side"*). The greps enforce only
 the residue — **which files may *name* a bound** — which Rust cannot express
@@ -4284,6 +4289,18 @@ answered, since the answer determines whether the collapse target is "one lane
 trait in `geom-core`" (S3's steelman, compiled and working) or "no lane traits
 at all, and a `Bounds` split into its two meanings."
 
+> **AMENDED 2026-08-19 — this verdict line is superseded, and the original is
+> kept above rather than rewritten because the reasoning below it is the
+> record of how the question was reached.** The `Bounds`-meaning half is
+> **ANSWERED**: #643 split the trait, and Evan's **D1** ruling then separated
+> the two meanings for `Dual` — see the *D1 DECIDED* block below. What is
+> still OPEN is the lane-trait half (S3 / W2a), which the ruling explicitly
+> does not settle. A reader who stops at this line should carry away
+> *"answered on `Bounds`, open on the lanes"*, not *"open"*. (D3/D4 carry no
+> verdict line and so set no precedent for how to amend one; a struck-through
+> line would lose the reasoning, and a silent rewrite would lose the fact that
+> the question was once genuinely open, so it is amended in place.)
+
 **The `Interval` half is settled by code (#643, W1c/S41), recorded here as
 fact rather than as a ruling.** The bundling Evan named — *"there must be
 multiple semantic things bundled together"* — turned out to be demonstrable
@@ -4406,10 +4423,33 @@ the ruling. S2's cost analysis stands as a cost, not as a case for removal.
   red the day someone writes the certification impl, rather than the day
   something certifies wrongly.
 - The stale halves of the discipline record, which asserted the *absence* as a
-  fact: `real.rs`'s `Bounds` scope rule (the M5 PR 12 and M9-2 PR-1 entries),
-  `CertifiedEnclosure`'s implementor list, `bounds-allowlist.sh`'s header, and
-  the four lane traits' own "a dual has no bracket to offer" reason clauses —
-  each retargeted onto the ruling (*may not certify*) rather than deleted.
+  fact — each **retargeted** onto the ruling (*may not certify*) rather than
+  deleted, so the reason survives where the fact did not. The sweep covers
+  `real.rs`'s `Bounds` scope rule (all three ledger entries: M5 PR 11, M5 PR
+  12, M9-2 PR-1), `CertifiedEnclosure`'s implementor list,
+  `bounds-allowlist.sh`'s header (both the fillet and the chart-region
+  paragraphs), the four lane traits' own reason clauses and their consumers'
+  comments (`census.rs`, `validate.rs`, `euler.rs`, `certify.rs`), two runtime
+  `Display` strings (`edge_nurbs.rs`, `pcurve_cache.rs`) that were telling a
+  *user* a dual has no bracket, the test docs, and **`docs/DESIGN.md`** — the
+  ratified contract, which at `:531` said *"a dual carries no bracket"* and at
+  `:1879` still called `Bounds` "the certification trait" (#643 rot D1 made
+  worse).
+
+  **The pattern**, stated so the next sweep can be compared to it: a
+  line mentioning `dual` within a ±4-line window of any of
+  `no bracket | not a bracket | carries no bracket | no <Bounds> impl |
+  uninstantiable | bracket-free | nothing to split | EMPTY refusing |
+  never for Dual | no dual lane | no dual path | no dual-scalar |
+  not an enclosure | bracket-carrying`, over every tracked `.rs`/`.md`/`.sh`/
+  `.py`/`.toml` file, excluding `docs/archive/` (historical record: those
+  sentences were true when written and are quoted as such). **What it cannot
+  match**: a claim that states the premise without any of those words — e.g.
+  *"three of the four sealed scalars have this unconditionally"*, or a
+  paraphrase like *"a dual is a value and a derivative"* — and a claim
+  separated from the word `dual` by more than four lines. Two sites were found
+  by reading rather than by the pattern (`edge_nurbs.rs`'s module header,
+  `props.rs`'s `PropsQuadLane` doc), which is the honest measure of its reach.
 
 ### What newly admits `Dual`, and the one thing that owes something
 
@@ -4461,7 +4501,10 @@ than a vague remainder. It is deliberately not fixed here. `ContentBits for
 Dual` is a decision, not a formality: a dual's content key has to say whether
 the **seed** is part of the key, and if it is not, the memo can serve one
 parameter's pass from another parameter's — a soundness question about the
-memo, which belongs to whoever builds E4.
+memo, which belongs to whoever builds E4. **Filed as issue #687.** The
+suite's negative row — a `compile_fail,E0277` doctest on `ContentBits` in
+`editor-core/src/eval/memo.rs` — is what goes red the day #687 lands, so this
+record cannot silently outlive it.
 
 ### What this does NOT settle
 
@@ -4487,11 +4530,23 @@ Two observations W2a will want, from this lane rather than from a fresh scan:
   validates and still receives the typed refusal from the quadrature arm. This
   ruling adds a capability and removes none; the four-scalar test axes behave
   as they did.
-- **The lanes' static guarantee no longer rests on a missing impl.** It rests
-  entirely on the refusing impls themselves, which is a strictly weaker
-  posture than before and is the thing W2a must not lose in a collapse:
-  today, deleting a lane trait would make the certified machinery
-  *instantiable* at a dual rather than merely uncallable.
+- **One lane's static guarantee no longer rests on a missing impl — one, not
+  four.** The generalisation first written here ("deleting a lane trait would
+  make the certified machinery instantiable at a dual") is true of exactly
+  `topo::chart_region`, whose predicate `chart_region_overlap` is
+  `<T: Decide + Bounds>` (`chart_region.rs:345`) with no
+  `CertifiedEnclosure` — and which is `pub` and re-exported from
+  `topo/src/lib.rs:259`, so an **external** caller can already instantiate it
+  at a dual without the lane being consulted at all. The lane guards the
+  census path, not the function.
+
+  The other three lane doors — `props::quad_lane::{cut_face, nurbs_face,
+  chan, trig_at_start, start_point}`, `pcurve_cache::fitted_lane`,
+  `edge_nurbs::lane` — are all `Decide + Bounds + CertifiedEnclosure`, so
+  deleting their lane traits leaves them **still uninstantiable at a dual**;
+  what would be lost there is the typed refusal a dual body currently
+  receives, not the guarantee. W2a should price the four separately: three
+  are about ergonomics and error shape, one is about access.
 
 ## S45–S48 — reserved
 
@@ -5272,7 +5327,8 @@ therefore what is *left*, and its length is the honest measure of that.
 
 **Overhauled 2026-08-19.** The original schedule's Waves 0, 1 and 1b are
 complete except where a row appears below; W1a–W1e all landed, H1–H10 all
-landed, and four of the six Wave-0 decisions were made in one sitting. The
+landed, and five of the six Wave-0 decisions were made in one sitting — D1
+among them, ruled 2026-08-19, leaving only D6 open. The
 wave numbering is retired with them: it encoded a dependency structure that
 has largely been discharged, and what remains is better organised by **who can
 take it without colliding** than by how it was originally batched.
@@ -5304,7 +5360,8 @@ A third has been earned since:
 **D1 was ruled 2026-08-19** (a `Dual` may not certify, but it may have
 `Bounds`; M10/E4 remains the plan) and has landed — see S44's **D1 DECIDED**
 entry for the ruling, the impl, what newly admits a dual, and the two residues
-it left. Note that it does **not** discharge S3: the lane-trait collapse was
+it left (`ContentBits for Dual`, issue **#687**; and the `sweep::fillet`
+seam's standing lane obligation). Note that it does **not** discharge S3: the lane-trait collapse was
 derived against the one-trait world and needs re-deriving against #643's.
 
 ---
@@ -5315,7 +5372,6 @@ Do not take these. Each has a running lane.
 
 | # | Work | Scope |
 |---|---|---|
-| **A1** | **D1's execution** — `impl Bounds for Dual`, and compile-only evidence about `evaluate::<Dual64>`, which is E4's stated mechanism and has never compiled. **Landed; see S44's D1 DECIDED entry.** The `Bounds` lock is open and no `CertifiedEnclosure` door admits a dual, so no certification site newly admits one. Two residues came out of it: **E4 has a second, unregistered blocker** — `evaluate<T>` also requires `editor_core::eval::ContentBits`, which has no `Dual` impl, so `evaluate::<Dual64>` still does not compile, and closing it is a decision about whether the *seed* enters the memo's content key; and **`sweep::fillet` is now the one allowlisted `Decide + Bounds` seam with no lane behind it**, its M5 PR 12 justification having rested on the missing impl. | `geom-core/src/{dual,real}.rs`, `editor-core/src/eval/`, the discipline gates |
 | **A2** | **S56 / #649** — one named iso-rectangle predicate, generalising the torus's level rule to cylinder/cone/sphere. Closes the wrong-certified-volume defect (19% low at `pad = 0.0`). | `geom-brep/src/props/curved.rs`, `topo/src/validate.rs`, new STEP fixtures |
 | **A3** | **#678** — the slender partial-revolve cone wedge that meshes silently non-watertight, A/B against `main` first. | `crates/mesh/` |
 | **A4** | **#667** — the measured-claim sweep continuation, pattern fixed first. | docs + scattered claim sites |
@@ -5358,10 +5414,10 @@ the taker should expect to make and record.
 | **C1** | **H12–H15** — four lanes' own residues: the SSI sweeps' other never-silence doors (no acceptance row in either lane), `sweep_body`'s helix rows with no orientation coverage, #637's two jurisdiction residues, #635's unclassified siblings. | Each is small; together they are a lane. They are the clearest instance of ordering rule 3. |
 | **C2** | **H11, H16, H17** — #632's two residues; the STL header not being caller-settable while `StepOptions` carries `product_name`; and S37's rustdoc remainder, ~1115 lines across 130 files. | H17 is large and mechanical; H16 is a small asymmetry with a clear right answer. |
 | **C3** | **S27, S29, S30** — `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block; the sizing vocabulary fragmented across five modules with self-admitted magic constants; and ~1,050 lines of instrument in the mesh crate's hot loop. | **S29's policy question is already routed out** to `docs/TESS-SPLIT-SPEC.md` and PR #568, unexecuted — so S29 is blocked on a design conversation, not on capacity. S27 touches `props/`, so it must follow **A2**. |
-| **C4** | **S31, S32, S33** — the `geom-curves`/`geom-surfaces` split that buys nothing; `Surface`'s one-partial-per-call API, which is what created the shadow surface enum in SSI; and neither geometry enum being able to lift itself to another scalar. | **S33 is coloured by A1**: several of its ~14 hand-written ladders exist only to reach `Dual`, and what `Bounds for Dual` changes there is A1's report to give. |
+| **C4** | **S31, S32, S33** — the `geom-curves`/`geom-surfaces` split that buys nothing; `Surface`'s one-partial-per-call API, which is what created the shadow surface enum in SSI; and neither geometry enum being able to lift itself to another scalar. | **S33 is coloured by D1**: several of its ~14 hand-written ladders exist only to reach `Dual`, and what `Bounds for Dual` changes there is written in S44's **D1 DECIDED** block. |
 | **C5** | **S24, S26, S28's duplication half** — the assembly gate whose success arm is documented unreachable; the certified area enclosure that is never metered against anything (`area.width()` appears nowhere in the file); and the three tessellation lanes that remain three pipelines now that #648/#674 have settled their ordering and column questions. | S26 was explicitly deferred in writing by #472 — *"metering against `area.lo()` … deserves its own proposal with re-measured floors"* — so it is a proposal, not a patch. S28's duplication half must follow **A3**. |
 | **C6** | **W2f remainder / S4** — `ProgramStep`/`WireStep`, `SegTag`, and the "no usable value" core. | Each is blocked on something real: the first behind OnArc + RESPELL-TABLE and crossing the same files, the second needs the workspace's first proc-macro crate, the third by a persisted format. |
-| **C7** | **W2a / S3 and W2b / S1+S2** — the lane-trait collapse, and `RingInterval` versus an always-on `Interval`. | **Both wait on A1's report.** The steelman's compiled collapse for S3 **predates #643's `Bounds`/`CertifiedEnclosure` split** and must be re-derived against the two-trait world; W2b's blast radius is 535 refs in 15 files with five carrying 60%. |
+| **C7** | **W2a / S3 and W2b / S1+S2** — the lane-trait collapse, and `RingInterval` versus an always-on `Interval`. | **The S3 half no longer waits — D1 is ruled, and its report is S44's D1 DECIDED block.** The steelman's compiled collapse for S3 **predates #643's `Bounds`/`CertifiedEnclosure` split** and must be re-derived against the two-trait world; read *"What this does NOT settle"* first, in particular its per-lane correction — deleting a lane trait leaves three of the four seams still uninstantiable at a dual, and only `chart_region_overlap` would become instantiable. W2b's blast radius is 535 refs in 15 files with five carrying 60%. |
 
 ---
 
