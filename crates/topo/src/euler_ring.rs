@@ -225,6 +225,7 @@ use crate::entity::{
 use crate::euler::ArenaDelta;
 use crate::euler::EulerOpError;
 use crate::geometry::{CurveKey, SurfaceKey};
+use crate::live::Live;
 use crate::provenance::Provenance;
 
 /// Where [`Body::mekr`] acts: the site addressing for "make edge, kill
@@ -436,16 +437,18 @@ impl<T: Decide> Body<T> {
         // The full cycle from he1 (bounded, D9); its split at he2 yields
         // the two survivor sides.
         let cycle = self
-            .loop_cycle(he1)
+            .loop_cycle_live(he1)
             .ok_or(EulerOpError::LoopCycleBroken { r#loop: loop_key })?;
         let position = cycle
             .iter()
-            .position(|&he| he == he2)
+            .position(|member| member.key() == he2)
             .ok_or(EulerOpError::LoopCycleBroken { r#loop: loop_key })?;
         // he1's side (strictly between he1 and he2): becomes the ring.
-        let ring_side: Vec<HalfEdgeKey> = cycle[1..position].to_vec();
+        // The walk resolved every member, so each side's ends arrive at
+        // the splice below already proven.
+        let ring_side: Vec<Live> = cycle[1..position].to_vec();
         // he2's side (strictly between he2 and he1): keeps the old loop.
-        let old_side: Vec<HalfEdgeKey> = cycle[position + 1..].to_vec();
+        let old_side: Vec<Live> = cycle[position + 1..].to_vec();
         let u = he1_data.start;
         let w = he2_data.start;
         for vertex in [u, w] {
@@ -465,7 +468,7 @@ impl<T: Decide> Body<T> {
         // Minting order (documented above): the ring loop only.
         let provenance = Provenance::Kemr { he1, he2 };
         let ring_boundary = match ring_side.first() {
-            Some(&first) => LoopBoundary::Cycle { first },
+            Some(&first) => LoopBoundary::Cycle { first: first.key() },
             None => LoopBoundary::Empty { vertex: w },
         };
         let ring = self.add_loop(
@@ -477,7 +480,7 @@ impl<T: Decide> Body<T> {
         );
         // Move he1's side into the ring and close its cycle.
         for &moved in &ring_side {
-            let Some(he) = self.get_half_edge_mut(moved) else {
+            let Some(he) = self.get_half_edge_mut(moved.key()) else {
                 unreachable!(
                     "kemr: the ring side's members were resolved by the plan phase's bounded walk"
                 )
@@ -500,7 +503,7 @@ impl<T: Decide> Body<T> {
             self.link_half_edges(last, first);
         }
         let old_boundary = match old_side.first() {
-            Some(&first) => LoopBoundary::Cycle { first },
+            Some(&first) => LoopBoundary::Cycle { first: first.key() },
             None => LoopBoundary::Empty { vertex: u },
         };
         let Some(l) = self.get_loop_mut(loop_key) else {
@@ -524,8 +527,8 @@ impl<T: Decide> Body<T> {
             .then_some(edge_data.curve);
         // Emanating (unconditional rule, module docs). When u == w the
         // second write wins — deterministic.
-        let u_anchor = old_side.first().copied();
-        let w_anchor = ring_side.first().copied();
+        let u_anchor = old_side.first().map(|&member| member.key());
+        let w_anchor = ring_side.first().map(|&member| member.key());
         let Some(vertex) = self.get_vertex_mut(u) else {
             unreachable!("kemr: `u` resolved in the plan phase")
         };
@@ -989,8 +992,8 @@ impl<T: Decide> Body<T> {
         curve: EdgeCurveSpec<T>,
     ) -> Result<MekrResult, EulerOpError> {
         // ---- Preconditions. ----
-        let target_data = self.resolve_half_edge(target)?;
-        let ring_data = self.resolve_half_edge(ring)?;
+        let (target_live, target_data) = self.resolve_half_edge_live(target)?;
+        let (ring_live, ring_data) = self.resolve_half_edge_live(ring)?;
         let target_loop = target_data.parent_loop;
         let ring_loop = ring_data.parent_loop;
         if target_loop == ring_loop {
@@ -1023,18 +1026,13 @@ impl<T: Decide> Body<T> {
         // The ring's full cycle (bounded, D9): reparented wholesale, and
         // its last member (= prev(ring)) is a splice point.
         let ring_members = self
-            .loop_cycle(ring)
+            .loop_cycle_live(ring)
             .ok_or(EulerOpError::LoopCycleBroken { r#loop: ring_loop })?;
         let ring_last = ring_members
             .last()
             .copied()
             .ok_or(EulerOpError::LoopCycleBroken { r#loop: ring_loop })?;
-        let target_prev = target_data.prev;
-        if !self.half_edges.contains_key(target_prev) {
-            return Err(EulerOpError::StaleKey {
-                key: EntityId::HalfEdge(target_prev),
-            });
-        }
+        let target_prev = self.require_live(target_data.prev)?;
         let u = target_data.start;
         let w = ring_data.start;
         let (p_u, p_w) = self.check_anchors(u, w)?;
@@ -1046,7 +1044,7 @@ impl<T: Decide> Body<T> {
         let (curve, edge, he_plus, he_minus) = self.mekr_mint(site, u, w, target_loop, certified);
         // Reparent the whole ring cycle into the target loop.
         for &moved in &ring_members {
-            let Some(he) = self.get_half_edge_mut(moved) else {
+            let Some(he) = self.get_half_edge_mut(moved.key()) else {
                 unreachable!(
                     "mekr chords: the ring's members were resolved by the plan phase's bounded walk"
                 )
@@ -1056,9 +1054,11 @@ impl<T: Decide> Body<T> {
         // Splice (module docs diagram): he_plus → ring … prev(ring) →
         // he_minus → target … prev(target) → he_plus.
         self.link_half_edges(target_prev, he_plus);
-        self.link_half_edges(he_plus, ring);
+        self.link_half_edges(he_plus, ring_live);
         self.link_half_edges(ring_last, he_minus);
-        self.link_half_edges(he_minus, target);
+        self.link_half_edges(he_minus, target_live);
+        // The splice is done; past it the halves are ordinary keys.
+        let (he_plus, he_minus) = (he_plus.key(), he_minus.key());
         self.mekr_finish(
             target_loop,
             ring_loop,
@@ -1086,7 +1086,7 @@ impl<T: Decide> Body<T> {
         curve: EdgeCurveSpec<T>,
     ) -> Result<MekrResult, EulerOpError> {
         // ---- Preconditions. ----
-        let target_data = self.resolve_half_edge(target)?;
+        let (target_live, target_data) = self.resolve_half_edge_live(target)?;
         let target_loop = target_data.parent_loop;
         if target_loop == ring {
             return Err(EulerOpError::SameLoop { r#loop: ring });
@@ -1113,12 +1113,7 @@ impl<T: Decide> Body<T> {
             });
         }
         self.check_ring_not_outer(face_key, ring)?;
-        let target_prev = target_data.prev;
-        if !self.half_edges.contains_key(target_prev) {
-            return Err(EulerOpError::StaleKey {
-                key: EntityId::HalfEdge(target_prev),
-            });
-        }
+        let target_prev = self.require_live(target_data.prev)?;
         let u = target_data.start;
         let (p_u, p_w) = self.check_anchors(u, w)?;
         // ---- Geometry gate (still no mutation): certify u → w (the
@@ -1132,7 +1127,9 @@ impl<T: Decide> Body<T> {
         // case).
         self.link_half_edges(target_prev, he_plus);
         self.link_half_edges(he_plus, he_minus);
-        self.link_half_edges(he_minus, target);
+        self.link_half_edges(he_minus, target_live);
+        // The splice is done; past it the halves are ordinary keys.
+        let (he_plus, he_minus) = (he_plus.key(), he_minus.key());
         self.mekr_finish(target_loop, ring, face_key, (u, w), (he_plus, he_minus));
 
         Ok(MekrResult {
@@ -1161,7 +1158,7 @@ impl<T: Decide> Body<T> {
             return Err(EulerOpError::LoopNotEmpty { r#loop: target });
         };
         let face_key = target_data.face;
-        let ring_data = self.resolve_half_edge(ring)?;
+        let (ring_live, ring_data) = self.resolve_half_edge_live(ring)?;
         let ring_loop = ring_data.parent_loop;
         if ring_loop == target {
             return Err(EulerOpError::SameLoop { r#loop: target });
@@ -1180,7 +1177,7 @@ impl<T: Decide> Body<T> {
         }
         self.check_ring_not_outer(face_key, ring_loop)?;
         let ring_members = self
-            .loop_cycle(ring)
+            .loop_cycle_live(ring)
             .ok_or(EulerOpError::LoopCycleBroken { r#loop: ring_loop })?;
         let ring_last = ring_members
             .last()
@@ -1195,7 +1192,7 @@ impl<T: Decide> Body<T> {
         // ---- Mutation (infallible from here on). ----
         let (curve, edge, he_plus, he_minus) = self.mekr_mint(site, u, w, target, certified);
         for &moved in &ring_members {
-            let Some(he) = self.get_half_edge_mut(moved) else {
+            let Some(he) = self.get_half_edge_mut(moved.key()) else {
                 unreachable!(
                     "mekr empty-target: the ring's members were resolved by the plan phase's bounded walk"
                 )
@@ -1205,9 +1202,11 @@ impl<T: Decide> Body<T> {
         // Splice: he_plus → ring … prev(ring) → he_minus → he_plus (the
         // target contributes no half-edges; its Empty boundary grows to
         // this cycle — inverse of kemr's old-side-empty case).
-        self.link_half_edges(he_plus, ring);
+        self.link_half_edges(he_plus, ring_live);
         self.link_half_edges(ring_last, he_minus);
         self.link_half_edges(he_minus, he_plus);
+        // The splice is done; past it the halves are ordinary keys.
+        let (he_plus, he_minus) = (he_plus.key(), he_minus.key());
         self.mekr_finish(target, ring_loop, face_key, (u, w), (he_plus, he_minus));
 
         Ok(MekrResult {
@@ -1265,6 +1264,8 @@ impl<T: Decide> Body<T> {
         // loop — inverse of kemr's both-empty case).
         self.link_half_edges(he_plus, he_minus);
         self.link_half_edges(he_minus, he_plus);
+        // The splice is done; past it the halves are ordinary keys.
+        let (he_plus, he_minus) = (he_plus.key(), he_minus.key());
         self.mekr_finish(target, ring, face_key, (u, w), (he_plus, he_minus));
 
         Ok(MekrResult {
@@ -1326,7 +1327,7 @@ impl<T: Decide> Body<T> {
         w: VertexKey,
         target_loop: LoopKey,
         certified: geom_brep::EdgeCurve<T>,
-    ) -> (CurveKey, EdgeKey, HalfEdgeKey, HalfEdgeKey) {
+    ) -> (CurveKey, EdgeKey, Live, Live) {
         let provenance = Provenance::Mekr { site };
         let curve = self.add_curve(certified);
         let edge = self.mint_edge(curve, &provenance);
