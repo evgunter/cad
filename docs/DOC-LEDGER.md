@@ -64,9 +64,9 @@ depends on for its content.
 
 ## Sweep 1 — 2026-08-20
 
-**Recovery SHA: `87e565b11f3d50b3761b6d6361191be872e42bde`** (the commit
-immediately before the deletion; also tagged `docs-ledger/2026-08-20`).
-109 files.
+**Recovery SHA: `87e565b11f3d50b3761b6d6361191be872e42bde`** — the commit
+immediately before the deletion, and `main`'s tip at the time, so it is
+permanently reachable and needs no tag to survive. 109 files.
 
 
 ### Closed-milestone plans and logs (4 files)
