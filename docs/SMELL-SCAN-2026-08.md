@@ -4348,6 +4348,151 @@ through an uncertified path). Whether that re-expression is acceptable is
 the actual question D1 has to answer — it is a question about what the
 bit-identity contract is allowed to say, not about trait ergonomics.
 
+### D1 DECIDED (2026-08-19): a `Dual` may not certify, but it may have `Bounds`
+
+**Evan, 2026-08-19:** *a `Dual` may not certify — at least for now — but it may
+have `Bounds`. And M10 is absolutely still the plan.*
+
+That answers the bundling this finding named by **separating it**, which is a
+sentence that could not have been written before #643. Until then `Bounds` was
+one accessor carrying both meanings, so granting a dual the bracket would have
+granted it the certification right in the same stroke — which is exactly why
+the founding ruling's paraphrase was arguable in both directions and why S3
+could not move. The two meanings are now two traits, and the split was
+**forced rather than chosen**: three `geom-curves` containment rows assert that
+a `Trv`, unbounded enclosure still contains its pointwise value, true under
+"carries a bracket" and inadmissible under "may enter certified code". The
+ruling lands on a seam that evidence cut.
+
+**Meaning (1) — "carries a bracket" — is granted.** `geom_core::Bounds` is
+implemented for `Dual<T>` over a bracket-carrying base scalar: `lo` and `hi`
+are the **value channel's** bracket, tangent discarded. Neither half of that is
+a convenience. The value half is D9's dual contract — the value channel of a
+`Dual<T>` build *is* the plain-`T` build, bit-identically, computed with `T`'s
+own operations in the written association — so whatever brackets the plain
+run brackets the dual run's value with nothing to re-establish per operation;
+the impl therefore *delegates* to the base scalar rather than restating a
+bracket (`lo = hi = value` at `Dual<f64>`, the value enclosure's endpoints at
+`Dual<Interval>`). The tangent half is `ERROR-DESIGN` **E9**, *tangent poison
+never refuses*: hulling the tangent into `[lo, hi]` would let a NaN or
+unbounded tangent — which E4 expects at a kink and `copysign`'s straddle rule
+mints deliberately — poison a bracket the value channel is entitled to.
+`Decide for Dual` settled the same question the same way in PR #9/#10
+(value-part delegation), so this is that rule applied to the other accessor.
+
+**Meaning (2) — "may enter certified code" — is refused.**
+`geom_core::CertifiedEnclosure` still has no `Dual` impl, and it is now the
+whole guard rather than a deferral. *At least for now* is Evan's own hedge and
+is load-bearing: the door is shut, not nailed shut, and reopening it is a
+decision with a name rather than an impl someone adds in passing.
+
+**M10 / E4 remains the plan** — stated because the cheapest reading of "a dual
+may not certify" would have been "so stop paying for duals", and that is not
+the ruling. S2's cost analysis stands as a cost, not as a case for removal.
+
+### What was implemented under this ruling
+
+- `impl Bounds for Dual` in `geom-core/src/dual.rs`, delegating to the base
+  scalar, with the justification above written into the impl.
+- The rows that pin what it **returns**, not that it exists: the bracket is
+  the value channel bit-for-bit under seven hostile tangents (NaN, ±∞, ±0,
+  ±1e308), it is a point at `Dual<f64>`, it is the value *enclosure* at
+  `Dual<Interval>` and an unbounded tangent does not widen it, value poison
+  surfaces as NaN from both accessors, and after a real `Real`-generic
+  computation the dual run's bracket is the `f64` run's bit-identically. A
+  tangent-reading definition fails the first, third and last of those.
+- The refusal as a **compiler fact**: a `compile_fail` doctest on `Dual64`
+  against `CertifiedEnclosure`, beside a passing one against `Bounds`. It goes
+  red the day someone writes the certification impl, rather than the day
+  something certifies wrongly.
+- The stale halves of the discipline record, which asserted the *absence* as a
+  fact: `real.rs`'s `Bounds` scope rule (the M5 PR 12 and M9-2 PR-1 entries),
+  `CertifiedEnclosure`'s implementor list, `bounds-allowlist.sh`'s header, and
+  the four lane traits' own "a dual has no bracket to offer" reason clauses —
+  each retargeted onto the ruling (*may not certify*) rather than deleted.
+
+### What newly admits `Dual`, and the one thing that owes something
+
+The certification doors do **not**. Everything that builds a C9 ring or mints
+a certificate is bounded by `CertifiedEnclosure` since #643 — the props
+quadrature lane, the SSI rung-3 certificate and its limbs, the fitted-pcurve
+lane, the edge-NURBS lane — and all of them stay uninstantiable at a dual.
+That is the load-bearing verification, and it is what makes this ruling safe
+to implement now when it would not have been before #643.
+
+What newly admits a dual is the **bracket half**: `Aabb` constructors and the
+curve/surface box builders, the boolean sweep's box lane, the placement
+certificate's `Aabb` images, the chart-region predicate, the arc-fillet
+carrier seam, and the fillet battery — all of them `T: Bounds` or
+`T: Decide + Bounds`, all of them reading endpoints to *prune*, to *refuse*,
+or to put an `f64` margin in a typed error payload. At `Dual<f64>` every one
+of those numbers is the `f64` run's number and every decision still goes
+through `Decide`, which delegates to the value part; so the dual run takes the
+`f64` run's path, which is what D9's bit-identity contract wants of it.
+
+**One seam owes something, and it is worth recording precisely.**
+`sweep::fillet::{battery, build, surgery}` is the single allowlisted
+`Decide + Bounds` seam with **no lane trait behind it**, and the reason on the
+record (M5 PR 12, `real.rs`) is that a lane split *"would have had an EMPTY
+refusing side"* because `Bounds` had no `Dual` impl. That guard has now
+lapsed. Nothing reaches it at a dual today — its one production caller sits
+under `evaluate<T>`, which a dual still cannot instantiate — so this is a
+**standing obligation, not a live hole**: the day E4 seeds a dual through
+`evaluate`, that seam needs either the lane or a written reason it needs none.
+Recorded in `real.rs` and in the gate header as well as here.
+
+### E4's door: the `Bounds` lock is open, and there is a second lock
+
+S2's steelman named `Bounds` as E4's unregistered structural prerequisite —
+`evaluate<T>` requires it, `Dual` did not have it, so `evaluate::<Dual64>` did
+not compile and nothing recorded that. That lock is open. **It was not the
+only one.** `evaluate`'s bound is
+`Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane`,
+and `editor_core::eval::ContentBits` — the trait that feeds a scalar's exact
+representation into a content key — has impls for `f64`, `Probe` and
+`Interval` and **none for `Dual`**. So `evaluate::<Dual64>` still does not
+compile, for a reason no document had registered either, in a different crate
+from the one S2 was looking at.
+
+`crates/editor-core/tests/e4_dual_door.rs` pins exactly that: a `Dual64`
+satisfies every one of `evaluate`'s bounds *except* `ContentBits`, asserted
+for the all-but-one set so that `ContentBits` is the **named** residue rather
+than a vague remainder. It is deliberately not fixed here. `ContentBits for
+Dual` is a decision, not a formality: a dual's content key has to say whether
+the **seed** is part of the key, and if it is not, the memo can serve one
+parameter's pass from another parameter's — a soundness question about the
+memo, which belongs to whoever builds E4.
+
+### What this does NOT settle
+
+**S3 / W2a — the fate of the four lane traits — is untouched and remains its
+own unit.** D1 was its gate and the gate is now open, but the steelman's
+compiled collapse (one trait plus a rank-2 job callback in `geom-core`, 16
+impls → 2) was derived against the **one-trait** world and its central premise
+— that `Bounds` is what distinguishes the lanes' certified side from their
+refusing side — is no longer true. The lanes now refuse on a *ruling* that
+`CertifiedEnclosure` already expresses as a bound, which is a materially
+different collapse target: the question W2a now has to ask is whether four
+traits, one trait, or **no** trait is the right shape given that a plain
+`T: CertifiedEnclosure` bound can say what all four were saying. That
+re-derivation has not been done and is not attempted here.
+
+Two observations W2a will want, from this lane rather than from a fresh scan:
+
+- **The four D9 bit-identity assertions are unaffected.** The pricing entry's
+  five sites (`topo/tests/geometric_cube.rs`, `topo/tests/review_m2_pr3.rs`,
+  `sweep/tests/extrude_acceptance.rs`, `sweep/tests/m5_pr11_quad_props.rs`,
+  and `topo/tests/fixture/mod.rs`'s `certify_at_dual`) go through the lane
+  traits' **refusing impls**, which are unchanged, so a `Dual` body still
+  validates and still receives the typed refusal from the quadrature arm. This
+  ruling adds a capability and removes none; the four-scalar test axes behave
+  as they did.
+- **The lanes' static guarantee no longer rests on a missing impl.** It rests
+  entirely on the refusing impls themselves, which is a strictly weaker
+  posture than before and is the thing W2a must not lose in a collapse:
+  today, deleting a lane trait would make the certified machinery
+  *instantiable* at a dual rather than merely uncallable.
+
 ## S45–S48 — reserved
 
 IDs `S45`–`S48` are intentionally unallocated, so that items promoted
@@ -5131,21 +5276,22 @@ Two ordering rules govern the whole thing:
 Cheap in wall-clock, enormous in what they unblock. All six are judgement
 calls that no agent should make.
 
-**Status, 2026-08-19: four of the six are made.** D2 is ratified into
+**Status, 2026-08-19: five of the six are made.** D2 is ratified into
 `DESIGN.md`, D3 is retire, D4 is delete-with-execution-deferred, D5 is the
-newtype (landed in #665). **D1 and D6 are open**, and D1 is the one that gates
-the most: W2a entirely, and W2b jointly with W1c. The D1 pricing entry under S44 found that
-the split costs nothing in `src`, so what is actually being decided is
-narrower than the trait question makes it sound — `evaluate<T>`'s bound
-requires `Bounds`, `Bounds` has no `Dual` impl, and therefore `ERROR-DESIGN`
-E4's stated mechanism (*"evaluate the recipe at `Dual<f64>`"*, scheduled at
-M10) **does not compile today**. Nothing registers that as a blocker. D1 is in
-substance the question *is E4/M10 still the plan, and if so how does a dual
-reach `evaluate`* — the trait shape follows from the answer either way.
+newtype (landed in #665), and **D1 is decided**: *a `Dual` may not certify —
+at least for now — but it may have `Bounds`*, with M10/E4 still the plan (see
+S44's **D1 DECIDED** entry). **Only D6 is open.** D1's answer does not
+discharge what it gated: **W2a** still has to be re-derived, because the
+steelman's compiled collapse predates #643's two-trait split and its premise —
+that `Bounds` is what separates the lanes' certified side from their refusing
+side — no longer holds. The ruling also turned up a **second** E4 blocker that
+no document had registered, in a different crate from the one S2 examined:
+`evaluate<T>` also requires `editor_core::eval::ContentBits`, which has no
+`Dual` impl, so `evaluate::<Dual64>` still does not compile.
 
 | # | Decision | Gates | Why first |
 |---|---|---|---|
-| **D1** | **S44 — what is `Bounds`?** Is it "carries a bracket" (a semantic property, definable for `Dual` as lo=hi=value) or "may enter certified code" (an access-control marker)? | **S3** entirely; colours **S1**, **S2** | The lane traits exist only to mediate the second meaning. The answer picks the target: one lane trait in `geom-core` (the steelman compiled one, 16 impls → 2), or none at all and `Bounds` split in two. **PRICED 2026-08-18 (see S44's pricing entry): the split costs *nothing* in `src` — no production code instantiates any lane at `Dual`. It costs one deleted test and four D9 bit-identity assertions re-expressed.** **PARTLY ANSWERED BY CODE 2026-08-19 (#643, W1c/S41) — recorded as fact, not as a ruling.** The `Interval` half took the split: `Bounds` now means only "carries a bracket", and a second trait `CertifiedEnclosure` carries "may enter certified code". That was **forced by evidence rather than chosen** — three `geom-curves` containment rows assert that a `Trv`, unbounded enclosure still contains its pointwise value, so the two meanings demonstrably cannot share one accessor. This is D1's second listed target ("`Bounds` split in two"), for `Interval`. **The `Dual` half is untouched and still open**: `CertifiedEnclosure` is deliberately unimplemented for `Dual`, and the workspace compiles under `--all-targets --features interval` without it, independently re-confirming the pricing entry's finding that nothing in `src` puts a dual through certified code. Whether a dual may certify, and what becomes of the four lane traits, is still Evan's to settle. |
+| **D1** ✅ **DECIDED 2026-08-19 — BOTH, SEPARATELY: `Bounds` yes, certification no** | **S44 — what is `Bounds`?** Is it "carries a bracket" (a semantic property, definable for `Dual` as lo=hi=value) or "may enter certified code" (an access-control marker)? | **S3** entirely; colours **S1**, **S2** | The lane traits exist only to mediate the second meaning. **PRICED 2026-08-18 (see S44's pricing entry): the split costs *nothing* in `src`.** **ANSWERED IN PART BY CODE 2026-08-19 (#643, W1c/S41):** the `Interval` half took the split — `Bounds` now means only "carries a bracket", `CertifiedEnclosure` carries "may enter certified code" — and it was **forced by evidence rather than chosen** (three `geom-curves` containment rows assert a `Trv`, unbounded enclosure still contains its pointwise value, so the two meanings cannot share one accessor). **DECIDED (Evan, 2026-08-19): *a `Dual` may not certify — at least for now — but it may have `Bounds`. And M10 is absolutely still the plan.*** It is `Bounds` that is a semantic property and `CertifiedEnclosure` that is the access-control marker, and a dual sits on opposite sides of the two: it carries a bracket (the value channel, which D9 contracts to be bit-identical to the plain-`T` run; the tangent is excluded by E9 rather than by taste) and it may not certify. Implemented — see S44's **D1 DECIDED** entry for the impl, the rows that pin what it returns, the full account of what newly admits `Dual` (bracket-side sites only; every `CertifiedEnclosure` door stays shut), the one seam left owing a lane (`sweep::fillet`, the only allowlisted `Decide + Bounds` seam with no lane behind it), and **E4's second, unregistered lock**: `evaluate::<Dual64>` still does not compile, now because `editor_core::eval::ContentBits` has no `Dual` impl. **S3/W2a is NOT settled by this** and remains its own unit — the steelman's compiled collapse predates #643 and must be re-derived against the two-trait world. |
 | **D2** ✅ **RATIFIED 2026-08-19 (#628)** | **S43 — the bug-vs-invalid-state taxonomy.** D9 currently sanctions only "typed error where cheaply detectable, or documented garbage-out"; the kernel uses five idioms, two of them mutual negations. | **S19** (which it *generates* — ~239 of ~260 sites); resolves **S12**/**S14** residue | Restating D9 decides three findings at one stroke. Touching any error enum first means redoing it. **RATIFIED as the D2 addendum to D9 (`DESIGN.md:1118`); `unreachable` is out of the banned clippy family in both manifests.** The conversion it licenses is NOT done — the ~60 silent `if let Some` discards, idiom 2's `MissingEntity` router defects, and `AssemblyUnsupported`'s rename to `Unsupported*` all still stand, so **W2c is unblocked and unstarted**. |
 | **D3** ✅ **DECIDED 2026-08-19 — RETIRE** | **S7 — run the one-line experiment.** Swap the arms at `fillet/build.rs:205`, `cargo test -p sweep --test all`. | **S6**, and all fillet work in **S36**/**S38** | **EXPERIMENT RUN 2026-08-18 — see S7's experiment entry.** The surgery succeeds on the cube and yields the same solid (identical census and coordinate set; volume one ulp apart). The two doors *are* redundant, so the decision was purely retire-or-keep against a measured price. **DECIDED (Evan, 2026-08-19): retire the whole-body door.** Price accepted as measured: ~890 whole-body-exclusive lines deleted, one naming test rewritten (`the_whole_body_door_records_every_entity_it_mints`'s `supports` row — a by-design difference, so it is rewritten rather than deleted), two goldens regenerated, one FreeCAD acceptance re-run. **Sequencing:** #640 (H9) is editing `fillet/build.rs:692`, which sits inside the door being retired — the retirement must not race it, and it makes H9's `build.rs` half moot. W2d follows the retirement rather than running beside it. |
 | **D4** ✅ **DECIDED 2026-08-19 — DELETE, EXECUTION DEFERRED** | **S11's four undecided rows** — `Mat2`/`Affine2`, `PairSolve`, `hull.rs`'s non-rational unused half, the two inlined fillet helpers. | Cleanup in those files | Each is delete-or-keep. Cheap to answer, and answering stops anyone documenting them. **CHECKED 2026-08-18 (see S11's D4 entry): `hull.rs` should be struck — the deletion is really "retire the `sup_norm_bound*` API", whose rational limb is on the #390/#453 lane. `PairSolve`'s consuming unit (R2-b, #591) has merged without constructing it.** **DECIDED (Evan, 2026-08-19): delete, and the EXECUTION moves to the back of the queue** — see S11's D4 DECIDED entry. The decision is recorded now even though the work is deferred, because the reason D4 sat in Wave 0 was *"answering stops anyone documenting them"*, and a recorded verdict does that job on its own. |
