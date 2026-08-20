@@ -100,17 +100,63 @@ GATE_SCAN_NOUN="probe-gated test suite"
 # crate list: that is derived. This is the floor beneath it.
 CENSUS_FLOOR=(editor-core:2 geom-brep:4 profile:4 sweep:1 topo:5)
 
-# The step whose existence the four sentences below cite. #706's
+# The step whose existence the sentences below cite. #706's
 # `release-corruption` job carries the same defence for the same reason:
 # renaming the step would otherwise leave every one of them quietly
-# false, and a claim citing a mechanism nobody checks is how the four
+# false, and a claim citing a mechanism nobody checks is how the
 # sentences this gate now guards came to be wrong in the first place.
+#
+# THIS HALF IS SITED IN THE `mirror` JOB (`--citations`), NOT IN
+# `discipline`. Its inputs are prose — two crate headers, the K-REPORT
+# runbook, and the local half — and a change set that touches only those
+# classifies TIER=docs, so `discipline` is skipped and this half could
+# not fire on the only change class that breaks it. `mirror` has no
+# `if:`, so it runs on every tier, and it does not prune
+# `local-scripts/`, so the local half's citation is readable there too.
 CITED_STEP='compile and list every probe-gated test target'
+
+# LIVE CLAIMS. Each of these says, in the present tense, what CI does to
+# probe-gated suites; each is false the moment the step is renamed.
 CITING_FILES=(
   crates/topo/tests/probe_s5_sectors.rs
   crates/sweep/tests/k_report.rs
   docs/K-REPORT.md
-  docs/SMELL-SCAN-2026-08.md
+  local-scripts/ci-local.sh
+)
+
+# NOT LIVE CLAIMS, and the reason this list exists at all. A dated scan
+# or a milestone log RECORDS what CI did on the day it was written; the
+# step name in it is history and stays correct when the step is renamed.
+# `docs/SMELL-SCAN-2026-08.md` used to sit in CITING_FILES, which made a
+# 12,000-line living document a hard CI dependency on a literal string —
+# every lane on every concurrent track edits it daily, and archiving or
+# reorganising it would have reddened the build for a reason its diff
+# could not explain. Removing it is not narrowing the guard: the rename
+# it exists to catch is caught by the `ci.yml` check below, which is the
+# load-bearing half, and by the four live claims above.
+#
+# `docs/` IS EXEMPT AS A TREE, and that is the deliberate half of the
+# trade. The first version exempted named patterns — dated scans, track
+# logs, milestone plans — which left `docs/prompts/`, `docs/REVIEW-*.md`
+# and every future document quoting the step name as a hard CI failure
+# on EVERY tier, in a directory four concurrent tracks write to daily.
+# That replaced one literal-string dependency with a wider one. What
+# survives is the claim worth having: a citation in CODE or in CI —
+# `crates/`, `scripts/`, `local-scripts/`, `.github/` — is a live claim
+# about a mechanism and must be registered. `docs/K-REPORT.md` stays a
+# registered live claim below because it is the runbook a reader is sent
+# to; the rest of `docs/` is record, and a record naming a step by the
+# name it had is not false when the step is renamed.
+#
+# WHAT THIS GIVES UP, plainly: a NEW document that cites the step and
+# later goes stale is not caught. The load-bearing check against the
+# rename — that ci.yml still carries a step of this name — is unaffected.
+#
+# Shell globs, matched against the repo-relative path; `*` matches `/`.
+CITATION_EXEMPT=(
+  '.github/workflows/ci.yml'                # the step itself
+  'scripts/gates/probe-suite-census.sh'     # this gate
+  'docs/*'                                  # records, plans, prompts, logs
 )
 
 # The clippy row that makes a misspelt cfg gate a hard error.
@@ -126,6 +172,7 @@ CLIPPY_ROW_RE='cargo clippy .*cargo_scope.*--all-targets.*-D warnings'
 CFG_LINT_SILENCED_RE='(allow|expect)\(unexpected_cfgs\)|unexpected_cfgs[[:space:]]*=[[:space:]]*"allow"'
 
 CENSUS_CRATES=false
+CENSUS_CITATIONS=false
 CENSUS_SUITES=false
 CENSUS_LISTING=
 gate_args=()
@@ -134,6 +181,7 @@ for a in "$@"; do
   if [ "$want_crate" = true ]; then CENSUS_LISTING=$a; want_crate=false; continue; fi
   case "$a" in
     --crates) CENSUS_CRATES=true ;;
+    --citations) CENSUS_CITATIONS=true ;;
     --suites) CENSUS_SUITES=true ;;
     --check-listing) want_crate=true ;;
     *) gate_args+=("$a") ;;
@@ -159,9 +207,61 @@ census_tally() {
     while read -r n c; do printf '%s %s\n' "$c" "$n"; done
 }
 
+# THE CITATION HALF, sited in the `mirror` job. Sentences in the tree
+# describe what CI does to these suites; nothing else greps for the step
+# that makes them true, so renaming it would leave all of them quietly
+# false — the exact shape that let their predecessors rot.
+census_citations() {
+  local rc=0 entry hit pat exempt
+  if [ ! -f .github/workflows/ci.yml ]; then
+    gate_error "$(gate_name): .github/workflows/ci.yml does not exist under $PWD — the cited step cannot be checked"
+    exit 1
+  fi
+  grep -qF "$CITED_STEP" .github/workflows/ci.yml ||
+    { gate_error "$(gate_name): .github/workflows/ci.yml has no step named \`$CITED_STEP\`, which ${#CITING_FILES[@]} files cite as their mechanism"; rc=1; }
+
+  for entry in "${CITING_FILES[@]}"; do
+    [ -f "$entry" ] || { gate_error "$(gate_name): $entry is gone; it cited CI's \`$CITED_STEP\` step. Move the citation with the file or drop it from CITING_FILES deliberately"; rc=1; continue; }
+    grep -qF "$CITED_STEP" "$entry" ||
+      { gate_error "$(gate_name): $entry no longer names CI's \`$CITED_STEP\` step, but describes what CI does to probe-gated suites. Re-cite the step or rewrite the claim"; rc=1; }
+  done
+
+  # COMPLETENESS, so the list above cannot silently go stale. A hand
+  # list of claim sites is a roster, and an unchecked roster drifts:
+  # every file in the tree that names the step is either a live claim
+  # (in CITING_FILES) or declared history (CITATION_EXEMPT). A new
+  # citation lands visible instead of unguarded.
+  while IFS= read -r hit; do
+    hit=${hit#./}
+    for entry in "${CITING_FILES[@]}"; do
+      [ "$hit" = "$entry" ] && continue 2
+    done
+    exempt=false
+    for pat in "${CITATION_EXEMPT[@]}"; do
+      # shellcheck disable=SC2053
+      [[ $hit == $pat ]] && { exempt=true; break; }
+    done
+    [ "$exempt" = true ] && continue
+    gate_error "$(gate_name): $hit names CI's \`$CITED_STEP\` step but is neither a live claim this gate keeps true (CITING_FILES) nor declared history (CITATION_EXEMPT). A citation nobody checks is how the sentences this gate guards became false in the first place — add it to one list or the other, with the reason"
+    rc=1
+  done < <(grep -rlF "$CITED_STEP" . \
+             --exclude-dir=.git --exclude-dir=target --exclude-dir=node_modules \
+             2>/dev/null | sort)
+
+  [ "$rc" -eq 0 ] || exit 1
+  GATE_SCAN_FILES=${#CITING_FILES[@]}
+  GATE_SCAN_NOUN='citing file'
+  gate_ok "every live claim about the probe type-check loop names the \`$CITED_STEP\` step that ci.yml still carries, and no undeclared citation of it exists in the tree"
+}
+
 gate() {
   local files tally rc=0 entry want n have silenced hosted
   local suite crate rest listed missing suites
+
+  if [ "$CENSUS_CITATIONS" = true ]; then
+    census_citations
+    return 0
+  fi
 
   # A CENSUS THAT SCANNED NOTHING IS NOT A PASS. `crates/*/tests` is a
   # glob; with no match `find` is handed the literal, prints nothing, and
@@ -246,18 +346,7 @@ gate() {
     return 0
   fi
 
-  # THE CITATION HALF. Four sentences in the tree describe what CI does
-  # to these suites. Nothing else greps for the step that makes them
-  # true, so renaming it would leave all four quietly false — the exact
-  # shape that let their predecessors rot.
-  for entry in "${CITING_FILES[@]}"; do
-    [ -f "$entry" ] || { gate_error "$(gate_name): $entry is gone; it cited CI's \`$CITED_STEP\` step. Move the citation with the file or drop it from CITING_FILES deliberately"; rc=1; continue; }
-    grep -qF "$CITED_STEP" "$entry" ||
-      { gate_error "$(gate_name): $entry no longer names CI's \`$CITED_STEP\` step, but describes what CI does to probe-gated suites. Re-cite the step or rewrite the claim"; rc=1; }
-  done
   if [ -f .github/workflows/ci.yml ]; then
-    grep -qF "$CITED_STEP" .github/workflows/ci.yml ||
-      { gate_error "$(gate_name): .github/workflows/ci.yml has no step named \`$CITED_STEP\`, which ${#CITING_FILES[@]} files cite as their mechanism"; rc=1; }
     # THE MISSPELT-GATE HALF. This predicate cannot tell a typo from a
     # feature it has not heard of; the compiler can, and says so through
     # `unexpected_cfgs`. That only fails a run where the workspace clippy
@@ -272,7 +361,7 @@ gate() {
     grep -qE "$CLIPPY_ROW_RE" <<<"$hosted" ||
       { gate_error "$(gate_name): .github/workflows/ci.yml has no workspace \`cargo clippy … --all-targets -- -D warnings\` row. That row is what turns a misspelt cfg gate (\`feature = \"prboe\"\`) into a failure, through rustc's \`unexpected_cfgs\`; without it such a suite compiles to nothing under every row and this census never sees it. Restore the row or re-argue the coverage here"; rc=1; }
   else
-    gate_error "$(gate_name): .github/workflows/ci.yml does not exist under $PWD — the cited step cannot be checked"
+    gate_error "$(gate_name): .github/workflows/ci.yml does not exist under $PWD — the clippy row that reports a misspelt cfg gate cannot be checked"
     rc=1
   fi
   silenced=$(grep -rlE "$CFG_LINT_SILENCED_RE" crates 2>/dev/null || true)
@@ -283,7 +372,7 @@ gate() {
   [ "$rc" -eq 0 ] || exit 1
 
   GATE_SCAN_FILES=$(printf '%s\n' "$files" | wc -l | tr -d ' ')
-  gate_ok "$(printf '%s\n' "$tally" | wc -l | tr -d ' ') crates own probe-gated suites, all at or above their floor, ${#CITING_FILES[@]} citing files name the step that covers them, and the clippy row that reports a misspelt gate is wired"
+  gate_ok "$(printf '%s\n' "$tally" | wc -l | tr -d ' ') crates own probe-gated suites, all at or above their floor, and the clippy row that reports a misspelt gate is wired (the citation half runs in the \`mirror\` job, where it can fire on prose)"
   printf '%s\n' "$tally" | while read -r c n; do printf '  %-14s %s suite(s)\n' "$c" "$n"; done
 }
 
@@ -325,6 +414,21 @@ plant_prose_only() {
     > "$1/crates/sweep/tests/probe_0.rs"
 }
 plant_citation_dropped() { printf 'no longer cites it\n' > "$1/${CITING_FILES[1]}"; }
+plant_citing_file_gone() { rm -f "$1/${CITING_FILES[2]}"; }
+# A NEW citation of the step, in a file on neither list. Before the
+# completeness check the hand list could go stale silently; this is the
+# case that keeps it a roster rather than a sample.
+plant_undeclared_citation() {
+  mkdir -p "$1/scripts"
+  printf 'CI runs %s on every merge.\n' "$CITED_STEP" > "$1/scripts/new-check.sh"
+}
+# The same citation in a file the gate declares as history: exempt, and
+# the NEGATIVE CONTROL for the case above.
+plant_exempt_citation() {
+  mkdir -p "$1/docs/prompts"
+  printf 'On 2026-08-20 CI ran %s.\n' "$CITED_STEP" > "$1/docs/SMELL-SCAN-2026-08.md"
+  printf 'A brief quoting %s.\n' "$CITED_STEP" > "$1/docs/prompts/zz-new-brief.md"
+}
 plant_step_renamed() { printf 'jobs: {}\n' > "$1/.github/workflows/ci.yml"; }
 # The clippy row loses the flag that promotes `unexpected_cfgs`.
 plant_clippy_undenied() { sed -i 's/ -- -D warnings//' "$1/.github/workflows/ci.yml"; }
@@ -425,11 +529,39 @@ gate_selftest() {
   gate_selftest_case 'no longer matches it' plant_gate_renamed
   gate_selftest_case 'topo carries 4 probe-gated test suite(s), below the 5' plant_one_file_misgated
   gate_selftest_case 'sweep carries 0 probe-gated test suite(s), below the 1' plant_prose_only
-  gate_selftest_case 'no longer names CI' plant_citation_dropped
-  gate_selftest_case 'has no step named' plant_step_renamed
   gate_selftest_case 'no workspace `cargo clippy' plant_clippy_undenied
   gate_selftest_case 'silences `unexpected_cfgs`' plant_cfg_lint_allowed
-  printf '%s selftest OK: passes a clean fixture, one with a ci.yml long enough to race, a compound gate, and a complete listing; fires on a listing missing a counted suite, on an empty one, and on an absent tests/ tree, a renamed gate spelling, one file re-gated onto a misspelt feature, a gate line replaced by a prose mention, a dropped citation, a renamed CI step, a clippy row that stopped denying warnings, and the cfg lint silenced at the site\n' "$(gate_name)"
+
+  # THE CITATION HALF's cases. `gate` reads CENSUS_CITATIONS as a
+  # global and lib.sh's harness runs it in a subshell, so setting it
+  # here selects the half under test without a second harness.
+  CENSUS_CITATIONS=true
+  gate_selftest_clean
+  gate_selftest_case 'no longer names CI' plant_citation_dropped
+  gate_selftest_case 'is gone; it cited' plant_citing_file_gone
+  gate_selftest_case 'has no step named' plant_step_renamed
+  gate_selftest_case 'neither a live claim' plant_undeclared_citation
+  gate_plant_clean_exempt_control
+  CENSUS_CITATIONS=false
+
+  printf '%s selftest OK: passes a clean fixture, one with a ci.yml long enough to race, a compound gate, and a complete listing; fires on a listing missing a counted suite, on an empty one, and on an absent tests/ tree, a renamed gate spelling, one file re-gated onto a misspelt feature, a gate line replaced by a prose mention, a clippy row that stopped denying warnings, and the cfg lint silenced at the site — and in --citations mode, on a dropped citation, a deleted citing file, a renamed CI step, and an undeclared new citation, while PASSING the same citation in a declared-history file\n' "$(gate_name)"
+}
+
+# The negative control for the completeness check: the same planted
+# citation, in a path CITATION_EXEMPT declares as history, must PASS.
+# Without it the check above is satisfied by a matcher that fires on
+# every file naming the step.
+gate_plant_clean_exempt_control() {
+  local tmp out
+  tmp=$(mktemp -d)
+  gate_plant_clean "$tmp"
+  plant_exempt_citation "$tmp"
+  if ! out=$(cd "$tmp" && gate 2>&1); then
+    rm -rf "$tmp"
+    printf 'SELFTEST FAILED: the citation completeness check fired on a CITATION_EXEMPT path\n%s\n' "$out" >&2
+    exit 1
+  fi
+  rm -rf "$tmp"
 }
 
 gate_main
