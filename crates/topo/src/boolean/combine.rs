@@ -359,9 +359,13 @@ pub(crate) fn graft_solids_with<T: geom_core::Decide>(
             let remapped = curve
                 .with_remapped_surfaces(|sk| surfaces.get(sk).copied())
                 .ok_or_else(corrupt)?;
-            if let Some(slot) = dst.curves.get_mut(dk) {
-                *slot = CurveGeom::Certified(remapped);
-            }
+            let Some(slot) = dst.curves.get_mut(dk) else {
+                unreachable!(
+                    "graft (handle remap): `dk` was minted into `dst.curves` by this \
+                     call's curve pass"
+                )
+            };
+            *slot = CurveGeom::Certified(remapped);
             continue;
         }
         let description = match *curve.description() {
@@ -426,9 +430,13 @@ pub(crate) fn graft_solids_with<T: geom_core::Decide>(
             band,
         )
         .map_err(BooleanError::GraftRecertify)?;
-        if let Some(slot) = dst.curves.get_mut(dk) {
-            *slot = CurveGeom::Certified(recert);
-        }
+        let Some(slot) = dst.curves.get_mut(dk) else {
+            unreachable!(
+                "graft (recertify): `dk` was minted into `dst.curves` by this call's \
+                 curve pass"
+            )
+        };
+        *slot = CurveGeom::Certified(recert);
     }
 
     // ---- Attach the shells to the destination solids (source order,

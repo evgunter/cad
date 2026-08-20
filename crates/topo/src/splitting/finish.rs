@@ -195,11 +195,11 @@ impl core::fmt::Display for SplitFinishError {
             ),
             Self::Corrupt => write!(f, "split finish: traversal failed (corrupt body)"),
             Self::Euler(e) => write!(f, "split finish: euler operation refused: {e}"),
-            Self::Band(e) => write!(f, "split finish: no classification band: {e:?}"),
+            Self::Band(e) => write!(f, "split finish: no classification band: {e}"),
             Self::DescribeEscalated { edge, diag } => write!(
                 f,
                 "split finish: section-boundary dihedral escalated at edge {edge:?} \
-                 while minting its description: {diag:?}"
+                 while minting its description: {diag}"
             ),
         }
     }
@@ -616,9 +616,10 @@ pub(crate) fn carve<T: Decide>(
     }
 
     // ---- Removal (crate-internal arena surgery; deterministic). ----
-    if let Some(solid_data) = body.solids.get_mut(solid) {
-        solid_data.shells.retain(|s| keep.contains(s));
-    }
+    let Some(solid_data) = body.solids.get_mut(solid) else {
+        unreachable!("carve: `solid` resolved above and nothing has been removed yet")
+    };
+    solid_data.shells.retain(|s| keep.contains(s));
     for &shell in &drop {
         body.shells.remove(shell);
         body.shell_provenance.remove(shell);

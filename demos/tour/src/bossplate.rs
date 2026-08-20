@@ -180,7 +180,7 @@ pub fn stops() -> Vec<Stop> {
             if contact_free {
                 SceneBody::plain("bossplate", [0.85, 0.55, 0.25], bb.body)
             } else {
-                SceneBody::seamed_curved("bossplate", [0.85, 0.55, 0.25], bb.body, bb.contacts)
+                SceneBody::seamed("bossplate", [0.85, 0.55, 0.25], bb.body, bb.contacts)
             }
         }],
     }]

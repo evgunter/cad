@@ -18,10 +18,6 @@
 //!   varies, is logged unconditionally, and the count rides
 //!   `CAD_FUZZ_EFFORT` through [`test_utils::fuzz`]. Cutting the count
 //!   loses detection power, never correctness.
-//! - `d2_the_battery_never_hands_the_surgery_an_empty_chain` is a
-//!   **witness-free property** over the same corpus: it pins the
-//!   reason `FilletError::EmptyChain` has no input witness, which is
-//!   what the PR's row-1 classification of those two sites asserts.
 //! - `d2_reached_variants` asserts nothing about coverage and is
 //!   therefore **evidence, not a gate** — it prints which refusal
 //!   classes the corpus actually reaches, which is the number a
@@ -46,7 +42,7 @@ use core::f64::consts::PI;
 
 use geom_core::{Affine3, Band, Point2, Tolerance, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
-use sweep::fillet::{FilletError, FilletRequest, fillet_edges, run_battery};
+use sweep::fillet::{FilletError, fillet_edges};
 use sweep::test_support::cube;
 use sweep::{Revolution, RevolveAxis, revolve};
 use test_utils::fuzz::{self, Rng};
@@ -313,7 +309,6 @@ fn class(e: &FilletError) -> &'static str {
         FilletError::UnsupportedChain { .. } => "UnsupportedChain(row 2)",
         FilletError::UnsupportedRunOut { .. } => "UnsupportedRunOut(row 2)",
         FilletError::UnsupportedGeometry { .. } => "UnsupportedGeometry(row 2)",
-        FilletError::EmptyChain => "EmptyChain(row 1)",
         FilletError::BodyNotIntact { .. } => "BodyNotIntact(row 1)",
         FilletError::RingClearance { .. } => "RingClearance",
         FilletError::Certify { .. } => "Certify",
@@ -369,53 +364,10 @@ fn d2_no_input_reaches_a_panic() {
     println!("d2_no_input_reaches_a_panic: {calls} requests, every one a value");
 }
 
-/// **The row-1 premise for `EmptyChain`.** Both of its two sites read
-/// `chain.links` off a verdict the SAME public call produced one frame
-/// up. If `run_battery` can never hand out a chain with no links, the
-/// variant has no input witness — which is what the PR's split turns
-/// on, and what a future reader of the partition needs pinned.
-#[test]
-fn d2_the_battery_never_hands_the_surgery_an_empty_chain() {
-    let mut rng = fuzz::start("d2_the_battery_never_hands_the_surgery_an_empty_chain");
-    let mut verdicts = 0usize;
-    for (name, body) in corpus() {
-        for edges in requests(&body, &mut rng, effort()) {
-            if edges.is_empty() {
-                continue;
-            }
-            for r in RADII {
-                let req = FilletRequest {
-                    body: &body,
-                    edges: edges.clone(),
-                    radius: r,
-                };
-                let Ok(v) = run_battery(&req, band()) else {
-                    continue;
-                };
-                verdicts += 1;
-                for (i, chain) in v.chains.iter().enumerate() {
-                    assert!(
-                        !chain.links.is_empty(),
-                        "{name}: the battery emitted chain {i} with no links \
-                         (radius {r}, {}) — `FilletError::EmptyChain` would then \
-                         have an input witness",
-                        fuzz::replay()
-                    );
-                }
-            }
-        }
-    }
-    println!(
-        "d2_the_battery_never_hands_the_surgery_an_empty_chain: {verdicts} verdicts, \
-         no empty chain"
-    );
-}
-
 /// EVIDENCE, not a gate (it asserts nothing about coverage): which
 /// refusal classes the corpus reaches. A reader checking the
 /// partition wants to know that the row-2 names and the row-1 names
-/// are not equally reachable — and, in particular, whether
-/// `EmptyChain` ever appears.
+/// are not equally reachable.
 #[test]
 fn d2_reached_variants() {
     let mut rng = fuzz::start("d2_reached_variants");

@@ -84,7 +84,7 @@ pub fn all_links(body: &Body<f64>) -> Vec<Link<f64>> {
     let mut links: Vec<Link<f64>> = verdict
         .chains
         .iter()
-        .flat_map(|c| c.links.iter().cloned())
+        .flat_map(|c| c.links().cloned())
         .collect();
     links.sort_by_key(|l| l.edge);
     links

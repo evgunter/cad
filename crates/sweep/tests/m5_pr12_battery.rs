@@ -147,13 +147,13 @@ fn the_battery_passes_on_a_box_at_a_fitting_radius() {
     let verdict = run_battery(&req, band()).expect("the box at r = 0.2 is a valid fillet request");
     assert_eq!(verdict.chains.len(), 12, "twelve one-link chains");
     for chain in &verdict.chains {
-        assert_eq!(chain.links.len(), 1);
+        assert_eq!(chain.link_count(), 1);
         assert!(matches!(chain.closure, ChainClosure::Open { .. }));
         assert!(
             chain.junctions.is_empty(),
             "a box vertex is never a junction"
         );
-        let link = &chain.links[0];
+        let link = chain.first();
         assert_eq!(link.arm, BlendArm::PlanePlaneCylinder);
         assert_eq!(link.convexity, Convexity::Convex);
         assert!(
@@ -184,7 +184,7 @@ fn the_battery_passes_on_a_pip_rim_as_a_closed_chain() {
     assert_eq!(verdict.chains.len(), 1, "one rim, one chain");
     let chain = &verdict.chains[0];
     assert_eq!(chain.closure, ChainClosure::Closed);
-    for link in &chain.links {
+    for link in chain.links() {
         assert_eq!(link.arm, BlendArm::PlaneSphereTorus);
         assert_eq!(link.convexity, Convexity::Convex);
         assert!(
@@ -380,7 +380,7 @@ fn p5_convexity_sign_flip_refuses_across_the_notch() {
             radius: 0.1,
         };
         match run_battery(&req, band()) {
-            Ok(v) => match v.chains[0].links[0].convexity {
+            Ok(v) => match v.chains[0].first().convexity {
                 Convexity::Convex => convex += 1,
                 Convexity::Concave => concave += 1,
             },
