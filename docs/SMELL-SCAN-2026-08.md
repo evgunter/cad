@@ -5917,22 +5917,23 @@ of the two happened?**
   `pncad::geom_core::k_stats` (`src/probe.rs:29`, `src/booleans.rs:68`)
   — **through a re-export**, the same shape as the consumer this PR's
   sweep missed; the other four contain no `k_stats` token at all. None
-  named the retired shim, which is what mattered. **The sweep pattern still missed one consumer, and that is
-  the transferable part**: `profile::k_stats` matched nothing outside
-  `crates/profile`, but `crates/pncad/src/profile.rs:53` re-exported the
-  module as `pub use ::profile::{k_stats, lift, path};` — a **brace-list
-  re-export names a symbol without ever writing its path**, so no
-  path-shaped pattern can see it. `cargo check --workspace` caught it
-  (E0432), the sweep did not. The re-export is removed and
-  `pncad::profile::k_stats` had no consumers, verified afterwards by
-  scanning every `k_stats` token in the tree rather than a path. This section's
-  **four** other STILL-OPEN bullets are untouched, which is why the
-  heading does not become FIXED: `WitnessSlot`,
-  `same_level`/`unreachable_zero`, `Rim`'s twice-stored traversal
-  direction, and the D9 `HashSet` determinism paragraph. (**Counted as
-  two in the first draft of this record** — the same defect this bullet
-  corrects three paragraphs above, committed one bullet away from the
-  correction. Conclusion survives, population did not.)
+  named the retired shim, which is what mattered. **The sweep pattern
+  still missed one consumer, and that is the transferable part**:
+  `profile::k_stats` matched nothing outside `crates/profile`, but
+  `crates/pncad/src/profile.rs:53` re-exported the module as `pub use
+  ::profile::{k_stats, lift, path};` — a **brace-list re-export names a
+  symbol without ever writing its path**, so no path-shaped pattern can
+  see it. `cargo check --workspace` caught it (E0432), the sweep did
+  not. The re-export is removed and `pncad::profile::k_stats` had no
+  consumers, verified afterwards by scanning every `k_stats` token in
+  the tree rather than a path. This section's **four** other STILL-OPEN
+  bullets are untouched, which is why the heading does not become FIXED:
+  `WitnessSlot`, `same_level`/`unreachable_zero`, `Rim`'s twice-stored
+  traversal direction, and the D9 `HashSet` determinism paragraph.
+  (**Counted as two in the first draft of this record** — the same
+  defect this bullet corrects three paragraphs above, committed one
+  bullet away from the correction. Conclusion survives, population did
+  not.)
 - **FIXED by #627.** The refusal message's line continuations are
   restored; the runtime text is one clean sentence again (the acceptance
   probe matches on `NON-PARALLEL`, which is unchanged).
@@ -11277,7 +11278,8 @@ where #747 found it, not where it is now): `decide_flagged`'s fourth
 parameter, `ledger_row: &'static str`, was `let _ = ledger_row;` at
 `k_stats.rs:185` — the only place in the tree where the K funnel and the
 dimensional-audit ledger touch, and the touch was inert, while
-`M9-2-SPEC.md:69` and `SELECT-DESIGN.md` treat ledger rows as an obligation. **D33**: `predicate-dimension-audit.md` is
+`M9-2-SPEC.md:69` and `SELECT-DESIGN.md` treat ledger rows as an obligation.
+**D33**: `predicate-dimension-audit.md` is
 a second name-carrying document with the same completeness question and an
 undisclosed two-crate bound — five of the seven orphans above are outside it by
 construction. Its scope line is the *better* criterion of the two and is what
