@@ -1,5 +1,5 @@
-//! **Hull-bound honesty** (M5 PR 2, `docs/M5-PR2-SPEC.md` families 3 and
-//! 5): the control-coefficient enclosures of `geom_core::spline::hull`
+//! **Hull-bound honesty** (M5 PR 2, acceptance families 3 and 5): the
+//! control-coefficient enclosures of `geom_core::spline::hull`
 //! versus densely sampled truth, plus the D9 bit-identity check.
 //!
 //! The bound under test is a *claim about every point of a span*, so a

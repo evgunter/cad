@@ -5,7 +5,7 @@
 //! [`SketchPlane`], stored as plain data with **zero
 //! representation-consistency conditions** (the D2 peer-representation
 //! lesson applied at the input boundary, ratified in the PR #24
-//! conversation — see `docs/M2-PLAN.md` PR 2). Sweeps accept only a
+//! conversation, PR #24). Sweeps accept only a
 //! [`ValidatedProfile`], the canonicalized output of
 //! [`Profile::validate`]; arcs lower to `geom` circle carriers at
 //! sweep time — this crate stays 2-D and depends on `geom-core` only.

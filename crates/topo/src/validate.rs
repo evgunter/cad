@@ -1968,8 +1968,7 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
         // `classify_dihedral` cannot run there, and no derived contact
         // class exists to enforce. That is not a gap being papered
         // over — a definitional wall junction's contact class is the
-        // profile's DECLARED corner structure (Q8/C11,
-        // `docs/M5-LOG.md` PR 9c item 6(iii)), carried by the
+        // profile's DECLARED corner structure (Q8/C11), carried by the
         // conventional `IsoCurve`/`MappedCurve` descriptions the
         // loft/sweep builder mints; the mark stays `Unmarked` (no
         // derived verdict, exactly the escalation posture).
