@@ -129,7 +129,12 @@
 //! poles and the cone apex are chart singularities handled from the
 //! loop structure — they enter the CDT as duplicated UV corner points
 //! whose triangles collapse-and-drop into a fan around the single pole
-//! mesh vertex; `Surface::normal` is never sampled anywhere (winding
+//! mesh vertex. The collapse yields ONE fan, rather than two
+//! overlapping ones, only while the interior grid separates the two
+//! corner points; `curved::pole_columns` is what guarantees that
+//! (issue #678 — at `nu == 2` a single equidistant column gives both
+//! corners a fan over it and the identified edge is used four times).
+//! `Surface::normal` is never sampled anywhere (winding
 //! needs no normals), so the ∂u → 0 poison is unreachable. Pole-to-pole
 //! bands (no rim in the loop) disambiguate their azimuth half via the
 //! loop's 3-D area vector, taken into the chart frame through the
