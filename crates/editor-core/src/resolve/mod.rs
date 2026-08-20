@@ -905,8 +905,11 @@ pub fn rebind_suggestions<T: Decide>(eval: &Evaluation<T>, name: &StableName) ->
 /// Checked sites: the name-carrying payload of an `InsertNode`
 /// ([`crate::node::Node::payload_names`] — Declare pairs, a fillet's
 /// selection, a mate's two heads) and `Rebind`'s target. Every other
-/// edit validates exactly as [`crate::edit::apply`]. `Rebind`'s SOURCE
-/// is deliberately unchecked: it is the stranded name being repaired.
+/// edit validates exactly as [`crate::edit::apply`] — including the
+/// four appearance edits, which DO carry a name: theirs resolves at
+/// evaluation, into a typed [`crate::appearance::AppearanceLoss`].
+/// `Rebind`'s SOURCE is deliberately unchecked too: it is the
+/// stranded name being repaired.
 ///
 /// # Errors
 ///
@@ -920,10 +923,37 @@ pub fn apply_with_names<T: Decide>(
 ) -> Result<crate::edit::Applied<ProfileProgram>, crate::edit::EditError> {
     use crate::edit::{DocEdit, EditError};
     let mut names: Vec<&StableName> = Vec::new();
+    // EXHAUSTIVE on purpose (the `walk_names` rule): the three groups
+    // below are the doc's checked/unchecked split, and a future
+    // `DocEdit` variant must join one of them or the compile breaks.
+    // A wildcard here would enrol a new name-carrying edit in the
+    // unchecked group silently, which is the one outcome the split is
+    // there to prevent.
     match edit {
         DocEdit::InsertNode { node } => names.extend(node.payload_names()),
         DocEdit::Rebind { to, .. } => names.push(to),
-        _ => {}
+        // Name-carrying and deliberately unchecked here: an appearance
+        // name resolves at evaluation, where a miss is a typed
+        // `AppearanceLoss` rather than a silent drop, and clearing is
+        // the repair path for a name that no longer resolves at all.
+        // (`Rebind`'s `from` is the same carve-out, in the arm above:
+        // it is the stranded name being repaired.)
+        DocEdit::SetAppearance { .. }
+        | DocEdit::ClearAppearance { .. }
+        | DocEdit::SetAppearanceMeta { .. }
+        | DocEdit::ClearAppearanceMeta { .. } => {}
+        // Carry no `StableName` at all.
+        DocEdit::DeleteNode { .. }
+        | DocEdit::SetParam { .. }
+        | DocEdit::SetStructuralParam { .. }
+        | DocEdit::SetExpression { .. }
+        | DocEdit::SetDocParam { .. }
+        | DocEdit::ReWitness { .. }
+        | DocEdit::ReWitnessBulk { .. }
+        | DocEdit::SetTolerance { .. }
+        | DocEdit::SetRoots { .. }
+        | DocEdit::SetPlacement { .. }
+        | DocEdit::UpdateReference { .. } => {}
     }
     for name in names {
         // Checkable = the minting node evaluated Ok. (Node existence

@@ -161,7 +161,11 @@ fn param_site(name: &ParamName, p: &DocParam) -> Option<NonFiniteSite> {
         DocParam::Continuous { value, .. } if !value.is_finite() => {
             Some(NonFiniteSite::DocParam { name: name.clone() })
         }
-        _ => None,
+        // EXHAUSTIVE on purpose: a guarded arm does not count towards
+        // exhaustiveness, so the finite `Continuous` case is spelled
+        // out alongside the float-free ones rather than swept up by a
+        // wildcard that would also swallow a future float carrier.
+        DocParam::Continuous { .. } | DocParam::Count { .. } => None,
     }
 }
 
@@ -200,7 +204,30 @@ fn edit_non_finite(edit: &DocEdit<ProfileProgram>) -> Option<NonFiniteSite> {
                 })
         }
         DocEdit::SetTolerance { eps } if !eps.is_finite() => Some(NonFiniteSite::Epsilon),
-        _ => None,
+        // EXHAUSTIVE on purpose: a new `DocEdit` variant carrying a raw
+        // float must be classified here or the compile breaks — a
+        // wildcard would let it past the load door unchecked. The
+        // guarded arms above are repeated without their guards because
+        // a guarded arm does not count towards exhaustiveness.
+        //
+        // `InsertNode`'s other node kinds hold their floats in `Expr`
+        // literals, finite by the construction door; the `Node`
+        // vocabulary itself is not closed here (S4's node-kinds row).
+        DocEdit::InsertNode { .. }
+        | DocEdit::SetTolerance { .. }
+        | DocEdit::DeleteNode { .. }
+        | DocEdit::SetParam { .. }
+        | DocEdit::SetStructuralParam { .. }
+        | DocEdit::SetExpression { .. }
+        | DocEdit::Rebind { .. }
+        | DocEdit::ReWitness { .. }
+        | DocEdit::ReWitnessBulk { .. }
+        | DocEdit::SetAppearance { .. }
+        | DocEdit::ClearAppearance { .. }
+        | DocEdit::ClearAppearanceMeta { .. }
+        | DocEdit::SetRoots { .. }
+        | DocEdit::SetPlacement { .. }
+        | DocEdit::UpdateReference { .. } => None,
     }
 }
 
