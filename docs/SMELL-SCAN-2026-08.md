@@ -1915,8 +1915,9 @@ records it ACCEPTED AND SETTLED. The execution that left — **W2c**, placed by
 #706 as Track D's **D16** — landed as **#720**: 56 of the 58 discards are now
 `unreachable!` carrying their own per-site proof, `kfmrh` gained two `StaleKey`
 preconditions rather than an unproven conversion, and `link_half_edges` kept
-its two, because `split.rs:253` reaches it with an unproven key (§D's D16
-retirement note has the argument, and the one-line fix it owes).
+its two, because `split.rs:253` reaches it with an unproven key — §D's D16
+retirement note carries the argument, and the one-line fix is placed as **D18**,
+which finishes W2c.
 
 *What #720 means for this file's garbage-out row, which is the part S12
 predicted wrongly.* `foreign_parent_loop_garbage_in_garbage_out_release` was
@@ -4733,7 +4734,7 @@ answer.
 | 1 | Typed error, plan phase | `EulerOpError::{FanOrbitBroken, LoopCycleBroken, OrbitBroken, UnclaimedHalfEdge, …}` | "tier-1-invalid input" |
 | 2 | Typed error, pure dispatch defect | `TessellateError::MissingEntity { what: "… (router defect)" }` | "reaching one is a dispatch defect, **surfaced typed**" |
 | 3 | `debug_assert`, compiled out | `assert_euler_postcondition` (arena deltas + full tier-1 validate) | D9's ratified exemption |
-| 4 | Silent `if let Some` discard | **58 sites** across the three Euler modules (**retired by #720** — 56 `unreachable!`, 2 typed, 2 left with cause) | D9's "documented garbage-out in release" |
+| 4 | Silent `if let Some` discard | **58 sites** across the three Euler modules (**retired by #720** — 56 `unreachable!`, 2 typed, 2 left with cause and placed as **D18**) | D9's "documented garbage-out in release" |
 | 5 | Bare indexing that panics, **chosen deliberately** | `nurbs.rs:162`, `hull.rs` `coeffs[j]`, `mesh/chords.rs:465` | "the fail-loud direction" (PR #447) |
 
 Idioms 4 and 5 are **opposite answers to one question**, each argued in
@@ -4775,8 +4776,9 @@ the **58** discards there (the "~60" was an occurrence count; two of them were
 ordinary `Option` matches), **56 are now `unreachable!` with a per-site proof
 in the message**, two became `StaleKey` preconditions in `kfmrh`, and two
 remain in `link_half_edges` because `split.rs:253` reaches it with a key
-nothing proves — the argument, and the one-line fix `split.rs` owes, are in
-§D's D16 retirement note. **No site was row 5.** Rows 4/5 split on
+nothing proves — the argument is in §D's D16 retirement note and the one-line
+fix `split.rs` owes is placed as **D18**, so idiom 4's last two sites have a
+row rather than a recommendation. **No site was row 5.** Rows 4/5 split on
 re-derivation, and a failed key lookup is observed rather than re-derived, so
 `debug_assert` never applied to any of them; `assert_euler_postcondition`
 remains the only row-5 member in these modules and is untouched.
@@ -6278,13 +6280,17 @@ set, and D1 declined to widen into it.
 | **D13** | **S15's pcurve-staleness row, which is still open.** `pcurves.rs:124`: *"an op that mutates an already-minted body must either clear the map or re-mint before returning, and **should say which in its own docs**"* — a convention, with *"The lists above are a survey, not an enforced invariant"* four lines above it, and nothing that notices when a new op joins the wrong bucket. **What D5 verified before placing this**: #635 corrected the one entry the steelman caught (`merge_coplanar_faces` had started re-minting and the index had not moved), so the survey is *accurate today* — the row is that nothing keeps it accurate. The shape D5 used for its sibling row is available and cheap: a source-walking test over the three buckets, the way `review_m1_pr5_internal::every_public_mutation_path_preserves_tier1` now covers the mutation surface. | S15 (row 1) | `topo/src/pcurves.rs` and the test's home | style | **discharged — #707** (D4) landed the `pcurves.rs` edits this must not conflict with |
 | **D14** | **`seqgen`'s candidate enumeration is eager.** `choose_op` builds every candidate `Vec` on every call — including rows whose weight is zero because the body has stopped growing — and then discards all but one. D5's `split_edge` row is what makes that cost visible rather than what causes it: `split_edge_candidates` runs a full `EdgeCurve::recertify` plus an O(V) separation scan **per edge, per step** (~14 re-certifications and ~200 metered decisions at `GROW_CAP`), which is where its measured +46% went. `memories/test-suite-cost.md` is categorical that an ungated fuzzer is a defect in the fuzzer. The fix is not to drop the gates — they are what keep the lane honest — but to skip zero-weight rows and to enumerate lazily. | S15 (`seqgen` half) | `topo/src/seqgen.rs` | style, but **measure before and after**: the row exists because a number was measured, and it closes on a number, not on a shape | nothing |
 | **D15** | **The K-report harness does not run, so the provenance behind `docs/K-REPORT.md` is currently unreproducible.** `sweep/tests/k_report.rs` is the instrument that dumps `docs/k-report-data/`'s CSVs, and the standing convention is that reviewers **byte-reproduce** them. Under `--features probe` it does not reach a sweep call: it panics at `k_report.rs:40`'s `.unwrap()` with `UndeclaredTangency { loop 0, segments 7 and 0, joint 0 }` inside `profile::validate`, on the **second** corpus shape (the rounded square, `k_report.rs:101-118`) — reproduced 2026-08-20 on the D1 branch, and pre-existing: nothing in `crates/sweep` is on the failing path. Until it is fixed, **every K claim in this report is verifiable only statically** (reading the predicate-name literals), not by running the instrument — which is how D1's byte-identity check had to be made. **Diagnosis first**: establish whether the corpus shape drifted out of `profile`'s tangency-declaration rule or the rule tightened under it, and say which, before changing either. A rounded square with `.fillet(r)`-shaped corners that no longer validates is a fact about the profile door, not necessarily about the harness. | raised by D1 (#710) | `sweep/tests/k_report.rs`, and whatever the diagnosis names | **ADVERSARIAL** — the two available fixes (declare the joint in the corpus, or change what `profile` requires) are not equivalent, and picking the convenient one silently re-baselines the dataset the K census is built on. | nothing |
+| **D18** | **`split_edge` hands `link_half_edges` a key nothing proves, and it is the last thing standing between W2c and done.** `split.rs:253` reads `prev(hm)` straight out of the arena and splices through it; the *symmetric* `next(hp)` **is** proven live by `split_edge`'s preconditions, under a comment saying the splice writes through both links so the mutation cannot fail midway. One of the two is checked and the other is not, and the asymmetry is invisible at the call site. The fix is **one clause in the plan phase, symmetric with the existing one** — a `contains_key` on `prev(hm)` returning `StaleKey`. **Why the row is worth doing rather than a tidy-up**: `link_half_edges` is the site S12 led with and the site the D2 addendum names, and #720 left its two discards unconverted for exactly this reason — so **D18 unblocks the last two sites of W2c**, after which the helper converts in one line. The distinction a future reader will not re-derive: the helper's own qualifier is *"cannot fail on **the operator paths**"*, and `split_edge` is documented as a **non-operator** structural mutator (`DESIGN.md`'s D9 footnote lists it among them) — the qualifier was exact, and the class it excludes is the class that breaks it. | raised by D16 (#720) | `topo/src/split.rs`, then `topo/src/euler.rs`'s `link_half_edges` | **ADVERSARIAL** — it adds a precondition to a non-operator mutator on the delicate-site path and then converts a discard behind it; getting either half wrong re-opens the hole #720 proved is real, and this time as a panic. | nothing (#720 is doc-and-`euler*` only and does not touch `split.rs`) |
 
-**No row number is reserved, and D16 was the last one placed.** D15 (D1's
+**No row number is reserved; D18 is the highest one placed.** D15 (D1's
 `k_report.rs` harness) was placed by #710 and D16 (D6's W2c discards) by #706;
-D16 is now retired (#720). Row numbers are assigned centrally because several
-lanes mint rows in parallel and three collided once already: a lane that needs
-a row takes the next number the orchestrator has not assigned, never the next
-gap it can see.
+D16 is now retired (#720) and placed **D18**, its own residue, on the way out —
+the same obligation D15's lane discharges as **D17**. Row numbers are assigned
+centrally because several lanes mint rows in parallel and three collided once
+already: a lane that needs a row takes the next number the orchestrator has not
+assigned, never the next gap it can see. **A verdict is not a placement** (§D's
+fourth ordering rule) is why both residues are rows here rather than sentences
+in two PR bodies.
 
 **D16 is retired — done as #720** (`topo/src/euler{,_ring,_kill}.rs`, S43/S12).
 The re-derived census is **58 discard sites**, not the ~60 the row carried: the
@@ -6301,8 +6307,8 @@ ADVERSARIAL gate did not come off cleanly, and the residue is the useful part:
   qualifier (*"on the operator paths"*) was exact, and the path that breaks it
   is the one the qualifier excludes. Converting it would have turned a
   documented garbage-out into a panic on the only unproven path. The one-line
-  proof belongs at that call site; **`split.rs` owes it**, and the row for it
-  is the natural next one.
+  proof belongs at that call site; **`split.rs` owes it, and that is D18** —
+  which is what makes D18 the row that finishes W2c rather than a tidy-up.
 - **Two sites were made provable rather than converted on faith.** `kfmrh`'s
   cross-shell fusion wrote through `s2_data.faces` and `s2_data.solid`
   unchecked; both are **row 1**, so its plan phase now proves them and returns
@@ -6396,7 +6402,7 @@ Where each went:
 | **U2** — S8, S9, S10 | **D4 — DONE, #707.** All three sorted to *keep*; the prose the sort contradicts is truthed at each finding |
 | **U3** — S17's ray-parity twins | **D9** — done as **#712**, which spawned three rows: **D10** (the S15 ray-schedule row, a different pair), **D11** (`bool_join_nearest`, the drift class D9 closed only at S17's anchor) and **D12** (its sweep residue) |
 | **U4** — S18's duplicated derivations | **D3** (the negative-zero flush) — **landed as #704**, row retired — and **D8** (the knot-vector queries); the `step-export/volume.rs` row goes to **C3**, because closing it needs a per-shell door in `props/` |
-| **U5** — S12's Euler atomicity | **CLOSED.** Executable residue fixed by **#706** (the release-profile run the suite instructed and `ci.yml` never did); the rest was never an open question — the **D2 addendum** settled it on 2026-08-19 and its execution, **W2c**, landed as **#720** (row **D16**, retired). One follow-up is owed by `split.rs`, named in §D |
+| **U5** — S12's Euler atomicity | **CLOSED.** Executable residue fixed by **#706** (the release-profile run the suite instructed and `ci.yml` never did); the rest was never an open question — the **D2 addendum** settled it on 2026-08-19 and its execution, **W2c**, landed as **#720** (row **D16**, retired). The one follow-up it owes, a `split.rs` precondition, is placed as **D18** |
 | **U6** — S15's prose-held invariants | **D5**, landed as **#713**; the three rows it could not close carry placements — **#708** (tie propagation), **D13** (the pcurve convention), **D14** (the fuzz lane's eager enumeration) |
 | **U7** — S14's proposed reframe | ***Open decisions — Evan only***. It was the one row here that was a decision rather than work, and the one with no channel at all. |
 | **U8** — S44's open residue | **C7**, with the rest of the lane-trait question |
@@ -6436,7 +6442,7 @@ all deletions        ──────────────► L2 (S38 comme
 had, are Track D's D1/D2.
 
 **Track D's own edges are all inside `sweep/`, plus one on another track's open
-PR.** D8, D10, D11, D12, D13, D14 and D15 are edge-free and unstarted (D1
+PR.** D8, D10, D11, D12, D13, D14, D15 and D18 are edge-free and unstarted (D1
 landed as #710, D3 as #704, D4 as #707 — which also discharges D13's gate —
 D5 as #713, D6 as #706, D9 as #712, D16 as #720). D8 edits
 `sweep/src/skin.rs`, so it
