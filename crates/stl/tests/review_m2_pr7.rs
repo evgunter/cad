@@ -149,7 +149,10 @@ fn soup_volume(facets: &[Facet]) -> f64 {
 /// The first two each rebuilt and retessellated the whole acceptance
 /// set — the donut's quadratic CDT included — for parsing work measured
 /// in milliseconds, and nextest's process-per-test isolation means
-/// nothing was shared between them. The third had already been narrowed
+/// nothing was shared between them. That ratio is a dated test-cost-audit
+/// reading; nothing re-takes it and no assertion reads it, because what
+/// it bought — the single tessellation below — is the artifact that
+/// survives it. The third had already been narrowed
 /// to build `ball` and `washer` directly for exactly that reason; both
 /// are acceptance rows (2 and 4, δ = 1e-2), so with the set in hand it
 /// takes them out of it instead.
