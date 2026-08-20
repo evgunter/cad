@@ -361,7 +361,7 @@ full ~40-sweep tier-1 pass over the *whole body*.
 Building a body with K operator calls therefore costs **Θ(K·N) instead
 of Θ(K)**. Booleans and splitting drive Euler ops in inner loops
 (`boolean/zip.rs:147,171,173`, `boolean/insert.rs:431`,
-`boolean/rest.rs:592,1191,…`, `splitting/join.rs:1926,…`), so the boolean
+`boolean/rest.rs:592,1191,…`, `chord_join.rs:1797,…`), so the boolean
 inner loop is quadratic in debug.
 
 **Why this matters for the numbers everyone reads:** the rebuild-latency
@@ -552,7 +552,7 @@ against a degenerate cocircular hull, not point location.
 #### 8. `point_in_loop` re-decides loop-intrinsic facts on every query **[verified]**
 
 `crates/topo/src/splitting/containment.rs:162-197`, called from
-`boolean/contain.rs:130,141` and `splitting/join.rs:2079`.
+`boolean/contain.rs:130,141` and `chord_join.rs:1951`.
 
 Hard call-count evidence, recomputed from
 `docs/k-report-data/m7-eps-1e-9.csv.gz` (15 corpus documents,

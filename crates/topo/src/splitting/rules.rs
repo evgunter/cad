@@ -194,7 +194,8 @@ pub(super) fn apply_rule_a<T: Decide>(
         // Exactly one of the two vectors carries an orientation (S10),
         // and the types say which. `n_face` is the FACE's
         // outward normal, an `OutwardNormal` minted from chart × sense
-        // in `sector_face` — this is a material-side verdict and
+        // in this lane's `neighborhood::sector_face` — this is a
+        // material-side verdict and
         // inverts on a reversed face read off the chart, so the
         // primitive refuses anything else in that slot. `plane.normal`
         // is the SPLIT PLANE's: an operation input that DEFINES the

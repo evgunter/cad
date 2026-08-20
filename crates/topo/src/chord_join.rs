@@ -1270,7 +1270,12 @@ fn bool_planar_chord_spec<T: Decide>(
     };
     let (p_o, p_n) = match body.get_surface(plane_key) {
         Some(&geom_surfaces::Surface::Plane { origin, normal, .. }) => (origin, normal),
-        _ => {
+        // The two failures are different things and are typed apart: a
+        // key that does not resolve is corruption, a key that resolves
+        // to the wrong kind is this lane's invariant. A single `_` arm
+        // would have called the first one an invariant.
+        None => return Err(corrupt_face(face)),
+        Some(_) => {
             return Err(SplitJoinError::SectionInvariant {
                 face,
                 what: "the section context's auxiliary plane key does not name a plane surface",
@@ -2020,7 +2025,9 @@ fn face_plane_normal<T: Decide>(
     let f = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
     match body.get_surface(f.surface) {
         Some(geom_surfaces::Surface::Plane { normal, .. }) => Ok(*normal),
-        _ => Err(SplitJoinError::SectionInvariant {
+        // Corruption and an unwired arm are different refusals.
+        None => Err(corrupt_face(face)),
+        Some(_) => Err(SplitJoinError::SectionInvariant {
             face,
             what: "ring re-homing reads the divided face's plane; this face's carrier is not \
                    a plane (arm not wired)",
@@ -2067,8 +2074,8 @@ mod tests {
     use geom_core::{Point3, Vec3};
 
     /// A body with one cylinder face (unit radius about z) and two
-    /// vertices on the y = 0.25 section rim… actually on the tilted
-    /// section ellipse of `sec_plane()`, at conic parameters θ = 0 and
+    /// vertices on the tilted section ellipse this fixture's own plane
+    /// cuts (tilt φ = 0.5 about y), at conic parameters θ = 0 and
     /// θ = π/2 — the chord endpoints `chord_spec` connects.
     fn cyl_fixture() -> (
         crate::Body<f64>,

@@ -319,7 +319,15 @@ impl<T: Decide> Sweep<T> {
             .ok_or_else(|| corrupt_loop(below_loop))?
             .boundary
         else {
-            return Err(corrupt_loop(below_loop));
+            // The key RESOLVED; the shape is wrong. A completed section
+            // polygon's below loop is a cycle by construction, so an
+            // `Empty` one is this lane's own invariant, not a dangling
+            // reference — and `Corrupt` is corruption only.
+            return Err(SplitJoinError::SectionInvariant {
+                face,
+                what: "a completed section polygon's below loop holds a lone vertex \
+                       instead of a cycle",
+            });
         };
         for he in body.loop_cycle(first).ok_or_else(|| corrupt_he(first))? {
             let he_data = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?;
@@ -379,9 +387,15 @@ pub(crate) fn loop_starts<T: Decide>(
     body: &Body<T>,
     l: LoopKey,
 ) -> Result<Vec<VertexKey>, SplitJoinError> {
-    let LoopBoundary::Cycle { first } = body.get_loop(l).ok_or_else(|| corrupt_loop(l))?.boundary
-    else {
-        return Err(corrupt_loop(l));
+    let loop_data = body.get_loop(l).ok_or_else(|| corrupt_loop(l))?;
+    let LoopBoundary::Cycle { first } = loop_data.boundary else {
+        // Resolved, but shaped wrong: an `Empty` loop has no starts to
+        // walk. That is a caller invariant, not a corrupt arena.
+        return Err(SplitJoinError::SectionInvariant {
+            face: loop_data.face,
+            what: "a loop asked for its start vertices holds a lone vertex instead of \
+                   a cycle",
+        });
     };
     let mut out = Vec::new();
     for he in body.loop_cycle(first).ok_or_else(|| corrupt_he(first))? {

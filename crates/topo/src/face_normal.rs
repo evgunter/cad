@@ -33,7 +33,7 @@
 //! **A better home exists and is not reachable from this lane.** The
 //! function is a `Body` query, exactly like `Body::mate` or
 //! `Body::loop_cycle`, and belongs as an inherent method on
-//! [`Body`](crate::body::Body). That is `body.rs`, outside the scope
+//! [`Body`]. That is `body.rs`, outside the scope
 //! this module was created under; it is recorded on issue #695 with
 //! the rest of the placement questions.
 

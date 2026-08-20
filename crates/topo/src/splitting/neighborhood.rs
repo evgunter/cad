@@ -59,7 +59,7 @@ use slotmap::SecondaryMap;
 use super::rules;
 use super::{PlaneSide, SectorEntry, SectorEntryKind, SplitPlane, SplitReduceError};
 use crate::body::Body;
-use crate::entity::{FaceKey, HalfEdgeKey, VertexKey};
+use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::sector_face::{SectorCarrier, SectorFaceError};
 use crate::sector_shape::{SectorShape, sector_shape};
 use crate::validate::decide;
@@ -76,10 +76,21 @@ use crate::validate::decide;
 ///
 /// **`Sphere` refuses here rather than there.** The shared walk has a
 /// wired sphere arm — the boolean lane executes it (M5 PR 9) — and
-/// this lane does not; the F5 operand gate ([`super::classify`]) has
-/// already refused any sphere-carried face before an orbit is ever
-/// walked, so this arm is unreachable post-gate and is typed for the
-/// same reason the gate's other kinds are (C12.1, per arm).
+/// this lane does not, so the refusal is typed here (C12.1, per arm)
+/// rather than left to the gate.
+///
+/// It is worth being exact about WHY the arm is unreachable, because
+/// the obvious answer is wrong: it is not that the F5 operand gate
+/// ([`super::classify`]) runs first. [`super::classify_neighborhood`]
+/// is public, deliberately, so tests and the joining step can inspect
+/// classification on their own, and on that path no gate runs at all.
+/// What makes a sphere-carried sector unreachable through the public
+/// door is that the operand cannot have one: `split_reduce` gates, and
+/// the only other way in hands the caller a body it built through the
+/// Euler ops, where the surface a face carries comes from
+/// `set_face_surface`. A sphere-carried face therefore reaches this
+/// arm only from INSIDE the crate — which is exactly where its test
+/// row lives.
 ///
 /// The normal arrives as an [`OutwardNormal`] with the face's `sense`
 /// folded in (S10), minted at the shared chokepoint. Everything
@@ -96,10 +107,15 @@ pub(super) fn sector_face<T: Decide>(
 ) -> Result<(FaceKey, OutwardNormal<T>, bool), SplitReduceError> {
     let resolved = crate::sector_face::resolve(body, vertex, he).map_err(|e| match e {
         // The shared walk names the entity that did not resolve; this
-        // lane's public corruption arm carries only the base vertex,
-        // so the payload is collapsed HERE, at the boundary, not lost
-        // upstream. Widening `CorruptOperand` is a public-API change
-        // in a type re-exported into four crates (issue #695).
+        // lane's public corruption arm carries a VERTEX, so the payload
+        // is narrowed here rather than lost upstream: a vertex names
+        // itself, anything else falls back to the base vertex the
+        // caller asked about. Widening `CorruptOperand` to an
+        // `EntityId` is a public-API change in a type re-exported into
+        // four crates — issue #695.
+        SectorFaceError::Corrupt(EntityId::Vertex(v)) => {
+            SplitReduceError::CorruptOperand { vertex: v }
+        }
         SectorFaceError::Corrupt(_) => SplitReduceError::CorruptOperand { vertex },
         SectorFaceError::Unsupported { face, kind } => {
             SplitReduceError::CurvedBooleanUnsupported { face, kind }
@@ -306,4 +322,46 @@ pub fn classify_neighborhood<T: Decide>(
     rules::apply_rule_a(body, plane, vertex, &mut entries, band)?;
     rules::apply_rule_b(vertex, &mut entries)?;
     Ok(entries)
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+    use crate::fixtures::prism;
+
+    /// The split lane has no sphere arm and says so BY NAME, on the
+    /// shared walk's report rather than by re-matching the surface —
+    /// the arm the S5 unification created, which had no row until the
+    /// fix pass.
+    #[test]
+    fn a_sphere_carried_sector_refuses_by_name() {
+        let p = prism(3);
+        let face = p.face_side[0];
+        let mut body = p.body;
+        body.set_face_surface(
+            face,
+            crate::FaceSurface::New(geom_surfaces::Surface::Sphere {
+                center: geom_core::Point3::new(0.0, 0.0, 0.0),
+                radius: 2.0,
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            }),
+        )
+        .unwrap();
+        let outer = body.get_face(face).unwrap().outer;
+        let crate::entity::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary
+        else {
+            panic!("the side face's outer loop is a cycle");
+        };
+        let orbit_he = body.mate(first).unwrap();
+        let vertex = body.get_half_edge(orbit_he).unwrap().start;
+        match sector_face(&body, vertex, orbit_he) {
+            Err(SplitReduceError::CurvedBooleanUnsupported { face: f, kind }) => {
+                assert_eq!(f, face);
+                assert_eq!(kind, geom_brep::SurfaceKind::Sphere);
+            }
+            other => panic!("expected the typed sphere refusal, got {other:?}"),
+        }
+    }
 }
