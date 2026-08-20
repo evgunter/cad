@@ -91,6 +91,32 @@ waiting for a second CI run** (Evan, 2026-08-20).
 
 ---
 
+## Number reservation, and why this track takes a block
+
+**`D61`–`D70` and `S117`–`S126` are Track F's.** The register's standing rule is
+*take the next unassigned number from the orchestrator, never the next gap you
+can see* — a rule written after two lanes on one track minted `C11`
+independently, an hour apart, in two unmerged branches (C-R20). **That rule was
+written for lanes inside one track and does not survive three concurrent
+orchestrators**: Track E's D-numbers and Track F's come from one sequence, the
+orchestrators cannot see each other's unmerged branches either, and asking is a
+round trip through a document that is behind the tree. A per-track block is the
+smallest thing that closes it, and it is recorded in §D so the other two can
+read it rather than infer it.
+
+Sub-blocks, so a lane does not have to ask for the common case. A lane needing
+more than its two or three says so in its report and takes the next free
+sub-block, from the orchestrator.
+
+| lane | §D rows | findings |
+|---|---|---|
+| **F-a** | D61, D62 | S117, S118 |
+| **F-b** | D63, D64 | S119, S120 |
+| **F-c** | D65, D66, D67 | S121, S122, S123 |
+| unassigned | D68–D70 | S124–S126 |
+
+---
+
 ## The standing lane header
 
 **Committed, not kept in a container.** Track C lost this text twice in one

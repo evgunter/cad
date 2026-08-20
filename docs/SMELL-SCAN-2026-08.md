@@ -10657,6 +10657,13 @@ is weaker evidence than it looks."* That is why this track is first in §A2's
 ordering and why it is worth its own orchestrator: every other track's evidence
 is downstream of it.
 
+**`D61`–`D70` and `S117`–`S126` are reserved to Track F**, and are recorded here
+rather than only in its log because the *"take the next unassigned number from
+the orchestrator"* rule was written for lanes inside one track and does not
+survive three concurrent orchestrators drawing on one sequence from branches
+none of them can see. Tracks C and E should take blocks of their own the same
+way.
+
 **Claimed 2026-08-20; one live orchestrator, log at `docs/SMELL-F-LOG.md`.**
 Reviews are **style-only** except where a row says ADVERSARIAL, and the track
 runs beside the model A/B experiment without touching `docs/MODEL-AB-LOG.md`.
