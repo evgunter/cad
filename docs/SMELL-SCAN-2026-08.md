@@ -7342,7 +7342,8 @@ rewritten, because that table is the binding ruling and a ruling whose
 justification was wrong but whose instruction was right has to be shown.
 
 **One row placed, four items tabled without a verdict.** The row is **D24**,
-the `pub`-and-dead class, which rows 2 and 3 gave two independent witnesses.
+the `pub`-and-dead class, for which rows 2 and 3 supplied two independent
+witnesses.
 Tabled: `Vec2::unit_x`/`unit_y`, `fold_pair`'s facade question,
 `Subgroup::name`/`dimension`, and `CornerBall`'s `surface` field. Evan ruled
 on three rows; a fourth is a new decision, and none was taken.
