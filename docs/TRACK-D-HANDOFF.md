@@ -61,15 +61,21 @@ reads as an editing error otherwise.
 
 ## Blocked, and on what
 
-- **#705** (S31, `geom-curves` + `geom-surfaces` → one `geom` crate, ≥200 files)
-  blocks **D2** and D7's fillet-helper row — it edits all four
-  `sweep/src/fillet/` files — and **D8**, whose `geom-curves/src/fit.rs` it
-  *relocates*. This is the single largest scheduling constraint on the track.
-- **D7's `PairSolve` row is unblocked** (#702 landed as `f382c4aa`) and
-  deliberately **unstarted** — stopped at the usage limit, not for any
-  technical reason. Its provenance note goes to **issue #611**, not the PR
-  body, because R2's thread is live; the deleting PR must cite the recoverable
-  commit SHA.
+**Nothing is blocked by another track any more.** Both external edges closed
+on 2026-08-20: **#702** (`f382c4aa`) discharged D7's `PairSolve` row, and
+**#705** — the ≥200-file `geom-curves` + `geom-surfaces` merge that had been
+the track's single largest scheduling constraint — discharged **D2**, D7's
+fillet-helper row, and **D8**, whose `geom-curves/src/fit.rs` it relocated to
+`geom/src/curves/fit.rs`.
+
+What is unstarted is unstarted for schedule reasons only, not technical ones:
+
+- **D2** (B3 / S19, the fillet error catch-alls, ADVERSARIAL) is the widest
+  unblocked row and gates D7's fillet-helper row — the only edge left in the
+  track.
+- **D8**, **D17**, and D7's **`PairSolve`** row are edge-free. `PairSolve`'s
+  provenance note goes to **issue #611**, not the PR body, because R2's thread
+  is live; the deleting PR must cite the recoverable commit SHA.
 
 ## For Evan — S14 now has three witnesses
 
