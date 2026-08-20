@@ -325,11 +325,12 @@ impl<T: SpanLocate> Surface<T> {
     /// The whole second-order jet at `(u, v)` in **one** evaluation:
     /// the point and every partial with `k + l ≤ 2`.
     ///
-    /// This is the enum's primitive derivative query, and the six
-    /// single-partial accessors below are defined as its projections —
-    /// so each field here is, by construction, exactly what the
-    /// corresponding accessor returns, bit for bit (pinned by test, as
-    /// [`SurfaceJet3`]'s common fields are). A caller wanting more than
+    /// This is the enum's primitive derivative query: the five
+    /// single-partial accessors below and [`Surface::normal`] are
+    /// defined as its projections, so each field here is, by
+    /// construction, exactly what the corresponding accessor returns,
+    /// bit for bit (pinned by test, as [`SurfaceJet3`]'s common fields
+    /// are). A caller wanting more than
     /// one partial at a point asks once: the analytic arms build the
     /// azimuthal frame and `sin_cos(v)` a single time, and
     /// [`Surface::Nurbs`] makes a single [`NurbsSurface::ders`] pass
