@@ -52,8 +52,8 @@ gathered across M2's full pipeline.
   a statement about 2026-07-21: the adversarial review byte-reproduced
   `docs/k-report-data/eps-*.csv` against the tree as it stood at
   finalization, and that check was real. It is **not** a standing
-  claim, and re-running the harness on a later tree has never
-  reproduced these files. Two things happened after the cut:
+  claim: no tree since 2026-07-25 could have reproduced these files.
+  Two things happened after the cut:
 
   - **2026-07-25, #101 (`548c9618`, declared-tangency discipline)**
     added `ProfileLoop::tangent_joints`, `judge_joints` and
@@ -94,6 +94,7 @@ gathered across M2's full pipeline.
   (`editor-core`'s `m4_pr8_k_probe` + the tour's `k-probe` mode) and
   run on every CI build (ci.yml's *K-telemetry probe sweep*).
   `k_report.rs` is the M2-era instrument only.
+
 - Scope: the corpus is all-valid by construction, so refusal-path
   predicates that only fire on invalid input never sample here (dead
   on this corpus: `carrier_circles_internal`, `collinear_overlap`,
