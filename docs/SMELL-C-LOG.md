@@ -436,6 +436,44 @@ log's own roster row (now fixed) — the class, not the instance.
 
 ---
 
+## Where this stands — session handoff, 2026-08-20
+
+**Nothing new starts from here** (Evan, on the approaching usage limit); the
+units below finish, reviews and fix passes included, and their lanes have
+authority to **self-merge on a green head**. Everything else on the roster is
+untouched and unclaimed.
+
+| unit | state | who finishes it |
+|---|---|---|
+| **#702** C-a / S24 | **MERGED** `f382c4a` | — |
+| **#705** C-c / S31 | reviews cleared, held-merge item done, merging against a moving main | its lane, self-merge on green |
+| **#709** C-b / S30 | both reviews running to completion; PR is CONFLICTING and must be un-conflicted first | its lane, self-merge on green after the fix pass |
+
+**Review artefacts survive the session** even if the reports do not reach the
+orchestrator: `~/.local/share/cad-work/rev-709-findings.md` (adversarial) and
+`rev-709-style-findings.md` (style), both written incrementally for exactly
+this reason.
+
+**Owed and unwritten — the one loose end this session leaves.** #709 found that
+the CSV's `agreement` column **measures nothing**: both sides of the ratio are
+the same `Σ nuc·nvc` from the same `band_schedule`, so it is `≡ 1.0` by
+arithmetic, the `≤ 1%` assertion on it was vacuous, and the module docs claimed
+it *"verifies the lane's REALISATION of the schedule"*. `tess-lint`'s own report
+legend already printed *"1.00 by construction"* — the tool knew and the docs
+disagreed. Fixing it properly is a CSV schema change and a re-cut committed
+baseline, correctly out of that unit's scope. **It has no §D row.** That is this
+session's own instance of §C3 — *deferrals must land in a register that
+executes* — and the next orchestrator should write the row before doing
+anything else.
+
+**Also unscheduled**, from the same source: `geom_core::k_stats` (598 lines,
+~96 separable) is S30's class one crate over, reported and deliberately
+untouched because its recording sits *inside* `decide`/`decide_flagged`/
+`decide_invariant`, which are load-bearing kernel predicate doors — so the
+`mesh::budget` split does not transfer mechanically.
+
+---
+
 ## Landings
 
 | PR | unit | state |
