@@ -776,7 +776,7 @@ cannot know who else is in it.
 | **C-h** | H14 — the census's record-keyed deferrals | **#737** | **MERGED** `ec12b7ce` |
 | **C-o** | H16 — `StlOptions` → validated newtypes + per-format option structs | **#732** | **MERGED** `1948e2a5` — Evan signed off after ruling all seven §5 choices |
 | **C-p** | C9 — the `agreement` column | **#738** | **MERGED** `a0a6e1a5` |
-| **C-e** | H13 — `sweep_body`'s helix orientation coverage | **#779** | fix pass in, CI **35/2/0 green on `0494295e`** (verified at source, not taken); cleared to merge after writing row **C25** |
+| **C-e** | H13 — `sweep_body`'s helix orientation coverage | **#779** | **MERGED** `db241875` — verified independently on `main`: `orient.rs` 805 lines, rows **C20** and **C25** both present, **C1 gone from §D**, and the false `0.0635` sentence replaced by the measured table at `orient.rs:584-592` |
 | **C-i** | H15 — #635's unclassified siblings (**23 rows**, not the three the finding names) | **#775** | **MERGED** `3fa135fa` |
 | **C-q** | C10 — `geom_core::k_stats`, S30's class one crate over | **#801** | complete, **CI green on `9fb929d2`** (full matrix, TIER=all); adversarial + style reviews dispatched. Answer to C10 is **no, with the compiler as witness** (C-R22). Row **C22 released unused** — the lane declined to mint a row to have minted one. |
 | **C-j** | S29 — the mesh sizing vocabulary (mechanical half) | **#803** | **MERGED** `d6b5ae01` — **before its style review, which is my dispatch gap, not the lane's**: the brief said a style review would happen and never said it was a merge gate. Post-hoc style review dispatched; its output is a follow-up PR. Row C23 landed. Policy half is a plan, unimplemented, waiting on Evan (C-R2). |
@@ -1998,6 +1998,58 @@ what was decided.** C-R22's conditions are restored above.
 *And note who caught it.* Not me re-reading my own row, which I had done twice
 while citing it. A reviewer whose brief pointed at the row for authority, and who
 noticed the authority did not cover what the brief claimed it covered.
+
+### The CI message did the work, and a shorter message would have cost a kernel hunt
+
+C-e's closing remark on the montage failure is the operational finding of the
+incident, and it is not the empty commit:
+
+> I only knew the failure was not mine because the job's own message
+> distinguishes **missing cell** from **drift**; a lane that read
+> `M montage-freecad.png` alone would have gone looking in the kernel.
+
+**A render-lane diff is ambiguous by default.** `M <file>` says a rendered image
+changed, which for a body-building kernel is exactly what a real regression looks
+like. What made the call cheap was that the job classifies its own outcome — *a
+cell was not produced* is a **failed or partial pass**, not a re-baseline — so the
+lane could reason about the *category* of the failure without reproducing it.
+
+*The generalisation:* **a check that reports what changed leaves the diagnosis to
+the reader; a check that reports what its change means does the diagnosis once,
+at the place that knows.** The second costs one sentence at authoring time and
+saves every future reader the same investigation. Worth having in mind wherever
+this repo's gates print a diff — it is the same economy as stating a sweep's
+blind spot at the pattern rather than in a report.
+
+*And it composes with the disk incident directly:* both are environmental
+failures wearing the costume of a result, and in both the thing that separated
+them from a real finding was **text written by whoever knew the difference**,
+placed where the confused reader would be.
+
+### #779 closed, and what four rounds bought
+
+Merged `db241875`, verified on `main` rather than taken: `orient.rs` at 805
+lines, rows **C20** and **C25** present, **C1 gone from §D entirely** — all four
+of its members closed — and the false sentence replaced at `orient.rs:584-592` by
+the measured table.
+
+*The unit took four rounds and every one moved something real*, which is worth
+recording against the temptation to read repeated NOT CLEARED as churn:
+
+1. **Round 1** shipped a half-move (leaves relocated, the fixed-chord index
+   stranded) and a false quantifier permanently in a test helper.
+2. **Round 2** — adversarial — built an independent containment oracle sharing
+   only `S(u,v)` with the lane's, agreed on 360 row probes and 800 random points
+   with zero refusals, and **falsified the quantifier by measuring 513 levels**.
+3. **Round 3** — style — found the anti-vacuity assertion with no mutation row
+   and the residue disclosed for the third time.
+4. **Round 4** closed the caps residue rather than disclosing it a fourth time,
+   with mutation **G3** reddening the new rows while leaving #636's elbow row
+   green — the finding executed instead of described.
+
+**The cost is honest and recorded**: the four rows went 0.57 s → 3.48 s, sixfold,
+all of it tier 3 on the helix bodies. A review round that ends in a slower suite
+and a smaller claim is a round that worked.
 
 ### Reviewers age out of their own tree, twice now — and it is not their error
 
