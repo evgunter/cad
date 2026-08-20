@@ -160,7 +160,7 @@ gathered across M2's full pipeline.
 
   **What CI now covers, stated precisely** (D17, closed 2026-08-20).
   `k_report.rs` is both **type-checked and run** on every building
-  merge. The `k-lint` job's *"type-check every probe-gated test target"*
+  merge. The `k-lint` job's *"compile and list every probe-gated test target"*
   step covers the whole workspace — `scripts/gates/probe-suite-census.sh`
   derives the owning crates from the tree and the step `cargo check`s
   each `--features probe --all-targets`; the gate greps for that step

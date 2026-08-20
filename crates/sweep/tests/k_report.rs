@@ -18,7 +18,7 @@
 //!
 //! **CI both type-checks and runs this harness**, on every building
 //! merge. It is compiled by the `k-lint` job's step named
-//! *"type-check every probe-gated test target"* — a name the census gate
+//! *"compile and list every probe-gated test target"* — a name the census gate
 //! greps for, so this sentence cannot go quietly false — and
 //! `scripts/k_probe_sweep.sh` executes exactly the invocation above
 //! at all three ε, dumping to `<outdir>/m2/`. That dump rides BESIDE the
