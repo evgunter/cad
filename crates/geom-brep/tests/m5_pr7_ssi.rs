@@ -61,7 +61,9 @@ use geom::{Curve3, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_brep::CERT_SAMPLES;
 use geom_brep::ssi::BranchEnd;
-use geom_brep::ssi::{self, SsiDomain, SsiError, SsiLimb, SsiOperand};
+use geom_brep::ssi::{
+    self, SSI_FLOOR, SSI_TUBE_RADIUS, SsiDomain, SsiError, SsiLimb, SsiOperand, TubeScale,
+};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Margin, Point3, Tolerance, Vec3};
 
@@ -160,7 +162,6 @@ fn slab() -> SsiDomain {
         center: Point3::new(0.0, 0.0, 0.0),
         half_extent: 1.5,
         extent: 2.0,
-        eps: eps(),
         floor_scale: 1.0,
     }
 }
@@ -292,6 +293,46 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
         assert!(
             b.certificate.tube_boxes >= 1,
             "SHAPE-IV: {:?}",
+            b.certificate
+        );
+        // MARCH-TOL: the tolerance the carrier was actually GENERATED
+        // at, read off the branch the door returned.
+        //
+        // The end-to-end counterpart of the `MarchTol` unit rows. Those
+        // test the derivation as a pure function; this one tests the
+        // door, which is where the divergence would be reintroduced —
+        // a certifying door minting its own decoupled generator
+        // tolerance is one line, changes no public signature, and every
+        // other assertion in this file stays green through it. This
+        // receipt does not, and the seam refuses before it is even
+        // reached.
+        assert_eq!(
+            b.march_tol,
+            band().zero(),
+            "MARCH-TOL: the carrier was generated at {:e} m while the run is banded \
+             at {:e} m — the certificate and the generator disagree about ε",
+            b.march_tol,
+            band().zero()
+        );
+        // TUBE-FLOOR: the certified tube is stated in the RUN's ε.
+        //
+        // This row exists to go red when the *guarantee degrades*, not
+        // only when it is violated. The tube ladder's floor is
+        // `SSI_TUBE_RADIUS · ε`, and ε here means the band's — the same
+        // number the limbs' trileans decide against. Feed the ladder a
+        // tolerance finer than the run's and the floor drops with it:
+        // a thinner tube certifies, the uniqueness theorem shipped
+        // under `SsiCertificate` gets weaker, and every existing
+        // assertion above still passes, because they are all monotone
+        // in the easy direction. This one is not.
+        assert!(
+            b.certificate.tube_radius >= SSI_TUBE_RADIUS * band().zero(),
+            "TUBE-FLOOR: a tube of {:e} m is below the run band's own floor \
+             ({} · {:e} m) — the certificate was obtained at a finer tolerance \
+             than the one it is banded at: {:?}",
+            b.certificate.tube_radius,
+            SSI_TUBE_RADIUS,
+            band().zero(),
             b.certificate
         );
         assert!(
@@ -581,7 +622,6 @@ fn the_floor_clamped_planted_fixture_refuses_typed() {
         center: Point3::new(0.03, 0.0, 0.996),
         half_extent: 0.2,
         extent: 0.4,
-        eps: eps(),
         floor_scale: 1.0,
     };
     d.floor_scale = 1.0e8; // floor = 0.1 m, far wider than any tube
@@ -592,6 +632,15 @@ fn the_floor_clamped_planted_fixture_refuses_typed() {
             cell_width, floor, ..
         } => {
             assert!(cell_width <= floor, "{cell_width} vs {floor}");
+            // The accounting floor is stated in the RUN band's ε and
+            // in nothing else — exact equality, so the row goes red the
+            // moment a second tolerance is reachable here.
+            let expect = SSI_FLOOR * band().zero() * d.floor_scale;
+            assert!(
+                (floor - expect).abs() <= f64::EPSILON * expect,
+                "FLOOR-TIE: the accounting floor is {floor:e} m but the run band's \
+                 own floor is {expect:e} m"
+            );
             // The refusal says what it means and what to do.
             assert!(msg.contains("exhaustiveness inconclusive"), "{msg}");
             assert!(msg.contains("refuses"), "{msg}");
@@ -674,7 +723,6 @@ fn an_unseeded_run_refuses_typed_rather_than_receipting_an_unprovable_domain() {
         center: Point3::new(1.0, 0.0, 0.0),
         half_extent: 0.2,
         extent: 0.4,
-        eps: eps(),
         floor_scale: floor_m / eps(),
     };
 
@@ -830,9 +878,7 @@ fn the_uniqueness_tube_margin_dies_on_a_tangent_pair() {
         None,
         &SsiOperand::Analytic(&c),
         &SsiOperand::Analytic(&s),
-        1.0,
-        2.0,
-        eps(),
+        TubeScale::split(1.0, 2.0),
         band(),
     )
     .expect_err("a tangency cannot certify a uniqueness tube");
@@ -876,9 +922,7 @@ fn certify_against(carrier: &NurbsCurve3<f64>) -> Result<geom_brep::SsiCertifica
         None,
         &SsiOperand::Analytic(&c),
         &SsiOperand::Analytic(&s),
-        0.08,
-        2.0,
-        eps(),
+        TubeScale::split(0.08, 2.0),
         band(),
     )
 }
@@ -949,7 +993,6 @@ fn wall_domain() -> SsiDomain {
         center: Point3::new(0.5, 0.0, 0.4),
         half_extent: 2.0,
         extent: 1.5,
-        eps: eps(),
         floor_scale: 1.0,
     }
 }
@@ -1102,9 +1145,7 @@ fn shape_iii_the_wall_cut_certifies_all_three_limbs_and_refuses_a_corrupted_pcur
         Some(&bad),
         &SsiOperand::Analytic(&p),
         &SsiOperand::Nurbs(&w),
-        wall_domain().extent,
-        wall_domain().extent,
-        eps(),
+        TubeScale::uniform(wall_domain().extent),
         band(),
     )
     .expect_err("CORRUPT-PCURVE: a corrupted parameter map cannot certify");
@@ -1235,19 +1276,25 @@ fn the_composite_bound_tracks_dense_scan_truth_on_the_pr7_fixture() {
     // spec's conservative order-of-magnitude ceiling (≤ 1e-8 m, seven
     // orders under the old report) is pinned literally.
     let (p, w) = (cutting_plane(), nurbs_wall());
-    let (carrier, _pa, pb) =
-        match ssi::trace_plane_nurbs_uncertified(&p, &w, (0.5, 0.5), wall_domain(), band()) {
-            Ok(t) => t,
-            Err(SsiError::FitSampleBudget { .. }) => {
-                wall_stand_down(
-                    "composite bound vs dense scan",
-                    "THIS RUN COMPARES NOTHING against the 1e5-sample dense scan — the \
+    let (carrier, _pa, pb) = match ssi::trace_plane_nurbs_uncertified(
+        &p,
+        &w,
+        (0.5, 0.5),
+        wall_domain(),
+        band().zero(),
+        band(),
+    ) {
+        Ok(t) => t,
+        Err(SsiError::FitSampleBudget { .. }) => {
+            wall_stand_down(
+                "composite bound vs dense scan",
+                "THIS RUN COMPARES NOTHING against the 1e5-sample dense scan — the \
                      measured-improvement claim (spec §5) is unstated at this ε",
-                );
-                return;
-            }
-            Err(e) => panic!("the ℝ⁴ trace: {e}"),
-        };
+            );
+            return;
+        }
+        Err(e) => panic!("the ℝ⁴ trace: {e}"),
+    };
     use geom_core::spline::compose::{CurveRingData, tensor};
     let scoords = w.ring_coords();
     let sdata =
@@ -1291,22 +1338,28 @@ fn oq4_the_two_pcurves_share_the_carriers_own_parameter() {
     // over the carrier's interval), which is the statement
     // `PcurveCache::certify` makes.
     let (p, w) = (cutting_plane(), nurbs_wall());
-    let (carrier, pa, pb) =
-        match ssi::trace_plane_nurbs_uncertified(&p, &w, (0.5, 0.5), wall_domain(), band()) {
-            Ok(t) => t,
-            // Same budget stand-down as the ℝ³ fixture: at ε = 1e-12
-            // the wall's cut wants more samples than the fit affords,
-            // and the refusal is pinned by its own row.
-            Err(SsiError::FitSampleBudget { .. }) => {
-                wall_stand_down(
-                    "OQ4 parameter identity",
-                    "THIS RUN MAKES NO OQ4 DEMONSTRATION — neither pcurve was checked \
+    let (carrier, pa, pb) = match ssi::trace_plane_nurbs_uncertified(
+        &p,
+        &w,
+        (0.5, 0.5),
+        wall_domain(),
+        band().zero(),
+        band(),
+    ) {
+        Ok(t) => t,
+        // Same budget stand-down as the ℝ³ fixture: at ε = 1e-12
+        // the wall's cut wants more samples than the fit affords,
+        // and the refusal is pinned by its own row.
+        Err(SsiError::FitSampleBudget { .. }) => {
+            wall_stand_down(
+                "OQ4 parameter identity",
+                "THIS RUN MAKES NO OQ4 DEMONSTRATION — neither pcurve was checked \
                      against the carrier's own parameter on the PR 6 schedule at this ε",
-                );
-                return;
-            }
-            Err(e) => panic!("the ℝ⁴ trace: {e}"),
-        };
+            );
+            return;
+        }
+        Err(e) => panic!("the ℝ⁴ trace: {e}"),
+    };
     let (t0, t1) = carrier.domain();
     // Same parameter interval, not merely the same shape.
     assert!((pa.domain().0 - t0).abs() < 1e-15 && (pa.domain().1 - t1).abs() < 1e-15);
@@ -1466,7 +1519,6 @@ fn an_unseeded_chart_run_refuses_typed_rather_than_receipting_an_unprovable_doma
         center: Point3::new(0.5, 0.0, 0.4),
         half_extent: 2.0,
         extent: 3.0,
-        eps: eps(),
         floor_scale: floor_m / eps(),
     };
 
@@ -1706,7 +1758,6 @@ fn the_ssi_predicates_reach_the_k_funnel() {
         center: Point3::new(0.03, 0.0, 0.996),
         half_extent: 0.2,
         extent: 0.4,
-        eps: eps(),
         floor_scale: 1.0,
     };
     d.floor_scale = 1.0;

@@ -8,7 +8,12 @@
 //! answer. FreeCAD 1.1.2 never writes `FACE_OUTER_BOUND` at all (0
 //! occurrences in the 13 measured files): a face's rings are
 //! syntactically indistinguishable, and which one is outer is
-//! **geometry**, not syntax.
+//! **geometry**, not syntax. That measurement is this lane's whole
+//! reason to exist, so it is re-read from the committed corpus on every
+//! test run rather than kept as a dated observation (issue #667's Q6):
+//! `tests/freecad.rs`'s `the_committed_freecad_corpus_still_says_what_chart_and_units_quote`
+//! reads the committed corpus and goes red if the count moves or the
+//! marker appears.
 //!
 //! # The rule
 //!

@@ -146,11 +146,17 @@ not schedules. Flag any deviation that is disclosed but unscheduled.
 
 **A claim resting on a measurement is the same shape.** What it owes is a
 mechanical guard — something that goes red when the number stops being true —
-or a scheduled register that re-measures it (`ci.yml`'s `rebuild latency
-(reporting)` is one), or a written reason it can have neither. That reason
-goes **at the claim site**, not only in a PR body: *"unguardable, and here is
-why"* is complete where nothing computes with the number, and is a deferral
-owing a schedule where something does. (#651.)
+or a scheduled register that re-measures it, or a written reason it can have
+neither. That reason goes **at the claim site**, not only in a PR body:
+*"unguardable, and here is why"* is complete where nothing computes with the
+number, and is a deferral owing a schedule where something does. (#651.)
+
+**Check `ci.yml` for a register before accepting an "unguardable"** (#667):
+there is more than one and two of them gate, so a constant a register
+re-measures is a *scheduled register* row, not an unguarded extraction. Ask
+what it re-takes, not what it once produced — a register generally refreshes
+some columns of its document and leaves the rest a dated writeup, so the
+credit is owed to the columns, not to the document's name.
 
 ### Q7. Is this how you would have done it?
 
