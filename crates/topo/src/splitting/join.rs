@@ -338,20 +338,20 @@ impl<T: Decide> Sweep<T> {
                 continue;
             };
             let (c_e, axis_e, sa, sb) = match *curve.carrier() {
-                geom_curves::Curve3::Circle {
+                geom::Curve3::Circle {
                     center,
                     axis,
                     radius,
                     ..
                 } => (center, axis, radius, radius),
-                geom_curves::Curve3::Ellipse {
+                geom::Curve3::Ellipse {
                     center,
                     axis,
                     major,
                     minor,
                     ..
                 } => (center, axis, major, minor),
-                geom_curves::Curve3::Line { .. } | geom_curves::Curve3::Nurbs(_) => continue,
+                geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => continue,
             };
             let (t0, t1) = curve.params();
             let span = t1 - t0;

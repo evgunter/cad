@@ -65,8 +65,8 @@
 //! limited. (M2 PR 3 review, N3 — pinned by the promoted
 //! `fixed_n3_*` test.)
 
+use geom::Surface;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
-use geom_surfaces::Surface;
 
 use crate::dihedral::decide;
 

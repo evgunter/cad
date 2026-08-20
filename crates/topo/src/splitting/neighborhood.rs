@@ -165,10 +165,10 @@ fn chord<T: Decide>(
         .and_then(crate::null::CurveGeom::certified)
         .ok_or_else(corrupt)?;
     match curve.carrier() {
-        geom_curves::Curve3::Line { .. } | geom_curves::Curve3::Nurbs(_) => {
+        geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => {
             Ok((final_vertex, p_final - p_base, None))
         }
-        geom_curves::Curve3::Circle { .. } | geom_curves::Curve3::Ellipse { .. } => {
+        geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
             let (t0, t1) = curve.params();
             // The base-endpoint jet: outgoing tangent, plus the raw
             // second derivative and squared speed for the C12.2
@@ -341,7 +341,7 @@ mod tests {
         let mut body = p.body;
         body.set_face_surface(
             face,
-            crate::FaceSurface::New(geom_surfaces::Surface::Sphere {
+            crate::FaceSurface::New(geom::Surface::Sphere {
                 center: geom_core::Point3::new(0.0, 0.0, 0.0),
                 radius: 2.0,
                 axis: Vec3::new(0.0, 0.0, 1.0),

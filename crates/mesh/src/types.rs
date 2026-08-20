@@ -85,7 +85,7 @@ pub enum TessellateError {
         /// The offending value.
         value: f64,
     },
-    /// A face's surface is the [`geom_surfaces::Surface::Nurbs`]
+    /// A face's surface is the [`geom::Surface::Nurbs`]
     /// **placeholder** (`NurbsSurface::is_placeholder`) — the mvfs "no
     /// description yet" state has no evaluable description to
     /// tessellate against.

@@ -72,9 +72,9 @@
 //! PR 9 builds those; consumers here must refuse to construct from
 //! them (the split/boolean lanes do, typed).
 
+use geom::Surface;
+use geom::{Curve3, EllipseInvalid};
 use geom_core::{Band, Indeterminate, Margin, Point3, Real, Sign, Vec3};
-use geom_curves::{Curve3, EllipseInvalid};
-use geom_surfaces::Surface;
 
 use crate::dihedral::decide;
 use geom_core::Decide;

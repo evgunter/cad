@@ -51,16 +51,16 @@ fn cyl(o: [f64; 3], a: [f64; 3], r: f64, outward: bool) -> CarrierDesc<f64> {
     }
 }
 
-fn plane_s(o: [f64; 3], n: [f64; 3]) -> geom_surfaces::Surface<f64> {
-    geom_surfaces::Surface::Plane {
+fn plane_s(o: [f64; 3], n: [f64; 3]) -> geom::Surface<f64> {
+    geom::Surface::Plane {
         origin: Point3::new(o[0], o[1], o[2]),
         normal: Vec3::new(n[0], n[1], n[2]),
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
-fn xline() -> geom_curves::Curve3<f64> {
-    geom_curves::Curve3::Line {
+fn xline() -> geom::Curve3<f64> {
+    geom::Curve3::Line {
         origin: Point3::new(0.0, 0.0, 0.0),
         dir: Vec3::new(1.0, 0.0, 0.0),
     }

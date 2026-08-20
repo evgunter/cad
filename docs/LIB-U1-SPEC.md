@@ -41,9 +41,9 @@ chains for your own builds/tests.
 
 - **Module re-exports**: `pub use` each authoring-surface crate as
   a module (`pncad::profile`, `pncad::sweep`, `pncad::topo`,
-  `pncad::geom_core`, `pncad::geom_curves`, `pncad::geom_surfaces`,
-  `pncad::geom_brep`, `pncad::mesh`, `pncad::stl`,
-  `pncad::step_export`, `pncad::step_import`, `pncad::editor_core`)
+  `pncad::geom_core`, `pncad::geom`, `pncad::geom_brep`,
+  `pncad::mesh`, `pncad::stl`, `pncad::step_export`,
+  `pncad::step_import`, `pncad::editor_core`)
   — the tour's eleven path-deps plus `step-import`. `bvh` is
   interior unless you find a demo/test consumer that needs it
   (measured call, reported).

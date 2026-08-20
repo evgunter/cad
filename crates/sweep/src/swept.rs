@@ -19,11 +19,11 @@
 //! neither, and loft imports extrude's rather than owning one — so it
 //! is two implementations serving three verbs, not three.
 
+use geom::Curve3;
 use geom_brep::{EdgeCurveSpec, EdgeGeometry, MappedCurve, SketchSegment};
 use geom_core::{
     Affine3, Band, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec2, Vec3,
 };
-use geom_curves::Curve3;
 use topo::{Body, EulerOpError, FaceKey, SurfaceKey};
 
 /// The classification funnel of this shared lowering, and of `extrude`

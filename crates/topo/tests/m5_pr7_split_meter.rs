@@ -17,12 +17,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom::Surface;
+use geom::{Curve3, NurbsCurve3};
 use geom_brep::ssi::{self, SsiDomain, SsiError};
 use geom_brep::{EdgeCurve, EdgeCurveSpec};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point3, Vec3};
-use geom_curves::{Curve3, NurbsCurve3};
-use geom_surfaces::Surface;
 
 /// A gentle cubic advancing steadily in `+x` — the shape a fitted SSI
 /// carrier has.

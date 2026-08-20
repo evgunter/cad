@@ -34,10 +34,10 @@
 //!   the arc's start (u values may leave `[0, τ)`; the one-branch
 //!   unwrap pin is PR 6's).
 
+use geom::Surface;
+use geom::{Curve3, FitError, FitOutcome, NurbsCurve2};
 use geom_core::Point2;
 use geom_core::spline::KnotVector;
-use geom_curves::{Curve3, FitError, FitOutcome, NurbsCurve2};
-use geom_surfaces::Surface;
 
 /// Typed refusal of a pcurve constructor.
 #[derive(Debug)]

@@ -21,11 +21,11 @@
 #![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom::Curve3;
+use geom::Surface;
 use geom_brep::props::{LoopEdge, curved_face};
 use geom_core::k_stats::Probe;
 use geom_core::{Band, Point3, Vec3};
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
 
 fn p(x: f64, y: f64, z: f64) -> Point3<Probe> {
     Point3::new(Probe(x), Probe(y), Probe(z))

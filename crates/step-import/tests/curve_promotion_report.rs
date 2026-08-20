@@ -74,7 +74,7 @@ fn the_reported_promotion_is_the_carrier_that_ships() {
         panic!("a GEOMETRIC_CURVE_SET file is a wireframe");
     };
     assert_eq!(curves.len(), 1);
-    let geom_curves::Curve3::Circle { radius, axis, .. } = curves[0] else {
+    let geom::Curve3::Circle { radius, axis, .. } = curves[0] else {
         panic!("the carrier must ship as a Circle, got {:?}", curves[0]);
     };
     assert!((radius - 0.005).abs() < 1e-15, "r = 5 mm: {radius:e}");
@@ -105,7 +105,7 @@ fn below_its_own_residual_nothing_is_promoted_and_nothing_is_reported() {
         panic!("a GEOMETRIC_CURVE_SET file is a wireframe");
     };
     assert!(
-        matches!(curves[0], geom_curves::Curve3::Nurbs(_)),
+        matches!(curves[0], geom::Curve3::Nurbs(_)),
         "the carrier must ship exactly as stated when nothing certifies"
     );
 }

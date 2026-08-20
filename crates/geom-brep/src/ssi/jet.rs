@@ -45,8 +45,8 @@
 //! which poisons the SVD solve, which fails the step's band. Nothing
 //! here decides anything.
 
+use geom::Surface;
 use geom_core::{Point3, Vec3};
-use geom_surfaces::Surface;
 
 /// A Taylor polynomial in `s`, truncated after `s³`, in the **monomial**
 /// basis: `c[0] + c[1]·s + c[2]·s² + c[3]·s³`.

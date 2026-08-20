@@ -34,8 +34,8 @@ fn plane(o: [f64; 3], n: [f64; 3]) -> Surface<f64> {
     }
 }
 
-fn line(o: [f64; 3], d: [f64; 3]) -> geom_curves::Curve3<f64> {
-    geom_curves::Curve3::Line {
+fn line(o: [f64; 3], d: [f64; 3]) -> geom::Curve3<f64> {
+    geom::Curve3::Line {
         origin: Point3::new(o[0], o[1], o[2]),
         dir: Vec3::new(d[0], d[1], d[2]),
     }
