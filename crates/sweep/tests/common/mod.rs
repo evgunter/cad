@@ -7,6 +7,12 @@
 
 #![allow(dead_code)]
 
+/// The orientation oracles — the wall-facing probe and the level-set
+/// machinery it decides against. Split out because it is a different
+/// kind of shared thing from the section authoring above: not a
+/// fixture, but the check several suites make of a body they built.
+pub mod orient;
+
 use geom_core::Point2;
 use profile::RawLoop;
 use sweep::{ProfileLoop, ProfileVertex, Section};
