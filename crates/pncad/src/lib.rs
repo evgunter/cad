@@ -79,6 +79,10 @@
 //!   scene and corpus document, and what each demonstrates.
 //! - [`guide::fail_loud`] — the refusal vocabulary, layer by layer.
 //!   If something refused and you want to know why, start there.
+//! - [`guide::selecting`] — naming and selecting entities: the
+//!   materializers, the pattern language, the geometric filters, and
+//!   the detect/declare protocol. The worked examples for
+//!   [`select`].
 //! - [`guide::north_star_audit`] — what the Python bindings can
 //!   author today, and the named gaps.
 //!

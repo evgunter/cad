@@ -26,6 +26,7 @@ PAGES = [
     ROOT / "docs" / "GUIDE.md",
     ROOT / "docs" / "guide" / "examples.md",
     ROOT / "docs" / "guide" / "fail-loud.md",
+    ROOT / "docs" / "guide" / "selecting.md",
     ROOT / "docs" / "guide" / "north-star-audit.md",
     # The crate front door: its example is held to the same standard.
     ROOT / "crates" / "pncad-py" / "README.md",
