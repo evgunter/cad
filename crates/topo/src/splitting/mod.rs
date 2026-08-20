@@ -478,12 +478,18 @@ impl From<crate::pcurves::PcurveMintError> for SplitError {
     }
 }
 
+// A stage that names itself is not re-named here: `split_reduce`,
+// `split join` and `split finish` each lead with their own stage, so a
+// prefix would only stutter once this error is forwarded — the node
+// layer prefixes again, and so does the binding. `Pcurves` is the one
+// stage whose error is shared with callers that are not splits, so it
+// is the one arm that says where it ran.
 impl core::fmt::Display for SplitError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Reduce(e) => write!(f, "split: {e}"),
-            Self::Join(e) => write!(f, "split: {e}"),
-            Self::Finish(e) => write!(f, "split: {e}"),
+            Self::Reduce(e) => write!(f, "{e}"),
+            Self::Join(e) => write!(f, "{e}"),
+            Self::Finish(e) => write!(f, "{e}"),
             Self::Pcurves(e) => write!(f, "split: {e}"),
         }
     }
