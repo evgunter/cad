@@ -87,11 +87,12 @@ struct Site {
 /// everywhere else. The generic *definition* is not swept up with it:
 /// `pub fn decide_flagged<T: Decide>(` has a bare `<`, never `::<`.
 ///
-/// If a turbofish opens and its `>` cannot be balanced, this **panics**
-/// rather than returning "no call here", because the two are
-/// indistinguishable to the caller and only one of them is safe. Angle
-/// depth is counted over `<` and `>`, so a turbofish containing `->` or a
-/// comparison would fail that balance — loudly, and no such site exists.
+/// **Anything that opens a turbofish and does not resolve to a `(` is a
+/// panic, never a quiet "no call here."** Angle depth is counted over `<`
+/// and `>` alone, so an arrow or a comparison inside the type arguments
+/// breaks the balance — and both the unbalanced case and the
+/// balanced-but-misplaced case stop the census, because a site the scan
+/// cannot read is a site it must not drop. No such site exists today.
 fn skip_turbofish(rest: &str, at: usize) -> usize {
     let mut k = rest.len() - rest.trim_start().len();
     if !rest[k..].starts_with("::") {
@@ -126,8 +127,20 @@ fn skip_turbofish(rest: &str, at: usize) -> usize {
              a turbofish, or teach `skip_turbofish` the form it uses."
         )
     });
-    k = end;
-    k + (rest[k..].len() - rest[k..].trim_start().len())
+    k = end + (rest[end..].len() - rest[end..].trim_start().len());
+    // A turbofish was consumed, so this IS a call site. If the scan did not
+    // land on its `(`, the angle balance was wrong — an arrow or a comparison
+    // inside the type arguments will do it — and returning quietly here would
+    // drop a shipped site. Stop instead.
+    assert!(
+        rest[k..].starts_with('('),
+        "a `decide_flagged` turbofish at byte {at} did not resolve to a call: after its type \
+         arguments the scan is at {:?}, not `(`. Angle depth is counted over `<` and `>` alone, \
+         so an arrow or comparison inside the type arguments breaks it. The census stops rather \
+         than skipping a shipped site.",
+        &rest[k..rest.len().min(k + 24)]
+    );
+    k
 }
 
 fn calls_in(text: &str) -> Vec<(usize, String)> {
