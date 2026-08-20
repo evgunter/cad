@@ -196,11 +196,18 @@ before the merge, so answering saves a round.
 **Wave 1 — open now.** These three share no file with each other, with
 Track C's open lanes, or with Track E's.
 
-| lane | row | scope | review | state |
-|---|---|---|---|---|
-| **F-a** | **F5** (S92) | `topo/src/review_m1_pr5_internal.rs`, `topo/src/pcurves.rs` | style | — |
-| **F-b** | **F6** (S73 parts 1 and 3) | `tools/tess-lint/` | style | — |
-| **F-c** | **F7** (S110, sort first) | six crates' `tests/`, `memories/test-suite-cost.md` | style | — |
+| lane | row | branch | scope | review | state |
+|---|---|---|---|---|---|
+| **F-a** | **F5** (S92) | `smellf/f5-door-registries` | `topo/src/review_m1_pr5_internal.rs`, `topo/src/pcurves.rs` | style | **dispatched** 2026-08-20 |
+| **F-b** | **F6** (S73 parts 1 and 3) | `smellf/f6-tess-lint` | `tools/tess-lint/` | style | **dispatched** 2026-08-20 |
+| **F-c** | **F7** (S110, sort first) | `smellf/f7-cannot-go-red` | six crates' `tests/`, `memories/test-suite-cost.md` | style | **dispatched** 2026-08-20 |
+
+Lane clones are `~/.local/share/cad-work/smellf-{a,b,c}/cad`. They are
+**reused** stale lanes from finished work, renamed and reset to `origin/main`
+rather than freshly cloned: the box was at 22 GB free with three concurrent
+tracks running, and a fresh clone plus a cold `target/` is several GB a lane.
+`core.hooksPath` was verified on each before reuse, since that is the one thing
+a hand-rolled clone silently lacks.
 
 **Wave 2 — gated, and on what.**
 
