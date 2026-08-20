@@ -1287,31 +1287,28 @@ classification. The open question is **S14** — a public door that can
 leave a body tier-1-invalid, and slotmap keys that resolve to *live but
 wrong* entities rather than dangling.
 
-*The one state this taxonomy did not contain — CLOSED by D27, and the
-five rows stand unamended.* `FilletError::EmptyChain` was not reachable
-by input (the battery seeds every chain with a link) and not locally
-provable (the emptiness was a property of the verdict handed in), so it
-was neither row 1 nor row 4, and it sat under row 1 failing that row's
-own definition. **The disposition is that a state which is neither is a
-state that should not be representable.** `Chain` now holds its first
-link in its own field, `walk_chains` mints it from the seed link it
-already had, and the variant is gone — the taxonomy did not need a
-sixth row, the type needed a constructor that could not spell the
-state. The same move retired the front-door invariants the surgery was
-carrying as prose: `crates/sweep/src/fillet/admit.rs` mints one value
-per admitted clause, and the helpers that used to re-refuse a state
-their caller had already excluded now take the value and have no branch
-to write. **Nothing there became an `unreachable!`** — a refusal that a
-deep helper cannot justify is moved to the door that decides it, not
-converted into a panic.
+*The one state this taxonomy did not contain — RETRACTED by D27 (PR
+#768), because the state is gone.* `FilletError::EmptyChain` was not
+reachable by input (the battery seeds every chain with a link) and not
+locally provable (the emptiness was a property of the verdict handed
+in), so it was neither row 1 nor row 4, and it sat under row 1 failing
+that row's own definition. It is no longer representable: `Chain` holds
+its first link in its own private field, `walk_chains` mints it from
+the seed link it already had, and the variant is deleted. **The five
+rows stand unamended** — nothing was added to the taxonomy and nothing
+in it was reclassified. The same unit retired the front-door invariants
+the surgery was carrying as prose: `crates/sweep/src/fillet/admit.rs`
+mints one value per admitted clause, and the helpers that used to
+re-refuse a state their caller had already excluded now take the value
+and have no branch to write. **Nothing there became an `unreachable!`**
+— each refusal moved to the door that decides it rather than becoming a
+panic.
 
-*The general rule this settles, for the next site that meets it.* When
-a state is neither reachable by input nor locally provable, the first
-question is whether the type that carries it can stop representing it.
-Only if it cannot is the state a taxonomy question at all. `EmptyChain`
-could, and `S14`'s graft class — a state a public door genuinely
-produces — cannot, which is why that one is still open and this one is
-not.
+*This paragraph records what happened to one state and claims nothing
+beyond it.* Whether "can the type stop representing it?" is the
+question to ask FIRST at the next site of this shape is a ruling about
+how this addendum is applied, it bears on **S14**, and it is not
+settled here; it is open for Evan's sign-off in its own PR.
 
 *Still outstanding:* **discard sites elsewhere in `crates/topo`**,
 which the three-module census never counted and this addendum has
