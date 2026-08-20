@@ -64,7 +64,7 @@ use geom_core::predicate::Decide;
 /// Every bound [`editor_core::eval::evaluate`] requires, minus
 /// `ContentBits`. A hand-written literal — there is no "minus" in the
 /// language — and therefore a claim that can go stale on its own. The
-/// two rows below are what keep it honest.
+/// three bridge rows below are what keep it honest.
 fn requires_everything_but_content_bits<T>()
 where
     T: Decide + geom_core::Bounds + Send + Sync + topo::PropsQuadLane,
@@ -78,10 +78,9 @@ where
 /// added to `evaluate`'s bound and not to this list stops this function
 /// compiling, no matter which scalars do or do not satisfy the new term.
 ///
-/// This is the row the earlier version of the file claimed and did not
-/// have: its "control" only re-proved that `f64` satisfies `EvalScalar`,
-/// which is a blanket impl over the same set and therefore vacuous
-/// against exactly this drift.
+/// An `f64` instantiation cannot do this job: `EvalScalar` is a blanket
+/// impl over the same set, so `f64` clearing it re-proves nothing about
+/// drift. The bound has to be generic and the call has to be `evaluate`.
 fn evaluate_asks_for_nothing_outside_the_literal_plus_content_bits<T>()
 where
     T: Decide
