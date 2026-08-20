@@ -2947,21 +2947,71 @@ is hard to tell apart from a bug when it fires.
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
 baffle me with how they ever happened." Postmortem pass commissioned.
-## S25. Two ε vocabularies flow through SSI with nothing reconciling them
+## S25. FIXED by #692 — two ε vocabularies flowed through SSI with nothing reconciling them
 
-- **Where**: `crates/geom-brep/src/ssi.rs:488`, `:507`,
-  `crates/geom-brep/src/pcurve_cache.rs:1012`
+- **Where**: `crates/geom-brep/src/ssi.rs`, `ssi/march.rs`, `ssi/certify.rs`
 - **Confidence**: sure
 
-Every SSI entry point takes both a `Band` (whose `zero()` *is* the run
-tolerance) and a separate `eps`. All trilean decisions read `band`; the
-tube-radius floor, the exhaustiveness floor, `SSI_NEWTON_TOL` and
-`SSI_STEP_DEVIATION` read `eps`. Nothing checks the two agree, so a
-caller can march and size tubes at one tolerance while certifying at
-another. Two of the four `certify_rung3` call sites have already noticed
-and derive `eps = band.zero()` — one says so in a comment — while the
-SSI arms keep the independent knob. Same quantity, two sources of truth,
-reconciled by convention at some call sites and not others.
+**FIXED by #692.** The knob turned out to be **misplaced, not redundant**,
+and that is what made a type the answer rather than a deletion. Every
+*certifying* call site was already passing `band.zero()` — `edge_nurbs.rs`
+silently, `pcurve_cache.rs` with a comment, the rest via `SsiDomain::eps`.
+Exactly one site genuinely differed: `review_m5_pr7b_ssi.rs`'s
+`trace_deviation`, which marches at a fixed ladder while the run is banded
+at ambient ε, deliberately measuring the marcher against itself — and it
+goes through `trace_plane_nurbs_uncertified`, which produces **no
+certificate**. So the decoupled knob has one legitimate home, and it is the
+certificate-free door.
+
+`MarchTol` is the bridge the postmortem asked for, at the signature:
+`certify_rung3`/`certify_branch` lose `eps`, `SsiDomain` loses the field,
+and `MarchContext`'s `f64` becomes a `MarchTol`, so **no bare `f64`
+tolerance can enter the marcher**. Nothing loosened and nothing tightened —
+review checked all seven decision sites individually and found every one a
+substitution of one operand into an unchanged expression, with no
+re-association and no changed evaluation order. The basis is now stated at
+the door: `Band::linear()` stores `zero` unmodified through
+`from_zero_threshold` → `Band::new`, so `band.zero()` is
+`Tolerance::get().eps` **bit-for-bit**, not to within an ulp — with the
+contingency named, since `certify_rung3` is `pub` and an angular band would
+floor the ladder in radians.
+
+**A name is not a rule, and the first attempt only had a name.** Review
+demonstrated the hole rather than suspecting it: swapping
+`MarchTol::from_band(band)` for `MarchTol::decoupled(…)` *inside*
+`cylinder_sphere_ssi` — one line, no signature change, S25's exact
+divergence reintroduced inside a certifying door — compiled clean with all
+19 rows green. Decoupling was prevented neither by a type nor by visibility
+nor by a test, only by the name being embarrassing: S25's own lesson one
+layer in, where the second copy now enters as an innocent
+`MarchTol::decoupled(…)` instead of an innocent `eps: f64`.
+
+So the property is **enforced, not asserted**. `decoupled` is `pub(super)`
+and the uncertified door takes a bare `f64` and mints its own, so no other
+crate can produce one; and because `cylinder_sphere_ssi` sits in the same
+module, both finishers additionally call `seam_tol(ctx.tol, band)`, which
+refuses `MarchTolMismatch` **before** `fit_branch` runs. `SsiBranch` is
+constructed at exactly two sites, both behind that seam; the only
+`fit_branch` call that bypasses it is the uncertified door's. Every
+certified branch carries the receipt as `SsiBranch::march_tol`, pinned by a
+`MARCH-TOL` row.
+
+**The most transferable finding is why the reviewer's mutation looked
+green.** A *tighter* decoupled generator blows the sample budget, so the
+fixture row **skips on `FitSampleBudget`** — and a skip reads as a pass.
+The receipt row alone would not have caught it; the seam is what makes that
+case loud. With the seam disabled, a 2× decoupling fires `MARCH-TOL`
+directly and a 1000× decoupling escalates on `ssi_on_locus` — the
+certificate refusing honestly at the band on a worse carrier, which is the
+substantive argument, now demonstrated rather than asserted.
+
+**Residue, scheduled:** the same class is open in `props/` at three
+signatures (`quad.rs`'s `cylinder_cut_face`, `rational_patch_face`,
+`nurbs_patch_face`) and two call sites (`topo/src/props.rs`'s `cut_face`,
+`nurbs_face`) — **#699**, a Track A boundary this lane correctly stopped at.
+The count is twice what #692 first disclosed; it was found by a sweep aimed
+at that PR's *own declared blind spot*, parsing bodies as well as
+signatures.
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
 baffle me with how they ever happened." Postmortem pass commissioned.
@@ -3671,7 +3721,7 @@ baffle me with how they ever happened." Postmortem pass commissioned.
 | `ch_scale_left`/`ch_scale_right` are the same function kept apart "to preserve the rehearsal's association" — but `RingInterval::mul` is bit-for-bit commutative, so production shape is anchored to a test file for nothing | `spline/compose.rs:519` | likely |
 | `CurvePlan::apply_points` defends against malformed plans its own three private constructors rule out, and pushes the cost onto callers as an invented poison value plus four near-identical lerp closures | `spline/algebra.rs:161` | likely |
 | `lsq::solve_normal` forms `AᵀA` (squaring the condition number) on the fitting path while the sibling `svd.rs` already contains Householder QR; the adversarial review test validates it by implementing QR a *third* time | `linalg/lsq.rs:158`, `svd.rs:183` | unsure |
-| `certify_rung3`'s `arm` and `extent` are the same value at three of four call sites, so the `#[allow(too_many_arguments)] // one parameter per named quantity` covers a parameter varied once | `ssi.rs:925`, `:729` | sure |
+| ~~`certify_rung3`'s `arm` and `extent` are the same value at three of four call sites, so the `#[allow(too_many_arguments)] // one parameter per named quantity` covers a parameter varied once~~ **FIXED by #692** — `TubeScale<T>` names the two cases (`uniform(arm)` at the three sites where they are one quantity, `split(arm, extent)` at `finish_r3`); `certify_rung3` goes 8 args to 6 and the `allow` is deleted **on merit**. Found by review as a residue of #692's own diff: the PR removed one redundant parameter and left its twin in the same argument list — the exact class it existed to close, one line below the one it closed | ~~`ssi.rs:925`, `:729`~~ | sure |
 | Two unrelated `compose` modules with two unrelated `ComposeError`s; defended on the grounds that "the two never meet in one scope", which is a claim about today's imports | `geom-curves/compose.rs:18`, `geom-core/spline/compose.rs:57` | sure |
 | `names/flush.rs` puts document-editing sugar and seven kernel contact-type re-exports inside the naming subsystem; `declare` → `declare_all` → `declare_node` is three public doors over one operation, each with a doc block longer than its body | `names/flush.rs:440`, `:113` | sure |
 | `mesh`'s `trimmed` retry loop serves two opposite failure modes (one shrinks the candidate set, one grows it) under one budget with two exit conditions, index-coupled mutable state, and an unreachable trailing `Err` — so the stated termination argument no longer covers the loop | `trimmed.rs:264`, `:349` | likely |
@@ -5262,7 +5312,6 @@ B4–B8 are mutually independent and independent of that chain.
 | **B3** | **W2c / S19 — the fillet half of the error catch-alls.** `AssemblyUnsupported { detail: &'static str }` at **146 sites**, of which ~120 are arena lookups that cannot fail on a valid body and five say "(kernel bug)" outright. D2's addendum is ratified, so these are row 4 (`unreachable!`) and the rename to `Unsupported*` is owed. | `sweep/src/fillet/` | **B1's gate is discharged — #688 merged 2026-08-20.** It deleted 53 of the sites; **re-count before scoping** (`crates/sweep/src` is at 119, not 172). Scope deliberately excludes `MissingEntity` (mesh — Track A) and `SplitJoinError::Corrupt` (splitting — B4). |
 | **B4** | **W2e remainder / S5 — `splitting/` vs `boolean/`.** The forked sector predicates are done (#647, #661); what remains is the `sector_face` twins, the duplicated pipeline, and the wrong-way dependency — the shared core lives inside one half by a one-sentence instruction in `M3-PLAN.md:230`. Fold in `SplitJoinError::Corrupt`'s 42 payload-free sites while you are in the file. | `topo/src/{splitting,boolean}/` | The steelman weakened two sub-claims: the shared error variants are **not** simple duplicates (every boolean twin carries `operand: Operand`, so unification touches a public API re-exported into four crates), and `SectorEntry` vs `BoolSector` is a **correct** divergence — only the producer is duplicated. |
 | **B5** | **S20 + S21 — the façade's invented vocabulary, and the two Python holes.** `closure.rs` is 151 lines compiling to nothing; `select.rs` is 449 comment lines before one `pub use`; `lib.rs:36` claims the façade has "no behavior of its own" while `workspace.rs` is 260 lines of real subsystem. And **every Python-authored document carries an identical constant `DocumentId`**, so two of them cannot coexist in a workspace — a hole, not a gap. | `pncad/`, `pncad-py/` | #639 has merged, so `pncad-py` is free. The `DocumentId` constant was a lane-contention artifact, disclosed and then deferred into a register that had closed the day before — §C3's worked example. |
-| **B7** | **S25 — two ε vocabularies flow through SSI with nothing reconciling them.** Every entry point takes both a `Band` (whose `zero()` *is* the run tolerance) and a separate `eps`; two of four `certify_rung3` call sites already derive `eps = band.zero()` and say so, the SSI arms keep the independent knob. | `geom-brep/src/ssi/`, `certify.rs` | Both were born in one commit for a real reason — the marcher is deliberately the untrusted f64 candidate generator — but nobody wrote the bridge. `M4-PR6-SPEC.md:51`'s "a process may not host two ε values simultaneously" was scoped to ambient ε and never read as applying to a parameter list. |
 | **B8** | **S34 — `readback.rs` is a body-wide accessor module housed in `sweep`.** `face_pose`, `edge_pose`, `vertex_point` take a `topo::Body` and touch nothing from `sweep`, so `editor-core` and `pncad` depend on the whole sweep crate — NURBS skinning included — to read a face's plane. | `sweep/src/readback.rs` and its new home | Small and clear. Two of the three op-specific doors have no callers outside their own doctests; `vertex_point` is a near-copy of `revolve/upgrade.rs`'s. **Sequence after B1/B2** if the mover wants to avoid the fillet lanes, or take it first — it is nearly disjoint from both. |
 
 ---
