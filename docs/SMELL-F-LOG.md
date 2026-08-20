@@ -87,7 +87,109 @@ waiting for a second CI run** (Evan, 2026-08-20).
 | **F-R1** | **Is F8 gated on E-a (#753)?** §D's Track F preamble says *"Nothing in F1–F3 or F8 may open until that lands"* and calls the gate a **file-overlap** gate; F8's own scope cell says its file is *"neither of E-a's two files"*. The two sentences cannot both be operative. | **F8 stays gated, and the preamble is right for a reason it does not give.** #753's actual file set was read from the PR, not from the schedule: it is ten files, not two, and it includes `.github/workflows/ci.yml` and `local-scripts/ci-local.sh`. D44's defect is that `k_probe_sweep.sh` filters CI's probe run to 2 of 16 suites — a fix that makes CI run the other fourteen is an edit to the *invocation*, which lives in `ci.yml`. So the overlap is real; the scope cell simply counted E-a's files from §D's Scope column instead of from the branch. **Recorded as a finding, because the schedule cell is a claim site** (`SMELL-C-LOG` C-R11). | orchestrator, 2026-08-20 |
 | **F-R2** | **F4's S84 half is `crates/geom-brep/tests/m5_pr7_ssi.rs`, which is the single code file Track C's open #734 edits.** §D's Track F table names no edge here. | **F4 waits for #734.** Not split: S84 is one of four members of *one missing idiom*, and a lane that closes three and reports the fourth is the half-fix this document already records as §C13. The whole row sequences behind #734 rather than fragmenting the class. | orchestrator, 2026-08-20 |
 | **F-R3** | **F6 and issue #746 are the same file** — `tools/tess-lint/src/lib.rs`. #746 is Track C's **C15**, the positional-ordinal join, and F6's row explicitly excludes it as part 2 of S73. | **F6 opens, and declares the boundary rather than assuming it.** C15 is *unstaffed* — a row and an issue, no `C-` lane letter — so there is nothing to collide with today, and holding an edge-free row against an unstaffed one is how a register stops executing (§C3). The lane's brief fences it off `compare`'s key and off the `else { continue }` arm, and its PR says so, so that whoever takes #746 can see the boundary from the tree. | orchestrator, 2026-08-20 |
+| **F-R5** | **F8 / D44 — is 14-of-16 probe suites type-checked-but-never-run a cost posture or a defect?** Re-derived before asking: there are **16** probe-gated suites under `crates/*/tests`, and `k_probe_sweep.sh:91,94` executes exactly two module filters (`m4_pr8_k_probe::`, `k_report::`). Separately, `editor-core/tests/m5_pr5_corpus_probe.rs:21` is a plain `#[test] fn cut_cylinder_replays_at_probe()` with **no `#[ignore]`**, registered at `all.rs:153`, which has never executed in CI — the only thing that runs that crate's probe feature passes `--ignored m4_pr8_k_probe::`. | **SPLIT** (Evan, 2026-08-20). The thirteen `--ignored` dump harnesses are **posture**: they are opt-in instruments by design, and the deliverable there is documentary plus a **floor pinning the executed set** so it cannot silently shrink further — S61's ruling one file over, *a gate must be sited where it can fire on its own inputs*. The plain non-`#[ignore]`d test is **not** posture and gets run — **conditional on Evan's caveat: *"ensure the accidental-looking skipped test isn't, like, super compute intensive."*** See the note below; the measurement is F-h's, and it is a gate on the ruling, not a footnote to it. | Evan, 2026-08-20 |
+| **F-R6** | **F1 / S59 — widening the compound-`Bounds` matcher reds every site spelled `Decide + CertifiedBounds`, which `real.rs:787` says *"still needs ratification"*. The gate has been blind to that spelling, so none of them was ever ratified.** What happens to the pre-existing population? | **Convert what should exclude a dual; grandfather only the residue** (Evan, 2026-08-20) — the mechanical fix the S87/S88 ruling already describes, with an allowlist entry carrying a one-line reason for whatever genuinely remains, and only new sites coming to Evan. **With the caveat that is the operative half:** *"be careful with grandfathering; if it's semantically wrong or suggests that the relevant code should be moved into a different layer then that should be done instead."* So an allowlist entry is a **last** resort, not a default landing place, and the lane owes a per-site reason of a kind that survives being read back. See the note below. | Evan, 2026-08-20 |
 | **F-R4** | **F7's members live in six crates' `tests/`, and Track E's open #763 rewrites `crates/*/tests/all.rs` in nine of them.** | **F7 opens, and does not delete test files.** Editing a member's body is disjoint from `all.rs`; *removing* one is not, because the aggregation module names it. Where F7's sort concludes a member should be deleted rather than repaired, the lane records the conclusion and leaves the deletion to a follow-up row — it does not take `all.rs` out from under #763. | orchestrator, 2026-08-20 |
+
+### F-R5's caveat, and what F-h owes against it
+
+Evan's condition on running `cut_cylinder_replays_at_probe` is that it not be
+*"super compute intensive"*. Two costs, and they are not the same:
+
+- **Compile cost is already paid.** `--features probe` monomorphizes every
+  generic-over-`Real` body at `Probe` — the file's own header says so, and that
+  is why it is feature-gated at all. But `k_probe_sweep.sh` already builds
+  `-p editor-core --features probe --test all`, and `all.rs:153` already
+  registers this module, so the binary containing this test **is built on every
+  building merge today**. Running it adds no compilation.
+- **Runtime cost is one corpus document replayed at `Probe`** — build
+  `corpus::cut_cylinder::document()`, `corpus::eval::<Probe>`, compare
+  failures. One document, one scalar. That is the number F-h must **measure**,
+  not estimate, and measure on **hosted CI** rather than in whatever container
+  the lane runs in (`memories/perf-measurement-lane.md`: a timing is worth
+  nothing without its box).
+
+**Amended by Evan, 2026-08-20, and the amendment is the better condition:**
+*"test cost seems probably fine then, would just want to check that it isn't,
+like, the longest thing in some cluster so it increases total CI latency."* So
+the question is not *is it expensive* but **does it move the critical path**.
+That is checkable, and it was checked — from run **32388258102**, the most
+recent green *building* run on `main` (the nine runs after it are all docs-tier
+and every job skipped, which is S61's posture doing exactly what it is supposed
+to):
+
+| job | duration | `needs:` |
+|---|---|---|
+| `build + archive (default)` | 9.7 min | `filter` |
+| `build + archive (interval)` | 8.8 min | `filter` |
+| **`k-lint (gate)`** | **8.3 min** | **`filter`** |
+| `render lanes / kernel montage` | 2.6 min | `filter` |
+
+**`k-lint` is a leaf off `filter`** — it does not `needs:` the build, so it runs
+in parallel with it. The critical chain is
+`filter (0.2) → build (9.7) → test (0.8) → cleanup-archives (0.1)` ≈ **10.6
+min**; k-lint's is `filter (0.2) → k-lint (8.3)` ≈ **8.5 min**. **So the budget
+is ~2.1 minutes** before this job becomes the thing everything waits on.
+
+**And there is a 3× multiplier waiting in the obvious placement.**
+`k_probe_sweep.sh:80` is `for eps in 1e-6 1e-9 1e-12`, and both existing
+`run_dump` calls sit inside it. A test added there costs three runs, not one, so
+the per-ε budget is ~40 s. **The placement is therefore part of the fix, not an
+implementation detail**: `cut_cylinder_replays_at_probe` asserts a *bit-identical
+replay*, not a margin distribution — it has no reason to be swept per ε — so
+running it **once, outside the loop** is both cheaper and a truer statement of
+what it checks. A lane that drops it into the loop because that is where the
+other invocations are has paid 3× for a claim that is not per-ε.
+
+**DISCHARGED by Evan, 2026-08-20**, on the measurement above: *"ok yeah k lint
+is consistently shorter, sounds like there's no worry about test time then."*
+So **the cost condition on F-R5 is settled and is no longer a gate on F-h.**
+The lane does not owe a re-measurement, and it does not owe the `#[ignore]`
+fallback: `cut_cylinder_replays_at_probe` gets run.
+
+**What survives the discharge, and why it is not a cost argument.** Run it
+**once, outside the ε loop.** That is now a *truthfulness* point rather than a
+budget one: the test asserts a bit-identical replay, not a margin distribution,
+so sweeping it per ε would state a per-ε claim the test does not make. It would
+also have been 3× the cost, but that is no longer the reason.
+
+**Two honesty conditions on those numbers.** They are **one sample**, and job
+durations move with runner and cache state — F-h states which run each number
+came from (`memories/perf-measurement-lane.md`) and re-takes them if `main` has
+moved materially. And the ~2.1 min slack is a property of *today's* graph: it is
+an argument for placing the test, not a licence anyone else may spend.
+
+**The fallback is part of the ruling, not a concession.** If the measurement
+comes back expensive, the answer is *not* to quietly leave the test unreachable
+— that is the state the finding is about. It is to give the test the same
+disposition as its thirteen siblings **explicitly**: an `#[ignore]` plus a
+sentence at the site saying it is an opt-in instrument and why, so the next
+reader learns from the file rather than from the invocation. What D44 actually
+found is a test whose disposition was decided by a filter nobody read; either
+disposition is defensible, being decided by accident is not.
+
+### F-R6's caveat, and why it changes the lane's default
+
+The ruling reads as *convert, then grandfather the residue*, but the caveat
+inverts which of those is the resting place. **An allowlist entry is a
+confession, not a disposition.** Before writing one, the lane asks two questions
+Evan named:
+
+1. **Is the bound semantically wrong here?** If the site should exclude a dual,
+   change the bound. That is the whole of the mechanical fix and needs no
+   allowlist.
+2. **Does the site's needing this spelling say the code is in the wrong layer?**
+   If a body needs `Decide` *and* certified brackets, and it sits where neither
+   is natural, the finding is the placement — and moving it is the fix, with the
+   allowlist entry the thing that would have hidden it. `real.rs` names
+   `probe_tube_chart` (`geom-brep/src/ssi/certify.rs`) as *exactly the shape the
+   rule targets*; a lane that allowlists it has closed the gate hole and kept
+   the thing the gate exists to find.
+
+Only what survives both questions gets an entry, and its one-line reason has to
+survive being read back by a reviewer who did not write it. **If the residue is
+large, that is itself the finding** — report the count before writing the
+entries, not after.
 
 ---
 
@@ -196,11 +298,18 @@ before the merge, so answering saves a round.
 **Wave 1 — open now.** These three share no file with each other, with
 Track C's open lanes, or with Track E's.
 
-| lane | row | scope | review | state |
-|---|---|---|---|---|
-| **F-a** | **F5** (S92) | `topo/src/review_m1_pr5_internal.rs`, `topo/src/pcurves.rs` | style | — |
-| **F-b** | **F6** (S73 parts 1 and 3) | `tools/tess-lint/` | style | — |
-| **F-c** | **F7** (S110, sort first) | six crates' `tests/`, `memories/test-suite-cost.md` | style | — |
+| lane | row | branch | scope | review | state |
+|---|---|---|---|---|---|
+| **F-a** | **F5** (S92) | `smellf/f5-door-registries` | `topo/src/review_m1_pr5_internal.rs`, `topo/src/pcurves.rs` | style | **dispatched** 2026-08-20 |
+| **F-b** | **F6** (S73 parts 1 and 3) | `smellf/f6-tess-lint` | `tools/tess-lint/` | style | **dispatched** 2026-08-20 |
+| **F-c** | **F7** (S110, sort first) | `smellf/f7-cannot-go-red` | six crates' `tests/`, `memories/test-suite-cost.md` | style | **dispatched** 2026-08-20 |
+
+Lane clones are `~/.local/share/cad-work/smellf-{a,b,c}/cad`. They are
+**reused** stale lanes from finished work, renamed and reset to `origin/main`
+rather than freshly cloned: the box was at 22 GB free with three concurrent
+tracks running, and a fresh clone plus a cold `target/` is several GB a lane.
+`core.hooksPath` was verified on each before reuse, since that is the one thing
+a hand-rolled clone silently lacks.
 
 **Wave 2 — gated, and on what.**
 
@@ -211,6 +320,25 @@ Track C's open lanes, or with Track E's.
 | **F-f** | **F2** (S61/S62 + D58–D60) | Track E's **#753** | the same two files, plus `ci-local.sh` |
 | **F-g** | **F3** (S63) | Track E's **#753** | `scripts/gates/`, `scripts/ci-filter.py` |
 | **F-h** | **F8** (D44, D45) | Track E's **#753** | F-R1 — the invocation lives in `ci.yml` |
+
+**Two more edges, recorded when they appeared rather than when they bite.**
+
+- **`.github/workflows/ci.yml` now has three tracks in it.** #753 (E-a) holds
+  the gate-roster and test-aggregation hunks; Track G's **G-a** holds the
+  `oracle-*` job comments and publishes a fence saying so (their G-R3); **F-h**
+  holds the probe **invocation**. Three disjoint regions of one file, and the
+  only reason that is safe is that all three said which region out loud. F-h's
+  brief must carry the same fence.
+- **`scripts/gates/probe-suite-census.sh` makes `docs/SMELL-SCAN-2026-08.md` a
+  hard CI dependency**: it asserts the literal string
+  `type-check every probe-gated test target` still appears there (and in
+  `docs/K-REPORT.md`, `topo/tests/probe_s5_sectors.rs`,
+  `sweep/tests/k_report.rs`). Every Track F lane edits that document. The two
+  live occurrences are at S4's record and at Track D/E's, so no wave-1 lane is
+  near them — but **F-h is**, since D44 is about that very step, and a lane that
+  rewrites the sentence reds the build for a reason its diff will not explain.
+  This is S61's own *"a dated historical scan is a hard CI dependency"* residue,
+  hitting the track that has to touch the scan most.
 
 **Sequencing inside wave 2.** F-e (F1) lands before **G4/S87–S88**, per
 Evan's S87/S88 ruling: the sentence that makes the `CertifiedBounds`
