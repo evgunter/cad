@@ -43,6 +43,9 @@
 //!
 //! # The D9-fixed iteration policy (binding, named constants)
 //!
+//! The constants are [`crate::projection`]'s — one declaration serving
+//! both halves of §6.1. What follows is this half's reading of them.
+//!
 //! - **Seeding rule**: for every nonempty span, in ascending span
 //!   order, evaluate the squared distance to `P` at
 //!   [`PROJECT_SEEDS_PER_SPAN`] parameters placed uniformly across the
@@ -87,33 +90,9 @@
 use geom_core::{Bounds, Point2, Point3, Real};
 
 use crate::curves::{NurbsCurve2, NurbsCurve3};
-
-/// The bracket midpoint of a scalar — the **structure read** the
-/// seeding sweep and the Newton iteration run on (module docs).
-///
-/// Written `lo + ½(hi − lo)` rather than `½(lo + hi)` so that at `f64`
-/// (where `lo` = `hi` = the value) it is bitwise the identity, with no
-/// overflow at the representable extremes. A poisoned bracket yields
-/// NaN, which loses every `<` comparison in the sweep and breaks the
-/// Newton loop into the typed refusal — poison never selects.
-fn mid<T: Bounds>(v: T) -> f64 {
-    let (lo, hi) = (v.lo(), v.hi());
-    lo + 0.5 * (hi - lo)
-}
-
-/// Fixed Newton iteration cap (D9 — never data-dependent).
-pub const PROJECT_MAX_ITERS: usize = 32;
-
-/// Fixed per-span seed count (module docs: the seeding rule).
-pub const PROJECT_SEEDS_PER_SPAN: usize = 8;
-
-/// Point-coincidence and parameter-stagnation threshold, in meters
-/// (the Book's ε₁ role).
-pub const PROJECT_EPS_POINT: f64 = 1e-13;
-
-/// Cosine-zero threshold, dimensionless (the Book's ε₂ role):
-/// `|g| ≤ ε₂·|C′|·|C − P|` is `|cos ∠(C′, C − P)| ≤ ε₂`.
-pub const PROJECT_EPS_COSINE: f64 = 1e-12;
+use crate::projection::{
+    PROJECT_EPS_COSINE, PROJECT_EPS_POINT, PROJECT_MAX_ITERS, PROJECT_SEEDS_PER_SPAN, mid,
+};
 
 /// The typed non-convergence refusal: Newton spent its fixed budget
 /// without meeting any acceptance condition (or hit a degenerate

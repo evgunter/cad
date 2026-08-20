@@ -32,6 +32,8 @@
 use geom_core::spline::{self, KnotAlgebraError, KnotVector, Span, SpanLocate, SplineError};
 use geom_core::{Point3, Real, Vec3};
 
+use crate::net;
+
 /// The point and first/second partials of one evaluation — everything
 /// the [`crate::surfaces::Surface`] evaluator arms need from a single
 /// span-restricted pass.
@@ -188,9 +190,6 @@ impl<T: Real> NurbsSurface<T> {
     /// # Errors
     ///
     /// [`SplineError`] naming the exact violation.
-    // `!(w > 0)` is deliberate (NaN-catching); same note as
-    // geom-core::spline::algebra.
-    #[allow(clippy::neg_cmp_op_on_partial_ord)]
     pub fn new(
         knots_u: KnotVector,
         knots_v: KnotVector,
@@ -198,26 +197,7 @@ impl<T: Real> NurbsSurface<T> {
         weights: Vec<f64>,
     ) -> Result<Self, SplineError> {
         let expected = knots_u.control_count() * knots_v.control_count();
-        if control.len() != expected {
-            return Err(SplineError::ControlCountMismatch {
-                control: control.len(),
-                expected,
-            });
-        }
-        if weights.len() != control.len() {
-            return Err(SplineError::WeightCountMismatch {
-                weights: weights.len(),
-                control: control.len(),
-            });
-        }
-        for (index, w) in weights.iter().enumerate() {
-            if !(*w > 0.0) {
-                return Err(SplineError::NonPositiveWeight { index, weight: *w });
-            }
-            if !w.is_finite() {
-                return Err(SplineError::NonFiniteWeight { index, weight: *w });
-            }
-        }
+        net::validate_counts(expected, control.len(), &weights)?;
         Ok(Self {
             knots_u,
             knots_v,
@@ -233,8 +213,7 @@ impl<T: Real> NurbsSurface<T> {
     /// placeholder's totality behavior (D4 ¶2: fails every downstream
     /// certification loudly).
     pub fn placeholder() -> Self {
-        let nan = T::from_f64(f64::NAN);
-        let p = Point3::new(nan, nan, nan);
+        let p = net::poison_point::<T, Point3<T>>();
         Self {
             knots_u: KnotVector::unit_segment(1),
             knots_v: KnotVector::unit_segment(1),
@@ -262,7 +241,7 @@ impl<T: Real> NurbsSurface<T> {
     /// (certification, +V, export), never masquerade as the benign
     /// placeholder.
     pub fn is_placeholder(&self) -> bool {
-        self.control.iter().all(|p| p.x.is_poison())
+        net::is_placeholder(&self.control)
     }
 
     /// The u-direction knot vector.
@@ -288,12 +267,6 @@ impl<T: Real> NurbsSurface<T> {
     /// `(nu, nv)` — control counts per direction.
     pub fn control_counts(&self) -> (usize, usize) {
         (self.knots_u.control_count(), self.knots_v.control_count())
-    }
-
-    /// The all-poison point.
-    fn poison_point() -> Point3<T> {
-        let nan = T::from_f64(f64::NAN);
-        Point3::new(nan, nan, nan)
     }
 
     /// The [`SurfaceWindow`] for an ALREADY-VALIDATED span pair — the
@@ -623,7 +596,7 @@ impl<T: Real> NurbsSurface<T> {
             let plans = build(&self.knots_u, &col_w)?;
             let mut w = col_w;
             for plan in &plans {
-                pts = plan.apply_points(&pts, Self::poison_point(), |x, y, l| {
+                pts = plan.apply_points(&pts, net::poison_point::<T, Point3<T>>(), |x, y, l| {
                     x.lerp(y, T::from_f64(l))
                 });
                 w = plan.weights().to_vec();
@@ -733,17 +706,23 @@ impl<T: Real> NurbsSurface<T> {
                     .next()
                     .ok_or(KnotAlgebraError::KnotNotPresent { u })?;
                 let lerp = |x: Point3<T>, y: Point3<T>, l: f64| x.lerp(y, T::from_f64(l));
-                let rem_pts = step.plan.apply_points(&pts, Self::poison_point(), lerp);
-                let re_pts = step
-                    .reinsert
-                    .apply_points(&rem_pts, Self::poison_point(), lerp);
+                let rem_pts =
+                    step.plan
+                        .apply_points(&pts, net::poison_point::<T, Point3<T>>(), lerp);
+                let re_pts =
+                    step.reinsert
+                        .apply_points(&rem_pts, net::poison_point::<T, Point3<T>>(), lerp);
                 new_knots_u = step.plan.knots().clone();
                 removed_cols.push((rem_pts, step.plan.weights().to_vec()));
                 reinserted_cols.push((re_pts, step.reinsert.weights().to_vec()));
             }
             let reinserted =
                 Self::from_u_columns(cur.knots_u.clone(), cur.knots_v.clone(), reinserted_cols);
-            bound = bound + Self::removal_pass_bound(&cur, &reinserted);
+            bound = bound
+                + net::removal_pass_bound(
+                    (&cur.control, &cur.weights),
+                    (&reinserted.control, &reinserted.weights),
+                );
             cur = Self::from_u_columns(new_knots_u, cur.knots_v.clone(), removed_cols);
         }
         Ok((cur, bound))
@@ -757,33 +736,6 @@ impl<T: Real> NurbsSurface<T> {
     pub fn remove_knot_v(&self, v: f64, times: usize) -> Result<(Self, T), KnotAlgebraError> {
         let (s, b) = self.transposed().remove_knot_u(v, times)?;
         Ok((s.transposed(), b))
-    }
-
-    /// One removal pass's projected perturbation bound over the grid
-    /// (`orig` and `re` share knot vectors and grid shape by
-    /// construction). Ascending-index `Real::max` folds — lattice
-    /// value ops, never control flow.
-    fn removal_pass_bound(orig: &Self, re: &Self) -> T {
-        let origin = Point3::new(T::zero(), T::zero(), T::zero());
-        let mut c_max = T::zero();
-        let mut bwp = T::zero();
-        let mut bw = 0.0f64;
-        let mut w_min = f64::INFINITY;
-        for (i, pt) in orig.control.iter().enumerate() {
-            c_max = c_max.max((*pt - origin).norm());
-            // Indexing justified: shared grid shape (fn docs).
-            let (rp, rw) = (re.control[i], re.weights[i]);
-            let dw = (orig.weights[i] - rw).abs();
-            if dw > bw {
-                bw = dw;
-            }
-            if rw < w_min {
-                w_min = rw;
-            }
-            let d = (*pt - origin) * T::from_f64(orig.weights[i]) - (rp - origin) * T::from_f64(rw);
-            bwp = bwp.max(d.norm());
-        }
-        (c_max * T::from_f64(bw) + bwp) * T::from_f64(1.0 / w_min)
     }
 }
 
@@ -906,13 +858,7 @@ impl<T: geom_core::CertifiedBounds> NurbsSurface<T> {
     /// it enters the C9 ring through its own bracket. Bitwise the
     /// `f64`-only form at `f64`.
     pub fn ring_coords(&self) -> Vec<Vec<geom_core::RingInterval>> {
-        let lift = |f: fn(&Point3<T>) -> T| -> Vec<geom_core::RingInterval> {
-            self.control
-                .iter()
-                .map(|p| geom_core::RingInterval::from_certified(f(p)))
-                .collect()
-        };
-        vec![lift(|p| p.x), lift(|p| p.y), lift(|p| p.z)]
+        net::ring_coords(&self.control)
     }
 }
 

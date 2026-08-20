@@ -46,34 +46,7 @@
 use geom_core::spline::{self, KnotAlgebraError, KnotVector, Span, SpanLocate, SplineError};
 use geom_core::{Point2, Point3, Real, RingInterval, Vec2, Vec3};
 
-/// Shared constructor validation: counts and weight positivity/
-/// finiteness (the knot vector validates itself at construction).
-// `!(w > 0)` is deliberate (NaN-catching — NaN refuses; `w <= 0`
-// would pass NaN). Same note as geom-core::spline::algebra.
-#[allow(clippy::neg_cmp_op_on_partial_ord)]
-fn validate_counts(knots: &KnotVector, control: usize, weights: &[f64]) -> Result<(), SplineError> {
-    if control != knots.control_count() {
-        return Err(SplineError::ControlCountMismatch {
-            control,
-            expected: knots.control_count(),
-        });
-    }
-    if weights.len() != control {
-        return Err(SplineError::WeightCountMismatch {
-            weights: weights.len(),
-            control,
-        });
-    }
-    for (index, w) in weights.iter().enumerate() {
-        if !(*w > 0.0) {
-            return Err(SplineError::NonPositiveWeight { index, weight: *w });
-        }
-        if !w.is_finite() {
-            return Err(SplineError::NonFiniteWeight { index, weight: *w });
-        }
-    }
-    Ok(())
-}
+use crate::net;
 
 /// The rational speed meter's **fixed refinement schedule** (D9: a
 /// structure choice, never a decision): before the per-span scan of
@@ -112,7 +85,7 @@ macro_rules! nurbs_curve {
                 control: Vec<$Point<T>>,
                 weights: Vec<f64>,
             ) -> Result<Self, SplineError> {
-                validate_counts(&knots, control.len(), &weights)?;
+                net::validate_counts(knots.control_count(), control.len(), &weights)?;
                 Ok(Self { knots, control, weights })
             }
 
@@ -140,15 +113,6 @@ macro_rules! nurbs_curve {
             /// `p + 1` to last).
             pub fn domain(&self) -> (f64, f64) {
                 self.knots.domain()
-            }
-
-            /// The all-poison point (every coordinate the scalar's
-            /// poison). No longer reachable from the `*_in_span`
-            /// evaluators — a `Span` cannot be invalid — and kept only
-            /// for the knot-algebra plans' degenerate-combination case.
-            fn poison_point() -> $Point<T> {
-                let nan = T::from_f64(f64::NAN);
-                $Point::new($({ let _ = stringify!($c); nan }),+)
             }
 
             /// The point at `t`, evaluated **in the given span** — the
@@ -242,7 +206,7 @@ macro_rules! nurbs_curve {
             fn apply_plans(&self, plans: &[spline::CurvePlan]) -> Self {
                 let mut control = self.control.clone();
                 for plan in plans {
-                    control = plan.apply_points(&control, Self::poison_point(), |x, y, l| {
+                    control = plan.apply_points(&control, net::poison_point::<T, $Point<T>>(), |x, y, l| {
                         x.lerp(y, T::from_f64(l))
                     });
                 }
@@ -370,7 +334,10 @@ macro_rules! nurbs_curve {
                 for step in &steps {
                     let removed = cur.apply_plans(core::slice::from_ref(&step.plan));
                     let reinserted = removed.apply_plans(core::slice::from_ref(&step.reinsert));
-                    bound = bound + Self::removal_pass_bound(&cur, &reinserted);
+                    bound = bound + net::removal_pass_bound(
+                        (&cur.control, &cur.weights),
+                        (&reinserted.control, &reinserted.weights),
+                    );
                     cur = removed;
                 }
                 Ok((cur, bound))
@@ -379,7 +346,7 @@ macro_rules! nurbs_curve {
             /// A certified sup-norm bound on `|C_self − C_other|` for
             /// two curves **sharing one knot vector** (same degree,
             /// same control count; weights may differ): the
-            /// [`Self::removal_pass_bound`] formula, which only uses
+            /// `net::removal_pass_bound` formula, which only uses
             /// that sharing — `(Cmax·Bw + Bwp)/w̃min` through partition
             /// of unity and the positive-weight convex hull. Poison
             /// (NaN) when the structures do not match — total, never
@@ -1016,38 +983,10 @@ macro_rules! nurbs_curve {
                 if self.knots != other.knots || self.control.len() != other.control.len() {
                     return T::from_f64(f64::NAN);
                 }
-                Self::removal_pass_bound(self, other)
-            }
-
-            /// One removal pass's projected perturbation bound
-            /// (derivation at [`Self::remove_knot`]); `orig` and `re`
-            /// share a knot vector by construction. Reductions are
-            /// ascending-index `Real::max` folds (lattice value ops,
-            /// never control flow).
-            fn removal_pass_bound(orig: &Self, re: &Self) -> T {
-                let origin = $Point::new($({ let _ = stringify!($c); T::zero() }),+);
-                let mut c_max = T::zero();
-                let mut bwp = T::zero();
-                let mut bw = 0.0f64;
-                let mut w_min = f64::INFINITY;
-                for (i, pt) in orig.control.iter().enumerate() {
-                    c_max = c_max.max((*pt - origin).norm());
-                    // Indexing justified: `re` has the same structure
-                    // (reinsertion restores the original knot vector,
-                    // hence the original control count).
-                    let (rp, rw) = (re.control[i], re.weights[i]);
-                    let dw = (orig.weights[i] - rw).abs();
-                    if dw > bw {
-                        bw = dw;
-                    }
-                    if rw < w_min {
-                        w_min = rw;
-                    }
-                    let d = (*pt - origin) * T::from_f64(orig.weights[i])
-                        - (rp - origin) * T::from_f64(rw);
-                    bwp = bwp.max(d.norm());
-                }
-                (c_max * T::from_f64(bw) + bwp) * T::from_f64(1.0 / w_min)
+                net::removal_pass_bound(
+                    (&self.control, &self.weights),
+                    (&other.control, &other.weights),
+                )
             }
 
             /// Degree elevation (§5.5) by `raise` (≥ 1), via the Bézier
@@ -1160,13 +1099,7 @@ impl<T: geom_core::CertifiedBounds> NurbsCurve3<T> {
     /// coefficient carries its enclosure into the hull, which is what
     /// makes a composite bound over a lifted carrier honest.
     pub fn ring_coords(&self) -> Vec<Vec<RingInterval>> {
-        let lift = |f: fn(&Point3<T>) -> T| -> Vec<RingInterval> {
-            self.control
-                .iter()
-                .map(|p| RingInterval::from_certified(f(p)))
-                .collect()
-        };
-        vec![lift(|p| p.x), lift(|p| p.y), lift(|p| p.z)]
+        net::ring_coords(&self.control)
     }
 }
 
@@ -1174,13 +1107,7 @@ impl<T: geom_core::CertifiedBounds> NurbsCurve2<T> {
     /// The 2-D counterpart of [`NurbsCurve3::ring_coords`]: `[x, y]`
     /// channels of ring enclosures, through the same bracket seam.
     pub fn ring_coords(&self) -> Vec<Vec<RingInterval>> {
-        let lift = |f: fn(&Point2<T>) -> T| -> Vec<RingInterval> {
-            self.control
-                .iter()
-                .map(|p| RingInterval::from_certified(f(p)))
-                .collect()
-        };
-        vec![lift(|p| p.x), lift(|p| p.y)]
+        net::ring_coords(&self.control)
     }
 }
 
@@ -1192,8 +1119,7 @@ impl<T: Real> NurbsCurve3<T> {
     /// former unit placeholder variant had (representable ≠ described;
     /// fails every downstream certification loudly, D4 ¶2).
     pub fn placeholder() -> Self {
-        let nan = T::from_f64(f64::NAN);
-        let p = Point3::new(nan, nan, nan);
+        let p = net::poison_point::<T, Point3<T>>();
         Self {
             // Structurally valid by construction: clamped degree-1
             // vector, two positive weights, two control points.
@@ -1222,6 +1148,6 @@ impl<T: Real> NurbsCurve3<T> {
     /// (certification, +V, export), never masquerade as the benign
     /// placeholder.
     pub fn is_placeholder(&self) -> bool {
-        self.control.iter().all(|p| p.x.is_poison())
+        net::is_placeholder(&self.control)
     }
 }

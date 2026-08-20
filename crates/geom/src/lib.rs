@@ -5,8 +5,11 @@
 //!
 //! The two halves live in [`curves`] and [`surfaces`]; each module's
 //! docs carry the conventions specific to its own entity kinds. What
-//! follows is the text they share — stated once here, and normative
-//! for both.
+//! they share is stated once and only once: the parameterization
+//! conventions below, the §6.1 point-projection policy in
+//! [`projection`], and the control-net helpers the three NURBS
+//! payloads are built from (private — they carry no vocabulary a
+//! consumer needs).
 //!
 //! # Conventions (normative, stated once)
 //!
@@ -79,6 +82,8 @@
 //! enclosure-containment test axes rely on exactly that.
 
 pub mod curves;
+mod net;
+pub mod projection;
 pub mod surfaces;
 
 pub use curves::{
@@ -86,8 +91,10 @@ pub use curves::{
     NurbsCurve3, Projection2, Projection3, ProjectionInconclusive, RefitSkip, SeamSide,
     compose_chain,
 };
+pub use projection::{
+    PROJECT_EPS_COSINE, PROJECT_EPS_POINT, PROJECT_MAX_ITERS, PROJECT_SEEDS_PER_SPAN,
+};
 pub use surfaces::{
-    NurbsSurface, SURFACE_PROJECT_EPS_COSINE, SURFACE_PROJECT_EPS_POINT, SURFACE_PROJECT_MAX_ITERS,
-    SURFACE_PROJECT_SEEDS_PER_SPAN, Surface, SurfaceJet, SurfaceJet3, SurfaceProjection,
+    NurbsSurface, Surface, SurfaceJet, SurfaceJet3, SurfaceProjection,
     SurfaceProjectionInconclusive, SurfaceWindow,
 };

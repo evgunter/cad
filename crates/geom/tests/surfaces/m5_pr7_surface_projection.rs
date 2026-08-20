@@ -13,7 +13,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom::{NurbsSurface, SURFACE_PROJECT_EPS_POINT};
+use geom::{NurbsSurface, PROJECT_EPS_POINT};
 use geom_core::Point3;
 use geom_core::spline::KnotVector;
 
@@ -149,10 +149,7 @@ fn a_domain_edge_foot_reports_an_honestly_large_orthogonality_residual() {
     // boundary, where the gradient does not vanish.
     let p = Point3::new(-4.0, 0.5, 0.0);
     let pr = s.project(p).unwrap();
-    assert!(
-        pr.u <= SURFACE_PROJECT_EPS_POINT,
-        "clamped to u = 0: {pr:?}"
-    );
+    assert!(pr.u <= PROJECT_EPS_POINT, "clamped to u = 0: {pr:?}");
     // Distance is the honest boundary distance …
     assert!(pr.distance > 3.9, "{pr:?}");
     // … and the u-orthogonality residual is large, which is exactly

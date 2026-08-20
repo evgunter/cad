@@ -3,11 +3,14 @@
 //! for the limb-1 residual of a rung-3 cache whose operand has no
 //! implicit form.
 //!
-//! This is the exact surface analogue of [`crate::curves::projection`], and
-//! it is deliberately written to the same contract, constant for
-//! constant. M5 PR 4 landed the curve half; a fitted SSI carrier lying
-//! against a NURBS **surface** needs this half, so PR 7 lands it with
-//! its first consumer (the no-speculative-abstraction rule).
+//! This is the surface analogue of [`crate::curves::projection`] and
+//! implements the same contract: both halves take their iteration
+//! budget, seed schedule and acceptance thresholds from
+//! [`crate::projection`], which is the one place that policy is
+//! declared. What differs is dimension — two orthogonality conditions
+//! instead of one, solved through a 2×2 Jacobian instead of a scalar
+//! derivative — and that is why the iteration is written here rather
+//! than shared.
 //!
 //! # This is C6's f64 lane — structure machinery, with a lifted payload
 //!
@@ -49,10 +52,13 @@
 //!
 //! # The D9-fixed iteration policy (binding, named constants)
 //!
+//! The constants are [`crate::projection`]'s — one declaration serving
+//! both halves of §6.1. What follows is this half's reading of them.
+//!
 //! - **Seeding rule**: over every nonempty span **cell** (u-span ×
 //!   v-span), in ascending `(span_u, span_v)` order, evaluate the
 //!   squared distance to `P` on a
-//!   [`SURFACE_PROJECT_SEEDS_PER_SPAN`]² grid placed uniformly across
+//!   [`PROJECT_SEEDS_PER_SPAN`]² grid placed uniformly across
 //!   the cell **including all four edges**; the seed is the first
 //!   strict minimum (ascending scan, `<`) — ties keep the earlier
 //!   parameter pair, NaN distances never win.
@@ -66,15 +72,15 @@
 //!   ```
 //!
 //!   solved by the explicit 2×2 inverse (fixed order, no pivoting), at
-//!   most [`SURFACE_PROJECT_MAX_ITERS`] steps, each clamped to the knot
+//!   most [`PROJECT_MAX_ITERS`] steps, each clamped to the knot
 //!   domain rectangle (clamped-v1 surfaces; periodic wraparound is a
 //!   designed absence until the periodic form exists).
 //! - **Acceptance**, exactly the Book's three conditions as named
 //!   constants: *point coincidence* `|r| ≤`
-//!   [`SURFACE_PROJECT_EPS_POINT`]; *cosine*, **both** directions
+//!   [`PROJECT_EPS_POINT`]; *cosine*, **both** directions
 //!   `|S_u·r| ≤ ε₂·|S_u|·|r|` **and** `|S_v·r| ≤ ε₂·|S_v|·|r|` with
-//!   ε₂ = [`SURFACE_PROJECT_EPS_COSINE`]; *stagnation*
-//!   `|Δu·S_u + Δv·S_v| ≤` [`SURFACE_PROJECT_EPS_POINT`] (this is how a
+//!   ε₂ = [`PROJECT_EPS_COSINE`]; *stagnation*
+//!   `|Δu·S_u + Δv·S_v| ≤` [`PROJECT_EPS_POINT`] (this is how a
 //!   domain-edge foot converges — the clamp pins the parameters, the
 //!   step dies, and the projection reports the **honest, possibly
 //!   large** orthogonality residuals of the boundary point).
@@ -97,36 +103,10 @@
 
 use geom_core::{Bounds, Point3, Real};
 
+use crate::projection::{
+    PROJECT_EPS_COSINE, PROJECT_EPS_POINT, PROJECT_MAX_ITERS, PROJECT_SEEDS_PER_SPAN, mid,
+};
 use crate::surfaces::NurbsSurface;
-
-/// The bracket midpoint of a scalar — the **structure read** the
-/// seeding sweep and the Newton iteration run on (module docs).
-///
-/// Written `lo + ½(hi − lo)` rather than `½(lo + hi)` so that at `f64`
-/// (where `lo` = `hi` = the value) it is bitwise the identity, with no
-/// overflow at the representable extremes. A poisoned bracket yields
-/// NaN, which loses every `<` comparison in the sweep and breaks the
-/// Newton loop into the typed refusal — poison never selects.
-fn mid<T: Bounds>(v: T) -> f64 {
-    let (lo, hi) = (v.lo(), v.hi());
-    lo + 0.5 * (hi - lo)
-}
-
-/// Fixed Newton iteration cap (D9 — never data-dependent). Matches
-/// [`crate::curves::projection::PROJECT_MAX_ITERS`]; the two halves of §6.1
-/// share one policy.
-pub const SURFACE_PROJECT_MAX_ITERS: usize = 32;
-
-/// Fixed per-span-per-direction seed count (module docs: the seeding
-/// rule) — the grid over a cell is this squared.
-pub const SURFACE_PROJECT_SEEDS_PER_SPAN: usize = 8;
-
-/// Point-coincidence and parameter-stagnation threshold, in meters (the
-/// Book's ε₁ role).
-pub const SURFACE_PROJECT_EPS_POINT: f64 = 1e-13;
-
-/// Cosine-zero threshold, dimensionless (the Book's ε₂ role).
-pub const SURFACE_PROJECT_EPS_COSINE: f64 = 1e-12;
 
 /// A converged surface foot point WITH its certified residuals (C2.1;
 /// see the module docs' honesty section — the consumer bands all three
@@ -228,13 +208,13 @@ impl<T: Bounds> NurbsSurface<T> {
                 let Some(span_v) = kv.span(iv) else { continue };
                 let (b0, b1) = (kv.knots()[iv], kv.knots()[iv + 1]);
                 let win = self.window_of(span_u, span_v);
-                for i in 0..SURFACE_PROJECT_SEEDS_PER_SPAN {
+                for i in 0..PROJECT_SEEDS_PER_SPAN {
                     #[allow(clippy::cast_precision_loss)]
-                    let fu = i as f64 / (SURFACE_PROJECT_SEEDS_PER_SPAN - 1) as f64;
+                    let fu = i as f64 / (PROJECT_SEEDS_PER_SPAN - 1) as f64;
                     let u = a0 + (a1 - a0) * fu;
-                    for j in 0..SURFACE_PROJECT_SEEDS_PER_SPAN {
+                    for j in 0..PROJECT_SEEDS_PER_SPAN {
                         #[allow(clippy::cast_precision_loss)]
-                        let fv = j as f64 / (SURFACE_PROJECT_SEEDS_PER_SPAN - 1) as f64;
+                        let fv = j as f64 / (PROJECT_SEEDS_PER_SPAN - 1) as f64;
                         let v = b0 + (b1 - b0) * fv;
                         let d = self.eval_in_span(win, T::from_f64(u), T::from_f64(v)) - p;
                         let d2 = mid(d.dot(d));
@@ -274,7 +254,7 @@ impl<T: Bounds> NurbsSurface<T> {
         let mut last_fu = f64::NAN;
         let mut last_fv = f64::NAN;
         let mut last_dist = f64::NAN;
-        while iterations < SURFACE_PROJECT_MAX_ITERS {
+        while iterations < PROJECT_MAX_ITERS {
             let j = self.ders_in_span(self.window_at(u, v), T::from_f64(u), T::from_f64(v));
             let r = j.point - p;
             // The iteration reads structure through the brackets; the
@@ -289,9 +269,9 @@ impl<T: Bounds> NurbsSurface<T> {
             let speed_u = mid(j.du.norm());
             let speed_v = mid(j.dv.norm());
             // Acceptance: coincidence, then the two cosines together.
-            if dist <= SURFACE_PROJECT_EPS_POINT
-                || (fu.abs() <= SURFACE_PROJECT_EPS_COSINE * speed_u * dist
-                    && fv.abs() <= SURFACE_PROJECT_EPS_COSINE * speed_v * dist)
+            if dist <= PROJECT_EPS_POINT
+                || (fu.abs() <= PROJECT_EPS_COSINE * speed_u * dist
+                    && fv.abs() <= PROJECT_EPS_COSINE * speed_v * dist)
             {
                 return Ok(SurfaceProjection {
                     u,
@@ -319,7 +299,7 @@ impl<T: Bounds> NurbsSurface<T> {
             // Acceptance: parameter stagnation, measured in meters
             // through the chart (domain-edge feet land here).
             let moved = j.du * T::from_f64(un - u) + j.dv * T::from_f64(vn - v);
-            if mid(moved.norm()) <= SURFACE_PROJECT_EPS_POINT {
+            if mid(moved.norm()) <= PROJECT_EPS_POINT {
                 let jn =
                     self.ders_in_span(self.window_at(un, vn), T::from_f64(un), T::from_f64(vn));
                 let r = jn.point - p;
