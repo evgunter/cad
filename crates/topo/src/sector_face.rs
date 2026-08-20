@@ -61,7 +61,8 @@ use geom_brep::{OutwardNormal, SurfaceKind};
 use geom_core::Decide;
 
 use crate::body::Body;
-use crate::entity::{FaceKey, HalfEdgeKey, VertexKey};
+use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
+use crate::face_normal::face_outward_normal;
 
 /// Which charted carrier a sector's face sits on — the arms with a
 /// wired outward-normal-at-the-vertex construction.
@@ -81,6 +82,7 @@ pub(crate) enum SectorCarrier {
 }
 
 /// The resolved sector face.
+#[derive(Debug)]
 pub(crate) struct SectorFace<T: geom_core::Real> {
     /// The face the sector is a corner of.
     pub face: FaceKey,
@@ -97,10 +99,14 @@ pub(crate) struct SectorFace<T: geom_core::Real> {
 /// `Operand`, which is why the adaptation stays with the callers.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum SectorFaceError {
-    /// A traversal or arena lookup returned nothing: mate, half-edge,
-    /// loop, face, vertex, point or surface. The neighborhood does not
-    /// walk — the body is corrupt.
-    Corrupt,
+    /// A traversal or arena lookup returned nothing — the neighborhood
+    /// does not walk, the body is corrupt. The payload is the entity
+    /// that did not resolve, or (when the missing key was the geometry
+    /// hanging off one) the entity that carried it: the walk's own
+    /// half-edge, the mate, the parent loop, the face, or the base
+    /// vertex. Each lane maps it onto its own corruption arm, and the
+    /// payload is what makes that arm say WHERE.
+    Corrupt(EntityId),
     /// The face's surface has no wired sector arm.
     Unsupported {
         /// The face whose carrier has no arm.
@@ -114,27 +120,54 @@ pub(crate) enum SectorFaceError {
 /// face, that face's outward normal at `vertex`, and the carrier arm
 /// that produced the normal.
 ///
+/// Named `resolve` rather than `sector_face`: the module is the noun,
+/// and each lane's thin wrapper keeps that name for its own callers,
+/// so `sector_face` in prose means one thing per scope instead of
+/// three.
+///
 /// # Errors
 ///
 /// [`SectorFaceError`] — a corrupt traversal, or a carrier with no arm.
-pub(crate) fn sector_face<T: Decide>(
+pub(crate) fn resolve<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
     he: HalfEdgeKey,
 ) -> Result<SectorFace<T>, SectorFaceError> {
-    let corrupt = || SectorFaceError::Corrupt;
-    let mate = body.mate(he).ok_or_else(corrupt)?;
-    let parent = body.get_half_edge(mate).ok_or_else(corrupt)?.parent_loop;
-    let face = body.get_loop(parent).ok_or_else(corrupt)?.face;
-    let face_data = body.get_face(face).ok_or_else(corrupt)?;
+    let mate = body
+        .mate(he)
+        .ok_or(SectorFaceError::Corrupt(EntityId::HalfEdge(he)))?;
+    let parent = body
+        .get_half_edge(mate)
+        .ok_or(SectorFaceError::Corrupt(EntityId::HalfEdge(mate)))?
+        .parent_loop;
+    let face = body
+        .get_loop(parent)
+        .ok_or(SectorFaceError::Corrupt(EntityId::Loop(parent)))?
+        .face;
+    // The planar arm goes through the crate's ONE sense-flip door
+    // ([`crate::face_normal`]) rather than re-deriving the flip, and
+    // reads nothing else: a plane's outward normal is a property of
+    // the face alone.
+    if let Some(normal) = face_outward_normal(body, face) {
+        return Ok(SectorFace {
+            face,
+            normal,
+            carrier: SectorCarrier::Plane,
+        });
+    }
+    // The charted arms need the face's own chart and the base vertex.
+    let face_data = body
+        .get_face(face)
+        .ok_or(SectorFaceError::Corrupt(EntityId::Face(face)))?;
     let sense = face_data.sense;
-    // The base vertex's point — read by the charted arms only; the
-    // planar arm's normal is a property of the face alone.
     let point = || {
         body.get_vertex(vertex)
-            .and_then(|v| body.get_point(v.point))
-            .copied()
-            .ok_or_else(corrupt)
+            .ok_or(SectorFaceError::Corrupt(EntityId::Vertex(vertex)))
+            .and_then(|v| {
+                body.get_point(v.point)
+                    .copied()
+                    .ok_or(SectorFaceError::Corrupt(EntityId::Vertex(vertex)))
+            })
     };
     let charted = |chart, carrier| {
         Ok(SectorFace {
@@ -143,8 +176,10 @@ pub(crate) fn sector_face<T: Decide>(
             carrier,
         })
     };
-    match body.get_surface(face_data.surface).ok_or_else(corrupt)? {
-        geom_surfaces::Surface::Plane { normal, .. } => charted(*normal, SectorCarrier::Plane),
+    match body
+        .get_surface(face_data.surface)
+        .ok_or(SectorFaceError::Corrupt(EntityId::Face(face)))?
+    {
         geom_surfaces::Surface::Cylinder { origin, axis, .. } => {
             let w = point()? - *origin;
             charted(
@@ -155,9 +190,91 @@ pub(crate) fn sector_face<T: Decide>(
         geom_surfaces::Surface::Sphere { center, .. } => {
             charted((point()? - *center).normalize(), SectorCarrier::Sphere)
         }
+        // The planar arm returned above; anything else has no arm.
         s => Err(SectorFaceError::Unsupported {
             face,
             kind: SurfaceKind::of(s),
         }),
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+    use crate::fixtures::prism;
+
+    /// A sphere face, installed on a prism's side face so the orbit
+    /// around one of its vertices walks a sphere-carried sector.
+    fn sphere_sided_prism() -> (crate::Body<f64>, crate::entity::FaceKey) {
+        let p = prism(3);
+        let face = p.face_side[0];
+        let mut body = p.body;
+        body.set_face_surface(
+            face,
+            crate::FaceSurface::New(geom_surfaces::Surface::Sphere {
+                center: geom_core::Point3::new(0.0, 0.0, 0.0),
+                radius: 2.0,
+                axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
+                u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
+            }),
+        )
+        .unwrap();
+        (body, face)
+    }
+
+    /// The corruption payload names WHAT did not resolve, which is the
+    /// whole point of it carrying one: a dangling half-edge reports
+    /// that half-edge, not the base vertex the lanes' public arms are
+    /// limited to.
+    #[test]
+    fn corrupt_names_the_entity_that_did_not_resolve() {
+        let p = prism(3);
+        let bogus = crate::entity::HalfEdgeKey::default();
+        match resolve(&p.body, p.t[0], bogus) {
+            Err(SectorFaceError::Corrupt(EntityId::HalfEdge(k))) => assert_eq!(k, bogus),
+            other => panic!("expected the dangling half-edge named, got {other:?}"),
+        }
+    }
+
+    /// The charted arms read the base vertex, so a dangling VERTEX is
+    /// reported as the vertex — the same payload, a different entity.
+    #[test]
+    fn a_charted_arm_names_the_vertex_it_could_not_read() {
+        let (body, face) = sphere_sided_prism();
+        let he = body
+            .get_loop(body.get_face(face).unwrap().outer)
+            .and_then(|l| match l.boundary {
+                crate::entity::LoopBoundary::Cycle { first } => Some(first),
+                crate::entity::LoopBoundary::Empty { .. } => None,
+            })
+            .unwrap();
+        // The sector CW-after `mate(he)` is this face's corner.
+        let orbit_he = body.mate(he).unwrap();
+        let bogus = crate::entity::VertexKey::default();
+        match resolve(&body, bogus, orbit_he) {
+            Err(SectorFaceError::Corrupt(EntityId::Vertex(k))) => assert_eq!(k, bogus),
+            other => panic!("expected the dangling vertex named, got {other:?}"),
+        }
+    }
+
+    /// The sphere arm is WIRED here (the boolean lane executes it) and
+    /// reports its carrier, so the lane without a sphere arm can refuse
+    /// by name rather than by kind-matching a surface itself.
+    #[test]
+    fn the_sphere_arm_is_wired_and_names_its_carrier() {
+        let (body, face) = sphere_sided_prism();
+        let he = body
+            .get_loop(body.get_face(face).unwrap().outer)
+            .and_then(|l| match l.boundary {
+                crate::entity::LoopBoundary::Cycle { first } => Some(first),
+                crate::entity::LoopBoundary::Empty { .. } => None,
+            })
+            .unwrap();
+        let orbit_he = body.mate(he).unwrap();
+        let vertex = body.get_half_edge(orbit_he).unwrap().start;
+        let resolved = resolve(&body, vertex, orbit_he).expect("the sphere arm resolves");
+        assert_eq!(resolved.carrier, SectorCarrier::Sphere);
+        assert_eq!(resolved.face, face);
     }
 }

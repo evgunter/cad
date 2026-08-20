@@ -60,7 +60,7 @@ use super::rules;
 use super::{PlaneSide, SectorEntry, SectorEntryKind, SplitPlane, SplitReduceError};
 use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey, VertexKey};
-use crate::sector_face::{SectorCarrier, SectorFaceError, sector_face as shared_sector_face};
+use crate::sector_face::{SectorCarrier, SectorFaceError};
 use crate::sector_shape::{SectorShape, sector_shape};
 use crate::validate::decide;
 
@@ -94,8 +94,13 @@ pub(super) fn sector_face<T: Decide>(
     vertex: VertexKey,
     he: HalfEdgeKey,
 ) -> Result<(FaceKey, OutwardNormal<T>, bool), SplitReduceError> {
-    let resolved = shared_sector_face(body, vertex, he).map_err(|e| match e {
-        SectorFaceError::Corrupt => SplitReduceError::CorruptOperand { vertex },
+    let resolved = crate::sector_face::resolve(body, vertex, he).map_err(|e| match e {
+        // The shared walk names the entity that did not resolve; this
+        // lane's public corruption arm carries only the base vertex,
+        // so the payload is collapsed HERE, at the boundary, not lost
+        // upstream. Widening `CorruptOperand` is a public-API change
+        // in a type re-exported into four crates (issue #695).
+        SectorFaceError::Corrupt(_) => SplitReduceError::CorruptOperand { vertex },
         SectorFaceError::Unsupported { face, kind } => {
             SplitReduceError::CurvedBooleanUnsupported { face, kind }
         }

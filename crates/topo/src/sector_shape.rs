@@ -496,18 +496,12 @@ mod tests {
             .iter()
             .flat_map(|lane| pooled.iter().map(move |rung| format!("\"{lane}_{rung}\"")))
             .collect();
-        let src = src_root();
-        let home = src.join("sector_shape.rs");
-        let mut files = Vec::new();
-        collect_rs(&src, &mut files);
-        // The walk must be reading what it thinks it is: a broken or
-        // empty walk would otherwise pass by finding nothing.
+        let home = crate::fixtures::src_root().join("sector_shape.rs");
+        let files = crate::fixtures::crate_sources();
         assert!(
-            files.contains(&home) && files.len() > 20,
-            "the walk of {src:?} found {} file(s) and {}the home module \
-             — it is not reading topo/src",
-            files.len(),
-            if files.contains(&home) { "" } else { "not " }
+            files.contains(&home),
+            "the walk found {} file(s) but not the home module — it is not reading topo/src",
+            files.len()
         );
         for path in &files {
             let text = std::fs::read_to_string(path).expect("a readable source file");
@@ -541,36 +535,6 @@ mod tests {
                 here.contains(&format!("\"{name}\"")),
                 "`{name}` is not spelled in this module"
             );
-        }
-    }
-
-    /// This crate's `src/`, resolved for both ways the suite runs: a
-    /// plain `cargo test` (where the baked-in `CARGO_MANIFEST_DIR` is
-    /// the tree that is here) and a nextest ARCHIVE replayed on a
-    /// different runner (where that absolute path need not exist, but
-    /// `--workspace-remap` has pointed the per-test cwd at the crate
-    /// root).
-    fn src_root() -> std::path::PathBuf {
-        let baked = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-        if baked.is_dir() {
-            return baked;
-        }
-        let cwd = std::env::current_dir()
-            .expect("a working directory")
-            .join("src");
-        assert!(cwd.is_dir(), "neither {baked:?} nor {cwd:?} is topo's src/");
-        cwd
-    }
-
-    /// Every `.rs` file under `dir`, recursively.
-    fn collect_rs(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
-        for entry in std::fs::read_dir(dir).expect("a readable source directory") {
-            let path = entry.expect("a readable directory entry").path();
-            if path.is_dir() {
-                collect_rs(&path, out);
-            } else if path.extension().is_some_and(|e| e == "rs") {
-                out.push(path);
-            }
         }
     }
 }

@@ -46,7 +46,7 @@ use geom_core::{Band, Decide, Margin, Sign, Vec3};
 use super::{BooleanError, Operand, SideCode};
 use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey, VertexKey};
-use crate::sector_face::{SectorFaceError, sector_face as shared_sector_face};
+use crate::sector_face::{SectorCarrier, SectorFaceError};
 use crate::sector_shape::{SectorShape, sector_shape};
 use crate::validate::decide;
 
@@ -233,14 +233,24 @@ pub(super) fn sector_face<T: Decide>(
     vertex: VertexKey,
     he: HalfEdgeKey,
 ) -> Result<(FaceKey, OutwardNormal<T>), BooleanError> {
-    let resolved = shared_sector_face(body, vertex, he).map_err(|e| match e {
-        SectorFaceError::Corrupt => corrupt(operand, vertex),
+    let resolved = crate::sector_face::resolve(body, vertex, he).map_err(|e| match e {
+        // The shared walk names the entity that did not resolve; this
+        // lane's corruption arm carries the operand and the base
+        // vertex, so the payload is collapsed HERE (issue #695).
+        SectorFaceError::Corrupt(_) => corrupt(operand, vertex),
         SectorFaceError::Unsupported { face, kind } => BooleanError::CurvedBooleanUnsupported {
             operand,
             face,
             kind,
         },
     })?;
+    // Exhaustive on purpose, exactly as the splitting wrapper is: a
+    // fifth carrier arm added to the shared walk must be a compile
+    // error in BOTH lanes, not silently accepted by the one whose
+    // downstream algebra happens not to read the carrier.
+    match resolved.carrier {
+        SectorCarrier::Plane | SectorCarrier::Cylinder | SectorCarrier::Sphere => {}
+    }
     Ok((resolved.face, resolved.normal))
 }
 

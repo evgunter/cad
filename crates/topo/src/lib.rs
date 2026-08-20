@@ -143,6 +143,11 @@ pub mod entity;
 pub mod euler;
 pub mod euler_kill;
 pub mod euler_ring;
+// The one door for a planar face's outward normal — at the crate root
+// because its consumers now span both halves and the shared sector
+// walk; its own docs carry the argument. Non-doc comment for the same
+// rustdoc reason as the sector modules below.
+pub(crate) mod face_normal;
 #[cfg(test)]
 pub(crate) mod fixtures;
 pub mod geometry;
