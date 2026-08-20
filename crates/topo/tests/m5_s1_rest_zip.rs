@@ -278,7 +278,7 @@ fn stacked_rerun_is_bit_identical() {
         let mesh = mesh::tessellate(&g.body, 1e-2).expect("tessellate");
         mesh::validate::check_mesh(&mesh).expect("watertight");
         let mut buf = Vec::new();
-        stl::write_binary(&mesh, &mut buf).expect("stl");
+        stl::write_binary(&mesh, &stl::BinaryOptions::default(), &mut buf).expect("stl");
         buf
     };
     assert_eq!(stl_of(&g1), stl_of(&g2));
