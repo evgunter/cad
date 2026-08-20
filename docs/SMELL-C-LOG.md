@@ -2325,6 +2325,71 @@ what was done carries no such exposure.
 do its job — which is also why a review that runs **after** the merge is not
 worthless: it is the only reader positioned to catch this class at all.
 
+### Standing hazard: the PR-body publish path strips every tag-shaped span
+
+**Measured, not suspected.** C-q noticed a receipt in its own PR body reading
+`left: ["", "name_a", "name_b"]` where it had written `<unnamed>`. #801's
+adversarial lane then swept eleven bodies — **801, 816, 810, 803, 786, 779, 767,
+761, 747, 740, 738** — and found **zero `<` characters and zero `<Word>`
+constructs in any of them.** In a Rust repo whose descriptions discuss
+`Margin<T>`, `Dual<T>`, `Vec<…>` and trait bounds constantly, eleven bodies
+containing not one `<` is a stripper, not eleven authors' discipline.
+
+The signature is **asymmetric**: `<`-opened tag-shaped spans are consumed —
+**inside code spans and fenced blocks alike** — while a lone `>` survives and is
+escaped as text. In C-q's body it had silently emptied **ten** constructs, not
+the one the reviewer caught: `Dual<T>`, `Dual<f64>`, `classify<T: Decide>`, both
+turbofish spellings, `::<Dual<Interval>>`, and more.
+
+**Two things make this worth a standing rule rather than a note.**
+
+- **It fails silently and in the safe-looking direction.** The body still reads
+  as prose; only a receipt quoted verbatim reveals it, and only to someone who
+  knows what the receipt should say. An adversarial lane read the damaged version
+  as *the lane's error* and filed a MINOR against it — **a transport defect was
+  one step from being recorded as a lane's carelessness**, and was withdrawn only
+  because the lane pushed back with the original text.
+- **It attacks exactly the artefact this track trades in.** A byte-exact
+  assertion receipt is how every mutation table in this scan proves its guard is
+  load-bearing, and Rust's most quotable identifiers are generic.
+
+**Rule taken:** **byte-exact receipts belong in the committed record and in the
+tree — never in a PR body.** A PR body may *describe* a receipt and must point at
+the file that carries it. #801's `SMELL-SCAN` D32 row demonstrates the working
+shape: `Dual<f64>` four times, both turbofish spellings, and `left: 9, right: 8`
+all intact, because a committed file is not published through that pipeline.
+
+*And the corollary for reviewers:* **a mangled quotation in a PR body is a
+transport failure until proven an authoring failure.** Check the tree before
+filing against the lane.
+
+### C-R24's exemplar was wrong, and I wrote it
+
+#804's style lane checked the *diagnosis* behind a quote I had ruled on, not just
+the quote. **C-R24 says `topo/src/splitting/neighborhood.rs:180,184` "runs two
+full order-2 passes at the same `t`".** It does not. That is the
+`Circle | Ellipse` arm; the arm directly above routes `Curve3::Nurbs` to the
+chord branch with `None`. For a circle, `deriv`/`deriv2` are **analytic**, so the
+real redundancy there is a repeated `azimuth::basis` — not a discarded order-2
+pass.
+
+**I took the lane's citation and did not check the arm.** The ruling's
+*conclusion* survives — the curve side has no `CurveJet`, minting one is a design
+element, so it is filed rather than fixed — but its **exemplar cannot reach the
+class it was minted to illustrate**, and a filed row whose example is wrong sends
+its taker to the wrong code.
+
+*The pattern is now unmistakable and it is mine.* Three times today I have
+approved a lane's claim at the size the lane stated it: #636 "already broken on a
+case it named" (one notch too strong), C-R22's seal oracle (one direction of
+two), and now C-R24's exemplar (wrong arm). **In each case the lane's evidence
+was real and its scope was wider than the evidence reached, and I did not ask the
+scoping question.** The reviewers asked it every time.
+
+**Rule taken:** when a ruling *cites* a line as an exemplar, the orchestrator
+reads that line before the ruling lands. A quote can be verbatim and still be
+about something else.
+
 ### Reviewers age out of their own tree, twice now — and it is not their error
 
 Both style reviews today reported a finding that was **already false when they
