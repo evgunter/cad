@@ -6684,7 +6684,41 @@ paths named (`point_in_loop` is `pub` but takes `(&Body, LoopKey, …, Band)`; t
 other two are private; and reusing a `Decide`-certified door would reintroduce
 #619's ε-fragility). #619's residual still stands: **no tier, prop or boolean in
 the kernel reads a lofted wall's sense**, so on these shapes these rows are the
-only thing pinning the bit. `sweep_body`'s helix rows are **H13**.
+only thing pinning the bit. `sweep_body`'s helix rows were **H13**.
+
+### H13 — FIXED by #779. The helix rows have an oracle, and it is not this one widened
+
+#636 left `m8_14_long_turn_sweep.rs`'s three helical sweeps unpinned and said
+why: its level-plane index refuses at `cos ≈ 0.011` on a half turn rather than
+answering, and *"reaching a helix needs a different oracle, not a wider bound
+here"*. That reading was right and understated. Measured on the shipped tree,
+BOTH halves of that index fail, and neither is a bound that could be loosened:
+
+- **there is no fixed axis to orient the level planes against.** They are the
+  path's normal planes, so their normals sweep a cone about the helix axis
+  while the stacking chord is nearly the axis itself. `cos = 0.0635` at EVERY
+  level of a whole-turn sweep — not only at the ends — and `0.011` at both ends
+  of a half turn.
+- **a query point's level is not unique.** For `c(a) = (R cos a, R sin a, k a)`
+  the height against the normal plane at `a` is `−R² sin a − k² a + k z₀` up to
+  the speed, so `dh/da ∝ −R² cos a − k²` is positive over most of the second
+  and third quadrants. Monotonicity is gone after about a quarter turn, and a
+  probe point genuinely lies on 2 level planes on the whole-turn fixture and up
+  to 9 on the two-turn one. Bisecting would return whichever root it landed on.
+
+The replacement (`crates/sweep/tests/common/orient.rs`, `LevelIndex`) keeps the
+level rings — which are planar for any placements, since a skinned iso-`v` ring
+is one affine map applied to a planar section — and changes how a point is
+matched to a level: orient by CONTINUITY from `t = 0` so no global direction is
+needed, then ENUMERATE every root of the height rather than assume one, and
+require at most one level's ring to claim the point. That is the loft index
+wherever the loft index is valid, and defined where it is not.
+
+Three helix rows (½, 1, 2 turns) and the rational-section elbow at
+`m7_skin_integral.rs:378` — #636's other named uncovered caller — now probe
+every wall at fifteen chart samples. `step-export/tests/common/mod.rs`'s
+`swept_elbow`, the third caller #636 named, is the square elbow *constant for
+constant*, so #636's own row already pins that body.
 
 ## S52. An in-crate test helper is invisible from `tests/`, so every integration suite mints its own
 
@@ -9597,7 +9631,7 @@ rewritten rather than appended to.
 
 | # | Work | Why it is here rather than in a track |
 |---|---|---|
-| **C1** | **H13, H15** — two lanes' own residues: `sweep_body`'s helix rows with no orientation coverage, and #635's unclassified siblings. (**H12**, the SSI sweeps' other never-silence doors, left this row **FIXED by #734**; **H14**, #637's two jurisdiction residues, left it **FIXED by #737**.) | Each is small; together they are a lane. They are the clearest instance of ordering rule 3. |
+| **C1** | **H15** — a lane's own residue: #635's unclassified siblings. (**H12**, the SSI sweeps' other never-silence doors, left this row **FIXED by #734**; **H13**, `sweep_body`'s helix rows with no orientation coverage, left it **FIXED by #779**; **H14**, #637's two jurisdiction residues, left it **FIXED by #737**.) | Each was small; together they were a lane. They are the clearest instance of ordering rule 3. **H15 is the last of the four still open.** |
 | **C2** | **H16, H17** — the STL header not being caller-settable while `StepOptions` carries `product_name`; and S37's rustdoc remainder, ~1115 lines across 130 files. (H11, #632's residues, was the third member and is **FIXED by #731**. The residues were two as recorded and ten as they existed — see S4's drift (b) for the seven further fail-quiet classifications in the same crate, **§C15** for what each sweep could not match, and **C12** for what #731 filed rather than fixed.) | H17 is large and mechanical; H16 is a small asymmetry with a clear right answer. |
 | **C3** | **S27, S29** — `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block; and the sizing vocabulary fragmented across five modules with self-admitted magic constants. (S30, the mesh crate's 1,060 lines of instrument, was the third member and is FIXED by #709.) **S29 is NOT blocked on a design conversation — corrected 2026-08-19.** This row previously said its policy question was routed to `docs/TESS-SPLIT-SPEC.md` and PR #568. #684's review checked: both are scoped **entirely to the NURBS per-cell schedule** (`nurbs_cert`'s `grid_steps`, certified cells, the first fundamental form — TESS-SPLIT-SPEC's D-1 replaces the AM-GM grouping, with `leaf_a f2` as its poster child). **Nothing in either covers analytic-chart sizing**, so `curved::grid_steps` has no venue at all — and #684 has since added a sixth rule to it. S29's own lesson applies to that: *N well-defended deviations read as N decisions when they are one undecided question.* S27 touches `props/`, so it must follow **A2** (#714) **and #723**, which re-opens the same file on the same closed forms — see the gating note above; S29 is edge-free. |
 | **C4** | **S32, S33** — `Surface`'s one-partial-per-call API, which is what created the shadow surface enum in SSI; and neither geometry enum being able to lift itself to another scalar. (S31, the `geom-curves`/`geom-surfaces` split, was the third member and is FIXED by #705.) | **S32 is now additionally gated on #705's merge**: the enum and its NURBS payload are one crate's two modules, so a `SurfaceJet` door at the enum no longer crosses a crate boundary. **S33 is coloured by D1**: several of its ~14 hand-written ladders exist only to reach `Dual`, and what `Bounds for Dual` changes there is written in S44's **D1 DECIDED** block. |
