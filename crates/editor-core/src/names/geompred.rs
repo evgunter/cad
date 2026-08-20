@@ -279,6 +279,7 @@ impl Cmp {
 /// through the plain [`Margin::of`](geom_core::Margin::of) door and
 /// owes NO `docs/predicate-dimension-audit.md` row — the flagged lane
 /// is for comparands that cannot honestly be lengths.
+///
 /// A K row name reaching the funnel through a const, not a literal at
 /// the decide site, so it is a roster carrier (`docs/K-REPORT.md`,
 /// "The inventory method, restated").
