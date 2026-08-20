@@ -66,8 +66,9 @@ pub enum UnitQuantity {
 /// The two typed views [`LengthUnit`] and [`AngleUnit`] are sealed the
 /// same way and by the same mechanism — each WRAPS a row of this table
 /// (issue #669), so "a typed view of a `UnitDef` row" is what the type
-/// literally is rather than a claim about how it is used. [`as_length`]
-/// and [`as_angle`] are the public route from a row to its view;
+/// literally is rather than a claim about how it is used.
+/// [`UnitDef::as_length`] and [`UnitDef::as_angle`] are the public
+/// route from a row to its view;
 /// `LengthUnit::def` / `AngleUnit::def` are the inverse and stay
 /// `pub(crate)` only because nothing outside the crate needs them —
 /// the seal no longer depends on their visibility.
