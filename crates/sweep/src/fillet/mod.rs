@@ -348,7 +348,7 @@ pub enum FilletError {
     /// each a front door that does not exist yet, the
     /// `FullRevolveHoles` precedent).
     AssemblyUnsupported {
-        /// What about the request put it outside the front doors.
+        /// What about the request put it outside the front door.
         detail: &'static str,
     },
     /// **The surgery's ring carry-through check**
