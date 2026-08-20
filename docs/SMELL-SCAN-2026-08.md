@@ -9369,7 +9369,7 @@ move the rule forbids, and the one the merge made structurally possible
 
 **Verdict:**
 
-## S104. FIXED by #NNN — `attribute()`'s wildcard over a closed enum, and the raise-site tag literal
+## S104. FIXED by #833 — `attribute()`'s wildcard over a closed enum, and the raise-site tag literal
 
 `attribute` (`crates/editor-core/src/assembly.rs`) now matches
 `ValidationError` **exhaustively**, in the shape the same wave used at
@@ -9429,7 +9429,7 @@ kernel type with a named test pin standing in for the compile alarm.
 It is the crate's own best answer to this defect, not an instance of
 it.
 
-## S136. FIXED by #NNN — `MatePrimitive`'s two wildcards, where the omission is the unsound direction
+## S136. FIXED by #833 — `MatePrimitive`'s two wildcards, where the omission is the unsound direction
 
 **Found by lane G-e** reading S104's unread member
 `crates/editor-core/src/mate.rs`.
@@ -9490,7 +9490,7 @@ names*.
 Narrowing the lookup needs the PAIR in
 `ValidationError::CensusUnsupported`, which is `topo`'s to carry.
 
-## S168. FIXED by #NNN — the validator door's doc says `ValidationError` has no `Display`
+## S168. FIXED by #833 — the validator door's doc says `ValidationError` has no `Display`
 
 **Found by lane G-e** sweeping `ValidationError`'s match sites.
 
@@ -10222,7 +10222,7 @@ see §C.
 - (u) Residue: `crates/sweep/tests/m5_pr12_refusals.rs:518` has a
   leftover `let p = Point3::new(0.0,0.0,0.0); let _ = p;`.
   `crates/pncad-py/src/py/doc.rs`'s raise-site literal was S104's
-  sibling and is **FIXED with it** by #NNN — the tag now comes from
+  sibling and is **FIXED with it** by #833 — the tag now comes from
   `tags::workspace_error_tag`.
   `interval-transcendentals`' `2^-960` vs the literature's `~2^-969` is
   a nine-binade round-up justified as absorbing *"every boundary
