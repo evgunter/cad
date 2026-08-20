@@ -123,13 +123,24 @@ fn cmp_mag(m1: u128, e1: i32, m2: u128, e2: i32) -> std::cmp::Ordering {
     }
 }
 
-/// Exact signed compare of x (an f64) vs the rational p = pm*2^pe with
-/// sign pneg (p nonzero). Returns Ordering of x relative to p.
+/// The shell every exact comparison in this file shares: the cases
+/// decided by CLASS rather than by magnitude — infinities, zero, and
+/// opposite signs — with only the magnitude arm left to the caller,
+/// which supplies `|x|` (as an odd mantissa and exponent) against
+/// whatever it is comparing to.
 ///
-/// The general-purpose form of the comparison `check_div_case` does with
-/// a specialized closure. It is what the `×` lanes below use, which is
-/// what it was kept for.
-fn cmp_f64_vs_rat(x: f64, pneg: bool, pm: u128, pe: i32) -> std::cmp::Ordering {
+/// One home for it because there were two, line for line, with a
+/// comment on one saying it was "the general-purpose form" of the other
+/// — which is the rule asking for exactly this.
+///
+/// `target_neg` is the sign of the value being compared against; the
+/// caller's arm answers about MAGNITUDES only and the shell applies the
+/// sign flip.
+fn cmp_f64_vs_signed(
+    x: f64,
+    target_neg: bool,
+    cmp_abs: impl FnOnce(u128, i32) -> std::cmp::Ordering,
+) -> std::cmp::Ordering {
     use std::cmp::Ordering::*;
     if x == f64::INFINITY {
         return Greater;
@@ -138,20 +149,24 @@ fn cmp_f64_vs_rat(x: f64, pneg: bool, pm: u128, pe: i32) -> std::cmp::Ordering {
         return Less;
     }
     if x == 0.0 {
-        return if pneg { Greater } else { Less };
+        return if target_neg { Greater } else { Less };
     }
     let (xneg, xm, xe) = decomp(x);
-    match (xneg, pneg) {
+    match (xneg, target_neg) {
         (false, true) => Greater,
         (true, false) => Less,
-        (false, false) => cmp_mag(xm, xe, pm, pe),
-        (true, true) => cmp_mag(xm, xe, pm, pe).reverse(),
+        (false, false) => cmp_abs(xm, xe),
+        (true, true) => cmp_abs(xm, xe).reverse(),
     }
 }
 
-/// The oracle: check [lo, hi] = point(a)/point(b) against the EXACT
-/// rational a/b. Containment: lo <= a/b <= hi as rationals, i.e.
-/// lo*b <=> a with sign handling. Exactness (degenerate result): a == q*b.
+/// Exact signed compare of x (an f64) vs the rational p = pm*2^pe with
+/// sign pneg (p nonzero). Returns Ordering of x relative to p. Used by
+/// the `x` lanes.
+fn cmp_f64_vs_rat(x: f64, pneg: bool, pm: u128, pe: i32) -> std::cmp::Ordering {
+    cmp_f64_vs_signed(x, pneg, |xm, xe| cmp_mag(xm, xe, pm, pe))
+}
+
 fn check_div_case(a: f64, b: f64) {
     let r = DInterval::point(a) / DInterval::point(b);
     assert!(!r.is_nai() && !r.is_empty(), "a={a:e} b={b:e}: poisoned?");
@@ -171,27 +186,10 @@ fn check_div_case(a: f64, b: f64) {
     let (aneg, am, ae) = decomp(a);
     let (bneg, bm, be) = decomp(b);
     let qneg = aneg ^ bneg;
-    let cmp_x_vs_q = |x: f64| -> std::cmp::Ordering {
-        use std::cmp::Ordering::*;
-        if x == f64::INFINITY {
-            return Greater;
-        }
-        if x == f64::NEG_INFINITY {
-            return Less;
-        }
-        if x == 0.0 {
-            return if qneg { Greater } else { Less };
-        }
-        let (xneg, xm, xe) = decomp(x);
-        match (xneg, qneg) {
-            (false, true) => Greater,
-            (true, false) => Less,
-            _ => {
-                // |x| vs |a|/|b|  <=>  |x|*|b| vs |a|
-                let ord = cmp_mag(xm * bm, xe + be, am, ae);
-                if xneg { ord.reverse() } else { ord }
-            }
-        }
+    let cmp_x_vs_q = |x: f64| {
+        // |x| vs |a|/|b|  <=>  |x|*|b| vs |a|, and `x*b` is exact as a
+        // rational product (xm*bm, xe+be).
+        cmp_f64_vs_signed(x, qneg, |xm, xe| cmp_mag(xm * bm, xe + be, am, ae))
     };
     // F2 containment.
     assert!(
@@ -256,6 +254,11 @@ fn ok_pair(a: f64, b: f64) -> bool {
 // 2-4 exist for.
 const LANE1_RAW_PAIRS: usize = 21_429; // full sweep: 6_000_000
 const LANE2_EXACT_DIVISIONS: usize = 14_286; // full sweep: 4_000_000
+// One per-window count for all three operations' lane 3, not two: this
+// value carries provenance (the M5 PR 1 adversarial review's 500 000 per
+// window, divided by 280 so `CAD_FUZZ_EFFORT=280` reproduces it), and a
+// second, chosen number beside it was two names for one concept with
+// drifted values.
 const LANE3_PER_WINDOW: usize = 1_786; // full sweep: 500_000, x8 windows
 
 /// Anti-vacuity floor on the total case count: a generator that started
@@ -265,8 +268,9 @@ const LANE3_PER_WINDOW: usize = 1_786; // full sweep: 500_000, x8 windows
 /// run clears it by ~1.75x, as the full sweep always did.
 const CASE_FLOOR: usize = 35_714;
 
-/// Anti-vacuity floor on LANE 2's generator specifically — does it still
-/// construct divisions that come out exact, at the rate it was built to?
+/// Anti-vacuity floor on LANE 2's generator specifically, counted from a
+/// counter LANE 2 ALONE increments — does it still construct divisions
+/// that come out exact, at the rate it was built to?
 /// This is NOT the exactness-witness coverage claim (that is written
 /// down as a static fixture below, see the module docs); it is the
 /// tripwire for lane 2 quietly degenerating into lane 1. The shipped run
@@ -277,6 +281,13 @@ const DEGENERATE_FLOOR: usize = 357;
 fn fuzz_div_witness_soundness_and_containment() {
     let mut rng = fuzz::start("review_fuzz_exact::div");
     let mut n = 0usize;
+    // Two counters, not one. The floor below is about LANE 2's
+    // constructed-exact generator, so lane 1's incidental exact results
+    // must not be able to satisfy it — they are rare (a random-bit-
+    // pattern quotient is exact with probability ~2^-47), so today the
+    // single counter happened to work, which is correct by accident and
+    // not what the assert says.
+    let mut degenerate_lane1 = 0usize;
     let mut degenerate = 0usize;
     // Lane 1: raw random bit patterns (full exponent sweep, subnormals,
     // signed zeros in the numerator, everything).
@@ -287,7 +298,7 @@ fn fuzz_div_witness_soundness_and_containment() {
         }
         let r = DInterval::point(a) / DInterval::point(b);
         if a != 0.0 && r.lo() == r.hi() {
-            degenerate += 1;
+            degenerate_lane1 += 1;
         }
         check_div_case(a, b);
         n += 1;
@@ -355,7 +366,10 @@ fn fuzz_div_witness_soundness_and_containment() {
         "lane 2 rarely produced an exact division: {degenerate} — {}",
         fuzz::replay()
     );
-    println!("review_fuzz_exact div: checked {n} cases, {degenerate} degenerate-exact");
+    println!(
+        "review_fuzz_exact div: checked {n} cases, {degenerate} degenerate-exact \
+         in lane 2 (+{degenerate_lane1} incidental in lane 1)"
+    );
 }
 
 /// **The exactness witness, on cases written down rather than hunted
@@ -524,17 +538,22 @@ const LANE_MUL_RAW: usize = 20_000;
 const LANE_MUL_EXACT: usize = 10_000;
 const LANE_SQRT_RAW: usize = 20_000;
 const LANE_SQRT_EXACT: usize = 10_000;
-const LANE_PER_WINDOW: usize = 1_000;
 
 /// Anti-vacuity floors, in the same spirit as the division lanes'. The
-/// shipped run clears the case floors by ~1.85x (mul: 46.2k against
-/// 25k) and ~1.71x (sqrt: 42.7k against 25k), and the degenerate floors
-/// by ~7.1x and ~8.2x — measured over four varying-seed runs at effort
-/// 1, whose spread was under 2% on every column. They exist to catch a
-/// generator that started rejecting everything, or a constructed-exact
-/// lane that degenerated into a random one; they do NOT certify a rate,
-/// and a real change in the numbers is a thing to look at, not to
-/// restore.
+/// shipped run clears the case floors by ~2.35x (mul: 58.8k against
+/// 25k) and ~2.15x (sqrt: 53.8k against 25k), and the degenerate floors
+/// by ~7.2x and ~8.3x — measured over varying-seed runs at effort 1,
+/// whose spread was under 2% on every column.
+///
+/// The degenerate counters count **lane 2 alone**. Measured, lane 1's
+/// incidental contribution is exactly 0 for all three operations, which
+/// is what the probability argument predicts (a random-bit-pattern
+/// product is exact with probability ~54·2^-53) — but a counter that is
+/// right because the other contributor happens to be empty is right by
+/// accident, and the assert names lane 2.
+///
+/// They do NOT certify a rate, and a real change in the numbers is a
+/// thing to look at, not to restore.
 const MUL_CASE_FLOOR: usize = 25_000;
 const SQRT_CASE_FLOOR: usize = 25_000;
 const MUL_DEGENERATE_FLOOR: usize = 1_000;
@@ -543,7 +562,8 @@ const SQRT_DEGENERATE_FLOOR: usize = 1_000;
 #[test]
 fn fuzz_mul_witness_soundness_and_containment() {
     let mut rng = fuzz::start("review_fuzz_exact::mul");
-    let (mut n, mut degenerate) = (0usize, 0usize);
+    // Split as in the division test: the floor is lane 2's.
+    let (mut n, mut degenerate, mut degenerate_lane1) = (0usize, 0usize, 0usize);
     // Lane 1: raw bit patterns — full exponent sweep, subnormals, signed
     // zeros, and every over/underflowing product they produce.
     for _ in 0..fuzz::scaled(LANE_MUL_RAW) {
@@ -553,7 +573,7 @@ fn fuzz_mul_witness_soundness_and_containment() {
         }
         let r = DInterval::point(a) * DInterval::point(b);
         if a != 0.0 && b != 0.0 && r.lo() == r.hi() {
-            degenerate += 1;
+            degenerate_lane1 += 1;
         }
         check_mul_case(a, b);
         n += 1;
@@ -581,7 +601,7 @@ fn fuzz_mul_witness_soundness_and_containment() {
     // Lane 3: magnitude windows centred on the witness floor, the
     // subnormal boundary, and the overflow edge.
     for center in [-960i32, -1022, -900, -480, 0, 480, 900, 1020] {
-        for _ in 0..fuzz::scaled(LANE_PER_WINDOW) {
+        for _ in 0..fuzz::scaled(LANE3_PER_WINDOW) {
             let a = f64_near_exp(&mut rng, center);
             let bc = (rng.next_u64() % 41) as i32 - 20;
             let b = f64_near_exp(&mut rng, bc);
@@ -614,13 +634,17 @@ fn fuzz_mul_witness_soundness_and_containment() {
         "lane 2 rarely produced an exact product: {degenerate} — {}",
         fuzz::replay()
     );
-    println!("review_fuzz_exact mul: checked {n} cases, {degenerate} degenerate-exact");
+    println!(
+        "review_fuzz_exact mul: checked {n} cases, {degenerate} degenerate-exact \
+         in lane 2 (+{degenerate_lane1} incidental in lane 1)"
+    );
 }
 
 #[test]
 fn fuzz_sqrt_witness_soundness_and_containment() {
     let mut rng = fuzz::start("review_fuzz_exact::sqrt");
-    let (mut n, mut degenerate) = (0usize, 0usize);
+    // Split as in the division test: the floor is lane 2's.
+    let (mut n, mut degenerate, mut degenerate_lane1) = (0usize, 0usize, 0usize);
     // Lane 1: raw bit patterns, sign included — negatives exercise the
     // full-miss refusal rather than being filtered away.
     for _ in 0..fuzz::scaled(LANE_SQRT_RAW) {
@@ -630,7 +654,7 @@ fn fuzz_sqrt_witness_soundness_and_containment() {
         }
         let r = DInterval::point(a).sqrt();
         if a > 0.0 && r.lo() == r.hi() {
-            degenerate += 1;
+            degenerate_lane1 += 1;
         }
         check_sqrt_case(a);
         n += 1;
@@ -655,7 +679,7 @@ fn fuzz_sqrt_witness_soundness_and_containment() {
     }
     // Lane 3: magnitude windows, plus subnormal radicands.
     for center in [-1074i32, -1022, -960, -480, 0, 480, 1020] {
-        for _ in 0..fuzz::scaled(LANE_PER_WINDOW) {
+        for _ in 0..fuzz::scaled(LANE3_PER_WINDOW) {
             let a = f64_near_exp(&mut rng, center);
             if a.is_finite() {
                 check_sqrt_case(a);
@@ -680,7 +704,10 @@ fn fuzz_sqrt_witness_soundness_and_containment() {
         "lane 2 rarely produced an exact square root: {degenerate} — {}",
         fuzz::replay()
     );
-    println!("review_fuzz_exact sqrt: checked {n} cases, {degenerate} degenerate-exact");
+    println!(
+        "review_fuzz_exact sqrt: checked {n} cases, {degenerate} degenerate-exact \
+         in lane 2 (+{degenerate_lane1} incidental in lane 1)"
+    );
 }
 
 /// The magnitudes worth naming: the extremes, the subnormal boundary and
