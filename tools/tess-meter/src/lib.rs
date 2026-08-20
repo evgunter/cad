@@ -32,6 +32,30 @@
 //! the promotion holds stays a number and a silent revert to
 //! whole-patch sizing cannot hide.
 //!
+//! **Where the guards live, named — and what they do NOT cover**
+//! (issue #667's Q6). `ci.yml`'s `k-lint (gate)` job runs `mesh budget
+//! meter + certificate falsifier (feature = budget)` — the gated half
+//! of `mesh::budget`, which the default `cargo test -p mesh` row
+//! cannot reach — and `tess-meter tool fmt + clippy + tests`, this
+//! crate's own derivations; then it re-tessellates the whole tour with
+//! `tessellation-budget sweep (every tour scene, per face)`
+//! (`scripts/tess_budget_sweep.sh`) and lints the fresh CSV against
+//! `docs/tess-budget-data/tess-budget-baseline.csv` in
+//! `tessellation-budget lint (gate — a grown budget fails this row)`.
+//! The job is unconditional on anything that builds, so the SIZING
+//! columns — triangle counts and `grid_cells / span_opt_cells`, which
+//! is what `compare` reads — are a scheduled register, re-measured per
+//! merge.
+//!
+//! **The deviation half is not.** CI runs that sweep with
+//! `--sizing-only`, which skips the |S - Pi| resample, so `worst_dev`
+//! is empty on every fresh row and `tess_lint::Row::total_slack` is
+//! `None` for all of them. `docs/TESS-BUDGET.md`'s `total` column and
+//! its total-slack factors therefore come from a `--deviation` run
+//! nothing re-takes: that document is a one-shot writeup wrapped
+//! around a re-measured sizing gate, not a register end to end. Read
+//! its sizing columns as live and its deviation columns as dated.
+//!
 //! | factor | ratio | what it says |
 //! |---|---|---|
 //! | **span held** | `patch_cells / grid_cells` | the gain TESS-SPAN holds over whole-patch-sup sizing. Falls toward 1.0 if the shipped schedule regresses toward the patch sup. |
