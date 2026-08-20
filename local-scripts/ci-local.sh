@@ -516,7 +516,14 @@ klint_gate() {
 # delta to get the number down is the one forbidden move. What the
 # absolute factors currently are, and why: docs/TESS-BUDGET.md.
 tesslint_tool() {
-  (cd tools/tess-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test)
+  # `cargo doc` too, for the reason given at tessmeter_tool below: this
+  # crate is workspace-excluded, so doc-gate.sh never sees the prose
+  # that carries the gate's own rules and its report legend.
+  (cd tools/tess-lint && cargo fmt --check && \
+    cargo clippy --all-targets -- -D warnings && \
+    RUSTDOCFLAGS="-D warnings -A rustdoc::private_intra_doc_links" \
+      cargo doc --no-deps --document-private-items && \
+    cargo test)
 }
 # The meter's CONSUMER half (mirrors ci.yml's row of the same name):
 # the CSV schema, the counterfactual schedules and the split optimizer
@@ -603,7 +610,7 @@ run_row_if "$RUN_K_LINT" "uv sheet drift (demos)"          uv_sheet_drift
 run_row_if "$RUN_K_LINT" "k-lint tool (fmt+clippy+litmus)" klint_tool
 run_row_if "$RUN_K_LINT" "probe test targets (type-check)"  probe_targets
 run_row_if "$RUN_K_LINT" "k-lint sweep + gate"             klint_gate
-run_row_if "$RUN_K_LINT" "tess-lint tool (fmt+clippy+cli)" tesslint_tool
+run_row_if "$RUN_K_LINT" "tess-lint tool (fmt+clippy+doc+cli)" tesslint_tool
 run_row_if "$RUN_K_LINT" "tess-meter tool (fmt+clippy+tests)" tessmeter_tool
 run_row_if "$RUN_K_LINT" "mesh budget meter (feature)"     budget_meter
 run_row_if "$RUN_K_LINT" "tess-budget sweep + gate"        tesslint_gate

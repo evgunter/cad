@@ -125,23 +125,20 @@ fn main() {
     // holds, and what the same certificates would still allow. Cell
     // counts, not triangles — the triangle count of a trimmed face is
     // not its grid.
-    let (mut cg, mut cp, mut cs, mut cso) = (0.0, 0.0, 0.0, 0.0);
+    let (mut cg, mut cp, mut cso) = (0.0, 0.0, 0.0);
     for r in &nurbs {
         if let Some(n) = r.nurbs {
             cg += n.grid_cells;
             cp += n.patch_cells;
-            cs += n.span_cells;
             cso += n.span_opt_cells;
         }
     }
     if cg > 0.0 {
         println!(
             "  grid cells over all Hessian-sized faces: {cg:.0} used (per-knot-span-cell, \
-             TESS-SPAN); whole-patch counterfactual {cp:.0} ({:.1}x held), meter's per-cell \
-             prediction {cs:.0} (agreement {:.2}), {cso:.0} at the cheapest split per cell \
-             ({:.1}x still recoverable)",
+             TESS-SPAN); whole-patch counterfactual {cp:.0} ({:.1}x held), {cso:.0} at the \
+             cheapest split per cell ({:.1}x still recoverable)",
             cp / cg,
-            cg / cs,
             cg / cso
         );
         println!(
@@ -157,19 +154,18 @@ fn main() {
     ranked.sort_by_key(|(_, t)| std::cmp::Reverse(t.triangles));
     if !ranked.is_empty() {
         println!(
-            "\n  {:<34} {:>9} {:>9} {:>7} {:>7} {:>7} {:>8}",
-            "scene (Hessian-sized faces)", "tris", "nurbs", "held", "agree", "split", "total"
+            "\n  {:<34} {:>9} {:>9} {:>7} {:>7} {:>8}",
+            "scene (Hessian-sized faces)", "tris", "nurbs", "held", "split", "total"
         );
         for (scene, t) in ranked.iter().take(top) {
             let total = t
                 .total_slack()
                 .map_or_else(|| "     -".to_string(), |s| format!("{s:5.1}x"));
             println!(
-                "  {scene:<34} {:>9} {:>9} {:>6.1}x {:>6.2} {:>6.1}x {total:>8}",
+                "  {scene:<34} {:>9} {:>9} {:>6.1}x {:>6.1}x {total:>8}",
                 t.triangles,
                 t.nurbs_triangles,
                 t.span_held(),
-                t.agreement(),
                 t.recoverable()
             );
         }
@@ -178,8 +174,7 @@ fn main() {
         }
         println!(
             "\n  held = the whole-patch-sup counterfactual against the shipped per-cell grid \
-             (the TESS-SPAN gain);\n  agree = the lane's realised cell count vs the same \
-             schedule's sum (1.00 by construction);\n  split = what a cheaper split point per cell \
+             (the TESS-SPAN gain);\n  split = what a cheaper split point per cell \
              would still recover (a strip-shaped upper bound);\n  total = triangles against \
              what their ATTAINED deviation needed (an estimate: a sampled sup,\n  extrapolated \
              through deviation ~ h^2 — the others are counted grids)"
