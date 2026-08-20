@@ -41,7 +41,7 @@
 //!
 //! # Predicate inventory (margins in meters; lever arms named)
 //!
-//! Every decision goes through the [`crate::k_stats::decide`] funnel
+//! Every decision goes through the [`geom_core::k_stats::decide`] funnel
 //! with one of these names — the unit of the K-experiment margin
 //! statistics:
 //!
@@ -101,12 +101,12 @@
 
 use core::fmt;
 
+use geom_core::k_stats::decide;
 use geom_core::{
     Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point2, Real, Sign,
     Tolerance, Vec2,
 };
 
-use crate::k_stats::decide;
 use crate::seg::{self, CKind, PairOutcome, Seg, SegIssue, SegKind, build_seg};
 use crate::{Profile, ProfileLoop, ProfileVertex};
 
