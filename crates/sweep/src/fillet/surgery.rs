@@ -165,6 +165,9 @@ fn unbuilt_geometry(at: EntityId, detail: &'static str) -> FilletError {
 
 /// The one new margin this unit decides (module docs): the exact
 /// clearance between a support face's ring and a blend trimline.
+/// A K row name reaching the funnel through a const, not a literal at
+/// the decide site, so it is a roster carrier (`docs/K-REPORT.md`,
+/// "The inventory method, restated").
 const RING_CLEARANCE: &str = "fillet3_ring_clearance";
 
 // ------------------------------------------------------------------
@@ -1796,6 +1799,16 @@ fn loop_walk_face<T: Decide>(
 /// carrier and describe it as the tangential contact locus of its two
 /// adjacent faces' surfaces — over the rim arcs' stored carriers as
 /// well as over the straight trimlines.
+///
+/// **A blend trimline is BORN with its intrinsic description**, never a
+/// `MappedCurve` pushforward of the construction that happened to
+/// produce it: the rolling ball supplies the witness and the initial
+/// caches, and nothing else of the construction survives into the
+/// geometry. That is what makes an imported fillet's trimline a
+/// reconstruction into a variant this kernel already stores and
+/// certifies, rather than a taxonomy scramble at adoption time
+/// (`CURVED-DESIGN.md` §D7, fifth leave-room obligation; the rule
+/// itself is `DESIGN.md`'s prefer-intrinsic paragraph under D2).
 fn attach_contact<T: Decide + Bounds>(
     body: &mut Body<T>,
     edge: EdgeKey,

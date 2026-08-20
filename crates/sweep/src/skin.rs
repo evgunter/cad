@@ -369,21 +369,6 @@ pub fn segment_curve(
 // §5.3 + §5.5: compatibility
 // ---------------------------------------------------------------------
 
-/// The interior knots of `kv` as `(value, multiplicity)`, ascending —
-/// an exact-`f64` structure scan (C6), never a tolerance question.
-fn interior_multiplicities(kv: &KnotVector) -> Vec<(f64, usize)> {
-    let p = kv.degree();
-    let knots = kv.knots();
-    let mut out: Vec<(f64, usize)> = Vec::new();
-    for u in &knots[p + 1..knots.len() - p - 1] {
-        match out.last_mut() {
-            Some((v, m)) if *v == *u => *m += 1,
-            _ => out.push((*u, 1)),
-        }
-    }
-    out
-}
-
 /// Makes section curves COMPATIBLE (Book §10.3's precondition): one
 /// common degree (§5.5 degree elevation) on one common knot vector
 /// (§5.3 knot merging — refine each section by whatever the union
@@ -429,7 +414,7 @@ pub fn make_compatible(sections: &[NurbsCurve3<f64>]) -> Result<Vec<NurbsCurve3<
     // the greatest multiplicity any section gives it.
     let mut union: Vec<(f64, usize)> = Vec::new();
     for c in &elevated {
-        for (value, mult) in interior_multiplicities(c.knots()) {
+        for (value, mult) in c.knots().interior_knots() {
             match union.iter_mut().find(|(v, _)| *v == value) {
                 Some((_, m)) => *m = (*m).max(mult),
                 None => union.push((value, mult)),
@@ -440,7 +425,7 @@ pub fn make_compatible(sections: &[NurbsCurve3<f64>]) -> Result<Vec<NurbsCurve3<
     let merged: Vec<NurbsCurve3<f64>> = elevated
         .iter()
         .map(|c| {
-            let own = interior_multiplicities(c.knots());
+            let own: Vec<(f64, usize)> = c.knots().interior_knots().collect();
             let mut add: Vec<f64> = Vec::new();
             for (value, want) in &union {
                 let have = own
