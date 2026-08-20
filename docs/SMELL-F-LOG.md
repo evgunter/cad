@@ -439,13 +439,27 @@ blanked, so a consumer is never given a raw body to `contains` on, and
 spellings of the plant that must not read as calls, seven real calls that
 must. Door counts are unchanged by the fix, so nothing was over-stripped.
 
-**Residue: S117 / D61**, seven further source-text guards across three crates
-with the same silent direction (a real site commented out leaves its text, so
-the count does not move). Not swept under F5 on purpose — three of them search
-*for* string literals, so this unit's helper would have blanked what they look
-for and minted three guards that cannot fail, and two live in crates
-`topo::fixtures` cannot reach. **S118 and D62 were reserved to F-a and are
-unused.**
+**Not cleared on first pass (F-R8, F-R9), fixed in the same PR.** The style
+review reproduced the finding's own defect one layer beneath the fix: the
+delimiter matcher that carved bodies for the blanker knew none of the three
+constructs the blanker was written for, so a door carrying `'"'` was dropped
+from the walk and the next one's body corrupted. `CodeOnly` is now the crate's
+only lexer and the item scan is a method on it, so nothing can run it over
+un-blanked text. Demonstrated on named trees: the pre-fix scanner extracted
+from `6a2d237a` and run standalone loses the `'"'`-carrying door and finds only
+the door after it; the current one finds both. The review also found two
+over-strip defects (byte raw strings, char-literal escapes), that
+*"over-stripping is loud"* is **false of the pcurve guard**, and that the
+argument for staying textual rather than parsing existed nowhere — all now
+fixed or written at the site.
+
+**Residue: S117 / D61**, **nine** further source-text guards across five
+crates, not the seven this lane first wrote. The count and the disposition were
+both wrong: `include_str!` is a spelling none of the lane's six patterns
+reached, and of the nine, **five** are served by `CodeOnly` as shipped, **three**
+need a comments-only variant and one needs the inverse. Nine is a floor.
+`topo/src/{face_normal,chord_join}.rs` are Track G's G8/G9 — flagged there, not
+taken. **S118 and D62 were reserved to F-a and are unused.**
 
 ## Incidents
 

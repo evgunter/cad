@@ -8545,6 +8545,21 @@ sites now carry the reason**: they are two properties of one set, and a
 merged table would let an edit about pcurve staleness red the tier-1
 guard.
 
+**One lexer, not two.** The first shape of this fix left two: the
+delimiter matcher that carves function bodies, and the blanker layered
+on it. The blanker knew `'"'`, nested block comments and raw strings;
+the matcher underneath knew none of the three, so a door body carrying
+`'"'` was dropped from the walk entirely and the next door's body
+corrupted — the finding's own defect, one layer beneath the fix, found
+by #788's style review. `CodeOnly` is now the only thing in the crate
+that knows Rust's lexical grammar; the item scan is a method on it, so
+there is no way to run it over un-blanked text. **Demonstrated on named
+trees:** the pre-fix scanner, extracted from `6a2d237a` and run
+standalone, finds only the *second* of two planted doors when the first
+carries `'"'`, and finds neither when one carries `br"x\"`; the current
+one finds both, with the literal blanked and the call intact. Live-tree
+plant: both doors are reported by both guards.
+
 **The string-match hole is closed, and it was demonstrated before it was
 closed.** A public mutation door was planted in `pcurves.rs` whose body
 held nothing but two comments naming `assert_euler_postcondition` and
@@ -8561,19 +8576,39 @@ what stops the fix from being a classifier that answers `false` to
 everything.
 
 **Blind spots** live once, on `mutation_doors`, and both guards point at
-it: delegation, `topo/src` only, and *text rather than semantics* — a
-`cfg`-gated call counts as present, a `use` line naming the macro counts
-as a call, and a call reached under an alias does not.
+it: delegation, `topo/src` only, module visibility, `cfg`, and aliasing.
+Two were closed rather than disclosed — the item scan reads the `fn`
+token rather than a `pub fn ` literal, so `pub const fn` and friends are
+no longer invisible, and the tier-1 needle carries its paren, so a `use`
+line no longer satisfies it. **The argument for staying textual is
+written at the site**, which it was not before: a parser closes the
+lexing and exactly one disclosed blind spot, and none of the four that
+cost coverage — delegation needs a call graph, aliasing needs name
+resolution, `cfg` needs evaluation.
+
+**Two guards now, not one, and neither is by construction.** The
+co-domain claim under *"two properties of one set"* is asserted by
+`the_two_door_tables_cover_the_same_surface`: a door that both asserts
+tier 1 and re-mints is sorted by its own body on both sides and named by
+**neither** table, and both guards stay green over it. Planted, and it
+is the only row that reds. The two hand-chosen floors are gone,
+replaced by one walk floor derived from the measured 37 and one
+by-name pin per guard — the pcurve one because over-stripping is
+**silent** there, a door that stops reading as minting falling to its
+own entry rather than reddening.
 
 **The class.** Swept with `&mut self")` (2 hits, both fixed),
 `body\.contains(` (3 hits, 2 fixed) and the callers of
 `crate_sources()` (6 hits, 2 fixed). Those patterns are keyed on
 spellings and cannot see a guard that scrapes source another way;
 widening to `extension() == "rs"` / `join("src")` / `CARGO_MANIFEST_DIR`
-found instances outside `topo` that the first three missed. The seven
-remaining members are **S117**, not this row: four of them need a
-different helper (they search *for* string literals, which `code_only`
-blanks) and two are in crates `fixtures` cannot reach.
+found instances outside `topo` that the first three missed. The remaining
+members are **S117**, and there are **nine** of them, not seven: a
+seventh spelling — `include_str!` — reaches two the six patterns above
+could not, and the count is a floor. Their disposition is re-derived
+there against what each file actually greps for, which is not what this
+unit first wrote: **five** are served by the helper as shipped, **three**
+need a comments-only variant, and one needs the inverse.
 
 ## S93. The S15 fix minted two new prose-held caller obligations
 
@@ -9332,7 +9367,7 @@ see §C.
   over-gating only costs tightness, and the one number in that crate
   that is chosen rather than proven.
 
-## S117. Seven source-text guards classify by matching raw source, and each has a direction in which a comment is enough
+## S117. Nine source-text guards classify by matching raw source, and each has a direction in which a comment is enough
 
 Raised by **#788** (S92) while closing that finding's two members. Every
 guard below reads `.rs` source and asserts a count or a presence over
@@ -9340,38 +9375,71 @@ raw text, with no comment awareness or with line-leading-`//` awareness
 only. **The direction that matters is the silent one**: a real site
 commented out leaves its text in the file, so the count does not move
 and the guard stays green over exactly the change it exists to catch.
-For several of them the loud direction is live too — a doc comment
-mentioning the string reds the guard, which is F3's already-realised
+For several the loud direction is live too — a doc comment mentioning
+the string reds the guard, which is F3's already-realised
 cry-wolf-then-allowlist outcome.
 
+**Nine is a floor, not an enumeration.** Two of the members below were
+found only by a differently-shaped sweep, because **`include_str!` is a
+spelling that none of #788's six patterns could reach**; a tenth found
+by a seventh spelling is expected rather than surprising. Neither sweep
+covered `scripts/`, `tools/`, `demos/`, guards over non-`.rs`
+artefacts, or a source read through a runtime-built path not rooted at
+`CARGO_MANIFEST_DIR`.
+
+**The class needs two views, not one helper.** #788's
+`source_walk::CodeOnly` blanks comments **and** literals, which is right
+for a guard whose needle is a call and wrong for one whose needle is a
+string literal or a doc heading. Sorted by what each member actually
+greps for:
+
+*Served by `CodeOnly` as it shipped — the needle is a code fragment (5):*
+
 - `topo/src/review_d18.rs` — `body.matches("unreachable!").count() == 2`
-  over `link_half_edges`; commenting both out keeps the count at 2.
-- `topo/src/review_d18_probes.rs` — skips line-leading `//` only, so a
-  block-commented offending `unreachable!` message is not seen.
-- `topo/src/chord_join.rs` — `stripped.matches("decide(\"split_…\"")`
-  pinned at one site per rung; commenting the real site out keeps it
-  at one.
-- `topo/src/sector_shape.rs` and `topo/src/face_normal.rs` — the
+  over `link_half_edges`, and `!body.contains("if let Some")`;
+  commenting both `unreachable!`s out keeps the count at 2.
+- `topo/src/face_normal.rs` — `Surface::Plane {` and `from_chart`; the
   *"the guard earns its line only if the string is reachable at all"*
-  half is satisfied by a commented-out home spelling. `sector_shape`'s
-  own comment records that its retired names *"briefly"* made it its own
-  first counter-example, so the loud direction has already fired once.
+  half is satisfied by a commented-out home spelling.
 - `geom-core/tests/flagged_census.rs` — the ledger count of
   `k_stats::decide_flagged(` sites, no strip at all, both directions
   live.
 - `step-import/tests/tier_gate.rs` — the *"exactly two validator call
-  sites"* pin, line-leading `//` only.
+  sites"* pin, line-leading `//` only, so a block-commented call still
+  counts.
+- `profile/tests/seal.rs` — `pub struct ProfileVertex<T: Real>` plus
+  `serde` / `Serialize` / `Deserialize` over `include_str!`'d source.
 
-**Why #788 did not sweep them.** Its fix is `fixtures::code_only`, which
-blanks comments **and string literals**. Three of the topo members
-(`chord_join`, `sector_shape`, `face_normal`) are anti-re-fork guards
-that search *for* string literals, so `code_only` would blank exactly
-what they look for and turn them into guards that cannot fail — this
-track's characteristic failure. They need a comments-only variant. The
-two outside `topo` cannot reach the helper at all: `topo::fixtures` is
-`pub(crate)`, so sharing it is a test-support-crate decision, not a
-lane's. **This row closes on a helper shape plus the seven conversions**,
-and the shape question comes first.
+*Need a comments-only variant — the needle contains a string literal,
+which `CodeOnly` blanks (3):*
+
+- `topo/src/sector_shape.rs` — searches for `"bool_arm"` **with its
+  quotes**. Its own comment records that spelling the retired names
+  inline *"briefly"* made it its own first counter-example, so the loud
+  direction has already fired once here.
+- `topo/src/chord_join.rs` — `decide("split_arc_window"` on a
+  whitespace-stripped copy; commenting the real site out keeps the
+  count at one.
+- `topo/src/review_d18_probes.rs` — reads the message text inside
+  `unreachable!(…)`, and skips line-leading `//` only.
+
+*Needs the inverse view — its needle is prose (1):*
+
+- `editor-core/tests/schema_ledger.rs` — asserts the raw text of
+  `persist/mod.rs` contains `Version {n} is`, whose entries are **doc
+  comments** (`persist/mod.rs:124`, `:133`). `CodeOnly` would blank
+  exactly what it looks for. A commented-out ledger entry satisfies it,
+  which is the silent direction; the guard's own docs already concede
+  it *"reads for a heading, not for meaning"*.
+
+**Why #788 did not sweep them.** Five were reachable with the helper as
+shipped and were left because they are outside F5's two files and three
+of them are outside `topo` entirely, where `source_walk` cannot be named
+(it is `pub(crate)` and `#[cfg(test)]`, so sharing it means a
+test-support crate). The other four need a helper that does not exist.
+**This row closes on the helper shapes plus the nine conversions**, and
+`topo/src/{face_normal,chord_join}.rs` are Track G's **G8/G9** — a taker
+must sequence with them.
 
 **Verdict:**
 
@@ -10791,7 +10859,7 @@ deliverable is the helper's shape — see the row.
 | **D51** | **`DESIGN.md`'s companion table describes the dimensional audit's open findings as they stood two retirements ago.** `docs/DESIGN.md:31` reads *"LIVE working audit | Dimensional-analysis sweep; open findings F2, F6's residue, F7–F15"*. The audit's own disposition list says otherwise on two of those: **F6 is RETIRED** (*"M6-3 closed most of it … The residue closed with F7"*) and **F7 is RETIRED** (`nurbs_span_meter`, closed by the typed-margin fold-in — the two were closed together, as one quantity three sites had handled three ways). So the sentence names as open a residue that no longer exists under that name and a finding that was retired with it — and the residue did not simply vanish: the audit re-homed what is left (`pcurves.rs`'s `azimuth_arm` `_ => 1` and the `v_meter` fallbacks) to **issue #501** and states explicitly that it is *"NOT this family"*. A reader following *"F6's residue"* is sent to a disposition that redirects them, which is worse than a plain miss. The rest of the range is right today: F8–F11 and F13–F15 are open, F12 is open as an attribution hole, and F2 is open with a named re-pin unit. **This is S39's class, in the one file where it is most expensive, and it fits that finding's own shape exactly**: S39 records that in nearly every one of its eleven rows the *authoritative* statement was already correct and only a summary or module-level restatement had rotted. Here the authoritative statement (the audit's disposition list) is current and the index rotted — a stale claim in a document *about* another document that has moved under it. `DESIGN.md` is the ratified contract and its companion table is the index a reader hits first; a reader who trusts it goes looking for an F7 disposition that says RETIRED and concludes one of the two documents is wrong. Nothing checks the sentence: the audit is prose, the table is prose, and no test, lint or CI row reads either. **The fix is a re-derivation, not a one-line correction, and the reason is the shape of the error.** Striking *"F6's residue, F7"* would make the sentence true this week and leave it the same kind of claim — a hand-copied enumeration of another file's live state, with the same expiry and the same absence of anything that would report it. **S39's own postmortem is the argument against the quick edit**: its one non-benign row was a false sentence written *by a previous stale-claims sweep*, which replaced two honest sentences with one wrong one. A sweep that patches a range without reading the dispositions is how that happens again. The rows to state are the ones the audit's disposition list currently carries, and the honest form is a pointer plus a shape (*"open findings live in that document's disposition list; F2 and the arm-policy family F8–F11 are the standing ones"*) rather than a range that has to be re-typed every time a finding retires. Whoever takes it should decide that, not assume it. **A lane here is editing the ratified contract**: `docs/DESIGN.md` changes are a design conversation, so flag the edit to the orchestrator and do **not** self-merge (CLAUDE.md, and §D's standing rule that ratifying PRs wait for Evan). | D33 (#761), which read the audit's dispositions end to end while measuring its coverage and found the index disagreeing with them | `docs/DESIGN.md` | style | nothing |
 | **D54** | **D28's class, one step in: six refusal arms in `editor-core` render prose over a payload they hold, and the blocker on every one of them is the same — four of the crate's OWN types have no `Display`.** #767 forwarded every arm whose payload had one; these six had nothing to forward. `NodeErrorKind::Expr` and `ProgramRefusal::Resolve` hold `expr::EvalError`; `NodeErrorKind::DeclareResolve` and `::FilletSelectionResolve` hold `crate::resolve::ResolveError`; `::WitnessBifurcation` holds `witness::WitnessBifurcation`; and `::PlacementRule` holds a `node::PlacementRuleFault` it **hand-expands variant by variant into the parent's prose** — the SECOND prose vocabulary that fault set has, `edit.rs:1385-1396`'s four `EditError` arms being the first, so this member is S4's shape as well as D28's. Each renders a class and drops the instance: *which* of N5's three rungs refused and about what name, *what* the expression evaluator objected to. Not a design question — `NamingError` was the identical shape, #380 minted its `Display`, `eval/mod.rs`'s `Naming` arm has forwarded it ever since, and `NAMING-DESIGN.md` records that its absence was what made Python see one opaque refusal. One qualification a taker owes: **`WitnessBifurcation` is never constructed before the M6 solver**, so its arm is a future loss, not a live one, and leaving it may be the right answer — say which. `UndeclaredContact` is **not** a member and was wrongly recorded as one: owning a recourse menu bought that arm its prose, never the right to drop its `Indeterminate`, and #767 made it render both. | #767 (D28) | `editor-core/src/{expr.rs,resolve/mod.rs,witness.rs,node.rs}`, then the two `Display`s in `eval/mod.rs` and `program.rs` | style | **C-f (#731)** owns `resolve/mod.rs` — sequence after it |
 | **D57** | **Nine names carry the K predicate vocabulary in refusal diagnostics while never reaching the funnel, and the sweep that found them was two crates wide.** A `geom_core::Indeterminate` carries `predicate: Option<&'static str>`, and in `geom-brep` + `topo` **nine** names are only ever written there: seven through `predicate: Some("…")` — `carrier_kind`, `contact_tangent_independent`, `contact_rest_senses_opposed`, `contact_rest_ladder_invariant`, `transversality`, `plane_nurbs_transversality_reported`, `validate_probe` — and **two more through an `invalid(band, "…")` helper**, `bool_contfp_boundary` and `pm_census_containment`, which a `predicate: Some("` sweep does not see. **That second spelling is why this is a row and not a sentence**: the class was measured at seven by one spelling and at nine by two, over two crates out of a dozen, so the population is unknown and the instrument that found it is already known to be incomplete — **S113 / D23's shape**, an enumeration keyed on a spelling rather than on the thing enumerated, here caught inside the review that was checking for it. Verified at `a0a6e1a5`: none of the nine is at a funnel site, none appears in the committed M7 baseline, so **excluding them from the predicate roster is correct** — this is not a roster hole. **The question is whether a refusal diagnostic may name something the funnel never decided.** A user or agent reading a refusal gets a `predicate` that looks exactly like a K row name, greps `docs/K-REPORT.md` and `docs/predicate-dimension-audit.md` for it, and finds nothing — with no sentence anywhere saying why. Two answers are legitimate and the row closes on choosing one: **(a)** the convention is fine and gets written down where a grepper lands (K-REPORT's *"inventory method, restated"*, one paragraph), or **(b)** a diagnostic-only label is a different namespace and should look like one. **Sweep the workspace first, all spellings** — `predicate: Some(`, `invalid(band,`, and any other constructor of `Indeterminate` — because the two-crate count is a floor. `docs/predicate-dimension-audit.md`'s coverage section already carries the nine as a disclosed non-hole; this row owns the rule, not the disclosure. | D33 (#761), from its style review's undisclosed-blind-spot finding, re-derived and enlarged from seven to nine | `crates/*/src` for the sweep; `docs/K-REPORT.md` if the answer is (a) | style, and it **closes on a rule plus its sweep**, not on a list | nothing |
-| **D61** | **Seven source-text guards classify by matching raw source, and each has a direction in which a comment is enough.** Raised by **#788** while closing S92, whose two members were exactly this defect and are fixed. Each of `topo/src/{review_d18.rs, review_d18_probes.rs, chord_join.rs, sector_shape.rs, face_normal.rs}`, `geom-core/tests/flagged_census.rs` and `step-import/tests/tier_gate.rs` asserts a count or a presence over raw `.rs` text with no comment strip, or with a line-leading-`//` skip that a block comment walks past. **The silent direction is the one that matters**: a real site commented out leaves its text behind, so the count does not move and the guard stays green over the change it exists to catch. **Why #788 did not sweep them, and why the shape question comes first:** its helper `fixtures::code_only` blanks comments AND string literals, and three of the topo members are anti-re-fork guards that search *for* string literals — applying it would blank what they look for and mint three guards that cannot fail, which is this track's characteristic failure. They need a comments-only variant. The two outside `topo` cannot reach the helper at all (`topo::fixtures` is `pub(crate)`), so sharing it is a test-support-crate decision rather than a lane's. | **S117**, from #788's (F5/S92) class check | the seven files above, plus wherever the shared helper lands | style; **closes on a helper shape plus the seven conversions** | nothing |
+| **D61** | **Nine source-text guards classify by matching raw source, and each has a direction in which a comment is enough.** Raised by **#788** while closing S92, whose two members were exactly this defect and are fixed. Each of `topo/src/{review_d18.rs, review_d18_probes.rs, chord_join.rs, sector_shape.rs, face_normal.rs}`, `geom-core/tests/flagged_census.rs`, `step-import/tests/tier_gate.rs`, `profile/tests/seal.rs` and `editor-core/tests/schema_ledger.rs` asserts a count or a presence over raw `.rs` text with no comment strip, or with a line-leading-`//` skip a block comment walks past. **The silent direction is the one that matters**: a real site commented out leaves its text behind, so the count does not move and the guard stays green over the change it exists to catch. **Nine is a floor** — two members were reachable only by a differently-shaped sweep, `include_str!` being the spelling #788's six patterns all missed. **The class needs two views, not one helper, and that shape question is the first deliverable:** #788's `source_walk::CodeOnly` blanks comments AND literals, which serves **five** of the nine as shipped; **three** need a comments-only variant (their needle contains a string literal — `sector_shape` searches `"bool_arm"` with its quotes); and `schema_ledger.rs` needs the **inverse**, since its needle is a doc-comment heading. Four of the nine are outside `topo`, where `source_walk` cannot be named (`pub(crate)`, `#[cfg(test)]`), so sharing it means a test-support crate. | **S117**, from #788's (F5/S92) class check | the nine files above, plus wherever the shared helpers land | style; **closes on the helper shapes plus the nine conversions** | `topo/src/{face_normal,chord_join}.rs` are Track G's **G8/G9** — sequence with them |
 | **D81** | **A typed payload with a `Display`, rendered by `Debug` at a composing layer — D47's shape, outside `pncad-py`, where D47 cannot see it.** Eight live sites across three crates, found by a shape sweep for `{binding:?}` inside a `Display` impl where the binding names an error (`e`/`err`/`error`/`source`/`errors`/`diag`/`fault`/`cause`). **Six have a `Display` to forward and are one-liners**: `editor-core/persist/mod.rs:583` Debug-dumps an `EditError` — *the very `Display` #767 corrected, bypassed one layer up in the same crate*; `product.rs:160` a `topo::BooleanError`, `:165` and `:167` a `Vec<ValidationError>` (`validate.rs:1089`); and `step-import/error.rs:424`/`:430`, whose own field docs read *"The transform op's error, **displayed**"* and *"The graft's error, **displayed**"* — the first was unsatisfiable until #767 minted `TransformError`'s `Display`, the second has been false since it was written. **Two have none**, so they are D54's blocker in another crate: `persist/mod.rs:537` (`check::ProgramFault`) and `:581` (`SnapshotError`, which itself carries `MetaVersionError` and `PlacementRuleFault`). The class is **already known and already half-swept**: `topo/validate.rs:1214` carries a comment recording that S6 fixed one instance *"that dropped the carrier's recourse sentence from the user-facing message entirely"* — one site, no sweep, no rule. #767 fixed the two that its own forwarding made reachable through the node-error path (`topo/splitting/finish.rs:198`, `:200`, where a `BandError` reached Python as `Empty { zero: 1.0, escalate: 0.5 }`) and left these, which reach a human by other doors. **What the pattern cannot match**: a `Debug` rendering whose binding is not named like an error (325 such renderings exist and most are identifiers, which `edit.rs:586-591` sanctions by name); a payload Debug-dumped by a `format!` outside a `Display` impl; a `#[derive(Debug)]`-only type reached through `{:?}` on the whole error; and a layer that renders a payload PARTIALLY. Close on the six, a verdict on the two, and a rule that says which of the 325 are sanctioned. | #767 (D28) | `editor-core/src/{persist/mod.rs,product.rs}`, `step-import/src/error.rs` | style | **E-m (#711)** is in `step-import/`, but in `recognize.rs` — confirm against its head, do not assume |
 
 ---
