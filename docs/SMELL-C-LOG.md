@@ -742,11 +742,13 @@ cannot know who else is in it.
 
 | lane | finding | PR | state |
 |---|---|---|---|
-| **C-d** | H12 — the SSI sweeps' other never-silence doors | **#734** | **not cleared** — style review returned both track questions No; fix pass running |
+| **C-d** | H12 — the SSI sweeps' other never-silence doors | **#734** | **MERGED** `c58a45ba` |
 | **C-f** | H11 — #632's residues (**ten**, not the two the finding states) | **#731** | **MERGED** `96c109ec` |
 | **C-h** | H14 — the census's record-keyed deferrals | **#737** | **MERGED** `ec12b7ce` |
-| **C-o** | H16 — `StlOptions` | **#732** | fix pass complete, CI green; **waits for Evan's sign-off**; owes one re-run of the byte-identity probe on the merged head |
+| **C-o** | H16 — `StlOptions` | **#732** | Evan ruled all four open §5 choices; **5.3 + 5.7 are a combined redesign now in flight** (validated `SolidName`/`Header` newtypes held by per-format option structs). Still waits for sign-off |
 | **C-p** | C9 — the `agreement` column | **#738** | **MERGED** `a0a6e1a5` |
+| **C-e** | H13 — `sweep_body`'s helix orientation coverage | — | implementing; **adversarial** + style |
+| **C-i** | H15 — #635's unclassified siblings | — | implementing; style |
 
 ### #731 (C-f / H11) — style lane, 2026-08-20: **not cleared**
 
@@ -1260,3 +1262,71 @@ window again. And Track E's E-e row calls C-f *"disjoint by inspection"* from
 `eval/`, which C-f edits; both sentences already say to read C-f's head instead
 of themselves, which is what saves it. The lane reported it rather than editing
 another track's live table, which is right.
+
+### #734 (C-d / H12) — **MERGED** `c58a45ba`
+
+Tests only, no source file touched, and the strongest self-correcting pass of
+the session. Three results, all of the same kind:
+
+**The grid was nine and is thirteen, and probing found that reading had not.**
+The first enumeration counted refusal *sites*. Instrumenting both `exhaust`
+entry points on every row showed the budget check and both poison arms are
+reached under **both** `SweepDuty` values, on separate calls with separate
+floors. **Duty is precisely the axis S23's postmortem names as the one the
+original bug lived on** (`sweep` read its duty off `tubes.is_empty()`), so
+omitting it was the same mistake one level up. Three cells had rows, five more
+do, **five remain** — recorded as row **C18** with the negative result written
+in, rather than dropped to make the count look complete.
+
+**The guard the lane wrote to satisfy the review was not a guard, and its own
+mutation said so.** The natural chart FLOOR-TIE is a *ratio* between the two
+runs' reported floors — and **any scale shared by both translations cancels out
+of a ratio**. Dividing the accounting floor by `speed²`, a second scale entering
+the very expression the assertion exists to guard, left the whole suite green.
+Found by mutating a five-minute-old assertion, not by re-reading it.
+
+> *A guard is not a guard until a mutation says so — including a guard written
+> five minutes ago to satisfy a review.*
+
+**And the cost claim was corrected before it shipped**: the first draft said the
+new block ran in *"well under a second"*; measured, it is **3.0 s against 2.9 s
+for the file's other nineteen rows** — it roughly doubles the file, and two rows
+are all of it.
+
+**The headline measurement was comparing unlike things.** `UvRect::contained_in`
+has one consumer; the ℝ³ twin's *inherent* method has three. Restated like for
+like at the `SweepCell` forwarder — **1 red against 3** — with the 6 kept and
+decomposed (the extra three are the predicate's own unit test plus two
+adversarial rows that redden only when a second, unrelated consumer breaks at
+the same time).
+
+**H12 ruled discharged** on the finding's own terms: it is about doors lacking
+acceptance rows, and every reachable cell got one. The four Account-duty cells
+are unreachable by the naive road — measured, `floor_scale` ∈ {0, 1e-12, 1e-9}
+still terminates `Ok` on both fixtures — so what is needed is a new fixture, not
+a new assertion. The live `+∞` guard hole is **issue #762**, deliberately with
+no §D row: kernel work, C-R19's third tier.
+
+### The row-number namespace is wider than one document, and my check was not
+
+Assigning C18 I checked `SMELL-SCAN-2026-08.md` for a colliding `## C18.`
+section and reported *"no §C18 exists to collide with it."* The lane checked
+further and corrected me on two counts:
+
+- **Inside that file**, §C's lessons run **C1–C17**, so `§C18` is the *next free
+  lesson number in the same document* — the collision is not absent, it is
+  merely not minted yet. The file already tolerates exactly this at **C15** and
+  **C17**, where a §D row and a §C lesson share a string.
+- **`docs/SMELL-SCAN-2-2026-08.md` already has `## C18.`** — a different
+  document's namespace, so not a collision, but it defeats anyone grepping
+  `C18` across `docs/`.
+
+*My claim was scoped to one file and stated unscoped* — the same defect this
+track keeps finding in lanes, arriving in an orchestrator's verification of a
+row number. **C-R11 applies to the orchestrator too**, and the lane applying it
+to me is the instrument working as intended.
+
+The mitigation already in use is #731's `§CNN` convention (bare `CNN` is a §D
+schedule row, `§CNN` a §C observation), now stated once for all three colliding
+numbers rather than re-derived per row. It does not survive a second document
+adopting the same letter, which is now the live situation.
