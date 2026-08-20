@@ -8119,18 +8119,41 @@ two. The `k-lint` shape the finding held up is the model, and the
 argument now lives at the constant, which is the claim site.
 
 **The class check found the second instance pinned by accident, and
-boxed it too.** `SPLIT_SCAN_DECADES` / `SPLIT_SCAN_STEPS`
+the first attempt at boxing it reproduced S73's own defect with the
+sign flipped.** `SPLIT_SCAN_DECADES` / `SPLIT_SCAN_STEPS`
 (`tools/tess-meter/src/lib.rs`) were **not** pinned by nothing:
-`a_ruled_wall_pays_for_its_flat_direction` constrains them, but
+`a_ruled_wall_pays_for_its_flat_direction` constrained them, but
 **non-monotonically** — green at 5 steps, red at 9, 17, 33 and 65,
-green again at 161 — so the pin was an accident of where a sample
-landed, which is not a box. Boxed by the answer the scan produces
-instead: the ruled wall's cheapest split is INTERIOR, at
-`h_v/h_u = 10^-3.7` and 4,911 cells, so too narrow a range clamps it to
-the boundary and too coarse a step walks over it, while refinement —
-which can only improve the answer — stays green by construction. A
-100× refinement finds 4,813 cells, so the shipped pair is within 2.0%
-of it: the resolution claim as a measurement rather than an argument.
+green again at 161 — because the objective is a step function of the
+aspect ratio and the pin was an accident of whether the scan's lattice
+held a sample near the argmax. #783's first replacement pinned the
+answer (`cells <= 4911`, argmax at `10^-3.7`) and inherited exactly
+that: the review measured `S = 1000` reddening it **while returning a
+strictly better 4,844 cells**, so a row written to demonstrate a box
+went red on an improvement.
+
+**What landed instead pins the RELATION.** The test computes its own
+reference optimum — a dense 12-decade / 240,001-sample scan of the same
+certificate constraint, written from the constraint rather than from
+the optimizer's parameters — and asserts the shipped scan is within
+**5%** of it over a five-bound family (a ruled wall, isotropic, mildly
+anisotropic, cross-term-only, unit). The reference is recomputed every
+run, so a cheaper grid can only move the measured excess DOWN.
+Measured on this tree: **4.4643%** at the shipped `(8, 321)`, pinned at
+5% with 12% of headroom. Every coarsening or widening reds (`S` = 5 →
+44.06%, 65 → 6.14%, 161 → 5.31%; `D` = 2 → 13.72%, 12 → 6.42%, 16 →
+5.31%, 24 → 8.08%, 40 → 6.14%) and **every refinement stays green**
+(`S` = 200, 250, 322, 333, 400, 500, 641, 700, 1000, 1500, 2000, 3201,
+32001 — 3.46% down to 0.02%). Stated exactly, because the tempting
+version is false: a finer scan's samples are a superset only when
+`S − 1` is a multiple of 320, so refinement is monotone **in fact and
+not by proof**, and the thirteen rows are the evidence. The
+pre-existing `h_u >= 1.0` assertion, which was the accidental pin and
+reds on the same improvements, is replaced by a claim about the
+divisions rather than the argmax. The unguarded side — nothing stops
+the pair being made needlessly fine — is stated at the site with its
+reason (cost only, and the available guard is a wall-clock bound, which
+this document already records as a smell).
 
 **Verdict:**
 
@@ -9376,6 +9399,54 @@ with the same two guards — a policy table checked against the header,
 and a row that reds when a policy is loosened rather than only when one
 fixture breaks. **Not taken by F-b**: `tools/k-lint/` is outside F6's
 scope.
+
+## S120. What the tessellation and K instruments still cannot see, after F6 (roll-up)
+
+Recorded by lane F-b out of #783's style review. Four members, one
+subject: **readings and constants in `tools/` that nothing re-derives**.
+None is in F6's scope; each is a live gap rather than a residue, which
+is why they are scheduled (**D64**) rather than left in a PR body.
+
+- **(a) `tess-meter`'s `1.0` and `INFINITY` fallbacks move in the PASS
+  direction on the BASELINE side.** `divisions` answers `1` on a
+  non-finite step and `best_split_steps` answers `INFINITY` on a
+  non-positive `q`. #783's sweep dispositioned both as *"the opposite
+  direction — a broken reading shrinks the denominator, so the gate is
+  MORE likely to fire"*, which is true of the **fresh** row only. The
+  gate is a comparison, `now > was · GROWTH_TOLERANCE`, so the same
+  fallback in the **committed baseline** inflates `was` and hides a real
+  regression. And the fallback's value is `1.0` — the exact floor F6's
+  parse guard now refuses in `tess-lint`, tolerated one crate upstream
+  where the number is produced. The fix is not obvious: the doc's
+  argument for answering one on a genuinely unconstrained direction is
+  sound for a counterfactual column, so this wants a decision about
+  which columns may carry a fallback at all, not a one-line edit.
+- **(b) The CSV already distinguishes the two `NaN`s and the parser
+  discards the column that does it.** `worst_dev` is `NaN` both when
+  the sweep did not resample and when it resampled and a sample came
+  back `NaN` — `crates/mesh/src/trimmed.rs`'s
+  `if dev_samples == 0 || d.is_nan() || …` deliberately lets the second
+  win. `dev_samples` is the discriminator, it is column 21, and
+  `tess_lint::parse` never reads it, so genuine deviation drift parses
+  as *"not resampled"*: a skip. F6 put that absence in the type; it did
+  not make the two states distinguishable, and the CSV already can.
+- **(c) `SPLIT_SCAN_DECADES` / `SPLIT_SCAN_STEPS` have a test and no
+  register.** CI runs a real `--sizing-only` sweep and lints it on
+  every merge, and that register **cannot** see a degraded scan: a
+  worse scan RAISES `span_opt_cells`, which LOWERS the recoverable
+  slack, and the gate fires only on growth. #783's derivations row is
+  the only thing between that pair and silence. Whether a scheduled
+  re-measure is owed on top — Q6's second option — is the question;
+  the row belongs to whoever also owns `ci.yml`.
+- **(d) `k-lint`'s other three constants are unpinned, and one sweep
+  shape is unswept.** `PROXIMITY_FACTOR`, `EPS_COUPLED_FLOOR_RATIO` and
+  `AMBIENT_BAND_MIN` were disclosed by #783 as outside its sweep, and
+  **S119 covers `lint_csv`'s float admission, not these**. Also
+  unswept, and disclosed the same way: fallbacks written as an
+  early-exit (`if !x.is_finite() { return … }`) rather than as an
+  `else` arm, and the whole of `scripts/gates/*.sh`, which #783's
+  `--include=*.rs` excluded. A disclosed blind spot is a work order,
+  which is what this bullet is.
 
 ---
 
@@ -10978,6 +11049,7 @@ S60/S66's rows; and a general gate re-proposes exactly what Evan declined.
 | # | Work |
 |---|---|
 | **D63** | **`k-lint` admits `NaN`, `inf` and negative floats and scores the row clean** (**S119**) — S73's part one in the sibling instrument, in the lint whose own site comment makes exactly this argument for the column next door. Scope: `tools/k-lint/src/lib.rs` (`lint_csv`'s three `f64::parse` calls, and `lint_sample`'s `_ => {}` arm, which a `NaN` `band_zero` falls through while still counting as scanned). **ACCEPTED**, style. The fix is the per-column admission F6 landed in `tess-lint`, in the harness voice `lint_csv` already has. **Edge:** F8/D44 reaches `scripts/k_probe_sweep.sh` and not this file, so the two are expected to be disjoint — check the branch, not this cell (F-R1). |
+| **D64** | **What the tessellation and K instruments still cannot see, after F6** (**S120**, four members). *(a)* `tess-meter`'s `divisions`/`INFINITY` fallbacks move in the **pass** direction on the **baseline** side of the comparison, which F6's sweep dispositioned by looking at the fresh side only; *(b)* `dev_samples` already separates "not resampled" from "resampled to NaN" and `tess_lint::parse` discards it; *(c)* `SPLIT_SCAN_*` has a test and no CI register, and the register that exists structurally cannot see a degraded scan; *(d)* `k-lint`'s `PROXIMITY_FACTOR`, `EPS_COUPLED_FLOOR_RATIO`, `AMBIENT_BAND_MIN` unpinned, plus two sweep shapes F6 disclosed and could not match. Scope: `tools/tess-meter/src/lib.rs`, `tools/tess-lint/src/lib.rs`, `tools/k-lint/src/lib.rs`, and — for *(c)* only — `.github/workflows/ci.yml`. **ACCEPTED**, style. **Sequence *(c)* behind whoever owns `ci.yml`**; the other three are edge-free. *(a)* is a decision (which columns may carry a fallback at all), not a one-line edit — do not take it as one. |
 
 ---
 

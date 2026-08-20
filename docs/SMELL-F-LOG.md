@@ -418,26 +418,37 @@ when the review lands, which is why it trails.
 
 ## Landings
 
-**F-b — F6 (S73 parts 1 and 3), PR #783.** `ratio` is gone: the sizing
-columns are admitted or refused **per column** where they are parsed, so
-a broken measurement leaves in the harness voice instead of becoming the
-gate's pass value, while the one legitimately-absent column (`worst_dev`,
-`NaN` on every `--sizing-only` sweep — the CI gate's own) parses to
-`None` rather than to a float. `GROWTH_TOLERANCE` was boxed from
-`[1.0384615, 1.9615385]` (re-derived by bisection on `4f959cb4`, not
-transcribed) into `[1.04, 1.06)`, on both rules it governs. **Class check
-taken, not deferred:** `tess-meter`'s `SPLIT_SCAN_DECADES` /
-`SPLIT_SCAN_STEPS` turned out to be pinned *non-monotonically* — green at
-5 steps, red at 9/17/33/65, green at 161 — i.e. by an accident of sample
-placement, which is not a box; they are now boxed by the ruled wall's
-interior optimum, which reds on narrowing and on coarsening and stays
-green under refinement. **One new finding: S119 / D63** — `k-lint` scores
-a `NaN` margin CLEAN, S73's part one in the sibling instrument, left for
-its own lane. **The C15/#746 boundary is stated at the site**, in
-`compare`'s face loop, so it can be read out of the tree.
+**F-b — F6 (S73 parts 1 and 3), PR #783.** *Recorded in the PR that
+carries it: this entry and the fix are one diff, so it lands when the PR
+does and not before. The `## Reviews` row above is the orchestrator's.*
 
-**Numbers**: D63 and S119 used; **D64 and S120 unused** and returned to
-the block.
+`ratio` is gone: the sizing columns are admitted or refused **per
+column** where they are parsed, so a broken measurement leaves in the
+harness voice instead of becoming the gate's pass value, while the one
+legitimately-absent column (`worst_dev`, `NaN` on every `--sizing-only`
+sweep — the CI gate's own) parses to `None` rather than to a float.
+`GROWTH_TOLERANCE` was boxed from `[1.0384615, 1.9615385]` (re-derived
+by bisection on `4f959cb4`, not transcribed) into `[1.04, 1.06)`, on
+both rules it governs.
+
+**Class check taken, and taken twice.** `tess-meter`'s
+`SPLIT_SCAN_DECADES` / `SPLIT_SCAN_STEPS` were pinned
+*non-monotonically* — green at 5 steps, red at 9/17/33/65, green at 161
+— i.e. by an accident of sample placement, which is not a box. **The
+first replacement reproduced that defect with the sign flipped** (it
+pinned the answer, and the style review measured `S = 1000` reddening it
+while returning a strictly better result — F-R7). What landed pins the
+**relation**: the test computes its own dense reference optimum and
+asserts the shipped scan is within 5% of it over a five-bound family, so
+a cheaper grid can only move the number down. Verified both ways —
+every coarsening and widening reds, and thirteen refinements stay green.
+
+**Two new findings: S119 / D63** (`k-lint` scores a `NaN` margin CLEAN
+— S73's part one in the sibling instrument) and **S120 / D64** (four
+things the instruments still cannot see after F6, including the
+baseline-side direction argument F6's own sweep got half right). Both
+reserved numbers used. **The C15/#746 boundary is stated at the site**,
+in `compare`'s face loop, so it can be read out of the tree.
 
 ## Incidents
 
