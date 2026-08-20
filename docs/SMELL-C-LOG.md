@@ -101,6 +101,64 @@ is. The pattern must cover **bare** clause letters (`F5`, `G1`, `U7`,
 
 ---
 
+## Coordination with Track D
+
+**Track D was constituted 2026-08-20** while this track's lanes were running,
+and it overlaps Track C at three points that must not be rediscovered:
+
+- **D7 is gated on #702** (this track's C-a) — its `PairSolve` deletion waits on
+  `mate.rs`, `mate/solve.rs` and the `lib.rs` re-export block C-a is editing.
+  Landing #702 promptly is therefore a Track D unblock, not only a Track C one.
+- **Track D owns `sweep/` for the duration** (D1/D2 in `extrude`, `revolve/`,
+  `fillet/`; D8 in `skin.rs`). **C-e / H13** edits `sweep/tests/` only, which is
+  disjoint from all four, but H13's oracle is *about* skinning orientation and
+  D8 is inside `skin.rs` — sequence C-e after D8, or confirm with Track D first.
+- **D9 and C-h both wait on #690**, in `topo/`. Their file sets are disjoint
+  (D9: `chart_region.rs`, `splitting/containment.rs`; C-h: `census.rs`,
+  `splitting/rules.rs`) — but both land in the same crate within hours of each
+  other, so whichever is second re-merges rather than assumes.
+
+**Track D handed a row to Track C**: S18's `step-export/volume.rs` row. Its
+immediate cause is that `topo::props` exposes only body-scoped
+`mass_properties` while the exporter needs *per-shell* volume, so closing it
+means a new door in `props/` — which is A2's file set. It joins C3's `props/`
+work and inherits **C-m**'s gate on A2 / #649.
+
+---
+
+## Incidents
+
+**2026-08-20 — container restart, three lanes lost.** The session's container
+went down with C-a, C-b and C-c all live. In-process subagents do not survive a
+restart; the lane clones under `~/.local/share/cad-work/` and the subagent
+transcripts under `~/.claude/projects/` both did.
+
+What that cost, per lane, is the useful part:
+
+- **C-a** had finished and pushed, and #702 was already open and green. Nothing
+  lost but its final report — recoverable from the PR body, which was complete.
+- **C-c** had five commits **pushed** and had not yet opened its PR. Nothing
+  lost.
+- **C-b** had **21 modified files and a new `tools/tess-meter/` crate in the
+  working tree with nothing committed** — the whole unit, one `rm -rf` from
+  gone. The orchestrator committed it verbatim as a WIP commit and pushed it
+  before doing anything else.
+
+*Lesson, and it is the implementer discipline's existing rule earning its
+keep:* **commit and push after every coherent unit**, not at the end. The two
+lanes that had done so lost nothing; the one that had not came within a disk
+reap of losing a day. C-b's brief did point at
+`docs/prompts/implementer-discipline.md`, which says exactly this — so the
+gap is not the rule, it is that a lane deep in a large refactor has no natural
+seam and will not invent one. Long units should be told where their seams are.
+
+Both surviving lanes were resumed from transcript rather than restarted fresh:
+their accumulated design state (C-b's placement decision, C-c's merge-conflict
+resolutions across 11 dependents) is exactly the kind the death-recovery rule
+says is worth a replay.
+
+---
+
 ## Landings
 
-*(none yet)*
+*(none yet — #702 is green and in style review)*
