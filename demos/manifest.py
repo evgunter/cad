@@ -110,7 +110,7 @@ class Body:
 
 
 class Scene:
-    """One rendered scene: several bodies under one camera."""
+    """One rendered scene: one or more bodies under one camera."""
 
     def __init__(self, d):
         self.name = d["name"]
@@ -122,10 +122,10 @@ class Scene:
         self.elev = view["elev"]
         self.azim = view["azim"]
         self.up = view["up"]
+        # Never empty, and every body in it has an STL: both producers
+        # fail rather than emit either, so no renderer needs a skip
+        # path or an empty-scene path.
         self.bodies = [Body(b) for b in d["bodies"]]
-        # Every scene in a manifest has at least one body, and every
-        # body has an STL: both producers fail rather than emit
-        # either empty, so no renderer carries a skip path.
 
     def world_to_display(self):
         """This scene's world -> display axis spec."""
