@@ -746,7 +746,7 @@ cannot know who else is in it.
 | **C-o** | H16 — `StlOptions` → validated newtypes + per-format option structs | **#732** | **MERGED** `1948e2a5` — Evan signed off after ruling all seven §5 choices |
 | **C-p** | C9 — the `agreement` column | **#738** | **MERGED** `a0a6e1a5` |
 | **C-e** | H13 — `sweep_body`'s helix orientation coverage | — | implementing; **adversarial** + style |
-| **C-i** | H15 — #635's unclassified siblings | — | implementing; style |
+| **C-i** | H15 — #635's unclassified siblings (**23 rows**, not the three the finding names) | **#775** | **MERGED** `3fa135fa` |
 
 ### #731 (C-f / H11) — style lane, 2026-08-20: **not cleared**
 
@@ -1658,3 +1658,41 @@ so it builds nothing and there is nothing there to orient. Row C20 says so
 explicitly, *so a taker does not go looking for a body that does not exist* —
 the extreme case is closed by refusal rather than by a bit. Found while writing
 the row, and stated rather than silently patched.
+
+### Reviewers age out of their own tree, twice now — and it is not their error
+
+Both style reviews today reported a finding that was **already false when they
+reported it**, because the lane pushed while they were reading:
+
+- **#775's S4** — *"§D row C19 is not written"*. It was, on the head, pushed
+  fourteen minutes before the report.
+- **#779's S2** — *"the assigned §D row `C20` is not written on this head"*, and
+  half of its S13 (`klein.rs` mis-described). Both were fixed on the head twenty
+  minutes before the report.
+
+Each time I verified before relaying and dropped the stale finding, which cost
+one command. **Relaying it would have cost a lane a round arguing with a
+correction it had already made** — and worse, would have taught it that the
+review is not worth reading closely.
+
+*This is the same rule that has fired six times today, arriving from the third
+direction:* **a measurement is a measurement of a tree**, and a **review is a
+measurement**. Stale numbers, unlabelled numbers, and now stale *findings*.
+
+It is not the reviewers' error. A review takes 20–40 minutes; lanes push fix
+passes and row numbers inside that window; nothing tells a reviewer the ground
+moved. The structural cause is the same one as §D's conflict window — **the tree
+now changes faster than a careful read of it takes.**
+
+**Operationally, and cheap:**
+
+- **A reviewer records the head SHA it reviewed**, at the top of its report. Both
+  of these would then have been self-evident rather than needing an orchestrator
+  check.
+- **Any finding of the form "X is missing / not written / not done" is
+  re-checked against the current head immediately before reporting.** Only
+  absence claims need it — a finding about what the code *says* stays true of the
+  tree it was read on, but a finding about what is *absent* is exactly the one a
+  push invalidates.
+- **The orchestrator verifies absence findings before relaying**, which is what
+  happened both times and should be the rule rather than the reflex.
