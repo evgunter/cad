@@ -168,6 +168,31 @@ pub enum MatePrimitive {
 }
 
 impl MatePrimitive {
+    /// **Every LENGTH this primitive authors**, in metres — the one
+    /// home for "what does a primitive carry that has a scale", read
+    /// by both doors that must account for one: [`Alignment::lever_arm`],
+    /// where a length left out LOOSENS the mate's angular threshold
+    /// (a smaller lever admits a bigger angle for the same induced
+    /// gap), and [`Alignment::is_finite`], where one left unchecked
+    /// lets a non-finite datum past the edit door. Both are the
+    /// unsound direction, and neither has a row that goes red.
+    ///
+    /// The match is EXHAUSTIVE and the array is as wide as the widest
+    /// variant: a primitive that grows an authored length is listed
+    /// here or the compile breaks, and listing it here gives it to
+    /// both readers at once. `None` means this variant carries fewer
+    /// lengths than the widest does — never a zero standing in for a
+    /// length that is not there.
+    fn authored_lengths(self) -> [Option<f64>; 1] {
+        match self {
+            Self::PlanarRest { offset } => [Some(offset)],
+            // Pure pose relations: their whole datum is the two mate
+            // frames, whose scale is the origins the lever arm folds
+            // in already.
+            Self::FrameCoincidence | Self::Coaxial | Self::Clocking => [None],
+        }
+    }
+
     /// The primitive's name, for messages.
     pub fn name(self) -> &'static str {
         match self {
@@ -216,14 +241,14 @@ impl Alignment {
     /// session box's own order of magnitude (D4 ¶4).
     pub fn lever_arm(&self) -> f64 {
         let norm = |v: [f64; 3]| (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
-        let offset = match self.primitive {
-            MatePrimitive::PlanarRest { offset } => offset.abs(),
-            _ => 0.0,
-        };
-        norm(self.a.origin)
-            .max(norm(self.b.origin))
-            .max(offset)
-            .max(1.0)
+        self.primitive
+            .authored_lengths()
+            .into_iter()
+            .flatten()
+            .fold(
+                norm(self.a.origin).max(norm(self.b.origin)).max(1.0),
+                |lever, length| lever.max(length.abs()),
+            )
     }
 
     /// Whether every authored coordinate is finite — the edit door's
@@ -235,10 +260,12 @@ impl Alignment {
         frame(&self.a)
             && frame(&self.b)
             && self.clocking.is_none_or(f64::is_finite)
-            && match self.primitive {
-                MatePrimitive::PlanarRest { offset } => offset.is_finite(),
-                _ => true,
-            }
+            && self
+                .primitive
+                .authored_lengths()
+                .into_iter()
+                .flatten()
+                .all(f64::is_finite)
     }
 }
 

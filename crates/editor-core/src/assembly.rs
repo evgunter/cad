@@ -481,6 +481,24 @@ fn resolve_face(
 /// faces no declaration names is UNATTRIBUTED, and that is the honest
 /// answer for the F1 case: an undeclared contact has no mate, which
 /// is exactly what makes it the hard error.
+///
+/// **The match is EXHAUSTIVE, with no wildcard arm**, which is
+/// [`ValidationError`]'s own rule (*every match site is forced to say
+/// what it does with the new failure kinds*) and load-bearing here
+/// rather than tidy: [`Attribution::Declined`] is the only relation
+/// that can reach [`AssemblyError::Uncertified`], so this
+/// classification decides whether the kernel refused THIS DOCUMENT or
+/// merely could not certify it. A wildcard hands that decision to
+/// whoever adds the next variant, and nothing goes red when they get
+/// it wrong — every acceptance row here exercises a variant one of
+/// the classified arms already names.
+///
+/// The dividing line, stated once so each arm need only cite it: a
+/// finding is attributable only where its subject is a **contact
+/// record** — the tier-3′ certification vocabulary. Every other
+/// variant states something about the body's own structure or
+/// geometry, which no mate declared and none can answer for; sharing
+/// a face with a declaration is not being named by one.
 fn attribute(error: &ValidationError, minted: &[MintedDeclaration]) -> Attribution {
     let by_pair = |a: FaceKey, b: FaceKey| {
         minted
@@ -488,16 +506,17 @@ fn attribute(error: &ValidationError, minted: &[MintedDeclaration]) -> Attributi
             .find(|m| m.faces == (a, b) || m.faces == (b, a))
     };
     let by_face = |f: FaceKey| minted.iter().find(|m| m.faces.0 == f || m.faces.1 == f);
-    // The constructor as a value, so one dispatch decides both
-    // halves: which declaration, and in what relation.
-    let hit: (
-        Option<&MintedDeclaration>,
-        fn(MintedDeclaration) -> Attribution,
-    ) = match error {
+    // The relation is chosen in the same arm as the lookup, so the
+    // two cannot disagree; a lookup that misses is a finding about a
+    // record no mate of THIS document minted.
+    let named = |m: Option<&MintedDeclaration>, relation: fn(MintedDeclaration) -> Attribution| {
+        m.map_or(Attribution::Unattributed, |m| relation(m.clone()))
+    };
+    match error {
         // A declared pair the kernel CONTRADICTED: the declaration is
         // in the error, so the pair names its mate exactly.
         ValidationError::ContactContradicted { declaration, .. } => {
-            (by_pair(declaration.a, declaration.b), Attribution::Refuted)
+            named(by_pair(declaration.a, declaration.b), Attribution::Refuted)
         }
         // A declared FACE-PAIR record the kernel could not confirm —
         // the other direction of the certification diff. The record's
@@ -528,20 +547,123 @@ fn attribute(error: &ValidationError, minted: &[MintedDeclaration]) -> Attributi
             declaration:
                 topo::StaleDeclaration::Patch { face_a, face_b, .. }
                 | topo::StaleDeclaration::CurveLocus { face_a, face_b, .. },
-        } => (by_pair(*face_a, *face_b), Attribution::Refuted),
+        } => named(by_pair(*face_a, *face_b), Attribution::Refuted),
         // A carrier kind the census inventory cannot certify: it
         // neither certified nor contradicted the pair. The entity is a
         // single face; a declaration naming it is the reason it was
         // examined at all.
         ValidationError::CensusUnsupported {
             entity: topo::EntityId::Face(f),
-        } => (by_face(*f), Attribution::Declined),
-        // Everything else — undeclared contacts, vertex-granular
-        // staleness, band failures — names no declared face pair.
-        _ => (None, Attribution::Refuted),
-    };
-    match hit {
-        (Some(m), relation) => relation(m.clone()),
-        (None, _) => Attribution::Unattributed,
+        } => named(by_face(*f), Attribution::Declined),
+        // The rest of the tier-3′ contact vocabulary, each
+        // unattributable for a reason of its own rather than by
+        // default.
+        //
+        // `UndeclaredContact` is the definition of unattributed: no
+        // mate authored it, which is what makes it F1's hard error.
+        //
+        // The VERTEX-granular staleness arms name a v-v or v-on-f
+        // record, and [`mint`] makes `PatchContact` and nothing else
+        // — so no declaration of this document is the subject, and a
+        // stale record a PART carries is a finding against the
+        // document that a mate cannot answer for. Sharing a face with
+        // a mate's declaration would not make it that mate's.
+        //
+        // `CensusEscalated` carries the classifier's diagnostic and
+        // NO entity, so there is nothing to attribute — and the
+        // relation would be `Unattributed` regardless: an escalation
+        // is indeterminate geometry at rest, which the trilean
+        // discipline refuses outright. It is not the census declining
+        // a lane, and it must not be reported as an unrefuted
+        // frontier.
+        //
+        // `CensusUnsupported` on any NON-face entity is unattributable
+        // by key: a minted declaration names two faces. Its live case
+        // is the curve-record confirm pass, which names its witness
+        // EDGE — a carried `CurveContact`, never a minted one.
+        //
+        // `CensusUndecidable` cannot name a minted declaration in
+        // either of its two arms. The cross-solid face-pair arm skips
+        // a pair the records declare (in both orientations) and leaves
+        // it to the confirm pass, so a declared pair never reaches it;
+        // the instance-containment arm names SOLIDS, which no lookup
+        // over face keys can match.
+        ValidationError::UndeclaredContact { .. }
+        | ValidationError::StaleContactDeclaration {
+            declaration:
+                topo::StaleDeclaration::VertexVertex { .. }
+                | topo::StaleDeclaration::VertexOnFace { .. },
+        }
+        | ValidationError::CensusEscalated { .. }
+        | ValidationError::CensusUnsupported {
+            entity:
+                topo::EntityId::Solid(_)
+                | topo::EntityId::Shell(_)
+                | topo::EntityId::Loop(_)
+                | topo::EntityId::HalfEdge(_)
+                | topo::EntityId::Edge(_)
+                | topo::EntityId::Vertex(_),
+        }
+        | ValidationError::CensusUndecidable { .. } => Attribution::Unattributed,
+        // Everything the tier-1/2/3 passes find: the body's own
+        // structure and geometry. None of these is a statement about
+        // a contact record, so none can be a verdict on a
+        // declaration, and each is a finding against the document in
+        // its own right. Listed rather than swept up, so a new
+        // structural or geometric variant has to be put on one side
+        // of the line above by hand.
+        ValidationError::Band { .. }
+        | ValidationError::DanglingDescription { .. }
+        | ValidationError::UncertifiableSurface { .. }
+        | ValidationError::EdgeCertification { .. }
+        | ValidationError::DescriptionNotAdjacent { .. }
+        | ValidationError::PlanarFaceResidual { .. }
+        | ValidationError::PlanarFaceEscalated { .. }
+        | ValidationError::PlanarBoundaryResidual { .. }
+        | ValidationError::PlanarBoundaryEscalated { .. }
+        | ValidationError::SliverDihedral { .. }
+        | ValidationError::TransverseNotIntrinsic { .. }
+        | ValidationError::TangentNotIntrinsic { .. }
+        | ValidationError::LoopRoleInverted { .. }
+        | ValidationError::CurvedSenseInverted { .. }
+        | ValidationError::NegativeVolume
+        | ValidationError::VolumeUncomputable { .. }
+        | ValidationError::Pcurve { .. }
+        | ValidationError::DanglingTopology { .. }
+        | ValidationError::DanglingGeometry { .. }
+        | ValidationError::NextPrevMismatch { .. }
+        | ValidationError::LoopCycleOverrun { .. }
+        | ValidationError::ParentLoopMismatch { .. }
+        | ValidationError::UnreachableHalfEdge { .. }
+        | ValidationError::EdgeHalvesIdentical { .. }
+        | ValidationError::EdgeSlotBackpointerMismatch { .. }
+        | ValidationError::HalfEdgeUnclaimed { .. }
+        | ValidationError::HalfEdgeMultiplyClaimed { .. }
+        | ValidationError::EdgeNotAntiparallel { .. }
+        | ValidationError::EmanatingStartMismatch { .. }
+        | ValidationError::EmptyLoopVertexWithEmanating { .. }
+        | ValidationError::LoneVertexWithIncidence { .. }
+        | ValidationError::VertexOrbitOverrun { .. }
+        | ValidationError::OrbitForeignMember { .. }
+        | ValidationError::SplitVertexOrbit { .. }
+        | ValidationError::OuterListedAsRing { .. }
+        | ValidationError::BackPointerMismatch { .. }
+        | ValidationError::OrphanEntity { .. }
+        | ValidationError::MultiplyOwned { .. }
+        | ValidationError::OrphanGeometry { .. }
+        | ValidationError::SolidWithoutShells { .. }
+        | ValidationError::ShellWithoutFaces { .. }
+        | ValidationError::EdgeAcrossShells { .. }
+        | ValidationError::ComponentEulerViolation { .. }
+        | ValidationError::MissingProvenance { .. }
+        | ValidationError::LeakedProvenance { .. }
+        | ValidationError::ScaffoldingEmptyLoop { .. }
+        | ValidationError::ScaffoldingStrutVertex { .. }
+        | ValidationError::ShellDisconnected { .. }
+        | ValidationError::NullScaffoldShared { .. }
+        | ValidationError::LeakedNullFaceRecord { .. }
+        | ValidationError::StaleNullFaceLoop { .. }
+        | ValidationError::NullEdgeAtRest { .. }
+        | ValidationError::NullFaceAtRest { .. } => Attribution::Unattributed,
     }
 }
