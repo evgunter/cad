@@ -58,10 +58,8 @@ only whether it was gated.
 ## TESS-SPAN landed the span half (2026-08-17, PR #594)
 
 The shipped NURBS schedule is now a **per-v-band tensor** from
-`NurbsCellGrid::band_schedule` (one derivation, consumed by the lane —
-and by nothing else: the `agree` column claimed to verify the lane's
-realisation of it and never did, because both its numbers were the same
-`band_schedule` sum, so it is identically 1.0 — #709): per-band
+`NurbsCellGrid::band_schedule` (one derivation, consumed by the lane
+and by nothing else): per-band
 `(nuc, nvc)` through the UNCHANGED `grid_steps` point selection; bands
 subdividing `u` at realized aspect > `SAFE_ASPECT = 5` plus their ±1
 neighbours snap `nuc` to the whole-patch count. THE LESSON PAID FOR SIX
@@ -77,8 +75,10 @@ load-bearing; the chord pass keeps whole-patch steps (D-2 safe arm,
 now deliberate). Results: leaf_a 3.35x fewer triangles, tour NURBS
 cells 390,100 → 158,444 (held 2.46x of the measured 2.5x span share),
 NURBS share of the mesh 68% → 33%, worst cert 0.60·δ. Meter columns
-re-derived (`grid_cells`/`patch_cells` counterfactual/`span_cells`;
-report prints held/agree/split/total); baseline re-cut.
+re-derived (`grid_cells`, `patch_cells` counterfactual); baseline
+re-cut. The report prints held/split/total. (It also added an `agree`
+column, retired by #738 — `docs/TESS-BUDGET.md`, "Why there is no
+realisation column".)
 The SPLIT half (aspect policy) stays open — docs/TESS-SPLIT-SPEC.md.
 
 ## The findings, so they are not re-derived

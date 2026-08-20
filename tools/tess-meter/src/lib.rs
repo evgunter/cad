@@ -24,10 +24,9 @@
 //! narrower rule: **the lane's own schedule rule is not re-spelled
 //! outside the lane.** `grid_steps` is the point selection the shipped
 //! sizing uses; a second copy here would be a second schedule that
-//! could drift from the one being measured, which is exactly the
-//! defect the `agreement` column turned out to have. Reporting the
-//! answer keeps one derivation. Everything else in the row is derived
-//! here.
+//! could drift from the one being measured, and a column comparing
+//! the two would then be reporting on the copy. Reporting the answer
+//! keeps one derivation. Everything else in the row is derived here.
 //!
 //! **The successor risk, stated because S30's own lesson is one level
 //! up.** S30 happened because a gating rule was easy to certify green
@@ -86,16 +85,26 @@
 //! ends in refinement then a typed refusal; `tools/tess-lint`'s growth
 //! rules against the committed baseline; and the committed render
 //! cells. **The blind spot: a schedule bug that makes the grid COARSER
-//! while still certifying is invisible to a growth-only gate, and
-//! `agreement` cannot see it either** (see [`NurbsColumns::span_cells`]
-//! — that column checks nothing). Accepted because the certificate is
-//! the guarantee; stated so `agreement = 1.00` is not read as more
-//! than it is.
+//! while still certifying is invisible to a growth-only gate.**
+//! Accepted because the certificate is the guarantee; stated so the
+//! gate is not read as more than it is.
+//!
+//! **No column reports the lane's REALISATION of the schedule**, and
+//! that is deliberate rather than owed — `docs/TESS-BUDGET.md`, "Why
+//! there is no realisation column". The short form: such a ratio
+//! divides what the lane built by what the schedule asked for, so it
+//! is blind to the schedule bug above by construction; a lane that
+//! realises the schedule too coarsely fails the per-triangle
+//! certificate exactly, and one that realises it too densely grows
+//! the triangle count, which the gate bounds at a scene total rather
+//! than catches; and a realised point count matches no stated value
+//! anyway, because a shared band cut carries the union of both bands'
+//! columns, so a ratio built on it could not be given a tighter
+//! tolerance than the one already there.
 //!
 //! | factor | ratio | what it says |
 //! |---|---|---|
 //! | **span held** | `patch_cells / grid_cells` | the gain TESS-SPAN holds over whole-patch-sup sizing. Falls toward 1.0 if the shipped schedule regresses toward the patch sup. |
-//! | **agreement** | `grid_cells / span_cells` | 1.0 IDENTICALLY — see [`NurbsColumns::span_cells`]. |
 //! | **split slack** | `grid_cells / span_opt_cells` | grid cells still recoverable by picking a cheaper point on each cell's constraint ellipse. The `2·a_u·a_v ≤ a_u² + a_v²` decoupling is unchanged by TESS-SPAN (the aspect-policy question is the split unit's), and a ruled wall still pays for it — see the anisotropy caveat below. |
 //! | **budget slack** | `delta / worst_cert` | the sizing heuristic's headroom — two-cells-per-axis budgeting, the `ceil`, and trim boxes smaller than a full grid cell. |
 //! | **certificate slack** | `worst_cert / worst_dev` | how far the Hessian interpolation bound sits above the deviation actually attained. Irreducible in part (a bound must dominate). |
@@ -236,16 +245,6 @@ pub struct NurbsColumns {
     /// The cheapest uniform grid the SAME whole-patch bound admits,
     /// over the same box (rides with the counterfactual).
     pub opt_cells: f64,
-    /// **Identically [`Self::grid_cells`].** The lane's realised cell
-    /// count IS the schedule's own `Σ nuc·nvc`, summed in the one loop
-    /// that also emits the candidates, so there is no second number to
-    /// compare it against and the "agreement" factor is 1.0 by
-    /// arithmetic rather than by check. The column is kept because the
-    /// committed baseline and `tools/tess-lint` read it by position;
-    /// making the check real would mean counting something the lane
-    /// realises independently of the schedule sum, which is a schema
-    /// change and a re-cut baseline.
-    pub span_cells: f64,
     /// Per-cell sizing AND the cheapest split in each cell — the two
     /// recoverable factors together, which is not their product.
     pub span_opt_cells: f64,
@@ -278,7 +277,7 @@ pub struct FaceRow {
 /// The CSV header the sweep writes and `tools/tess-lint` reads.
 pub const CSV_HEADER: &str = "scene,face,chart,delta,triangles,u0,u1,v0,v1,nu,nv,\
                               muu,muv,mvv,cells,grid_cells,patch_cells,opt_cells,\
-                              span_cells,span_opt_cells,worst_cert,worst_dev,dev_samples";
+                              span_opt_cells,worst_cert,worst_dev,dev_samples";
 
 /// How many of [`CSV_HEADER`]'s columns are the NURBS lane's — every
 /// column after `triangles`, which is the last one every row fills.
@@ -312,7 +311,7 @@ impl FaceRow {
             None => format!("{head}{}", ",".repeat(nurbs_column_count())),
             Some(n) => format!(
                 "{head},{:e},{:e},{:e},{:e},{:e},{:e},{:e},{:e},{:e},{},\
-                 {:e},{:e},{:e},{:e},{:e},{:e},{:e},{}",
+                 {:e},{:e},{:e},{:e},{:e},{:e},{}",
                 n.u.0,
                 n.u.1,
                 n.v.0,
@@ -326,7 +325,6 @@ impl FaceRow {
                 n.grid_cells,
                 n.patch_cells,
                 n.opt_cells,
-                n.span_cells,
                 n.span_opt_cells,
                 n.worst_cert,
                 n.worst_dev,
@@ -422,9 +420,6 @@ fn columns(m: &FaceMeasure) -> NurbsColumns {
         grid_cells,
         patch_cells: nu * nv,
         opt_cells: best_split_cells(patch, du, dv, m.delta_s),
-        // See `NurbsColumns::span_cells`: the lane's realised count IS
-        // the schedule's sum.
-        span_cells: grid_cells,
         span_opt_cells: span_opt_cells(&m.cells, m.u, m.v, m.delta_s),
         worst_cert: m.worst_cert,
         worst_dev: m.worst_dev,
