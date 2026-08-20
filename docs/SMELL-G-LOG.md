@@ -240,18 +240,11 @@ before the merge, so answering saves a round.
 
 ## Lane roster
 
-<<<<<<< HEAD
-**Wave 1 — opened together.** These three share no file with each other, with
-Track C's open lanes (#732, `stl/`), with Track E's (#753 `scripts/`+`ci.yml`,
-#763 `crates/*/tests/all.rs`, #767 `editor-core/src/eval/`, #768
-`sweep/src/fillet/`), or with Track F's. **G-a has landed its PR and left this
-roster** (see *Landings*).
-=======
 **Wave 1 — open now.** These lanes share no file with each other, with Track
 C's open lanes (#732, `stl/`), with Track E's (#753 `scripts/`+`ci.yml`, #763
 `crates/*/tests/all.rs`, #767 `editor-core/src/eval/`, #768
-`sweep/src/fillet/`), or with Track F's.
->>>>>>> origin/main
+`sweep/src/fillet/`), or with Track F's. **G-a has landed its PR and left this
+roster** (see *Landings*).
 
 | lane | row | scope | review | state |
 |---|---|---|---|---|
