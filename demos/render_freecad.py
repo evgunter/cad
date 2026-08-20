@@ -45,9 +45,9 @@ from pathlib import Path
 # found by this file's own location.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import FreeCAD as App  # noqa: E402
-
 import manifest  # noqa: E402
+
+import FreeCAD as App  # noqa: E402
 
 # THE WEDGE, AND WHY THIS IS THE FIRST THING THIS FILE DOES.
 #
