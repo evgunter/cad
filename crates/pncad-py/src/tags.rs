@@ -1,16 +1,22 @@
 //! Stable discriminant tags for the document layer's refusals.
 //!
-//! Typed exceptions carry the structured error, never strings. Neither [`EditError`] nor [`NodeErrorKind`] implements
-//! `Display`, and neither is re-exported with a field-level accessor
-//! set, so the SMALLEST faithful reading available to a scaffold is:
-//! the exception carries a stable **tag** — a discriminant name, which
-//! is structured data a caller can branch on — while the `Debug`
-//! rendering is relegated to the human-facing message.
+//! Typed exceptions carry the structured error, never strings. The
+//! exception's machine payload is a stable **tag** — a discriminant
+//! name a caller can branch on, which no `Display` prose gives it
+//! because prose is not a stable interface — and its human message is
+//! the kernel error's own `Display`, never a `Debug` dump.
+//!
+//! Neither [`EditError`] nor [`NodeErrorKind`] is re-exported with a
+//! field-level accessor set, so a tag plus the rendered message is the
+//! whole of what a scaffold can read today.
 //!
 //! The matches below are EXHAUSTIVE on purpose. A new kernel variant
 //! breaks this build rather than silently arriving in Python as an
 //! untagged refusal; that is the drift alarm, and it fires in hosted
-//! CI because this module compiles without Python.
+//! CI because this module compiles without Python. **One map is the
+//! exception**: [`select_refusal_tag`]'s enum is `#[non_exhaustive]`,
+//! which forces a wildcard arm and takes the compile-time alarm away —
+//! see that function for what stands in its place.
 //!
 //! Full per-variant field projection (node ids, slots, operand roles)
 //! is deferred to the unit that binds the complete surface.

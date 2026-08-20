@@ -18,6 +18,13 @@
 //! These rows need a real arc-bounded planar face, so they live here
 //! rather than in `topo`'s own suite. The fixture is #S16's extruded
 //! three-arc cylinder (radius 0.5, three arc edges per cap).
+//!
+//! **§H14's row is here too**, on the same fixtures and for the same
+//! reason: arm 1's v-on-f deferral named the other SOLID where the
+//! finding it suppresses is about the other FACE, and separating the
+//! two needs one solid with several faces reaching the same plane
+//! without sharing a vertex — which the three-arc cylinder's three
+//! wall faces give. See the banner below.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -215,5 +222,174 @@ fn a_cap_resting_on_a_line_bounded_face_is_examined_too() {
     assert!(
         names_pair(&planar_pair_refusals(&body, &errors), want),
         "the proximity arm must name the cap x face pair {want:?}, got {errors:?}"
+    );
+}
+
+// =====================================================================
+// §H14 — the same defect one deferral over, in the same arm.
+//
+// Arm 1's v-on-f deferral read `planar_face_bridged(a.face, b.solid)`:
+// a record naming the planar face and ANY vertex of the other SOLID.
+// The finding it suppresses is about the FACE PAIR, so one declared
+// interface silenced that planar face against every other face of the
+// same solid — including one resting on it elsewhere with no vertex
+// evidence of its own, which is the class this arm exists for. It now
+// requires the record's vertex to be a boundary vertex of the other
+// face OF THIS PAIR.
+//
+// The witness needs one solid with several faces reaching the same
+// plane and not sharing a vertex, which the three-arc cylinder gives
+// for free: its three wall faces each own two of the three rim
+// vertices, so declaring ONE rim vertex leaves exactly one wall that
+// owns none of the declared ones.
+// =====================================================================
+
+/// The boundary vertices of `f`, outer loop then rings, in walk order.
+fn face_vertices(body: &Body<f64>, f: FaceKey) -> Vec<topo::VertexKey> {
+    let data = body.get_face(f).unwrap();
+    let mut out = Vec::new();
+    for &lk in core::iter::once(&data.outer).chain(&data.rings) {
+        let Some(l) = body.get_loop(lk) else { continue };
+        let topo::LoopBoundary::Cycle { first } = l.boundary else {
+            // A lone-vertex loop has no cycle to walk. Extruded bodies
+            // have none; the skip is a shape requirement of the walk,
+            // not a judgement that an empty loop carries nothing —
+            // which is the reading §H14's residue 2 was about.
+            continue;
+        };
+        for he in body.loop_cycle(first).unwrap() {
+            out.push(body.get_half_edge(he).unwrap().start);
+        }
+    }
+    out
+}
+
+/// Every `CensusUndecidable` naming a pair of FACES, in either order.
+fn face_pair_refusals(errors: &[ValidationError]) -> Vec<(FaceKey, FaceKey)> {
+    errors
+        .iter()
+        .filter_map(|e| match e {
+            ValidationError::CensusUndecidable {
+                a: EntityId::Face(a),
+                b: EntityId::Face(b),
+                ..
+            } => Some((*a, *b)),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The cylinder's three wall faces, split by whether they hold `v` on
+/// their boundary: `(holding, not_holding)`.
+fn walls_by_vertex(body: &Body<f64>, v: topo::VertexKey) -> (Vec<FaceKey>, Vec<FaceKey>) {
+    let mut holding = Vec::new();
+    let mut apart = Vec::new();
+    for (f, data) in body.faces() {
+        if !matches!(
+            body.get_surface(data.surface),
+            Some(Surface::Cylinder { .. })
+        ) {
+            continue;
+        }
+        let mut owns = false;
+        for &lk in core::iter::once(&data.outer).chain(&data.rings) {
+            let Some(l) = body.get_loop(lk) else { continue };
+            let topo::LoopBoundary::Cycle { first } = l.boundary else {
+                // A lone-vertex loop has no cycle to walk. Extruded
+                // bodies have none; the skip is a shape requirement of
+                // the walk, not a judgement that an empty loop carries
+                // nothing — the reading §H14's residue 2 was about.
+                continue;
+            };
+            for he in body.loop_cycle(first).unwrap() {
+                if body.get_half_edge(he).unwrap().start == v {
+                    owns = true;
+                }
+            }
+        }
+        if owns { holding.push(f) } else { apart.push(f) }
+    }
+    (holding, apart)
+}
+
+/// **§H14's regression row.** A three-arc cylinder standing on a
+/// brick, with ONE of its three rim vertices declared v-on-f on the
+/// brick's top face. The deferral that record earns must cover the
+/// faces at THAT interface and no others.
+///
+/// Both directions are asserted from the one fixture, which is what
+/// makes it a statement about granularity rather than about loudness:
+/// the two walls holding the declared vertex stay deferred, and the
+/// one wall holding none of them is examined and refused. A deferral
+/// keyed on the other SOLID defers all three; a deferral deleted
+/// outright refuses all three.
+#[test]
+fn a_vf_record_defers_the_faces_at_its_own_interface_and_no_others() {
+    let body = assembly(&brick(0.0, 1.0), &cylinder(1.0, 0.0));
+    let touching = faces_in_plane(&body, 1.0);
+    assert_eq!(touching.len(), 2, "the cap and the face it rests on");
+    // The brick's top face is the line-bounded one (four vertices);
+    // the cap has three, joined by arcs.
+    let brick_top = *touching
+        .iter()
+        .find(|&&f| face_vertices(&body, f).len() == 4)
+        .expect("the brick's top face");
+    let cap = *touching
+        .iter()
+        .find(|&&f| face_vertices(&body, f).len() == 3)
+        .expect("the cylinder's cap");
+    // Declare exactly one rim vertex on the brick's face. It is a real
+    // coincidence (the rim sits in that face's region), so the confirm
+    // pass has nothing to say about it.
+    let rim = face_vertices(&body, cap);
+    let v0 = rim[0];
+    let mut records = ContactRecords::default();
+    records.b_on_a.push(topo::VfContact {
+        vertex: v0,
+        face: brick_top,
+    });
+    // The fixture's own precondition, and it is what makes the
+    // "stays deferred" assertion below a statement about the
+    // DEFERRAL: if the record ever stops being built, this reddens
+    // here rather than at an assertion that would read as the
+    // deferral having been deleted. The two are indistinguishable
+    // downstream — both leave every wall refused.
+    assert_eq!(
+        records.b_on_a.len(),
+        1,
+        "the fixture declares exactly one rest, on the brick's top face"
+    );
+    assert_eq!(records.b_on_a[0].face, brick_top);
+    let (holding, apart) = walls_by_vertex(&body, v0);
+    assert_eq!(holding.len(), 2, "two walls share each rim vertex");
+    assert_eq!(apart.len(), 1, "one wall holds neither of its ends");
+
+    let errors =
+        validate_pseudomanifold(&body, &records).expect_err("an undeclared rest must be reported");
+    assert!(
+        !errors
+            .iter()
+            .any(|e| matches!(e, ValidationError::StaleContactDeclaration { .. })),
+        "the fixture's precondition: the declared rest confirms, so no refusal \
+         below is borrowed from a refuted record: {errors:?}"
+    );
+    let pairs = face_pair_refusals(&errors);
+    assert!(
+        names_pair(&pairs, (brick_top, apart[0])),
+        "the wall holding no declared vertex is not at the declared interface \
+         and must be examined: wanted {:?}, refusals were {pairs:?}",
+        (brick_top, apart[0])
+    );
+    for &w in &holding {
+        assert!(
+            !names_pair(&pairs, (brick_top, w)),
+            "the walls at the declared interface stay deferred — the narrowing \
+             is a narrowing, not a deletion: {:?} in {pairs:?}",
+            (brick_top, w)
+        );
+    }
+    assert!(
+        !names_pair(&pairs, (brick_top, cap)),
+        "the cap holds the declared vertex and stays deferred: {pairs:?}"
     );
 }

@@ -45,6 +45,8 @@ mod cube_by_hand;
 mod geometric_cube;
 #[path = "graft_disjoint.rs"]
 mod graft_disjoint;
+#[path = "h14_census_deferrals.rs"]
+mod h14_census_deferrals;
 #[path = "interval_body.rs"]
 mod interval_body;
 #[path = "issue86_double_subtract.rs"]
