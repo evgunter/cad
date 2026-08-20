@@ -12494,13 +12494,14 @@ sweep fixed**, measured on a tour run from this tree (35 scenes, 1049
 face charts, 946 checkable / 103 branch-jumped / 0 disagree, worst 3-D
 loop gap 9.93e-16 m, 285 curved faces, 48 sheet cells):
 
-- `:176` *"879 of the 982 M7 faces are checkable"* → **946 of 1049**.
-- `:177` *"all 879 agree"* → all **946** agree (`0 disagree`).
-- `:187` *"103 of the 982 M7 faces show such a jump"* — **103 is
+- `:176-177` *"879 of the 982 M7 faces are checkable … all 879
+  agree"* → **946 of 1049**, and all 946 agree (`0 disagree`).
+- `:186-187` *"103 of the 982 M7 faces show such a jump"* — **103 is
   right, 982 is not** (1049).
-- `:189` *"the true closure gap never exceeds 9e-16 m anywhere in the
-  corpus"* — **false as stated**: the measured worst is 9.93e-16 m,
-  and this is the same number S113(a) corrected at `uvdump.rs:294`.
+- `:188-189` *"the true closure gap never exceeds 9e-16 m anywhere in
+  the corpus"* — **false as stated**: the measured worst is
+  9.93e-16 m, and this is the same number S113(a) corrected at
+  `uvdump.rs:294`.
 - `:218` *"982 at M7"* and `:224` *"all 982 SVGs stay in `out/uv/`"* →
   **1049**, a number the composer PRINTS on every run.
 - `:232` *"Of the 238 curved faces"* → **285**.
