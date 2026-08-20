@@ -98,10 +98,19 @@
 # the tree a decide-and-bracket parameter. Two planted cases hold it: a
 # real.rs carrying both skipped lines AND an ordinary compound signature
 # must fire, and a real.rs whose alias has been GIVEN `Decide` must fire.
-# WHAT THE MATCHER MATCHES, shaped by NAME rather than by a list of names:
-# any identifier ending in `Bounds` beside a `+`, path prefix allowed
-# after the `+`. Both orders and `Decide + geom_core::CertifiedBounds` are
-# planted separately below. An enumerating matcher is blind to the next
+# The second is caught by `gate_definition_skip_subject` rather than by the
+# skip pattern, and the overlap is worth knowing rather than hiding: with
+# the subject check in place, reverting this skip to a name anchor no
+# longer reds the self-test, because the subject check refuses the same
+# edit one step earlier. The skip stays exact text because it is the more
+# precise statement of what is exempted; the guarantee is the check's.
+# WHAT THE MATCHER MATCHES, shaped by NAME rather than by a list of names.
+# Three alternatives: an identifier ending in `Bounds` after a `+` (path
+# prefix allowed); one before a `+` (no prefix group needed -- `\b` already
+# matches after `::`, so writing one would be dead); and a trait
+# DECLARATION whose supertrait or `where Self:` list names a `…Bounds`
+# identifier, which is the only one that catches an alias spelled WITHOUT
+# a `+`. Each is planted separately below. An enumerating matcher is blind to the next
 # alias the day it is written — which is how `CertifiedBounds` stayed
 # invisible while this header asserted it fired. The trade is knowing: any
 # `…Bounds` IDENTIFIER fires, not only a trait (`TangentSpanBounds`,
@@ -144,12 +153,24 @@
 # the alias is bound to.
 #
 # KNOWN GAP 4 is GAP 3 aimed at this matcher's own shape: an alias NOT
-# named `…Bounds` — `trait Bracket: Bounds + CertifiedEnclosure`, used as
-# `Decide + Bracket` — is invisible at its uses. Shaping by name covers
-# the next `…Bounds` alias, not the next alias. The mitigation is real and
-# is PLANTED: such an alias's own DECLARATION writes `Bounds + …` and so
-# fires, so its file must be ratified here first; the residue is a
-# ratified file's alias used elsewhere, i.e. GAP 3.
+# named `…Bounds` — `trait Bracket: CertifiedBounds`, used as
+# `Decide + Bracket` — is invisible at its USES. Shaping by name covers the
+# next `…Bounds` alias, not the next alias. What holds the line is that the
+# DECLARATION is caught, so the file declaring such an alias must be
+# ratified here first, and the residue is a ratified file's alias used
+# elsewhere, i.e. GAP 3.
+#
+# THE MITIGATION IS STATED IN ITS TRUE FORM BECAUSE THE FIRST FORM WAS
+# FALSE. It was written as "the declaration writes the pair literally and
+# therefore fires", which holds only for
+# `trait Bracket: Bounds + CertifiedEnclosure`.
+# `trait Bracket: CertifiedBounds` carries both bracket doors with NO `+`
+# anywhere on the line, and under a `+`-only matcher neither it nor
+# `Decide + Bracket` fired -- S59's own defect, reproduced by the change
+# that closes it. The declaration alternative is what makes the sentence
+# true; all three spellings are planted, and deleting that alternative reds
+# the sole-supertrait case. The mitigation inherits GAP 1: a supertrait
+# list broken across lines is invisible to it, being still a line grep.
 #
 # KNOWN GAP 5: the comment strip is leading-`//` only, so a trailing or
 # block comment or a string literal carrying the spelling fires. S63's
@@ -159,10 +180,30 @@ set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
+# THE SKIP'S SUBJECT, proved before the scan that depends on it. The two
+# definition lines below are skipped as EXACT TEXT, which is deliberate --
+# a skip keyed on the name would exempt the alias being GIVEN `Decide` --
+# but exact text is brittle in the other direction: a reformat, a rename or
+# a retirement makes the skip stop matching, and the tempting repairs are
+# both wrong (widen the skip back to a name; allowlist real.rs). So the
+# gate proves its own assumption instead of discovering it as a confusing
+# red on the file that defines the rule, and says which repair is meant.
+gate_definition_skip_subject() {
+  local f=crates/geom-core/src/real.rs
+  [ -f "$f" ] || return 0
+  local want_trait='pub trait CertifiedBounds: Bounds + CertifiedEnclosure {}'
+  local want_impl='impl<T: Bounds + CertifiedEnclosure> CertifiedBounds for T {}'
+  if ! grep -qxF "$want_trait" "$f" || ! grep -qxF "$want_impl" "$f"; then
+    gate_error "$(gate_name): the CertifiedBounds definition lines this gate skips by exact text are no longer in $f verbatim. The alias may have been reformatted, renamed, retired -- or GIVEN a decision bound, which would make every sole \`T: CertifiedBounds\` in the tree a decide-and-bracket parameter. Re-derive the two skip patterns against what real.rs now says; do NOT widen them to a name and do NOT allowlist real.rs"
+    exit 1
+  fi
+}
+
 gate() {
   gate_require_crate_sources
+  gate_definition_skip_subject
   local hits
-  hits=$(grep -rnE '(\+\s*(\w+::)*\w*Bounds\b)|(\b\w*Bounds\s*\+)' crates/*/src \
+  hits=$(grep -rnE '(\+\s*(\w+::)*\w*Bounds\b)|(\b\w*Bounds\s*\+)|(\btrait\s+\w+\b[^;{]*:[^;{]*\w*Bounds\b)' crates/*/src \
     | grep -vE ':[0-9]+:\s*(//|///|//!)' \
     | grep -vE ':[0-9]+:pub trait CertifiedBounds: Bounds \+ CertifiedEnclosure \{\}$' \
     | grep -vE ':[0-9]+:impl<T: Bounds \+ CertifiedEnclosure> CertifiedBounds for T \{\}$' \
@@ -232,12 +273,31 @@ plant_certified_path_prefixed() {
 }
 
 # KNOWN GAP 4's mitigation, planted so it is a fact rather than a promise:
-# an alias whose name does NOT end in `Bounds` is invisible at its uses,
-# but its DECLARATION writes the pair literally, so the file declaring it
-# cannot exist unratified.
+# an alias whose name does NOT end in `Bounds` is invisible at its USES, but
+# its DECLARATION is caught, so the file declaring it cannot exist
+# unratified. THREE shapes, because the first draft of this mitigation held
+# only for the first -- which is S59's own defect one turn later, minted by
+# the fix that closes it. An alias spelled as a `+` PAIR; an alias spelled
+# as a SOLE supertrait (`trait Bracket: CertifiedBounds`), which carries
+# both bracket doors with no `+` anywhere on the line; and the same thing
+# spelled `where Self:`. The matcher's third alternative catches the latter
+# two, and without it they are invisible at the declaration AND at the use.
 plant_non_bounds_alias_declaration() {
   mkdir -p "$1/crates/planted/src"
   printf 'pub trait Bracket: Bounds + CertifiedEnclosure {}\n' > "$1/crates/planted/src/lib.rs"
+}
+
+plant_sole_supertrait_alias() {
+  mkdir -p "$1/crates/planted/src"
+  {
+    printf 'pub trait Bracket: CertifiedBounds {}\n'
+    printf 'pub fn k<T: Decide + Bracket>(_t: T) {}\n'
+  } > "$1/crates/planted/src/lib.rs"
+}
+
+plant_where_self_alias() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub trait Bracket where Self: CertifiedBounds {}\n' > "$1/crates/planted/src/lib.rs"
 }
 
 # The property that stops this being S56/S59 a third time: the matcher is
@@ -321,11 +381,13 @@ gate_selftest() {
   gate_selftest_case "$want" plant_certified_path_prefixed
   gate_selftest_case "$want" plant_unknown_alias
   gate_selftest_case "$want" plant_non_bounds_alias_declaration
+  gate_selftest_case "$want" plant_sole_supertrait_alias
+  gate_selftest_case "$want" plant_where_self_alias
   gate_selftest_case "$want" plant_real_rs_signature
-  gate_selftest_case "$want" plant_real_rs_alias_redefined
+  gate_selftest_case "no longer in crates/geom-core/src/real.rs verbatim" plant_real_rs_alias_redefined
   gate_selftest_case "$want" plant_dual_equivalent_spelling
   bounds_selftest_passes "a sole bracket bound" plant_sole_bracket_bounds
-  printf '%s selftest OK: passes a clean fixture and a sole bracket bound; fires on both operand orders of Decide+Bounds and of Decide+CertifiedBounds, on a path-qualified alias after the plus, on an alias name not in the tree today, on a non-Bounds-named alias DECLARATION (GAP 4 mitigation), on a compound bound in real.rs beside the skipped definition lines, on real.rs redefining the alias to carry Decide, and on the equivalent spelling of dual.rs Bounds impl (GAP 2)\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture and a sole bracket bound; fires on both operand orders of Decide+Bounds and of Decide+CertifiedBounds, on a path-qualified alias after the plus, on an alias name not in the tree today, on all three spellings of a non-Bounds-named alias DECLARATION (GAP 4 mitigation: pair, sole supertrait, where-clause), on a compound bound in real.rs beside the skipped definition lines, on real.rs redefining the alias to carry Decide (through the definition-skip subject check), and on the equivalent spelling of dual.rs Bounds impl (GAP 2)\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

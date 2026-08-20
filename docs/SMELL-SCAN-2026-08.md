@@ -7717,12 +7717,43 @@ confirmed by a mutation that reds `--selftest` on exactly one case.
 
 **And the matcher's own blind spot, named rather than left implicit.**
 Shaping by name covers the next `…Bounds` alias, not the next alias:
-`trait Bracket: Bounds + CertifiedEnclosure` used as `Decide + Bracket`
-is invisible at its uses. That is **KNOWN GAP 4**, and its mitigation is
-planted rather than promised — such an alias's own *declaration* writes
-the pair literally and fires, so the declaring file cannot exist
-unratified. The residue is a ratified file's alias used elsewhere, which
-is **KNOWN GAP 3**.
+`trait Bracket: CertifiedBounds` used as `Decide + Bracket` is invisible
+at its uses. That is **KNOWN GAP 4**, and what holds the line is that the
+*declaration* is caught, so the file declaring such an alias must be
+ratified first; the residue is a ratified file's alias used elsewhere,
+which is **KNOWN GAP 3**.
+
+**That mitigation was published false first, and the correction is the
+part worth recording.** It was written as *"the declaration writes the
+pair literally and therefore fires"* — true only of
+`trait Bracket: Bounds + CertifiedEnclosure`. **`trait Bracket:
+CertifiedBounds` carries both bracket doors with no `+` anywhere on the
+line**, so under a `+`-only matcher neither the declaration nor
+`Decide + Bracket` fired: *S59's own defect, minted by the change that
+closes it*, which is the failure mode this track's lane header names
+first. The matcher gained a **third alternative** — a trait declaration
+whose supertrait or `where Self:` list names a `…Bounds` identifier — and
+all three spellings are planted; deleting the alternative reds the
+sole-supertrait case. It reds **nothing** in the tree: the only two
+declarations it reaches are `real.rs`'s own alias (skipped by exact text)
+and `arc_fillet.rs`'s (allowlisted by file). It inherits GAP 1 — a
+supertrait list broken across lines is still invisible.
+
+**The exact-text definition skip gained a subject check for the
+brittleness it introduced.** An exact anchor fails in the opposite
+direction from a name anchor: a reformat, a rename or a retirement makes
+it stop matching, and the two tempting repairs are both wrong — widen the
+skip back to a name (which is the defect it just closed) or allowlist
+`real.rs` (worse). `gate_definition_skip_subject` proves the two skipped
+lines are still in `real.rs` verbatim *before* the scan and names the
+repair that is meant. Verified in both directions: a rustfmt-style wrap of
+the alias declaration reds with that message rather than with a confusing
+compound-bound hit, and an unmodified `real.rs` with sole-bound uses
+passes. **One honest consequence:** with the subject check in place,
+reverting the skip to a name anchor no longer reds the self-test, because
+the check refuses the same edit one step earlier. The skip stays exact
+text as the more precise statement of what is exempted; the guarantee is
+the check's.
 
 **The evidence for the gate, kept here because F1's §D row carried it and
 that row has left the table.** Track E's lane E-g widened the fillet
@@ -12911,14 +12942,24 @@ with ~180 doc lines over ~55 lines of guard code (S116g);
 (S116h); `crates/topo/src/euler.rs`'s header +55 lines (S116e);
 `scripts/gates/bounds-allowlist.sh` — 130 lines of header defending a
 20-line function, restating a ledger it declares it is not restating
-(S116m). **Re-measured: 131 lines at the time #791 opened, and #791 takes
-it to 157** — it cut five lines of comment archaeology and compressed its
-own additions twice, and the remainder is three newly disclosed blind
-spots (GAPs 3, 4, 5) plus the reason the definition skip is exact-text.
-The finding is *not* discharged by that accounting and the number is
-recorded rather than restored: a gate whose gaps are honest is longer
-than one whose gaps are silent, which is an argument for splitting the
-ratification ledger out of the script, not for un-disclosing them.
+(S116m). **Re-measured: 131 lines when #791 opened, and #791 takes it to
+178** — it cut five lines of comment archaeology and compressed its own
+additions twice, and the remainder is three newly disclosed blind spots
+(GAPs 3, 4, 5), the reason the definition skip is exact text, and the
+correction of a mitigation that was published false. The finding is *not*
+discharged by that accounting and the number is recorded rather than
+restored.
+
+**And the growth is itself the finding's answer, which is worth more than
+the row.** A gate whose gaps are honest is longer than one whose gaps are
+silent: every line #791 added past its own fix is a blind spot named, a
+false claim retracted, or a repair the next reader is told *not* to make.
+The conclusion is that **this directory wants the ratification ledger
+split out of the script** — the per-seam justifications are a document
+that happens to live in a comment block, and they are what makes a 20-line
+function carry a 178-line header. That is a real observation about the
+shape of `scripts/gates/`, not an argument for un-disclosing anything, and
+it is the disposition S116(m) should close on.
 
 In several of these the prose is the *only* change: S116(g) answers
 "three parallel pipelines with no shared core" with a long argument that

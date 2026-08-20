@@ -588,11 +588,20 @@ when the review lands, which is why it trails.
   operand orders and so does the alias after it. **Eight self-test cases**:
   both `Decide + Bounds` orders, both `Decide + CertifiedBounds` orders, a
   path-qualified alias after the `+`, an alias name not in the tree, a
-  non-`Bounds`-named alias *declaration* (KNOWN GAP 4's mitigation, planted
-  rather than promised), real.rs beside its skipped definition lines, real.rs
-  with the alias **redefined to carry `Decide`**, the `dual.rs` equivalent
-  spelling — plus a **negative** case (sole bracket bounds must not fire).
-  Each of four mutations reds exactly one case. Three prose sites corrected — the gate header, two
+  non-`Bounds`-named alias *declaration* in all **three** spellings (pair,
+  sole supertrait, `where Self:` — KNOWN GAP 4's mitigation, planted rather
+  than promised), real.rs beside its skipped definition lines, real.rs with
+  the alias **redefined to carry `Decide`** — plus a **negative** case (sole
+  bracket bounds must not fire). An exact-text skip is brittle where a name
+  anchor is not, so `gate_definition_skip_subject` proves the two skipped
+  lines are still verbatim in `real.rs` *before* the scan and names the repair
+  that is meant; a rustfmt-style wrap reds with that message rather than as a
+  confusing compound hit. **Mutation battery re-run on the final head**: four
+  mutations red exactly one case each, and **two survive, which is reported
+  rather than buried** — re-adding the left-hand path group (dead by
+  construction; the qualified-left spelling is covered by a positive case
+  instead), and reverting the skip to a name anchor (the subject check now
+  refuses that edit one step earlier). Three prose sites corrected — the gate header, two
   `real.rs` paragraphs — plus S56's own record, which asserted the same false
   thing. **Red count before allowlisting: zero; no allowlist entry written**
   (F-R6 discharged empty, above). Sweep raised **S124/D68** (`ArcCarrierScalar`
@@ -610,18 +619,41 @@ when the review lands, which is why it trails.
   it. The same group on the left of `+` was dead and is gone. The header's
   gap list gained **GAP 4** (an alias not named `…Bounds`) with its mitigation
   planted, and **GAP 5** (the leading-only comment strip, F-g's to close).
-  **The header is 157 lines against 131 at open** — S116(m) measures this very
+  **The header is 178 lines against 131 at open** — S116(m) measures this very
   file at 130 and is re-measured in place rather than restored; five lines of
   comment archaeology were cut and the lane's own additions compressed twice.
+  **The argument that came out of that row is worth more than the row**, and
+  it is written into S116(m) rather than left in a transcript: a gate whose
+  gaps are honest is longer than one whose gaps are silent, so **this
+  directory wants the ratification ledger split out of the script**. The
+  per-seam justifications are a document that happens to live in a comment
+  block, and they are what makes a 20-line function carry a 178-line header.
+- **The lane minted a fresh instance of the defect it closed, found it before
+  the verifier, and closed it.** GAP 4's mitigation was published as *"the
+  declaration writes the pair literally and therefore fires"* — true only of
+  `trait Bracket: Bounds + CertifiedEnclosure`. **`trait Bracket:
+  CertifiedBounds` carries both bracket doors with no `+` on the line**, so
+  neither it nor `Decide + Bracket` fired: S59 exactly, one turn later, in the
+  change that closes S59. The matcher gained a third alternative for trait
+  DECLARATIONS naming a `…Bounds` supertrait (or `where Self:`); all three
+  spellings are planted; it reds nothing in the tree. **This is the second
+  half of the track's two-for-three record on fix passes minting their own
+  defect, and self-measurement did not settle it — an attack on the published
+  sentence did.**
 - **A helper this lane needed and did not put in `lib.sh`.** `selftest_passes`
   — the negative twin of `gate_selftest_case` — is local to
   `bounds-allowlist.sh` and is named `bounds_selftest_passes`, deliberately
   gate-specific: a generically-named local definition is sourced *after*
-  `lib.sh` and would silently shadow a promoted one. `lib.sh` is **F-g**'s
-  file (F3), so promoting it is a sequencing decision, not this lane's. Every
-  gate in the directory could use it: today the only fixture any of them
-  proves *passes* is the empty clean tree, which says nothing about a spelling
-  that must not fire.
+  `lib.sh` and would silently shadow a promoted one. Every gate in the
+  directory could use it — today the only fixture any of them proves *passes*
+  is the empty clean tree, which says nothing about a spelling that must not
+  fire. **RULED (orchestrator, 2026-08-20): F-g takes it, F-e keeps the
+  gate-specific name.** F-g owns `lib.sh` for F3 and now also for S157/D101
+  (the `errexit`-before-`gate_error` class, same harness), so it will have the
+  file open; two lanes editing it for different reasons is the collision the
+  sequencing exists to prevent. **The gate-specific name is what makes the
+  handoff safe**, and it is in the tree at `bounds-allowlist.sh` beside the
+  function so F-g inherits it from the code rather than from a message.
 
 ## Incidents
 
