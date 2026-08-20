@@ -206,9 +206,11 @@ pub enum AssemblyError {
     /// must say which of the two they mean.
     ///
     /// Nothing was refuted and nothing was undeclared: every finding
-    /// is the census DECLINING a declared pair
-    /// ([`Attribution::Declined`]), so the assembly is unrefuted and
-    /// uncertified, and NOTHING was decided about this geometry.
+    /// is the census DECLINING to certify a face that a declaration
+    /// names ([`Attribution::Declined`]) — which is what
+    /// [`attribute`] establishes, exactly — so the assembly is
+    /// unrefuted and uncertified, and NOTHING was decided about this
+    /// geometry.
     ///
     /// Today that is the whole declared direction. The census's patch
     /// certifier gates on STRUCTURAL chart identity — a shared
@@ -549,9 +551,18 @@ fn attribute(error: &ValidationError, minted: &[MintedDeclaration]) -> Attributi
                 | topo::StaleDeclaration::CurveLocus { face_a, face_b, .. },
         } => named(by_pair(*face_a, *face_b), Attribution::Refuted),
         // A carrier kind the census inventory cannot certify: it
-        // neither certified nor contradicted the pair. The entity is a
-        // single face; a declaration naming it is the reason it was
-        // examined at all.
+        // neither certified nor contradicted the pair, which is the
+        // decline relation exactly.
+        //
+        // The finding's subject is a PAIR and it carries one face, so
+        // the lookup is width-1 where the question is not: a face two
+        // mates declare answers to the first of them, and the census's
+        // conformal sweep reaches this arm on an undeclared pair as
+        // well — one of whose faces may still be declared against a
+        // third. The relation survives both (nothing was refuted
+        // either way); the mate the message names may not be the one
+        // whose declaration the census could not certify. Narrowing it
+        // needs the pair in the error, which is `topo`'s to carry.
         ValidationError::CensusUnsupported {
             entity: topo::EntityId::Face(f),
         } => named(by_face(*f), Attribution::Declined),

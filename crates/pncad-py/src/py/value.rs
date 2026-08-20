@@ -241,11 +241,14 @@ impl Body {
     /// Shared shape for the validator doors, which all return
     /// `Result<(), Vec<ValidationError>>`.
     ///
-    /// `ValidationError` has no `Display` and no curated tag mapping,
-    /// so the exception carries the failure COUNT as structured data
-    /// and the `Debug` rendering as the human message. Per-variant
-    /// tags are the same mechanical work `crate::tags` does for edits,
-    /// deferred with the rest of the read-back surface.
+    /// `ValidationError` has no curated tag mapping, so the exception
+    /// carries the failure COUNT as structured data and a rendering of
+    /// the whole list as the human message. Per-variant tags are the
+    /// same mechanical work `crate::tags` does for edits, deferred
+    /// with the rest of the read-back surface — and so is the choice
+    /// to render the list with `Debug`: the enum does implement
+    /// `Display`, one prose sentence with recourse per finding, and
+    /// nothing composes it here.
     fn run_validator(
         &self,
         py: Python<'_>,
