@@ -183,7 +183,7 @@ fn run_body(
     outdir: &str,
     scene: &str,
     dumps: &mut Vec<uvdump::FaceDump>,
-) -> Option<ManifestBody> {
+) -> ManifestBody {
     let label = &sb.name;
 
     // Tiers 1 + 2 on every body.
@@ -325,24 +325,22 @@ fn run_body(
     );
     dumps.extend(faces);
 
-    Some(ManifestBody {
+    ManifestBody {
         stl,
         step,
         color: sb.color,
         transparency: sb.transparency,
-    })
+    }
 }
 
-/// Runs one stop; returns whether it contributed a scene to the render
-/// manifest. A fully STAGED stop (every body behind a frontier) has
-/// nothing to draw yet, so it narrates and emits no scene entry —
-/// `scenes.json` never carries a scene the renderers cannot render.
-fn run_stop(
-    stop: &Stop,
-    outdir: &str,
-    manifest: &mut String,
-    dumps: &mut Vec<uvdump::FaceDump>,
-) -> bool {
+/// Runs one stop and appends its scene entry to the manifest.
+///
+/// Every stop contributes a scene: [`run_body`] fails the tour rather
+/// than dropping a body, so there is no bodiless scene to suppress and
+/// no "this stop is entirely behind a frontier" state to report. A
+/// stop that genuinely could not be drawn would have to say so where
+/// it is built — see the STEP arm in `run_body`.
+fn run_stop(stop: &Stop, outdir: &str, manifest: &mut String, dumps: &mut Vec<uvdump::FaceDump>) {
     println!("\n== {} ==", stop.name);
     println!("   {}", stop.story);
     println!("   built by: {}", stop.ops);
@@ -352,13 +350,9 @@ fn run_stop(
     let bodies: Vec<ManifestBody> = stop
         .bodies
         .iter()
-        .filter_map(|sb| run_body(sb, stop.delta, outdir, stop.name, dumps))
+        .map(|sb| run_body(sb, stop.delta, outdir, stop.name, dumps))
         .collect();
-    if bodies.is_empty() {
-        return false;
-    }
     manifest.push_str(&scene_json(stop, &bodies));
-    true
 }
 
 /// One scene's manifest entry (hand-rolled JSON — fixed schema, no
@@ -549,10 +543,9 @@ fn main() {
     let mut cells = 0usize;
     let mut run = |stop: &Stop| {
         manifest.clear();
-        if run_stop(stop, &outdir, &mut manifest, &mut dumps) {
-            scenes.push(manifest.clone());
-            cells += usize::from(stop.montage);
-        }
+        run_stop(stop, &outdir, &mut manifest, &mut dumps);
+        scenes.push(manifest.clone());
+        cells += usize::from(stop.montage);
     };
 
     println!("B-rep kernel demo tour — sweeps, booleans, split, and the M4 recipe layer");
@@ -583,34 +576,59 @@ fn main() {
     // The uv lane's own claims, MEASURED on this run rather than
     // pinned in prose beside the code that computes them. Every number
     // the module documents about the corpus is here: how many charts
-    // the winding check can speak about (a branch jump makes the
-    // shoelace meaningless), how many agree with `Face::sense`, and
-    // the two worst junction gaps. A count written down beside its own
-    // computation is the one that drifts; this line is the record.
-    let jumped = dumps.iter().filter(|d| d.stats.chart_jump > 1e-9).count();
-    let disagree: Vec<&uvdump::FaceDump> = dumps.iter().filter(|d| !d.stats.winding_ok).collect();
-    let worst_gap = dumps.iter().map(|d| d.stats.gap).fold(0.0f64, f64::max);
-    let worst_jump = dumps
+    // the winding check can speak about, how many agree with
+    // `Face::sense`, and the two worst junction gaps. A count written
+    // down beside its own computation is the one that drifts; this
+    // line is the record.
+    //
+    // A face whose loops could not be WALKED carries
+    // `FaceStats::default()` — all zeros, `winding_ok = false` — which
+    // is the absence of a measurement, not a failed one. It is
+    // excluded from every count here and reported as `unwalkable`
+    // above, once.
+    let walked: Vec<&uvdump::FaceDump> = dumps.iter().filter(|d| d.note.is_none()).collect();
+    let jumped = walked.iter().filter(|d| d.stats.chart_jump > 1e-9).count();
+    let disagree: Vec<&&uvdump::FaceDump> = walked.iter().filter(|d| !d.stats.winding_ok).collect();
+    let worst_gap = walked.iter().map(|d| d.stats.gap).fold(0.0f64, f64::max);
+    let worst_jump = walked
         .iter()
         .map(|d| d.stats.chart_jump)
         .fold(0.0f64, f64::max);
     println!(
         "   winding vs Face::sense: {} chart(s) checkable, {} carry a branch jump \
          (shoelace meaningless there); {} disagree",
-        dumps.len() - jumped,
+        walked.len() - jumped,
         jumped,
         disagree.len()
     );
-    for d in &disagree {
-        println!(
-            "   WINDING CONTRADICTION: {} face {} ({}) — chart area and sense disagree; \
-             the even-odd interior would be the complement of the intended one",
-            d.body, d.face, d.chart
-        );
-    }
     println!(
         "   closure: worst 3-D loop gap {worst_gap:.2e} m; worst chart jump \
          {worst_jump:.6} (seam/pole structure, not a defect)"
+    );
+    // AND IT IS FATAL, not a printed number. Every face here is the
+    // kernel's own output, so a chart winding that contradicts the
+    // face's `sense` bit is a kernel regression: the even-odd interior
+    // of that face is the complement of the intended one, and the
+    // tessellator's trim walk composes the same rings. The tour
+    // already fails on every other broken kernel invariant it meets
+    // (the three validation tiers, `check_mesh`, a non-positive mesh
+    // volume, any STEP refusal), and `uvdump`'s "a diagnostic must not
+    // refuse broken input" governs which FACES get drawn — it is about
+    // not hiding a bad chart from the reader, not about the tour
+    // shrugging at one. If this ever fires, the fix is a kernel issue
+    // and the witness is in the message.
+    assert!(
+        disagree.is_empty(),
+        "WINDING CONTRADICTION on {} chart(s): {} — the measured chart winding \
+         disagrees with the face's own `sense` bit, so the even-odd interior is \
+         the complement of the intended one. These charts are kernel output; \
+         this is a kernel regression, not a demo one.",
+        disagree.len(),
+        disagree
+            .iter()
+            .map(|d| format!("{} face {} ({})", d.body, d.face, d.chart))
+            .collect::<Vec<_>>()
+            .join(", ")
     );
     // The ε this whole tour was decided at, and WHERE IT CAME FROM
     // (S22, 2026-08-19). ε is a declared run parameter, so a run says

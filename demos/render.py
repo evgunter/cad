@@ -91,9 +91,14 @@ def draw(ax, scene, stl_dir):
     Every body in a manifest has an STL: both generators write the stem
     unconditionally and fail rather than omit it, and a scene with no
     bodies is never emitted at all. So there is no skip path here and
-    no empty-scene path below — `render_freecad.py` reads the same
-    field the same way. (What the manifest FORMAT promises is undefined
-    and is smell-scan S114(c); this is what its two producers do.)
+    no empty-scene path below — and `render_freecad.py:159` reads
+    `stl` unguarded for the same reason.
+
+    That is a claim about `stl` only. `step` genuinely differs between
+    the two producers — the tour always writes a stem, the wild
+    generator always writes null — but this renderer never reads it.
+    (What the manifest FORMAT promises is undefined and is smell-scan
+    S114(c); this is what its two producers do.)
     """
     view = scene["view"]
     elev, azim, up = view["elev"], view["azim"], view["up"]

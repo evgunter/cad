@@ -23,11 +23,13 @@
 //!   [`topo::Face::sense`] bit rather than against CCW, because a bore
 //!   or a concave groove carries `sense = false` and its outer loop is
 //!   then legitimately CW. Not every face is checkable this way — a
-//!   chart with a branch jump has no meaningful shoelace — so the tour
-//!   prints how many were checked and names every contradiction; the
-//!   alarm is reserved for a contradiction. The counts are that
-//!   printed line and are not restated here, because the corpus grows
-//!   and the sentence would not;
+//!   chart with a branch jump has no meaningful shoelace, and a face
+//!   whose loops could not be walked has no measurement at all — so
+//!   the tour prints how many were checked and **fails on any
+//!   contradiction**: these charts are the kernel's own output, so a
+//!   winding that disagrees with `sense` is a kernel regression. The
+//!   counts are that printed line and are not restated here, because
+//!   the corpus grows and the sentence would not;
 //! - a seam crossing on a periodic chart — a cylinder's `u` is
 //!   2π-periodic, and a loop that crosses the seam draws as a jump
 //!   across the strip;

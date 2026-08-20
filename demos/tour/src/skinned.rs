@@ -294,22 +294,51 @@ pub fn stops() -> Vec<Stop> {
         pncad::sweep::loft_body::<f64>(&prism_sections(), &lofted_at_z(&[0.0, 1.0, 2.0]), 2)
             .expect("shape (iii) loft builds")
             .body;
-    // THE CORPUS CROSS-LINK, CHECKED. The scene claims this is the
-    // body `step-export/tests/common/mod.rs::loft_prism()` builds and
-    // `sweep/tests/m6_loft_body.rs` derives V = 9 m³ for, but the
-    // sections are copied (see the copy note above) and nothing links
-    // the copies. Byte-equality of two source files is not something
-    // this demo could check and would not be the interesting claim if
-    // it were; the interesting claim is that it is the same SOLID. So
-    // ask for the volume and pin it against the derivation, inside the
-    // certified enclosure the props door reports rather than against a
-    // tolerance invented here.
+    // THE STOP'S OWN NARRATION, PINNED AGAINST THE KERNEL — the same
+    // move `loft_parameters` gets twenty lines below, and the same
+    // scope. **What this does NOT check, stated:** agreement with
+    // `step-export/tests/common/mod.rs::loft_prism()`. Nothing here
+    // reads that file, this demo cannot (it is another crate's
+    // test-support module — see the copy note above), and two
+    // different prisms can share a volume anyway. A section drifting
+    // in the CORPUS leaves this green, and that gap is the price of
+    // the copy, recorded rather than papered over.
+    //
+    // What it does check is the note's arithmetic against the kernel's
+    // answer, with the note's number DERIVED from the sections rather
+    // than typed: each slice is a trapezoid of area 4 + 2·d·λ(v) with
+    // λ = 4v(1−v) and z = 2v exactly, so V = 8 + 8d/3, d being the
+    // trapezoid's flare. Typing `9.0` would have let a section here
+    // drift while the pin stayed green on a number that no longer
+    // followed from it.
+    let flare = PRISM_TRAPEZOID[1].0 - PRISM_SQUARE[1].0;
+    let narrated = 8.0 + 8.0 * flare / 3.0;
+    assert_eq!(
+        narrated, 9.0,
+        "the stop's note narrates V = 9 m³ exactly; these sections (flare d = {flare}) \
+         now give {narrated}, so the note is wrong before the kernel is asked"
+    );
     let prism_props = pncad::topo::mass_properties(&prism).expect("the prism has a volume");
+    // The enclosure is asked to BRACKET the derivation — and is
+    // bounded from above first, because `volume_pad` is the props
+    // door's own certified half-width with nothing constraining it:
+    // `|V − v| ≤ pad` alone gets EASIER as the enclosure degrades, and
+    // a bracket wide enough to swallow any answer proves nothing. The
+    // door reports ~1e-13 on this body at this δ; 1e-9 leaves four
+    // orders of headroom and still fails long before the quadrature
+    // has stopped saying anything about a 9 m³ solid.
+    const PRISM_PAD_MAX: f64 = 1e-9;
     assert!(
-        (prism_props.volume - 9.0).abs() <= prism_props.volume_pad,
-        "loft_prism is no longer the corpus body: V = {} ± {} does not bracket the \
-         derived 9 m³ (sweep/tests/m6_loft_body.rs). Either a section here drifted \
-         from step-export/tests/common/mod.rs, or the skin changed.",
+        prism_props.volume_pad <= PRISM_PAD_MAX,
+        "loft_prism's certified volume enclosure widened to ± {} (> {PRISM_PAD_MAX:e}): \
+         the bracket check below stops meaning anything at that width",
+        prism_props.volume_pad
+    );
+    assert!(
+        (prism_props.volume - narrated).abs() <= prism_props.volume_pad,
+        "the skin changed: loft_prism's V = {} ± {} no longer brackets the {narrated} m³ \
+         its own sections derive (the derivation is this stop's note, and \
+         sweep/tests/m6_loft_body.rs derives the same number for the corpus fixture)",
         prism_props.volume,
         prism_props.volume_pad
     );

@@ -51,7 +51,10 @@ fi
 WILD_OUT=wild/out
 RD=renders-wild
 STAGE=out/stage/$RD
-# Keep in sync with check_render_provenance.py's WILD_AUTHOR.
+# check_render_provenance.py READS this line and compares it against its
+# own WILD_AUTHOR (wild_author_in_script(), asserted in --selftest), so
+# the two cannot drift apart unnoticed -- but keep the shape below
+# (AUTHOR='...' on one line) or that reader stops finding it.
 AUTHOR='pncad wild-corpus lane (kernel tessellation of licensed third-party STEP)'
 
 if [ ! -f "$WILD_OUT/scenes.json" ]; then

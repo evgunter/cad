@@ -899,7 +899,7 @@ tree used to be meaningless, because those cells were drawn against a
 developer host's GL stack and these by llvmpipe on a runner; since the
 #338 canonical-producer ruling and its re-baseline, both sides are the
 hosted producer's output, and a repeat hosted render of one commit is
-byte-identical (measured across all 55 cells of both PNG lanes). So each
+byte-identical (measured across every cell of both PNG lanes). So each
 lane's diff is a real finding, and ci.yml's `renders` job fails on it.
 
 The one caveat that survives is the runner image: its mesa bumps roughly

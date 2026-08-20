@@ -47,15 +47,38 @@ ROOT_RE = re.compile(
     r'width="(\d+)" height="(\d+)" viewBox="0 0 \1 \2">\n'
 )
 
+HERE = Path(__file__).resolve().parent
+# The emitter this sheet composes. `legend_colors_in_emitter()` reads it.
+EMITTER = HERE / "tour" / "src" / "uvdump.rs"
+
 # (swatch color, dashed?, text) — laid out two per row under the title.
+#
+# Every swatch color here is a stroke `uvdump.rs` actually writes, and
+# the selftest checks that by reading the emitter: a legend that names
+# a color no cell contains teaches the reader something false, which is
+# what the fourth row used to do (a grey `#777777` swatch, while a
+# derived pcurve is dashed in its own FORM's color).
 LEGEND = [
     ("#1f4e79", False, "harmonic — the closed-form chart image"),
     ("#b03060", True, "the chart’s periodic seam (u = k·2π)"),
     ("#1b7a3d", False, "isoline — the exact u/v-const image (NURBS walls)"),
-    ("#777777", True, "dashed loop — pcurve DERIVED on demand, not cached"),
+    ("#1f4e79", True, "dashed, in the form’s own color — pcurve DERIVED, not cached"),
     ("#c1590a", False, "fitted — the rung-3 SSI-trace chart projection"),
-    ("#333333", False, "dot — a loop junction;  arrow — traversal direction"),
+    ("#333", False, "dot — a loop junction;  arrow — traversal direction"),
 ]
+
+
+def legend_colors_in_emitter(emitter=None):
+    """Which LEGEND swatch colors appear as stroke literals in uvdump.rs.
+
+    Read rather than asked for in a comment: this legend mirrors six
+    separate literals in another language in another file, and smell-scan
+    S114(c) named it as the one mirror here that nothing verified while
+    the cell SIZE was verified hard (`ROOT_RE` and the CELL_W/CELL_H
+    refusal below).
+    """
+    src = (emitter or EMITTER).read_text()
+    return {color for color, _, _ in LEGEND if f'"{color}"' in src}
 
 
 def pick(entries):
@@ -173,7 +196,15 @@ def selftest():
         else:
             raise AssertionError("a non-conforming cell must fail loud")
 
-    print("compose_uv_montage selftest: ok")
+    # 3. Every legend swatch is a color the emitter actually strokes.
+    want = {color for color, _, _ in LEGEND}
+    if EMITTER.exists():
+        found = legend_colors_in_emitter()
+        assert found == want, sorted(want - found)
+    else:  # a checkout without the tour source: say so, do not pass quietly
+        raise SystemExit(f"{EMITTER} not found — the legend check cannot run")
+
+    print("compose_uv_montage selftest: ok (3 cases)")
 
 
 def main():

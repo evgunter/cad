@@ -11,10 +11,14 @@
 //! neither runs from here. So "a working run or a typed refusal" is
 //! not a distinction this pin can draw, and asserting `success()`
 //! loses nothing: a demo whose scenes are all inside the kernel's
-//! shipped surface has no refusal that is not a regression. If a
-//! scene ever legitimately reaches a frontier, the tour has to grow a
-//! way to SAY so at that scene — and this file has to grow the arm
-//! that accepts it — before any exit code can carry the news.
+//! shipped surface has no refusal that is not a regression.
+//!
+//! **Whether that is the right posture is a real question, and it has
+//! a register rather than a resolution here: issue #795.** If a scene
+//! ever legitimately reaches a frontier, the tour has to grow a way to
+//! SAY so at that scene — and this file has to grow the arm that
+//! accepts it — before any exit code could carry the news; #795 is
+//! where the three candidate shapes are written down.
 //!
 //! The escalation that motivated this pin: the bracket fillet's via
 //! point was decimally rounded (1.146 vs the exact 1.5 − 0.5/√2 =

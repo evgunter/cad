@@ -305,6 +305,14 @@ fn main() {
     // would write one file twice and put the same body on the sheet
     // under two captions — silently, and after the first STL had
     // already been clobbered. Checked here, before any cell runs.
+    //
+    // This is the whole of what the retired `scenes.len() ==
+    // WILD_CELLS.len()` assertion was reaching for. There is no
+    // separate "every scene got a file" check, because with distinct
+    // names there is nothing left for one to catch: `run_cell` writes
+    // `{name}.stl` from the same field the manifest then names, and
+    // panics on a failed write. A second assertion there would be the
+    // equal-by-construction shape again, one line down.
     for (i, cell) in WILD_CELLS.iter().enumerate() {
         if let Some(other) = WILD_CELLS[..i].iter().find(|c| c.name == cell.name) {
             panic!(
@@ -343,20 +351,6 @@ fn main() {
         }
     }
 
-    // Every scene names an STL the renderers will open. `run_cell`
-    // panics on a failed write, so this is about the FILE the manifest
-    // points at rather than about the write succeeding: it is the one
-    // end of the name contract the uniqueness check above cannot see,
-    // and the one a renderer meets as a missing-file error three steps
-    // later.
-    for cell in &WILD_CELLS {
-        let stl = format!("{outdir}/{}.stl", cell.name);
-        assert!(
-            std::path::Path::new(&stl).is_file(),
-            "{}: the manifest names {stl} and no such file was written",
-            cell.name
-        );
-    }
     let json = format!("[\n{}\n]\n", scenes.join(",\n"));
     std::fs::write(format!("{outdir}/scenes.json"), json).expect("write scenes.json");
     println!(
