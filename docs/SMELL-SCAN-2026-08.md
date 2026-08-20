@@ -5365,9 +5365,9 @@ all deletions        ──────────────► L2 (S38 comme
 had, are Track D's D1/D2.
 
 **Track D's own edges are all inside `sweep/`, plus two on other tracks' open
-PRs.** D3, D4, D5, D6 and D8 are edge-free and can start today; D8 edits
-`sweep/src/skin.rs`, so it sequences against D1/D2 within the track rather than
-across it.
+PRs.** D4, D5, D6 and D8 are edge-free and can start today (D3 was too, and
+landed as #704); D8 edits `sweep/src/skin.rs`, so it sequences against D1/D2
+within the track rather than across it.
 
 ---
 
