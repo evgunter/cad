@@ -8589,6 +8589,19 @@ file compiles under the default rows; and the never-true non-feature condition
 above. The census reports **16** suites across **5** crates, unchanged by the
 widened predicate.
 
+**A blind spot this row does NOT close, and did not name: WHEN the gate runs.**
+`docs/SMELL-SCAN-2-2026-08.md` **S61** reports it and it re-derives — the
+`discipline` job is `if: needs.filter.outputs.run_build == 'true'` and
+`ci-filter.py`'s `_is_docs` is true for any `.md` path, so a PR editing only
+`docs/K-REPORT.md` and this file is docs-tier and **the citation half cannot
+fire on the only change class that can break it**. Everything above is about
+what the census *reads*; that is about whether it is read at all, and no
+predicate here reaches it. The new clippy-row check inherits the same
+conditionality, though less sharply: its subject is `ci.yml`, which is never
+docs-tier. **Unverdicted, and left deliberately** — this row closes on a
+decision about the predicate, and a job's `if:` is a different mechanism in a
+different file.
+
 **D34 — FIXED by #753.** Raised by #747 and corrected 2026-08-20; its full
 record is here.
 
@@ -8668,6 +8681,37 @@ hand-copied into two rows, with no shared home, which is the drift shape
 rows"*, which misses `interval-transcendentals`: it is excluded by the root
 manifest but runs in its own job rather than in `k-lint`, so a count taken off
 that job's rows cannot see it.
+
+**What this verdict rules ON, and what it does not — because a second scan
+landed on the same files mid-lane.** `docs/SMELL-SCAN-2-2026-08.md` reports
+**S61** and **S62** over `scripts/gates/`, both re-derived here and both
+standing. This row's scope verdict is *"the directory is `lib.sh`'s contract"*,
+and it answers **one** of what they name: the move takes
+`check-test-aggregation.sh` out of S62's hand-named set, five to four
+(`rundump-guard-selftest.sh`, `check-interval-cfg-additive.py`,
+`demos/check_render_provenance.py`, `demos/compose_uv_montage.py` are what is
+left, and the `.py` verdict says the second of those stays there). Three things
+it does **not** answer, left deliberately rather than missed:
+**(i)** the whole `discipline` job is skipped on a docs-tier change set, so
+every gate the roster enforces is conditional in a way the roster cannot see —
+S61; **(ii)** `gate-roster.sh`'s own header offers that same conditionality as
+its reason not to read `local-scripts/`, which is a hole cited as a licence —
+S61; **(iii)** both halves derive the roster with `[ -x "$script" ] || continue`
+to exclude `lib.sh`, so **a gate landing mode 0644 is registered by nobody** —
+S62, confirmed here by planting a non-executable `zz-unwired-nonexec.sh` beside
+the wired fourteen, which `gate-roster.sh` reports as *"all 14 gates"* and exits
+0. (iii) is the sharp one and it is squarely this row's subject — *what makes
+something a member of the roster* — which is why it is named here rather than
+left for the next reader to re-derive: this row's budget is a scope verdict plus
+one move, and the move is spent.
+
+**One blind spot in this row's own enumeration, since a path glob is part of a
+pattern.** The 23 were enumerated from non-comment `scripts/…` paths in
+`ci.yml`. `demos/check_render_provenance.py` and `demos/compose_uv_montage.py`
+are wired into the same `discipline` job, are self-tested, and are hand-named in
+both halves — and no `scripts/`-rooted pattern can see them. S62 found them
+because it enumerated the job rather than the path.
+
 ---
 
 ## Last, deliberately
