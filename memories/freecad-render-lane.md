@@ -19,8 +19,8 @@ it is a pass; do not re-run the job to make it green.
 
 **Why PRs do not commit** (learned the hard way on #598): a bot commit
 onto a PR branch becomes the PR's head, and a GITHUB_TOKEN push
-triggers no run of its own, so the PR showed ONE neutral check with all
-30 green checks stranded on the parent commit. The recursion guard and
+triggers no run of its own, so the PR showed ONE neutral check with
+every green check stranded on the parent commit. The recursion guard and
 that blank slate are the same fact — you cannot have the bot's commit
 skip CI *and* carry CI's checks, not with GITHUB_TOKEN. So the commit
 moved to main, matching the rebuild-latency history's rule. The cost,
@@ -92,8 +92,7 @@ accumulated preferences — worth doing, not done.
 The historical symptom, for recognising it if it ever returns: a stall
 *after* writing a complete, byte-correct PNG (0% CPU, `futex_do_wait`),
 a different scene every pass, on an idle box as well as a loaded one —
-the "warm-session deadlock" of #224, seen 3/3 there and twice more
-during #266.
+the "warm-session deadlock" of #224 and #266.
 
 **Keep the per-scene isolation anyway.** It was built to survive this
 bug, but it is also what bounds any future hang, and the staged publish
@@ -101,13 +100,13 @@ is what keeps a half-finished pass out of the committed tree.
 
 So: **never render more than one scene per `freecadcmd` process.**
 Since #266 `render.sh` does this in both lanes, under a per-scene
-budget (`FREECAD_SCENE_TIMEOUT`, default 300 s) that kills the process
-*group* and retries once; a second expiry fails the pass loudly. A pass
-renders into `demos/out/stage/<lane>/` and is published only when
-complete, so nothing half-finished can reach the committed tree.
-
-Rate to expect: roughly one post-render stall per 19-scene pass. It
-costs one budget and is reported, never silent.
+budget (`FREECAD_SCENE_TIMEOUT`, whose default `render.sh` owns) that
+kills the process *group* and retries once; a second expiry fails the
+pass loudly. A pass renders into `demos/out/stage/<lane>/` and is
+published only when complete, so nothing half-finished can reach the
+committed tree.
+Expect the occasional post-render stall: it costs one budget and is
+reported, never silent.
 
 ## Two behaviours any change here must respect
 
@@ -124,11 +123,10 @@ costs one budget and is reported, never silent.
 
 ## Cost of a pass
 
-3–19 s per scene on an unloaded box; **106–114 s for the same scene at
-load 13–19** (61% CPU — CPU/cache contention, not I/O). A full pass is
-~2.5 min idle and can exceed an hour while cargo lanes are building, so
-a render pass and a build battery on the same box is a bad trade in
-both directions.
+A scene costs seconds on an unloaded box and **minutes under a cargo
+load** — CPU/cache contention, not I/O — so a whole pass goes from
+minutes to hours. A render pass and a build
+battery on the same box is a bad trade in both directions.
 
 ## GET RENDERS BY PULLING (2026-08-17, supersedes the 2026-08-11 rule)
 
@@ -171,32 +169,30 @@ on demand (`local-scripts/render-hosted.sh`, the #338 wrapper —
 trigger, poll, byte-exact artifact pull-back — is now the DISPATCH
 front end only; the ordinary path is push-and-pull, above. Local entry
 points still refuse without the explicit CAD_RENDER_LOCAL_OVERRIDE
-sentence). Measured
-2026-08-10 on a 2-core runner (llvmpipe under Xvfb): 19 scenes,
-median 3 s, max 6 s, 62 s total — faster than this host, and it
-does not compete with the build lanes.
+sentence). A hosted pass is faster than this host and it does not
+compete with the build lanes.
 
-### Where a hosted run's time goes (measured 2026-08-11)
+### Where a hosted run's time goes
 
-Runner: **2 cores, 7 GB**, llvmpipe under Xvfb. A full 4-lane run is
+The runner is small (2 cores, llvmpipe under Xvfb). A full 4-lane run is
 two waves — `tour` gates the three lanes that read it; `wild` and `uv`
 finish inside their shadow and gate nothing — so the run's wall clock
 is `tour` + `kernel montage` and nothing else.
 
-* **The tour step is a COMPILE, not geometry**: ~94-121 s of `cargo`
-  against ~8 s of actual work (the binary runs in 7.8 s locally).
-  `Swatinem/rust-cache` reports `full match: true` and all seventeen
-  workspace crates still rebuild — the action evicts workspace members
-  from what it restores, by design. Caching what the tour PRODUCES
-  (`demos/out`, keyed on an exact hash of its sources) skips both
-  halves: **152 s -> 16 s**, and a 4-lane run **333 s -> 184 s**.
-* **`CAD_RENDER_JOBS=2`** (render.sh's concurrency knob, default 1)
-  takes the kernel loop 110 s -> 85 s and the STEP loop 45 s -> 36 s.
-  Contention shows up exactly where the numbers above predict — median
-  scene 3 s -> 5 s, max 9 s — which is still 33x under the budget.
-  **Verified byte-identical** at K=1 vs K=2, both lanes (55 files), and
-  identical to the committed cells. Two hosted runs of one commit are
-  byte-identical, so that comparison is real signal.
+* **The tour step is a COMPILE, not geometry**: nearly all of it is
+  `cargo`, against seconds of actual work. `Swatinem/rust-cache`
+  reports `full match: true` and every workspace crate still rebuilds —
+  the action evicts workspace members from what it restores, by design.
+  Caching what the tour PRODUCES (`demos/out`, keyed on an exact hash
+  of its sources) skips both halves — and the tour is most of what a
+  4-lane run costs.
+* **`CAD_RENDER_JOBS`** (render.sh's concurrency knob) shortens both
+  render loops. Contention then shows up exactly where the compile/
+  render split predicts — a slower median scene — and still far under
+  the per-scene budget. **Verified byte-identical** across concurrency
+  settings, both lanes, and identical to the committed cells. Two
+  hosted runs of one commit are byte-identical, so that comparison is
+  real signal.
 
 **Committed frames are the HOSTED producer's output** (Evan's
 canonical-producer ruling on #338; the wholesale re-baseline unit

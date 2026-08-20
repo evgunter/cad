@@ -782,7 +782,8 @@ fn bulge_carrier<T: geom_core::Decide>(
     let band = linear_band()?;
     // The bulge's sign IS the travel sense, so the classification that
     // gates it degenerate also decides the winding — one funnel row.
-    let winding = match crate::k_stats::decide("path_arc_bulge", geom_core::Margin::of(b), band) {
+    let winding = match geom_core::k_stats::decide("path_arc_bulge", geom_core::Margin::of(b), band)
+    {
         Ok(geom_core::Sign::Positive) => crate::sugar::ArcSweep::Ccw,
         Ok(geom_core::Sign::Negative) => crate::sugar::ArcSweep::Cw,
         Ok(geom_core::Sign::Zero) => return Err(PathError::DegenerateArcSpec { value: b }),
@@ -825,7 +826,8 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Via<T, Point2<T>> {
         // The collinear gate, then the existing closed form — the sharp
         // `Via` leg mode's own derivation, verbatim.
         let offset = chord_v.perp_dot(self.q - at) / chord;
-        match crate::k_stats::decide("path_arc_via_offset", geom_core::Margin::of(offset), band) {
+        match geom_core::k_stats::decide("path_arc_via_offset", geom_core::Margin::of(offset), band)
+        {
             Ok(geom_core::Sign::Zero) => return Err(PathError::ArcViaCollinear { offset }),
             Ok(_) => {}
             Err(source) => return Err(PathError::Escalated { source }),
@@ -854,7 +856,7 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Center<T, Point2<T>> {
                 PathError::DegenerateArcCenter { radius: r }
             })?;
         }
-        match crate::k_stats::decide(
+        match geom_core::k_stats::decide(
             "path_arc_center_equidistant",
             geom_core::Margin::of(r_tip - r_end),
             band,

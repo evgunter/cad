@@ -86,9 +86,9 @@ their own file header said "Not in the `all` aggregator".
 any file dropped into `tests/` is forced into the `all` binary and runs
 on every ε row. So "review artifact" and "permanent gate" are the SAME
 THING by default. That default is fine — cheap promotion is worth it —
-*provided* clearing up afterwards is uncontroversial. Measured
-2026-08-13: 55% of all workspace test time sat in modules named after a
-specific past review or PR, and it got there because the clause above
+*provided* clearing up afterwards is uncontroversial. When it was last
+measured, most of the workspace's test time sat in modules named after
+a specific past review or PR, and it got there because the clause above
 read as forbidding exactly that clear-up.
 
 Three levers, not one — reach for the right one:

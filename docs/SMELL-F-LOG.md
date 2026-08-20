@@ -212,6 +212,18 @@ survive being read back by a reviewer who did not write it. **If the residue is
 large, that is itself the finding** — report the count before writing the
 entries, not after.
 
+**DISCHARGED on an empty residue, 2026-08-20 (#791).** F-e widened the matcher
+and re-ran it: the file set is **identical** to the pre-widening one, and at
+line granularity the whole workspace gains exactly one hit — a doc comment at
+`real.rs:787` that the existing comment filter strips. **Every `CertifiedBounds`
+use in the tree is a sole bound**, so there was nothing to convert and **no
+allowlist entry was written**. The ruling's two questions were never reached.
+What the sweep *did* find is a compound bound reached through an alias NAME
+(`ArcCarrierScalar`, 49 use sites) — the ruling's second question, one level up,
+and it is left to **G4** because the answer depends on what the alias is bound
+to. That is the shape the caveat wanted: the entry that would have hidden it was
+not written.
+
 ---
 
 ## Number reservation, and why this track takes a block
@@ -236,10 +248,11 @@ sub-block, from the orchestrator.
 | **F-a** | D61, D62 | S117, S118 |
 | **F-b** | D63, D64 | S119, S120 |
 | **F-c** | D65, D66, D67 | S121, S122, S123 |
-| **F-e** | D68, D69 | S124, S125 |
+| **F-e** | D68, D69 — **both used** | S124, S125 — **both used** |
 | **F-d** | D70 | S126 |
 | **F-f** | **D101** | **S157** |
-| unassigned (2nd block) | D102–D110 | S158–S166 |
+| **F-e** (2nd) | D102, D103, **D106** — all used | S158, S159 — **both used** |
+| unassigned (2nd block) | D107–D110 | S161–S166 |
 
 **Second block claimed 2026-08-20: `D101`–`D110` and `S157`–`S166`.** The first
 block is spent. Taken beyond Track E's `D81`–`D100` / `S137`–`S156` and Track
@@ -353,17 +366,18 @@ live in that directory and two of them share `scripts/ci-filter.py`.
 | lane | row | branch | scope | review | state |
 |---|---|---|---|---|---|
 | **F-d** | **F4** (S76, S78, S84, S91) | `smellf/f4-guards-that-pass` | `topo/src/review_d18.rs`, `sweep/tests/review_d2_adv_probes.rs`, `geom-brep/tests/`, `geom-core/src/spline/knots.rs` | **ADVERSARIAL** (S76, S78) + style | **dispatched** |
-| **F-e** | **F1** (S59) | `smellf/f1-certifiedbounds-gate` | `scripts/gates/bounds-allowlist.sh`, `geom-core/src/real.rs` | style; **ADVERSARIAL** for forced conversions | **dispatched** |
 | **F-f** | **F2** (S61/S62 + D58–D60) | — | `ci.yml`, `ci-filter.py`, `probe-suite-census.sh`, `gate-roster.sh`, `ci-local.sh` | style | queued behind F-e |
 | **F-g** | **F3** (S63) | — | `scripts/gates/{no-extra-real-bounds,bit-identity-debug-only,interval-square-allowlist,lib.sh}`, `ci-filter.py` | style; **ADVERSARIAL** for the `x*x → powi(2)` conversions | queued — owns `lib.sh` |
 | **F-h** | **F8** (D44, D45) | — | `scripts/k_probe_sweep.sh`, `ci.yml`, `docs/` | style | queued behind F-f |
 
-**F-e is first because Track G's G4 is blocked on it** — per Evan's S87/S88
-ruling, the sentence that makes the `CertifiedBounds` conversion safe is
-currently false, and converting before the gate can see the spelling would leave
-the ratification requirement unenforced at exactly the moment new code starts
-relying on it. **F-g owns `scripts/gates/lib.sh`**; F-e's brief says to stop and
-report rather than take it.
+**F-e went first because Track G's G4 is blocked on it** — per Evan's S87/S88
+ruling, the sentence that makes the `CertifiedBounds` conversion safe was false,
+and converting before the gate could see the spelling would leave the
+ratification requirement unenforced at exactly the moment new code starts
+relying on it. **F-e is out of this table: #791 is open**, and the landing is
+recorded below. **F-g owns `scripts/gates/lib.sh`**; F-e stopped short of it and
+reported the one helper it wanted there (`selftest_passes`), which is now F-g's
+to place or decline.
 
 **Superseded gate table, kept only as the record of what was gated on what:**
 
@@ -400,6 +414,7 @@ conversion safe is *currently false*, and converting first would leave
 the ratification requirement unenforced at exactly the moment new code
 starts relying on it. Track G is not this track's, but the ordering
 constraint is, and it is stated here so a Track G taker can read it.
+**Discharged: F-e opened #791, and G4 is unblocked once it merges.**
 
 ---
 
@@ -694,6 +709,120 @@ when the review lands, which is why it trails.
 
 
 ## Landings
+
+- **F-e — F1 / S59**, PR **#791**, opened 2026-08-20; **CLEARED 2026-08-20**
+  after a style review (NOT CLEARED → F-R10, F-R11) and a targeted
+  verification pass (F-R15), both addressed in the same PR; **held for the
+  merge queue behind F6**, not merged by the lane. `bounds-allowlist.sh`'s matcher is now shaped by the
+  trait **name** — `(\+\s*(\w+::)*\w*Bounds\b)|(\b(\w+::)*\w*Bounds\s*\+)`
+  — rather than by a list of names, so `Decide + CertifiedBounds` fires in both
+  operand orders and so does the alias after it. **Eight self-test cases**:
+  both `Decide + Bounds` orders, both `Decide + CertifiedBounds` orders, a
+  path-qualified alias after the `+`, an alias name not in the tree, a
+  non-`Bounds`-named alias *declaration* in all **three** spellings (pair,
+  sole supertrait, `where Self:` — what the declaration alternative catches,
+  which is NOT a mitigation for GAP 4; see F-R15 below), real.rs beside its skipped definition lines, real.rs with
+  the alias **redefined to carry `Decide`** — plus a **negative** case (sole
+  bracket bounds must not fire). An exact-text skip is brittle where a name
+  anchor is not, so `gate_definition_skip_subject` proves the two skipped
+  lines are still verbatim in `real.rs` *before* the scan and names the repair
+  that is meant; a rustfmt-style wrap reds with that message rather than as a
+  confusing compound hit. **Mutation battery re-run on the final head**: four
+  mutations red exactly one case each, and **two survive, which is reported
+  rather than buried** — re-adding the left-hand path group (dead by
+  construction; the qualified-left spelling is covered by a positive case
+  instead), and reverting the skip to a name anchor (the subject check now
+  refuses that edit one step earlier). Three prose sites corrected — the gate header, two
+  `real.rs` paragraphs — plus S56's own record, which asserted the same false
+  thing. **Red count before allowlisting: zero; no allowlist entry written**
+  (F-R6 discharged empty, above). Sweep raised **S124/D68** (`ArcCarrierScalar`
+  invisible at 49 use sites — handed to **G4**, which owns the alias's bound)
+  and **S125/D69** (`no-extra-real-bounds.sh` is order-sensitive, S56's own
+  defect un-swept to a third gate — handed to **F-g**, whose scope holds the
+  file). **D68 is a visibility row and G4 does NOT discharge it**; the review
+  caught the first draft handing it to G4 as if it did.
+- **The style review (F-R10, F-R11) found three further evasions of this gate,
+  all now planted.** The alias-definition skip was anchored on the *name*, so
+  redefining `CertifiedBounds` to carry `Decide` was silently skipped — the
+  one edit that turns every sole-bound site in the tree into a
+  decide-and-bracket parameter; the skip is now exact text. The path prefix
+  after `+` was untested while a spelling the tree already uses depended on
+  it. The same group on the left of `+` was dead and is gone. The header's
+  gap list gained **GAP 4** (an alias not named `…Bounds`, and see F-R15 — it
+  is disclosed OPEN, with no mitigation) and **GAP 5** (the leading-only comment strip, F-g's to close).
+  **The header is 204 lines against 131 at open** — S116(m) measures this very
+  file at 130 and is re-measured in place rather than restored; five lines of
+  comment archaeology were cut and the lane's own additions compressed twice.
+  **The argument that came out of that row is worth more than the row**, and
+  it is written into S116(m) rather than left in a transcript: a gate whose
+  gaps are honest is longer than one whose gaps are silent, so **this
+  directory wants the ratification ledger split out of the script**. The
+  per-seam justifications are a document that happens to live in a comment
+  block, and they are what makes a 20-line function carry a 204-line header.
+- **The lane minted a fresh instance of the defect it closed.** GAP 4's
+  mitigation was published as *"the declaration writes the pair literally and
+  therefore fires"* — true only of `trait Bracket: Bounds +
+  CertifiedEnclosure`. **`trait Bracket: CertifiedBounds` carries both bracket
+  doors with no `+` on the line**, so neither it nor `Decide + Bracket` fired:
+  S59 exactly, one turn later, in the change that closes S59. The lane caught
+  that one itself, by attacking its own sentence rather than measuring it, and
+  added a third matcher alternative for single-line trait declarations naming
+  a `…Bounds` supertrait or `where` bound. **It then republished the
+  mitigation on that alternative, and F-R15 refuted it too** — see below.
+  **This is the track's fix-passes-minting-their-own-defect record, and the
+  datum is that self-measurement settled neither round.**
+- **A helper this lane needed and did not put in `lib.sh`.** `selftest_passes`
+  — the negative twin of `gate_selftest_case` — is local to
+  `bounds-allowlist.sh` and is named `bounds_selftest_passes`, deliberately
+  gate-specific: a generically-named local definition is sourced *after*
+  `lib.sh` and would silently shadow a promoted one. Every gate in the
+  directory could use it — today the only fixture any of them proves *passes*
+  is the empty clean tree, which says nothing about a spelling that must not
+  fire. **RULED (orchestrator, 2026-08-20): F-g takes it, F-e keeps the
+  gate-specific name.** F-g owns `lib.sh` for F3 and now also for S157/D101
+  (the `errexit`-before-`gate_error` class, same harness), so it will have the
+  file open; two lanes editing it for different reasons is the collision the
+  sequencing exists to prevent. **The gate-specific name is what makes the
+  handoff safe**, and it is in the tree at `bounds-allowlist.sh` beside the
+  function so F-g inherits it from the code rather than from a message.
+- **F-R15: GAP 4's mitigation was REFUTED by the verification pass and is out
+  of the tree.** `rustfmt --edition 2021` rewrites the single-line
+  `trait Bracket: CertifiedEnclosure where Self: Bounds` — which the lane's
+  third matcher alternative *does* catch — into a multi-line `where` block
+  that is **silent**, so the silent form is the formatter-stable one. GAP 4 is
+  now disclosed as **open with no mitigation**, with the reason written at the
+  gap: no line-based matcher reaches it, and a colon-free widening
+  false-positives on `trait ArrivalSpec<T: CertifiedBounds>`, a sole bracket
+  bound outside the class. **The lane published a false mitigation twice and
+  had it caught by attack rather than by measurement** — the second time after
+  it had already self-caught the first. Recorded because that is the datum:
+  self-measurement did not settle a claim of this shape either time, and the
+  thing that settled it was a compiled counterexample plus a formatter run.
+- **S158/D102 and S159/D103 recorded, not closed**, per the ruling. S158
+  subsumes S59 — the gate anchors on `+`, and `+` is one of several ways Rust
+  writes a compound bound; `where T: Decide, T: Bounds` is silent with no
+  alias in sight. S159 is the allowlist's file granularity against its
+  per-seam justifications. Neither has a live instance in an unratified file
+  today. **A taker of D102 should expect F-R6's grandfathering caveat to be
+  live on a real residue**, unlike this lane's empty one.
+- **The dead `\b` in `(\b\w*Bounds\s*\+)` removed**, symmetric with the dead
+  path group: the tree-wide hit set is identical with and without it.
+- **Header now 204 lines against 131 at open** (131 → 157 → 195 → 204), and the
+  growth is the argument recorded at S116(m): every line past the fix is a
+  blind spot named, a false claim retracted, or a repair the next reader is
+  told not to make. **Placed as D106** — *split the ratification ledger out of
+  `scripts/gates/`'s scripts* — with the progression and the reasoning written
+  into the row so its taker inherits both. **Not F-e's to execute** (one row,
+  one review, one verification, two fix passes) and **sequenced after F-g**,
+  which owns `lib.sh` and will have the harness open. The property D106 must
+  preserve is the one that made #791 recoverable: **the argument and the
+  enforcement have to fail together**, so a ledger entry with no matching
+  allowlist line — or the reverse — is itself a red.
+- **The third matcher alternative stays, on the orchestrator's condition**:
+  it catches a real single-line spelling and reds nothing, and the rustfmt
+  fact sits **adjacent to it** in the header, so a reader who sees it fire
+  learns in the same breath that the neighbouring multi-line form is silent.
+  That adjacency is the difference between a partial catch and false comfort.
 
 ### F6 (S73 parts 1 and 3) — **CLEARED 2026-08-20**, the track's first
 
