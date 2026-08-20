@@ -9570,20 +9570,34 @@ subject: **readings and constants in `tools/` that nothing re-derives**.
 None is in F6's scope; each is a live gap rather than a residue, which
 is why they are scheduled (**D64**) rather than left in a PR body.
 
-- **(a) `tess-meter`'s `1.0` and `INFINITY` fallbacks move in the PASS
-  direction on the BASELINE side.** `divisions` answers `1` on a
-  non-finite step and `best_split_steps` answers `INFINITY` on a
-  non-positive `q`. #783's sweep dispositioned both as *"the opposite
-  direction — a broken reading shrinks the denominator, so the gate is
-  MORE likely to fire"*, which is true of the **fresh** row only. The
-  gate is a comparison, `now > was · GROWTH_TOLERANCE`, so the same
-  fallback in the **committed baseline** inflates `was` and hides a real
-  regression. And the fallback's value is `1.0` — the exact floor F6's
-  parse guard now refuses in `tess-lint`, tolerated one crate upstream
-  where the number is produced. The fix is not obvious: the doc's
-  argument for answering one on a genuinely unconstrained direction is
-  sound for a counterfactual column, so this wants a decision about
-  which columns may carry a fallback at all, not a one-line edit.
+- **(a) A fallback inside a COMPARISON has two sides, and a direction
+  argument taken on one of them is not an argument.** This is the
+  mechanism, and it is what makes the next instance findable: S73's
+  whole method is *"which way does a broken reading push the
+  verdict"*, and every instance of it so far has been checked on the
+  reading being taken. A differential gate reads TWO — `now` and
+  `was` — and a fallback that is safe in one is the opposite in the
+  other. **A disposition that names one side has answered half the
+  question, and reads as if it answered all of it.**
+
+  The two sites: `tess_meter::divisions` answers `1` on a non-finite
+  step, and `best_split_steps` answers `INFINITY` on a non-positive
+  `q`. #783's sweep dispositioned both as *"the opposite direction —
+  a broken reading shrinks the denominator, so the gate is MORE
+  likely to fire"*, which is true of the **fresh** row only: the rule
+  is `now > was · GROWTH_TOLERANCE`, so the same fallback in the
+  **committed baseline** inflates `was` and hides a real regression.
+  The lane found this in its own stated negative result, on being
+  asked to re-derive it. And `divisions`' fallback value is `1.0` —
+  the exact floor F6's parse guard now refuses in `tess-lint`,
+  tolerated one crate upstream where the number is produced.
+
+  **Not a one-line edit.** The doc's argument for answering one on a
+  genuinely unconstrained direction is sound *for a counterfactual
+  column*, so what is owed is a decision about which columns may carry
+  a fallback at all — and, with it, a re-check of every other
+  disposition in this document that reasoned about a gate's direction
+  from a single side.
 - **(b) The CSV already distinguishes the two `NaN`s and the parser
   discards the column that does it.** `worst_dev` is `NaN` both when
   the sweep did not resample and when it resampled and a sample came
@@ -11382,7 +11396,7 @@ S60/S66's rows; and a general gate re-proposes exactly what Evan declined.
 | # | Work |
 |---|---|
 | **D63** | **`k-lint` admits `NaN`, `inf` and negative floats and scores the row clean** (**S119**) — S73's part one in the sibling instrument, in the lint whose own site comment makes exactly this argument for the column next door. Scope: `tools/k-lint/src/lib.rs` (`lint_csv`'s three `f64::parse` calls, and `lint_sample`'s `_ => {}` arm, which a `NaN` `band_zero` falls through while still counting as scanned). **ACCEPTED**, style. The fix is the per-column admission F6 landed in `tess-lint`, in the harness voice `lint_csv` already has. **Edge:** F8/D44 reaches `scripts/k_probe_sweep.sh` and not this file, so the two are expected to be disjoint — check the branch, not this cell (F-R1). |
-| **D64** | **What the tessellation and K instruments still cannot see, after F6** (**S120**, four members). *(a)* `tess-meter`'s `divisions`/`INFINITY` fallbacks move in the **pass** direction on the **baseline** side of the comparison, which F6's sweep dispositioned by looking at the fresh side only; *(b)* `dev_samples` already separates "not resampled" from "resampled to NaN" and `tess_lint::parse` discards it; *(c)* `SPLIT_SCAN_*` has a test and no CI register, and the register that exists structurally cannot see a degraded scan; *(d)* `k-lint`'s `PROXIMITY_FACTOR`, `EPS_COUPLED_FLOOR_RATIO`, `AMBIENT_BAND_MIN` unpinned, plus two sweep shapes F6 disclosed and could not match. Scope: `tools/tess-meter/src/lib.rs`, `tools/tess-lint/src/lib.rs`, `tools/k-lint/src/lib.rs`, and — for *(c)* only — `.github/workflows/ci.yml`. **ACCEPTED**, style. **Sequence *(c)* behind whoever owns `ci.yml`**; the other three are edge-free. *(a)* is a decision (which columns may carry a fallback at all), not a one-line edit — do not take it as one. |
+| **D64** | **What the tessellation and K instruments still cannot see, after F6** (**S120**, four members). *(a)* **a fallback inside a comparison has two sides** — `tess-meter`'s `divisions`/`INFINITY` fallbacks move in the **pass** direction on the **baseline** side, which F6's sweep dispositioned by looking at the fresh side only, so the class is *direction arguments taken on one side of a differential gate* and not two sites; *(b)* `dev_samples` already separates "not resampled" from "resampled to NaN" and `tess_lint::parse` discards it; *(c)* `SPLIT_SCAN_*` has a test and no CI register, and the register that exists structurally cannot see a degraded scan; *(d)* `k-lint`'s `PROXIMITY_FACTOR`, `EPS_COUPLED_FLOOR_RATIO`, `AMBIENT_BAND_MIN` unpinned, plus two sweep shapes F6 disclosed and could not match. Scope: `tools/tess-meter/src/lib.rs`, `tools/tess-lint/src/lib.rs`, `tools/k-lint/src/lib.rs`, and — for *(c)* only — `.github/workflows/ci.yml`. **ACCEPTED**, style. **Sequence *(c)* behind whoever owns `ci.yml`**; the other three are edge-free. *(a)* is a decision (which columns may carry a fallback at all), not a one-line edit — do not take it as one. |
 
 ---
 
