@@ -1432,33 +1432,59 @@ re-verified. The finding does not survive; the ledger does. Note **LQ7b**:
 version numbers reset immediately before release, so all fourteen numbers
 are planned to be thrown away.
 
-**What was false — and the finding under-reported it.** The scan said v12
-*"took the number and skipped the entry"*. It did not. A full Version 12
-entry was written and **merged to main in #571** (recoverable at
+**What was false, twice over.**
+
+*First: v12 did not skip its entry.* A full Version 12 entry was written
+and **merged to main in #571** (recoverable at
 `git show 3931d68:crates/editor-core/src/persist/mod.rs`). It was then
-**deleted by #583's conflict resolution**, the v13 bump keeping its own
-paragraph and dropping the loser. That is not a skipped entry; that is the
-tripwire firing and being silenced. The ledger prose exists precisely
-because the one-line version constant merges clean, so the prose is the
-only place two claimants collide — and the collision was resolved by
-deletion.
+**deleted by #583's conflict resolution** — the v13 bump kept its own
+colliding paragraph and dropped the loser. Not an entry never written; an
+entry written, merged, and removed.
+
+*Second: this ledger never had a tripwire to lose.* The finding reads
+`memories/schema-claim-discipline.md` as calling **this** prose the
+tripwire for the same-number race. It does not. The memory's tripwire is
+*claim prose in the shared dispatch ledger*, and it names that ledger —
+`docs/MODEL-AB-LOG.md`, where a second claimant collides at dispatch time.
+The version ledger in `persist/mod.rs` is the memory's *other* half: the
+place the number and its reasoning are recorded, checked **by eye** at the
+final re-merge. So when #583's resolution dropped v12's entry, nothing was
+pointed at this file and nothing fired. The right account is neither "the
+entry was skipped" nor "the tripwire failed" — it is that a document
+everything assumed was guarded had no guard at all.
 
 **What was fixed.** The v12 entry is restored verbatim from `3931d68`.
 `migration_step`'s clean-break list, which stopped at `10 → 11`, now runs
 through `13 → 14`. That doc leads with *empty by RULING, not by omission*
 and cites LQ7a, replacing *"the mechanism stays because it costs nothing"*
-— a weaker claim than the ratified one. The module head states the ruling
-and states why every version owes an entry.
+— a weaker claim than the ratified one.
+
+**And the ledger now has the guard it never had.**
+`persist::ledger_guard::every_version_has_a_ledger_entry` asserts an entry
+exists for every `n` in `2..=SCHEMA_VERSION`, reading the module's own
+source through `include_str!`. Verified to go red on a **mid-ledger**
+deletion, not merely at the tail: excising the v13 entry locally fails the
+test naming `[13]`. Its blind spot is stated at the test — it sees that a
+heading exists, not that the entry describes the format the number
+shipped, and it says nothing about whether `SCHEMA_VERSION` holds the
+right number, which remains a by-eye read of main's constant with nothing
+automating it. Q6: the ledger's completeness is now a mechanism rather
+than an assumption.
 
 **Deliberately not done.** The ledger is not trimmed and the five
 byte-identical goldens are untouched: comment trimming is **S38 / L2** and
 comes last on purpose. The drift was fixed, not the size.
 
-**One citation could not be verified**: the steelman cites
-`memories/schema-claim-discipline.md` for the tripwire framing. No such
-file exists in the tree (`memories/` holds seventeen files, none of them
-this one), and nothing outside this document references it. The
-substance is nonetheless carried in-code now, at the ledger head.
+**The cited memory rotted between the scan and its execution.**
+`memories/schema-claim-discipline.md` was created at `151afc2b` and
+deleted at `dd6d1990` (*"cut unnecessary and harmful prescriptions from the
+orchestrator reading path"*) on **2026-08-18** — the day this scan was
+written — in a deliberate five-memory pruning pass that also added the
+memory-writing criteria to `cad-working-style`. So the citation was live
+when made and dead when executed: **S39's own genre, occurring inside the
+scan**. The pruning is not this track's to relitigate and no restoration is
+proposed; what the memory carried about this file is now held by the guard
+test instead of by a pointer.
 
 ## S11. Substantial machinery shipped as live, with no producer (roll-up)
 
@@ -1792,8 +1818,10 @@ is tracked as **issue #214** with a per-family retirement plan; `ledger_row` is
 `let _ =` at runtime, existing only to force the author to name a row; and the
 count **has moved exactly once, downward** (12 → 8, `d92f56b5`, authored by
 Evan, in the same diff that converted the ledger rows). Growth is the forbidden
-move. Its inherited weakness is the one `schema-claim-discipline.md` names: it
-asserts a **total**, so one site added and one retired nets to 8 and passes.
+move. Its inherited weakness — named by `memories/schema-claim-discipline.md`,
+which was **deleted 2026-08-18 at `dd6d1990`** and reads at `151afc2b` — is
+that it asserts a **total**: one site added and one retired nets to 8 and
+passes.
 
 ## S14. `Span` validity is prose, and the guard's removal turned poison into a documented panic
 
@@ -5233,6 +5261,14 @@ or comment of **#250**, the carried-items register Evan asked to be total
 the obligation's only in-tree home is now the claim site in
 `topo::mint_pcurves`, which says so. Adding the register row is a one-line
 job for whoever next touches #250.
+
+**Also left by D4, one line so it is not carried only in a PR body:** the
+`PcurveCache` clone at `topo/src/boolean/combine.rs:343` is a **fourth**
+residual clone the S8 steelman's count of three missed. It is correct as
+written (the graft copies caches the boolean's final mint pass then clears
+and re-derives) and it is in `boolean/`, another track's file set — so it
+is a count correction, not work. Whoever next prices `Pcurve`'s
+non-`Copy`ness should start from four sites, not three.
 
 **Not taken, and why.** S18's `step-export/volume.rs` row stays out of Track D: its
 immediate cause is that `topo::props` exposes only body-scoped
