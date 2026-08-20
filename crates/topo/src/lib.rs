@@ -155,6 +155,7 @@ pub mod geometry;
 pub mod instance;
 #[cfg(test)]
 pub(crate) mod iso;
+pub(crate) mod live;
 pub mod merge_faces;
 pub mod movefac;
 pub mod null;
