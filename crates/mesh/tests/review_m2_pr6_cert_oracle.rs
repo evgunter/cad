@@ -13,8 +13,8 @@
 mod common;
 
 use common::{axis_y, ball, cone, donut, eps, p2, validated, washer};
+use geom::Surface;
 use geom_core::{Point3, Vec3};
-use geom_surfaces::Surface;
 use mesh::tessellate;
 use mesh::validate::{check_mesh, signed_volume};
 use profile::RawLoop;

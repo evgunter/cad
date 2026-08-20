@@ -41,12 +41,12 @@
 
 use std::collections::HashMap;
 
+use geom::Curve3;
+use geom::Surface;
 use geom_brep::Pcurve;
 use geom_core::ring_interval::RingInterval;
 use geom_core::spline::KnotVector;
 use geom_core::spline::hull::derivative_coeffs;
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
 use topo::{Body, EdgeKey};
 
 use crate::nurbs_cert::{FaceBounds, face_bound};
@@ -101,9 +101,9 @@ pub fn ceil_count(span: f64, step: f64) -> Result<usize, TessellateError> {
 
 /// The torus boundary-step requirement `h` (crate docs) for a face's
 /// surface, if that surface is a torus.
-fn torus_step(surface: &geom_surfaces::Surface<f64>, delta_s: f64) -> Option<f64> {
+fn torus_step(surface: &geom::Surface<f64>, delta_s: f64) -> Option<f64> {
     match *surface {
-        geom_surfaces::Surface::Torus {
+        geom::Surface::Torus {
             major_radius,
             minor_radius,
             ..
@@ -242,7 +242,7 @@ pub(crate) fn compute_chords(
 /// arc-walled bodies BUILD now, and their seam edges read back
 /// rational, which is exactly why this arm exists.)
 fn nurbs_chord_count(
-    n: &geom_curves::NurbsCurve3<f64>,
+    n: &geom::NurbsCurve3<f64>,
     span: f64,
     delta_s: f64,
     ek: EdgeKey,
@@ -375,7 +375,7 @@ fn nurbs_chord_count(
 /// max over spans (hull of the squared enclosures), `next_up` after
 /// the final square root — poison flows to the caller's finite check.
 fn rational_carrier_m_bound(
-    n: &geom_curves::NurbsCurve3<f64>,
+    n: &geom::NurbsCurve3<f64>,
     ek: EdgeKey,
 ) -> Result<f64, TessellateError> {
     let refined = n
@@ -700,8 +700,8 @@ fn adjacent_faces(body: &Body<f64>, ek: EdgeKey) -> Result<Vec<topo::FaceKey>, T
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use geom::NurbsCurve3;
     use geom_core::Point3;
-    use geom_curves::NurbsCurve3;
     use topo::EdgeKey;
 
     fn wiggle() -> NurbsCurve3<f64> {

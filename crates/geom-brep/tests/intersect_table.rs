@@ -5,6 +5,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom::Curve3;
+use geom::Surface;
 use geom_brep::implicit_residual;
 use geom_brep::intersect::{
     EqualCylinderSection, PlaneConeSection, PlaneCylinderSection, RadiusEvidence, Rung,
@@ -12,8 +14,6 @@ use geom_brep::intersect::{
     plane_cylinder_section, route,
 };
 use geom_core::{Band, Point3, Tolerance, Vec3};
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
 
 fn band() -> Band {
     Band::linear().unwrap()

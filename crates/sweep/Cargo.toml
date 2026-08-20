@@ -42,8 +42,7 @@ probe = [
 [dependencies]
 geom-brep = { path = "../geom-brep" }
 geom-core = { path = "../geom-core" }
-geom-curves = { path = "../geom-curves" }
-geom-surfaces = { path = "../geom-surfaces" }
+geom = { path = "../geom" }
 profile = { path = "../profile" }
 # PLAIN edge — no features. This entry carried `features =
 # ["sweep-testing"]` until S52 measured what that did: cargo unifies

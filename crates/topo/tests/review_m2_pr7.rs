@@ -10,9 +10,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom::Surface;
 use geom_brep::{EdgeCurveSpec, newell_plane};
 use geom_core::{Band, Point3};
-use geom_surfaces::Surface;
 use topo::{
     Body, FaceSurface, MefSite, MevSite, ValidationError, mass_properties, validate,
     validate_closed, validate_geometric,

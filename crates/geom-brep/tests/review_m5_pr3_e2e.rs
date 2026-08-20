@@ -10,10 +10,10 @@
 
 use std::sync::Arc;
 
+use geom::{Curve3, NurbsCurve3};
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Dual64, Point3, Vec3};
-use geom_curves::{Curve3, NurbsCurve3};
 
 const SQRT2_2: f64 = core::f64::consts::FRAC_1_SQRT_2;
 
@@ -101,8 +101,7 @@ fn f9_enum_arm_nurbs_circle_locus() {
             )
         })
         .collect();
-    let nd =
-        geom_curves::NurbsCurve3::new(n64.knots().clone(), ctrl_d, n64.weights().to_vec()).unwrap();
+    let nd = geom::NurbsCurve3::new(n64.knots().clone(), ctrl_d, n64.weights().to_vec()).unwrap();
     let cd: Curve3<Dual64> = Curve3::Nurbs(Arc::new(nd));
     for t in [0.1, 0.4, 0.62, 0.9] {
         let d = cd.eval(Dual64::variable(t));

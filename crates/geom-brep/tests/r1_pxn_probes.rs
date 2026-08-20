@@ -19,11 +19,11 @@
 //! hollows it out must not be able to leave the suite green.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom::NurbsCurve3;
+use geom::{NurbsSurface, Surface};
 use geom_brep::{EdgeNurbsLane, PlaneNurbsRefusal};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point3, Tolerance, Vec3};
-use geom_curves::NurbsCurve3;
-use geom_surfaces::{NurbsSurface, Surface};
 
 fn quarter_cylinder_wall() -> NurbsSurface<f64> {
     let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();

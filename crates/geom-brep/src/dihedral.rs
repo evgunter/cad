@@ -68,8 +68,8 @@
 //! poisoned arms escalate through the ordinary decide door. "Arm too
 //! small to say" is always an escalation, never a classification.
 
+use geom::Surface;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign};
-use geom_surfaces::Surface;
 
 use crate::implicit::{curvature_lever_arm, implicit_gradient};
 

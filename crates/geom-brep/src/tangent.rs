@@ -23,9 +23,9 @@
 //! `solver_branch_margin`; K-REPORT's scope honesty predicted this
 //! corpus, and the PR 14 K-snapshot will read it).
 
+use geom::Curve3;
+use geom::Surface;
 use geom_core::{Point3, Real, Vec3};
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
 
 use crate::implicit::{implicit_gradient, implicit_hessian_form};
 

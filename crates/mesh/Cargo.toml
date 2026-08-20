@@ -61,8 +61,7 @@ budget = []
 [dependencies]
 geom-brep = { path = "../geom-brep" }
 geom-core = { path = "../geom-core" }
-geom-curves = { path = "../geom-curves" }
-geom-surfaces = { path = "../geom-surfaces" }
+geom = { path = "../geom" }
 topo = { path = "../topo" }
 # Constrained Delaunay triangulation (ratified crate table; version,
 # license, and release-age vetting in the workspace dependency table).

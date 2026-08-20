@@ -18,8 +18,8 @@
 #![cfg(feature = "budget")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom::Surface;
 use geom_core::{Affine3, Vec3};
-use geom_surfaces::Surface;
 use mesh::budget::{self, Mode};
 use sweep::loft_body;
 use topo::Body;

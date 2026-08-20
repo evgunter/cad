@@ -146,7 +146,7 @@
 
 use std::collections::HashMap;
 
-use geom_surfaces::Surface;
+use geom::Surface;
 use mesh::Mesh;
 use mesh::budget::{CellMeasure, FaceMeasure};
 use topo::Body;

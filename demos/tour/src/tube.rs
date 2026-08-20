@@ -27,8 +27,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use pncad::geom::Surface;
 use pncad::geom_core::{Point3, Vec3};
-use pncad::geom_surfaces::Surface;
 use pncad::sweep::{TubeWindow, tube_along_arc};
 
 use crate::{SceneBody, Stop, View};

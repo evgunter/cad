@@ -47,8 +47,7 @@ probe = ["geom-core/probe", "geom-brep/probe"]
 bvh = { path = "../bvh" }
 geom-brep = { path = "../geom-brep" }
 geom-core = { path = "../geom-core" }
-geom-curves = { path = "../geom-curves" }
-geom-surfaces = { path = "../geom-surfaces" }
+geom = { path = "../geom" }
 slotmap = { workspace = true }
 
 [dev-dependencies]

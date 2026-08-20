@@ -23,9 +23,9 @@
 //! poison flows to the poison box, which never prunes.
 
 use bvh::Aabb;
+use geom::Surface;
+use geom::surfaces::nurbs::NurbsSurface;
 use geom_core::{Band, Bounds, Decide, Point3, Real, Vec3};
-use geom_surfaces::Surface;
-use geom_surfaces::nurbs::NurbsSurface;
 
 use super::BooleanError;
 use crate::body::Body;
@@ -85,7 +85,7 @@ fn corrupt(what: &'static str) -> BooleanError {
 /// - [`ControlNet`](Self::ControlNet) — **NURBS.** The patch bulges
 ///   past the hull of its boundary exactly as the sphere does, but it
 ///   lies in the hull of its CONTROL NET (nonnegative basis, strictly
-///   positive weights — `geom_surfaces::boxes::nurbs_surface_aabb`
+///   positive weights — `geom::surfaces::boxes::nurbs_surface_aabb`
 ///   carries the citation), over the whole KNOT DOMAIN and a fortiori
 ///   over any trim inside it.
 ///
@@ -187,7 +187,7 @@ pub(crate) fn face_box<T: Decide + Bounds>(
         .ok_or(corrupt("face box: surface lost"))?;
     let boxed = match face_box_rule(surface) {
         FaceBoxRule::NoSoundBox => return Ok(Aabb::poison()),
-        FaceBoxRule::ControlNet(patch) => geom_surfaces::boxes::nurbs_surface_aabb(patch),
+        FaceBoxRule::ControlNet(patch) => geom::surfaces::boxes::nurbs_surface_aabb(patch),
         FaceBoxRule::WholeBall { center, radius } => {
             let r = radius.hi();
             Aabb {
@@ -331,7 +331,7 @@ fn boundary_hull<T: Decide + Bounds>(
 ///   for either.
 ///
 ///   The NURBS arm is the one place a sound cheap box exists and is
-///   deliberately not taken: `geom_curves::boxes::nurbs_curve_aabb`
+///   deliberately not taken: `geom::curves::boxes::nurbs_curve_aabb`
 ///   would give the control-net hull, exactly as
 ///   [`FaceBoxRule::ControlNet`] does one dimension up. Taking it
 ///   would TIGHTEN this box — it would start pruning pairs that are
@@ -363,12 +363,12 @@ pub(crate) enum EdgeBoxRule<T: Real> {
 
 /// The [`EdgeBoxRule`] for a carrier — the single kind→rule mapping,
 /// with `None` standing for the null-scaffolding state (no carrier by
-/// type). A kind added to [`geom_curves::Curve3`] lands on
+/// type). A kind added to [`geom::Curve3`] lands on
 /// [`EdgeBoxRule::NoSoundBox`] only by being written here.
-pub(crate) fn edge_box_rule<T: Real>(carrier: Option<&geom_curves::Curve3<T>>) -> EdgeBoxRule<T> {
+pub(crate) fn edge_box_rule<T: Real>(carrier: Option<&geom::Curve3<T>>) -> EdgeBoxRule<T> {
     match carrier {
-        Some(geom_curves::Curve3::Line { .. }) => EdgeBoxRule::Chord,
-        Some(geom_curves::Curve3::Circle {
+        Some(geom::Curve3::Line { .. }) => EdgeBoxRule::Chord,
+        Some(geom::Curve3::Circle {
             center,
             axis,
             radius,
@@ -380,7 +380,7 @@ pub(crate) fn edge_box_rule<T: Real>(carrier: Option<&geom_curves::Curve3<T>>) -
             semi_v: *radius,
             u_ref: *u_ref,
         },
-        Some(geom_curves::Curve3::Ellipse {
+        Some(geom::Curve3::Ellipse {
             center,
             axis,
             major,
@@ -393,7 +393,7 @@ pub(crate) fn edge_box_rule<T: Real>(carrier: Option<&geom_curves::Curve3<T>>) -
             semi_v: *minor,
             u_ref: *u_ref,
         },
-        Some(geom_curves::Curve3::Nurbs(_)) | None => EdgeBoxRule::NoSoundBox,
+        Some(geom::Curve3::Nurbs(_)) | None => EdgeBoxRule::NoSoundBox,
     }
 }
 
@@ -481,10 +481,10 @@ mod tests {
 
     use super::*;
     use crate::euler::{FaceSurface, MefSite, MevSite};
+    use geom::Curve3;
+    use geom::Surface;
     use geom_brep::{EdgeCurveSpec, EdgeGeometry};
     use geom_core::{Point3, Vec3};
-    use geom_curves::Curve3;
-    use geom_surfaces::Surface;
 
     /// The pad every row boxes with — the sweep's own, so a row that
     /// only passes because of a generous pad would have to say so.
@@ -802,8 +802,8 @@ mod tests {
     /// contains it; the boundary hull does not.
     #[test]
     fn a_nurbs_patchs_interior_bulge_is_inside_its_box() {
+        use geom::surfaces::nurbs::NurbsSurface;
         use geom_core::spline::KnotVector;
-        use geom_surfaces::nurbs::NurbsSurface;
         let kv = KnotVector::unit_segment(2);
         let p = |x: f64, y: f64, z: f64| Point3::new(x, y, z);
         let control = vec![

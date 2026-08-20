@@ -52,11 +52,11 @@
 //! - the `Nurbs` placeholders are refused typed (their evaluation is
 //!   all-poison; transforming one would launder poison as geometry).
 
+use geom::Curve3;
+use geom::Surface;
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeGeometry, MappedCurve};
 use geom_core::predicate::{Band, BandError};
 use geom_core::{Affine3, Decide, Margin, Point3, Real, Vec3};
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
 
 use crate::body::Body;
 use crate::entity::EdgeKey;

@@ -33,10 +33,10 @@
 
 use std::sync::Arc;
 
+use geom::Surface;
+use geom::{Curve3, NurbsCurve2};
 use geom_brep::{EdgeCurveSpec, EdgeGeometry, EnvelopeStatement, Pcurve, PcurveCache};
 use geom_core::{Band, Point2, Point3, Real, Vec3};
-use geom_curves::{Curve3, NurbsCurve2};
-use geom_surfaces::Surface;
 use topo::Body;
 
 /// The chart sphere: unit-ish radius, polar axis +z.

@@ -34,8 +34,7 @@ probe = ["topo/probe"]
 # geom-core.
 geom-brep = { path = "../geom-brep" }
 geom-core = { path = "../geom-core" }
-geom-curves = { path = "../geom-curves" }
-geom-surfaces = { path = "../geom-surfaces" }
+geom = { path = "../geom" }
 topo = { path = "../topo" }
 
 [dev-dependencies]

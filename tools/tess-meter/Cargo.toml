@@ -22,7 +22,7 @@ publish = false
 [workspace]
 
 [dependencies]
-geom-surfaces = { path = "../../crates/geom-surfaces" }
+geom = { path = "../../crates/geom" }
 mesh = { path = "../../crates/mesh" }
 topo = { path = "../../crates/topo" }
 

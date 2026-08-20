@@ -3,8 +3,8 @@
 
 use std::collections::HashMap;
 
+use geom::Surface;
 use geom_core::Tolerance;
-use geom_surfaces::Surface;
 use topo::Body;
 
 use crate::chords::{compute_chords, edge_vertices};

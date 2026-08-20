@@ -84,7 +84,7 @@
 //! a nonnegative numerator the conservative (sup-side) division is by
 //! the SMALLEST denominator: `|X|/w ≤ sup|X|/w_min`. This is the
 //! mirror image of the speed meter's lower-bound choice
-//! (`geom_curves::rational_speed_lower_bound`: a nonnegative numerator
+//! (`geom::rational_speed_lower_bound`: a nonnegative numerator
 //! divides by `w_max` for an INF bound) — same lattice, opposite side.
 //! The interval division by the cell's weight hull `[w_lo, w_hi]`
 //! computes exactly `sup/w_lo`, outward-rounded, and poisons if
@@ -176,10 +176,10 @@
 
 use core::ops::RangeInclusive;
 
+use geom::NurbsSurface;
 use geom_core::ring_interval::RingInterval;
 use geom_core::spline::KnotVector;
 use geom_core::spline::hull::derivative_coeffs;
-use geom_surfaces::NurbsSurface;
 use topo::FaceKey;
 
 use crate::types::TessellateError;
@@ -954,7 +954,7 @@ fn integral_face_bound(
 /// direction splits into this many equal pieces before the per-cell
 /// assembly. A CONSTANT (D9: structure, never a data-dependent
 /// iteration) — the `RATIONAL_METER_SPLITS = 16` precedent of
-/// `geom_curves`' rational speed meter, mirrored. Knot insertion is
+/// `geom::curves`' rational speed meter, mirrored. Knot insertion is
 /// evaluation-invariant in ℝ, so it changes no geometry; it only
 /// shrinks every hull the bound is assembled from, which is what keeps
 /// the `sup‖S − c‖·sup|w_dd|` cross terms cell-sized. (The f64
@@ -2068,7 +2068,7 @@ mod tests {
             .expect("the rational pie lofts")
             .body;
         for (_, face) in body.faces() {
-            if let Some(geom_surfaces::Surface::Nurbs(p)) = body.get_surface(face.surface)
+            if let Some(geom::Surface::Nurbs(p)) = body.get_surface(face.surface)
                 && p.weights().iter().any(|w| *w != 1.0)
             {
                 return (**p).clone();
