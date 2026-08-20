@@ -74,6 +74,86 @@ head, merge without waiting for a second CI run.**
 
 ---
 
+## The standing lane header — committed, because the last copy was not
+
+**2026-08-20, second container loss.** This text lived in
+`~/.local/share/cad-work/trackc-lane-header.md` and every lane was dispatched
+against it by path. The container was reclaimed and it went with the clones,
+the five review-findings files, and the container-local `new-lane.sh`. Nothing
+*pushed* was lost — all five lanes' fix-pass work survived, because the
+commit-and-push-at-every-seam rule held. The brief they were working from did
+not, because it was never committed.
+
+*That is this session's second instance of one lesson.* The first was
+**#745**: eight rulings written, committed and pushed to the orchestrator
+branch, cited by number in briefs, and unreachable because they had not
+**merged**. This one is a step worse — never committed at all. **A register
+that has not landed is not a register, and a brief that lives only in a
+container's home directory is not a brief.** It is now here, where it is read
+from the tree.
+
+---
+
+Binding on every Track C implementer lane, alongside the unit's own brief.
+
+**Read first, in this order:** `docs/prompts/implementer-discipline.md` in
+full; this file's *Review policy*, *Recording convention* and *Rulings*
+sections; then your finding's own text in `docs/SMELL-SCAN-2026-08.md`.
+
+**This track is outside the model A/B experiment.** No pairing, no ordinal, no
+row in `docs/MODEL-AB-LOG.md`. **Never edit that file.**
+
+**Where your files go.** Your clone is `~/.local/share/cad-work/<lane>/cad`;
+`export CARGO_TARGET_DIR=~/.local/share/cad-work/<lane>/target`, never shared
+with another lane. Heavy cargo goes through `local-scripts/with-build-slot.sh`
+(machine-wide mutex, width 1). **PR bodies and any other to-be-published text
+go to `~/.local/share/cad-work/<lane>-pr.md`** — never the session scratchpad,
+which is shared between concurrent agents.
+
+**Commit and push at every seam.** Three container losses have now killed lanes
+on this track. Every lane that had pushed lost nothing; the one that had not
+came within a disk reap of losing a day. Your brief names your seams; if it
+does not, invent them and say what they were.
+
+**Recording your own completion.** Your PR makes two edits to
+`docs/SMELL-SCAN-2026-08.md`: the finding's heading becomes
+`## SNN. FIXED by #NNN — …` with its **original problem statement replaced**
+by the record of what was done (version control keeps the original), and your
+row **leaves** §D's table. Check §D's surrounding prose too — the gating
+paragraph names findings by name, so a landing that leaves the table but stays
+in the paragraph makes the paragraph false. Delete your roster row here.
+**Row numbers are assigned by the orchestrator** (C-R20) — ask, never take the
+next visible gap. Conflicts in these files are expected: resolve by merging
+`origin/main`, **never rebase, never force-push**.
+
+**What this track's reviews actually catch.** Every unit so far was *not
+cleared* on first review, and in every case the finding was **a claim wider
+than its evidence**, not a shipped wrong answer: a mutation table that reported
+widenings leaving the suite green; *"bitwise the old code"* on a diff that
+changed behaviour at non-finite intermediates; *"preserved exactly, and
+strengthened"* on a falsifier whose population had silently narrowed;
+*"the last is a real hole"* where three existed. **Write claims you can survive
+having re-derived rather than re-read** — this track re-derives any claim once
+found overstated. State the qualifier that makes a claim exactly true
+("finite *arithmetic*", not "finite *inputs*"), and scope your evidence out
+loud: a green `-p onecrate` run is evidence about one crate.
+
+**A measurement is a measurement of a tree.** Name which tree each number came
+from. A cited line number matching neither base nor head is a receipt for the
+tree the measurement actually ran on.
+
+**Two obligations beyond the standing discipline.** *A claim about a shared
+helper is a claim about every caller* — collapsing N copies into one converts N
+local facts into one shared contract, and the guard obligation moves with it.
+And *a brief is a claim site too*: if a line number, path or citation in your
+brief does not resolve, **check rather than comply**, and say so (C-R11 — three
+of five briefs in one session carried one that did not).
+
+**Your final report**, ≤150 lines, states what you swept with and **what that
+pattern could not match**; every claim resting on a measurement and what guards
+it; and anything you are holding back — you will be asked before the merge, so
+answering saves a round.
+
 ## Lane roster
 
 Gates are the *live* ones as of 2026-08-20; §D's own edge list is
@@ -85,7 +165,6 @@ superseded for Track C by this table.
 | **C-e** | **H13** — `sweep_body`'s helix rows have no orientation coverage | `sweep/tests/{m8_14_long_turn_sweep,m7_skin_integral}.rs`, `step-export/tests/common/mod.rs` | none | **adversarial** + style — #636's level-plane oracle trips its own precondition here (`cos ≈ 0.011`), so this needs a *new* oracle, and the oracle carries the soundness |
 | **C-f** | **H11** — #632's two residues | `editor-core/src/{resolve/,select.rs,refactor.rs}` | none | style |
 | **C-g** | **S32** — `Surface`'s one-partial-per-call API and the shadow SSI enum | `geom/` (the merged crate), `geom-brep/src/ssi/system.rs` | **discharged** (#705, #692 merged) | **adversarial** + style |
-| **C-h** | **H14** — the census's `bridged` skip | `topo/src/census.rs`, `splitting/rules.rs:268` (the line citation does **not** resolve to the skip on today's main — see C-R11) | **discharged** (#690 merged) | **adversarial** + style — a live soundness hole of S49's exact shape |
 | **C-i** | **H15** — #635's unclassified siblings | `mesh/src/planar.rs:63`, `topo/src/validate.rs:426`, `topo/src/splitting/mod.rs:194` | **discharged** (#690 merged) | style |
 | **C-j** | **S29** — the sizing vocabulary across five modules | `mesh/src/{nurbs_cert,curved,chords,trimmed,budget}.rs` | **discharged** (#684 merged) | **style only** on the mechanical half — retrimmed, see C-R12; the policy half is a design PR (**C-R2**) |
 | **C-k** | **S28's duplication half** — three tessellation lanes, three pipelines | `mesh/` | **discharged** (#684 merged) | **adversarial** + style |
@@ -93,7 +172,6 @@ superseded for Track C by this table.
 | **C-m** | **S27** — `props/quad.rs`'s four quadrature engines | `geom-brep/src/props/quad.rs` | **STILL GATED** — A2 / #649, open as **#714** | **adversarial** + style |
 | **C-n** | **H17** — the rustdoc spec-code remainder, ~1115 lines / 130 files | per crate: `topo` 300, `editor-core` 267, `geom-brep` 192, `geom-core` 107, `sweep` 64, rest < 70 | **deliberately last** — it touches 130 files and would conflict with every open lane | style, per crate batch |
 | **C-o** | **H16** — the STL header is not caller-settable | `stl/` | none | style; design PR, waits for sign-off (**C-R1**) |
-| **C-p** | **C9** — the `tess-meter` CSV's `agreement` column measures nothing | `tools/tess-meter/`, `tools/tess-lint/`, the committed baseline, `docs/TESS-BUDGET.md` | none | style — and the lane must first decide whether a realisation check is worth having at all, or whether the honest fix is to delete the column |
 | **C-q** | **C10** — `geom_core::k_stats`, S30's class one crate over | `geom-core/src/k_stats.rs`, and `profile::k_stats`'s shim (S40) | none | **adversarial** + style — the recording sits *inside* three load-bearing kernel predicate doors, so #709's split does not transfer mechanically |
 
 **Not taken by Track C:** C6's rows (blocked on other programmes — OnArc
@@ -900,3 +978,55 @@ adversarial lane mid-review** rather than held for the fix pass. #705 is the
 precedent — there the two lanes found things neither would have found alone;
 here one lane's measurement reframes the other's central question before it
 finishes.
+
+## Incident — container RECLAIM, 2026-08-20: a different failure from the two restarts
+
+**Nothing pushed was lost. Nothing unpushed survived.** Five lanes were live —
+three fix passes and two reviewers. All five PRs are intact **with their
+fix-pass work on them**, because every lane had committed and pushed at its
+seams. The commit-and-push rule is the entire reason this cost a re-dispatch
+rather than a day.
+
+**But this is not the failure the death-recovery rule describes, and the
+difference matters.** `memories/agent-lane-operations.md` says a dead
+subagent's **transcript and worktree survive**, so `SendMessage` resumes it —
+and that was true twice this session, where four agents were resumed from
+transcript and none needed re-briefing. Those were container **restarts inside
+a live session**.
+
+This was a **reclaim after ~5.5 hours idle**, and it took three things
+together:
+
+- the lane clones under `~/.local/share/cad-work/`;
+- the **subagent transcripts** under the session's `tasks/` tree — checked, not
+  assumed: `ListAgents` returns *"No reachable agents"* and the `.output` files
+  are gone;
+- the session scratchpad.
+
+**So resume-from-transcript was not available.** The recovery is re-dispatch
+from the pushed heads, with the outstanding work re-derived from the commits
+and from the orchestrator's own record. That is exactly why the review records
+in this file are written per unit as they land rather than at the end: the
+three completed reviews (#731, #732, #737) survived in full, and the one that
+had not yet reported — **#734's style review — was lost entirely and is being
+re-run from scratch.**
+
+*The rule that needs the amendment:* **"resume is cheaper than restart" holds
+only while the transcript exists, and a reclaim is not a restart.** Prefer
+resume when an agent dies inside a live session; assume re-dispatch when the
+session itself has been idle long enough to be reaped. The cheap insurance is
+unchanged and is what worked: **push at every seam, and write reviewer findings
+to a file as they are settled rather than holding a verdict in context.** Both
+of those are already rules here; both paid.
+
+**What the reclaim also took, and what that cost:** the standing lane header,
+which lived at `~/.local/share/cad-work/trackc-lane-header.md` and which every
+lane was dispatched against **by path**. It is now committed above, in this
+file. That is the **second instance of one lesson in one session** — #745
+landed eight rulings that were committed and pushed to the orchestrator branch,
+cited by number in briefs, and unreachable because they had not **merged**.
+This one was never committed at all.
+
+> **A register that has not landed is not a register**, and a brief that lives
+> only in a container's home directory is not a brief. The test is not "is it
+> saved" — it is *"can the person who needs it read it from the tree."*
