@@ -7156,15 +7156,17 @@ can run at any time; D18's is `topo/src/{split,euler_kill,euler}.rs`, which
 #720 leaves at a state where only the two `prev` checks and the conversion
 behind them remain.
 
-**Blocked on #705** (the `geom-curves` + `geom-surfaces` merge, ≥200 files):
-**D2** and D7's fillet-helper row — it edits all four `sweep/src/fillet/` files
-— and **D8**, whose `geom-curves/src/fit.rs` that PR *relocates* to
-`geom/src/curves/fit.rs`. D8 also
-edits `sweep/src/skin.rs`, so it
-sequences against **D2** alone within the track: D1 has landed and left
-`skin.rs` untouched. D7's `PairSolve` row was the one remaining external edge;
-**#702 merged 2026-08-20 (`f382c4aa`) and discharged it**, so the only edge
-left in the track is D2 → D7's fillet-helper row.
+**Both external edges are discharged.** #705 (the `geom-curves` +
+`geom-surfaces` merge, ≥200 files) blocked **D2** and D7's fillet-helper row —
+it edits all four `sweep/src/fillet/` files — and **D8**, whose
+`geom-curves/src/fit.rs` it relocated to `geom/src/curves/fit.rs`. It **merged
+2026-08-20**, so all three are free. #702 discharged D7's `PairSolve` row the
+same day (`f382c4aa`).
+
+So the only edge left anywhere in the track is internal: **D2 → D7's
+fillet-helper row**. D8 also edits `sweep/src/skin.rs` but sequences against
+**D2** alone, since D1 landed and left `skin.rs` untouched. **D2 is now the
+single widest unblocked row**, and nothing outside Track D gates it.
 
 ---
 
