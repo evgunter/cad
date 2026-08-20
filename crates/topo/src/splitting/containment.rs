@@ -7,6 +7,12 @@
 //!
 //! # Method: in-plane ray parity with a deterministic retry schedule
 //!
+//! The walk itself — the boundary pre-pass and one ray's parity count
+//! — is [`crate::ray_parity`], shared with the 2-D chart-space
+//! consumer. What this module owns is the *3-D* half: reading the
+//! loop's vertex cycle out of the body, and turning each member of
+//! the space-direction schedule into an in-plane frame.
+//!
 //! Cast a ray from `q` in a direction lying in the loop's plane and
 //! count proper crossings; odd ⇒ In. Grazing configurations (an
 //! endpoint on the ray line, a crossing at the query point) are not
@@ -23,6 +29,13 @@
 //!
 //! # Predicates (all K-tagged, meters)
 //!
+//! - **`point_in_loop_segment`**: an edge segment's own length — the
+//!   degeneracy gate. Zero-length segments are legal null scaffolding
+//!   in mid-join loops, and the clamped-foot division would poison on
+//!   them, so they measure the point distance directly; a
+//!   certified-short-but-nonzero segment is a genuine sliver and
+//!   escalates. A *different question* from the row below, hence a
+//!   different name.
 //! - **`point_in_loop_boundary`**: distance of `q` to an edge segment
 //!   (perpendicular distance when the foot lies inside the span,
 //!   endpoint distance otherwise) — Zero ⇒ `OnBoundary`.
@@ -38,7 +51,18 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use crate::body::Body;
 use crate::entity::{LoopBoundary, LoopKey};
+use crate::ray_parity::{self, ParityRows};
 use crate::validate::decide;
+
+/// This consumer's K rows for the shared walk. The 3-D loop's
+/// `point_in_loop_arm` row is not among them: it gates the *frame*
+/// construction below, which is this consumer's own.
+const ROWS: ParityRows = ParityRows {
+    segment: "point_in_loop_segment",
+    boundary: "point_in_loop_boundary",
+    side: "point_in_loop_side",
+    advance: "point_in_loop_advance",
+};
 
 /// The trilean answer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -160,40 +184,9 @@ pub fn point_in_loop<T: Decide>(
 ) -> Result<LoopContainment, PointInLoopError> {
     let escalate = |diag| PointInLoopError::Escalated { r#loop, diag };
     let points = loop_points(body, r#loop)?;
-    let n = points.len();
 
-    // Boundary pre-pass: distance from q to each closed segment.
-    for i in 0..n {
-        let (a, b) = (points[i], points[(i + 1) % n]);
-        let e = b - a;
-        let w = q - a;
-        // norm_squared, not e·e: the powi(2) rule (a
-        // straddling enclosure squared via Mul gets a spurious negative
-        // lower bound; powi keeps the tight nonnegative one).
-        let len2 = e.norm_squared();
-        // Degenerate (zero-length) segments — null scaffolding is legal
-        // in mid-join loops (PR 5.5 fix pass: the foot division below
-        // poisons on them, `w·e/0`) — measure the point distance
-        // exactly; a certified-short-but-nonzero segment is a genuine
-        // sliver and escalates like any in-band comparison.
-        let dist =
-            match decide("point_in_loop_boundary", Margin::norm3(e), band).map_err(escalate)? {
-                Sign::Zero => w.norm(),
-                _ => {
-                    // Foot parameter clamped to the span — evaluation lane
-                    // (no comparison): t = clamp(w·e / e·e, 0, 1) via
-                    // min/max.
-                    let t = (w.dot(e) / len2).max(T::zero()).min(T::one());
-                    let foot = a + e * t;
-                    (q - foot).norm()
-                }
-            };
-        // Zero ⇒ on boundary; Positive (Negative unreachable for a
-        // distance) ⇒ strictly off this segment.
-        if decide("point_in_loop_boundary", Margin::of(dist), band).map_err(escalate)? == Sign::Zero
-        {
-            return Ok(LoopContainment::OnBoundary);
-        }
+    if ray_parity::on_boundary(&points, q, &ROWS, band, escalate)? {
+        return Ok(LoopContainment::OnBoundary);
     }
 
     // The loop's own reach from q (evaluation-lane fold): the lever
@@ -206,7 +199,7 @@ pub fn point_in_loop<T: Decide>(
     }
 
     // Ray parity with the fixed schedule.
-    'ray: for r in &SCHEDULE {
+    for r in &SCHEDULE {
         let r = Vec3::new(T::from_f64(r[0]), T::from_f64(r[1]), T::from_f64(r[2]));
         let n_dot_r = normal.dot(r);
         let d_raw = r - normal * n_dot_r;
@@ -220,47 +213,19 @@ pub fn point_in_loop<T: Decide>(
         let arm = Margin::levered(d_raw.norm() / r.norm(), extent);
         match decide("point_in_loop_arm", arm, band).map_err(escalate)? {
             Sign::Positive => {}
-            _ => continue 'ray, // near-parallel schedule member: skip
+            _ => continue, // near-parallel schedule member: skip
         }
         let d = d_raw.normalize();
         let side_axis = normal.cross(d); // in-plane ⟂, unit
-
-        // Signed frame coordinates of each vertex relative to q.
-        let mut xs = Vec::with_capacity(n);
-        let mut ys = Vec::with_capacity(n);
-        let mut sides = Vec::with_capacity(n);
-        for p in &points {
-            let w = *p - q;
-            xs.push(w.dot(d));
-            let y = w.dot(side_axis);
-            ys.push(y);
-            match decide("point_in_loop_side", Margin::of(y), band).map_err(escalate)? {
-                Sign::Zero => continue 'ray, // endpoint on the ray line
-                s => sides.push(s),
-            }
+        if let Some(inside) =
+            ray_parity::ray_verdict(&points, q, d, side_axis, &ROWS, band, escalate)?
+        {
+            return Ok(if inside {
+                LoopContainment::In
+            } else {
+                LoopContainment::Out
+            });
         }
-
-        let mut crossings = 0usize;
-        for i in 0..n {
-            let j = (i + 1) % n;
-            if sides[i] == sides[j] {
-                continue; // no straddle, no crossing
-            }
-            // Straddling: the crossing's advance along the ray.
-            let advance = Margin::over_lever(xs[i] * ys[j] - xs[j] * ys[i], ys[j] - ys[i]);
-            match decide("point_in_loop_advance", advance, band).map_err(escalate)? {
-                Sign::Positive => crossings += 1,
-                Sign::Negative => {}
-                // A crossing at q itself contradicts the boundary
-                // pre-pass — treat as a graze and retry.
-                Sign::Zero => continue 'ray,
-            }
-        }
-        return Ok(if crossings % 2 == 1 {
-            LoopContainment::In
-        } else {
-            LoopContainment::Out
-        });
     }
     Err(PointInLoopError::RayExhausted { r#loop })
 }

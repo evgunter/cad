@@ -94,6 +94,7 @@ use geom_surfaces::Surface;
 use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, LoopKey};
 use crate::null::CurveGeom;
+use crate::ray_parity::{self, ParityRows};
 use crate::validate::decide;
 
 /// The certified overlap answer (both outcomes are *definite*; every
@@ -840,9 +841,9 @@ fn bit_equal_cyclic<T: Decide + Bounds>(a: &[Point2<T>], b: &[Point2<T>]) -> boo
     (0..n).any(|shift| (0..n).all(|i| ea[i] == eb[(i + shift) % n]))
 }
 
-/// The trilean 2-D point-in-polygon verdict (the `point_in_loop`
-/// METHOD ported to chart space — same ray-parity shape, same
-/// deterministic retry schedule, margins re-derived below).
+/// The trilean 2-D point-in-polygon verdict — [`crate::ray_parity`]'s
+/// walk in chart space, with its own direction schedule and its own
+/// K rows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum PolyContainment {
     In,
@@ -850,9 +851,12 @@ enum PolyContainment {
     OnBoundary,
 }
 
-/// The fixed 2-D ray schedule (D9). Sixteen constant directions —
-/// axes plus oblique spread members. **The 3-D `point_in_loop_arm`
-/// row is derived away here, deliberately**: that gate existed
+/// The fixed 2-D ray schedule. Sixteen constant directions — axes
+/// plus oblique spread members. Distinct from the 3-D consumer's
+/// table by dimension, not by drift: there is no 2-D projection of
+/// the space schedule that both stays exact and keeps the spread.
+/// **The 3-D `point_in_loop_arm` row is derived away here,
+/// deliberately**: that gate existed
 /// because a 3-D schedule member projected into the loop's plane can
 /// degenerate to a near-zero in-plane direction; a 2-D schedule
 /// member IS in-plane by construction and its length is fixed nonzero
@@ -878,15 +882,32 @@ const SCHEDULE_2D: [[f64; 2]; 16] = [
     [1.0, -0.75],
 ];
 
+/// This consumer's K rows for the shared walk ([`crate::ray_parity`]).
+/// Chart-space margins are metered separately from the 3-D loop's —
+/// the polygon is metred by the exact arms, but it is a different
+/// population — so the names stay distinct even though the walk is one.
+const ROWS: ParityRows = ParityRows {
+    segment: "chart_region_segment",
+    boundary: "chart_region_boundary",
+    side: "chart_region_side",
+    advance: "chart_region_advance",
+};
+
 /// Ray-parity containment of `q` in the (CCW, metred) `poly`.
+///
+/// The walk is [`crate::ray_parity`]'s, shared with the 3-D
+/// `point_in_loop`; what this function owns is the 2-D frame, which
+/// needs no arm gate (see [`SCHEDULE_2D`]).
 ///
 /// # Rows (margins re-derived for chart space; all metres because the
 /// polygon is metred by the exact arms)
 ///
+/// - `chart_region_segment`: a closed segment's own length — the
+///   degeneracy gate. A *different question* from the row below, and
+///   so a different name.
 /// - `chart_region_boundary`: distance of `q` to a closed segment
 ///   (perpendicular at an interior foot, endpoint otherwise) — Zero ⇒
-///   `OnBoundary`. Also gates degenerate (zero-length) segments by
-///   the segment's own length, exactly as `point_in_loop` does.
+///   `OnBoundary`.
 /// - `chart_region_side`: signed offset of a vertex from the ray line
 ///   (a metre coordinate along the ray's in-plane perpendicular) —
 ///   Zero ⇒ grazing ⇒ next ray.
@@ -900,70 +921,23 @@ fn point_in_polygon<T: Decide>(
     band: Band,
 ) -> Result<PolyContainment, ChartRegionError> {
     let escalate = ChartRegionError::Escalated;
-    let n = poly.len();
 
-    // Boundary pre-pass: distance from q to each closed segment.
-    for i in 0..n {
-        let (a, b) = (poly[i], poly[(i + 1) % n]);
-        let e = b - a;
-        let w = q - a;
-        // norm_squared, not e·e: the powi(2) rule for zero-straddling
-        // interval squares (gated by ci.yml's "interval-square powi(2)
-        // allowlist").
-        let len2 = e.norm_squared();
-        let dist =
-            match decide("chart_region_boundary", Margin::of(e.norm()), band).map_err(escalate)? {
-                Sign::Zero => w.norm(),
-                _ => {
-                    // Foot parameter clamped to the span (evaluation lane).
-                    let t = (w.dot(e) / len2).max(T::zero()).min(T::one());
-                    let foot = a + e * t;
-                    (q - foot).norm()
-                }
-            };
-        if decide("chart_region_boundary", Margin::of(dist), band).map_err(escalate)? == Sign::Zero
-        {
-            return Ok(PolyContainment::OnBoundary);
-        }
+    if ray_parity::on_boundary(poly, q, &ROWS, band, escalate)? {
+        return Ok(PolyContainment::OnBoundary);
     }
 
     // Ray parity with the fixed schedule.
-    'ray: for r in &SCHEDULE_2D {
+    for r in &SCHEDULE_2D {
         let d = Vec2::new(T::from_f64(r[0]), T::from_f64(r[1])).normalize();
         let side_axis = Vec2::new(T::zero() - d.y, d.x); // in-plane ⟂, unit
-        let mut xs = Vec::with_capacity(n);
-        let mut ys = Vec::with_capacity(n);
-        let mut sides = Vec::with_capacity(n);
-        for p in poly {
-            let w = *p - q;
-            xs.push(w.dot(d));
-            let y = w.dot(side_axis);
-            ys.push(y);
-            match decide("chart_region_side", Margin::of(y), band).map_err(escalate)? {
-                Sign::Zero => continue 'ray, // vertex on the ray line
-                s => sides.push(s),
-            }
+        if let Some(inside) = ray_parity::ray_verdict(poly, q, d, side_axis, &ROWS, band, escalate)?
+        {
+            return Ok(if inside {
+                PolyContainment::In
+            } else {
+                PolyContainment::Out
+            });
         }
-        let mut crossings = 0usize;
-        for i in 0..n {
-            let j = (i + 1) % n;
-            if sides[i] == sides[j] {
-                continue; // no straddle, no crossing
-            }
-            let advance = Margin::over_lever(xs[i] * ys[j] - xs[j] * ys[i], ys[j] - ys[i]);
-            match decide("chart_region_advance", advance, band).map_err(escalate)? {
-                Sign::Positive => crossings += 1,
-                Sign::Negative => {}
-                // A crossing at q itself contradicts the boundary
-                // pre-pass — treat as a graze and retry.
-                Sign::Zero => continue 'ray,
-            }
-        }
-        return Ok(if !crossings.is_multiple_of(2) {
-            PolyContainment::In
-        } else {
-            PolyContainment::Out
-        });
     }
     Err(ChartRegionError::RayExhausted)
 }
