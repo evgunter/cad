@@ -73,7 +73,10 @@ failure mode; these are the only excuses:
   f64 lane against an interval lane, or asserting bit-identical replay
   across repeats, draws once and feeds both sides, so a varying seed
   serves it perfectly. Almost every "differential" test in this repo is
-  the in-process kind.
+  the in-process kind. **The licence expires with the comparison**:
+  once the merge-base-vs-tip diff has been taken, the artefact is a
+  permanent cost with no consumer — delete it, or name in-file the
+  future comparison that schedules it.
 
 A third case masquerades as legitimate: a sweep whose real content is
 an edge-value table or a product of boundary cases, with the RNG only

@@ -302,7 +302,6 @@ Track C's open lanes, or with Track E's.
 |---|---|---|---|---|---|
 | **F-a** | **F5** (S92) | `smellf/f5-door-registries` | `topo/src/review_m1_pr5_internal.rs`, `topo/src/pcurves.rs` | style | **dispatched** 2026-08-20 |
 | **F-b** | **F6** (S73 parts 1 and 3) | `smellf/f6-tess-lint` | `tools/tess-lint/` | style | **dispatched** 2026-08-20 |
-| **F-c** | **F7** (S110, sort first) | `smellf/f7-cannot-go-red` | six crates' `tests/`, `memories/test-suite-cost.md` | style | **dispatched** 2026-08-20 |
 
 Lane clones are `~/.local/share/cad-work/smellf-{a,b,c}/cad`. They are
 **reused** stale lanes from finished work, renamed and reset to `origin/main`
@@ -375,7 +374,21 @@ constraint is, and it is stated here so a Track G taker can read it.
 
 ## Landings
 
-*(none yet)*
+**F-c — F7 (S110), PR #790, opened 2026-08-20.** The sort ran and moved
+one member off §D's proposal: **(a)(b)(i) are disposition (b)** and go
+to C23's test-suite-cost sweep, **(g)(h)(j) are disposition (c)** and
+are already named by **G2** and **G1**, **(c)(e)(f) are disposition
+(a)** and are closed, and **(d) is not disposition (a)** — it is a
+working tripwire that goes red on its documented trigger, missing only
+the premise that puts its operand in the class the re-gate exists for.
+Two of S110's own claims about member (c) did not survive re-derivation
+(it is a semantic, not a literal, duplicate, and it sits 29 lines away,
+not eleven). Every closed member carries a **mutation receipt** — the
+guarded thing changed, the assertion watched go red — and two of them
+carry the sharper pair: pre-#790 green and post-#790 red under one
+mutation. F-R4 held: a test **function** was deleted, no test **file**
+was, and `crates/*/tests/all.rs` was not touched. New rows **D65**
+(S121) and **D66** (S122); **D67 / S123 unspent**.
 
 ## Incidents
 
