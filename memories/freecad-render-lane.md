@@ -103,8 +103,8 @@ Since #266 `render.sh` does this in both lanes, under a per-scene
 budget (`FREECAD_SCENE_TIMEOUT`, whose default `render.sh` owns) that
 kills the process *group* and retries once; a second expiry fails the
 pass loudly. A pass renders into `demos/out/stage/<lane>/` and is
-published only when
-complete, so nothing half-finished can reach the committed tree.
+published only when complete, so nothing half-finished can reach the
+committed tree.
 Expect the occasional post-render stall: it costs one budget and is
 reported, never silent.
 
