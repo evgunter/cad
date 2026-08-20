@@ -13,9 +13,11 @@
 //! `<unnamed>` is unreachable from shipped decide paths.
 //!
 //! All three doors — [`decide`], [`decide_flagged`], [`decide_invariant`]
-//! — delegate to one private `classify`, so the name channel and the
-//! verdict channel are written in exactly one place and no door can
-//! carry one without the other.
+//! — delegate to one private `classify`. The name write and the
+//! verdict push therefore happen in exactly one place, so no door can
+//! carry one channel and miss the other, and the two doors whose docs
+//! call themselves *"[`decide`] verbatim"* are verbatim by compilation
+//! rather than by a maintainer keeping them so.
 //!
 //! Cost on the production path: one thread-local `Cell` write per
 //! decision, plus — **whenever a verdict log is installed** — one
@@ -119,11 +121,12 @@ thread_local! {
 /// and attaching it to any indeterminate outcome — the shared body of
 /// every public door below.
 ///
-/// Two channels pass through here and nowhere else, which is why the
-/// doors delegate rather than each carrying a copy: the `CURRENT`
-/// write is the recorder's name channel (read by [`Probe`]), and the
-/// verdict push is the evaluation-artifact channel (installed by
-/// [`start_verdict_log`], read by the verdict-diff engine). A door
+/// This is the only place either recording channel is written, which
+/// is why the doors delegate rather than each carrying a copy: the
+/// `CURRENT` write is the recorder's name channel (read by `Probe`),
+/// and the verdict push is the evaluation-artifact channel (the log
+/// itself is installed and removed by [`start_verdict_log`] /
+/// [`take_verdict_log`], and read by the verdict-diff engine). A door
 /// cannot acquire one and miss the other.
 fn classify<T: Decide>(name: &'static str, margin: T, band: Band) -> Result<Sign, Indeterminate> {
     CURRENT.with(|c| c.set(name));
