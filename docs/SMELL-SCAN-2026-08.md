@@ -1996,8 +1996,10 @@ rename-and-rebuild rather than by grep. **Recoverable from
 `60941420a979a99346893f024b052fa430d4a3db`** — *"fillet: the validity battery
 (six fillet3_* predicates), analytic blend arms, OQ6 refusal vocabulary"*,
 2026-08-02, which authored both in one commit and whose tree carries them in
-full, read out rather than inferred. The provenance note is a comment on the
-fillet thread, **#319**/**#554**, per the table above.
+full, read out rather than inferred. The provenance note is split across the
+fillet thread per the table above — `blend.rs`'s two items on **#319**, the
+C8 arm-table tracker, and `trimline_description` on **#554**, which is live in
+`battery.rs`.
 
 **The obligation migrated, and it is not the one this document said it was.**
 `trimline_description`'s doc named *"prefer-intrinsic, D7"* — that is
