@@ -947,8 +947,10 @@ fn split_at<T: Decide>(
 
 /// Splits the OTHER solid's boundary edge at the (already-computed)
 /// event point `p` — the both-edges-split lane that turns an edge-edge
-/// crossing into a v-v pair. The carrier is a line (post-gate), so the
-/// parameter is the exact projection `t = (p − origin)·dir`.
+/// crossing into a v-v pair. A `Line` carrier gives the parameter as
+/// the exact projection `t = (p − origin)·dir`; anything else refuses
+/// typed here rather than at the operand gate, which admits `Circle`
+/// and `Ellipse` — this lane has no exact point parameter for them.
 fn split_other_at_point<T: Decide>(
     y: &mut Body<T>,
     y_is: Operand,

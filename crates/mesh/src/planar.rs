@@ -60,7 +60,14 @@
 //!   consecutive point pairs (left-to-right, wrapping), normalized.
 //!   Newell orients the normal so the walk is CCW about it, and by
 //!   interior-left the outer walk is CCW about the face's OUTWARD
-//!   normal — so this is the outward normal by construction;
+//!   normal — so this is the outward normal by construction. The rule
+//!   is ratified once, in `topo::entity`, and it ties the winding to
+//!   the OUTWARD normal, never to the chart normal — so the S10
+//!   identity (outward = `sense_sign` · chart normal) does not enter
+//!   here: this frame reads no chart at all. A body whose stored
+//!   `sense` and stored winding disagree is refused at rest by the
+//!   validator's check 6, so the walk read here is a certified
+//!   encoding of the material side rather than an assumption;
 //! * **u** — toward the walk point farthest from the anchor (the
 //!   first such point in walk order on exact ties), shed of its
 //!   normal component and normalized; **v** = normal × u.

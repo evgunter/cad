@@ -352,7 +352,8 @@ fn radius_equality_is_never_inferred_from_values() {
         panic!("expected the rung-3 routing refusal, got {err:?}");
     };
     assert!(why.contains("never inferred from values"), "{why}");
-    assert!(why.contains("unimplemented until SSI"), "{why}");
+    assert!(why.contains("general rung"), "{why}");
+    assert!(why.contains("has not retired"), "{why}");
 }
 
 #[test]
@@ -595,7 +596,7 @@ fn plane_cone_generic_tilt_refuses_typed_r1() {
     assert_eq!(pair, "plane×cone");
     assert!(why.contains("PERMANENTLY"), "{why}");
     assert!(why.contains("general rung"), "{why}");
-    assert!(why.contains("unimplemented until SSI"), "{why}");
+    assert!(why.contains("not waiting on it"), "{why}");
 }
 
 // ---------------------------------------------------------------------

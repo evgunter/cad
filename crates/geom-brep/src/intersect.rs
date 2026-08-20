@@ -244,10 +244,12 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
             note: "equal radii (structural/declared ONLY — never inferred from \
                    values) with intersecting axes split into two Ellipses \
                    (cylinder_cylinder_section); unequal, undeclared, or skew routes \
-                   to the general rung, unimplemented until SSI",
+                   to the general rung, whose cylinder×cylinder arm has not retired \
+                   (arms retire one at a time, each with its proof)",
         },
-        // ---- Rung 3: quartic-and-worse loci; the general rung is not
-        // ready until PR 7, so these refuse typed naming the routing.
+        // ---- Rung 3: quartic-and-worse loci. The general rung is
+        // implemented, but it retires per arm (C12.1), so these still
+        // refuse typed, naming the routing AND what each one lacks.
         (Plane, Torus) | (Torus, Plane) => PairRoute {
             rung: Rung::General,
             implemented: false,
@@ -832,7 +834,7 @@ pub fn cylinder_cylinder_section<T: Decide>(
             pair: "cylinder×cylinder",
             why: "radius equality is not structural/declared — never inferred from \
                   values (the coincidence ladder); the undeclared pair routes to the \
-                  general rung, unimplemented until SSI",
+                  general rung, whose cylinder×cylinder arm has not retired",
         });
     }
     // 2. Verify the declaration (declared ≠ unchecked).
@@ -902,7 +904,8 @@ pub fn cylinder_cylinder_section<T: Decide>(
                     return Err(SectionError::RoutesToGeneralRung {
                         pair: "cylinder×cylinder",
                         why: "skew axes have no conic section; this configuration routes \
-                              to the general rung, unimplemented until SSI",
+                              to the general rung, whose cylinder×cylinder arm has not \
+                              retired",
                     });
                 }
             }
@@ -1071,7 +1074,8 @@ pub fn plane_cone_section<T: Decide>(
                     why: "generic tilt routes to the general rung PERMANENTLY — the \
                           conic trio is outside the closed-form inventory by \
                           decision, and only an arm that adds parabola/hyperbola \
-                          moves it; unimplemented until SSI",
+                          moves it. The general rung is implemented; this routing is \
+                          not waiting on it",
                 }),
             }
         }

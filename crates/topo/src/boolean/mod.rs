@@ -580,7 +580,13 @@ pub enum BooleanError {
         /// The band the clearance margins were classified against.
         band: Band,
     },
-    /// An edge carrier is not a `Line` (F5).
+    /// An edge carrier this lane cannot split. Two reaches, and the
+    /// message says which: the operand gate (F5) refuses a rung-3
+    /// (`Nurbs`) carrier in an INPUT operand — rung-3 edges are what
+    /// the curved zip MINTS, not what it consumes; and the both-split
+    /// point lane refuses any carrier without an exact point
+    /// parameter, which `Circle`/`Ellipse` are even though the gate
+    /// admits them.
     CurvedEdgeUnsupported {
         /// The offending operand and edge.
         operand: Operand,
@@ -955,10 +961,11 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::CurvedEdgeUnsupported { operand, edge } => write!(
                 f,
-                "boolean_reduce: edge {edge:?} of operand {operand:?} has a rung-3 \
-                 (Nurbs) carrier — rung-3 INPUT operands are outside the supported \
-                 envelope (rung-3 edges are what the curved zip MINTS, not what it \
-                 consumes)"
+                "boolean_reduce: edge {edge:?} of operand {operand:?} carries geometry \
+                 this lane cannot split: a rung-3 (Nurbs) carrier is refused at the \
+                 operand gate — rung-3 edges are what the curved zip MINTS, not what \
+                 it consumes — and the both-split point lane refuses any carrier with \
+                 no exact point parameter, Circle and Ellipse included"
             ),
             Self::ScaffoldingOperand { operand, edge } => write!(
                 f,
