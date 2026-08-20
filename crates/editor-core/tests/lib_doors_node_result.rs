@@ -147,6 +147,18 @@ fn refusals_render_as_prose_not_debug_guts() {
     assert!(matches!(literal, DimensionError::NonFiniteLiteral));
     assert_eq!(literal.to_string(), "a literal value must be finite");
 
+    // The fourth `Display` this suite claims to pin. Its validate arm
+    // holds a `profile::ProfileError`, so it forwards rather than
+    // re-stating — the same rule as `NodeErrorKind`'s payload arms.
+    let program = editor_core::ProgramRefusal::Validate(profile::ProfileError::EmptyProfile);
+    assert_eq!(
+        program.to_string(),
+        format!(
+            "the replayed loops failed profile validation: {}",
+            profile::ProfileError::EmptyProfile
+        )
+    );
+
     // The live failure: the coincident Boolean's message states the
     // problem and the two-armed recourse (since R3 the refusal is the
     // typed menu variant); the enum's structure (variant names,
