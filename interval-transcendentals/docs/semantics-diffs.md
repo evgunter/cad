@@ -91,10 +91,11 @@ domain-violation history, and hulling two enclosures whose histories
 are clean produces an enclosure whose history is clean — `min(dec)`
 can never exceed either input, so no poison is laundered; what it
 does is let clean values stay clean through hull-shaped code paths
-(e.g. a future `copysign`-style tangent hull) instead of poisoning
-them structurally. This over-asserts relative to strict 1788
-decoration semantics (which would say `Trv`), it is the single such
-place, and consumers wanting 1788-strict behavior can call
+(the `copysign`-style tangent hull in
+`crates/geom-core/src/interval.rs` is that path) instead of poisoning
+them structurally. This over-asserts
+relative to strict 1788 decoration semantics (which would say `Trv`), it
+is the single such place, and consumers wanting 1788-strict behavior can call
 `intersection`-style code or drop the decoration themselves. Flagged
 by adversarial review (it was undocumented — a process violation of
 this file's "complete list" claim, now corrected); behavior kept,

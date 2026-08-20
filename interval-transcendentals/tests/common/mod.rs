@@ -10,7 +10,7 @@
 //! The PRNG is **not** here. It used to be — a local SplitMix64 whose
 //! every caller named a literal seed — and it is now `test_utils::fuzz`,
 //! the same stream, dial and per-run seed the rest of the tree draws
-//! from, which `review_fuzz_div.rs` already used. What is left below is
+//! from, which `review_fuzz_exact.rs` already used. What is left below is
 //! the part that is actually specific to this crate: how to shape a
 //! random interval.
 

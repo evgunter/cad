@@ -28,17 +28,31 @@ Two tiers, split so that the cheap one can run in kernel CI:
 
 **`cargo test`** (no features) needs **no oracle and no C toolchain** —
 unit tests, the `edges.rs` sweep (signed zeros, subnormals,
-extremum-straddling, huge arguments, poison propagation), and
-`review_fuzz_div.rs`'s exact-rational division fuzz, which needs no
-oracle at all because it compares against exact `u128` rational
-arithmetic. This is the tier the kernel's CI runs,
-so a dropped pad is caught by the same pipeline that gates the kernel.
+extremum-straddling, huge arguments, poison propagation),
+`pad_contract.rs`'s upper bound on every pad, and
+`review_fuzz_exact.rs`'s exact-rational fuzz of `÷`, `×` and `sqrt`,
+which needs no oracle at all because it compares against exact `u128`
+rational arithmetic. This is the tier the kernel's CI runs.
 
-The division fuzz draws from the tree's shared harness (`test-utils`, a
-dependency-free dev-only crate): its seed VARIES per run and is logged
-unconditionally, and its depth is one env var away — the shipped level is
-a ~63k-case smoke sweep, `CAD_FUZZ_EFFORT=280` restores the full
-17.5M-case sweep the M5 PR 1 adversarial review ran, and
+**What that tier catches, exactly.** A pad WIDENED — on any operation —
+goes red here, because `pad_contract.rs` bounds each endpoint's distance
+from the backend's own value by the derived pad. A pad DROPPED goes red
+here for `÷ × sqrt`, where the exact-rational fuzz can compute the truth
+itself. For the seven transcendentals it does not and cannot: their
+truth needs a multi-precision reference, so a too-small pad is the
+oracle tier's to catch — which it does, on every change to this crate,
+because `oracle-certify` is keyed on paths under
+`interval-transcendentals/`, not on a convention. Addition and
+subtraction have no exact-rational lane and do not need one: TwoSum's
+error term is representable for all finite doubles with no underflow
+proviso, so their witness has no validity floor to get wrong.
+
+The fuzz lanes draw from the tree's shared harness (`test-utils`, a
+dependency-free dev-only crate): the seed VARIES per run and is logged
+unconditionally, and depth is one env var away — the shipped level is a
+~150k-case smoke sweep across the three operations, `CAD_FUZZ_EFFORT=280`
+restores the full 17.5M-case division sweep the M5 PR 1 adversarial
+review ran (and scales the `×`/`sqrt` lanes with it), and
 `CAD_FUZZ_SEED=0x…` replays any run exactly.
 
 **`cargo test --release --features oracle-inari`** adds `certify.rs`, the

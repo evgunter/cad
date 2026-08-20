@@ -11,7 +11,7 @@
 //! The technique — decompose `f64` into `(sign, odd mantissa, exponent)`
 //! and compare by exact integer arithmetic, with division handled by
 //! cross-multiplication — is adopted from the M5 PR 1 adversarial
-//! review's harness, `interval-transcendentals/tests/review_fuzz_div.rs`
+//! review's harness, `interval-transcendentals/tests/review_fuzz_exact.rs`
 //! (branch `ev/m5-pr1-interval-adoption`), and its `decomp` is
 //! reproduced here. Its `cmp_mag` cross-multiplication suffices for
 //! division and multiplication (two 53-bit mantissas multiply into
