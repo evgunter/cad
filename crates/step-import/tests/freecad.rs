@@ -1470,3 +1470,189 @@ fn freecad_oracle_reads_back_every_reexported_fixture() {
     );
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// **The corpus DIALECT facts two modules rest on, made mechanical**
+/// (issue #667).
+///
+/// Three of this importer's design decisions are justified by a claim
+/// about what the committed FreeCAD files literally say, and all three
+/// were measured once, by hand, with nothing re-measuring them:
+///
+/// * `chart`'s module header — *"FreeCAD 1.1.2 never writes
+///   `FACE_OUTER_BOUND` at all (0 occurrences in the 13 measured
+///   files)"*. The entire geometric outerness-inference lane, with its
+///   three typed refusals, exists **because** of it;
+/// * `units`' header — *"FreeCAD 1.1.2 writes `SI_UNIT(.MILLI.,
+///   .METRE.)` on every file it emits, and its declared uncertainty
+///   (`1.E-07`) is in those millimeters too"* — the reason the prefix
+///   table is data rather than a millimetre special case; and
+/// * the same header's *"a `.MILLI. .RADIAN.` context is … absent from
+///   every file measured"*, which is why the angle path refuses a
+///   prefixed SI angle instead of folding in a second scale.
+///
+/// A fourteenth fixture, or a regenerated one from a writer whose
+/// dialect moved, would leave all three sentences quietly false while
+/// every acceptance row above stayed green — the inference and the
+/// prefix table are still *correct*, they would just no longer be
+/// answering the situation their prose describes. So the corpus is the
+/// guard, and this row reads it: cheap (a text scan of committed bytes,
+/// no import), and it pins the literal **13** as well as the contents,
+/// because "the 13 measured files" is half of each claim. The count is
+/// asserted against [`FREECAD_FIXTURES`]`.len()` directly, not only as a
+/// correspondence with the fixtures directory: committing a fourteenth
+/// file AND listing it would keep the two sides equal while falsifying
+/// every sentence above, which is exactly the scenario this row exists
+/// for.
+///
+/// **Every dialect check below is shaped as an ABSENCE test, not an
+/// existence one**, because the corpus already contains the case that
+/// separates them: `twobody_importexport.step` declares **three**
+/// separate unit contexts. `text.contains("SI_UNIT($,.RADIAN.)")` would
+/// pass on a file that carried a prefixed radian context *beside* an
+/// unprefixed one — which is the failure the `units` header claims
+/// cannot happen. So the rows enumerate every `SI_UNIT` and every
+/// `LENGTH_MEASURE` occurrence and require **all** of them to agree,
+/// and separately require at least one, so a file that dropped its
+/// unit context entirely cannot pass vacuously.
+///
+/// Whitespace is stripped before scanning: ISO-10303-21 permits a line
+/// fold anywhere outside a string literal, so a regenerated fixture
+/// could split `FACE_OUTER_BOUND` across two lines and hide the marker
+/// from a raw `contains`. Stripping also normalizes `SI_UNIT( $ , …)`
+/// spacing. It flattens whitespace inside string literals too, which is
+/// harmless here — nothing below scans a literal's text.
+///
+/// Deliberately NOT a claim about FreeCAD in general — it pins what the
+/// committed corpus says, which is all either module ever had. If a
+/// later FreeCAD moves, this goes red and the headers get rewritten with
+/// the new corpus in hand.
+///
+/// **Sibling, same job, same crate:** `wild.rs`'s
+/// `the_committed_corpus_still_carries_the_dialects_it_was_chosen_for`
+/// pins the wild corpus's dialect legs the same way. It asks
+/// `any(corpus contains X)` — right for its claim, which is *"each gap
+/// is present in something committed"* — where this row asks
+/// all-or-none per file, because `chart`'s and `units`' claims are
+/// universally quantified over the corpus. Two shapes, one class; if a
+/// third corpus claim appears, it belongs beside one of these.
+#[test]
+fn the_committed_freecad_corpus_still_says_what_chart_and_units_quote() {
+    assert_eq!(
+        FREECAD_FIXTURES.len(),
+        13,
+        "`chart` and `units` both quote \"the 13 measured files\" — if the corpus grew or \
+         shrank, re-measure both headers against the new set and move this literal with them"
+    );
+
+    let dir: std::path::PathBuf = [env!("CARGO_MANIFEST_DIR"), "tests", "fixtures", "freecad"]
+        .iter()
+        .collect();
+    let mut on_disk: Vec<String> = std::fs::read_dir(&dir)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .filter(|n| n.ends_with(".step"))
+        .collect();
+    on_disk.sort();
+    let mut named: Vec<String> = FREECAD_FIXTURES
+        .iter()
+        .map(|n| format!("{n}.step"))
+        .collect();
+    named.sort();
+    assert_eq!(
+        on_disk, named,
+        "the committed corpus and `FREECAD_FIXTURES` disagree — both quoted claims are \
+         scoped to \"the 13 measured files\", so a file in one and not the other leaves \
+         them measured over the wrong set"
+    );
+
+    /// Every `SI_UNIT(<prefix>,<name>)` in whitespace-stripped STEP
+    /// text, as `(prefix, name)`. `$` is the no-prefix slot.
+    fn si_units(text: &str) -> Vec<(&str, &str)> {
+        text.match_indices("SI_UNIT(")
+            .filter_map(|(i, m)| {
+                let rest = &text[i + m.len()..];
+                let close = rest.find(')')?;
+                rest[..close].split_once(',')
+            })
+            .collect()
+    }
+
+    /// Every `LENGTH_MEASURE(<value>)` argument, same normalization.
+    fn length_measures(text: &str) -> Vec<&str> {
+        text.match_indices("LENGTH_MEASURE(")
+            .filter_map(|(i, m)| {
+                let rest = &text[i + m.len()..];
+                let close = rest.find(')')?;
+                Some(&rest[..close])
+            })
+            .collect()
+    }
+
+    let mut wrong: Vec<String> = Vec::new();
+    for name in FREECAD_FIXTURES {
+        // Fold-proofing, per the doc above: whitespace is not
+        // significant in an ISO-10303-21 exchange structure outside
+        // string literals, so a fold can land mid-keyword.
+        let text: String = freecad_fixture(name)
+            .chars()
+            .filter(|c| !c.is_whitespace())
+            .collect();
+
+        if text.contains("FACE_OUTER_BOUND") {
+            wrong.push(format!(
+                "{name}: states FACE_OUTER_BOUND (`chart`'s premise)"
+            ));
+        }
+
+        let units = si_units(&text);
+        let metres: Vec<&str> = units
+            .iter()
+            .filter(|(_, n)| *n == ".METRE.")
+            .map(|(p, _)| *p)
+            .collect();
+        if metres.is_empty() {
+            wrong.push(format!(
+                "{name}: no SI length unit at all (`units`' premise)"
+            ));
+        }
+        for prefix in &metres {
+            if *prefix != ".MILLI." {
+                wrong.push(format!(
+                    "{name}: an SI length context is `SI_UNIT({prefix},.METRE.)`, not \
+                     `.MILLI.` (`units`' premise)"
+                ));
+            }
+        }
+
+        // The prefixed SI ANGLE `units` refuses on sight, and says it
+        // has never had to. ALL radian contexts must use `$`, not just
+        // one of them: `twobody_importexport` carries three.
+        for (prefix, _) in units.iter().filter(|(_, n)| *n == ".RADIAN.") {
+            if *prefix != "$" {
+                wrong.push(format!(
+                    "{name}: a PREFIXED SI angle unit `SI_UNIT({prefix},.RADIAN.)` appeared \
+                     (`units`' premise)"
+                ));
+            }
+        }
+
+        let uncertainties = length_measures(&text);
+        if uncertainties.is_empty() {
+            wrong.push(format!(
+                "{name}: no declared uncertainty at all (`units`' premise)"
+            ));
+        }
+        for value in &uncertainties {
+            if *value != "1.E-07" {
+                wrong.push(format!(
+                    "{name}: a declared uncertainty is {value}, not 1.E-07 (`units`' premise)"
+                ));
+            }
+        }
+    }
+    assert!(
+        wrong.is_empty(),
+        "a corpus dialect fact that `chart` and `units` quote has moved: {wrong:#?} — \
+         re-measure and rewrite those headers; do not delete this row"
+    );
+}
