@@ -821,7 +821,11 @@ impl Expr {
             (K::Cos(_), 0) => Self::cos(rebuilt),
             (K::Tan(_), 0) => Self::tan(rebuilt),
             (K::CountToScalar(_), 0) => Self::count_to_scalar(rebuilt),
-            _ => return None,
+            // EXHAUSTIVE on the KIND axis (the `child` rule): a new
+            // variant must be given a rebuild here or the compile
+            // breaks. A wildcard would refuse to rebuild it — an edit
+            // to a valid path silently reported as off-tree.
+            (binary_kind!(_, _) | unary_kind!(_) | leaf_kind!(), _) => return None,
         };
         Some(res)
     }

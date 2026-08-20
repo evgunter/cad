@@ -618,17 +618,26 @@ started, and one because sealing MOVED where the coverage gap lives:
 
 Two of these have **already drifted, observably**:
 
-- `Node::named_nodes` lists `Declare`, `Mate`, `Fillet` and its comment
-  states `Rebind` is the repair for all three. `DocEdit::Rebind`'s
-  rewrite loop in `apply` matches only `Declare` and `Fillet` (`_ =>
-  {}`); `refactor::payload_names` returns names only for those two. A
-  mate head is validated at insertion, documented as repairable, and
-  silently not rewritten.
-- **FIXED by #632.** Three of the four `RoleSeg` sites carried comments
-  insisting the match is exhaustive "so a future variant must be classified
-  here or the compile breaks"; `select::name_args` was the fourth and
-  wildcarded. All four are now exhaustive on both the `RoleSeg` and the
-  `Qualifier` axis.
+- **CLOSED by #618, and this bullet outlived it — corrected by #731.** As
+  written it says `Rebind`'s rewrite loop in `apply` matches only
+  `Declare` and `Fillet` (`_ => {}`), that `refactor::payload_names`
+  returns names only for those two, and that a mate head is therefore
+  silently not rewritten. **All three clauses are false today**:
+  `edit.rs`'s loop routes through `Node::rebind_payload_names`, and that
+  function and `Node::payload_names` both carry an explicit
+  `Node::Mate { a, b, .. }` arm with no wildcard, as does
+  `refactor::payload_names`. The drift was real when reported; the
+  record of it was left standing as live for two weeks after the fix,
+  which is Q4's sub-case rather than a second drift.
+- **FIXED by #632; the population was wrong and is corrected by #731.**
+  Three of the sites #632 counted carried comments insisting the match is
+  exhaustive "so a future variant must be classified here or the compile
+  breaks"; `select::name_args` was the fourth and wildcarded, and #632
+  closed it. **There were five**: `eval::anchor::remap_seg` classifies
+  `RoleSeg` too and ended in a BINDING catch-all (`other => other`) that
+  #632's scan could not express, so it was neither counted nor fixed. All
+  five are now exhaustive on the `RoleSeg` axis, and the four that see a
+  `Qualifier` are exhaustive on that axis too.
 
 **The `BooleanOp` mirror is FIXED by #642.** It was the tell that these
 copies are accretion rather than principle — one vocabulary **mirrored**
@@ -724,8 +733,8 @@ hand-shaped matcher is S4's failure mode wearing an enforcement badge.
 |---|---|
 | profile `Step` verbs | **SURVIVES** — `WireStep`/`WireTarget`/`WireArcData` are field-for-field mirrors differing in **nothing**. Only `WireSide`/`WireWinding` wrap kernel-foreign types (two two-variant tags), plus `SketchPlane<f64>` needing `WirePlacement`. The scheduled RESPELL-TABLE unit does **not** reach these. |
 | `RoleSeg` → `SegTag` | **SURVIVES IN PART** — three of four links are compile-enforced and the python lane runs in CI. Genuine gaps: the `.pyi`'s 40 members are **unpinned** (`test_stubs.py` parses only top-level names, never class bodies), and the py mirror is **forced by the orphan rule** — not collapsible, only generatable. |
-| node kinds (~10 tables) | **DOES NOT SURVIVE as stated** — 10 operations over a 12-variant sum type is the design working. Re-scoped to *wildcard* arms it survives: `node.rs` 9, `eval/mod.rs` 5, `resolve/mod.rs` 4, `edit.rs` 3, `refactor.rs` 3, `persist/check.rs` 2. |
-| `RoleSeg` arg sites | **SURVIVED IN PART; FIXED by #632.** The four answer four genuinely different questions and *should* differ — what survived was the fourth site's wildcard, now closed. |
+| node kinds (~10 tables) | **DOES NOT SURVIVE as stated** — 10 operations over a 12-variant sum type is the design working. Re-scoped to *wildcard* arms it survived, and was measured (2026-08-18) as `node.rs` 9, `eval/mod.rs` 5, `resolve/mod.rs` 4, `edit.rs` 3, `refactor.rs` 3, `persist/check.rs` 2 — **a count whose counting rule was never stated, so it cannot be re-derived**. #731 closed seven of the arms it covers (`persist/check.rs` both, `resolve/mod.rs` one, `node.rs` three, `eval/mod.rs` one) and did not re-cut the measurement, because there is no instrument to re-run. Whoever takes this row states the rule first. The live instrument for the class is `--force-warn clippy::wildcard_enum_match_arm`, whose blind spot is recorded at **C15**. |
+| `RoleSeg` arg sites | **SURVIVED IN PART; FIXED by #632, population corrected by #731.** The sites answer genuinely different questions and *should* differ — what survived was the fourth site's wildcard, closed by #632. The count was wrong: a **fifth** classifier, `eval::anchor::remap_seg`, partitions `RoleSeg` by profile-locator carriage and was fail-quiet until #731. #731 also gave the one partition three of them share — the name-free variants — a single home (`names::role::name_free_seg!`), so it is one decision rather than three that can diverge. |
 | `StableName` payload lists | **SURVIVES** — see the confirmed drift below. |
 | "no usable value" | **SURVIVES IN PART** — the four enums have genuinely different membership and closure (`RunStatus` is serde-persisted), but all four embed the identical triple, and the stringly fifth is a real fail-quiet. |
 | units | **DOES NOT SURVIVE as counted; the residue FIXED by #646.** `parse.rs` uses the shared table; `step-import`'s `UnitKind` is a *different vocabulary* (STEP `SI_UNIT` names). Real duplicates: two-and-a-half, one of them **measured and justified** (PR #291 MAJOR-2: inlining the 32-byte row grew every `Expr` by ~40 bytes). #646 enumerated the two-and-a-half the steelman never named — (1) `expr.rs`'s `UnitSym` enum + its `def()` map, the measured one; (½) that file's *second* table, `from_def`'s six string literals, which the measurement never covered; (2) `pncad-py`'s six module bindings + stub lines, forced by PyO3 — and dissolved (1) and (½) together by making the code an INDEX into `quantity::UNITS`. The code is still one byte, so the measurement stands, and it now has a mechanical guard (a `size_of::<Lit>()` assertion) rather than only clippy's threshold-dependent `large_enum_variant`. (2) is untouched: forced — **and unpinned**, its stub pinned only at one of six names. A residue in `expr.rs` was filed rather than fixed: #650, `literal_with_unit` checks the caller's `UnitDef.quantity` and then stores the table's, so a mismatched pair builds an `Expr` the load door refuses. **#650 is now CLOSED STRUCTURALLY, not by a check** (see the `units`/#650 note below): `quantity::UnitDef` is sealed — private fields, no constructor at all, and `LengthUnit::def`/`AngleUnit::def` demoted to `pub(crate)` because a public `def()` on a still-public-fielded typed view was a *second* mint for the same illegal row. The vocabulary count is unchanged by that; what changed is that the shared table is now the ONLY source of a row, which is the property S4 was arguing for all along. |
@@ -789,8 +798,10 @@ Caught by a reviewer, not a type. S4's failure mode, realised.
 `serde(with)` — **DONE, #642** (cheaper than listed: the `From` pair was
 already the identity, so nothing had to be preserved; dearer in one place
 the ranking could not see — the read direction needs a run-time write-door
-check, because safe Rust cannot make it exhaustive); (2) `name_args`' wildcard → exhaustive — **DONE, #632**; (3) the `Mate` arms —
-small but a **behaviour** fix; (4) the Euler 7-tuple → named struct
+check, because safe Rust cannot make it exhaustive); (2) `name_args`' wildcard → exhaustive — **DONE, #632**, with the fifth
+site it could not see **DONE, #731**; (3) the `Mate` arms —
+small but a **behaviour** fix — **DONE, #618**, and the drift bullet above
+went on describing it as live until #731; (4) the Euler 7-tuple → named struct
 (debug-only) — **DONE, #625**; (5) units — **DONE, #646** (and smaller than
 listed: the only unforced `src` copy was inside one file; the residue it
 found and filed rather than fixed, #650, is now **DONE** too — sealed
@@ -7696,12 +7707,27 @@ blind in exactly the shape it was hunting:
 This is C11/C13's mechanism one level down. Those say a class gets fixed at
 the reported instance; this says that even a lane *trying* to sweep the class
 will under-report by exactly the margin its pattern cannot express, and will
-then state the shortfall as a verified negative. In all three the method did
-not survive. **The conclusion survived in two of three** — #632's did not, and
-establishing that took a differently-shaped instrument — the conclusion had
-stood unchallenged in the durable record since the day it was written. Where a
-sweep's blind spot is unstated, *"the conclusion happened to survive anyway"*
-is itself an unverified claim.
+then state the shortfall as a verified negative.
+
+*The original entry read "in all three cases the conclusion happened to
+survive; in all three the method did not." **Corrected by #731**, and the
+correction turns on which conclusion is meant, so the reading is stated
+rather than assumed.* Take **the conclusion** to be **the negative result
+the lane reported at the time** — *"nothing else matches", "the class is
+closed"*. On that reading **none of the three survived**, and the bullets
+above are the evidence for all three: #635's two survivors sat in the file
+it had just edited, #639 shipped an instance in a crate its body reported
+at zero, and #632's *"no fail-quiet wildcard in any `RoleSeg` or
+`Qualifier` match in the workspace"* was falsified by #731's
+`eval::anchor::remap_seg`. The original sentence was true of a different
+quantity — whether the class turned out to be closed once each lane's own
+correction had landed — and that is a claim about the corrected state, not
+about the sweep. It is the sweep this clause is about.
+
+What differed is only how the shortfall surfaced: #635's and #639's inside
+their own programme, #632's not until a lane a day later ran an instrument
+of a different shape. Where a sweep's blind spot is unstated, *"the
+conclusion happened to survive anyway"* is itself an unverified claim.
 
 **Proposed in #666, awaiting Evan's sign-off** — it amends the review
 instrument, which is Protocol v5's territory. The rule text lives in
