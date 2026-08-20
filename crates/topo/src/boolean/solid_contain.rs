@@ -8,7 +8,7 @@
 //!
 //! Cast a ray from `q` along a direction of the fixed schedule — the
 //! same 16-member golden-angle table as [`point_in_loop`], and
-//! literally the same const ([`SCHEDULE`], read from
+//! literally the same const (`SCHEDULE`, read from
 //! `splitting::containment`), used as space directions directly.
 //! Determinism here rests on this module and `point_in_loop` sweeping
 //! identical directions in identical order; with one definition that
