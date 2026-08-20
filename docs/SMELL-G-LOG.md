@@ -151,6 +151,29 @@ scheduling call, not a lane's.
 
 ---
 
+## Track G's second number block
+
+**`D111`–`D125` and `S167`–`S181` are Track G's**, taken 2026-08-20 when the
+first block (`D71`–`D80` / `S127`–`S136`) ran out mid-wave-2. **Derived, not
+guessed:** the highest numbers in use anywhere across the three tracks' logs and
+the scan were `D110` and `S166`, so this block starts clear of every other
+orchestrator's — including the ones in unmerged branches I cannot see, which is
+the reason the per-track block exists at all (Track F's reservation note says
+why).
+
+Wave-2 allocation, spending the **returned** first-block numbers before touching
+the new ones — those came back unused from lanes that declined to mint a row to
+have minted one, and a returned number that is never re-spent is a slow leak:
+
+| lane | row | §D rows | findings |
+|---|---|---|---|
+| **G-d** | G5 | D72 | S128, S135 |
+| **G-e** | G6 | D73, D74 | S136, S167, S168 |
+| **G-f** | G7 | D75, D76 | S169, S170 |
+| **G-g** | G8 | D77, D80 | S171, S172, S173 |
+| **G-h** | G11 | D111, D112 | S174, S175 |
+| unassigned | — | D113–D125 | S176–S181 |
+
 ## The standing lane header
 
 **Committed, not kept in a container.** Track C lost this text twice in one
@@ -248,6 +271,37 @@ before the merge, so answering saves a round.
 ---
 
 ## Lane roster
+
+**Wave 2 — opened 2026-08-20, five lanes, after Evan restored the CI budget.**
+Gates re-checked against the new `main` rather than against §D's text: Track E's
+**E-e landed as #767** and Track C's **C-f as #731**, so `editor-core/` is free;
+nothing live sits on `topo/chord_join.rs` or `topo/boolean/`. **G4 remains gated
+on Track F's F1 (#791, still open)** — Evan's own S87/S88 sequencing ruling, and
+the one constraint on this track that is not mine to lift.
+
+| lane | row | scope | review | state |
+|---|---|---|---|---|
+| **G-d** | **G5** (S71) | `profile/tests/review_s2.rs`; re-read only of `profile/src/sugar.rs` | style | running |
+| **G-e** | **G6** (S104) | `editor-core/src/assembly.rs`, `pncad-py/src/py/doc.rs`, **plus the two files the scan never read** (`editor-core/src/mate.rs`, `pncad-py/src/py/select.rs`) | **ADVERSARIAL** + style | running |
+| **G-f** | **G7** (S106) | `profile/src/path/program.rs`, `editor-core/src/{program,persist/wire,eval/mod}.rs` | style | running |
+| **G-g** | **G8** (S67) | `topo/src/face_normal.rs` (docs) + `topo/src/chord_join.rs` (the real question) | style **+ one ADVERSARIAL sub-unit** | running |
+| **G-h** | **G11** (S114(c)'s residue) | `demos/render.py`, `demos/render_freecad.py`, `demos/wild/src/main.rs`, `demos/tour/src/uvdump.rs` | style | running |
+
+**Sequenced, not gated:** **G9** waits on G-g because both edit
+`topo/src/chord_join.rs` — G-g's question there is whether a missing
+`sense_sign` flip is a defect, G9's is the top-level-sibling placement argument;
+different questions, one file. **G10** goes last because its members are
+scattered by file and would collide with whatever is open.
+
+**Why G6 is adversarial and G7 is not**, since both are "de-duplicate a
+vocabulary": G6's wildcard **decides `AssemblyError::AtRest` vs
+`Uncertified`**, and every existing CI row passes whichever way a new arm is
+classified — so the unit's own failure mode is invisible to the gate. G7's three
+copies go *silently short* rather than wrong, which is a real defect and a
+visible one. That is Evan's criterion (`SMELL-C-LOG` C-R12) applied, not row
+size.
+
+
 
 **Wave 1 — open now.** These lanes share no file with each other, with Track
 C's open lanes (#732, `stl/`), with Track E's (#753 `scripts/`+`ci.yml`, #763
