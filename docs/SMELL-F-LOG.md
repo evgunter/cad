@@ -349,7 +349,6 @@ Track C's open lanes, or with Track E's.
 | lane | row | branch | scope | review | state |
 |---|---|---|---|---|---|
 | **F-a** | **F5** (S92) | `smellf/f5-door-registries` | `topo/src/review_m1_pr5_internal.rs`, `topo/src/pcurves.rs` | style | **dispatched** 2026-08-20 |
-| **F-c** | **F7** (S110, sort first) | `smellf/f7-cannot-go-red` | six crates' `tests/`, `memories/test-suite-cost.md` | style | **dispatched** 2026-08-20 |
 
 Lane clones are `~/.local/share/cad-work/smellf-{a,b,c}/cad`. They are
 **reused** stale lanes from finished work, renamed and reset to `origin/main`
@@ -954,6 +953,47 @@ Placed rather than landed: no third instrument in a row that has shipped two, it
 needs a parameterization of code the brief marked read-only, and it deserves its
 own review rather than riding a clearance. **The evidence is written into the
 row, which is the thing that was at risk.**
+
+- **F-c — F7 (S110)**, PR **#790**, opened 2026-08-20; **NOT CLEARED** at
+  style review (26 findings), re-worked in the same PR. The sort ran and
+  the review reproduced every receipt in it and confirmed all ten
+  placements: **(c)(d)(e)(f)** closed in lane, **(g)(h)(j)** already
+  closed by #787 and #786, **(a)(b)(i)** disposition (b). **(d) is not
+  disposition (a)** — a working tripwire that goes red on its documented
+  trigger, missing only the premise that puts its operand in the class
+  the re-gate exists for — so **S110(d) was over-stated, which is a
+  finding about the scan.** Two of S110's own claims about (c) did not
+  survive re-derivation.
+
+  **The review's largest finding was not the lane's.** §D's F7 row and
+  the lane brief both routed (a)(b)(i) to *"C23's class … the
+  test-suite-cost sweep"*, and no such target exists; the lane complied
+  with a citation instead of testing it, and with F7 struck in the same
+  commit three members would have been marked ROUTED with no scheduled
+  home. Re-homed by the orchestrator — **(a) to F8**, whose probe-suite
+  finding it *is*, **(b) and (i) to D104** — and #790 carries the
+  corrected record plus a note that the target was tested.
+
+  **Three findings were the lane's own, all fixed in place.** The one
+  assertion whose receipt the lane declared impossible had a one-line
+  receipt: its red condition is a property of the *operand*, so the
+  demonstration is a **fixture swap**, not a code mutation — *"no
+  mutation models it"* was a claim about the method presented as a claim
+  about the world, and honest disclosure made it harder to catch, not
+  easier. (f)'s new assertion was blind to half the contract it quoted,
+  because the fixture gave both curves the same knot vector; the carrier
+  now carries its own and both halves of the merge are demonstrated. And
+  the (f) fix had minted **S110(h)'s exact shape** one line down by
+  hoisting an `unwrap()` past an `is_ok()` — the fifth instance of *the
+  fix reproducing the defect it closes* on this track, which is a
+  standing hazard of a pass that has the file open and the defect in
+  mind rather than carelessness.
+
+  F-R4 held throughout: a test **function** was deleted, no test **file**
+  was, and `crates/*/tests/all.rs` was never touched. New rows **D65**
+  (S121, re-filed as a five-site class in four crates after the review
+  found three more), **D66** (S122) and **D67** (S123) — F-c's block is
+  fully spent.
 
 ### F-f / F2 (S61, S62, D58–D60) — #798, OPEN, not merged; style review returned NOT CLEARED and was answered
 
