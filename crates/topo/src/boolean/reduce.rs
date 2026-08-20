@@ -162,9 +162,11 @@ impl ContactAcc {
 /// sweep's crossing lanes, the join's section table), where they cite
 /// the C5 routing. Kinds with no wired arm at all (`Cone`, `Torus`)
 /// keep the gate refusal. Edge carriers: `Line`/`Circle`/`Ellipse`
-/// pass (the crossing and split lanes handle all three); `Nurbs`
-/// operand edges refuse typed (rung-3 INPUT operands are not in the
-/// M5 envelope — rung-3 edges are what the zip MINTS).
+/// pass this gate (the crossing lanes handle all three; the both-split
+/// point lane still needs a `Line`, and says so where it refuses);
+/// `Nurbs` operand edges refuse typed — a rung-3 INPUT operand is
+/// outside the supported envelope, rung-3 edges being what the zip
+/// MINTS rather than what it consumes.
 pub(super) fn gate_operand_kinds<T: Decide>(
     body: &Body<T>,
     operand: Operand,

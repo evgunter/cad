@@ -167,7 +167,8 @@ pub struct PairRoute {
 
 impl PairRoute {
     /// The typed-refusal sentence for an unimplemented arm — names the
-    /// routing per C5 ("this pair routes to …, unimplemented until …").
+    /// routing per C5 ("this pair routes to …") and what that arm is
+    /// still missing.
     pub fn refusal(&self, a: SurfaceKind, b: SurfaceKind) -> String {
         format!(
             "{}×{} routes to {} — {}",
@@ -218,7 +219,8 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
             note: "exact-degenerate cases only (apex-through lines/tangent/point, \
                    axis-normal Circle); generic tilt routes to the general rung \
                    PERMANENTLY (parabola and hyperbola are outside the conic \
-                   inventory by decision, not by omission); unimplemented until SSI",
+                   inventory by decision, not by omission) — a routing that no \
+                   general-rung arm retires",
         },
         // ---- Rung 1, implemented (M5 S13): the closed-form Circle —
         // never a fitted chord (the die-pips premise). ----
@@ -401,9 +403,10 @@ pub enum SectionError {
     /// or poisoned (F6): the operand pair is ill-conditioned at this ε.
     Escalated(Indeterminate),
     /// The configuration routes to the general rung — a documented arm
-    /// decision (no runtime fallback exists; C5): unimplemented until
-    /// SSI (M5 PR 7), or permanently routed (plane×cone generic tilt,
-    /// R1).
+    /// decision (no runtime fallback exists; C5). The general rung is
+    /// implemented; its arms retire one at a time, so a pair reaching
+    /// here is one whose arm has not retired — or one routed there
+    /// permanently (plane×cone generic tilt, R1).
     RoutesToGeneralRung {
         /// The pair, for the message.
         pair: &'static str,
