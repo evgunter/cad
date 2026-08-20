@@ -422,8 +422,9 @@ pub enum ValidationError {
     /// ε-tightening can escalate an edge but never flips a valid body
     /// to invalid through this check. (A mixed transverse/smooth sample
     /// set — a tangency-crossing edge — is neither definitely
-    /// transverse nor definitely smooth as a whole and is not enforced
-    /// at M2.)
+    /// transverse nor definitely smooth as a whole, so it takes
+    /// `ContactMark::Unmarked` and NEITHER must-carry attaches: an
+    /// exemption by the predicate, like every other one here.)
     TransverseNotIntrinsic {
         /// The definitely-transverse edge whose description is
         /// conventional.
@@ -1655,8 +1656,15 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///
 /// # What tier 3 does NOT yet check (deferred, named)
 ///
-/// - **Global self-intersection / minimum clearance** — M3 partial (via
-///   booleans), M6 interval clearance.
+/// - **Global self-intersection / minimum clearance** — M3 partial
+///   (via booleans); the interval-based whole-body check is scheduled
+///   rather than dropped. `DESIGN.md` carries it twice — in the
+///   tier-3 bullet of the validation-tier list, and in the milestone
+///   list under the entry containing *"interval-based
+///   self-intersection / minimum-clearance checks over the parameter
+///   box"*. Quoted rather than dated on purpose: a milestone copied
+///   into this list is the rot the list keeps producing, and a quote
+///   is what survives the milestone being renumbered.
 /// - **The material wedge side** (lamina/zero-volume detection, wedge
 ///   0 vs 2π vs the legal π): distinguishing them needs the faces'
 ///   material sense **at the edge** — which side of each surface the
