@@ -744,7 +744,7 @@ cannot know who else is in it.
 | **C-d** | H12 — the SSI sweeps' other never-silence doors | **#734** | **MERGED** `c58a45ba` |
 | **C-f** | H11 — #632's residues (**ten**, not the two the finding states) | **#731** | **MERGED** `96c109ec` |
 | **C-h** | H14 — the census's record-keyed deferrals | **#737** | **MERGED** `ec12b7ce` |
-| **C-o** | H16 — `StlOptions` | **#732** | Evan ruled all four open §5 choices; **5.3 + 5.7 are a combined redesign now in flight** (validated `SolidName`/`Header` newtypes held by per-format option structs). Still waits for sign-off |
+| **C-o** | H16 — `StlOptions` → validated newtypes + per-format option structs | **#732** | **MERGED** `1948e2a5` — Evan signed off after ruling all seven §5 choices |
 | **C-p** | C9 — the `agreement` column | **#738** | **MERGED** `a0a6e1a5` |
 | **C-e** | H13 — `sweep_body`'s helix orientation coverage | — | implementing; **adversarial** + style |
 | **C-i** | H15 — #635's unclassified siblings | — | implementing; style |
@@ -1434,3 +1434,64 @@ necessarily touches.** A transcript, a directory's own mtime and the tip of a
 merge-heavy log are all things a working lane can leave untouched for hours. A
 new commit reachable with `--no-merges`, or a file written under `target/`, are
 not.
+
+### #732 (C-o / H16) — **MERGED** `1948e2a5`, the track's only design PR
+
+Seven §5 choices, all ruled by Evan; two of them changed the API's shape and
+were implemented as **one** design rather than two refactors, because the
+intermediate tree would have had validation in one place and inert fields in
+the other — and a mutation table measured on a tree nobody ships.
+
+**Evan's pushback on 5.3 found a defect, not a better framing.** The inherited
+argument was *"two structs would remove the inert field at the cost of making
+the pair invisible."* His reply — *"I'd be surprised if there weren't a way to
+have two structs where the pair is not invisible"* — is right, and the
+dichotomy was the orchestrator's, not his. **"Invisible pair" is not a cost of
+two structs; it is a cost of two structs and no other structure.**
+
+And two structs bought something one could not: with `write_binary` taking only
+what the binary writer reads, **the inert-field class became unrepresentable**
+— including its live instance, which the style review had already found (both
+demos are binary-only, their `solid_name` silently stayed default, so an ASCII
+export added later would ship the default name for a body already named). A
+hazard that had to be *disclosed* under one struct is *unstateable* under two.
+
+**The three rejections are the useful part of 5.3's answer**, and each cites
+something already in this scan: a convenience struct holding both *recreates
+the inert field one level up*; a trait would be one method, two impls, no
+generic consumer — **S55's shape, live in this same scan**; a `From` pair would
+convert a part name into a producer header, **the exact category error C-R13
+ruled against**.
+
+**5.7's newtypes moved three arms out of `StlError`**, and the reason is this
+track's own: after the move the writers cannot produce them, and *a public enum
+arm no door can return is a claim nothing can falsify* — #702's dead
+`StaleContactDeclaration`, proved dead by replacing its body with `panic!`.
+Two error types rather than one shared `OptionsError`, for the same reason one
+level down: a name cannot be too long, a header cannot be unrepresentable.
+
+*And the property that stopped being a test:* the refusal rows used to prove
+*"refused before any byte is written, so a refusal never leaves a partial
+file."* Under construction-time validation that is no longer testable — it is
+**unrepresentable**, and the rows now call the constructors. Admissible rows
+still export through `write_ascii`, so the newtype's idea of admissible and the
+writer's cannot drift.
+
+### A red CI run that was neither this diff's nor a flake
+
+One run failed at `profile::path_property::sharp_polygons_differential_and_verified`
+(eps 1e-6) on a head whose diff touches no `profile` code, and **the next run
+was green because the seed is random**. The lane derived the cause instead of
+re-rolling: from the four printed coordinates alone, segments 1 and 3 do cross —
+exactly the pair the verifier named — because `convex_polygon()` rescales its
+gaps by `TAU/total`, one scaled gap reaches **4.322 > π**, the origin falls
+outside the polygon, and increasing-angle order stops implying simplicity. The
+generator's docstring claims *"convex"* and *"gaps ≥ 0.15 rad"*; **neither
+survives the rescale.** The verifier was right and the generator wrong. Filed
+as **#774** with the seed, the minimal input and three candidate fixes.
+
+*This is the "flake is not a root cause" rule paying off in the direction that
+is easy to miss.* The rule usually stops someone re-running a red until it goes
+green. Here the re-run went green **on its own**, which is the case where
+nothing forces the question — and the finding was a real defect in another
+crate's test generator, reachable by any seed.
