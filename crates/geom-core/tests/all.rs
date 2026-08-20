@@ -34,6 +34,8 @@
 mod ambiguity_k_env;
 #[path = "band_tolerance.rs"]
 mod band_tolerance;
+#[path = "d8_knot_queries_adversarial.rs"]
+mod d8_knot_queries_adversarial;
 #[path = "decoration_seam.rs"]
 mod decoration_seam;
 #[path = "eps_provenance.rs"]
@@ -42,6 +44,8 @@ mod eps_provenance;
 mod flagged_census;
 #[path = "interval_band.rs"]
 mod interval_band;
+#[path = "knot_queries_differential.rs"]
+mod knot_queries_differential;
 #[path = "m5_pr1_poison_conservation.rs"]
 mod m5_pr1_poison_conservation;
 #[path = "m5_pr7b_tensor_compose.rs"]

@@ -1133,7 +1133,11 @@ topology change is stated, not emergent.
   destination solids before transplanting, and its own docs state that
   a refusal raised mid-transplant leaves the destination partially
   written and *spent, never resumable* — an empty solid being the
-  tier-1 error `SolidWithoutShells`. A caller that discards a graft's
+  tier-1 error `SolidWithoutShells`. (The refusal that can actually be
+  raised there is `JoinDesync`, from the reference remap; the doc named
+  `GraftRecertify`, which that door's bridge never reaches — corrected
+  in `topo` by #740, which found it while the argument that cited it
+  collapsed.) A caller that discards a graft's
   `Err` and keeps the body can therefore fire a later operator's
   postcondition from **API misuse rather than a kernel bug**. That
   state class is not among the D2 addendum's five and is open as
@@ -1185,8 +1189,11 @@ exists so that arrival does not reopen the question.
 *Row 2 is a naming rule, not a new mechanism.* `Unsupported*` means
 "valid input, the kernel has not built this yet" and nothing else —
 which makes the frontier inventory grep-able. The convention is already
-dominant (13 distinct variant names in `src`); `AssemblyUnsupported` is
-renamed to match. A macro (`not_implemented!`) was considered and
+dominant (13 distinct variant names in `src`); `AssemblyUnsupported`
+was renamed to match (D2, PR #740 — into four variants that each name
+the refused class, three of which carry the offending entity as a
+`topo::EntityId`; the fourth reports the body's solid and shell counts,
+which is what its refusal is about). A macro (`not_implemented!`) was considered and
 **rejected**: these refusals are reachable by valid user input and must
 stay recoverable, so a panicking macro would convert a user-facing
 frontier into a crash. Where a frontier branch genuinely cannot be
@@ -1200,7 +1207,7 @@ NaN on every poison path is the pattern.
 *Rows 4 and 5 split on **re-derivation**, not on cost.* `unreachable!`
 is for an invariant the code can simply *observe* — the ~60
 `if let Some` sites whose own comment already reads "the lookups cannot
-fail" (`euler.rs:950`). `debug_assert` is for a check that *re-derives*
+fail" (`euler.rs:992`). `debug_assert` is for a check that *re-derives*
 the invariant: `assert_euler_postcondition` runs arena deltas plus a
 full tier-1 validate, O(body). Cost correlates, but re-derivation is
 the line that does not wobble.
@@ -1223,21 +1230,81 @@ sanctioned deviation is `unsafe_code` — so the two move together).
 `panic`, `todo` and `unimplemented` stay banned.
 
 *Conversion work this licenses.* Opening the lint permitted the work;
-it did not perform it. The `crates/topo` half is **done** (W2c, PR
-#720): the discards across `euler.rs` / `euler_ring.rs` /
-`euler_kill.rs` re-derived to **58** sites, of which 56 became row 4
-with a per-site not-input-reachable proof and 2 became row-1 typed
-errors. **No site was row 5** — rows 4/5 split on re-derivation, and a
-failed key lookup is observed rather than re-derived. Two discards
-remain, both in `link_half_edges`, because two of its callers pass a
-`prev` read out of the arena that nothing proves (`split_edge`, and
-`kef` — whose cycle walk steps `next`); converting there would make a
-documented garbage-out into a panic, which this addendum's headline
-forbids. Those two call sites are `SMELL-SCAN-2026-08.md`'s **D18**.
+it did not perform it. **W2c is done**, and W2c is narrower than
+`crates/topo`: what is discharged is the **three-module census** — the
+Euler surgery modules `euler.rs` / `euler_ring.rs` / `euler_kill.rs`,
+which now discard nothing — not the crate. The
+census re-derived to **58** sites and **all 58 are now row 4**: 56
+converted in PR #720, each carrying its own per-site
+not-input-reachable proof, and the last 2 — the shared write helper
+`link_half_edges`' — once its two unproven callers gained the missing
+plan-phase link check (`split_edge`'s `prev(he_minus)` and `kef`'s `prev(he)`;
+each operator already proved the symmetric `next`). **The `kfmrh` pair
+is not a third bucket**: two of the 56 became provable only because
+that operator's plan phase gained *new* row-1 `StaleKey` checks on
+`s2_data.faces` / `s2_data.solid` — those checks are added
+preconditions, not discard sites converting to row 1, and the two
+discards they license are among the 56. **Those last two
+arms carry a precondition rather than a per-site proof, and cannot
+carry one**: a shared helper does not know its caller, so the proof
+lives at each call site and the arm is `#[track_caller]` so a panic
+reports which one. Retiring that asymmetry — a `Live` key type that
+makes the discharge structural — is `SMELL-SCAN-2026-08.md`'s **D25**. **No site was row
+5** — rows 4/5 split on re-derivation, and a failed key lookup is
+observed rather than re-derived. The standard the conversion holds to,
+and the reason it survives a corrupt body: **every converted key is
+minted in the same call or proven live by a check in the same call,
+never by the body's tier-1 validity** — which is a whole-body property
+no single call establishes, and which would have been falsified across
+roughly half the sites.
 
-*Still outstanding:* idiom 2's `MissingEntity` router defects, and
-`AssemblyUnsupported`'s rename to `Unsupported*` — both outside
-`crates/topo`.
+*The `crates/sweep/src/fillet` half is also done* (D2, PR #740).
+`AssemblyUnsupported`'s **103** construction sites re-derived to **108**
+— five refusals that conflated two of these rows behind one test split
+in two — partitioned **41 row 2**, **49 row 1** and **18 row 4**. Row 2
+is four variants that each name the class they refuse (chain, run-out,
+stored geometry, body), plus the corner CONFIGURATION refusals routed
+into the existing `FilletCornerUnsupported`; row 1 is
+`BodyNotIntact`/`EmptyChain`/`RepeatedEdge`, and every payload that
+names an entity is `topo::EntityId`, not a second spelling of it.
+
+**The 18 is a bounded claim, and the bound is the interesting part.**
+Every key an `unreachable!` there dereferences is minted by an operator
+in that call, returned by a walk that succeeded in that call, or proven
+present by a check in that call — and three sites were **made** provable
+by adding those checks rather than converted on a proof borrowed from
+one frame up. The other ~46 lookups stay row 1. **No demonstration
+exists that any input reaches them** (an adversarial search reached none
+of them and no panic — 1,842 requests at the shipped effort, 12,210 at
+`CAD_FUZZ_EFFORT=10`, over a corpus of primitives, revolves, booleans,
+transplants and the surgery's own output re-filleted), and equally **no demonstration
+exists that none can**: the standard cannot discharge them locally,
+because their keys arrive from outside the call. Converting on an
+unproved negative is the direction the headline bullet forbids, so row 1
+is the safe disposition on an open question rather than a settled
+classification. The open question is **S14** — a public door that can
+leave a body tier-1-invalid, and slotmap keys that resolve to *live but
+wrong* entities rather than dangling.
+
+*One state this taxonomy does not contain, found by executing it.*
+`FilletError::EmptyChain` is not reachable by input (the battery seeds
+every chain with a link) and not locally provable (the emptiness is a
+property of the verdict handed in), so it is neither row 1 nor row 4.
+It is filed under row 1 today, failing that row's own definition.
+`SMELL-SCAN-2026-08.md`'s **D27** carries it, together with the
+front-door invariants whose absence as *types* is why the surgery has
+such states at all.
+
+*Still outstanding:* **discard sites elsewhere in `crates/topo`**,
+which the three-module census never counted and this addendum has
+never covered. A sweep finds **at least 14** — `split_edge`,
+`attach.rs`, `movefac.rs`, `revert.rs`, `splitting/finish.rs`,
+`boolean/combine.rs` — and that is a **floor from one spelling of the
+idiom**, not a census: successive sweeps have each found sites the
+previous pattern could not match (let-chains, field-access lookups).
+**Re-sweep rather than re-count** (`SMELL-SCAN-2026-08.md`'s **D21**,
+which carries the spellings that escaped). And, outside `crates/topo`,
+idiom 2's `MissingEntity` router defects.
 
 **Replay with kills (M1, pinned in PRs #20/#23):** the determinism
 contract holds with destructive operators in the history. Identical

@@ -534,8 +534,42 @@ pub enum ValidationError {
     /// Tier 3: the exact-B-rep volume for the +V invariant could not
     /// be computed — a face's boundary fell outside the M2
     /// iso-rectangle inventory or its closed-form classification
-    /// failed. At rest every M2-constructible body computes; this is
-    /// corruption surfaced loudly, not an exemption.
+    /// failed.
+    ///
+    /// **Which D2-addendum row this is depends on `source`, and the
+    /// variant spans both.** The doc used to read *"at rest every
+    /// M2-constructible body computes; this is corruption surfaced
+    /// loudly"* — row 1 for every arm — and #649 falsified that with
+    /// an executed counterexample. It is not row 2 for every arm
+    /// either. Per source ([`crate::props::MassPropsError`]):
+    ///
+    /// * `Face` — **row 2**, and the reachable one. The body carries a
+    ///   face whose measurement lane the kernel has not built: today
+    ///   the closed forms need an iso-parameter rectangle
+    ///   (`geom_brep::props`' `props_rim_level`, S58) and the
+    ///   certified-quadrature lane consumes only conic/NURBS trims.
+    ///   #649's `cross.step` — a real manifold closed keyed shaft
+    ///   whose cylindrical walls have a cross-shaped iso domain — and
+    ///   the same solid produced from rectangular sub-faces by the
+    ///   public `Body::merge_coplanar_faces` are both perfectly valid
+    ///   and both land here.
+    /// * `Corrupt`, `NullScaffoldEdge`, `RingOnCurvedFace` — **row 1**
+    ///   by their own docs: unresolvable structure, a mid-surgery
+    ///   body carrying M3 null-edge scaffolding, and a curved face
+    ///   with interior rings no M2 construction produces.
+    /// * `Band` — neither: a misconfigured ambient tolerance, a
+    ///   configuration failure of the run rather than a statement
+    ///   about the body. It is also the arm this file's own
+    ///   every-variant fixture builds the variant with.
+    ///
+    /// What keeps the row-1 arms **near**-unreachable here is not a
+    /// property of this site but the `if errors.is_empty()` gate on
+    /// check 7's `mass_properties_with` call: it runs only after every
+    /// structural check has passed, so a corrupt body has normally
+    /// already been refused by the check that names its corruption.
+    /// "Normally" is the honest word — that gate is a sequencing fact
+    /// elsewhere in this file, not an invariant this variant enforces,
+    /// and `mass_properties` called directly has no such guard.
     VolumeUncomputable {
         /// The mass-properties failure.
         source: crate::props::MassPropsError,
