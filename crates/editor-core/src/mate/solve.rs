@@ -50,17 +50,6 @@ pub enum MateRole {
     Refused,
 }
 
-impl MateRole {
-    /// The role's name, for messages.
-    pub fn name(self) -> &'static str {
-        match self {
-            Self::Determining => "determining",
-            Self::Declaring => "declaring",
-            Self::Refused => "refused",
-        }
-    }
-}
-
 /// The document's solved poses (D-5's compose-outward input).
 #[derive(Debug, Clone, Default)]
 pub struct SolvedPoses {
