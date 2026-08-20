@@ -1,7 +1,8 @@
-//! [`Surface::jet`] is the enum's derivative primitive, and the six
-//! single-partial accessors are its projections. That is a **shared
-//! contract**: one implementation now answers what six once answered
-//! independently, so the guard obligation of all six sits here.
+//! [`Surface::jet`] is the enum's derivative primitive, and the **five**
+//! single-partial accessors plus [`Surface::normal`] are its
+//! projections. That is a **shared contract**: one implementation now
+//! answers what six doors once answered independently, so the guard
+//! obligation of all six sits here.
 //!
 //! Three obligations:
 //!
@@ -17,14 +18,23 @@
 //!    two fields taken off one jet. Note the exact scope: because the
 //!    accessors are projections, two evaluations and one produce the
 //!    same bits, so this row pins the **value** and cannot see the
-//!    **evaluation count**. That `normal` reads one jet rather than two
-//!    is a source fact (`n.ders` occurs once in the enum), not
-//!    something any bitwise row can witness.
+//!    **evaluation count**. No bitwise row can: the count is invisible
+//!    to every assertion in this file. It is not, however, invisible to
+//!    *every* instrument — `NurbsSurface::ders` allocates, so a
+//!    `#[global_allocator]` counter does witness it (measured: `normal`
+//!    40 allocations here, 80 with the two-evaluation body restored).
+//!    That test is deliberately not added: a global allocator is
+//!    per-test-binary and this crate aggregates every suite into one
+//!    binary (`autotests = false`, `[[test]] name = "all"`), so pinning
+//!    the count costs a second binary. The claim is therefore
+//!    "unguarded *here*, and guardable only at that price", not
+//!    "unguardable".
 //! 3. **`eval` and the jet's point agree.** `eval` is deliberately not
 //!    a projection — that is a source fact no bitwise row can witness,
 //!    and it is not claimed here. What is pinned is agreement: for
-//!    [`Surface::Nurbs`] it runs a dedicated cheaper pass
-//!    (`NurbsSurface::eval`) while the jet's point comes out of
+//!    [`Surface::Nurbs`] it runs a dedicated pass (`NurbsSurface::eval`,
+//!    order-0 basis — cheaper, and measured so: 2 allocations against
+//!    the jet's 40) while the jet's point comes out of
 //!    `NurbsSurface::ders`' order-2 tensor pass. What the two owe each
 //!    other is agreement to round-off; what they in fact deliver is bit
 //!    identity, which is what the row asserts — a future divergence
@@ -34,6 +44,19 @@
 //! Poison is in the corpus, not assumed: the placeholder NURBS payload
 //! and two degenerate analytic charts make most fields NaN, and every
 //! comparison here is on raw bits, so a NaN must match a NaN *payload*.
+//!
+//! **One caveat on comparing NaNs by raw bits.** A quiet NaN's *sign*
+//! bit is unspecified by IEEE for every arithmetic operation, and it is
+//! not a stable function of this source: an adversarial dump found
+//! LLVM sinking an `fneg` into an operand and flipping quiet-NaN signs
+//! for expressions whose source had not changed at all. Rows 1 and 2
+//! are safe from that by construction — each accessor's body *is* the
+//! jet field, one computation compared with itself. Row 3 is the
+//! exposed one, because it compares two separately compiled copies of
+//! one expression; its `Surface::Nurbs` arm is already NaN-sign-
+//! agnostic, and if a compiler change ever reddens its analytic arm
+//! with a pure sign flip on a NaN, the correct repair is to widen that
+//! arm the same way, not to hunt for a numerical regression.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -64,6 +87,11 @@ fn rational_patch() -> NurbsSurface<f64> {
     NurbsSurface::new(ku, kv, control, weights).unwrap()
 }
 
+// These three are the workspace's stock test frame, reproduced here
+// rather than shared: the same `axis`/`u_ref`/`origin` triple appears
+// in eleven files across `geom` and `geom-brep`, of which this is the
+// eleventh. Filed as a class in §D rather than swept from here — the
+// sweep is not this unit's to make.
 fn axis() -> Vec3<f64> {
     Vec3::new(2.0 / 3.0, 2.0 / 3.0, 1.0 / 3.0)
 }
@@ -224,7 +252,8 @@ fn eval_agrees_bitwise_with_the_jets_point() {
                 assert_eq!(
                     e, p,
                     "{name}: eval and jet.point forked at ({u}, {v}) — the \
-                     analytic arms share one expression and must agree bitwise"
+                     analytic arms hold two verbatim copies of one point \
+                     expression, and this row is what keeps them equal"
                 );
             } else {
                 // Two certified passes over the same patch, NOT one

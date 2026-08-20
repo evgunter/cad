@@ -268,6 +268,19 @@ impl<T: SpanLocate> Surface<T> {
     /// (span selection via the sealed [`SpanLocate`] seam — the
     /// `impl`-block bound, a sealed `Real` subtrait; see the crate
     /// docs' evaluation-code discipline note).
+    ///
+    /// **Each analytic arm's point expression is written twice** — once
+    /// here and once in [`Surface::jet`] — and that is a duplication
+    /// this method's own collapse of the derivative accessors created,
+    /// stated here rather than left for a reader to find. The
+    /// alternative is making `eval` a projection of the jet, which
+    /// costs [`Surface::Nurbs`] an order-2 basis pass on the workspace's
+    /// hottest evaluation door to spare five short analytic
+    /// expressions; the copies are the cheaper trade. They are not
+    /// unguarded: `eval_agrees_bitwise_with_the_jets_point` compares
+    /// the two, bit for bit, over every chart in the corpus, so a
+    /// divergence between the copies is a red test rather than a silent
+    /// fork.
     pub fn eval(&self, u: T, v: T) -> Point3<T> {
         match self {
             &Surface::Plane {
@@ -336,8 +349,18 @@ impl<T: SpanLocate> Surface<T> {
     /// single [`NurbsSurface::ders`] pass rather than one per partial.
     ///
     /// `point` is the payload jet's own point for [`Surface::Nurbs`] —
-    /// [`Surface::eval`] keeps its cheaper dedicated pass and is **not**
-    /// a projection of this jet.
+    /// [`Surface::eval`] keeps its dedicated pass and is **not** a
+    /// projection of this jet. That pass really is the cheaper one:
+    /// order-0 basis against this jet's order-2 tensor, measured on a
+    /// rational patch at 2 heap allocations against the jet's 40.
+    ///
+    /// Note what these arms cost the other way: on the analytic
+    /// variants the single-partial projections are now *more*
+    /// expensive than the bodies they replaced — `deriv_vv` on a
+    /// [`Surface::Plane`] was `Vec3::zero()` and now builds a whole
+    /// jet. That is deliberate, and it is affordable because no
+    /// production path calls the single-partial doors; `Surface::eval`
+    /// and `Surface::jet` are the only two that any does.
     pub fn jet(&self, u: T, v: T) -> SurfaceJet<T> {
         match self {
             &Surface::Plane {

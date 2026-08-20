@@ -5252,19 +5252,75 @@ enum's derivative primitive: one match, the point and every partial with
 `sin_cos(v)` once, the NURBS arm making a single `ders` pass. The five
 partial accessors and `normal` are now its projections — **one
 per-variant implementation where five stood, plus a `normal` that ran
-two of them**, and that is the change's justification; there is no
-performance claim here, because none was measured.
+two of them**, and that is the change's justification. No performance
+claim was made for it, because #804 measured none; the review then
+measured the two arithmetic claims anyway, with a `#[global_allocator]`
+counter on a rational patch: `normal` 40 allocations against 80 with
+the two-evaluation body restored, and `eval` 2 against the jet's 40. So
+`normal` does make one `ders` pass rather than two, and
+`NurbsSurface::eval` is the cheaper pass — both now measured rather
+than read.
+
+That counter also **bounds a claim #804 made too strongly**. The PR
+said the evaluation-count reduction was *"guarded by reading the code,
+not by a test"*, on the ground that no bitwise row can witness a count.
+The first half is right and the second is not: `ders` allocates, so the
+count is observable from outside the crate without reading a line of
+source, and both of the mutations #804 called unguardable trip that
+counter. The true statement is **unguarded by any bitwise row, and
+guardable only at the price of a second test binary** — `geom`
+aggregates every suite into one (`autotests = false`, `[[test]] name =
+"all"`) and a global allocator is per-binary. The practical decision
+stands; the absolute claim did not.
 `step-import`'s `metric_floor` was the only production caller of any of
 them and asks once per sample instead of twice. Preservation is
 **bitwise, not tolerated**: a 23904-row dump of all seven doors over 9
 charts (five analytic, a rational NURBS patch, the placeholder, two
 degenerate charts) × 2656 parameter pairs is byte-identical between
-`1a94204d` and `61f6d218`, md5 `d80a47f4cb63eda6ad2b0670f5a4f0ab`,
-including the 8042 rows whose fields are NaN — NaN **payloads** match,
-which is where an order change would have shown.
+`1a94204d` (the pre-change tree) and the shipped head `5524b1f5`, md5
+`d80a47f4cb63eda6ad2b0670f5a4f0ab`, re-taken to the same md5 after each
+of the three `origin/main` merges in between. That includes the 8042
+rows whose fields are NaN — NaN **payloads** match, which is where an
+order change would have shown. **8042 is derivable, not just
+observed**: three all-poison charts × 2656 = 7968, plus the cone arm's
+`v = 0` rows, where `du = tangential·(v·sin α)` vanishes — 41 + 31 + 2 =
+74 across the two grids and the named points. The sphere poles
+contribute nothing, because `cos(π/2) = 6.1e-17 ≠ 0`.
 
-**Three clauses of the original finding were false, and correcting them
-is the more valuable half.**
+**Two limits on that md5, both load-bearing.** First, the dumper lives
+**outside this repo**, so the hash is not reproducible from the tree;
+what is reproducible is
+`crates/geom/tests/surfaces/s32_jet_projection.rs`, which pins the same
+property in-tree. Second, byte-identity holds **for finite
+parameters**. An adversarial dump over ±∞/NaN chart parameters found
+192 differing rows, every one a quiet-NaN **sign** flip and zero of
+them with both parameters finite — and one flipped field belongs to
+`Surface::eval`, whose source is identical across both trees. So those
+flips are LLVM sinking an `fneg`, not this change, and the general
+lesson is recorded rather than the local one: **quiet-NaN sign bits are
+not a stable function of this source**, and *"the expressions were
+copied verbatim"* is a source-level statement that does not by itself
+reach the bits. The finite-parameter identity is what was measured and
+is all that is claimed.
+
+**The claim now covers the other scalars too, bitwise.** The suspicion
+worth testing was that sharing one `azimuth::frame` result could widen
+an enclosure. It cannot, and the reason is structural — `Interval` is a
+stateless value type, so evaluating a deterministic sub-expression once
+or twice yields the same enclosure, there being no dependency tracking
+to de-correlate. Measured as well as argued, on a head-only instrument
+that sets base's accessor bodies beside the shipped ones (removing the
+cross-tree confound): **0 differences at `Interval` and 0 at
+`DualInterval`** over 262,440 comparisons per scalar, on lo bits, hi
+bits *and* decoration, with wide enclosures rather than points. This is
+the **first bitwise interval evidence in the repo** — the interval CI
+lane exercises only `deriv_u` and `deriv_vv`, and only for containment.
+
+**Two clauses of the original finding were false and a third was
+overstated, and correcting them is the more valuable half.** The count
+is exact on purpose: an overstatement restated at the notch it can hold
+is not a falsehood, and a record that over-claims its own corrections
+is the one thing this track can least afford.
 
 1. *"The natural query being unavailable at the enum is what created the
    second enum."* No. `Chart` was born at `ffc0b0fa` carrying the doc it
@@ -5309,11 +5365,35 @@ them.
 **The class's curve-side member is filed, not fixed** — §D row **C24**.
 `Curve3::deriv`/`deriv2` are the identical shape one file over, and
 `topo/src/splitting/neighborhood.rs` calls both at the same `t` under a
-comment naming the result *"the base-endpoint jet"*. **C-R6 does not
-reach it** even though it is the same crate: the surface side had a
-ratified `SurfaceJet` to project onto, and the curve side has no
-`CurveJet` at all, so that work is minting a public type — a design
-element, C-R19 tier two.
+comment naming the result *"the base-endpoint jet"*. That call site is
+the **analytic** member of the class, not the NURBS one — it sits in the
+`Circle | Ellipse` arm and repeats an azimuthal frame, while the arm
+above routes `Curve3::Nurbs` elsewhere entirely; C24 carries both
+members separately, and says which is which. **C-R6 does not reach it**
+even though it is the same crate: the surface side had a ratified
+`SurfaceJet` to project onto, and the curve side has no `CurveJet` at
+all, so that work is minting a public type — a design element, C-R19
+tier two.
+
+**What #804 cost, recorded because the record volunteers gains.** The
+collapse **minted a duplication of the shape it closed**: each analytic
+arm's point expression is now written twice, in `eval` and in `jet`,
+where before each existed once. That is S4's shape one level over,
+created by the unit whose job was to remove it. It is a considered
+trade — the alternative makes `eval` a projection and charges the
+workspace's hottest evaluation door an order-2 basis pass to spare five
+short expressions — and it is guarded, by
+`eval_agrees_bitwise_with_the_jets_point`, which a re-association
+mutation reddens. Both facts are stated at the site in `Surface::eval`'s
+own docs. Separately, **the five projections got slower on the analytic
+arms**: `deriv_vv` on a `Plane` was `Vec3::zero()` and now builds a
+whole jet. Affordable only because no production path calls those
+doors — which is a measured fact of today, not a property of the
+design. Two further shapes are **noted and deliberately not fixed
+here**: `SurfaceJet` still lives in the NURBS arm's module though it is
+now the enum-wide primitive's type, and this PR's test file is the
+eleventh copy of the workspace's stock `axis`/`u_ref`/`origin` fixture
+frame.
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
 baffle me with how they ever happened." Postmortem pass commissioned.
@@ -10441,7 +10521,7 @@ the table, which is why this paragraph is rewritten rather than appended to.
 | **C20** | **Every turning-path swept or lofted chart shape that is NOT a quarter-turn arc or a constant-pitch helix is unpinned for orientation — including the one the tree itself authors a ROLL on.** #779's class sweep (pattern `sweep_body::<` / `loft_body::<` / `sweep_body(` / `loft_body(` over `crates/`, `demos/`, `tools/`; blind spot: a caller reached through a macro-generated path or a re-export under another name, or a body hand-assembled from euler ops) found that every turning-path `sweep_body` caller builds one of four fixtures, and three are now pinned: the **square elbow** — six callers (`sweep/tests/m5_s11_concave_sense.rs`, `m7_skin_integral.rs` ×2, `mesh/tests/probe_review.rs`, `mesh/tests/m7_nurbs_trimmed.rs`, `step-export/tests/common/mod.rs`), all the same body *constant for constant*, so #636's one row covers all six; the **rational circle-section elbow** (`m7_skin_integral.rs:381`) and the **helices at ½, 1 and 2 turns** (`m8_14_long_turn_sweep.rs`), both closed by #779. **What is left, and it is the hard end of the class:** **(a) `demos/tour/src/lily.rs:863`'s `lofted_blade`** — the sharpest member and the one #779's first draft of this row missed. It is a `loft_body` on an arching spine with **sections that change station to station AND a frame authored to ROLL about the spine's own tangent**, which is S51's own named worst case crossed with H13's, and it builds a real body with three demo callers. **(b) `demos/tour/src/skinned.rs`'s S path** (two OPPOSED `R = 2` arcs, so curvature reverses sign and the minimal-rotation frame's turn is not monotone through the inflection) **and its twisted cubic** `(At, Bt², Ct³)` (curvature and torsion both varying, where a helix holds both fixed). **(c) `crates/editor-core/src/eval/wire.rs`'s `loft_body` door is PRODUCTION** and takes its placements from the document, so a user can mint an arbitrarily rolled loft through it — with S51's residual (*no tier, prop or boolean in the kernel reads a lofted wall's sense*) still standing behind it. Nothing pins that door's orientation either. **(`klein.rs`'s U-turn is NOT a member and a taker should not go looking for a body there**: that `sweep_body` call is passed to `walls::wall` under a matcher for `LoftError::ReversedStacking`, and `walls::wall` panics if the call returns `Ok`. It builds nothing. The extreme case is closed by refusal rather than by a bit.) **This inverts the usual coverage-gap argument.** A gap normally sits at the easy end. Every pinned fixture has constant curvature, a monotone frame roll and a centrally symmetric section — a quarter-turn planar arc, or a helix, carrying a centred square or a circle. Every member above breaks at least one of those, and (a) breaks all three. So the class is closed where the argument is easiest to make and open where the bit is most likely to be wrong. **Disposition, so it is not re-decided.** #779 deferred this, and its stated reason — *"it is out of `sweep/tests/`"* — **was wrong and is corrected here**: nothing about the fix lands in `demos/`. Demos are the library's USAGE oracle (`memories/demo-purpose.md`) and hanging orientation assertions off them would contort what they measure, so the classification *coverage row, not a demo edit* stands; but covering the class means **reproducing those chart shapes as fixtures in `sweep/tests/`**, which is exactly where every #779 row lives. The honest reason for deferring is size, not scope. `common::orient::LevelIndex` is the oracle it needs and already exists; it is verified against an independent mesh oracle on 360 row probes and 800 random points, and `assert_caps_face_out` covers the caps. **A rolled loft is the fixture to write first**, because it is (a)'s shape and needs no demo at all. | **C-R19 tier one — a lane takes it.** No design fork: the oracle exists, the shapes are authored in the tree already, and what is missing is fixtures and rows. Not gated on anything. |
 | **C21** | **Two measured populations from #775's sweeps, neither read per item — and one of them has already hidden a live member.** **(a) I1's 102 live-scope hits**: comment clauses carrying a milestone token with a live-scope marker in the 40 characters before it, workspace-wide, of 2,206 such clauses. The class is *"an `at M<n>` scope label whose milestone has shipped and whose substance may or may not still be true"* — mostly benign, individually cheap, and only decidable by reading the code each one describes. **(b) I3's 411 fan-in variants**: typed refusals whose ONE rustdoc and ONE `Display` arm must cover N > 1 construction sites. Fan-in is a *necessary condition* for the defect it found, not the defect — separating the real ones needs a per-variant read. **What makes this a row and not a note:** bucket (a) is where `geom-brep/src/edge_geometry.rs:285` sat — a **public enum variant doc** whose prediction had come true the other way — and it survived **all four** of #775's instruments, then went undetected until a style reviewer read for it by hand. I1 bucketed it *historical* because its live-scope marker follows the milestone token (*"SSI arrives (M3+)"*) instead of preceding it. **A population that has already concealed one live member is not a backlog; it is an unread result**, and calling it *"named as a population"* was the same sentence as *"recorded as a pickup"* (Q6). | **C-R19 tier: the MIDDLE one — a plan goes to Evan before implementation, not a patch.** A per-item read of 513 items is not a patch, and the design element is the triage itself: how to decide these without committing **§C16**'s move — a prose-hygiene pass that launders a guess into an assertion, which is exactly what bulk-rewriting 102 dated scope labels would be. #775 declined the rewrite on that ground and was right to; declining the rewrite is not the same as declining the schedule, and this row is the schedule. Whoever takes it starts from the two instruments' stated selection rules — **each dropped `edge_geometry.rs:285` by its rule, not by its regex** — because the triage design has to survive the same failure. Both instruments' patterns are written out in #775's body. |
 | **C23** | **One rational refinement schedule, hand-synced across a crate boundary.** `mesh::nurbs_cert::RATIONAL_CERT_SPLITS = 16` and `geom::curves`' `RATIONAL_METER_SPLITS = 16` are the same schedule — every nonempty span of every direction split into this many equal pieces before the hull assembly — and the `mesh` copy's own doc names the other as its precedent (*"the `RATIONAL_METER_SPLITS = 16` precedent of `geom::curves`' rational speed meter, mirrored"*), which makes this S4's dominant shape: one vocabulary, N hand-synced copies, with the copy **declaring itself** and being left anyway. `geom` is already a dependency of `mesh` and the constant is private there, so the mechanical move is one `pub` and one import. Found by #803's census; deliberately not taken by it. | **C-R19 tier: the MIDDLE one — a plan goes to Evan before implementation, not a patch.** Sharing the constant is not an encoding change: it **binds two independently-argued schedules to move together**, and the two arguments are different (a speed meter's scan resolution against a certificate assembly's cell size). Whoever takes it decides whether they are one quantity or two that happen to be 16, and records that — the third option, a shared constant with a doc saying the two consumers may diverge, is the worst of both. Neither value may move while deciding: `geom`'s own tests warn that `RATIONAL_METER_SPLITS` cannot be changed freely. |
-| **C24** | **S32's class on the curve side, which S32 does not name.** `NurbsCurve::deriv_in_span`/`deriv2_in_span` (`geom/src/curves/nurbs.rs`) are `ders_in_span(..).1` and `.2`, so `Curve3::deriv` and `Curve3::deriv2` each run a full order-2 basis pass and discard two of three — and `topo/src/splitting/neighborhood.rs` calls **both at the same `t`**, under a comment that names what it is building: *"The base-endpoint jet: outgoing tangent, plus the raw second derivative and squared speed."* The missing type is already named, in prose, by the code that needs it. | **C-R19 tier TWO — a plan goes to Evan before implementation.** And the reason **C-R6 does not reach this**, though it is the same crate #804 edited, is the whole content of the row: the surface side had a **ratified type to project onto** — `SurfaceJet` already existed and was already publicly exported, which was half of S32's own complaint — whereas the curve side has **no `CurveJet` at all**. So this is not "apply the same fix one type over"; it is **mint a new public type**, which is a design element, not a lane's discretion. That distinction is the difference between using a decision already made and making one. Filed by #804 rather than left as a sentence in a PR body (**C-R7**). |
+| **C24** | **S32's class on the curve side, which S32 does not name.** Two members, and they are **not** the same instance — an earlier draft of this row (and of C-R24) conflated them, which is corrected here. **(a) The NURBS discard.** `NurbsCurve::deriv_in_span`/`deriv2_in_span` (`geom/src/curves/nurbs.rs`) are `ders_in_span(..).1` and `.2`, so each runs a full order-2 basis pass and discards two of three; any caller wanting both at one `t` pays twice. **(b) The analytic repeat.** `topo/src/splitting/neighborhood.rs:171-186` calls `deriv` and `deriv2` at the same `t` under a comment naming what it is building — *"The base-endpoint jet: outgoing tangent, plus the raw second derivative and squared speed"* — but that call site is the `Curve3::Circle \| Curve3::Ellipse` arm, and the arm immediately above routes `Curve3::Nurbs` to the chord branch with `None`. **So it never reaches (a).** What it repeats is the azimuthal construction: for a circle, `deriv` builds `azimuth::frame(axis, u_ref, t)` and `deriv2` builds `azimuth::basis(axis, u_ref, t)` at that same `t`; for an ellipse both build `basis`. Same class as S32 — one parameter, two passes, shared work thrown away — reached by a different road. The missing type is already named, in prose, by the code that needs it. | **C-R19 tier TWO — a plan goes to Evan before implementation.** And the reason **C-R6 does not reach this**, though it is the same crate #804 edited, is the whole content of the row: the surface side had a **ratified type to project onto** — `SurfaceJet` already existed and was already publicly exported, which was half of S32's own complaint — whereas the curve side has **no `CurveJet` at all**. So this is not "apply the same fix one type over"; it is **mint a new public type**, which is a design element, not a lane's discretion. That distinction is the difference between using a decision already made and making one. Filed by #804 rather than left as a sentence in a PR body (**C-R7**). |
 | **C25** | **One swept body, built from scratch six times across three crates — enumerated by #779's class sweep and reported there as COVERAGE rather than as the duplication it is.** The square elbow (path: a quarter arc to `(3, 3)` at `bulge = tan(π/8)`, placed by `−π/2` about world y; section: a centred square of half-width `0.25`; 9 stations, `v_degree` 3) is **constructed independently six times** — `sweep/tests/m5_s11_concave_sense.rs:948`, `sweep/tests/m7_skin_integral.rs:247` (`elbow_path()`), `mesh/tests/probe_review.rs:56`, `mesh/tests/m7_nurbs_trimmed.rs:56`, `step-export/tests/common/mod.rs:854` (`swept_elbow()`), and `step-export/examples/review_elbow_probe.rs:30` — and reached by **seven `sweep_body` call sites**, since `m7`'s two rows share its file-local pair. **Say which count you mean**: six constructions is the duplication (each is a separate place the constants can drift); seven call sites is the blast radius (each is a row that would change answer if one drifted); and the same path additionally carries two RATIONAL-section bodies at `m7_skin_integral.rs:381` and `:460`, which are a different body on a shared path and are not part of this count. **They are byte-identical today and that is measured, not assumed**: #779's adversarial reviewer checked all of them down to `R = 3.0`, `H = 0.25`, `bulge = tan(π/8)`, the `−π/2`-about-`y` placement, identity profile placement, 9 stations, `v_degree` 3, **and the same four centred-square vertices in the same order, written three ways** (`ProfileLoop::polygon`, `common::quad`, a file-local `square`). **Why it matters, and why #779 could not close it.** The fact that one row covers all of them is exactly what #779 leaned on to declare the class closed for the elbow — #636's single orientation row is asserted to cover six callers *because they build one body*. That is a claim over six unsynchronised copies held by nothing, so a drift in any one of them silently narrows a closure argument that three crates now rest on. #779 stated it in a PR body under a heading that reads FIXED, which is **C-R7's named failure** and is why it is a row. **What a taker must decide, because the copies are not gratuitous.** #636 re-typed `m5_s11`'s copy deliberately and said why (`all.rs` requires each aggregated file to behave as it did when it was its own crate root), and `step-export`'s own docstring records its copy as intentional, *"constant for constant"*, next to `loft_prism`'s. So the question is not *collapse them* but **where a cross-crate fixture lives given that `sweep::test_support` (#668, S52) exists and is already the home for exactly this** — it is `sweep`-owned, feature-gated and dev-only, and **both `mesh` and `step-export` already dev-depend on `sweep`** — today with no features, so the edges exist and the question is whether `test-support` may ride them. That is not a formality: `sweep`'s own manifest carries the measured reason to be careful, because a featured edge is what turned `topo`'s failure-injection doors on for every production dependent until S52 measured it, and the argument that saves it here is that a **dev**-dependency is in no consumer's build graph — the same argument the self dev-dependency already rests on, applied one crate further out. If it turns out the fixture cannot be reached from all three, the finding is that S52's routing rule has no cross-crate arm and the copies are the correct answer, which is a result worth writing down rather than a fix. | **C-R19 tier one — a lane takes it.** No design fork on the mechanical half: either the fixture moves to `sweep::test_support` and the six constructions become one call, or it is established that it cannot and the copies get a stated reason each, as two of the six already have. Touches `sweep`, `mesh` and `step-export` test trees only; no `src/` change and no public API. Not gated. Small, and it is the second half of **S52**, which collapsed six `cube`s inside one crate and never asked the same question across crates. |
 
 **Three ownership changes made to this table from outside the track (2026-08-20,
