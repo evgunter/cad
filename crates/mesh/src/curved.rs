@@ -47,7 +47,7 @@
 //! the sentence above as conditional on both.
 //!
 //! Grid sizing (heuristic; the certificates are the guarantee), from
-//! δ_s = δ/2 and φ = [`crate::chords::sagitta_angle`]:
+//! δ_s = δ/2 and φ = [`crate::sizing::sagitta_step`]:
 //! cylinder — hu = φ(δ_s, r), no interior rows (ruled in v);
 //! cone — hu = φ(δ_s, ρ_max), rows every ρ_max·hu slant meters (ruled
 //! in v, but rows keep triangles azimuth-local so the radius-scaled
@@ -63,42 +63,9 @@ use spade::{ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulatio
 use topo::{Body, EdgeKey, FaceKey};
 
 use crate::cert;
-use crate::chords::{ceil_count, sagitta_angle, torus_grid_step};
+use crate::sizing::{Tol, cap_angular, ceil_count, sagitta_step, torus_grid_step};
 use crate::types::TessellateError;
 use crate::walk::{Chart, ChartKind, UvPoint, gap_is_noise, loop_polygon};
-
-/// The call's tolerance bundle: δ (the promise), δ_s = δ/2 (sizing),
-/// and the run's kernel ε — never sizing, and never a value the mesh
-/// carries. ε reaches three places from here and no more: pole/apex
-/// vertex identification in [`crate::walk`]; this lane's banded domain
-/// guard, which only chooses whether to REFUSE; and the per-triangle
-/// certificate assertion in [`crate::trimmed`]'s review probe, which
-/// is absent from a default build.
-///
-/// **No consumer SNAPS a value.** The one that did — the loop-closure
-/// snap — is gone (S22); the domain guard only chooses whether to
-/// refuse, and the probe assertion emits nothing. That is the exact
-/// claim, and it is weaker than "ε cannot move an emitted coordinate",
-/// which is FALSE as stated: pole/apex identification is a
-/// CLASSIFICATION, and its outcome substitutes the pole's exact `v`
-/// for `Chart::v_of(p)` and emits TWO `pole: true` polygon entries
-/// instead of one. Both reach the UV polygon, hence the bounding box,
-/// hence this lane's interior grid and the pole fan's triangles. So an
-/// ε that flipped that classification WOULD move emitted coordinates.
-/// What is true is that nothing in the tree flips it: no in-tree body
-/// puts a non-pole vertex within any of the suite's ε rows of a pole.
-/// Whether one is REACHABLE is not established — `revolve` would very
-/// likely refuse such a sliver, and a STEP import is the plausible
-/// route in — so the ε-dependence here is structural and UNEXERCISED,
-/// which is not the same as absent or unreachable.
-pub(crate) struct Tol {
-    /// The chordal tolerance δ.
-    pub delta: f64,
-    /// The sizing target δ_s = δ/2.
-    pub delta_s: f64,
-    /// The kernel ε (pole/apex identification; the domain guard's band).
-    pub eps: f64,
-}
 
 /// Tessellates one curved face into outward-wound triangles,
 /// appending interior grid points to `positions`.
@@ -165,7 +132,7 @@ pub(crate) fn tessellate_curved(
     // reads do not overlap.)
     let flip = area2 < 0.0;
 
-    // The walk's chart singularity, as `grid_steps` reads it: whether
+    // The walk's chart singularity, as `grid_counts` reads it: whether
     // a pole/apex entry is present, and how many INTERIOR chord points
     // the meridian sides carry between the pole row and the opposite
     // row. Zero on a cone (its meridian is a straight ruling); always
@@ -180,8 +147,8 @@ pub(crate) fn tessellate_curved(
         .filter(|e| !e.pole && e.v > v0 && e.v < v1 && (e.u <= u0 || e.u >= u1))
         .count();
 
-    // Grid steps per kind (module docs).
-    let (nu, nv) = grid_steps(
+    // Grid counts per kind (module docs).
+    let (nu, nv) = grid_counts(
         &chart,
         tol.delta_s,
         u1 - u0,
@@ -591,12 +558,12 @@ fn require_swept_rectangle(
 /// points (lune `npoly = 10`, cap `npoly = 6`); those points occlude
 /// the cross-fan. Structural, not lucky: dirty needs `nv >= 3`, and
 /// the meridian's chord step `phi(delta_s, r)` and the grid's
-/// `phi(delta_s / 1.25, r)` are never more than ~12% apart with both
-/// pi/4-capped, so `nv >= 3` FORCES at least two interior meridian
-/// points. The sphere arm is kept anyway (Evan, 2026-08-19) so the
+/// `phi(delta_s / SPHERE_SIZING_MARGIN, r)` are never more than ~12%
+/// apart with both capped, so `nv >= 3` FORCES at least two interior
+/// meridian points. The sphere arm is kept anyway (Evan, 2026-08-19) so the
 /// rule reads as one sentence rather than one chart but not the other
 /// — and what it rests on is CHECKED, not just written down: see the
-/// `debug_assert` in [`grid_steps`]'s sphere arm, which asserts the
+/// `debug_assert` in [`grid_counts`]'s sphere arm, which asserts the
 /// mechanism (the occluding points exist) rather than the conclusion.
 ///
 /// # The option this doc used to exclude by silence
@@ -619,10 +586,11 @@ fn require_swept_rectangle(
 /// # Blast radius, and #678's two open questions
 ///
 /// Only pole faces with `nu == 2` re-size. A full revolve can never be
-/// one: [`sagitta_angle`] hard-caps at pi/4 on both branches, and
-/// [`torus_grid_step`] is `.min`'d against the same cap, so a `2*pi`
-/// span gives `nu >= 8` — confirmed in the A/B, where no full-revolve
-/// face appears with `nu <= 2`.
+/// one: [`sagitta_step`] hard-caps at
+/// [`crate::sizing::MAX_ANGULAR_STEP`] on both branches, and
+/// [`torus_grid_step`] is capped against the same value here, so a
+/// `2*pi` span gives `nu >= 8` — confirmed in the A/B, where no
+/// full-revolve face appears with `nu <= 2`.
 ///
 /// `Fixes #678` closes the only other home of that issue's two open
 /// questions, so both answers live here. *Does the sphere lane reach
@@ -635,7 +603,18 @@ fn pole_columns(nu: usize, has_pole: bool) -> usize {
     if has_pole && nu == 2 { 3 } else { nu }
 }
 
-/// Interior grid step counts (nu, nv) for the face's UV spans.
+/// The sphere arm's extra sizing margin: it sizes at δ_s divided by
+/// this rather than at δ_s itself.
+///
+/// Near the equator a full-step grid triangle's true deviation
+/// approaches 2·δ_s = δ from below, so sizing at exactly δ_s would
+/// lean on [`ceil_count`]'s step-shrink (`span/⌈span/h⌉ < h`) as the
+/// only slack. The margin buys real headroom cheaply (≈12% more steps
+/// per axis) and keeps a future sizing change from silently landing on
+/// the certificate boundary; the certificate remains the backstop.
+const SPHERE_SIZING_MARGIN: f64 = 1.25;
+
+/// The interior grid counts `(nu, nv)` for the face's UV spans.
 ///
 /// `has_pole` and `meridian_interior` describe the boundary walk's
 /// chart singularity: whether it carries a pole/apex entry at all, and
@@ -646,7 +625,7 @@ fn pole_columns(nu: usize, has_pole: bool) -> usize {
 /// and for a torus, so `has_pole` is false on those two arms for every
 /// input there is, and the `debug_assert`s below say so in a form that
 /// fails if it ever stops being true.
-fn grid_steps(
+fn grid_counts(
     chart: &Chart,
     delta_s: f64,
     uspan: f64,
@@ -655,16 +634,15 @@ fn grid_steps(
     has_pole: bool,
     meridian_interior: usize,
 ) -> Result<(usize, usize), TessellateError> {
-    let cap = core::f64::consts::FRAC_PI_4;
     match chart.kind {
         ChartKind::Cylinder { r } => {
             debug_assert!(!has_pole, "Chart::poles() is empty for a cylinder");
-            let hu = sagitta_angle(delta_s, r);
+            let hu = sagitta_step(delta_s, r);
             Ok((ceil_count(uspan, hu)?, 1))
         }
         ChartKind::Cone { half_angle } => {
             let rho_max = v_absmax * half_angle.sin();
-            let hu = sagitta_angle(delta_s, rho_max);
+            let hu = sagitta_step(delta_s, rho_max);
             let hv = rho_max * hu;
             Ok((
                 pole_columns(ceil_count(uspan, hu)?, has_pole),
@@ -672,15 +650,7 @@ fn grid_steps(
             ))
         }
         ChartKind::Sphere { r } => {
-            // Deliberate 1.25 sizing margin: near the equator a
-            // full-step grid triangle's true deviation approaches
-            // 2·δ_s = δ from below, so sizing at exactly δ_s would
-            // lean on ceil_count's step-shrink (span/⌈span/h⌉ < h) as
-            // the only slack. Targeting δ_s/1.25 buys real headroom
-            // cheaply (≈12% more steps per axis) and keeps future
-            // sizing tweaks from silently landing on the certificate
-            // boundary; the certificate remains the backstop.
-            let h = sagitta_angle(delta_s / 1.25, r);
+            let h = sagitta_step(delta_s / SPHERE_SIZING_MARGIN, r);
             let (nu, nv) = (ceil_count(uspan, h)?, ceil_count(vspan, h)?);
             // D2 addendum row 5 — and the whole warrant for calling
             // this arm PROPHYLACTIC rather than corrective
@@ -703,7 +673,7 @@ fn grid_steps(
         }
         ChartKind::Torus { major, minor } => {
             debug_assert!(!has_pole, "Chart::poles() is empty for a torus");
-            let h = torus_grid_step(delta_s, major, minor).min(cap);
+            let h = cap_angular(torus_grid_step(delta_s, major, minor));
             Ok((ceil_count(uspan, h)?, ceil_count(vspan, h)?))
         }
     }
