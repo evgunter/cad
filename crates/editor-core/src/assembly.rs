@@ -667,3 +667,205 @@ fn attribute(error: &ValidationError, minted: &[MintedDeclaration]) -> Attributi
         | ValidationError::NullFaceAtRest { .. } => Attribution::Unattributed,
     }
 }
+
+#[cfg(test)]
+mod attribution {
+    //! **[`attribute`]'s classification, pinned per arm.**
+    //!
+    //! The arms this unit had to decide are exactly the ones no
+    //! end-to-end row reaches — that is why a wildcard could hold them
+    //! for as long as it did — and they are the ones whose label
+    //! decides [`AssemblyError::AtRest`] against
+    //! [`AssemblyError::Uncertified`]. Calling the classifier directly
+    //! is what makes them assertable at all.
+    //!
+    //! The keys are real arena keys from a real body; the findings are
+    //! constructed rather than provoked, because attribution is key
+    //! algebra over what was minted and nothing here depends on the
+    //! geometry those keys describe. What that CANNOT show is that the
+    //! kernel ever produces a given finding for a given configuration
+    //! — those are the arguments at the arms, and the two that carry
+    //! weight (a declared pair never reaches the cross-solid backstop;
+    //! `mint` makes `PatchContact` and nothing else) are properties of
+    //! `topo::census` and [`mint`], not of this module.
+
+    use geom_core::predicate::{Band, MarginDiag};
+    use topo::{EntityId, StaleDeclaration, ValidationError};
+
+    use super::{Attribution, FaceKey, MintedDeclaration, attribute};
+    use crate::mate::ContactClass;
+    use crate::names::{EntityKind, RoleSeg, StableName};
+    use crate::node::RecipeNodeId;
+
+    /// A body with three unrelated faces, and one declaration over the
+    /// first two — the shape every row below asks a question against:
+    /// a finding about the declared pair, about the odd face, or about
+    /// neither.
+    fn fixture() -> (
+        Vec<MintedDeclaration>,
+        FaceKey,
+        FaceKey,
+        FaceKey,
+        topo::VertexKey,
+    ) {
+        let mut body = topo::Body::<f64>::new();
+        let mut mint_face = || {
+            let created = body
+                .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0))
+                .expect("mvfs births a solid, shell, face and lone vertex");
+            (created.face, created.vertex)
+        };
+        let (a, _) = mint_face();
+        let (b, _) = mint_face();
+        let (odd, vertex) = mint_face();
+        let name = |kind| StableName {
+            kind,
+            node: RecipeNodeId(1),
+            path: vec![RoleSeg::OutputBody],
+        };
+        let minted = vec![MintedDeclaration {
+            mate: RecipeNodeId(7),
+            a: name(EntityKind::Face),
+            b: name(EntityKind::Face),
+            class: ContactClass::Rest,
+            faces: (a, b),
+        }];
+        (minted, a, b, odd, vertex)
+    }
+
+    fn escalation() -> geom_core::Indeterminate {
+        geom_core::Indeterminate {
+            margin: MarginDiag::Value(0.0),
+            band: Band::linear().expect("the ambient tolerance builds a band"),
+            predicate: None,
+        }
+    }
+
+    /// The declared direction: a face the census inventory cannot
+    /// certify is a DECLINE, which is the only relation that can reach
+    /// [`AssemblyError::Uncertified`].
+    #[test]
+    fn an_unsupported_declared_face_declines() {
+        let (minted, a, _, odd, _) = fixture();
+        let unsupported = |f: FaceKey| ValidationError::CensusUnsupported {
+            entity: EntityId::Face(f),
+        };
+        assert!(matches!(
+            attribute(&unsupported(a), &minted),
+            Attribution::Declined(m) if m.faces == minted[0].faces
+        ));
+        assert_eq!(
+            attribute(&unsupported(odd), &minted),
+            Attribution::Unattributed,
+            "a face no mate declared is nobody's decline"
+        );
+    }
+
+    /// The same refusal on a NON-face entity names no declaration:
+    /// `mint` mints face pairs, so its live case — the curve-record
+    /// confirm pass, which names its witness edge — is a record a PART
+    /// carried, not one this document minted.
+    #[test]
+    fn an_unsupported_non_face_entity_is_unattributed() {
+        let (minted, _, _, _, vertex) = fixture();
+        assert_eq!(
+            attribute(
+                &ValidationError::CensusUnsupported {
+                    entity: EntityId::Vertex(vertex),
+                },
+                &minted
+            ),
+            Attribution::Unattributed
+        );
+    }
+
+    /// **The dangerous direction, pinned.** A stale face-pair
+    /// declaration is a REFUTED declaration; labelled `Declined` it
+    /// would be promoted into [`AssemblyError::Uncertified`] and
+    /// reported as an unrefuted frontier. Unreachable through
+    /// [`assemble`] today, which is exactly why the label is asserted
+    /// here.
+    #[test]
+    fn a_stale_face_pair_declaration_is_refuted_in_either_order() {
+        let (minted, a, b, ..) = fixture();
+        for (face_a, face_b) in [(a, b), (b, a)] {
+            assert!(matches!(
+                attribute(
+                    &ValidationError::StaleContactDeclaration {
+                        declaration: StaleDeclaration::Patch { face_a, face_b },
+                    },
+                    &minted
+                ),
+                Attribution::Refuted(m) if m.mate == RecipeNodeId(7)
+            ));
+        }
+    }
+
+    /// A VERTEX-granular stale record is not the face-pair
+    /// declaration's business, even when it names one of its faces:
+    /// attribution is by the record the finding names, and sharing a
+    /// face is not being named.
+    #[test]
+    fn a_vertex_granular_stale_record_is_not_the_pairs_refutation() {
+        let (minted, a, _, _, vertex) = fixture();
+        assert_eq!(
+            attribute(
+                &ValidationError::StaleContactDeclaration {
+                    declaration: StaleDeclaration::VertexOnFace { vertex, face: a },
+                },
+                &minted
+            ),
+            Attribution::Unattributed
+        );
+    }
+
+    /// An escalation is indeterminate geometry at rest — a refusal,
+    /// never the census declining a lane. It carries no entity, so
+    /// there is nothing to attribute either way.
+    #[test]
+    fn an_escalated_census_predicate_is_unattributed() {
+        let (minted, ..) = fixture();
+        assert_eq!(
+            attribute(
+                &ValidationError::CensusEscalated {
+                    cause: escalation()
+                },
+                &minted
+            ),
+            Attribution::Unattributed
+        );
+    }
+
+    /// **The pair the census could not clear is not a decline.** The
+    /// cross-solid backstop defers on a pair the records declare, so
+    /// this configuration does not arise; the row pins what the
+    /// classifier would say if it did, because `Declined` here would
+    /// report a pair the census could not even examine as an unrefuted
+    /// frontier.
+    #[test]
+    fn an_undecidable_pair_is_unattributed_even_when_declared() {
+        let (minted, a, b, ..) = fixture();
+        assert_eq!(
+            attribute(
+                &ValidationError::CensusUndecidable {
+                    a: EntityId::Face(a),
+                    b: EntityId::Face(b),
+                    what: "a class the census cannot examine",
+                },
+                &minted
+            ),
+            Attribution::Unattributed
+        );
+    }
+
+    /// A finding about the body's own geometry is not a verdict on any
+    /// declaration, however many of its faces the declaration names.
+    #[test]
+    fn a_structural_finding_on_a_declared_face_is_unattributed() {
+        let (minted, a, ..) = fixture();
+        assert_eq!(
+            attribute(&ValidationError::UncertifiableSurface { face: a }, &minted),
+            Attribution::Unattributed
+        );
+    }
+}
