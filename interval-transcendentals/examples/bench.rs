@@ -1,6 +1,21 @@
 //! Informational microbenchmark: this crate vs inari(+MPFR) on the
-//! inventoried entry points. Run: `cargo run --release --example bench`.
-//! (Example, not criterion: the numbers are evidence, not science.)
+//! inventoried entry points. (Example, not criterion: the numbers are
+//! evidence, not science.)
+//!
+//! It compares against the oracle, so it needs the oracle — and the
+//! oracle needs inari's AVX+FMA floor:
+//!
+//! ```text
+//! RUSTFLAGS="-C target-cpu=x86-64-v3" \
+//!   cargo run --release --features oracle-inari --example bench
+//! ```
+//!
+//! `Cargo.toml` gives this target `required-features = ["oracle-inari"]`,
+//! which is what keeps the oracle's C build out of the default
+//! `cargo test` graph. It also means the featureless spellings do not
+//! run it: `cargo run --example bench` REFUSES ("requires the features:
+//! `oracle-inari`") and `cargo build --examples` matches no target at
+//! all. Both are loud; neither is this line's job to hide.
 
 use std::hint::black_box;
 use std::time::Instant;

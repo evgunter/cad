@@ -47,7 +47,10 @@ any other.
 Our pole test for `tan` (and extremum tests for sin/cos) is an
 outward-rounded grid test: it can say "possibly a pole" for a pole-free
 interval that comes within ~|x|·2^-52 of a pole, and for ALL intervals
-with |x| ≳ 4·10^15. Consequences: `tan` may return Entire/`Trv` where
+with |x| ≳ 2^52 ≈ 4·10^15 (and loses it on SOME inputs from about
+|x| ≈ 2^32 — see `consts::grid_possibly_hits`, which records both
+thresholds and why the earlier one is the load-bearing
+one). Consequences: `tan` may return Entire/`Trv` where
 inari proves `Com` and a finite range; sin/cos may include ±1 where
 inari's bound is fractionally smaller. Direction: more poison / more
 width — sound by the escalate-never-guess policy. inari, with MPFR
@@ -91,10 +94,11 @@ domain-violation history, and hulling two enclosures whose histories
 are clean produces an enclosure whose history is clean — `min(dec)`
 can never exceed either input, so no poison is laundered; what it
 does is let clean values stay clean through hull-shaped code paths
-(e.g. a future `copysign`-style tangent hull) instead of poisoning
-them structurally. This over-asserts relative to strict 1788
-decoration semantics (which would say `Trv`), it is the single such
-place, and consumers wanting 1788-strict behavior can call
+(the `copysign`-style tangent hull in
+`crates/geom-core/src/interval.rs` is that path) instead of poisoning
+them structurally. This over-asserts
+relative to strict 1788 decoration semantics (which would say `Trv`), it
+is the single such place, and consumers wanting 1788-strict behavior can call
 `intersection`-style code or drop the decoration themselves. Flagged
 by adversarial review (it was undocumented — a process violation of
 this file's "complete list" claim, now corrected); behavior kept,
