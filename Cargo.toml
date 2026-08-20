@@ -113,8 +113,8 @@ sha2 = "0.10.9"
 # dev-dependency, far past the 2-week age policy.
 getrandom = "0.3.4"
 # DEV-ONLY STEP parse-back oracles for step-export's tests (F6 decision,
-# docs/M4-LOG.md 2026-07-23: in-house subset writer, adopt nothing at
-# runtime; these two crates are test oracles only). ruststep gives
+# 2026-07-23: in-house subset writer, adopt nothing at runtime; these
+# two crates are test oracles only). ruststep gives
 # syntactic Part 21 parse-back; truck-stepio's `in::Table` gives an
 # independent semantic reconstruction (topology counts). Both Apache-2.0,
 # both released 2024-09-20 — far past the 2-week age policy. ruststep is

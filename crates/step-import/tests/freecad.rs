@@ -1,7 +1,7 @@
 //! **M7-2 acceptance: the FreeCAD-authored foreign corpus** — the
 //! first geometry this kernel adopts that it did not write.
 //!
-//! Rows 1, 2, 4, 5, 6 and 7 of `docs/M7-2-SPEC.md` §2 live here (row 3,
+//! Rows 1, 2, 4, 5, 6 and 7 of M7-2's acceptance list live here (row 3,
 //! the own-corpus regression, is the M7-1 suites staying green in
 //! `roundtrip.rs` / `parser.rs` / `review_probes.rs`; the three refusals
 //! M7-2 is defined to retire flip there, named).

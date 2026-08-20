@@ -1,7 +1,7 @@
 //! The **C9 interval ring**: a small, MIT-clean, always-compiled
 //! enclosure type with `±`, `×`, `÷` and integer powers, and nothing
 //! else. This is the arithmetic every M5 fitted-cache certification
-//! stands on (`docs/CURVED-DESIGN.md` C9, C2.2; `docs/M5-PR2-SPEC.md`).
+//! stands on (`docs/CURVED-DESIGN.md` C9, C2.2).
 //!
 //! # Two interval roles, deliberately distinct
 //!

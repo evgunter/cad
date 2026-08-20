@@ -348,8 +348,7 @@ pub enum EdgeGeometry<T: Real> {
     },
     /// Conventional: the `u = const` **iso-parameter curve** of a
     /// parametric surface — the loft/sweep assembly's wall–wall seam
-    /// class (M6-3; the executed design of `docs/M5-LOG.md` PR 9c
-    /// item 6(iii)).
+    /// class (M6-3).
     ///
     /// Why this is its own variant and not an
     /// [`EdgeGeometry::Intersection`]: a definitional wall junction's
