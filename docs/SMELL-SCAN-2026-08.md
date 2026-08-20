@@ -1662,86 +1662,54 @@ Per §C3, a note in a prose register is not a deferral but a forgetting on a
 schedule — so the deleting PR must cite the commit SHA the code is recoverable
 from, not merely say "see history".
 
-## S12. Euler atomicity is enforced by convention: every write silently no-ops on a missed precondition
+## S12. FIXED by #706 — the release-profile run the suite instructed and CI never did
 
-- **Where**: `crates/topo/src/euler.rs:1940`,
-  `crates/topo/src/euler.rs:1350`, `crates/topo/src/euler_ring.rs:1300`,
-  `crates/topo/src/euler_kill.rs:800`
-- **Confidence**: likely
+- **Where**: `crates/topo/src/review_m1_pr2/release_corruption.rs`,
+  `.github/workflows/ci.yml`
+- **Confidence**: likely — **headline overturned by the steelman**
 
-Atomicity is the operators' headline contract — "preconditions fully
-resolve before an infallible mutation phase" — but the mutation phase is
-~60 `if let Some(x) = self.get_*_mut(k)` blocks across three files, each
-of which *discards* the failure it was supposed to have proved
-impossible. `link_half_edges` is the clearest case: it writes
-`next`/`prev` through two fallible lookups and ignores both, with a
-comment asserting "the lookups cannot fail on the operator paths".
+**Only part of this finding was implementable, and it is not the part the
+finding led with.** #706's body carries the full argument.
 
-Nothing structural distinguishes a validated key from an unvalidated
-one, so a missed precondition produces a half-spliced body rather than
-an error — and in release builds, with no postcondition, silent
-corruption. The plan structs already carry pre-resolved data, so the
-type system has the material to make this a proof; it is instead prose.
+*What the steelman overturned.* The headline — "in release builds, with no
+postcondition, silent corruption" — was wrong on both clauses.
+`assert_euler_postcondition` (`euler.rs:1975`) runs the arena-delta check
+**and full tier-1 `validate`** after every successful operator under
+`cfg(debug_assertions)`, which the root manifest keeps on in dev, so the test
+suite and CI do detect a half-spliced body. And the release disposition is not
+convention but **ratified and deliberately tested**: D9's documented-garbage-out
+footnote, `euler.rs:47`, and the adversarial suite `release_corruption.rs`,
+whose header reads *"typed errors or garbage bodies — never a panic, never a
+hang."* The census stands (58 discarding sites; `link_half_edges` exactly as
+described), and **S43** carries the larger question this turned out to be part
+of.
 
-**Verdict:** ACCEPTED (Evan, 2026-08-18), and identified as one half of a
-larger unresolved question: "the Euler atomicity thing also sounds like
-it's hitting the tension here" — the tension being S14's question of what
-the no-panic principle actually says. Steelman pass commissioned jointly
-with S14; it also asks whether the plan structs could carry
-proof-carrying resolved handles so the mutation phase cannot fail.
-**Steelman (2026-08-18): SURVIVES IN PART — right on the census, wrong
-on the enforcement, and the residue is real. See S43 for the larger
-question this turned out to be part of.**
+*What is Evan's, not a lane's.* Making the write helpers unable to silently do
+nothing — a sticky corruption flag that `validate` and every public entry
+refuse on, converting silent release corruption into a typed refusal at the
+next public call, for one branch per write. The steelman's own closing sentence
+is that whether that is worth paying is a **D9 question**. It sits in *Open
+decisions — Evan only*, alongside S14's reframe, which is the same question
+about the same principle. #706 does not touch `euler.rs`, and does not propose
+an implementation.
 
-*Right on the census:* 58 discarding sites (`euler.rs` 20,
-`euler_ring.rs` 20, `euler_kill.rs` 18), and `link_half_edges` is
-exactly as described.
-
-*Wrong on "in release builds, with no postcondition".*
-`assert_euler_postcondition` (`euler.rs:1975`) runs the arena-delta
-check **and full tier-1 `validate`** after every successful operator
-under `cfg(debug_assertions)`, which the root `Cargo.toml` keeps on by
-default in dev. A half-spliced loop is precisely what tier-1 validate
-catches, so the whole test suite and CI do detect it.
-
-*Wrong on "by convention".* The release disposition is **ratified and
-deliberately tested**: D9's footnote ("documented garbage-out in
-release"), `euler.rs:47`, and a dedicated adversarial suite
-`crates/topo/src/review_m1_pr2/release_corruption.rs` whose header
-reads *"typed errors or garbage bodies — never a panic, never a hang."*
-
-*What genuinely survives, sharper than written.* The ratified
-garbage-out contract is scoped to **corrupt in-crate input** — a body
-already tier-1-invalid on arrival. The 58 discards also cover the other
-case: a **valid** body plus a defect in the operator's own plan phase.
-D9 says nothing about that case, because its footnote asserts it cannot
-occur. So what is actually held by convention is the claim that the plan
-phase resolves everything the mutation phase touches — and
-`link_half_edges`' comment *is* that claim, in prose. Exactly as
-unenforced as `Span`'s pairing, which is why the instinct that S12 and
-S14 are one question is right.
-
-*Two supporting facts.* The direction contradicts the repo's own most
-recent argued position — PR #447's merged body: indexing *"panics where
-a `zip` silently drops control points. **That is the fail-loud
-direction**"* — and `euler.rs` takes the silently-drops side 58 times.
-And `release_corruption.rs` instructs *"Run this under BOTH profiles"*;
-**CI does not** — the only `--release` test invocation in `ci.yml` is
-the `oracle-inari` lane.
-
-*What blocks constructive validity:* not slotmap
-(`get_disjoint_mut` still returns `Option` — it relocates the discard).
-The real blocker is that the mutation phase **mutates the same arenas
-between its own writes** (`mev_fan_execute` interleaves mints with
-splices; `euler_kill` removes from six arenas mid-phase), so any
-pre-resolved `&mut` is invalidated by the next mint and any pre-resolved
-key is what the plan structs already carry. Key liveness across the
-phase's own operations is not a type fact under slotmap's `&mut self`
-insertion API. What is *not* blocked: making the write helpers unable to
-silently do nothing — e.g. a sticky corruption flag that `validate` and
-every public entry refuse on, converting silent release corruption into
-a typed refusal at the next public call, for one branch per write.
-Whether that is worth paying is a D9 question — which is the point.
+*What was fixed.* The gap underneath both: `release_corruption.rs` instructed
+*"Run this under BOTH profiles"* and **CI ran one** — the only `cargo test
+--release` in `ci.yml` was the `oracle-inari` lane, and unlike the file's other
+profile choices (`:1165`, `:1210`) this one was an instruction with no
+mechanism, the §C14/Q6 shape. #706 adds the job `corrupt input (release
+profile)`: `-p topo --lib` filtered to the suite, gated on topo being in the
+change closure, and the header now names that job instead of instructing a
+reader to be the mechanism. **Correcting the instruction instead would have
+been the wrong outcome** — two of the six rows are not profile-independent.
+`foreign_parent_loop_garbage_in_garbage_out_release` is
+`#[cfg(not(debug_assertions))]` and is the only executable check of the
+ratified garbage-out contract, so off a release job it was neither run nor even
+*compiled* anywhere (clippy is a debug pass too); and
+`large_torn_body_terminates_quickly` attacks 3000 struts in release against 500
+under debug-assertions. The run step also asserts its own selection is
+non-empty, because a `cargo test` name filter that matches nothing exits 0 —
+the same silence, one level up.
 
 ## S13. Load-bearing invariants held by CI grep, allowlists, and a magic count
 
@@ -5279,7 +5247,6 @@ scheduled.
 | **D3** | **S18's negative-zero flush ×3 — one home.** `geometry::plus_zero`/`plus_zero_point` are already `pub(crate)` and already reachable from both later sites; `recognize.rs` and `recognize_curve.rs` each carry a private `flush_zero`/`flush_zero_point` pair and a third and fourth copy of the same doc argument. The scan called this *the cheapest one to have caught*. | U4 (row) | `step-import/src/{geometry,recognize,recognize_curve}.rs` | style | nothing |
 | **D4** | **U2 — S8, S9 and S10: the sort, executed as truth.** All three steelmen landed on *keep*, so the work is making the prose say what the sort found. S8: `pcurve_cache.rs:1242` blames an `Arc` for a `Copy` cost that `IsoArc` has carried since M8-3 — stale, and it is the sentence the finding was built on; the frontier and its three named consumers get stated, and the mint-side general-circle wiring gets a row in the #250 register it is currently absent from. S9: `pcurves.rs:1028`'s *"where this limb has teeth"* is false and postdates the code that falsifies it — the limb is a precondition on a public door, vacuous on every in-tree caller, and should say so. S10: the mechanism is doubly ratified doctrine and stays; the **ledger** has drifted and v12 has no entry. | U2 | `geom-brep/src/pcurve_cache.rs`, `topo/src/pcurves.rs`, `editor-core/src/persist/mod.rs` | style | nothing |
 | **D5** | **U6 — S15's stale-prose and accretion rows.** The steelman sorted nine rows into three dispositions; three need nothing. What is left: `iso.rs:56`'s stale "Placeholder ballast" sentence in front of a still-correct decision; `pcurves.rs:91`'s staleness index, which lists `merge_coplanar_faces` among the ops that neither clear nor re-mint and has been false since 2026-08-05; the frozen count of **eleven** public mutation paths, now ≥ sixteen, stale in four places (`euler.rs:47`, `seqgen.rs:15`, `seqgen.rs:96`, `DESIGN.md:1110`) with `split_edge` carrying `mev`'s Euler vector and never entering the fuzz lane; and `emit_fillet.rs:216`'s *"Faces are never retired"* — **check this one first: B1 retired the door the comment was false for, so it may now be true, in which case the row closes as a note rather than a fix.** | U6 | `topo/src/{iso.rs,euler.rs,seqgen.rs}`, `editor-core/src/names/emit_fillet.rs`, `DESIGN.md` | style, **plus ADVERSARIAL on the `seqgen` half** — adding `split_edge` to a randomised fuzz lane over cases `split.rs:94` calls delicate is the one part of the row that can find a real defect, and the one that can burn CI time on a bad schedule. | nothing |
-| **D6** | **U5 — S12's executable residue.** The finding's headline was overturned (`assert_euler_postcondition` runs full tier-1 validate after every operator under `debug_assertions`), and what remains of it is a **D9 question** — whether the write helpers should be unable to silently do nothing — which is Evan's, not this track's, and is filed above. What is executable now is the gap the steelman found underneath it: `review_m1_pr2/release_corruption.rs` instructs *"Run this under BOTH profiles"* and **CI runs it under one**. The only `cargo test --release` in `ci.yml` is the `oracle-inari` lane (`:1061`), verified on today's main. The unit adds the release run, or states at the instruction why it cannot have one — and measures what it costs before claiming either. | U5 | `.github/workflows/ci.yml`, `topo/src/review_m1_pr2/release_corruption.rs` | style | nothing |
 | **D7** | **U1 / D4 — the three decided deletions.** Decided by Evan 2026-08-19 and unexecuted. Each row owes a provenance note next to the thread that produced it (`PairSolve` → **#611**; the two fillet helpers → **#319**/**#554**; `Mat2`/`Affine2` → the deleting PR body, cross-referenced from **#614**), and the deleting PR must cite the **commit SHA** the code is recoverable from. `trimline_description`'s doc is the only place D7's prefer-intrinsic obligation is *named*: that sentence migrates, it does not die. | U1 | `geom-core/src/linalg/{mat,affine}.rs`, `editor-core/src/mate{.rs,/solve.rs}`, `sweep/src/fillet/{blend,battery}.rs` | style | **split by row.** `Mat2`/`Affine2` is free now. `PairSolve` waits on **#702**, which is editing `mate.rs`, `mate/solve.rs` and the `lib.rs` re-export block it lives in. The fillet helpers wait on **D2**. Evan placed the whole row *"back of the queue, but ahead of W3b"*, and its rationale — noise to lanes reading the same files — is what these two gates discharge. |
 | **D8** | **U4's remainder — the knot-vector queries.** `KnotVector` offers `multiplicity_of(u)`, which requires you to already know `u`; every consumer that needs *the list* of distinct interior knots hand-writes the same scan, four times (`compose.rs:274`, `algebra.rs:563`, `geom-curves/fit.rs:378`, `sweep/skin.rs:370`). Beside it, knot insertion exists twice in one module, one of them re-deriving the span with a linear scan where `find_span`'s binary search is one module away. The scan's own lesson: *a data structure whose API was frozen one PR before its first consumer is the tell.* | U4 (rows) | `geom-core/src/spline/{compose,algebra}.rs`, `geom-curves/src/fit.rs`, `sweep/src/skin.rs` | **ADVERSARIAL** — it adds to a certified type's API and replaces a linear scan with a binary search inside knot arithmetic, where an off-by-one is a wrong curve rather than a compile error. | nothing (but it edits `sweep/src/skin.rs`, so sequence it against D1/D2 within this track) |
 | **D9** | **U3 — S17's ray-parity twins.** `chart_region::point_in_polygon` is a line-for-line port of `splitting::containment::point_in_loop`, self-declared as one in its own doc. `profile::validate::point_in_loop` is a third and is **not** in scope: `topo` does not depend on `profile` and never has, so that copy is DAG-forced and the unit's job is to say so as a negative result rather than to close it. Both topo copies also reuse one predicate name for two different questions (`point_in_loop_boundary` decides both the degeneracy gate and the point-to-segment distance) — the drift `splitting/rules.rs:117` mints a distinct name to avoid. | U3 | `topo/src/{chart_region.rs,splitting/containment.rs}` and the shared home | **ADVERSARIAL** — the K-ledger convention makes new predicate names new K rows, so a unification *removes* rows, and the margins it merges were metered separately. This is also S15's byte-identical-ray-schedule row, whose determinism claim nothing checks. | **#690** (Track B's B4), which is editing `splitting/mod.rs`, `solid_contain.rs` and `topo/src/lib.rs` |
@@ -5314,7 +5281,7 @@ Where each went:
 | **U2** — S8, S9, S10 | **D4** — the sort landed in the steelmen on 2026-08-18; what is left is truthing the prose it contradicts |
 | **U3** — S17's ray-parity twins | **D9**, behind #690 |
 | **U4** — S18's duplicated derivations | **D3** (the negative-zero flush) and **D8** (the knot-vector queries); the `step-export/volume.rs` row goes to **C3**, because closing it needs a per-shell door in `props/` |
-| **U5** — S12's Euler atomicity | **D6** for the executable residue (the release profile CI never runs); the rest is a D9 question, now in *Open decisions* |
+| **U5** — S12's Euler atomicity | Executable residue **fixed by #706** (the release-profile run the suite instructed and `ci.yml` never did); the rest is a D9 question, in *Open decisions* |
 | **U6** — S15's prose-held invariants | **D5** |
 | **U7** — S14's proposed reframe | ***Open decisions — Evan only***. It was the one row here that was a decision rather than work, and the one with no channel at all. |
 | **U8** — S44's open residue | **C7**, with the rest of the lane-trait question |
