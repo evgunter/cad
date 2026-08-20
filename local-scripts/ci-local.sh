@@ -190,7 +190,16 @@ run_row_if() {
 # does — a guard that has never been shown to fire is not a guard.
 discipline() {
   local rc=0 g
-  echo "gates: skipped"
+  for g in scripts/gates/*.sh; do
+    [ "$(basename "$g")" = lib.sh ] && continue
+    if [ ! -x "$g" ]; then
+      echo "ERROR: $g is not executable — a gate in scripts/gates/ that no half can run is registered nowhere" >&2
+      rc=1
+      continue
+    fi
+    "$g" --selftest || rc=1
+    "$g" || rc=1
+  done
   # The k-probe sweep's `run_dump` guards, proved against a stub cargo —
   # milliseconds, no build.
   # HOSTED MIRROR: discipline / k-probe sweep guard selftest (run_dump)
