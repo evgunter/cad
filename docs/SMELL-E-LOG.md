@@ -280,9 +280,18 @@ constituted.**
 | D40–D41 | E-a (D22 + D34) | reserved 2026-08-20 |
 | D42–D43 | E-f (D25) | **returned unused** — the unit's two findings were corrections recorded at their own entries, and neither leaves work behind |
 | D44–D45 | E-b (D23) | reserved 2026-08-20 |
+| D47–D48 | E-c's fix pass (#752) | assigned 2026-08-20 — the `pncad-py` `Debug`-dump class and its unguarded rule; `select_refusal_tag`'s vacuous alarm |
 | D46 | E-d (D33) | reserved 2026-08-20 |
 
-Next unassigned: **D47**; D42 and D43 are back in the pool.
+Next unassigned: **D49**; D42 and D43 are back in the pool and deliberately not
+re-issued — a number that has appeared in a lane's report, even as *unused*, is
+cheaper to skip than to explain.
+
+**D36–D39 were assigned by the orchestrator**, in E-c's dispatch, not minted by
+the lane. #752's style review could not tell from outside and asked; recording
+it here is the answer, and the fact that it was not visible from the PR is
+itself worth knowing — a lane that follows the rule should be able to *show*
+that it did.
 
 **D36–D39 are placed and unstaffed**, and they are Track E's to schedule.
 E-c's report says D37(a) and D39 want **one** lane, not two: both need a
@@ -301,7 +310,7 @@ serialized here and each lane re-merges `origin/main` when one lands.
 
 | lane | row(s) | branch | PR | state |
 |---|---|---|---|---|
-| **E-c** | D26 | `smelle/d26` | **#752** | reported, CI green on the merged head; **style review running**. Merge first once cleared — it is doc-heavy and every other lane edits the same file |
+| **E-c** | D26 | `smelle/d26` | **#752** | **CLEARED**; fix pass running (8 findings, 2 → rows D47/D48). Merges first |
 | **E-a** | D22 + D34 | `smelle/d22-d34` | — | implementing |
 | **E-f** | D25 | `smelle/d25` | **#755** | reported, 23 checks started on the merge head; **both reviewers running**. One doc correction requested and in flight |
 | **E-b** | D23 | `smelle/d23` | — | dispatched. **Fenced off `scripts/gates/probe-suite-census.sh` and `ci.yml`** while E-a holds them |
@@ -315,7 +324,42 @@ Track C confirmation. E-i, E-l, E-m are wave 2; E-n is last.
 
 ## Reviews
 
-*(none yet)*
+### #752 (E-c / D26) — style lane, 2026-08-20: **CLEARED**, fix pass running
+
+All seven claims held. The two questions this track adds both came back
+positive, and the second is the one worth recording: **D36–D39 do not reproduce
+the defect they close.** Each carries a deliverable, a closing condition, a
+scope and a named constraint the taker hits first; D36 names its *decision*
+rather than its edit; D37 and D39 each admit a written scope verdict as a pass.
+None reads as *"someone should look at this"*, which is what D26 exists to stop.
+The `tags.rs` refutation was judged the **best** available answer rather than a
+compiling one, and its residue was preserved rather than dissolved.
+
+**Eight style findings, and the shape they share is the review's real result.**
+Three of the eight are *the finding recurring inside its own fix*:
+
+- **A gate inherited as prose and re-published as verified.** D37's gate on D28
+  said the payload is discarded *before any tag is computed*, so nothing in
+  `tags.rs` can recover it. `node_error_tag` takes `&NodeErrorKind` — the typed
+  value — and `Display` renders at a different call site. The sentence came
+  verbatim from D28's row, and the PR presented repeating it as *"the
+  re-derivation confirms it from the other side"*. **A restatement is not a
+  check**, and this is the one thing a re-derivation lane was specifically there
+  to catch.
+- **A stated negative result that was false.** The lane declared it had checked
+  for closure factories bound to another name and found none; `pcurve_cache.rs`
+  has two, one of them fifteen lines from the sibling D36's whole asymmetry
+  argument rests on, with eight call sites. It cost D36 a count.
+- **Citations pointing at the enclosing construct** — in the PR whose deliverable
+  was correcting exactly that defect in S19.
+
+Two findings became rows (**D47**, **D48**); the rest are fixes in place.
+
+*Generalisable:* **the class to watch is a claim that travels between documents
+without being re-derived at each stop.** All three above are one mechanism —
+prose is cheap to move and expensive to check, so it moves. §D's own rows are
+now a place this happens, which is new: the register was built to stop findings
+being lost, and it can lose their *accuracy* instead.
 
 ---
 
