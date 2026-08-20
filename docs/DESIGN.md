@@ -1200,7 +1200,7 @@ NaN on every poison path is the pattern.
 *Rows 4 and 5 split on **re-derivation**, not on cost.* `unreachable!`
 is for an invariant the code can simply *observe* — the ~60
 `if let Some` sites whose own comment already reads "the lookups cannot
-fail" (`euler.rs:950`). `debug_assert` is for a check that *re-derives*
+fail" (`euler.rs:992`). `debug_assert` is for a check that *re-derives*
 the invariant: `assert_euler_postcondition` runs arena deltas plus a
 full tier-1 validate, O(body). Cost correlates, but re-derivation is
 the line that does not wobble.
@@ -1223,21 +1223,45 @@ sanctioned deviation is `unsafe_code` — so the two move together).
 `panic`, `todo` and `unimplemented` stay banned.
 
 *Conversion work this licenses.* Opening the lint permitted the work;
-it did not perform it. The `crates/topo` half is **done** (W2c, PR
-#720): the discards across `euler.rs` / `euler_ring.rs` /
-`euler_kill.rs` re-derived to **58** sites, of which 56 became row 4
-with a per-site not-input-reachable proof and 2 became row-1 typed
-errors. **No site was row 5** — rows 4/5 split on re-derivation, and a
-failed key lookup is observed rather than re-derived. Two discards
-remain, both in `link_half_edges`, because two of its callers pass a
-`prev` read out of the arena that nothing proves (`split_edge`, and
-`kef` — whose cycle walk steps `next`); converting there would make a
-documented garbage-out into a panic, which this addendum's headline
-forbids. Those two call sites are `SMELL-SCAN-2026-08.md`'s **D18**.
+it did not perform it. **W2c is done**, and W2c is narrower than
+`crates/topo`: what is discharged is the **three-module census** — the
+Euler surgery modules `euler.rs` / `euler_ring.rs` / `euler_kill.rs`,
+which now discard nothing — not the crate. The
+census re-derived to **58** sites and **all 58 are now row 4**: 56
+converted in PR #720, each carrying its own per-site
+not-input-reachable proof, and the last 2 — the shared write helper
+`link_half_edges`' — once its two unproven callers gained the missing
+plan-phase link check (`split_edge`'s `prev(he_minus)` and `kef`'s `prev(he)`;
+each operator already proved the symmetric `next`). **The `kfmrh` pair
+is not a third bucket**: two of the 56 became provable only because
+that operator's plan phase gained *new* row-1 `StaleKey` checks on
+`s2_data.faces` / `s2_data.solid` — those checks are added
+preconditions, not discard sites converting to row 1, and the two
+discards they license are among the 56. **Those last two
+arms carry a precondition rather than a per-site proof, and cannot
+carry one**: a shared helper does not know its caller, so the proof
+lives at each call site and the arm is `#[track_caller]` so a panic
+reports which one. Retiring that asymmetry — a `Live` key type that
+makes the discharge structural — is `SMELL-SCAN-2026-08.md`'s **D25**. **No site was row
+5** — rows 4/5 split on re-derivation, and a failed key lookup is
+observed rather than re-derived. The standard the conversion holds to,
+and the reason it survives a corrupt body: **every converted key is
+minted in the same call or proven live by a check in the same call,
+never by the body's tier-1 validity** — which is a whole-body property
+no single call establishes, and which would have been falsified across
+roughly half the sites.
 
-*Still outstanding:* idiom 2's `MissingEntity` router defects, and
-`AssemblyUnsupported`'s rename to `Unsupported*` — both outside
-`crates/topo`.
+*Still outstanding:* **discard sites elsewhere in `crates/topo`**,
+which the three-module census never counted and this addendum has
+never covered. A sweep finds **at least 14** — `split_edge`,
+`attach.rs`, `movefac.rs`, `revert.rs`, `splitting/finish.rs`,
+`boolean/combine.rs` — and that is a **floor from one spelling of the
+idiom**, not a census: successive sweeps have each found sites the
+previous pattern could not match (let-chains, field-access lookups).
+**Re-sweep rather than re-count** (`SMELL-SCAN-2026-08.md`'s **D21**,
+which carries the spellings that escaped). And, outside `crates/topo`,
+idiom 2's `MissingEntity` router defects and `AssemblyUnsupported`'s
+rename to `Unsupported*`.
 
 **Replay with kills (M1, pinned in PRs #20/#23):** the determinism
 contract holds with destructive operators in the history. Identical
