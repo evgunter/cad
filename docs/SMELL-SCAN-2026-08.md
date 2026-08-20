@@ -3456,7 +3456,7 @@ in #547, #560, #579, the spec, or the memory.
 certify green; it says nothing about how much instrument the kernel should
 **contain**, so the compliance check quietly became the whole review.
 
-## S31. `geom-curves` / `geom-surfaces`: a crate split that buys nothing and is paid for in duplication
+## S31. FIXED by #705 — `geom-curves` / `geom-surfaces` was a crate split that bought nothing and was paid for in duplication
 
 - **Where**: `crates/geom-surfaces/src/lib.rs:12`,
   `crates/geom-curves/src/projection.rs:67`,
@@ -3464,25 +3464,103 @@ certify green; it says nothing about how much instrument the kernel should
 - **Confidence**: sure
 
 Identical manifests, identical module lists, and the only stated reason
-is a doc sentence ("This crate deliberately does not depend on
+was a doc sentence ("This crate deliberately does not depend on
 `geom-curves`") citing an M2-era file layout, not a dependency need. The
-four projection constants are declared twice with identical values under
+four projection constants were declared twice with identical values under
 a comment asserting "the two halves of §6.1 share one policy";
 `removal_pass_bound`, `poison_point`, `ring_coords`, `placeholder` and
-the weight/count validation are each written twice; the Newton loops and
-seeding sweeps are line-for-line analogues.
-
-The halves have already drifted in ways that look accidental rather than
-intended: `is_placeholder` exists only on `NurbsSurface` (used in ~15
-places downstream) while `NurbsCurve3` has no equivalent — which is why
-`step-export/src/writer.rs:329` open-codes the placeholder
-representation with `control().iter().all(|p| !p.x.is_finite())` in one
-arm of a `match` whose other arm calls the named predicate. And
+the weight/count validation were each written twice; the Newton loops and
+seeding sweeps are line-for-line analogues. The halves had also drifted:
+`is_placeholder` existed only on `NurbsSurface`, which is why
+`step-export/src/writer.rs:329` open-coded the placeholder representation
+in one arm of a `match` whose other arm called the named predicate; and
 `SurfaceProjection` was lifted to a generic scalar at M6-2 while
-`Projection3` is still `f64`-only.
+`Projection3` was still `f64`-only.
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
 baffle me with how they ever happened." Postmortem pass commissioned.
+
+**Ruling — Evan, 2026-08-20: merge the two crates.** The boundary
+question was put to him with both alternatives priced in shape (a shared
+home *below* the two, versus closing only the drifts and keeping the
+split) and he chose the merge.
+
+**Executed by #705**, in four separable steps: the mechanical merge, the
+two drifts, the deduplication the merge makes possible, then a prose
+sweep. The merged crate is **`geom`**, above `geom-core` and `bvh`;
+`curves` and `surfaces` are its two modules, with the collision-forced
+nesting `geom::{curves,surfaces}::{boxes,nurbs,projection}` and root
+re-exports for everything the two crate roots exported (no collisions).
+Eleven dependents plus both demo workspaces were rewritten. The test
+aggregation held: one `[[test]]` binary, suites grouped under
+`tests/curves/` and `tests/surfaces/`, and the
+`every_suite_file_is_aggregated` guard made **recursive** so grouping did
+not quietly make it vacuous — 16 members / 13 test targets, and the one
+lost `#[test]` of 225 is that guard's second copy. Feature forwarding
+collapsed to one crate with no widening: every `interval`/`probe` row on
+both sides expanded to `geom-core/<feature>` already.
+
+*The deduplication.* The four §6.1 constants became one declaration in a
+new `geom::projection` (values were byte-identical: 32, 8, 1e-13, 1e-12),
+which also holds the `mid` bracket-midpoint helper both halves now need;
+`SURFACE_PROJECT_*` had no consumer outside the two crates. A new private
+`geom::net` holds the rank- and dimension-blind control-net helpers, one
+each: `validate_counts` (the surface had hand-inlined a copy in its
+`new`), `poison_point`, `is_placeholder`, `ring_coords` (**three**
+copies) and `removal_pass_bound`. The Newton loops, the seeding sweeps,
+`placeholder()` and the span evaluators were **not** unified and the PR
+says why: they are analogues over different dimension, not copies, and
+the part that genuinely was one policy is the part now shared.
+
+*The drifts.* `NurbsCurve3::is_placeholder` now exists with the surface's
+discriminator and `all`-not-`any` contract, and `step-export`'s
+open-coded arm calls it. That is a **deliberate behaviour change**: the
+open-coded test was `!is_finite()`, the predicate is `is_poison()`, so an
+all-infinite control net now refuses as `NonFiniteReal` (corrupt
+*described* geometry) instead of masquerading as the benign placeholder —
+which is what the predicate's own docs already argued for, and what the
+surface arm already did. `Projection3`/`Projection2` were lifted to
+`T: Bounds` on the ratified f64-structure + T-lift pattern, matching
+`SurfaceProjection`; at `f64` it is bitwise the old code, and the
+surface's own Newton block diffs empty against main once the constant
+renames are applied.
+
+*The two crate-doc headers.* `DESIGN.md:369` names these as the
+authoritative text for a convention stated once, so every paragraph was
+diffed deliberately rather than concatenated. The text that was **shared**
+was hoisted to the crate root — units, entities-are-complete-loci,
+evaluators-never-range-reduce, the bit-identity policy for periodicity
+(verbatim; this is the paragraph `geom-surfaces` cited word-for-word),
+conventional-and-unchecked frame fields, totality and poison, and the
+evaluation-code discipline. The text that was **specific** stayed in its
+module: the curve side keeps its closed-enum rationale, per-kind
+parameter meanings, the edge-bounds-from-vertices consequence and the
+`he_plus` forward contract unchanged; the surface side keeps its
+reference frame, the `radial`/`tangential` helper, derived normals and
+the chart-singularity paragraph, all verbatim. Two paragraphs were
+deleted: `geom-surfaces`' closing "identical to `geom-curves`" section,
+which was 100% a pointer at the text now in the root, and the acyclicity
+sentence below.
+
+*The acyclicity claim was **deleted**, not moved* — it is a statement
+about a crate boundary that no longer exists, so any citation of it is
+now false. The project's invalidation discipline is symbol-scoped and no
+convention covers a *sentence*, so #705 grepped the prose and found three
+live citations. The load-bearing one was `sweep/src/skin.rs`, whose
+entire "placement in this crate" argument rested on it; the premise is
+void, the conclusion (constructions live in `sweep`) is not, and the
+paragraph was rewritten to stand on the surviving reason. The other two
+were placement rationales in `geom-surfaces`' and `profile`'s promoted
+review suites. `DESIGN.md:1132` still names `geom-curves` inside the
+ratified **D2 addendum's** rationale — left alone as outside #705's
+authorisation, and now a stale crate name in a ratified document.
+
+*Lesson:* the split was justified once, in prose, by a file layout — and
+the justification outlived the layout by four milestones while the
+duplication it licensed accumulated underneath it. Nothing in CI, review
+or the logs reads a crate-doc sentence, so the only thing that could have
+caught it was someone diffing two manifests.
+
 ## S32. `Surface`'s one-partial-per-call API created a second surface enum
 
 - **Where**: `crates/geom-surfaces/src/lib.rs:403`, `:460`,
@@ -5227,7 +5305,7 @@ and the width-1 build mutex, not dependency.**
 | **C1** | **H12–H15** — four lanes' own residues: the SSI sweeps' other never-silence doors (no acceptance row in either lane), `sweep_body`'s helix rows with no orientation coverage, #637's two jurisdiction residues, #635's unclassified siblings. | Each is small; together they are a lane. They are the clearest instance of ordering rule 3. |
 | **C2** | **H11, H16, H17** — #632's two residues; the STL header not being caller-settable while `StepOptions` carries `product_name`; and S37's rustdoc remainder, ~1115 lines across 130 files. | H17 is large and mechanical; H16 is a small asymmetry with a clear right answer. |
 | **C3** | **S27, S29, S30** — `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block; the sizing vocabulary fragmented across five modules with self-admitted magic constants; and ~1,050 lines of instrument in the mesh crate's hot loop. **S29 is NOT blocked on a design conversation — corrected 2026-08-19.** This row previously said its policy question was routed to `docs/TESS-SPLIT-SPEC.md` and PR #568. #684's review checked: both are scoped **entirely to the NURBS per-cell schedule** (`nurbs_cert`'s `grid_steps`, certified cells, the first fundamental form — TESS-SPLIT-SPEC's D-1 replaces the AM-GM grouping, with `leaf_a f2` as its poster child). **Nothing in either covers analytic-chart sizing**, so `curved::grid_steps` has no venue at all — and #684 has since added a sixth rule to it. S29's own lesson applies to that: *N well-defended deviations read as N decisions when they are one undecided question.* S27 touches `props/`, so it must follow **A2**; S29 and S30 are edge-free. |
-| **C4** | **S31, S32, S33** — the `geom-curves`/`geom-surfaces` split that buys nothing; `Surface`'s one-partial-per-call API, which is what created the shadow surface enum in SSI; and neither geometry enum being able to lift itself to another scalar. | **S33 is coloured by A1**: several of its ~14 hand-written ladders exist only to reach `Dual`, and what `Bounds for Dual` changes there is A1's report to give. |
+| **C4** | **S32, S33** — `Surface`'s one-partial-per-call API, which is what created the shadow surface enum in SSI; and neither geometry enum being able to lift itself to another scalar. (S31, the `geom-curves`/`geom-surfaces` split, was the third member and is FIXED by #705.) | **S32 is now additionally gated on #705's merge**: the enum and its NURBS payload are one crate's two modules, so a `SurfaceJet` door at the enum no longer crosses a crate boundary. **S33 is coloured by A1**: several of its ~14 hand-written ladders exist only to reach `Dual`, and what `Bounds for Dual` changes there is A1's report to give. |
 | **C5** | **S24, S26, S28's duplication half** — the assembly gate whose success arm is documented unreachable; the certified area enclosure that is never metered against anything (`area.width()` appears nowhere in the file); and the three tessellation lanes that remain three pipelines now that #648/#674 have settled their ordering and column questions. | S26 was explicitly deferred in writing by #472 — *"metering against `area.lo()` … deserves its own proposal with re-measured floors"* — so it is a proposal, not a patch. S28's duplication half must follow **A3**. |
 | **C6** | **W2f remainder / S4** — `ProgramStep`/`WireStep`, `SegTag`, and the "no usable value" core. | Each is blocked on something real: the first behind OnArc + RESPELL-TABLE and crossing the same files, the second needs the workspace's first proc-macro crate, the third by a persisted format. |
 | **C7** | **W2a / S3 and W2b / S1+S2** — the lane-trait collapse, and `RingInterval` versus an always-on `Interval`. | **Both wait on A1's report.** The steelman's compiled collapse for S3 **predates #643's `Bounds`/`CertifiedEnclosure` split** and must be re-derived against the two-trait world; W2b's blast radius is 535 refs in 15 files with five carrying 60%. **Two rows joined this one on 2026-08-20**, both from the unscheduled audit: **S44's open residue** — whether the four lane traits survive and whether D9's four bit-identity assertions may be re-expressed, which is what S44 means by *"open for the part that matters"* now that its priced half (D1) is ruled — and **S55**, `Enclosure` as a live trait with no consumer, which Evan deferred *pending the `Bounds` narrow-vs-broad split* and which is therefore this row's, not a lane of its own. Whoever takes C7 absorbs both. |
