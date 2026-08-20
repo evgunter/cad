@@ -262,7 +262,6 @@ fn assemble<T: Decide>(
     geometry: &LoftGeometry,
 ) -> Result<Lofted<T>, LoftError> {
     let band = Band::linear().map_err(LoftError::Band)?;
-    let k = sections.len();
     let (Some(sec_bottom), Some(sec_top), Some(place_bottom), Some(place_top)) = (
         sections.first(),
         sections.last(),
@@ -277,7 +276,6 @@ fn assemble<T: Decide>(
     let tplace: Affine3<T> = lift_affine(place_top);
     let n_bottom = bplace.linear.c2;
     let n_top = tplace.linear.c2;
-    let _ = k;
 
     // ---- Traversals and world points, both ends, per loop. ----
     let bloops: Vec<Vec<SweptSeg<T>>> = bottom_profile

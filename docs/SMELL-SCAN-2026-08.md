@@ -8033,40 +8033,95 @@ litmus — that is what a boxed constant looks like. Plausibly a class:
 
 **Verdict:**
 
-## S74. `swept.rs`'s new shared home states a reason for not unifying that is factually false, and the same commit deleted the duplication markers
+## S74. FIXED by #NNN — the swept-traversal builder has one home, and the class re-check ran over every *"deliberately NOT unified"* claim in the S6 record
 
-**[verified]** `crates/sweep/src/swept.rs:17` says the traversal builder
-stays out because *"extrude's has a reversal arm and mints the
-orientation bit, revolve's has neither."*
+**The instance.** `swept.rs:17-20` said the swept-traversal builder stayed
+out of the shared home because *"extrude's has a reversal arm and mints the
+orientation bit, revolve's has neither."* Half of that was false:
+`revolve::swept_segments` took `reverse: bool` and its own doc stated the full
+involution. The same commit (`6b9c1236`) had deleted the two self-declared
+duplication markers at the copy site — *"Mirror of `extrude`'s `SweptSeg`"* and
+*"Mirror of `extrude`'s `swept_segments`"* — while leaving the copies in place.
 
-`crates/sweep/src/revolve/mod.rs:625`'s `swept_segments` takes
-`reverse: bool` and its own doc says it implements the full involution
-(*"endpoints swapped, bulge negated, turn flipped"*). Half the stated
-reason is simply untrue. The two bodies compute `a`/`b`/`bulge`/`kind`/
-`canonical_vertex`/`canonical_segment` identically; the only real
-divergence is extrude's extra `wall_sense` field — which is exactly what
-`SweptChord` was introduced to fence off elsewhere.
+**What was done: the two builders were unified**, on Evan's ruling
+(2026-08-20) that the burden had moved to whoever wanted them kept apart.
+`crates/sweep/src/swept.rs` now owns `SweptSeg` (the six shared fields) and
+`swept_segments` (the one implementation of the profile crate's reversal
+involution). `revolve` re-exports both under its own names. `extrude`'s record
+became `WallSeg` — *the shared record plus the wall-orientation bit*, wrapping
+it rather than re-declaring its fields — built by `wall_segments`, which is the
+shared traversal plus `wall_sense_of` read off the canonical segment the
+traversal already records. **`SweptChord` stayed the mechanism**: it is what
+keeps `wall_sense` out of every shared body, and no second fence was invented.
 
-Worse, the same commit **deleted the two self-declared duplication
-markers at the copy site** (`revolve/mod.rs`'s *"Mirror of `extrude`'s
-`SweptSeg`"* and *"Mirror of `extrude`'s `swept_segments`"*) while
-leaving the copies in place. The only greppable evidence that these are
-twins is now gone, replaced by a sentence asserting they are not.
+Output is bit-identical by construction — each field is computed by the same
+expression on the same input, and `wall_sense` by the same function on the same
+canonical segment — which is how the shape was *chosen among* equivalents, not
+why the change was made. `cargo test -p sweep`: 410 passed, 0 failed.
 
-This is C11's mechanism running in reverse. C11 observed that every
-duplication in this codebase is self-declared in prose and nothing ever
-reads that prose. Here the prose was the only record, and a
-consolidation pass removed it.
+**A residue closed on the way.** S6 recorded that `SweptChord` kept the
+orientation bit out of revolve but not out of loft, which imported extrude's
+record and *"never reads it, so there is no defect — but that is loft's habit,
+not a structural guarantee."* Loft now imports `swept::SweptSeg`; the record it
+carries has no such field, so the guarantee is structural.
 
-**Class, not instance:** every *"deliberately NOT unified"* claim in the
-S6 record should be re-checked against the code it describes —
-`strut_spec` and `SweptSeg` at minimum. And `swept.rs:31`'s
-funnel-bypass count is wrong on its first day: *"loft and three other
-sites"* reads as four; there are three (`loft.rs:321`,
-`extrude.rs:886`, `revolve/tube.rs:29`), which is exactly the
-three-member class S6's residue (e) recorded.
+**The class re-check — every *"deliberately NOT unified"* claim in the S6
+record and in `swept.rs`'s own paragraph, read against the code:**
 
-**Verdict:**
+- **The swept-traversal builder** — FALSE as stated (above). Closed by
+  unifying; the sentence is gone rather than corrected.
+- **The wall-orientation sense is per-verb** — SURVIVES, with a corrected
+  parenthetical. `swept.rs` said *"revolve reads the wall class"*; revolve's
+  sphere and torus walls read the **canonical turn**, by the same
+  `turn == Positive` criterion extrude uses for every wall, and
+  `revolve/axis.rs:328-329` says so. Only revolve's cylinder, cone and plane
+  annulus walls read a canonical Δz or Δr. The rule sets share one arm and no
+  body, so the claim holds; the shared arm is now marked at both ends.
+- **The strut carrier is per-verb** — SURVIVES intact. `extrude::strut_spec`
+  and `revolve::surfaces::strut_spec` agree on neither arity, `MappedCurve`
+  variant (`ExtrudedPoint` / `RevolvedPoint`), carrier (`Curve3::Line` /
+  `Curve3::Circle`) nor parameter interval. A name collision, as S6 said.
+- **`SweptSeg`, "the two records differ by exactly the `wall_sense` bit"** —
+  was true, and is now superseded: the six shared fields have one declaration
+  and extrude's record wraps them.
+- **`SweptChord` is a trait, not a struct; `sketch_segment` a free function
+  over its accessors** — both SURVIVE, verified at `swept.rs`.
+- **`full::build_lamina` and loft's `let _ = k;`, "retracted by the
+  steelman"** — retractions rather than claims; `build_lamina` calls the shared
+  `build_chain`, so nothing is held apart. `let _ = k;` was a dead local
+  (`k` bound and immediately discarded) and is deleted.
+- **`skin.rs` "shares none of the closed forms"** — SURVIVES; its arc
+  arithmetic is `f64` with a signed `θ = 4·atan(bulge)`, and where it does
+  reuse a profile-crate closed form it says so verbatim at `skin.rs:302`.
+- **Residue (c), the second funnel** — SURVIVES; `sweep/src/fillet/mod.rs:86`
+  is still a second funnel in the crate. Not this unit's: `fillet/` is Track
+  E's (#768).
+- **Residue (e), the funnel bypasses** — the count was wrong.
+  `swept.rs:31` said *"`loft` and three other sites"*, which reads as four;
+  there are three. The number is **deleted rather than corrected**: the three
+  are now named (`loft`'s stacking test, `extrude`'s tangent test,
+  `revolve::tube`'s angle window), because a name goes stale visibly and a
+  count does not.
+- **Residue (f), `face_surface_key` not moved to `topo`** — SURVIVES;
+  it returns `EulerOpError` and lives in `swept.rs`, as recorded.
+- **Observation: `SweptKind` against `profile::SegmentKind`** — SURVIVES and
+  was **unmarked**: the two are field-for-field the same shape, separated only
+  by whose orientation `turn` carries. `SweptKind` now says so.
+
+**The deleted-marker sweep**, which is the half nobody had run:
+`git log -S'<phrase>' -- crates/sweep/` over *Mirror of / mirror of / verbatim /
+re-derived / ported from / one dimension down / the twin of / twin of / copy of /
+duplicate of / hand-synced / kept in sync*. Exactly one commit in that history
+deletes markers, `6b9c1236`; of the seven it deleted, five named helpers it had
+genuinely unified (`SweptKind`, `arc_apex`, `cap_points`, `cosurface`,
+`face_surface_key`, `chain_spec`) and **two named copies it left standing** —
+S74's two. No third. **What it cannot match:** a marker phrased in words nobody
+has used, a copy that never declared itself at all (`SweptKind` was found by
+reading, not by grep), and — workspace-wide — `-S` cannot tell an added marker
+from a deleted one, so outside `crates/sweep/` this pass is not a negative
+result.
+
+**Verdict:** FIXED.
 
 ## S75. The recourse-contract guard's central assertion is a tautology, and two suites defer their completeness obligation to it
 
@@ -10790,7 +10845,6 @@ left a positive claim behind that is now false.*
 |---|---|---|---|---|---|
 | **G1** | **`interval-transcendentals`: nothing constrains the pads from above.** `assert_contains` checks containment only; `Tightness::report` contains no assertion; `PAD_ULPS = 4` is unpinned; the cheap tier catches a dropped outward round for division only — while `ci.yml` and the README make broader claims. **The finding is careful that the derivations are sound and the defect is in what the tests can see; keep that framing.** Seven Tier-3 members live in the same workspace and come with it: S110(h), S111(c), S112(c), S114(a)(d), S116(r)(t) — and **S112(c) bears on S1**, since the `RingInterval` question leaves an exact-surface op hosted in a consumer. | **S72** + 7 roll-up members | `interval-transcendentals/` (its own workspace) | **ACCEPTED** | **ADVERSARIAL** |
 | **G2** | **`demos/` — nine roll-up members, one tree, no owner.** Equal-by-construction asserts (S110(g)(j)), prose describing a world the code left (S112(h)), two drifted counts (S113(a)(b) — **give these to E-b and let this lane consume the result**, or the two collide on `demos/tour/Cargo.toml`), duplications the fix passes did not reach (S114(b)), and **the one design question in the cluster: three hand-rolled JSON emitters, four readers, no schema (S114(c))**. | S110(g)(j), S112(h), S113(a)(b), S114(b)(c), S116(d) | `demos/` | **ACCEPTED**; S114(c) is a design row, not a patch | style |
-| **G3** | **`swept.rs`'s new shared home states a reason for not unifying that is factually false, and the same commit deleted the duplication markers.** `swept.rs:17-20` says revolve's builder has neither a reversal arm nor the orientation bit; `revolve/mod.rs:625` is `swept_segments(lp, reverse: bool)` and its own doc states the full involution. **The class claim is the valuable half**: re-check every *"deliberately NOT unified"* sentence in the S6 record. | **S74** | `sweep/src/{swept,revolve/mod,extrude,loft,revolve/tube}.rs` | **ACCEPTED** — and the deliverable is the class re-check, not the single fix | style |
 | **G4** | **`profile`'s fifth lane trait, blanket-implemented, which D1 never looked at** — `ArcCarrierScalar` over `T: Decide + Bounds`, so `Dual64` carries the whole `path::family` arc surface today, re-exported from `pncad`. **Per Evan's ruling this is mechanical**: `CertifiedBounds` is the bound that excludes a dual. **Gated on F1** — the gate that is supposed to force ratification of the new spelling is blind to it until S59 lands. | **S87** (and S88's `profile` half) | `profile/src/path/{arc_fillet,family}.rs`, `profile/src/lib.rs`, `pncad/src/profile.rs` | **ACCEPTED — RULED** (the admitting set) | **ADVERSARIAL** |
 | **G5** | **`profile`'s ONARC prose outlived the boundary it describes.** Per the ruling above, this is **not** the capability question the finding posed: `review_s2.rs:45` claims the class *"is built"* and cites a test the deleting commit removed, while the shipped pin records the boundary the commit deliberately established. Correct the prose to state the boundary; **do not delete `sugar.rs`'s machinery**, which is the raw-builder path the boundary is defined against. | **S71** | `profile/tests/review_s2.rs`, and only a re-read of `profile/src/sugar.rs` | **ACCEPTED IN PART — RULED** | style |
 | **G6** | **A wildcard over a deliberately closed enum, in the wave that de-wildcarded two siblings** — `attribute()`'s `_ =>` decides `AtRest` vs `Uncertified`, and a literal tag string bypasses the one-home tag map; the dead `Attribution::Refuted` corroborates. | **S104** | `editor-core/src/assembly.rs`, `pncad-py/src/py/doc.rs`, and two files the scan did not read | **ACCEPTED** | **ADVERSARIAL** |
