@@ -54,6 +54,16 @@ remaining **23 are recorded nowhere in this document under any
 reading**, and are enumerated under *Uncovered names* below the tables
 rather than audited in passing.
 
+**23 is a FLOOR on the hole, not an estimate of it**, and 223 a ceiling
+on the coverage. The 99 family matches are a judgement — glosses like
+*"pm_census vv/ve/vf/ef gaps, spans, residuals"* and *"sphere/torus
+meridian checks"* were read as covering every name they plausibly reach,
+which is the reading most favourable to this document. A stricter reader
+moves names out of the 99 and into the 23. **Nothing can move one out of
+the 23**, because those names have no mention here of any kind — not a
+row, not a family cell, not a slash-list, not a gloss, not a sentence of
+prose. That asymmetry is what makes the number safe to build on.
+
 **Both halves of that measurement have a blind spot, and neither is a
 roster alone** (K-REPORT's framing, and it reproduces here). A code
 scan misses names not written at a funnel site — the 36 carried ones,

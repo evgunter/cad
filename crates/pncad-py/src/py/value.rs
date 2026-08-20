@@ -200,7 +200,7 @@ impl Body {
             typed_err(
                 py,
                 ErrorClass::Validation,
-                format!("{err:?}"),
+                err.to_string(),
                 &[(
                     "reason",
                     PyString::new(py, "mass_properties_failed")
@@ -707,7 +707,7 @@ pub(crate) fn import_step(py: Python<'_>, text: &str) -> PyResult<Body> {
         Err(err) => Err(typed_err(
             py,
             ErrorClass::StepImport,
-            format!("{err:?}"),
+            err.to_string(),
             &[("variant", PyString::new(py, "refused").unbind().into_any())],
         )),
     }
