@@ -1295,16 +1295,21 @@ It is filed under row 1 today, failing that row's own definition.
 front-door invariants whose absence as *types* is why the surgery has
 such states at all.
 
-*Still outstanding:* **discard sites elsewhere in `crates/topo`**,
-which the three-module census never counted and this addendum has
-never covered. A sweep finds **at least 14** — `split_edge`,
-`attach.rs`, `movefac.rs`, `revert.rs`, `splitting/finish.rs`,
-`boolean/combine.rs` — and that is a **floor from one spelling of the
-idiom**, not a census: successive sweeps have each found sites the
-previous pattern could not match (let-chains, field-access lookups).
-**Re-sweep rather than re-count** (`SMELL-SCAN-2026-08.md`'s **D21**,
-which carries the spellings that escaped). And, outside `crates/topo`,
-idiom 2's `MissingEntity` router defects.
+*The rest of `crates/topo` is also done* (D21, PR #773). The census
+outside W2c's three modules re-derived to **17** production sites, all
+now row 4, under the stated reading *a lookup whose `None` is
+discarded at a write in a mutation phase* — which found a **seventh**
+file the earlier floor of 14 did not name: `merge_faces.rs`, whose two
+sites spell the discard `else { return Ok(()) }` under a comment that
+already said *unreachable*. Every conversion meets #720's per-site
+standard (minted in the same call, or proven live by a check in the
+same call, **never** by tier-1 validity), and every arm was proved
+live by poisoning its key and watching it fire with the right message.
+One site could **not** meet it and is deliberately not converted:
+`merge_faces.rs`'s ring re-homing reads its face key out of a loop's
+back-pointer, so nothing in the call proves it — carried as **D61**,
+whose disposition is a typed error rather than a panic. And, outside
+`crates/topo`, idiom 2's `MissingEntity` router defects.
 
 **Replay with kills (M1, pinned in PRs #20/#23):** the determinism
 contract holds with destructive operators in the history. Identical
