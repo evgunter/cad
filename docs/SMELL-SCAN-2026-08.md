@@ -1985,83 +1985,80 @@ held open by a stale 2026-07 deferral.
 - **Confidence**: sure for each row
 - **Verdict**: ACCEPTED (Evan, 2026-08-18) — "lots of other great catches."
   Steelman 2026-08-18 (the block under the Tier 2 header below) sorted the
-  nine rows; **#713** (Track D, D5) executed that sort. Two rows had already
-  closed under it, one closes as a note, one leaves as a tracked issue.
+  rows; **#713** (Track D, D5) executed that sort.
 
-**Three deliberate-and-argued — checked on today's main and left.** Fillet
-birth-record provenance (`fillet/naming.rs:95`); `flipped_face_sense_for_tests`
-(`body.rs:630` — re-verified `&self` + clone, so it confers no capability
-`set_face_sense` lacks); the 16-direction ray schedule
-(`boolean/solid_contain.rs:76` vs `splitting/containment.rs:102`, byte-identical
-today). The schedule's determinism claim is **D9's** row in Track D, not this
-finding's.
+The finding tabulated **nine** rows and the steelman's sort accounted for
+**eight** — the miscount predates #713 and is why the disposition table below
+is the one enumeration of them all. Two rows had already closed under #635,
+one under #688, one is moot post-#688, and one leaves as a tracked issue.
 
-**Two deliberate-with-stale-prose — both closed by #635 before D5 opened.**
+| Invariant | Anchor | Disposition |
+|---|---|---|
+| Fillet birth-record provenance | `fillet/naming.rs:95` | **Left, deliberate.** Re-read on today's main; the written self-assessment is honest and the discipline is the guarantee. |
+| `flipped_face_sense_for_tests` | `body.rs:630` | **Left, deliberate.** Re-verified `&self` + clone — it is not even a mutation path, and confers nothing `set_face_sense` lacks. |
+| The 16-direction ray schedule | `boolean/solid_contain.rs:76` vs `splitting/containment.rs:102` | **Left, deliberate** — byte-identical today. The determinism claim nothing checks is **D9**'s row in Track D, not this finding's. |
+| `topo::iso` geometry-blindness | `iso.rs:56` | **Closed by #635**, which replaced the *"`Placeholder` ballast"* justification with the reason that survives. #713 swept the **sibling** it left one bullet down: *"at M1 no geometry hangs off"* `he_plus` is false — a carrier runs forward `start(he_plus) → end(he_plus)` — and the bullet now says why the bit is still ignored (the carrier is ignored too, so a flip and its re-minted curve are invisible together). |
+| pcurve cache staleness — *"should say which in its own docs"* | `pcurves.rs:124` | **STILL OPEN, and it is not what #635 closed.** #635 closed the steelman's *fourth claim* (`merge_coplanar_faces` mis-bucketed as neither-clearing — verified fixed, no D4 hand-off owed). The row itself is verbatim where it was: a convention with a survey beside it, `"The lists above are a survey, not an enforced invariant"`. Placed as **D10**. |
+| Which door fills which naming field | `fillet/build.rs:48` | **Moot post-#688.** The claim was about the whole-body door's `FaceKind` plan payload; that block, that type and that door were all deleted. What survives of it is the fillet-provenance row above, which the surgery door already carried and which is sorted `left, deliberate`. |
+| Fillet `Retired` survivor guard | `names/emit_fillet.rs:216` | **Closed by #688**, incidentally: the door the comment was false for is gone, the surgery's `kef`s kill only faces it minted mid-flight, and the face claim the steelman found **absent from the acceptance suite because it would fail** is now asserted both ways (`m6_5_fillet_naming.rs:263`, `:367`). #713 pointed the comment at that test and retired its neighbour *"from either assembly door"*, which named the dead door. |
+| "The only public mutation paths" | `euler.rs:41`, `seqgen.rs:12`, `DESIGN.md:1110` | **Corrected, and now checked** — see below. |
+| Tie propagation across emitters | `names/emit_fillet.rs:94` | **Tracked as #708**, with a KNOWN HAZARD block pointing at it. This was the row's whole deliverable. |
 
-- **`topo::iso`.** The *"at M1 they are `Placeholder` ballast"* sentence is
-  gone; the bullet now carries the non-stale reason (surface keys are
-  construction-history artifacts, so including them would make legitimate
-  `kfmrh ∘ mfkrh` roundtrips compare unequal). #713 swept the **sibling** #635
-  left in the next bullet: edge intrinsic direction was excused with *"at M1 no
-  geometry hangs off it yet"* and geometry does hang off it — a carrier runs
-  forward from `start(he_plus)` to `end(he_plus)`. Still ignored, now for the
-  reason that survives: the carrier is ignored too, so a flipped bit and its
-  re-minted curve are invisible together.
-- **The pcurve staleness index** — the fourth false claim this report missed,
-  `merge_coplanar_faces` listed among the ops that neither clear nor re-mint.
-  Also #635: it now sits under **"Maintains the map"** (staged re-mint before
-  commit, `MergeCoplanarError::Pcurve`), and the neither-bucket holds only
-  primitives. Nothing owed; `pcurves.rs` was not touched by #713.
+**The frozen count of eleven, and what replaced it.** Re-derived rather than
+trusted: **37 doors** on today's main — 32 `pub fn (&mut self)` on `Body` plus
+5 free functions taking `&mut Body<T>` — not the steelman's ≥ sixteen. None of
+the three sites got a new count, because a count is what rotted; each states
+the closure property instead, and
+`review_m1_pr5_internal::every_public_mutation_path_preserves_tier1` now
+**checks that property against the real surface**: each door either declares
+`assert_euler_postcondition` (14 do) or sits on an allowlist with a reason
+(23 do). It goes red the day a door is added, which is the rot the prose could
+only describe.
 
-**Three accretion-with-no-tracking.**
-
-- **The `Retired` face hole — closed by #688, incidentally.** The charge held
-  only against the whole-body door, which #688 retired. The surgery's `kef`s
-  kill only faces it minted mid-flight, so *"faces are never retired"* is now
-  true — and the assertion the steelman found **absent from the acceptance
-  suite because it would fail** is present in both directions
-  (`m6_5_fillet_naming.rs:263`, `:367`). #713 pointed the comment at that test
-  and retired the neighbouring *"from either assembly door"*, which named the
-  dead door.
-- **The frozen count of eleven — corrected as an enumeration, in three
-  places** (`euler.rs`, `seqgen.rs`, `DESIGN.md`). Re-derived rather than
-  trusted: the public mutation surface is **37 doors** on today's main — 32
-  `pub fn (&mut self)` on `Body` plus 5 free functions taking `&mut Body<T>`
-  (`mint_pcurves`, `instance`'s four grafts) — not the steelman's ≥ sixteen.
-  None of the three sites gets a new count, because a count is what rotted:
-  each states the **closure property** instead. `DESIGN.md` was edited as a
-  correction to what D9 *counts*, never to what it *decides* — the decision
-  survives intact, since `split_edge` and `movefac` carry the same tier-1
-  `assert_euler_postcondition` the eleven did.
-- **Tie propagation — tracked, issue #708**, and this is the row's whole
-  deliverable. `emit_fillet`'s `up()` never inspects the `Entry`, so a
-  legitimate N2 tie would surface as `NamingError::Duplicate`, whose contract
-  is "the no-silent-aliasing bug"; the generic emitters carry the
-  `Entry::Tied → insert_tied` arm this one lacks. Unreachable today for a
-  reason worth recording: **nothing in production mints a tie** —
-  `insert_tied`'s only callers are those propagators and one unit test. The
-  fix is a naming-design question (one `RoleSeg` slot holds one name), so it
-  lands with the unit that mints the first tie; a **KNOWN HAZARD** block in
-  `emit_fillet`'s module docs points at #708. This was the sharpest structural
-  fact in the finding — zero of nine rows had a tracked issue. One does now,
-  and it is the only row that needed one.
+Writing that test found what the prose had not. **`instance`'s grafts do not
+preserve tier 1**, and the closure property as first drafted asserted a
+guarantee they do not offer: `graft_disjoint_all_keyed` mints an empty
+destination solid per source solid *before* transplanting, and a refusal
+raised mid-transplant leaves `dst` partially written — its own docs say the
+destination is *spent, never resumable*, and an empty solid is the tier-1
+`SolidWithoutShells`. A caller discarding that `Err` can fire a later
+operator's postcondition from **API misuse rather than a kernel bug**. Both
+`euler.rs` and `DESIGN.md` now name the exception; the consequence is **S14's**
+and is recorded there as its second witness. The lesson is the shape: the old
+sentence was a false enumeration in front of a property true of everything it
+enumerated, which fails safe; the replacement was a true enumeration in front
+of a property false of part of it, which does not.
 
 **The `seqgen` half — the one part that could find a defect, and did.**
 `split_edge` now enters the randomised lane (`OpChoice::SplitEdge`, plain-apply
-and roundtrip arms, coverage label). It found two violations of the
-generator's own coordinate-distinctness premise rather than any defect in
-`split_edge`: fan-rebasing ops leave carriers stale against their endpoints, so
-only carrier-coherent edges are splittable (**stated blind spot**); and a split
-point derived from geometry can land **one ulp** from an existing vertex,
-poisoning the next `mef_chord` chord — so the candidate gate demands *definite*
-separation, not bitwise distinctness, and the split fraction is `(√5 − 1)/2`
-rather than the midpoint, which would land exactly on the counter lattice. The
-inverse is two ops: `split_edge` is the only catalog member that REPLACES
+and roundtrip arms, and coverage labels split by site shape —
+`split_edge` / `split_edge_strut` / `split_edge_self_loop` — so the row proves
+the delicate coincidences `split.rs:94` names are reached, not merely that the
+op fired). It surfaced two properties of the generator, neither a defect in
+`split_edge`:
+
+- **Carrier/endpoint coherence.** The fan-rebasing ops (`mev`'s fan site,
+  `kev`'s fan merge) move a run of half-edges onto a different vertex without
+  re-describing the survivors' carriers, so an edge's stored curve is routinely
+  stale against its own endpoints — invisible to tier 1 and to the oracle, and
+  refused by `split_edge`'s child certification. Candidates re-derive the
+  parent's certificate first. **Stated blind spot: only carrier-coherent edges
+  are split here.** #713 also moved that obligation out of a private
+  test-support helper and onto `mev` and `kev` themselves, where a caller
+  reads it.
+- **Coordinate distinctness.** A split point comes from geometry, not the
+  vertex counter, so two edges over one pair of points mint points **one ulp**
+  apart — bitwise distinct, and enough to poison the next `mef_chord` chord.
+  The gate demands *definite* separation under the same metering the chord
+  sugar uses.
+
+The inverse is two ops: `split_edge` is the only catalog member that REPLACES
 geometry, so `kev` restores the topology and re-attaching the captured spec
-restores the description. **Measured cost: +0.9 s median (1.91 → 2.78 s) on
-`cargo test -p topo --lib seqgen`**, five runs each, warm binary, 4-vCPU Xeon
+restores the description. **Measured cost: +0.9 s median (1.91 → 2.78 s)** on
+`cargo test -p topo --lib seqgen`, five runs each, warm binary, 4-vCPU Xeon
 @ 2.80 GHz with four other lanes on the box — an upper bound, and a ratio
-rather than an absolute.
+rather than an absolute. What that ratio actually buys is charged to the
+generator's eager candidate enumeration, placed as **D11**.
 
 ---
 
@@ -5222,7 +5219,7 @@ And a fourth, from the audit that produced Track D:
 | # | Decision | Gates |
 |---|---|---|
 | **D6** | **D5's contract is still untyped at two more doors.** #665 typed `enters_material` and `sector_shape`; a differently-shaped sweep (`grep sense_sign`) reaches the rest. This is a schedule, not a sentence — the question is how far the newtype goes, not whether it was right. | nothing hard; colours the sense-carrying surface |
-| **S14** | **What the no-panic principle actually says.** Evan's own reframe, 2026-08-18: *"maybe we need to update that principle to 'no panic on any reachable state, yes panic on things that can only indicate bugs'"*. The steelman split it — the first half is a **clarification** (D9 already says "on any input" and no existing `debug_assert` moves); the second is an **amendment**, because it licenses panics in release, which D9 does not, and on the one such class D9 disposes of it chose typed error or garbage-out. The reframe is also already in the tree unnoticed: PR #447 argued for panicking indexing on the merits and never took it back to D9, while `crates/topo` was ratified the other way. And the honesty defence for `hull.rs:80` fails on reachability — two clamped `KnotVector`s of equal degree and different length, `long_kv.span(k)` handed to a curve built on the short one, indexes out of bounds through the public API with no kernel bug in the trace. Issue **#475** costs out Options A/B/C and misses the cheap third (`kv.span(span.index()) == Some(span)`, O(1), the deleted guard exactly). | This is a **decision, not work** — it was the one row of *Accepted, unscheduled* that had no channel at all, which is why it is here. Nothing in Track D touches it. |
+| **S14** | **What the no-panic principle actually says.** Evan's own reframe, 2026-08-18: *"maybe we need to update that principle to 'no panic on any reachable state, yes panic on things that can only indicate bugs'"*. The steelman split it — the first half is a **clarification** (D9 already says "on any input" and no existing `debug_assert` moves); the second is an **amendment**, because it licenses panics in release, which D9 does not, and on the one such class D9 disposes of it chose typed error or garbage-out. The reframe is also already in the tree unnoticed: PR #447 argued for panicking indexing on the merits and never took it back to D9, while `crates/topo` was ratified the other way. And the honesty defence for `hull.rs:80` fails on reachability — two clamped `KnotVector`s of equal degree and different length, `long_kv.span(k)` handed to a curve built on the short one, indexes out of bounds through the public API with no kernel bug in the trace. Issue **#475** costs out Options A/B/C and misses the cheap third (`kv.span(span.index()) == Some(span)`, O(1), the deleted guard exactly). **Second witness (added by #713, D5).** `topo::instance`'s graft is a public door that can leave a body **tier-1-invalid**: `graft_disjoint_all_keyed` mints an empty destination solid per source solid before transplanting, and its own docs state that a refusal raised mid-transplant leaves `dst` partially written and *spent, never resumable* — an empty solid being `SolidWithoutShells`, a tier-1 error. So a caller that discards the `Err` and keeps the body makes the next Euler operator's `debug_assert` fire from **API misuse, not a kernel bug**, which is precisely the class D9's footnote asserts cannot occur and which S43's proposed sixth state class named and the ratified five do not cover. It is the same question as `Span`'s, one crate over and through a door that already concedes the state in writing — where `Span` needed a somewhat contrived pairing to reach, this is a documented failure mode of a shipping API. #713 recorded the exception at both sites (`euler.rs`, `DESIGN.md`) and proposed no fix.  | This is a **decision, not work** — it was the one row of *Accepted, unscheduled* that had no channel at all, which is why it is here. Nothing in Track D touches it. |
 | **S22 row 1** | **ε ambience** — *settled 2026-08-19*: keep the `OnceLock`, add provenance (#659), no threading, no session object, no mixed-ε assemblies. Listed here only because the row's *other* halves are now closed and the finding should not read as open. | — |
 
 **D1 was ruled 2026-08-19** (a `Dual` may not certify, but it may have
@@ -5312,9 +5309,12 @@ these units are simply implemented.
 
 **D5 landed as #713** (S15's prose-held invariants — its row is retired from
 the table below). Two of its rows had already closed under #635 and one under
-#688; the one row it could not close, `emit_fillet`'s tie propagation, left as
-tracked issue **#708** rather than as prose, which is ordering rule 4's other
-placement.
+#688; one is moot post-#688; and three left with placements rather than fixes,
+per ordering rule 4 — `emit_fillet`'s tie propagation as issue **#708**, the
+pcurve-staleness convention as **D10**, and the fuzz lane's eager candidate
+enumeration (which D5's own row is what made expensive) as **D11**. Its
+mutation-path correction also produced a **second witness for S14**, filed in
+*Open decisions* rather than settled here.
 
 **Reviews are style-only** (`docs/prompts/reviewer-style-lane.md`) except at
 the four rows marked ADVERSARIAL — D1, D2, D8, D9 — and D5's `seqgen` half.
@@ -5353,6 +5353,8 @@ scheduled.
 | **D7** | **U1 / D4 — the three decided deletions.** Decided by Evan 2026-08-19 and unexecuted. Each row owes a provenance note next to the thread that produced it (`PairSolve` → **#611**; the two fillet helpers → **#319**/**#554**; `Mat2`/`Affine2` → the deleting PR body, cross-referenced from **#614**), and the deleting PR must cite the **commit SHA** the code is recoverable from. `trimline_description`'s doc is the only place D7's prefer-intrinsic obligation is *named*: that sentence migrates, it does not die. | U1 | `geom-core/src/linalg/{mat,affine}.rs`, `editor-core/src/mate{.rs,/solve.rs}`, `sweep/src/fillet/{blend,battery}.rs` | style | **split by row.** `Mat2`/`Affine2` is free now. `PairSolve` waits on **#702**, which is editing `mate.rs`, `mate/solve.rs` and the `lib.rs` re-export block it lives in. The fillet helpers wait on **D2**. Evan placed the whole row *"back of the queue, but ahead of W3b"*, and its rationale — noise to lanes reading the same files — is what these two gates discharge. |
 | **D8** | **U4's remainder — the knot-vector queries.** `KnotVector` offers `multiplicity_of(u)`, which requires you to already know `u`; every consumer that needs *the list* of distinct interior knots hand-writes the same scan, four times (`compose.rs:274`, `algebra.rs:563`, `geom-curves/fit.rs:378`, `sweep/skin.rs:370`). Beside it, knot insertion exists twice in one module, one of them re-deriving the span with a linear scan where `find_span`'s binary search is one module away. The scan's own lesson: *a data structure whose API was frozen one PR before its first consumer is the tell.* | U4 (rows) | `geom-core/src/spline/{compose,algebra}.rs`, `geom-curves/src/fit.rs`, `sweep/src/skin.rs` | **ADVERSARIAL** — it adds to a certified type's API and replaces a linear scan with a binary search inside knot arithmetic, where an off-by-one is a wrong curve rather than a compile error. | nothing (but it edits `sweep/src/skin.rs`, so sequence it against D1/D2 within this track) |
 | **D9** | **U3 — S17's ray-parity twins.** `chart_region::point_in_polygon` is a line-for-line port of `splitting::containment::point_in_loop`, self-declared as one in its own doc. `profile::validate::point_in_loop` is a third and is **not** in scope: `topo` does not depend on `profile` and never has, so that copy is DAG-forced and the unit's job is to say so as a negative result rather than to close it. Both topo copies also reuse one predicate name for two different questions (`point_in_loop_boundary` decides both the degeneracy gate and the point-to-segment distance) — the drift `splitting/rules.rs:117` mints a distinct name to avoid. | U3 | `topo/src/{chart_region.rs,splitting/containment.rs}` and the shared home | **ADVERSARIAL** — the K-ledger convention makes new predicate names new K rows, so a unification *removes* rows, and the margins it merges were metered separately. This is also S15's byte-identical-ray-schedule row, whose determinism claim nothing checks. | **#690** (Track B's B4), which is editing `splitting/mod.rs`, `solid_contain.rs` and `topo/src/lib.rs` |
+| **D10** | **S15's pcurve-staleness row, which is still open.** `pcurves.rs:124`: *"an op that mutates an already-minted body must either clear the map or re-mint before returning, and **should say which in its own docs**"* — a convention, with *"The lists above are a survey, not an enforced invariant"* four lines above it, and nothing that notices when a new op joins the wrong bucket. **What D5 verified before placing this**: #635 corrected the one entry the steelman caught (`merge_coplanar_faces` had started re-minting and the index had not moved), so the survey is *accurate today* — the row is that nothing keeps it accurate. The shape D5 used for its sibling row is available and cheap: a source-walking test over the three buckets, the way `review_m1_pr5_internal::every_public_mutation_path_preserves_tier1` now covers the mutation surface. | S15 (row 1) | `topo/src/pcurves.rs` and the test's home | style | **D4**, which owns `pcurves.rs` |
+| **D11** | **`seqgen`'s candidate enumeration is eager.** `choose_op` builds every candidate `Vec` on every call — including rows whose weight is zero because the body has stopped growing — and then discards all but one. D5's `split_edge` row is what makes that cost visible rather than what causes it: `split_edge_candidates` runs a full `EdgeCurve::recertify` plus an O(V) separation scan **per edge, per step** (~14 re-certifications and ~200 metered decisions at `GROW_CAP`), which is where its measured +46% went. `memories/test-suite-cost.md` is categorical that an ungated fuzzer is a defect in the fuzzer. The fix is not to drop the gates — they are what keep the lane honest — but to skip zero-weight rows and to enumerate lazily. | S15 (`seqgen` half) | `topo/src/seqgen.rs` | style, but **measure before and after**: the row exists because a number was measured, and it closes on a number, not on a shape | nothing |
 
 **Not taken, and why.** S18's `step-export/volume.rs` row stays out of Track D: its
 immediate cause is that `topo::props` exposes only body-scoped
@@ -5423,7 +5425,8 @@ all deletions        ──────────────► L2 (S38 comme
 had, are Track D's D1/D2.
 
 **Track D's own edges are all inside `sweep/`, plus two on other tracks' open
-PRs.** D3, D4, D5, D6 and D8 are edge-free and can start today; D8 edits
+PRs.** D3, D6, D8 and D11 are edge-free and can start today (D5 has landed as
+#713; D4 is edge-free and now gates D10, which edits the same file); D8 edits
 `sweep/src/skin.rs`, so it sequences against D1/D2 within the track rather than
 across it.
 

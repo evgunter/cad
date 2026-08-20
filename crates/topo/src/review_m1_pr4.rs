@@ -1311,6 +1311,8 @@ fn seqgen_generates_every_op_kind_and_every_site_shape() {
         "mfkrh",
         "ring_move",
         "split_edge",
+        "split_edge_strut",
+        "split_edge_self_loop",
         "kev",
         "kef",
         "kvfs",
@@ -1393,7 +1395,25 @@ fn seqgen_generates_every_op_kind_and_every_site_shape() {
                 OpChoice::Kef(_) => "kef",
                 OpChoice::Kvfs(_) => "kvfs",
                 OpChoice::RingMove(..) => "ring_move",
-                OpChoice::SplitEdge(_) => "split_edge",
+                // Split by SITE SHAPE, like the other multi-shape ops:
+                // "split_edge fired at least once" is not the claim the
+                // fuzz row exists to support — `split.rs`'s surgery
+                // note calls the strut and self-loop coincidences the
+                // delicate cases, and those are what a randomised lane
+                // is for. A single label would prove neither was
+                // reached.
+                OpChoice::SplitEdge(e) => {
+                    let ed = body.get_edge(e).expect("a split candidate resolves");
+                    let (hp, hm) = (ed.he_plus, ed.he_minus);
+                    let plus = body.get_half_edge(hp).expect("a half resolves");
+                    if plus.start == body.half_edge_end(hp).expect("an end resolves") {
+                        "split_edge_self_loop"
+                    } else if plus.next == hm {
+                        "split_edge_strut"
+                    } else {
+                        "split_edge"
+                    }
+                }
             });
             apply(&mut body, choice, &mut counter);
             assert_eq!(

@@ -52,9 +52,11 @@
 //!   coordinates (the generator's minting policy) no single op reaches
 //!   the original; coordinate-COINCIDENT endpoints would collapse that
 //!   distinction, but they sit inside the oracle's documented twin
-//!   blind spot and outside the generator's reach. (Killing the same
-//!   edge from the other half is the strut kill, which IS exactly
-//!   invertible.)
+//!   blind spot and outside the generator's reach — kept true by
+//!   [`split_site`]'s separation filter, which is what stops the one
+//!   op whose point comes from geometry rather than the counter from
+//!   manufacturing them. (Killing the same edge from the other half is
+//!   the strut kill, which IS exactly invertible.)
 //! - `kef(he)` where the mate's loop is `[mate]` alone (the killed edge
 //!   is then necessarily a self-loop) AND the surviving singleton loop
 //!   is a ring — or the outer of a face that has rings. The one-op
@@ -104,9 +106,9 @@ pub(crate) enum OpChoice {
     /// obvious case (the separating-curve argument; see its docs in
     /// `crate::euler_ring`).
     RingMove(LoopKey, FaceKey),
-    /// `split_edge(edge, t)` at [`SPLIT_FRACTION`] of the edge's own
-    /// certified interval — derived from the body, so the choice stays
-    /// `Copy`/`Eq` and the site stays deterministic.
+    /// `split_edge(edge, t)`. The parameter is derived from the edge's
+    /// own certified interval by [`split_site`], not carried here, so
+    /// the choice stays `Copy`/`Eq` and the site stays deterministic.
     SplitEdge(EdgeKey),
 }
 
@@ -492,22 +494,38 @@ fn split_edge_candidates(body: &Body<f64>) -> Vec<OpChoice> {
         .collect()
 }
 
-/// `edge`'s split parameter together with the
-/// parent's OWN spec, rebuilt from the certified curve — `None` when
-/// the edge is not splittable.
+/// Where in an edge's interval a split lands. **Not the midpoint.**
+/// Every point this generator mints sits on the counter lattice
+/// `(n, 0.5, 0.25)`, so the midpoint of the chord from `n` to `n + 2`
+/// is vertex `n + 1`'s own point exactly: a midpoint split would
+/// manufacture coordinate-coincident vertices, which `mef_chord` then
+/// refuses on the zero-length chord (`IntervalNotForward`) and which
+/// sit inside the isomorphism oracle's documented twin blind spot.
+/// The nearest `f64` to `(√5 − 1)/2` is of course rational, so this
+/// constant is a way of MISSING the lattice, not a proof that it
+/// cannot be hit — what enforces distinctness is
+/// [`split_site`]'s separation filter.
+const SPLIT_FRACTION: f64 = 0.618_033_988_749_895;
+
+/// `edge`'s split parameter together with the parent's OWN spec,
+/// rebuilt from the certified curve — `None` when the edge is not
+/// splittable.
 ///
 /// **Why the re-certification.** This lane fuzzes STRUCTURE: the
 /// fan-rebasing ops (`mev`'s fan site, `kev`'s fan merge) move a run
 /// of half-edges onto a different vertex without re-describing the
-/// survivors' carriers, so an edge's stored curve is routinely stale
-/// against its own endpoints. Tier 1 does not constrain that and the
-/// isomorphism oracle ignores carriers, but `split_edge` certifies
-/// both children against the CURRENT endpoint points and refuses.
-/// So the candidate test re-derives the parent's certificate against
-/// those points — the door tier 3 uses — rather than trusting the
-/// attach-time one. Its consequence is a real coverage limit, stated
-/// where it is caused: only carrier-coherent edges are ever split
-/// here.
+/// survivors' carriers (each says so in its own docs), so an edge's
+/// stored curve is routinely stale against its own endpoints. Tier 1
+/// does not constrain that and the isomorphism oracle ignores
+/// carriers, but `split_edge` certifies both children against the
+/// CURRENT endpoint points and refuses. So the candidate test
+/// re-derives the parent's certificate against those points through
+/// [`geom_brep::EdgeCurve::recertify`] — the door `split_edge` itself
+/// certifies through, not tier 3's `recertify_nurbs_lane`, which
+/// admits a strictly wider class and so would let candidates past this
+/// gate that the operator then refuses. Its consequence is a real
+/// coverage limit, stated where it is caused: **only carrier-coherent
+/// edges are ever split here.**
 ///
 /// **Why the spec comes back with it.** `split_edge` is the only
 /// catalog member that REPLACES existing geometry rather than only
@@ -517,17 +535,6 @@ fn split_edge_candidates(body: &Body<f64>) -> Vec<OpChoice> {
 /// captured spec is what completes the inverse — exactly, for any
 /// carrier (the self-loop circles `mef_chord` mints included), which
 /// a `line_between` guess would not be.
-/// Where in an edge's interval a split lands. **Not the midpoint.**
-/// Every point this generator mints sits on the counter lattice
-/// `(n, 0.5, 0.25)`, so the midpoint of the chord from `n` to `n + 2`
-/// is vertex `n + 1`'s own point: a midpoint split would manufacture
-/// coordinate-coincident vertices, which `mef_chord` then refuses on
-/// the zero-length chord (`IntervalNotForward`) and which sit inside
-/// the isomorphism oracle's documented twin blind spot. `(√5 − 1)/2`
-/// is irrational, so no split lands on the lattice, and two splits of
-/// different intervals cannot land on each other.
-const SPLIT_FRACTION: f64 = 0.618_033_988_749_895;
-
 fn split_site(body: &Body<f64>, edge: EdgeKey) -> Option<(f64, EdgeCurveSpec<f64>)> {
     let edge_data = body.get_edge(edge)?;
     let hp = edge_data.he_plus;
@@ -542,16 +549,27 @@ fn split_site(body: &Body<f64>, edge: EdgeKey) -> Option<(f64, EdgeCurveSpec<f64
         .ok()?;
     let (t0, t1) = curve.params();
     let t = SPLIT_FRACTION.mul_add(t1 - t0, t0);
-    // The generator's OTHER coordinate-distinctness hazard, and the
-    // reason this is a filter rather than an assertion: a split point
-    // is derived from GEOMETRY, not from the counter, so two edges
-    // over the same pair of points mint the same point — two
-    // self-loops at one vertex (identical `self_loop_circle_at`
+    // **The generator's coordinate-distinctness policy, enforced.**
+    // Every OTHER minting op takes its point from the counter, which
+    // makes distinctness free; a split point is derived from GEOMETRY,
+    // so two edges over the same pair of points mint the same point —
+    // two self-loops at one vertex (identical `self_loop_circle_at`
     // circles), or two parallel edges over one vertex pair. The
     // separation must be DEFINITE, not merely bitwise: two such splits
     // land one ulp apart, and `mef_chord` then refuses their chord as
     // an unmeterable zero-length carrier. Same metering the chord
     // sugar uses, so a candidate that passes here cannot poison one.
+    // This filter is also what keeps the irreversible-`kev` taxonomy's
+    // "outside the generator's reach" clause (module docs) true now
+    // that a non-counter point source exists.
+    //
+    // Raw `Decide::sign_within` rather than the `k_stats` funnel, and
+    // the rule genuinely does not bite here (`boolean/ops.rs` records
+    // why the bypass was retired in kernel code): this is a
+    // TEST-SUPPORT generator over `Body<f64>` only, never instantiated
+    // at the recording scalar, so there is no K row to misattribute —
+    // and the decision is a candidate filter, not a kernel predicate
+    // any output depends on.
     let minted = curve.carrier().eval(t);
     if body
         .vertices()

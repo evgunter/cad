@@ -61,12 +61,16 @@
 //! generic emitters in [`super::emit`] carry the propagation arm this
 //! one lacks (`Entry::Tied` → `insert_tied`).
 //!
-//! Unreachable today: nothing in production mints a tie —
-//! `insert_tied`'s only callers are those propagators and one unit
-//! test. The propagation shape here is a naming-design question (one
-//! `RoleSeg` slot holds one name; a tied source needs either N
+//! Unreachable today, and the reason is the SHAPE of the call sites
+//! rather than how many there are: every production `insert_tied`
+//! either matches on an upstream [`Entry::Tied`](super::table::Entry)
+//! or descends from one ([`super::emit_topo`]'s tie lane is entered
+//! only when `lookup` already returned `Tied`), so nothing mints a
+//! FIRST tie. The propagation shape here is a naming-design question
+//! (one `RoleSeg` slot holds one name; a tied source needs either N
 //! segments or a tied mint), so it must be decided WITH the unit that
 //! mints the first tie, not guessed against a hypothetical producer.
+//! #708 carries the site-by-site table.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
