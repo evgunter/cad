@@ -42,17 +42,46 @@
 //!   tier-1-valid input
 //!   a firing postcondition is a kernel bug by definition (the per-call
 //!   instance of the ch. 9 soundness theorem failing against our
-//!   transcription) — and since PR 5's raw-builder demotion **every
-//!   publicly-constructible input is tier-1-valid**, because the ten
-//!   operators plus the one public non-operator mutator
-//!   ([`Body::ring_move`]) are the only public mutation paths and each
-//!   preserves tier 1 (ring_move's case is the least obvious of the
-//!   eleven — it re-glues the per-shell component partition; the
-//!   separating-curve argument lives in its docs). The D9 taxonomy
-//!   consequence: these debug panics are
+//!   transcription). Raw insertion is crate-internal since PR 5's
+//!   builder demotion, so a body is reachable only through the public
+//!   mutation paths, and the property those paths owe is that each
+//!   **preserves tier 1**: the Euler operators with their chord/line
+//!   sugar, and the non-operator structural mutators
+//!   ([`Body::ring_move`], [`Body::split_edge`], [`Body::movefac`],
+//!   [`Body::merge_coplanar_faces`]) declare the same debug
+//!   postcondition or are composed of operators that do; the
+//!   attach/metadata setters re-certify under their own tier-1
+//!   assertion ([`Body::set_face_surface`], [`Body::set_edge_curve`])
+//!   or write fields tier 1 does not constrain. **The closure property
+//!   is the claim; a count of the doors is not** — an enumeration
+//!   frozen into this sentence is what rots as doors are added, and
+//!   `review_m1_pr5_internal::every_public_mutation_path_preserves_tier1`
+//!   checks the property against the real surface rather than against
+//!   this list. `ring_move`'s case is the least obvious of the
+//!   asserting doors: it re-glues the per-shell component partition,
+//!   and the separating-curve argument lives in its docs.
+//!
+//!   **The exception, and it is a real one.**
+//!   [`crate::instance`]'s grafts are a **raw transplant**, not an
+//!   operator run: `graft_disjoint_all_keyed` mints an empty
+//!   destination solid per source solid before transplanting, and a
+//!   refusal raised mid-transplant leaves `dst` partially written —
+//!   its own docs say the destination is then *spent, never
+//!   resumable*, and an empty solid is the tier-1 error
+//!   [`crate::ValidationError::SolidWithoutShells`]. So a caller that
+//!   ignores a graft's `Err` and keeps using `dst` can hand the next
+//!   operator a tier-1-invalid body and fire its postcondition from
+//!   **API misuse rather than a kernel bug**. That is the state class
+//!   D9's footnote asserts cannot occur and the D2 addendum's five
+//!   classes do not cover; it is open as **S14** in
+//!   `docs/SMELL-SCAN-2026-08.md` and is not settled here.
+//!
+//!   The D9 taxonomy consequence therefore holds **for every door but
+//!   that one**: these debug panics are
 //!   **unreachable by input** through the public API — reaching one
 //!   requires in-crate raw corruption (which is what the validator's
-//!   own tests do deliberately). Release builds carry no check either
+//!   own tests do deliberately) or a discarded graft refusal. Release
+//!   builds carry no check either
 //!   way: on corrupt in-crate input they return `Ok` with garbage
 //!   instead — what the kernel does today, and what **W2c** converts
 //!   under the D2 addendum, not a promise it is entitled to keep.
@@ -991,6 +1020,19 @@ impl<T: Decide> Body<T> {
     /// `he_plus` forward order — `he_plus` runs old → new) before any
     /// mutation; failure is [`EulerOpError::Certification`], body
     /// untouched. Chord-line sugar: [`Body::mev_line`].
+    ///
+    /// **The moved run's carriers are NOT re-described.** At a fan site
+    /// the run `[he1 .. he2)` is re-based onto the new vertex `w`, and
+    /// each of those edges keeps the curve it was certified with
+    /// against its OLD endpoint. If `point` differs from the old
+    /// vertex's, every re-based edge is left describing a locus that no
+    /// longer ends where the edge does: tier 1 does not constrain it
+    /// and no operator re-checks it, tier 3 reports it at rest, and the
+    /// next `split_edge` or `set_edge_curve` on such an edge refuses
+    /// typed. **Re-describe the moved run** (via
+    /// [`Body::set_edge_curve`]) whenever the two points differ — the
+    /// same posture as [`Body::set_face_surface`]'s note about
+    /// invalidating an adjacent edge's certification.
     ///
     /// **Minting order** (D9, exact): point, curve (the certified
     /// [`EdgeCurve`]), vertex, edge, `he_plus`, `he_minus`.

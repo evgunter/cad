@@ -328,6 +328,13 @@ jobs:
         run: |
           scripts/gates/bit-identity-punning.sh --selftest
           scripts/gates/bit-identity-punning.sh
+      # The importer's negative-zero flush has one home and says so in
+      # its own module doc. Four copies of it landed green in one crate
+      # (S18) because nothing checked the claim.
+      - name: signed-zero one home (step-import)
+        run: |
+          scripts/gates/signed-zero-one-home.sh --selftest
+          scripts/gates/signed-zero-one-home.sh
       # No MANIFEST wires a test-only cargo feature (`test-support`,
       # `*-testing`) onto a non-dev dependency edge. Manifests, not
       # invocations: a build command may enable any feature, which is

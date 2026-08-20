@@ -791,7 +791,11 @@ fn e_collinear_mixed_with_transversal() {
     // REVIEW FINDING (E-2), CLOSED by the fix pass: the refusal was a
     // typed poison escalation (Join(RingHoming(Escalated {
     // point_in_loop_boundary, margin Invalid }))) from the ring
-    // re-homing probe — `point_in_loop`'s boundary pre-pass divided by
+    // re-homing probe — a verbatim record of the diagnostic as
+    // observed, so the name is the one that shipped then; the
+    // degeneracy question it names now reports as
+    // `point_in_loop_segment` —
+    // `point_in_loop`'s boundary pre-pass divided by
     // a ZERO-LENGTH segment length (null scaffolding is legal in
     // mid-join loops), NaN-poisoning the foot distance. Degenerate
     // segments now measure the point distance exactly and the mixed
