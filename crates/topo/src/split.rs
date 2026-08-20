@@ -154,13 +154,13 @@ impl<T: Decide> Body<T> {
         let (hp, hp_data) = self.resolve_half_edge_live(hp)?;
         let (hm, hm_data) = self.resolve_half_edge_live(hm)?;
         // The two splices write through `next(hp)` and `prev(hm)` as
-        // well as the parent's own halves, whose certificates came out
-        // of the resolves above; certify these two now so the mutation
-        // below cannot fail midway (atomicity). `prev(hm)` changes
+        // well as the parent's own halves, whose proofs came out of the
+        // resolves above; prove these two now so the mutation below
+        // cannot fail midway (atomicity). `prev(hm)` changes
         // under splice 1 — see the splice for the case that moves it,
-        // and for why the new value is certified too.
-        let hp_next = self.certify_half_edge(hp_data.next)?;
-        let hm_prev = self.certify_half_edge(hm_data.prev)?;
+        // and for why the new value is proven too.
+        let hp_next = self.require_live(hp_data.next)?;
+        let hm_prev = self.require_live(hm_data.prev)?;
         let entry = self
             .get_curve_geom(edge_data.curve)
             .ok_or(EulerOpError::StaleGeometry {
@@ -257,8 +257,8 @@ impl<T: Decide> Body<T> {
         // `hm != n_plus` because `n_plus` was minted in this call while
         // `hm` came out of the arena — so the only one that can be
         // `hm`'s is `hp_next`'s. Deriving the value rather than
-        // re-reading it keeps both branches certified: the mint above,
-        // and the plan phase.
+        // re-reading it keeps both branches proven: the mint above, and
+        // the plan phase.
         let hm_prev = if hm == hp_next { n_plus } else { hm_prev };
         self.link_half_edges(hm_prev, n_minus);
         self.link_half_edges(n_minus, hm);

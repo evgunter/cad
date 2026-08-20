@@ -444,8 +444,8 @@ impl<T: Decide> Body<T> {
             .position(|member| member.key() == he2)
             .ok_or(EulerOpError::LoopCycleBroken { r#loop: loop_key })?;
         // he1's side (strictly between he1 and he2): becomes the ring.
-        // The walk certified every member, so each side's ends arrive
-        // at the splice below already proven.
+        // The walk resolved every member, so each side's ends arrive at
+        // the splice below already proven.
         let ring_side: Vec<Live> = cycle[1..position].to_vec();
         // he2's side (strictly between he2 and he1): keeps the old loop.
         let old_side: Vec<Live> = cycle[position + 1..].to_vec();
@@ -1032,11 +1032,7 @@ impl<T: Decide> Body<T> {
             .last()
             .copied()
             .ok_or(EulerOpError::LoopCycleBroken { r#loop: ring_loop })?;
-        // `prev(target)` is an arena read of its own; `target` and
-        // `ring` were certified by the resolves above, `ring_last` by
-        // the walk, and both ends of the new edge are minted below.
-        let target_prev = self.certify_half_edge(target_data.prev)?;
-        let (target, ring) = (target_live, ring_live);
+        let target_prev = self.require_live(target_data.prev)?;
         let u = target_data.start;
         let w = ring_data.start;
         let (p_u, p_w) = self.check_anchors(u, w)?;
@@ -1058,9 +1054,9 @@ impl<T: Decide> Body<T> {
         // Splice (module docs diagram): he_plus → ring … prev(ring) →
         // he_minus → target … prev(target) → he_plus.
         self.link_half_edges(target_prev, he_plus);
-        self.link_half_edges(he_plus, ring);
+        self.link_half_edges(he_plus, ring_live);
         self.link_half_edges(ring_last, he_minus);
-        self.link_half_edges(he_minus, target);
+        self.link_half_edges(he_minus, target_live);
         // The splice is done; past it the halves are ordinary keys.
         let (he_plus, he_minus) = (he_plus.key(), he_minus.key());
         self.mekr_finish(
@@ -1117,11 +1113,7 @@ impl<T: Decide> Body<T> {
             });
         }
         self.check_ring_not_outer(face_key, ring)?;
-        // `prev(target)` is an arena read of its own; `target` was
-        // certified by the resolve above, and both ends of the new edge
-        // are minted below.
-        let target_prev = self.certify_half_edge(target_data.prev)?;
-        let target = target_live;
+        let target_prev = self.require_live(target_data.prev)?;
         let u = target_data.start;
         let (p_u, p_w) = self.check_anchors(u, w)?;
         // ---- Geometry gate (still no mutation): certify u → w (the
@@ -1135,7 +1127,7 @@ impl<T: Decide> Body<T> {
         // case).
         self.link_half_edges(target_prev, he_plus);
         self.link_half_edges(he_plus, he_minus);
-        self.link_half_edges(he_minus, target);
+        self.link_half_edges(he_minus, target_live);
         // The splice is done; past it the halves are ordinary keys.
         let (he_plus, he_minus) = (he_plus.key(), he_minus.key());
         self.mekr_finish(target_loop, ring, face_key, (u, w), (he_plus, he_minus));
@@ -1191,9 +1183,6 @@ impl<T: Decide> Body<T> {
             .last()
             .copied()
             .ok_or(EulerOpError::LoopCycleBroken { r#loop: ring_loop })?;
-        // `ring` was certified by the resolve above and `ring_last` by
-        // the walk; both ends of the new edge are minted below.
-        let ring = ring_live;
         let w = ring_data.start;
         let (p_u, p_w) = self.check_anchors(u, w)?;
         // ---- Geometry gate (still no mutation): certify u → w (the
@@ -1213,7 +1202,7 @@ impl<T: Decide> Body<T> {
         // Splice: he_plus → ring … prev(ring) → he_minus → he_plus (the
         // target contributes no half-edges; its Empty boundary grows to
         // this cycle — inverse of kemr's old-side-empty case).
-        self.link_half_edges(he_plus, ring);
+        self.link_half_edges(he_plus, ring_live);
         self.link_half_edges(ring_last, he_minus);
         self.link_half_edges(he_minus, he_plus);
         // The splice is done; past it the halves are ordinary keys.

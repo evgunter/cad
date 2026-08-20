@@ -601,15 +601,15 @@ impl<T: Decide> Body<T> {
             .vertex_orbit(m)
             .ok_or(EulerOpError::OrbitBroken { he: m })?;
         let fan: Vec<HalfEdgeKey> = orbit_w[1..].to_vec();
-        // The unsplice writes through all four neighbor links; certify
+        // The unsplice writes through all four neighbor links; prove
         // them now so the mutation below cannot fail midway (atomicity).
         let (a, b) = (
-            self.certify_half_edge(he_data.prev)?,
-            self.certify_half_edge(he_data.next)?,
+            self.require_live(he_data.prev)?,
+            self.require_live(he_data.next)?,
         );
         let (c, d) = (
-            self.certify_half_edge(m_data.prev)?,
-            self.certify_half_edge(m_data.next)?,
+            self.require_live(m_data.prev)?,
+            self.require_live(m_data.next)?,
         );
         // ---- Mutation (infallible from here on). ----
         // Fan merge: everything starting at w except the doomed mate now
@@ -814,7 +814,7 @@ impl<T: Decide> Body<T> {
         }
         // The dying loop's full cycle (bounded, D9): everything after he
         // is the remnant that moves to the mate's loop. The walk steps
-        // `next` and resolves every member it returns, so it certifies
+        // `next` and resolves every member it returns, so it proves
         // them and nothing else — `prev/next` being mutual inverses is
         // a tier-1 fact, not one this call establishes.
         let cycle = self
@@ -822,18 +822,21 @@ impl<T: Decide> Body<T> {
             .ok_or(EulerOpError::LoopCycleBroken { r#loop: l1 })?;
         let remnant: Vec<Live> = cycle.into_iter().skip(1).collect();
         // `b = next(he)` is the cycle's second member, so the walk
-        // certified it and it wants no check of its own. An empty
-        // remnant IS `next(he) == he`, the one-half-edge dying loop
-        // whose splice never writes through `b` — so the two facts are
-        // one value.
+        // proved it and it wants no check of its own — and it is
+        // `Option` rather than a key beside a `he_alone` flag because
+        // the two are one fact: an empty remnant IS `next(he) == he`,
+        // the one-half-edge dying loop, whose splice writes through no
+        // `b` at all. `None` therefore means *the dying loop was [he]
+        // alone*, and the arms that need `b` are exactly the arms that
+        // have it.
         let b = remnant.first().copied();
         // The unsplice writes through the other three neighbor links,
-        // each read straight out of the arena; certify them now so the
+        // each read straight out of the arena; prove them now so the
         // mutation below cannot fail midway (atomicity).
-        let a = self.certify_half_edge(he_data.prev)?;
+        let a = self.require_live(he_data.prev)?;
         let (c, d) = (
-            self.certify_half_edge(m_data.prev)?,
-            self.certify_half_edge(m_data.next)?,
+            self.require_live(m_data.prev)?,
+            self.require_live(m_data.next)?,
         );
         let u = he_data.start;
         let w = m_data.start; // may equal u (self-loop edge)
@@ -857,6 +860,7 @@ impl<T: Decide> Body<T> {
         }
         // Splice (derived as mef's exact inverse — module docs diagram).
         let m_alone = d.key() == m; // mate's loop was [m]
+        // `b` absent = the dying loop was [he] alone; see its binding.
         match (b, m_alone) {
             (None, true) => {
                 // The Lone inverse: a self-loop edge whose halves were
@@ -906,8 +910,8 @@ impl<T: Decide> Body<T> {
                 None
             }
         };
-        // `b` is `next(he)`, which is `he` itself when the dying loop
-        // was [he] alone — and `he` is reaped, so it never survives.
+        // `next(he)` as a key: `he` itself in the absent case, which
+        // `survivor` then rejects because `he` is reaped.
         let b = b.map_or(he, Live::key);
         let u_anchor = survivor(d.key(), b);
         let w_anchor = survivor(b, d.key());
