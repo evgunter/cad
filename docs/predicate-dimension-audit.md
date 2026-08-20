@@ -91,10 +91,19 @@ compile-time argument at the site, and grepping `decide_flagged`
 enumerates the clause-(i) debt exactly (F2 ×4,
 F10 ×1 — one loop over seven rigidity residuals — F13 ×1, F14 ×1,
 F15 ×1 —
-8 shipped sites, tracked as issue #214 and pinned by the census count
-assertion `geom-core/tests/flagged_census.rs`: no new site ships
-without a row here, and the count only moves together with this
-section).
+8 shipped sites, tracked as issue #214 and pinned by
+`geom-core/tests/flagged_census.rs`: no new site ships without a row
+here, and the count only moves together with this section).
+
+**The `- **FNN**` bullet headings in *Findings (dispositions)* below are
+machine-read** (#801). `flagged_census.rs` extracts the fourth argument
+of every shipped `decide_flagged` call and requires it to name one of
+them, so a row renumbered, retitled out of that bullet form, or never
+written fails the suite rather than sitting as an unresolvable citation
+in the kernel. Reformat the headings and the census says so — it refuses
+to pass on an empty row set rather than reporting a hole of zero. The
+site COUNT above is still hand-synced with the constant in that test;
+that half derives from nothing and is §S13's *magic count*.
 Composition disclosure (review MIN-2): `Margin` deliberately has no
 arithmetic, so a margin whose FINAL op is a plain length
 sum/difference/min/max may carry a lever, root, or quotient INSIDE the

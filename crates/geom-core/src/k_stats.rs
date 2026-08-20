@@ -1,26 +1,31 @@
 //! Margin-statistics collection for the K-value experiments — a
-//! recording wrapper, not telemetry infrastructure (M2-PLAN PR 2's
-//! K-experiment hook; Q1's "ambiguity constant K" residue; unified
-//! here from `profile::k_stats` in M2 PR 7 so every crate's decisions
-//! share one recorder).
+//! recording wrapper, not telemetry infrastructure (Q1's "ambiguity
+//! constant K" residue). One recorder serves every crate's decisions;
+//! there is no second one.
 //!
 //! Every decision the kernel makes goes through one funnel, [`decide`]:
 //! it notes the predicate's static name in a thread-local, classifies
 //! the margin through the one sanctioned door ([`Decide::sign_within`]),
 //! and attaches the name to any indeterminate outcome. Each deciding
 //! crate re-exports or wraps this funnel as its single greppable
-//! `sign_within` call site (the `geom-brep` funnel pattern); after the
-//! PR 7 unification a [`Probe`]-lane run tags every sample with its
-//! real predicate name — `<unnamed>` is unreachable from shipped decide
-//! paths.
+//! `sign_within` call site (the `geom-brep` funnel pattern), so a
+//! [`Probe`]-lane run tags every sample with its real predicate name —
+//! `<unnamed>` is unreachable from shipped decide paths.
+//!
+//! All three doors — [`decide`], [`decide_flagged`], [`decide_invariant`]
+//! — delegate to one private `classify`. The name write and the verdict
+//! push therefore happen in exactly one place, so no door can carry one
+//! channel and miss the other, and the three doors classify identically
+//! because they are the same code and not because three bodies are kept
+//! level.
 //!
 //! Cost on the production path: one thread-local `Cell` write per
 //! decision, plus — **whenever a verdict log is installed** — one
 //! `Vec` push per definite outcome (see [`start_verdict_log`] and
 //! `decide`'s own contract below, which has always said this). That
 //! caveat is not hypothetical: `editor_core`'s evaluator brackets
-//! **every node evaluation** in a verdict log (M4 PR 4 / NAMING-DESIGN
-//! N5, so the verdict-diff engine can attribute flips), and retains the
+//! **every node evaluation** in a verdict log (NAMING-DESIGN N5, so
+//! the verdict-diff engine can attribute flips), and retains the
 //! result on the node. So production *does* record, on the one path
 //! that asks to.
 //!
@@ -55,22 +60,48 @@
 //! UNRESOLVED — left open deliberately at merge (Evan, 2026-08-16), not
 //! overlooked.** The nesting bug itself is not blocked on that choice
 //! and can be fixed directly. Do not add call sites that deepen the
-//! dependency on the current shape.
-//!
-//! (This paragraph used to read "Production code pays one thread-local
-//! `Cell` write per decision and records nothing." That stopped being
-//! true when M4 PR 4 added the verdict log, and it contradicted
-//! `decide`'s own doc sixty lines below.)
+//! dependency on the current shape. **The `classify` consolidation was
+//! measured against this fence and clears it in the permitted
+//! direction**: the per-decision `VERDICTS` push went from three sites
+//! to one. That is the funnel's share and not the remedy's blast
+//! radius — [`start_verdict_log`] and [`take_verdict_log`] also touch
+//! the thread-local, and either named remedy (verdicts as a returned
+//! value, or an RAII bracket) has to change those two and their callers
+//! as well. The consolidation makes that work smaller by one door pair;
+//! it does not make it small.
 //!
 //! Recording happens through the [`Probe`] scalar: a transparent `f64`
 //! wrapper whose `Decide` implementation logs `(predicate, margin,
 //! band, outcome)` to a thread-local sink before delegating. Running
 //! validation at `T = Probe` therefore yields the complete per-predicate
-//! margin distribution of the run — the data PR 7's K report pulls —
+//! margin distribution of the run — the data `docs/K-REPORT.md` pulls —
 //! with **zero** instrumentation in the validation code itself and
 //! bit-identical decisions to `f64` (delegation is exact). The sink is
 //! thread-local and explicitly installed ([`start_recording`] /
 //! [`take_samples`]), so tests never race and production never records.
+//!
+//! **The recorder is pinned to this crate from both directions — and it
+//! is the IMPL that is pinned, not the type.** `Probe` records by
+//! implementing [`Decide`], and that impl can live nowhere else.
+//! *Below* geom-core: `Decide`'s supertrait
+//! [`SpanLocate`](crate::spline::SpanLocate) is sealed by a
+//! `pub(crate)` module whose impl list is the kernel's scalar set, so a
+//! downstream type cannot decide. *Above* it: naming `Decide` at all
+//! means depending on geom-core, and geom-core would have to depend
+//! back — a dependency cycle, which cargo refuses outright.
+//!
+//! **The `Probe` type is NOT pinned**, and conflating the two is easy
+//! enough to be worth a sentence. Nothing stops the newtype being
+//! defined in a crate above this one and re-exported here; its five
+//! `core::ops` impls are the only things that would travel with it, and
+//! every kernel-trait impl — `Real`, `Bounds`, `CertifiedEnclosure`,
+//! `SpanLocate`, `Decide` — stays, because a local trait on a foreign
+//! type is legal and the reverse is not. That move relocates a newtype
+//! and leaves the recorder exactly where it was.
+//!
+//! What keeps the scalar out of shipped builds is the `probe` feature,
+//! not the crate boundary; geom-core's manifest carries the
+//! monomorphization measurement that gate was cut on.
 
 use core::cell::{Cell, RefCell};
 
@@ -94,18 +125,47 @@ thread_local! {
     /// The installed sample sink, if any.
     #[cfg(feature = "probe")]
     static SINK: RefCell<Option<Vec<MarginSample>>> = const { RefCell::new(None) };
-    /// The installed verdict-log sink, if any (NAMING-DESIGN N5 /
-    /// M4 PR 4: evaluations record their verdict vectors so the
-    /// verdict-diff engine can attribute flips).
+    /// The installed verdict-log sink, if any (NAMING-DESIGN N5:
+    /// evaluations record their verdict vectors so the verdict-diff
+    /// engine can attribute flips).
     static VERDICTS: RefCell<Option<Vec<Verdict>>> = const { RefCell::new(None) };
+}
+
+/// Classifies `margin` against `band`, noting `name` for the recorder
+/// and attaching it to any indeterminate outcome — the shared body of
+/// every public door below.
+///
+/// This is the only place either recording channel is written, which
+/// is why the doors delegate rather than each carrying a copy: the
+/// `CURRENT` write is the recorder's name channel (read by `Probe`),
+/// and the verdict push is the evaluation-artifact channel (the log
+/// itself is installed and removed by [`start_verdict_log`] /
+/// [`take_verdict_log`], and read by the verdict-diff engine). A door
+/// cannot acquire one and miss the other.
+fn classify<T: Decide>(name: &'static str, margin: T, band: Band) -> Result<Sign, Indeterminate> {
+    CURRENT.with(|c| c.set(name));
+    let outcome = margin.sign_within(band).map_err(|e| e.with_predicate(name));
+    if let Ok(sign) = outcome {
+        VERDICTS.with(|v| {
+            if let Some(log) = v.borrow_mut().as_mut() {
+                log.push(Verdict {
+                    predicate: name,
+                    sign,
+                });
+            }
+        });
+    }
+    outcome
 }
 
 /// The one classification funnel of the kernel: notes `name` for the
 /// recorder, classifies `margin` against `band`, and names any
 /// indeterminate outcome. Every deciding crate routes its predicates
-/// through this function (directly or via a thin crate-local wrapper),
-/// so it is the only shipped `sign_within` call site outside [`Probe`]
-/// (greppable per crate).
+/// through this function (directly or via a thin crate-local wrapper).
+/// The shipped `sign_within` call outside [`Probe`] is the private
+/// `classify` these doors delegate to — **exactly one**, which is what
+/// makes the greppability claim true rather than approximately true;
+/// each door carrying its own copy is what made it false before.
 ///
 /// The margin is a [`Margin<T>`] **by signature** (D4's margin
 /// dimensional convention, clause (i)): the caller states its
@@ -131,22 +191,7 @@ pub fn decide<T: Decide>(
     margin: Margin<T>,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
-    CURRENT.with(|c| c.set(name));
-    let outcome = margin
-        .value()
-        .sign_within(band)
-        .map_err(|e| e.with_predicate(name));
-    if let Ok(sign) = outcome {
-        VERDICTS.with(|v| {
-            if let Some(log) = v.borrow_mut().as_mut() {
-                log.push(Verdict {
-                    predicate: name,
-                    sign,
-                });
-            }
-        });
-    }
-    outcome
+    classify(name, margin.value(), band)
 }
 
 /// The classify seam's **finding lane** — [`decide`] for a shipped
@@ -155,23 +200,41 @@ pub fn decide<T: Decide>(
 /// not (yet) a length, and wrapping it in a [`Margin`] door would
 /// launder the very defect the ledger records. This function does NOT
 /// construct a `Margin` — the margin stays bare `T` and never claims
-/// the dimension it lacks; classification and recording are otherwise
-/// [`decide`] verbatim, so the K stream is unchanged.
+/// the dimension it lacks.
+///
+/// Classification and recording are otherwise [`decide`]'s, so the K
+/// stream is unchanged; the only difference reaching `classify` is that
+/// [`decide`] unwraps a `Margin` and this door has none to unwrap.
 ///
 /// `ledger_row` names the audit row that argues the absence (e.g.
-/// `"F2"`, `"F7"`). It is a compile-time obligation, not telemetry: a
-/// new call site without a corresponding flagged ledger row is a review
-/// reject — this lane is the greppable inventory of clause-(i) debt,
-/// shrinking as the flagged families get their own units, never a
-/// convenience door.
+/// `"F2"`, `"F13"`). It is an obligation, not telemetry: the value
+/// reaches no recorder and no column, and `classify` never sees it.
+/// What reads it is `geom-core/tests/flagged_census.rs`, which scans
+/// the shipped trees. This lane is the greppable inventory of
+/// clause-(i) debt, shrinking as the flagged families get their own
+/// units, never a convenience door.
 ///
 /// **Standing rule (the debt lane is tracked as issue #214): no new
 /// `decide_flagged` site ships without a ledger row in
-/// `docs/predicate-dimension-audit.md`.** The census count assertion
-/// (`geom-core/tests/flagged_census.rs`) pins the shipped-site count to
-/// the ledger's inventory, so adding a site without updating both the
-/// ledger and the assertion fails the suite — the rule enforces
-/// itself.
+/// `docs/predicate-dimension-audit.md`.** Two assertions in
+/// `flagged_census.rs` carry it over `crates/*/src`, and **only one of
+/// them computes anything**:
+///
+/// - **Self-enforcing:** every site's `ledger_row` must name a row the
+///   audit actually has. The rows are read out of the document at run
+///   time, so a citation to a row that was renumbered or never existed
+///   fails without anyone remembering to look.
+/// - **Hand-synced, and it is the residue:** the site COUNT is compared
+///   against a literal in the test, which is kept level with the audit's
+///   prose by hand. Nothing derives it. That is the *magic count* §S13
+///   names, unfixed; it is stated at the constant rather than covered
+///   over here.
+///
+/// The scan's own pattern says what it cannot see (a renamed import, a
+/// macro-generated call, a block-commented site), because a census whose
+/// blind spot is unstated reads as coverage it does not have. Fixtures
+/// and demos are outside the scan and cite a prose reason rather than a
+/// row.
 ///
 /// # Errors
 ///
@@ -182,20 +245,11 @@ pub fn decide_flagged<T: Decide>(
     band: Band,
     ledger_row: &'static str,
 ) -> Result<Sign, Indeterminate> {
+    // Nothing computes with the row at runtime, by design: it is read
+    // from the source text by `geom-core/tests/flagged_census.rs`, which
+    // is where a citation can be checked against the document it cites.
     let _ = ledger_row;
-    CURRENT.with(|c| c.set(name));
-    let outcome = margin.sign_within(band).map_err(|e| e.with_predicate(name));
-    if let Ok(sign) = outcome {
-        VERDICTS.with(|v| {
-            if let Some(log) = v.borrow_mut().as_mut() {
-                log.push(Verdict {
-                    predicate: name,
-                    sign,
-                });
-            }
-        });
-    }
-    outcome
+    classify(name, margin, band)
 }
 
 /// The classify seam's **invariant lane** — [`decide`] for the
@@ -210,9 +264,10 @@ pub fn decide_flagged<T: Decide>(
 /// so the margin stays **bare `T`** — no [`Margin`] is minted, keeping
 /// the lane visibly distinct from every geometric decision.
 ///
-/// Classification and recording are [`decide`] verbatim (same
-/// recorder, same names, same values — the K stream is unchanged). A
-/// certified violation on this lane is a **kernel invariant** failure:
+/// Classification and recording are [`decide`]'s: same recorder, same
+/// names, same values, the K stream unchanged.
+///
+/// A certified violation on this lane is a **kernel invariant** failure:
 /// callers surface it as their Corrupt-class typed error ("this is a
 /// bug", with a report affordance), never as a validity refusal and
 /// never as a panic (the `clippy::panic` denial; the Corrupt
@@ -226,19 +281,7 @@ pub fn decide_invariant<T: Decide>(
     margin: T,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
-    CURRENT.with(|c| c.set(name));
-    let outcome = margin.sign_within(band).map_err(|e| e.with_predicate(name));
-    if let Ok(sign) = outcome {
-        VERDICTS.with(|v| {
-            if let Some(log) = v.borrow_mut().as_mut() {
-                log.push(Verdict {
-                    predicate: name,
-                    sign,
-                });
-            }
-        });
-    }
-    outcome
+    classify(name, margin, band)
 }
 
 /// One recorded predicate decision: the funnel's static name and the

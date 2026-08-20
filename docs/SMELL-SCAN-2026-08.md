@@ -2328,7 +2328,9 @@ scope; it belongs with whoever next opens `spline/`.
   `.github/workflows/ci.yml` at `:322`, `:420`, `:444` when this was
   written; #626 moved them),
   `crates/geom-core/src/real.rs:348`,
-  `crates/geom-core/tests/flagged_census.rs:20`
+  `crates/geom-core/tests/flagged_census.rs` (the count is
+  `LEDGER_FLAGGED_SITES`; it was `:20` when this was written and moved
+  when #801 rewrote the scan around it)
 - **Confidence**: sure
 
 The disciplines the design leans on hardest are text-matching CI steps:
@@ -2336,9 +2338,18 @@ a `Bounds` compound-bound gate with thirteen hand-maintained path
 regexes; an `EvalScalar` gate ("the Bounds gate, over the name");
 `grep -rnE '\bReal\s*\+'` to catch extra bounds on evaluation type
 parameters; a `\b([a-z_]\w*)\s*\*\s*\1\b` regex banning `x * x` with its
-own file allowlist; an env-read ban; and a test that counts occurrences
-of the literal string `k_stats::decide_flagged(` across `crates/*/src`
-and asserts it equals **8**.
+own file allowlist; an env-read ban; and a test that counts
+`decide_flagged` call sites across `crates/*/src` and asserts the total
+equals a hand-written **8**. **#801 narrowed this last one without
+retiring it**: the scan no longer keys on the literal string
+`k_stats::decide_flagged(` — which a site spelled bare after a `use`
+evaded — and a second assertion now requires each site's `ledger_row`
+argument to name a row that exists in
+`docs/predicate-dimension-audit.md`, so the *citations* are computed
+rather than trusted. **The count itself is still the magic one**: `8` is
+a literal in the test, hand-synced with the audit's own prose, derived
+from nothing. That half of this row stands unfixed, and #801 says so at
+the constant.
 
 Correspondingly, `Bounds`'s doc comment has become an append-only
 ratification ledger: ~157 lines and six "Ratified amendment / Extension"
@@ -5035,6 +5046,79 @@ because it is fast.
 byte; only who computes it moved. Both sweeps (`--sizing-only` and
 `--deviation`) are byte-identical to main's, all 1,050 rows.
 
+**The same question one crate over — `geom_core::k_stats` — was §D's row
+C10, and #801 answers it NO: the RECORDER cannot leave this crate, in either
+direction, because it is an impl of a sealed `geom-core` trait. It is not
+S30's class.** C10 read the two files as siblings ("S30's class one crate
+over") and instructed its taker to split the instrument out; the resemblance
+does not survive contact with the tree. Three corrections, all measured at
+`1a94204d`:
+
+- **The recorder does not sit inside the predicate doors.** What
+  `decide`/`decide_flagged`/`decide_invariant` carry is one thread-local
+  name write and a verdict push — and the verdict push is not instrument at
+  all: it delivers a production value to `editor_core::resolve::vdiff`, and
+  its shape is under an explicit UNRESOLVED-by-Evan fence in the module docs.
+  The margin recorder is in `impl Decide for Probe`, outside every door.
+- **The instrument is 263 lines, not the row's ~96.** The probe-gated region
+  is `k_stats.rs:275-532` contiguous, plus the `SINK` thread-local and its
+  gated `use`. ~96 reconstructs exactly as the recording machinery minus
+  `Probe`'s `Real`/ops/`Bounds`/`CertifiedEnclosure`/`SpanLocate` impls — 165
+  lines the row's figure leaves out. **The first version of this bullet
+  justified that with "a type's impls travel with the type", which is exactly
+  backwards here** and is corrected in the bullet below: the `core::ops` impls
+  travel and the kernel-trait impls cannot.
+- **The RECORDER is pinned to `geom-core` from both directions; the TYPE is
+  not.** `impl Decide for Probe` is the recorder, and it can live nowhere
+  else. *Below* geom-core: `Decide: SpanLocate` and `SpanLocate:
+  sealed::Sealed`, where `sealed` is a `pub(crate)` module whose impl list
+  *is* the kernel's scalar set — a scratch crate depending on
+  `geom-core --features probe` gets E0277 (`P: SpanLocate`) on `impl Decide`,
+  E0277 (`P: locate::sealed::Sealed`) on `impl SpanLocate`, and **E0603,
+  "module `sealed` is private"**, on naming the seal. *Above* geom-core:
+  naming `Decide` means depending on geom-core, which must depend back —
+  **cargo refuses with "cyclic package dependency"**. Both directions are in
+  `local-scripts/seal-oracle.sh` rather than argued — named by path, and
+  committed, because the first version of this sentence cited a script that
+  lived only in a lane's home directory.
+  **What is NOT pinned is the `Probe` type**, and #801's first version claimed
+  otherwise — *"`Probe` cannot be defined outside `geom-core`"* was **false**,
+  found by #801's adversarial review and reproduced here: a `crates/adv-probe`
+  holding the newtype and its five `core::ops` impls, with every kernel-trait
+  impl staying in geom-core (a local trait on a foreign type is legal), builds
+  and passes geom-core's suite with **no unseal and no new public API**. It
+  moves **48 lines** of newtype-and-operators out of a 263-line instrument and
+  leaves every line C10 is about where it was. So the disposition is unchanged
+  and the ground under it is smaller and firmer: the thing that pins the
+  instrument is the sealed *trait*, not a property of the *type*.
+
+**And the volume question S30 found unasked WAS asked here.**
+`geom-core/Cargo.toml`'s `probe` feature comment carries both the argument and
+the numbers — Probe monomorphizes every generic-over-`Real` body, at 20.0% of
+geom-brep's LLVM IR, 15.6% of topo's and 5.0% of the workspace's test-binary
+symbols. Those figures were **recorded at `96257368` (2026-08-12, merged as
+#464) and are NOT re-measured by #801**; the claim they support — that the
+question was asked and answered with a gate rather than overlooked — does not
+depend on their being current. So C10's diagnosis is wrong at the root: this
+file is not an unasked volume question, it is an asked one whose answer was a
+feature gate instead of a crate move.
+
+**What #801 did instead.** The instrument left all three doors into one place
+*inside* the crate: a private `classify` the three doors delegate to. That
+converts an asserted sameness into a compiled one — `decide_flagged` and
+`decide_invariant` each carried a rustdoc sentence promising they were
+"[`decide`] verbatim", two hand-maintained identity claims over three
+separately-written bodies, with nothing enforcing either, which is S4's
+dominant shape stated in the imperative mood.
+It also reduces from three to one the number of sites reading the shape the
+UNRESOLVED fence is about, which is the direction that fence permits.
+
+**And the row asked for a split that the tree will not give, which is a finding
+about §D rather than about C10.** Moving the *recorder* out requires unsealing
+`sealed::Sealed`, and moving the *type* out — which needs no unseal — relocates
+48 lines and none of the instrument. Nothing in the row knew either, because the
+row was written from a resemblance rather than from the tree.
+
 **One finding surfaced here and deliberately NOT fixed here — the
 `agreement` column, which measured nothing. FIXED by #738**, which took
 the other branch: the column is **deleted**, not made real. The ruling
@@ -5953,12 +6037,46 @@ of the two happened?**
   cross kernel → Python with no wildcard, so the copy checked nothing the
   callable helpers did not. The helpers' own doc lines now state that
   invariant.
-- `profile::k_stats` is a self-declared compatibility shim ("new code
-  should reach for `geom_core::k_stats` directly") that all eight of the
-  crate's own decision-making modules use in preference to the thing it
-  forwards to — including modules written long after the unification it
-  describes (`profile/k_stats.rs:1`). **STILL OPEN** — retiring the shim
-  is structural, not residue.
+- **FIXED by #801.** `profile::k_stats` is deleted. Its seven in-crate
+  users (`seg`, `path`, `sugar`, `validate`, `path/verbs`,
+  `path/arc_fillet`, `path/family`) and its four `probe` test consumers
+  now name `geom_core::k_stats` directly, which is what the shim's own
+  docs told them to do. **The population was seven, not "all eight of
+  the crate's own decision-making modules"** — the eighth mention,
+  `profile/src/lift.rs:636`, is a doc line saying there is *no* funnel
+  call site there, so the count was raised by a sentence stating its own
+  negation. **Everything the workspace EXCLUDES was swept and then
+  BUILT.** `demos/`, `tools/` and `interval-transcendentals/` are
+  `exclude`d, so a green root `cargo check` is no evidence about them —
+  and *three excluded directories* hold **six crates**, which is not the
+  same number: `demos/tour` (with `--features probe`), `demos/wild`,
+  `tools/k-lint`, `tools/tess-lint`, `tools/tess-meter` (which does
+  depend on `profile`) and `interval-transcendentals`. All six build.
+  (#801's first record named three of the six — the stated population
+  smaller than the real one, which is the defect this whole unit is
+  about, committed inside its own evidence.) **Which of them reached
+  what, exactly**: `tools/k-lint` names `geom_core::k_stats` directly
+  (`tests/litmus.rs:33`); `demos/tour` reaches it as
+  `pncad::geom_core::k_stats` (`src/probe.rs:29`, `src/booleans.rs:68`)
+  — **through a re-export**, the same shape as the consumer this PR's
+  sweep missed; the other four contain no `k_stats` token at all. None
+  named the retired shim, which is what mattered. **The sweep pattern
+  still missed one consumer, and that is the transferable part**:
+  `profile::k_stats` matched nothing outside `crates/profile`, but
+  `crates/pncad/src/profile.rs:53` re-exported the module as `pub use
+  ::profile::{k_stats, lift, path};` — a **brace-list re-export names a
+  symbol without ever writing its path**, so no path-shaped pattern can
+  see it. `cargo check --workspace` caught it (E0432), the sweep did
+  not. The re-export is removed and `pncad::profile::k_stats` had no
+  consumers, verified afterwards by scanning every `k_stats` token in
+  the tree rather than a path. This section's **four** other STILL-OPEN
+  bullets are untouched, which is why the heading does not become FIXED:
+  `WitnessSlot`, `same_level`/`unreachable_zero`, `Rim`'s twice-stored
+  traversal direction, and the D9 `HashSet` determinism paragraph.
+  (**Counted as two in the first draft of this record** — the same
+  defect this bullet corrects three paragraphs above, committed one
+  bullet away from the correction. Conclusion survives, population did
+  not.)
 - **FIXED by #627.** The refusal message's line continuations are
   restored; the runtime text is one clean sentence again (the acceptance
   probe matches on `NON-PARALLEL`, which is unchanged).
@@ -10997,8 +11115,12 @@ to make and record.
 The 2026-08-19 statement of this paragraph is superseded: every gate it
 named has since fallen. **A1 (#682), A3 (issue #678, landed as #684), #690
 and #692 are all merged**, and **#705** merged the two geometry crates into
-one `geom`. So C4's remaining member (S33), C5's S28 half,
-C7 and C10 are edge-free and takeable today. (**C1 has left this table
+one `geom`. So C4's remaining member (S33), C5's S28 half and
+C7 are edge-free and takeable today (**C10 — `geom_core::k_stats` — is
+FIXED by #801**, which answered its embedded question *no* — the
+**recorder** is pinned to the crate in both directions by a sealed trait,
+though the `Probe` *type* is not, and #801's first answer conflated them).
+(**C1 has left this table
 entirely**: H13, its last live member, is FIXED by #779, and H12, H14 and
 H15 went before it.) (**C9 — the `agreement`
 column — is FIXED by #738**, which deleted it rather than re-deriving
@@ -11007,7 +11129,7 @@ observation. **C15** and **C17** are new, both filed by #738's review,
 and both collide the same way — **§C15** and **§C17** are process
 observations with nothing to do with either row. The convention is
 #731's and it is the only thing separating them: a bare `CNN` is a §D
-schedule row, a `§CNN` is a §C observation.) **C13, C14 and C16 are this PR's own filed rows**, all three edge-free, with the caveat that **C13 and C14 want a plan signed off by Evan before implementation**, being cross-crate public-API changes with a design element rather than cleanups. **C16 is displaced and the displacement is the record, not an error:** C-R20 assigned it **C11**, and #714's fix pass landed a `C11` of its own first — `main`'s C11 stands and C16 is confirmed. Row numbers on this track are assigned by the orchestrator and **a number is not owned until it is on `main`**, so a lane mints against the merged tree rather than against an assignment. **C12** has since arrived with #731, so the table read **C1–C8, C10–C17** with no hole at all — C9 the only number missing, and missing because it landed. **Re-derived at #803's merge, since a landing leaves this paragraph too:** the table reads **C1–C8, C10–C19, C21, C23**. Two numbers are absent and they are absent for **three** different reasons, which is one more than the count suggests. **C9** landed and left. **C20 is assigned** — to #779, unmerged at the time of writing — and the earlier version of this sentence said it *"has never been assigned on `main` at all, so it is a gap and not a reservation"*. The premise was true and **the inference was not**: C-R21 says a number is not owned until it is on `main`, which tells a lane what it may not *rely* on, not what is *true*. A hole on `main` is consistent with an unmerged reservation, and here it was one. **So the reading rule is unchanged and the description is corrected:** a taker still asks the orchestrator for a number rather than filling a hole — not because the hole is unreserved, but because **from `main` alone you cannot tell**, and that is precisely why the asking exists. Live reservations at the time of writing: **C22** (C-q, released unused), **C24** (C-g), **C25** (#779's second row). **Re-derived again at #816's merge:** the table reads **C1–C8, C10–C23, C25, C26**, and the two absences now have two different accounts. **C9** landed and left. **C24** is a live reservation (C-g). **And C22 is a third thing neither of those describes: a RE-ISSUED reservation.** It was held for C-q, C-q released it without minting a row, so nothing ever landed under it — and #816 was assigned it for `mesh::sizing`'s visibility question. That distinction is invisible from `main`, which is the point worth carrying forward: **a re-issued reservation and a discharged row look identical from the merged tree unless one of them says which it is.** C9's hole means *something landed here*; C22 means *nothing ever did*, and only the row saying so separates them. A taker reading a late-appearing number should assume neither.
+schedule row, a `§CNN` is a §C observation.) **C13, C14 and C16 are this PR's own filed rows**, all three edge-free, with the caveat that **C13 and C14 want a plan signed off by Evan before implementation**, being cross-crate public-API changes with a design element rather than cleanups. **C16 is displaced and the displacement is the record, not an error:** C-R20 assigned it **C11**, and #714's fix pass landed a `C11` of its own first — `main`'s C11 stands and C16 is confirmed. Row numbers on this track are assigned by the orchestrator and **a number is not owned until it is on `main`**, so a lane mints against the merged tree rather than against an assignment. **C12** has since arrived with #731, so the table read **C1–C8, C10–C17** with no hole at all — C9 the only number missing, and missing because it landed. **Re-derived at #803's merge, since a landing leaves this paragraph too:** the table reads **C1–C8, C10–C19, C21, C23**. Two numbers are absent and they are absent for **three** different reasons, which is one more than the count suggests. **C9** landed and left. **C20 is assigned** — to #779, unmerged at the time of writing — and the earlier version of this sentence said it *"has never been assigned on `main` at all, so it is a gap and not a reservation"*. The premise was true and **the inference was not**: C-R21 says a number is not owned until it is on `main`, which tells a lane what it may not *rely* on, not what is *true*. A hole on `main` is consistent with an unmerged reservation, and here it was one. **So the reading rule is unchanged and the description is corrected:** a taker still asks the orchestrator for a number rather than filling a hole — not because the hole is unreserved, but because **from `main` alone you cannot tell**, and that is precisely why the asking exists. Live reservations at the time of writing: **C22** (C-q, released unused), **C24** (C-g), **C25** (#779's second row). **Re-derived again at #816's merge:** the table reads **C1–C8, C10–C23, C25, C26**, and the two absences now have two different accounts. **C9** landed and left. **C10 has since landed too, as #801**, so at that PR's head the table reads **C1–C8, C11–C23, C25, C26** and C9 and C10 are both absent for the same reason. **C24** is a live reservation (C-g). **And C22 is a third thing neither of those describes: a RE-ISSUED reservation.** It was held for C-q, C-q released it without minting a row, so nothing ever landed under it — and #816 was assigned it for `mesh::sizing`'s visibility question. That distinction is invisible from `main`, which is the point worth carrying forward: **a re-issued reservation and a discharged row look identical from the merged tree unless one of them says which it is.** C9's hole means *something landed here*; C22 means *nothing ever did*, and only the row saying so separates them. A taker reading a late-appearing number should assume neither.
 
 **C11 joined 2026-08-19**, as A2/#714's own two residues (§D ordering rule 3),
 and it is edge-free in the same sense C9 is: its #727 half is a **decision**
@@ -11046,7 +11168,6 @@ the table, which is why this paragraph is rewritten rather than appended to.
 | **C6** | **W2f remainder / S4** — `ProgramStep`/`WireStep`, `SegTag`, and the "no usable value" core. | Each is blocked on something real: the first behind OnArc + RESPELL-TABLE and crossing the same files, the second needs the workspace's first proc-macro crate, the third by a persisted format. |
 | **C7** | **W2a / S3 and W2b / S1+S2** — the lane-trait collapse, and `RingInterval` versus an always-on `Interval`. | **The S3 half no longer waits — D1 is ruled, and its report is S44's D1 DECIDED block.** The steelman's compiled collapse for S3 **predates #643's `Bounds`/`CertifiedEnclosure` split** and must be re-derived against the two-trait world; read *"What this does NOT settle"* first, in particular its per-lane correction — deleting a lane trait leaves **three of the four** seams still uninstantiable at a dual, and only `chart_region_overlap` would become instantiable. W2b's blast radius is 535 refs in 15 files with five carrying 60%. **Two rows joined this one on 2026-08-20**, both from the unscheduled audit: **S44's open residue** — whether the four lane traits survive and whether D9's four bit-identity assertions may be re-expressed, which is what S44 means by *"open for the part that matters"* now that its priced half (D1) is ruled — and **S55**, `Enclosure` as a live trait with no consumer, which Evan deferred *pending the `Bounds` narrow-vs-broad split* and which is therefore this row's, not a lane of its own. Whoever takes C7 absorbs both. |
 | **C8** | **#711 — S24's residues outside `editor-core`**: `step-import/src/recognize.rs:126`, whose `try_cylinder` promoting arm is documented unreachable and whose `Plane > Cylinder` preference order is *"unfalsifiable by execution"*; and `docs/ASM-R2A-SPEC.md:21`, a landed spec sentence (*"v1 admits `Rest`/`Tangent`"*) that is true of the door it binds and no longer of v1 as a whole. | Filed by #702's fix pass rather than left inside a finding marked FIXED. The first may want the tighter cylinder certificate rather than an encoding change; the second is a one-line ruling — clarifier, or "landed specs read as of their own date". Small, edge-free, and **not** a lane on its own: fold into whoever next opens `step-import`. |
-| **C10** | **`geom_core::k_stats` is S30's class one crate over** — 598 lines, ~96 of them separable instrument, in the kernel's own core crate. | Reported by #709 and deliberately untouched, for a reason that is the whole row: the recording sits **inside** `decide`/`decide_flagged`/`decide_invariant`, which are load-bearing kernel predicate doors, so the `mesh::budget` split does **not** transfer mechanically. Whoever takes this must first decide whether the instrument can leave a door that certifies, and record that decision — it is not a cut-and-paste of #709. Note also `profile::k_stats`, a self-declared compatibility shim whose retirement is **STILL OPEN** at S40. Edge-free but not small. |
 | **C11** | **#726 and #727 — A2/#714's own two residues.** #726: fold the iso-rectangle SHAPE question out of `mesh::curved`'s `require_swept_rectangle` and onto the named predicate, leaving `entries_off_bbox` only #653's walk-consistency question. #727: which door owns the refusal — `mesh` and (once its curved-pierce door lands) the boolean are still protected **transitively**, through tier 3's check 7 calling `mass_properties`, which is the pre-#648 mesher's shape. | Both were footnotes inside a finding marked fixed until #714's style review applied ordering rule 3. #726 is a lane; #727 is a **decision** with a written answer to react to (S58's entry), not a patch. Whoever takes either reads **#723** first — `props_rim_level` is not the whole closed-form premise, so "protected by `props` refusing" is weaker than it reads. |
 | **C12** | **`editor-core`'s remaining classification residues, from #731's style review** — filed here rather than left inside a finding marked FIXED (**C-R7**). Three things. **(a)** `tests/m4_pr4_resolve.rs`'s `embeds_structurally` reimplements `walk_names`' structural half with a `_ => false` arm, so a future name-embedding variant makes the test oracle under-report silently; it is **S52**'s shape (the `tests/`-is-another-crate boundary) and S52 has no row of its own, which is why this one is written out rather than pointed at. **(b)** `resolve/mod.rs`'s undeclared duplication, found by a whole-file read: `qualifier_delta`, `merge_offers` and `rebind_suggestions` open with a byte-identical table scan differing only in the predicate (`lookup` is a fourth, shallower spelling), and `ResolveError::Ambiguous` + `TieWitness` is minted at three sites with different `candidates`/`at` and no constructor. Nothing self-declares, so **§C11**'s confessed-copy grep cannot see any of it (the clause, not the §D row of that number). **(c)** `merge_offers` scans only top-level `path` segments for `Merged` while `rebind_suggestions` uses the recursive `walk_names`, so a `Merged` nested inside `FromA` is visible to one offer ladder and not the other — an undeclared asymmetry between adjacent doors, and it is not established whether it is intended. **(d) An open QUESTION, not a defect — `persist::check::edit_non_finite`'s `Node` axis.** #731 made that match exhaustive on `DocEdit` and left `InsertNode { .. } => None`, so a future `Node` variant carrying a raw float is still classified silently at the load door. It is correct today, and the fix is not mechanical: two of the variants it already classifies — `Node::Mate`'s `alignment` and `SetPlacement`'s `frame` — hold raw `f64` and are safe only because `apply` refuses them on replay, which is the door this function's own doc says it does **not** rely on (*"a saved log is DATA — it has not necessarily been applied by this process"*). Closing the axis means ruling whether the load door may lean on `apply`, which is a policy call. | Small, edge-free, in one crate. (a) is a one-function fix once someone decides whether a test may call the crate's own walk; (b) is the same collapse S4 has done four times; (c) is a question before it is a fix. **(d) is a design element under C-R19** (orchestrator, 2026-08-20) — **middle tier: a plan goes to Evan before implementation, not a patch.** Fold (a)–(c) into whoever next opens `editor-core/src/resolve/`. |
 | **C13** | **#741 — ε has no type of its own**, so `StepOptions::uncertainty_m` and `step-import/src/entities.rs`'s two bare `f64`s each restate `geom_core::Tolerance::init`'s *finite-and-strictly-positive* rule by hand. | **S4's shape** (one vocabulary, N hand-synced copies), not a missing newtype on one struct. The distinction that survives: `Tolerance` is `{eps, k}`, the run configuration, while these want **ε alone**. **Plan to Evan before implementation** — the open parts are whether the ε-alone type lives in `geom-core` beside `Tolerance`, and whether `Tolerance::eps` becomes that type or merely validates into it. Cross-crate public API. |
@@ -11076,9 +11197,10 @@ current when it is not.**
   search and a second index clamp, placed by #744 — the same file C-m opens for
   S27, whose A2 gate fell when **#714** merged. Full row in Track E's table,
   marked as Track C's.
-- **D32 arrived, for C-q.** `decide_flagged`'s `ledger_row` parameter is
-  discharged by `let _ = ledger_row;`, placed by #747 — `geom-core/src/k_stats.rs`
-  is C-q's whole scope. Full row in Track E's table, marked as Track C's.
+- **D32 arrived, for C-q, and is FIXED by #801.** `decide_flagged`'s
+  `ledger_row` parameter was discharged by `let _ = ledger_row;`, placed by
+  #747 — `geom-core/src/k_stats.rs` is C-q's whole scope. Taken as option (b),
+  *check it*; the record is in Track E's table.
 
 Both incoming rows are Track C's because they are Track C's files, and a second
 track editing them is the collision this sequencing exists to prevent. **If
@@ -11470,7 +11592,7 @@ overstatement.
 
 **The shape, for §C10's file.** #101 established an invariant and swept the
 corpora it knew about; `k_report.rs` was not one of them, and no import
-carried the invariant to it. That is C10's rule exactly — *cross-lane
+carried the invariant to it. That is §C10's rule exactly — *cross-lane
 invariants do not propagate; only imports do* — with the aggravation that the
 sibling here was not merely unswept but **uncompiled**, so the sweep could not
 have failed loudly even if it had been attempted.
@@ -11784,11 +11906,13 @@ table instead"*. `CosurfaceNames` and `transform.rs`'s array are two more, so
 it now says it is one carrier of several and points at the enumeration.
 
 **Three residues, placed as rows rather than left in the PR body** (§D's third
-ordering rule). **D32**: `decide_flagged`'s fourth parameter,
-`ledger_row: &'static str`, is `let _ = ledger_row;` at `k_stats.rs:185` — the
-only place in the tree where the K funnel and the dimensional-audit ledger
-touch, and the touch is inert, while `M9-2-SPEC.md:69` and `SELECT-DESIGN.md`
-treat ledger rows as an obligation. **D33**: `predicate-dimension-audit.md` is
+ordering rule). **D32** (**since FIXED by #801**; the line number below is
+where #747 found it, not where it is now): `decide_flagged`'s fourth
+parameter, `ledger_row: &'static str`, was `let _ = ledger_row;` at
+`k_stats.rs:185` — the only place in the tree where the K funnel and the
+dimensional-audit ledger touch, and the touch was inert, while
+`M9-2-SPEC.md:69` and `SELECT-DESIGN.md` treat ledger rows as an obligation.
+**D33**: `predicate-dimension-audit.md` is
 a second name-carrying document with the same completeness question and an
 undisclosed two-crate bound — five of the seven orphans above are outside it by
 construction. Its scope line is the *better* criterion of the two and is what
@@ -12120,7 +12244,7 @@ citations that did not resolve: **#768**.
 | **D28** | **FIXED by #767.** The re-derived census is **twelve** payload-discarding arms in that one `Display`, not the row's eight: the eight op arms plus `Profile`, `ProfileReplay`, `Band` and `Escalated`, all of which forward now, plus two more of the same class elsewhere in the crate found by a shape sweep rather than a symbol one — `program.rs`'s `ProgramRefusal::Validate`, and `edit.rs`'s `EditError::MetaUnversioned`, whose dropped `MetaVersionError` made the message **wrong** rather than merely thin (two of that payload's three arms are not a missing `"v"` field). **Two payload types had no `Display` at all** — `topo::transform::TransformError`, public through `pncad::prelude`, and `MetaVersionError`; both are minted here. `UndeclaredContact` renders its `Indeterminate` too: a recourse menu the payload cannot spell buys an arm prose, never the right to drop the payload. Review found the fix's own live consequence and it is fixed with it: forwarding made `topo/splitting/finish.rs`'s two `Debug` renderings reachable through the FFI, so a `BandError` shipped to Python as `Empty { zero: 1.0, escalate: 0.5 }` — that class, outside `pncad-py` where **D47** cannot see it, is **D81**. `SplitError` also stopped re-prefixing three stages that already name themselves. Five arms whose payload is an editor-core type with no `Display` are **D54**. The row's *"the payload is already gone by the time the tag map runs"* is **wrong and was already retracted by D37**: `node_error_tag` takes `&NodeErrorKind` intact and the render is a separate call at `py/value.rs:99`, so the loss was the **message**, never the tag. Guarded by `a_kernel_payload_arm_forwards_the_payloads_own_message` over an eight-arm roster (representative, not exhaustive — nothing makes it exhaustive), by that same roster carrying the no-`Debug`-guts property, by three `MetaVersionError` message rows, and by one assertion on the live fillet refusal in `m5_pr12_fillet_node.rs`. **Issue #693 discharged in the same PR.** | #740 (D2), via its FFI-boundary check | `editor-core/src/eval/mod.rs` | style | nothing |
 | **D30** | **`geom-brep/src/props/quad.rs` holds a second span search and a second index clamp, and the reason is more interesting than either.** `KnotVector` cannot represent what this module needs: `Dir::Raw` exists because a derivative direction's interior multiplicity exceeds its own degree and `clamped` refuses it, and `Dir::Const` is degree 0, which `clamped` refuses by design. So the file hand-rolls `raw_span` (`:925`, an O(n) walk per point) and `const_index` (`:1022`, another). **Neither is a duplicate to be collapsed** — D8 verified `raw_span` agrees with `find_span` on every *clamped* vector, which is exactly the set it is never called on, and the shared search cannot serve degree 0 at all. The row is the shape, not the copies: **a certified type that cannot represent an intermediate the code needs pushes the consumer into re-deriving the type's whole vocabulary.** That is S32's shape one module over — S32's *stated* shape, the one-partial-per-call API, not its causal gloss: #804 established that the missing jet door is **not** what created SSI's `Chart`, which survives on three independent grounds. The clause is corrected here rather than only at S32, because a correction that leaves the object-level sentence standing is the half-fix one level up (**C-R18**). Three concrete things to settle at the site: whether `raw_span`'s and `const_index`'s clamps are load-bearing or vestigial (both are unexamined); why `const_index`'s result indexes raw at `:1260`/`:1263` when the same file uses `.get(…).unwrap_or_else(poison)` for the same kind of index thirty lines away — two spellings of one rule in one file; and whether the per-point O(n) walks matter on the Newton–Cotes lane. | S18 (knot-insertion row), via #744's census and both its review lanes | `geom-brep/src/props/quad.rs` | **ADVERSARIAL** — it is span arithmetic on knot lists the validated type refuses, so there is no constructor to lean on and no existing gate covers the derived vectors | nothing; **handed to Track C (C-m)** — `props/quad.rs` is C-m's whole scope, and its A2 gate fell when #714 merged. Track E does not take this row |
 | **D31** | **`sweep::skin::make_compatible` and `geom::curves::fit`'s `deviation_from` are ONE routine in two crates.** Both build a union of `(value, max multiplicity)` over a set of curves by linear `find`, both then walk each curve producing a repeat list of the values it is short, both then call `refine_knots` or clone when the list is empty. Two crates, two error types, one Book section (§5.3's knot merging). It predates #744; what #744 did was make it **legible**, by putting the same `interior_knots()` expression at the head of both. It is S18's own class — a certified numeric derivation duplicated across crates — and it is **not in S18's table**, which is the finding's own blind spot: the table censuses *primitives*, and this is a routine built on one. `geom-core::spline::algebra` sits below both in the DAG. Before unifying, check the two genuine differences: `skin` sorts the union by `total_cmp` and `fit` does not (both feed `refine_knots`, so decide whether the order is load-bearing), and `fit`'s copy carries a certified-deviation budget the `sweep` one has no analogue for. | S18 ("distinct interior knots" row), via #744's style review | `sweep/src/skin.rs`, `geom/src/curves/fit.rs`, home in `geom-core/src/spline/algebra.rs` | style, unless the union's sort order turns out to be load-bearing — then ADVERSARIAL | nothing (D8 landed) |
-| **D32** | **A spec obligation is discharged by a discard: `decide_flagged`'s `ledger_row` argument is `let _ = ledger_row;`.** `geom_core::k_stats::decide_flagged` takes a fourth parameter, `ledger_row: &'static str`, and its body throws it away — the value reaches no recorder, no CSV column, and no assertion. Meanwhile `docs/M9-2-SPEC.md:69` makes it an obligation on implementers (*"every decision through named decide/Margin doors; **ledger rows for any `decide_flagged`**"*), `docs/M9-3-SPEC.md:77` routes a new metered name to *"a named row plus its predicate-dimension audit entry"*, and `docs/SELECT-DESIGN.md:41/85` refuses a comparand *"without a ledger row in `docs/predicate-dimension-audit.md`"*. **Measured at `ff5ad78e`**: 8 `decide_flagged` sites pass 5 distinct rows — `"F2"` ×4, `"F10"`, `"F13"`, `"F14"`, `"F15"`. Every one is a correct citation today. Nothing checks that, and nothing would notice a sixth spelled `"F16"` with no such row in the audit, or an existing row renumbered out from under a call site. **Why it is a row and not a tidy-up.** The parameter is the only place in the tree where the K funnel and the dimensional-audit ledger touch, and the touch is inert: it reads as an enforced link and is a comment with a type. The question to answer first is which of the three it should be — (a) **delete it**, and let the ledger citation live in a normal comment, which is honest and costs nothing; (b) **check it**, in the shape D17's census gate takes, asserting every literal passed here resolves to a row heading in `docs/predicate-dimension-audit.md`; or (c) **use it**, emitting the row into the recorded sample so the CSV can be grouped by ledger row, which is the only option that buys anything at runtime and the only one that costs. **It closes on that choice**, not on a rename. | D19 (#747), which found it while establishing what computes with predicate names | `crates/geom-core/src/k_stats.rs`, and whatever the choice names | style | nothing; **handed to Track C (C-q)** — `geom-core/src/k_stats.rs` is C-q's whole scope. Track E does not take this row |
+| **D32** | **FIXED by #801**, which took option (b) — **check it**. `decide_flagged`'s `ledger_row` still reaches no recorder at runtime and the discard stays, now with a comment saying why; what changed is that the value is no longer unread. `geom-core/tests/flagged_census.rs` gained a second assertion, `every_shipped_site_cites_a_ledger_row_that_exists`, which extracts each shipped site's fourth argument and requires it to name a `- **FNN**` bullet in `docs/predicate-dimension-audit.md`. Re-derived at `1a94204d` (not inherited from `ff5ad78e`): 8 sites, `"F2"` ×4, `"F10"`, `"F13"`, `"F14"`, `"F15"`, all resolving. **The census's own pattern was the bigger find.** It matched the literal `k_stats::decide_flagged(`, so a site spelled bare after a `use` was invisible to it — and `decide_flagged`'s rustdoc said of that census *"the rule enforces itself"*, which for that spelling was false and shipping. The pattern now matches every spelling, states at itself what it still cannot match (a renamed import, a macro-generated call, a block-commented site, a non-literal row — the last fails loudly rather than being skipped), and states plainly that `src/` is only a PROXY for *shipped* — an in-file `#[cfg(test)]` module lives in `src/` and ships in no build, so a `decide_flagged` fixture written there is COUNTED, which is the loud and safe direction; the fix for such a site is to move it to `tests/`. **An earlier revision of this PR instead added a 54-line source scanner to subtract exactly the four fixtures the PR itself had put in `src/`** — §C16's shape, caught by #801's style review; the fixtures moved to `crates/geom-core/tests/k_stats_doors.rs` and the scanner is gone. **What self-enforces is stated exactly and no wider**: the ledger-row assertion reads its rows out of the audit and computes; the site COUNT is a hand-synced literal, which is §S13's *magic count* and is named as unfixed residue at the constant rather than covered over. Falsified by mutation on the shipped head: a site citing `"F99"` trips the row assertion by name, printing file, line and the 15 rows present; a ninth site added in the bare spelling trips the count assertion (`left: 9, right: 8`) while the OLD literal pattern still counts 8; a fixture planted in an in-src `#[cfg(test)]` module trips BOTH assertions, naming its file and line; re-bulleting the ledger `* **FNN**` trips the vacuity guard | D19 (#747), which found it while establishing what computes with predicate names | `crates/geom-core/src/k_stats.rs` and `crates/geom-core/tests/flagged_census.rs` | style | nothing; **taken by Track C (C-q) and landed as #801**, not declined back to Track E
 | **D33** | **FIXED by #761.** The audit's two-crate bound is **deliberate, and it binds the TABLE, not the document** — the dimensional argument is made where the comparand is built, and the out-of-ledger crates (`profile`, `sweep`, `editor-core`'s eval/naming, `geom-curves`) argue their doors at their own sites, which the clause-(i) note already said and the funnel-bypass paragraph already called *"scoped on purpose"*. The *dispositions* were never so bounded (F12, F13, F14, F15 are `editor-core`), so the bound is on the **inventory**, not on the file. **Coverage, measured against `43e2998d`** and re-derived from scratch at each of `f87b203` and `a0a6e1a5` as main moved the files under it — every figure reproduced all three times: **246** funnel-reaching predicate names in shipped `geom-brep` + `topo` (210 written as a literal at one of **ten** spellings, **36 carried** by a const, a struct field or a local table), of which the document **reaches 223** — but **reach is not verdict**: only **121** have an individual row with a `dim` cell, 3 more are named only in prose, 99 are covered by a family gloss, and **23 are recorded nowhere under any reading**. **23 is a floor and 223 a ceiling on reach**: the family glosses were read as generously as they allow, so a stricter reader grows the 23 and nothing shrinks it. The site count is published with a full subtraction ledger (322 raw matches → 315 funnel calls → 302 name-fixing sites) and **explicitly demoted**, because ~30 helpers in the two crates fix a name and have more than one caller, so *"where a decision is posed"* and *"where the funnel is called"* differ by a convention-dependent margin — D19's *"a count of SITES was never the right measure of a NAME roster"*, measured. The overclaiming scope line is **retired in place**, not footnoted, and the published recipe now strips the file's two self-describing sections, without which a re-deriver reads the section listing the 23 and measures a hole of zero. **Four corrections to this row as it was written**: the tables have **143** rows, not 145 (145 counts the two `| site |` headers); **all seven** of #747's orphans are outside the two crates, not five (`demo_flush_orient` and `demo_flush_parallel` are `demos/tour` too); the audit's own *"~230-row table"* self-count was wrong; and its scope line named `require_extent` as a funnel spelling that this row's first measurement had dropped. Auditing the 23 is **D46**; `DESIGN.md`'s stale F-range is **D51**; the diagnostic-only K names are **D57**. **D56 was offered for the name-fixing-helper class and handed back**: the re-derivation found ~30 instances in the two crates and **every one is benign for the roster** — a helper that fixes a name calls the funnel with that name as a literal, so all of them are already in the 210. The class costs a *site* count its canonicity and nothing else, and that is answered in the file by demoting the site count rather than by a unit of work. | D19 (#747), which cross-checked its orphans against this document and found the bound | `docs/predicate-dimension-audit.md` | style, and it closed on a coverage number plus a scope verdict | nothing (D19 landed the criterion it uses) |
 | **D35** | **The `unreachable!` message convention is prose-held at 102 sites, the week after the mechanism was ratified — and nothing can tell a good message from a bad one.** The D2 addendum (ratified **2026-08-19**) made `unreachable!` row 4's mechanism. Six days later the tree has **101** of them across **nine** crates (`topo` 62, `sweep` 18, `geom` 6, `editor-core` 6, `geom-brep` 5, four crates with one each), and **#744** adds the 102nd — `geom-core`'s first. **The convention itself is not written down anywhere as a rule about the message.** `docs/DESIGN.md:1239` is its only trace, and what it records is the *conversion standard* — "each carrying its own per-site not-input-reachable proof" — not the shape that proof takes at the call site. The shape actually applied is: **the message states WHY the state cannot occur (the caller's proof), not merely WHAT was violated**, plus the observed values a reader debugging it would want first. **Nothing mechanically distinguishes the two, because to a grep they are identical**: both are `unreachable!("…")` with a string literal. A lint cannot read a sentence, so there is no existing check — and no cheaply constructible one — that separates "proven live by the check three lines up" from "key missing". **Why this is a row and not a note: it is time-critical, and the others are not.** 101 of the 102 sites were written inside one week, by lanes that are still running; the message shape was settled *this session* by **orchestrator ruling across two lanes** (#740's and #744's), which is exactly the mechanism that disappears when the lanes do. A convention held only by a ruling nobody wrote down is S15's finding in its purest form, and the window in which the authors can still say what they meant is now. **Four shapes, with their costs — and "none" is a legitimate answer.** *(a) A grep gate on message shape* (require a `because`/`proven`/`by` clause, a minimum length, or an observed-value tail): cheap, mechanical, and **checks spelling rather than content** — a site can satisfy it and say nothing, which buys false confidence, the one outcome worse than no gate. *(b) A ratified sentence in `DESIGN.md` plus a standing reviewer question* ("does this message say why it cannot happen?"): honest about being prose-held, but at least **findable**, and reviewer questions are the mechanism this scan keeps finding nobody is asked. *(c) A `kernel_bug!(reason = …, observed = …)` macro* making the proof a named parameter, so omitting it is a compile error: structural, but the addendum **explicitly rejected** a macro (`not_implemented!`) for the adjacent case, it forces the reason to be *present* and not to be *true*, and it is a 102-site migration. *(d) Nothing — sample and move on*: the sites are concentrated (80 of 102 in two crates), the panic is by construction not input-reachable, so a bad message costs one debugging session and never a user. Read the 102 once, fix what is wrong, and let the class live. **Close on whichever is right, including (d).** A row that closes on *"no, and here is why"* has done its job; this one exists so the question is asked while the answer is still cheap, not so a gate gets built. | S15 (prose-held invariants), applied to D2's addendum; raised by **#744** after **#740** landed the 18 that make it a class | `docs/DESIGN.md` (the addendum), and whatever the answer names — the sites are `crates/{topo,sweep,geom,editor-core,geom-brep,geom-core,mesh,profile,quantity,step-import}/src` | style — it closes on a **decision plus its reason**, not on a shape, and "no gate" is a passing answer | nothing (both #740 and #744 are its evidence, and both are in) |
 | **D36** | **`PcurveCertifyError::UnsupportedCarrier` is payload-free and means three different things, beside a sibling in the same enum that names its class at every site.** Re-derived at `87e565b`: **22** construction sites, all in `crates/geom-brep/src/pcurve_cache.rs`. The doc and the `Display` both say one specific thing — *"a closed-form (Harmonic) chart image was offered for a carrier with no {1, cos, sin, t} form"* — and **six** sites mean that (`:1021`, `:1994`, `:2412`, `:3198`, `:3372`, `:3485`). **Three** mean something else entirely: the refused thing is the *image* kind, not the carrier (`:1338` `Pcurve::Fitted`, `:1822` and `:2025` a non-`Harmonic` pcurve). The remaining **thirteen** are the #192 Leg E class — a carrier that IS harmonic, refused for its *placement* on the chart: a circle not centred on the axis, a carrier plane not ⊥ to the axis, an apex-level rim, a `Sign::Zero` traversal rate, a tilted cone section. `IsoUnsupported { what }` sits in the same file and the same enum and names its refused class every time: **15 constructions written out at a site, plus a `let bad = \|what: &'static str\| …` closure factory at `:2612` reached from 8 call sites — 23 refusal sites on the counting-through-the-closure reading, 16 on the syntactic one.** This variant carries nothing on either reading. **Both figures for `UnsupportedCarrier` are the same number** — its 22 are all written out at their site; the file has two closure factories (`bad`, and `esc` for `Escalated`) and neither mints this variant. **The overload is load-bearing, not cosmetic**: `topo/src/pcurves.rs:1003` matches on `UnsupportedCarrier` specifically and responds by clearing the face's caches and continuing — so a degenerate-configuration refusal is silently absorbed by a handler written for an uncovered-class one, and the module's own comment (*"Every OTHER failure … is a genuine defect and propagates"*) is narrower than the variant it keys on. The shape is settled by the sibling: `UnsupportedCarrier { what: &'static str }`, `Copy` preserved. **The deliverable is which of the three classes `topo::pcurves` should keep absorbing**, not the 22-site rename. | S19, via **D26** (#752) | `crates/geom-brep/src/pcurve_cache.rs`, and the consumer at `crates/topo/src/pcurves.rs` | style, **escalating to ADVERSARIAL** if the split changes which refusals `topo::pcurves` swallows | nothing |
