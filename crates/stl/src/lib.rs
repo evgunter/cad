@@ -84,6 +84,24 @@ pub enum StlError {
         /// The actual triangle count.
         count: usize,
     },
+    /// The requested ASCII solid name carries a character outside the
+    /// printable-ASCII range the `solid <name>` grammar admits — a
+    /// newline would make `endsolid <name>` unmatchable and the file
+    /// unparseable, so the name is refused rather than sanitized.
+    UnrepresentableSolidName {
+        /// The offending character.
+        character: char,
+    },
+    /// The requested binary header does not fit binary STL's 80-byte
+    /// header field. Refused rather than truncated.
+    HeaderTooLong {
+        /// The requested header's length in bytes.
+        len: usize,
+    },
+    /// The requested binary header begins with `solid`, which makes the
+    /// file sniff as ASCII STL in the parsers that decide by that
+    /// prefix.
+    HeaderSniffsAscii,
     /// An I/O failure from the output sink.
     Io(std::io::Error),
 }
@@ -103,6 +121,19 @@ impl core::fmt::Display for StlError {
                 f,
                 "stl export: {count} triangles exceed binary STL's u32 facet count"
             ),
+            Self::UnrepresentableSolidName { character } => write!(
+                f,
+                "stl export: solid name contains {character:?}, outside the printable \
+                 ASCII the single-line `solid <name>` grammar admits"
+            ),
+            Self::HeaderTooLong { len } => write!(
+                f,
+                "stl export: {len}-byte header exceeds binary STL's 80-byte header field"
+            ),
+            Self::HeaderSniffsAscii => write!(
+                f,
+                "stl export: a binary header beginning with `solid` sniffs as ASCII STL"
+            ),
             Self::Io(e) => write!(f, "stl export: io error: {e}"),
         }
     }
@@ -120,6 +151,76 @@ impl std::error::Error for StlError {
 impl From<std::io::Error> for StlError {
     fn from(e: std::io::Error) -> Self {
         Self::Io(e)
+    }
+}
+
+/// Export options: everything that lands in the file besides the mesh.
+///
+/// The two things an STL file carries that are not triangles — the
+/// ASCII `solid <name>` name and the binary format's 80-byte header —
+/// and they live in one struct because a caller exporting both formats
+/// of one part states its identity once. Each writer reads the field
+/// its format has and validates that field only, so a header longer
+/// than 80 bytes is a refusal from [`write_binary`] and not from
+/// [`write_ascii`].
+///
+/// Determinism (D9): each writer is a pure function of
+/// `(mesh, options)` — equal inputs give byte-identical files. Neither
+/// default is read from a clock, an environment variable, or anything
+/// else about the machine that ran the export; a caller supplying its
+/// own strings supplies its own constants, and the writers add nothing.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StlOptions {
+    /// The ASCII writer's `solid <name>` name, closed by the matching
+    /// `endsolid <name>`. Printable ASCII (`0x20..=0x7E`) only — the
+    /// grammar is one line, so anything else is a typed refusal rather
+    /// than a silently mangled file. Defaults to the project's
+    /// placeholder name (`ascii::DEFAULT_SOLID_NAME`); Q9 is untouched
+    /// and it is not a name proposal.
+    pub solid_name: String,
+    /// The binary writer's header text, zero-padded to the format's
+    /// 80-byte header field. At most 80 bytes, and it may not begin
+    /// with `solid` (parsers that sniff ASCII STL by that prefix would
+    /// misread the file) — both are typed refusals. Defaults to a
+    /// constant description of the producer
+    /// (`binary::DEFAULT_HEADER`) carrying no timestamp, version, or
+    /// path.
+    pub header: String,
+}
+
+impl Default for StlOptions {
+    fn default() -> Self {
+        Self {
+            solid_name: ascii::DEFAULT_SOLID_NAME.to_owned(),
+            header: binary::DEFAULT_HEADER.to_owned(),
+        }
+    }
+}
+
+impl StlOptions {
+    /// The ASCII writer's precondition on [`Self::solid_name`], checked
+    /// before any byte is written so a refusal never leaves a partial
+    /// file.
+    pub(crate) fn check_solid_name(&self) -> Result<(), StlError> {
+        match self.solid_name.chars().find(|c| !(' '..='~').contains(c)) {
+            Some(character) => Err(StlError::UnrepresentableSolidName { character }),
+            None => Ok(()),
+        }
+    }
+
+    /// The binary writer's precondition on [`Self::header`], checked
+    /// before any byte is written so a refusal never leaves a partial
+    /// file.
+    pub(crate) fn check_header(&self) -> Result<(), StlError> {
+        if self.header.len() > 80 {
+            return Err(StlError::HeaderTooLong {
+                len: self.header.len(),
+            });
+        }
+        if self.header.as_bytes().starts_with(b"solid") {
+            return Err(StlError::HeaderSniffsAscii);
+        }
+        Ok(())
     }
 }
 
