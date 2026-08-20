@@ -745,8 +745,8 @@ impl core::fmt::Display for PcurveCertifyError {
             Self::FittedLaneUnsupported { scalar } => write!(
                 f,
                 "pcurve certification: a fitted (rung-3) chart image has no certified lane at \
-                 the {scalar} scalar — its between-samples bound is an exact-arithmetic-ring hull, and this scalar \
-                 carries no bracket to reach the ring with. Replay the body at f64, the \
+                 the {scalar} scalar — its between-samples bound is an exact-arithmetic-ring hull, \
+                 and this scalar may not certify one. Replay the body at f64, the \
                  telemetry probe, or the interval scalar to certify it"
             ),
             Self::FittedMateMissing => write!(
@@ -1289,8 +1289,9 @@ impl<T: Decide> PcurveCache<T> {
     ///
     /// A [`Pcurve::Fitted`] image refuses here, naming
     /// [`PcurveCache::certify_fitted`]: the fitted lane's certificate
-    /// is the SSI one, which needs the mate operand and a
-    /// bracket-carrying scalar, and hiding those behind this signature
+    /// is the SSI one, which needs the mate operand and a CERTIFYING
+    /// scalar (`Decide + Bounds + CertifiedEnclosure`), and hiding those
+    /// behind this signature
     /// would put the whole minting pipeline behind a bound it does not
     /// need (a dual body mints closed-form pcurves perfectly well).
     ///

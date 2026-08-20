@@ -250,8 +250,14 @@ impl std::error::Error for ChartRegionError {}
 /// impl instantiates none of the predicate (the `PropsQuadLane` shape).
 /// Since the D1 ruling (2026-08-19) a dual DOES carry a bracket, so this
 /// lane is no longer a restatement of what the type system already
-/// forbade: it is the entire guard, and the predicate would otherwise be
-/// instantiable at a dual.
+/// forbade: on the census path it is the entire guard, and the
+/// predicate is otherwise instantiable at a dual. Note the scope —
+/// [`chart_region_overlap`] is `pub` and re-exported from `topo`'s
+/// root, and its bound is `Decide + Bounds` with no
+/// [`geom_core::CertifiedEnclosure`], so an **external** caller can
+/// instantiate it at a dual without this lane ever being consulted.
+/// Unlike the other three lanes' doors, nothing but this lane keeps a
+/// dual out, and this lane only covers the census.
 pub trait ChartRegionLane: Decide {
     /// The overlap door at this scalar, or `None` when the scalar has
     /// no certified lane (dual) — the census maps `None` to its typed

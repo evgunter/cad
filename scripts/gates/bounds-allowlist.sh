@@ -10,26 +10,24 @@
 # lane in topo, the evaluation-service seam in editor-core,
 # profile's pre-amendment fillet gate, and topo/props.rs — the
 # M5 PR 11 certified-quadrature plumbing (Evan's lane-split
-# ruling at that PR: certification is the bracket-carrying
-# lanes' business, statically split from the dual lane through
+# ruling at that PR: certification is the CERTIFYING lanes'
+# business, statically split from the dual lane through
 # `PropsQuadLane`), and — since M5 PR 12 — the fillet-battery
 # seam in sweep. That last one is an ORCHESTRATOR ruling
 # (2026-08-03) applying the PR 11 precedent, flagged for
-# retroactive Evan review per the self-merge convention: the battery's margins are certified metric quantities
-# (sup-κ curvature hulls, blend setback bounds) reported as
-# `f64` payloads, i.e. enclosure consumers of exactly the
-# quadrature's class; and, when it was ratified, no dual-scalar
-# path could reach it, because `Bounds` had no `Dual` impl. With
-# no dual lane to split, the `PropsQuadLane` static split would
-# have had nothing on its refusing side, so the seam was ratified
-# instead. NOTE (D1 ruling, 2026-08-19): `Bounds` IS now
-# implemented for `Dual`, so that guard has lapsed and this is the
-# one allowlisted seam with no refusing lane behind it. It is not
-# reachable at a dual today — the one wiring that calls fillets
-# (editor-core's `wire_fillet`) sits under `evaluate<T>`, which
-# also requires `editor_core::ContentBits`, and that has no `Dual`
-# impl — but the seam owes a lane, or a reason it needs none, the
-# day E4 seeds a dual through `evaluate`. See geom-core/src/real.rs.
+# retroactive Evan review per the self-merge convention: the
+# battery's margins are certified metric quantities (sup-κ
+# curvature hulls, blend setback bounds) reported as `f64`
+# payloads, i.e. enclosure consumers of exactly the quadrature's
+# class.
+#
+# STANDING OBLIGATION (D1 ruling, 2026-08-19): the fillet seam is
+# the one allowlisted seam with NO refusing lane behind it, and
+# the guard that made that acceptable — `Bounds` having no `Dual`
+# impl — has lapsed. The argument, the reachability check and what
+# is owed live in ONE home: geom-core/src/real.rs, the M5 PR 12
+# entry of the `Bounds` scope rule. Not restated here; keep this a
+# pointer.
 # geom-brep/src/{ssi.rs,ssi/certify.rs,pcurve_cache.rs} is the
 # M6-2 SSI generic-T lift: the rung-3 certificate simultaneously
 # DECIDES (its `ssi_*` funnel margins) and reads brackets into the
@@ -64,12 +62,19 @@
 # inventory gate (a Harmonic trig channel is straight only when
 # its bracket is a point at exactly 0.0, the props.rs
 # rectangle-trim read) and the bit-identical-region fast path —
-# so `Decide + Bounds` is its honest signature. No dual lane
-# exists to split today (Bounds has no Dual impl, so the
-# predicate is uninstantiable at duals); the PropsQuadLane-shape
-# static lane is the stated obligation of its first
-# Decide-generic consumer (M9-2 PR-2's census arms) — see the
-# real.rs rule entry.
+# so `Decide + Bounds` is its honest signature. The
+# PropsQuadLane-shape static lane that PR-1 owed its first
+# Decide-generic consumer (M9-2 PR-2's census arms) EXISTS: it is
+# `topo::chart_region::ChartRegionLane`, with a refusing `Dual`
+# impl. Since the D1 ruling (2026-08-19) `Bounds` IS implemented
+# for `Dual`, so the predicate is instantiable at a dual and that
+# lane is the whole guard on the census path — and `chart_region`
+# is not `no dual lane exists to split`, which is what this
+# paragraph used to say. `chart_region_overlap` itself is `pub`
+# and re-exported (topo/src/lib.rs), so an EXTERNAL caller is
+# bounded only by `Decide + Bounds` and a dual satisfies it; the
+# lane guards the census, not the function. See the real.rs rule
+# entry.
 # Sole-bound `T: Bounds`
 # (certification/driver code) is untouched by this check. A NEW
 # file writing a compound Bounds bound fails here until it is

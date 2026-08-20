@@ -974,8 +974,12 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
                 }
                 match T::chart_overlap(body, fa, body, fb, band) {
                     None => {
-                        // No bracket lane at this scalar (dual): the
-                        // pair cannot be decided — typed, never silent.
+                        // No CERTIFIED lane at this scalar (dual):
+                        // `ChartRegionLane` refuses, so the pair cannot
+                        // be decided here — typed, never silent. (Since
+                        // D1, 2026-08-19, a dual DOES carry a bracket;
+                        // the refusal is the lane's ruling, not a
+                        // missing `Bounds` impl.)
                         errors.push(ValidationError::CensusUnsupported {
                             entity: EntityId::Face(fa),
                         });

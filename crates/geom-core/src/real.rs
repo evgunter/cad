@@ -386,9 +386,17 @@ pub trait Real:
 /// allowlist. The quadrature lane simultaneously decides (its
 /// `props_quad_*` funnel margins) and reads brackets into the C9 ring
 /// (certification substrate), so `T: Decide + Bounds` is its honest
-/// signature; the split from bracket-free scalars (duals) is STATIC —
+/// signature; the split from NON-CERTIFYING scalars (duals) is STATIC —
 /// `topo::props::PropsQuadLane`'s explicit per-scalar impls are the
 /// only entry, and the dual impl instantiates none of it.
+/// (Written before #643 and before D1 as "the split from bracket-free
+/// scalars". Since the **D1 ruling** of 2026-08-19 a dual is not
+/// bracket-free: it carries the value channel's bracket. What it may
+/// not do is certify. The split therefore stands on two things now, not
+/// one — `PropsQuadLane` at the API, and, since #643, the
+/// `quad_lane::*` signatures' own third term
+/// [`CertifiedEnclosure`](crate::CertifiedEnclosure), which no `Dual`
+/// implements.)
 ///
 /// **Extension (M5 PR 12, ORCHESTRATOR ruling 2026-08-03, applying
 /// the PR 11 precedent; retroactive Evan review per the self-merge
@@ -481,10 +489,18 @@ pub trait Real:
 /// uninstantiable at dual scalars; the obligation stated here was that
 /// its first `Decide`-generic consumer would owe a `PropsQuadLane`-shape
 /// static lane with a refusing dual impl. **That obligation was
-/// discharged** — `ChartRegionLane`'s refusing `Dual` impl is the lane,
-/// and it is now the whole guard: since the D1 ruling (2026-08-19)
-/// `Bounds` IS implemented for `Dual`, so the predicate is satisfiable
-/// at a dual and only the lane's refusal keeps one out.
+/// discharged** — `ChartRegionLane`'s refusing `Dual` impl is the lane.
+/// Since the D1 ruling (2026-08-19) `Bounds` IS implemented for `Dual`,
+/// so the predicate is satisfiable at a dual, and the lane is now the
+/// whole guard **on the census path** — which is the honest scope of the
+/// claim, not "nothing else keeps a dual out". `chart_region_overlap` is
+/// `pub` and re-exported from `topo`'s root, and its own bound is
+/// `Decide + Bounds` with no [`CertifiedEnclosure`]; an external caller
+/// may therefore instantiate it at a dual and the lane never sees the
+/// call. That is the one thing this seam does not share with the other
+/// three (`props::quad_lane`, `pcurve_cache::fitted_lane`,
+/// `edge_nurbs::lane`), whose signatures carry `CertifiedEnclosure` and
+/// stay uninstantiable at a dual with or without their lanes.
 ///
 /// **Not an extension — a spelling.** The pair
 /// `Bounds + CertifiedEnclosure` — both bracket doors, no `Decide` — is

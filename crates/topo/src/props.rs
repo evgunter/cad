@@ -329,10 +329,12 @@ pub(crate) fn loop_edges<T: Decide>(
 /// this PR, superseding a runtime-`Option` bracket seam): certification
 /// is the f64 / Probe / Interval lanes' business; derivative transport
 /// is the dual lane's — and that split lives in the TYPES. Each
-/// certified impl routes through the `T: Decide + Bounds` plumbing in
-/// [`quad_lane`] (a ratified compound-`Bounds` seam — see the
-/// discipline allowlist), so the quadrature machinery only ever
-/// instantiates for bracket-carrying scalars; the `Dual` impl contains
+/// certified impl routes through the `T: Decide + Bounds +
+/// CertifiedEnclosure` plumbing in [`quad_lane`] (a ratified
+/// compound-`Bounds` seam — see the discipline allowlist), so the
+/// quadrature machinery only ever instantiates for CERTIFYING scalars
+/// (bracket-carrying is no longer the distinguishing property — a dual
+/// carries a bracket since D1, 2026-08-19); the `Dual` impl contains
 /// **no quadrature code at all** — it answers "no lane", the
 /// closed-form pass's typed refusal stands, and tier 3's check 7
 /// reports `VolumeUncomputable` there. The dual lane validates what is
@@ -449,8 +451,13 @@ mod quad_lane {
     // The compound `Decide + Bounds` bound below is a RATIFIED seam
     // (M5 PR 11, Evan's lane-split ruling; discipline allowlist row):
     // this module is the certified lanes' plumbing and never
-    // instantiates for duals — the split is enforced by
-    // [`super::PropsQuadLane`]'s explicit impls.
+    // instantiates for duals. TWO things enforce that, and since #643
+    // the second is the load-bearing one: [`super::PropsQuadLane`]'s
+    // explicit impls split the API, and every signature below is
+    // `Decide + Bounds + CertifiedEnclosure`, which no `Dual`
+    // implements. So the module stays uninstantiable at a dual with or
+    // without the lane — a dual carries a bracket since D1
+    // (2026-08-19) and still may not certify.
     use geom_core::{Band, Bounds, CertifiedEnclosure, Decide, Point3, Tolerance};
     use geom_curves::Curve3;
     use geom_surfaces::Surface;
