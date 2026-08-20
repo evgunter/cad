@@ -100,6 +100,32 @@ thread_local! {
     static VERDICTS: RefCell<Option<Vec<Verdict>>> = const { RefCell::new(None) };
 }
 
+/// Classifies `margin` against `band`, noting `name` for the recorder
+/// and attaching it to any indeterminate outcome — the shared body of
+/// every public door below.
+///
+/// Two channels pass through here and nowhere else, which is why the
+/// doors delegate rather than each carrying a copy: the `CURRENT`
+/// write is the recorder's name channel (read by [`Probe`]), and the
+/// verdict push is the evaluation-artifact channel (installed by
+/// [`start_verdict_log`], read by the verdict-diff engine). A door
+/// cannot acquire one and miss the other.
+fn classify<T: Decide>(name: &'static str, margin: T, band: Band) -> Result<Sign, Indeterminate> {
+    CURRENT.with(|c| c.set(name));
+    let outcome = margin.sign_within(band).map_err(|e| e.with_predicate(name));
+    if let Ok(sign) = outcome {
+        VERDICTS.with(|v| {
+            if let Some(log) = v.borrow_mut().as_mut() {
+                log.push(Verdict {
+                    predicate: name,
+                    sign,
+                });
+            }
+        });
+    }
+    outcome
+}
+
 /// The one classification funnel of the kernel: notes `name` for the
 /// recorder, classifies `margin` against `band`, and names any
 /// indeterminate outcome. Every deciding crate routes its predicates
@@ -131,22 +157,7 @@ pub fn decide<T: Decide>(
     margin: Margin<T>,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
-    CURRENT.with(|c| c.set(name));
-    let outcome = margin
-        .value()
-        .sign_within(band)
-        .map_err(|e| e.with_predicate(name));
-    if let Ok(sign) = outcome {
-        VERDICTS.with(|v| {
-            if let Some(log) = v.borrow_mut().as_mut() {
-                log.push(Verdict {
-                    predicate: name,
-                    sign,
-                });
-            }
-        });
-    }
-    outcome
+    classify(name, margin.value(), band)
 }
 
 /// The classify seam's **finding lane** — [`decide`] for a shipped
@@ -183,19 +194,7 @@ pub fn decide_flagged<T: Decide>(
     ledger_row: &'static str,
 ) -> Result<Sign, Indeterminate> {
     let _ = ledger_row;
-    CURRENT.with(|c| c.set(name));
-    let outcome = margin.sign_within(band).map_err(|e| e.with_predicate(name));
-    if let Ok(sign) = outcome {
-        VERDICTS.with(|v| {
-            if let Some(log) = v.borrow_mut().as_mut() {
-                log.push(Verdict {
-                    predicate: name,
-                    sign,
-                });
-            }
-        });
-    }
-    outcome
+    classify(name, margin, band)
 }
 
 /// The classify seam's **invariant lane** — [`decide`] for the
@@ -226,19 +225,7 @@ pub fn decide_invariant<T: Decide>(
     margin: T,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
-    CURRENT.with(|c| c.set(name));
-    let outcome = margin.sign_within(band).map_err(|e| e.with_predicate(name));
-    if let Ok(sign) = outcome {
-        VERDICTS.with(|v| {
-            if let Some(log) = v.borrow_mut().as_mut() {
-                log.push(Verdict {
-                    predicate: name,
-                    sign,
-                });
-            }
-        });
-    }
-    outcome
+    classify(name, margin, band)
 }
 
 /// One recorded predicate decision: the funnel's static name and the
