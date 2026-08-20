@@ -2461,21 +2461,54 @@ ratified contract; they are its only sanctioned option**, which is why no
 reviewer could flag them as violations. **S43 is not a neighbour of S19 — it is
 the generator of its three largest rows.**
 
-## S20. The façade layers each invented a vocabulary instead of forwarding
+## S20. FIXED by #689 — the façade layers each invented a vocabulary instead of forwarding
 
-- **Where**: `crates/pncad/src/closure.rs:1`,
-  `crates/pncad/src/select.rs:450`, `crates/pncad/src/lib.rs:80`,
-  `crates/pncad/src/workspace.rs:235`
+- **Where**: `crates/pncad/src/`
 - **Confidence**: sure
 
-Excluding `workspace.rs` and `export.rs`, `pncad` is ~180 lines of code
-under ~1170 lines of narrative. `closure.rs` is 151 lines that compile
-to **nothing** — a module existing solely to hold an audit essay, whose
-own tail (`:135`) documents that its headline enforcement claim was
-previously false and the real guard is weaker. `select.rs` is 449
-comment lines in front of one `pub use`. The curated re-export lists are
-a permanent manual sync obligation with no mechanism keeping them
-complete.
+**FIXED by #689.** `closure.rs` — 151 lines compiling to nothing — is
+deleted, and its audit output went where `LIB-U1-SPEC` §3 said in the first
+place: the PR body. `select.rs` went **461 → 55**, its prose becoming
+`docs/guide/selecting.md` pulled into rustdoc, with all six code blocks
+**byte-identical** after the move and the doctest count unchanged at 34.
+`lib.rs`'s "no behavior of its own" claim now says what is true about
+`workspace`, and `workspace.rs`'s own header no longer claims a read-only
+file that ships three write doors. Narrative went ~1170 → ~700 lines against
+194 of code.
+
+**The manual sync obligation is now mechanical**:
+`every_document_layer_root_export_is_carried_or_listed` checks all 240
+`editor-core` root exports in both directions against an 87-name
+reasoned `NOT_CARRIED` list, and is falsified by execution. Its
+name-vs-path hole — matching leaf names rather than statements, so a future
+`editor-core` export colliding with a name the façade re-exports from
+another crate would pass while uncarried — was **closed rather than
+disclosed**; the two blind spots that remain are named at the test and
+routed to **#696**, which also files the rustdoc-JSON check that three
+separate guards had been deferring to an unscheduled nightly.
+
+**One report claim was wrong, and the check that established it is the
+useful part.** S20 said `workspace.rs:432` classified kernel faults by
+**string-matching** on `PersistError`. It does not, and no revision ever
+did: the line is a typed `matches!`, a sweep for classification-by-string
+across two statements returns zero, and walking the last 30 commits touching
+the file finds `contains(`/`starts_with(` in **none** of them. The real
+defect was adjacent — the classification ended in a **wildcard**, so a new
+arm would silently read as `Unresolved`. Removing it immediately caught two
+`PersistError` arms a hand-written list had missed. *A scan reading a
+`matches!` as string-matching is a false positive that pointed at a true
+defect one line over.*
+
+**Not closed, and labelled:** the *class* S20 names — per-unit narrative
+accretion into a façade file no unit owns — has no mechanism. The ~700-line
+figure lives in a PR body with no guard and no scheduled re-measure. The
+same PR demonstrated why that matters: its rewritten `lib.rs` contract
+shipped a **stale count** (*"six of the seven seam functions"*; there are
+six, the seventh removed in `58bcc54f` with its gravestone still in the
+file) in the commit whose subject was making `lib.rs` state what is true.
+That one is now a shape rather than a count, guarded by
+`the_authoring_seam_roster_is_what_the_crate_doc_claims`; three sibling
+unguarded counts are recorded as a class and not swept.
 
 Meanwhile `lib.rs:36` states "the façade contains no geometry and no
 numeric behavior of its own. Every item below is either a re-export or a
@@ -2515,12 +2548,52 @@ think about how to fix these."
   *Lesson: a cross-program contradiction belongs to no PR, so no per-PR review
   protocol will catch it.*
 
-## S21. Two concrete holes in the Python surface
+## S21. FIXED by #689 (hole 1) / instrumented and re-filed as #694 (hole 2) — two concrete holes in the Python surface
 
-- **Where**: `crates/pncad-py/src/py/doc.rs:200`,
-  `crates/pncad-py/src/errors.rs:54`,
-  `crates/editor-core/src/expr.rs:48`
+- **Where**: `crates/pncad-py/src/`
 - **Confidence**: sure
+
+**Hole 1, the constant `DocumentId`: fully closed by #689.** `Doc()` mints a
+fresh random id and `Doc(label)` derives one deterministically, with
+`IdentityError` refusing on an entropy failure rather than falling back —
+there is no remaining path to a constant. Minting lives in a pyo3-free
+`pncad_py::identity`, so it is exercised on the default no-Python CI path.
+The guard is the invariant itself rather than the constructor: two documents
+minted through the seam `Doc()` uses are asserted distinct, `Workspace::create`d
+into **one workspace**, and the directory re-opened cold. The residue —
+Python still cannot *use* identity — is **G15** in the north-star audit,
+whose `test_the_named_gaps_are_still_gaps` fails the day a door lands. That
+register has fired four times already, so unlike this finding's own
+postmortem it is not a deferral into a closed register.
+
+**Hole 2, three types named `DimensionError`: instrumented, not closed —
+and the instrument's premise was false.** #689 renamed the Rust-internal
+struct (three names to two, no surface change) and declined the published
+Python rename, arguing the collision was latent because the kernel enum
+reaches Python through exactly one door, `Expr::literal`, and no bound door
+binds the `Expr` operator builders.
+
+**Review falsified that by execution.** `persist/wire.rs`'s
+`WireExpr::rebuild()` calls `Expr::add`, `mul`, `sin`, `atan2` and the rest —
+those *are* the operator builders — and it sits on the **load** path, which
+Python binds as `pncad.load(text)`. Probing found **seven of the ten** arms
+reachable today with no new binding, all arriving as `PersistError`/`parse`
+with the structured refusal Debug-formatted into a message. The general
+shape, worth more than the instance: **reachability argued from the
+authoring doors while ignoring the deserialization doors** — every
+`Deserialize` impl in `wire.rs` re-runs a smart constructor, so every kernel
+refusal reachable from one is reachable from `load`.
+
+The *decision* survives on narrower ground (no bound door raises Python's
+`LiteralError` for a genuine dimension mismatch, so the published rename is
+still not owed), but the reasoning had been shipped on the **published**
+surface in four places — `.pyi`, both `create_exception!` docstrings, and
+`ErrorClass::Literal` — all now corrected and citing **#694**, which carries
+the misrouting itself. The trigger test could not have detected its own
+premise failing, S23's shape exactly; it is now scoped to the door it
+actually covers, and a new row drives the seven arms through `load` and
+fails when their class changes — with a vacuity guard that fires if the wire
+shape moves out from under it.
 
 `Doc::new` calls `ProfileDoc::empty_derived("pncad-py:Doc")`, so **every
 document authored from Python carries an identical constant
@@ -5377,7 +5450,6 @@ mutually independent and edge-free.
 
 | # | Work | Scope | Note |
 |---|---|---|---|
-| **B5** | **S20 + S21 — the façade's invented vocabulary, and the two Python holes.** `closure.rs` is 151 lines compiling to nothing; `select.rs` is 449 comment lines before one `pub use`; `lib.rs:36` claims the façade has "no behavior of its own" while `workspace.rs` is 260 lines of real subsystem. And **every Python-authored document carries an identical constant `DocumentId`**, so two of them cannot coexist in a workspace — a hole, not a gap. | `pncad/`, `pncad-py/` | #639 has merged, so `pncad-py` is free. The `DocumentId` constant was a lane-contention artifact, disclosed and then deferred into a register that had closed the day before — §C3's worked example. |
 | **B8** | **S34 — `readback.rs` is a body-wide accessor module housed in `sweep`.** `face_pose`, `edge_pose`, `vertex_point` take a `topo::Body` and touch nothing from `sweep`, so `editor-core` and `pncad` depend on the whole sweep crate — NURBS skinning included — to read a face's plane. | `sweep/src/readback.rs` and its new home | Small and clear. Two of the three op-specific doors have no callers outside their own doctests; `vertex_point` is a near-copy of `revolve/upgrade.rs`'s. In flight as **#697**. |
 
 ---
