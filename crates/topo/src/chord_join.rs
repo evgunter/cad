@@ -1229,9 +1229,11 @@ pub(crate) fn face_azimuth_window<T: Decide>(
 /// azimuth window — the S9 statement asked of the mate's chart. Both
 /// operands' chords of one polygon side therefore select the same
 /// geometric arc, which is what keeps the zip's seams
-/// antiparallel-congruent. (Selection logic mirrors [`chord_spec`]'s
-/// S9 block deliberately — same margins, same predicate names, same
-/// refusal cases — with the window supplied instead of derived.)
+/// antiparallel-congruent. The arc selection itself is [`select_arc`],
+/// the one body this lane SHARES with [`chord_spec`]'s S9 block — same
+/// margins, same predicate names, same refusal cases because it is the
+/// same code; what differs is only that the window arrives from the
+/// mate's face instead of being derived here.
 #[allow(clippy::too_many_arguments)]
 fn bool_planar_chord_spec<T: Decide>(
     body: &mut Body<T>,
