@@ -1496,6 +1496,12 @@ struct Tier1Report {
 /// A non-empty vector of every [`ValidationError`] found, in the
 /// documented deterministic order.
 pub fn validate<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationError>> {
+    // Every tier-1 validation this crate's tests run passes through
+    // here, the operators' own debug postconditions included, which is
+    // why the seqgen phase meter counts them at this door rather than
+    // at any caller.
+    #[cfg(test)]
+    crate::seqgen::meter::note_validation(|| body.arena_counts());
     let report = tier1(body);
     if report.errors.is_empty() {
         Ok(())

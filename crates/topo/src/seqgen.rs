@@ -83,7 +83,15 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, SolidKey};
 use crate::euler::{MefSite, MevSite};
 use crate::euler_ring::MekrSite;
-use crate::iso::canonical_form;
+use crate::test_support_impl::ArenaCounts;
+
+/// [`crate::iso::canonical_form`], through the meter — this is the
+/// oracle's deep compare, and [`roundtrip`] is the only caller in this
+/// module, twice per executed roundtrip.
+fn canonical_form(body: &Body<f64>) -> String {
+    meter::note_iso(|| body.half_edges().count() as u64);
+    meter::timed(meter::ISO, || crate::iso::canonical_form(body))
+}
 
 /// One applicable operator invocation: the op plus a fully resolved
 /// site. Produced by [`choose_op`], consumed by [`apply`]/[`roundtrip`].
@@ -265,6 +273,31 @@ impl Ledger {
 /// weights drop to zero and the kill weights rise).
 const GROW_CAP: usize = 28;
 
+thread_local! {
+    /// Whether the `split_edge` row carries its weight in the catalog
+    /// below. Always true outside [`without_split_edge`], which is the
+    /// only writer.
+    static SPLIT_EDGE_ROW: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
+}
+
+/// Runs `f` against the catalog **without** the `split_edge` row —
+/// a zero-weight row is skipped whole, so this is the catalog as it
+/// reads with the row absent, and nothing else about the walk changes.
+///
+/// It exists because the lane's cost cannot be attributed to a
+/// catalog row by reading one number: the row's own work and the
+/// larger bodies its presence produces are different quantities, and
+/// only a replay of the SAME decision streams against both catalogs
+/// separates them. The walk this produces is a different walk — that
+/// is the point, and it is why this is a measurement instrument and
+/// not a configuration.
+pub(crate) fn without_split_edge<R>(f: impl FnOnce() -> R) -> R {
+    SPLIT_EDGE_ROW.with(|c| c.set(false));
+    let out = f();
+    SPLIT_EDGE_ROW.with(|c| c.set(true));
+    out
+}
+
 /// Picks one applicable `(op, site)` from the current body, driven by
 /// two decision integers (see the module docs). `None` only when
 /// NOTHING is applicable, which for this catalog means the body is
@@ -320,7 +353,15 @@ pub(crate) fn choose_op(body: &Body<f64>, d1: u32, d2: u32) -> Option<OpChoice> 
         // whenever any edge does, which is nearly always — modest
         // weight keeps it from crowding out the sites only the other
         // make ops reach.
-        (w(3, 0), split_edge_candidates, Some(any_split_edge)),
+        (
+            if SPLIT_EDGE_ROW.with(std::cell::Cell::get) {
+                w(3, 0)
+            } else {
+                0
+            },
+            split_edge_candidates,
+            Some(any_split_edge),
+        ),
         (w(2, 6), kev_candidates, None),
         (w(2, 6), kef_candidates, None),
         // kvfs candidates are rare (a solid must be exactly skeletal),
@@ -768,10 +809,10 @@ pub(crate) fn apply(body: &mut Body<f64>, choice: OpChoice, counter: &mut u32) {
         OpChoice::RingMove(ring, to_face) => {
             body.ring_move(ring, to_face).unwrap();
         }
-        OpChoice::SplitEdge(e) => {
+        OpChoice::SplitEdge(e) => meter::timed(meter::APPLY_SPLIT, || {
             let (t, _) = split_site(body, e).expect("a split candidate has a splittable carrier");
             body.split_edge(e, t).unwrap();
-        }
+        }),
     }
 }
 
@@ -841,11 +882,13 @@ pub(crate) fn roundtrip(
             // `split_edge` replaces the parent's description with the
             // `[t₀, t]` child, so `kev` restores the topology and the
             // re-attach restores the geometry (see `split_site`).
-            let (t, spec) =
-                split_site(body, e).expect("a split candidate has a splittable carrier");
-            let created = body.split_edge(e, t).unwrap();
-            body.kev(created.he_minus).unwrap();
-            body.set_edge_curve(e, spec).unwrap();
+            meter::timed(meter::ROUNDTRIP_SPLIT, || {
+                let (t, spec) =
+                    split_site(body, e).expect("a split candidate has a splittable carrier");
+                let created = body.split_edge(e, t).unwrap();
+                body.kev(created.he_minus).unwrap();
+                body.set_edge_curve(e, spec).unwrap();
+            });
         }
         // ---- kill ∘ make: the re-make site is derived pre-kill. ----
         OpChoice::Kemr(he1, he2) => {
@@ -1108,6 +1151,202 @@ fn first_empty_outer_extra_face(body: &Body<f64>) -> Option<(FaceKey, FaceKey)> 
     None
 }
 
+/// **The phase meter: where this lane's time goes, and how much body
+/// it goes over.**
+///
+/// The lane's cost is not concentrated in one function — every step
+/// runs a whole-body tier-1 validation (twice: the operator's own
+/// debug postcondition and the property's explicit check), a ledger
+/// reconciliation against derived arena counts, and, on a roundtrip
+/// step, two canonical forms. So *the size of the body a step runs
+/// against* is a cost input on the same footing as the step's own
+/// work, and attributing a change in this lane's wall clock means
+/// separating the two.
+///
+/// Two kinds of reading, and the second is the one that travels:
+///
+/// - **Elapsed time per phase**, which is only meaningful against the
+///   box that produced it and against the other phases of the SAME
+///   process (`memories/perf-measurement-lane.md`).
+/// - **Counters** — steps, entities walked, validations run — which
+///   are exact, deterministic, and identical on every machine. Reach
+///   for these first: they say what work was done, and the clock only
+///   says what it cost here.
+///
+/// Recording is per-thread and costs two `Instant::now()` calls per
+/// phase, which is why it is always on rather than behind a flag. The
+/// arena walks that feed the counters are NOT: they are O(body) and
+/// would perturb the very timings they annotate, so they run only when
+/// [`reset`] is asked for them.
+pub(crate) mod meter {
+    use std::cell::RefCell;
+    use std::time::{Duration, Instant};
+
+    use super::ArenaCounts;
+
+    /// Phase index for [`timed`]. The first six PARTITION a replay of
+    /// the properties; the last three are sub-phases of the row above
+    /// them (already counted there, never added again).
+    pub(crate) const CHOOSE: usize = 0;
+    pub(crate) const APPLY: usize = 1;
+    pub(crate) const ROUNDTRIP: usize = 2;
+    pub(crate) const VALIDATE: usize = 3;
+    pub(crate) const LEDGER: usize = 4;
+    pub(crate) const TEARDOWN: usize = 5;
+    /// Sub-phase of [`ROUNDTRIP`]: the isomorphism oracle's deep
+    /// compare, twice per executed roundtrip.
+    pub(crate) const ISO: usize = 6;
+    /// Sub-phase of [`APPLY`]: a split's own work — the site's
+    /// re-certification and the operator, which certifies both
+    /// children.
+    pub(crate) const APPLY_SPLIT: usize = 7;
+    /// Sub-phase of [`ROUNDTRIP`]: a split and its two-op inverse.
+    pub(crate) const ROUNDTRIP_SPLIT: usize = 8;
+    /// How many phase slots there are.
+    pub(crate) const PHASES: usize = 9;
+
+    /// Row labels, in phase-index order; a leading `of which` marks a
+    /// sub-phase of the row above it.
+    pub(crate) const NAMES: [&str; PHASES] = [
+        "choose_op",
+        "apply",
+        "roundtrip",
+        "validate (explicit)",
+        "ledger.check",
+        "teardown",
+        "of which iso (canonical_form)",
+        "of which split (apply arm)",
+        "of which split (roundtrip arm)",
+    ];
+
+    /// One replay's worth of readings.
+    #[derive(Clone, Copy, Default)]
+    pub(crate) struct Readings {
+        /// Wall clock per phase — this box only.
+        pub(crate) elapsed: [Duration; PHASES],
+        /// How many times each phase ran — exact.
+        pub(crate) calls: [u64; PHASES],
+        /// Generator steps replayed — exact.
+        pub(crate) steps: u64,
+        /// Σ over steps of the body's entity count at step entry:
+        /// what the O(body) work of a step is proportional to. Exact,
+        /// and only collected when [`reset`] asks for it.
+        pub(crate) entities_at_step: u64,
+        /// Tier-1 validations run, from every caller — the operators'
+        /// debug postconditions included. Exact.
+        pub(crate) validations: u64,
+        /// Σ over those validations of the body's entity count.
+        /// Exact, and only collected when [`reset`] asks for it.
+        pub(crate) entities_validated: u64,
+        /// Σ, Σ of squares and Σ of cubes of the HALF-EDGE count at
+        /// each isomorphism-oracle call. The oracle labels a shell by
+        /// minimising a component encoding over every unlabeled dart
+        /// as a root, so its cost is a polynomial in that count and
+        /// not in the entity total — these three moments are what say
+        /// which polynomial, without a clock. Exact, and only
+        /// collected when [`reset`] asks for them.
+        pub(crate) iso_darts: [u64; 3],
+        /// Whether the O(body) counters above are being collected.
+        pub(crate) walk_arenas: bool,
+    }
+
+    thread_local! {
+        static READINGS: RefCell<Readings> = const { RefCell::new(Readings {
+            elapsed: [Duration::ZERO; PHASES],
+            calls: [0; PHASES],
+            steps: 0,
+            entities_at_step: 0,
+            validations: 0,
+            entities_validated: 0,
+            iso_darts: [0; 3],
+            walk_arenas: false,
+        }) };
+    }
+
+    /// Clears this thread's readings. `walk_arenas` buys the exact
+    /// body-size counters at the price of an O(body) walk per step and
+    /// per validation, so a timing pass asks for `false` and a
+    /// counting pass for `true`.
+    pub(crate) fn reset(walk_arenas: bool) {
+        READINGS.with(|r| {
+            *r.borrow_mut() = Readings {
+                walk_arenas,
+                ..Readings::default()
+            }
+        });
+    }
+
+    /// This thread's readings so far.
+    pub(crate) fn readings() -> Readings {
+        READINGS.with(|r| *r.borrow())
+    }
+
+    /// Runs `f`, charging its wall clock and one call to `phase`.
+    pub(crate) fn timed<R>(phase: usize, f: impl FnOnce() -> R) -> R {
+        let start = Instant::now();
+        let out = f();
+        let elapsed = start.elapsed();
+        READINGS.with(|r| {
+            let mut r = r.borrow_mut();
+            r.elapsed[phase] += elapsed;
+            r.calls[phase] += 1;
+        });
+        out
+    }
+
+    /// Records one generator step against a body of `counts`. The
+    /// closure is called only when the arena walk was asked for.
+    pub(crate) fn note_step(counts: impl FnOnce() -> ArenaCounts) {
+        READINGS.with(|r| {
+            let mut r = r.borrow_mut();
+            r.steps += 1;
+            if r.walk_arenas {
+                r.entities_at_step += entities(&counts());
+            }
+        });
+    }
+
+    /// Records one tier-1 validation against a body of `counts`.
+    /// Called from [`crate::validate::validate`] itself, so it sees
+    /// the operators' debug postconditions as well as the property's
+    /// own checks.
+    pub(crate) fn note_validation(counts: impl FnOnce() -> ArenaCounts) {
+        READINGS.with(|r| {
+            let mut r = r.borrow_mut();
+            r.validations += 1;
+            if r.walk_arenas {
+                r.entities_validated += entities(&counts());
+            }
+        });
+    }
+
+    /// Records one isomorphism-oracle call against a body carrying
+    /// `darts` half-edges. The closure is called only when the arena
+    /// walk was asked for.
+    pub(crate) fn note_iso(darts: impl FnOnce() -> u64) {
+        READINGS.with(|r| {
+            let mut r = r.borrow_mut();
+            if r.walk_arenas {
+                let n = darts();
+                r.iso_darts[0] += n;
+                r.iso_darts[1] += n * n;
+                r.iso_darts[2] += n * n * n;
+            }
+        });
+    }
+
+    /// The entity count a whole-body walk is proportional to.
+    fn entities(counts: &ArenaCounts) -> u64 {
+        (counts.solids
+            + counts.shells
+            + counts.faces
+            + counts.loops
+            + counts.half_edges
+            + counts.edges
+            + counts.vertices) as u64
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use proptest::prelude::*;
@@ -1156,7 +1395,8 @@ mod tests {
         let mut counter = 0_u32;
         let mut tally = RoundtripTally::default();
         for &(d1, d2, d3) in decisions {
-            let Some(choice) = choose_op(&body, d1, d2) else {
+            meter::note_step(|| body.arena_counts());
+            let Some(choice) = meter::timed(meter::CHOOSE, || choose_op(&body, d1, d2)) else {
                 return Err(TestCaseError::fail("no applicable op (kernel bug)"));
             };
             if d3 % 4 == 0 {
@@ -1165,7 +1405,10 @@ mod tests {
                 if matches!(choice, OpChoice::Kev(_) | OpChoice::Kef(_)) {
                     tally.skippable += 1;
                 }
-                if roundtrip(&mut body, choice, &mut counter) == RoundtripOutcome::Done {
+                let outcome = meter::timed(meter::ROUNDTRIP, || {
+                    roundtrip(&mut body, choice, &mut counter)
+                });
+                if outcome == RoundtripOutcome::Done {
                     tally.executed += 1;
                 } else {
                     // Both documented irreversible subcases sit in
@@ -1182,23 +1425,24 @@ mod tests {
                 }
                 // The ledger is unchanged by a balanced pair.
             } else {
-                apply(&mut body, choice, &mut counter);
+                meter::timed(meter::APPLY, || apply(&mut body, choice, &mut counter));
                 ledger.apply(choice.ep_vector());
             }
             // Property (a): tier-1 validity after every op. (The debug
             // postconditions inside each op already asserted this along
             // the way, including mid-roundtrip; this is the explicit
             // end-of-step check.)
-            prop_assert_eq!(validate(&body), Ok(()), "after {:?}", choice);
+            let verdict = meter::timed(meter::VALIDATE, || validate(&body));
+            prop_assert_eq!(verdict, Ok(()), "after {:?}", choice);
             // Property (b): the E–P ledger matches the derived counts
             // at every step.
-            if let Err(msg) = ledger.check(&body) {
+            if let Err(msg) = meter::timed(meter::LEDGER, || ledger.check(&body)) {
                 return Err(TestCaseError::fail(format!("after {choice:?}: {msg}")));
             }
         }
         // Property (d): everything built can be killed back to nothing;
         // arenas AND provenance maps end empty (asserted inside).
-        teardown(&mut body);
+        meter::timed(meter::TEARDOWN, || teardown(&mut body));
         Ok(tally)
     }
 
@@ -1351,6 +1595,206 @@ mod tests {
             crate::fixtures::deep_snapshot(&a),
             crate::fixtures::deep_snapshot(&b)
         );
+    }
+
+    /// The fixed stream set the attribution replays: 400 deterministic
+    /// decision streams whose lengths span the same `1..48` the
+    /// proptest draws, built by the same LCG idiom as
+    /// [`selection_is_pinned_over_a_fixed_stream_set`]. A fixed set is
+    /// the whole point — the proptest seeds from entropy, so two of
+    /// its runs do not share a workload and their wall clocks are not
+    /// comparable with each other, let alone across a change.
+    fn fixed_streams() -> Vec<Vec<Decision>> {
+        (0..400_u32)
+            .map(|seed| {
+                let mut x = seed.wrapping_mul(2_654_435_761).wrapping_add(12_345);
+                let mut roll = || {
+                    x = x.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                    x
+                };
+                let len = 1 + (roll() % 47) as usize;
+                (0..len).map(|_| (roll(), roll(), roll())).collect()
+            })
+            .collect()
+    }
+
+    /// Replays the whole fixed stream set through [`run_properties`]
+    /// and returns what the meter saw.
+    fn replay(streams: &[Vec<Decision>], walk_arenas: bool) -> meter::Readings {
+        meter::reset(walk_arenas);
+        for decisions in streams {
+            run_properties(decisions).expect("the properties hold over the fixed streams");
+        }
+        meter::readings()
+    }
+
+    /// **Where this lane's time goes, phase by phase, with the
+    /// `split_edge` row in the catalog and without it.**
+    ///
+    /// `#[ignore]` because it is a REPORT, not a gate: it asserts only
+    /// that the instrument covered the replay, it costs minutes
+    /// single-threaded, and nothing it prints can fail. Run it
+    /// deliberately:
+    ///
+    /// ```text
+    /// cargo test -p topo --lib phase_attribution -- --ignored --nocapture
+    /// ```
+    ///
+    /// `CAD_SEQGEN_ATTRIBUTION_REPS` (default 3) sets how many times
+    /// each catalog is replayed. The two catalogs are replayed
+    /// ALTERNATELY inside one process, which is what makes their
+    /// comparison survive a box shared with other work: a load spike
+    /// lands on both sides, where two separate runs would charge it to
+    /// one.
+    ///
+    /// **What a reading is worth.** The elapsed columns belong to the
+    /// box that produced them and to nothing else
+    /// (`memories/perf-measurement-lane.md`); quote them with their
+    /// spread and their machine or not at all. The counter columns —
+    /// steps, validations, entities walked — are exact and identical
+    /// everywhere, and they are what an attribution should rest on:
+    /// they say what work was done rather than what it cost here.
+    ///
+    /// **What it cannot see.** The meter charges a phase's whole
+    /// closure, so an operator's own debug postcondition (a full
+    /// tier-1 validation, `assert_euler_postcondition`) is charged to
+    /// `apply`/`roundtrip`/`teardown` rather than to a row of its own
+    /// — the `validations` counter is what separates that, not the
+    /// clock. Sub-phases are inside the row above them. And a replay
+    /// runs `debug_assertions` on at opt-2, which is the suite's
+    /// configuration and not a release one.
+    #[test]
+    #[ignore = "measurement: a per-phase report, minutes long, asserting nothing about time"]
+    fn phase_attribution_over_a_fixed_stream_set() {
+        let reps: usize = std::env::var("CAD_SEQGEN_ATTRIBUTION_REPS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(3);
+        let streams = fixed_streams();
+
+        // The counting pass first, once per catalog: exact, machine
+        // independent, and O(body) per step, so it never shares a
+        // process moment with a timing pass.
+        let counted_with = replay(&streams, true);
+        let counted_without = without_split_edge(|| replay(&streams, true));
+
+        let mut timed_with: Vec<meter::Readings> = Vec::new();
+        let mut timed_without: Vec<meter::Readings> = Vec::new();
+        for _ in 0..reps {
+            timed_with.push(replay(&streams, false));
+            timed_without.push(without_split_edge(|| replay(&streams, false)));
+        }
+
+        let report = attribution_report(
+            reps,
+            (&counted_with, &timed_with),
+            (&counted_without, &timed_without),
+        );
+        println!("{report}");
+
+        // The only claims this test makes: the instrument covered the
+        // replay it reports on, and both catalogs actually ran.
+        assert!(counted_with.steps > 0 && counted_without.steps > 0);
+        for readings in [&timed_with[0], &timed_without[0]] {
+            let partition: std::time::Duration = readings.elapsed[..=meter::TEARDOWN].iter().sum();
+            let inner: std::time::Duration = readings.elapsed[meter::APPLY_SPLIT]
+                + readings.elapsed[meter::ROUNDTRIP_SPLIT]
+                + readings.elapsed[meter::ISO];
+            assert!(
+                inner <= partition,
+                "sub-phases must sit inside the phases they subdivide",
+            );
+        }
+    }
+
+    /// Formats one attribution: per-phase medians with their spread,
+    /// the exact counters beside them, and the delta the `split_edge`
+    /// row accounts for.
+    fn attribution_report(
+        reps: usize,
+        with: (&meter::Readings, &[meter::Readings]),
+        without: (&meter::Readings, &[meter::Readings]),
+    ) -> String {
+        use std::fmt::Write as _;
+
+        let median = |runs: &[meter::Readings], phase: usize| -> f64 {
+            let mut ms: Vec<f64> = runs
+                .iter()
+                .map(|r| r.elapsed[phase].as_secs_f64() * 1e3)
+                .collect();
+            ms.sort_by(f64::total_cmp);
+            ms[ms.len() / 2]
+        };
+        let spread = |runs: &[meter::Readings], phase: usize| -> (f64, f64) {
+            let ms: Vec<f64> = runs
+                .iter()
+                .map(|r| r.elapsed[phase].as_secs_f64() * 1e3)
+                .collect();
+            (
+                ms.iter().copied().fold(f64::INFINITY, f64::min),
+                ms.iter().copied().fold(f64::NEG_INFINITY, f64::max),
+            )
+        };
+        let total = |runs: &[meter::Readings]| -> f64 {
+            (0..=meter::TEARDOWN).map(|p| median(runs, p)).sum()
+        };
+
+        let mut out = String::new();
+        let _ = writeln!(
+            out,
+            "\nseqgen phase attribution — {} streams, {reps} interleaved reps per catalog",
+            400,
+        );
+        let _ = writeln!(
+            out,
+            "  catalog WITH split_edge: {} steps, {} validations over {} entities",
+            with.0.steps, with.0.validations, with.0.entities_validated,
+        );
+        let _ = writeln!(
+            out,
+            "  catalog WITHOUT it:      {} steps, {} validations over {} entities",
+            without.0.steps, without.0.validations, without.0.entities_validated,
+        );
+        let _ = writeln!(
+            out,
+            "  Σ body entities at step entry: {} with, {} without",
+            with.0.entities_at_step, without.0.entities_at_step,
+        );
+        for (power, label) in ["Σn", "Σn²", "Σn³"].iter().enumerate() {
+            let (a, b) = (with.0.iso_darts[power], without.0.iso_darts[power]);
+            let _ = writeln!(
+                out,
+                "  {label} over the oracle's darts: {a} with, {b} without — ratio {:.3}",
+                a as f64 / b as f64,
+            );
+        }
+        let (tw, tn) = (total(with.1), total(without.1));
+        let _ = writeln!(
+            out,
+            "  replay median (Σ phases): {tw:.0} ms with, {tn:.0} ms without \
+             — the row costs {:+.1}%",
+            (tw / tn - 1.0) * 100.0,
+        );
+        let _ = writeln!(
+            out,
+            "\n{:<32} {:>10} {:>17} {:>8} | {:>10} {:>8} | {:>10}",
+            "phase", "with (ms)", "spread", "calls", "w/o (ms)", "calls", "delta ms",
+        );
+        for phase in 0..meter::PHASES {
+            let (a, b) = spread(with.1, phase);
+            let _ = writeln!(
+                out,
+                "{:<32} {:>10.1} {:>17} {:>8} | {:>10.1} {:>8} | {:>+10.1}",
+                meter::NAMES[phase],
+                median(with.1, phase),
+                format!("{a:.1}–{b:.1}"),
+                with.1[0].calls[phase],
+                median(without.1, phase),
+                without.1[0].calls[phase],
+                median(with.1, phase) - median(without.1, phase),
+            );
+        }
+        out
     }
 
     /// **What op a given roll selects, pinned over a fixed stream
