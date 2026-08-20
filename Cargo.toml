@@ -170,6 +170,14 @@ dbg_macro = "warn"
 # reverted by the PR that added this block). debug-assertions default ON
 # in dev — fail-loud postconditions keep their teeth. Integration tests
 # build the lib under `dev`, so these overrides cover the hot loops.
+#
+# GUARD: `crates/mesh/tests/profile_overrides.rs` goes red if either stanza
+# below is deleted or stops being `opt-level = 2`. It pins the DECISION,
+# not the timing: the 91.7s/1.2s pair is a 2026-07-21 reading on one box
+# and nothing re-takes it, because a timing asserted in the suite would be
+# box-dependent and this repo reports timings rather than gating them
+# (`docs/PERF-PLAN.md`). So the numbers above are a dated reason for a
+# guarded decision, and re-measuring them is a perf-lane act, not a CI one.
 [profile.dev.package.spade]
 opt-level = 2
 [profile.dev.package.mesh]
@@ -181,4 +189,7 @@ opt-level = 2
 # constantly (per-PR opt-2 recompiles = the #52 regression). The full
 # whole-graph win (suite 75s -> 4.9s) is available locally via
 # local-scripts/test-fast.sh where warm caches absorb the build cost. The
-# durable fix is spade bulk-loading (PERF-PLAN §2).
+# durable fix is spade bulk-loading (PERF-PLAN §2). These figures are a
+# record of a rejected alternative and nothing reads them: no stanza below
+# depends on them, so there is nothing for a guard to go red about. They
+# are dated in the same 2026-07-21 reading as the block above.
