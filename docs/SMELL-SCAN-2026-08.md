@@ -1908,16 +1908,19 @@ of.
 *What was ratified, and what became of it.* The steelman's closing sentence —
 that whether to make the write helpers unable to silently do nothing is a D9
 question — **was answered the next day.** The **D2 addendum to D9**
-(`DESIGN.md:1138`, ratified 2026-08-19, PR #628) says *"silent discard is never
+(`DESIGN.md:1148`, ratified 2026-08-19, PR #628) says *"silent discard is never
 an answer"* and **explicitly supersedes** the footnote's original *"typed errors
 where cheaply detectable, or documented garbage-out in release"*; S43's verdict
 records it ACCEPTED AND SETTLED. The execution that left — **W2c**, placed by
-#706 as Track D's **D16** — landed as **#720**: 56 of the 58 discards are now
-`unreachable!` carrying their own per-site proof, `kfmrh` gained two `StaleKey`
-preconditions rather than an unproven conversion, and `link_half_edges` kept
-its two, because `split.rs:253` reaches it with an unproven key — §D's D16
-retirement note carries the argument, and the one-line fix is placed as **D18**,
-which finishes W2c.
+#706 as Track D's **D16** — landed as **#720**. The partition is **56 + 2 =
+58**: 56 discards became `unreachable!` carrying their own per-site proof
+(two of them only after `kfmrh` gained the `StaleKey` preconditions that make
+them provable — those two are *among* the 56, not beside them), and
+`link_half_edges` kept the remaining two. It kept them because **two** of its
+callers hand it a `prev` read out of the arena that nothing proves —
+`split_edge`, and `kef`, whose cycle walk steps `next` and therefore proves
+`next(he)` and not `prev(he)`. §D's D16 retirement note carries the argument;
+both call sites are placed as **D18**, which is what finishes W2c.
 
 *What #720 means for this file's garbage-out row, which is the part S12
 predicted wrongly.* `foreign_parent_loop_garbage_in_garbage_out_release` was
@@ -1983,6 +1986,33 @@ own wording across `crates/`. **What it could not match**: a site that describes
 the superseded disposition without the word, and it deliberately leaves the
 `geom-curves`/`geom-core`/`geom-surfaces` "documented garbage-out" hits alone —
 those are the addendum's **row 3** (value-domain poison), a different rule.
+
+**And the blind spot neither pass stated, which is the one that mattered: the
+pattern was scoped to `crates/`, so `docs/` was never in it.** `DESIGN.md`
+carried *"Conversion work this licenses, **NOT yet done**"* — the identical
+sentence-shape, in the document that **ratifies** the rule, i.e. the one place
+a stale claim is authoritative rather than merely wrong. #720's review caught
+it; #720 retimed it. A sweep for a prose contract has to include the documents
+that state the contract, and both earlier passes swept only the code that
+implements it.
+
+*The coverage this unit lost, written down rather than left to be found.*
+`debug_postcondition_fires_on_corrupt_input` asserted only that a panic
+occurred. From #720 there are **two** panic sources in that call path — the
+postcondition, and the row-4 `unreachable!`s — so `is_err()` would have passed
+identically on a mis-converted conversion, and the postcondition is the only
+debug-side signal separating them. #720 makes the row assert its panic's
+**source** (both postcondition messages carry the literal `postcondition`; no
+`unreachable!` message does). The release side is a genuine gap and stays one:
+every corruption the suite plants is live-but-wrong or a torn `next`, none of
+which can make a lookup fail, so no row plants a **dangling** key into a
+mutation phase — and in release, where the postcondition is compiled out,
+those `unreachable!`s are the only guard. It is not closed because it is not
+closeable by a fixture: reaching a mutation phase with a dangling key means
+corrupting the body *between* plan and mutation, which is straight-line code
+inside one `&mut self` call and offers no such seam; corrupting before the call
+yields the typed `StaleKey` the suite already covers. Recorded at the suite
+header.
 
 *Two more sites whose release semantics nothing executed.*
 `review_m1_pr4.rs`'s section 9, headed *"Release-mode garbage-in"*, is now in
@@ -4734,7 +4764,7 @@ answer.
 | 1 | Typed error, plan phase | `EulerOpError::{FanOrbitBroken, LoopCycleBroken, OrbitBroken, UnclaimedHalfEdge, …}` | "tier-1-invalid input" |
 | 2 | Typed error, pure dispatch defect | `TessellateError::MissingEntity { what: "… (router defect)" }` | "reaching one is a dispatch defect, **surfaced typed**" |
 | 3 | `debug_assert`, compiled out | `assert_euler_postcondition` (arena deltas + full tier-1 validate) | D9's ratified exemption |
-| 4 | Silent `if let Some` discard | **58 sites** across the three Euler modules (**retired by #720** — 56 `unreachable!`, 2 typed, 2 left with cause and placed as **D18**) | D9's "documented garbage-out in release" |
+| 4 | Silent `if let Some` discard | **58 sites** across the three Euler modules (**retired by #720** — **56 `unreachable!` + 2 left with cause = 58**; the two `kfmrh` sites gained typed preconditions and are *among* the 56, and the two left are placed as **D18**) | D9's "documented garbage-out in release" |
 | 5 | Bare indexing that panics, **chosen deliberately** | `nurbs.rs:162`, `hull.rs` `coeffs[j]`, `mesh/chords.rs:465` | "the fail-loud direction" (PR #447) |
 
 Idioms 4 and 5 are **opposite answers to one question**, each argued in
@@ -4774,11 +4804,14 @@ fourth ordering rule failing on the section that states it), performed it as
 **#720**. Idiom 4 is gone from `euler.rs`/`euler_ring.rs`/`euler_kill.rs`: of
 the **58** discards there (the "~60" was an occurrence count; two of them were
 ordinary `Option` matches), **56 are now `unreachable!` with a per-site proof
-in the message**, two became `StaleKey` preconditions in `kfmrh`, and two
-remain in `link_half_edges` because `split.rs:253` reaches it with a key
-nothing proves — the argument is in §D's D16 retirement note and the one-line
-fix `split.rs` owes is placed as **D18**, so idiom 4's last two sites have a
-row rather than a recommendation. **No site was row 5.** Rows 4/5 split on
+in the message** and **2 remain**, which is the whole 58. `kfmrh`'s two sites
+are *inside* the 56 — they converted only because its plan phase gained the
+`StaleKey` checks that make them provable, and two new rows go red if either
+check is deleted. The 2 remaining are `link_half_edges`', kept because **two**
+of its callers pass a `prev` read out of the arena that nothing proves:
+`split_edge`, and `kef` — whose cycle walk steps `next`, so it proves
+`next(he)` and not `prev(he)`. Both are placed as **D18**, so idiom 4's last
+two sites have a row rather than a recommendation. **No site was row 5.** Rows 4/5 split on
 re-derivation, and a failed key lookup is observed rather than re-derived, so
 `debug_assert` never applied to any of them; `assert_euler_postcondition`
 remains the only row-5 member in these modules and is untouched.
@@ -4787,11 +4820,20 @@ remains the only row-5 member in these modules and is untouched.
 `AssemblyUnsupported`'s rename are the addendum's remaining unexecuted rows,
 in `mesh` and `sweep` — outside `topo` and outside D16. S14's disposition
 follows from this rule and should be re-read against it rather than re-argued;
-S12 is closed. One correction #720 owes upward: `DESIGN.md:1108`'s graft
-footnote names `SolidWithoutShells` as the exceptional state, but
-`graft_solids_with`'s pass-1/pass-2 interleave can leave **dangling keys**
-too. That is a `DESIGN.md` edit, so it belongs to S14's disposition rather
-than to this row.
+S12 is closed.
+
+One correction #720 owes upward, and it is a **class, not an instance**. Three
+places name `SolidWithoutShells` as *the* state a failed graft leaves —
+`DESIGN.md:1130-1135`, the 37-door allowlist entry at
+`review_m1_pr5_internal.rs:312`, and `euler.rs:76`, five lines above a
+paragraph #720 rewrote. All three understate it: that is the state of the
+**late** `GraftRecertify` refusal, raised after pass 2 with every key patched.
+A refusal raised *between* `graft_solids_with`'s two passes leaves entities
+holding source-internal keys, and because these are slotmap keys such a key
+may either dangle in `dst` **or resolve to an unrelated live entity** — the
+live-but-wrong class, which no plan phase can refuse. #720 corrected the
+`euler.rs` copy in passing and named the class there; whoever takes S14 fixes
+one of three. The `DESIGN.md` and allowlist copies are S14's, not this row's.
 
 ## S44. The founding ruling for the lane-trait pattern exists only as an agent's paraphrase
 
@@ -6280,12 +6322,14 @@ set, and D1 declined to widen into it.
 | **D13** | **S15's pcurve-staleness row, which is still open.** `pcurves.rs:124`: *"an op that mutates an already-minted body must either clear the map or re-mint before returning, and **should say which in its own docs**"* — a convention, with *"The lists above are a survey, not an enforced invariant"* four lines above it, and nothing that notices when a new op joins the wrong bucket. **What D5 verified before placing this**: #635 corrected the one entry the steelman caught (`merge_coplanar_faces` had started re-minting and the index had not moved), so the survey is *accurate today* — the row is that nothing keeps it accurate. The shape D5 used for its sibling row is available and cheap: a source-walking test over the three buckets, the way `review_m1_pr5_internal::every_public_mutation_path_preserves_tier1` now covers the mutation surface. | S15 (row 1) | `topo/src/pcurves.rs` and the test's home | style | **discharged — #707** (D4) landed the `pcurves.rs` edits this must not conflict with |
 | **D14** | **`seqgen`'s candidate enumeration is eager.** `choose_op` builds every candidate `Vec` on every call — including rows whose weight is zero because the body has stopped growing — and then discards all but one. D5's `split_edge` row is what makes that cost visible rather than what causes it: `split_edge_candidates` runs a full `EdgeCurve::recertify` plus an O(V) separation scan **per edge, per step** (~14 re-certifications and ~200 metered decisions at `GROW_CAP`), which is where its measured +46% went. `memories/test-suite-cost.md` is categorical that an ungated fuzzer is a defect in the fuzzer. The fix is not to drop the gates — they are what keep the lane honest — but to skip zero-weight rows and to enumerate lazily. | S15 (`seqgen` half) | `topo/src/seqgen.rs` | style, but **measure before and after**: the row exists because a number was measured, and it closes on a number, not on a shape | nothing |
 | **D15** | **The K-report harness does not run, so the provenance behind `docs/K-REPORT.md` is currently unreproducible.** `sweep/tests/k_report.rs` is the instrument that dumps `docs/k-report-data/`'s CSVs, and the standing convention is that reviewers **byte-reproduce** them. Under `--features probe` it does not reach a sweep call: it panics at `k_report.rs:40`'s `.unwrap()` with `UndeclaredTangency { loop 0, segments 7 and 0, joint 0 }` inside `profile::validate`, on the **second** corpus shape (the rounded square, `k_report.rs:101-118`) — reproduced 2026-08-20 on the D1 branch, and pre-existing: nothing in `crates/sweep` is on the failing path. Until it is fixed, **every K claim in this report is verifiable only statically** (reading the predicate-name literals), not by running the instrument — which is how D1's byte-identity check had to be made. **Diagnosis first**: establish whether the corpus shape drifted out of `profile`'s tangency-declaration rule or the rule tightened under it, and say which, before changing either. A rounded square with `.fillet(r)`-shaped corners that no longer validates is a fact about the profile door, not necessarily about the harness. | raised by D1 (#710) | `sweep/tests/k_report.rs`, and whatever the diagnosis names | **ADVERSARIAL** — the two available fixes (declare the joint in the corpus, or change what `profile` requires) are not equivalent, and picking the convenient one silently re-baselines the dataset the K census is built on. | nothing |
-| **D18** | **`split_edge` hands `link_half_edges` a key nothing proves, and it is the last thing standing between W2c and done.** `split.rs:253` reads `prev(hm)` straight out of the arena and splices through it; the *symmetric* `next(hp)` **is** proven live by `split_edge`'s preconditions, under a comment saying the splice writes through both links so the mutation cannot fail midway. One of the two is checked and the other is not, and the asymmetry is invisible at the call site. The fix is **one clause in the plan phase, symmetric with the existing one** — a `contains_key` on `prev(hm)` returning `StaleKey`. **Why the row is worth doing rather than a tidy-up**: `link_half_edges` is the site S12 led with and the site the D2 addendum names, and #720 left its two discards unconverted for exactly this reason — so **D18 unblocks the last two sites of W2c**, after which the helper converts in one line. The distinction a future reader will not re-derive: the helper's own qualifier is *"cannot fail on **the operator paths**"*, and `split_edge` is documented as a **non-operator** structural mutator (`DESIGN.md`'s D9 footnote lists it among them) — the qualifier was exact, and the class it excludes is the class that breaks it. | raised by D16 (#720) | `topo/src/split.rs`, then `topo/src/euler.rs`'s `link_half_edges` | **ADVERSARIAL** — it adds a precondition to a non-operator mutator on the delicate-site path and then converts a discard behind it; getting either half wrong re-opens the hole #720 proved is real, and this time as a panic. | nothing (#720 is doc-and-`euler*` only and does not touch `split.rs`) |
+| **D18** | **Two callers hand `link_half_edges` a `prev` nothing proves, and they are the last thing standing between W2c and done.** Both read `prev` straight out of the arena and splice through it, and in both cases the *symmetric* `next` **is** proven live in the same plan phase: `split.rs:253` passes `prev(hm)` while `:155-160` checks `next(hp)`; `euler_kill.rs:830` passes `a = prev(he)` while `b = next(he)` is proven by the cycle walk — **`loop_walk` steps `next`** (`body.rs:796-800`), so the walk proves one and not the other. `kef` is the outlier among the operators: `mev` (`euler.rs:1437-1443`), `mef` (`euler.rs:1701-1707`), `kev` (`euler_kill.rs:605-613`) and `mekr_cycles` (`euler_ring.rs:1032-1037`) each check their own `prev`s explicitly and say so. The fix is **one `contains_key` per site**, symmetric with the check each plan phase already has — `kev`'s four-link loop is the shape. **Why the row is worth doing rather than a tidy-up**: `link_half_edges` is the site S12 led with and the site the D2 addendum names, and #720 left its two discards unconverted for exactly this reason — so **D18 unblocks the last two sites of W2c**, after which the helper converts in one line. **Both** call sites are required: fixing only `split.rs` leaves `kef`'s `a` unproven and the helper still unconvertible. The distinction a future reader will not re-derive: the helper's old qualifier was *"cannot fail on **the operator paths**"*, and one of the two gaps is **inside an operator** — the qualifier was not merely narrow, it was wrong. **How it was found**: #720's own sibling sweep obligation, discharged late — the unit established that a `prev` is not proven by a `next`-walk and did not immediately run that read over the operators; its review did. | raised by D16 (#720) | `topo/src/split.rs`, `topo/src/euler_kill.rs`, then `topo/src/euler.rs`'s `link_half_edges` | **ADVERSARIAL** — it adds preconditions to a non-operator mutator and to a kill operator on the delicate-site path, then converts a discard behind them; getting any part wrong re-opens the hole #720 proved is real, and this time as a panic. | nothing (#720 leaves both call sites' code untouched, correcting only the false comments on them) |
 
 **No row number is reserved; D18 is the highest one placed.** D15 (D1's
 `k_report.rs` harness) was placed by #710 and D16 (D6's W2c discards) by #706;
-D16 is now retired (#720) and placed **D18**, its own residue, on the way out —
-the same obligation D15's lane discharges as **D17**. Row numbers are assigned
+D16 is now retired (#720) and placed **D18**, its own residue, on the way out.
+**D17 is assigned to D15's lane and is not in this table yet** — the row is
+that lane's to write, and nothing here should be read as describing it. Row
+numbers are assigned
 centrally because several lanes mint rows in parallel and three collided once
 already: a lane that needs a row takes the next number the orchestrator has not
 assigned, never the next gap it can see. **A verdict is not a placement** (§D's
@@ -6295,35 +6339,63 @@ in two PR bodies.
 **D16 is retired — done as #720** (`topo/src/euler{,_ring,_kill}.rs`, S43/S12).
 The re-derived census is **58 discard sites**, not the ~60 the row carried: the
 recorded 20/20/18 were `if let Some` *occurrences*, two of which are ordinary
-`Option` matches. **56 converted to `unreachable!`** — every one of them row 4;
-**no site was row 5**, because a failed key lookup is *observed*, not
-re-derived, and that is the axis the addendum's rows 4/5 split on. The unit's
-ADVERSARIAL gate did not come off cleanly, and the residue is the useful part:
+`Option` matches. The partition is **56 `unreachable!` + 2 left = 58** — the
+two `kfmrh` sites are *among* the 56, not a third bucket beside them; they
+converted because that operator's plan phase gained the typed checks that make
+them provable. Every conversion is row 4; **no site was row 5**, because a
+failed key lookup is *observed*, not re-derived, and that is the axis the
+addendum's rows 4/5 split on. The unit's ADVERSARIAL gate did not come off
+cleanly, and the residue is the useful part:
 
-- **The flagship site did not convert.** `link_half_edges` is shared with the
-  non-operator mutators, and `split.rs:253` reaches it with `prev(hm)` read
-  straight out of the arena — the *symmetric partner* of the `next(hp)` its
-  preconditions do prove live, simply missing from that check. Its comment's
-  qualifier (*"on the operator paths"*) was exact, and the path that breaks it
-  is the one the qualifier excludes. Converting it would have turned a
-  documented garbage-out into a panic on the only unproven path. The one-line
-  proof belongs at that call site; **`split.rs` owes it, and that is D18** —
-  which is what makes D18 the row that finishes W2c rather than a tidy-up.
+- **The flagship site did not convert, and there are TWO reasons, not one.**
+  `link_half_edges` is reached with an unproven `prev` from `split.rs:253`
+  (`prev(hm)`, the symmetric partner of a `next(hp)` its preconditions do
+  check) **and** from `kef` (`euler_kill.rs:830`'s `a = prev(he)`, where the
+  cycle walk steps `next` and so proves only `b`). Converting the helper would
+  have turned a documented garbage-out into a panic on both. The one-line
+  proofs belong at those call sites; **both are D18**, which is what makes it
+  the row that finishes W2c rather than a tidy-up.
+
+  **The second one is this unit's own miss.** #720 established exactly the
+  invariant that finds it — a `prev` read from the arena is not proven by a
+  `next`-walk — and did not run that read over the sibling operators, which is
+  the standing sweep obligation. Its review did, in the PR whose thesis is that
+  a prose invariant must be replaced by construction. The helper's comment
+  claimed *"cannot fail on **the operator paths**"*; one of the two gaps is
+  inside an operator, so the qualifier was not narrow, it was wrong. #720
+  corrects that comment and `kef`'s (which asserted the walk validates
+  `prev(he)`/`next(he)`, where it validates only `next(he)`) without touching
+  either operator's code — the arms reach only the *unconverted* helper, so the
+  failure mode is garbage-out, not a panic, and the fix is D18's.
 - **Two sites were made provable rather than converted on faith.** `kfmrh`'s
   cross-shell fusion wrote through `s2_data.faces` and `s2_data.solid`
   unchecked; both are **row 1**, so its plan phase now proves them and returns
-  `StaleKey`. That also closed a real atomicity hole — a dangling entry there
-  previously half-wrote the fusion and returned `Ok`.
-- **The graft exception is stronger than `DESIGN.md:1108` records.**
+  `StaleKey`. That closed a real atomicity hole — a dangling entry there
+  previously half-wrote the fusion and returned `Ok` — and the claim is now
+  executable rather than prose: two rows construct a same-solid two-shell body
+  and plant each corruption, and **each goes red with its guard removed**
+  (verified by deleting them: the dangling-face row then panics at the
+  `unreachable!` the guard exists to make sound). The pre-existing
+  `kfmrh_rejects_stale_faces` could not reach either, corrupting only the two
+  arguments.
+- **The graft exception is stronger than `DESIGN.md:1130-1135` records.**
   `graft_solids_with`'s pass 1 clones topology into `dst` still holding
   *source-internal* keys and pass 2 patches them, with the `corrupt()` bails
   sitting between — so a refusal there leaves **dangling keys**, not merely the
   empty solid the footnote names (that is the late `GraftRecertify` state).
-  It forced no decision here only because the proof standard used never
-  appeals to the input body being tier-1-valid: every converted key is minted
-  in-phase or proven live *in the same call*, so a post-failed-graft body is
-  refused typed by the plan phase. A standard that had reasoned from tier-1
-  validity would have been falsified across roughly half the sites.
+  **And "dangling" understates it in turn**: these are slotmap keys, so an
+  unpatched source-internal key may instead **resolve in `dst` to an unrelated
+  live entity** — live-but-wrong, which no plan phase can refuse. So a
+  post-failed-graft body is not always *refused* by the plan phase; it may be
+  **accepted and produce wrong data**. That endangers no conversion, and the
+  reason is worth stating exactly: the standard proves **liveness**, not
+  correctness, and an `unreachable!` fires only on a lookup that fails. A key
+  that resolves to the wrong entity writes the wrong topology and panics
+  nowhere — the same residue `foreign_parent_loop_garbage_in_garbage_out_release`
+  certifies. What the standard buys is that it never appeals to tier-1
+  validity: every converted key is minted in-phase or proven live *in the same
+  call*. A standard that had reasoned from tier-1 validity would have been
+  falsified across roughly half the sites.
 
 The 37-door guard did not move (no door added, removed, or changed its
 assertion). `foreign_parent_loop_garbage_in_garbage_out_release` still passes

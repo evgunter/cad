@@ -23,11 +23,15 @@
 //!   guarantees on corrupt input, after the **D2 addendum** amended its
 //!   footnote, is the bounded-traversal half: no panic, no hang, every
 //!   traversal bounded — plus a typed error where corruption is
-//!   detectable. **Nothing in a mutation phase discards a failed
-//!   lookup.** Every key a mutation writes through is either minted in
-//!   that phase or proven live by the plan phase, which returns
+//!   detectable. **A mutation phase announces a failed lookup rather
+//!   than discarding it, at every write but one.** Every key a
+//!   mutation writes through is either minted in that phase or proven
+//!   live by the plan phase, which returns
 //!   [`EulerOpError::StaleKey`] otherwise; the writes themselves state
 //!   that impossibility as `unreachable!` (the addendum's row 4). The
+//!   exception is [`Body::link_half_edges`], whose own docs name the
+//!   two call sites that do not prove the key they pass it — one of
+//!   them an operator. The
 //!   *output* still carries no validity promise on corruption the plan
 //!   phase cannot see — a consistently wrong `parent_loop` makes every
 //!   lookup succeed and write the wrong topology — but that residue is
@@ -72,8 +76,16 @@
 //!   destination solid per source solid before transplanting, and a
 //!   refusal raised mid-transplant leaves `dst` partially written —
 //!   its own docs say the destination is then *spent, never
-//!   resumable*, and an empty solid is the tier-1 error
-//!   [`crate::ValidationError::SolidWithoutShells`]. So a caller that
+//!   resumable*, and the destination's own docs, `DESIGN.md`'s D9
+//!   footnote and the 37-door allowlist entry in
+//!   `review_m1_pr5_internal` all name that state as the tier-1 error
+//!   [`crate::ValidationError::SolidWithoutShells`] — which is the
+//!   *late* failure, raised after the transplant's second pass with
+//!   every key patched. **All three understate it.** A refusal raised
+//!   between the transplant's two passes leaves entities holding
+//!   source-internal keys, which in `dst` either dangle or resolve to
+//!   an unrelated live entity. Whoever takes S14 fixes one of three
+//!   copies of the same sentence. So a caller that
 //!   ignores a graft's `Err` and keeps using `dst` can hand the next
 //!   operator a tier-1-invalid body and fire its postcondition from
 //!   **API misuse rather than a kernel bug**. That is the state class
@@ -979,15 +991,15 @@ impl<T: Decide> Body<T> {
         // Close the cyclic references. Every patched key was minted five
         // lines up; the lookups cannot fail.
         let Some(l) = self.get_loop_mut(r#loop) else {
-            unreachable!("mvfs: the loop was minted three statements up")
+            unreachable!("mvfs: `r#loop` is minted by this function, above")
         };
         l.face = face;
         let Some(s) = self.get_shell_mut(shell) else {
-            unreachable!("mvfs: the shell was minted three statements up")
+            unreachable!("mvfs: `shell` is minted by this function, above")
         };
         s.faces.push(face);
         let Some(s) = self.get_solid_mut(solid) else {
-            unreachable!("mvfs: the solid was minted five statements up")
+            unreachable!("mvfs: `solid` is minted by this function, above")
         };
         s.shells.push(shell);
 
@@ -1498,14 +1510,14 @@ impl<T: Decide> Body<T> {
         for &moved in &run {
             let Some(he) = self.get_half_edge_mut(moved) else {
                 unreachable!(
-                    "mev fan: the run's members were resolved by the plan phase's bounded walk"
+                    "mev fan: run members proven live by mev_fan_plan's bounded orbit walk"
                 )
             };
             he.start = w;
         }
         // Emanating rule (documented on `mev`): unconditional.
         let Some(vertex) = self.get_vertex_mut(v) else {
-            unreachable!("mev fan: `v` resolved in the plan phase (resolve_vertex_point)")
+            unreachable!("mev fan: `v` proven live by mev_fan_plan (resolve_vertex_point)")
         };
         vertex.emanating = Some(he_plus);
         let Some(vertex) = self.get_vertex_mut(w) else {
@@ -1582,11 +1594,11 @@ impl<T: Decide> Body<T> {
         self.link_half_edges(he_plus, he_minus);
         self.link_half_edges(he_minus, he_plus);
         let Some(l) = self.get_loop_mut(loop_key) else {
-            unreachable!("mev lone: the loop resolved in mev_lone_plan")
+            unreachable!("mev lone: `loop_key` proven live by mev_lone_plan")
         };
         l.boundary = LoopBoundary::Cycle { first: he_plus };
         let Some(vertex) = self.get_vertex_mut(v) else {
-            unreachable!("mev lone: `v` resolved in mev_lone_plan (resolve_vertex_point)")
+            unreachable!("mev lone: `v` proven live by mev_lone_plan (resolve_vertex_point)")
         };
         vertex.emanating = Some(he_plus);
         let Some(vertex) = self.get_vertex_mut(w) else {
@@ -1757,7 +1769,7 @@ impl<T: Decide> Body<T> {
         // Re-anchor both loops deterministically (the old loop's first
         // may have migrated to the new loop).
         let Some(l) = self.get_loop_mut(loop_key) else {
-            unreachable!("mef chords: the loop resolved in the plan phase")
+            unreachable!("mef chords: `loop_key` proven live by this function's plan phase")
         };
         l.boundary = LoopBoundary::Cycle { first: he_plus };
         let Some(l) = self.get_loop_mut(new_loop) else {
@@ -1824,7 +1836,7 @@ impl<T: Decide> Body<T> {
         self.link_half_edges(he_plus, he_plus);
         self.link_half_edges(he_minus, he_minus);
         let Some(l) = self.get_loop_mut(loop_key) else {
-            unreachable!("mef lone: the loop resolved in the plan phase")
+            unreachable!("mef lone: `loop_key` proven live by this function's plan phase")
         };
         l.boundary = LoopBoundary::Cycle { first: he_plus };
         let Some(l) = self.get_loop_mut(new_loop) else {
@@ -1834,7 +1846,9 @@ impl<T: Decide> Body<T> {
         // The lone vertex gains its first half-edge (the only case where
         // mef touches emanating).
         let Some(vertex) = self.get_vertex_mut(v) else {
-            unreachable!("mef lone: `v` resolved in the plan phase (resolve_vertex_point)")
+            unreachable!(
+                "mef lone: `v` proven live by this function's plan phase (resolve_vertex_point)"
+            )
         };
         vertex.emanating = Some(he_plus);
 
@@ -1998,7 +2012,9 @@ impl<T: Decide> Body<T> {
         let he_plus = self.add_half_edge(half(plus), provenance.clone());
         let he_minus = self.add_half_edge(half(minus), provenance.clone());
         let Some(e) = self.get_edge_mut(edge) else {
-            unreachable!("mint_halves: every caller mints the edge on the statement before")
+            unreachable!(
+                "mint_halves: `edge` comes from `mint_edge` in the caller's same mutation phase"
+            )
         };
         e.he_plus = he_plus;
         e.he_minus = he_minus;
@@ -2044,12 +2060,12 @@ impl<T: Decide> Body<T> {
             provenance.clone(),
         );
         let Some(l) = self.get_loop_mut(new_loop) else {
-            unreachable!("mint_loop_and_face: the loop was minted two statements up")
+            unreachable!("mint_loop_and_face: `new_loop` is minted by this function, above")
         };
         l.face = new_face;
         let Some(s) = self.get_shell_mut(shell) else {
             unreachable!(
-                "mint_loop_and_face: every caller proves the shell live before the mutation phase"
+                "mint_loop_and_face: `shell` proven live by the caller's plan phase (mef_chords / mef_lone)"
             )
         };
         s.faces.push(new_face);
@@ -2060,17 +2076,26 @@ impl<T: Decide> Body<T> {
     ///
     /// **The one write helper in these three modules that still
     /// discards a failed lookup, and the invariant it needs is not the
-    /// one it can state.** On the Euler-operator paths both keys are
-    /// minted in the mutation phase or proven live by the plan phase,
-    /// so a failed lookup here would be the D2 addendum's row 4. But
-    /// the helper is shared with the non-operator structural mutators,
-    /// and [`Body::split_edge`] reaches it with `prev(hm)` read
-    /// straight out of the arena — the symmetric partner of the
-    /// `next(hp)` its preconditions *do* prove live. That key is live
+    /// one it can state.** At all but two of its call sites both keys
+    /// are minted in the mutation phase or proven live by the plan
+    /// phase, so a failed lookup would be the D2 addendum's row 4.
+    /// **Two call sites do not prove their key, and both hand it the
+    /// same thing — a `prev` read straight out of the arena:**
+    ///
+    /// - [`Body::split_edge`] passes `prev(hm)`, the symmetric partner
+    ///   of the `next(hp)` its preconditions *do* check.
+    /// - [`Body::kef`] passes `a = prev(he)`. Its cycle walk steps
+    ///   `next`, so the walk proves `next(he)` and not `prev(he)`;
+    ///   `kev`, `mev`, `mef` and `mekr` each check their own `prev`s
+    ///   explicitly, and `kef` is the outlier.
+    ///
+    /// So the qualifier this comment used to carry — *"cannot fail on
+    /// the operator paths"* — was not merely narrow, it was wrong:
+    /// one of the two gaps is inside an operator. Both keys are live
     /// on a tier-1-valid body and unproven on any other, so making
     /// this helper announce would convert a documented garbage-out
-    /// into a panic on the one path that has no proof. The proof
-    /// belongs at that call site, not here.
+    /// into a panic on exactly the paths that have no proof. The
+    /// proofs belong at those two call sites, not here.
     pub(crate) fn link_half_edges(&mut self, a: HalfEdgeKey, b: HalfEdgeKey) {
         if let Some(he) = self.get_half_edge_mut(a) {
             he.next = b;

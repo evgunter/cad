@@ -1351,7 +1351,9 @@ impl<T: Decide> Body<T> {
         let (u, w) = anchors;
         let (he_plus, he_minus) = halves;
         let Some(l) = self.get_loop_mut(target_loop) else {
-            unreachable!("mekr: the target loop resolved in the plan phase")
+            unreachable!(
+                "mekr: `target_loop` proven live by the caller's plan phase (mekr_cycles / mekr_empty_ring / mekr_empty_target / mekr_both_empty)"
+            )
         };
         l.boundary = LoopBoundary::Cycle { first: he_plus };
         let Some(face_data) = self.get_face_mut(face) else {
@@ -1377,7 +1379,7 @@ mod tests {
     use geom_core::Point3;
 
     use super::*;
-    use crate::entity::{Edge, Face, HalfEdge, Shell, Solid, Vertex};
+    use crate::entity::{Edge, Face, HalfEdge, Shell, Solid, SolidKey, Vertex};
     use crate::euler::{MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
     use crate::fixtures::{deep_snapshot, mvfs_state, pillow, prov};
     use crate::validate::validate;
@@ -2499,6 +2501,63 @@ mod tests {
         let expected = EulerOpError::CrossSolid {
             f1: seed.face,
             f2: other.face,
+        };
+        assert_err_deep_unchanged(&mut body, &expected, |b| {
+            b.kfmrh(seed.face, other.face).unwrap_err()
+        });
+    }
+
+    /// A same-solid two-shell body: the shape `kfmrh`'s fusion form
+    /// exists for. It is not constructible through the public
+    /// operators (`mvfs` mints one solid per shell), so the second
+    /// shell is re-homed by raw in-crate write — the same adversarial
+    /// posture as the rest of this module's corruption rows.
+    fn fused_two_shell_body() -> (Body<f64>, MvfsCreated, MvfsCreated) {
+        let (mut body, seed, _seg, _split) = ops_pillow();
+        let other = body.mvfs(p(9.0)).unwrap();
+        let f1_shell = body.get_face(seed.face).unwrap().shell;
+        let first_solid = body.get_shell(f1_shell).unwrap().solid;
+        body.get_shell_mut(other.shell).unwrap().solid = first_solid;
+        body.get_solid_mut(first_solid)
+            .unwrap()
+            .shells
+            .push(other.shell);
+        body.get_solid_mut(other.solid).unwrap().shells.clear();
+        (body, seed, other)
+    }
+
+    /// The fusion's first plan-phase guard, on the exact corruption it
+    /// exists to refuse. The re-homing walks `f2`'s shell's face list —
+    /// a key read out of the body, not an argument — so
+    /// `kfmrh_rejects_stale_faces`, which corrupts only the two
+    /// ARGUMENTS, cannot reach it. Without the guard the op half-wrote
+    /// the fusion and returned `Ok`.
+    #[test]
+    fn kfmrh_refuses_a_dangling_face_in_f2s_shell() {
+        let (mut body, seed, other) = fused_two_shell_body();
+        let dead = FaceKey::default();
+        body.get_shell_mut(other.shell).unwrap().faces.push(dead);
+        let expected = EulerOpError::StaleKey {
+            key: EntityId::Face(dead),
+        };
+        assert_err_deep_unchanged(&mut body, &expected, |b| {
+            b.kfmrh(seed.face, other.face).unwrap_err()
+        });
+    }
+
+    /// The fusion's second guard. Both shells name the same DEAD solid,
+    /// so the `CrossSolid` gate — which only compares the two — passes,
+    /// and the solid guard is the only thing left to catch it. The
+    /// fusion rewrites that solid's shell list.
+    #[test]
+    fn kfmrh_refuses_a_dead_shared_solid() {
+        let (mut body, seed, other) = fused_two_shell_body();
+        let dead = SolidKey::default();
+        let f1_shell = body.get_face(seed.face).unwrap().shell;
+        body.get_shell_mut(f1_shell).unwrap().solid = dead;
+        body.get_shell_mut(other.shell).unwrap().solid = dead;
+        let expected = EulerOpError::StaleKey {
+            key: EntityId::Solid(dead),
         };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
             b.kfmrh(seed.face, other.face).unwrap_err()

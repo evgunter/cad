@@ -1221,13 +1221,22 @@ banned clippy family in both `Cargo.toml` and its hand-mirrored copy in
 sanctioned deviation is `unsafe_code` — so the two move together).
 `panic`, `todo` and `unimplemented` stay banned.
 
-*Conversion work this licenses, NOT yet done:* the ~60 silent
-`if let Some` discards across `euler.rs` / `euler_ring.rs` /
-`euler_kill.rs` become row 4, and idiom 2's `MissingEntity` router
-defects with them. Opening the lint permits that work; it does not
-perform it, and until it lands those sites are still the superseded
-idiom. `AssemblyUnsupported`'s rename to `Unsupported*` is likewise
-outstanding.
+*Conversion work this licenses.* Opening the lint permitted the work;
+it did not perform it. The `crates/topo` half is **done** (W2c, PR
+#720): the discards across `euler.rs` / `euler_ring.rs` /
+`euler_kill.rs` re-derived to **58** sites, of which 56 became row 4
+with a per-site not-input-reachable proof and 2 became row-1 typed
+errors. **No site was row 5** — rows 4/5 split on re-derivation, and a
+failed key lookup is observed rather than re-derived. Two discards
+remain, both in `link_half_edges`, because two of its callers pass a
+`prev` read out of the arena that nothing proves (`split_edge`, and
+`kef` — whose cycle walk steps `next`); converting there would make a
+documented garbage-out into a panic, which this addendum's headline
+forbids. Those two call sites are `SMELL-SCAN-2026-08.md`'s **D18**.
+
+*Still outstanding:* idiom 2's `MissingEntity` router defects, and
+`AssemblyUnsupported`'s rename to `Unsupported*` — both outside
+`crates/topo`.
 
 **Replay with kills (M1, pinned in PRs #20/#23):** the determinism
 contract holds with destructive operators in the history. Identical

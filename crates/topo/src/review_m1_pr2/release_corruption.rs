@@ -40,6 +40,31 @@
 //! Its other value is that it is the file's only
 //! `#[cfg(not(debug_assertions))]` item, so it is the one thing here that
 //! a debug-only CI could not even type-check.
+//!
+//! # What this file does NOT cover, stated rather than left to be found
+//!
+//! The row-4 `unreachable!`s the Euler modules now carry fire on a key
+//! that fails to RESOLVE. Every corruption planted below is either
+//! live-but-wrong (`parent_loop`, the edge<->half bijection) or a torn
+//! `next` -- by construction none of them makes a lookup fail, which is
+//! why the whole file still passes unchanged after the conversion. So
+//! **no row here plants a dangling key into a mutation phase**, and in
+//! release, where the postcondition is compiled out, those
+//! `unreachable!`s are the only guard left.
+//!
+//! That gap is recorded rather than closed. Reaching a mutation phase
+//! with a dangling key means defeating the plan phase that exists to
+//! refuse exactly that: on today's operators every such key is either
+//! minted in-phase or proven live, so a fixture would have to corrupt
+//! the body BETWEEN the plan and the mutation -- which no in-crate
+//! surface offers, the two phases being straight-line code inside one
+//! `&mut self` call. A fixture that instead corrupts before the call
+//! gets a typed `StaleKey`, which is the row above, not this one. The
+//! honest statement is that these arms are unreachable by construction
+//! and therefore also untestable by construction; the thing that WOULD
+//! go red on a bad conversion is
+//! `debug_postcondition_fires_on_corrupt_input`, which is why it now
+//! asserts its panic's source instead of only that one occurred.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -211,6 +236,16 @@ fn foreign_parent_loop_garbage_in_garbage_out_release() {
 /// postcondition DOES fire on tier-1-invalid input (panic), i.e. the
 /// "one legitimate panic site / never an input failure" doc sentence
 /// only holds under the tier-1-valid input assumption.
+///
+/// **Why the payload is asserted and not just `is_err()`.** Since the
+/// D2 addendum landed in the Euler modules there is a SECOND panic
+/// source in this call path -- the row-4 `unreachable!`s the mutation
+/// phases now carry. A bare `is_err()` would pass identically whether
+/// the panic came from the postcondition this row is named for or from
+/// a mis-converted `unreachable!`, and the postcondition is the only
+/// debug-side signal that separates them. Both
+/// `assert_euler_postcondition` messages carry the literal below; no
+/// `unreachable!` message does.
 #[test]
 #[cfg(debug_assertions)]
 fn debug_postcondition_fires_on_corrupt_input() {
@@ -224,11 +259,21 @@ fn debug_postcondition_fires_on_corrupt_input() {
             he2: split.he_minus,
         });
     });
-    assert!(
-        result.is_err(),
+    let payload = result.expect_err(
         "expected the debug postcondition to panic on corrupt input; if \
          this stops panicking, the doc claim becomes true and this test \
-         should move to the release-style garbage-out assertion"
+         should move to the release-style garbage-out assertion",
+    );
+    let message = payload
+        .downcast_ref::<String>()
+        .map(String::as_str)
+        .or_else(|| payload.downcast_ref::<&str>().copied())
+        .unwrap_or("<non-string panic payload>");
+    assert!(
+        message.contains("postcondition"),
+        "panicked, but not from the postcondition -- a row-4 \
+         `unreachable!` fired instead, which means a conversion's \
+         not-input-reachable claim is false: {message}"
     );
 }
 

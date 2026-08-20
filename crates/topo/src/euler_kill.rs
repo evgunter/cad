@@ -813,8 +813,16 @@ impl<T: Decide> Body<T> {
             });
         }
         // The dying loop's full cycle (bounded, D9): everything after he
-        // is the remnant that moves to the mate's loop. The walk resolves
-        // every member, so prev(he)/next(he) are already validated.
+        // is the remnant that moves to the mate's loop. The walk steps
+        // `next`, so it proves `b = next(he)` live and nothing else:
+        // `a = prev(he)` is live only by prev/next being mutual
+        // inverses, which is a tier-1 fact, not one this call
+        // establishes. `a` is therefore the one splice key here that no
+        // check in this operator proves; every sibling proves its own
+        // (`kev` below takes all four). It reaches only
+        // [`Body::link_half_edges`], which still discards — so the gap
+        // is garbage-out, not a panic, and closing it is the other half
+        // of what makes that helper convertible.
         let cycle = self
             .loop_cycle(he)
             .ok_or(EulerOpError::LoopCycleBroken { r#loop: l1 })?;
