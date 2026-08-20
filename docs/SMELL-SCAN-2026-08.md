@@ -2936,12 +2936,15 @@ more); the 103rd is `build.rs:127`, which constructs the variant **directly**
 and which a closure-call count cannot see. #688's retirement of the whole-body
 door had already taken the finding's 146 down to these.
 
-**The partition, against the D2 addendum's rows:**
+**The partition, against the D2 addendum's rows. 103 sites in, 105 out** — two
+of the 103 conflated *"the verdict handed us an empty chain"* with *"this chain
+shape is not built"* behind one `len` test, and those are different rows, so
+each split into two arms.
 
 | Row | Sites | What they became |
 |---|---|---|
-| 2 — valid input, unbuilt | **38** | `UnsupportedBody { solids, shells }`, `UnsupportedChain { edge, detail }`, `UnsupportedCorner { vertex, detail }`, `UnsupportedGeometry { at, detail }` — each names the refused class and carries the offending entity |
-| 1 — reachable, invalid | **47** | `RepeatedEdge { edge }` (1), `EmptyChain` (2 arms), `BodyNotIntact { at: FilletEntity, detail }` (46) |
+| 2 — valid input, unbuilt | **38** | `UnsupportedBody { solids, shells }` (1), `UnsupportedChain { edge, detail }` (17), `UnsupportedCorner { vertex, detail }` (8), `UnsupportedGeometry { at, detail }` (12) — each names the refused class and carries the offending entity |
+| 1 — reachable, invalid | **49** | `BodyNotIntact { at: FilletEntity, detail }` (46), `EmptyChain` (2), `RepeatedEdge { edge }` (1) |
 | 4 — kernel bug, observable | **18** | `unreachable!`, each carrying its own per-site proof |
 | 5 — re-derivation | **0** | rows 4/5 split on re-derivation; a failed lookup is observed |
 
@@ -2958,7 +2961,7 @@ verdict or request handed in.
 S19 records that #171's closure took the variant to 146 and that "~120 assertion
 sites rode in" — the `.ok_or_else(|| unsupported("a ring does not walk"))`
 shape, described as *arena lookups that cannot fail on a valid body*. On the
-standard, **18 of 103** are assertions. The other 46 are not assertions at all,
+standard, **18** are assertions. The other 46 are not assertions at all,
 and the reason is the one #720 established: **the standard proves liveness, not
 correctness, and it may not be borrowed from whole-body validity.** A body that
 fails referential integrity is reachable at `fillet_edges`' door **with no
@@ -3043,7 +3046,7 @@ highest-volume rows, and S43 turns out to be their generator.**
   cannot fail on a valid body, **five of which say "(kernel bug)" outright**.
   #171's deviation 3 declared only the four genuine scope gaps; ~120 assertion
   sites rode in under that sentence — but see above: on a per-site standard
-  **18 of 103** are assertions, and the rest report invalid input. **NEVER
+  **18** are assertions, and the rest report invalid input. **NEVER
   FLAGGED** — #166's F6 is the
   closest miss: the reviewer was *inside this enum*, split a tangential case
   into its own variant, and still did not remark on 146 sites sharing one
@@ -7010,8 +7013,8 @@ scheduled.
 **D2 — PARTLY FIXES S19, as #NNN.** The fillet half of the error catch-alls.
 The re-derived census is **103**, not the row's 102 — `build.rs:127` constructs
 `AssemblyUnsupported` directly rather than through a closure, so a
-closure-call count cannot see it. The partition is **38 row 2 + 47 row 1 + 18
-row 4**, and the last number is the unit's result: **the row's premise that
+closure-call count cannot see it. The partition is **38 row 2 + 49 row 1 + 18
+row 4** (105 sites out of 103 in: two conflated arms split), and the last number is the unit's result: **the row's premise that
 these are row-4 sites is refuted for 46 of them**, because a body that fails
 referential integrity is reachable at fillet's door with no kernel bug in the
 trace (`graft_disjoint_all`'s spent destination — S14, cited not resolved), so

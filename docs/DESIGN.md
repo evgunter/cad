@@ -1238,8 +1238,9 @@ forbids. Those two call sites are `SMELL-SCAN-2026-08.md`'s **D18**.
 
 *The `crates/sweep/src/fillet` half is also done* (D2, PR #NNN).
 `AssemblyUnsupported`'s **103** construction sites re-derived to
+**105** sites — two conflated arms split — partitioned
 **38 row 2** (four `Unsupported*` variants naming chain, corner,
-geometry and body), **47 row 1** (one repeated-edge refusal plus
+geometry and body), **49 row 1** (one repeated-edge refusal plus
 `BodyNotIntact`/`EmptyChain`, each carrying the entity) and **18
 row 4**. The 18 are the whole set that survives the per-site standard:
 every key an `unreachable!` dereferences is minted by an operator in
