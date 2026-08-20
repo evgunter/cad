@@ -2403,7 +2403,7 @@ pooling the ledger, and that inference is what was wrong.
 | "Distinct interior knots with multiplicities" | ≥4, because `KnotVector` only offers `multiplicity_of(u)` — the query every consumer actually needs is the one the data structure makes awkward | `compose.rs:274`, `algebra.rs:563`, `geom-curves/fit.rs:378`, `sweep/skin.rs:370` |
 | Prefer-intrinsic upgrade rule | 3, with **3 different sample schedules**: validator uses `CERT_SAMPLES`; `revolve/upgrade.rs` hardcodes `let samples = 9u32`; `extrude.rs` uses a *single* midpoint with no lane gate. The doc claims "the SAME quantity, the same predicate name" — true only by coincidence of the literal 9 | `revolve/upgrade.rs:198`, `extrude.rs:1044`, `validate.rs:1994` |
 | Planar divergence-theorem volume | `step-export/volume.rs` re-derives what `props::planar_face` computes, strictly weaker (planes+lines only) and reading its sign with a raw `volume < 0.0` outside the trilean discipline | `step-export/src/volume.rs:88` |
-| Negative-zero flush helper | 3 in one crate, three separate doc blocks making the identical argument, plus a 4th inline | `step-import/src/geometry.rs:30`, `recognize.rs:160`, `recognize_curve.rs:222` |
+| Negative-zero flush helper | **FIXED by #704** — all four copies call one home, `step-import/src/signed_zero.rs`, and a CI gate now fails a fifth. The two later copies were byte-identical to *each other*; the home was the variant | `step-import/src/signed_zero.rs` |
 | Deep-snapshot test helper | ≥4 in `topo` alone, duplication named as intentional in its own doc comment | `fixtures.rs:87`, `review_m1_pr2/mod.rs:35`, `review_m1_pr3.rs:44`, `tests/box_with_hole.rs:368` |
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18) — see S16. "They should certainly
@@ -2455,11 +2455,24 @@ be unified."
   *documented* the divergence rather than closing it.
   *Lesson: a module that keeps being edited to explain how it differs from the
   canonical one is a duplication signal the process has no rule for reading.*
-- **Negative-zero flush ×3** — same crate, three units, one week; the original
-  is already `pub(crate)` and reachable from both later sites. **NEVER
-  FLAGGED** — the concept was tracked only as a *fixture* property
-  (`M7-LOG.md:694`, a byte-divergence class), never as code ownership. *The
-  cheapest one to have caught.*
+- **Negative-zero flush ×3** — **FIXED by #704**: `step-import/src/signed_zero.rs`
+  is the one home, all four copies call it, and `scripts/gates/signed-zero-one-home.sh`
+  fails a fifth. Same crate, three units, one week. **NEVER FLAGGED** — the concept
+  was tracked only as a *fixture* property (`M7-LOG.md:694`, a byte-divergence
+  class), never as code ownership. That citation was closer than it looked: the
+  recognition flush **is** pinned, by `corpus_fold.rs:130`'s promoted one-cycle
+  fixed point, in the file `M7-LOG.md:694` names. Two survival mechanisms: **(a)**
+  the two copies were byte-identical to *each other* and the home was the variant
+  (`x + 0.0` against a branch on `x == 0.0`), so the available catch — a diff
+  between the copies — pointed at collapsing them into each other rather than into
+  the home that already existed; **(b)** the helpers were `Vec3`/`Point3` while the
+  reader's `as_real` holds one `f64`, so the shared thing sat one type level above
+  the site that needed it. `pncad-py/src/py/doc.rs:1101` is the same line under a
+  different rule (`__hash__`/`__eq__` consistency) and stays: no shared home exists
+  today, and whether one should is a separate question.
+  *Lesson: copies that match each other and not the original point away from the
+  home that already exists, and a helper typed above its predicate cannot be
+  called by the site holding the scalar.*
 - **Deep-snapshot helper ≥4** — **policy, not drift**, and **FLAGGED AND
   OVERRULED** in the standing sense: the reviewer-suite independence exemption
   is ratified, and Evan re-affirmed it on this scan (S36). The fourth copy is a
@@ -6047,7 +6060,6 @@ scheduled.
 |---|---|---|---|---|---|
 | **D1** | **B2 / S6 — sweep helper unification.** ~230 token-identical lines: `cosurface`, `rim_spec`/`chain_spec`, `cap_points`, `arc_apex`, `arc_span`, `turn_axis`, `face_surface_key`, `decide`, `SweptKind` — all nine twins confirmed present on today's main. K-telemetry does **not** block it: both funnels already take the predicate name as a parameter. **Retracted by the steelman, do not "unify" these:** `SweptSeg` (the `wall_sense` divergence is load-bearing correctness, M5 S11), `strut_spec` (same name, different bodies), `full::build_lamina`, and the `let _ = k;` inference. The tightest duplication is one the finding missed: `partial.rs:73` vs `full.rs:73`, same module, same error type. | B2 | `sweep/src/{extrude.rs,revolve/}` | **ADVERSARIAL** — it edits the derivation of geometry four verbs share, and the steelman's retraction list is the shape a unifying pass is most likely to over-run. | nothing (B1 landed as #688) |
 | **D2** | **B3 / S19 — the fillet half of the error catch-alls.** D2's addendum is ratified, so these are row 4 (`unreachable!`) and the rename to `Unsupported*` is owed. **The count has moved: 102 construction sites on today's main, not 146** — 97 in `surgery.rs` through one closure, 5 in `build.rs` through two more — because B1's retirement took the rest with the whole-body door. Scope still excludes `MissingEntity` (mesh — Track A) and `SplitJoinError::Corrupt` (splitting — B4/#690). | B3 | `sweep/src/fillet/` | **ADVERSARIAL** — converting a refusal into `unreachable!` in a kernel whose D9 rule is *never a panic* is only sound if "cannot fail on a valid body" is **proven** per site rather than inherited from the closure's name. | **D1** (same crate) |
-| **D3** | **S18's negative-zero flush ×3 — one home.** `geometry::plus_zero`/`plus_zero_point` are already `pub(crate)` and already reachable from both later sites; `recognize.rs` and `recognize_curve.rs` each carry a private `flush_zero`/`flush_zero_point` pair and a third and fourth copy of the same doc argument. The scan called this *the cheapest one to have caught*. | U4 (row) | `step-import/src/{geometry,recognize,recognize_curve}.rs` | style | nothing |
 | **D5** | **U6 — S15's stale-prose and accretion rows.** The steelman sorted nine rows into three dispositions; three need nothing. What is left: `iso.rs:56`'s stale "Placeholder ballast" sentence in front of a still-correct decision; `pcurves.rs:91`'s staleness index, which lists `merge_coplanar_faces` among the ops that neither clear nor re-mint and has been false since 2026-08-05; the frozen count of **eleven** public mutation paths, now ≥ sixteen, stale in four places (`euler.rs:47`, `seqgen.rs:15`, `seqgen.rs:96`, `DESIGN.md:1110`) with `split_edge` carrying `mev`'s Euler vector and never entering the fuzz lane; and `emit_fillet.rs:216`'s *"Faces are never retired"* — **check this one first: B1 retired the door the comment was false for, so it may now be true, in which case the row closes as a note rather than a fix.** | U6 | `topo/src/{iso.rs,euler.rs,seqgen.rs}`, `editor-core/src/names/emit_fillet.rs`, `DESIGN.md` | style, **plus ADVERSARIAL on the `seqgen` half** — adding `split_edge` to a randomised fuzz lane over cases `split.rs:94` calls delicate is the one part of the row that can find a real defect, and the one that can burn CI time on a bad schedule. | nothing |
 | **D6** | **U5 — S12's executable residue.** The finding's headline was overturned (`assert_euler_postcondition` runs full tier-1 validate after every operator under `debug_assertions`), and what remains of it is a **D9 question** — whether the write helpers should be unable to silently do nothing — which is Evan's, not this track's, and is filed above. What is executable now is the gap the steelman found underneath it: `review_m1_pr2/release_corruption.rs` instructs *"Run this under BOTH profiles"* and **CI runs it under one**. The only `cargo test --release` in `ci.yml` is the `oracle-inari` lane (`:1061`), verified on today's main. The unit adds the release run, or states at the instruction why it cannot have one — and measures what it costs before claiming either. | U5 | `.github/workflows/ci.yml`, `topo/src/review_m1_pr2/release_corruption.rs` | style | nothing |
 | **D7** | **U1 / D4 — the three decided deletions.** Decided by Evan 2026-08-19 and unexecuted. Each row owes a provenance note next to the thread that produced it (`PairSolve` → **#611**; the two fillet helpers → **#319**/**#554**; `Mat2`/`Affine2` → the deleting PR body, cross-referenced from **#614**), and the deleting PR must cite the **commit SHA** the code is recoverable from. `trimline_description`'s doc is the only place D7's prefer-intrinsic obligation is *named*: that sentence migrates, it does not die. | U1 | `geom-core/src/linalg/{mat,affine}.rs`, `editor-core/src/mate{.rs,/solve.rs}`, `sweep/src/fillet/{blend,battery}.rs` | style | **split by row.** `Mat2`/`Affine2` is free now. `PairSolve` waits on **#702**, which is editing `mate.rs`, `mate/solve.rs` and the `lib.rs` re-export block it lives in. The fillet helpers wait on **D2**. Evan placed the whole row *"back of the queue, but ahead of W3b"*, and its rationale — noise to lanes reading the same files — is what these two gates discharge. |
@@ -6119,7 +6131,7 @@ Where each went:
 | **U1** — S11/D4's three decided deletions | **D7**, split by row: `Mat2`/`Affine2` free, `PairSolve` behind #702, the fillet helpers behind D2 |
 | **U2** — S8, S9, S10 | **D4 — DONE, #707.** All three sorted to *keep*; the prose the sort contradicts is truthed at each finding |
 | **U3** — S17's ray-parity twins | **D9** — done as **#712**, which spawned three rows: **D10** (the S15 ray-schedule row, a different pair), **D11** (`bool_join_nearest`, the drift class D9 closed only at S17's anchor) and **D12** (its sweep residue) |
-| **U4** — S18's duplicated derivations | **D3** (the negative-zero flush) and **D8** (the knot-vector queries); the `step-export/volume.rs` row goes to **C3**, because closing it needs a per-shell door in `props/` |
+| **U4** — S18's duplicated derivations | **D3** (the negative-zero flush) — **landed as #704**, row retired — and **D8** (the knot-vector queries); the `step-export/volume.rs` row goes to **C3**, because closing it needs a per-shell door in `props/` |
 | **U5** — S12's Euler atomicity | **D6** for the executable residue (the release profile CI never runs); the rest is a D9 question, now in *Open decisions* |
 | **U6** — S15's prose-held invariants | **D5** |
 | **U7** — S14's proposed reframe | ***Open decisions — Evan only***. It was the one row here that was a decision rather than work, and the one with no channel at all. |
@@ -6159,11 +6171,13 @@ all deletions        ──────────────► L2 (S38 comme
 **Track B is now edge-free in full** — B1 landed, and B2/B3, the only chain it
 had, are Track D's D1/D2.
 
-**Track D's own edges are all inside `sweep/`, plus two on other tracks' open
-PRs.** D3, D5, D6, D8 and D12 are edge-free and can start today (D4 is done, #707;
-D9 is done, #712); D8 edits `sweep/src/skin.rs`, so it sequences against D1/D2
-within the track rather than across it. D10 and D11 wait on #712 — D10 for the
-file, D11 only for the convention precedent.
+**Track D's own edges are all inside `sweep/`, plus one on another track's open
+PR.** D5, D6, D8, D10, D11 and D12 are edge-free — D5 and D6 in flight, the rest
+unstarted (D3 landed as #704, D4 as #707, D9 as #712). D8 edits
+`sweep/src/skin.rs`, so it sequences against D1/D2 within the track rather than
+across it. D10 and D11 were gated on #712 and are released by it — D10 for the
+file, D11 only for the convention precedent. The one remaining external edge is
+D7's `PairSolve` row, behind **#702**.
 
 ---
 
