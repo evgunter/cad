@@ -218,6 +218,9 @@ pub fn decide_flagged<T: Decide>(
     band: Band,
     ledger_row: &'static str,
 ) -> Result<Sign, Indeterminate> {
+    // Nothing computes with the row at runtime, by design: it is read
+    // from the source text by `geom-core/tests/flagged_census.rs`, which
+    // is where a citation can be checked against the document it cites.
     let _ = ledger_row;
     classify(name, margin, band)
 }
