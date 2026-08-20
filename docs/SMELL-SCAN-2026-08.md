@@ -10050,7 +10050,9 @@ see §C.
   a gate whose existence argument is that prose which stops rendering is
   a real loss. #709 is cited as the cause, not the schedule. (S71's
   dangling intra-doc link is in a `tests/` file and outside this gate
-  too.)
+  too — and **S135** measures that hole: rustdoc builds no test targets
+  at all, so it is not an excluded root but an excluded *target kind*,
+  285 links wide.)
 - (c) `crates/pncad/src/prelude.rs:11-21` — the corpus-frequency
   measurement that chose the prelude cut *"was taken once, by hand, and
   nothing re-takes it"*, classified as *"unguarded rather than
@@ -10567,10 +10569,12 @@ doing with the test-suite-cost sweep rather than separately, and
 S116's prose-volume rows (e, g, h) should wait until C5 has a decision —
 trimming them one at a time without one is how they grew.
 
-**Do not start with:** S71. The enclosing-fillet class question is a
-*design* decision (was the capability dropped on purpose?), not a defect
-to fix, and it belongs in a conversation before any code moves. Same for
-S116(p).
+**Do not start with:** S116(p) — a *design* decision, not a defect to fix,
+which belongs in a conversation before any code moves. **S71 was the other
+one and is now closed** (#831): Evan's ruling answered it from the merge
+record — the class was never dropped, it is a pinned boundary — the prose
+half is fixed, and the capability half that remains open is **issue #827**,
+where a design question belongs.
 
 ---
 
