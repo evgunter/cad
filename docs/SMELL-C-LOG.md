@@ -1036,3 +1036,70 @@ This one was never committed at all.
 > **A register that has not landed is not a register**, and a brief that lives
 > only in a container's home directory is not a brief. The test is not "is it
 > saved" — it is *"can the person who needs it read it from the tree."*
+
+### #738 (C-p / C9) — style lane + fix pass, 2026-08-20: **MERGED** `a0a6e1a5`
+
+The decision unit. C9 asked whether a realisation check was worth having at
+all; the lane answered **no** and deleted the column rather than re-deriving it,
+with the argument recorded in `docs/TESS-BUDGET.md` under *"Why there is no
+realisation column"* — where the deferral it discharges lived, not only in a PR
+body. All four legs survived the review's re-derivation.
+
+**The finding of the review, and the lane's own account of it is better than
+mine.** The PR whose subject is a vacuous ratio **shipped a vacuous assertion**:
+`span_opt_cells <= grid_cells`, defended in the body as *"it can fail: the two
+sides are different derivations."* They are not, on the only fixture the crate
+has — every NURBS face of `loft_prism` has `cells = 1`, so one knot-span cell,
+one band, no max across a band, and the inequality holds **by construction of
+the optimizer's loop**. That is the verbatim mechanism quoted six lines below it
+as the reason for deleting its sibling.
+
+*Generalisable, and it is the sharpest methodological result of the session:*
+
+> The sweep was a read of `assert!`/`assert_eq!` **text**, so it could see an
+> assertion vacuous by its own **form** but not one vacuous because **its
+> fixture cannot reach its precondition**. The lane wrote that blind spot down
+> and then shipped an instance of it *inside* the blind spot it had just
+> declared. **The instrument that eventually found it was not a better sweep —
+> it was running the fixture and printing the values**, which is what the sweep
+> owed every assertion whose truth depends on data.
+
+**A declared blind spot is not a discharged one.** This track has now seen the
+shape three times — Q1's confessed-copy grep, the arm-content sweep, this — and
+each time the fix was **a differently-shaped instrument, not a wider pattern**.
+
+**The question the review could not answer, the baseline answered.** Asked
+whether a multi-band fixture was worth building, the lane went to the committed
+baseline instead of building one: **56 of its 64 NURBS rows are already
+multi-cell**, so multi-band faces are the tour's norm rather than something
+reachable only from `crates/mesh` — which its own replacement comment had
+claimed. On all 56, `span_opt_cells / grid_cells` runs **0.16 to 0.73**: the
+sides do separate once `cells > 1`, and the ordering never comes within a
+quarter of inverting. So a multi-band fixture buys **a guard, not a detector**,
+and deletion is honest rather than a fallback. *Answering "is this fixture worth
+building" from data already committed is cheaper than building it, and is
+available more often than anyone reaches for it.*
+
+**Two live holes left with executing homes rather than sentences** (C-R7):
+issue **#746** + row **C15** for the per-face slack key — two directions on one
+key, since a permuted ordinal compares two unrelated faces and, worse, a
+permutation landing a baseline NURBS ordinal on a fresh non-NURBS face **drops
+the face from the gate with no finding at all**. And row **C17** for the
+doc-gate copies, middle tier under C-R19 because the question is whether the
+gate stops being workspace-scoped, not whether to add three more copies.
+
+**A conflict resolved on C-c's discriminator, which keeps earning its keep.**
+Main deleted `TESS-SPAN-SPEC.md` with 108 other closed-unit artifacts into the
+new `docs/DOC-LEDGER.md` while this lane held a modify. The lane **took the
+deletion** — a spec the repo deliberately retired is not resurrected to carry a
+bracket — and split the survivors: `TESS-BUDGET.md:3` is a **pointer** and was
+repointed at #594 and the ledger; `MODEL-AB-LOG.md:1058` and `:1153` are
+**records** of what was measured at spec time and keep the name they were
+observed under.
+
+*Worth carrying past this unit:* **nothing gates a doc pointer against the file
+it names.** `scripts/gates/` holds fourteen gates and none checks that a `docs/`
+path in prose still resolves — so that pointer was set to survive indefinitely,
+and 108 files were just deleted. Not this track's to close and not minted here;
+recorded because the ledger records *what was deleted* and nothing checks *who
+still points at it*.
