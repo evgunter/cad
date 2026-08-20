@@ -12,7 +12,7 @@ use pyo3::basic::CompareOp;
 use pyo3::prelude::*;
 use pyo3::types::PyString;
 
-use crate::errors::{DimensionError as DimErr, ErrorClass, dimension_tag};
+use crate::errors::{ErrorClass, QuantityOpMismatch, dimension_tag};
 use crate::py::typed_err;
 use pncad::document::Dimension;
 use pncad::quantity as q;
@@ -48,7 +48,7 @@ fn mismatch(py: Python<'_>, op: &'static str, left: Dimension, other: &Bound<'_,
     typed_err(
         py,
         ErrorClass::Dimension,
-        DimErr::new(op, left, right).to_string(),
+        QuantityOpMismatch::new(op, left, right).to_string(),
         &[
             ("op", text(op)),
             ("left", text(dimension_tag(left))),

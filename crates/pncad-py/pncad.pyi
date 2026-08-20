@@ -81,7 +81,11 @@ class ValidationError(PncadError):
     failure_count: int
 
 class DimensionError(PncadError):
-    """A dimension mismatch at the quantity boundary."""
+    """An operator applied to two QUANTITIES whose dimensions do not
+    admit it — `1 * m + 1 * rad`.
+
+    The quantity boundary only. A value the EXPRESSION layer refuses
+    is a LiteralError; the two do not overlap today."""
 
     op: str
     left: str
@@ -89,7 +93,13 @@ class DimensionError(PncadError):
 
 class LiteralError(PncadError):
     """A value the expression layer refused (`Expr::literal`'s own
-    curated error). `value` is the offending number."""
+    curated error). `value` is the offending number.
+
+    Not DimensionError, which is the quantity boundary's operator
+    check. The expression layer's refusal type has dimension-mismatch
+    arms too, but no bound door can construct an expression that
+    reaches them, so every `kind` seen here is a literal-value
+    refusal."""
 
     kind: str
     value: float

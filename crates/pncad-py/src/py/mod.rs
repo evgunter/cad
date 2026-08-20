@@ -50,8 +50,14 @@ pyo3::create_exception!(
     pncad,
     DimensionError,
     PncadError,
-    "A dimension mismatch at the quantity boundary. Carries `op`, \
-     `left`, `right` — the operator and the two dimension tags."
+    "An operator applied to two QUANTITIES whose dimensions do not \
+     admit it — `1 * m + 1 * rad`. Carries `op`, `left`, `right`: \
+     the operator and the two dimension tags.\n\n\
+     This is the quantity boundary only. A value the EXPRESSION \
+     layer refuses is a `LiteralError`, and the two do not overlap \
+     today: the expression layer's refusal reaches Python only \
+     through literal construction, whose arms are `non_finite` and \
+     `count_is_integer` — neither a dimension mistake."
 );
 pyo3::create_exception!(
     pncad,
@@ -59,7 +65,12 @@ pyo3::create_exception!(
     PncadError,
     "A value the expression layer refused: non-finite, or a count \
      written as a continuous literal. Carries `kind`, the stable tag \
-     of the refusing arm."
+     of the refusing arm.\n\n\
+     Not `DimensionError`: that one is the quantity boundary's \
+     operator check. The expression layer's refusal type has \
+     dimension-mismatch arms too, but no bound door can construct an \
+     expression that reaches them, so every `kind` seen here is a \
+     literal-value refusal."
 );
 pyo3::create_exception!(
     pncad,

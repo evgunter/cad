@@ -9,7 +9,7 @@
 // failure mechanism.
 #![allow(clippy::expect_used, clippy::panic)]
 
-use crate::errors::{DimensionError, ErrorClass, canonical_unit, dimension_tag};
+use crate::errors::{ErrorClass, QuantityOpMismatch, canonical_unit, dimension_tag};
 use crate::tags::{expr_dimension_error_tag, path_error_tag, persist_error_tag};
 use pncad::document::Dimension;
 use std::collections::BTreeMap;
@@ -33,8 +33,8 @@ fn canonical_units_match_the_gq5_ratification() {
 }
 
 #[test]
-fn dimension_error_carries_structure_not_prose() {
-    let err = DimensionError::new("+", Dimension::Length, Dimension::Angle);
+fn a_quantity_operator_mismatch_carries_structure_not_prose() {
+    let err = QuantityOpMismatch::new("+", Dimension::Length, Dimension::Angle);
     assert_eq!(err.op, "+");
     assert_eq!(err.left, Dimension::Length);
     assert_eq!(err.right, Dimension::Angle);
@@ -181,9 +181,19 @@ fn declare_error_tags_are_stable() {
     assert_eq!(declare_error_tag(&DeclareError::NoMintedId), "no_minted_id");
 }
 
-/// LIB-DOORS F5: the binding matches `Expr::literal`'s OWN refusals
-/// (the `check_literal` pre-check is gone), and the tags Python sees
-/// for the two literal-reachable arms are unchanged from LIB-U9S.
+/// The binding matches `Expr::literal`'s OWN refusals rather than
+/// pre-checking them, and the tags Python sees are stable.
+///
+/// This is also the pin behind the two Python exception classes'
+/// division of labour. `DimensionError` is the QUANTITY boundary's
+/// operator check; the expression layer's refusal type — confusingly
+/// also called `DimensionError` in the document layer — is routed to
+/// `LiteralError`. That routing is honest only while the arms Python
+/// can actually reach are literal-value refusals, and literal
+/// construction is the one door that reaches this type at all, so
+/// this test asserts the WHOLE reachable set. An arm reaching Python
+/// that is a genuine dimension mismatch is the day the routing has
+/// to be re-decided, and it lands as a failure here.
 #[test]
 fn literal_refusals_come_from_the_kernel_with_stable_tags() {
     use pncad::document::Expr;
@@ -192,6 +202,30 @@ fn literal_refusals_come_from_the_kernel_with_stable_tags() {
     let count = Expr::literal(3.0, Dimension::Count).expect_err("a continuous count refuses");
     assert_eq!(expr_dimension_error_tag(&count), "count_is_integer");
     assert!(Expr::literal(1.5, Dimension::Length).is_ok());
+
+    // The reachable set, exhaustively: every dimension, a finite and
+    // a non-finite value each. Nothing here is a dimension MISMATCH,
+    // which is what makes `LiteralError` the right class.
+    let mut reachable = std::collections::BTreeSet::new();
+    for dim in [
+        Dimension::Length,
+        Dimension::Angle,
+        Dimension::Count,
+        Dimension::Scalar,
+    ] {
+        for value in [0.0, 1.5, 3.0, -2.0, f64::NAN, f64::INFINITY] {
+            if let Err(err) = Expr::literal(value, dim) {
+                reachable.insert(expr_dimension_error_tag(&err));
+            }
+        }
+    }
+    assert_eq!(
+        reachable.into_iter().collect::<Vec<_>>(),
+        ["count_is_integer", "non_finite"],
+        "the expression layer now reaches Python with an arm outside \
+         the literal-value pair — decide what class it should raise \
+         before widening this pin"
+    );
 }
 
 /// LIB-DOORS F1: a load refusal's tag, exercised through the real

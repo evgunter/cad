@@ -1578,6 +1578,15 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             # row is the register the gap is deferred INTO: it fails
             # the day one lands.
             "Workspace", "ContentPin", "DocRef", "random_document_id",
+            # G1's residue: no Expr door, so a profile step's argument
+            # cannot be a named parameter. It is ALSO the trigger for
+            # a naming decision — binding `Expr`'s operator builders
+            # is what first lets the expression layer's genuine
+            # dimension-mismatch arms reach Python, where they would
+            # arrive as `LiteralError` while `DimensionError` means
+            # the quantity boundary. Whoever binds it decides which
+            # class those arms raise.
+            "Expr",
         ]:
             with self.subTest(door=door):
                 self.assertFalse(hasattr(pncad, door), f"{door} is now bound")
