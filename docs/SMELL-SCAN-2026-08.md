@@ -5245,10 +5245,14 @@ module or a `tests/` file — and two crates' module docs already said so
 in prose (`mesh/src/lib.rs`: *"`Surface::normal` is never sampled
 anywhere"*; `geom-brep/src/implicit.rs`: *"nothing here ever calls
 `Surface::normal`"*). `deriv_uu`/`deriv_uv`/`deriv_vv` have no caller
-outside `crates/geom` at all. **Four of `Surface`'s seven public
-evaluation doors are exercised only by `geom`'s own tests** — recorded
-because it will decide a future question and nobody will re-measure it
-cheaply; it is not a mandate to delete them.
+outside `crates/geom` at all. **Before #804, four of `Surface`'s seven
+public evaluation doors were exercised only by `geom`'s own tests**
+(`deriv_uu`, `deriv_uv`, `deriv_vv`, `normal`); **after it, six of eight
+are** — `metric_floor` was `deriv_u`/`deriv_v`'s only production caller
+and now asks for the jet, so `eval` and `jet` are the only two doors any
+production path walks. Recorded because it will decide a future question
+and nobody will re-measure it cheaply; it is not a mandate to delete
+them.
 
 **The class's curve-side member is filed, not fixed** — §D row **C24**.
 `Curve3::deriv`/`deriv2` are the identical shape one file over, and
