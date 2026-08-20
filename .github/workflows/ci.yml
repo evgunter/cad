@@ -688,7 +688,12 @@ jobs:
   #     makes the construction loop quadratic. The bounded-walk case the
   #     gate actually sees is 6x larger in this job.
   #
-  # The remaining rows are profile-independent and are covered twice.
+  # Of the other four rows, three are profile-independent — they fail a
+  # precondition and return before the mutation phase, so the
+  # postcondition never runs and the assertion is the same either way —
+  # and are now covered twice. The fourth,
+  # `debug_postcondition_fires_on_corrupt_input`, is
+  # `#[cfg(debug_assertions)]` and belongs to the matrix above.
   #
   # SCOPED to one crate's lib unittests, deliberately, not a release
   # build of the workspace: `-p topo --lib` compiles topo's closure plus
