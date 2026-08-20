@@ -456,14 +456,15 @@ pub(crate) fn edge_box<T: Decide + Bounds>(
     Ok(boxed.padded(pad))
 }
 
+/// Either empty lookup means the same thing here — a corrupt body —
+/// so the read-back door's discriminated reference collapses to one
+/// verdict.
 fn vertex_point<T: Decide + Bounds>(
     body: &Body<T>,
     v: VertexKey,
 ) -> Result<Point3<T>, BooleanError> {
-    body.get_vertex(v)
-        .and_then(|vd| body.get_point(vd.point))
-        .copied()
-        .ok_or(corrupt("face/edge box: vertex point lost"))
+    crate::readback::vertex_point_ref(body, v)
+        .map_err(|_| corrupt("face/edge box: vertex point lost"))
 }
 
 #[cfg(test)]

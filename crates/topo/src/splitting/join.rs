@@ -429,12 +429,11 @@ pub(super) fn split_connect<T: Decide>(
     Ok((st.completed, fragments))
 }
 
-/// The point of a vertex.
+/// The point of a vertex. Either empty lookup means the same thing
+/// here — a body that reached this lane corrupt — so the read-back
+/// door's discriminated reference collapses to one verdict.
 fn vertex_point<T: Decide>(body: &Body<T>, v: VertexKey) -> Result<Point3<T>, SplitJoinError> {
-    let vertex = body.get_vertex(v).ok_or(SplitJoinError::Corrupt)?;
-    body.get_point(vertex.point)
-        .copied()
-        .ok_or(SplitJoinError::Corrupt)
+    crate::readback::vertex_point_ref(body, v).map_err(|_| SplitJoinError::Corrupt)
 }
 
 /// The edge of a half-edge.
