@@ -353,6 +353,31 @@ pub(crate) fn nurbs_cell_bounds(
 /// step to the realized one cost +3.0% of the tour's cells (leaf_a
 /// 3.35x → 3.10x, still over the acceptance line) for correctly
 /// snapping the near-one-step bands the ideal-step test missed.
+///
+/// **What goes red, named — and scoped, because none of it is as wide as
+/// it first reads** (issue #667's Q6). Three things, and they bracket the
+/// constant only when taken together:
+///
+/// * UPWARD, mechanically: `band_schedule_snaps_on_realized_aspect` below
+///   is malign at realized aspect 9.09, so raising this constant to 9.09
+///   or above stops the fixture snapping and fails the row. It is
+///   **one-sided** — lowering the constant leaves every assertion in that
+///   row passing;
+/// * DOWNWARD, and only as cost: lowering it snaps more bands, which grows
+///   the mesh, which is what the same job's `tessellation-budget sweep` +
+///   `tessellation-budget lint (gate)` catch — every tour scene re-measured
+///   per face against `docs/tess-budget-data/tess-budget-baseline.csv`, a
+///   grown budget failing the row. A scheduled register, not an assert;
+/// * SOUNDNESS, on a fixed corpus: `ci.yml`'s `k-lint (gate)` also runs
+///   `mesh certificate falsifier (feature = probe-stats)`, i.e.
+///   `probe_review::z1_per_triangle_certificate_falsification`, which
+///   resamples every emitted triangle against its own certificate — but
+///   over **four NURBS fixtures at two δ**, not the tour. It falsifies
+///   under-certification where it looks; it is not tour-wide coverage.
+///
+/// And what has NO guard, stated so the three above are not over-read: the
+/// *worst tour face certificate 0.60·δ* above. One-shot, and nothing
+/// computes with it — the refusal named beside it is what holds the gap.
 pub(crate) const SAFE_ASPECT: f64 = 5.0;
 
 /// One v-band of the shipped schedule ([`NurbsCellGrid::band_schedule`]).

@@ -81,6 +81,40 @@ pub const ENV_K: &str = "CAD_AMBIGUITY_K";
 /// Compiled default for the ambiguity multiplier K = 10 (the ratified
 /// M0 starting value; the M2 K report found no empirical pressure to
 /// move it — `docs/K-REPORT.md`).
+///
+/// **The measurement behind that sentence is re-run on every build, and
+/// gates** (issue #667's Q6 classification — a scheduled register, not
+/// an excuse): `ci.yml`'s `k-lint (gate)` job runs
+/// `scripts/k_probe_sweep.sh` over the Band-4 corpus and the demo tour
+/// at ε ∈ {1e-6, 1e-9, 1e-12}, then lints the fresh margin distribution
+/// against the thresholds and baseline pinned in `tools/k-lint`
+/// (provenance: `tools/k-lint/src/lib.rs`). A margin that starts
+/// crowding a decision boundary the committed baseline says is empty
+/// FAILS the run. So "no empirical pressure to move K" is not a dated
+/// observation this constant inherited — it is a claim something
+/// re-measures per merge, and the honest reading of a fired lint is
+/// evidence about the distribution, never a cue to nudge geometry until
+/// it goes quiet (`tools/k-lint`'s own failure text says so).
+///
+/// **How much of that lint actually moves when K moves** — settled here
+/// because it is not obvious from the tree, and a register credited
+/// wider than it reads is the defect #667 was hunting. `escalate` is
+/// K·`zero`, so:
+///
+/// * rule (1) (in-band outcomes) tracks K at **all three** ε rows — the
+///   band `(ε, Kε)` is the kernel's own, so moving K directly moves
+///   which samples come back `indeterminate`;
+/// * rule (2)-above is `min(10²·Kε, BASELINE_FLOOR_MARGIN)`, so it
+///   tracks K only while the cap is inert. At ε = 1e-9 and 1e-12 it is
+///   (the cap would need K ≥ 400 / K ≥ 4e5); **at ε = 1e-6 the cap
+///   already binds at the ratified K = 10** and keeps binding for any
+///   K ≥ 0.4, so that row says nothing about K at all;
+/// * rules (2)-below, (3) and (4) key off `zero` = ε and
+///   `BASELINE_FLOOR_MARGIN`, and do not read K.
+///
+/// So the register is real and gating, and it is narrower than "the
+/// distribution K was chosen against": it is K-sensitive at three ε
+/// rows through rule (1) and at two of them through rule (2).
 pub const DEFAULT_K: f64 = 10.0;
 
 /// The kernel's global tolerance (D4 ¶1, as revised 2026-07-16): one ε per
