@@ -6276,7 +6276,9 @@ deferral named "the conformal arm's pair" while that arm walks curved faces only
 now guarded, and provably behaviour-neutral because `same_key ⇒ a.planar ==
 b.planar`.
 
-**Not a live wrong answer, and the reason is an accident worth recording.** The
+**Not a live wrong answer — of the skip S49 itself names.** (One of its residues
+was, and the two verdicts are about different skips: see the H14 subsection
+below, which is the arm-2 `bridged` skip, not this arm-1 one.) The
 *pair* was genuinely unowned; the *body* refused anyway via a neighbouring pair,
 because contact at a planar face is contact in its plane and every adjacent curved
 face reaches that plane by construction — an arc lies in two distinct planes only
@@ -6291,8 +6293,153 @@ The `gate_planar` → `gate_operand_kinds` rename went with it. Its first pass
 missed four sites **outside the workspace** — `demos/` is `exclude`d, so
 `cargo check` never compiled the files, one of which printed *"gate_planar refuses
 curved operands"* **to the user**. Lesson recorded: a rename spanning excluded
-members wants its own PR and its own `--manifest-path` check. Two residues are
-**H14**.
+members wants its own PR and its own `--manifest-path` check.
+
+### H14 — FIXED by #737. The two residues, and the one that was a live wrong answer
+
+**This verdict does not contradict the *"Not a live wrong answer"* paragraph
+above.** That one is about the arm-1 planar × planar skip S49 was raised on;
+this one is about arm 2's `bridged` skip, a residue #637 recorded and did not
+fix. S49's escape — the *pair* was unowned but the *body* refused anyway via a
+neighbouring pair — does not transfer, because arm 2 reports at solid
+granularity and no other arm reports on a solid pair at all.
+
+#637 left two residues, both recorded in its own body under *"Found, NOT fixed"*.
+Its scope cell in the Track C roster cited `splitting/rules.rs:268` for both,
+which is **C-R11**'s worked example: on the merge base that line is
+`let face_data = body.get_face(face)…` inside `face_extent`, six lines above the
+`continue; // an empty loop contributes no extent` that IS residue 2 — so the
+citation resolved to the right function for one residue and to nothing for the
+other. Checked rather than complied with, per C-R11.
+
+**Residue 1 — arm 2's `bridged` skip — was S49's defect with a live wrong answer
+attached.** The skip suppressed the containment test for any solid pair linked
+by a contact record, on the ground that such a pair is *"under the confirm
+pass's examination"*. The confirm pass asks of each record whether that record's
+own coincidence is real; no variant of `ContactRecords` states a placement
+relation, so it never asks where one instance sits relative to another.
+Measured on a 1 m cube sitting wholly inside a 4 m cube, flush at `z = 0`, with
+its four bottom corners declared v-on-f and every record confirming:
+`validate_pseudomanifold` answered **`Ok(())` declared** and
+**`CensusUndecidable` on the solid pair undeclared**. Declaring a true contact
+was what switched the examination off. The skip is deleted — a solid pair
+carrying records is examined exactly like one carrying none — and the arm's
+docs state the vocabulary that *would* license a deferral (C6's recorded
+gate-skips, a statement about placement) and that keying one on contact again is
+the unsound direction. The only row the skip ever had bridged its nested pair
+with a **bogus** record and measured the confirm pass's staleness refusal, so it
+stays green under the reverted fix; the new row forbids `StaleContactDeclaration`
+and `ContactContradicted` outright.
+
+**Residue 2 — `splitting/rules.rs`'s `face_extent`** walked past a
+`LoopBoundary::Empty` loop with *"an empty loop contributes no extent"*. The arm
+must OVER-estimate the displacement it divides out of, so an isolated **ring**
+vertex now contributes its distance and an empty **outer** loop — an unbounded
+face, which has no finite arm — refuses. The zero answer was loud at one caller
+by accident (`apply_rule_a` gates on the extent being definitely positive) and
+silent at `chord_join`'s two.
+
+**The sweep found a third instance of residue 1's shape in the arm above it**,
+and this one was S49's own sentence with the sides swapped: arm 1's v-on-f
+deferral tested `planar_face_bridged(a.face, b.solid)` — a record naming the
+planar face and any vertex of the other **solid** — while the finding it
+suppresses is about the **face pair**. One declared interface silenced that
+planar face against every other face of the same solid. It now requires the
+record's vertex to be a boundary vertex of the other face of the pair.
+
+The reviewer's third bullet — arm 1's placeholder-NURBS exclusion — is **not**
+protection by accident, and it is stronger than "only caller": `census_and_certify`
+is `pub(crate)` in a `pub(crate)` module, so nothing outside `topo` can reach it
+by any re-export or alias, and its one production caller
+`validate_pseudomanifold` runs it solely when `tier3_local_checks` came back
+empty, whose check 1 refuses every placeholder face. So a placeholder there is
+**a state no production path can mint** — which is not "an unreachable state":
+the in-src scaffold rows are in it, deliberately, by calling the census directly.
+Both facts are now at the skip, with the drift direction named.
+
+**Both reviews then found that the arm 2 half of that had been left undone, and
+it mattered.** `boxes::face_box_rule` routes a NURBS placeholder to
+`ControlNet`, whose net is poison points; census's fold is `min`/`max`, which
+propagate NaN, so `reach_box` answered `Some((NaN, NaN))` — a value that is
+neither a claim nor a refusal. Every containment margin taken against it decides
+neither sign, so arm 2 fell out at its **in-band** refusal having compared no
+geometry at all, and the typed *"unclaimable extent"* refusal was dead code for
+the case it was written for. Measured: moving one scaffold sheet a kilometre away
+produced the byte-identical refusal. The PR had reported those refusals as the
+arm measuring two overlapping sheets, which was false as to mechanism.
+
+`reach_box` now answers `None` for a placeholder net, which is what its own
+contract says an unboxable kind answers; the whole solid becomes unclaimable and
+the typed refusal fires. **It is `None`, not an exclusion**: dropping the face
+from a solid's reach would shrink a box required to be a superset and could clear
+a body nested inside it — the unsound direction. That asymmetry between the two
+arms (arm 1 excludes the FACE, arm 2 refuses the SOLID) is written at both sites,
+and `a_placeholder_seed_leaves_the_containing_extent_unclaimable` pins the typed
+verdict and the position-independence together.
+
+**Two more skips in the same function were brought to the bar this record
+sets.** Arm 1 dropped a face with no boundary vertices — an unbounded face — out
+of the sweep with a bare `continue`, in the function whose header forbids exactly
+that; it now refuses `CensusUnsupported`. And the same-`SurfaceKey` deferral
+tested only that the conformal arm *walks* the pair: that arm `continue`s on a
+same-sense pair without deciding it, so a cross-solid same-key **same-sense**
+pair was deferred by one arm and dropped by the other. The deferral now requires
+opposed senses, which is the configuration the conformal arm returns a verdict
+on; the rest fall through to the box test.
+
+**The capability cost is real, and it is kernel work rather than style: it is
+filed as issue #750**, *"Containment examination is extent-box coarse: no
+non-convex-container assembly can certify after #737"*. Deleting the `bridged`
+skip means no assembly with a non-convex container — L-bracket, blind bore,
+pocket, cavity — can pass `validate_pseudomanifold` by any declaration, where
+before a declaration was the only route it had. Measured on an L-bracket with a
+part resting flat on its inner wall, four v-on-f records all confirming, plain
+`Plane` surfaces, no placeholder anywhere: `Ok(())` at base, one
+`CensusUndecidable` at head. That is not a false refusal — the arm genuinely
+cannot separate it from the embedded cube — but the cause is the coarseness of an
+axis-aligned extent-box test, not interference, so C6's recorded gate-skips
+(scoped by `ASSEMBLY-DESIGN.md:199` to deliberate interference fits — overlapping
+shells, which the L-bracket has none of) are **not** the remedy: a gate-skip would
+suppress the refusal rather than fix it, and suppressing it re-creates the class
+this unit removed. The pointer that named them is withdrawn from the code and
+from this record. **This gets no §D row** (Evan, 2026-08-20: *"the cost sounds
+like it's real kernel work and not style; if my read is accurate, file a github
+issue about it instead"*); #750 carries the reproduction, the base-vs-head table,
+the extent-box diagnosis, and the style lane's `declared.faces` same-solid
+residual. It also records the one **negative result** this unit produced, so it
+is not retried: the obvious record-free narrowing that reuses data already in
+`Geo` — deriving a separating plane from the container's own face planes — is
+unsound **exactly** on the class that needs it, since extending the L-bracket's
+inner wall `x = 1` puts points at `x > 1, y < 1` outward of that plane and inside
+the material. A separating face plane certifies "outside" only for a convex
+container. That converts this unit's *"minimality was never proved"* disclosure
+into a stated negative result about one named candidate — not a proof that the
+skip's deletion is minimal.
+
+**No instrument was added, and the recurrence is not addressed.** This defect has
+now been found four times — S49, #637's two residues, and this PR's third
+instance in arm 1 — each time by someone reading the code. What this PR leaves is
+a paragraph stating the bar (*a deferral names an arm that asks the SAME question
+about the SAME pair*), not a token, a convention, a test or a gate; a `continue`
+with a prose justification remains indistinguishable to grep and to CI from one
+without. Residue 2's class is measurably larger than its instance: a
+differently-shaped sweep for `LoopBoundary::Cycle { first } = … else { continue }`
+returned **29 sites in 18 files** when the style lane ran it; re-run at this
+unit's merge head (`eef045ac`) with the pattern
+`LoopBoundary::(Cycle|Empty).*else \{ … continue \}` over `crates/`, it returns
+**26 sites in 17 files**, of which this unit audits the three inside
+`census.rs`/`rules.rs` and none of the rest. **What that pattern cannot match**,
+and what therefore is not in either number: the same handling written as a `match`
+arm rather than a let-else — 15 further sites, two of which
+(`topo/src/seqgen.rs:1080`, `editor-core/src/names/emit.rs:422`) are
+`LoopBoundary::Empty { .. } => {}`, residue 2's exact reading in match form,
+uninspected here; `continue`s that drop a loop for a different reason (an arena
+miss); and the same class over any other enum. `scripts/gates/` holds three
+allowlist-shaped gates, and since this unit opened, one **derived-census** gate
+(`probe-suite-census.sh`, landed on main 2026-08-20) — a gate that derives its
+population rather than listing it, and refuses an empty answer or a drop below a
+floor. That is closer to the shape a deferral register would take than an
+allowlist is, and it is the nearest existing precedent for building one.
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18) — *"should be scheduled but i have no
 opinion on when"*. The jurisdiction call was part of the unit, not a prerequisite
@@ -7322,7 +7469,7 @@ rewritten rather than appended to.
 
 | # | Work | Why it is here rather than in a track |
 |---|---|---|
-| **C1** | **H12–H15** — four lanes' own residues: the SSI sweeps' other never-silence doors (no acceptance row in either lane), `sweep_body`'s helix rows with no orientation coverage, #637's two jurisdiction residues, #635's unclassified siblings. | Each is small; together they are a lane. They are the clearest instance of ordering rule 3. |
+| **C1** | **H12, H13, H15** — three lanes' own residues: the SSI sweeps' other never-silence doors (no acceptance row in either lane), `sweep_body`'s helix rows with no orientation coverage, #635's unclassified siblings. (**H14**, #637's two jurisdiction residues, left this row FIXED by #737.) | Each is small; together they are a lane. They are the clearest instance of ordering rule 3. |
 | **C2** | **H11, H16, H17** — #632's two residues; the STL header not being caller-settable while `StepOptions` carries `product_name`; and S37's rustdoc remainder, ~1115 lines across 130 files. | H17 is large and mechanical; H16 is a small asymmetry with a clear right answer. |
 | **C3** | **S27, S29** — `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block; and the sizing vocabulary fragmented across five modules with self-admitted magic constants. (S30, the mesh crate's 1,060 lines of instrument, was the third member and is FIXED by #709.) **S29 is NOT blocked on a design conversation — corrected 2026-08-19.** This row previously said its policy question was routed to `docs/TESS-SPLIT-SPEC.md` and PR #568. #684's review checked: both are scoped **entirely to the NURBS per-cell schedule** (`nurbs_cert`'s `grid_steps`, certified cells, the first fundamental form — TESS-SPLIT-SPEC's D-1 replaces the AM-GM grouping, with `leaf_a f2` as its poster child). **Nothing in either covers analytic-chart sizing**, so `curved::grid_steps` has no venue at all — and #684 has since added a sixth rule to it. S29's own lesson applies to that: *N well-defended deviations read as N decisions when they are one undecided question.* S27 touches `props/`, so it must follow **A2** (#714) **and #723**, which re-opens the same file on the same closed forms — see the gating note above; S29 is edge-free. |
 | **C4** | **S32, S33** — `Surface`'s one-partial-per-call API, which is what created the shadow surface enum in SSI; and neither geometry enum being able to lift itself to another scalar. (S31, the `geom-curves`/`geom-surfaces` split, was the third member and is FIXED by #705.) | **S32 is now additionally gated on #705's merge**: the enum and its NURBS payload are one crate's two modules, so a `SurfaceJet` door at the enum no longer crosses a crate boundary. **S33 is coloured by D1**: several of its ~14 hand-written ladders exist only to reach `Dual`, and what `Bounds for Dual` changes there is written in S44's **D1 DECIDED** block. |
