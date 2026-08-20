@@ -834,3 +834,68 @@ and **seven item-doc and report-legend sites** #709's module-doc sweep missed �
 including `main.rs:181`'s legend, still reading *"agree = the lane's realised
 cell count vs the same schedule's sum"* with *"(1.00 by construction)"*
 appended after it. The tool's own legend disagreed with itself in one sentence.
+
+### #737 (C-h / H14) — style lane, 2026-08-20: **not cleared** (adversarial lane still running)
+
+The unit that found a **live wrong answer** — a 1 m cube inside a 4 m cube with
+four bottom corners declared v-on-f, every record geometrically true, returning
+`Ok(())` at the merge base while the same body undeclared returns
+`CensusUndecidable`. **Declaring a true contact switched the containment
+examination off.** The one pre-existing guard bridges its pair with a *bogus*
+record and measures the staleness refusal, so it stays green under the reverted
+fix.
+
+Both track questions came back qualified: fixed **at the instance**, and *"mostly
+yes on the deletion, no on its neighbours."*
+
+**The finding of the review is that the PR's own honest-cost fixtures are not
+exercising the arm it fixed.** The style lane instrumented `conformal_pair()`
+and found it carries two `mvfs` seed faces that are **placeholder `Nurbs`**;
+`face_box_rule` sends those down `ControlNet`, a placeholder net is four
+`poison_point()`s, and `Real::min`/`max` propagate NaN **by documented
+contract**. So each solid's `solid_reach` box is entirely NaN and **all six
+containment margins are uncallable**. Causation was proved rather than argued:
+excluding placeholder faces from the fold flips the verdict text from *"not
+definitely separable … in band"* to *"one instance's extent box inside
+another's"*.
+
+*The consequence, and it is the sharp one:* **two sheets a kilometre apart
+would produce the identical refusal.** On the two fixtures the PR offers as the
+honest cost of deleting the skip, the arm it fixed is not examining anything.
+
+Three riders came with it, each a claim the PR makes elsewhere:
+`census.rs:1207-1211`'s *"An unboxable kind is `None` here"* is false for this
+case; the typed *"unclaimable extent"* guard at `:1590` is dead for it; and
+**the placeholder exclusion the PR expanded a paragraph to justify is applied
+in arm 1 only**, while arm 2's two folds walk `body.faces.iter()` raw — the PR
+argued for an exclusion and did not apply it in the arm it rewrote.
+
+**Two deferrals pointing at each other.** Backstop `:1486` skips same-key curved
+pairs as *"the conformal arm's pair"*; the conformal arm `:972` skips same-sense
+pairs with a bare `continue`. A cross-solid same-key same-sense pair is decided
+by **neither**. This PR re-audited that exact skip and wrote a **new paragraph
+defending it**, whose test stops at *"pairs the conformal arm never walks"* —
+walking, not deciding — three paragraphs after the PR itself raises the bar to
+*"asks the SAME question"*.
+
+**Residue 2's defect is inside the function the PR rewrote.** `census.rs:1146`
+carries the identical empty-loop `continue`, and `:1423`'s
+`if pts.is_empty() { continue; }` drops an unbounded face out of the backstop
+**with no error and no comment** — in the function whose own header says the
+census must never silently not-examine. `boundary_reach:1293` gets it right, so
+both handlings live in the same file and the PR touched neither.
+
+**And the question this row was asked to answer came back No.** Three
+instruments have now found this defect in this function and none of them was a
+sweep: S49 found arm 1's, #637 left two residues, this PR found a third
+instance in arm 1. The PR's instrument against a fourth is **a paragraph**. A
+differently-shaped sweep of residue 2's class returns **29 sites in 18 files**,
+and `scripts/gates/` already holds three allowlist-shaped gates — which is the
+shape a deferral register would take if anyone built one.
+
+*Operationally, and it worked:* the style lane finished first and flagged two
+findings as correctness-lane candidates. **They were forwarded to the
+adversarial lane mid-review** rather than held for the fix pass. #705 is the
+precedent — there the two lanes found things neither would have found alone;
+here one lane's measurement reframes the other's central question before it
+finishes.
