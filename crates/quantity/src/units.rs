@@ -244,11 +244,10 @@ const fn str_eq(a: &str, b: &str) -> bool {
 /// merely unlikely: the six unit constants, where a miss is a
 /// compile-time const-eval failure, and [`UnitDef::as_length`] /
 /// [`UnitDef::as_angle`], where the argument is a sealed row and so is
-/// a copy of an entry of this very array (D2 addendum row 4 — a kernel
-/// bug observable in a branch, announced, never discarded). Spelled
-/// `panic!` rather than `unreachable!` only because the latter formats
-/// its message and formatting is not available in a const fn; the
-/// mechanism and the intent are row 4's.
+/// a copy of an entry of this very array. D2 addendum row 4 — a kernel
+/// bug observable in a branch, announced, never discarded. Message-less
+/// because a const fn cannot format one, so the invariant is stated
+/// here instead of at the macro.
 const fn row_index(symbol: &str) -> u8 {
     let mut i = 0;
     while i < UNITS.len() {
@@ -257,7 +256,7 @@ const fn row_index(symbol: &str) -> u8 {
         }
         i += 1;
     }
-    panic!("unreachable: a typed unit view can only name a row of UNITS")
+    unreachable!()
 }
 
 /// A length unit — a typed view of a [`UnitDef`] row, so `25.0 * MM`
@@ -270,6 +269,16 @@ const fn row_index(symbol: &str) -> u8 {
 /// the symbol/factor pairing by the index. Obtain one from a unit
 /// constant ([`MM`], [`CM`], [`M`], [`IN`]) or from
 /// [`UnitDef::as_length`].
+///
+/// The seal has two halves with different mechanisms, and it is worth
+/// saying which pins which. **Outside the crate** the field is private,
+/// so no value can be built at all — pinned by the `compile_fail` rows
+/// below. **Inside the crate** the type lives behind a private module,
+/// so the only mints are `of_row` and the two `UnitDef::as_*` doors,
+/// and `of_row`'s two refusals are const-evaluated: a symbol [`UNITS`]
+/// does not have, or a row of the wrong quantity, fails the BUILD at
+/// the constant that names it. Nothing here rests on a convention that
+/// this file happens to keep.
 ///
 /// **Eight public functions apply a unit's factor and print its symbol
 /// without checking either** — which is why the pairing has to be typed
