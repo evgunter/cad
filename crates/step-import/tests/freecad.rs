@@ -1496,15 +1496,54 @@ fn freecad_oracle_reads_back_every_reexported_fixture() {
 /// prefix table are still *correct*, they would just no longer be
 /// answering the situation their prose describes. So the corpus is the
 /// guard, and this row reads it: cheap (a text scan of committed bytes,
-/// no import), and it pins the COUNT as well as the contents, because
-/// "the 13 measured files" is half of each claim.
+/// no import), and it pins the literal **13** as well as the contents,
+/// because "the 13 measured files" is half of each claim. The count is
+/// asserted against [`FREECAD_FIXTURES`]`.len()` directly, not only as a
+/// correspondence with the fixtures directory: committing a fourteenth
+/// file AND listing it would keep the two sides equal while falsifying
+/// every sentence above, which is exactly the scenario this row exists
+/// for.
+///
+/// **Every dialect check below is shaped as an ABSENCE test, not an
+/// existence one**, because the corpus already contains the case that
+/// separates them: `twobody_importexport.step` declares **three**
+/// separate unit contexts. `text.contains("SI_UNIT($,.RADIAN.)")` would
+/// pass on a file that carried a prefixed radian context *beside* an
+/// unprefixed one — which is the failure the `units` header claims
+/// cannot happen. So the rows enumerate every `SI_UNIT` and every
+/// `LENGTH_MEASURE` occurrence and require **all** of them to agree,
+/// and separately require at least one, so a file that dropped its
+/// unit context entirely cannot pass vacuously.
+///
+/// Whitespace is stripped before scanning: ISO-10303-21 permits a line
+/// fold anywhere outside a string literal, so a regenerated fixture
+/// could split `FACE_OUTER_BOUND` across two lines and hide the marker
+/// from a raw `contains`. Stripping also normalizes `SI_UNIT( $ , …)`
+/// spacing. It flattens whitespace inside string literals too, which is
+/// harmless here — nothing below scans a literal's text.
 ///
 /// Deliberately NOT a claim about FreeCAD in general — it pins what the
 /// committed corpus says, which is all either module ever had. If a
 /// later FreeCAD moves, this goes red and the headers get rewritten with
 /// the new corpus in hand.
+///
+/// **Sibling, same job, same crate:** `wild.rs`'s
+/// `the_committed_corpus_still_carries_the_dialects_it_was_chosen_for`
+/// pins the wild corpus's dialect legs the same way. It asks
+/// `any(corpus contains X)` — right for its claim, which is *"each gap
+/// is present in something committed"* — where this row asks
+/// all-or-none per file, because `chart`'s and `units`' claims are
+/// universally quantified over the corpus. Two shapes, one class; if a
+/// third corpus claim appears, it belongs beside one of these.
 #[test]
 fn the_committed_freecad_corpus_still_says_what_chart_and_units_quote() {
+    assert_eq!(
+        FREECAD_FIXTURES.len(),
+        13,
+        "`chart` and `units` both quote \"the 13 measured files\" — if the corpus grew or \
+         shrank, re-measure both headers against the new set and move this literal with them"
+    );
+
     let dir: std::path::PathBuf = [env!("CARGO_MANIFEST_DIR"), "tests", "fixtures", "freecad"]
         .iter()
         .collect();
@@ -1526,31 +1565,89 @@ fn the_committed_freecad_corpus_still_says_what_chart_and_units_quote() {
          them measured over the wrong set"
     );
 
+    /// Every `SI_UNIT(<prefix>,<name>)` in whitespace-stripped STEP
+    /// text, as `(prefix, name)`. `$` is the no-prefix slot.
+    fn si_units(text: &str) -> Vec<(&str, &str)> {
+        text.match_indices("SI_UNIT(")
+            .filter_map(|(i, m)| {
+                let rest = &text[i + m.len()..];
+                let close = rest.find(')')?;
+                rest[..close].split_once(',')
+            })
+            .collect()
+    }
+
+    /// Every `LENGTH_MEASURE(<value>)` argument, same normalization.
+    fn length_measures(text: &str) -> Vec<&str> {
+        text.match_indices("LENGTH_MEASURE(")
+            .filter_map(|(i, m)| {
+                let rest = &text[i + m.len()..];
+                let close = rest.find(')')?;
+                Some(&rest[..close])
+            })
+            .collect()
+    }
+
     let mut wrong: Vec<String> = Vec::new();
     for name in FREECAD_FIXTURES {
-        let text = freecad_fixture(name);
+        // Fold-proofing, per the doc above: whitespace is not
+        // significant in an ISO-10303-21 exchange structure outside
+        // string literals, so a fold can land mid-keyword.
+        let text: String = freecad_fixture(name)
+            .chars()
+            .filter(|c| !c.is_whitespace())
+            .collect();
+
         if text.contains("FACE_OUTER_BOUND") {
             wrong.push(format!(
                 "{name}: states FACE_OUTER_BOUND (`chart`'s premise)"
             ));
         }
-        if !text.contains("SI_UNIT(.MILLI.,.METRE.)") {
+
+        let units = si_units(&text);
+        let metres: Vec<&str> = units
+            .iter()
+            .filter(|(_, n)| *n == ".METRE.")
+            .map(|(p, _)| *p)
+            .collect();
+        if metres.is_empty() {
             wrong.push(format!(
-                "{name}: no `SI_UNIT(.MILLI.,.METRE.)` (`units`' premise)"
+                "{name}: no SI length unit at all (`units`' premise)"
             ));
         }
-        if !text.contains("LENGTH_MEASURE(1.E-07)") {
+        for prefix in &metres {
+            if *prefix != ".MILLI." {
+                wrong.push(format!(
+                    "{name}: an SI length context is `SI_UNIT({prefix},.METRE.)`, not \
+                     `.MILLI.` (`units`' premise)"
+                ));
+            }
+        }
+
+        // The prefixed SI ANGLE `units` refuses on sight, and says it
+        // has never had to. ALL radian contexts must use `$`, not just
+        // one of them: `twobody_importexport` carries three.
+        for (prefix, _) in units.iter().filter(|(_, n)| *n == ".RADIAN.") {
+            if *prefix != "$" {
+                wrong.push(format!(
+                    "{name}: a PREFIXED SI angle unit `SI_UNIT({prefix},.RADIAN.)` appeared \
+                     (`units`' premise)"
+                ));
+            }
+        }
+
+        let uncertainties = length_measures(&text);
+        if uncertainties.is_empty() {
             wrong.push(format!(
-                "{name}: declared uncertainty is not 1.E-07 (`units`' premise)"
+                "{name}: no declared uncertainty at all (`units`' premise)"
             ));
         }
-        // The prefixed SI ANGLE `units` refuses on sight, and says it has
-        // never had to: any `SI_UNIT(<prefix>., .RADIAN.)`. `$` is the
-        // no-prefix slot, which is the form every file actually uses.
-        if text.contains(".RADIAN.") && !text.contains("SI_UNIT($,.RADIAN.)") {
-            wrong.push(format!(
-                "{name}: a PREFIXED SI angle unit appeared (`units`' premise)"
-            ));
+        for value in &uncertainties {
+            if *value != "1.E-07" {
+                wrong.push(format!(
+                    "{name}: a declared uncertainty is {value}, not 1.E-07 (`units`' premise)"
+                ));
+            }
         }
     }
     assert!(

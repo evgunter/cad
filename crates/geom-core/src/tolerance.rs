@@ -95,6 +95,26 @@ pub const ENV_K: &str = "CAD_AMBIGUITY_K";
 /// re-measures per merge, and the honest reading of a fired lint is
 /// evidence about the distribution, never a cue to nudge geometry until
 /// it goes quiet (`tools/k-lint`'s own failure text says so).
+///
+/// **How much of that lint actually moves when K moves** — settled here
+/// because it is not obvious from the tree, and a register credited
+/// wider than it reads is the defect #667 was hunting. `escalate` is
+/// K·`zero`, so:
+///
+/// * rule (1) (in-band outcomes) tracks K at **all three** ε rows — the
+///   band `(ε, Kε)` is the kernel's own, so moving K directly moves
+///   which samples come back `indeterminate`;
+/// * rule (2)-above is `min(10²·Kε, BASELINE_FLOOR_MARGIN)`, so it
+///   tracks K only while the cap is inert. At ε = 1e-9 and 1e-12 it is
+///   (the cap would need K ≥ 400 / K ≥ 4e5); **at ε = 1e-6 the cap
+///   already binds at the ratified K = 10** and keeps binding for any
+///   K ≥ 0.4, so that row says nothing about K at all;
+/// * rules (2)-below, (3) and (4) key off `zero` = ε and
+///   `BASELINE_FLOOR_MARGIN`, and do not read K.
+///
+/// So the register is real and gating, and it is narrower than "the
+/// distribution K was chosen against": it is K-sensitive at three ε
+/// rows through rule (1) and at two of them through rule (2).
 pub const DEFAULT_K: f64 = 10.0;
 
 /// The kernel's global tolerance (D4 ¶1, as revised 2026-07-16): one ε per

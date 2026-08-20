@@ -151,17 +151,12 @@ neither. That reason goes **at the claim site**, not only in a PR body:
 *"unguardable, and here is why"* is complete where nothing computes with the
 number, and is a deferral owing a schedule where something does. (#651.)
 
-**Registers are neither rare nor necessarily advisory** — check for one before
-accepting an "unguardable" (#667). `ci.yml` runs three: `rebuild latency
-(reporting)`, which measures and commits to `docs/perf-data/rebuild-latency/`
-without gating; and, inside `k-lint (gate)`, `tessellation-budget sweep` +
-`tessellation-budget lint` (re-measures every tour scene per face against a
-committed baseline — a grown budget FAILS the run) and `K-telemetry probe
-sweep` + `large-K lint` (re-measures the margin distribution at three ε rows —
-a margin crowding a decision boundary FAILS the run). So `docs/TESS-BUDGET.md`
-and `docs/K-REPORT.md` are re-taken per merge, not dated observations, and a
-constant retained on either is a *scheduled register* row rather than an
-unguarded extraction.
+**Check `ci.yml` for a register before accepting an "unguardable"** (#667):
+there is more than one and two of them gate, so a constant a register
+re-measures is a *scheduled register* row, not an unguarded extraction. Ask
+what it re-takes, not what it once produced — a register generally refreshes
+some columns of its document and leaves the rest a dated writeup, so the
+credit is owed to the columns, not to the document's name.
 
 ### Q7. Is this how you would have done it?
 

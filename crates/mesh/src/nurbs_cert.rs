@@ -376,11 +376,8 @@ pub(crate) fn nurbs_cell_bounds(
 ///   under-certification where it looks; it is not tour-wide coverage.
 ///
 /// And what has NO guard, stated so the three above are not over-read: the
-/// *worst tour face certificate 0.60·δ* figure. It is a one-shot corpus
-/// observation, nothing computes with it, and the thing that actually holds
-/// the lane in the `(3.87, SAFE_ASPECT]` gap is the typed
-/// [`TessellateError::CertificateExceeded`] refusal — a bad mesh stays
-/// unrepresentable whatever this constant is.
+/// *worst tour face certificate 0.60·δ* above. One-shot, and nothing
+/// computes with it — the refusal named beside it is what holds the gap.
 pub(crate) const SAFE_ASPECT: f64 = 5.0;
 
 /// One v-band of the shipped schedule ([`NurbsCellGrid::band_schedule`]).

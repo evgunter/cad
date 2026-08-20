@@ -47,21 +47,29 @@
 //! while still certifying is invisible to the growth-only gate and to
 //! `agree` (docs/TESS-BUDGET.md records it).
 //!
-//! **Where those guards live, named** (issue #667's Q6 — this meter's
-//! numbers are a scheduled register, not a dated observation):
-//! `ci.yml`'s `k-lint (gate)` job runs `mesh budget meter
-//! (feature = budget)` and `mesh certificate falsifier
+//! **Where those guards live, named — and what they do NOT cover**
+//! (issue #667's Q6). `ci.yml`'s `k-lint (gate)` job runs `mesh budget
+//! meter (feature = budget)` and `mesh certificate falsifier
 //! (feature = probe-stats)` — the two gated halves of this module and
 //! `crate::probe_stats`, which the default `cargo test -p mesh` row
-//! cannot reach — then re-measures the whole tour with
+//! cannot reach — then re-tessellates the whole tour with
 //! `tessellation-budget sweep (every tour scene, per face)`
 //! (`scripts/tess_budget_sweep.sh`) and lints the fresh CSV against
 //! `docs/tess-budget-data/tess-budget-baseline.csv` in
 //! `tessellation-budget lint (gate — a grown budget fails this row)`.
-//! The job is unconditional on anything that builds, so
-//! `docs/TESS-BUDGET.md`'s numbers are re-taken per merge rather than
-//! kept as a one-shot writeup — and the blind spot above is a blind
-//! spot of THAT register, not of a document nobody re-runs.
+//! The job is unconditional on anything that builds, so the SIZING
+//! columns — triangle counts and `grid_cells / span_opt_cells`, which
+//! is what `compare` reads — are a scheduled register, re-measured per
+//! merge.
+//!
+//! **The deviation half is not.** CI runs that sweep with
+//! `--sizing-only`, which skips the |S - Pi| resample, so `worst_dev`
+//! is empty on every fresh row and `tess_lint::Row::total_slack` is
+//! `None` for all of them. `docs/TESS-BUDGET.md`'s `total` column and
+//! its total-slack factors therefore come from a `--deviation` run
+//! nothing re-takes: that document is a one-shot writeup wrapped
+//! around a re-measured sizing gate, not a register end to end. Read
+//! its sizing columns as live and its deviation columns as dated.
 //!
 //! | factor | ratio | what it says |
 //! |---|---|---|

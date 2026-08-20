@@ -5539,13 +5539,15 @@ measured claim owes a mechanical guard, a scheduled register that
 re-measures it, or a written reason at the claim site that it can have
 neither); the classification sweep is a comment on #651, and is not
 repeated here. #667 continued it over a corrected population (a
-provenance-vocabulary pattern restricted to comment text: 256 comment
-blocks against #663's 146 `measured` lines) and its rows are the second
-comment on the same issue. Its finding for THIS clause: two of the three
-registers `ci.yml` runs — `tessellation-budget lint` and `large-K lint`,
-both inside `k-lint (gate)` — are gating, so `DEFAULT_K = 10.0` and the
-whole tessellation-budget family are re-measured per merge rather than
-pinned once.
+provenance-vocabulary pattern restricted to comment text, deduplicated to
+the comment block and filtered by a numeral: **197** blocks, 37 of them
+claim-bearing, against #663's 146 `measured` lines) and its rows are the second comment on the
+same issue. Its finding for THIS clause is C14's own shape one turn
+further on: `ci.yml` runs more registers than #663 found, and two of them
+gate — but each re-takes a **subset of the columns** of the document it
+produced, so "`docs/TESS-BUDGET.md` is re-measured per merge" is itself a
+guard described wider than it is read. The register roster and what each
+one actually re-takes live in the sweep comment, not here.
 
 ---
 
