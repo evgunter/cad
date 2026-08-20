@@ -1,0 +1,208 @@
+//! The sizing vocabulary: one home for "how fine should this be".
+//!
+//! # Three quantities, one word each
+//!
+//! Every sizing question in this crate is one of three things, and
+//! this module fixes the word for each so a reader never has to open a
+//! function to learn which kind it answers:
+//!
+//! - a **target** — the metres of deviation a schedule aims at. There
+//!   is exactly one, δ_s = [`sizing_target`]`(δ)`, and it is carried
+//!   with the run's other tolerances by [`Tol`].
+//! - a **step** — an increment in a *parameter* (a curve parameter, a
+//!   chart angle, a UV coordinate), always `f64`. Steps come from a
+//!   closed-form deviation bound: [`sagitta_step`] and [`ellipse_step`]
+//!   here, [`curvature_step`] for a second-derivative bound,
+//!   [`torus_grid_step`] for the torus chart, and
+//!   [`crate::nurbs_cert::NurbsFaceBound::grid_steps`] for a certified
+//!   NURBS patch. The cap on an angular one is [`MAX_ANGULAR_STEP`],
+//!   applied by [`cap_angular`] and nowhere else.
+//! - a **count** — how many chords or grid divisions a span is cut
+//!   into, always `usize`. Every count in the crate is
+//!   [`ceil_count`]`(span, step)` or a rule applied to one
+//!   (`curved::pole_columns` floors the pole case;
+//!   `NurbsCellGrid::band_schedule` snaps a malign band's).
+//!
+//! **The rule, in one sentence:** *"step" names an `f64` increment and
+//! nothing else; a `usize` count is never called a step, and neither is
+//! a sample count.* A new sizing rule states which of the three it
+//! produces by its name, or it is misnamed.
+//!
+//! The one deliberate second spelling is `tess_meter::divisions`, in
+//! the consumer half of the budget meter: a different cargo root, so
+//! it cannot share this import, and it answers in `f64` and refuses
+//! nothing because it sizes nothing. Its own docs state the
+//! divergences from [`ceil_count`]; the different word is the tell
+//! that it is a different function.
+//!
+//! # What is NOT here
+//!
+//! The *policy* — which target a schedule aims at, how much margin a
+//! chart buys itself, when a schedule may be coarsened — is not stated
+//! here, and this module does not state it. Each rule is argued at its
+//! own site (`curved`'s per-chart grid, `nurbs_cert`'s per-band
+//! schedule, `trimmed`'s refinement ladder), and this module unifies
+//! only the *vocabulary* those arguments are written in.
+//!
+//! **One sizing question does have a ratified answer, and it is worth
+//! knowing it is the only one**: `docs/TESS-BUDGET.md`'s *split
+//! schedule's aspect policy* (2026-08-16, PR #568) rules the NURBS
+//! split schedule's 3-D aspect cap at A = 16, and
+//! `docs/TESS-SPLIT-SPEC.md` binds its execution. Both are scoped
+//! entirely to `nurbs_cert`'s per-cell step derivation. Nothing covers
+//! the analytic charts, the sizing target itself, or the retry and
+//! refinement budgets.
+
+use crate::types::TessellateError;
+
+/// The call's tolerance bundle: δ (the promise), δ_s = δ/2 (sizing),
+/// and the run's kernel ε — never sizing, and never a value the mesh
+/// carries. ε reaches three places from here and no more: pole/apex
+/// vertex identification in [`crate::walk`]; the curved lane's banded
+/// domain guard, which only chooses whether to REFUSE; and the
+/// per-triangle certificate assertion in [`crate::trimmed`]'s review
+/// probe, which is absent from a default build.
+///
+/// **No consumer SNAPS a value.** The one that did — the loop-closure
+/// snap — is gone (S22); the domain guard only chooses whether to
+/// refuse, and the probe assertion emits nothing. That is the exact
+/// claim, and it is weaker than "ε cannot move an emitted coordinate",
+/// which is FALSE as stated: pole/apex identification is a
+/// CLASSIFICATION, and its outcome substitutes the pole's exact `v`
+/// for `Chart::v_of(p)` and emits TWO `pole: true` polygon entries
+/// instead of one. Both reach the UV polygon, hence the bounding box,
+/// hence the curved lane's interior grid and the pole fan's triangles.
+/// So an ε that flipped that classification WOULD move emitted
+/// coordinates. What is true is that nothing in the tree flips it: no
+/// in-tree body puts a non-pole vertex within any of the suite's ε
+/// rows of a pole. Whether one is REACHABLE is not established —
+/// `revolve` would very likely refuse such a sliver, and a STEP import
+/// is the plausible route in — so the ε-dependence here is structural
+/// and UNEXERCISED, which is not the same as absent or unreachable.
+pub(crate) struct Tol {
+    /// The chordal tolerance δ.
+    pub delta: f64,
+    /// The sizing target δ_s = δ/2.
+    pub delta_s: f64,
+    /// The kernel ε (pole/apex identification; the domain guard's band).
+    pub eps: f64,
+}
+
+/// The sizing target δ_s for a call's chordal tolerance δ.
+///
+/// Every schedule in the crate sizes against this rather than against
+/// δ itself; the halving is the documented safety factor that keeps
+/// the two additive slacks outside the certificates (boundary vertices
+/// on certified carriers, f64 rounding of the evaluations) from
+/// deciding in practice — crate docs.
+pub(crate) fn sizing_target(chordal: f64) -> f64 {
+    chordal * 0.5
+}
+
+/// The cap on any *angular* step (π/4).
+///
+/// Two things rest on it, both structural rather than tuning: it keeps
+/// the unwrapping-by-continuity of a periodic chart along the boundary
+/// walk branch-unambiguous, and it makes a full-period rim
+/// polygonalize with at least 8 chords rather than degenerate. It
+/// therefore binds only where a step is an angle in a periodic
+/// coordinate; a NURBS parameter step is uncapped.
+pub(crate) const MAX_ANGULAR_STEP: f64 = core::f64::consts::FRAC_PI_4;
+
+/// Sanity cap on any single count (δ small enough to exceed this would
+/// allocate gigabytes before failing anywhere else).
+const MAX_COUNT: f64 = 16_777_216.0; // 2^24
+
+/// A parameter step capped at [`MAX_ANGULAR_STEP`]. A non-finite or
+/// vacuous step takes the cap.
+pub(crate) fn cap_angular(step: f64) -> f64 {
+    if step < MAX_ANGULAR_STEP {
+        step
+    } else {
+        MAX_ANGULAR_STEP
+    }
+}
+
+/// The per-chord angular step for sagitta ≤ `delta_s` on a circle of
+/// radius `rho`, capped at [`MAX_ANGULAR_STEP`]. Total (poison-free
+/// for positive inputs): if δ_s ≥ ρ the sagitta constraint is vacuous
+/// and the cap rules.
+pub fn sagitta_step(delta_s: f64, rho: f64) -> f64 {
+    if delta_s < rho {
+        cap_angular(2.0 * (1.0 - delta_s / rho).acos())
+    } else {
+        MAX_ANGULAR_STEP
+    }
+}
+
+/// The parameter step for chord deviation ≤ `delta_s` against a
+/// second-derivative bound `m = sup‖C″‖` over the step: the standard
+/// C² secant bound `deviation ≤ h²·m/8` inverted.
+///
+/// Uncapped, because the parameter it steps need not be an angle —
+/// callers whose parameter is periodic apply [`cap_angular`].
+pub(crate) fn curvature_step(delta_s: f64, m: f64) -> f64 {
+    (8.0 * delta_s / m).sqrt()
+}
+
+/// The per-chord parameter step for chord deviation ≤ `delta_s` on an
+/// ellipse with semi-axes `major > minor` (M5 PR 5), capped at
+/// [`MAX_ANGULAR_STEP`].
+///
+/// Certified-conservative from [`curvature_step`]: over a parameter
+/// span φ the arc length is `L ≤ major·φ` (`|dP/dθ| ≤ major`) and the
+/// ellipse's maximum curvature is `κ_max = major/minor²` (at the major
+/// vertices), so the effective second-derivative bound is
+/// `R_eff = major·(major/minor)²`. Coarser than the circle's exact
+/// sagitta near `major = minor` — conservative is the promised
+/// direction.
+pub fn ellipse_step(delta_s: f64, major: f64, minor: f64) -> f64 {
+    let r_eff = major * (major / minor) * (major / minor);
+    cap_angular(curvature_step(delta_s, r_eff))
+}
+
+/// The torus UV grid step `h = √(δ_s/(3(R+2r)))` — shared by the
+/// curved-face grid sizing and the chord pass's adjacent-torus
+/// tightening so boundary and interior steps agree.
+///
+/// Uncapped here, and its two consumers differ on that. The curved
+/// lane steps a periodic chart coordinate with it directly and applies
+/// [`cap_angular`] itself; the chord pass takes it only as a *lower
+/// bound on a count* it has already sized from the circle sagitta, and
+/// that sagitta step is capped over the same span. `h` exceeds the cap
+/// only when `δ_s > (3π²/16)·(R + 2r) ≈ 1.85·(R + 2r)`, which is above
+/// every circle radius a torus carries (`R + r` at most), so the
+/// sagitta step is then exactly the cap and the capped and uncapped
+/// requirements coincide.
+pub(crate) fn torus_grid_step(delta_s: f64, major: f64, minor: f64) -> f64 {
+    (delta_s / (3.0 * (major + 2.0 * minor))).sqrt()
+}
+
+/// The torus boundary-step requirement `h` (crate docs) for a face's
+/// surface, if that surface is a torus.
+pub(crate) fn torus_step(surface: &geom::Surface<f64>, delta_s: f64) -> Option<f64> {
+    match *surface {
+        geom::Surface::Torus {
+            major_radius,
+            minor_radius,
+            ..
+        } => Some(torus_grid_step(delta_s, major_radius, minor_radius)),
+        _ => None,
+    }
+}
+
+/// `ceil(span/step)` as a chord/grid count, with the `MAX_COUNT` (2^24)
+/// sanity cap surfaced as a typed error and a floor of 1.
+///
+/// # Errors
+///
+/// [`TessellateError::ResolutionOverflow`] when the count is
+/// non-finite or at/above the cap.
+pub fn ceil_count(span: f64, step: f64) -> Result<usize, TessellateError> {
+    let raw = (span / step).ceil();
+    if !(raw.is_finite() && raw < MAX_COUNT) {
+        return Err(TessellateError::ResolutionOverflow { count: raw });
+    }
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    Ok(if raw < 1.0 { 1 } else { raw as usize })
+}

@@ -150,10 +150,17 @@ def import_bodies(doc, scenes, outdir, use_step):
         for body in scene["bodies"]:
             before = set(o.Name for o in doc.Objects)
             if use_step:
-                if not body.get("step"):
-                    raise SystemExit(
-                        f"scene {scene['name']}: no STEP export for {body['stl']}"
-                    )
+                # No `step is None` guard, deliberately. This file's
+                # producer is the TOUR (the docstring above says so,
+                # and `render.sh` is the only thing that drives it),
+                # and the tour writes both stems unconditionally --
+                # `run_body` fails rather than emitting a body without
+                # a STEP export. The wild-corpus generator does write
+                # `"step": null` for every cell, but that manifest is
+                # rendered by `render.py` and never reaches here. A
+                # guard against a state this reader's producer cannot
+                # emit is what smell-scan S112(h) was about, one file
+                # over.
                 Part.insert(str(outdir / body["step"]), doc.Name)
             else:
                 Mesh.insert(str(outdir / body["stl"]), doc.Name)

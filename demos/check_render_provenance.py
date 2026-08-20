@@ -83,6 +83,7 @@ file named) otherwise. Stdlib only — no venv, no numpy — so the gate
 can run it anywhere.
 """
 
+import re
 import struct
 import sys
 import zlib
@@ -100,17 +101,55 @@ LANE_DIRS = ("renders", "renders-freecad", "renders-wild")
 WILD_LANE = "renders-wild"
 
 # The matplotlib-COMPOSED contact sheets — the only exempt names, and
-# they must actually be matplotlib-composed. Kept in sync with
-# render.sh's / render-wild.sh's `--montage=` arguments (and
-# compose_montage.py's default).
+# they must actually be matplotlib-composed. This set is the exemption
+# list; the sheet names themselves are decided by the render scripts'
+# `--montage=` arguments and compose_montage.py's default, and
+# `sheet_names_in_scripts()` reads them back out of those files so the
+# agreement is CHECKED (the selftest's last case) rather than asked for
+# in a comment.
 SHEETS = {"montage.png", "montage-freecad.png", "montage-wild.png"}
 
 FREECAD_AUTHOR = "FreeCAD (https://www.freecad.org)"
 FREECAD_SOFTWARE = "FreeCAD"
 MATPLOTLIB_SOFTWARE_PREFIX = "Matplotlib"
-# The wild lane's own signature (render-wild.sh passes it to
-# render.py --author; keep the three spellings in sync).
+# The wild lane's own signature. Two spellings, and they must agree:
+# this constant and `render-wild.sh`'s AUTHOR, which it passes to
+# `render.py --author`. `wild_author_in_script()` reads the second one
+# and the selftest compares them, because a signature that drifts turns
+# every committed wild cell into a violation at once.
 WILD_AUTHOR = "pncad wild-corpus lane (kernel tessellation of licensed third-party STEP)"
+
+
+def sheet_names_in_scripts(root=None):
+    """Every sheet name the render scripts and the composer can write.
+
+    `--montage=NAME` in either render script, plus `compose_montage.py`'s
+    own default for the invocation that passes no such flag.
+    """
+    root = root or HERE
+    names = set(
+        re.findall(
+            r"--montage=(\S+)", (root / "render.sh").read_text()
+        )
+    ) | set(
+        re.findall(
+            r"--montage=(\S+)", (root / "render-wild.sh").read_text()
+        )
+    )
+    (default,) = re.findall(
+        r'^\s*montage_name = "([^"]+)"', (root / "compose_montage.py").read_text(),
+        re.MULTILINE,
+    )
+    return names | {default}
+
+
+def wild_author_in_script(root=None):
+    """The Author string `render-wild.sh` actually stamps into its cells."""
+    root = root or HERE
+    (author,) = re.findall(
+        r"^AUTHOR='([^']*)'$", (root / "render-wild.sh").read_text(), re.MULTILINE
+    )
+    return author
 
 
 def text_chunks(path):
@@ -311,7 +350,18 @@ def selftest():
             "stray_wild.png" in v and "MATPLOTLIB FALLBACK FRAME" in v
             for v in violations
         ), violations
-    print("check_render_provenance --selftest: 9 cases OK")
+    # ---- the two cross-file agreements this module asserts ---------
+    # Both used to be comments asking a future editor to keep files in
+    # sync. Read them instead: a sheet name only the scripts know would
+    # make the exemption list wrong (a real sheet refused as a fallback
+    # frame), and a drifted Author string would fail every committed
+    # wild cell at once.
+    in_scripts = sheet_names_in_scripts()
+    assert in_scripts == SHEETS, (in_scripts, SHEETS)
+    stamped = wild_author_in_script()
+    assert stamped == WILD_AUTHOR, (stamped, WILD_AUTHOR)
+
+    print("check_render_provenance --selftest: 11 cases OK")
 
 
 def main():

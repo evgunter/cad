@@ -116,7 +116,7 @@
 //! leave the bound orders above the truth — the product terms lose
 //! the sign correlation a steep ramp lives in. The cost is only grid
 //! density, and a δ fine enough to overflow the 2²⁴ cap refuses
-//! typed ([`crate::chords::ceil_count`]) — never a wrong mesh.
+//! typed ([`crate::sizing::ceil_count`]) — never a wrong mesh.
 //!
 //! # Grid sizing (heuristic; the certificate is the guarantee)
 //!
@@ -212,7 +212,7 @@ impl NurbsFaceBound {
 
     /// The `(h_u, h_v)` UV grid steps for sizing target `delta_s`
     /// (module docs) — `f64::INFINITY` for an unconstrained direction
-    /// ([`crate::chords::ceil_count`] turns that into one cell).
+    /// ([`crate::sizing::ceil_count`] turns that into one cell).
     pub fn grid_steps(&self, delta_s: f64) -> (f64, f64) {
         let step = |group: f64| {
             if group > 0.0 {
@@ -420,14 +420,14 @@ pub(crate) const SAFE_ASPECT: f64 = 5.0;
 
 /// One v-band of the shipped schedule ([`NurbsCellGrid::band_schedule`]).
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct BandDivisions {
+pub(crate) struct BandCounts {
     /// The band's clipped v-extent, low end.
     pub va: f64,
     /// The band's clipped v-extent, high end.
     pub vb: f64,
-    /// Column divisions.
+    /// Column count (`u` divisions of the band).
     pub nuc: usize,
-    /// Row divisions.
+    /// Row count (`v` divisions of the band).
     pub nvc: usize,
 }
 
@@ -611,7 +611,7 @@ impl NurbsCellGrid {
     }
 
     /// **The shipped band schedule** (TESS-SPAN): the trim box cut at
-    /// interior band boundaries, each band's `(nuc, nvc)` divisions —
+    /// interior band boundaries, each band's `(nuc, nvc)` counts —
     /// one derivation consumed by BOTH the trimmed lane's candidate
     /// generation and the budget meter's prediction, so the two
     /// cannot drift.
@@ -620,10 +620,10 @@ impl NurbsCellGrid {
     /// the band bound's own `h_u` — EXCEPT that a MALIGN band
     /// (subdividing in `u`, realized aspect `s_u/h_v` beyond
     /// [`SAFE_ASPECT`]) and its immediate neighbours take the
-    /// whole-patch column count instead. The point selection inside
-    /// `grid_steps` is untouched either way (TESS-SPAN's binding
-    /// constraint); only WHICH bound feeds it changes, and the patch
-    /// count only ever adds columns.
+    /// whole-patch column count instead. The step derivation
+    /// [`NurbsFaceBound::grid_steps`] is untouched either way
+    /// (TESS-SPAN's binding constraint); only WHICH bound feeds it
+    /// changes, and the patch count only ever adds columns.
     ///
     /// **Why (measured, three times over)**: any point of an
     /// anisotropic lattice strip that is not ON a column admits an
@@ -650,20 +650,20 @@ impl NurbsCellGrid {
     /// # Errors
     ///
     /// [`TessellateError::ResolutionOverflow`] via
-    /// [`crate::chords::ceil_count`], as the uniform schedule.
+    /// [`crate::sizing::ceil_count`], as the uniform schedule.
     pub fn band_schedule(
         &self,
         patch: NurbsFaceBound,
         u: (f64, f64),
         v: (f64, f64),
         delta_s: f64,
-    ) -> Result<Vec<BandDivisions>, TessellateError> {
+    ) -> Result<Vec<BandCounts>, TessellateError> {
         let du = u.1 - u.0;
         let mut edges = vec![v.0];
         edges.extend(self.v_cuts.iter().copied().filter(|c| *c > v.0 && *c < v.1));
         edges.push(v.1);
         let (phu, _) = patch.grid_steps(delta_s);
-        let patch_nuc = crate::chords::ceil_count(du, phu)?;
+        let patch_nuc = crate::sizing::ceil_count(du, phu)?;
         let mut bands = Vec::with_capacity(edges.len().saturating_sub(1));
         let mut malign = Vec::with_capacity(edges.len().saturating_sub(1));
         for w in edges.windows(2) {
@@ -673,8 +673,8 @@ impl NurbsCellGrid {
             let (hu, hv) = self
                 .row_bound(self.row_of(0.5 * (va + vb)))
                 .grid_steps(delta_s);
-            let nuc = crate::chords::ceil_count(du, hu)?;
-            let nvc = crate::chords::ceil_count(vb - va, hv)?;
+            let nuc = crate::sizing::ceil_count(du, hu)?;
+            let nvc = crate::sizing::ceil_count(vb - va, hv)?;
             // Malignity is judged on the REALIZED spacings `s_u/s_v`,
             // not the pre-`ceil` ideal steps: the lattice a sliver
             // lives in has rows every `s_v = (vb−va)/nvc ≤ h_v`, so
@@ -686,7 +686,7 @@ impl NurbsCellGrid {
             #[allow(clippy::cast_precision_loss)]
             let sv = (vb - va) / nvc as f64;
             malign.push(nuc >= 2 && sv.is_finite() && sv > 0.0 && su > SAFE_ASPECT * sv);
-            bands.push(BandDivisions { va, vb, nuc, nvc });
+            bands.push(BandCounts { va, vb, nuc, nvc });
         }
         for (i, b) in bands.iter_mut().enumerate() {
             let near_malign = malign[i]

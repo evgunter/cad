@@ -1,8 +1,18 @@
 //! Directed-rounding substitutes: outward padding of round-to-nearest
 //! results. Portable Rust cannot set the FPU rounding mode, so every
 //! inexact operation is padded outward by representable-neighbor steps.
-//! Soundness proofs are in `docs/derivations.md` (§1); the load-bearing
-//! lemmas are restated at each helper.
+//! Soundness proofs are in `docs/derivations.md` (§1). **A lemma more
+//! than one helper rests on has exactly one home**: the 2Prod
+//! exactness test is [`two_prod_witness`], which `mul`, `div` and
+//! `sqrt` all call rather than respell, and the validity floor it gates
+//! on is [`TWO_PROD_VALID_MIN`]. A helper resting on a lemma of its own
+//! states it in its own doc.
+//!
+//! Nothing mechanical enforces that split — a fifth helper respelling
+//! `fma(x, y, -z) == 0.0` inline would compile and pass. What makes it
+//! discoverable is that `docs/derivations.md` §3 derives ONE floor for
+//! all three witnesses, so a second constant contradicts the
+//! derivation, and the crate's one `grep mul_add` is short.
 
 /// One representable step down, saturating at `-inf` (`next_down(-inf) =
 /// -inf`, which is the correct lower bound for an already-unbounded side).
@@ -82,10 +92,12 @@ pub(crate) fn sub_hi(a: f64, b: f64) -> f64 {
 }
 
 /// TwoSum (Knuth) rounding-error term of `s = RN(a + b)`; `0.0` iff the
-/// addition was exact. Exact for ALL finite doubles (the error of a
-/// rounded sum is always representable; no non-underflow proviso, unlike
-/// products). Infinite `s` (overflow) yields a NaN error term, which
-/// compares `!= 0.0` and therefore correctly takes the padded path.
+/// addition was exact. Exact for ALL finite doubles — no non-underflow
+/// proviso, unlike products — by `docs/derivations.md` §1 **Lemma P0**,
+/// which is where that theorem is stated and is the reason this witness
+/// needs no magnitude gate while [`two_prod_witness`] does. Infinite `s`
+/// (overflow) yields a NaN error term, which compares `!= 0.0` and
+/// therefore correctly takes the padded path.
 #[inline]
 fn two_sum_err(a: f64, b: f64, s: f64) -> f64 {
     let bp = s - a;
@@ -120,25 +132,48 @@ pub(crate) fn mul_hi(a: f64, b: f64) -> f64 {
     if mul_exact(a, b, r) { r } else { up1(r) }
 }
 
-/// 2Prod validity floor: the FMA residual `a·b − r` is guaranteed exactly
-/// representable only when `|a·b| >= 2^-969` (Ogita–Rump–Oishi; below it
-/// the residual itself can underflow and a nonzero true residual can
-/// round to 0.0, making the witness LIE). We gate at `2^-960` — the
-/// literature floor is ~2^-969; the extra 9 binades absorb every
-/// boundary quibble (r vs exact-product magnitude, subnormal factors)
-/// at zero practical cost. Exactly `2^-960`
-/// (bit pattern: biased exponent 1023 − 960 = 63, zero mantissa).
+/// 2Prod validity floor: the FMA residual `x·y − z` is guaranteed exactly
+/// representable only when the product magnitude is `>= 2^-969`
+/// (Ogita-Rump-Oishi; below it the residual itself can underflow and a
+/// nonzero true residual can round to 0.0, making the witness LIE). We
+/// gate at `2^-960` — the literature floor is ~2^-969; the extra 9
+/// binades absorb every boundary quibble (rounded vs exact product
+/// magnitude, subnormal factors) at zero practical cost. Exactly
+/// `2^-960` (bit pattern: biased exponent 1023 − 960 = 63, zero
+/// mantissa).
+///
 /// Found live by the differential harness: a barely-NORMAL product of a
 /// subnormal factor passed an `is_normal()` guard while its residual
 /// underflowed — a 1-ulp containment violation vs the oracle.
-const TWO_PROD_VALID_MIN: f64 = f64::from_bits(0x03F0_0000_0000_0000);
+///
+/// One constant for all three witnesses (`mul`, `div`, `sqrt`), because
+/// derivations.md §3 derives one number for all three: the condition is
+/// on the FMA's product term, whichever operation supplies it.
+pub(crate) const TWO_PROD_VALID_MIN: f64 = f64::from_bits(0x03F0_0000_0000_0000);
+
+/// The 2Prod exactness witness, stated once: `fma(x, y, -z)` evaluates
+/// `x·y − z` with a SINGLE rounding, and the true residual is exactly
+/// representable whenever the product clears [`TWO_PROD_VALID_MIN`] — so
+/// a `0.0` result then PROVES `x·y = z` exactly, and no outward pad is
+/// owed. Below the floor, or on a non-finite operand, the witness may
+/// lie and the caller must pad.
+///
+/// `mag` is the caller's handle on the product magnitude the floor is
+/// about, and it is a parameter rather than `(x * y).abs()` because each
+/// caller already holds a cheaper exact one: `|r|` for `mul` (the
+/// rounded product itself), `|a|` for `div` (where `q·b ≈ a`), and the
+/// radicand for `sqrt` (where `s·s ≈ a`).
+#[inline]
+pub(crate) fn two_prod_witness(x: f64, y: f64, z: f64, mag: f64) -> bool {
+    mag >= TWO_PROD_VALID_MIN && f64::mul_add(x, y, -z) == 0.0
+}
 
 #[inline]
 fn mul_exact(a: f64, b: f64, r: f64) -> bool {
-    // The magnitude gate also rejects r == ±inf only via the FMA check
-    // (fma(a, b, ∓inf) is ±inf or NaN, never 0.0), and rejects all
-    // subnormal/underflow-adjacent products where the witness is invalid.
-    r.abs() >= TWO_PROD_VALID_MIN && f64::mul_add(a, b, -r) == 0.0
+    // `r == ±inf` is rejected by the FMA check alone (fma(a, b, ∓inf) is
+    // ±inf or NaN, never 0.0); the magnitude gate rejects every
+    // subnormal/underflow-adjacent product, where the witness is invalid.
+    two_prod_witness(a, b, r, r.abs())
 }
 
 /// Lower bound of `a / b` (`b != 0`), padded one step unless the
@@ -185,7 +220,7 @@ pub(crate) fn div_hi(a: f64, b: f64) -> f64 {
 /// backend swap.
 #[inline]
 fn div_exact(a: f64, b: f64, q: f64) -> bool {
-    a.abs() >= TWO_PROD_VALID_MIN && q.is_finite() && f64::mul_add(q, b, -a) == 0.0
+    q.is_finite() && two_prod_witness(q, b, a, a.abs())
 }
 
 #[cfg(test)]
@@ -227,7 +262,7 @@ mod tests {
         assert!(div_hi(1.0, f64::INFINITY) > 0.0);
         // Below the 2Prod validity floor the witness is not trusted even
         // when the quotient happens to be exact.
-        let tiny = f64::from_bits(0x0010_0000_0000_0000); // 2^-1022
+        let tiny = f64::MIN_POSITIVE; // 2^-1022, far below the 2^-960 floor
         assert!(div_lo(tiny, 2.0) < tiny / 2.0);
     }
 }
