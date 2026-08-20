@@ -528,7 +528,10 @@ component-aware E–P form found and corrected in M1 PR 4).**
   f64-structure + T-payload pattern. `Pcurve::Fitted` landed with a
   `PcurveFittedLane` static split (the `PropsQuadLane` shape: `f64`,
   `Probe` and `Interval` derive the certificate, `Dual` refuses typed
-  — a dual carries no bracket). The banked walk-row-2 obligation is
+  — *a dual may not certify*, Wave 0 decision **D1** of
+  `docs/SMELL-SCAN-2026-08.md`, ruled 2026-08-19; the refusal is
+  `CertifiedEnclosure`'s, not `Bounds`', since a dual **does** carry a
+  bracket — the value channel's). The banked walk-row-2 obligation is
   discharged: a cylinder×sphere rung-3 edge reaches a body at rest
   carrying a fitted cache whose full C2 certificate (hull sup-norm +
   uniqueness tube) is RE-DERIVED at rest, at `f64` and at `Interval`;
@@ -1878,7 +1881,10 @@ revision).
   as the poison channel* (`decoration < Def ⇒ Indeterminate(Invalid)` —
   silent domain clamps never decide); `Bounds` certification trait with
   poison-visible NaN brackets for empty AND NaI (failing certification
-  outranks 1788 representational honesty); tight `pown` powi override
+  outranks 1788 representational honesty) — *`Bounds` was split at #643:
+  it now means only "carries a bracket", and the certification half is
+  `CertifiedEnclosure`, which is what D1 (2026-08-19) leaves refusing a
+  `Dual`*; tight `pown` powi override
   (containment of the true value is the interval contract); the sliver
   band is *terminal* for a subdivision driver (an enclosure wholly
   inside (ε, Kε) never refines — escalate as a genuine sliver).

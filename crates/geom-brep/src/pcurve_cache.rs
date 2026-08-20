@@ -625,9 +625,10 @@ pub enum PcurveCertifyError {
     UnsupportedCarrier,
     /// A [`Pcurve::Fitted`] cache was offered to a scalar with **no
     /// certified fitted lane** — [`PcurveFittedLane`]'s refusing side.
-    /// A dual scalar carries no bracket, so the C9 ring cannot be
-    /// reached from it and the C2.2 hull bound does not exist there;
-    /// the refusal is typed and static rather than a silent success.
+    /// A dual scalar may not certify (D1, 2026-08-19), so the C9 ring
+    /// is not reachable from it and the C2.2 hull bound does not exist
+    /// there; the refusal is typed and static rather than a silent
+    /// success.
     FittedLaneUnsupported {
         /// The scalar lane, named.
         scalar: &'static str,
@@ -744,8 +745,8 @@ impl core::fmt::Display for PcurveCertifyError {
             Self::FittedLaneUnsupported { scalar } => write!(
                 f,
                 "pcurve certification: a fitted (rung-3) chart image has no certified lane at \
-                 the {scalar} scalar — its between-samples bound is an exact-arithmetic-ring hull, and this scalar \
-                 carries no bracket to reach the ring with. Replay the body at f64, the \
+                 the {scalar} scalar — its between-samples bound is an exact-arithmetic-ring hull, \
+                 and this scalar may not certify one. Replay the body at f64, the \
                  telemetry probe, or the interval scalar to certify it"
             ),
             Self::FittedMateMissing => write!(
@@ -906,10 +907,12 @@ pub struct PcurveCertificate<T: Real> {
 /// PR 11's ratified pattern; `topo/src/props.rs`).
 ///
 /// A [`Pcurve::Fitted`] cache's between-samples obligation is a C9-ring
-/// hull bound, and the ring is reached through a scalar's **bracket**.
-/// `f64`, the telemetry probe and the interval scalar all have one;
-/// [`geom_core::Dual`] does not, and never will — a dual number is a
-/// value and a derivative, not an enclosure. So the fitted lane exists
+/// hull bound, and building it is **certification**. `f64`, the
+/// telemetry probe and the interval scalar may certify;
+/// [`geom_core::Dual`] may not — Evan's D1 ruling, 2026-08-19: a dual
+/// carries a bracket (the value channel's) and may still not certify,
+/// which is why `geom_core::CertifiedEnclosure` has no dual impl and
+/// `geom_core::Bounds` now does. So the fitted lane exists
 /// for the first three and is **statically absent** for the fourth,
 /// which is stated here as a refusing impl rather than discovered as a
 /// mysterious failure at run time.
@@ -1020,17 +1023,12 @@ fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
     // D4 ¶1's lever arm of last resort, and it is exactly the scale a
     // uniqueness tube around this carrier can hope to reach.
     let arm = carrier_diameter(carrier);
-    // The band IS built from ε (`Band::linear`), so its zero threshold
-    // is the run tolerance the ladder's floor is stated in.
-    let eps = band.zero();
     crate::ssi::certify_rung3(
         carrier,
         Some(image),
         &operand(mate),
         &operand(surface),
-        arm,
-        geom_core::Bounds::hi(arm),
-        eps,
+        crate::ssi::TubeScale::uniform(arm),
         band,
     )
     .map(Some)
@@ -1286,8 +1284,9 @@ impl<T: Decide> PcurveCache<T> {
     ///
     /// A [`Pcurve::Fitted`] image refuses here, naming
     /// [`PcurveCache::certify_fitted`]: the fitted lane's certificate
-    /// is the SSI one, which needs the mate operand and a
-    /// bracket-carrying scalar, and hiding those behind this signature
+    /// is the SSI one, which needs the mate operand and a CERTIFYING
+    /// scalar (`Decide + Bounds + CertifiedEnclosure`), and hiding those
+    /// behind this signature
     /// would put the whole minting pipeline behind a bound it does not
     /// need (a dual body mints closed-form pcurves perfectly well).
     ///

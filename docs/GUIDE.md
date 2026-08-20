@@ -127,6 +127,8 @@ mm + 90 * deg` is a `DimensionError`, not a number.
   example in the repo to what it demonstrates.
 - The fail-loud tour (`docs/guide/fail-loud.md`) is the refusal
   vocabulary, layer by layer.
+- Selecting entities (`docs/guide/selecting.md`) is how you name a
+  face or an edge so a later step can refer to it.
 - The north-star audit (`docs/guide/north-star-audit.md`) says
   exactly which demos Python can author today.
 
@@ -1300,6 +1302,10 @@ crosses as a number and the parameter link is lost.
 - **`docs/guide/fail-loud.md`** — the refusal vocabulary, layer by
   layer, with executed examples of reading each one. If you are new
   here and something refused, start there.
+- **`docs/guide/selecting.md`** — naming and selecting entities: the
+  materializers, the structural pattern language, the geometric
+  filters, the doors from a name back to geometry, and the
+  detect/declare protocol for flush contact.
 - **`docs/guide/north-star-audit.md`** — which demos are authorable
   through the Python bindings today, and the named gap for each that
   is not.

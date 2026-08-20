@@ -950,8 +950,12 @@ class TestDiefillet(unittest.TestCase):
         two recipes that select the same edges are bit-identical."""
         doc, cube = self.build()
         edges = evaluate(doc).all_edges(cube)
-        forward = Doc()
-        backward = Doc()
+        # `bit_eq` compares identity as well as recipe, so the two
+        # spellings are authored as the SAME part — which is what the
+        # labelled constructor says. The claim under test is about the
+        # SELECTION being canonical, not about two parts colliding.
+        forward = Doc(label="canonical-fillet-selection")
+        backward = Doc(label="canonical-fillet-selection")
         for target, order in ((forward, edges), (backward, list(reversed(edges)))):
             sq = target.insert(
                 Node.polygon(
@@ -1568,6 +1572,22 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             "select", "select_where",                 # methods, not module doors
             "find_flush_candidates",                  # method, not a module door
             "StableName",                             # names stay text
+            # G15: identity is bound (`Doc()` mints a distinct id,
+            # `Doc.id` reads it), the surface it exists FOR is not.
+            # These four are the doors that would close it, and this
+            # row is the register the gap is deferred INTO: it fails
+            # the day one lands.
+            "Workspace", "ContentPin", "DocRef", "random_document_id",
+            # G1's residue: no Expr door, so a profile step's argument
+            # cannot be a named parameter. It is ALSO a naming
+            # decision — the expression layer's genuine
+            # dimension-mismatch arms already reach Python through
+            # `load` (as `PersistError`/`parse`, issue #694), and
+            # binding the operator builders would give them a second
+            # route with `LiteralError` the nearest class while
+            # `DimensionError` means the quantity boundary. Whoever
+            # binds it decides which class those arms raise.
+            "Expr",
         ]:
             with self.subTest(door=door):
                 self.assertFalse(hasattr(pncad, door), f"{door} is now bound")

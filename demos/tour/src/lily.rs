@@ -121,10 +121,9 @@ use pncad::profile::{ArcSweep, Center, ProfileLoop, ProfileVertex, SketchPlane, 
 // vocabulary, off the façade, so the one scene that needs it names the
 // kernel crate directly.
 use pncad::sweep::fillet::FilletError;
-use pncad::sweep::readback::{WedgeFrames, revolved_caps};
 use pncad::sweep::{
-    ExtrudeError, Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, loft_body, revolve,
-    sweep_body, tube_along_arc,
+    ExtrudeError, Extrusion, Revolution, RevolveAxis, TubeWindow, WedgeFrames, extrude, loft_body,
+    revolve, revolved_caps, sweep_body, tube_along_arc,
 };
 use pncad::topo::{Body, BooleanError, BooleanOp, Operand, TransformError};
 use profile::RawLoop;
@@ -1535,8 +1534,8 @@ pub fn wall_probes<S: Scalar>() {
 
     // 6. The lantern's mouth is a hard circle where the sphere zone
     //    meets the conical pucker. A rolling ball would soften it —
-    //    but `fillet_edges` is the whole-body door on a convex,
-    //    planar-faced, trivalent polyhedron.
+    //    but the battery refuses the seam before any door is
+    //    reached: its two supports meet tangentially.
     let rim: Vec<pncad::topo::EdgeKey> = lant.edges().map(|(k, _)| k).collect();
     wall(
         6,
@@ -1748,7 +1747,7 @@ mod review_probes {
     /// `p` (xz-plane) with normal parallel to `t` — i.e. the tube's
     /// end tangent THERE is `t`.
     ///
-    /// The frames come from `sweep::readback::revolved_caps` (LIB-U5):
+    /// The frames come from `sweep::revolved_caps` (LIB-U5):
     /// this used to scan every face of the body for a planar carrier
     /// and hope the right one turned up. Which of the two ends
     /// answers is the revolve's business, so both are offered — that

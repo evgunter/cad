@@ -122,7 +122,6 @@
 
 pub mod extrude;
 pub mod loft;
-pub mod readback;
 pub mod revolve;
 pub mod skin;
 // The gate is the module's own subject — see its docs for why
@@ -137,7 +136,10 @@ pub mod test_support;
 pub use extrude::{ExtrudeError, Extruded, Extrusion, extrude};
 pub use loft::{LoftError, Lofted, loft_body, sweep_body};
 pub use revolve::tube::{TubeError, TubeWindow, tube_along_arc};
-pub use revolve::{Revolution, RevolveAxis, RevolveError, Revolved, RevolvedKind, revolve};
+pub use revolve::{
+    Revolution, RevolveAxis, RevolveError, Revolved, RevolvedKind, WedgeCapsError, WedgeFrames,
+    revolve, revolved_caps,
+};
 // `SketchSegment` is re-exported for `segment_curve`, the retained
 // 2-D-segment → 3-D-curve door (step-export builds exact arc path
 // legs through it — the LIB-U4 exact-path territory): a caller must

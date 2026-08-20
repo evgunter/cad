@@ -32,6 +32,28 @@
 //! boxable — only that an unboxable one is never silently claimed, which
 //! the rule guarantees.
 //!
+//! # This door GRANTS, and it admits a `Dual` (D1, 2026-08-19)
+//!
+//! `Separation::of`, [`Separation::certify`] and `image` are
+//! `T: Decide + Bounds` with **no** `geom_core::CertifiedEnclosure`, so
+//! since the D1 ruling they are instantiable at `Dual64` and at
+//! `Dual<Interval>`. Worth saying plainly because the direction is easy
+//! to get backwards: box NON-overlap here is a **grant**, not a refusal —
+//! `Ok(())` IS the certificate, and `crate::graft_disjoint_all_keyed`
+//! re-checks nothing (#382), so this module is the whole establishment of
+//! disjointness.
+//!
+//! What makes the dual instantiation sound is **delegation**, not the
+//! refusal direction: every endpoint a `Dual<T>` box carries is its value
+//! channel's, and the value channel of a `Dual<T>` build IS the plain-`T`
+//! build bit-identically (D9). So a dual run's certificate is exactly the
+//! base scalar's — the `f64` run's at `Dual<f64>`, the `Interval` run's
+//! at `Dual<Interval>` — and there is no reading under which a dual gets
+//! a certificate its base scalar would not. Whether this door should
+//! nonetheless take `CertifiedEnclosure` is a **#643-completeness**
+//! question (it grants, and the grant is believed), left open rather than
+//! answered in passing; see `geom-core/src/real.rs`'s `Bounds` scope rule.
+//!
 //! The converse does not hold: two genuinely disjoint copies whose boxes
 //! interpenetrate are REFUSED, not accepted. That is the fail-loud reading
 //! of the design's "identical objects make non-overlap easier" — a refusal

@@ -133,11 +133,21 @@ pub mod body;
 pub mod boolean;
 pub(crate) mod census;
 pub mod chart_region;
+// The shared chord-join core — ch. 14's `join`/`cut` mechanics and the
+// section-chord geometry, a top-level sibling of `boolean/` and
+// `splitting/` for the reason its own docs give (S5). Non-doc comment
+// for the same rustdoc reason as the sector modules below.
+pub(crate) mod chord_join;
 pub mod contact;
 pub mod entity;
 pub mod euler;
 pub mod euler_kill;
 pub mod euler_ring;
+// The one door for a planar face's outward normal — at the crate root
+// because its consumers now span both halves and the shared sector
+// walk; its own docs carry the argument. Non-doc comment for the same
+// rustdoc reason as the sector modules below.
+pub(crate) mod face_normal;
 #[cfg(test)]
 pub(crate) mod fixtures;
 pub mod geometry;
@@ -151,6 +161,7 @@ pub mod null;
 pub mod pcurves;
 pub mod props;
 pub mod provenance;
+pub mod readback;
 pub mod revert;
 #[cfg(test)]
 mod review_m0_pr7;
@@ -164,12 +175,14 @@ mod review_m1_pr3;
 mod review_m1_pr4;
 #[cfg(test)]
 mod review_m1_pr5_internal;
-// The shared vertex-neighborhood sector-shape predicates — a
-// top-level sibling of `boolean/` and `splitting/` on purpose:
-// both lanes ask this question, so neither hosts it (S5). A
-// non-doc comment deliberately: an outer `///` here would merge
-// into the module's own `//!` docs and make rustdoc resolve their
-// intra-doc links in THIS module's scope instead of that one's.
+// The shared vertex-neighborhood sector modules — top-level siblings
+// of `boolean/` and `splitting/` on purpose: both lanes ask these
+// questions, so neither hosts them (S5). Each module's own docs carry
+// the placement argument. Non-doc comments deliberately: an outer
+// `///` here would merge into the module's own `//!` docs and make
+// rustdoc resolve their intra-doc links in THIS module's scope instead
+// of that one's.
+pub(crate) mod sector_face;
 pub(crate) mod sector_shape;
 pub mod separation;
 #[cfg(test)]
@@ -273,6 +286,7 @@ pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
 pub use pcurves::{PcurveMintError, mint_pcurves, pcurve_of};
 pub use props::{MassProperties, MassPropsError, PropsQuadLane, mass_properties};
 pub use provenance::Provenance;
+pub use readback::{DanglingRef, Pose, ReadbackError};
 pub use revert::RevertError;
 pub use separation::{PlacementsMeet, Separation};
 pub use source::{GeomSource, Or, SourceAttachError, SourceExpr};

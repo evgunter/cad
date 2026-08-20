@@ -322,10 +322,9 @@ fn the_pips_cut_in_one_group_operation_on_all_six_faces() {
 ///   containment class has no chart-trim extent for them — the M5
 ///   PR 9c door, reached honestly instead of masked by an
 ///   unconditional arm). Door A is still typed, one stage deeper.
-/// - *Pip then fillet* (door B) refused at the whole-body assembly
-///   door (rings not carried). The in-place composition surgery now
-///   takes it and the ordering COMPOSES: the twelve box edges blend
-///   in place with every pip rim carried through. The full
+/// - *Pip then fillet* (door B) composes: the in-place composition
+///   surgery blends the twelve box edges in place with every pip rim
+///   carried through. The full
 ///   composed-die ladder (tier 3, closed forms, watertight, rim tori)
 ///   lives in `m6_surgery.rs`.
 #[test]

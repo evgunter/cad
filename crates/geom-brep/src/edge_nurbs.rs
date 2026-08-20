@@ -55,16 +55,17 @@
 //! expressed as [`EdgeNurbsLane`] in the ratified
 //! [`crate::PcurveFittedLane`] / `topo::props::PropsQuadLane` shape:
 //! certified impls for `f64`, the telemetry probe and the interval
-//! scalar, a **refusing** impl for `geom_core::Dual` (a dual number is
-//! a value and a derivative, not an enclosure), and `Bounds` kept out
-//! of `topo`'s signatures.
+//! scalar, a **refusing** impl for `geom_core::Dual` (which may not
+//! certify — D1, 2026-08-19; it carries the value channel's bracket
+//! and that is not the right to mint a C9-ring bound), and `Bounds`
+//! kept out of `topo`'s signatures.
 
 use geom_core::{Band, Bounds, Decide, Indeterminate, Point2, Real, Vec3};
 use geom_curves::{NurbsCurve2, NurbsCurve3};
 use geom_surfaces::{NurbsSurface, Surface};
 
 use crate::certify::CERT_SAMPLES;
-use crate::ssi::{SsiError, SsiLimb, SsiOperand, certify_rung3};
+use crate::ssi::{SsiError, SsiLimb, SsiOperand, TubeScale, certify_rung3};
 
 /// What the plane × NURBS lane proved, in meters unless noted.
 #[derive(Clone, Copy, Debug)]
@@ -95,8 +96,9 @@ pub struct PlaneNurbsLimbs<T: Real> {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum PlaneNurbsRefusal {
     /// This scalar has no certified lane ([`EdgeNurbsLane`]'s refusing
-    /// side): no bracket, so the C9 ring the hull bounds live in
-    /// cannot be reached from it at all.
+    /// side): it may not certify, so the C9 ring the hull bounds live
+    /// in is not reachable from it (D1, 2026-08-19 — a dual carries a
+    /// bracket but not the right to certify with it).
     LaneUnsupported {
         /// The scalar lane, named.
         scalar: &'static str,
@@ -166,7 +168,9 @@ impl core::fmt::Display for PlaneNurbsRefusal {
             Self::LaneUnsupported { scalar } => write!(
                 f,
                 "the plane × NURBS edge lane has no certified derivation at the {scalar} \
-                 scalar (no bracket, so the exact-arithmetic ring the hull bounds live in is unreachable)"
+                 scalar (it may not certify, so the exact-arithmetic ring the hull bounds live in \
+                 is out of reach — replay the body at f64, the telemetry probe, or the interval \
+                 scalar)"
             ),
             Self::FootPointInconclusive {
                 sample,
@@ -338,9 +342,7 @@ fn lane<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         Some(&pcurve),
         &SsiOperand::Analytic(plane),
         &SsiOperand::Nurbs(&localized),
-        extent,
-        extent.hi(),
-        band.zero(),
+        TubeScale::uniform(extent),
         band,
     )
     .map_err(refusal)?;
@@ -393,6 +395,16 @@ pub const PXN_FIT_SAMPLES: u32 = 33;
 /// genuinely curved plane × NURBS locus refuses with its MEASURED
 /// bound in the payload (never a widened gate), and tightening that is
 /// the algebraic route already banked with #264's envelope findings.
+///
+/// **The two numbers above are UNGUARDABLE, and completely so** (issue
+/// #667's Q6, stated here rather than only in a PR body): `9.8e-11` and
+/// `1.1e-13` came from running the cubic and linear images side by side
+/// once, and the cubic arm they compare does not exist in the tree — so
+/// there is nothing to re-measure and nothing that computes with either
+/// figure. What they bought is the *structure* choice this constant is,
+/// and the structure is guarded the ordinary way: limb 2's own certificate
+/// refuses with its measured bound whenever the image is not straight
+/// enough, at whatever degree it is built at.
 pub const PXN_IMAGE_DEGREE: usize = 1;
 
 /// The wall refined so the uniqueness tube can localize.
