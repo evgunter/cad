@@ -219,6 +219,25 @@ a hand-rolled clone silently lacks.
 | **F-g** | **F3** (S63) | Track E's **#753** | `scripts/gates/`, `scripts/ci-filter.py` |
 | **F-h** | **F8** (D44, D45) | Track E's **#753** | F-R1 — the invocation lives in `ci.yml` |
 
+**Two more edges, recorded when they appeared rather than when they bite.**
+
+- **`.github/workflows/ci.yml` now has three tracks in it.** #753 (E-a) holds
+  the gate-roster and test-aggregation hunks; Track G's **G-a** holds the
+  `oracle-*` job comments and publishes a fence saying so (their G-R3); **F-h**
+  holds the probe **invocation**. Three disjoint regions of one file, and the
+  only reason that is safe is that all three said which region out loud. F-h's
+  brief must carry the same fence.
+- **`scripts/gates/probe-suite-census.sh` makes `docs/SMELL-SCAN-2026-08.md` a
+  hard CI dependency**: it asserts the literal string
+  `type-check every probe-gated test target` still appears there (and in
+  `docs/K-REPORT.md`, `topo/tests/probe_s5_sectors.rs`,
+  `sweep/tests/k_report.rs`). Every Track F lane edits that document. The two
+  live occurrences are at S4's record and at Track D/E's, so no wave-1 lane is
+  near them — but **F-h is**, since D44 is about that very step, and a lane that
+  rewrites the sentence reds the build for a reason its diff will not explain.
+  This is S61's own *"a dated historical scan is a hard CI dependency"* residue,
+  hitting the track that has to touch the scan most.
+
 **Sequencing inside wave 2.** F-e (F1) lands before **G4/S87–S88**, per
 Evan's S87/S88 ruling: the sentence that makes the `CertifiedBounds`
 conversion safe is *currently false*, and converting first would leave
