@@ -5943,7 +5943,7 @@ missed four sites **outside the workspace** — `demos/` is `exclude`d, so
 curved operands"* **to the user**. Lesson recorded: a rename spanning excluded
 members wants its own PR and its own `--manifest-path` check.
 
-### H14 — FIXED by #NNN. The two residues, and the one that was a live wrong answer
+### H14 — FIXED by #737. The two residues, and the one that was a live wrong answer
 
 #637 left two residues, both recorded in its own body under *"Found, NOT fixed"*.
 
@@ -6723,7 +6723,7 @@ but about which questions look most worth answering first.
 # §D. The schedule
 
 **Live rows only.** Completed work is **not** listed here — every finished
-unit is recorded at its own finding as a bolded `FIXED by #NNN` lead, which is
+unit is recorded at its own finding as a bolded `FIXED by #737` lead, which is
 the one home for it. A row leaves this section when it lands. What follows is
 therefore what is *left*, and its length is the honest measure of that.
 
@@ -6880,7 +6880,7 @@ rewritten rather than appended to.
 
 | # | Work | Why it is here rather than in a track |
 |---|---|---|
-| **C1** | **H12, H13, H15** — three lanes' own residues: the SSI sweeps' other never-silence doors (no acceptance row in either lane), `sweep_body`'s helix rows with no orientation coverage, #635's unclassified siblings. (**H14**, #637's two jurisdiction residues, left this row FIXED by #NNN.) | Each is small; together they are a lane. They are the clearest instance of ordering rule 3. |
+| **C1** | **H12, H13, H15** — three lanes' own residues: the SSI sweeps' other never-silence doors (no acceptance row in either lane), `sweep_body`'s helix rows with no orientation coverage, #635's unclassified siblings. (**H14**, #637's two jurisdiction residues, left this row FIXED by #737.) | Each is small; together they are a lane. They are the clearest instance of ordering rule 3. |
 | **C2** | **H11, H16, H17** — #632's two residues; the STL header not being caller-settable while `StepOptions` carries `product_name`; and S37's rustdoc remainder, ~1115 lines across 130 files. | H17 is large and mechanical; H16 is a small asymmetry with a clear right answer. |
 | **C3** | **S27, S29** — `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block; and the sizing vocabulary fragmented across five modules with self-admitted magic constants. (S30, the mesh crate's 1,060 lines of instrument, was the third member and is FIXED by #709.) **S29 is NOT blocked on a design conversation — corrected 2026-08-19.** This row previously said its policy question was routed to `docs/TESS-SPLIT-SPEC.md` and PR #568. #684's review checked: both are scoped **entirely to the NURBS per-cell schedule** (`nurbs_cert`'s `grid_steps`, certified cells, the first fundamental form — TESS-SPLIT-SPEC's D-1 replaces the AM-GM grouping, with `leaf_a f2` as its poster child). **Nothing in either covers analytic-chart sizing**, so `curved::grid_steps` has no venue at all — and #684 has since added a sixth rule to it. S29's own lesson applies to that: *N well-defended deviations read as N decisions when they are one undecided question.* S27 touches `props/`, so it must follow **A2**; S29 is edge-free. |
 | **C4** | **S32, S33** — `Surface`'s one-partial-per-call API, which is what created the shadow surface enum in SSI; and neither geometry enum being able to lift itself to another scalar. (S31, the `geom-curves`/`geom-surfaces` split, was the third member and is FIXED by #705.) | **S32 is now additionally gated on #705's merge**: the enum and its NURBS payload are one crate's two modules, so a `SurfaceJet` door at the enum no longer crosses a crate boundary. **S33 is coloured by D1**: several of its ~14 hand-written ladders exist only to reach `Dual`, and what `Bounds for Dual` changes there is written in S44's **D1 DECIDED** block. |
@@ -6932,7 +6932,7 @@ completely gone, and whether the way it was closed is the best one available —
 not merely a way that compiles.
 
 **Each unit records its own completion, in its own PR**: the bolded
-`FIXED by #NNN` lead at the finding, with the original problem statement
+`FIXED by #737` lead at the finding, with the original problem statement
 removed (version control keeps it). Every Track D PR therefore edits this file
 and they conflict with each other by construction. Merge one at a time.
 
