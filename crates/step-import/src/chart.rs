@@ -227,8 +227,11 @@ fn periodic(surface: &Surface<f64>) -> (bool, bool) {
 /// meters into one in chart parameters.
 fn metric_floor(surface: &Surface<f64>, samples: &[Point2<f64>]) -> f64 {
     samples.iter().fold(f64::INFINITY, |acc, uv| {
-        acc.min(surface.deriv_u(uv.x, uv.y).norm())
-            .min(surface.deriv_v(uv.x, uv.y).norm())
+        // One jet per sample, two fields off it — the two partials are
+        // wanted at the same `(u, v)`, and asking twice would evaluate
+        // a NURBS chart's whole jet twice to keep one field of each.
+        let j = surface.jet(uv.x, uv.y);
+        acc.min(j.du.norm()).min(j.dv.norm())
     })
 }
 
