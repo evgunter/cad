@@ -74,7 +74,9 @@ use crate::appearance::{AppearanceLoss, AppearanceLossCause, AppearanceMap};
 use crate::diff::NodeChange;
 use crate::doc::Doc;
 use crate::eval::{Evaluation, NodeResult};
-use crate::names::{EntityKey, EntityKind, EntityRef, Entry, Qualifier, RoleSeg, StableName};
+use crate::names::{
+    EntityKey, EntityKind, EntityRef, Entry, Qualifier, RoleSeg, StableName, name_free_seg,
+};
 use crate::node::{RecipeNodeId, SlotId};
 use crate::program::ProfileProgram;
 use crate::witness::WitnessBifurcation;
@@ -903,8 +905,11 @@ pub fn rebind_suggestions<T: Decide>(eval: &Evaluation<T>, name: &StableName) ->
 /// Checked sites: the name-carrying payload of an `InsertNode`
 /// ([`crate::node::Node::payload_names`] — Declare pairs, a fillet's
 /// selection, a mate's two heads) and `Rebind`'s target. Every other
-/// edit validates exactly as [`crate::edit::apply`]. `Rebind`'s SOURCE
-/// is deliberately unchecked: it is the stranded name being repaired.
+/// edit validates exactly as [`crate::edit::apply`] — including the
+/// four appearance edits, which DO carry a name: theirs resolves at
+/// evaluation, into a typed [`crate::appearance::AppearanceLoss`].
+/// `Rebind`'s SOURCE is deliberately unchecked too: it is the
+/// stranded name being repaired.
 ///
 /// # Errors
 ///
@@ -918,10 +923,37 @@ pub fn apply_with_names<T: Decide>(
 ) -> Result<crate::edit::Applied<ProfileProgram>, crate::edit::EditError> {
     use crate::edit::{DocEdit, EditError};
     let mut names: Vec<&StableName> = Vec::new();
+    // EXHAUSTIVE on purpose (the `walk_names` rule): the three groups
+    // below are the doc's checked/unchecked split, and a future
+    // `DocEdit` variant must join one of them or the compile breaks.
+    // A wildcard here would enrol a new name-carrying edit in the
+    // unchecked group silently, which is the one outcome the split is
+    // there to prevent.
     match edit {
         DocEdit::InsertNode { node } => names.extend(node.payload_names()),
         DocEdit::Rebind { to, .. } => names.push(to),
-        _ => {}
+        // Name-carrying and deliberately unchecked here: an appearance
+        // name resolves at evaluation, where a miss is a typed
+        // `AppearanceLoss` rather than a silent drop, and clearing is
+        // the repair path for a name that no longer resolves at all.
+        // (`Rebind`'s `from` is the same carve-out, in the arm above:
+        // it is the stranded name being repaired.)
+        DocEdit::SetAppearance { .. }
+        | DocEdit::ClearAppearance { .. }
+        | DocEdit::SetAppearanceMeta { .. }
+        | DocEdit::ClearAppearanceMeta { .. } => {}
+        // Carry no `StableName` at all.
+        DocEdit::DeleteNode { .. }
+        | DocEdit::SetParam { .. }
+        | DocEdit::SetStructuralParam { .. }
+        | DocEdit::SetExpression { .. }
+        | DocEdit::SetDocParam { .. }
+        | DocEdit::ReWitness { .. }
+        | DocEdit::ReWitnessBulk { .. }
+        | DocEdit::SetTolerance { .. }
+        | DocEdit::SetRoots { .. }
+        | DocEdit::SetPlacement { .. }
+        | DocEdit::UpdateReference { .. } => {}
     }
     for name in names {
         // Checkable = the minting node evaluated Ok. (Node existence
@@ -964,8 +996,11 @@ enum Partners {
 /// in path order (operand names, seam pairs, merged constituents,
 /// pattern masters — and discriminator partners iff `partners` says
 /// so). The match is EXHAUSTIVE on purpose: a future [`RoleSeg`] or
-/// [`Qualifier`] variant embedding names must be classified here or
-/// the compile breaks (review Finding 7 — no fail-quiet wildcard).
+/// [`Qualifier`] variant embedding names must be
+/// classified here or the compile breaks — or, if it embeds no name,
+/// added to [`crate::names::name_free_seg`], which is the one place
+/// that answer is written for this and its two sibling matches.
+/// (Review Finding 7 — no fail-quiet wildcard.)
 fn walk_names<'a>(name: &'a StableName, partners: Partners, f: &mut impl FnMut(&'a StableName)) {
     fn visit<'a>(n: &'a StableName, partners: Partners, f: &mut impl FnMut(&'a StableName)) {
         f(n);
@@ -1044,24 +1079,7 @@ fn walk_names<'a>(name: &'a StableName, partners: Partners, f: &mut impl FnMut(&
                 }
                 Qualifier::OrderAlong { .. } => {}
             },
-            // Name-free segments (kept explicit — see the doc note).
-            RoleSeg::OutputBody
-            | RoleSeg::Cap(_)
-            | RoleSeg::Lateral(_)
-            | RoleSeg::RimEdge(..)
-            | RoleSeg::LateralEdge(_)
-            | RoleSeg::CapVertex(..)
-            | RoleSeg::Band(_)
-            | RoleSeg::BandRim(_)
-            | RoleSeg::BandRimPi(_)
-            | RoleSeg::BandPi(_)
-            | RoleSeg::Meridian(..)
-            | RoleSeg::MeridianVertex(..)
-            | RoleSeg::RevolveCap(_)
-            | RoleSeg::Pole(_)
-            | RoleSeg::AxisEdge(_)
-            | RoleSeg::SplitBody(_)
-            | RoleSeg::SectionFace { .. } => {}
+            name_free_seg!() => {}
         }
     }
 }
