@@ -57,7 +57,7 @@ pub use select::{NamePat, OpGroup, SegPat, SegTag, Selector, Side, TagPat, selec
 pub use table::{DuplicateName, EntityKey, EntityRef, Entry, NameTable};
 
 /// **Every edge name of a node's output body, as of THIS evaluation**
-/// — the materializer for a whole-body fillet selection (M6-5, the
+/// — the materializer for an every-edge fillet selection (M6-5, the
 /// F-a ruling).
 ///
 /// [`crate::Node::Fillet`] has no "all edges" variant on purpose: a

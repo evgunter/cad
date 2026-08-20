@@ -8,6 +8,18 @@
 //! stays one module hop away (`pncad::topo::…`), which keeps the
 //! glob import small enough to be honest about what it brings in.
 //!
+//! **What guards that, and what does not** (issue #667's Q6). SUFFICIENCY
+//! is guarded: `pncad/tests/all.rs` authors the whole ladder — profile,
+//! body, booleans, validate, mesh, export — through the prelude ALONE, so
+//! a name dropped from this list that a journey still needs fails to
+//! compile there. MINIMALITY is not. The corpus-frequency measurement
+//! that chose the cut ("what the corpus reaches for corpus-wide") was
+//! taken once, by hand, and nothing re-takes it: a nineteenth scene, or a
+//! name that quietly stopped being corpus-wide, moves the answer with
+//! nothing going red. That is unguarded rather than unguardable — a
+//! re-run of the import census would guard it — and it is recorded here
+//! rather than deferred silently.
+//!
 //! The shape of it follows the user journey the tour documents:
 //!
 //! 1. **Numbers and frames** — points, vectors, transforms,
@@ -90,7 +102,8 @@ pub use sweep::{
 // `geom_brep::SurfaceKind` rides here on purpose: it is the payload
 // of `BooleanError::CurvedBooleanUnsupported`, so any code that
 // matches on a curved-Boolean refusal needs it in the same breath as
-// the error itself (see `crate::closure`).
+// the error itself — the one-dependency contract's closure over
+// error payloads (crate docs, contract clause 1).
 pub use geom_brep::SurfaceKind;
 // `PlaneRelation` rides here because it is the verdict a
 // `FlushFinding`'s evidence carries (SameOpposite = resting contact,
