@@ -342,6 +342,17 @@ search, and **reported it**. That is the whole obligation — the fence is again
 reading and editing, not a tripwire, and an honest report costs nothing.
 Exclude it in your search commands rather than relying on not looking.
 
+**And check that your exclusion is the right syntax for the tool you are
+running.** A second lane put the exclusion in the command, as instructed, and
+still read the file: it used git-pathspec syntax — `:!path` — in a `grep -rn`.
+**`grep` does not know that syntax, does not error on it, and does not warn.**
+It silently excludes nothing, so the command *looks* fenced and is not. Use
+`--exclude=MODEL-AB-LOG.md` (or `--exclude-dir`) for `grep`, and `:!path` only
+where `git` is doing the matching. **An exclusion that fails open gives no
+feedback**, which makes it strictly worse than no exclusion — with none you
+know to be careful. Both lanes handled the aftermath correctly and neither
+breach cost anything; the syntax is what cost the second one.
+
 **3. Your branch and your lane.** Branch `smelle/<row>` (e.g. `smelle/d25`),
 off current `origin/main`. Use **your own** `CARGO_TARGET_DIR` — never one
 shared with another worktree, **and never one inside the session scratchpad.**
