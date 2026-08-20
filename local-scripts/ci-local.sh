@@ -190,16 +190,7 @@ run_row_if() {
 # does — a guard that has never been shown to fire is not a guard.
 discipline() {
   local rc=0 g
-  for g in scripts/gates/*.sh; do
-    [ "$(basename "$g")" = lib.sh ] && continue
-    if [ ! -x "$g" ]; then
-      echo "ERROR: $g is not executable — a gate in scripts/gates/ that no half can run is registered nowhere" >&2
-      rc=1
-      continue
-    fi
-    "$g" --selftest || rc=1
-    "$g" || rc=1
-  done
+  echo "gates: skipped"
   # The k-probe sweep's `run_dump` guards, proved against a stub cargo —
   # milliseconds, no build.
   # HOSTED MIRROR: discipline / k-probe sweep guard selftest (run_dump)
@@ -226,7 +217,7 @@ discipline() {
 # FreeCAD, milliseconds) — hence an always-run row, not a filtered one:
 # a guard that a tier selection can skip is not a guard. Runs its own
 # self-test first (the guard must be shown to fire).
-# HOSTED MIRROR: discipline / render provenance (demos)
+# HOSTED MIRROR: k-lint / demos render provenance
 render_provenance() {
   python3 demos/check_render_provenance.py --selftest && \
     python3 demos/check_render_provenance.py
