@@ -475,11 +475,10 @@ pub fn fold_pair<P>(
         else {
             continue;
         };
-        // v1 admits Rest and Tangent structurally; the class vocabulary
-        // is additive and the wildcard is where a later one arrives.
-        match class {
-            super::ContactClass::Rest | super::ContactClass::Tangent => {}
-            _ => return Err(Box::new(MateFault::ClassNotAdmitted { mate })),
+        // The class table is the policy (`super::class_admission`);
+        // this door enforces its own half of it and nothing more.
+        if super::class_admission(*class) == super::ClassAdmission::NotAdmitted {
+            return Err(Box::new(MateFault::ClassNotAdmitted { mate }));
         }
         let ha = head_of(doc, mate, MateSide::A, a).map_err(Box::new)?;
         let hb = head_of(doc, mate, MateSide::B, b).map_err(Box::new)?;

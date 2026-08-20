@@ -1370,14 +1370,27 @@ fn overlap_of_regions<T: Decide + Bounds>(
     }
 
     // The area margin: `over_lever(2A, P)` — the intersection
-    // region's MEAN WIDTH in metres (`2A/P` is the width of the
-    // constant-width strip with this area and boundary length; the
-    // `split_section_area` derivation verbatim, chart-space edition:
-    // `2A` IS the shoelace sum, so dividing by the full perimeter
-    // yields `2·|A|/P` for a CCW region). Positive certifies; an
-    // exact Zero or a definite Negative after the conservative ring
-    // deduction cannot certify EITHER direction (the region exists;
-    // only its hole-adjusted area is unresolved) and escalates typed.
+    // region's MEAN WIDTH in metres. The dimensional argument has one
+    // home, `Margin::over_lever`'s door: `2A/P` is the width of the
+    // constant-width strip with this area and boundary length.
+    // `net_2a` IS the shoelace sum, not half of it, so the divisor is
+    // the FULL perimeter.
+    //
+    // `split_section_area` asks the same question in 3-D through the
+    // same door, and that is where the sharing ends. The accumulator
+    // could be shared ONE way — embedding these `Point2`s as
+    // `(x, y, 0)` with `n̂ = ẑ` makes `a×b·n̂` reduce to `perp_dot`
+    // bit for bit — but not the other, which would need the in-plane
+    // basis the 3-D form exists to avoid. Past the accumulator
+    // nothing lines up: conic excess there against the conservative
+    // ring deduction here, `|2A|` there against a signed `net_2a`
+    // here (a ring deduction may legitimately drive this one
+    // negative), and one K row each.
+    //
+    // Positive certifies; an exact Zero or a definite Negative after
+    // the conservative ring deduction cannot certify EITHER direction
+    // (the region exists; only its hole-adjusted area is unresolved)
+    // and escalates typed.
     let area_margin = Margin::over_lever(net_2a, tot_p);
     match decide("chart_region_area", area_margin, band) {
         Ok(Sign::Positive) => Ok(ChartOverlap::PositiveArea),

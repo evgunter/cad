@@ -124,6 +124,9 @@ pub mod extrude;
 pub mod loft;
 pub mod revolve;
 pub mod skin;
+// The lowering the sweep verbs share (its own docs say what is in it
+// and what deliberately is not); crate-internal, so not `pub`.
+mod swept;
 // The gate is the module's own subject — see its docs for why
 // `cfg(test)` cannot serve and what each arm buys. `doc(hidden)`
 // because this repo's rustdoc gate runs `--all-features`, which turns
