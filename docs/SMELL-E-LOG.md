@@ -282,9 +282,12 @@ constituted.**
 | D44–D45 | E-b (D23) | reserved 2026-08-20 |
 | D47–D48 | E-c's fix pass (#752) | assigned 2026-08-20 — the `pncad-py` `Debug`-dump class and its unguarded rule; `select_refusal_tag`'s vacuous alarm |
 | D49–D50 | E-f's fix pass (#755) | assigned 2026-08-20 — the token-free half of the liveness block, alive in five more arenas; the `Live` unforgeability gate (**sequences after E-a**, which holds `scripts/gates/` and `ci.yml`) |
+| D46 | E-d (D33) | **used** — the 23 funnel predicate names the audit reaches under no reading |
+| D51 | E-d (D33) | assigned 2026-08-20 — `DESIGN.md:31` describes the audit's open findings as including two the audit itself has RETIRED |
+| D52–D53 | E-g (D27 + D29) | reserved 2026-08-20 |
 | D46 | E-d (D33) | reserved 2026-08-20 |
 
-Next unassigned: **D51**; D42 and D43 are back in the pool and deliberately not
+Next unassigned: **D54**; D42 and D43 are back in the pool and deliberately not
 re-issued — a number that has appeared in a lane's report, even as *unused*, is
 cheaper to skip than to explain.
 
@@ -311,15 +314,25 @@ serialized here and each lane re-merges `origin/main` when one lands.
 
 | lane | row(s) | branch | PR | state |
 |---|---|---|---|---|
-| **E-c** | D26 | `smelle/d26` | **#752** | **CLEARED**; fix pass running (8 findings, 2 → rows D47/D48). Merges first |
+| **E-c** | D26 | `smelle/d26` | **#752** | **MERGED 2026-08-20** — Track E's first landing |
 | **E-a** | D22 + D34 | `smelle/d22-d34` | — | implementing |
 | **E-f** | D25 | `smelle/d25` | **#755** | **CLEARED by both lanes**; combined fix pass running (3 must-fix, 2 → rows D49/D50). Merges after #752 |
 | **E-b** | D23 | `smelle/d23` | — | dispatched. **Fenced off `scripts/gates/probe-suite-census.sh` and `ci.yml`** while E-a holds them |
-| **E-d** | D33 | `smelle/d33` | — | dispatched |
+| **E-d** | D33 | `smelle/d33` | **#761** | reported, green, `clean`; **style review running**; D51 assigned for its `DESIGN.md` finding |
 
-Not yet dispatched: E-e and E-g are wave-1-eligible and held only by this
-container's build capacity. E-h waits on E-f, E-k on E-g and E-h, E-j on a
-Track C confirmation. E-i, E-l, E-m are wave 2; E-n is last.
+**E-g dispatched 2026-08-20** (`smelle/d27-d29`), D27 then D29 — one lane
+because both edit `sweep/src/fillet/`, and D27 first because its newtype may
+dissolve part of D29's surface. Its brief carries the four things #755 learned
+at cost about shipping an unforgeable token, so it does not re-learn them.
+
+Not yet dispatched: **E-e** is wave-1-eligible and held only by capacity. E-h
+waits on E-f (file overlap on `split.rs`, see E-R4), E-k on E-g and E-h, E-j on
+a Track C confirmation. E-i, E-l, E-m are wave 2; E-n is last.
+
+**Six rows are placed and unstaffed** and want lanes once capacity frees:
+D36–D39, D47, D48 (all E-c's), D46 and D51 (E-d's), D49 and D50 (E-f's). Two
+cheap groupings are already known: **D37(a) with D39** (one `PathError`
+discriminant serves both) and **D50 after E-a** (it needs `scripts/gates/`).
 
 ---
 
@@ -469,4 +482,35 @@ one finding recorded as certain.
 
 ## Landings
 
-*(none yet)*
+### #752 — D26 (E-c), merged 2026-08-20. **Track E's first.**
+
+S19's four unplaced rows are placed: **D36** (`UnsupportedCarrier`, three
+meanings in 22 sites, and the overload is load-bearing), **D38**
+(`SkippedMerge`, a door handing one of two incompatible contracts depending on
+a property of the input), **D39** (`ProgramRefusal::Geometry`, whose constraint
+has *not* moved). The fourth, `pncad-py/tags.rs`, was **refuted as stated** — a
+discriminant tag map is the right FFI shape and does not drop the payload — with
+**D37** placed for what survived it. Its review added **D47** and **D48**.
+
+**Three things this landing is the record of.**
+
+*A restatement is not a check.* D37's gate on D28 was inherited verbatim from
+D28's row and re-published as verified (*"the re-derivation confirms it from the
+other side"*). It was false. Now cut — and per E-R4 the row records the three
+mechanisms **checked and found absent** (no data dependency, no file overlap, no
+visibility problem), so the residual note cannot be deleted by disproving one
+story. What remains is an *answer* dependency, not a gate: what D28 makes the
+message say is an input to *"is the tag plus the message the whole surface?"*
+
+*A stated negative result is a claim.* The unit declared it had checked for
+closure factories bound to another name and found none. `pcurve_cache.rs` has
+two, fifteen lines from the sibling D36's whole argument rests on, with eight
+call sites. It cost D36 a count, now stated with both readings named.
+
+*The class check came back negative, and that is a result.* Asked to look for
+other "gated on" cells minted from another lane's prose, the lane read all 22
+live rows: 17 are "nothing", two are Track C handoffs, one is a pure file-overlap
+gate verifiable from the Scope cells, and exactly one other asserts a mechanism
+(D21→D25) — which it sampled and found re-derivable. **One instance, sound: not
+a class, and not worth a row.** A negative result reported in three sentences is
+worth more than a row nobody would have closed.
