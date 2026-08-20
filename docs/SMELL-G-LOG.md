@@ -360,6 +360,34 @@ longer supports*, invisible until someone stood in an environment the author
 did not have. It is local tooling and not a smell-scan row, so it is recorded
 here and nowhere else.
 
+### The same defect reached `main`, and the orchestrator merged it there
+
+**2026-08-20, ~one hour after the incident below, and this one is the
+orchestrator's.** #787's merge commit `6fe672b3` carried **two unresolved
+conflict-marker pairs** in `docs/SMELL-G-LOG.md` — the number-reservation table
+and the wave-1 roster — and **I merged it to `main` without checking.** The
+register was broken on `main` for roughly an hour. `docs/SMELL-SCAN-2026-08.md`
+was unaffected; no code file was.
+
+**Found by lane G-a**, resolving its own conflict against that `main` — the same
+lane that had hit the identical failure a round earlier and written it up. It
+repaired both pairs as part of its merge, and #786 landing is what fixed `main`.
+
+**Why the existing guard did not catch it.** The incident below made me scan
+`main`, this branch and every `docs/*.md`: all clean, and I said so. **That scan
+was a snapshot, and I then merged two PRs without repeating it.** A one-time
+sweep is not a guard — which is this scan's own thesis (S72, S110) applied to
+the orchestrator's own process, and it is the second time on this track that a
+rule I wrote for lanes bound me first (cf. **G-R9**, **G-R11**).
+
+**The rule, and it is now mechanical:** *before every merge, and again after,*
+`git grep -c -e '^<<<<<<< ' -e '^>>>>>>> ' origin/<branch>` over `docs/`,
+`crates/`, `.github/`, `scripts/`, `local-scripts/` and
+`interval-transcendentals/`. It costs one call. **CI cannot substitute**: a
+marker pair inside a Markdown ledger breaks no build, fails no gate, and every
+one of #787's 36 checks was green over it. That is the whole reason it reached
+`main`.
+
 ### A pipe swallowed a merge failure, and conflict markers reached the register
 
 **2026-08-20, lane G-a, self-reported and self-fixed** (`385c9c10`, before its
