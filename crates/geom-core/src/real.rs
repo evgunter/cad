@@ -378,17 +378,43 @@ pub trait Real:
 /// (`topo::separation` — LIB-PLACEDUNION's placement certificate —
 /// falls under this same 2026-07-29 amendment rather than a new one:
 /// it is a certified box constructor beside its invariants plus a
-/// query driver over the C10 tree, decides no topology, and its boxes
-/// only ever refuse. It is on the CI allowlist for that reason.)
+/// query driver over the C10 tree, and decides no topology. It is on
+/// the CI allowlist for that reason.)
+///
+/// **Correction (2026-08-19, D1's adversarial review).** That entry used
+/// to end *"and its boxes only ever refuse"*. That is the wrong
+/// direction and it matters now that `Dual: Bounds`. `Separation::of`,
+/// `Separation::certify` and `image` are `T: Decide + Bounds` with **no**
+/// [`CertifiedEnclosure`], and box NON-overlap is precisely a GRANT:
+/// `certify`'s own doc says *"`Ok(())` is the certificate"*, and
+/// `topo::graft_disjoint_all_keyed` asserts nothing about its operands
+/// (#382), so nothing downstream re-checks it. The door is instantiable
+/// at `Dual64` and at `Dual<Interval>` — verified by compilation.
+///
+/// It is nonetheless **sound at a dual, on a different justification**:
+/// delegation. Every box endpoint a dual produces is its value channel's,
+/// which is the plain-`T` run's bit-identically (D9), so a dual run's
+/// certificate is the base scalar's certificate — the `f64` run's at
+/// `Dual<f64>`, the `Interval` run's at `Dual<Interval>`. No wrong
+/// certificate exists. Whether `separation` should nonetheless carry
+/// [`CertifiedEnclosure`] is a **#643-completeness** question, not D1's,
+/// and is deliberately left open here rather than answered in passing.
 ///
 /// **Ratified extension (M5 PR 11, Evan's lane-split ruling):**
 /// `topo::props`'s certified-quadrature plumbing joins the compound
 /// allowlist. The quadrature lane simultaneously decides (its
 /// `props_quad_*` funnel margins) and reads brackets into the C9 ring
 /// (certification substrate), so `T: Decide + Bounds` is its honest
-/// signature; the split from bracket-free scalars (duals) is STATIC —
+/// signature; the split from NON-CERTIFYING scalars (duals) is STATIC —
 /// `topo::props::PropsQuadLane`'s explicit per-scalar impls are the
 /// only entry, and the dual impl instantiates none of it.
+/// (Written before #643 and before D1 as "the split from bracket-free
+/// scalars". Since the **D1 ruling** of 2026-08-19 a dual is not
+/// bracket-free: it carries the value channel's bracket. What it may
+/// not do is certify. The split therefore stands on two things now, not
+/// one — `PropsQuadLane` at the API, and, since #643, the
+/// `quad_lane::*` signatures' own third term [`CertifiedEnclosure`],
+/// which no `Dual` implements.)
 ///
 /// **Extension (M5 PR 12, ORCHESTRATOR ruling 2026-08-03, applying
 /// the PR 11 precedent; retroactive Evan review per the self-merge
@@ -406,18 +432,49 @@ pub trait Real:
 /// `f64` payload, which is a bracket read. So `T: Decide + Bounds` is
 /// its honest signature.
 ///
-/// What differs from PR 11 is only the SPLIT, and it differs because
-/// there is nothing to split: no dual-scalar path can reach this code.
-/// [`Bounds`] is implemented for `f64`, the interval scalar, and the
-/// telemetry probe — never for [`Dual`](crate::Dual), which has no
-/// bracket to offer — and the one production caller
-/// (`editor_core::eval`'s fillet wiring) already sits beneath an
-/// evaluation service whose own signature carries `Bounds` and which
-/// instantiates at `f64` and `Interval` only. A `PropsQuadLane`-style
-/// static lane split would therefore have had an EMPTY refusing side:
-/// a dual impl that refuses a call no dual scalar can make. The seam
-/// is ratified instead, and the day a dual lane wants fillets is the
-/// day the static split earns its keep.
+/// What differed from PR 11 was only the SPLIT, and it differed because
+/// there was nothing to split: no dual-scalar path could reach this
+/// code, since [`Bounds`] had no [`Dual`](crate::Dual) impl. A
+/// `PropsQuadLane`-style static lane split would therefore have had an
+/// EMPTY refusing side, so the seam was ratified instead.
+///
+/// **That guard is gone as of the D1 ruling (2026-08-19).** `Bounds` is
+/// now implemented for `Dual` over a bracket-carrying base scalar, so
+/// these signatures ARE satisfiable at a dual and the refusing side is
+/// no longer empty in principle. No **in-repo** caller reaches them at a
+/// dual today — the one production caller (`editor_core::eval`'s fillet
+/// wiring) sits beneath `evaluate<T>`, which additionally requires
+/// `editor_core::ContentBits`, and that has no `Dual` impl.
+///
+/// **That is a statement about this repo, not about the API.** This is an
+/// API-first kernel: `sweep::fillet::build::fillet_edges`,
+/// `battery::run_battery` and `surgery::ring_clearance` are `pub` in
+/// `pub mod`s of a library crate, so an external caller instantiates them
+/// at `Dual64` today — compiled from an outside crate and confirmed
+/// (2026-08-19 adversarial review). The `ContentBits` lock guards
+/// `editor_core::evaluate`; it guards nothing on the public surface.
+///
+/// So this is a **standing obligation, not a live hole** — and what makes
+/// it "not a live hole" is the AUDIT, not the reachability. All fourteen
+/// `Bounds` reads across `battery.rs`/`build.rs`/`surgery.rs` were
+/// enumerated (twice, independently): every predicate's `Ok`/`Err` comes
+/// from a `decide(...)` call, ten reads are typed-error payloads, and
+/// four are selections. Two of those four feed a classification or a
+/// mutation rather than sitting after one (`battery.rs:836` → `chain_g1`;
+/// `surgery.rs:1184` → `body.split_edge`), so their safety is
+/// **delegation** — at a dual each takes the value channel's branch,
+/// which is the base scalar's — and NOT the `sugar.rs` "choice among
+/// already-classified constructions" precedent, which does not reach
+/// them. Nothing mints a certificate object.
+///
+/// What is owed is a lane, or a written reason it needs none, and it is
+/// owed on the **public** surface rather than from the day E4 seeds a
+/// dual through `evaluate`. This seam is the one allowlisted
+/// `Decide + Bounds` seam with no lane to refuse on. Recorded here rather
+/// than in a lane's notes because this paragraph is what a reader
+/// consults; `scripts/gates/bounds-allowlist.sh` and S44's D1 block point
+/// at it rather than restating it. The full enumeration lives in PR
+/// #682's body.
 ///
 /// **Extension (M6-2, authorized by `docs/M6-2-SPEC.md` §2 under the
 /// PR 11/PR 12 precedent; retroactive Evan review per the self-merge
@@ -469,13 +526,24 @@ pub trait Real:
 /// gate (a `Harmonic` trig channel is straight only when its bracket
 /// is a point at exactly `0.0`; the `props.rs` rectangle-trim read)
 /// plus the bit-identical-region fast path — so `T: Decide + Bounds`
-/// is its honest signature; a sole-bound form is unsatisfiable. No
-/// dual path exists to split TODAY: [`Dual`](crate::Dual) implements
-/// no `Bounds`, so the predicate is simply uninstantiable at dual
-/// scalars, and its first `Decide`-generic consumer (the M9-2 PR-2
-/// census arms) owes the `PropsQuadLane`-shape static lane with a
-/// refusing dual impl — stated here so the obligation is on the
-/// record before the consumer lands.
+/// is its honest signature; a sole-bound form is unsatisfiable. When
+/// this was ratified no dual path existed to split, because
+/// [`Dual`](crate::Dual) implemented no `Bounds` and the predicate was
+/// uninstantiable at dual scalars; the obligation stated here was that
+/// its first `Decide`-generic consumer would owe a `PropsQuadLane`-shape
+/// static lane with a refusing dual impl. **That obligation was
+/// discharged** — `ChartRegionLane`'s refusing `Dual` impl is the lane.
+/// Since the D1 ruling (2026-08-19) `Bounds` IS implemented for `Dual`,
+/// so the predicate is satisfiable at a dual, and the lane is now the
+/// whole guard **on the census path** — which is the honest scope of the
+/// claim, not "nothing else keeps a dual out". `chart_region_overlap` is
+/// `pub` and re-exported from `topo`'s root, and its own bound is
+/// `Decide + Bounds` with no [`CertifiedEnclosure`]; an external caller
+/// may therefore instantiate it at a dual and the lane never sees the
+/// call. That is the one thing this seam does not share with the other
+/// three (`props::quad_lane`, `pcurve_cache::fitted_lane`,
+/// `edge_nurbs::lane`), whose signatures carry `CertifiedEnclosure` and
+/// stay uninstantiable at a dual with or without their lanes.
 ///
 /// **Not an extension — a spelling.** The pair
 /// `Bounds + CertifiedEnclosure` — both bracket doors, no `Decide` — is
@@ -550,11 +618,19 @@ impl Bounds for f64 {
 /// bracket readers, no arithmetic obligation at all. Every `Bounds`
 /// implementor gets it by blanket impl (so `f64` and the interval scalar
 /// are covered without a line of change), and the ring implements it
-/// directly. Certification helpers — the spline hull bounds in
-/// [`crate::spline::hull`] are the first — take `T: Enclosure` and work
-/// for all three: an `f64` coefficient is a degenerate bracket, an
-/// interval-scalar coefficient is the replayed enclosure, a ring
-/// coefficient is the certification arithmetic's own.
+/// directly. A helper that only needs to READ a bracket takes
+/// `T: Enclosure` and works for all three: an `f64` coefficient is a
+/// degenerate bracket, an interval-scalar coefficient is the replayed
+/// enclosure, a ring coefficient is the certification arithmetic's own.
+///
+/// **Not "certification helpers", which is what this said before #643 —
+/// and the word matters more since D1 (2026-08-19).** `Enclosure` is a
+/// bracket accessor; the certification door is [`CertifiedEnclosure`].
+/// The spline hull bounds in [`crate::spline::hull`], cited here as the
+/// first `Enclosure` consumer, moved to [`CertifiedEnclosure`] at #643,
+/// and no `Enclosure`-bounded signature remains in `crates/*/src`. See
+/// the blanket impl below for why that is worth saying: a `Dual` is an
+/// `Enclosure` now, and nothing gates a new `T: Enclosure` bound.
 ///
 /// # Semantics
 ///
@@ -580,8 +656,22 @@ pub trait Enclosure: Copy {
 }
 
 /// Every [`Bounds`] scalar is an [`Enclosure`] — the one-line seam that
-/// keeps `f64` and the interval scalar usable by certification helpers
-/// written against the smaller trait.
+/// keeps `f64` and the interval scalar usable by helpers written against
+/// the smaller trait.
+///
+/// **This blanket impl means [`Dual`](crate::Dual) is an `Enclosure` too,
+/// since the D1 ruling of 2026-08-19 gave it [`Bounds`].** Said out loud
+/// because the sentence above used to read *"usable by CERTIFICATION
+/// helpers"*, and post-#643 that is the wrong word for this trait:
+/// `Enclosure` is a bracket accessor, and the certification door is
+/// [`CertifiedEnclosure`]. Nothing in `crates/*/src` is
+/// `Enclosure`-bounded today (`spline::hull` moved to
+/// [`CertifiedEnclosure`] at #643), so this is not a live hole — but it
+/// is not gated either: `scripts/gates/bounds-allowlist.sh` greps for
+/// `Bounds`, not for `Enclosure`. **A new `T: Enclosure` bound on
+/// anything that certifies would be a hole, and no CI row would say so.**
+/// Whether it should be gated is issue **#701**; it may well not need to
+/// be, but nobody has decided.
 impl<T: Bounds> Enclosure for T {
     fn lo(self) -> f64 {
         Bounds::lo(self)
@@ -639,10 +729,15 @@ impl<T: Bounds> Enclosure for T {
 ///   and no decorations: poison is NaN endpoints, which
 ///   `RingInterval::from_bounds` already rejects.
 ///
-/// **[`crate::Dual`] is deliberately absent**, as it is from [`Bounds`].
-/// Nothing in `src` needs a dual in certified code, and leaving the impl
-/// unwritten keeps *whether a dual may certify* an open question to be
-/// settled on its own evidence rather than one answered in passing here.
+/// **[`crate::Dual`] is deliberately absent, and that absence is now the
+/// ruling rather than a deferral.** Evan settled it as Wave 0 decision
+/// **D1** of `docs/SMELL-SCAN-2026-08.md` (2026-08-19): *a `Dual` may not
+/// certify — at least for now — but it may have [`Bounds`].* So `Dual`
+/// implements [`Bounds`] and does **not** implement this trait, and this
+/// trait is what holds the line: it is the only door between a dual and
+/// certified code. *At least for now* is the ruling's own hedge — the
+/// door is shut, not nailed shut, and reopening it is a decision with a
+/// name rather than an impl someone can add in passing.
 pub trait CertifiedEnclosure: Copy {
     /// The bracket, or `None` if this value carries a domain violation.
     ///

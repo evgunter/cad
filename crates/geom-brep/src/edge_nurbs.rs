@@ -55,9 +55,10 @@
 //! expressed as [`EdgeNurbsLane`] in the ratified
 //! [`crate::PcurveFittedLane`] / `topo::props::PropsQuadLane` shape:
 //! certified impls for `f64`, the telemetry probe and the interval
-//! scalar, a **refusing** impl for `geom_core::Dual` (a dual number is
-//! a value and a derivative, not an enclosure), and `Bounds` kept out
-//! of `topo`'s signatures.
+//! scalar, a **refusing** impl for `geom_core::Dual` (which may not
+//! certify — D1, 2026-08-19; it carries the value channel's bracket
+//! and that is not the right to mint a C9-ring bound), and `Bounds`
+//! kept out of `topo`'s signatures.
 
 use geom_core::{Band, Bounds, Decide, Indeterminate, Point2, Real, Vec3};
 use geom_curves::{NurbsCurve2, NurbsCurve3};
@@ -95,8 +96,9 @@ pub struct PlaneNurbsLimbs<T: Real> {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum PlaneNurbsRefusal {
     /// This scalar has no certified lane ([`EdgeNurbsLane`]'s refusing
-    /// side): no bracket, so the C9 ring the hull bounds live in
-    /// cannot be reached from it at all.
+    /// side): it may not certify, so the C9 ring the hull bounds live
+    /// in is not reachable from it (D1, 2026-08-19 — a dual carries a
+    /// bracket but not the right to certify with it).
     LaneUnsupported {
         /// The scalar lane, named.
         scalar: &'static str,
@@ -166,7 +168,9 @@ impl core::fmt::Display for PlaneNurbsRefusal {
             Self::LaneUnsupported { scalar } => write!(
                 f,
                 "the plane × NURBS edge lane has no certified derivation at the {scalar} \
-                 scalar (no bracket, so the exact-arithmetic ring the hull bounds live in is unreachable)"
+                 scalar (it may not certify, so the exact-arithmetic ring the hull bounds live in \
+                 is out of reach — replay the body at f64, the telemetry probe, or the interval \
+                 scalar)"
             ),
             Self::FootPointInconclusive {
                 sample,
