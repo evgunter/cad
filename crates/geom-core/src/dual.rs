@@ -734,93 +734,76 @@ where
 /// Wave 0 decision **D1** of `docs/SMELL-SCAN-2026-08.md`, ruled by Evan
 /// 2026-08-19: *a `Dual` may not certify — at least for now — but it may
 /// have [`Bounds`].* The two halves are separable only because #643
-/// (W1c/S41) split them into two traits; this impl takes the first and
-/// leaves the second alone.
+/// (W1c/S41) split them into two traits; this takes the first and leaves
+/// the second alone.
 ///
 /// # The definition is read off an existing contract
 ///
-/// Since #643, [`Bounds`] asks exactly one question: *what bracket does
-/// this value carry?* — a `[lo, hi]` containing every real the value
-/// stands for. The module contract above already answers it for a dual,
-/// and answers it exactly: the value channel is computed with `T`'s own
-/// operations, in the written association, so the value channel of a
-/// `Dual<T>` build **is** the plain-`T` build, bit-identically (D9's dual
-/// contract). Whatever brackets the plain-`T` run therefore brackets the
-/// dual run's value, with nothing to re-establish per operation. That is
-/// why this **delegates** rather than restating a bracket: at
-/// `T = f64` it is the degenerate `lo = hi = value` that `f64` already
-/// offers, and at `T = Interval` it is the value enclosure's own
-/// endpoints. Poison surfaces as NaN from both accessors for the same
-/// reason — the base scalar's accessors do, and this inherits their
-/// convention instead of re-implementing it.
+/// Since #643, [`Bounds`] asks one question: *what bracket does this
+/// value carry?* The module contract above already answers it — the value
+/// channel of a `Dual<T>` build **is** the plain-`T` build, bit-identically
+/// (D9's dual contract) — so whatever brackets the plain run brackets the
+/// dual run's value, with nothing to re-establish per operation. Hence
+/// **delegation** rather than a restated bracket: the degenerate
+/// `lo = hi = value` at `T = f64`, the value enclosure's own endpoints at
+/// `T = Interval`, and poison surfacing as NaN from both accessors because
+/// the base scalar's accessors do.
 ///
 /// # Why the tangent is excluded — an EXTENSION of E9, not a reading of it
 ///
-/// Stated as an extension deliberately, because the earlier draft of this
-/// paragraph called it *"also ratified, not chosen"* and that overclaims.
-/// `docs/ERROR-DESIGN.md` **E9** (*tangent poison never refuses*) is
-/// scoped to **leaf refusal**: "refusal is decided solely by
-/// value-channel predicates and W-certificates". It says nothing about
-/// [`Bounds::lo`]/[`Bounds::hi`], which did not exist for a dual when it
-/// was written. Dressing an extension by analogy as a settled contract is
-/// exactly the shape S44 exists to complain about, and this is the PR
-/// that closes S44's decision.
+/// Labelled an extension deliberately. `docs/ERROR-DESIGN.md` **E9**
+/// (*tangent poison never refuses*) is scoped to **leaf refusal** —
+/// "refusal is decided solely by value-channel predicates and
+/// W-certificates" — and says nothing about [`Bounds::lo`]/[`Bounds::hi`],
+/// which did not exist for a dual when it was written. Calling that a
+/// ratification would be the exact move S44 exists to complain about.
 ///
-/// The extension, then, and the argument for it. E9's principle is that
-/// the derivative channel must never make the value channel's verdict
-/// worse. Hulling the tangent into `[lo, hi]` would do precisely that — a
-/// NaN or unbounded tangent, which E4 expects at a kink and `copysign`'s
-/// straddle rule mints deliberately, would poison a bracket the value
-/// channel is entitled to, and every `Decide + Bounds` seam that refuses
-/// on a bracket would then refuse a dual run its `f64` run passes. That
-/// is E9's failure mode reached through a different accessor, so the same
-/// answer is the consistent one. [`Decide`] for `Dual` already settled
+/// The extension: E9's principle is that the derivative channel must never
+/// make the value channel's verdict worse. Hulling the tangent into
+/// `[lo, hi]` does precisely that — a NaN or unbounded tangent, which E4
+/// expects at a kink and `copysign`'s straddle rule mints deliberately,
+/// would poison a bracket the value channel is entitled to, and every
+/// `Decide + Bounds` seam that refuses on a bracket would then refuse a
+/// dual run its `f64` run passes. Same failure mode, different accessor,
+/// so the same answer is the consistent one. [`Decide`] for `Dual` settled
 /// the identical question by value-part delegation (Q1 residue, PR
-/// #9/#10), and `is_poison` is value-only for the same reason; a
-/// tangent-reading `Bounds` would be the one accessor out of three that
-/// disagrees. The derivative stays where it is read: the public fields, a
-/// driver/harvest activity under the same L7 scope as [`Bounds`] itself.
+/// #9/#10) and `is_poison` is value-only; a tangent-reading `Bounds` would
+/// be the one accessor of three that disagrees. The derivative stays where
+/// it is read: the public fields, under the same L7 scope as [`Bounds`].
 ///
-/// **What this costs, said out loud because E4 will otherwise rediscover
-/// it.** E9 pairs "never refuses" with a **forfeiture** half — a degraded
-/// tangent forfeits its uses, and affected `per_param`/`rss` entries
-/// report `UnavailableBecause` (E5). `Bounds` carries **no signal at all**
-/// that the tangent is degraded: `lo()` and `hi()` are the value
-/// channel's whether the tangent is `1.0` or NaN, and nothing downstream
-/// of a bracket can tell the difference. That is intended — a bracket is
-/// not the derivative channel's reporting surface — but it means E4's
-/// forfeiture reporting has to read the tangent through the public fields
-/// itself. It cannot be recovered from a bracket after the fact.
+/// **The cost, said out loud because E4 would otherwise rediscover it.**
+/// E9 pairs "never refuses" with a **forfeiture** half (`per_param`/`rss`
+/// entries report `UnavailableBecause`, E5). `Bounds` carries **no signal**
+/// that the tangent is degraded — `lo()`/`hi()` are the value channel's
+/// whether the tangent is `1.0` or NaN. Intended, but it means E4 must
+/// read the tangent through the public fields; degradation cannot be
+/// recovered from a bracket after the fact.
 ///
 /// # This grants no certification right
 ///
-/// [`crate::CertifiedEnclosure`] is deliberately unimplemented for
-/// `Dual`, and this impl does not change that. The doors that mint C9-ring
-/// certificates are bounded by it and stay uninstantiable at a dual. What
-/// opens is the bracket half: boxes and pruning, the `f64` margin payloads
-/// a typed refusal reports — and `topo::separation`'s placement
-/// certificate, which grants on a `Decide + Bounds` bound with no
-/// `CertifiedEnclosure` and is sound at a dual by delegation rather than
-/// by that guard. See `real.rs`'s `Bounds` scope rule for both.
+/// [`crate::CertifiedEnclosure`] is deliberately unimplemented for `Dual`
+/// and this impl does not change that: every C9-ring door is bounded by it
+/// and stays uninstantiable at a dual. What opens is the bracket half —
+/// boxes, pruning, and the `f64` margin payloads a typed refusal reports.
+/// One `Decide + Bounds` door *grants* without that guard
+/// (`topo::separation`, sound at a dual by delegation); the scope rule in
+/// `real.rs` is the home for both that and the fillet seam's obligation.
 ///
 /// # On the spelling
 ///
-/// The obligation is stated as `Self: Real` (the supertrait, which for a
-/// dual means `T: KinkJacobian`) plus a **sole** `Bounds` on the base
-/// scalar, rather than the file's usual `T: X + KinkJacobian` shape. It
-/// says the same thing and says it more directly — a dual brackets iff it
-/// is a `Real` over a bracket-carrying scalar.
+/// `Self: Real` (the supertrait, which for a dual means
+/// `T: KinkJacobian`) plus a **sole** `Bounds` on the base scalar, rather
+/// than the file's usual `T: X + KinkJacobian`. It says the obligation
+/// directly: a dual brackets iff it is a `Real` over a bracket-carrying
+/// scalar.
 ///
-/// It is also, in the equivalent spelling `T: Bounds + KinkJacobian`, a
-/// compound bound in a file `scripts/gates/bounds-allowlist.sh` does not
-/// allowlist, and written that way the gate **fires** (verified by
-/// planting it; the gate's self-test now pins that). So this is not
-/// "satisfied by construction rather than by an allowlist entry", as an
-/// earlier draft claimed — it is satisfied by the RULE, whose subject is a
-/// parameter that DECIDES and has also been handed bracket extraction, and
-/// `KinkJacobian` is neither an evaluation nor a decision parameter. The
-/// spelling is declared sanctioned in the gate's header, so a second use
-/// of it to dodge the grep is a violation rather than a precedent.
+/// It is **not** thereby "satisfied by construction": in the equivalent
+/// spelling `T: Bounds + KinkJacobian` this fires
+/// `scripts/gates/bounds-allowlist.sh`, which does not allowlist this
+/// file. It is satisfied by the RULE, not by the grep. That is written up
+/// once, in the gate's header (KNOWN GAP 2), which declares this the
+/// sanctioned spelling of this one impl and pins the evasion with a
+/// self-test case.
 impl<T> Bounds for Dual<T>
 where
     Self: Real,
