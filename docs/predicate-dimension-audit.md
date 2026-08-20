@@ -168,7 +168,7 @@ all stored surface axes/normals/`u_ref` unit; `implicit_residual` is
 | props/curved.rs:430 | props_meridian_apex | apex-line distance | m | OK |
 | props/curved.rs:487/488 | props_cone_nappe | slant levels (m) bare | m | OK |
 | props/curved.rs:576/598/695/706/728 | sphere/torus meridian checks | lengths / sin×R / cos×minor | m | OK |
-| props/curved.rs:777 | props_rim_level | rooted (sin,cos) chord × minor | m | OK (note N1) |
+| props/curved.rs (`require_rims_at_extremes`) | props_rim_level | per-kind: bare level difference (cylinder/cone `Length`) / rooted (sin,cos) chord × arm (sphere ×R, torus ×minor) | m | OK (note N1; generalised from the torus-only site to all four kinds by S56/#649 — one predicate, metering still carried by [`RimLevel`]) |
 | props/quad.rs:453 | props_quad_converged | ε·F − flux-width(m³)/(3·area(m²)) | m | OK |
 | props/quad.rs:461 | props_quad_face_extent | area/perimeter (mean width) | m | OK |
 | ssi.rs:645 | ssi_cs_tangency | radius/axis distance differences | m | OK |

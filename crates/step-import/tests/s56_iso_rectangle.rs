@@ -21,7 +21,7 @@
 //!   shared cylindrical surface; merging them is what builds the plus.
 //!
 //! The fixtures are #649's own, committed here with their generator
-//! (`fixtures/isorect/gen_isorect.py`). `rect.step` is the CONTROL —
+//! (`fixtures/iso-rect/gen_iso_rect.py`). `rect.step` is the CONTROL —
 //! the same annular sector with no arms — and it must still import and
 //! still measure EXACTLY, so a rule that refused everything could not
 //! make this suite green.
@@ -31,7 +31,7 @@ use step_import::{ImportOptions, StepImport, import_step};
 
 fn fixture(name: &str) -> String {
     let path = format!(
-        "{}/tests/fixtures/isorect/{name}",
+        "{}/tests/fixtures/iso-rect/{name}",
         env!("CARGO_MANIFEST_DIR")
     );
     std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("reading {path}: {e}"))
@@ -144,7 +144,7 @@ fn merge_coplanar_faces_no_longer_turns_an_exact_body_into_a_wrong_one() {
         Ok(mp) => panic!(
             "AFTER merge the body still measured: {:.15e} (exact {exact:.15e}, pad {:.3e}) \
              — #649's second door is open again",
-            mp.volume, exact, mp.volume_pad
+            mp.volume, mp.volume_pad
         ),
     }
 }

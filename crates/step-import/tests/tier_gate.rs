@@ -16,7 +16,7 @@
 //! see [`eps_in_rows_for`] for what that costs and what it buys:
 //!
 //! * **the disposition** — solid, wireframe, or a typed refusal with
-//!   its reason. 51 of the 54 files hold ONE disposition across the
+//!   its reason. 59 of the 62 files hold ONE disposition across the
 //!   whole matrix, and that constancy is the claim. The three that do
 //!   not are marked `EpsSensitive` and pinned cell by cell in
 //!   [`EPS_ROWS`], each cell carrying the live signature of the
@@ -57,6 +57,14 @@
 //! corpus; the one body class the gate newly refuses is the
 //! rational-walled loft, which has no committed fixture and whose row
 //! lives in `nurbs_import.rs`.
+//!
+//! **S56 / #649 (2026-08-19) moved two rows, deliberately.**
+//! `iso-rect/cross.step` and `iso-rect/tee.step` are valid, manifold,
+//! closed solids that USED to pass this gate and then measure 19% low
+//! with `pad = 0.0`; the one iso-rectangle predicate now refuses them
+//! here. That is a body class the gate newly refuses on purpose, and
+//! `iso-rect/rect.step` / `iso-rect/xsplit.step` beside them are the
+//! controls that keep it from being a blanket refusal.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::path::{Path, PathBuf};
@@ -214,6 +222,13 @@ const RATIONAL_FLUX_STALL: &str = "the certified quadrature enclosure stalled at
 const LADDER_NO_DESCRIPTION: &str = "edge #389: no intensional description certifies";
 const NIST09: &str = "tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp";
 
+/// The S56 iso-rectangle predicate, by name: *every rim sits at one of
+/// the face's two extreme `v`-levels*. Naming the PREDICATE rather than
+/// the shared "shared at-rest validation gate" preamble is what lets
+/// these rows see a regression that re-widens the rule, as opposed to
+/// one that merely moves the refusal somewhere else.
+const ISO_RECTANGLE_PREDICATE: &str = "props_rim_level";
+
 /// The seam carrier's residual is DECIDEDLY outside the band.
 const SEAM_HALFPLANE_DEFINITE: &str =
     "SeamHalfplane residual at sample 0 definitely exceeds the tolerance band";
@@ -236,7 +251,7 @@ const ENDPOINT_START_MAPPED_CURVE: &str = "mapped curve: geometry attachment gat
 /// Every committed STEP file, with the disposition measured at M7-7.
 /// Paths are relative to this crate's manifest directory (the `../`
 /// rows are `step-export`'s corpus, which this crate imports from).
-const CORPUS: [(&str, Disposition); 58] = [
+const CORPUS: [(&str, Disposition); 62] = [
     ("tests/fixtures/band/band_a.stp", Pass(1, 1, 2, 6, 4)),
     ("tests/fixtures/band/band_a180.stp", Pass(1, 1, 2, 6, 4)),
     ("tests/fixtures/band/band_b180.stp", Pass(1, 1, 2, 6, 4)),
@@ -291,6 +306,30 @@ const CORPUS: [(&str, Disposition); 58] = [
     (
         "tests/fixtures/freecad/twobody_importexport.step",
         Pass(2, 2, 8, 14, 10),
+    ),
+    // -- tests/fixtures/iso-rect/ (S56 / #649) ------------------------
+    // #649's own fixtures, committed with the fix. The two plus-domain
+    // solids are geometrically VALID — manifold, closed, χ = 2 — and
+    // they used to import and then MEASURE: 19% low with `pad = 0.0`,
+    // a certificate of exactness on a wrong number, this gate green.
+    // They now refuse HERE, naming the one iso-rectangle predicate.
+    // `rect` is the control (a genuine iso-rectangle of the same Δu and
+    // v extent) and `xsplit` is the same solid as `cross` authored with
+    // rectangular sub-faces; both keep passing, and
+    // `s56_iso_rectangle.rs` holds them to their EXACT volumes and runs
+    // `merge_coplanar_faces` on `xsplit` — #649's second door.
+    (
+        "tests/fixtures/iso-rect/cross.step",
+        Refused(ISO_RECTANGLE_PREDICATE),
+    ),
+    ("tests/fixtures/iso-rect/rect.step", Pass(1, 1, 6, 12, 8)),
+    (
+        "tests/fixtures/iso-rect/tee.step",
+        Refused(ISO_RECTANGLE_PREDICATE),
+    ),
+    (
+        "tests/fixtures/iso-rect/xsplit.step",
+        Pass(1, 1, 18, 40, 24),
     ),
     // #653's import route: one D-prism, stated four ways. The two
     // `split_*` files state the cylindrical face's vertical boundary as

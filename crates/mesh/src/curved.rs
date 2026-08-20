@@ -384,6 +384,17 @@ fn entries_off_bbox(
 /// happens to need the same rectangle. Both can move without a line
 /// changing in `mesh`; this cannot.
 ///
+/// **S56 named that shared property** — `geom_brep::props`'
+/// `props_rim_level`, *every rim at one of the face's two extreme
+/// `v`-levels* — and the coincidence above is no longer one: `props`
+/// and this lane are testing the same thing, from rim structure and
+/// from the walked UV polygon respectively. The check here still earns
+/// its place, because it also answers a SECOND question `props` cannot
+/// (*did the walk produce a consistent polygon* — #653's ulp wobble,
+/// which is why the bar is spatial); folding the first question into a
+/// call on the face-level predicate is the open follow-up, not this
+/// unit.
+///
 /// **With one qualification `mesh` now owes itself.**
 /// `walk::iso_side_starts` (#653) is a line IN `mesh` that can defeat
 /// this check, because it collapses consecutive same-kind traversals
