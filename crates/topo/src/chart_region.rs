@@ -88,8 +88,8 @@
 //! walk on, exact zeros take their stated branch, the in-band residue
 //! escalates typed.
 
+use geom::Surface;
 use geom_core::{Band, Bounds, Decide, Indeterminate, Margin, Point2, Sign, Vec2};
-use geom_surfaces::Surface;
 
 use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, LoopKey};
@@ -1825,8 +1825,8 @@ mod tests {
 
     use crate::euler::{FaceSurface, MefSite, MevSite};
     use crate::source::GeomSource;
+    use geom::Curve3;
     use geom_brep::{EdgeCurveSpec, EdgeGeometry};
-    use geom_curves::Curve3;
 
     /// The shared test plane: chart u = x, v = y (u_ref = x̂, normal =
     /// ẑ ⇒ v_ref = ẑ × x̂ = ŷ).

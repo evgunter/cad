@@ -267,7 +267,7 @@ fn edge_is_line<T: Real>(body: &Body<T>, ek: crate::entity::EdgeKey) -> bool {
         .and_then(|e| body.curves.get(e.curve))
         .and_then(CurveGeom::certified)
         .map(geom_brep::EdgeCurve::carrier)
-        .is_some_and(|c| matches!(c, geom_curves::Curve3::Line { .. }))
+        .is_some_and(|c| matches!(c, geom::Curve3::Line { .. }))
 }
 
 fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
@@ -317,7 +317,7 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
         std::collections::BTreeMap::new();
     for (key, face) in body.faces.iter() {
         let plane = match body.surfaces.get(face.surface) {
-            Some(&geom_surfaces::Surface::Plane { origin, normal, .. }) => Some((origin, normal)),
+            Some(&geom::Surface::Plane { origin, normal, .. }) => Some((origin, normal)),
             _ => {
                 curved_faces.push(key);
                 None
@@ -1367,7 +1367,7 @@ fn sweep_cross_solid_backstop<T: Decide>(
         // battery refuses it first) — excluded from the backstop.
         if matches!(
             body.get_face(f).and_then(|d| body.surfaces.get(d.surface)),
-            Some(geom_surfaces::Surface::Nurbs(p)) if p.is_placeholder()
+            Some(geom::Surface::Nurbs(p)) if p.is_placeholder()
         ) {
             continue;
         }
@@ -1839,8 +1839,8 @@ mod tests {
     use crate::boolean::PatchContact;
     use crate::entity::FaceKey;
     use crate::euler::{FaceSurface, MefSite, MevSite};
+    use geom::Surface;
     use geom_core::Vec3;
-    use geom_surfaces::Surface;
 
     fn band() -> Band {
         Band::new(1e-9, 1e-8).unwrap()
@@ -1870,8 +1870,8 @@ mod tests {
         z1: f64,
         sense: bool,
     ) -> (FaceKey, crate::geometry::SurfaceKey) {
+        use geom::Curve3;
         use geom_brep::{EdgeCurveSpec, EdgeGeometry};
-        use geom_curves::Curve3;
         let (p00, p10, p11, p01) = (
             cyl_pt(u0, z0),
             cyl_pt(u1, z0),

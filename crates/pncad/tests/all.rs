@@ -115,19 +115,19 @@ fn split_join_payload(e: &pncad::topo::SplitJoinError) {
     }
 }
 
-// geom_brep::SectionError carries geom_curves::EllipseInvalid.
+// geom_brep::SectionError carries geom::EllipseInvalid.
 fn section_payload(e: &pncad::geom_brep::SectionError) {
     if let pncad::geom_brep::SectionError::Carrier(inner) = e {
-        named::<&pncad::geom_curves::EllipseInvalid>(inner);
+        named::<&pncad::geom::EllipseInvalid>(inner);
     }
 }
 
-// sweep::SkinError carries geom_curves::FitError and — the first of
+// sweep::SkinError carries geom::FitError and — the first of
 // the three payloads that are NOT at their owning crate's root —
 // geom_core::spline::KnotAlgebraError.
 fn skin_payload(e: &pncad::sweep::SkinError) {
     match e {
-        pncad::sweep::SkinError::Fit(inner) => named::<&pncad::geom_curves::FitError>(inner),
+        pncad::sweep::SkinError::Fit(inner) => named::<&pncad::geom::FitError>(inner),
         pncad::sweep::SkinError::KnotAlgebra(inner) => {
             named::<&pncad::geom_core::spline::KnotAlgebraError>(inner);
         }
@@ -138,17 +138,17 @@ fn skin_payload(e: &pncad::sweep::SkinError) {
     }
 }
 
-// geom_curves::FitError carries the other buried one,
+// geom::FitError carries the other buried one,
 // geom_core::linalg::lsq::LsqError.
-fn fit_payload(e: &pncad::geom_curves::FitError) {
+fn fit_payload(e: &pncad::geom::FitError) {
     match e {
-        pncad::geom_curves::FitError::Lsq(inner) => {
+        pncad::geom::FitError::Lsq(inner) => {
             named::<&pncad::geom_core::linalg::lsq::LsqError>(inner);
         }
-        pncad::geom_curves::FitError::KnotAlgebra(inner) => {
+        pncad::geom::FitError::KnotAlgebra(inner) => {
             named::<&pncad::geom_core::spline::KnotAlgebraError>(inner);
         }
-        pncad::geom_curves::FitError::Structure(inner) => {
+        pncad::geom::FitError::Structure(inner) => {
             named::<&pncad::geom_core::SplineError>(inner);
         }
         _ => {}
@@ -212,8 +212,8 @@ fn contain_payload(e: &pncad::topo::boolean::ContainError) {
 
 // Defined directly in its crate's root module with no `pub use` line,
 // which is why a re-export-driven scan walked past it.
-fn ellipse_payload(e: &pncad::geom_curves::EllipseInvalid) {
-    if let pncad::geom_curves::EllipseInvalid::Escalated(inner) = e {
+fn ellipse_payload(e: &pncad::geom::EllipseInvalid) {
+    if let pncad::geom::EllipseInvalid::Escalated(inner) = e {
         named::<&pncad::geom_core::Indeterminate>(inner);
     }
 }
@@ -230,7 +230,7 @@ fn adoption_payload(a: &pncad::step_import::AdoptionAttempt) {
 // none).
 fn mesh_validate_and_surface_projection_are_nameable() {
     named::<Option<&pncad::mesh::validate::MeshError>>(None);
-    named::<Option<&pncad::geom_surfaces::SurfaceProjectionInconclusive>>(None);
+    named::<Option<&pncad::geom::SurfaceProjectionInconclusive>>(None);
 }
 
 // ---------------------------------------------------------------
@@ -264,14 +264,14 @@ fn cross_crate_error_payloads_are_nameable_through_the_facade() {
     named(split_join_payload as fn(&pncad::topo::SplitJoinError));
     named(section_payload as fn(&pncad::geom_brep::SectionError));
     named(skin_payload as fn(&pncad::sweep::SkinError));
-    named(fit_payload as fn(&pncad::geom_curves::FitError));
+    named(fit_payload as fn(&pncad::geom::FitError));
     named(node_error_payload as fn(&pncad::document::NodeErrorKind));
     named(duplicate_name_payload as fn(&pncad::select::DuplicateName));
     named(tessellate_payload as fn(&TessellateError));
     named(step_export_payload as fn(&StepExportError));
     named(step_import_payload as fn(&StepImportError));
     named(contain_payload as fn(&pncad::topo::boolean::ContainError));
-    named(ellipse_payload as fn(&pncad::geom_curves::EllipseInvalid));
+    named(ellipse_payload as fn(&pncad::geom::EllipseInvalid));
     named(adoption_payload as fn(&pncad::step_import::AdoptionAttempt));
     mesh_validate_and_surface_projection_are_nameable();
 }
@@ -460,13 +460,12 @@ fn this_file_reaches_the_kernel_only_through_pncad() {
     let src = code_without_comments(include_str!("all.rs"));
     let src: &str = &src;
     // The re-exported crates, plus the one deliberately left interior.
-    const KERNEL: [&str; 13] = [
+    const KERNEL: [&str; 12] = [
         "bvh",
         "editor_core",
+        "geom",
         "geom_brep",
         "geom_core",
-        "geom_curves",
-        "geom_surfaces",
         "mesh",
         "profile",
         "step_export",

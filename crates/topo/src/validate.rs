@@ -238,9 +238,9 @@
 
 use core::fmt;
 
+use geom::Surface;
 use geom_brep::{CertifyError, DihedralClass, classify_dihedral};
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Real, Sign};
-use geom_surfaces::Surface;
 use slotmap::{Key, SecondaryMap};
 
 use crate::body::{Body, Walk};
@@ -2143,7 +2143,7 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
                     .and_then(|hd| body.get_edge(hd.edge))
                     .and_then(|e| body.get_curve_geom(e.curve))
                     .and_then(crate::null::CurveGeom::certified)
-                    .is_some_and(|c| matches!(c.carrier(), geom_curves::Curve3::Line { .. }))
+                    .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Line { .. }))
             });
             if !all_lines {
                 continue;

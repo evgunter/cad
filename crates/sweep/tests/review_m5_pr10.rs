@@ -11,10 +11,10 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom::NurbsCurve3;
 use geom_brep::SketchSegment;
 use geom_core::spline::KnotVector;
 use geom_core::{Affine3, Band, Point2, Point3};
-use geom_curves::NurbsCurve3;
 use profile::RawLoop;
 use sweep::skin::{SkinError, make_compatible, segment_curve, skin_on, skin_parameters};
 
@@ -390,7 +390,7 @@ fn review_open_chains_are_unrepresentable_and_close_by_construction() {
 /// counts.
 #[test]
 fn review_ragged_column_rows_get_a_shaped_refusal() {
-    use geom_curves::fit::{FitError, interpolate_columns};
+    use geom::curves::fit::{FitError, interpolate_columns};
     let rows = vec![vec![0.0, 0.0], vec![1.0, 0.0], vec![2.0]];
     match interpolate_columns(&[0.0, 0.5, 1.0], 2, &rows) {
         Err(FitError::RaggedRows {

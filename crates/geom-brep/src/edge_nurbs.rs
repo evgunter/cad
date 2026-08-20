@@ -25,7 +25,7 @@
 //!   linearized implicit residual at the fixed schedule plus its
 //!   certified composite hull sup over the whole span.
 //! * **on-NURBS residual**: `|C(t) − S(u*, v*)|` at a **certified foot
-//!   point** ([`geom_surfaces::NurbsSurface::project`], D9-fixed),
+//!   point** ([`geom::NurbsSurface::project`], D9-fixed),
 //!   the foot's own orthogonality residuals banded alongside, and the
 //!   between-samples obligation discharged by the tensor-product
 //!   Bernstein composite `sup_t |S(P(t)) − C(t)|` — a whole-curve
@@ -59,9 +59,9 @@
 //! a value and a derivative, not an enclosure), and `Bounds` kept out
 //! of `topo`'s signatures.
 
+use geom::{NurbsCurve2, NurbsCurve3};
+use geom::{NurbsSurface, Surface};
 use geom_core::{Band, Bounds, Decide, Indeterminate, Point2, Real, Vec3};
-use geom_curves::{NurbsCurve2, NurbsCurve3};
-use geom_surfaces::{NurbsSurface, Surface};
 
 use crate::certify::CERT_SAMPLES;
 use crate::ssi::{SsiError, SsiLimb, SsiOperand, certify_rung3};

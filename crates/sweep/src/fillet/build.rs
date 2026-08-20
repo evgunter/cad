@@ -112,10 +112,10 @@
 //! extended to sphere faces), not in the body. The assembly does not
 //! pretend otherwise: it neither gates on it nor asserts tier 3.
 
+use geom::Curve3;
+use geom::Surface;
 use geom_brep::{EdgeCurveSpec, EdgeGeometry};
 use geom_core::{Band, Bounds, Decide, Point3, Real, Vec3};
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
 use topo::{
     Body, EdgeKey, FaceKey, FaceSurface, HalfEdgeKey, LoopBoundary, MefSite, MevSite, ShellKey,
     SolidKey, VertexKey,

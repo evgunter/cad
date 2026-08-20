@@ -33,8 +33,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom::NurbsCurve3;
 use geom_core::{Affine3, Mat3, Point3, Vec3};
-use geom_curves::NurbsCurve3;
 use sweep::sweep_body;
 
 mod common;

@@ -45,8 +45,8 @@
 
 use std::collections::HashMap;
 
+use geom::Surface;
 use geom_core::Point3;
-use geom_surfaces::Surface;
 use spade::{ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulation};
 use topo::{Body, EdgeKey, FaceKey};
 

@@ -4,8 +4,8 @@
 //! byte-identity dump.
 #![allow(dead_code)] // each test binary uses a subset
 
+use geom::Surface;
 use geom_core::{Point2, Point3, Tolerance, Vec2};
-use geom_surfaces::Surface;
 use mesh::validate::{check_mesh, signed_volume};
 use mesh::{Mesh, tessellate};
 use profile::RawLoop;

@@ -98,9 +98,9 @@
 
 use std::collections::BTreeMap;
 
+use geom::Curve3;
+use geom::Surface;
 use geom_core::{Point3, Vec3};
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
 
 use crate::entities::{EdgeSpec, EdgeUse, FaceSpec, LoopSpec, SolidSpec};
 use crate::error::StepImportError;

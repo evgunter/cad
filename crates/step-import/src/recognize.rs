@@ -74,8 +74,8 @@
 //! face with an ill-conditioned estimator stays NURBS, exactly like a
 //! refuted one.
 
+use geom::{NurbsSurface, Surface};
 use geom_core::{Point3, Vec3};
-use geom_surfaces::{NurbsSurface, Surface};
 
 pub(crate) use crate::PromotedKind;
 

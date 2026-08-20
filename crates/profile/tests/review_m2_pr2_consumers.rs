@@ -17,8 +17,8 @@
 mod common;
 
 use common::{profile, rounded_rect, tol};
+use geom::Curve3;
 use geom_core::{Point2, Point3, Vec3};
-use geom_curves::Curve3;
 use profile::{LoopRole, Profile, SegmentKind, SketchPlane};
 
 fn close3(p: Point3<f64>, q: Point3<f64>, tol: f64) -> bool {

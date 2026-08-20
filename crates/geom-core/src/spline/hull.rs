@@ -35,7 +35,7 @@
 //! nonnegative. The hull of the control values is then a bound on the
 //! rational curve too, with no extra arithmetic. The precondition is a
 //! type invariant upstream (`SplineError::NonPositiveWeight`,
-//! `spline::algebra`, `geom_curves::nurbs`), but the rational entry
+//! `spline::algebra`, `geom::curves::nurbs`), but the rational entry
 //! points here **re-check it on the span's weights** rather than trust
 //! a slice handed in by a caller: the check is three `f64` comparisons
 //! on structure, and the alternative is an unsound bound.

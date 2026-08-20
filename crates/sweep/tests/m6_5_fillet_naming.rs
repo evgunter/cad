@@ -13,8 +13,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
+use geom::Surface;
 use geom_core::{Affine3, Band, Point2, Point3, Tolerance, Vec2, Vec3};
-use geom_surfaces::Surface;
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::fillet::build::fillet_edges;

@@ -11,8 +11,8 @@
 //! kernel's own certification gates when the edge is adopted — a wrong
 //! derivation cannot survive to rest.
 
+use geom::Curve3;
 use geom_core::{Point3, Real, Vec3};
-use geom_curves::Curve3;
 
 use crate::error::StepImportError;
 

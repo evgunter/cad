@@ -29,9 +29,9 @@
 //! [`super::FilletError::SpineUnsupported`], which names that banked
 //! unit as the front door that does not exist yet.
 
+use geom::Curve3;
+use geom::Surface;
 use geom_core::{Point3, Real, Vec3};
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
 
 /// A blend surface with its spine and its per-support trimlines —
 /// the complete analytic answer for one link of a chain.

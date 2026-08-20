@@ -47,8 +47,8 @@
 //! permits brute force here and nothing in the contract changes when
 //! the pruning does.
 
+use geom::{NurbsSurface, Surface};
 use geom_core::{Point3, RingInterval, Vec3};
-use geom_surfaces::{NurbsSurface, Surface};
 
 use super::SsiError;
 use super::enclose::{Box3, NurbsBoxes, implicit_enclosure};

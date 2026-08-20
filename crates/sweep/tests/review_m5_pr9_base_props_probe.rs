@@ -28,7 +28,7 @@ fn symmetric_double_rim_split_volume_at_base() {
         .find(|(_, f)| {
             matches!(
                 body.get_surface(f.surface),
-                Some(geom_surfaces::Surface::Cylinder { .. })
+                Some(geom::Surface::Cylinder { .. })
             )
         })
         .map(|(k, _)| k)
@@ -38,7 +38,7 @@ fn symmetric_double_rim_split_volume_at_base() {
         let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
             continue;
         };
-        if !matches!(c.carrier(), geom_curves::Curve3::Circle { .. }) {
+        if !matches!(c.carrier(), geom::Curve3::Circle { .. }) {
             continue;
         }
         let on_wall = [e.he_plus, e.he_minus].iter().any(|&he| {

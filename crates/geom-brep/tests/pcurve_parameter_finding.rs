@@ -29,10 +29,10 @@
 
 use core::f64::consts::PI;
 
+use geom::Curve3;
+use geom::Surface;
 use geom_brep::{ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane};
 use geom_core::{Point3, Vec3};
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
 
 /// The corpus shape (i) configuration: radius 0.5 m disc, tilt 0.3 rad.
 const R: f64 = 0.5;
@@ -72,7 +72,7 @@ fn section_plane() -> Surface<f64> {
 /// only correspondence a stored cache could offer without storing a
 /// second (peer) reparameterization.
 fn schedule_gap(
-    curve: &geom_curves::NurbsCurve2<f64>,
+    curve: &geom::NurbsCurve2<f64>,
     surface: &Surface<f64>,
     carrier: &Curve3<f64>,
     t0: f64,

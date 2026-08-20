@@ -41,15 +41,15 @@
 //!   its neighbours in the same `pub use` line are. A root-level scan
 //!   walks straight past it. It carries a cross-crate
 //!   `geom_core::Indeterminate`: exactly the audited class.
-//! - `geom_curves::EllipseInvalid` **\[2\]** — defined directly in its
+//! - `geom::EllipseInvalid` **\[2\]** — defined directly in its
 //!   crate's root module with no `pub use` line at all, so a scan
 //!   driven by re-export statements never sees it. Also carries
 //!   `geom_core::Indeterminate`.
 //! - `mesh::validate::MeshError` **\[2\]** — lives below the crate root;
 //!   `mesh::MeshError` does not resolve.
-//! - `geom_surfaces::SurfaceProjectionInconclusive` **\[2\]** — the
-//!   first pass recorded "geom_surfaces defines no error type", which
-//!   was simply wrong.
+//! - `geom::SurfaceProjectionInconclusive` **\[2\]** — the
+//!   first pass recorded that the surface half defines no error type,
+//!   which was simply wrong.
 //! - `geom_core::Indeterminate`, `geom_core::ToleranceEnvErrorKind`,
 //!   `step_import::{AdoptionAttempt, AdoptionCandidate}`,
 //!   `editor_core::ResolutionFailure`,
@@ -73,9 +73,9 @@
 //!   `ToleranceEnvError`, `ToleranceEnvErrorKind` **\[2\]**,
 //!   `Indeterminate` **\[2\]**, `spline::KnotAlgebraError`,
 //!   `spline::ComposeError`, `linalg::lsq::LsqError`
-//! - `geom_curves`: `FitError`, `ProjectionInconclusive`,
-//!   `EllipseInvalid` **\[2\]**
-//! - `geom_surfaces`: `SurfaceProjectionInconclusive` **\[2\]**
+//! - `geom`: `FitError`, `ProjectionInconclusive`,
+//!   `EllipseInvalid` **\[2\]**, `SurfaceProjectionInconclusive`
+//!   **\[2\]**
 //! - `profile`: `ProfileError`
 //! - `mesh`: `TessellateError`, `validate::MeshError` **\[2\]**
 //! - `stl`: `StlError`

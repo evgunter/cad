@@ -16,7 +16,7 @@
 //!   linearized implicit residual, through `ssi_on_locus`;
 //! - **NURBS operand**: no implicit form exists, so the residual is
 //!   `|C(t) − S(u*, v*)|` at a **certified foot point** from
-//!   `geom_surfaces::projection` — and the projection's own
+//!   `geom::surfaces::projection` — and the projection's own
 //!   orthogonality residual is banded too (`ssi_foot_orthogonality`,
 //!   normalized by the chart speed so the margin is in meters). That
 //!   second band is what stops a bad projection laundering a bad cache
@@ -106,13 +106,13 @@
 //! constructing op from the cache this schedule sees. S2 stays
 //! discharged; nothing about the witness contract moves at rung 3.
 
+use geom::{NurbsCurve2, NurbsCurve3};
+use geom::{NurbsSurface, Surface};
 use geom_core::spline::compose::{self, CurveRingData, ImplicitSurface, tensor};
 use geom_core::spline::hull;
 use geom_core::{
     Band, Bounds, CertifiedEnclosure, Decide, Margin, Point3, Real, RingInterval, Sign, Vec3,
 };
-use geom_curves::{NurbsCurve2, NurbsCurve3};
-use geom_surfaces::{NurbsSurface, Surface};
 
 use crate::certify::CERT_SAMPLES;
 use crate::dihedral::decide;
@@ -886,10 +886,10 @@ mod tests {
     #[cfg(feature = "interval")]
     #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
     mod normal_crossing_tests {
+        use geom::NurbsCurve2;
+        use geom::NurbsSurface;
         use geom_core::spline::KnotVector;
         use geom_core::{Interval, Point2, Point3, Real, Vec3};
-        use geom_curves::NurbsCurve2;
-        use geom_surfaces::NurbsSurface;
 
         use super::super::probe_tube_chart;
 

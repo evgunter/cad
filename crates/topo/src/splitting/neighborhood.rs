@@ -103,10 +103,10 @@ pub(super) fn sector_face<T: Decide>(
         .ok_or(SplitReduceError::CorruptOperand { vertex })?;
     let sense = face.sense;
     match body.get_surface(face.surface) {
-        Some(geom_surfaces::Surface::Plane { normal, .. }) => {
+        Some(geom::Surface::Plane { normal, .. }) => {
             Ok((face_key, OutwardNormal::from_chart(*normal, sense), true))
         }
-        Some(geom_surfaces::Surface::Cylinder { origin, axis, .. }) => {
+        Some(geom::Surface::Cylinder { origin, axis, .. }) => {
             let p = *body
                 .get_point(
                     body.get_vertex(vertex)
@@ -167,10 +167,10 @@ fn chord<T: Decide>(
         .and_then(crate::null::CurveGeom::certified)
         .ok_or_else(corrupt)?;
     match curve.carrier() {
-        geom_curves::Curve3::Line { .. } | geom_curves::Curve3::Nurbs(_) => {
+        geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => {
             Ok((final_vertex, p_final - p_base, None))
         }
-        geom_curves::Curve3::Circle { .. } | geom_curves::Curve3::Ellipse { .. } => {
+        geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
             let (t0, t1) = curve.params();
             // The base-endpoint jet: outgoing tangent, plus the raw
             // second derivative and squared speed for the C12.2

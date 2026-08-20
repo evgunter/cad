@@ -151,12 +151,12 @@
 
 use std::sync::Arc;
 
+use geom::Surface;
+use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
 use geom_core::spline::{KnotVector, SpanLocate};
 use geom_core::{Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec2, Vec3};
-use geom_curves::{Curve3, NurbsCurve2, NurbsCurve3};
-use geom_surfaces::Surface;
 
 use crate::certify::CERT_SAMPLES;
 use crate::ssi::{SsiCertificate, SsiLimb, SsiOperand};
@@ -177,7 +177,7 @@ use crate::ssi::{SsiCertificate, SsiLimb, SsiOperand};
 /// SSI trace produces **on the carrier's own parameter**, by
 /// construction rather than by coincidence (the ℝ⁴ trace yields the
 /// 3-D curve and both pcurves as projections of one parameterized
-/// object, and `geom_curves::NurbsCurve2::interpolate_with_params` fits
+/// object, and `geom::NurbsCurve2::interpolate_with_params` fits
 /// them on the carrier's chord parameters — the OQ4 identity). It has
 /// no closed form on either side of the comparison, so its
 /// between-samples obligation is discharged by the **C2.2 control-hull
@@ -2195,7 +2195,7 @@ fn chart_arms_at<T: Real>(
 /// structure; a zero divisor (a fully collapsed support) contributes
 /// nothing, per the standard convention. Callers gate rationality —
 /// with weights ≠ 1 this formula does not bound the true derivative.
-fn nurbs_stretch_bounds<T: Real>(s: &geom_surfaces::NurbsSurface<T>) -> (T, T) {
+fn nurbs_stretch_bounds<T: Real>(s: &geom::NurbsSurface<T>) -> (T, T) {
     let (nu, nv) = s.control_counts();
     // **The rational factor** (M8-3). The control-difference bounds
     // below are POLYNOMIAL convexity facts. For a rational patch the

@@ -393,7 +393,7 @@ fn merge_coplanar_declared_vs_numeric() {
     let coplanar_keys: Vec<_> = same_source
         .faces()
         .filter_map(|(_, f)| match same_source.get_surface(f.surface) {
-            Some(geom_surfaces::Surface::Plane { origin, normal, .. })
+            Some(geom::Surface::Plane { origin, normal, .. })
                 if origin.z == 1.0 && normal.z == 1.0 =>
             {
                 Some(f.surface)
@@ -423,7 +423,7 @@ fn merge_coplanar_declared_vs_numeric() {
     let pair: Vec<_> = declared
         .faces()
         .filter_map(|(_, f)| match declared.get_surface(f.surface) {
-            Some(geom_surfaces::Surface::Plane { origin, normal, .. })
+            Some(geom::Surface::Plane { origin, normal, .. })
                 if origin.z == 1.0 && normal.z == 1.0 =>
             {
                 Some(f.surface)
@@ -441,7 +441,7 @@ fn merge_coplanar_declared_vs_numeric() {
     // differs (another origin on the plane) — stays unmerged BY
     // DESIGN: coincidence is structural or declared, never inferred.
     let mut numeric = build(|_| {
-        FaceSurface::New(geom_surfaces::Surface::Plane {
+        FaceSurface::New(geom::Surface::Plane {
             origin: pt(0.25, 0.75, 1.0),
             normal: Point3::new(0.0, 0.0, 1.0) - Point3::new(0.0, 0.0, 0.0),
             u_ref: Point3::new(1.0, 0.0, 0.0) - Point3::new(0.0, 0.0, 0.0),

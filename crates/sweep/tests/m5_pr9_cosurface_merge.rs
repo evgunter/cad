@@ -38,7 +38,7 @@ fn wall_count(body: &Body<f64>) -> usize {
         .filter(|(_, f)| {
             matches!(
                 body.get_surface(f.surface),
-                Some(geom_surfaces::Surface::Cylinder { .. })
+                Some(geom::Surface::Cylinder { .. })
             )
         })
         .count()

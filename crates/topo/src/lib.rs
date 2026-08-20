@@ -23,7 +23,7 @@
 //! **M2 PR 3 — real geometry.** The M0 placeholder geometry retired:
 //! the curve arena holds certified `geom_brep::EdgeCurve`s (D2
 //! intensional description + carrier cache + certification record) and
-//! the surface arena holds `geom_surfaces::Surface`s. Edge-minting
+//! the surface arena holds `geom::Surface`s. Edge-minting
 //! operators take an uncertified `EdgeCurveSpec` and run the D4 ¶2
 //! certification gate before mutating (chord-line sugar:
 //! [`Body::mev_line`] / [`Body::mef_chord`] / [`Body::mekr_chord`] /
@@ -257,12 +257,12 @@ pub use euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
 // consumer of the ops needs no direct geom-* imports for the common
 // path (the full geometry vocabulary still lives in those crates).
 pub use chart_region::{ChartOverlap, ChartRegionError, ChartRegionLane, chart_region_overlap};
+pub use geom::Curve3;
+pub use geom::Surface;
 pub use geom_brep::{
     CertifyError, ChartWindow, EdgeCurve, EdgeCurveSpec, EdgeGeometry, EdgeNurbsLane, Pcurve,
     PcurveCache, PcurveCertifyError,
 };
-pub use geom_curves::Curve3;
-pub use geom_surfaces::Surface;
 pub use geometry::{CurveKey, PointKey, SurfaceKey};
 pub use instance::{
     GraftKeys, graft_disjoint, graft_disjoint_all, graft_disjoint_all_keyed,

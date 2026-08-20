@@ -37,9 +37,9 @@
 //! key live in `editor-core` and delegate here, so there is one
 //! reading of any given piece of geometry, not two.
 
+use geom::Curve3;
+use geom::Surface;
 use geom_core::{Point3, Real, Vec3};
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
 use profile::{SegmentKind, ValidatedLoop};
 use topo::{Body, EdgeKey, FaceKey, VertexKey};
 

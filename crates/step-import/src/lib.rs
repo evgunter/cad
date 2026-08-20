@@ -547,7 +547,7 @@ pub enum StepImport {
         /// carrier, not of what a body later does with it; a wireframe
         /// whose promotions were silent would be the one place in this
         /// crate where a description changed without being reported.
-        curves: Vec<geom_curves::Curve3<f64>>,
+        curves: Vec<geom::Curve3<f64>>,
         /// As [`StepImport::Solid::eps_in`].
         eps_in: f64,
         /// The curve promotions applied to `curves` (#327), by

@@ -68,7 +68,7 @@ use crate::body::Body;
 use crate::entity::{FaceKey, LoopBoundary};
 use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_loop};
 use crate::validate::decide;
-use geom_surfaces::Surface;
+use geom::Surface;
 
 /// The 16-member fixed direction schedule (shared table with
 /// `point_in_loop` — re-declared here to keep the module boundaries

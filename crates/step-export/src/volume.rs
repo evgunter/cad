@@ -68,9 +68,9 @@
 //! single-shell solids never reach this classifier at all (lib docs:
 //! tier-2 validity + the +V invariant own lone-shell orientation).
 
+use geom::Curve3;
+use geom::Surface;
 use geom_core::{Point3, Vec3};
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
 use topo::{Body, LoopBoundary, Shell, ShellKey};
 
 use crate::StepExportError;

@@ -23,8 +23,8 @@
 
 mod common;
 
+use geom::Surface;
 use geom_core::{Band, Point3, Vec3};
-use geom_surfaces::Surface;
 use topo::{
     Body, CensusContact, ContactRecords, TangentLocus, TangentLocusError, ValidationError,
     VvContact, tangent_locus, validate_pseudomanifold,

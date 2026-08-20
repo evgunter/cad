@@ -1492,7 +1492,7 @@ fn validate_declarations<T: Decide>(
             .get_face(f)
             .ok_or_else(|| bad(operand, "declared face key does not resolve"))?;
         match body.get_surface(face.surface) {
-            Some(geom_surfaces::Surface::Plane { .. }) => Ok(()),
+            Some(geom::Surface::Plane { .. }) => Ok(()),
             Some(_) => Err(bad(operand, "declared face is not a plane")),
             None => Err(bad(operand, "declared face lost its surface")),
         }

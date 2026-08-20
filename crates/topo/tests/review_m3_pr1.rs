@@ -785,7 +785,7 @@ fn annulus_top_cube() -> (common::GeoCube<f64>, topo::FaceKey, [topo::VertexKey;
     }
     // The center face gets a NUMERICALLY coplanar but descriptively
     // different plane (another on-plane origin) - the round-8 teeth.
-    let numeric_plane = geom_surfaces::Surface::Plane {
+    let numeric_plane = geom::Surface::Plane {
         origin: pt(0.5, 0.5, 1.0),
         normal: pt(0.0, 0.0, 1.0) - pt(0.0, 0.0, 0.0),
         u_ref: pt(1.0, 0.0, 0.0) - pt(0.0, 0.0, 0.0),
@@ -817,7 +817,7 @@ fn stamp_top_sources(body: &mut topo::Body<f64>) {
         pt(1.0, 1.0, 1.0),
         pt(0.0, 1.0, 1.0),
     ]);
-    let geom_surfaces::Surface::Plane {
+    let geom::Surface::Plane {
         origin: co,
         normal: cn,
         u_ref: cu,
@@ -829,7 +829,7 @@ fn stamp_top_sources(body: &mut topo::Body<f64>) {
     let keys: Vec<_> = body
         .surfaces()
         .filter_map(|(k, s)| match *s {
-            geom_surfaces::Surface::Plane {
+            geom::Surface::Plane {
                 origin: o,
                 normal: n,
                 u_ref: u,
@@ -929,51 +929,50 @@ fn merge_coplanar_annulus_makes_ring_and_spares_numeric_center() {
 /// merge (and the Debug channel must distinguish -0.0 from 0.0).
 #[test]
 fn merge_coplanar_uref_and_signed_zero_teeth() {
-    let diagonal_split =
-        |surface: fn(&geom_surfaces::Surface<f64>) -> geom_surfaces::Surface<f64>| {
-            let mut cube = geometric_cube::<f64>();
-            let top = cube.seed.face;
-            let (a1, c1) = (cube.mevs[3].vertex, cube.mevs[5].vertex);
-            let f = cube.body.get_face(top).unwrap();
-            let topo::LoopBoundary::Cycle { first } = cube.body.get_loop(f.outer).unwrap().boundary
-            else {
-                panic!("cycle");
-            };
-            let find = |body: &Body<f64>, v| {
-                body.loop_cycle(first)
-                    .unwrap()
-                    .into_iter()
-                    .find(|&he| body.get_half_edge(he).unwrap().start == v)
-                    .unwrap()
-            };
-            let (he1, he2) = (find(&cube.body, a1), find(&cube.body, c1));
-            let pa = *cube
-                .body
-                .get_point(cube.body.get_vertex(a1).unwrap().point)
-                .unwrap();
-            let pc = *cube
-                .body
-                .get_point(cube.body.get_vertex(c1).unwrap().point)
-                .unwrap();
-            let top_surface = cube
-                .body
-                .get_surface(cube.body.get_face(top).unwrap().surface)
-                .unwrap()
-                .clone();
-            let variant = surface(&top_surface);
-            cube.body
-                .mef(
-                    MefSite::Chords { he1, he2 },
-                    line(pa, pc),
-                    FaceSurface::New(variant),
-                )
-                .unwrap();
-            cube
+    let diagonal_split = |surface: fn(&geom::Surface<f64>) -> geom::Surface<f64>| {
+        let mut cube = geometric_cube::<f64>();
+        let top = cube.seed.face;
+        let (a1, c1) = (cube.mevs[3].vertex, cube.mevs[5].vertex);
+        let f = cube.body.get_face(top).unwrap();
+        let topo::LoopBoundary::Cycle { first } = cube.body.get_loop(f.outer).unwrap().boundary
+        else {
+            panic!("cycle");
         };
+        let find = |body: &Body<f64>, v| {
+            body.loop_cycle(first)
+                .unwrap()
+                .into_iter()
+                .find(|&he| body.get_half_edge(he).unwrap().start == v)
+                .unwrap()
+        };
+        let (he1, he2) = (find(&cube.body, a1), find(&cube.body, c1));
+        let pa = *cube
+            .body
+            .get_point(cube.body.get_vertex(a1).unwrap().point)
+            .unwrap();
+        let pc = *cube
+            .body
+            .get_point(cube.body.get_vertex(c1).unwrap().point)
+            .unwrap();
+        let top_surface = cube
+            .body
+            .get_surface(cube.body.get_face(top).unwrap().surface)
+            .unwrap()
+            .clone();
+        let variant = surface(&top_surface);
+        cube.body
+            .mef(
+                MefSite::Chords { he1, he2 },
+                line(pa, pc),
+                FaceSurface::New(variant),
+            )
+            .unwrap();
+        cube
+    };
     // Tooth 1: same origin and normal bits, u_ref swapped to another
     // in-plane direction - only the FRAME differs. Must stay unmerged.
     let mut uref = diagonal_split(|s| {
-        let geom_surfaces::Surface::Plane {
+        let geom::Surface::Plane {
             origin,
             normal,
             u_ref,
@@ -982,7 +981,7 @@ fn merge_coplanar_uref_and_signed_zero_teeth() {
             panic!("plane");
         };
         let swapped = geom_core::Vec3::new(-u_ref.y, u_ref.x, u_ref.z);
-        geom_surfaces::Surface::Plane {
+        geom::Surface::Plane {
             origin,
             normal,
             u_ref: swapped,
@@ -994,7 +993,7 @@ fn merge_coplanar_uref_and_signed_zero_teeth() {
     // numerically equal everywhere, one sign bit apart. Must stay
     // unmerged, proving the Debug channel is bit- (not value-) equality.
     let mut zero = diagonal_split(|s| {
-        let geom_surfaces::Surface::Plane {
+        let geom::Surface::Plane {
             origin,
             normal,
             u_ref,
@@ -1003,7 +1002,7 @@ fn merge_coplanar_uref_and_signed_zero_teeth() {
             panic!("plane");
         };
         assert_eq!(normal.x, 0.0, "test assumes a +z top normal");
-        geom_surfaces::Surface::Plane {
+        geom::Surface::Plane {
             origin,
             normal: geom_core::Vec3::new(-0.0, normal.y, normal.z),
             u_ref,
@@ -1079,7 +1078,7 @@ fn merge_coplanar_nan_payload_debug_collision() {
         .body
         .get_point(cube.body.get_vertex(c1).unwrap().point)
         .unwrap();
-    let nan_plane = |payload: u64| geom_surfaces::Surface::Plane {
+    let nan_plane = |payload: u64| geom::Surface::Plane {
         origin: pt(0.5, 0.5, 1.0),
         normal: geom_core::Vec3::new(f64::from_bits(payload), 0.0, 1.0),
         u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),

@@ -6,11 +6,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom::{NurbsSurface, Surface};
 use geom_brep::ssi::{self, SsiDomain, SsiError, SsiOperand};
 use geom_core::spline::KnotVector;
 use geom_core::spline::compose::ComposeError;
 use geom_core::{Band, Point3, Tolerance, Vec3};
-use geom_surfaces::{NurbsSurface, Surface};
 
 fn eps() -> f64 {
     Tolerance::get().eps
@@ -279,9 +279,8 @@ fn deviation1_and_3_domain_mismatch_refuses_typed_with_the_recourse() {
         };
     let knots: Vec<f64> = pb.knots().knots().iter().map(|k| k * 2.0).collect();
     let stretched = KnotVector::clamped(knots, pb.knots().degree()).unwrap();
-    let bad =
-        geom_curves::NurbsCurve2::new(stretched, pb.control().to_vec(), pb.weights().to_vec())
-            .expect("structure fine");
+    let bad = geom::NurbsCurve2::new(stretched, pb.control().to_vec(), pb.weights().to_vec())
+        .expect("structure fine");
     let err = ssi::certify_rung3(
         &carrier,
         Some(&bad),

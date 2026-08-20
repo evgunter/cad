@@ -127,8 +127,8 @@ pub(super) fn build_sectors<T: Decide>(
             .and_then(crate::null::CurveGeom::certified)
             .ok_or_else(|| corrupt(operand, vertex))?;
         match curve.carrier() {
-            geom_curves::Curve3::Line { .. } | geom_curves::Curve3::Nurbs(_) => Ok(p_end - p_base),
-            geom_curves::Curve3::Circle { .. } | geom_curves::Curve3::Ellipse { .. } => {
+            geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => Ok(p_end - p_base),
+            geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
                 let (t0, t1) = curve.params();
                 let tangent = if he == edge.he_plus {
                     curve.carrier().deriv(t0)
@@ -260,12 +260,12 @@ pub(super) fn sector_face<T: Decide>(
         .get_surface(face_data.surface)
         .ok_or_else(|| corrupt(operand, vertex))?;
     match surface {
-        geom_surfaces::Surface::Cylinder { origin, axis, .. } => {
+        geom::Surface::Cylinder { origin, axis, .. } => {
             let w = p - *origin;
             let radial = w - *axis * w.dot(*axis);
             Ok((face, OutwardNormal::from_chart(radial.normalize(), sense)))
         }
-        geom_surfaces::Surface::Sphere { center, .. } => Ok((
+        geom::Surface::Sphere { center, .. } => Ok((
             face,
             OutwardNormal::from_chart((p - *center).normalize(), sense),
         )),

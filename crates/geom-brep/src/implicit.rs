@@ -56,8 +56,8 @@
 //! apex: near the apex every feature is tiny and angular classification
 //! honestly escalates).
 
+use geom::Surface;
 use geom_core::{Point3, Real, Vec3};
-use geom_surfaces::Surface;
 
 /// The scalar's poison value (NaN at `f64`, NaI at the interval scalar).
 fn poison<T: Real>() -> T {

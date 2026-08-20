@@ -39,8 +39,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod common;
 
+use geom::Surface;
 use geom_core::{Point2, Point3, Tolerance, Vec3};
-use geom_surfaces::Surface;
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
 use sweep::{Revolution, RevolveAxis, revolve};

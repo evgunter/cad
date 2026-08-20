@@ -32,13 +32,13 @@
 #![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom::Surface;
+use geom::{Curve3, NurbsCurve3};
 use geom_brep::keys::SurfaceKey;
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeGeometry};
 use geom_core::k_stats::{self, Probe, SampleOutcome};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, MarginDiag, Point3, Sign, Tolerance, Vec3};
-use geom_curves::{Curve3, NurbsCurve3};
-use geom_surfaces::Surface;
 use slotmap::SlotMap;
 
 fn band() -> Band {

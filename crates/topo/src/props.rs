@@ -24,10 +24,10 @@
 
 use core::fmt;
 
+use geom::Surface;
 use geom_brep::props::quad::FaceCutBounds;
 use geom_brep::props::{FaceContribution, LoopEdge, PropsError, curved_face, planar_face};
 use geom_core::{Band, BandError, Decide, Real};
-use geom_surfaces::Surface;
 
 use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
@@ -221,7 +221,7 @@ fn mass_properties_impl<T: Decide>(
                 let is_trimmed = outer.iter().any(|e| {
                     matches!(
                         e.carrier,
-                        geom_curves::Curve3::Ellipse { .. } | geom_curves::Curve3::Nurbs(_)
+                        geom::Curve3::Ellipse { .. } | geom::Curve3::Nurbs(_)
                     )
                 });
                 // A described NURBS face ALWAYS takes the quadrature
@@ -448,9 +448,9 @@ mod quad_lane {
     // this module is the certified lanes' plumbing and never
     // instantiates for duals — the split is enforced by
     // [`super::PropsQuadLane`]'s explicit impls.
+    use geom::Curve3;
+    use geom::Surface;
     use geom_core::{Band, Bounds, CertifiedEnclosure, Decide, Point3, Tolerance};
-    use geom_curves::Curve3;
-    use geom_surfaces::Surface;
 
     use crate::body::Body;
     use crate::entity::HalfEdgeKey;
@@ -631,7 +631,7 @@ mod quad_lane {
     /// cylinder lane; no sense bit is read.
     fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
         body: &Body<T>,
-        payload: &std::sync::Arc<geom_surfaces::NurbsSurface<T>>,
+        payload: &std::sync::Arc<geom::NurbsSurface<T>>,
         outer: &[LoopEdge<T>],
         hes: &[HalfEdgeKey],
         band: Band,
@@ -701,8 +701,8 @@ mod quad_lane {
             }
             // Metric boundary length bound + the map-residual defect.
             let len = match &le.carrier {
-                geom_curves::Curve3::Line { dir, .. } => (br(dir.norm()) * br(t1 - t0)).mag(),
-                geom_curves::Curve3::Nurbs(c) => {
+                geom::Curve3::Line { dir, .. } => (br(dir.norm()) * br(t1 - t0)).mag(),
+                geom::Curve3::Nurbs(c) => {
                     let mut l = RingInterval::zero();
                     for w in c.control().windows(2) {
                         l = l + br(w[0].distance(w[1]));
@@ -712,7 +712,7 @@ mod quad_lane {
                 // An ARC cap rim on a rational wall (M8-3): the metric
                 // length is exactly `r·Δθ` — the carrier's own
                 // parameter IS the angle, so no bound is needed.
-                geom_curves::Curve3::Circle { radius, .. } => (br(*radius) * br(t1 - t0)).mag(),
+                geom::Curve3::Circle { radius, .. } => (br(*radius) * br(t1 - t0)).mag(),
                 _ => {
                     return Err(PropsError::QuadratureUnsupported {
                         what: "a NURBS-face boundary carrier outside the loft inventory \

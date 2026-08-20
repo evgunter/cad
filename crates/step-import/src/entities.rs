@@ -14,10 +14,10 @@
 
 use std::collections::BTreeMap;
 
+use geom::{Curve3, NurbsCurve3};
+use geom::{NurbsSurface, Surface};
 use geom_core::spline::KnotVector;
 use geom_core::{Affine3, Mat3, Point3, Vec3};
-use geom_curves::{Curve3, NurbsCurve3};
-use geom_surfaces::{NurbsSurface, Surface};
 
 use crate::chart;
 use crate::error::StepImportError;

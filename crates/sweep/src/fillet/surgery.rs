@@ -72,10 +72,10 @@
 //! naming itself. The refusals are the honest boundary of the unit,
 //! not gates hiding reachable geometry.
 
+use geom::Curve3;
+use geom::Surface;
 use geom_brep::{EdgeCurveSpec, EdgeGeometry};
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Vec3};
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
 use topo::{
     Body, EdgeKey, FaceKey, FaceSurface, HalfEdgeKey, LoopKey, MefSite, MevSite, VertexKey,
 };

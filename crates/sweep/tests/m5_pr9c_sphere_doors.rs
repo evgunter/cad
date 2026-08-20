@@ -212,7 +212,7 @@ fn curved_revert_reverts_the_ball_instead_of_refusing() {
             format!("{:?}", rev.get_surface(k).unwrap()),
             "revert must not perturb a sphere chart"
         );
-        let Some(geom_surfaces::Surface::Sphere { radius, .. }) = rev.get_surface(k) else {
+        let Some(geom::Surface::Sphere { radius, .. }) = rev.get_surface(k) else {
             panic!("still a sphere");
         };
         assert!(*radius > 0.0, "the radius > 0 convention survives revert");

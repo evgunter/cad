@@ -16,10 +16,10 @@
 //! unconsumed general extractor would be untested machinery. The
 //! function that first needs it brings it.
 
+use geom::NurbsCurve3;
+use geom::NurbsSurface;
 use geom_core::Real;
 use geom_core::spline::SplineError;
-use geom_curves::NurbsCurve3;
-use geom_surfaces::NurbsSurface;
 
 /// The `u = 0` (`end = false`) or `u = 1` (`end = true`) boundary
 /// iso-curve of a clamped surface: the first/last u-row of the control

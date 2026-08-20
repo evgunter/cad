@@ -18,11 +18,11 @@
 use profile::RawLoop;
 use std::sync::Arc;
 
+use geom::Surface;
+use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom_brep::ssi::{self, SsiDomain, SsiError};
 use geom_brep::{Pcurve, PcurveCache};
 use geom_core::{Band, Point2, Point3, Tolerance, Vec3};
-use geom_curves::{Curve3, NurbsCurve2, NurbsCurve3};
-use geom_surfaces::Surface;
 use mesh::TessellateError;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, extrude, loft_body};
