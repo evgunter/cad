@@ -282,9 +282,10 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// The mate's class rides the SAME stable spellings v11 gave
 /// `Declare`'s pairs (`declare_pairs_wire`'s table, reused rather
 /// than re-spelled): one contact vocabulary, one wire spelling of it.
-/// A class outside v1's admitted `Rest`/`Tangent` refuses at that door
-/// naming [`topo::FIT_DEFERRAL`] verbatim — the same sentence the
-/// solve door says.
+/// A spelling this build has no name for refuses at that door, in both
+/// directions. That is a WIRE refusal about a tag, not the v1 class
+/// policy — how far an admitted class then gets is
+/// [`crate::mate::class_admission`].
 ///
 /// The A11 placement registry did NOT force this bump, and that is
 /// worth stating: its keys generalized from per-instance to

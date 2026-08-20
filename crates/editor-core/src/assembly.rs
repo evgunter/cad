@@ -30,32 +30,22 @@
 //!
 //! # The two frontiers, and where each one is written
 //!
-//! Both are the same shape — this door admits less than the shape of
-//! its types suggests — and neither is stated here in prose alone,
-//! because a boundary a caller can only read about is one they cannot
-//! tell apart from a defect when it fires.
+//! This door admits less than the shape of its types suggests. Both
+//! narrowings are values, not sentences here, because a boundary a
+//! caller can only read about is one they cannot tell apart from a
+//! defect when it fires:
 //!
 //! - **Which classes mint** is [`crate::mate::class_admission`], the
-//!   one table this door and the solve door both read. `Rest` mints a
-//!   [`topo::PatchContact`]; `Tangent` refuses
-//!   [`AssemblyError::NoAtRestRecord`], because its record would be a
-//!   `CurveContact` keyed by the WITNESS EDGE whose carrier is the
-//!   contact locus, and an assembly at rest has no such edge —
-//!   nothing zipped the instances together, which is exactly what "at
-//!   rest, not a boolean" means.
+//!   one table this door and the solve door both read.
 //! - **What a declared contact can reach** is
-//!   [`AssemblyError::is_declared_frontier`], which puts the census's
-//!   chart-identity gap in a value: today every declared
-//!   cross-instance pair is DECLINED by the certifier rather than
-//!   refuted by it, so `assemble` returns `Ok` only for a document
-//!   whose mates declared nothing the census had to certify. The
-//!   kernel's finding still passes straight through — stated, never
-//!   swallowed, never re-labelled — and closing the gap is a
-//!   cross-instance chart rung in the census, not work this layer can
-//!   do.
+//!   [`AssemblyError::Uncertified`], the arm every declared
+//!   cross-instance pair lands in today, and which a caller must match
+//!   apart from the verdicts against their own document.
 //!
-//! The declaration does its job either way: it is what suppresses the
-//! F1 `UndeclaredContact` refusal.
+//! Each says why at its own definition. The kernel's finding passes
+//! straight through either way — stated, never swallowed, never
+//! re-labelled — and the declaration still does its job: it is what
+//! suppresses the F1 `UndeclaredContact` refusal.
 
 use geom_core::Decide;
 use topo::{ContactRecords, FaceKey, PatchContact, PropsQuadLane, ValidationError};
@@ -130,39 +120,44 @@ pub enum RefusedRef {
     },
 }
 
-/// One at-rest refusal, attributed to its mate where the kernel's
-/// finding names a declared face pair.
+/// **What a kernel finding says about the document's declarations.**
+///
+/// One field rather than a mate plus a flag: the relation and the
+/// declaration it names are decided together, in `attribute`'s single
+/// dispatch, and cannot disagree.
 #[derive(Debug, Clone, PartialEq)]
-pub struct AtRestFinding {
-    /// The mate whose declaration the finding names, when one does.
-    /// `None` for an UNDECLARED contact — by definition no mate
-    /// authored it, and that is precisely the F1 hard error.
-    pub mate: Option<MintedDeclaration>,
-    /// The kernel's own finding, verbatim.
-    pub error: ValidationError,
+pub enum Attribution {
+    /// The kernel REFUTED this declaration — the faces do not meet as
+    /// it says. A finding against the document.
+    Refuted(MintedDeclaration),
+    /// The census DECLINED this declaration: the pair has no certifier
+    /// lane, so it was neither certified nor contradicted and nothing
+    /// was decided about the geometry either way.
+    Declined(MintedDeclaration),
+    /// The finding names no declaration. An UNDECLARED contact is
+    /// exactly this — by definition no mate authored it, which is what
+    /// makes it the F1 hard error.
+    Unattributed,
 }
 
-impl AtRestFinding {
-    /// Whether the census DECLINED this declaration rather than
-    /// refuting it: [`ValidationError::CensusUnsupported`] on a face
-    /// some mate's own declaration named.
-    ///
-    /// The distinction a caller needs and cannot otherwise make: a
-    /// refuted declaration says the document is wrong (the faces do
-    /// not touch as declared), a declined one says the certifier had
-    /// no lane for the pair and therefore said NOTHING about it —
-    /// neither certified nor contradicted. Both refuse, because A5
-    /// decides or refuses and never silently blesses; only the first
-    /// is a finding about the caller's geometry.
-    pub fn declaration_declined(&self) -> bool {
-        self.mate.is_some()
-            && matches!(
-                self.error,
-                ValidationError::CensusUnsupported {
-                    entity: topo::EntityId::Face(_)
-                }
-            )
+impl Attribution {
+    /// The declaration named, for a finding that names one.
+    pub fn declaration(&self) -> Option<&MintedDeclaration> {
+        match self {
+            Self::Refuted(m) | Self::Declined(m) => Some(m),
+            Self::Unattributed => None,
+        }
     }
+}
+
+/// One at-rest refusal: the kernel's finding, and what it says about
+/// what the mates declared.
+#[derive(Debug, Clone, PartialEq)]
+pub struct AtRestFinding {
+    /// Which declaration the finding names, and in what relation.
+    pub attribution: Attribution,
+    /// The kernel's own finding, verbatim.
+    pub error: ValidationError,
 }
 
 /// Why the assembly gate refused.
@@ -181,56 +176,59 @@ pub enum AssemblyError {
         /// Why it did not resolve.
         why: RefusedRef,
     },
-    /// The mate's class mints nothing at rest
-    /// ([`crate::mate::ClassAdmission::NoAtRestRecord`]).
+    /// The mate's class mints no record at rest — the mint door's half
+    /// of [`crate::mate::class_admission`].
     NoAtRestRecord {
         /// The mate.
         mate: RecipeNodeId,
         /// Its class.
         class: ContactClass,
+        /// Why that class carries nothing at rest, in the class's own
+        /// terms. Sourced from the table, never restated here, so a
+        /// class admitted later cannot inherit another's reason.
+        why: &'static str,
     },
     /// The kernel's tier-3′ door refused the assembled product with
-    /// its records (A5). Every finding, in the kernel's own
-    /// deterministic sweep order, each carrying the mate that
-    /// authored the declaration it names.
+    /// its records (A5): at least one finding is a verdict AGAINST the
+    /// document — a refuted declaration or an undeclared contact.
+    /// Every finding travels, in the kernel's own deterministic sweep
+    /// order, each carrying what it says about the declarations.
+    ///
+    /// A mixed refusal lands here: one refuted declaration makes this
+    /// a finding against the document however many declines ride with
+    /// it.
     AtRest {
         /// Every finding.
         findings: Vec<AtRestFinding>,
     },
-}
-
-impl AssemblyError {
-    /// **The declared direction's frontier, executable** — the
-    /// negation of [`assemble`]'s success arm, as a value rather than
-    /// a sentence in a module doc.
+    /// **The declared direction's frontier** — a distinct refusal
+    /// because it is a distinct fact, and a caller matching this enum
+    /// must say which of the two they mean.
     ///
-    /// True when the gate refused and EVERY finding is a declined
-    /// declaration ([`AtRestFinding::declaration_declined`]): nothing
-    /// was contradicted, nothing was undeclared, and the assembly is
-    /// unrefuted but uncertified.
+    /// Nothing was refuted and nothing was undeclared: every finding
+    /// is the census DECLINING a declared pair
+    /// ([`Attribution::Declined`]), so the assembly is unrefuted and
+    /// uncertified, and NOTHING was decided about this geometry.
     ///
     /// Today that is the whole declared direction. The census's patch
     /// certifier gates on STRUCTURAL chart identity — a shared
     /// `SurfaceKey` within one body, or the same `GeomSource` across
-    /// bodies — which two instances of a part satisfy neither of by
-    /// construction: the disjoint graft mints fresh keys, and each
-    /// instance's descriptions are stamped with its own placing node.
-    /// So a declared cross-instance pair the Rest ladder certifies
-    /// still ends at the chart door, whatever its geometry. The
-    /// certifier is built for pairs arising INSIDE one body; an
-    /// assembly's contacts are cross-instance by definition, and
-    /// closing that is a cross-instance chart rung in the census, not
-    /// work this layer can do.
-    ///
-    /// So this predicate is what a caller reads to tell a known
-    /// frontier from a defect in their own document, and what a test
-    /// pins so the frontier cannot move in silence: the day the
-    /// census grows that rung, `assemble` returns `Ok` and every row
-    /// asserting this goes red.
-    pub fn is_declared_frontier(&self) -> bool {
-        matches!(self, Self::AtRest { findings }
-            if !findings.is_empty() && findings.iter().all(AtRestFinding::declaration_declined))
-    }
+    /// bodies — which two instances of a part satisfy by neither half,
+    /// so a declared cross-instance pair ends here whatever its
+    /// geometry. Closing that is a cross-instance chart rung in the
+    /// census, not work this layer can do; the day it lands,
+    /// [`assemble`] returns `Ok` for these documents and every arm
+    /// matching here goes dead.
+    Uncertified {
+        /// The record set the gate was given: the parts' carried
+        /// declarations plus this document's minted ones, uncertified
+        /// rather than rejected. Boxed like the enum's other bulky
+        /// payloads, so one arm does not set every caller's `Result`
+        /// width.
+        contacts: Box<ContactRecords>,
+        /// Every finding, each a [`Attribution::Declined`].
+        findings: Vec<AtRestFinding>,
+    },
 }
 
 impl core::fmt::Display for AssemblyError {
@@ -249,12 +247,10 @@ impl core::fmt::Display for AssemblyError {
                 mate.0,
                 side.name()
             ),
-            Self::NoAtRestRecord { mate, class } => write!(
+            Self::NoAtRestRecord { mate, class, why } => write!(
                 f,
-                "assembly: mate {}'s class {} has no at-rest kernel record — a \
-                 tangent contact's record is keyed by the witness edge whose \
-                 carrier is the locus, and an assembly at rest has none; the \
-                 record is not minted with an invented witness",
+                "assembly: mate {}'s class {} has no at-rest kernel record — \
+                 {why}; the record is not minted with an invented witness",
                 mate.0,
                 class.name()
             ),
@@ -264,34 +260,50 @@ impl core::fmt::Display for AssemblyError {
                     "assembly: the at-rest gate refused ({} findings)",
                     findings.len()
                 )?;
-                if self.is_declared_frontier() {
-                    write!(
-                        f,
-                        " — every one the census DECLINING a declared \
-                         cross-instance pair, not contradicting it: no \
-                         certifier lane, so nothing was decided about this \
-                         geometry either way (the declared direction's \
-                         frontier, not a finding against the document)"
-                    )?;
-                }
-                for finding in findings {
-                    match &finding.mate {
-                        Some(m) => write!(
-                            f,
-                            "; mate {} ({:?} ~ {:?}, {}): {:?}",
-                            m.mate.0,
-                            m.a,
-                            m.b,
-                            m.class.name(),
-                            finding.error
-                        )?,
-                        None => write!(f, "; unattributed: {:?}", finding.error)?,
-                    }
-                }
-                Ok(())
+                render(f, findings)
+            }
+            Self::Uncertified { findings, .. } => {
+                write!(
+                    f,
+                    "assembly: the at-rest gate could not certify {} declared \
+                     pair(s) and did not refute any — no certifier lane, so \
+                     nothing was decided about this geometry either way (the \
+                     declared direction's frontier, not a finding against the \
+                     document)",
+                    findings.len()
+                )?;
+                render(f, findings)
             }
         }
     }
+}
+
+/// Every finding, each naming the declaration it speaks about.
+fn render(f: &mut core::fmt::Formatter<'_>, findings: &[AtRestFinding]) -> core::fmt::Result {
+    for finding in findings {
+        match &finding.attribution {
+            Attribution::Refuted(m) => write!(
+                f,
+                "; refuted mate {} ({:?} ~ {:?}, {}): {:?}",
+                m.mate.0,
+                m.a,
+                m.b,
+                m.class.name(),
+                finding.error
+            )?,
+            Attribution::Declined(m) => write!(
+                f,
+                "; declined mate {} ({:?} ~ {:?}, {}): {:?}",
+                m.mate.0,
+                m.a,
+                m.b,
+                m.class.name(),
+                finding.error
+            )?,
+            Attribution::Unattributed => write!(f, "; unattributed: {:?}", finding.error)?,
+        }
+    }
+    Ok(())
 }
 
 impl core::error::Error for AssemblyError {}
@@ -313,11 +325,10 @@ impl core::error::Error for AssemblyError {}
 /// ([`crate::mate::class_admission`]), and the kernel's tier-3′
 /// findings attributed back to their mates.
 ///
-/// The success arm is narrower than the signature: a document whose
-/// mates declare a cross-instance contact refuses at the census's
-/// chart-identity gap, which [`AssemblyError::is_declared_frontier`]
-/// names so a caller can tell that frontier from a defect of their
-/// own.
+/// The success arm is narrower than the signature, and the type says
+/// so: a document whose mates declare a cross-instance contact
+/// refuses [`AssemblyError::Uncertified`], which a caller must match
+/// separately from the verdicts against their own document.
 pub fn assemble<P, T: Decide + PropsQuadLane>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
@@ -337,15 +348,34 @@ pub fn assemble<P, T: Decide + PropsQuadLane>(
             contacts,
             minted,
         }),
-        Err(errors) => Err(AssemblyError::AtRest {
-            findings: errors
+        Err(errors) => {
+            let findings: Vec<AtRestFinding> = errors
                 .into_iter()
                 .map(|error| AtRestFinding {
-                    mate: attribute(&error, &minted),
+                    attribution: attribute(&error, &minted),
                     error,
                 })
-                .collect(),
-        }),
+                .collect();
+            // The split is the whole point of the two arms: ONE
+            // finding against the document makes this a refusal of the
+            // document, however many declines ride with it. Only a
+            // refusal that is declines and nothing else is the
+            // frontier.
+            // (Non-empty because `Uncertified` promises at least one
+            // declined pair; the kernel never refuses with no finding.)
+            if !findings.is_empty()
+                && findings
+                    .iter()
+                    .all(|f| matches!(f.attribution, Attribution::Declined(_)))
+            {
+                Err(AssemblyError::Uncertified {
+                    contacts: Box::new(contacts),
+                    findings,
+                })
+            } else {
+                Err(AssemblyError::AtRest { findings })
+            }
+        }
     }
 }
 
@@ -385,16 +415,18 @@ fn mint<P, T: Decide>(
         let face_a = resolve_face(names, id, MateSide::A, a)?;
         let face_b = resolve_face(names, id, MateSide::B, b)?;
         // The class table is the policy (`mate::class_admission`); this
-        // door enforces its own half of it and nothing more.
+        // door enforces its own half of it, and takes the REASON from
+        // the table too, so the message can never be another class's.
         match class_admission(*class) {
             // Face granularity (M9-1): a rest between two placed faces
             // IS a `PatchContact`. Same type as the boolean wrapper's
             // records, no adapter.
             ClassAdmission::Mints => contacts.patches.push(PatchContact { face_a, face_b }),
-            ClassAdmission::NoAtRestRecord | ClassAdmission::NotAdmitted => {
+            other => {
                 return Err(AssemblyError::NoAtRestRecord {
                     mate: id,
                     class: *class,
+                    why: other.no_record_reason(),
                 });
             }
         }
@@ -436,25 +468,36 @@ fn resolve_face(
     }
 }
 
-/// Which mate's declaration a kernel finding names, if any.
+/// **What a kernel finding says about what was minted** — which
+/// declaration it names, and whether it REFUTES that declaration or
+/// merely declines to certify it.
+///
+/// INVARIANT: one dispatch decides both. The relation is a property
+/// of the kernel's arm, not a second reading of it, so a widened arm
+/// cannot leave a caller's classification behind.
 ///
 /// INVARIANT: attribution is by ARENA KEY against what was minted —
 /// the same lineage discipline the record carry uses. A finding whose
 /// faces no declaration names is UNATTRIBUTED, and that is the honest
 /// answer for the F1 case: an undeclared contact has no mate, which
 /// is exactly what makes it the hard error.
-fn attribute(error: &ValidationError, minted: &[MintedDeclaration]) -> Option<MintedDeclaration> {
+fn attribute(error: &ValidationError, minted: &[MintedDeclaration]) -> Attribution {
     let by_pair = |a: FaceKey, b: FaceKey| {
         minted
             .iter()
             .find(|m| m.faces == (a, b) || m.faces == (b, a))
     };
     let by_face = |f: FaceKey| minted.iter().find(|m| m.faces.0 == f || m.faces.1 == f);
-    let hit = match error {
+    // The constructor as a value, so one dispatch decides both
+    // halves: which declaration, and in what relation.
+    let hit: (
+        Option<&MintedDeclaration>,
+        fn(MintedDeclaration) -> Attribution,
+    ) = match error {
         // A declared pair the kernel CONTRADICTED: the declaration is
         // in the error, so the pair names its mate exactly.
         ValidationError::ContactContradicted { declaration, .. } => {
-            by_pair(declaration.a, declaration.b)
+            (by_pair(declaration.a, declaration.b), Attribution::Refuted)
         }
         // A declared FACE-PAIR record the kernel could not confirm —
         // the other direction of the certification diff. The record's
@@ -463,16 +506,20 @@ fn attribute(error: &ValidationError, minted: &[MintedDeclaration]) -> Option<Mi
             declaration:
                 topo::StaleDeclaration::Patch { face_a, face_b, .. }
                 | topo::StaleDeclaration::CurveLocus { face_a, face_b, .. },
-        } => by_pair(*face_a, *face_b),
-        // A carrier kind the census inventory cannot certify. The
-        // entity is a single face; a declaration naming it is the
-        // reason it was examined at all.
+        } => (by_pair(*face_a, *face_b), Attribution::Refuted),
+        // A carrier kind the census inventory cannot certify: it
+        // neither certified nor contradicted the pair. The entity is a
+        // single face; a declaration naming it is the reason it was
+        // examined at all.
         ValidationError::CensusUnsupported {
             entity: topo::EntityId::Face(f),
-        } => by_face(*f),
+        } => (by_face(*f), Attribution::Declined),
         // Everything else — undeclared contacts, vertex-granular
         // staleness, band failures — names no declared face pair.
-        _ => None,
+        _ => (None, Attribution::Refuted),
     };
-    hit.cloned()
+    match hit {
+        (Some(m), relation) => relation(m.clone()),
+        (None, _) => Attribution::Unattributed,
+    }
 }

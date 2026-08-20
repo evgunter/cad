@@ -277,11 +277,32 @@ pub enum ClassAdmission {
     /// [`crate::AssemblyError::NoAtRestRecord`] naming the mate — a
     /// solved placement that cannot be verified at rest, never a
     /// record minted with an invented witness.
-    NoAtRestRecord,
+    NoAtRestRecord {
+        /// Why THIS class has none, in its own terms. Carried here so
+        /// the mint door's message is the table's, never one class's
+        /// reason rendered confidently over another's refusal.
+        why: &'static str,
+    },
     /// Neither: outside v1's vocabulary, so the solve door refuses
-    /// [`MateFault::ClassNotAdmitted`] and the mate never reaches the
-    /// gate at all.
+    /// [`MateFault::ClassNotAdmitted`]. Reaching the mint door means a
+    /// mate of this class was live, which the solve door does not
+    /// permit — so the mint refuses it too, with the deferral, rather
+    /// than assuming the chain held.
     NotAdmitted,
+}
+
+impl ClassAdmission {
+    /// Why the assembly gate carries nothing at rest for this class.
+    ///
+    /// Total, so the mint door never has to choose a sentence: a class
+    /// that mints has no such reason and says so.
+    pub fn no_record_reason(self) -> &'static str {
+        match self {
+            Self::Mints => "the class mints at rest",
+            Self::NoAtRestRecord { why } => why,
+            Self::NotAdmitted => CLASS_DEFERRAL,
+        }
+    }
 }
 
 /// The class table itself ([`ClassAdmission`]).
@@ -297,12 +318,11 @@ pub fn class_admission(class: ContactClass) -> ClassAdmission {
         // Face granularity: a rest between two placed faces IS a
         // `PatchContact` (M9-1).
         ContactClass::Rest => ClassAdmission::Mints,
-        // A tangent contact's record is `CurveContact`, keyed by the
-        // WITNESS EDGE whose carrier is the contact locus; an assembly
-        // at rest has no such edge, because nothing zipped the
-        // instances together — which is what "at rest, not a boolean"
-        // means.
-        ContactClass::Tangent => ClassAdmission::NoAtRestRecord,
+        ContactClass::Tangent => ClassAdmission::NoAtRestRecord {
+            why: "a tangency's record is a `CurveContact` keyed by the witness EDGE whose \
+                  carrier is the contact locus, and an assembly at rest has none — nothing \
+                  zipped the instances together, which is what \"at rest, not a boolean\" means",
+        },
         _ => ClassAdmission::NotAdmitted,
     }
 }
