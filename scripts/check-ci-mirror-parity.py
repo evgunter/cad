@@ -18,9 +18,25 @@ it — so this lives in `scripts/` beside its sibling
 every other check out here, and is covered by its own claim 1.
 
 Stdlib only, no YAML library: the runner image is not asked for one, matching
-the posture of every other cheap tripwire here. What replaces a parser is
-FAILING CLOSED — the reader below Bails on any structure it does not recognise,
-so an unparsed workflow is an error and never a quiet pass.
+the posture of every other cheap tripwire here. What replaces a parser is a
+RECOGNISER THAT ENUMERATES, and the claim it supports is narrow enough to be
+worth stating exactly, because it has twice been written wider than it held:
+
+  Inside a workflow's `jobs:` block, every line must match one of the forms
+  listed at `JOB_KEYS` / `STEP_KEYS` and the shapes around them; anything else
+  raises `Bail`, which fails the check.
+
+Four things that claim does NOT cover, none of them hidden:
+  * Content OUTSIDE `jobs:` is not read at all. A file with no top-level
+    `jobs:` key Bails rather than being half-read.
+  * The body of a block scalar, of `with:` and of `env:` is opaque text. It is
+    scanned for invocations; it is not parsed, and nothing in it can Bail.
+  * A recognised key's VALUE is only interpreted where a claim needs it —
+    `if:`, `needs:`, `continue-on-error:`, `uses:`. Every other value is text.
+  * This is not YAML. Anchors, merge keys, flow mappings and multi-document
+    files are all refused, not supported. Valid YAML this repo does not use
+    reds CI with *I do not understand this file*, and the fix is to teach the
+    recogniser in a diff someone reviews.
 
 WHAT IT CANNOT SEE, stated because a disclosed blind spot is a work order.
 Claims 1-4 are about PATHS, so a hosted row that runs work inline — `cargo` in a
@@ -98,12 +114,51 @@ MARKER_RE = re.compile(r"#\s*HOSTED MIRROR:\s*(.*?)\s*$")
 
 
 class Bail(Exception):
-    """Structure this reader does not recognise. Never a pass."""
+    """Structure this reader does not RECOGNISE. Never a pass."""
+
+
+# THE RECOGNISER ENUMERATES; THE READER NEVER SKIPS.
+#
+# Two versions of this check have now failed the same way. The first was
+# `awk '/^  [a-z0-9_-]+:$/'` and let an uppercase job name through, because an
+# unmatched line meant "not a job". The second was a hand-rolled python reader
+# and let a FLUSH-STYLE step sequence through — `    - uses: …` at the same
+# indent as `steps:` is ordinary YAML, its first token parsed as a key named
+# `- uses`, and an unrecognised key meant "nothing here". Same default, more
+# structure: *I did not recognise this* and *there is nothing here* were one
+# value, which is the exact defect this track's F6 row spent two instruments on
+# one directory over.
+#
+# So the default is inverted. Every line inside `jobs:` must match one of the
+# forms enumerated BELOW, and anything else raises `Bail`, which is a hard
+# failure. The cost is real and is the point: a workflow written in a shape
+# this repo has not used before reds CI with *I do not understand this file*,
+# and the fix is to teach the recogniser, deliberately, in a diff someone
+# reviews. The alternative is a checker that keeps saying OK about YAML it has
+# never seen.
+#
+# It is NOT a YAML parser and does not try to be. It recognises the subset
+# these two workflows are written in, refuses everything else, and reads the
+# structural facts three claims need: which job a step belongs to, whether that
+# job can be skipped, and whether a prune step precedes a step that reads the
+# pruned tree.
+JOB_KEYS = frozenset({
+    "name", "runs-on", "needs", "if", "uses", "with", "secrets", "env",
+    "permissions", "strategy", "outputs", "steps", "timeout-minutes",
+    "continue-on-error", "defaults", "concurrency", "services", "container",
+})
+STEP_KEYS = frozenset({
+    "name", "id", "uses", "with", "run", "env", "if", "shell",
+    "working-directory", "continue-on-error", "timeout-minutes",
+})
+BLOCK_SCALAR_RE = re.compile(r"^[|>][+-]?\d*$")
+JOB_NAME_RE = re.compile(r"([A-Za-z0-9_-]+):$")
+KEY_RE = re.compile(r"([A-Za-z][A-Za-z0-9_-]*):(?:\s+(.*))?$")
 
 
 class Step:
-    def __init__(self, name: str | None) -> None:
-        self.name = name
+    def __init__(self) -> None:
+        self.name: str | None = None
         self.lines: list[str] = []
 
 
@@ -112,77 +167,188 @@ class Job:
         self.name = name
         self.line = line
         self.has_if = False
+        self.continue_on_error = False
+        self.needs: list[str] = []
         self.uses: str | None = None
         self.steps: list[Step] = []
 
-    @property
-    def text(self) -> str:
-        return "\n".join(l for s in self.steps for l in s.lines)
+
+def _significant(path: str) -> list[tuple[int, int, str]]:
+    """`(lineno, indent, text)` for every line that carries structure.
+
+    Tabs are refused outright rather than measured: YAML forbids them for
+    indentation, and a tab used to make this reader silently lose the rest of
+    the file.
+    """
+    try:
+        with open(path, encoding="utf-8") as fh:
+            raw = fh.read()
+    except UnicodeDecodeError as exc:
+        raise Bail(f"{path} is not UTF-8 ({exc}) — this reader will not guess at the bytes") from exc
+    if "\t" in raw:
+        n = raw[: raw.index("\t")].count("\n") + 1
+        raise Bail(f"{path}:{n}: a TAB character. YAML forbids tab indentation and this reader "
+                   "will not guess what it was meant to be")
+    out = []
+    for n, line in enumerate(raw.splitlines(), 1):
+        if not line.strip() or COMMENT_RE.match(line):
+            continue
+        out.append((n, len(line) - len(line.lstrip(" ")), line))
+    return out
 
 
 def read_workflow(path: str) -> list[Job]:
-    """Jobs, their `if:`, and their steps' raw lines. Bails on anything unknown.
+    items = _significant(path)
+    start = next((i for i, (_, ind, t) in enumerate(items) if ind == 0 and t.rstrip() == "jobs:"), None)
+    if start is None:
+        raise Bail(f"{path}: no top-level `jobs:` key — this reader recognises GitHub workflow files "
+                   "and refuses to guess about anything else in this directory")
+    end = next((i for i in range(start + 1, len(items)) if items[i][1] == 0), len(items))
+    block = items[start + 1:end]
+    if not block:
+        raise Bail(f"{path}: `jobs:` has no body")
 
-    The job-name pattern is deliberately WIDE (`[A-Za-z0-9_-]+`, any case) and
-    anything else at job indent is an error rather than a skip: the bug this
-    replaced came from a narrow pattern treating an unmatched line as "not a
-    job" instead of as "I do not understand this file".
-    """
+    job_indent = block[0][1]
     jobs: list[Job] = []
-    in_jobs = False
-    job: Job | None = None
-    step: Step | None = None
-    in_steps = False
-    with open(path, encoding="utf-8") as fh:
-        raw = fh.read().splitlines()
-    for n, line in enumerate(raw, 1):
-        if not line.strip() or COMMENT_RE.match(line):
-            continue
-        if not line.startswith(" "):
-            in_jobs = line.split(":", 1)[0] == "jobs"
-            job = step = None
-            in_steps = False
-            continue
-        if not in_jobs:
-            continue
-        indent = len(line) - len(line.lstrip(" "))
-        if indent == 2:
-            m = re.fullmatch(r"  ([A-Za-z0-9_-]+):\s*", line)
-            if not m:
-                raise Bail(f"{path}:{n}: not a job name at job indent: {line!r}")
-            job = Job(m.group(1), n)
-            jobs.append(job)
-            step = None
-            in_steps = False
-            continue
-        if job is None:
-            raise Bail(f"{path}:{n}: content inside jobs: before any job: {line!r}")
-        if indent == 4:
-            key = line.strip().split(":", 1)[0]
-            in_steps = key == "steps"
-            step = None
-            if key == "if":
-                job.has_if = True
-            elif key == "uses":
-                job.uses = line.strip().split(":", 1)[1].strip()
-            continue
-        if in_steps and re.match(r"^      - ", line):
-            step = Step(None)
-            job.steps.append(step)
-            m = re.match(r"^      - name:\s*(.*?)\s*$", line)
-            if m:
-                step.name = m.group(1)
-        if step is None:
-            # Job-level mapping content (env:, strategy:, with:, …). Kept out of
-            # the step scan on purpose: it carries no invocations.
-            continue
-        m = re.match(r"^        name:\s*(.*?)\s*$", line)
-        if m:
-            step.name = m.group(1)
-        step.lines.append(line)
+    i = 0
+    while i < len(block):
+        n, ind, text = block[i]
+        if ind != job_indent:
+            raise Bail(f"{path}:{n}: expected a job name at indent {job_indent}, found indent {ind}: "
+                       f"{text.strip()!r}")
+        m = JOB_NAME_RE.fullmatch(text.strip())
+        if not m:
+            raise Bail(f"{path}:{n}: not a job name at job indent: {text.strip()!r}")
+        job = Job(m.group(1), n)
+        jobs.append(job)
+        j = i + 1
+        while j < len(block) and block[j][1] > job_indent:
+            j += 1
+        _read_job(path, job, block[i + 1:j])
+        i = j
     if not jobs:
         raise Bail(f"{path}: no jobs found — the reader scanned nothing, which is not a pass")
     return jobs
+
+
+def _read_job(path: str, job: Job, body: list[tuple[int, int, str]]) -> None:
+    if not body:
+        raise Bail(f"{path}:{job.line}: job `{job.name}` has an empty body")
+    key_indent = body[0][1]
+    i = 0
+    while i < len(body):
+        n, ind, text = body[i]
+        if ind != key_indent:
+            raise Bail(f"{path}:{n}: expected a key of job `{job.name}` at indent {key_indent}, "
+                       f"found indent {ind}: {text.strip()!r}")
+        m = KEY_RE.fullmatch(text.strip())
+        if not m:
+            raise Bail(f"{path}:{n}: not a `key:` line in job `{job.name}`: {text.strip()!r}")
+        key, value = m.group(1), (m.group(2) or "").strip()
+        if key not in JOB_KEYS:
+            raise Bail(f"{path}:{n}: job `{job.name}` carries the key `{key}`, which this recogniser "
+                       "does not know. Teach it the key and what it means for the claims here, or "
+                       "spell the job in a shape it already recognises")
+        # The key's own nested block: everything more indented, plus — for a
+        # sequence — the flush-style `- ` items at the key's own indent.
+        j = i + 1
+        while j < len(body) and (body[j][1] > key_indent
+                                 or (body[j][1] == key_indent and body[j][2].lstrip().startswith("- "))):
+            j += 1
+        nested = body[i + 1:j]
+        if key == "if":
+            job.has_if = True
+        elif key == "continue-on-error":
+            job.continue_on_error = value.lower() in ("true", "'true'", '"true"')
+        elif key == "uses":
+            job.uses = value
+        elif key == "needs":
+            job.needs = _read_needs(path, n, value, nested)
+        elif key == "steps":
+            _read_steps(path, job, key_indent, nested)
+        i = j
+
+
+def _read_needs(path: str, n: int, value: str, nested: list[tuple[int, int, str]]) -> list[str]:
+    """`needs: a`, `needs: [a, b]`, and the block-sequence spelling. A job whose
+    dependency is skipped is skipped, so claim 7 has to read this."""
+    if value.startswith("["):
+        if not value.endswith("]"):
+            raise Bail(f"{path}:{n}: `needs:` flow sequence is not closed on one line: {value!r}")
+        return [p.strip().strip("'\"") for p in value[1:-1].split(",") if p.strip()]
+    if value:
+        return [value.strip("'\"")]
+    out = []
+    for ln, _, text in nested:
+        t = text.strip()
+        if not t.startswith("- "):
+            raise Bail(f"{path}:{ln}: expected a `- job` item under `needs:`, found {t!r}")
+        out.append(t[2:].strip().strip("'\""))
+    return out
+
+
+def _read_steps(path: str, job: Job, key_indent: int, nested: list[tuple[int, int, str]]) -> None:
+    """Both indent styles for the sequence: items flush with `steps:` and items
+    indented under it. Flush style is ordinary YAML, and reading it as a key
+    named `- uses` is how a checked-out job that read `local-scripts/` came back
+    OK from the version this replaced."""
+    if not nested:
+        raise Bail(f"{path}:{job.line}: job `{job.name}` has `steps:` with no steps")
+    item_indent = nested[0][1]
+    if item_indent not in (key_indent, key_indent + 2):
+        raise Bail(f"{path}:{nested[0][0]}: `steps:` items of job `{job.name}` sit at indent "
+                   f"{item_indent}, which is neither flush with `steps:` ({key_indent}) nor the "
+                   f"usual one in ({key_indent + 2})")
+    i = 0
+    while i < len(nested):
+        ln, ind, text = nested[i]
+        if ind != item_indent or not text.lstrip().startswith("- "):
+            raise Bail(f"{path}:{ln}: expected a `- ` step item at indent {item_indent} in job "
+                       f"`{job.name}`, found {text.strip()!r}")
+        j = i + 1
+        while j < len(nested) and nested[j][1] > item_indent:
+            j += 1
+        step = Step()
+        job.steps.append(step)
+        _read_step(path, job, step, item_indent, nested[i:j])
+        i = j
+
+
+def _read_step(path: str, job: Job, step: Step, item_indent: int,
+               item: list[tuple[int, int, str]]) -> None:
+    inner = item_indent + 2
+    # The `- ` line carries the item's first mapping key at column `inner`.
+    first_n, _, first_text = item[0]
+    rows = [(first_n, inner, " " * inner + first_text.lstrip()[2:])] + list(item[1:])
+    k = 0
+    while k < len(rows):
+        n, ind, text = rows[k]
+        step.lines.append(text)
+        if ind != inner:
+            raise Bail(f"{path}:{n}: expected a key of a step in job `{job.name}` at indent {inner}, "
+                       f"found indent {ind}: {text.strip()!r}")
+        m = KEY_RE.fullmatch(text.strip())
+        if not m:
+            raise Bail(f"{path}:{n}: not a `key:` line inside a step of job `{job.name}`: "
+                       f"{text.strip()!r}")
+        key, value = m.group(1), (m.group(2) or "").strip()
+        if key not in STEP_KEYS:
+            raise Bail(f"{path}:{n}: a step of job `{job.name}` carries the key `{key}`, which this "
+                       "recogniser does not know")
+        if key == "name":
+            step.name = value.strip("'\"")
+        # A block scalar's body is opaque text, not keys — `run: |` is where
+        # every invocation this file reads actually lives.
+        j = k + 1
+        while j < len(rows) and rows[j][1] > inner:
+            if BLOCK_SCALAR_RE.fullmatch(value) or key in ("with", "env"):
+                step.lines.append(rows[j][2])
+                j += 1
+                continue
+            raise Bail(f"{path}:{rows[j][0]}: content nested under `{key}:` in a step of job "
+                       f"`{job.name}`, which this recogniser only expects under a block scalar, "
+                       "`with:` or `env:`")
+        k = j
 
 
 def non_comment(path: str) -> list[str]:
@@ -278,28 +444,62 @@ def local_docs_exit_line(lines: list[str]) -> int:
     raise Bail("the local half has no docs-tier branch — re-read claim 7")
 
 
-def local_call_sites(lines: list[str], want: str) -> list[int]:
-    """Line indices at which the local half actually RUNS `want`.
+# THE SHELL HALF'S RECOGNISER, on the same inverted default as the YAML one.
+# `^name() {` was the only spelling read, so `tier_blind_rows () {` and
+# `function tier_blind_rows {` — both ordinary bash — parsed as "not a function",
+# every body line resolved as a top-level call site, and a definition left above
+# `ci-local.sh`'s docs exit with its single call moved below it came back OK.
+# That is the MAJOR this resolution was added to close, re-opened by one space.
+# So the forms are enumerated, and a line that LOOKS like a definition and is
+# not one of them Bails.
+FUNC_HINT_RE = re.compile(r"^(?:function\s+[A-Za-z_]|[A-Za-z_][A-Za-z0-9_]*\s*\(\s*\))")
+FUNC_OPEN_RE = re.compile(r"^(?:function\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*(?:\(\s*\))?\s*\{\s*$")
+FUNC_ONELINE_RE = re.compile(r"^(?:function\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*(?:\(\s*\))?\s*\{.*\}\s*$")
 
-    Not "mentions": a row wrapped in a shell function is run where the
-    FUNCTION is called, and a definition placed above the docs-tier exit says
-    nothing about when it executes. So an occurrence inside a function body
-    resolves to that function's call sites at top level. Without this the
-    claim is satisfied by moving a definition, which is not the property.
-    """
+
+def shell_functions(lines: list[str]) -> dict[str, tuple[int, int]]:
+    """`name -> (first, last)` body line indices, inclusive; a one-liner is its
+    own body. Bails on a definition-shaped line in a spelling not listed."""
     funcs: dict[str, tuple[int, int]] = {}
     open_at: tuple[str, int] | None = None
     for i, l in enumerate(lines):
-        m = re.match(r"^([a-z_][a-z0-9_]*)\(\)\s*\{\s*$", l)
-        if m and open_at is None:
-            open_at = (m.group(1), i)
-        elif re.match(r"^\}\s*$", l) and open_at is not None:
-            funcs[open_at[0]] = (open_at[1], i)
-            open_at = None
+        if open_at is not None:
+            if re.fullmatch(r"\}\s*", l):
+                funcs[open_at[0]] = (open_at[1], i)
+                open_at = None
+            continue
+        if not FUNC_HINT_RE.match(l):
+            continue
+        m = FUNC_ONELINE_RE.fullmatch(l)
+        if m:
+            funcs[m.group(1)] = (i, i)
+            continue
+        m = FUNC_OPEN_RE.fullmatch(l)
+        if not m:
+            raise Bail(f"{LOCAL_HALF}: line {i + 1} looks like a shell function definition and is not "
+                       f"a spelling this recogniser knows: {l.strip()!r}. Claim 7 has to know where a "
+                       "row is RUN, not where it is written, and it will not guess")
+        open_at = (m.group(1), i)
+    if open_at is not None:
+        raise Bail(f"{LOCAL_HALF}: function `{open_at[0]}` opened at line {open_at[1] + 1} is never "
+                   "closed by a `}` at column 0")
+    return funcs
+
+
+def local_call_sites(lines: list[str], want: str) -> list[int]:
+    """Line indices at which the local half actually RUNS `want`.
+
+    Not "mentions": a row wrapped in a shell function is run where the FUNCTION
+    is called, and a definition placed above the docs-tier exit says nothing
+    about when it executes. So an occurrence inside a function body resolves to
+    that function's call sites outside it. Without this the claim is satisfied
+    by moving a definition, which is not the property.
+    """
+    funcs = shell_functions(lines)
 
     def enclosing(i: int) -> str | None:
         for name, (a, b) in funcs.items():
-            if a < i < b:
+            if (a == b and i == a) or a < i < b:
                 return name
         return None
 
@@ -311,10 +511,37 @@ def local_call_sites(lines: list[str], want: str) -> list[int]:
         if host is None:
             sites.append(i)
             continue
+        a, b = funcs[host]
         sites += [j for j, m in enumerate(lines)
                   if re.search(rf"(^|[^A-Za-z0-9_-]){re.escape(host)}([^A-Za-z0-9_-]|$)", m)
-                  and enclosing(j) is None and not (funcs[host][0] <= j <= funcs[host][1])]
+                  and not (a <= j <= b) and enclosing(j) is None]
     return sorted(set(sites))
+
+
+def unconditional(jobs: dict[str, "Job"], name: str, seen: frozenset[str] = frozenset()) -> str | None:
+    """None if job `name` runs on every tier; otherwise the reason it may not.
+
+    `if:` is not the only door. **GitHub skips a job whose `needs:` dependency
+    skipped**, so a job with no condition of its own is still conditional if
+    anything it waits on is — and adding a `needs:` for an output or for
+    ordering is a far likelier accident than deleting a step. Claim 7 read only
+    `has_if` until a verification pass restored S61's exact state by giving the
+    siting job `needs: discipline`.
+    """
+    if name in seen:
+        return f"`{name}` is part of a `needs:` cycle, which this reader will not reason about"
+    job = jobs.get(name)
+    if job is None:
+        return f"`{name}` is named in a `needs:` and is not a job in this workflow"
+    if job.has_if:
+        return f"`{name}` carries an `if:`"
+    if job.continue_on_error:
+        return f"`{name}` carries `continue-on-error: true`, so it runs but cannot redden the PR"
+    for dep in job.needs:
+        why = unconditional(jobs, dep, seen | {name})
+        if why is not None:
+            return f"`{name}` waits on {why} — GitHub skips a job whose dependency skipped"
+    return None
 
 
 def check(root: str) -> list[str]:
@@ -343,6 +570,14 @@ def check(root: str) -> list[str]:
     for path in sorted((hosted | local) - {p for p in hosted | local if p.startswith("scripts/gates/")}):
         in_h, in_l = path in hosted, path in local
         if in_h and in_l:
+            # AN EXEMPTION IS A CONFESSION WITH AN EXPIRY. Nothing used to
+            # check that one was still needed, so an entry whose row came back
+            # would have sat here forever, reading as a live asymmetry.
+            if path in MIRROR_EXEMPT:
+                want, reason = MIRROR_EXEMPT[path]
+                err(f"{path} is declared {want}-only in MIRROR_EXEMPT and BOTH halves now name it. The "
+                    f'reason ("{reason}") has expired — delete the entry, so the list stays a record of '
+                    "asymmetries that exist rather than of ones that once did")
             continue
         side = "hosted" if in_h else "local"
         if path in MIRROR_EXEMPT:
@@ -360,12 +595,22 @@ def check(root: str) -> list[str]:
             f"outside scripts/gates/ is named by hand in both halves, so {why} — mirror it, or declare it "
             "in MIRROR_EXEMPT with the reason it is one-sided")
 
+    for path, (want, reason) in sorted(MIRROR_EXEMPT.items()):
+        if path not in hosted and path not in local:
+            err(f"{path} is declared {want}-only in MIRROR_EXEMPT and NEITHER half names it. Either the "
+                f'row is gone and the entry should go with it, or ("{reason}") is describing a check '
+                "that stopped running anywhere")
+
     # CLAIM 2 — gate MODE parity. Claim 1 excludes scripts/gates/ because both
     # halves take that roster from the directory, but the directory says
     # nothing about the FLAGS a gate is run with, and a gate's flagged mode is
     # a different check. `--citations` was hosted-only when this claim was
     # written, and nothing could see it.
     h_modes, l_modes = gate_modes(hosted_lines), gate_modes(local_lines)
+    for mode, (want, reason) in sorted(GATE_MODE_EXEMPT.items()):
+        if mode not in (h_modes ^ l_modes):
+            err(f"`{mode}` is declared {want}-only in GATE_MODE_EXEMPT and is no longer one-sided "
+                f'("{reason}"). Delete the entry')
     for mode in sorted(h_modes ^ l_modes):
         side = "hosted" if mode in h_modes else "local"
         if mode in GATE_MODE_EXEMPT:
@@ -432,6 +677,17 @@ def check(root: str) -> list[str]:
         path = f"{WORKFLOW_DIR}/{wf}"
         for job in read_workflow(path):
             steps = job.steps
+            if job.uses is not None:
+                # A reusable-workflow call has no steps of its own. It is not
+                # exempt from this claim — the workflow it calls is read in
+                # this same loop, which is how `render.yml`'s four checked-out
+                # lanes are covered — but it must actually point in here.
+                called = job.uses.removeprefix("./")
+                if not called.startswith(f"{WORKFLOW_DIR}/") or not os.path.isfile(called):
+                    err(f"{path} job `{job.name}` calls `{job.uses}`, which is not a workflow file in "
+                        f"{WORKFLOW_DIR}/. This check reads that directory and nothing else, so a job "
+                        "calling out of it runs steps nobody here has looked at")
+                continue
             checkout = next((i for i, st in enumerate(steps)
                              if any("actions/checkout" in l for l in st.lines)), None)
             if checkout is None:
@@ -475,12 +731,14 @@ def check(root: str) -> list[str]:
             err(f"no ci.yml job runs `{want}`, which is one of the checks whose INPUTS are the docs tier. "
                 "A check nobody runs cannot fire anywhere")
             continue
-        if all(j.has_if for j in hosts):
-            err(f"`{want}` is run only by job(s) {', '.join(sorted(j.name for j in hosts))}, and every one "
-                "of them carries an `if:`. Its inputs are prose, documentation or local-scripts/ — file "
+        reasons = {j.name: unconditional(ci_jobs, j.name) for j in hosts}
+        if all(r is not None for r in reasons.values()):
+            detail = "; ".join(f"{n}: {r}" for n, r in sorted(reasons.items()))
+            err(f"`{want}` is run only by job(s) {', '.join(sorted(reasons))}, and not one of them runs "
+                f"on every tier — {detail}. Its inputs are prose, documentation or local-scripts/, file "
                 "classes that make a change set TIER=docs, on which every `if: run_build` job is skipped, "
                 "so it cannot fire on the only change class that breaks it. That is the exact state S61 "
-                "recorded. Site it in a job with no `if:`")
+                "recorded. Site it in a job that no condition and no `needs:` chain can skip")
         # The local half is half the pair, and the same rule binds it.
         at = local_call_sites(non_comment(LOCAL_HALF), want)
         if not at:
@@ -600,6 +858,27 @@ def selftest() -> None:
             fh.write("jobs:\n  tour:\n    steps:\n      - uses: actions/checkout@v4\n      - run: echo hi\n")
     def prune_after_read(t):   _append(HOSTED_HALF, "  late:\n    steps:\n      - uses: actions/checkout@v4\n      - run: cat local-scripts/ci-local.sh\n      - run: rm -rf local-scripts .claude\n")(t)
     def unparseable(t):        _append(HOSTED_HALF, "  not a job name\n")(t)
+    # F1: the flush-style step sequence, ordinary YAML, that the previous
+    # reader parsed as a key named `- uses` and dropped — the `buildXtra`
+    # defect moved one line down.
+    def flush_style_steps(t): _append(HOSTED_HALF, "  sneaky:\n    steps:\n    - uses: actions/checkout@v4\n    - run: cat local-scripts/ci-local.sh\n")(t)
+    # F4c: a three-space job body. Valid YAML, and the reader used to see no
+    # steps at all in it.
+    def three_space_body(t): _append(HOSTED_HALF, "  spaced:\n   steps:\n     - uses: actions/checkout@v4\n     - run: echo hi\n")(t)
+    # F2: the siting job waits on a job that skips. Its own `if:` is absent,
+    # which is all claim 7 used to read.
+    def siting_job_needs(t): _sub(t, HOSTED_HALF, f"  {SITING_JOB}:\n    steps:", f"  {SITING_JOB}:\n    needs: discipline\n    steps:")
+    def siting_job_soft(t):  _sub(t, HOSTED_HALF, f"  {SITING_JOB}:\n    steps:", f"  {SITING_JOB}:\n    continue-on-error: true\n    steps:")
+    def merge_key(t):        _append(HOSTED_HALF, "  merged:\n    <<: *anchor\n    steps:\n      - run: echo hi\n")(t)
+    def unknown_job_key(t):  _append(HOSTED_HALF, "  odd:\n    stepz:\n      - run: echo hi\n")(t)
+    def unknown_step_key(t): _append(HOSTED_HALF, "  odd:\n    steps:\n      - runn: echo hi\n")(t)
+    def tabbed(t):           _append(HOSTED_HALF, "  tabbed:\n\tsteps:\n")(t)
+    def bad_func_spelling(t): _append(LOCAL_HALF, "weird() (\n  echo hi\n)\n")(t)
+    def exemption_expired(t):
+        _append(HOSTED_HALF, "      - name: uv\n        run: demos/render-uv.sh\n")(t)
+    def exemption_orphaned(t):
+        _sub(t, LOCAL_HALF, "demos/render-uv.sh\n", "")
+        os.remove(os.path.join(t, "demos/render-uv.sh"))
     def marker_wrong_job(t):   _sub(t, LOCAL_HALF, "# HOSTED MIRROR: discipline / mirrored step 0", "# HOSTED MIRROR: k-lint / mirrored step 0")
     def marker_step_renamed(t): _sub(t, HOSTED_HALF, "- name: mirrored step 0", "- name: mirrored step zero")
     def markers_deleted(t):    _sub(t, LOCAL_HALF, "# HOSTED MIRROR: ", "# was: ")
@@ -617,6 +896,17 @@ def selftest() -> None:
     _case("prunes it at step", prune_after_read)
     _case("but it is the one job", _resite_prune)
     _case("not a job name at job indent", unparseable)
+    _case("job `sneaky` checks the repo out", flush_style_steps)
+    _case("job `spaced` checks the repo out", three_space_body)
+    _case("waits on `discipline` carries an `if:`", siting_job_needs)
+    _case("cannot redden the PR", siting_job_soft)
+    _case("not a `key:` line in job `merged`", merge_key)
+    _case("carries the key `stepz`", unknown_job_key)
+    _case("carries the key `runn`", unknown_step_key)
+    _case("a TAB character", tabbed)
+    _case("looks like a shell function definition", bad_func_spelling)
+    _case("BOTH halves now name it", exemption_expired)
+    _case("NEITHER half names it", exemption_orphaned)
     _case("has no step named", marker_wrong_job)
     _case("has no step named", marker_step_renamed)
     _case("below the", markers_deleted)
@@ -631,7 +921,7 @@ def selftest() -> None:
           "one-sided gate MODE, a path both halves name that does not exist, an orphan script, a "
           "one-sided tools/ crate, a checked-out job that keeps either tree, an UPPERCASE job name doing "
           "the same, a second workflow file growing one, a prune that comes after the read, the siting job "
-          "pruning, an unparseable workflow, a marker naming the wrong job or a renamed step, the markers "
+          "pruning, an unparseable workflow, a flush-style or three-space step block hiding a checked-out job, the siting job given a `needs:` onto a skipping job or `continue-on-error`, a merge key, an unknown job or step key, a tab, an unrecognised shell function spelling, an exemption that expired or was orphaned, a marker naming the wrong job or a renamed step, the markers "
           "deleted, an inverted exemption, the sited steps moved back into an `if:` job, and the local "
           "half's rows wrapped in a function called below its docs-tier exit, or deleted")
 
@@ -702,8 +992,8 @@ def main() -> int:
     print("check-ci-mirror-parity OK: both halves name the same checks and the same gate modes, no orphan "
           "or missing check under scripts/ or demos/, both tools/ crates' halves agree, every checked-out "
           f"job in {WORKFLOW_DIR}/ but `{SITING_JOB}` prunes local-only tooling before reading it, every "
-          "tier-blind check is sited in a job with no `if:` and above the local half's docs exit, and all "
-          "hosted-mirror citations resolve")
+          "tier-blind check is sited in a job that no `if:`, `needs:` chain or `continue-on-error` can "
+          "skip and above the local half's docs exit, and all hosted-mirror citations resolve")
     return 0
 
 
