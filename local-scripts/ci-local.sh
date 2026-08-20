@@ -474,7 +474,9 @@ demos_hygiene() {
 klint_tool() {
   (cd tools/k-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test)
 }
-# Mirror of hosted's `type-check every probe-gated test target` step.
+# Mirror of hosted's `compile and list every probe-gated test target`
+# step, both commands: the check covers what the feature instantiates,
+# the listing asks which counted suites were actually built.
 # The census half needs no mirror: it is `scripts/gates/`, so the
 # discipline loop above already runs it and its --selftest.
 #
@@ -483,11 +485,17 @@ klint_tool() {
 # this row green over zero crates if the census refused — the same
 # silence one level up from the one the census exists to remove.
 probe_targets() {
-  local crates c
+  local crates c listing
   crates=$(scripts/gates/probe-suite-census.sh --crates) || return 1
   [ -n "$crates" ] || { echo "ERROR: the probe census printed no crates"; return 1; }
   for c in $crates; do
     cargo check -p "$c" --features probe --all-targets || return 1
+    # BOUND FIRST for the same reason `crates` is: this file runs without
+    # `pipefail`, so `cargo … | gate` would report only the gate's status
+    # and a failed build would reach it as an empty listing.
+    listing=$(cargo test -p "$c" --features probe --test all -- --list) || return 1
+    printf '%s\n' "$listing" \
+      | scripts/gates/probe-suite-census.sh --check-listing "$c" || return 1
   done
 }
 klint_gate() {

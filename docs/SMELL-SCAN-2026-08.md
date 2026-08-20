@@ -994,7 +994,7 @@ branch on.
 *What that reproduction is and is not.* The regenerating probe,
 `crates/topo/tests/probe_s5_sectors.rs`, is **committed and type-checked
 but not run by CI**: it is `#![cfg(feature = "probe")]`, so since D17
-(#739) the `k-lint` job's *"type-check every probe-gated test target"*
+(#739) the `k-lint` job's *"compile and list every probe-gated test target"*
 step compiles it — `cargo check -p topo --features probe --all-targets`
 over a census derived from the tree — but nothing
 in `.github/workflows/` *runs* `cargo test -p topo --features probe`.
@@ -7556,17 +7556,23 @@ dependency**, so archiving or reorganising it reds the build.
 
 **Verdict:**
 
-## S62. S13's dual-maintenance defect survives unmoved for the five checks outside `scripts/gates/`, and its prose has already drifted
+## S62. S13's dual-maintenance defect survives for the checks outside `scripts/gates/` — four of the five after #753 — and its prose has already drifted
 
-`check-test-aggregation.sh`, `rundump-guard-selftest.sh`,
+**Five when this was written; four now.** `rundump-guard-selftest.sh`,
 `check-interval-cfg-additive.py`, `demos/check_render_provenance.py` and
 `demos/compose_uv_montage.py` are gates by every criterion the directory
-uses, run in the same `discipline` job
-(`ci.yml:305`, `:326`, `:338-339`, `:392`, `:402`), and are **named by
-hand in both halves** (`local-scripts/ci-local.sh:196-209`, `:224`).
-They are outside `scripts/gates/`, therefore outside the roster and
-outside the local loop; nothing detects a lost row on either side.
+uses, run in the same `discipline` job, and are **named by hand in both
+halves**. They are outside `scripts/gates/`, therefore outside the roster
+and outside the local loop; nothing detects a lost row on either side.
 Whether a check is a "gate" is itself an unenforced judgement call.
+
+The fifth was **`check-test-aggregation.sh`**, and **#753 moved it** to
+`scripts/gates/test-aggregation.sh` under `lib.sh`'s contract as D34's
+one move — so its hand-named local row is gone, the directory loop
+reaches it, and `gate-roster.sh` now requires `ci.yml` to wire it. That
+is one instance closed, not the class: the line anchors above are the
+ones this finding was written against and #753 moved them, which is
+itself the reason a finding cites a shape and not only a line.
 
 The prose has already drifted: `local-scripts/ci-local.sh:224` says the
 hosted mirror is *"the `k-lint` job's 'demos render provenance' step"*,
@@ -10022,7 +10028,7 @@ grepped for the step that makes them true, so renaming it would have left all
 four quietly false — the exact shape that let their four predecessors rot. The
 gate now asserts that `topo/tests/probe_s5_sectors.rs`,
 `sweep/tests/k_report.rs`, `docs/K-REPORT.md` and this document each name the
-step `type-check every probe-gated test target`, and that `ci.yml` still has a
+step `compile and list every probe-gated test target`, and that `ci.yml` still has a
 step by that name.
 
 **The run half's guard failed open, and now has its own suite.**
@@ -10784,210 +10790,171 @@ which is S113's own class, inside the section that reports coverage.)*
 ### Landed
 
 **D22 — FIXED by #753.** D22 was raised by #739 rather than by a numbered
-finding, so its full record is here.
+finding, so its full record is here. **The mechanism's operating argument lives
+in `scripts/gates/probe-suite-census.sh`'s header and is not repeated here** —
+this entry is the decision and its evidence.
 
-**Half of it was already closed on `main`, and the row said the opposite.** It
+**Half the row was already closed on `main`, and the row said the opposite.** It
 read: a new suite gated `#![cfg(feature = "prboe")]` "is not in the census,
 `topo`'s floor of 5 is still met, `cargo check --all-targets` compiles it to
 nothing, and **every mechanism reports green**". Every clause but the last is
-true. Cargo emits `--check-cfg` for every feature a manifest declares, so
-rustc's `unexpected_cfgs` fires on an unknown feature *value* even where the
-condition is false and the module is stripped — and `ci.yml`'s workspace
-`cargo clippy … --all-targets -- -D warnings` row makes it an error. **Checked,
-not reasoned**: that gate planted in `crates/topo/tests/` and `#[path]`-declared
-in `tests/all.rs` fails `cargo clippy -p topo --all-targets -- -D warnings` with
-*"unexpected `cfg` condition value: `prboe` … help: there is a expected value
-with a similar name: `"probe"`"*, at rustc 1.97.0 and with no feature flag
-passed — the default rows carry it.
+true. Cargo emits `--check-cfg` per declared feature, so `unexpected_cfgs` fires
+on an unknown feature *value* even where the condition is false and the module
+is stripped, and `ci.yml`'s `-D warnings` clippy row makes it an error —
+verified by planting that gate in `crates/topo/tests/`, `#[path]`-declaring it,
+and watching `cargo clippy -p topo --all-targets -- -D warnings` fail at rustc
+1.97.0 with no feature flag passed.
 
-**Three ways a gate can be uncovered; each now has a named mechanism, and all
-three fire in `--selftest`.** (1) *Misspelt* — the compiler's, above. The census
-now checks the row that promotes it rather than assuming it: the workspace
-clippy row must keep `--all-targets` and `-D warnings`, and nothing under
-`crates/` may silence `unexpected_cfgs`. That row is part of this census's
-coverage argument now, not a coincidence it benefits from. (2) *Compound* —
-`#![cfg(all(feature = "probe", not(miri)))]` is a correct gate the predicate had
-no vocabulary for; it now matches the cfg ATTRIBUTE with the condition anywhere
-inside its parentheses, so such a file is counted and its crate enters the
-derived type-check list. This is the case that was genuinely silent, and only
-for a crate whose FIRST probe suite is spelled that way. (3) *Requires a second
-feature* — `all(feature = "probe", feature = "interval")` is correctly spelled,
-is counted, and compiles under no row this repo runs, because none builds
-`probe` alongside another feature. It is refused by name, with the two ways out
-in the message.
+**The row's fix shape is right, and this unit first argued itself out of it on a
+false premise.** Three cases can leave a gate uncovered: *misspelt* (the
+compiler's, above), *uncounted* (a compound gate the verbatim predicate had no
+vocabulary for — the widening answers it), and **counted but never built**. The
+third is not decidable from the gate line, and the first attempt at this row
+tried anyway: it refused any counted gate naming a second feature, on the stated
+ground that *"no CI row builds `probe` with another one"*. **That is false.**
+`crates/topo/Cargo.toml` and `crates/sweep/Cargo.toml` carry **self
+dev-dependencies** enabling `test-support` and `sweep-testing`, so cargo unifies
+those features into every test build of the crate that owns them — the two
+crates owning 6 of the 16 censused suites. Proved both ways by planting in
+`topo`: `#![cfg(all(feature = "probe", feature = "test-support"))]` containing
+`compile_error!` **fails the probe loop**, i.e. it compiles; the same gate
+without the macro **appears in `--list`**; and `all(feature = "probe",
+feature = "interval")` does not. The refusal would have redded a correct suite
+with a wrong explanation, and it read `all` and `any` alike and a negated
+feature as a required one. **It is gone.**
 
-**The behavioural check was built, works, and is rejected — one measured
-reason, one structural.** `cargo test -p <crate> --features probe --test all --
---list` per crate, asserting every counted suite appears as a module prefix,
-catches the one case left: a gate whose extra condition is not a feature and is
-false on every runner (`not(target_os = "linux")`, `miri`). Planted, it reds the
-listing while `cargo clippy -p topo --all-targets -- -D warnings` stays green —
-so the residue is real, and stated rather than assumed away. **Measured**: the
-step was swapped to the behavioural form for one run of this PR and swapped
-back, so both numbers come off `ubuntu-latest` against one cache. `k-lint`'s two
-probe steps cost **196 s** today (35 s type-check + 161 s sweep) against
-**219 s** (107 s + 112 s) — **+23 s a merge**, for a case nobody has written.
-**Structural**: the assertion has no home. It cannot live in the census gate,
-which runs in `discipline` with no cargo build, so it would be inline bash in a
-workflow step with no `--root`, no fixture and no `--selftest` — which is what
-`scripts/gates/` exists to be the alternative to, and D34 in the same PR is
-about exactly that boundary. It also reds on a counted suite that defines no
-`#[test]` of its own, whose only remedies are an exception list or restructuring
-the file. **The row's own cost figure was wrong in both directions**: it cited
-*"a `cargo check` (sweep's was measured at 23 s marginal), across four crates"*,
-where the loop covers **five** crates at 35 s hosted, and a variant that drops
-`--all-targets` is *cheaper* than today (132 s vs 141 s from an empty target dir
-on a 4-vCPU container) at the price of every `#[cfg(test)]` module in `src/`
-under `probe`. The numbers and the argument are in the gate's header, so the
-decision can be re-run rather than re-derived.
+**So the behavioural check the row named is what landed, and it is the only
+mechanism that gets case 3 right.** `cargo test -p <crate> --features probe
+--test all -- --list` per crate, piped into `--check-listing <crate>`, which
+asserts every suite the census counted for that crate was built. As the row
+states it — *"every `tests/*.rs` basename"* — it is unsound, because a listing
+under `--features probe` omits every suite gated on any other feature (~90 files
+here); scoped to *the files the census counted*, all 16 appear.
 
-**Two fixture cases the unit owes to hosted CI, both invisible locally.** The
-new clippy-row check was written as `grep -v … | grep -q …` and fired against a
-correctly wired `ci.yml` on its first hosted run: `grep -q` exits on its first
-match, SIGPIPEs the upstream filter, and `pipefail` calls the pipeline failed —
-which is the trap `gate-roster.sh`'s header already records, one gate over. The
-six-line fixture could not show it, because the race needs enough output to fill
-a pipe. The filter's result is now materialised before matching, and the fixture
-pads its `ci.yml` past the match with **non-comment** lines, which reproduces the
-failure against the old body and passes against the new. `test-aggregation.sh`
-had the sibling shape — cargo's stderr folded into the JSON it parses, harmless
-on a machine whose cargo is quiet and fatal on a runner fetching the pinned
-toolchain — and now carries a fixture case that shims `cargo` on `PATH` to write
-to stderr. **A gate's self-test is only as good as the fixture's resemblance to
-the tree**, and "small" is a resemblance failure.
+**The rejection this unit first published does not survive its own review.** It
+rested on "the assertion has no home — it would be inline bash in a workflow
+step". `ci.yml` already calls `probe-suite-census.sh --crates` from `k-lint`, so
+a second mode on the same script from the same step has `--root`, a
+`--selftest`, and a fixture. And the fixture is **text** — a `--list` listing —
+so it costs no build at all, against the 1.4 s compilable-crate fixture this
+same PR rules affordable at **D40**. Arguing that a compilable fixture is cheap
+at D40 and prohibitive here, two rows apart, was the error; the split above
+removes the question.
 
-**What the predicate cannot match**, since the previous one's blind spot went
-unstated: a gate broken across lines; a gate carrying a **trailing comment**,
-because the match is anchored to the whole line and those anchors are what keep
-prose out; a gate reached through `cfg_attr` or a macro;
-`cfg(not(feature = "probe"))`, which it counts as a probe suite though it
-means the opposite — an over-count, and the harmless direction, since such a
-file compiles under the default rows; and the never-true non-feature condition
-above. The census reports **16** suites across **5** crates, unchanged by the
-widened predicate.
+**The cost, stated as what it is.** The marginal is one `--test all -- --list`
+per censused crate — a codegen+link the compile loop does not do, and not
+wasted, since `k_probe_sweep.sh` runs `--test all` two steps later. Hosted,
+`k-lint`'s two probe steps summed **196 s** (run `32386792956`) and **212 s**
+(run `32392635996`) without this half, and **219 s** (run `32389414812`) with
+it. **n=1 per arm, and the same-arrangement spread of 16 s is as large as the
+difference** — so the honest reading is *small, and not resolved by three runs*,
+not "+23 s". The earlier record quoted 196 s as "today"; it was this PR's first
+commit. The decision rests on correctness, and the number is evidence for a
+bound, not a figure to defend.
 
-**A blind spot this row does NOT close, and did not name: WHEN the gate runs.**
-`docs/SMELL-SCAN-2-2026-08.md` **S61** reports it and it re-derives — the
-`discipline` job is `if: needs.filter.outputs.run_build == 'true'` and
-`ci-filter.py`'s `_is_docs` is true for any `.md` path, so a PR editing only
-`docs/K-REPORT.md` and this file is docs-tier and **the citation half cannot
-fire on the only change class that can break it**. Everything above is about
-what the census *reads*; that is about whether it is read at all, and no
-predicate here reaches it. The new clippy-row check inherits the same
-conditionality, though less sharply: its subject is `ci.yml`, which is never
-docs-tier. **Unverdicted, and left deliberately** — this row closes on a
-decision about the predicate, and a job's `if:` is a different mechanism in a
-different file.
+**Q6 on these constants: no guard, and here is why.** Nothing in the repo
+records `k-lint` step times — `rebuild-latency` measures kernel rebuilds — and a
+threshold over runner-to-runner variance would fire on weather rather than on
+change. They are a decision's dated, sourced evidence, not a baseline; a taker
+who needs them re-measures. That is written in the gate header beside them.
+
+**What the widening COSTS, which the first version of this record presented as a
+standing gap rather than as a price.** On `main`, re-gating an already-counted
+suite onto something never true — `all(feature = "probe", not(target_os =
+"linux"))` — drops its crate below the floor and reds, *because* the verbatim
+predicate could not match it. Under the widened predicate that file is counted,
+the floor holds, and clippy is silent. So the widening closes the new-crate case
+and would have opened the re-gate case. **The listing half is what pays that
+back**, and it is a large part of why it landed rather than being deferred: with
+it, both ends of case 3 are caught by the same mechanism.
+
+**Blind spots.** The predicate cannot match a gate split across lines, a gate
+with a trailing comment (the whole-line anchors are what keep prose out), a gate
+reached through `cfg_attr` or a macro, or `cfg(not(feature = "probe"))` — which
+it counts, an over-count in the harmless direction. The listing half cannot see
+a counted suite that declares no `#[test]` of its own: it lists nothing and is
+reported missing. None exists today; the remedy is a test or a de-count, never
+an exception list. **And neither half decides WHEN the gate runs** — the
+`discipline` job is `if: run_build == 'true'` and `_is_docs` is true for any
+`.md` path, so a PR editing only the citing documents skips it. That is **S62's
+neighbour S61**, unverdicted, and this row does not close it.
+
+**Two guards this unit had to be shown were failing open, and both were its
+own.** The clippy-row check was written `grep -v … | grep -q …` and fired
+against a correctly wired `ci.yml` on its first hosted run: `grep -q` exits on
+its first match, SIGPIPEs the upstream filter, `pipefail` calls the pipeline
+failed — the trap `gate-roster.sh`'s header already records, one gate over. The
+moved aggregation gate folded cargo's stderr into the JSON it parses, fatal only
+where cargo has something to say. **Neither was a defect discovered in the
+tree**: the piped check is new in this PR, and the old aggregation script piped
+`cargo metadata` straight into python so stderr never reached it. This is
+REVIEW-STYLE-DISPATCH §2 — *a unit that adds a guard can leave it failing
+open* — and it is recorded as that. What generalises is the fixture lesson: a
+six-line `ci.yml` cannot show a pipe race and a quiet cargo cannot show a stderr
+fold, so **a self-test is only as good as its fixture's resemblance to the
+tree**. Both now have cases that reproduce the failure against the old body.
 
 **D34 — FIXED by #753.** Raised by #747 and corrected 2026-08-20; its full
 record is here.
 
 **The count re-derives.** Non-comment `scripts/…` paths in `ci.yml` at
-`87e565b`: **23**, against **13** executable gates in `scripts/gates/` (14
-files — `lib.sh` is sourced, and mode 0644, so the loop's `-x` test skips it).
-The ten the row named are exactly the ten that fall out, and `gate-roster.sh`'s
+`87e565b`: **23**, against **13** executable gates in `scripts/gates/` (14 files
+— `lib.sh` is sourced, mode 0644, and the loop's `-x` test skips it). The ten
+the row named are exactly the ten that fall out, and `gate-roster.sh`'s printed
 sentence is scoped and honest, as the correction said.
 
 **The scope verdict: `scripts/gates/` is not a directory, it is `lib.sh`'s
-contract.** The roster is worth something only while *"in this directory"* and
-*"under that contract"* are the same set — which is the answer to the `.py`
-question and the reason the one move is the one it is. That argument now lives
-beside the loop it justifies, in `gate-roster.sh`, instead of being inferred
-from a glob.
+contract**, and the roster is worth something only while *"in this directory"*
+and *"under that contract"* are the same set. That argument now sits beside the
+loop it justifies in `gate-roster.sh`.
 
-**The one move: `scripts/check-test-aggregation.sh` →
-`scripts/gates/test-aggregation.sh`.** It had neither flag, a hand-synced mirror
-row in `ci-local.sh`, and no wiring check of any kind. Its subject is
-`cargo metadata` rather than a source tree, so its fixture root is a miniature
-dependency-free workspace that resolves offline in milliseconds: the
-`--selftest` passes it, and fires on a member with two `[[test]]` targets and on
-a root with no manifest. The mirror row is gone — the loop over the directory
-reaches it — and `gate-roster.sh` now requires `ci.yml` to wire it.
-
-**A third fixture case the move earned, from a hosted failure no local run could
-produce.** The gate's first hosted `--selftest` failed on a *clean* fixture: it
-had folded cargo's stderr into the JSON it parses, and the runner's cargo, unlike
-this container's, had chatter to emit while fetching the pinned toolchain. Both
-halves are now permanent — stdout alone is read, and a fixture case puts a shim
-ahead of cargo on `PATH` that writes to stderr, which reproduces the failure
-against the old body and passes against the new one.
+**The one move: `check-test-aggregation.sh` → `scripts/gates/test-aggregation.sh`.**
+It had neither flag, a hand-synced mirror row in `ci-local.sh`, and no wiring
+check. Its subject is `cargo metadata`, so its fixture root is a miniature
+dependency-free workspace resolving offline in milliseconds. Its `--selftest`
+now fires on a member with two `[[test]]` targets, a root with no manifest, a
+cargo reply it cannot parse, and a reply naming no members — **the last two by a
+cargo shim, because neither is constructible from a manifest**, and both were
+added after review found that the "reader failed" and "no members" branches had
+respectively no discriminating case and no case at all. All three of this gate's
+guards were then mutated out one at a time and the selftest redded on each.
+S62's hand-named set is four rather than five, and that finding is corrected in
+place.
 
 **The `.py` verdict: no, the loop stays `*.sh`.** `check-interval-cfg-additive.py`
-is the near miss and it is instructive: it has `--selftest`, but no `--root`, and
-its self-test runs over in-memory snippets rather than a fixture tree, so it
-meets the spirit of the contract and not its letter. A python gate cannot source
-`lib.sh` — the two modes, the fixture helpers, the scan-target guard — so it
-either reimplements all of that or silently means something weaker by
-`--selftest`. Widening the glob would buy one script's wiring enforcement at the
-cost of the property that makes the roster mean anything.
+has `--selftest` but **no `--root`**, and its selftest runs over in-memory
+snippets rather than a fixture tree — spirit, not letter. A python gate cannot
+source `lib.sh`, so it either reimplements the contract or means something
+weaker by `--selftest`.
 
-**The `doc-gate.sh` verdict: worth a fixture, and it cannot be this row's move.**
-The evidence for the fixture is stronger than the row records — **three** reds in
-one session, not two: #740 (an intra-doc link to a renamed item), #744 (a link
-to a private sibling), and #755, where a lane deleted a helper the compiler
-showed was dead and orphaned a doc link to it, which `cargo build` and
-`cargo clippy -p topo --lib` both passed over. The third is the one that makes
-it a class rather than churn: **a deletion orphaning a link is what a lane
-produces when it is doing the right thing**, and it is the shape a fixture would
-still catch after the other two stop happening. The cost objection does not
-survive measurement either — a fixture root is a two-file crate with no
-dependencies, and `cargo doc` over it with this gate's real flags is **1.4 s** on
-this container, against milliseconds for the source-scanning gates but nothing
-at all beside a CI job. **What blocks it is the move, not the fixture**: in
-`scripts/gates/` the local discipline loop would run `doc-gate.sh`'s real pass,
-which is `cargo doc --workspace --all-features --document-private-items` — a full
-workspace doc build inside the row that is otherwise greps and one
-`cargo metadata`, and which `ci-local.sh` already runs as its own row. So the
-fixture wants to live in the script where it is, wired as a `--selftest` in
-`ci.yml`'s `doc` job and in `ci-local.sh`'s docs row, and that leaves its wiring
-uncovered by the roster — which is a trade to make deliberately, in its own row.
-**Placed as D40.** A verdict is not a placement.
+**The `doc-gate.sh` verdict: worth a fixture, not this row's move — placed as
+D40**, with the excluded-root hole its own header calls owed placed as **D41**.
+Three reds in one session (#740, #744, and #755's deletion orphaning a link),
+a measured 1.4 s fixture, and a blocker that is the move rather than the cost:
+inside `scripts/gates/` the local loop would run a full workspace `cargo doc` in
+the row that is otherwise greps.
 
-**And one hole the gate names about itself, unscheduled since #709: placed as
-D41.** `doc-gate.sh` runs `cargo doc --workspace`, which sees workspace
-*members*, and `Cargo.toml` excludes `demos`, `tools` and
-`interval-transcendentals`. Its own header says a row is owed and is
-unscheduled — #709 moved ~1,050 lines of prose from `crates/mesh/src/budget.rs`
-into `tools/tess-meter` and it went from covered to uncovered by moving, with a
-`cargo doc` step added to that row as a stopgap and #738 copying it to
-`tess-lint`. **Re-derived at `7db79c1`: four excluded roots have no rustdoc gate
-at all** — `tools/k-lint`, `demos/tour`, `demos/wild` and
-`interval-transcendentals` — and the two that are covered are covered by a step
-hand-copied into two rows, with no shared home, which is the drift shape
-`lib.sh` exists to prevent. The header's own count is *"only two of those five
-rows"*, which misses `interval-transcendentals`: it is excluded by the root
-manifest but runs in its own job rather than in `k-lint`, so a count taken off
-that job's rows cannot see it.
+**What this verdict does NOT answer**, since a second scan landed on these files
+mid-lane and its findings now live in this document: **S61's headline** — every
+gate the roster enforces is skipped on a docs-tier change set, including the
+census's citation half, whose whole subject is `.md` files; **S61's** second
+half, where `gate-roster.sh` offers that same conditionality as its reason not
+to read `local-scripts/`; and **S62's registration hole** — both halves derive
+the roster with `[ -x "$script" ] || continue` to exclude `lib.sh`, so a gate
+landing mode `0644` is registered by nobody, confirmed by planting one beside
+the wired fourteen and watching `gate-roster.sh` report *"all 14 gates"* and
+exit 0. The third is squarely this row's subject; this row's budget is a scope
+verdict plus one move, and the move is spent.
 
-**What this verdict rules ON, and what it does not — because a second scan
-landed on the same files mid-lane.** `docs/SMELL-SCAN-2-2026-08.md` reports
-**S61** and **S62** over `scripts/gates/`, both re-derived here and both
-standing. This row's scope verdict is *"the directory is `lib.sh`'s contract"*,
-and it answers **one** of what they name: the move takes
-`check-test-aggregation.sh` out of S62's hand-named set, five to four
-(`rundump-guard-selftest.sh`, `check-interval-cfg-additive.py`,
-`demos/check_render_provenance.py`, `demos/compose_uv_montage.py` are what is
-left, and the `.py` verdict says the second of those stays there). Three things
-it does **not** answer, left deliberately rather than missed:
-**(i)** the whole `discipline` job is skipped on a docs-tier change set, so
-every gate the roster enforces is conditional in a way the roster cannot see —
-S61; **(ii)** `gate-roster.sh`'s own header offers that same conditionality as
-its reason not to read `local-scripts/`, which is a hole cited as a licence —
-S61; **(iii)** both halves derive the roster with `[ -x "$script" ] || continue`
-to exclude `lib.sh`, so **a gate landing mode 0644 is registered by nobody** —
-S62, confirmed here by planting a non-executable `zz-unwired-nonexec.sh` beside
-the wired fourteen, which `gate-roster.sh` reports as *"all 14 gates"* and exits
-0. (iii) is the sharp one and it is squarely this row's subject — *what makes
-something a member of the roster* — which is why it is named here rather than
-left for the next reader to re-derive: this row's budget is a scope verdict plus
-one move, and the move is spent.
-
-**One blind spot in this row's own enumeration, since a path glob is part of a
-pattern.** The 23 were enumerated from non-comment `scripts/…` paths in
-`ci.yml`. `demos/check_render_provenance.py` and `demos/compose_uv_montage.py`
-are wired into the same `discipline` job, are self-tested, and are hand-named in
-both halves — and no `scripts/`-rooted pattern can see them. S62 found them
-because it enumerated the job rather than the path.
+**One blind spot in this row's own enumeration**, since a path glob is part of a
+pattern: the 23 came from `scripts/…` paths in `ci.yml`, so
+`demos/check_render_provenance.py` and `demos/compose_uv_montage.py` — same job,
+self-tested, hand-named in both halves — are invisible to it. S62 found them by
+enumerating the job rather than the path. **And the clippy-row check this PR
+adds matches the row's text, not its reach**: `cargo_scope` is `--workspace` on
+TIER=all and `-p a -p b …` on a narrower tier, so what it pins is that the row
+is scoped by the filter rather than hand-pinned; the header says so rather than
+claiming every crate is linted on every run.
 
 ---
 

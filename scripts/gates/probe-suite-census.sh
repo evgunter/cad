@@ -6,8 +6,9 @@
 # feature, so a `tests/*.rs` behind a `probe` cfg gate is invisible to
 # every default row: it can rot into a build error, or out of existence,
 # with the whole matrix green. This gate derives the census of such
-# suites; `k-lint`'s *type-check every probe-gated test target* step
-# `cargo check`s exactly the crates it prints.
+# suites; `k-lint`'s *compile and list every probe-gated test target*
+# step compiles exactly the crates it prints, and feeds each crate's test
+# listing back to `--check-listing` below.
 #
 # WHY DERIVED AND NOT LISTED. The set of crates owning such suites is not
 # a constant — it has grown four times — so a literal list in a workflow
@@ -25,75 +26,69 @@
 # below: the condition is therefore matched anywhere inside the
 # attribute's parentheses, so `all(…)`, `any(…)` and conjunctions count.
 #
-# THREE WAYS A GATE CAN BE UNCOVERED, AND WHICH MECHANISM ANSWERS EACH.
-# The predicate above is only one of them, and saying so is the point:
+# THREE WAYS A COUNTED GATE CAN GO UNCOVERED, AND WHAT ANSWERS EACH. The
+# predicate above is one of them; naming the other two is the point.
 #
-#   1. MISSPELT — `#![cfg(feature = "prboe")]`. Not this gate's, and it
-#      does not need to be. Cargo emits `--check-cfg` for every feature a
-#      manifest declares, so rustc's `unexpected_cfgs` fires on an
-#      unknown feature VALUE even where the condition is false and the
-#      module is stripped, and the workspace `clippy` row's `-D warnings`
-#      makes it an error. That row is therefore part of THIS gate's
-#      coverage argument, so it is checked below rather than assumed:
-#      neither may the row lose `--all-targets` or `-D warnings`, nor may
-#      anything under `crates/` silence the lint.
+#   1. MISSPELT (`feature = "prboe"`) — the COMPILER'S, not this gate's.
+#      Cargo emits `--check-cfg` per declared feature, so `unexpected_cfgs`
+#      fires on an unknown VALUE even where the condition is false and the
+#      module is stripped, and a `-D warnings` clippy row makes it an
+#      error. That row is part of this gate's coverage argument, so it is
+#      checked below rather than assumed.
 #
-#   2. COMPOUND — `#![cfg(all(feature = "probe", not(miri)))]`. Correct,
-#      and covered, once the predicate has vocabulary for it: the file is
-#      counted, so its crate enters the derived type-check list. A
-#      verbatim predicate is what made this case silent, and only for the
-#      crate whose FIRST probe suite is spelled that way.
+#   2. UNCOUNTED — a correct compound gate the predicate had no vocabulary
+#      for, whose crate therefore never entered the derived list. The
+#      widening above is the answer.
 #
-#   3. REQUIRES A SECOND FEATURE — `all(feature = "probe", feature =
-#      "interval")`. Correctly spelled, counted, and compiled by nothing:
-#      no CI row builds `probe` with another feature. The compiler cannot
-#      object, so it is REFUSED below, loudly, rather than counted.
+#   3. COUNTED BUT NEVER BUILT — undecidable from the gate line, and the
+#      case this gate once got WRONG. Whether `all(feature = "probe",
+#      feature = "X")` compiles depends on the crate's manifest, not on
+#      the gate: `crates/{topo,sweep}/Cargo.toml` carry SELF
+#      DEV-DEPENDENCIES enabling `test-support` and `sweep-testing`, so
+#      those gates DO compile, while `interval` and `budget` do not. Nor
+#      can a line-reader tell `all` from `any`, or a required feature from
+#      a negated one. So this half is BEHAVIOURAL: `--check-listing` reads
+#      what the compiler built.
 #
-# WHAT IS LEFT, AND WHY IT IS LEFT. A gate whose extra condition is not a
-# feature and is false on every runner — `not(target_os = "linux")`,
-# `miri` — is correctly spelled, counted, silenced by nothing, and
-# compiled nowhere. Only a behavioural check sees it: `cargo test -p
-# <crate> --features probe --test all -- --list` per crate, asserting
-# every counted suite appears as a module prefix. It was built and it
-# works — planting such a gate reds the listing while `cargo clippy -p
-# topo --all-targets -- -D warnings` stays green — and it was rejected
-# for two reasons, one measured and one structural.
+# WHERE THE BEHAVIOURAL HALF IS SPLIT, AND WHY THERE. The cargo run stays
+# in the workflow beside the compile loop that already consumes
+# `--crates`; what arrives here is its `--list` OUTPUT, on stdin. The
+# deciding half therefore keeps `--root` and a `--selftest` whose fixture
+# is TEXT, not a compilable workspace — which is why it costs no fixture
+# build. It was adopted on correctness: it is the only mechanism that
+# accepts a `test-support` gate and refuses an `interval` one, both
+# checked by planting.
 #
-# MEASURED: hosted, `k-lint`'s two probe steps cost 196 s with the
-# type-check loop and 219 s with the behavioural one, paired runs on one
-# PR against one cache. +23 s a merge, for a case nobody has written,
-# when the three plausible shapes are answered for free. STRUCTURAL: the
-# assertion has no home. It cannot live here — this gate runs in
-# `discipline`, which has no cargo build — so it would be inline bash in
-# a workflow step, with no `--root`, no fixture, and no `--selftest`,
-# which is exactly what `scripts/gates/` exists to be the alternative to.
-# Its fixture root would have to be a compilable multi-crate workspace
-# with a `probe` feature.
+# ITS COST IS SMALL AND NOT PRECISELY KNOWN, which is the honest form.
+# The marginal is one `--test all -- --list` per censused crate: a
+# codegen+link the compile loop does not do, but not wasted, since
+# `scripts/k_probe_sweep.sh` runs `--test all` two steps later and the
+# link primes it. Hosted, `k-lint`'s two probe steps summed 196 s and
+# 212 s across two runs WITHOUT this half and 219 s across one run with
+# it — n=1 per arm, with a same-arrangement spread (16 s) as large as the
+# difference. **These numbers have no guard and cannot get one**: nothing
+# in the repo records `k-lint` step times (`rebuild-latency` measures
+# kernel rebuilds), and a threshold over runner-to-runner variance would
+# fire on weather. They are a decision's evidence, dated and sourced in
+# the PR that took it, not a baseline — and a taker who needs them
+# re-measures rather than trusting them.
 #
-# It also has a false-positive mode worth naming: a counted suite that
-# defines no `#[test]` of its own lists nothing and would red, and the
-# only remedies are an exception list — a second roster — or restructuring
-# the file. If the trade ever changes, this paragraph is the argument to
-# re-run, not the starting point for a fresh one.
+# WHAT THE PREDICATE CANNOT MATCH, stated because the previous one's blind
+# spot was not: a gate split across lines; a gate with a TRAILING COMMENT
+# (the whole-line anchors are what keep prose out, and this is their
+# price); a gate reached through `cfg_attr` or a macro; and
+# `cfg(not(feature = "probe"))`, counted though it means the opposite — an
+# over-count, and the harmless direction, since such a file compiles under
+# the DEFAULT rows. WHAT THE LISTING HALF CANNOT SEE: a counted suite
+# declaring no `#[test]` of its own lists nothing and is reported missing.
+# None exists today; the remedy if one arrives is a test or a de-count,
+# never an exception list — that would be the second roster this
+# directory exists to avoid.
 #
-# WHAT THIS PREDICATE CANNOT MATCH, stated because the previous one's
-# blind spot was not: a gate broken across lines (rustfmt keeps these on
-# one); a gate carrying a TRAILING COMMENT, since the match is anchored to
-# the whole line — the anchors are what keep prose out, and they cost this;
-# a gate reached through a `cfg_attr` or a macro; and
-# `cfg(not(feature = "probe"))`, which it counts as a probe suite though
-# it means the opposite — an over-count, and the harmless direction,
-# since such a file compiles under the DEFAULT rows and is covered there.
-#
-# WHAT MUST STILL BE LOUD. A derived selection that matches NOTHING exits
-# 0, which is the silence this mechanism exists to remove. So the census
-# refuses an empty answer, and refuses any crate on CENSUS_FLOOR falling
-# below the suite count its coverage was argued for. Growth is free — a
-# new suite or a new crate is simply covered; shrinkage is a deliberate
-# edit here.
-#
-# Usage: --selftest (prove the guards fire) | --crates (bare crate names
-# on stdout, for the type-check loop) | --root DIR | no args (report).
+# Usage: --selftest | --crates (bare crate names, for the compile loop)
+# | --suites (`<crate><TAB><module>` rows) | --check-listing CRATE
+# (read a `--test all -- --list` listing on stdin and assert every
+# counted suite of CRATE is in it) | --root DIR | no args (report).
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -110,7 +105,7 @@ CENSUS_FLOOR=(editor-core:2 geom-brep:4 profile:4 sweep:1 topo:5)
 # renaming the step would otherwise leave every one of them quietly
 # false, and a claim citing a mechanism nobody checks is how the four
 # sentences this gate now guards came to be wrong in the first place.
-CITED_STEP='type-check every probe-gated test target'
+CITED_STEP='compile and list every probe-gated test target'
 CITING_FILES=(
   crates/topo/tests/probe_s5_sectors.rs
   crates/sweep/tests/k_report.rs
@@ -118,22 +113,35 @@ CITING_FILES=(
   docs/SMELL-SCAN-2026-08.md
 )
 
-# The workspace clippy row, which is what makes a misspelt cfg gate a
-# hard error. Every clause is load-bearing: the workspace scope reaches
-# every crate, `--all-targets` is what compiles the `tests/all.rs`
-# aggregate at all, and `-D warnings` is what promotes `unexpected_cfgs`.
+# The clippy row that makes a misspelt cfg gate a hard error.
+# `--all-targets` is what compiles the `tests/all.rs` aggregate at all,
+# and `-D warnings` is what promotes `unexpected_cfgs`. The scope clause
+# is matched too, but claim only what it gives: `cargo_scope` is
+# `--workspace` on TIER=all and `-p a -p b …` on a narrower tier
+# (`ci-filter.py`), so what this pins is that the row is SCOPED BY THE
+# FILTER rather than hand-pinned — not that every crate is linted on
+# every run. A new suite lands in its own crate's scope either way.
 CLIPPY_ROW_RE='cargo clippy .*cargo_scope.*--all-targets.*-D warnings'
 # The other way to re-open the hole: silence the lint at the site.
 CFG_LINT_SILENCED_RE='(allow|expect)\(unexpected_cfgs\)|unexpected_cfgs[[:space:]]*=[[:space:]]*"allow"'
 
 CENSUS_CRATES=false
+CENSUS_SUITES=false
+CENSUS_LISTING=
 gate_args=()
+want_crate=false
 for a in "$@"; do
+  if [ "$want_crate" = true ]; then CENSUS_LISTING=$a; want_crate=false; continue; fi
   case "$a" in
     --crates) CENSUS_CRATES=true ;;
+    --suites) CENSUS_SUITES=true ;;
+    --check-listing) want_crate=true ;;
     *) gate_args+=("$a") ;;
   esac
 done
+if [ "$want_crate" = true ]; then
+  printf 'usage: %s --check-listing CRATE < listing\n' "$0" >&2; exit 2
+fi
 gate_parse_args ${gate_args[@]+"${gate_args[@]}"}
 
 # The cfg ATTRIBUTE, file-level or per-item — both spellings are live
@@ -151,21 +159,9 @@ census_tally() {
     while read -r n c; do printf '%s %s\n' "$c" "$n"; done
 }
 
-# `<file>: feature = "X"` for every feature a counted gate names besides
-# `probe` itself. Read off the MATCHED LINES, not the whole file: a
-# probe suite may of course carry `#[cfg(feature = "interval")]` on some
-# item inside it, and that is not this question.
-census_second_features() {
-  local suite
-  while IFS= read -r suite; do
-    grep -hE "$PROBE_GATE_RE" "$suite" |
-      grep -oE 'feature = "[^"]*"' | grep -vFx 'feature = "probe"' |
-      sed "s|^|$suite: |" || true
-  done <<<"$1" | sort -u
-}
-
 gate() {
-  local files tally rc=0 entry want n have silenced extra hosted
+  local files tally rc=0 entry want n have silenced hosted
+  local suite crate rest listed missing suites
 
   # A CENSUS THAT SCANNED NOTHING IS NOT A PASS. `crates/*/tests` is a
   # glob; with no match `find` is handed the literal, prints nothing, and
@@ -194,23 +190,59 @@ gate() {
   done
   [ "$rc" -eq 0 ] || exit 1
 
-  # A COUNTED GATE MAY REQUIRE `probe` AND NOTHING ELSE THAT IS A
-  # FEATURE. No CI row builds `probe` together with another one — the
-  # interval legs are their own build graph, `budget` is its own row —
-  # so `#![cfg(all(feature = "probe", feature = "interval"))]` is a
-  # correctly spelled gate that compiles under no configuration anyone
-  # runs. The compiler cannot object (both names exist) and the floor
-  # above still counts it, so without this the file is exactly as
-  # invisible as the misspelt one, and considerably more plausible.
-  extra=$(census_second_features "$files")
-  if [ -n "$extra" ]; then
-    gate_error "$(gate_name): a probe suite's gate requires a SECOND feature, and no CI row builds \`probe\` with another one, so the file compiles under no configuration this repo runs: $(printf '%s' "$extra" | tr '\n' ' '). Split the suite, or add the row that builds the combination and teach this gate about it"
-    rc=1
-  fi
-  [ "$rc" -eq 0 ] || exit 1
-
   if [ "$CENSUS_CRATES" = true ]; then
     printf '%s\n' "$tally" | cut -d' ' -f1
+    return 0
+  fi
+
+  # `<crate><TAB><module>`. The module is the file stem because the
+  # aggregator declares it that way (`#[path = "x.rs"] mod x;`), which is
+  # what `test-aggregation.sh` keeps true. A suite NESTED under `tests/`
+  # would need its parent module too, so it is refused rather than
+  # mis-reported: none is nested today.
+  if [ "$CENSUS_SUITES" = true ] || [ -n "$CENSUS_LISTING" ]; then
+    suites=$(
+      while IFS= read -r suite; do
+        crate=${suite#crates/}; crate=${crate%%/*}
+        rest=${suite#crates/*/tests/}
+        case $rest in
+          */*) gate_error "$(gate_name): $suite is a probe suite nested under tests/, and the module a listing names is the file stem alone. Flatten it, or teach --suites the nesting"
+               exit 1 ;;
+        esac
+        printf '%s\t%s\n' "$crate" "${rest%.rs}"
+      done <<<"$files"
+    )
+  fi
+  if [ "$CENSUS_SUITES" = true ]; then
+    printf '%s\n' "$suites"
+    return 0
+  fi
+
+  # THE BEHAVIOURAL HALF. Given a `cargo test -p CRATE --features probe
+  # --test all -- --list` listing on stdin, every suite this census
+  # counted for CRATE must appear in it. A counted file that compiles
+  # under no configuration the loop builds lists nothing, and that is the
+  # only way to tell it from one that does — the gate line cannot say.
+  if [ -n "$CENSUS_LISTING" ]; then
+    listed=$(sed -n 's/^\([A-Za-z0-9_]*\)::.*/\1/p' | sort -u)
+    if [ -z "$listed" ]; then
+      gate_error "$(gate_name): the listing for $CENSUS_LISTING named no test at all. A listing that matched nothing is not a pass — check that the crate builds its \`all\` target under \`--features probe\`"
+      exit 1
+    fi
+    missing=$(
+      printf '%s\n' "$suites" |
+        awk -F'\t' -v c="$CENSUS_LISTING" '$1==c {print $2}' |
+        while IFS= read -r m; do
+          [ -n "$m" ] || continue
+          grep -qx "$m" <<<"$listed" || printf '%s ' "$m"
+        done
+    )
+    if [ -n "$missing" ]; then
+      gate_error "$(gate_name): $CENSUS_LISTING counts these as probe suites, but \`--features probe\` built no test from them: $missing. The census reads the gate LINE; a gate can be spelled correctly and still be true under no configuration CI runs — a second feature the probe loop does not enable (\`interval\`, \`budget\`; \`test-support\` and \`sweep-testing\` ARE enabled, by the crate's self dev-dependency), or a non-feature condition false on every runner. Fix the gate, give the suite a test, or stop counting the file"
+      exit 1
+    fi
+    GATE_SCAN_FILES=$(printf '%s\n' "$suites" | awk -F'\t' -v c="$CENSUS_LISTING" '$1==c' | wc -l | tr -d ' ')
+    gate_ok "every probe suite $CENSUS_LISTING counts was built and listed under \`--features probe\`"
     return 0
   fi
 
@@ -301,11 +333,47 @@ plant_cfg_lint_allowed() {
   printf '#![allow(unexpected_cfgs)]\n#![cfg(feature = "probe")]\n' \
     > "$1/crates/topo/tests/probe_0.rs"
 }
-# A gate no CI row builds, spelled correctly. Nothing else in the tree
-# can object to it: both feature names exist, so the compiler is silent.
-plant_second_feature() {
-  printf '#![cfg(all(feature = "probe", feature = "interval"))]\n' \
-    > "$1/crates/topo/tests/probe_0.rs"
+# THE BEHAVIOURAL HALF, BOTH DIRECTIONS. Its subject is a listing, so its
+# fixture is text: no cargo, no compilable workspace, milliseconds. The
+# clean case feeds a listing naming every counted suite of `topo`; the
+# planted one drops a single module from it, which is exactly what a gate
+# that is spelled correctly and true under nothing produces.
+selftest_listing() {
+  local tmp out listing
+  tmp=$(mktemp -d)
+  gate_plant_clean "$tmp"
+  listing=$(cd "$tmp" && gate_listing_for topo)
+  if ! out=$(cd "$tmp" && printf '%s\n' "$listing" | CENSUS_LISTING=topo gate 2>&1); then
+    rm -rf "$tmp"
+    printf 'SELFTEST FAILED: the listing check FAILED on a complete listing\n%s\n' "$out" >&2
+    exit 1
+  fi
+  if out=$(cd "$tmp" && printf '%s\n' "$listing" | grep -v '^probe_0::' | CENSUS_LISTING=topo gate 2>&1); then
+    rm -rf "$tmp"
+    printf 'SELFTEST FAILED: the listing check PASSED with a counted suite missing\n%s\n' "$out" >&2
+    exit 1
+  fi
+  case "$out" in
+    *'built no test from them: probe_0'*) ;;
+    *) rm -rf "$tmp"
+       printf 'SELFTEST FAILED: the listing check fired with an unexpected message:\n%s\n' "$out" >&2
+       exit 1 ;;
+  esac
+  if out=$(cd "$tmp" && printf '' | CENSUS_LISTING=topo gate 2>&1); then
+    rm -rf "$tmp"
+    printf 'SELFTEST FAILED: the listing check PASSED on an EMPTY listing\n%s\n' "$out" >&2
+    exit 1
+  fi
+  rm -rf "$tmp"
+}
+
+# One `<module>::<test>` row per counted suite of CRATE, the shape
+# `cargo test -- --list` prints.
+gate_listing_for() {
+  gate_suites_for "$1" | while IFS= read -r m; do printf '%s::t: test\n' "$m"; done
+}
+gate_suites_for() {
+  CENSUS_SUITES=true gate | awk -F'\t' -v c="$1" '$1==c {print $2}'
 }
 
 # A SIX-LINE ci.yml CANNOT SHOW A SIGPIPE RACE. The real one is 2,000
@@ -351,6 +419,7 @@ selftest_compound_counted() {
 gate_selftest() {
   gate_selftest_clean
   selftest_hosted_half_is_large
+  selftest_listing
   selftest_compound_counted
   gate_selftest_case 'scanned nothing' plant_no_tests_dirs
   gate_selftest_case 'no longer matches it' plant_gate_renamed
@@ -360,8 +429,7 @@ gate_selftest() {
   gate_selftest_case 'has no step named' plant_step_renamed
   gate_selftest_case 'no workspace `cargo clippy' plant_clippy_undenied
   gate_selftest_case 'silences `unexpected_cfgs`' plant_cfg_lint_allowed
-  gate_selftest_case 'requires a SECOND feature' plant_second_feature
-  printf '%s selftest OK: passes a clean fixture, one with a ci.yml long enough to race, and a compound gate; fires on an absent tests/ tree, a renamed gate spelling, one file re-gated onto a misspelt feature, a gate line replaced by a prose mention, a dropped citation, a renamed CI step, a clippy row that stopped denying warnings, the cfg lint silenced at the site, and a gate requiring a second feature no CI row builds\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture, one with a ci.yml long enough to race, a compound gate, and a complete listing; fires on a listing missing a counted suite, on an empty one, and on an absent tests/ tree, a renamed gate spelling, one file re-gated onto a misspelt feature, a gate line replaced by a prose mention, a dropped citation, a renamed CI step, a clippy row that stopped denying warnings, and the cfg lint silenced at the site\n' "$(gate_name)"
 }
 
 gate_main

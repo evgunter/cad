@@ -175,12 +175,44 @@ selftest_stderr_noise() {
   rm -rf "$tmp" "$bin"
 }
 
+# TWO GUARDS WHOSE SUBJECT IS CARGO'S ANSWER, NOT A WORKSPACE. Exit 3
+# means "a member declares two [[test]] targets"; anything else non-zero
+# means the reader itself failed, and the whole point of separating them
+# is that the second must not be reported as the first. Neither reply is
+# constructible from a manifest — cargo will not emit unparseable JSON,
+# and it refuses a workspace with no members outright — so a shim ahead
+# of cargo on PATH is the only way to show these two fire at all.
+selftest_cargo_reply() {
+  local want=$1 reply=$2 tmp bin out
+  tmp=$(mktemp -d)
+  bin=$(mktemp -d)
+  gate_plant_clean "$tmp"
+  {
+    printf '#!/usr/bin/env bash\n'
+    printf 'if [ "${1:-}" = metadata ]; then printf %s "%s"; exit 0; fi\n' '%s' "$reply"
+    printf 'exec %s "$@"\n' "$(command -v cargo)"
+  } > "$bin/cargo"
+  chmod +x "$bin/cargo"
+  if out=$(cd "$tmp" && PATH="$bin:$PATH" gate 2>&1); then
+    rm -rf "$tmp" "$bin"
+    printf 'SELFTEST FAILED: the gate PASSED on a cargo reply it cannot use (%s)\n%s\n' "$reply" "$out" >&2
+    exit 1
+  fi
+  rm -rf "$tmp" "$bin"
+  case "$out" in
+    *"$want"*) ;;
+    *) printf 'SELFTEST FAILED: expected %s, got:\n%s\n' "$want" "$out" >&2; exit 1 ;;
+  esac
+}
+
 gate_selftest() {
   gate_selftest_clean
   selftest_stderr_noise
-  gate_selftest_case '2 test targets' plant_second_test_target
+  gate_selftest_case 'discipline VIOLATED' plant_second_test_target
   gate_selftest_case 'no Cargo.toml under' plant_no_manifest
-  printf '%s selftest OK: passes a workspace whose members each declare one [[test]], and one whose cargo writes to stderr; fires on a member with two test targets, and on a root with no manifest\n' "$(gate_name)"
+  selftest_cargo_reply 'could not read the target counts' 'not json at all'
+  selftest_cargo_reply 'has no members' '{\"packages\": []}'
+  printf '%s selftest OK: passes a workspace whose members each declare one [[test]], and one whose cargo writes to stderr; fires on a member with two test targets, a root with no manifest, a cargo reply it cannot parse, and a reply naming no members\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
