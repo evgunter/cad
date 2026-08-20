@@ -26,6 +26,12 @@
 //!    boundary-terminated branch, and the tangent-match arm.
 //! 8. **Idealized vs realized**, the T4 differential pin.
 //!
+//! Beside them, and not in the spec: **the sweeps' never-silence
+//! doors** — the refusal sites in `ssi/exhaust.rs` and the chart-speed
+//! guard in `ssi.rs` that makes the sweep's floor meaningful. Their own
+//! block below carries the grid of doors, which rows sit in which cell,
+//! and which cells still have none.
+//!
 //! # Two SSI operations, not ten (the test-cost audit)
 //!
 //! Rows 1, 5 and 8 — plus the fit-budget row, the accounting receipt and
@@ -44,6 +50,30 @@
 //! recorded on the merged row's doc comment. [`shape_iii_bit_replay`]
 //! deliberately keeps its own test — it runs the operation TWICE and the
 //! second run is its whole content.
+//!
+//! **What the never-silence block costs, since that audit binds
+//! whoever adds to this file.** Six rows, nine SSI operations, four
+//! of them on the substrate wall the audit merged rows to stop paying
+//! for. They are not mergeable on that fixture, and the reason is the
+//! audit's own criterion: the merged rows above are *several questions
+//! about one outcome*, so one call answers them all, whereas each row
+//! below is a question about **which door answered**, and a door
+//! answers by ending the operation. Two rows cannot share a call when
+//! each one's content is that the call stopped somewhere different.
+//! The mode pins are the only genuinely shared work, and the two
+//! cell-budget rows now share one helper rather than one call.
+//!
+//! The cost is not free and is not hidden. Measured single-threaded at
+//! the default ε on the merged tree: the block is **3.0 s** against
+//! **2.9 s** for this file's other nineteen rows, so it roughly
+//! doubles the file. Two rows are all of it — the chart-lane cell
+//! budget at 1.36 s and the infinite-chart-speed row at 1.38 s — and
+//! what they buy is the door itself: both enumerate the full 200,000
+//! cells before `SSI_MAX_CELLS` fires, which is what the budget is.
+//! The other four total under 0.3 s. The infinite-chart-speed row is
+//! the one whose price is arguable, because it covers no cell of the
+//! grid; it is kept as the executable record of an open source defect,
+//! and the trade is stated at the row.
 //!
 //! Every ε stand-down in this file is LOUD: the run prints, by name, the
 //! coverage it did not deliver. The retired `fixture_or_return!` /
@@ -1584,13 +1614,85 @@ fn an_unseeded_chart_run_refuses_typed_rather_than_receipting_an_unprovable_doma
 // The sweeps' other never-silence doors
 // ---------------------------------------------------------------------
 
-// The rows above cover the floor refusal in three of its four
-// {lane} × {tube set} cells. The doors below are the rest of what the
-// two sweeps promise never to be silent about: the floor refusal's
-// fourth cell, the cell budget in both lanes, and each lane's own
-// enclosure-poison arm. Every one of them is a claim in `exhaust.rs`'s
-// module docs — "a typed refusal, never a silent truncation of the
-// search" — that no fixture drove.
+// **The grid these rows sit in, and the cells that still have none.**
+//
+// `exhaust.rs` has three refusal sites and `ssi.rs` one guard that
+// makes the sweep's floor meaningful. What multiplies them is not the
+// site count: the budget check and both poison arms live in the ONE
+// shared recursion, which runs under BOTH of `SweepDuty`'s values, on
+// separate calls with separate floors. Duty is therefore an axis, and
+// it is the axis the original bug lived on — `sweep` used to read its
+// duty off `tubes.is_empty()`. The floor refusal is the one site that
+// exists under one duty only (seeding banks the survivor where
+// accounting refuses), and it is crossed with the tube set instead.
+//
+//     floor refusal   × lane × {empty, non-empty tubes}   4 cells
+//     cell budget     × lane × {Seed, Account}            4 cells
+//     poison arm      × lane × {Seed, Account}            4 cells
+//     chart-speed guard (pre-sweep, chart only)           1 cell
+//                                                       13 cells
+//
+// Three had rows before this block: the floor refusal in ℝ³ with both
+// tube sets, and in the chart lane with an empty one. Five more do
+// now — the floor refusal's fourth cell, and the cell budget and the
+// poison arm in each lane under the **Seed** duty. Every row here
+// names the duty it drives, because the duty is not visible in the
+// call: it is which of the two `exhaust` entry points the operation
+// reached first, and on both lanes seeding runs before accounting.
+//
+// **Five cells still have no row**, and this block does not close
+// them:
+//
+//   - the cell budget and the poison arm under the **Account** duty,
+//     in both lanes (four cells). Reachable in principle — the
+//     accounting floor is routinely orders finer than the seeding one
+//     (measured on the substrate wall: 8.8e-10 against 2.1e-2 in chart
+//     units) — but the naive road in does not get there: with
+//     `floor_scale` at 0, 1e-12 and 1e-9 both fixtures' accounting
+//     passes still terminate `Ok`, because exclusion and the banked
+//     tubes between them resolve every cell above any floor. A fixture
+//     that leaves a region neither excluded nor accounted at every
+//     width is a research question, not a row.
+//   - the chart-speed guard itself. Both of its arms are unreachable
+//     as written and the hole beside them is a live source defect —
+//     see [`an_infinite_chart_speed_refuses_rather_than_receipting`].
+//
+// Every cell here is a claim in `exhaust.rs`'s module docs — "a typed
+// refusal, never a silent truncation of the search" — that no fixture
+// drove.
+
+/// The substrate wall's **certified chart speed** — the quantity
+/// `plane_nurbs_ssi` divides its two floors by, so that a floor stated
+/// in meters means the same thing in both lanes.
+///
+/// It is a bound on `|∂S/∂u|` and `|∂S/∂v|` over the wall's whole knot
+/// domain, taken from ring boxes over the control net. **No ε enters
+/// it**, which is why one literal serves the whole battery — and why
+/// pinning it is the chart lane's form of the ℝ³ rows' FLOOR-TIE. It is
+/// a measurement of this fixture on this tree, not a tuned constant: if
+/// `NurbsBoxes::deriv_box` is ever tightened, the certified floor
+/// translation genuinely moves, the assertion below goes red with both
+/// numbers in its message, and this literal is re-measured rather than
+/// widened.
+const WALL_CHART_SPEED: f64 = 1.130_884_609_498_248;
+
+/// **FLOOR-TIE, the chart lane's form.** The reported floor is in
+/// chart units; multiplied back by the one scale that translated it,
+/// it must be the meters floor the caller asked for and nothing else.
+/// A second tolerance entering the translation moves it.
+///
+/// Slack of a few ulps: the caller's floor is reconstituted as
+/// `SSI_FLOOR · ε · (meters/ε)` and then divided by the speed, so two
+/// roundings stand between the literal and the receipt.
+fn assert_floor_is_the_meters_floor_over_the_chart_speed(floor: f64, meters: f64, which: &str) {
+    let recovered = floor * WALL_CHART_SPEED;
+    assert!(
+        (recovered - meters).abs() <= 4.0 * f64::EPSILON * meters,
+        "FLOOR-TIE ({which}): the sweep reported a floor of {floor:e} in chart units, \
+         which is {recovered:e} m at the certified chart speed {WALL_CHART_SPEED:e} — \
+         the row asked for {meters:e} m, so a second scale entered the translation"
+    );
+}
 
 /// **The fourth cell of the {lane} × {tube set} cross product**: the
 /// chart lane refusing at the floor with a tube set that is NOT empty —
@@ -1614,6 +1716,16 @@ fn an_unseeded_chart_run_refuses_typed_rather_than_receipting_an_unprovable_doma
 /// `pcurve_windows`' own doc warns about, and before this row no
 /// assertion in the workspace went red when it did.
 ///
+/// **The asymmetry, stated like for like.** Each lane's accounting
+/// predicate reaches the sweep through one `SweepCell::contained_in`
+/// forwarder, and those two forwarders are the comparable pair. Making
+/// the chart one return `true` unconditionally reddens **one** row —
+/// this one. Making the ℝ³ one return `true` unconditionally reddens
+/// **three**: the two ℝ³ floor rows in this file and
+/// `review_m5_pr7_adversarial`'s `the_tiny_pair_floor_variant_refuses_typed`.
+/// One against three is the gap this row closes; a caller with no
+/// guard at all is what it was.
+///
 /// Two runs, in the shape the two unseeded rows use:
 ///
 /// 1. **The mode pin, at a healthy floor.** `Ok`, with a branch, and
@@ -1631,6 +1743,27 @@ fn an_unseeded_chart_run_refuses_typed_rather_than_receipting_an_unprovable_doma
 /// for every floor at or above the next admitted width, 0.25 — a
 /// half-line in each direction rather than an interval. Stated in
 /// meters as `floor_m / eps()`, so both stay put at every battery ε.
+///
+/// **No ε stand-down, deliberately.** Every other row on this wall
+/// carries a `FitSampleBudget` arm because `nurbs_wall()` outruns the
+/// fit budget at the fine end of the battery; `certifiable_wall()`
+/// does not, and this row was measured with both arms replaced by a
+/// panic at ε ∈ {1e-6, 1e-9, 1e-12} — the battery CI runs — and never
+/// took either. A stand-down that cannot happen is an escape hatch on
+/// the workspace's only guard for `UvRect::contained_in`, so there is
+/// none: if the fit budget ever does preempt this row, it fails and
+/// someone looks.
+///
+/// **The floor tie is exact, in both runs.** The ℝ³ twin asserts its
+/// refusal floor equals `SSI_FLOOR · ε · floor_scale` outright. Here a
+/// second scale sits in the expression — the certified chart speed the
+/// floor is divided by — and the test cannot recompute it from the
+/// public API, so it is pinned as `WALL_CHART_SPEED` and both floors
+/// are carried back to meters through it. Run 1's receipt and run 2's
+/// refusal each have to come out at the meters floor this row asked
+/// for. A ratio between the two runs would NOT do: any scale shared by
+/// both translations cancels out of it, which is the mutation that
+/// showed the weaker form has no teeth.
 #[test]
 fn the_floor_clamped_chart_run_refuses_typed_with_a_banked_tube_set() {
     let (p, w) = (cutting_plane(), certifiable_wall());
@@ -1642,24 +1775,11 @@ fn the_floor_clamped_chart_run_refuses_typed_with_a_banked_tube_set() {
 
     // ---- Run 1, the MODE PIN: a floor under the width at which the
     // sweep resolves this domain.
-    let out = match ssi::plane_nurbs_ssi(&p, &w, domain(0.05), band()) {
-        Ok(out) => out,
-        // The fit budget refuses before any branch is fitted at the
-        // finest ε — a typed refusal of the same operation, and not
-        // silence, but it delivers none of this row's coverage. Say so
-        // by name, as every other ε stand-down in this file does.
-        Err(SsiError::FitSampleBudget { samples, budget }) => {
-            println!(
-                "SKIPPED (the chart floor-clamped refusal, eps = {:e}): the fit budget \
-                 ({samples} of {budget} samples) refused before a branch was fitted, so \
-                 THIS RUN ASSERTS NEITHER that a banked tube set is reached NOR that the \
-                 clamped floor refuses over one",
-                eps()
-            );
-            return;
-        }
-        Err(other) => panic!("the substrate wall must certify at a healthy floor: {other}"),
-    };
+    // No `FitSampleBudget` arm: measured never taken at any battery ε
+    // on this fixture (see the doc comment). A refusal here is a
+    // failure, because this row is the only guard on the predicate.
+    let out = ssi::plane_nurbs_ssi(&p, &w, domain(0.05), band())
+        .expect("the substrate wall must certify at a healthy floor");
     assert_eq!(
         out.branches.len(),
         1,
@@ -1680,6 +1800,10 @@ fn the_floor_clamped_chart_run_refuses_typed_with_a_banked_tube_set() {
         e.excluded + e.accounted + e.refined,
         "MODE RECEIPT: {e:?}"
     );
+    // FLOOR-TIE, run 1: the receipt's floor is the meters floor this
+    // row asked for, divided by the certified chart speed and by
+    // nothing else. See `WALL_CHART_SPEED`.
+    assert_floor_is_the_meters_floor_over_the_chart_speed(e.floor, 0.05, "MODE RECEIPT");
 
     // ---- Run 2, the CLAIM: the same branch, the same tubes, a floor
     // above the width at which the sweep resolves the domain.
@@ -1693,16 +1817,10 @@ fn the_floor_clamped_chart_run_refuses_typed_with_a_banked_tube_set() {
             // own guard read back out, so the content is the refusal's
             // TEXT, which is what a caller acts on.
             assert!(cell_width <= floor, "{cell_width} vs {floor}");
+            assert_floor_is_the_meters_floor_over_the_chart_speed(floor, 0.5, "CLAIM");
             let msg = format!("{err}");
             assert!(msg.contains("exhaustiveness inconclusive"), "{msg}");
             assert!(msg.contains("refuses"), "{msg}");
-        }
-        Err(SsiError::FitSampleBudget { .. }) => {
-            println!(
-                "SKIPPED (the chart floor-clamped refusal at the clamped floor, eps = {:e}): \
-                 the fit budget preempted the accounting pass",
-                eps()
-            );
         }
         Err(other) => panic!("expected the exhaustiveness refusal, got {other}"),
         Ok(out) => panic!(
@@ -1714,28 +1832,78 @@ fn the_floor_clamped_chart_run_refuses_typed_with_a_banked_tube_set() {
     }
 }
 
-/// **The cell budget, ℝ³ lane** — `SSI_MAX_CELLS`, whose whole
-/// docstring is *"exceeding it is a typed refusal, never a silent
-/// truncation of the search"*, and which no fixture reached.
+/// **The cell-budget claim, written once for both lanes.**
 ///
-/// The road in is the **seeding** floor, and that is the point: it is
-/// the caller's named feature `extent`, not ε, that sizes it
-/// (`seed_floor = SSI_SEED_FLOOR · extent`). A caller who names a
-/// feature three orders finer than the slab it asked to be searched
-/// asks the subdivision for a tree it cannot afford, and the answer is
-/// the named budget rather than a truncated seed set — which would be
-/// silence of the exact kind this module exists to prevent, since a
-/// seed set truncated mid-enumeration loses whole components and
-/// nothing downstream could tell.
+/// The two lanes reach `SSI_MAX_CELLS` through different exclusion
+/// rules over differently shaped cells, but the shape of the row is
+/// identical — a mode pin at a feature extent proportionate to the
+/// slab, then the claim at an extent orders finer — so it is written
+/// here rather than twice. `run` is the lane's whole operation as a
+/// function of the caller's named feature extent; everything else the
+/// two rows differ in is in `run`'s closure.
 ///
-/// Two runs:
+/// **This helper's contract is a claim about both callers.** It asserts
+/// the mode is entered, that the refusal is the budget and not some
+/// other typed door, that the budget it names is the module's own
+/// constant, and that the message carries the recourse sentence — and
+/// it panics with the receipt on `Ok`, which is the silence.
+fn the_cell_budget_refuses_at_an_unaffordable_seed_floor(
+    lane: &str,
+    pin_extent: f64,
+    claim_extent: f64,
+    run: impl Fn(f64) -> Result<geom_brep::SsiOutcome, SsiError>,
+) {
+    // ---- The MODE PIN. Without it the row would stay green on a
+    // fixture that had drifted into refusing for any reason at all.
+    assert!(
+        !matches!(run(pin_extent), Err(SsiError::CellBudget { .. })),
+        "MODE ({lane}): at a feature extent proportionate to the slab this fixture \
+         does not exhaust the budget — a row whose fixture refused here would be \
+         pinning the fixture rather than the floor that drives it"
+    );
+
+    // ---- The CLAIM.
+    match run(claim_extent) {
+        Err(ref err @ SsiError::CellBudget { budget }) => {
+            assert_eq!(
+                budget, SSI_MAX_CELLS,
+                "({lane}) the refusal must name the module's own budget"
+            );
+            let msg = format!("{err}");
+            assert!(msg.contains("refused rather than truncated"), "{msg}");
+        }
+        Err(other) => panic!("({lane}) expected the cell-budget refusal, got {other}"),
+        Ok(out) => panic!(
+            "SILENT ({lane}): a subdivision that cannot afford its own floor returned \
+             Ok with {} branches, {} seeds and a receipt {:?}",
+            out.branches.len(),
+            out.seeds,
+            out.exhaustiveness
+        ),
+    }
+}
+
+/// **The cell budget under the Seed duty, ℝ³ lane** —
+/// `SSI_MAX_CELLS`, whose whole docstring is *"exceeding it is a typed
+/// refusal, never a silent truncation of the search"*, and which no
+/// fixture reached.
 ///
-/// 1. **The mode pin**, at the extent the floor-clamped row uses: the
-///    same fixture, the same slab, and NOT a budget refusal. Without
-///    it the row would stay green on a fixture that had drifted into
-///    refusing for any reason at all.
-/// 2. **The claim**, at an extent 400× finer. The budget refuses, and
-///    the budget it names is the named constant.
+/// The road in is the **seeding** floor, and that is the point twice
+/// over. It is the caller's named feature `extent`, not ε, that sizes
+/// it (`seed_floor = SSI_SEED_FLOOR · extent`) — and because seeding
+/// runs before accounting on this lane (`seed_r3` precedes
+/// `account_r3` in `cylinder_sphere_ssi`), an unaffordable seeding
+/// floor is answered under the **Seed** duty and the accounting call is
+/// never reached. Measured, by instrumenting both calls: the refusal
+/// arrives from `seed_r3`. The Account-duty cell of this same door has
+/// no row; the block header above says what stands in its way.
+///
+/// A caller who names a feature three orders finer than the slab it
+/// asked to be searched asks the subdivision for a tree it cannot
+/// afford, and the answer is the named budget rather than a truncated
+/// seed set — which would be silence of the exact kind this module
+/// exists to prevent, since a seed set truncated mid-enumeration loses
+/// whole components and nothing downstream could tell.
 ///
 /// **ε-free by construction**, unlike every other refusal row in this
 /// file: the seeding floor is a fraction of the extent, the exclusion
@@ -1750,57 +1918,35 @@ fn an_unaffordable_seed_floor_refuses_the_cell_budget_typed() {
         extent,
         floor_scale: 1.0,
     };
-
-    // ---- Run 1, the MODE PIN.
-    let pin = ssi::cylinder_sphere_ssi(&c, &s, domain(0.4), band());
+    // The slab is 0.4 m across and the claim's named feature is 1 mm,
+    // so the seeding floor is 1.56e-5 m: the subdivision would have to
+    // enumerate the locus at that width, and there are more such cells
+    // than the budget allows.
+    let claim_extent = 1.0e-3;
     assert!(
-        !matches!(pin, Err(SsiError::CellBudget { .. })),
-        "MODE: at a feature extent proportionate to the slab this fixture does not \
-         exhaust the budget — a row whose fixture refused here would be pinning the \
-         fixture rather than the floor that drives it"
-    );
-
-    // ---- Run 2, the CLAIM. The slab is 0.4 m across and the named
-    // feature is 1 mm, so the seeding floor is 1.56e-5 m: the
-    // subdivision would have to enumerate the locus at that width, and
-    // there are more such cells than the budget allows.
-    let extent = 1.0e-3;
-    assert!(
-        2.0 * 0.2 / (SSI_SEED_FLOOR * extent) > 1.0e4,
+        2.0 * 0.2 / (SSI_SEED_FLOOR * claim_extent) > 1.0e4,
         "FIXTURE: the named feature must be orders finer than the slab, which is what \
          drives the seeding tree past what the budget can hold — the seeding floor is \
          {:e} m across a 0.4 m slab",
-        SSI_SEED_FLOOR * extent
+        SSI_SEED_FLOOR * claim_extent
     );
-    match ssi::cylinder_sphere_ssi(&c, &s, domain(extent), band()) {
-        Err(ref err @ SsiError::CellBudget { budget }) => {
-            assert_eq!(
-                budget, SSI_MAX_CELLS,
-                "the refusal must name the module's own budget"
-            );
-            let msg = format!("{err}");
-            assert!(msg.contains("refused rather than truncated"), "{msg}");
-        }
-        Err(other) => panic!("expected the cell-budget refusal, got {other}"),
-        Ok(out) => panic!(
-            "SILENT: a subdivision that cannot afford its own floor returned Ok with {} \
-             branches, {} seeds and a receipt {:?}",
-            out.branches.len(),
-            out.seeds,
-            out.exhaustiveness
-        ),
-    }
+    the_cell_budget_refuses_at_an_unaffordable_seed_floor("ℝ³", 0.4, claim_extent, |extent| {
+        ssi::cylinder_sphere_ssi(&c, &s, domain(extent), band())
+    });
 }
 
-/// **The cell budget, chart lane** — the same door by the ℝ⁴ arm's own
-/// road, and not the same code above it: the seeding floor is
-/// translated through the certified chart speed
+/// **The cell budget under the Seed duty, chart lane** — the same door
+/// by the ℝ⁴ arm's own road, and not the same code above it: the
+/// seeding floor is translated through the certified chart speed
 /// (`domain.seed_floor() / speed`), and the cells being enumerated are
 /// parameter rectangles enclosed by first-order boxes over the control
 /// net rather than boxes in ℝ³.
 ///
-/// Same two runs and the same ε-freedom as
-/// [`an_unaffordable_seed_floor_refuses_the_cell_budget_typed`].
+/// Same duty and the same ε-freedom as
+/// [`an_unaffordable_seed_floor_refuses_the_cell_budget_typed`] —
+/// instrumented here too: `seed_chart_plane` refuses at
+/// `seed_floor/speed = 1.38e-5` and `account_chart_plane` is never
+/// called.
 #[test]
 fn an_unaffordable_chart_seed_floor_refuses_the_cell_budget_typed() {
     let (p, w) = (cutting_plane(), certifiable_wall());
@@ -1808,31 +1954,9 @@ fn an_unaffordable_chart_seed_floor_refuses_the_cell_budget_typed() {
         extent,
         ..wall_domain()
     };
-
-    // ---- Run 1, the MODE PIN.
-    let pin = ssi::plane_nurbs_ssi(&p, &w, domain(1.5), band());
-    assert!(
-        !matches!(pin, Err(SsiError::CellBudget { .. })),
-        "MODE: at the substrate row's own feature extent this wall does not exhaust \
-         the budget"
-    );
-
-    // ---- Run 2, the CLAIM.
-    match ssi::plane_nurbs_ssi(&p, &w, domain(1.0e-3), band()) {
-        Err(ref err @ SsiError::CellBudget { budget }) => {
-            assert_eq!(budget, SSI_MAX_CELLS);
-            let msg = format!("{err}");
-            assert!(msg.contains("refused rather than truncated"), "{msg}");
-        }
-        Err(other) => panic!("expected the cell-budget refusal, got {other}"),
-        Ok(out) => panic!(
-            "SILENT: a chart subdivision that cannot afford its own floor returned Ok \
-             with {} branches, {} seeds and a receipt {:?}",
-            out.branches.len(),
-            out.seeds,
-            out.exhaustiveness
-        ),
-    }
+    the_cell_budget_refuses_at_an_unaffordable_seed_floor("chart", 1.5, 1.0e-3, |extent| {
+        ssi::plane_nurbs_ssi(&p, &w, domain(extent), band())
+    });
 }
 
 /// **The ℝ³ sweep's poison arm**: an operand whose certified implicit
@@ -1856,13 +1980,23 @@ fn an_unaffordable_chart_seed_floor_refuses_the_cell_budget_typed() {
 /// pinning the text is what keeps this row from passing on some other
 /// `UnsupportedCertificate`, of which the certificate stack has many.
 ///
+/// **Which duty**: the **Seed** one. `cylinder_sphere_ssi` calls
+/// `seed_r3` before `account_r3`, the poison arm lives in the closure
+/// the shared recursion runs under either duty, and the first cell
+/// poisons — so the refusal arrives during seeding and accounting is
+/// never reached (instrumented). The Account-duty cell of this door
+/// has no row.
+///
 /// Without the arm the sweep does not go wrong quietly in one step: a
 /// poisoned enclosure excludes nothing, so every cell refines and
 /// **another door answers** — measured, on this fixture, the cell
 /// budget. The caller is then told the search was too big, when the
 /// truth is that this operand has no certificate at all and no budget
 /// would have helped. That is what this arm exists to prevent: not a
-/// wrong answer, a wrong DIAGNOSIS.
+/// wrong answer, a wrong DIAGNOSIS. The same substitution happens for
+/// real, today, one guard over — see
+/// [`an_infinite_chart_speed_refuses_rather_than_receipting`], where
+/// there is no arm and the budget does answer in its place.
 #[test]
 fn a_degenerate_r3_operand_refuses_the_enclosure_typed() {
     let point_sphere = Surface::Sphere {
@@ -1910,6 +2044,14 @@ fn a_degenerate_r3_operand_refuses_the_enclosure_typed() {
 /// The wall is absurd as geometry and that is not a weakness of the
 /// row: the arm is a certificate obligation, and a certificate that
 /// cannot be formed must say so at any magnitude a caller can build.
+///
+/// **Which duty**: the **Seed** one, as in the ℝ³ twin —
+/// `seed_chart_plane` runs first and the first cell poisons
+/// (instrumented). Worth recording: this net also drives the certified
+/// chart speed to `+∞`, so it passes through the same guard hole
+/// [`an_infinite_chart_speed_refuses_rather_than_receipting`] is about;
+/// the poison arm simply answers first, which is the ordering that
+/// makes this row a poison-arm row and not a second copy of that one.
 #[test]
 fn a_poisoning_control_net_refuses_the_enclosure_typed() {
     let h = 1.0e308;
@@ -1952,21 +2094,42 @@ fn a_poisoning_control_net_refuses_the_enclosure_typed() {
     }
 }
 
-/// **The chart-speed guard's blind spot, made executable.**
+/// **A live defect, made executable — not a door row.**
 ///
-/// `plane_nurbs_ssi` translates the accounting floor from meters into
-/// the wall's parameter domain by dividing by a certified chart speed,
-/// and guards that translation against a speed that is `NaN` or
-/// non-positive. A speed of **+∞** passes the guard, and `floor / ∞` is
-/// exactly `0` — a floor no cell can ever reach, so the sweep cannot
-/// terminate at it.
+/// This row covers **none** of the thirteen cells the block header
+/// enumerates. It is the regression guard attached to a source defect
+/// that is open, and it is here so the defect is executable rather
+/// than only written down.
 ///
-/// The never-silence obligation still holds, and this row is what says
-/// so: the cell budget is what catches it, typed, and the operation
-/// never returns a receipt. Which of the two doors answers is not this
-/// row's claim — a guard widened to refuse a non-finite speed would
-/// answer at the guard instead, and the row accepts that arm and
-/// records which one fired. What it refuses to accept is `Ok`.
+/// **The defect.** `plane_nurbs_ssi` translates BOTH of its floors —
+/// seeding and accounting — from meters into the wall's parameter
+/// domain by dividing by a certified chart speed, and guards that
+/// translation with `speed.is_nan() || speed <= 0.0`. A speed of
+/// **+∞** passes: `floor / ∞` is exactly `0`, in both floors, so
+/// neither sweep can terminate at its floor; and the certified tube
+/// padding is `tube_radius / speed`, so every banked tube would be
+/// zero-width as well. Measured on this fixture: `speed = inf`,
+/// `seed_floor/speed = 0e0`, `floor/speed = 0e0`.
+///
+/// **What answers instead, and why that is the bug.** Seeding runs
+/// first, so the refusal comes from `seed_chart_plane` and the cell
+/// budget — the same door and the same duty
+/// [`an_unaffordable_chart_seed_floor_refuses_the_cell_budget_typed`]
+/// already covers, reached by another road. The caller is told its
+/// search was too big when the truth is that this wall has no usable
+/// chart speed, which is exactly the substitution
+/// [`a_degenerate_r3_operand_refuses_the_enclosure_typed`]'s arm
+/// exists to prevent one lane over: not a wrong answer, a wrong
+/// DIAGNOSIS. This row does not endorse that disposition. It pins the
+/// one thing that is true today and must stay true — the operation
+/// never hands back a receipt — and names which door answered, so that
+/// when the guard is widened to refuse a non-finite speed the row
+/// moves to the other arm instead of going red.
+///
+/// Latent beside it, and part of the same defect: `mag(du).max(mag(dv))`
+/// **drops a lone `NaN`** (`f64::max` returns the non-NaN operand), so
+/// the guard's `is_nan` arm cannot fire from a single poisoned
+/// derivative box. Nothing reaches it today.
 ///
 /// The fixture is a net at `1e200` m: the derivative boxes are finite
 /// intervals, their magnitudes overflow when squared, and the speed
@@ -1984,8 +2147,10 @@ fn an_infinite_chart_speed_refuses_rather_than_receipting() {
         Err(SsiError::CellBudget { budget }) => {
             assert_eq!(budget, SSI_MAX_CELLS);
             println!(
-                "the infinite chart speed was answered by the CELL BUDGET: the floor \
-                 translated to 0 and the sweep ran until the budget stopped it"
+                "the infinite chart speed was answered by the CELL BUDGET, under the \
+                 SEEDING duty: both floors translated to 0 and the sweep ran until the \
+                 budget stopped it — the wrong diagnosis, and the reason this row is a \
+                 defect record rather than a door row"
             );
         }
         Err(SsiError::UnsupportedCertificate { what }) if what.contains("chart speed") => {
