@@ -42,7 +42,7 @@
 //! recorded), and it is why the rows are carried in the token rather
 //! than re-walked afterwards.
 
-use geom_core::{Bounds, Decide, Point3, Real};
+use geom_core::{Decide, Point3, Real};
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
 use super::battery::{Chain, Convexity, Link};
@@ -294,7 +294,12 @@ pub(super) struct RequestedBoundary<T: Real> {
     stations: Vec<BoundaryStation<T>>,
 }
 
-impl<T: Decide + Bounds> RequestedBoundary<T> {
+// `Decide` alone, deliberately: admission walks a cycle and folds a
+// stored plane normal, and decides nothing that reads a bracket. The
+// fillet seam's ratified compound `Decide + Bounds` bound
+// (`geom-core/src/real.rs`, the `Bounds` scope rule) stops at the three
+// files that need it, and this one does not.
+impl<T: Decide> RequestedBoundary<T> {
     /// Admit one support face of the plan.
     ///
     /// `corners` is `(vertex, its three faces, its ball centre)` for
