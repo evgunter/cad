@@ -281,9 +281,10 @@ impl<T: Decide> Body<T> {
         let killed_curve = self
             .remove_curve_if_orphaned(edge_data.curve)
             .then_some(edge_data.curve);
-        // Emanating rules (documented above). `v`'s read and its write
-        // are one lookup: two would let a stale `v` short-circuit the
-        // condition and swallow the write silently.
+        // Emanating rules (documented above). `v` is read and written
+        // through ONE lookup: the condition is a field of the borrow
+        // that performs the write, so no path reaches the write with
+        // `v` unproven.
         let Some(vertex) = self.get_vertex_mut(w) else {
             unreachable!("split_edge: `w` is minted by this function, above")
         };

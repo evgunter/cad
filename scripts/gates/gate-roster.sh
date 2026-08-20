@@ -38,6 +38,18 @@
 # job never runs and no hosted gate ever sees it. The loop removes the
 # need instead of working around it.
 #
+# WHY THE LOOP'S GLOB IS `*.sh` AND NOT `*`. What makes this directory a
+# roster is not the path but `lib.sh`'s two-mode contract — `--root DIR`,
+# and a `--selftest` that must pass a clean fixture AND fire on a planted
+# one — together with the shared plumbing that supplies it. Only a bash
+# gate can source that. A python check either reimplements the whole
+# contract or meets none of it: `scripts/check-interval-cfg-additive.py`
+# is the live case, and it is the near miss — it has `--selftest`, but no
+# `--root`, and its self-test runs over in-memory snippets rather than a
+# fixture tree. Widening the glob would make "in this directory" and
+# "under lib.sh's contract" two different sets, and this roster is worth
+# something only while they are one.
+#
 # WHAT COUNTS AS AN INVOCATION. Naming the path in a comment is not
 # running it, and self-testing a gate is not running it either: both
 # were live evasions of the first version of this check, so the matcher

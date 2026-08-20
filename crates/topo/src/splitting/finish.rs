@@ -195,11 +195,11 @@ impl core::fmt::Display for SplitFinishError {
             ),
             Self::Corrupt => write!(f, "split finish: traversal failed (corrupt body)"),
             Self::Euler(e) => write!(f, "split finish: euler operation refused: {e}"),
-            Self::Band(e) => write!(f, "split finish: no classification band: {e:?}"),
+            Self::Band(e) => write!(f, "split finish: no classification band: {e}"),
             Self::DescribeEscalated { edge, diag } => write!(
                 f,
                 "split finish: section-boundary dihedral escalated at edge {edge:?} \
-                 while minting its description: {diag:?}"
+                 while minting its description: {diag}"
             ),
         }
     }

@@ -202,9 +202,13 @@ impl<T: Real> Body<T> {
 
         // ---- The map (infallible from here on). ----
         let mut out = self.clone();
-        // Every key below was iterated out of `self`, and `out` is a
-        // clone of `self` — cloning a slotmap preserves its keys — so
-        // each lookup resolves. The map removes nothing.
+        // The two keyed loops below carry a value the plan phase
+        // derived per key, so they look their key up; `out` is a clone
+        // of `self` and cloning a slotmap preserves its keys, so every
+        // lookup resolves and the map removes nothing. The edge loop
+        // carries no such value and therefore does not look anything
+        // up — it walks the arena directly, like the surface and face
+        // loops below.
         for (he_key, start) in new_starts {
             let Some(he) = out.get_half_edge_mut(he_key) else {
                 unreachable!("revert: `he_key` was iterated out of the arena `out` clones")
@@ -212,10 +216,7 @@ impl<T: Real> Body<T> {
             he.start = start;
             core::mem::swap(&mut he.next, &mut he.prev);
         }
-        for (edge_key, _) in self.edges.iter() {
-            let Some(edge) = out.get_edge_mut(edge_key) else {
-                unreachable!("revert: `edge_key` was iterated out of the arena `out` clones")
-            };
+        for (_, edge) in out.edges.iter_mut() {
             core::mem::swap(&mut edge.he_plus, &mut edge.he_minus);
         }
         for (vertex_key, anchor) in new_anchors {
