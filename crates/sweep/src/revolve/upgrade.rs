@@ -14,23 +14,9 @@ use geom_brep::{
 use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Margin, Point3, Real};
 use geom_curves::Curve3;
-use topo::{Body, EdgeKey, EulerOpError, FaceKey, SurfaceKey};
+use topo::{Body, EdgeKey, EulerOpError, SurfaceKey};
 
 use super::RevolveError;
-
-/// Resolves a face's surface key (total: stale keys surface as the
-/// operator-layer typed error). Mirror of extrude's helper.
-pub(super) fn face_surface_key<T: Real>(
-    body: &Body<T>,
-    face: FaceKey,
-) -> Result<SurfaceKey, RevolveError> {
-    Ok(body
-        .get_face(face)
-        .ok_or(EulerOpError::StaleKey {
-            key: topo::EntityId::Face(face),
-        })?
-        .surface)
-}
 
 /// An edge's stored certified carrier: `(carrier, t0, t1, witness,
 /// extent, chord endpoints)` — the mid-parameter witness computed with
@@ -45,23 +31,14 @@ struct EdgeData<T: Real> {
     extent: T,
 }
 
-/// A vertex's point (total: stale keys surface as operator-layer typed
-/// errors).
+/// A vertex's point, with the kernel read-back door's unresolved
+/// reference renamed into the operator layer's stale-key vocabulary
+/// (total: stale keys surface as operator-layer typed errors).
 pub(super) fn vertex_point<T: Real>(
     body: &Body<T>,
     vertex: topo::VertexKey,
 ) -> Result<Point3<T>, RevolveError> {
-    let point_key = body
-        .get_vertex(vertex)
-        .ok_or(EulerOpError::StaleKey {
-            key: topo::EntityId::Vertex(vertex),
-        })?
-        .point;
-    Ok(*body
-        .get_point(point_key)
-        .ok_or(EulerOpError::StaleGeometry {
-            key: topo::GeomRef::Point(point_key),
-        })?)
+    topo::readback::vertex_point_ref(body, vertex).map_err(|what| EulerOpError::from(what).into())
 }
 
 fn edge_data<T: SpanLocate>(body: &Body<T>, edge: EdgeKey) -> Result<EdgeData<T>, RevolveError> {
@@ -206,7 +183,7 @@ fn jet_determinate<T: Decide>(
             .min(data.extent);
         let margin = Margin::sagitta(jet.kappa_rel.abs(), arm);
         if !matches!(
-            super::decide("tangent_second_order", margin, band),
+            crate::swept::decide("tangent_second_order", margin, band),
             Ok(geom_core::Sign::Positive)
         ) {
             return false;

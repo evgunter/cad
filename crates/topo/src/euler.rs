@@ -19,11 +19,14 @@
 //!   ([`EulerOpError`], closed enum) — never panics (D9). Checks run in
 //!   the documented order per op, and the first failure is returned.
 //! - **Tier-1-valid input assumed.** The operators are specified on
-//!   euler-valid bodies (what [`fn@crate::validate`] accepts). Corrupt
-//!   input is tolerated only to the D9 extent — no panic, no hang (the
-//!   bounded walks guarantee that), and a typed error where corruption
-//!   is cheaply detectable — but the *output* on corrupt input carries
-//!   no validity promise.
+//!   euler-valid bodies (what [`fn@crate::validate`] accepts). What D9
+//!   guarantees on corrupt input, after the **D2 addendum** amended its
+//!   footnote, is the bounded-traversal half: no panic, no hang, every
+//!   traversal bounded — plus a typed error where corruption is cheaply
+//!   detectable. The *output* on corrupt input still carries no validity
+//!   promise, but that is now a known deviation pending **W2c**, not a
+//!   ratified disposition: the addendum's rule is that silent discard is
+//!   never an answer.
 //! - **Deterministic minting order** (D9 + lineage replay): each op's
 //!   doc comment states the exact arena-insertion order of everything it
 //!   mints. Two bodies built by identical operator sequences mint
@@ -39,19 +42,49 @@
 //!   tier-1-valid input
 //!   a firing postcondition is a kernel bug by definition (the per-call
 //!   instance of the ch. 9 soundness theorem failing against our
-//!   transcription) — and since PR 5's raw-builder demotion **every
-//!   publicly-constructible input is tier-1-valid**, because the ten
-//!   operators plus the one public non-operator mutator
-//!   ([`Body::ring_move`]) are the only public mutation paths and each
-//!   preserves tier 1 (ring_move's case is the least obvious of the
-//!   eleven — it re-glues the per-shell component partition; the
-//!   separating-curve argument lives in its docs). The D9 taxonomy
-//!   consequence: these debug panics are
+//!   transcription). Raw insertion is crate-internal since PR 5's
+//!   builder demotion, so a body is reachable only through the public
+//!   mutation paths, and the property those paths owe is that each
+//!   **preserves tier 1**: the Euler operators with their chord/line
+//!   sugar, and the non-operator structural mutators
+//!   ([`Body::ring_move`], [`Body::split_edge`], [`Body::movefac`],
+//!   [`Body::merge_coplanar_faces`]) declare the same debug
+//!   postcondition or are composed of operators that do; the
+//!   attach/metadata setters re-certify under their own tier-1
+//!   assertion ([`Body::set_face_surface`], [`Body::set_edge_curve`])
+//!   or write fields tier 1 does not constrain. **The closure property
+//!   is the claim; a count of the doors is not** — an enumeration
+//!   frozen into this sentence is what rots as doors are added, and
+//!   `review_m1_pr5_internal::every_public_mutation_path_preserves_tier1`
+//!   checks the property against the real surface rather than against
+//!   this list. `ring_move`'s case is the least obvious of the
+//!   asserting doors: it re-glues the per-shell component partition,
+//!   and the separating-curve argument lives in its docs.
+//!
+//!   **The exception, and it is a real one.**
+//!   [`crate::instance`]'s grafts are a **raw transplant**, not an
+//!   operator run: `graft_disjoint_all_keyed` mints an empty
+//!   destination solid per source solid before transplanting, and a
+//!   refusal raised mid-transplant leaves `dst` partially written —
+//!   its own docs say the destination is then *spent, never
+//!   resumable*, and an empty solid is the tier-1 error
+//!   [`crate::ValidationError::SolidWithoutShells`]. So a caller that
+//!   ignores a graft's `Err` and keeps using `dst` can hand the next
+//!   operator a tier-1-invalid body and fire its postcondition from
+//!   **API misuse rather than a kernel bug**. That is the state class
+//!   D9's footnote asserts cannot occur and the D2 addendum's five
+//!   classes do not cover; it is open as **S14** in
+//!   `docs/SMELL-SCAN-2026-08.md` and is not settled here.
+//!
+//!   The D9 taxonomy consequence therefore holds **for every door but
+//!   that one**: these debug panics are
 //!   **unreachable by input** through the public API — reaching one
 //!   requires in-crate raw corruption (which is what the validator's
-//!   own tests do deliberately). Release builds carry no check either
+//!   own tests do deliberately) or a discarded graft refusal. Release
+//!   builds carry no check either
 //!   way: on corrupt in-crate input they return `Ok` with garbage
-//!   instead (the documented garbage-in contract above).
+//!   instead — what the kernel does today, and what **W2c** converts
+//!   under the D2 addendum, not a promise it is entitled to keep.
 //!
 //! # Geometry policy at M2 (PR 3 — the M0 placeholders retired)
 //!
@@ -988,6 +1021,19 @@ impl<T: Decide> Body<T> {
     /// mutation; failure is [`EulerOpError::Certification`], body
     /// untouched. Chord-line sugar: [`Body::mev_line`].
     ///
+    /// **The moved run's carriers are NOT re-described.** At a fan site
+    /// the run `[he1 .. he2)` is re-based onto the new vertex `w`, and
+    /// each of those edges keeps the curve it was certified with
+    /// against its OLD endpoint. If `point` differs from the old
+    /// vertex's, every re-based edge is left describing a locus that no
+    /// longer ends where the edge does: tier 1 does not constrain it
+    /// and no operator re-checks it, tier 3 reports it at rest, and the
+    /// next `split_edge` or `set_edge_curve` on such an edge refuses
+    /// typed. **Re-describe the moved run** (via
+    /// [`Body::set_edge_curve`]) whenever the two points differ — the
+    /// same posture as [`Body::set_face_surface`]'s note about
+    /// invalidating an adjacent edge's certification.
+    ///
     /// **Minting order** (D9, exact): point, curve (the certified
     /// [`EdgeCurve`]), vertex, edge, `he_plus`, `he_minus`.
     ///
@@ -1789,20 +1835,14 @@ impl<T: Decide> Body<T> {
     }
 
     /// Resolves a vertex's point coordinates (the certification gate's
-    /// endpoints): [`EulerOpError::StaleKey`] on the vertex,
+    /// endpoints), the read-back door's walk with its unresolved
+    /// reference renamed: [`EulerOpError::StaleKey`] on the vertex,
     /// [`EulerOpError::StaleGeometry`] on the point.
     pub(crate) fn resolve_vertex_point(
         &self,
         vertex: VertexKey,
     ) -> Result<Point3<T>, EulerOpError> {
-        let vertex_data = self.get_vertex(vertex).ok_or(EulerOpError::StaleKey {
-            key: EntityId::Vertex(vertex),
-        })?;
-        self.get_point(vertex_data.point)
-            .copied()
-            .ok_or(EulerOpError::StaleGeometry {
-                key: GeomRef::Point(vertex_data.point),
-            })
+        crate::readback::vertex_point_ref(self, vertex).map_err(Into::into)
     }
 
     /// The attachment gate (D4 ¶2 at operation time): certifies an
@@ -2007,7 +2047,9 @@ impl<T: Decide> Body<T> {
     /// by input through the public API. It remains reachable from
     /// in-crate raw corruption that slips past an op's preconditions
     /// (e.g. consistently swapped `parent_loop`s); release builds
-    /// return garbage instead (module docs, operator contracts).
+    /// return garbage instead — today's behaviour, pending **W2c**'s
+    /// conversion of the silent discards under the D2 addendum, not a
+    /// ratified disposition (module docs, operator contracts).
     #[cfg(debug_assertions)]
     pub(crate) fn assert_euler_postcondition(
         &self,
@@ -2033,8 +2075,10 @@ impl<T: Decide> Body<T> {
 ///
 /// A described NURBS operand in an `Intersection` certifies only
 /// through `geom_brep`'s injected lane, whose derivation needs a
-/// bracket-carrying scalar (`geom_brep::EdgeNurbsLane`'s static
-/// split). Raising the whole Euler surface to that bound would push it
+/// CERTIFYING scalar (`geom_brep::EdgeNurbsLane`'s static split; the
+/// lane fn's own bound is `Decide + Bounds + CertifiedEnclosure`, and
+/// since D1, 2026-08-19, it is that last term rather than `Bounds` that
+/// a dual fails). Raising the whole Euler surface to that bound would push it
 /// through hundreds of `T: Decide` signatures for a capability three
 /// of the four sealed scalars have unconditionally, so the lane is a
 /// SEPARATE DOOR onto the same shared machinery: identical

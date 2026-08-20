@@ -161,6 +161,8 @@ pub mod null;
 pub mod pcurves;
 pub mod props;
 pub mod provenance;
+pub(crate) mod ray_parity;
+pub mod readback;
 pub mod revert;
 #[cfg(test)]
 mod review_m0_pr7;
@@ -285,6 +287,7 @@ pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
 pub use pcurves::{PcurveMintError, mint_pcurves, pcurve_of};
 pub use props::{MassProperties, MassPropsError, PropsQuadLane, mass_properties};
 pub use provenance::Provenance;
+pub use readback::{DanglingRef, Pose, ReadbackError};
 pub use revert::RevertError;
 pub use separation::{PlacementsMeet, Separation};
 pub use source::{GeomSource, Or, SourceAttachError, SourceExpr};

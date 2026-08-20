@@ -1,9 +1,21 @@
 //! Persistence: the ratified text format of M4 PR 6, at the schema
 //! version [`SCHEMA_VERSION`] names. Every bump since v1 is a ratified
 //! CLEAN BREAK — an older file refuses typed, naming
-//! [`REGENERATE_RECOURSE`], and the migration table stays empty.
+//! [`REGENERATE_RECOURSE`], and the migration table stays empty
+//! because LQ7a rules it so ([`migration_step`]), not because no one
+//! has filled it in yet.
+//!
+//! Every version from v2 on carries an entry on [`SCHEMA_VERSION`],
+//! enforced by `tests/schema_ledger.rs` rather than left to
+//! discipline: the version is ONE LINE, so two units
+//! claiming the same number merge CLEANLY, and those entries are where
+//! their reasoning can be compared — and equally where one of them can
+//! be dropped to resolve a conflict.
 //!
 //! # Schema history
+//!
+//! v1 and v2 only, because the format TEXT below is theirs; every
+//! version's own entry is on [`SCHEMA_VERSION`].
 //!
 //! - **v1** (M4 PR 6) — the ratified text format below.
 //! - **v2** (M5 PR 10) — the same text format carrying the grown node
@@ -268,6 +280,22 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// exactly, and caught only because the ledger prose is long enough to
 /// collide. All three meanings survive here: 9 the fillet-family
 /// re-spell, 10 the `UpdateReference` arm, 11 the declaration class.
+///
+/// Version 12 is the **group boolean's vocabulary** (GROUP-BOOLEAN-
+/// DESIGN, ratified A′; LIB-PLACEDUNION): the node vocabulary gained
+/// `Node::PlacedUnion` — one prototype, a placement rule, ONE fused
+/// body out — and the rule vocabulary gained `PatternKind::Explicit`,
+/// a listed set of absolute frames. ONE vocabulary change, one version
+/// (the one-meaning-per-version rule): the node kind and the rule kind
+/// ship together because neither is expressible without the other at
+/// the die tour's twenty-one-pip site that motivated both.
+///
+/// A pre-release clean break, both directions, on the v3/v9 precedent:
+/// a v12 file's new variants are unknown to a v11 reader, and this
+/// reader has no v11-shaped meaning to migrate from, so v11 and below
+/// refuse TYPED with the regenerate recourse and the migration table
+/// stays empty.
+///
 /// Version 13 is **node vocabulary growth** (ASSEMBLY-DESIGN
 /// A3/A12, ratified #522; ASM-R2a D-1): [`crate::Node`] gained the
 /// `Mate` variant — the mate's two instance-qualified references, its
@@ -592,18 +620,23 @@ pub type MigrationStep = fn(serde_json::Value) -> Result<serde_json::Value, Migr
 /// body, so a too-old file's diagnostics name the version problem
 /// rather than whatever the stale body happens to parse as.
 ///
-/// **The table is empty, on purpose**: 1 → 2 (M5 PR 10 §4), 2 → 3
-/// (M6-5, ruled #217), 3 → 4 (LIB-SWITCH §4h — profiles as programs,
-/// ratified LQ7a clean break), 4 → 5 (ASM-1 D-6 — document identity)
-/// 5 → 6 (ASM-ROOTS D-1 — product roots) and 6 → 7 (ASM-2A D-6 —
-/// the instantiate node + A11 placements), 7 → 8 (LIB-LBRET — the
-/// `AtToward` chain step), 8 → 9 (LIB-RESPELL — the §2c fillet
-/// family), 9 → 10 (ASM-UPD — the `UpdateReference` edit arm) and
-/// 10 → 11 (M9-1 — the declaration class) were all ratified clean
-/// breaks. The mechanism stays because it
-/// costs nothing and D6.3's forward-only rule is unchanged; a future
-/// format change that is NOT a break adds its `n => Some(step_n)` arm
-/// here.
+/// **The table is empty by RULING, not by omission.** LQ7a
+/// (`docs/LIBRARY-DESIGN.md`) bans backwards-compatibility machinery
+/// of any kind before release — no migration chains, no deprecation
+/// shims — so every bump is a clean break and none of them writes a
+/// step: 1 → 2, 2 → 3 (ruled #217), 3 → 4 (profiles as programs),
+/// 4 → 5 (document identity), 5 → 6 (product roots), 6 → 7 (the
+/// instantiate node + the placements registry), 7 → 8 (the `AtToward`
+/// chain step), 8 → 9 (the fillet-family re-spell), 9 → 10 (the
+/// `UpdateReference` edit arm), 10 → 11 (the declaration class),
+/// 11 → 12 (the group boolean's vocabulary), 12 → 13 (`Node::Mate`)
+/// and 13 → 14 (the inhabited interface record).
+///
+/// The MECHANISM stays by the same ruling's other half: D6.3's
+/// forward-only rule is unchanged, and the first post-release format
+/// change that is not a break adds its `n => Some(step_n)` arm here.
+/// An empty table is the ratified state of this door, not scaffolding
+/// waiting to be finished.
 fn migration_step(from_version: u32) -> Option<MigrationStep> {
     /// `(from_version, step)` pairs — the whole chain, one line each.
     const TABLE: &[(u32, MigrationStep)] = &[];

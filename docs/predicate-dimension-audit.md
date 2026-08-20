@@ -227,8 +227,9 @@ all stored surface axes/normals/`u_ref` unit; `implicit_residual` is
 | validate.rs:2014 | positive_volume | volume/surface-area (the documented dimensional fix) | m | OK |
 | sector_shape.rs (the three rungs) | sector_arm / sector_reflex / sector_straight | arm = shorter bounding chord (m); sin/cos × arm | m | OK — ONE implementation since the S5 sector-predicate unit, and since #652 ONE name set: the former `bool_sector_*` / `split_sector_*` pairs were the same computation on the same quantity, which is why this was already one row |
 | splitting/classify.rs:81–286 | split_vertex_side / conic lane | plane residual; rooted amplitude; (rad)×minor semi-axis | m | OK |
-| splitting/containment.rs:179/192/219/233 | point_in_loop boundary/side/advance | distances; m²/m advance | m | OK |
-| splitting/containment.rs:203 | point_in_loop_arm | sin(member, plane normal) × loop extent (the member's in-plane fraction) | m | FIXED (was dimensionless schedule norm) |
+| ray_parity.rs (via `containment.rs`'s `ROWS`) | point_in_loop_segment | a loop segment's own length — the degeneracy gate, through the `Margin::norm3` door | m | OK (split off `point_in_loop_boundary` by #712, which was deciding two questions under one name) |
+| ray_parity.rs (via `containment.rs`'s `ROWS`) | point_in_loop boundary/side/advance | distances; m²/m advance | m | OK |
+| splitting/containment.rs (the frame gate) | point_in_loop_arm | sin(member, plane normal) × loop extent (the member's in-plane fraction) | m | FIXED (was dimensionless schedule norm) |
 | splitting/neighborhood.rs:228–309 | split_conic_departure / split_bisector_side | tangent×extent projections; bisector·n̂ × arm | m | OK |
 | splitting/order.rs:73 | split_join_frame_arm | sin(member, plane normal) × points' spread (the member's in-plane fraction) | m | FIXED (was dimensionless schedule norm) |
 | splitting/order.rs:111 | split_join_order_u/v | coordinate difference (m) vs the EXACT bit-level band (deliberate total-order device, documented) | m | OK (note N6) |
@@ -255,7 +256,8 @@ all stored surface axes/normals/`u_ref` unit; `implicit_residual` is
 > site count are. `split_section_area` stayed in `splitting/join.rs`,
 > which is now the split sweep alone.
 
-| chart_region.rs (M9-2) | chart_region_boundary/side/advance | 2-D port of the point_in_loop rows on METRED chart coordinates (exact arms only: plane 1, cylinder r): distances; m²/m advance. The 3-D `point_in_loop_arm` row is derived away — a fixed 2-D schedule member is in-plane by construction, so no projected-length predicate exists | m | OK (new in M9-2) |
+| ray_parity.rs (via `chart_region.rs`'s `ROWS`) | chart_region_segment | a closed segment's own length — the degeneracy gate, through the `Margin::norm2` door | m | OK (split off `chart_region_boundary` by #712, with the door corrected from `Margin::of` in the same pass) |
+| ray_parity.rs (via `chart_region.rs`'s `ROWS`) | chart_region_boundary/side/advance | the point_in_loop rows on METRED chart coordinates (exact arms only: plane 1, cylinder r): distances; m²/m advance. Since #712 these decide in the SAME shared walk as the 3-D rows, under their own names. The 3-D `point_in_loop_arm` row is derived away — a fixed 2-D schedule member is in-plane by construction, so no projected-length predicate exists | m | OK (new in M9-2) |
 | chart_region.rs (M9-2) | chart_region_parallel / collinear_offset | segment-pair 2×2 determinant / offset determinant over one segment's length — the perpendicular height across that segment's line | m | OK (new in M9-2) |
 | chart_region.rs (M9-2) | chart_region_cross_span | crossing fraction (dimensionless) × its own segment's length — the crossing point's clearance from a segment endpoint | m | OK (new in M9-2) |
 | chart_region.rs (M9-2) | chart_region_collinear_overlap | shared-span length of collinear segments (difference of metre projections) | m | OK (new in M9-2) |

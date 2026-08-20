@@ -178,3 +178,25 @@ fn near_full_wedge_matches_theta_scaled_closed_forms() {
         12.0 * PI * s + 2.0,
     );
 }
+
+#[test]
+fn holed_wedge_matches_theta_scaled_closed_forms() {
+    // The `kemr`-ring path: a wedge whose start lamina carries a hole,
+    // planted through the ring rather than grown from the mvfs seed.
+    // Outer square x ∈ [1, 3], y ∈ [0, 2]; hole x ∈ [1.5, 2.5],
+    // y ∈ [0.5, 1.5]; θ = π/2 about +y, so r = x.
+    let outer = ProfileLoop::polygon([p2(1.0, 0.0), p2(3.0, 0.0), p2(3.0, 2.0), p2(1.0, 2.0)]);
+    let hole = ProfileLoop::polygon([p2(1.5, 0.5), p2(2.5, 0.5), p2(2.5, 1.5), p2(1.5, 1.5)]);
+    let t = revolve(
+        &validated(vec![outer, hole]),
+        axis_y(),
+        Revolution::Partial(FRAC_PI_2),
+    )
+    .unwrap();
+    // Pappus, θ-scaled, and every term is the hole's as well as the
+    // outer's — a chain built at the wrong loop or in the wrong order
+    // moves one of them. V = θ·∫∫r dA = θ·(8 − 2) = 3π. Walls =
+    // θ·Σ r̄·L: outer (2 + 6 + 4 + 4)θ, hole (1.5 + 2.5 + 2 + 2)θ,
+    // so 24θ = 12π. Caps: two planar laminae of area 4 − 1 = 3.
+    check(&t.body, "holed wedge", 3.0 * PI, 12.0 * PI + 6.0);
+}

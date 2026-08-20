@@ -188,16 +188,46 @@ pub(crate) struct Doc {
 impl Doc {
     /// An empty document.
     ///
-    /// Identity note: the Python surface gains no
-    /// identity door in this unit — every `Doc()` carries the same
-    /// label-derived placeholder id (deterministic, so Python-driven
-    /// saves stay reproducible). The id/pin/workspace doors are a
-    /// recorded bindings-parity pickup.
+    /// A document's id answers WHICH PART, and a workspace refuses to
+    /// hold two files claiming one — so `Doc()` mints a FRESH random
+    /// identity and two documents authored here are two parts.
+    /// `Doc(label)` derives the id from the label instead: same
+    /// label, same id, on every platform, which is the spelling a
+    /// caller whose saves must reproduce byte for byte wants — and
+    /// which therefore makes two same-label documents the SAME part,
+    /// deliberately.
+    ///
+    /// Raises `IdentityError` if the OS entropy source refuses.
     #[new]
-    fn new() -> Self {
-        Self {
-            inner: d::ProfileDoc::empty_derived("pncad-py:Doc"),
-        }
+    #[pyo3(signature = (label = None))]
+    fn new(py: Python<'_>, label: Option<&str>) -> PyResult<Self> {
+        let inner = match label {
+            Some(label) => crate::identity::derived(label),
+            None => crate::identity::interactive().map_err(|err| {
+                typed_err(
+                    py,
+                    ErrorClass::Identity,
+                    err.to_string(),
+                    &[(
+                        "variant",
+                        PyString::new(py, "randomness_unavailable")
+                            .unbind()
+                            .into_any(),
+                    )],
+                )
+            })?,
+        };
+        Ok(Self { inner })
+    }
+
+    /// This document's identity as 32 lowercase hex digits — the
+    /// canonical text form, the same one the save file's `id:` header
+    /// carries and the workspace store keys on.
+    ///
+    /// Identity survives every edit; it is not a content hash.
+    #[getter]
+    fn id(&self) -> String {
+        self.inner.id().hex()
     }
 
     /// Apply an edit, returning the id it minted (if any).

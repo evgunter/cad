@@ -122,6 +122,8 @@ mod m9_d1_r2_probes;
 mod mass_props;
 #[path = "mass_props_interval.rs"]
 mod mass_props_interval;
+#[path = "readback_doors.rs"]
+mod readback_doors;
 #[path = "review_m2_pr4.rs"]
 mod review_m2_pr4;
 #[path = "review_m2_pr4_interval.rs"]

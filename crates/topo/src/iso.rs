@@ -61,9 +61,13 @@
 //!   (D4), never bit equality.
 //! - **Edge intrinsic direction (`he_plus` vs `he_minus`) is ignored**:
 //!   it is a stored representation bit that kill∘make roundtrips
-//!   legitimately flip (`mev` always re-mints old → new), and at M1 no
-//!   geometry hangs off it yet. The oriented manifold structure itself
-//!   IS compared (via `next`/mate).
+//!   legitimately flip (`mev` always re-mints old → new). Geometry
+//!   *does* hang off it — an edge's carrier runs forward from
+//!   `start(he_plus)` to `end(he_plus)` (`crate::entity`) — but the
+//!   carrier is itself ignored by the bullet above, so a flipped bit
+//!   and the re-minted curve that follows it are invisible together.
+//!   The oriented manifold structure itself IS compared (via
+//!   `next`/mate).
 //! - **Provenance is ignored**: it records history, not structure, and
 //!   roundtrips legitimately rewrite it (a re-made entity is a new
 //!   birth).
