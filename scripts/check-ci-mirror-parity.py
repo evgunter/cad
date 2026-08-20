@@ -22,6 +22,18 @@ the posture of every other cheap tripwire here. What replaces a parser is
 FAILING CLOSED — the reader below Bails on any structure it does not recognise,
 so an unparsed workflow is an error and never a quiet pass.
 
+WHAT IT CANNOT SEE, stated because a disclosed blind spot is a work order.
+Claims 1-4 are about PATHS, so a hosted row that runs work inline — `cargo` in a
+`run:` block, with no `scripts/` or `demos/` path to match — is outside them.
+That is the residue **S127 / D71** records at this file's `interval_backend`
+row: `ci.yml`'s `oracle-certify` job has no local mirror, and nothing enforces
+ci.yml <-> ci-local.sh JOB parity. Claim 5 closes the `tools/` corner of it by
+name; the rest is a bigger claim than this file makes. Claim 6 reads
+`.github/workflows/*.yml` and nothing else that can trigger a checkout, so a
+composite action under `.github/actions/` is outside it. And, as everywhere,
+wiring is not execution: a step disabled by an `if:` on the STEP still satisfies
+claims 7 and 8 — only job-level `if:` is read.
+
   check-ci-mirror-parity.py [--selftest] [--root DIR]
 """
 
