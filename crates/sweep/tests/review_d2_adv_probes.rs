@@ -15,9 +15,9 @@
 //!
 //! - `d2_no_input_reaches_a_panic` is a **counterexample search**
 //!   (*for all sampled requests, the door returns a value*): the seed
-//!   varies, is logged unconditionally, and the count rides the
-//!   `D2_ADV_EFFORT` dial. Cutting the count loses detection power,
-//!   never correctness.
+//!   varies, is logged unconditionally, and the count rides
+//!   `CAD_FUZZ_EFFORT` through [`test_utils::fuzz`]. Cutting the count
+//!   loses detection power, never correctness.
 //! - `d2_the_battery_never_hands_the_surgery_an_empty_chain` is a
 //!   **witness-free property** over the same corpus: it pins the
 //!   reason `FilletError::EmptyChain` has no input witness, which is
@@ -29,6 +29,16 @@
 //!
 //! Gating: these are written against `crates/sweep/src/fillet`; run
 //! them when that directory changes.
+//!
+//! **The dial is `test_utils::fuzz`, not one of this suite's own.** As
+//! promoted, this file read `D2_ADV_EFFORT` and `D2_ADV_SEED` and
+//! carried its own splitmix64 — a second spelling of a mechanism the
+//! repo already has one home for, which is the finding the PR that
+//! promoted it exists to close. `scripts/gates/no-ambient-env.sh`
+//! greps `crates/*/src` and would not have caught it here; the reason
+//! to use the ratified dial is not the gate's reach but that
+//! `CAD_FUZZ_EFFORT` scales this row with every other randomized sweep
+//! in the workspace from one place.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
@@ -39,49 +49,14 @@ use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::fillet::{FilletError, FilletRequest, fillet_edges, run_battery};
 use sweep::test_support::cube;
 use sweep::{Revolution, RevolveAxis, revolve};
+use test_utils::fuzz::{self, Rng};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations, EdgeKey};
 
-/// How many random edge subsets each corpus body gets. One multiple of
-/// the dial per body; raise `D2_ADV_EFFORT` to buy depth.
+/// How many random edge subsets each corpus body gets — one multiple
+/// of `CAD_FUZZ_EFFORT` per body. `CAD_FUZZ_SEED` pins the draws.
 fn effort() -> usize {
-    std::env::var("D2_ADV_EFFORT")
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(24)
-}
-
-/// A fresh seed every run (never a literal — the standing rule), with
-/// an env override so a red run replays exactly.
-fn seed() -> u64 {
-    std::env::var("D2_ADV_SEED")
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or_else(|| {
-            use std::time::{SystemTime, UNIX_EPOCH};
-            let t = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
-            u64::from(t.subsec_nanos()) ^ (t.as_secs() << 17) ^ 0x9E37_79B9_7F4A_7C15
-        })
-}
-
-/// splitmix64 — a generator written out rather than pulled in, so the
-/// row has no dependency of its own.
-struct Rng(u64);
-impl Rng {
-    fn next_u64(&mut self) -> u64 {
-        self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
-        let mut z = self.0;
-        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-        z ^ (z >> 31)
-    }
-    fn below(&mut self, n: usize) -> usize {
-        if n == 0 {
-            0
-        } else {
-            (self.next_u64() % n as u64) as usize
-        }
-    }
+    fuzz::scaled(24)
 }
 
 fn band() -> Band {
@@ -355,11 +330,7 @@ const RADII: [f64; 6] = [1e-6, 1e-3, 0.02, 0.05, 0.12, 0.9];
 /// central claim and D9's headline bullet.
 #[test]
 fn d2_no_input_reaches_a_panic() {
-    let s = seed();
-    println!(
-        "d2_no_input_reaches_a_panic: D2_ADV_SEED={s} D2_ADV_EFFORT={}",
-        effort()
-    );
+    let mut rng = fuzz::start("d2_no_input_reaches_a_panic");
     for (n, b) in corpus() {
         println!(
             "    corpus: {n} — {} edges, {} solids",
@@ -367,7 +338,6 @@ fn d2_no_input_reaches_a_panic() {
             b.solids().count()
         );
     }
-    let mut rng = Rng(s);
     let hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(|_| {}));
     let mut fired: Vec<String> = Vec::new();
@@ -381,8 +351,9 @@ fn d2_no_input_reaches_a_panic() {
                 }));
                 if outcome.is_err() {
                     fired.push(format!(
-                        "{name}: {} edge(s), radius {r} — seed {s}",
-                        req.len()
+                        "{name}: {} edge(s), radius {r} — {}",
+                        req.len(),
+                        fuzz::replay()
                     ));
                 }
             }
@@ -391,8 +362,9 @@ fn d2_no_input_reaches_a_panic() {
     std::panic::set_hook(hook);
     assert!(
         fired.is_empty(),
-        "the fillet door panicked on {} of {calls} requests (seed {s}): {fired:#?}",
-        fired.len()
+        "the fillet door panicked on {} of {calls} requests ({}): {fired:#?}",
+        fired.len(),
+        fuzz::replay()
     );
     println!("d2_no_input_reaches_a_panic: {calls} requests, every one a value");
 }
@@ -404,9 +376,7 @@ fn d2_no_input_reaches_a_panic() {
 /// on, and what a future reader of the partition needs pinned.
 #[test]
 fn d2_the_battery_never_hands_the_surgery_an_empty_chain() {
-    let s = seed();
-    println!("d2_the_battery_never_hands_the_surgery_an_empty_chain: D2_ADV_SEED={s}");
-    let mut rng = Rng(s);
+    let mut rng = fuzz::start("d2_the_battery_never_hands_the_surgery_an_empty_chain");
     let mut verdicts = 0usize;
     for (name, body) in corpus() {
         for edges in requests(&body, &mut rng, effort()) {
@@ -427,8 +397,9 @@ fn d2_the_battery_never_hands_the_surgery_an_empty_chain() {
                     assert!(
                         !chain.links.is_empty(),
                         "{name}: the battery emitted chain {i} with no links \
-                         (radius {r}, seed {s}) — `FilletError::EmptyChain` would \
-                         then have an input witness"
+                         (radius {r}, {}) — `FilletError::EmptyChain` would then \
+                         have an input witness",
+                        fuzz::replay()
                     );
                 }
             }
@@ -447,9 +418,7 @@ fn d2_the_battery_never_hands_the_surgery_an_empty_chain() {
 /// `EmptyChain` ever appears.
 #[test]
 fn d2_reached_variants() {
-    let s = seed();
-    println!("d2_reached_variants: D2_ADV_SEED={s}");
-    let mut rng = Rng(s);
+    let mut rng = fuzz::start("d2_reached_variants");
     let mut seen: Vec<(&'static str, usize)> = Vec::new();
     let mut ok = 0usize;
     for (_, body) in corpus() {

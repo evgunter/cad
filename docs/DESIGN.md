@@ -1258,8 +1258,10 @@ in that call, returned by a walk that succeeded in that call, or proven
 present by a check in that call — and three sites were **made** provable
 by adding those checks rather than converted on a proof borrowed from
 one frame up. The other ~46 lookups stay row 1. **No demonstration
-exists that any input reaches them** (an adversarial search over 19,890
-requests reached none, and no panic), and equally **no demonstration
+exists that any input reaches them** (an adversarial search reached none
+of them and no panic — 1,842 requests at the shipped effort, 12,210 at
+`CAD_FUZZ_EFFORT=10`, over a corpus of primitives, revolves, booleans,
+transplants and the surgery's own output re-filleted), and equally **no demonstration
 exists that none can**: the standard cannot discharge them locally,
 because their keys arrive from outside the call. Converting on an
 unproved negative is the direction the headline bullet forbids, so row 1
