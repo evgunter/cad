@@ -717,7 +717,7 @@ placed. Reissued:
 | D69–D70 | **D86–D87** | E-m |
 | D61–D62 | **D88–D89** | E-h — D88 is `merge_faces.rs:766`'s `unwrap_or_default` discard |
 
-Next unassigned in Track E's block: **D97**. (**D96** is E-k's — the thirteen row-0 candidates out of D35.)
+Next unassigned in Track E's block: **D100**, which is the block's LAST. (**D96** is E-k's — the thirteen row-0 candidates out of D35. **D97**, **D98** and **D99** are E-p's, out of S14: `from_algebra`'s do-nothing debug arm, `unit_segment`'s clamp and its false caller claim, and the `indexing_slicing` deferral that lost its revisit condition.) **Anything past D100 comes to the orchestrator before it is written** — the block is exhausted, not extensible by whoever notices first, which is the whole point of E-R3.
 re-issued — a number that has appeared in a lane's report, even as *unused*, is
 cheaper to skip than to explain.
 
