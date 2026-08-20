@@ -68,10 +68,11 @@ pub fn gen_interval(rng: &mut fuzz::Rng, emin: i32, emax: i32) -> DInterval {
             // Straddle a trig-critical point k·π/2, tight jitter.
             //
             // The minimum jitter here is load-bearing for the oracle
-            // tier: at 2^-40 it always swallows the <= 5.6e-15 band in
-            // which `tan`'s grid test refuses beside a pole, so these
-            // draws make the ORACLE unbounded too and land in a bucket
-            // that carries no assert. Narrowing it — or adding a
+            // tier: at 2^-40 (9.1e-13) it swallows, by 25.6x, the
+            // <= 3.6e-14 band in which `tan`'s grid test refuses beside
+            // a pole over this case's |k| <= 32. So these draws make the
+            // ORACLE unbounded too and land in a bucket that carries no
+            // assert. Narrowing it — or adding a
             // near-pole-but-pole-free class beside it — puts sound,
             // unbounded results under `Tightness`' zero-tolerance
             // assert on `mine_unbounded_oracle_bounded`. See that
@@ -185,13 +186,15 @@ pub struct Tightness {
     ///    accumulator, so there is no exempt window to catch it.
     ///
     /// Neither is reachable from the shipped generator (0 hits in ~10x
-    /// CI's effort-8 volume), and for class 1 that is provable rather
-    /// than lucky: [`gen_interval`]'s pole-straddling case 3 has a
-    /// minimum jitter of `2^-40 ≈ 9.1e-13`, which always swallows the
-    /// `<= 5.6e-15` pole offset, so it always lands in
+    /// CI's effort-8 volume), and for class 1 that is a margin rather
+    /// than luck: [`gen_interval`]'s pole-straddling case 3 has a
+    /// minimum jitter of `2^-40 ≈ 9.1e-13`, and the refusal band is at
+    /// most `3.6e-14` wide (5 representable steps, at `33·π/2`, the
+    /// widest over that case's `|k| <= 32` — measured by walking outward
+    /// from each pole until `tan` stops refusing). The jitter therefore
+    /// swallows the band by **25.6x** and the draw lands in
     /// `oracle_unbounded` instead. **What protects this assert is the
-    /// measure of a few-ulp band around each pole (~1e-14), and nothing
-    /// about `emax`.**
+    /// measure of that few-ulp band, and nothing about `emax`.**
     ///
     /// So: **a generator that added a deliberate near-pole-but-pole-free
     /// case class — an obvious thing to want in a trig harness — would
