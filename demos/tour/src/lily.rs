@@ -368,6 +368,13 @@ fn lantern<S: Scalar>(
 /// other on purpose and are not joined — gluing them is the same
 /// curved-boolean wall the rest of the plant is stopped by (probes 2
 /// and 7).
+///
+/// **Three, in the return type.** `plant` names the segments with a
+/// `.zip(["lily_bud_a", …])`, which truncates silently against a
+/// shorter `Vec` — a fourth segment would vanish from the manifest and
+/// only show up as a smaller printed piece count. The arity is
+/// therefore stated once, here, where a change to it is a compile
+/// error at the call site.
 #[allow(clippy::too_many_arguments)]
 fn bud<S: Scalar>(
     attach: (f64, f64),
@@ -380,7 +387,7 @@ fn bud<S: Scalar>(
     tilt: f64,
     lean: f64,
     span: f64,
-) -> Vec<Body<S>> {
+) -> [Body<S>; 3] {
     let ax = (dir.0, 0.0, dir.1);
     let e1 = (-dir.1, 0.0, dir.0);
     let e2 = (0.0, 1.0, 0.0);
@@ -396,56 +403,54 @@ fn bud<S: Scalar>(
         let l = (x.powi(2) + y.powi(2) + z.powi(2)).sqrt();
         (x / l, y / l, z / l)
     };
-    (0..3)
-        .map(|i| {
-            #[allow(clippy::cast_precision_loss)]
-            let phi = 2.0 * PI * (i as f64) / 3.0;
-            // The segment's own axis: the bud axis leaned `tilt` toward
-            // the direction `lean` radians round from its own place.
-            let l = rad(phi + lean);
-            let (st, ct) = (tilt.sin(), tilt.cos());
-            let a = nrm((
-                ct * ax.0 + st * l.0,
-                ct * ax.1 + st * l.1,
-                ct * ax.2 + st * l.2,
-            ));
-            // The wedge STARTS half a span before the segment's
-            // place — and then sweeps AWAY from it, not across it:
-            // `revolve` turns right-handed about the sketch axis,
-            // which in this frame (`e1 x e2` is MINUS the bud axis)
-            // is the direction of decreasing `phi`. So the wedge
-            // actually lands centred a full `span` short of `phi`,
-            // measured and pinned in
-            // `review_probes::the_buds_three_axes_form_the_authored_tripod`.
-            // Nothing above depends on where it lands — the three
-            // stay 120 degrees apart and the overlap is still
-            // 3*span - 360 — but the CHIRALITY does: the lean read
-            // off the realized centre is `lean + span`, still nowhere
-            // near the achiral star, and still a pinwheel.
-            //
-            // Gram-Schmidt against the tilted axis, since that radial
-            // is only perpendicular to the BUD's axis, not to this
-            // segment's.
-            let start = rad(phi - 0.5 * span);
-            let d = start.0 * a.0 + start.1 * a.1 + start.2 * a.2;
-            let u = nrm((start.0 - d * a.0, start.1 - d * a.1, start.2 - d * a.2));
-            // All three share the ATTACHMENT: the tilt splays their
-            // tips, not their bellies.
-            let plane = SketchPlane::from_frame(
-                pt3(attach.0, 0.0, attach.1),
-                v3(u.0, u.1, u.2),
-                v3(a.0, a.1, a.2),
-            );
-            revolve(
-                &validated(plane, vec![meridian(globe, top, mouth, lip_r, lip_drop)])
-                    .expect("bud profile validates"),
-                sketch_axis(),
-                Revolution::Partial(S::from_f64(span)),
-            )
-            .expect("bud segment revolves")
-            .body
-        })
-        .collect()
+    core::array::from_fn(|i| {
+        #[allow(clippy::cast_precision_loss)]
+        let phi = 2.0 * PI * (i as f64) / 3.0;
+        // The segment's own axis: the bud axis leaned `tilt` toward
+        // the direction `lean` radians round from its own place.
+        let l = rad(phi + lean);
+        let (st, ct) = (tilt.sin(), tilt.cos());
+        let a = nrm((
+            ct * ax.0 + st * l.0,
+            ct * ax.1 + st * l.1,
+            ct * ax.2 + st * l.2,
+        ));
+        // The wedge STARTS half a span before the segment's
+        // place — and then sweeps AWAY from it, not across it:
+        // `revolve` turns right-handed about the sketch axis,
+        // which in this frame (`e1 x e2` is MINUS the bud axis)
+        // is the direction of decreasing `phi`. So the wedge
+        // actually lands centred a full `span` short of `phi`,
+        // measured and pinned in
+        // `review_probes::the_buds_three_axes_form_the_authored_tripod`.
+        // Nothing above depends on where it lands — the three
+        // stay 120 degrees apart and the overlap is still
+        // 3*span - 360 — but the CHIRALITY does: the lean read
+        // off the realized centre is `lean + span`, still nowhere
+        // near the achiral star, and still a pinwheel.
+        //
+        // Gram-Schmidt against the tilted axis, since that radial
+        // is only perpendicular to the BUD's axis, not to this
+        // segment's.
+        let start = rad(phi - 0.5 * span);
+        let d = start.0 * a.0 + start.1 * a.1 + start.2 * a.2;
+        let u = nrm((start.0 - d * a.0, start.1 - d * a.1, start.2 - d * a.2));
+        // All three share the ATTACHMENT: the tilt splays their
+        // tips, not their bellies.
+        let plane = SketchPlane::from_frame(
+            pt3(attach.0, 0.0, attach.1),
+            v3(u.0, u.1, u.2),
+            v3(a.0, a.1, a.2),
+        );
+        revolve(
+            &validated(plane, vec![meridian(globe, top, mouth, lip_r, lip_drop)])
+                .expect("bud profile validates"),
+            sketch_axis(),
+            Revolution::Partial(S::from_f64(span)),
+        )
+        .expect("bud segment revolves")
+        .body
+    })
 }
 
 /// A leaf blade's cross-section: a KITE, i.e. the two sharp margins
@@ -906,6 +911,10 @@ fn try_lofted_blade<S: Scalar>(
 /// then rolls the face outward toward the tip. That is a real
 /// *Calochortus* habit and, not by accident, the one motion a swept
 /// blade could not have been given.
+///
+/// **Three, in the return type**, for the reason [`bud`] states: the
+/// naming `.zip` at the call site truncates silently against a shorter
+/// `Vec`, so the arity is stated once and checked by the compiler.
 #[allow(clippy::too_many_arguments)]
 fn sepals<S: Scalar>(
     globe_center: (f64, f64, f64),
@@ -916,7 +925,7 @@ fn sepals<S: Scalar>(
     len: f64,
     curl: f64,
     plan: Plan,
-) -> Vec<Body<S>> {
+) -> [Body<S>; 3] {
     // The two radials spanning the plane perpendicular to the flower
     // axis: the in-xz-plane one and ŷ.
     let e1 = (-axis.2, 0.0, axis.0);
@@ -924,37 +933,35 @@ fn sepals<S: Scalar>(
     let (st, ct) = (theta.sin(), theta.cos());
     // The offset that makes the keel graze rather than pierce.
     let stand = globe + plan.base.keel;
-    (0..3)
-        .map(|i| {
-            #[allow(clippy::cast_precision_loss)]
-            let phi = phase + 2.0 * PI * (i as f64) / 3.0;
-            let (sp, cp) = (phi.sin(), phi.cos());
-            let rad = (
-                cp * e1.0 + sp * e2.0,
-                cp * e1.1 + sp * e2.1,
-                cp * e1.2 + sp * e2.2,
-            );
-            // n: the outward normal at (theta, phi). `-axis` is the
-            // flower's upper pole, the axis pointing INTO the flower.
-            let n = (
-                ct * -axis.0 + st * rad.0,
-                ct * -axis.1 + st * rad.1,
-                ct * -axis.2 + st * rad.2,
-            );
-            // tau: the tangent there, running outward and down.
-            let tau = (
-                st * axis.0 + ct * rad.0,
-                st * axis.1 + ct * rad.1,
-                st * axis.2 + ct * rad.2,
-            );
-            let base = (
-                globe_center.0 + stand * n.0,
-                globe_center.1 + stand * n.1,
-                globe_center.2 + stand * n.2,
-            );
-            lofted_blade::<S>(base, tau, n, len, curl, plan, SEPAL_STATIONS)
-        })
-        .collect()
+    core::array::from_fn(|i| {
+        #[allow(clippy::cast_precision_loss)]
+        let phi = phase + 2.0 * PI * (i as f64) / 3.0;
+        let (sp, cp) = (phi.sin(), phi.cos());
+        let rad = (
+            cp * e1.0 + sp * e2.0,
+            cp * e1.1 + sp * e2.1,
+            cp * e1.2 + sp * e2.2,
+        );
+        // n: the outward normal at (theta, phi). `-axis` is the
+        // flower's upper pole, the axis pointing INTO the flower.
+        let n = (
+            ct * -axis.0 + st * rad.0,
+            ct * -axis.1 + st * rad.1,
+            ct * -axis.2 + st * rad.2,
+        );
+        // tau: the tangent there, running outward and down.
+        let tau = (
+            st * axis.0 + ct * rad.0,
+            st * axis.1 + ct * rad.1,
+            st * axis.2 + ct * rad.2,
+        );
+        let base = (
+            globe_center.0 + stand * n.0,
+            globe_center.1 + stand * n.1,
+            globe_center.2 + stand * n.2,
+        );
+        lofted_blade::<S>(base, tau, n, len, curl, plan, SEPAL_STATIONS)
+    })
 }
 
 /// A blade's local frame as three world vectors: the spine's start
@@ -1118,7 +1125,7 @@ pub fn plant<S: Scalar>() -> Vec<Piece<S>> {
         at_bud.p.0 - 0.06 * at_bud.t.0,
         at_bud.p.1 - 0.06 * at_bud.t.1,
     );
-    let bud_bodies: Vec<Body<S>> = bud(
+    let bud_bodies: [Body<S>; 3] = bud(
         bud_attach,
         at_bud.t,
         BUD_GLOBE,
@@ -1135,7 +1142,7 @@ pub fn plant<S: Scalar>() -> Vec<Piece<S>> {
         deg(156.0),
     );
 
-    let sepal_bodies: Vec<Body<S>> = sepals(
+    let sepal_bodies: [Body<S>; 3] = sepals(
         (
             flower_attach.0 + FLOWER_TOP * at_flower.t.0,
             0.0,

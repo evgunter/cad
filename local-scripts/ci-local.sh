@@ -458,6 +458,13 @@ demos_hygiene() {
     (cd demos/wild && cargo fmt --check && cargo clippy --all-targets -- -D warnings)
 }
 
+# Hosted mirror: ci.yml's "demos tour eps pin (#99)" row. Scoped to the
+# integration test for the reason stated there — `--bin demo-tour`'s
+# unit tests carry two rows that are red on main (issue #782).
+demos_eps_pin() {
+  (cd demos/tour && cargo test --release --test eps_regression)
+}
+
 # Spec D3: the large-K fragility lint (mirrors ci.yml's `k-lint` job —
 # hosted and local must not drift, which is this script's whole point).
 # Two rows: the tool's own hygiene + tests (the #99 litmus MUST fire),
@@ -609,6 +616,7 @@ run_row_if "$RUN_INTERVAL_BACKEND" "interval backend crate" interval_backend
 # records margins from every kernel crate — no minimal root set, so
 # these run whenever anything builds.
 run_row_if "$RUN_K_LINT" "demos tour (fmt + clippy)"       demos_hygiene
+run_row_if "$RUN_K_LINT" "demos tour eps pin (#99)"        demos_eps_pin
 run_row_if "$RUN_K_LINT" "uv sheet drift (demos)"          uv_sheet_drift
 run_row_if "$RUN_K_LINT" "k-lint tool (fmt+clippy+litmus)" klint_tool
 run_row_if "$RUN_K_LINT" "probe test targets (type-check)"  probe_targets
