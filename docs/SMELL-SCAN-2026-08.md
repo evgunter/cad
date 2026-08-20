@@ -1918,7 +1918,7 @@ merged 2026-08-20 as `f382c4aa`, its only gate — and the fillet helpers still
 wait on **D2**; **#705** merged 2026-08-20, discharging its file-overlap
 gate.
 
-## S12. FIXED by #706 — the release-profile run the suite instructed and CI never did
+## S12. CLOSED — #706 ran the suite CI never did, #720 retired the discards behind it
 
 - **Where**: `crates/topo/src/review_m1_pr2/release_corruption.rs`,
   `.github/workflows/ci.yml`
@@ -1940,18 +1940,33 @@ hang."* The census stands (58 discarding sites; `link_half_edges` exactly as
 described), and **S43** carries the larger question this turned out to be part
 of.
 
-*What is already ratified, and what is left of it.* The steelman's closing
-sentence — that whether to make the write helpers unable to silently do nothing
-is a D9 question — **was answered the next day.** The **D2 addendum to D9**
-(`DESIGN.md:1138`, ratified 2026-08-19, PR #628) says *"silent discard is never
+*What was ratified, and what became of it.* The steelman's closing sentence —
+that whether to make the write helpers unable to silently do nothing is a D9
+question — **was answered the next day.** The **D2 addendum to D9**
+(`DESIGN.md:1148`, ratified 2026-08-19, PR #628) says *"silent discard is never
 an answer"* and **explicitly supersedes** the footnote's original *"typed errors
 where cheaply detectable, or documented garbage-out in release"*; S43's verdict
-`:4517` records it ACCEPTED AND SETTLED and closes *"S12's residue and S14's
-disposition follow from this rule and should be re-read against it rather than
-re-argued."* So there is no open decision here. What is left is **execution**:
-the ~60 silent discards in `euler{,_ring,_kill}.rs` are a known deviation from a
-ratified rule, and converting them is **W2c**, which had a verdict and no row anywhere until
-#706 placed it as Track D's **D16**.
+records it ACCEPTED AND SETTLED. The execution that left — **W2c**, placed by
+#706 as Track D's **D16** — landed as **#720**. The partition is **56 + 2 =
+58**: 56 discards became `unreachable!` carrying their own per-site proof
+(two of them only after `kfmrh` gained the `StaleKey` preconditions that make
+them provable — those two are *among* the 56, not beside them), and
+`link_half_edges` kept the remaining two. It kept them because **two** of its
+callers hand it a `prev` read out of the arena that nothing proves —
+`split_edge`, and `kef`, whose cycle walk steps `next` and therefore proves
+`next(he)` and not `prev(he)`. §D's D16 retirement note carries the argument;
+both call sites are placed as **D18**, which is what finishes W2c.
+
+*What #720 means for this file's garbage-out row, which is the part S12
+predicted wrongly.* `foreign_parent_loop_garbage_in_garbage_out_release` was
+expected to change meaning or retire. It did neither, and the reason is
+load-bearing: its planted `parent_loop` is a key that is **live but wrong**, so
+no lookup fails, every write lands, and the body it produces is wrong *data* —
+never a swallowed failure. Retiring the discards therefore does not touch it.
+The residue the addendum leaves standing is exactly this: corruption a plan
+phase cannot observe still yields `Ok` plus a body the validator refuses. Both
+the suite header and the row's own doc now say so in those terms, and the row
+passes under both profiles.
 
 > **A note on how this row was dispatched.** D6's brief sent its lane to fix the
 > CI gap while telling it the rest of S12 was an open D9 question sitting in
@@ -1985,21 +2000,54 @@ corrupt-input disposition the D2 addendum kept. And
 `foreign_parent_loop_garbage_in_garbage_out_release` is the file's only
 `#[cfg(not(debug_assertions))]` item, so off a release job it was neither run
 nor even *compiled* anywhere (clippy is a debug pass too) — a **profile**-level
-rot hazard, independent of what the row asserts, which matters because what it
-asserts is scheduled to change: it certifies the very garbage-out W2c converts,
-and W2c will change its meaning or retire it. #706 says so at the job and at
-the suite rather than leaving the next reader to discover it. The run step also
+rot hazard, independent of what the row asserts. #706 expected W2c to change
+that row's meaning or retire it and said so at the job and at the suite; #720
+showed the expectation was wrong (see above), and corrected both notes in
+place rather than leaving a stale prediction. The run step also
 asserts its own selection is non-empty, because a `cargo test` name filter that
 matches nothing exits 0 — the same silence, one level up.
 
-*The stale-contract class, swept.* Three sentences in `euler.rs` (`:22`, `:52`,
-`:2010`) still asserted the superseded garbage-out disposition as ratified;
-#706 retimes all three to "today's behaviour, pending W2c" — prose only, the
-code is W2c's. Pattern: `grep -rn garbage crates/topo/src` plus the footnote's
+*The stale-contract class, swept twice.* Three sentences in `euler.rs` (`:22`,
+`:52`, `:2010`) still asserted the superseded garbage-out disposition as
+ratified; #706 retimed all three to "today's behaviour, pending W2c" — prose
+only, the code being W2c's — and #720 retimed them again, off "pending"
+entirely and onto the distinction that survives (silent discard gone; wrong
+data on unobservable corruption not gone, because it never came from a
+discard). #720 also caught what #706's pattern predicted it would miss: the
+`EulerOpError` doc's *"cheap-to-detect"*, which names the axis the addendum
+explicitly replaced — rows 4/5 split on re-derivation, not cost. #706's
+pattern: `grep -rn garbage crates/topo/src` plus the footnote's
 own wording across `crates/`. **What it could not match**: a site that describes
 the superseded disposition without the word, and it deliberately leaves the
 `geom-curves`/`geom-core`/`geom-surfaces` "documented garbage-out" hits alone —
 those are the addendum's **row 3** (value-domain poison), a different rule.
+
+**And the blind spot neither pass stated, which is the one that mattered: the
+pattern was scoped to `crates/`, so `docs/` was never in it.** `DESIGN.md`
+carried *"Conversion work this licenses, **NOT yet done**"* — the identical
+sentence-shape, in the document that **ratifies** the rule, i.e. the one place
+a stale claim is authoritative rather than merely wrong. #720's review caught
+it; #720 retimed it. A sweep for a prose contract has to include the documents
+that state the contract, and both earlier passes swept only the code that
+implements it.
+
+*The coverage this unit lost, written down rather than left to be found.*
+`debug_postcondition_fires_on_corrupt_input` asserted only that a panic
+occurred. From #720 there are **two** panic sources in that call path — the
+postcondition, and the row-4 `unreachable!`s — so `is_err()` would have passed
+identically on a mis-converted conversion, and the postcondition is the only
+debug-side signal separating them. #720 makes the row assert its panic's
+**source** (both postcondition messages carry the literal `postcondition`; no
+`unreachable!` message does). The release side is a genuine gap and stays one:
+every corruption the suite plants is live-but-wrong or a torn `next`, none of
+which can make a lookup fail, so no row plants a **dangling** key into a
+mutation phase — and in release, where the postcondition is compiled out,
+those `unreachable!`s are the only guard. It is not closed because it is not
+closeable by a fixture: reaching a mutation phase with a dangling key means
+corrupting the body *between* plan and mutation, which is straight-line code
+inside one `&mut self` call and offers no such seam; corrupting before the call
+yields the typed `StaleKey` the suite already covers. Recorded at the suite
+header.
 
 *Two more sites whose release semantics nothing executed.*
 `review_m1_pr4.rs`'s section 9, headed *"Release-mode garbage-in"*, is now in
@@ -5176,7 +5224,7 @@ answer.
 | 1 | Typed error, plan phase | `EulerOpError::{FanOrbitBroken, LoopCycleBroken, OrbitBroken, UnclaimedHalfEdge, …}` | "tier-1-invalid input" |
 | 2 | Typed error, pure dispatch defect | `TessellateError::MissingEntity { what: "… (router defect)" }` | "reaching one is a dispatch defect, **surfaced typed**" |
 | 3 | `debug_assert`, compiled out | `assert_euler_postcondition` (arena deltas + full tier-1 validate) | D9's ratified exemption |
-| 4 | Silent `if let Some` discard | **58 sites** across the three Euler modules | D9's "documented garbage-out in release" |
+| 4 | Silent `if let Some` discard | **58 sites** across the three Euler modules (**retired by #720** — **56 `unreachable!` + 2 left with cause = 58**; the two `kfmrh` sites gained typed preconditions and are *among* the 56, and the two left are placed as **D18**) | D9's "documented garbage-out in release" |
 | 5 | Bare indexing that panics, **chosen deliberately** | `nurbs.rs:162`, `hull.rs` `coeffs[j]`, `mesh/chords.rs:465` | "the fail-loud direction" (PR #447) |
 
 Idioms 4 and 5 are **opposite answers to one question**, each argued in
@@ -5208,16 +5256,44 @@ value-domain degeneracy → poison; kernel bug observable in a branch →
 rows 4/5 split on **re-derivation, not cost**. D9's headline bullet is
 untouched: `unreachable!` is by construction not input-reachable.
 
-*What is settled is the rule, not the code.* The addendum opens the
-`unreachable` lint in both manifests and licenses the conversion; it does not
-perform it. Until that lands, the ~60 `if let Some` discards across
-`euler.rs`/`euler_ring.rs`/`euler_kill.rs`, idiom 2's `MissingEntity` router
-defects, and `AssemblyUnsupported`'s rename are all still the superseded
-idiom — which is **W2c**, scheduled as Track D's **D16** (#706; it had a
-verdict here and no row anywhere for two days, which is §D's fourth ordering
-rule failing on the section that states it). S12's residue and S14's
-disposition follow from this rule and should be re-read against it rather than
-re-argued.
+*The rule was settled first, and the code has now followed it — in `topo`.*
+The addendum opened the `unreachable` lint in both manifests and licensed the
+conversion without performing it; **W2c**, scheduled as Track D's **D16**
+(#706; it had a verdict here and no row anywhere for two days, which is §D's
+fourth ordering rule failing on the section that states it), performed it as
+**#720**. Idiom 4 is gone from `euler.rs`/`euler_ring.rs`/`euler_kill.rs`: of
+the **58** discards there (the "~60" was an occurrence count; two of them were
+ordinary `Option` matches), **56 are now `unreachable!` with a per-site proof
+in the message** and **2 remain**, which is the whole 58. `kfmrh`'s two sites
+are *inside* the 56 — they converted only because its plan phase gained the
+`StaleKey` checks that make them provable, and two new rows go red if either
+check is deleted. The 2 remaining are `link_half_edges`', kept because **two**
+of its callers pass a `prev` read out of the arena that nothing proves:
+`split_edge`, and `kef` — whose cycle walk steps `next`, so it proves
+`next(he)` and not `prev(he)`. Both are placed as **D18**, so idiom 4's last
+two sites have a row rather than a recommendation. **No site was row 5.** Rows 4/5 split on
+re-derivation, and a failed key lookup is observed rather than re-derived, so
+`debug_assert` never applied to any of them; `assert_euler_postcondition`
+remains the only row-5 member in these modules and is untouched.
+
+*What the taxonomy still owes.* Idiom 2's `MissingEntity` router defects and
+`AssemblyUnsupported`'s rename are the addendum's remaining unexecuted rows,
+in `mesh` and `sweep` — outside `topo` and outside D16. S14's disposition
+follows from this rule and should be re-read against it rather than re-argued;
+S12 is closed.
+
+One correction #720 owes upward, and it is a **class, not an instance**. Three
+places name `SolidWithoutShells` as *the* state a failed graft leaves —
+`DESIGN.md:1130-1135`, the 37-door allowlist entry at
+`review_m1_pr5_internal.rs:312`, and `euler.rs:76`, five lines above a
+paragraph #720 rewrote. All three understate it: that is the state of the
+**late** `GraftRecertify` refusal, raised after pass 2 with every key patched.
+A refusal raised *between* `graft_solids_with`'s two passes leaves entities
+holding source-internal keys, and because these are slotmap keys such a key
+may either dangle in `dst` **or resolve to an unrelated live entity** — the
+live-but-wrong class, which no plan phase can refuse. #720 corrected the
+`euler.rs` copy in passing and named the class there; whoever takes S14 fixes
+one of three. The `DESIGN.md` and allowlist copies are S14's, not this row's.
 
 ## S44. The founding ruling for the lane-trait pattern exists only as an agent's paraphrase
 
@@ -6647,9 +6723,9 @@ mutation-path correction also produced a **second witness for S14**, filed in
 *Open decisions* rather than settled here.
 
 **Reviews are style-only** (`docs/prompts/reviewer-style-lane.md`) except at
-the rows marked ADVERSARIAL — D2, D8 and D11 still live, with D1
-(**retired, #710**), D9 (**retired, #712**) and D15 (**retired, #718**)
-landed — and D5's `seqgen` half, landed with #713.
+the rows marked ADVERSARIAL — D2, D8, D11 and **D18** still live, with D1
+(**retired, #710**), D9 (**retired, #712**), D15 (**retired, #718**) and D16
+(**retired, #720**) landed — and D5's `seqgen` half, landed with #713.
 Those are where a wrong answer is reachable; everywhere else the risk is
 that the fix is ugly or incomplete, which is the style lane's question. The style review carries two questions beyond its
 standing brief: whether the finding's *original* stylistic problem is now
@@ -6868,16 +6944,85 @@ have failed loudly even if it had been attempted.
 | **D11** | **S17's drift class where it bites hardest: `bool_join_nearest`.** `topo/src/boolean/join.rs:564,600,804,818` decides two different questions under one K name — `Margin::of(dist)` (*"is this chord length zero?"*) and `Margin::of(dist - bd)` (*"is this candidate nearer?"*). A distance and a difference of distances, pooled into one row across four sites in one crate: the same drift D9 closed in `point_in_loop`, worse by site count. D9 closed the class where S17 pointed and nowhere else, which is what makes this a row rather than a residue. Next candidates behind it, from the same sweep: `bool_join_facing` (4 sites), `bool_point_in_solid_plane` (3), `bool_dir_same` (3) — cost each before taking them. | S17 (class) | `topo/src/boolean/join.rs` | **ADVERSARIAL** — it splits a shipped K row into two, and unlike D9's split the two questions here are decided at *different* sites rather than three lines apart, so which site gets which name is a judgement the diff must argue rather than inherit. | **#712** (D9) for the convention precedent, not for files |
 | **D13** | **S15's pcurve-staleness row, which is still open.** `pcurves.rs:124`: *"an op that mutates an already-minted body must either clear the map or re-mint before returning, and **should say which in its own docs**"* — a convention, with *"The lists above are a survey, not an enforced invariant"* four lines above it, and nothing that notices when a new op joins the wrong bucket. **What D5 verified before placing this**: #635 corrected the one entry the steelman caught (`merge_coplanar_faces` had started re-minting and the index had not moved), so the survey is *accurate today* — the row is that nothing keeps it accurate. The shape D5 used for its sibling row is available and cheap: a source-walking test over the three buckets, the way `review_m1_pr5_internal::every_public_mutation_path_preserves_tier1` now covers the mutation surface. | S15 (row 1) | `topo/src/pcurves.rs` and the test's home | style | **discharged — #707** (D4) landed the `pcurves.rs` edits this must not conflict with |
 | **D14** | **`seqgen`'s candidate enumeration is eager.** `choose_op` builds every candidate `Vec` on every call — including rows whose weight is zero because the body has stopped growing — and then discards all but one. D5's `split_edge` row is what makes that cost visible rather than what causes it: `split_edge_candidates` runs a full `EdgeCurve::recertify` plus an O(V) separation scan **per edge, per step** (~14 re-certifications and ~200 metered decisions at `GROW_CAP`), which is where its measured +46% went. `memories/test-suite-cost.md` is categorical that an ungated fuzzer is a defect in the fuzzer. The fix is not to drop the gates — they are what keep the lane honest — but to skip zero-weight rows and to enumerate lazily. | S15 (`seqgen` half) | `topo/src/seqgen.rs` | style, but **measure before and after**: the row exists because a number was measured, and it closes on a number, not on a shape | nothing |
-| **D16** | **W2c — the D2 addendum, executed in `crates/topo`.** S43's verdict (`:4517`) ratified the taxonomy on 2026-08-19 and named W2c as what remains: the ~60 silent `if let Some(...)` discards in `euler.rs`/`euler_ring.rs`/`euler_kill.rs` are the superseded idiom 4, and **silent discard is never an answer**. Each site sorts into row 4 (`unreachable!`, observable in a branch) or row 5 (`debug_assert`, detectable only by re-derivation) — the split is **re-derivation, not cost**. This is the topo half of the same addendum **D2** is applying in `sweep/src/fillet/`; the two must not diverge on how row 4 is spelled, so whoever takes the second one reads the first one's PR. Retiring the discards also changes what `release_corruption.rs`'s garbage-out row means — see S12. **The row existed only in S43's prose (`:4532`, "now unblocked and unstarted") until #706 placed it**; that miss is §D's fourth ordering rule failing on the section that states it. | S43 / Wave 0 D2 | `topo/src/euler{,_ring,_kill}.rs` | **ADVERSARIAL** — it converts ~60 silent no-ops into panics or debug asserts inside the mutation phase of a kernel whose D9 headline is *never a panic on any input*, so every row 4 needs its not-input-reachable argument made per site, not inherited. | nothing (the addendum opened the `unreachable` lint in both manifests) |
 | **D17** | **No CI lane builds any crate's `probe` test targets except editor-core's — 14 suites across four crates are not type-checked, let alone run.** Stated precisely, because the loose version is false and the difference is the whole row: the `sweep`, `topo`, `profile` and `geom-brep` **libraries** ARE compiled under `probe` on every building merge (`editor-core`'s `probe` feature forwards `sweep/probe` et al., and `scripts/k_probe_sweep.sh:49` runs `cargo test -p editor-core --features probe`). What no workflow does is build those crates' **own `tests/` targets** under `probe`. `rg 'feature = "probe"' crates/*/tests/` returns **16 files**; only editor-core's 2 are compiled by CI. The other 14 — 5 `topo`, 4 `profile`, 4 `geom-brep`, 1 `sweep` — can bit-rot green or red with nothing noticing. **The diagnosis was already in the tree and this row is its fifth rediscovery**: `crates/topo/tests/probe_s5_sectors.rs:24-31` (`c0e05322`, 2026-08-19 — *one day before* #718) already says *"NOT run by CI, and not a gate … nothing in `.github/workflows/` runs `cargo test -p topo --features probe` … a class, not this suite's peculiarity"*. D15 then found the sweep instance by tripping over it. Finding the next instance by the same accident is the standing failure this track exists to break, so **the row is the class, not `sweep`**. Two mechanisms, and they are NOT interchangeable: (a) a `cargo check -p <crate> --features probe --all-targets` step per crate, or (b) fold the M2 corpus into `k_probe_sweep.sh` so the M2-era instrument runs beside the M4/M5/M7 one. **(a) would not have caught the defect that spawned this row** — the pre-fix `k_report.rs` compiled perfectly; its failure was a runtime panic, so only (b) would have gone red on 2026-07-25. Choose on that, not on cost; the costs below are close enough to mislead. **Cost, measured on an agent container — a RATIO, not a hosted number** (#706's comparable step was 93 s hosted cold): running the harness is **0.05 s** per ε row; (a) for `sweep` cold is **12.0 s** over 36 crates; (b) needs codegen + link, **35.2 s** cold. Honest counterweight: `probe` is a `Real` instantiation, so it monomorphizes every generic-over-`Real` body — **the build is the bill**, and it is not free even though the tests are. **Read #706's job before designing this one** (`ci.yml:731`): same shape — a surface CI never compiled — showing how narrow such a job should be (one crate, own cache key, filter-gated) and carrying the trap that matters most here, that **a name filter matching nothing exits 0**, which is exactly the silence an `--ignored` module-prefix selection would reintroduce. | raised by D15 (#718); class already stated at `probe_s5_sectors.rs:24-31` | `.github/workflows/ci.yml`, and `scripts/k_probe_sweep.sh` if (b) | style | nothing |
+| **D18** | **Two callers hand `link_half_edges` a `prev` nothing proves, and they are the last thing standing between W2c and done.** Both read `prev` straight out of the arena and splice through it, and in both cases the *symmetric* `next` **is** proven live in the same plan phase: `split.rs:253` passes `prev(hm)` while `:155-160` checks `next(hp)`; `euler_kill.rs:830` passes `a = prev(he)` while `b = next(he)` is proven by the cycle walk — **`loop_walk` steps `next`** (`body.rs:796-800`), so the walk proves one and not the other. `kef` is the outlier among the operators: `mev` (`euler.rs:1437-1443`), `mef` (`euler.rs:1701-1707`), `kev` (`euler_kill.rs:605-613`) and `mekr_cycles` (`euler_ring.rs:1032-1037`) each check their own `prev`s explicitly and say so. The fix is **one `contains_key` per site**, symmetric with the check each plan phase already has — `kev`'s four-link loop is the shape. **Why the row is worth doing rather than a tidy-up**: `link_half_edges` is the site S12 led with and the site the D2 addendum names, and #720 left its two discards unconverted for exactly this reason — so **D18 unblocks the last two sites of W2c**, after which the helper converts in one line. **Both** call sites are required: fixing only `split.rs` leaves `kef`'s `a` unproven and the helper still unconvertible. The distinction a future reader will not re-derive: the helper's old qualifier was *"cannot fail on **the operator paths**"*, and one of the two gaps is **inside an operator** — the qualifier was not merely narrow, it was wrong. **How it was found**: #720's own sibling sweep obligation, discharged late — the unit established that a `prev` is not proven by a `next`-walk and did not immediately run that read over the operators; its review did. | raised by D16 (#720) | `topo/src/split.rs`, `topo/src/euler_kill.rs`, then `topo/src/euler.rs`'s `link_half_edges` | **ADVERSARIAL** — it adds preconditions to a non-operator mutator and to a kill operator on the delicate-site path, then converts a discard behind them; getting any part wrong re-opens the hole #720 proved is real, and this time as a panic. | nothing (#720 leaves both call sites' code untouched, correcting only the false comments on them) |
 
-**No row number is reserved any more.** D15 (D1's `k_report.rs` harness) landed
-with #710, D16 (D6's W2c discards) with #706, and **D17** (the 14 `probe` test
-suites no CI lane type-checks) with #718 — assigned centrally on the spot
-rather than left in that PR's prose, per the rule below. Row
-numbers are assigned centrally because several lanes mint rows in parallel and
-three collided once already: a lane that needs a row takes the next number the
-orchestrator has not assigned, never the next gap it can see.
+**No row number is reserved; D18 is the highest one placed.** Placements:
+D15 by #710, D16 by #706, **D17** by #718 and **D18** by #720. Both of the
+lanes that retired this hour placed their own residue on the way out rather
+than leaving it in a PR body — D15's as **D17** (the 14 `probe` test suites
+no CI lane type-checks), D16's as **D18** (`link_half_edges`' two unproven
+callers, which are W2c's last two sites). Row numbers are assigned centrally
+because several lanes mint rows in parallel and three collided once already: a
+lane that needs a row takes the next number the orchestrator has not assigned,
+never the next gap it can see. **A verdict is not a placement** (§D's fourth
+ordering rule) is why both residues are rows here rather than sentences in two
+PR bodies.
+
+**D16 is retired — done as #720** (`topo/src/euler{,_ring,_kill}.rs`, S43/S12).
+The re-derived census is **58 discard sites**, not the ~60 the row carried: the
+recorded 20/20/18 were `if let Some` *occurrences*, two of which are ordinary
+`Option` matches. The partition is **56 `unreachable!` + 2 left = 58** — the
+two `kfmrh` sites are *among* the 56, not a third bucket beside them; they
+converted because that operator's plan phase gained the typed checks that make
+them provable. Every conversion is row 4; **no site was row 5**, because a
+failed key lookup is *observed*, not re-derived, and that is the axis the
+addendum's rows 4/5 split on. The unit's ADVERSARIAL gate did not come off
+cleanly, and the residue is the useful part:
+
+- **The flagship site did not convert, and there are TWO reasons, not one.**
+  `link_half_edges` is reached with an unproven `prev` from `split.rs:253`
+  (`prev(hm)`, the symmetric partner of a `next(hp)` its preconditions do
+  check) **and** from `kef` (`euler_kill.rs:830`'s `a = prev(he)`, where the
+  cycle walk steps `next` and so proves only `b`). Converting the helper would
+  have turned a documented garbage-out into a panic on both. The one-line
+  proofs belong at those call sites; **both are D18**, which is what makes it
+  the row that finishes W2c rather than a tidy-up.
+
+  **The second one is this unit's own miss.** #720 established exactly the
+  invariant that finds it — a `prev` read from the arena is not proven by a
+  `next`-walk — and did not run that read over the sibling operators, which is
+  the standing sweep obligation. Its review did, in the PR whose thesis is that
+  a prose invariant must be replaced by construction. The helper's comment
+  claimed *"cannot fail on **the operator paths**"*; one of the two gaps is
+  inside an operator, so the qualifier was not narrow, it was wrong. #720
+  corrects that comment and `kef`'s (which asserted the walk validates
+  `prev(he)`/`next(he)`, where it validates only `next(he)`) without touching
+  either operator's code — the arms reach only the *unconverted* helper, so the
+  failure mode is garbage-out, not a panic, and the fix is D18's.
+- **Two sites were made provable rather than converted on faith.** `kfmrh`'s
+  cross-shell fusion wrote through `s2_data.faces` and `s2_data.solid`
+  unchecked; both are **row 1**, so its plan phase now proves them and returns
+  `StaleKey`. That closed a real atomicity hole — a dangling entry there
+  previously half-wrote the fusion and returned `Ok` — and the claim is now
+  executable rather than prose: two rows construct a same-solid two-shell body
+  and plant each corruption, and **each goes red with its guard removed**
+  (verified by deleting them: the dangling-face row then panics at the
+  `unreachable!` the guard exists to make sound). The pre-existing
+  `kfmrh_rejects_stale_faces` could not reach either, corrupting only the two
+  arguments.
+- **The graft exception is stronger than `DESIGN.md:1130-1135` records.**
+  `graft_solids_with`'s pass 1 clones topology into `dst` still holding
+  *source-internal* keys and pass 2 patches them, with the `corrupt()` bails
+  sitting between — so a refusal there leaves **dangling keys**, not merely the
+  empty solid the footnote names (that is the late `GraftRecertify` state).
+  **And "dangling" understates it in turn**: these are slotmap keys, so an
+  unpatched source-internal key may instead **resolve in `dst` to an unrelated
+  live entity** — live-but-wrong, which no plan phase can refuse. So a
+  post-failed-graft body is not always *refused* by the plan phase; it may be
+  **accepted and produce wrong data**. That endangers no conversion, and the
+  reason is worth stating exactly: the standard proves **liveness**, not
+  correctness, and an `unreachable!` fires only on a lookup that fails. A key
+  that resolves to the wrong entity writes the wrong topology and panics
+  nowhere — the same residue `foreign_parent_loop_garbage_in_garbage_out_release`
+  certifies. What the standard buys is that it never appeals to tier-1
+  validity: every converted key is minted in-phase or proven live *in the same
+  call*. A standard that had reasoned from tier-1 validity would have been
+  falsified across roughly half the sites.
+
+The 37-door guard did not move (no door added, removed, or changed its
+assertion). `foreign_parent_loop_garbage_in_garbage_out_release` still passes
+under both profiles — see S12.
 
 **D9 is retired — done as #712** (`topo/src/ray_parity.rs`, S17). Its
 ADVERSARIAL gate came off cleanly, and the answer is worth carrying,
@@ -6901,7 +7046,7 @@ findings: the release-profile run the suites instructed and CI never made, and
 The **D2 addendum** settled it on 2026-08-19 and what it left is execution,
 which is **W2c**, appearing exactly once in this file (S43's prose) with no row
 anywhere. That is §D's fourth ordering rule failing on the section that states
-it, and it is why W2c is **D16** below.
+it, and it is why W2c became **D16**, executed as #720.
 
 **Left open by D4, needing an owner outside this track: #250 owes a row.**
 The mint-side wiring of the fitted general-circle route (the
@@ -6955,7 +7100,7 @@ Where each went:
 | **U2** — S8, S9, S10 | **D4 — DONE, #707.** All three sorted to *keep*; the prose the sort contradicts is truthed at each finding |
 | **U3** — S17's ray-parity twins | **D9** — done as **#712**, which spawned three rows: **D10** (the S15 ray-schedule row, a different pair) and **D12** (its sweep residue), both retired by **#717** — D10 fixed, D12 answered dimension-forced — leaving **D11** (`bool_join_nearest`, the drift class D9 closed only at S17's anchor) |
 | **U4** — S18's duplicated derivations | **D3** (the negative-zero flush) — **landed as #704**, row retired — and **D8** (the knot-vector queries); the `step-export/volume.rs` row goes to **C3**, because closing it needs a per-shell door in `props/` |
-| **U5** — S12's Euler atomicity | Executable residue **fixed by #706** (the release-profile run the suite instructed and `ci.yml` never did). The rest is **not** an open question: the **D2 addendum** settled it on 2026-08-19 and the execution is **W2c**, placed by #706 as **D16** |
+| **U5** — S12's Euler atomicity | **CLOSED.** Executable residue fixed by **#706** (the release-profile run the suite instructed and `ci.yml` never did); the rest was never an open question — the **D2 addendum** settled it on 2026-08-19 and its execution, **W2c**, landed as **#720** (row **D16**, retired). The one follow-up it owes, a `split.rs` precondition, is placed as **D18** |
 | **U6** — S15's prose-held invariants | **D5**, landed as **#713**; the three rows it could not close carry placements — **#708** (tie propagation), **D13** (the pcurve convention), **D14** (the fuzz lane's eager enumeration) |
 | **U7** — S14's proposed reframe | ***Open decisions — Evan only***. It was the one row here that was a decision rather than work, and the one with no channel at all. |
 | **U8** — S44's open residue | **C7**, with the rest of the lane-trait question |
@@ -6996,9 +7141,12 @@ had, are Track D's D1/D2.
 **Track D's remaining edges are `sweep/` internal, plus one on another track's
 open PR.** Landed: D1 as #710, D3 as #704, D4 as #707 — which also discharges
 D13's gate — D5 as #713, D6 as #706, D9 as #712, D10 and D12 as #717, D15 as
-#718. In flight: D11, D13/D14, D16, and D7's first third. **D17 is the only row
-in the track whose file set is `.github/workflows/`**, so it collides with no
-kernel lane and can run at any time.
+#718, D16 as #720. In flight: D11, D13/D14, and D7's first third.
+**D17 and D18 are edge-free and unstarted.** D17 is the only row in the track
+whose file set is `.github/workflows/`, so it collides with no kernel lane and
+can run at any time; D18's is `topo/src/{split,euler_kill,euler}.rs`, which
+#720 leaves at a state where only the two `prev` checks and the conversion
+behind them remain.
 
 **Blocked on #705** (the `geom-curves` + `geom-surfaces` merge, ≥200 files):
 **D2** and D7's fillet-helper row — it edits all four `sweep/src/fillet/` files
