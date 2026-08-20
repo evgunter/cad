@@ -1900,6 +1900,7 @@ dependencies = [
  "profile",
  "proptest",
  "sweep",
+ "test-utils",
  "topo",
 ]
 

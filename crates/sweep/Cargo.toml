@@ -75,6 +75,13 @@ topo = { path = "../topo", features = ["sweep-testing"] }
 # dev-dependencies (neither ever enters the other's build graph).
 mesh = { path = "../mesh" }
 proptest = { workspace = true }
+# The one home for a randomized sweep's seed and effort dial
+# (`CAD_FUZZ_SEED` / `CAD_FUZZ_EFFORT`). `test-utils` is a dev-only
+# leaf no shipped build reaches, which is why the ambient-environment
+# gate allowlists its `fuzz.rs` by REACHABILITY — a suite here that
+# rolled its own env dial would be a second channel with no such
+# argument behind it.
+test-utils = { path = "../test-utils" }
 
 # ONE test binary for the whole suite (see tests/all.rs). Each extra test
 # target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.

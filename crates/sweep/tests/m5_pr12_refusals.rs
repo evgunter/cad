@@ -503,6 +503,14 @@ fn trio_corner_independence() {
 /// The recourse sentences are shared CONSTANTS, so the definite and
 /// escalated arms of one user situation cannot drift apart — this row
 /// is what would catch a future edit that inlines one of them.
+///
+/// The list is hand-kept and was short of the module's own by two
+/// (`FILLET3_ASSEMBLY_RECOURSE`, `FILLET3_RING_RECOURSE`) before the
+/// surgery's frontiers added two more; all four are here now. Nothing
+/// forces this list to stay complete — Rust cannot enumerate a
+/// module's constants — so the standing check on completeness is
+/// `fillet::recourse_tests`' exhaustive match over the variants that
+/// append them.
 #[test]
 fn every_recourse_sentence_is_reachable_from_both_arms() {
     let p = Point3::new(0.0, 0.0, 0.0);
@@ -516,6 +524,10 @@ fn every_recourse_sentence_is_reachable_from_both_arms() {
         sweep::fillet::FILLET3_CONVEXITY_RECOURSE,
         sweep::fillet::FILLET3_CORNER_RECOURSE,
         sweep::fillet::FILLET3_SPINE_KIND_RECOURSE,
+        sweep::fillet::FILLET3_ASSEMBLY_RECOURSE,
+        sweep::fillet::FILLET3_RING_RECOURSE,
+        sweep::fillet::FILLET3_BODY_RECOURSE,
+        sweep::fillet::FILLET3_GEOMETRY_RECOURSE,
     ] {
         assert!(!s.is_empty());
         assert!(
