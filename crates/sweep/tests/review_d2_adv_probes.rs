@@ -27,6 +27,18 @@
 //!   classes the corpus actually reaches, which is the number a
 //!   future reader of the partition wants.
 //!
+//! **Anti-vacuity floors** ([`test_utils::census`]). Every interesting
+//! body in the corpus is minted behind a fallible door and every
+//! battery call can refuse, so both gates state how much they actually
+//! exercised and assert it: [`census_corpus`] floors the corpus and the
+//! rim/circle/multi-solid coverage the claims rest on,
+//! `d2_no_input_reaches_a_panic` floors its request count and its
+//! all-rim requests (the sample's only route into `rim_phase`), and
+//! `d2_the_battery_never_hands_the_surgery_an_empty_chain` floors both
+//! the verdicts it obtained and the chains it inspected. Without these
+//! a run in which `boolean_op_with`, `revolve` or `run_battery` began
+//! refusing would shrink to a bare cube and stay green.
+//!
 //! Gating: these are written against `crates/sweep/src/fillet`; run
 //! them when that directory changes.
 //!
@@ -49,6 +61,7 @@ use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::fillet::{FilletError, FilletRequest, fillet_edges, run_battery};
 use sweep::test_support::cube;
 use sweep::{Revolution, RevolveAxis, revolve};
+use test_utils::census::Census;
 use test_utils::fuzz::{self, Rng};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations, EdgeKey};
@@ -200,6 +213,93 @@ fn corpus() -> Vec<(&'static str, Body<f64>)> {
     out
 }
 
+/// The plane-sphere edges of `body` — the **rim** requests' own door.
+/// Named as its own function because it is the thing the sweep's
+/// anti-vacuity floor counts: without a body that has one, the sample
+/// never reaches `rim_phase`, which holds 6 of the 18 `unreachable!`
+/// sites this file exists to attack.
+fn rim_edges(body: &Body<f64>) -> Vec<EdgeKey> {
+    let kind_of = |f: topo::FaceKey| -> Option<u8> {
+        match body.get_surface(body.get_face(f)?.surface)? {
+            geom::Surface::Plane { .. } => Some(0),
+            geom::Surface::Sphere { .. } => Some(1),
+            _ => Some(2),
+        }
+    };
+    let face_of = |he: topo::HalfEdgeKey| -> Option<topo::FaceKey> {
+        Some(body.get_loop(body.get_half_edge(he)?.parent_loop)?.face)
+    };
+    body.edges()
+        .filter(|(_, e)| {
+            let (Some(fa), Some(fb)) = (face_of(e.he_plus), face_of(e.he_minus)) else {
+                return false;
+            };
+            let mut kinds = [kind_of(fa), kind_of(fb)];
+            kinds.sort_unstable();
+            kinds == [Some(0), Some(1)]
+        })
+        .map(|(k, _)| k)
+        .collect()
+}
+
+/// The circle-carried edges of `body`, likewise counted by the floor:
+/// a corpus of straight-edged boxes reaches none of the curved-spine
+/// arms.
+fn circle_edges(body: &Body<f64>) -> Vec<EdgeKey> {
+    body.edges()
+        .map(|(k, _)| k)
+        .filter(|&k| {
+            body.get_edge(k)
+                .and_then(|e| body.get_curve_geom(e.curve))
+                .and_then(|g| g.certified())
+                .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle { .. }))
+        })
+        .collect()
+}
+
+/// **The corpus's anti-vacuity floor.** Every interesting body above is
+/// minted behind a fallible door — `revolve`, `transform_rigid`,
+/// `boolean_op_with`, `graft_disjoint_all` — and a refusal from any of
+/// them silently removes a body rather than failing. Left unasserted,
+/// this file degrades to a bare cube and stays green while covering
+/// none of what it was written for.
+///
+/// What is floored is what the file's own claims rest on, not the
+/// literal roster: the three doors that mint bodies with no boolean in
+/// them (so the floor cannot red on a boolean's honest refusal), the
+/// **rim** coverage the `rim_phase` sentence above depends on, and the
+/// **circle** coverage the curved-spine arms depend on. A run that
+/// loses any of those loses the file's reason to exist.
+fn census_corpus(bodies: &[(&'static str, Body<f64>)]) -> Census {
+    let mut c = Census::new("d2 corpus");
+    for (name, b) in bodies {
+        c.note("bodies");
+        c.note(name);
+        if !rim_edges(b).is_empty() {
+            c.note("bodies with a plane-sphere rim");
+        }
+        if !circle_edges(b).is_empty() {
+            c.note("bodies with a circle-carried edge");
+        }
+        if b.solids().count() > 1 {
+            c.note("multi-solid bodies");
+        }
+    }
+    c.report();
+    let why = "the corpus has degraded — a door that mints one of these bodies now refuses, \
+               and the sweep below would cover none of what this file was written for";
+    c.require("bodies", 6, why);
+    c.require_each(
+        &["cube", "cube_rotated", "ball", "grafted_two_solid"],
+        1,
+        why,
+    );
+    c.require("bodies with a plane-sphere rim", 1, why);
+    c.require("bodies with a circle-carried edge", 1, why);
+    c.require("multi-solid bodies", 1, why);
+    c
+}
+
 /// Every request shape worth firing at one body: the empty set, each
 /// singleton, each adjacent pair, the whole set, a repeated edge, a
 /// reversed whole set, and `effort()` random subsets.
@@ -223,28 +323,7 @@ fn requests(body: &Body<f64>, rng: &mut Rng, n: usize) -> Vec<Vec<EdgeKey>> {
     // on their own, and the circle-carried edges. Without these the
     // sample never reaches `rim_phase`, which holds 6 of the 18
     // `unreachable!` sites.
-    let kind_of = |f: topo::FaceKey| -> Option<u8> {
-        match body.get_surface(body.get_face(f)?.surface)? {
-            geom::Surface::Plane { .. } => Some(0),
-            geom::Surface::Sphere { .. } => Some(1),
-            _ => Some(2),
-        }
-    };
-    let face_of = |he: topo::HalfEdgeKey| -> Option<topo::FaceKey> {
-        Some(body.get_loop(body.get_half_edge(he)?.parent_loop)?.face)
-    };
-    let rims: Vec<EdgeKey> = body
-        .edges()
-        .filter(|(_, e)| {
-            let (Some(fa), Some(fb)) = (face_of(e.he_plus), face_of(e.he_minus)) else {
-                return false;
-            };
-            let mut kinds = [kind_of(fa), kind_of(fb)];
-            kinds.sort_unstable();
-            kinds == [Some(0), Some(1)]
-        })
-        .map(|(k, _)| k)
-        .collect();
+    let rims = rim_edges(body);
     if !rims.is_empty() {
         out.push(rims.clone());
         if rims.len() > 1 {
@@ -252,16 +331,7 @@ fn requests(body: &Body<f64>, rng: &mut Rng, n: usize) -> Vec<Vec<EdgeKey>> {
             out.push(rims[1..].to_vec());
         }
     }
-    let circles: Vec<EdgeKey> = all
-        .iter()
-        .copied()
-        .filter(|&k| {
-            body.get_edge(k)
-                .and_then(|e| body.get_curve_geom(e.curve))
-                .and_then(|g| g.certified())
-                .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle { .. }))
-        })
-        .collect();
+    let circles = circle_edges(body);
     if !circles.is_empty() {
         out.push(circles.clone());
         let straights: Vec<EdgeKey> = all
@@ -331,23 +401,25 @@ const RADII: [f64; 6] = [1e-6, 1e-3, 0.02, 0.05, 0.12, 0.9];
 #[test]
 fn d2_no_input_reaches_a_panic() {
     let mut rng = fuzz::start("d2_no_input_reaches_a_panic");
-    for (n, b) in corpus() {
-        println!(
-            "    corpus: {n} — {} edges, {} solids",
-            b.edges().count(),
-            b.solids().count()
-        );
-    }
+    // ONE corpus, not two: minting it runs several booleans and a
+    // revolve, and the printed census is the same information the
+    // per-body line used to carry.
+    let bodies = corpus();
+    census_corpus(&bodies);
     let hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(|_| {}));
     let mut fired: Vec<String> = Vec::new();
-    let mut calls = 0usize;
-    for (name, body) in corpus() {
-        for req in requests(&body, &mut rng, effort()) {
+    let mut census = Census::new("d2_no_input_reaches_a_panic");
+    for (name, body) in &bodies {
+        let rims = rim_edges(body);
+        for req in requests(body, &mut rng, effort()) {
+            if !rims.is_empty() && !req.is_empty() && req.iter().all(|k| rims.contains(k)) {
+                census.note("all-rim requests");
+            }
             for r in RADII {
-                calls += 1;
+                census.note("requests");
                 let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    let _ = fillet_edges(&body, &req, r, band());
+                    let _ = fillet_edges(body, &req, r, band());
                 }));
                 if outcome.is_err() {
                     fired.push(format!(
@@ -362,11 +434,35 @@ fn d2_no_input_reaches_a_panic() {
     std::panic::set_hook(hook);
     assert!(
         fired.is_empty(),
-        "the fillet door panicked on {} of {calls} requests ({}): {fired:#?}",
+        "the fillet door panicked on {} of {} requests ({}): {fired:#?}",
         fired.len(),
+        census.count("requests"),
         fuzz::replay()
     );
-    println!("d2_no_input_reaches_a_panic: {calls} requests, every one a value");
+    census.report();
+    // The floors, at `CAD_FUZZ_EFFORT=1`: the enumerated request shapes
+    // alone (empty, whole, reversed, two singletons, the repeat, six
+    // windows) are 11 per body over six bodies at six radii, so 300 is
+    // comfortably below what a healthy run reaches and comfortably
+    // above what a degraded one does.
+    census.require(
+        "requests",
+        300,
+        &format!(
+            "the request builder has collapsed, so `fired.is_empty()` is a claim about \
+             almost nothing — {}",
+            fuzz::replay()
+        ),
+    );
+    census.require(
+        "all-rim requests",
+        1,
+        &format!(
+            "no request was a pure plane-sphere rim set, so the sample never reached \
+             `rim_phase` and 6 of the 18 `unreachable!` sites went unattacked — {}",
+            fuzz::replay()
+        ),
+    );
 }
 
 /// **The row-1 premise for `EmptyChain`.** Both of its two sites read
@@ -377,23 +473,27 @@ fn d2_no_input_reaches_a_panic() {
 #[test]
 fn d2_the_battery_never_hands_the_surgery_an_empty_chain() {
     let mut rng = fuzz::start("d2_the_battery_never_hands_the_surgery_an_empty_chain");
-    let mut verdicts = 0usize;
-    for (name, body) in corpus() {
-        for edges in requests(&body, &mut rng, effort()) {
+    let bodies = corpus();
+    census_corpus(&bodies);
+    let mut census = Census::new("d2_the_battery_never_hands_the_surgery_an_empty_chain");
+    for (name, body) in &bodies {
+        for edges in requests(body, &mut rng, effort()) {
             if edges.is_empty() {
                 continue;
             }
             for r in RADII {
                 let req = FilletRequest {
-                    body: &body,
+                    body,
                     edges: edges.clone(),
                     radius: r,
                 };
                 let Ok(v) = run_battery(&req, band()) else {
+                    census.note("battery refusals");
                     continue;
                 };
-                verdicts += 1;
+                census.note("verdicts");
                 for (i, chain) in v.chains.iter().enumerate() {
+                    census.note("chains inspected");
                     assert!(
                         !chain.links.is_empty(),
                         "{name}: the battery emitted chain {i} with no links \
@@ -405,10 +505,19 @@ fn d2_the_battery_never_hands_the_surgery_an_empty_chain() {
             }
         }
     }
-    println!(
-        "d2_the_battery_never_hands_the_surgery_an_empty_chain: {verdicts} verdicts, \
-         no empty chain"
+    census.report();
+    // TWO floors, because the `continue` above and the inner loop are
+    // separate ways for this row to assert nothing: a run in which the
+    // battery refused everything reaches no verdict, and a run of
+    // verdicts that all carry zero chains reaches no `chain.links` at
+    // all. Either one greens the row while pinning nothing.
+    let why = format!(
+        "the battery reached no chain, so this row's claim that `EmptyChain` has no \
+         input witness rests on nothing this run observed — {}",
+        fuzz::replay()
     );
+    census.require("verdicts", 1, &why);
+    census.require("chains inspected", 1, &why);
 }
 
 /// EVIDENCE, not a gate (it asserts nothing about coverage): which

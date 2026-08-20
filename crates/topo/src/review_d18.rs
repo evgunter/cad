@@ -464,6 +464,22 @@ impl Tally {
         self.calls += other.calls;
         self.oks += other.oks;
     }
+
+    /// The pass as the tree's anti-vacuity census
+    /// ([`test_utils::census`]), in the vocabulary the doc above uses:
+    /// a call is an operator driven at a key, a mutation phase is a
+    /// call that got past its plan phase and therefore had a row-4 arm
+    /// in scope. Both hammer rows report and floor through this, so
+    /// neither can green on a sweep that reached nothing.
+    fn census(self, label: &str) -> test_utils::census::Census {
+        let mut c = test_utils::census::Census::new(label);
+        c.add(Self::CALLS, self.calls);
+        c.add(Self::MUTATIONS, self.oks);
+        c
+    }
+
+    const CALLS: &'static str = "operator calls";
+    const MUTATIONS: &'static str = "mutation phases entered";
 }
 
 /// Drives every operator that reaches [`crate::Body::link_half_edges`]
@@ -576,18 +592,21 @@ fn torn_bodies_never_reach_a_row_four_unreachable() {
             tally.merge(hammer(&body));
         }
     }
-    println!("[evidence] review_d18 torn sweep: {tally:?}");
-    assert!(
-        tally.calls > 1_000,
-        "sweep was vacuous: only {} operator calls — {}",
-        tally.calls,
-        fuzz::replay()
+    let census = tally.census("review_d18 torn sweep");
+    census.report();
+    census.require(
+        Tally::CALLS,
+        1_001,
+        &format!("the tear planting or the key enumeration has collapsed — {}", fuzz::replay()),
     );
-    assert!(
-        tally.oks > 0,
-        "no operator reached its mutation phase on a torn body, so no \
-         row-4 arm was ever in scope — {}",
-        fuzz::replay()
+    census.require(
+        Tally::MUTATIONS,
+        1,
+        &format!(
+            "every call died in a plan phase, so no row-4 arm was ever in scope and this \
+             green says nothing about them — {}",
+            fuzz::replay()
+        ),
     );
 }
 
@@ -621,10 +640,23 @@ fn a_spent_graft_destination_never_reaches_a_row_four_unreachable() {
         "this row only means something if the refusal really did leave \
          `dst` partially written; if the graft ever becomes atomic, retire it"
     );
-    let tally = hammer(&dst);
-    println!("[evidence] review_d18 spent-graft hammer: {tally:?}");
-    assert!(
-        tally.calls > 100,
-        "spent-destination hammer was vacuous: {tally:?}"
+    let census = hammer(&dst).census("review_d18 spent-graft hammer");
+    census.report();
+    census.require(
+        Tally::CALLS,
+        101,
+        "the spent destination no longer presents the keys this row hammers",
+    );
+    // THE FLOOR THIS ROW EXISTS BEHIND, and the one its twin already
+    // has. A spent graft destination is more structurally damaged than
+    // a randomly torn cube, so it is the likelier of the two to have
+    // every call refuse in its plan phase — which is exactly the run
+    // that proves nothing about the arms under attack while passing
+    // green.
+    census.require(
+        Tally::MUTATIONS,
+        1,
+        "every call died in a plan phase, so no row-4 arm was ever in scope and this \
+         green says nothing about them",
     );
 }
