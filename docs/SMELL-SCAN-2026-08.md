@@ -993,142 +993,96 @@ and rejected it — no spec was committed and the log is silent, so this
 reads as *"happened, then documented"*. PRs #62 and #65 have **zero
 comments**; the fork was never surfaced to Evan.
 
-## S6. The four sweep verbs share no core; extrude's pipeline is hand-copied four times
+## S6. FIXED by #710 — eleven token-identical helpers, kept apart by a fork note whose own expiry condition had fired
 
-- **Where**: `crates/sweep/src/revolve/mod.rs:511`,
-  `crates/sweep/src/revolve/surfaces.rs:177`,
-  `crates/sweep/src/extrude.rs:565`, `crates/sweep/src/loft.rs:259`,
-  `crates/sweep/src/revolve/partial.rs:76`,
-  `crates/sweep/src/revolve/full.rs:73`
+- **Where**: the shared home is now `crates/sweep/src/swept.rs`
+  (crate-level, sibling to the verbs) plus `crates/sweep/src/revolve/chain.rs`
+  (revolve-internal); the copies were in `crates/sweep/src/extrude.rs`,
+  `crates/sweep/src/revolve/{mod,surfaces,axis,upgrade,partial,full}.rs`.
 - **Confidence**: sure
+- **Verdict**: ACCEPTED (Evan, 2026-08-18), with a steelman pass that
+  retracted four of the finding's claims. Executed as Track D unit **D1**.
 
-`SweptKind`, `SweptSeg`, `swept_segments`, `arc_span`, `turn_axis`,
-`arc_apex`, `cosurface`, `cap_points`, `rim_spec`/`chain_spec`,
-`strut_spec`, `face_surface_key` and the `decide` funnel all exist twice
-— once in `extrude.rs`, once under `revolve/` — with only predicate-name
-strings differing (`side_planes_cosurface` vs `wall_lines_cosurface`;
-the two `cosurface` bodies are otherwise identical). The
-lamina-plus-holes construction (mvfs → mev chain → Newell cap → bridge
-mev/kemr/mef/kfmrh per hole) is then written out a **fourth** time,
-near-line-for-line, in `extrude`, `partial::build_partial`,
-`full::build_lamina` and `loft::assemble`.
+**What was found.** Each pair named in the D1 row was extracted from
+`main` by brace matching and compared under a normalisation that strips
+comments, path spellings (`geom_core::`, `super::`, `geom_brep::`), the
+`_eff` parameter suffix and the predicate-name literals. Nine came back
+identical to the character: `cosurface` (532), `cap_points` (260),
+`arc_apex` (212), `arc_span` (41), `turn_axis` (98), `face_surface_key`
+(106), `SweptKind` (60), `decide` (39), and — a tenth the row did not
+list — `SweptSeg::sketch_segment` (179). `rim_spec`/`chain_spec` differ
+by exactly one piece of Rust sugar: extrude writes the field-init
+shorthand `place,` where revolve writes `place: place_eff,`.
 
-`revolve/mod.rs:507` justifies the fork: "unify when a third sweep or a
-shared lowering layer gives the shape an owner." The third and fourth
-sweeps have since landed, `loft.rs` imports extrude's copy while
-`revolve` keeps its own, and the note was not revisited. The copy in
-`loft::assemble` carries a vestigial `let _ = k;` (`loft.rs:280`), which
-reads as mechanical transcription rather than derivation.
+Sweeping for the **closed forms** rather than the names found two copies
+nobody had named: `revolve/axis.rs`'s private `apex_of(a, b, bulge)` is
+an eleventh copy of the sagitta form, and `extrude.rs` had hand-inlined
+`face_surface_key`'s body at one site rather than calling its own helper.
 
-**Verdict:** ACCEPTED (Evan, 2026-08-18), together with S5 and S7. Steelman
-pass commissioned: confirm the unification trigger named at
-`revolve/mod.rs:507` ("a third sweep or a shared lowering layer") has in
-fact fired, and check whether the four lamina-plus-holes copies are
-genuinely the same Euler-operator sequence.
-**Steelman (2026-08-18): SURVIVES IN PART — the helper duplication and
-the record-keeping failure are confirmed; four specific claims in this
-finding are wrong, and one of them inverts a load-bearing correctness
-decision.**
+**What was unified.** All eleven, into `crates/sweep/src/swept.rs` — a
+private crate-level module, deliberately *not* inside `extrude`, even
+though `loft` importing extrude's copies had already made extrude the
+de-facto owner. That arrangement is what produced the finding: a core
+inside one of its consumers has no boundary, so `loft` could adopt it
+while `revolve` kept its own fork and nothing said the two had diverged.
+The fork note at `revolve/mod.rs:507` named "a shared lowering layer" as
+its own expiry condition; that layer now exists and the note is deleted
+rather than rewritten a third time.
 
-*The note's lineage, and a goalpost that moved.* The revolve fork was
-written 2026-07-20 (M2 PR 5, #37), two days after extrude. The
-**original** note was not an indefinite deferral — it read *"PR
-7-adjacent unification"*, a commitment. On the same day, M2 PR 7 (#43)
-**rewrote that sentence in the same diff hunk** to the version this
-report quotes. So a trigger about to expire was replaced with a later
-one in the very commit that let it lapse. PR #43's body — 45k additions,
-exhaustively listing every deviation — does not mention it, and neither
-does `docs/archive/M2-LOG.md`. The justification never entered the
-PR-description record that `CLAUDE.md` designates as canonical.
+Three decisions carry the retractions:
 
-*The trigger has fired, on both readings — and was half-answered.*
-`crates/sweep/src/loft.rs:68` reads `use crate::extrude::{SweptSeg,
-cap_points, face_surface_key, rim_spec, swept_segments};`. The third
-sweep's author picked an owner — `extrude` — and imported from it. They
-did not migrate `revolve` to that owner or revisit the note. The
-condition was satisfied and half-executed 14 days before this scan.
+- **`SweptChord` is a trait, not a struct.** Four accessors (`a`, `b`,
+  `bulge`, `kind`) let every identical body be shared while both
+  `SweptSeg` definitions stand untouched, so extrude's `wall_sense` bit
+  cannot leak to a verb it would be wrong for.
+- **Predicate names are a parameter.** `cosurface` takes a
+  `CosurfaceNames { lines, arcs }`. The K-telemetry premise held, and
+  the conclusion was checked rather than assumed: the string-literal
+  multiset of `crates/sweep/src` is byte-identical before and after, so
+  no K row moves.
+- **`face_surface_key` returns `EulerOpError`.** A stale key is an
+  operator fault and nothing else, so each verb's `?` lifts it through
+  the `From<EulerOpError>` it already has. The generic-or-lossy bind
+  this finding predicted for shared fallible helpers across three closed
+  error enums did not have to be paid, at any of the twenty call sites.
 
-*A ratified convention that speaks directly to this landed in between
-and was not applied.* `docs/DESIGN.md:1176`, sharpened by Evan
-personally at the M4 exit sweep (#119, 2026-07-27 — after the fork note,
-before the fourth copy): *"structural sharing beats a sweep — **code
-that is literally the same cannot drift**."*
+**The duplication the finding missed was real, and had a third copy.**
+`partial.rs:73` and `full.rs:73` built the same `mvfs`-anchored chain;
+so did `partial.rs`'s hole-ring chain, grown from a `kemr` ring instead
+of the seed loop. All three now call `revolve/chain.rs::build_chain`,
+parameterised on the loop, its anchor vertex and the closing face's
+surface.
 
-**Four claims in this finding do NOT survive:**
+**Deliberately NOT unified.** `SweptSeg` — the two records differ (207
+vs 178 normalised chars) by exactly the `wall_sense` bit whose three
+per-verb rules are the M5 S11 fix. `strut_spec` — 223 vs 350 chars,
+different arity, `ExtrudedPoint` on a line against `RevolvedPoint` on a
+circle; a name collision. `swept_segments` — 813 vs 643 chars, and only
+extrude has a reversal arm. `full::build_lamina` and the `let _ = k;`
+inference, both retracted by the steelman and both confirmed here.
+`skin.rs` was swept for the same closed forms and shares none of them:
+it discretises arcs in `f64` with a signed `θ = 4·atan(bulge)`, a
+different derivation that happens to look similar.
 
-1. **`SweptSeg` is not duplicated, and the divergence is load-bearing
-   correctness.** Extrude's carries a `wall_sense: bool` that revolve's
-   does not. M5 S11 (`docs/archive/M5-LOG.md:1975`) found concave arc
-   walls minting `sense: true`, so a public `union` silently swallowed a
-   body — *"volume 3.000 for 3.008, one shell for two, no refusal"*. The
-   fix is three genuinely different rules: extrude `(canonical turn ==
-   Positive)`; revolve `(canonical Δz > 0)` for cylinder and cone,
-   `(canonical Δr < 0)` for plane annuli, turn-sign for sphere/torus;
-   loft `sense = true` throughout. **A shared `SweptSeg` carrying one
-   `wall_sense` bit would have been wrong.**
-2. **`strut_spec` is not a duplicate** — same name and arity, entirely
-   different bodies. Extrude mints `MappedCurve::ExtrudedPoint` on a
-   `Curve3::Line`; revolve mints `RevolvedPoint { axis_origin, axis_dir,
-   angle }` on a `Curve3::Circle`. A name collision read as duplication.
-3. **`full::build_lamina` is not the lamina-plus-holes construction** —
-   it has no holes (a full revolve of a holed profile is the typed
-   `FullRevolveHoles` refusal, ratified in #37) and no Newell cap.
-4. **The `let _ = k;` inference is wrong.** `k = sections.len()` is a
-   **loft-only** quantity — extrude has no `k` — so it cannot be a
-   transcription artifact. It is dead code from loft's own drafting.
-   Two lines of lint debt, not evidence of mechanical copying.
+**What the sweep could not match:** a copy that changed *representation*
+rather than spelling. No token pattern relates `skin.rs`'s `f64`
+`mul_add` arc arithmetic to `SweptKind::Arc`; nor would a chain built
+through a different operator vocabulary (`mev_line` plus
+`set_edge_curve` rather than `mev` with a spec) match `build_chain`'s
+shape.
 
-**What survives, verified by diff:** the `cosurface` bodies
-(`extrude.rs:565` vs `revolve/surfaces.rs:177`) are **token-identical** —
-same `t = (prev.b - prev.a).normalize()`, same `t.perp_dot(d)`, same
-`c1.distance(*c2) + (*r1 - *r2).abs()` — differing only in two
-`&'static str` predicate names. Same for `rim_spec`/`chain_spec`,
-`cap_points`, `arc_apex`, `arc_span`, `turn_axis`, `face_surface_key`,
-`decide` and `SweptKind`. **~230 lines of genuinely identical code.**
+**Residue.** (a) `extrude`'s and `loft`'s lamina chains are the same
+operator sequence as `build_chain` and still stand apart from it;
+`build_chain` is already error-agnostic, so what remains is passing a
+placement pair instead of an `AxisFrame` and moving the module to the
+crate root. (b) `loft.rs:517`'s `map_err(|_| LoftError::SectionStructure)`
+— the live regression the steelman found — is untouched, being
+a loft-side error-mapping bug outside D1's scope; it is more visible
+now, since the discarded error is spelled `EulerOpError` at the call
+site. (c) `revolve/tube.rs` reaches past the crate funnel to
+`geom_core::k_stats::decide` directly; equivalent today, and the one
+place a predicate name could stop being funnel-visible.
 
-*The K-telemetry objection does not block unification.* The names must
-stay distinct — `docs/k-report-data/` shows `die_composed`, `die_pips`
-and `kitchen_sink` each emitting **both** `side_planes_cosurface` and
-`wall_arcs_cosurface`, so the shape column no longer disambiguates the
-verb. But both funnels already delegate to `k_stats::decide(name, …)`
-with `name` as a parameter, so a shared body taking a name pair
-preserves every existing name bit-for-bit.
-
-*The tightest duplication is one this report missed: it is inside
-`revolve/` itself.* `partial.rs:73` and `full.rs:73` build the same
-mvfs → mev(Lone) → mev(Fan) → mef chain with the same `chain_spec` calls
-and the same `frame.n3`, differing only in the closing `mef`'s surface
-and partial's pole tracking. **Same module, same error type, same
-imports — none of the axis, error-type or scope barriers that justify
-the extrude↔revolve fork apply here at all.**
-
-*The strongest part of the finding is the record-keeping.* The S11
-incident is precisely the failure mode the ratified convention names:
-the fix had to be spec'd as a manual audit (*"grep for Face literals
-with curved surfaces"*, `M5-S11-SPEC.md:23`), and that audit **found the
-same defect class already shipped in revolve's bore cylinders, inward
-cones and under-side plane annulus**.
-
-*A small live regression found in passing:* `loft.rs:517` writes
-`face_surface_key(…).map_err(|_| LoftError::SectionStructure)?`, so a
-stale-key operator fault reaches the user as a structural section
-refusal — caused by naive sharing across a typed-error boundary.
-
-*Hidden costs of acting:* the predicate names are a gate, not a detail
-(`K-REPORT.md` tracks a 233-name census and reviewers byte-reproduce the
-CSVs); three closed error enums (D4) make every fallible shared helper
-generic or lossy, and PR #192 deviation 7 already refused that bound
-ripple once as *"out of scale for this unit"*; the test surface is **425
-tests across 77 files, 21,634 lines, 63 of 77 PR-named**, not organized
-by code structure, so a refactor cannot be scoped to a subset; and
-unifying `swept_segments` hands loft extrude's `reverse` arm, which PR
-#192 deliberately refused as untested (*"an untested orientation arm is
-worse than a typed refusal"*).
-
-*Could not determine:* whether Evan was ever shown the fork decision
-(#37's "Notes for retroactive review" lists three items; this is not
-among them), and whether the S11 defect class has a live analogue in
-loft — see **S42**.
 
 ## S7. Two complete fillet assembly implementations, and the older one shadows the newer
 
@@ -5272,10 +5226,25 @@ appear below as ordinary rows rather than as decisions.
 that had already been done and recorded at the finding. It is closed here, not
 scheduled.
 
+### Landed
+
+**D1 — FIXED by #710.** The nine twins, plus a tenth
+(`SweptSeg::sketch_segment`) and an eleventh (`revolve/axis.rs`'s `apex_of`)
+that the row's name-based list did not reach, now live in
+`crates/sweep/src/swept.rs`; the `partial`/`full` chain duplication, which
+turned out to have a third copy in `partial`'s own hole ring, lives in
+`crates/sweep/src/revolve/chain.rs`. Every retraction on the row's do-not list
+was re-checked and held. The K-telemetry premise held too, and the conclusion
+was verified rather than assumed — the crate's string-literal multiset is
+byte-identical across the change, so no K row moved. See S6 for the full
+record.
+
+**This unblocks D2**, whose only gate was D1's hold on the same crate. Nothing
+else in the table is gated on D1.
+
 | # | Work | Was | Scope | Review | Gated on |
 |---|---|---|---|---|---|
-| **D1** | **B2 / S6 — sweep helper unification.** ~230 token-identical lines: `cosurface`, `rim_spec`/`chain_spec`, `cap_points`, `arc_apex`, `arc_span`, `turn_axis`, `face_surface_key`, `decide`, `SweptKind` — all nine twins confirmed present on today's main. K-telemetry does **not** block it: both funnels already take the predicate name as a parameter. **Retracted by the steelman, do not "unify" these:** `SweptSeg` (the `wall_sense` divergence is load-bearing correctness, M5 S11), `strut_spec` (same name, different bodies), `full::build_lamina`, and the `let _ = k;` inference. The tightest duplication is one the finding missed: `partial.rs:73` vs `full.rs:73`, same module, same error type. | B2 | `sweep/src/{extrude.rs,revolve/}` | **ADVERSARIAL** — it edits the derivation of geometry four verbs share, and the steelman's retraction list is the shape a unifying pass is most likely to over-run. | nothing (B1 landed as #688) |
-| **D2** | **B3 / S19 — the fillet half of the error catch-alls.** D2's addendum is ratified, so these are row 4 (`unreachable!`) and the rename to `Unsupported*` is owed. **The count has moved: 102 construction sites on today's main, not 146** — 97 in `surgery.rs` through one closure, 5 in `build.rs` through two more — because B1's retirement took the rest with the whole-body door. Scope still excludes `MissingEntity` (mesh — Track A) and `SplitJoinError::Corrupt` (splitting — B4/#690). | B3 | `sweep/src/fillet/` | **ADVERSARIAL** — converting a refusal into `unreachable!` in a kernel whose D9 rule is *never a panic* is only sound if "cannot fail on a valid body" is **proven** per site rather than inherited from the closure's name. | **D1** (same crate) |
+| **D2** | **B3 / S19 — the fillet half of the error catch-alls.** D2's addendum is ratified, so these are row 4 (`unreachable!`) and the rename to `Unsupported*` is owed. **The count has moved: 102 construction sites on today's main, not 146** — 97 in `surgery.rs` through one closure, 5 in `build.rs` through two more — because B1's retirement took the rest with the whole-body door. Scope still excludes `MissingEntity` (mesh — Track A) and `SplitJoinError::Corrupt` (splitting — B4/#690). | B3 | `sweep/src/fillet/` | **ADVERSARIAL** — converting a refusal into `unreachable!` in a kernel whose D9 rule is *never a panic* is only sound if "cannot fail on a valid body" is **proven** per site rather than inherited from the closure's name. | nothing — **D1 landed as #710**, which is the gate that held this row |
 | **D3** | **S18's negative-zero flush ×3 — one home.** `geometry::plus_zero`/`plus_zero_point` are already `pub(crate)` and already reachable from both later sites; `recognize.rs` and `recognize_curve.rs` each carry a private `flush_zero`/`flush_zero_point` pair and a third and fourth copy of the same doc argument. The scan called this *the cheapest one to have caught*. | U4 (row) | `step-import/src/{geometry,recognize,recognize_curve}.rs` | style | nothing |
 | **D4** | **U2 — S8, S9 and S10: the sort, executed as truth.** All three steelmen landed on *keep*, so the work is making the prose say what the sort found. S8: `pcurve_cache.rs:1242` blames an `Arc` for a `Copy` cost that `IsoArc` has carried since M8-3 — stale, and it is the sentence the finding was built on; the frontier and its three named consumers get stated, and the mint-side general-circle wiring gets a row in the #250 register it is currently absent from. S9: `pcurves.rs:1028`'s *"where this limb has teeth"* is false and postdates the code that falsifies it — the limb is a precondition on a public door, vacuous on every in-tree caller, and should say so. S10: the mechanism is doubly ratified doctrine and stays; the **ledger** has drifted and v12 has no entry. | U2 | `geom-brep/src/pcurve_cache.rs`, `topo/src/pcurves.rs`, `editor-core/src/persist/mod.rs` | style | nothing |
 | **D5** | **U6 — S15's stale-prose and accretion rows.** The steelman sorted nine rows into three dispositions; three need nothing. What is left: `iso.rs:56`'s stale "Placeholder ballast" sentence in front of a still-correct decision; `pcurves.rs:91`'s staleness index, which lists `merge_coplanar_faces` among the ops that neither clear nor re-mint and has been false since 2026-08-05; the frozen count of **eleven** public mutation paths, now ≥ sixteen, stale in four places (`euler.rs:47`, `seqgen.rs:15`, `seqgen.rs:96`, `DESIGN.md:1110`) with `split_edge` carrying `mev`'s Euler vector and never entering the fuzz lane; and `emit_fillet.rs:216`'s *"Faces are never retired"* — **check this one first: B1 retired the door the comment was false for, so it may now be true, in which case the row closes as a note rather than a fix.** | U6 | `topo/src/{iso.rs,euler.rs,seqgen.rs}`, `editor-core/src/names/emit_fillet.rs`, `DESIGN.md` | style, **plus ADVERSARIAL on the `seqgen` half** — adding `split_edge` to a randomised fuzz lane over cases `split.rs:94` calls delicate is the one part of the row that can find a real defect, and the one that can burn CI time on a bad schedule. | nothing |
@@ -5342,7 +5311,7 @@ A1 (Bounds for Dual) ──► C7  (S3 lane traits, S1/S2 scalars, S44's residue
                      └─► C4  (S33's dual ladders)
 A2 (iso-rectangle)   ──► C3  (S27, and S18's step-export row — same props/ files)
 A3 (#678)            ──► C5  (S28's duplication half)
-D1 (S6 sweep helpers) ─► D2 (S19 fillet errors) ──► D7's fillet-helper row
+D1 (#710, landed) ─────► D2 (S19 fillet errors) ──► D7's fillet-helper row
 #702 (assembly door) ──► D7's PairSolve row
 #690 (B4, splitting) ──► D9 (S17's ray-parity twins)
 all deletions        ──────────────► L2 (S38 comments)
@@ -5354,8 +5323,8 @@ had, are Track D's D1/D2.
 
 **Track D's own edges are all inside `sweep/`, plus two on other tracks' open
 PRs.** D3, D4, D5, D6 and D8 are edge-free and can start today; D8 edits
-`sweep/src/skin.rs`, so it sequences against D1/D2 within the track rather than
-across it.
+`sweep/src/skin.rs`, so it sequences against D2 within the track rather than
+across it (D1 has landed, and it left `skin.rs` untouched).
 
 ---
 
