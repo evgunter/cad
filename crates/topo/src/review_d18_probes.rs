@@ -24,7 +24,7 @@
 //!   it. Recorded so the coverage claim is not inherited.
 //!
 //! No fixed seeds (nothing here is randomized); the one loop count is
-//! on the `D18_STRUTS` effort dial.
+//! on the workspace `CAD_FUZZ_EFFORT` dial via `fuzz::scaled`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -35,13 +35,14 @@ use crate::euler::{MefSite, MevSite};
 use crate::fixtures::{deep_snapshot, ops_cube};
 use crate::{Body, EulerOpError};
 
-/// Strut count for the torn-body evidence row. On the effort dial, not
-/// a fixed cost: `D18_STRUTS=600` reproduces `review_m1_pr4`'s scale.
+/// Strut count for the torn-body evidence row. On the workspace's
+/// effort dial rather than a private one: `CAD_FUZZ_EFFORT=15`
+/// reproduces `review_m1_pr4`'s scale. `test-utils` is the ratified
+/// home for that knob — a second env read inside `crates/*/src` is
+/// what `scripts/gates/no-ambient-env.sh` exists to refuse, and its
+/// allowlist is two files argued one at a time.
 fn struts() -> usize {
-    std::env::var("D18_STRUTS")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(40)
+    test_utils::fuzz::scaled(40)
 }
 
 fn p(x: f64) -> Point3<f64> {
