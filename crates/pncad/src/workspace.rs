@@ -1,4 +1,4 @@
-//! The workspace store — read side only.
+//! The workspace store: a directory of save files, read and written.
 //!
 //! A workspace is a directory of `*.pncad` save files. [`Workspace::open`]
 //! scans it, reading each file's `id:` header line (never the body —
@@ -14,8 +14,8 @@
 //! reproducible value (Cargo.lock semantics), so
 //! an out-of-date pin is surfaced, never silently retargeted.
 //!
-//! The write side is MINIMAL: exactly what the split/
-//! inline refactorings need — [`Workspace::create`] mints a new save
+//! The write side is deliberately MINIMAL — exactly what the split/
+//! inline refactorings need, and no general mutation API — [`Workspace::create`] mints a new save
 //! file from a `Doc` (the id is the caller's:
 //! [`DocumentId::derive`] for deterministic callers,
 //! [`random_document_id`] for interactive authoring), and
@@ -208,8 +208,9 @@ impl core::fmt::Display for WorkspaceError {
 
 impl core::error::Error for WorkspaceError {}
 
-/// An opened workspace: the scanned id → path map (read side only;
-/// module docs).
+/// An opened workspace: the scanned id → path map, plus the two
+/// write doors ([`Workspace::create`], [`Workspace::resave`]) the
+/// refactorings need. See the module docs.
 #[derive(Debug, Clone)]
 pub struct Workspace {
     /// The scanned directory.
@@ -292,7 +293,8 @@ impl Workspace {
     ///
     /// [`WorkspaceError::UnknownId`], [`WorkspaceError::Io`],
     /// [`WorkspaceError::Load`] (any [`PersistError`], the ambient-ε
-    /// reconciliation refusal included), and
+    /// reconciliation refusal included), [`WorkspaceError::Pin`] if
+    /// recomputing the pin itself refuses, and
     /// [`WorkspaceError::PinMismatch`] carrying both pins and the
     /// recourse ([`PIN_MISMATCH_RECOURSE`]).
     pub fn resolve(&self, doc_ref: &DocRef) -> Result<ProfileDoc, WorkspaceError> {
@@ -424,23 +426,61 @@ impl Workspace {
 impl PartResolver for Workspace {
     fn resolve(&self, doc_ref: &DocRef) -> Result<ProfileDoc, ResolveFailure> {
         Workspace::resolve(self, doc_ref).map_err(|e| ResolveFailure {
-            fault: match &e {
-                WorkspaceError::PinMismatch { .. } => ResolveFault::PinMismatch,
-                // The ε seam, observed exactly where the load door
-                // already refuses it: one process, one ε, so a document
-                // recording a different one cannot be evaluated at all.
-                WorkspaceError::Load { error, .. }
-                    if matches!(**error, PersistError::ToleranceConflict { .. }) =>
-                {
-                    ResolveFault::EpsilonSeam
-                }
-                _ => ResolveFault::Unresolved,
-            },
+            fault: resolve_fault(&e),
             message: match &e {
                 WorkspaceError::PinMismatch { .. } => format!("{e}; {PIN_MISMATCH_RECOURSE}"),
                 _ => e.to_string(),
             },
         })
+    }
+}
+
+/// Which seam rule a store refusal broke.
+///
+/// Both this match and [`load_fault`] are EXHAUSTIVE, with no
+/// wildcard arm. The kernel's fault vocabulary is deliberately coarse
+/// — `Unresolved` is the honest answer wherever the recourse is the
+/// same — but coarse has to be a decision taken per arm: a wildcard
+/// would classify the next refusal silently, and the two arms that
+/// are NOT `Unresolved` exist precisely because the kernel acts
+/// differently on them.
+fn resolve_fault(e: &WorkspaceError) -> ResolveFault {
+    match e {
+        WorkspaceError::PinMismatch { .. } => ResolveFault::PinMismatch,
+        WorkspaceError::Load { error, .. } => load_fault(error),
+        WorkspaceError::Io { .. }
+        | WorkspaceError::DuplicateId { .. }
+        | WorkspaceError::Header { .. }
+        | WorkspaceError::UnknownId { .. }
+        | WorkspaceError::Pin { .. }
+        | WorkspaceError::Save { .. }
+        | WorkspaceError::RandomnessUnavailable { .. }
+        | WorkspaceError::Update { .. } => ResolveFault::Unresolved,
+    }
+}
+
+/// Which seam rule a LOAD refusal broke — the classification by
+/// [`PersistError`] variant, matched on the type rather than read out
+/// of a rendered message.
+fn load_fault(error: &PersistError) -> ResolveFault {
+    match error {
+        // The ε seam, observed exactly where the load door already
+        // refuses it: one process, one ε, so a document recording a
+        // different one cannot be evaluated at all.
+        PersistError::ToleranceConflict { .. } => ResolveFault::EpsilonSeam,
+        PersistError::NonFinite { .. }
+        | PersistError::ProfileProgram { .. }
+        | PersistError::Serialize { .. }
+        | PersistError::Header { .. }
+        | PersistError::HeaderId { .. }
+        | PersistError::IdMismatch { .. }
+        | PersistError::UnknownSchema { .. }
+        | PersistError::SchemaTooOld { .. }
+        | PersistError::Parse { .. }
+        | PersistError::EditReplay { .. }
+        | PersistError::Migration(_)
+        | PersistError::Snapshot(_)
+        | PersistError::ToleranceInvalid { .. } => ResolveFault::Unresolved,
     }
 }
 
