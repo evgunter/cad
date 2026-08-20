@@ -130,6 +130,15 @@ fn survives_checkmesh_rejects_double_collapsed_fan_fallout() {
     // walk's 2-entries-per-junction structure forbids), dropping both
     // leaves a hole — verify check_mesh would catch that fallout, so
     // the validator is a genuine backstop for the structural argument.
+    //
+    // The "exactly one per side" premise is CONDITIONAL — it needs the
+    // interior grid to separate the walk's two pole entries, which
+    // `curved::pole_columns` is what supplies (issue #678). This row is
+    // unaffected: it hand-builds the fallout mesh rather than meshing a
+    // body, so its own case stays exactly as true as it was. What #678
+    // changes is that the validator is NOT the only backstop any more —
+    // `tessellate` never runs it, so the same argument now also carries
+    // a `debug_assert` over the emitted patch (D2 addendum row 5).
     let mut t = tetra_tris();
     t.pop();
     t.pop(); // two adjacent faces gone: a slit of boundary edges

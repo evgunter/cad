@@ -161,6 +161,7 @@ pub mod null;
 pub mod pcurves;
 pub mod props;
 pub mod provenance;
+pub(crate) mod ray_parity;
 pub mod readback;
 pub mod revert;
 #[cfg(test)]
