@@ -85,7 +85,7 @@ cases. A finding is a *question worth answering*, not a defect.
   - [Tier 2 — significant](#second-scan--tier-2--significant) (S76–S109)
   - [Tier 3 — real but lower stakes](#second-scan--tier-3--real-but-lower-stakes) (S110–S116), as class roll-ups
 - [§A. Where I would start](#a-where-i-would-start)
-- [§D. The schedule](#d-the-schedule) — live rows only, in tracks: **A**, **B** and **D** complete; **C** (`docs/SMELL-C-LOG.md`), **E** (`docs/SMELL-E-LOG.md`) and **F** (`docs/SMELL-F-LOG.md`) running; **G** and the unscheduled table are the second scan's and unclaimed
+- [§D. The schedule](#d-the-schedule) — live rows only, in tracks: **A**, **B** and **D** complete; **C** (`docs/SMELL-C-LOG.md`), **E** (`docs/SMELL-E-LOG.md`), **F** (`docs/SMELL-F-LOG.md`) and **G** (`docs/SMELL-G-LOG.md`) running; the unscheduled table is the second scan's and frozen
 - [§C. Process observations](#c-process-observations) — C1–C17 from the first scan, C18–C25 from the second
 - [§B. Negative results and coverage](#b-negative-results-and-coverage)
 
@@ -10786,6 +10786,47 @@ them**, so a new orchestrator can run here from day one with no sequencing at
 all. **Two:** several of its rows share a mechanism worth naming — *a
 consolidation or deletion pass removed the prose that was its own evidence, and
 left a positive claim behind that is now false.*
+
+**Claimed 2026-08-20; one live orchestrator, log at `docs/SMELL-G-LOG.md`.**
+Reviews are **style-only** except where a row says ADVERSARIAL — three rows and
+one sub-unit, which is the whole adversarial budget of the track — and it runs
+beside the model A/B experiment without touching `docs/MODEL-AB-LOG.md`. The
+lane roster, the rulings and the landings are in that file; this table stays the
+schedule and a row leaves it when it lands.
+
+**`D71`–`D80` and `S127`–`S136` are reserved to Track G**, for the reason Track
+F's block records one section up: the *"take the next unassigned number from the
+orchestrator"* rule was written for lanes inside one track and does not survive
+four concurrent orchestrators drawing on one sequence from branches none of them
+can see.
+
+**Three edges this table did not carry, and one it carried wrongly**, all
+re-derived from the branches rather than from the schedule (G-R1 through G-R7 in
+the track log):
+
+- **G2's routing of S113(a)(b) to Track E's E-b is void — the collision it
+  names does not exist.** E-b is #763, sixteen files read from the branch, and
+  **none of them is under `demos/`**. S113(a)(b) are G2's own work and there is
+  nothing to consume. (G-R1.)
+- **G10's *"the rest are free"* over-counts by one**, against this section's own
+  rides-along paragraph: S112(a) is E-g's. The row is re-scoped to S112(g)
+  (`crates/pncad/src/lib.rs`), the only member with no other home, **plus a
+  ledger obligation** — the closing lane records at S112 which lane and PR closed
+  each of the eight members, and the row leaves this table when that ledger is
+  complete, not when its own member lands. (G-R2.)
+- **G8 and G9 both name `topo/src/chord_join.rs`** and no edge was recorded.
+  G8 goes first; G9 sequences behind it. They are not merged — G8's row already
+  requires its `chord_join` question be a separate adversarial sub-unit, and
+  folding G9's placement argument in would put that sub-unit inside a doc edit.
+  (G-R4.)
+- **G1's `ci.yml` sites are not #753's.** #753's two hunks are at `:73-79` and
+  `:302-308`; S72's and S112(b)'s are ~790 lines away in the `oracle-*` job
+  region. Unlike F8 (F-R1), G1's fix does not land in a hunk #753 rewrites, so
+  the row opens with a published fence rather than a gate. (G-R3.)
+
+**S67's quotation of `face_normal.rs:26-31` is a paraphrase, not the tree's
+sentence** — the finding survives on its substance, and the correction is
+recorded at G-R5 so a lane does not go looking for text that is not there.
 
 | # | Work | From | Scope | Proposed verdict | Review |
 |---|---|---|---|---|---|
