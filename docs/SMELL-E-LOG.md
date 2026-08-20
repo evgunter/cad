@@ -127,7 +127,7 @@ discharged before this track existed.
 | **E-d** | D33 | `docs/predicate-dimension-audit.md` | none | style | **#761, in review** |
 | **E-e** | D28 + issue #693 | `editor-core/src/eval/` | — | style | **DONE — #767 merged** |
 | **E-f** | D25 | `topo/src/euler.rs` and every `link_half_edges` caller | none | **ADVERSARIAL** | **#755, in review** |
-| **E-g** | D27, then D29 | `sweep/src/fillet/{build,surgery,mod}.rs` | none | **ADVERSARIAL** (D27), style (D29) | **#768**, both reviewers running; **#777** stacked, awaiting Evan |
+| **E-g** | D27, then D29 | `sweep/src/fillet/{build,surgery,mod}.rs` | none | **ADVERSARIAL** (D27), style (D29) | **DONE — #768 and #777 merged** |
 | **E-h** | D21 | `topo/src/{split,attach,movefac,revert}.rs`, `splitting/finish.rs`, `boolean/combine.rs` | **E-f, for file overlap on `split.rs`** — see E-R4 | **ADVERSARIAL** | unstarted |
 | **E-i** | D24 | `Cargo.toml` workspace lints, or `.github/workflows/` | none | style | unstarted |
 | **E-j** | D31 | `sweep/src/skin.rs`, `geom/src/curves/fit.rs`, home in `geom-core/src/spline/algebra.rs` | **Track C (C-l, C-g)** | style, escalates if the sort order is load-bearing | unstarted |
@@ -1394,6 +1394,43 @@ document. The file answers one proof two ways and the unit owes the reason.
 `tests/all.rs`**, so a `-p topo` run without `--no-fail-fast` never reaches it
 once an earlier lib test panics — the reviewer's first inversion scored it 0 for
 exactly that reason and it caught its own instrument before reporting.
+
+### Row 0 is ratified and in `DESIGN.md` — #777, merged 2026-08-20
+
+*Can this error state be made unrepresentable?* — asked of every state **before**
+rows 1–5, and **preferred over every row below whenever it is available.** It
+adds no bucket and renumbers nothing; what it adds is a procedure step: **a lane
+filing a state under any row owes the reason row 0 did not apply.**
+
+Without that step the procedure had no place for *"this state should not exist"*
+to be an answer, so a state fitting no row read as a **gap in the taxonomy** —
+which is exactly how `FilletError::EmptyChain` came to sit under a row whose
+definition it failed, and how a sixth row came to look like the fix.
+
+**"If possible" is bounded at both ends, from the tree rather than from
+principle.** Yes: `EmptyChain`, a private field and a constructor signature, no
+public API change. No: `Live`'s generative brand, which needs a lifetime on
+`Body` that infects every signature naming a body — **and #755 weighed exactly
+that and rejected it, before row 0 existed.** So the rule is *yes when the change
+is local to the type and its constructors; no when it propagates into signatures
+that do not otherwise care* — and **a "no" is a complete answer**, recorded as
+the reason a row below applies. A preferred disposition that cannot be declined
+is not a rule.
+
+**S14 is reframed and not answered.** Its first question is now *can
+`graft_disjoint_all_keyed` stage into a fresh body and commit on success* —
+a shape already in the same crate at `merge_faces.rs:468`, checked rather than
+transcribed, under its own *"Never a partial commit."* **No row was minted for
+it, deliberately**: the premise is unratified, so a placement would be a register
+entry that cannot execute. If Evan answers yes, that is the moment.
+
+*The two things worth carrying past this ruling:* **#755 is the rule's best
+evidence** — a careful lane asked row 0's question, answered it no on
+propagation cost, and documented the residue its token does not carry, with no
+rule telling it to. Row 0 describes what careful lanes already do. And the PR
+that proposed it **argued the three strongest cases against itself and named the
+rejecting answer as passing**, which is the one shape §C2's *disclosure-as-immunity*
+finding cannot absorb.
 
 ---
 
