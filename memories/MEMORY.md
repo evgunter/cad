@@ -15,6 +15,8 @@ usable-as-a-library (`docs/LIB-LOG.md`), ASM — assemblies
 - [CAD working style](cad-working-style.md) — discuss → ratify into
   DESIGN.md → commit; doc prose states the present only; **how to write
   a memory** (the two tests, and be brief)
+- [Docs ledger](docs-ledger.md) — `docs/` is pruned, not archived; a
+  pointer to a missing `docs/` file resolves in `docs/DOC-LEDGER.md`
 - [Evan profile](evan-profile.md) — differential-geometry fluent; define
   CAD jargon, don't simplify the math; probes fudged invariants
 - [Git workflow](git-workflow.md) — merge-only, no history rewriting;
