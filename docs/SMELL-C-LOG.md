@@ -74,7 +74,6 @@ superseded for Track C by this table.
 | **C-a** | **S24** — the assembly gate's success path is documented unreachable | `editor-core/src/{assembly,mate}.rs` | none | style |
 | **C-b** | **S30** — ~1,050 lines of instrument in the mesh hot loop | `mesh/src/{budget,probe_stats,trimmed,chords}.rs`, the feature matrix, the CI row | none (disjoint from #684's `curved.rs`) | **adversarial** + style |
 | **C-c** | **S31** — the crate split that buys nothing | `geom-curves/`, `geom-surfaces/`, new `geom/`, 11 dependents, `step-export/src/writer.rs` | none | **adversarial** + style |
-| **C-d** | **H12** — the SSI sweeps' other never-silence doors have no acceptance row | `geom-brep/tests/` | #692 | style |
 | **C-e** | **H13** — `sweep_body`'s helix rows have no orientation coverage | `sweep/tests/{m8_14_long_turn_sweep,m7_skin_integral}.rs`, `step-export/tests/common/mod.rs` | none | **adversarial** + style — #636's level-plane oracle trips its own precondition here (`cos ≈ 0.011`), so this needs a *new* oracle, and the oracle carries the soundness |
 | **C-f** | **H11** — #632's two residues | `editor-core/src/{resolve/,select.rs,refactor.rs}` | none | style |
 | **C-g** | **S32** — `Surface`'s one-partial-per-call API and the shadow SSI enum | `geom-surfaces/` (→ `geom/`), `geom-brep/src/ssi/system.rs` | **C-c**, #692 | **adversarial** + style |

@@ -3449,6 +3449,24 @@ surface comes no closer than 0.002 m. That 25:1 hull-vs-truth gap is what
 drives the sweep into the all-seeds-fail mode, and the floor ordering that
 makes the row work is a fact about lengths rather than about ε.
 
+**H12 — the rest of the doors — landed as #PRNUM**, tests only. The
+never-silence claims in this area were enumerated from the refusal sites
+in `exhaust.rs` and the one guard in `ssi.rs` that makes the sweep's
+floor meaningful, crossed with the lane and (for the floor refusal) with
+the tube set: nine cells, of which three had rows. Six now do — the
+floor refusal's fourth {lane}×{tube set} cell, the cell budget in both
+lanes, both sweeps' enclosure-poison arms, and the chart-speed guard's
+infinite-speed blind spot, which the cell budget is what actually
+catches. The one that matters beyond the count is the **chart lane's
+containment test**: before that PR, `UvRect::contained_in` returning
+`true` for every cell — the accounting pass claiming to have proved
+cells it never touched — left 161 of `geom-brep`'s 162 rows green, while
+the ℝ³ twin was guarded by five. #633 had examined that cell and argued
+it should stay unwritten; the argument priced the shared floor arm and
+not the containment test underneath it. Two doors are recorded there
+rather than closed, both unreachable from the public doors as they
+stand: the chart-speed guard's own two arms.
+
 **Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
 baffle me with how they ever happened." Postmortem pass commissioned.
 **Postmortem (2026-08-18). Ratified before it was written — and the acceptance
@@ -6691,7 +6709,7 @@ and the width-1 build mutex, not dependency.**
 
 | # | Work | Why it is here rather than in a track |
 |---|---|---|
-| **C1** | **H12–H15** — four lanes' own residues: the SSI sweeps' other never-silence doors (no acceptance row in either lane), `sweep_body`'s helix rows with no orientation coverage, #637's two jurisdiction residues, #635's unclassified siblings. | Each is small; together they are a lane. They are the clearest instance of ordering rule 3. |
+| **C1** | **H13–H15** — three lanes' own residues: `sweep_body`'s helix rows with no orientation coverage, #637's two jurisdiction residues, #635's unclassified siblings. (**H12**, the SSI sweeps' other never-silence doors, was the fourth member and is **FIXED by #PRNUM**.) | Each is small; together they are a lane. They are the clearest instance of ordering rule 3. |
 | **C2** | **H11, H16, H17** — #632's two residues; the STL header not being caller-settable while `StepOptions` carries `product_name`; and S37's rustdoc remainder, ~1115 lines across 130 files. | H17 is large and mechanical; H16 is a small asymmetry with a clear right answer. |
 | **C3** | **S27, S29** — `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block; and the sizing vocabulary fragmented across five modules with self-admitted magic constants. (S30, the mesh crate's 1,060 lines of instrument, was the third member and is FIXED by #709.) **S29 is NOT blocked on a design conversation — corrected 2026-08-19.** This row previously said its policy question was routed to `docs/TESS-SPLIT-SPEC.md` and PR #568. #684's review checked: both are scoped **entirely to the NURBS per-cell schedule** (`nurbs_cert`'s `grid_steps`, certified cells, the first fundamental form — TESS-SPLIT-SPEC's D-1 replaces the AM-GM grouping, with `leaf_a f2` as its poster child). **Nothing in either covers analytic-chart sizing**, so `curved::grid_steps` has no venue at all — and #684 has since added a sixth rule to it. S29's own lesson applies to that: *N well-defended deviations read as N decisions when they are one undecided question.* S27 touches `props/`, so it must follow **A2**; S29 is edge-free. |
 | **C4** | **S32, S33** — `Surface`'s one-partial-per-call API, which is what created the shadow surface enum in SSI; and neither geometry enum being able to lift itself to another scalar. (S31, the `geom-curves`/`geom-surfaces` split, was the third member and is FIXED by #705.) | **S32 is now additionally gated on #705's merge**: the enum and its NURBS payload are one crate's two modules, so a `SurfaceJet` door at the enum no longer crosses a crate boundary. **S33 is coloured by D1**: several of its ~14 hand-written ladders exist only to reach `Dual`, and what `Bounds for Dual` changes there is written in S44's **D1 DECIDED** block. |
