@@ -5,8 +5,12 @@
 //! row in the tree pinned before is the other half of that claim: that
 //! the doors leading to those writes **refuse a stale key typed**, so
 //! the `unreachable!` is not reachable through the public API. The
-//! files these rows cover are the ones the brief named as uncovered:
-//! `attach.rs` carried **no tests at all**, and `movefac.rs`'s only
+//! files these rows cover are the ones with no such coverage:
+//! `attach.rs` has no test module of its own and no stale-key row
+//! anywhere — its error-path coverage lives in `crates/topo/tests/`
+//! and `crates/sweep/tests/`, is entirely on `set_edge_curve`, and
+//! exercises only the *later* plan-phase gates
+//! (`DescriptionNotAdjacent`, `Certification`). `movefac.rs`'s only
 //! stale-key row plants a stale *shell*, never a face the component
 //! walk reaches.
 //!
