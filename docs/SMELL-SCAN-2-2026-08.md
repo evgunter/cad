@@ -2077,21 +2077,25 @@ set `PAD_ULPS = 64` and `PAD_ULPS = 0` and reduced the rounding helpers
 to round-to-nearest; the `scripts/gates` agent planted fixtures against
 every gate. **Every claim so produced held.**
 
-Two sub-shapes recur and are worth naming separately in the brief:
+One sub-shape dominates:
 
 - **Monotone in the wrong direction.** `area_pad > 0.0` plus
   containment; `assert_contains` on a widening enclosure;
   `worst_ratio ≤ 1` as `bound` grows; `holds(&box, sample)` on a box
   that only widens; `!contains(&anchor_idx)` on a list that may empty.
   The pattern is: *the assertion is satisfied more easily by exactly the
-  degradation it exists to catch.*
-- **A skip reads as a pass.** `else { continue }`; `if let Ok(...)`
-  corpus construction; `SsiError::… => {}` tolerant arms;
-  `println!("SKIPPED")`. S25's own postmortem named this and the tree
-  kept doing it. The counter-idiom exists in this repo
-  (`interval_lane_skipped_no_certified_coverage_here`, and the
-  case-count floors in `d8_knot_queries_adversarial.rs:601-635`) and is
-  not the default.
+  degradation it exists to catch.* `reviewer-style-lane.md` Q3 already
+  names this one; these are measurements of it, not a gap in the brief.
+
+**A second shape — a skip reading as a pass — is deliberately left
+un-rolled-up.** The instances stand on their own (S84 and the
+`else { continue }` / `if let Ok(...)` / tolerant-arm /
+`println!("SKIPPED")` sites cited with them). A class-level rule was
+drafted and dropped: it was written around giving skips *floors*, which
+concedes the skip, and the prior question — whether a test should be
+skipping at all — is the one to answer first. Recorded here so the
+next scan re-opens the question rather than re-proposing the floors
+(Evan, 2026-08-20).
 
 **Cheapest mechanisation available:** for every enclosure-style
 acceptance row, require a *ceiling* alongside the containment. The
