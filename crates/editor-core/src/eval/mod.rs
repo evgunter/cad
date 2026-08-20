@@ -671,7 +671,10 @@ impl core::fmt::Display for NodeErrorKind {
             }
             Self::Profile(e) => write!(f, "the replayed profile failed validation: {e}"),
             Self::ProfileReplay { loop_, error } => {
-                write!(f, "profile loop {loop_}'s program refused at replay: {error}")
+                write!(
+                    f,
+                    "profile loop {loop_}'s program refused at replay: {error}"
+                )
             }
             Self::ProfileAnchor { loop_ } => write!(
                 f,
