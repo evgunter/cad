@@ -670,6 +670,8 @@ pub trait Enclosure: Copy {
 /// is not gated either: `scripts/gates/bounds-allowlist.sh` greps for
 /// `Bounds`, not for `Enclosure`. **A new `T: Enclosure` bound on
 /// anything that certifies would be a hole, and no CI row would say so.**
+/// Whether it should be gated is issue **#701**; it may well not need to
+/// be, but nobody has decided.
 impl<T: Bounds> Enclosure for T {
     fn lo(self) -> f64 {
         Bounds::lo(self)

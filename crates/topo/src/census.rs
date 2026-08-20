@@ -1200,8 +1200,8 @@ fn sweep_cross_solid_backstop<T: Decide>(
     // `scripts/gates/bounds-allowlist.sh` until the seam is ratified.
     // That is a process reason, not a type one, and it does not by itself
     // justify carrying two derivations of the same min/max that can
-    // silently diverge. Recorded as a live hazard for whoever revisits
-    // the C10/census box seam rather than papered over.
+    // silently diverge, with no differential row between them. Filed as
+    // issue #700 rather than left as prose in a merged PR body.
     let edge_reach = |ek: crate::entity::EdgeKey| -> Option<(Point3<T>, Point3<T>)> {
         let e = body.edges.get(ek)?;
         let end = |he| -> Option<Point3<T>> {

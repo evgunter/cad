@@ -4502,7 +4502,16 @@ advertised it as what "certification helpers … take". Not a live hole —
 signature remains in `crates/*/src` — but it is **ungated**:
 `bounds-allowlist.sh` greps `Bounds`, not `Enclosure`, so a future
 `T: Enclosure` bound on something that certifies would be a hole with no CI row
-against it. The stale sentence is fixed; the gate gap is recorded, not closed.
+against it. The stale sentence is fixed; the gate gap is issue **#701**.
+
+**One more residue, from the sweep rather than from the review.**
+`topo::census`'s duplicated `boolean::boxes` min/max justified itself with
+*"cannot join [the `Bounds` allowlist], because the census validates `Dual`
+bodies and `Dual` has no bracket"*. That "cannot" has lapsed; what is left is
+the discipline rule, which is a process reason and does not by itself justify
+two derivations of the same box that can silently diverge with no differential
+row between them. Issue **#700**. Both of these are §D ordering rule 3 — a
+lane's own residues are rows, not footnotes.
 
 What newly admits a dual is the **bracket half**: `Aabb` constructors and the
 curve/surface box builders, the boolean sweep's box lane, the placement
