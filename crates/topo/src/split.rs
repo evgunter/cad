@@ -271,10 +271,14 @@ impl<T: Decide> Body<T> {
         self.link_half_edges(hm_data_spliced.prev, n_minus);
         self.link_half_edges(n_minus, hm);
         // The parent's minus half now starts at w (the parent derives
-        // its new end w through n⁺/n⁻'s starts).
-        if let Some(he) = self.get_half_edge_mut(hm) {
-            he.start = w;
-        }
+        // its new end w through n⁺/n⁻'s starts). Same key, same proof
+        // as the re-read above.
+        let Some(he) = self.get_half_edge_mut(hm) else {
+            unreachable!(
+                "split_edge: `hm` resolved in the plan phase and this op kills no half-edge"
+            )
+        };
+        he.start = w;
         // Parent edge → first-child curve; old curve killed iff
         // orphaned.
         if let Some(e) = self.get_edge_mut(edge) {
