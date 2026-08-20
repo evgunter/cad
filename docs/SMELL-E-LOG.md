@@ -133,7 +133,7 @@ discharged before this track existed.
 | **E-j** | D31 | `sweep/src/skin.rs`, `geom/src/curves/fit.rs`, home in `geom-core/src/spline/algebra.rs` | **Track C (C-l, C-g)** | style, escalates if the sort order is load-bearing | unstarted |
 | **E-k** | D35 | `docs/DESIGN.md`'s D2 addendum, and whatever the answer names | **E-g**, **E-h** | style | unstarted |
 | **E-l** | #681 | everything outside `crates/*/src` | none | style | unstarted |
-| **E-m** | #711 | `step-import/src/recognize.rs` | **BLOCKED by D86** — no `step-import`-only PR can go green | style | **#784, red on infrastructure**; both verdicts accepted |
+| **E-m** | #711 | `step-import/src/recognize.rs` | **BLOCKED by D86** (now on main, Track F's) | style | **#784** open, red on infrastructure only. Placed D86, D87, D93 |
 | **E-n** | D20 | `topo/src/seqgen.rs` | none | style; closes on an attribution off hosted CI | unstarted |
 
 **Not taken by Track E:** D30 and D32 (Track C's files — C-m, C-q); C11's #726
@@ -466,6 +466,34 @@ that moves S14 moves them.
 
 **#777 is now a ratified-decision PR rather than a proposal** and self-merges
 once written and green.
+
+### E-R5 — a row is not placed until it is on `main` (2026-08-20)
+
+**Twice in one session the orchestrator wrote a row, told a lane it existed, and
+left it on an unmerged branch.** First the `D81`–`D100` block, which lane E-h
+caught by reading `main` and finding the sentence absent. Then **D86**, the
+blocking CI defect, which was handed to Track F in a message and in a §D edit
+that Track F could not see — while the lane whose PR it blocks was told to stop
+waiting on it.
+
+**This is the same defect as the number collision it was recording.** A fact
+asserted about a branch nobody else can read is not a fact about the register.
+The orchestrator wrote that sentence about four allocators and then made the
+error twice more in its own voice.
+
+**The rule: a placement is a `main` commit, not a branch commit.** Concretely —
+when a row is minted for another track, or when a lane is told a number is
+reserved, the state-sync PR goes out **in the same turn**, not at the next
+convenient seam. `memories/orchestration-model.md` already says the orchestrator
+branch must not accumulate a large unmerged delta and to open a docs-only PR *at
+every pipeline seam*; **placing a row for someone else is a seam**, and that is
+the part that was not obvious enough to stop it happening twice.
+
+*Why it kept happening:* the log and the register live in the same branch as the
+running commentary, so a row and a paragraph of session narrative are the same
+kind of edit to make and only one of them is urgent. **The urgency is not
+visible in the diff** — which is exactly the property that makes the failure
+repeatable, and why it needs a rule rather than more care.
 
 ---
 
