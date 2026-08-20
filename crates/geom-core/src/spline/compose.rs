@@ -275,9 +275,9 @@ impl BernsteinSpans {
 /// `α_i = (u − U_i)/(U_{i+p} − U_i)` formed as a **ring quotient** of
 /// knot enclosures (module docs step 2). Fixed ascending index order.
 ///
-/// **The Boehm structure is shared with
-/// [`super::algebra::insert_once`]; the coefficient arithmetic is
-/// deliberately not.** Both derive the span through the same search
+/// **The Boehm structure is shared with `algebra::insert_once` (private
+/// there, so this is a name and not a link); the coefficient arithmetic
+/// is deliberately not.** Both derive the span through the same search
 /// ([`super::knots::find_span_in`] here, `find_span` there) and both
 /// insert one knot at `k + 1`. There the weights are `f64` and the
 /// output is a replayable `CurvePlan` of `Step`s whose `λ` is formed
