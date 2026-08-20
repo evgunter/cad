@@ -931,3 +931,11 @@ lane in CI keeps mesh coverage either way).
 in `scenes.json` order with captions, for every render path;
 `--montage=NAME` / `--banner=TEXT` give the STEP lane its own filename
 and provenance banner on the same grid.
+
+`manifest.py` is the one reader of `scenes.json`, imported by both
+renderers, the composer and `render.sh`'s scene lister. It holds the
+field names, the walk, and the `view.up` convention — the last of
+these in the world → display direction only, with the display → world
+direction a camera needs *derived* from it, so the two cannot drift
+apart. `python3 manifest.py --selftest` pins both. The UV lane's
+`uv.json` has one reader and is walked inside it.

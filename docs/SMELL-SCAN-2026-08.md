@@ -9554,100 +9554,71 @@ Beyond S64, S67, S74 and S98:
   **Not this unit**: the byte-identical three-way `fn quad` across
   `sweep/`, `mesh/` and `step-export/` test-commons lives in three
   crates' test trees, not in `demos/`.
-- (c) The demo manifest and UV cell formats have no definition: three
-  hand-rolled JSON emitters, four readers, one field
-  (`transparency`) written by one producer and `.get(…, 0)`-defaulted by
-  both readers; `View.up` re-encoded in the inverse direction across
-  `render.py:51-57` and `render_freecad.py:105-133`;
-  `compose_uv_montage.py`'s six-entry `LEGEND` mirroring
-  `uvdump.rs:81-91` **unverified** while the cell size is verified.
-  `check_render_provenance.py:104,112` announces the shape outright —
-  *"Kept in sync with render.sh's `--montage=` arguments"*, *"keep the
-  three spellings in sync"* (there are two).
+- (c) **FIXED by #808** (the design question was closed by Evan,
+  2026-08-20; the schema framing was refused and the emitter half
+  ruled *no shared type*). **The duplication was in the READERS**, and
+  the fix is one: `demos/manifest.py`, which owns the walk, the field
+  names and the `view.up` convention. `render.py`,
+  `render_freecad.py`, `compose_montage.py` and `render.sh`'s scene
+  lister all read through it. **No schema, no serde type, no
+  validation layer and no new crate edge.**
 
-  **Still open, and deliberately.** #787 (Track G, G2) produced the
-  full producer/consumer census this row asks for — three emitters,
-  five readers, field by field, each disagreement with both sides'
-  `file:line` — and stopped there rather than inventing a schema; the
-  census is that PR's report.
+  **The `view.up` convention is now written once, in the world →
+  display direction only**, as a signed permutation; the display →
+  world direction a camera needs is *derived* by inverting it. The two
+  hand-written maps that were exact inverses by coincidence
+  (`render.py:51-57`, `render_freecad.py:105-133`) cannot disagree
+  because there is no longer a second one to disagree with. Its
+  selftest pins the convention against both spellings it replaced and
+  pins that the derivation really is an inverse, in both compositions.
 
-  **The question this row was going to ask was mis-framed, and Evan
-  refused the framing** (2026-08-20): *"the inconsistencies seem like
-  they're a problem with not having shared render code or something, and
-  that seems unifiable without writing the demos to match a specific
-  schema?"* He is right, and the correction is most of the answer.
+  **Both defaults are gone, and gone by being unnecessary rather than
+  by being unified.** `transparency` and `montage` are now read, not
+  `.get`-defaulted, because both producers write both keys for every
+  body and every scene — so a producer that stopped would fail the
+  first render instead of rendering something plausible. `step` KEEPS
+  its defensive posture and says why: it is nullable in fact (the wild
+  generator writes `null` for every cell, because its STEP is an input
+  fixture rather than something the pipeline exported), and the one
+  reader that opens it names its own producer at the site.
 
-  **A schema is powerless against the sharpest item.** `render.py:51`
-  and `render_freecad.py:105` are two independent implementations of
-  *what `up: "y"` means* — one mapping world→display
-  (`(x,y,z) ↦ (x,−z,y)`), one display→world (`(a,b,c) ↦ (a,c,−b)`),
-  neither citing the other, exact inverses by coincidence. A schema
-  declares `up: "y" | "z"` and says **nothing** about the transform. The
-  same holds for the defaulting: both readers walk `bodies`, `stl`,
-  `color`, `name`, `view` independently, which is *why* `transparency`
-  is defaulted twice and `montage` is `.get(…, True)`-defaulted twice.
-  **The duplication is in the READERS**, and one shared reader module
-  closes those four with no schema, no serde types and no new crate
-  dependency edge.
+  **The eight `uv.json` fields nothing read are deleted** — `scene`,
+  `half_edges`, `cached`, `area`, `sense`, `winding_ok`, `gap`,
+  `chart_jump` — after re-deriving the claim rather than trusting it:
+  seven are consumed Rust-side by `draw_face` *before* serialisation
+  and stay in `FaceStats`, drawn into each cell's own SVG; only
+  `FaceDump::scene` was dead end to end and it is gone with its
+  plumbing. The corpus-wide aggregates of the same numbers are printed
+  by the run that measures them, from the in-memory dumps, so nothing
+  that was computed became uncomputable. Every field `uv.json` still
+  carries is read by `compose_uv_montage.py`.
 
-  **The framing error underneath: `demos/*.py` are not demos.** The
-  demos are the Rust that drives the kernel through its public API —
-  that is the evidence about what using this library is like.
-  `memories/demo-purpose.md`'s *"write it the way a user would"* governs
-  **that**, not the harness we use to look at the output. So the tension
-  the question was built on — that unifying moves *a demo* toward
-  *a demo with a schema library* — does not apply to the readers at all.
-  A user wiring two renderers would share the camera code.
+  **The wild emitter now writes the tour's field set** (`transparency`
+  added; `step` stays `null`, which is the fact and not a placeholder)
+  — **independently, and both sites say the agreement is deliberate
+  and unenforced**: no shared type, no dependency edge, nothing
+  comparing the two emitters. That is the ruling, verbatim: *"seems
+  fine to make the two renders line up 'coincidentally' on step and
+  transparency. sharing for just those two fields is overengineered
+  even ignoring the realism concern."*
 
-  **What is left is the EMITTER half, and it is small.** The tour writes
-  `transparency` and a `String` `step`; the wild generator omits the
-  field and writes `null`. Sharing a Rust type there **would** need a
-  dependency edge from `demos/wild` to `demos/tour` or to a third crate
-  — and *that* is a genuine demo-purpose question, because two
-  independent example programs sharing a type is itself a claim about
-  how a user works. It is answerable in a sentence and does not need a
-  four-option fork.
+  **Measured, on this tree.** No committed artifact moved. All 35 tour
+  frames and all 8 wild cells render byte-identical old-vs-new
+  (including the four `up: "y"` scenes and the transparent `klein`),
+  the tour montage sheet is byte-identical, the scene lister returns
+  the same 35/20 names, and `renders-uv/montage-uv.svg` regenerates
+  clean. The FreeCAD camera is not reachable locally and **`render.yml`
+  is `workflow_dispatch`-only, so no PR runs it** (see **S175**): its
+  `camera_rotation` was checked instead by extracting both revisions
+  and comparing the camera basis under an `App.Vector` shim over 151
+  views — 43 from the two committed manifests, 108 synthetic, 50
+  through the straight-down fallback (2 of them committed scenes) —
+  bit-identical throughout.
 
-  **ANSWERED (Evan, 2026-08-20). No shared type; the two emitters line
-  up by agreeing, not by being made to agree.** Verbatim: *"seems fine
-  to make the two renders line up 'coincidentally' on step and
-  transparency. sharing for just those two fields is overengineered even
-  ignoring the realism concern."* So the wild emitter writes the same
-  field set the tour does, independently, and **no dependency edge is
-  created between `demos/wild`, `demos/tour` or a third crate.** Note
-  what the ruling does *not* say: it is not *"leave them disagreeing"*.
-  The disagreement goes away; the mechanism that would enforce its
-  absence does not get built, because two fields do not pay for a shared
-  type — and that holds **even setting the demo-realism argument
-  aside**, which is the stronger form of the answer and the one that
-  makes it a cost judgement rather than a doctrine.
-
-  **S114(c) is closed as a design question in full.** What remains is
-  ordinary work, scheduled as §D's **G11**: one home for the `View.up`
-  convention deriving both directions, one shared manifest walk for the
-  two Python readers, the eight unread `uv.json` fields deleted, and the
-  wild emitter's field set brought level with the tour's. **No schema,
-  no serde types, no new crate edge** — the instrument the original
-  question proposed was aimed at the emitters when the duplication was
-  in the readers.
-  Two things did NOT wait for it, because they are wrong under every
-  schema anyone might pick: **(h)** above (a guard against a state no
-  producer emits), and the two sync claims at
-  `check_render_provenance.py:104,112`, which are now COMPUTED — the
-  selftest reads the sheet names back out of `render.sh` /
-  `render-wild.sh` / `compose_montage.py` and the wild Author string
-  out of `render-wild.sh`, and compares — with `render-wild.sh:54`'s own
-  end of that pair rewritten to say it is read rather than to ask for
-  hand-syncing. *"The three spellings"* was two, and is now two that are
-  checked. **The third pair the finding names is checked too**, after
-  review caught it left silent: `compose_uv_montage.py`'s
-  `legend_colors_in_emitter()` reads `uvdump.rs`, and its selftest
-  asserts every `LEGEND` swatch is a stroke the emitter actually
-  writes. That immediately caught two: the "derived pcurve" row's grey
-  `#777777`, which appears nowhere in a cell (a derived pcurve is
-  dashed in its own FORM's colour), and `#333333` against the emitter's
-  `#333`. Both corrected and the committed sheet re-baselined — two
-  legend lines, nothing else.
+  **What is not enforced, stated.** Nothing compares the two emitters'
+  field sets; that is the ruling's choice, not an oversight. What
+  exists instead is that the shared reader *reads* rather than
+  defaults, so a drift surfaces at the first render.
 - (d) **FIXED by #786** — `sin`/`cos` share one `sinusoid` body
   parameterized by the libm entry point and the two extremum phase
   offsets; `asin`/`acos` share `clamp_to_unit` (propagate, full-miss
@@ -12124,6 +12095,80 @@ re-measure this and belongs with it — that gate structurally cannot see a
 degraded scan, so if the answer is a scheduled re-measure, this is the
 quantity it would measure. **Row: D105.**
 
+## S174. S113(a)'s sweep stopped one paragraph short, in the file it edited
+
+**Raised by G11 / #808 while regenerating the uv lane to check for
+drift.** S113(a) is recorded FIXED by #787 and its record names the
+exact corrections — *"982 → 1049 faces, 879 → 946 checkable, and
+`9.4e-16` → `9.93e-16` for the worst 3-D loop gap"* — and says the
+sweep reached `demos/README.md:346`. **Five of those same numbers are
+still standing in `demos/README.md`, above and below the line the
+sweep fixed**, measured on a tour run from this tree (35 scenes, 1049
+face charts, 946 checkable / 103 branch-jumped / 0 disagree, worst 3-D
+loop gap 9.93e-16 m, 285 curved faces, 48 sheet cells):
+
+- `:176` *"879 of the 982 M7 faces are checkable"* → **946 of 1049**.
+- `:177` *"all 879 agree"* → all **946** agree (`0 disagree`).
+- `:187` *"103 of the 982 M7 faces show such a jump"* — **103 is
+  right, 982 is not** (1049).
+- `:189` *"the true closure gap never exceeds 9e-16 m anywhere in the
+  corpus"* — **false as stated**: the measured worst is 9.93e-16 m,
+  and this is the same number S113(a) corrected at `uvdump.rs:294`.
+- `:218` *"982 at M7"* and `:224` *"all 982 SVGs stay in `out/uv/`"* →
+  **1049**, a number the composer PRINTS on every run.
+- `:232` *"Of the 238 curved faces"* → **285**.
+
+**Not claimed:** `:196`'s *"3 of 36 on the sheet"* and `:232`'s
+*"234 have boundaries built entirely from iso-curves … only 4 do not"*
+are almost certainly stale too — the sheet carries 48 cells now — but
+neither is derivable from anything a run prints or `uv.json` carries,
+so this finding does not put a number on them. Deciding what they
+should say is part of the work, not part of the evidence.
+
+**The disposition is #787's own rule, not a recount:** *compute or
+delete, never restate.* The tour's closing lines already print every
+figure in the first four bullets and the composer prints the fifth, so
+the prose should point at the run and state the RULE, exactly as
+`uvdump.rs` and `compose_uv_montage.py` now do. A corrected number
+here is a number that drifts again on the next scene.
+
+**Why it is not fixed in #808:** `demos/README.md` is outside G11's
+scope cell, and the honest fix is an editorial pass over that whole
+section — the half of it that can only be restated has to say at the
+site why. A partial recount is §C13's half-fix. **Row: D111.**
+
+## S175. The FreeCAD render lane runs on no pull request
+
+**Raised by G11 / #808, as the disclosure its own change owes.**
+`.github/workflows/render.yml` is `workflow_dispatch:` only. Nothing
+on a PR, a push or a schedule executes `demos/render.sh`,
+`demos/render_freecad.py` or the FreeCAD/OCC lane at all; `ci.yml`
+runs `cargo fmt`/`clippy` in `demos/tour` and `demos/wild` and four
+stdlib-python tripwires over `demos/*.py`, none of which imports
+FreeCAD.
+
+**So `render_freecad.py` — 240 lines of camera construction, document
+lifecycle and offscreen-renderer workarounds — is checked by nothing
+automatic**, and that is *the mechanism* behind S114(c)'s sharpest
+item: a `view.up` map could sit there facing the wrong way and only a
+human dispatching the workflow and looking at the pixels would ever
+learn. #808 closed the duplication; it did not close this.
+
+**This is S129 one lane over** and should be read with it: S129 is
+*nothing runs an assertion under `demos/`* on the Rust side, PARTLY
+FIXED. This is the Python/FreeCAD side, and it is not the same
+question — arming it means either a FreeCAD-provisioning job on every
+PR (the render lane exists precisely because that is expensive: ~106 s
+per scene on this host) or a cheaper substitute that exercises the
+camera without a renderer. **#808 built the substitute for its own
+change and did not commit it** — extracting `camera_rotation` under an
+`App.Vector` shim and comparing bases — because a shim of a
+third-party API is a fixture that can drift into agreeing with itself.
+Whether that trade is worth making is the question.
+
+**Scope:** `.github/workflows/render.yml` (its trigger), `ci.yml`'s
+cheap-tripwire job, `demos/render_freecad.py`. **Row: D112.**
+
 ---
 
 ## Track G — the ground no track owns, and the passes that deleted their own evidence
@@ -12200,10 +12245,12 @@ recorded at G-R5 so a lane does not go looking for text that is not there.
 
 **`demos/` has left this table.** Its row (G2, nine roll-up members) landed as
 **#787**, G-R1 included: S110(g)(j), S112(h), S113(a)(b), S114(b) and S116(d)
-are recorded FIXED at their own bullets, S114(c) stays open as the design
-question it was always going to be, and the lane raised **S129** (nothing runs
-an assertion under `demos/`) and **issue #782** (two rows of `demos/tour`'s
-tessellation pin are red on main).
+are recorded FIXED at their own bullets, and the lane raised **S129**
+(nothing runs an assertion under `demos/`) and **issue #782** (two rows of
+`demos/tour`'s tessellation pin are red on main). **S114(c)** was the design
+question it was always going to be: Evan closed it on 2026-08-20 and the
+ordinary work it left behind landed as **G11 / #808**, which raised **S174**
+and **S175**.
 
 | # | Work | From | Scope | Proposed verdict | Review |
 |---|---|---|---|---|---|
@@ -12230,9 +12277,10 @@ tessellation pin are red on main).
 | **G7** | **The `Step` vocabulary was unified inside `profile` only** — of the three cross-crate copies, one breaks loudly and two go silently short. S4 named five copies across three crates; one crate was swept. **Partly collides with Track E's E-e** (`editor-core/src/eval/`) — sequence after it. | **S106** | `profile/src/path/program.rs`, `editor-core/src/{program,persist/wire,eval/mod}.rs` | **ACCEPTED** | style |
 | **G8** | **`face_normal.rs`'s one-door module names three flip sites: one does not flip, and at least five that do are unlisted.** The enumeration repair is style — but the sub-question it parks (*is `chord_join`'s missing flip a defect, given it feeds `point_in_loop` for ring re-homing?*) is a **correctness** question and must be a separate adversarial unit, not folded into a doc edit. Overlaps the standing open decision **D6**, whose stated sweep shape is `grep sense_sign`. | **S67** | `topo/src/face_normal.rs` (docs), `topo/src/chord_join.rs` (the real question) | **ACCEPTED**, with the routing caveat | style + one **ADVERSARIAL** sub-unit |
 | **G9** | **Two operand gates with different admitted kind sets and a doc that describes only one** (S95), and **`chord_join`'s top-level-sibling placement argument contradicted by its own imports from `splitting/`** (S96). S96's imports reach `splitting/rules.rs`, which is Track C's — **confirm with Track C before touching it**. | S95, S96 | `topo/src/boolean/{ops,reduce}.rs`, `topo/src/chord_join.rs` | **ACCEPTED** on both | style; S95 escalates only if the drift ever admits a kind |
-| **G11** | **The demo manifest inconsistencies are duplicated READER code.** From S114(c), **closed as a design question by Evan 2026-08-20** — the schema framing was refused and the emitter half ruled *no shared type*. Four pieces, none a schema: **(i)** one home for the `View.up` convention, deriving world→display and display→world from it, so `render.py:51` and `render_freecad.py:105` cannot drift — they are exact inverses today **by coincidence of two independently-written idioms, checked by nothing**, and either is individually "fixable" by someone reading only one; **(ii)** one shared manifest walk for the two Python readers, which is what makes `transparency` and `montage` get defaulted twice; **(iii)** the eight `uv.json` fields written and read by nothing, deleted; **(iv)** the wild emitter's field set brought level with the tour's, **by agreeing rather than by a shared type**. `demos/*.py` are the render harness, not demos — `memories/demo-purpose.md` governs the Rust that drives the kernel, not the tooling that looks at its output. | **S114(c)** | `demos/render.py`, `demos/render_freecad.py`, `demos/wild/src/main.rs`, `demos/tour/src/uvdump.rs` | **RULED — closed** | style |
 | **G10** | **Prose describing a world the code has left** — eight members, the cleanest class in Tier 3, scattered by file. Three of them (`geom-brep/props/curved.rs`, `geom-brep/src/ssi/`) are **Track C's and must be left**; the rest are free. | **S112** | scattered; the free members only | **ACCEPTED** | style |
 | **D79** | **`lily.rs`, read end to end for the first time — six members, no owner.** Raised by #787's review over free ground §B2 had flagged as the scan's highest-yield unread file: an orphaned comment block whose live number is wrong (38° vs 28.6°), a shadow tuple vector algebra beside `Vec3` (whose *reason* is issue **#796**), two carrier extractors with different rigor plus a partly-vacuous agreement check, an existential-over-two cap assert, an unchecked arity beside a hard `== 8`, and 41% comment with a 137-line header. **All six sit inside `mod review_probes`' orbit, which no gate runs (S129, #782)** — so the row's first question is whether it waits on that or precedes it. | **S130** | `demos/tour/src/lily.rs` | proposed: **ACCEPT**, after or with S129 | style |
+| **D111** | **`demos/README.md`'s uv-lane numbers, which S113(a) is recorded as having swept.** Five figures the FIXED record itself names are still standing in the file that fix pass edited — 982 faces, 879 checkable, a 9e-16 worst gap that is 9.93e-16, 238 curved faces — plus two more that no run prints and cannot simply be recounted. The work is #787's own rule applied to the prose: **compute or delete, never restate**, and say at the site why for the half that can only be restated. | **S174** | `demos/README.md` (the uv-lane section) | **proposed: ACCEPT** | style |
+| **D112** | **The FreeCAD render lane runs on no pull request** — `render.yml` is `workflow_dispatch:` only, so `demos/render_freecad.py` is checked by nothing automatic. Two answers, and it is a cost decision rather than a patch: provision FreeCAD on every PR, or commit a renderer-free substitute for the camera (which G11 built for its own change and deliberately did not commit — a shim of a third-party API is a fixture that can drift into agreeing with itself). Read with **S129**, which is the same gap on the Rust side. | **S175** | `.github/workflows/{render,ci}.yml`, `demos/render_freecad.py` | **proposed: ACCEPT** | style |
 
 **Rides along, and is not a new row:** S111(a)(b)(d) and S112(a) are
 `sweep/src/fillet/` and belong to Track E's **E-g**, which is already ADVERSARIAL
