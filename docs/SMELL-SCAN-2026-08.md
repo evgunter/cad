@@ -84,6 +84,7 @@ cases. A finding is a *question worth answering*, not a defect.
   - [Tier 1 — act on these](#second-scan--tier-1--act-on-these) (S59–S75)
   - [Tier 2 — significant](#second-scan--tier-2--significant) (S76–S109)
   - [Tier 3 — real but lower stakes](#second-scan--tier-3--real-but-lower-stakes) (S110–S116), as class roll-ups
+- [Findings raised by the Track F lanes](#findings-raised-by-the-track-f-lanes-2026-08-20) (S117–S126, S157–S166) — each track's lanes append here as they land
 - [§A. Where I would start](#a-where-i-would-start)
 - [§D. The schedule](#d-the-schedule) — live rows only, in tracks: **A**, **B** and **D** complete; **C** (`docs/SMELL-C-LOG.md`), **E** (`docs/SMELL-E-LOG.md`), **F** (`docs/SMELL-F-LOG.md`) and **G** (`docs/SMELL-G-LOG.md`) running; the unscheduled table is the second scan's and frozen
 - [§C. Process observations](#c-process-observations) — C1–C17 from the first scan, C18–C25 from the second
@@ -7410,7 +7411,9 @@ the **sole** bound `T: CertifiedBounds`. The honest inventory is kept —
 it is now spelled as one name rather than as a compound the gate must
 special-case. `Decide + CertifiedBounds` is still a compound bound and
 still fires, which is correct: that genuinely is an evaluation parameter
-with brackets.
+with brackets. **(That last clause was false when written — the matcher
+#676 landed could not see the alias at all. S59 found it and #791 made
+it true.)**
 
 **Executed by #676.** All thirteen non-deciding signatures converted
 across the three files. `ssi/certify.rs` and `topo/props.rs` were **not**
@@ -7746,38 +7749,136 @@ this report.
 
 # Second scan · Tier 1 — act on these
 
-## S59. The compound-`Bounds` gate is blind to `CertifiedBounds`, and the new guidance routes authors through the hole
+## S59. FIXED by #791 — the compound-`Bounds` gate was blind to `CertifiedBounds`, and the new guidance routed authors through the hole
 
-**[verified]** `scripts/gates/bounds-allowlist.sh:139`'s matcher is
-`(\+\s*(geom_core::)?Bounds\b)|(\b(geom_core::)?Bounds\s*\+)`. `\bBounds`
-cannot match inside `CertifiedBounds` — the `C` before it is a word
-character — so `T: Decide + CertifiedBounds` and
-`T: CertifiedBounds + Decide` both fire nothing. I ran the regex against
-both orders and got no hit.
+**The defect.** `scripts/gates/bounds-allowlist.sh`'s matcher was
+`(\+\s*(geom_core::)?Bounds\b)|(\b(geom_core::)?Bounds\s*\+)`.
+`\bBounds` cannot match inside `CertifiedBounds`, so both
+`T: Decide + CertifiedBounds` and `T: CertifiedBounds + Decide` fired
+nothing — while the gate's own header, `crates/geom-core/src/real.rs`
+and **S56's own FIXED record two pages up** all asserted that they
+fired. The compounding half was the Tier-1 half: `real.rs` tells authors
+to write `T: CertifiedBounds` rather than the pair, so following the
+guidance at any `Decide` site converted a gated compound bound into an
+ungated one. This was **S56 returning one alias later** — #676 made the
+matcher order-insensitive and did not make it alias-aware.
 
-Two places assert the opposite. The gate's own header at
-`scripts/gates/bounds-allowlist.sh:46-48`: *"`Decide + CertifiedBounds`
-would be a compound bound again and **would fire here**, which is right:
-that is a parameter that decides AND brackets."* And
-`crates/geom-core/src/real.rs:789`: *"still fires the gate"*. The
-self-test plants four cases — `Decide + Bounds`, `Bounds + Decide`, the
-`real.rs` definition lines, and the dual spelling — and not this one.
+**Fixed by widening the matcher by SHAPE rather than by name.** It is now
+`(\+\s*(\w+::)*\w*Bounds\b)|(\b\w*Bounds\s*\+)`: any identifier ending
+in `Bounds` beside a `+`, with a path prefix allowed after the `+` (before
+it the prefix is a no-op, since `\b` already matches after `::`).
+Enumerating `(Certified)?` would have closed S59 and left the same finding
+waiting for the alias after it. The reverse trade — any `…Bounds`
+**identifier**, not only a trait, will fire and need a ratification line;
+`TangentSpanBounds`, `FaceCutBounds` and `FaceBounds` already exist and
+would — is stated in the gate header, because the conservative direction
+is the right one for a gate whose failure was silence.
 
-The compounding half is what makes it Tier 1. `real.rs:707` instructs
-authors: *"Write `T: CertifiedBounds`, not `T: Bounds + CertifiedEnclosure`."*
-Following the new guidance at any `Decide` site converts a gated
-compound bound into an ungated one. Ten sites currently write the long
-form and are gated (`geom-brep/src/ssi/certify.rs`, `ssi.rs:1187`,
-`pcurve_cache.rs:970`, `edge_nurbs.rs:250`); `probe_tube_chart`
-(`ssi/certify.rs:625`) is named in `real.rs` as exactly the shape the
-rule targets.
+**The self-test plants the spelling.** Both `Decide + CertifiedBounds`
+orders as separate cases; `Decide + RingBounds`, an alias name not in the
+tree, pinning the name-shaped property against a future narrowing; and —
+the near miss — a fixture of **sole** bracket bounds that must NOT fire,
+since a matcher that fired on those would red every certification file in
+`geom-brep` and `geom` and the cheap way green would be the allowlist.
+Reverting only the matcher makes `--selftest` fail on the first alias
+case, so the cases are load-bearing.
 
-This is **S56 returning**. S56 was "the compound-`Bounds` gate was
-order-sensitive, so half the spellings it forbids were invisible to it",
-FIXED by #676. The fix made the matcher order-insensitive and did not
-make it alias-aware.
+**Red count before any allowlisting: zero, and no allowlist entry was
+written.** The widened matcher's file set is identical to the old one;
+at line granularity it adds exactly one hit in the workspace, a doc
+comment at `real.rs:787` that the existing comment filter strips. Every
+`CertifiedBounds` use in the tree is a **sole** bound. So ruling **F-R6**
+bound on an empty residue, and the ten long-form
+`Decide + Bounds + CertifiedEnclosure` sites were left alone: they are
+ratified by file today and stay ratified after any conversion.
 
-**Verdict:**
+**Prose corrected** at the gate header (two paragraphs), at `real.rs`'s
+`Bounds` scope rule and `CertifiedBounds` docs — which now say the
+guidance to write the alias is safe to follow at a `Decide` site, which
+is the sentence **G4/S87** was waiting on — and at S56's record.
+
+**Three more evasions the review found, all now planted rather than
+argued.** (1) The alias-definition skip was anchored on the **name**, so
+`trait CertifiedBounds: Decide + Bounds + CertifiedEnclosure` — the one
+edit that makes every sole-bound site in the tree a decide-and-bracket
+parameter without touching a call site — was silently skipped; the skip is
+now **exact text**, and a fixture plants the redefinition. (2) The path
+prefix after `+` was untested, so deleting it left `--selftest` green
+while `Decide + geom_core::CertifiedBounds` went blind — a spelling
+`geom/src/curves/nurbs.rs` already uses; planted. (3) The same group on
+the *left* of `+` was dead (`\b` already matches after `::`) and is
+removed rather than left as untested reassurance. Each of the three is
+confirmed by a mutation that reds `--selftest` on exactly one case.
+
+**And the matcher's own blind spot, named rather than left implicit.**
+Shaping by name covers the next `…Bounds` alias, not the next alias:
+`trait Bracket: CertifiedBounds` used as `Decide + Bracket` is invisible
+at its uses. That is **KNOWN GAP 4**, and what holds the line is that the
+*declaration* is caught, so the file declaring such an alias must be
+ratified first; the residue is a ratified file's alias used elsewhere,
+which is **KNOWN GAP 3**.
+
+**That mitigation was published false, twice, and the retraction is the
+part worth recording.** It was first written as *"the declaration writes
+the pair literally and therefore fires"* — true only of
+`trait Bracket: Bounds + CertifiedEnclosure`. **`trait Bracket:
+CertifiedBounds` carries both bracket doors with no `+` on the line**, so
+neither it nor `Decide + Bracket` fired: *S59's own defect, minted by the
+change that closes it*, the failure mode this track's lane header names
+first. The matcher gained a **third alternative** — a single-line trait
+declaration whose supertrait or `where` list names a `…Bounds` identifier
+— which catches that spelling and reds **nothing** in the tree (the only
+two declarations it reaches are `real.rs`'s own alias, skipped by exact
+text, and `arc_fillet.rs`'s, allowlisted by file).
+
+**That was still not a mitigation, and the verification pass proved it
+with a compiled counterexample.** `rustfmt --edition 2021` rewrites the
+caught single-line `where Self:` spelling into a multi-line `where` block,
+**and the multi-line form is silent** — so the silent form is the
+formatter-stable one. No line-based matcher reaches it, and widening the
+alternative to drop its `:` requirement false-positives on a trait generic
+over a *sole* bracket bound. **GAP 4 is therefore disclosed as OPEN WITH
+NO MITIGATION**, and the false sentence is out of the header rather than
+narrowed: *"disclosed with a mitigation that does not work"* is worse than
+"disclosed", because it tells the next author the door is shut. The
+general form — that this gate anchors on `+`, and `+` is one of several
+ways Rust writes a compound bound — is **S158 / D102**, with the
+allowlist's file granularity split off as **S159 / D103**.
+
+**The exact-text definition skip gained a subject check for the
+brittleness it introduced.** An exact anchor fails in the opposite
+direction from a name anchor: a reformat, a rename or a retirement makes
+it stop matching, and the two tempting repairs are both wrong — widen the
+skip back to a name (which is the defect it just closed) or allowlist
+`real.rs` (worse). `gate_definition_skip_subject` proves the two skipped
+lines are still in `real.rs` verbatim *before* the scan and names the
+repair that is meant. Verified in both directions: a rustfmt-style wrap of
+the alias declaration reds with that message rather than with a confusing
+compound-bound hit, and an unmodified `real.rs` with sole-bound uses
+passes. **One honest consequence:** with the subject check in place,
+reverting the skip to a name anchor no longer reds the self-test, because
+the check refuses the same edit one step earlier. The skip stays exact
+text as the more precise statement of what is exempted; the guarantee is
+the check's.
+
+**The evidence for the gate, kept here because F1's §D row carried it and
+that row has left the table.** Track E's lane E-g widened the fillet
+seam's *ratified* compound-`Bounds` allowlist as a refactor side effect:
+`sweep/src/fillet/admit.rs` inherited `T: Decide + Bounds` from a file
+already on the allowlist, and `cargo check`, `clippy --workspace
+--all-targets`, `doc-gate.sh` and the whole suite all passed over it.
+**This gate caught it, and the right fix was not the allowlist** — the
+bound was not needed, `impl<T: Decide>` compiles, and the seam stayed at
+three files. That is the strongest single piece of evidence for the gate,
+and it *sharpens* S59 rather than softening it: the same mistake spelled
+`Decide + CertifiedBounds` would not have been caught, while the gate's
+own header called that spelling *"right, that is a parameter that decides
+AND brackets"*. **So S59 was never "the matcher is incomplete"; it was
+that the gate documented a violation class it could not detect**, on a
+seam whose whole purpose is that widening it requires ratification.
+
+**What the sweep found, and did not close here:** **S124** and **S125**
+below.
 
 ## S60. S26 was never fixed — the area enclosure is still unmetered, and its acceptance row is still the canonical monotone-wrong pair
 
@@ -10437,6 +10538,148 @@ scope and dispositioning what it returns. The one-command version is in
 
 ---
 
+# Findings raised by the Track F lanes (2026-08-20)
+
+## S124. A compound bound given a NAME is invisible at its use sites, and the gate header says the opposite
+
+**[verified]** `crates/profile/src/path/arc_fillet.rs:593` declares
+`pub trait ArcCarrierScalar: Decide + Bounds {}`. The **declaration**
+fires `bounds-allowlist.sh` (it writes the pair literally) and
+`arc_fillet.rs` is allowlisted for it under ruling LB3. Every **use** of
+the name is a `Decide + Bounds` bound the gate cannot see: **49
+occurrences** across `profile/src/path/family.rs` (27) and
+`profile/src/path/program.rs` (22), on `pub` and `pub(super)` fn
+signatures, on four public trait declarations (`ArrivalSpec`,
+`TangentIncoming`, `PointIncoming`, `LegEndIncoming`) and on
+`PartialPath` impl blocks. The name is re-exported from
+`profile/src/path.rs:364`, `profile/src/lib.rs:133` and
+`pncad/src/profile.rs:57`, so the pair is `pub` from the top-level crate.
+
+The gate header's arc_fillet entry said *"Confined to this one file so
+path.rs itself stays bracket-free"*. The **literal spelling** is confined;
+the **bound** is not. #791 corrected that sentence and recorded the hole
+as the gate's KNOWN GAP 3, rather than closing it by grep — closing it by
+grep means redding two files and allowlisting them, which is the
+cry-wolf-then-allowlist outcome S63 already records at `linalg/mat.rs`.
+
+**This is the same class as S59 one level up.** S59 was a matcher blind to
+an alias *name*; this is a matcher blind to an alias *use*. Whether these
+49 sites are legal depends on what `ArcCarrierScalar` is bound to, which
+is **S87**'s question (§D row **G4**).
+
+**G4 does not discharge this, and saying otherwise would be a disclosed
+blind spot read as a discharge.** G4 changes what the alias is *bound to*;
+the 49 uses stay exactly as invisible to any grep, and `bounds-allowlist.sh`'s
+KNOWN GAP 3 is as open after G4 as before. Two different jobs: G4 decides
+whether the sites are legal, D68 is whether they can be *checked*. The
+same correction bears on G4's own evidence — the widened matcher fires on
+**none of G4's sites** (`arc_fillet.rs` is allowlisted by file, the uses
+are alias-shaped, `geom`'s doors are sole bounds), so a green gate there
+is not ratification evidence.
+
+**And the matcher's own version of the same hole is KNOWN GAP 4**, added
+by #791: an alias whose name does *not* end in `Bounds` is invisible at
+its uses too. Its mitigation — the declaration writes the pair literally
+and fires, so the declaring file must be ratified — is planted in the
+gate's self-test rather than asserted, which is the shape D68 should
+close in.
+
+**Verdict:**
+
+## S125. `no-extra-real-bounds.sh` is order-sensitive — S56's own defect, un-swept to a third gate
+
+**[verified]** `scripts/gates/no-extra-real-bounds.sh:21` is
+`grep -rnE '\bReal\s*\+' crates/*/src`. It matches `Real + Foo` and
+cannot match `Foo + Real`, which is exactly the bound its header says it
+forbids: *"a type parameter written `T: Real + PartialOrd` (or any other
+extra bound) is the escape hatch"*. One live hit today —
+`crates/geom-core/src/spline/locate.rs:82`,
+`pub trait SpanLocate: sealed::Sealed + Real {` — invisible to the gate
+in the tree as it stands. (Whether a *trait declaration* is in the gate's
+class is the substantive question; that it cannot be **asked** is not.)
+
+**S56 was "the compound-`Bounds` gate was order-sensitive"; #676 fixed
+that gate.** S63 already records the same ruling reaching two of the
+gates that reported it and never sweeping to a sibling; this is the
+sibling. The file is **F3 / lane F-g**'s, so #791 did not touch it.
+
+**Verdict:**
+
+## S158. The compound-`Bounds` gate anchors on `+`, and `+` is not how Rust expresses a compound bound
+
+**[verified, with compiled counterexamples]** Found by the F-e verification
+pass, and it **subsumes S59 rather than sitting beside it**. S59 was *"the
+matcher is blind to an alias"*; this is *"the matcher is blind to a
+spelling"*, and the alias case is one member.
+
+`scripts/gates/bounds-allowlist.sh` matches a `…Bounds` identifier adjacent
+to a `+`. Rust has several ways to write the same obligation, and the others
+are silent. **Plain compound bounds, no alias involved:**
+
+```rust
+pub fn f<T>(_t: T) where T: Decide, T: Bounds {}   // gate exits 0
+pub fn g<T: Decide>(_t: T) where T: Bounds {}      // gate exits 0
+```
+
+**And the alias form, which is `bounds-allowlist.sh`'s KNOWN GAP 4:**
+
+```rust
+pub trait Bracket: CertifiedEnclosure           // gate exits 0
+where
+    Self: Bounds,
+{
+}
+pub fn use_it<T: Decide + Bracket>(t: T) { t.lo(); t.sgn(); }
+```
+
+**The fact that makes this a hole rather than a curiosity: that last form is
+what `rustfmt --edition 2021` converges on** from the single-line spelling
+the gate *does* catch. A gap a formatter produces out of the caught form is
+the resting state, not a corner case. Two further members, independent of
+each other: the same declaration in an **allowlisted** file is silent (so a
+file ratified for one bound silently ratifies this one — that half is
+**S159**), and a chain through a non-`…Bounds`-named intermediate is silent.
+
+**Not a violation today.** Every `where`-clause `…Bounds` line in
+`crates/*/src` was checked: no live instance in an unratified file. This is a
+hole in the instrument, not a breach of the rule.
+
+**Deliberately not closed by #791**, on the orchestrator's ruling: it is a
+redesign of what the gate matches, no line-based matcher can reach the
+formatter-stable spelling, and widening the declaration matcher far enough to
+try false-positives on a trait generic over a **sole** bracket bound
+(`trait ArrivalSpec<T: CertifiedBounds>`), which is outside the class.
+Whoever takes it will red a population nobody has counted, so **F-R6's
+grandfathering caveat becomes live on a real residue** rather than the empty
+one #791 met.
+
+**Verdict:**
+
+## S159. The compound-`Bounds` allowlist is file-granular, so ratifying one bound in a file ratifies every bound later added to it
+
+**[verified]** Found by the F-e verification pass, alongside S158 and
+**recorded separately because it is a different mechanism and will outlive
+whatever the matcher does.** Every entry in `bounds-allowlist.sh` is a path:
+`^crates/geom-brep/src/(pcurve_cache|ssi|ssi/certify|edge_nurbs)\.rs$` and so
+on. The ratification argument in the header is per-*seam* and often
+per-*function* — `probe_tube_chart` is justified by what that one body does —
+but the enforcement is per-*file*. A second, unrelated compound bound added to
+any allowlisted file inherits the first one's ratification silently.
+
+This is the same shape as S63's `linalg/mat.rs` (allowlisted wholesale to
+resolve a false positive, now unguarded for the genuine case), except that
+here it is the *design* of every entry rather than one bad entry.
+
+The cheap half is that the header already writes the per-seam argument, so the
+information exists; what does not exist is any check that a file's current
+bounds are the ones argued for. Options a taker should weigh rather than
+assume: line-scoped or symbol-scoped entries; a count pinned per file; or
+accepting file granularity and saying so at each entry.
+
+**Verdict:**
+
+---
+
 # §A. Where I would start
 
 **Superseded 2026-08-19 by §D, and kept as written.** Three of its four items
@@ -11689,6 +11932,7 @@ has been discharged.
 | ~~**E-l**~~ | **#681**, still open | everything outside `crates/*/src` | style | **Swept as #810 — seven of #681's nine surfaces, the other two declared.** Instrument re-run rather than retyped; #667's 197 blocks over `crates/*/src` are **217** at this base, which is why the count is re-derived and not transcribed. Per-leg: `crates/*/tests` **189** blocks → 10 real claims (`mesh/tests/revolves.rs` unfenced when #803 merged mid-lane); manifests **8** → 4; the guide's five rustdoc-included `.md` files **11** → 1 (guarded, a doctest); `pncad-py` **6** with docstrings vs **1** without → 0; `crates/*/examples` **2** → 0; `docs/` prose **171** → 6; `local-scripts/` **21** → 3; `review/`+`review-probes/` **0**. **One unguarded row filed: #807** — the wasm32 "compiles clean today" claim, which nothing in CI takes and which a `cargo check --target` row would guard. **One class handed off: #808** — twelve copies of the 494-of-514 s build-cost measurement in the `crates/*/tests/all.rs` headers, every one of them inside #763's head. **Declared out of scope, with reasons in the PR:** `.github/workflows/` + `scripts/` and `tools/tess-lint` (Track F, live), `demos/` and `interval-transcendentals/` (Track G, live), `tools/k-lint` (its constants are `docs/K-REPORT.md`'s subject — a K question, not a sweep one; **no owner confirmed**). |
 | **E-m** | **#711** | `step-import/src/recognize.rs`, `docs/ASM-R2A-SPEC.md` | style | Wave 2. Was Track C's **C8**. Two items: a `try_cylinder` promoting arm documented unreachable with a preference order *"unfalsifiable by execution"*, and a one-line spec ruling. The first may want the tighter cylinder certificate rather than an encoding change. |
 | **E-n** | **D20** | `topo/src/seqgen.rs` | style; **closes on an attribution** — a number saying where the 46% lives, or a written finding that it is inherent | Last. It closes on a measurement, and *a timing is worth nothing without its box* (`memories/perf-measurement-lane.md`) — the attribution comes off hosted CI, not off whatever container the lane runs in. The enumeration class is closed as a candidate; do not re-open it without a number. |
+| ~~**E-q**~~ | **#681**, still open | `memories/` | style | **Swept as #826 — the TENTH surface, which #681's list does not contain.** E-l reported it and did not sweep it; adding a surface is the issue owner's call, and Evan made it. **The disposition rule is NOT §Q6's**: *"most of the stuff in memories that cites a specific measurement should just be deleted. memories is definitely not the place for historical anecdotes, but it's also not really the place for live data."* So each block is an **anecdote** (delete the number, keep the rule — the default), **live data** (repoint at whatever re-takes it), or **neither** (a ratified constant or protocol threshold — kept, with the reason). **21 blocks re-derived at `e1500076`, E-l's count exactly, and it did not move.** Instrument run not retyped, but `--marker ''` alone yields **one block per file** — `find("")` is 0 on every line, so nothing ends a block; #681's `.md` row names *"paragraph-blocking"* as the replacement and that is not in the script, so it was added as a flag. That is the variant E-l ran. **Its own blind spot, and `min` is the sharp one**: the time-unit arm lists `seconds?|minutes?` and **not `min`**, so `memories/git-workflow.md` scored **zero blocks** while carrying `~5-7 min` / `35-70 min` / `30G cache` / `(then-5G-RAM)/251G box`. **Eight files carry measurement edits and in five of them at least one edit site was reached by reading, not by the instrument** — including `tessellation-budget.md`'s densest numbers, its findings list, which sits outside every flagged block. #681's carried hole (bytes, percent, counts and bare factors reach only through the vocabulary arm) is worst on exactly this surface. 21 is a floor, not a census. **The one live-data case the brief warned about checks out**: `docs/ASM-LOG.md:292` and `:361` route the **TESS-SPLIT dispatch** through this memory, so `SAFE_ASPECT = 5` could not simply be deleted — it now names `mesh::nurbs_cert::SAFE_ASPECT`, whose own doc carries the derivation. The two copies had **already diverged** (ASM-LOG says *"≤ ~4"*), as had `agent-lane-operations.md`'s `4–8 GB target/` against `disk-watchdog.sh`'s own `5-8G`. Second half of the unit: `memories/cad-working-style.md`'s memory-writing criteria gain the rule, in one bullet after *No live counters*. **D97 handed back unused.** |
 
 ### The rows
 
@@ -11799,15 +12043,23 @@ sole-`T: Bounds` projection doors is **mechanical**: bound them on
 where they should not.
 
 **Two things stop that being a one-line change, and both are why this is a
-chain rather than a row.** First, `real.rs:787` states that
-`T: Decide + CertifiedBounds` *"is still a compound bound, still fires the gate,
-and still needs ratification"* — so converting `ArcCarrierScalar` would newly
-require a ratification. Second, **S59 says the gate does not in fact fire on
-that spelling**: its matcher recognises `Decide + Bounds` and is blind to
+chain rather than a row.** First, `real.rs`'s `CertifiedBounds` docs stated
+that `T: Decide + CertifiedBounds` is a compound bound that fires the gate and
+needs ratification — so converting `ArcCarrierScalar` would newly require a
+ratification. Second, **S59 found the gate did not in fact fire on that
+spelling**: its matcher recognised `Decide + Bounds` and was blind to
 `Decide + CertifiedBounds`, verified by execution. So the sentence that makes
-the conversion safe is currently false, and **S59 must land before S87/S88, or
-the ratification requirement is unenforced at exactly the moment new code starts
-relying on it.**
+the conversion safe was false, and **S59 had to land before S87/S88, or the
+ratification requirement is unenforced at exactly the moment new code starts
+relying on it.** **S59's fix is #791** (open, reviewed, not yet merged): the
+matcher is name-shaped and sees `Decide + CertifiedBounds` in both operand
+orders, so the `real.rs` sentence is true and **G4 unblocks when #791 merges**.
+**One correction G4's taker must carry:** the widened matcher fires on
+**nothing G4 writes** — `arc_fillet.rs` is allowlisted by file, `family.rs` and
+`program.rs` reach the bound through the alias name and are invisible to any
+grep, and `geom`'s projection doors are sole bounds outside the class. A green
+gate on G4 is therefore **not** ratification evidence; what #791 delivers is
+that the rule G4 relies on is true and enforced against *new* spellings.
 
 ### S71, answered from the merge record rather than from the tree
 
@@ -11877,7 +12129,10 @@ The lane roster, the rulings and the landings are in that file; this table stays
 the schedule and a row leaves it when it lands.
 
 **Its gate is Track E's lane E-a (#753)**, which is in review now. Nothing in
-F1–F3 or F8 may open until that lands. **This is a file-overlap gate, not a
+F1–F3 or F8 may open until that lands. (#753 landed; **F1's fix is #791**, open and
+reviewed, and **G4 unblocks when it merges** — the sentence that makes the
+`CertifiedBounds` conversion safe is true on that branch, in both operand
+orders.) **This is a file-overlap gate, not a
 dependency gate** — see the Track E log's E-R4: a lane that disproves the
 *reason* for a gate has not disproved the gate.
 
@@ -11930,25 +12185,6 @@ which is why Track E did not take it.
 
 | # | Work | From | Scope | Proposed verdict | Review |
 |---|---|---|---|---|---|
-| **F1** | **The compound-`Bounds` gate is blind to `CertifiedBounds`, and `real.rs` tells authors to write the invisible spelling.** Its matcher fires on `Decide + Bounds` and not on `Decide + CertifiedBounds`; `real.rs:46-48` and `:789` both assert that it does. **This is S56 returning one alias later**, and per the ruling above it now **gates S87/S88**. | **S59** `[verified]` | `scripts/gates/bounds-allowlist.sh`, `geom-core/src/real.rs` (two prose sites), plus whatever the widened matcher then reds | **ACCEPTED** — executed, self-evidencing | style; **ADVERSARIAL** for any conversion the widened matcher forces |
-
-**A sharper form of S59, found by Track E's lane E-g on 2026-08-20 and left here
-because this is Track F's row.** `bounds-allowlist.sh` caught that lane widening
-the fillet seam's *ratified* compound-`Bounds` allowlist as a refactor side
-effect — `admit.rs` had inherited `T: Decide + Bounds` from a file already on the
-allowlist, and `cargo check`, `clippy --workspace --all-targets`, `doc-gate.sh`
-and the whole suite all passed over it. **The gate did its job, and the right fix
-was not the allowlist**: the bound was not needed, `impl<T: Decide>` compiles,
-and the seam stays at three files.
-
-**That is the strongest evidence for the gate, and it sharpens the finding
-rather than softening it.** The same mistake spelled `Decide + CertifiedBounds`
-would **not** have been caught — and the gate's own header says that spelling
-*"is right, that is a parameter that decides AND brackets"*, i.e. **the header
-asserts the case the matcher cannot see.** So S59 is not "the matcher is
-incomplete"; it is *the gate documents a violation class it cannot detect*, on a
-seam whose whole purpose is that widening it requires ratification. Track E's
-**G4** (S87's `ArcCarrierScalar`) is gated on this row for the same reason.
 | **F2** | **Re-site the gates that cannot fire on their own inputs**, per Evan's S61 ruling. `probe-suite-census.sh:52-57` asserts two docs still name a CI step and cannot fire on a docs-only change; `gate-roster.sh:31-39` argues it need not read `local-scripts/` *because* the discipline job never runs there. Carries **D58**, **D59** and **D60** (below), which are E-a's own re-derived residues. | **S61**, **S62**, and E-a's report | `.github/workflows/ci.yml`, `scripts/ci-filter.py`, `scripts/gates/{probe-suite-census,gate-roster}.sh`, `local-scripts/ci-local.sh` | **ACCEPTED — RULED** (posture; re-site) | style |
 | **F3** | **Three of six grep gates pass the spellings they exist to forbid.** `no-extra-real-bounds.sh` greps `\bReal\s*\+` raw with no comment strip; `bit-identity-debug-only.sh` counts uses and `cfg(debug_assertions)` separately and prints an unsupported sentence; `interval-square-allowlist.sh`'s PCRE backreference cannot see `self.x * self.x`, and `geom-core/src/linalg/vec.rs:325-326` is a live unallowlisted instance. The cry-wolf-then-allowlist outcome is **already realised** at `linalg/mat.rs`. **Its line numbers are fiction — re-derive, do not transcribe.** | **S63** | `scripts/gates/{no-extra-real-bounds,bit-identity-debug-only,interval-square-allowlist,lib.sh}`, `scripts/ci-filter.py` | **ACCEPTED** | style for the gates; **ADVERSARIAL** for the `x*x → powi(2)` conversions, which change numerics in `Interval`-generic production code |
 | **F4** | **Guards whose failure mode is their pass condition** — four instances bound by one missing idiom rather than by files. The spent-graft hammer row lacks the `oks > 0` its twin has, and `ci.yml` cites it by name (**S76**); a fuzz corpus is built entirely behind `if let Ok` with no floor (**S78**); a floor row matches into a `println!("SKIPPED")` arm and returns green (**S84**); a new differential test compares an expression against itself (**S91**). | S76, S78, S84, S91 | `topo/src/review_d18.rs`, `sweep/tests/review_d2_adv_probes.rs`, `geom-brep/tests/*`, `geom-core/src/spline/knots.rs` | **ACCEPTED** on all four | **ADVERSARIAL** for S76 and S78 (each is a guard on a soundness contract); style for S84, S91 |
@@ -11993,6 +12229,16 @@ S60/S66's rows; and a general gate re-proposes exactly what Evan declined.
 | **D59** | **The executable bit is the registration mechanism.** Both halves derive the roster with `[ -x "$script" ] || continue`, so a gate landing mode `0644` is invisible to both — **confirmed by planting** a mode-0644 `zz-unwired-nonexec.sh`, which `gate-roster.sh` reports as *"all 14 gates"*, exit 0. Squarely D34's subject and past its one-move budget. |
 | **D104** | **The two hand-run diff artefacts S110 could not place** — `sweep/tests/review_m6_5_pr2_sweep_probes.rs`'s printed `Debug` hash (no assertion; the merge-base comparison it existed for no longer exists) and `sweep/tests/review_d8_consumer_differential.rs`'s pinned seeds (licensed for a digest half that is printed and never asserted, while the same draws feed real counterexample searches). **§A2 routes both to "the test-suite-cost sweep", which has never existed** — no lane, no row, no owner; `memories/test-suite-cost.md` is a memory, not a schedule. Placed here so the two stop being *"routed"* to nothing. **Not Track F's to execute** — it is a test-suite-cost question, and whoever opens that conversation inherits both; but a row that exists can be handed over, and a phantom cannot. |
 | **D60** | **S62's four remaining hand-named checks, plus the `ci-local.sh:217` drift** — the mirror prose names *"the `k-lint` job's 'demos render provenance' step"* when that step is `render provenance (demos)` in the **`discipline`** job. S13's own defect, in the same file pair, after S13's fix. E-a's own D34 enumeration was over `scripts/…` paths in `ci.yml`, so `demos/check_render_provenance.py` and `demos/compose_uv_montage.py` were invisible to it. |
+
+### Rows placed for Track F by lane F-e
+
+| # | Work |
+|---|---|
+| **D68** | **`ArcCarrierScalar`'s 49 use sites are a compound `Decide + Bounds` bound no grep gate can see** (**S124**). The declaration is ratified by file under LB3; the uses are not, and the name is `pub` from `pncad`. **This is a VISIBILITY row and G4 does not discharge it** — G4 changes what the alias is *bound to*, which decides whether the 49 sites are legal, and leaves them exactly as invisible; after G4 lands, `bounds-allowlist.sh`'s KNOWN GAP 3 is as open as before. The two jobs are separate and this row stays live through G4. #791 deliberately did not close it by grep: that means redding `family.rs` and `program.rs` and allowlisting them, S63's already-realised outcome. **Open question for whoever takes it** — whether the answer is a gate that reads the alias's declaration and follows the name, or a rule that a compound bound may not be given a name at all. |
+| **D102** | **The compound-`Bounds` gate anchors on `+`, and `+` is not how Rust expresses a compound bound** (**S158**). `where T: Decide, T: Bounds` and `<T: Decide>(…) where T: Bounds` are silent; so is the multi-line `where` alias declaration **that `rustfmt` converges on** from a spelling the gate does catch. **Subsumes S59** — S59 was blindness to an alias, this is blindness to a spelling. No live instance in an unratified file, so a hole rather than a violation. **Deliberately not closed by #791**: it is a redesign of what the gate matches, no line-based matcher reaches the formatter-stable form, and a colon-free widening false-positives on a trait generic over a sole bracket bound. **The taker should expect F-R6's grandfathering caveat to be live on a real residue**, unlike #791's empty one, and should count the population before choosing a matcher. |
+| **D103** | **The allowlist is file-granular while its justifications are per-seam** (**S159**). Every entry is a path, so a second unrelated compound bound added to an allowlisted file inherits the first's ratification silently. **A different mechanism from D102 and it outlives whatever the matcher does** — S63's `linalg/mat.rs` is the same shape as one bad entry; this is the shape of every entry. Options to weigh rather than assume: line- or symbol-scoped entries, a per-file count pinned, or accepting file granularity and saying so at each entry. |
+| **D106** | **Split the ratification ledger out of `scripts/gates/`'s scripts.** `bounds-allowlist.sh`'s header is **204 lines in front of a 20-line function** — S116(m) measured 130, and #791 took it 131 → 157 → 195 → 204. **The progression is the evidence, and it is why this is structural rather than a discipline problem: the header grew three times and every time for an honest reason.** First, three newly disclosed blind spots (GAPs 3, 4, 5) plus the reason the definition skip is exact text. Second, retracting a mitigation that had been published false, and writing at the gap why no line-based matcher can close it. Third, a review condition that a partial catch must carry the reason it is partial *at the matcher*, not forty lines lower — which is correct, and which no amount of discipline makes shorter. **A gate whose gaps are honest is longer than one whose gaps are silent**, so cutting the header means either un-disclosing a hole or deleting a per-seam ratification argument, and both are worse than the length. What actually makes the file long is that the per-seam justifications are *a document that happens to live in a comment block* — every entry carries the ruling that admitted it, who ruled, and what the refusing lane is. **That is the thing to move**, not the gap list, which belongs beside the matcher it qualifies. A taker should decide where it goes (a `docs/` companion the gate cites by name, or a per-seam file the gate reads) and, whichever it is, keep the property that made #791 recoverable: **the argument and the enforcement must fail together**, so a ledger entry with no matching allowlist line, or the reverse, is itself a red. Not F-e's: that lane has been through a review, a verification and two fix passes on one row, and this is a change across the directory. **Sequence it after F-g**, which owns `lib.sh` and will have the harness open. |
+| **D69** | **`no-extra-real-bounds.sh` matches `Real +` and not `+ Real`** (**S125**) — S56's order-sensitivity defect, never swept to this gate, with one live invisible hit at `geom-core/src/spline/locate.rs:82`. **Belongs to F3 / lane F-g**, whose scope already holds this file; recorded here so it is scheduled rather than remembered. The fix is the shape #791 used: make the matcher order-insensitive **and** name-shaped in one move, since doing only the first is what produced S59 out of S56. |
 
 ### Rows placed for Track F by lane F-b
 
@@ -12209,7 +12455,7 @@ tessellation pin are red on main).
 |---|---|---|---|---|---|
 | **D71** | **The local gate has no `oracle-certify` mirror, and nothing enforces ci.yml ↔ ci-local.sh JOB parity.** Fell out of G1's fix pass: `ci-local.sh` carried both sentences G1 corrected in `ci.yml`, and under it the transcendental and `+ −` pads have no containment guard at all. Two decisions, neither a patch: does the local gate carry a ~250s GMP build, and is job parity enforced (like `gate-roster.sh` does for gate scripts) or declared per job? | **S127** | `local-scripts/{ci-local.sh,gate.sh}`, `scripts/gates/` | **ACCEPTED**, unstaffed | style |
 | **D78** | **What is still one-directional in the interval backend after G1.** Three items: `powi`'s tightness ceiling is a deferral with a downstream consumer, not an unguardable; the oracle tier's upper constraint is a scale-free ratio and misses a fixed absolute over-widening on non-monotone shapes with wide boxes; S116(r)'s consumer-side caveat at `crates/geom-core/src/interval.rs:135-143` is outside G1's fence and unclosed. **`copysign`'s placement is NOT on this list — it is S1's.** | **S134** | `interval-transcendentals/tests/`, and `crates/geom-core/src/interval.rs` for the third item | **ACCEPTED**, unstaffed | ADVERSARIAL for the first two |
-| **G4** | **`profile`'s fifth lane trait, blanket-implemented, which D1 never looked at** — `ArcCarrierScalar` over `T: Decide + Bounds`, so `Dual64` carries the whole `path::family` arc surface today, re-exported from `pncad`. **Per Evan's ruling this is mechanical**: `CertifiedBounds` is the bound that excludes a dual. **Gated on F1** — the gate that is supposed to force ratification of the new spelling is blind to it until S59 lands. | **S87** (and S88's `profile` half) | `profile/src/path/{arc_fillet,family}.rs`, `profile/src/lib.rs`, `pncad/src/profile.rs` | **ACCEPTED — RULED** (the admitting set) | **ADVERSARIAL** |
+| **G4** | **`profile`'s fifth lane trait, blanket-implemented, which D1 never looked at** — `ArcCarrierScalar` over `T: Decide + Bounds`, so `Dual64` carries the whole `path::family` arc surface today, re-exported from `pncad`. **Per Evan's ruling this is mechanical**: `CertifiedBounds` is the bound that excludes a dual. **Was gated on F1; that gate lifts with #791** (see the note below). **Two corrections #791's lane owes this row.** (a) The widened matcher fires on **none of G4's own sites** — `arc_fillet.rs` is allowlisted by file, the ~49 uses in `family.rs`/`program.rs` reach the bound through the alias NAME and are invisible to any grep, and `geom`'s doors are sole bounds outside the class — so a **green gate here is not ratification evidence**; what #791 delivers is that `real.rs`'s rule is true and enforced against new spellings. (b) **D68/S124 is a VISIBILITY defect and G4 does not discharge it**: changing what `ArcCarrierScalar` is bound to leaves all ~49 uses exactly as invisible. | **S87** (and S88's `profile` half) | `profile/src/path/{arc_fillet,family}.rs`, `profile/src/lib.rs`, `pncad/src/profile.rs` | **ACCEPTED — RULED** (the admitting set) | **ADVERSARIAL** |
 
 > **G4's gate: cleared by Track F, 2026-08-20.** F1's fix is #791; its style review re-derived the widened matcher's effect independently and found the ratification precondition met in both operand orders — `real.rs`'s sentence is now true. **One correction G4 must carry, from that review: the widened matcher fires on nothing G4 actually writes**, because every `CertifiedBounds` use in the tree is a *sole* bound and the gate's class is compound bounds only. So **a green gate on G4's conversion is not ratification evidence** — G4 owes its own argument that each converted door should exclude a dual, and cannot cite the gate as having checked it. (#791 is NOT CLEARED on other grounds — two matcher blindnesses, F-R10 — none of which bear on this precondition.)
 >
@@ -13252,7 +13498,27 @@ with ~180 doc lines over ~55 lines of guard code (S116g);
 (S116h); `crates/topo/src/euler.rs`'s header +55 lines (S116e);
 `scripts/gates/bounds-allowlist.sh` — 130 lines of header defending a
 20-line function, restating a ledger it declares it is not restating
-(S116m).
+(S116m). **Re-measured: 131 lines when #791 opened, and #791 takes it to
+204** — it cut five lines of comment archaeology and compressed its own
+additions twice, and the remainder is three newly disclosed blind spots
+(GAPs 3, 4, 5), the reason the definition skip is exact text, and the
+correction of a mitigation that was published false. The finding is *not*
+discharged by that accounting and the number is recorded rather than
+restored, and **placed as D106** — split the ratification ledger out of the
+script — because an argument recorded is not a row that executes.
+
+**And the growth is itself the finding's answer, which is worth more than
+the row.** A gate whose gaps are honest is longer than one whose gaps are
+silent: every line #791 added past its own fix is a blind spot named, a
+false claim retracted, or a repair the next reader is told *not* to make.
+The conclusion is that **this directory wants the ratification ledger
+split out of the script** — the per-seam justifications are a document
+that happens to live in a comment block, and they are what makes a 20-line
+function carry a 204-line header. That is a real observation about the
+shape of `scripts/gates/`, not an argument for un-disclosing anything, and
+it is the disposition S116(m) should close on. **The full progression —
+131 → 157 → 195 → 204, and what each step bought — is in D106's record**, where
+its taker will read it.
 
 In several of these the prose is the *only* change: S116(g) answers
 "three parallel pipelines with no shared core" with a long argument that
