@@ -516,6 +516,37 @@ is: diagnose against `main`, then wait for a real reason to push — a re-merge
 when `main` next moves, which a long-running branch owes anyway. Waiting is not
 inaction here; it is the only honest trigger.
 
+### E-R9 — the standing lane header was not on `main` (2026-08-20)
+
+**Every Track E brief says *"read `docs/SMELL-E-LOG.md` § The standing lane
+header in full before you start."* Lanes clone `main`. This file was last on
+`main` at 18:56 (#794).** So every rule added after that — rule 7's denominator
+rule, rule 2's repo-wide-grep clause, the corrected container facts, E-R6, E-R7,
+E-R8, and the allocator bump — existed only on the orchestrator's branch, and
+every lane dispatched since read an eight-hour-old header while being told it
+was binding.
+
+**It surfaced through the allocator.** Lane E-q reported the reservations table
+reading *"Next unassigned: **D94**"* against a brief that said **D97**, flagged
+the discrepancy, and did not edit the file because it is the orchestrator's.
+Had a lane instead resolved the conflict the way the register tells it to —
+take the log's number — it would have minted a row three below the true
+frontier, which is the four-orchestrator collision again with one allocator
+instead of four.
+
+**This is E-R5 turned on its author.** That rule says a row is not placed until
+it is on `main`; E-R8 adds that being on `main` is not being received. This is
+the third face: **the document that carries the rules was itself subject to the
+rules, and the orchestrator was the one party never checking.** The header's
+own preamble says it is committed rather than kept in a container home
+directory *"on purpose: a pointer at an uncommitted file is a pointer at
+nothing, one preemption later."* Committed to a branch is not published, and
+the sentence explaining why did not save the file it was written in.
+
+**Standing correction: the orchestrator log lands on `main` at every pipeline
+seam** — after each merge it records — not when the session ends. A lane cannot
+read a branch it does not have.
+
 ### E-R8 — a row on another track's TABLE is not a handoff (2026-08-20)
 
 **D86 blocked Track E's #784 for hours while both tracks believed the other
@@ -711,6 +742,9 @@ serialized here and each lane re-merges `origin/main` when one lands.
 | **E-h** | D21 | `smelle/d21` | **#773** | **style lane NOT CLEARED** — 8 MAJOR; adversarial lane running. Placed D88, D89 |
 | **E-k** | D35 | `smelle/d35` | **#809** | **complete, stacked on #817.** Closes on **(d) — no gate**. **103** sites, 7 crates; **76 are one state** (answered *no* by #755), **13 row-0 candidates** → **D96** (written as its own finding), 3 messages fixed. Found **#777 never reached `main`** → **#817**, which merges first |
 | **E-l** | #681 | `smelle/681` | **#810** | **MERGED 2026-08-20.** 7 of 9 surfaces swept, 2 declared; 24 claims → 7 guarded, 2 scheduled, 13 unguardable-with-reason, **1 unguarded (#807)**. #808 stands free now that #763 is in; `memories/` raised as a tenth surface |
+| **E-o** | D86 | `smelle/d86` | — | **dispatched** 2026-08-20. Crosses into `scripts/` with Evan's ruling, after F's and G's logs were checked for a claim on the file and neither had one (E-R8) |
+| **E-p** | S14 | `smelle/s14` | — | **dispatched** 2026-08-20. A design-conversation PR, not a fix; **waits for Evan** and never self-merges |
+| **E-q** | `memories/` | `smelle/memories` | **#826** | **MERGED 2026-08-20.** 21 blocks → 17 keeps, 4 repointed; two drifted second-copies resolved; #681's `.md` instrument corrected |
 
 **E-g dispatched 2026-08-20** (`smelle/d27-d29`), D27 then D29 — one lane
 because both edit `sweep/src/fillet/`, and D27 first because its newtype may
@@ -1598,6 +1632,47 @@ finding cannot absorb.
 ---
 
 ## Landings
+
+### #826 — `memories/` (E-q), merged 2026-08-20
+
+Evan's ruling: *"most of the stuff in memories that cites a specific
+measurement should just be deleted. memories is definitely not the place for
+historical anecdotes, but it's also not really the place for live data."* So
+**§Q6's menu was the wrong frame** — it classifies a measured claim as
+guarded / scheduled / unguardable-with-a-written-reason, and all three assume
+the claim stays. Here it mostly should not. **21 blocks → 17 keeps, 4
+repointed, the rest deleted, every rule surviving.**
+
+**Four "live data" sites became pointers, and two of them had already drifted —
+in the file whose own criteria forbid second copies.** `tessellation-budget.md`
+said the safe aspect was `= 5`; `docs/ASM-LOG.md` said `≤ ~4`; the real owner,
+`crates/mesh/src/nurbs_cert.rs`, carries the derivation and a measured
+`(3.87, SAFE_ASPECT]` gap. Same shape in `agent-lane-operations.md`: *"4–8 GB
+`target/`"* against `disk-watchdog.sh`'s own `5-8G`. **The repointing was not
+tidying — it resolved two live disagreements**, and the `ASM-LOG.md` one sits
+on a dispatch path.
+
+**The instrument correction is the part that reaches backwards.** #681's `.md`
+row prescribes `--marker ''`, and `line.find("")` returns `0` on every line, so
+nothing terminates a block and the script prints **one block per file**. The
+issue's prose names *"paragraph-blocking"* as the replacement; **paragraph
+blocking is not in the script.** E-q added it as a `--paragraphs` flag,
+reproduced E-l's 21 exactly, and thereby established that **#810's `.md` legs
+ran a variant the issue does not contain, inferred from prose** — which is
+§C15's failure mode occurring inside the lane whose brief was written to
+prevent it. Nothing in #810's dispositions is wrong; its *method statement*
+named a flag that cannot produce its numbers.
+
+**Two holes, one new.** #681's carried hole (the bare-number arm is time units
+only, so bytes/percent/counts reach only through the vocabulary arm) bit
+hardest here: **in five of the eight edited files at least one site was reached
+by reading, not by the instrument** — including `tessellation-budget.md`'s
+densest numbers. And the time-unit arm omits **`min`**: `git-workflow.md`
+scored **zero** blocks while carrying `~5-7 min`, `35-70 min` and `30G cache`
+in one sentence. **21 is a floor, and the lane said so.**
+
+The rule went into `memories/cad-working-style.md`'s criteria as one bullet
+extending *No live counters*, so it does not recur.
 
 ### #810 — #681 (E-l), reported 2026-08-20, awaiting #763
 
