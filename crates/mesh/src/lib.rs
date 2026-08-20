@@ -237,6 +237,7 @@ pub mod chords;
 mod curved;
 mod nurbs_cert;
 mod planar;
+pub mod sizing;
 mod tessellate;
 mod trimmed;
 pub mod types;
