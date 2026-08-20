@@ -1868,20 +1868,24 @@ jobs:
       # `set -e`, so a census refusal there would print its error and
       # leave this step green over zero crates — the silence one level
       # up from the one the census exists to remove.
-      # TWO COMMANDS PER CRATE, and the second is not a repeat of the
-      # first. `cargo check --all-targets` type-checks everything the
-      # feature instantiates — the lib's own `#[cfg(test)]` modules
-      # included, which `--test all` never builds. The `--list` pass then
-      # asks the compiler which of the CENSUSED suites it actually built:
-      # a gate can be spelled correctly and be true under no configuration
-      # CI runs (a second feature the loop does not enable, a non-feature
-      # condition false on every runner), and no predicate over the gate
-      # LINE can tell that from a gate that compiles. The listing is piped
-      # into the census rather than judged here, so the deciding half
-      # keeps its `--root` and its `--selftest`.
+      # BUILD, NOT CHECK, AND THE MEASUREMENT IS WHY. `--all-targets
+      # --no-run` covers everything `cargo check --all-targets` covered —
+      # the lib's own `#[cfg(test)]` modules included — and then some,
+      # since it links what it checked. Doing both instead pays codegen
+      # twice over: measured on this job, check-then-list summed 271 s
+      # with the sweep against 219 s for build-then-list, because rmeta
+      # from the check buys the link nothing.
       #
-      # The link is not waste: `scripts/k_probe_sweep.sh` runs `--test all`
-      # on the next step but one, so this primes it.
+      # The `--list` pass then asks the compiler which of the CENSUSED
+      # suites it actually built. A gate can be spelled correctly and be
+      # true under no configuration CI runs — a second feature the loop
+      # does not enable, a non-feature condition false on every runner —
+      # and no predicate over the gate LINE can tell that from a gate that
+      # compiles. The listing is piped into the census rather than judged
+      # here, so the deciding half keeps its `--root` and `--selftest`.
+      #
+      # None of the link is waste: `scripts/k_probe_sweep.sh` runs
+      # `--test all` on the next step but one, and this primes it.
       - name: compile and list every probe-gated test target
         run: |
           set -euo pipefail
@@ -1889,7 +1893,7 @@ jobs:
           test -n "$crates"
           echo "probe-gated crates: $(echo "$crates" | tr '\n' ' ')"
           for c in $crates; do
-            cargo check -p "$c" --features probe --all-targets
+            cargo test -p "$c" --features probe --all-targets --no-run
             cargo test -p "$c" --features probe --test all -- --list \
               | scripts/gates/probe-suite-census.sh --check-listing "$c"
           done

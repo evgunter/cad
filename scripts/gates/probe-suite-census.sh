@@ -60,18 +60,18 @@
 # checked by planting.
 #
 # ITS COST IS SMALL AND NOT PRECISELY KNOWN, which is the honest form.
-# The marginal is one `--test all -- --list` per censused crate: a
-# codegen+link the compile loop does not do, but not wasted, since
-# `scripts/k_probe_sweep.sh` runs `--test all` two steps later and the
-# link primes it. Hosted, `k-lint`'s two probe steps summed 196 s and
-# 212 s across two runs WITHOUT this half and 219 s across one run with
-# it — n=1 per arm, with a same-arrangement spread (16 s) as large as the
-# difference. **These numbers have no guard and cannot get one**: nothing
-# in the repo records `k-lint` step times (`rebuild-latency` measures
-# kernel rebuilds), and a threshold over runner-to-runner variance would
-# fire on weather. They are a decision's evidence, dated and sourced in
-# the PR that took it, not a baseline — and a taker who needs them
-# re-measures rather than trusting them.
+# The marginal is the link `--test all -- --list` needs, which the sweep
+# two steps later would pay anyway. Hosted, `k-lint`'s two probe steps
+# summed 196 s and 212 s across two runs WITHOUT this half and 219 s with
+# it — n=1 per arm, and a same-arrangement spread (16 s) as large as the
+# difference, so: small, and not resolved by three runs. A fourth run
+# priced the arrangement that TYPE-CHECKS and then builds at 271 s, which
+# is why the step builds directly. **These numbers have no guard and
+# cannot get one**: nothing in the repo records `k-lint` step times
+# (`rebuild-latency` measures kernel rebuilds), and a threshold over
+# runner-to-runner variance would fire on weather. They are a decision's
+# dated, sourced evidence, not a baseline — a taker who needs them
+# re-measures.
 #
 # WHAT THE PREDICATE CANNOT MATCH, stated because the previous one's blind
 # spot was not: a gate split across lines; a gate with a TRAILING COMMENT

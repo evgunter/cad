@@ -10921,16 +10921,19 @@ same PR rules affordable at **D40**. Arguing that a compilable fixture is cheap
 at D40 and prohibitive here, two rows apart, was the error; the split above
 removes the question.
 
-**The cost, stated as what it is.** The marginal is one `--test all -- --list`
-per censused crate — a codegen+link the compile loop does not do, and not
-wasted, since `k_probe_sweep.sh` runs `--test all` two steps later. Hosted,
-`k-lint`'s two probe steps summed **196 s** (run `32386792956`) and **212 s**
-(run `32392635996`) without this half, and **219 s** (run `32389414812`) with
-it. **n=1 per arm, and the same-arrangement spread of 16 s is as large as the
-difference** — so the honest reading is *small, and not resolved by three runs*,
-not "+23 s". The earlier record quoted 196 s as "today"; it was this PR's first
-commit. The decision rests on correctness, and the number is evidence for a
-bound, not a figure to defend.
+**The cost, stated as what it is.** Hosted, `k-lint`'s two probe steps summed
+**196 s** (run `32386792956`) and **212 s** (run `32392635996`) without this
+half, and **219 s** (run `32389414812`) with it. **n=1 per arm, and the
+same-arrangement spread of 16 s is as large as the difference** — so the honest
+reading is *small, and not resolved by three runs*, not "+23 s". An earlier
+version of this record quoted 196 s as "today"; it was this PR's first commit,
+and the third figure was in the PR's own run list. **A fourth run priced the
+arrangement this unit first shipped** — `cargo check --all-targets` *and then*
+the listing build — at **271 s** (run `32397772729`), because rmeta from a check
+buys a link nothing. The step therefore builds directly with `--all-targets
+--no-run`, which covers everything the check covered and costs 52 s less. The
+decision rests on correctness; the numbers bound it and are not a figure to
+defend.
 
 **Q6 on these constants: no guard, and here is why.** Nothing in the repo
 records `k-lint` step times — `rebuild-latency` measures kernel rebuilds — and a
