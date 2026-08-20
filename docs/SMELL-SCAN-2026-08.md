@@ -6153,9 +6153,10 @@ The predicate is `geom_brep::props::curved::require_rims_at_extremes`,
 decided under the name the torus already used — **`props_rim_level`**:
 *every rim sits at one of the face's two extreme `v`-levels*. `w(v)`
 changes only where a rim is (between rim levels the boundary is
-meridians, which move no `u`-endpoint), so the rule forces `w ≡ Δu`,
-which is exactly what `area = r·Δu·(hi − lo)` and its per-kind siblings
-integrate. Cylinder, cone and sphere adopt it, each passing its own two
+meridians, which move no `u`-endpoint), so the rule establishes
+`w ≡ Δu` — **one** of the two premises `area = r·Δu·(hi − lo)` and its
+per-kind siblings integrate; the other is the `v`-extent, and it is NOT
+established here (see SCOPE below). Cylinder, cone and sphere adopt it, each passing its own two
 extremes in its own `RimLevel` representation (`Length` bare;
 `Unit` direction pairs levered — sphere `× R`, torus `× minor`); the
 torus's private loop **became** the shared call rather than a second
@@ -6176,18 +6177,41 @@ pinned in `tier_gate`'s corpus: `cross.step` refuses at import, and
 mis-measuring.
 
 Over-refusal: nothing legitimate newly refuses. The wild and FreeCAD
-corpora, the whole `tier_gate` matrix (62 files × 3 ambient ε × 3 ε_in),
-the volume oracle at its `1e-11` budget, and the `geom-brep` / `topo` /
-`mesh` / `sweep` / `step-import` suites are all green; the only
-dispositions that moved are the two intended ones.
+corpora, the whole `tier_gate` matrix (every committed STEP file × 3
+ambient ε × 3 ε_in), the volume oracle at its `1e-11` budget, and the
+`geom-brep` / `topo` / `mesh` / `sweep` / `step-import` suites are all
+green. Exactly **one** disposition moved — `cross.step`, from Pass to
+Refused. `tee.step` was already refused (on `props_du_consistent`, its
+one-sided arm making the span sums disagree); only the REASON in its
+refusal string moved, which is why those rows pin the reason.
 
-**The third consumer's prose was also wrong, and that is fixed.**
-`ValidationError::VolumeUncomputable`'s doc read *"at rest every
-M2-constructible body computes; this is corruption surfaced loudly"* —
-D2-addendum **row 1** framing, falsified by an executed counterexample:
-an imported keyed shaft is not corruption. It now says what it reports,
-which is **row 2** — the body carries a face whose measurement lane the
-kernel has not built.
+The "zero refusals" evidence is *ran and passed*, not *never reached*,
+and structurally rather than by instrument: every curved flux/area
+closed form calls the predicate before it integrates, so a curved face
+that produced an area is a face where it ran and returned `Ok`. Its
+blind spot, stated (§C15): rimless sphere bands and
+`boundary_material_sign` are exempt, planar and quadrature-lane faces
+never reach it, and neither does a face on a body refused before check
+7 runs. The COUNT is not instrumented.
+
+**The third consumer's prose was also wrong, and that is fixed —
+twice.** `ValidationError::VolumeUncomputable`'s doc read *"at rest
+every M2-constructible body computes; this is corruption surfaced
+loudly"* — D2-addendum **row 1** framing, falsified by an executed
+counterexample: an imported keyed shaft is not corruption. #714's first
+pass replaced it with a flat **row 2** claim, which is wrong the other
+way, because `source: MassPropsError` has five arms. It is now stated
+PER SOURCE: `Face` is row 2 and the reachable one; `Corrupt`,
+`NullScaffoldEdge` and `RingOnCurvedFace` document themselves as
+corruption or mid-surgery and are row 1; `Band` is neither. Its closing
+sentence used to assert an invariant the doc site does not enforce, and
+now names what actually makes the row-1 arms near-unreachable — the
+`if errors.is_empty()` gate on check 7's call — and says that is a
+sequencing fact, not an invariant. `mass_properties`' own `# Errors`
+doc carried the same falsified claim (*"bodies that pass the structural
+tiers and were built by M2's public operations always compute"*) one
+crate-module over, and is fixed with it: `merge_coplanar_faces` is the
+public operation that falsifies it.
 
 **Two residues, both PLACED as rows** (§D ordering rule 3 — a lane's
 own residues are rows, not footnotes; they were footnotes here until
