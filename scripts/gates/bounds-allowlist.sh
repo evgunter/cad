@@ -43,9 +43,10 @@
 # certified bracket that refuses below `Decoration::Def`) and no
 # `Decide`. That pair is spelled `geom_core::CertifiedBounds`, so the
 # file takes a SOLE bound and is outside this check's class rather than
-# carved out of it. `Decide + CertifiedBounds` would be a compound bound
-# again and would fire here, which is right: that is a parameter that
-# decides AND brackets.
+# carved out of it. `Decide + CertifiedBounds` is a compound bound again
+# and DOES fire here, which is right: that is a parameter that decides
+# AND brackets. The matcher below sees that spelling in both operand
+# orders and the self-test plants both.
 # geom-brep/src/edge_nurbs.rs is M7-8's plane × NURBS edge lane,
 # the narrowest possible extension of that same seam: it DELEGATES
 # to the already-listed `certify_rung3` door with a declared
@@ -92,8 +93,9 @@
 # `Decide + Bounds` honestly, carrying sugar.rs's ratified
 # justification verbatim: a representation-level choice between
 # already-classified constructions, never a re-decision of geometry.
-# Confined to this one file so path.rs itself stays bracket-free;
-# fillet_select.rs is NOT listed (sole-bound `T: Bounds`).
+# The LITERAL spelling is confined to this one file; the BOUND is not,
+# and the difference is KNOWN GAP 3 below. fillet_select.rs is NOT listed
+# (sole-bound `T: Bounds`).
 # `geom_core::CertifiedBounds`'s own two DEFINITION lines — the trait
 # declaration and its blanket impl, in geom-core/src/real.rs — are
 # skipped by name. A name's definition is not a use of it, and the pair
@@ -103,8 +105,23 @@
 # writes real.rs carrying both skipped definition lines and an ordinary
 # compound signature below them, and requires the gate to fire. Widening
 # the skip to a file-wide entry makes that case fail.
-# The match is order-insensitive: `Decide + Bounds` and `Bounds + Decide`
-# both fire, and the self-test plants both spellings.
+# WHAT THE MATCHER MATCHES, and why it is shaped by NAME rather than by a
+# list of names. It fires on any identifier ending in `Bounds` sitting on
+# either side of a `+`, through any path prefix: `Decide + Bounds`,
+# `Bounds + Decide`, `Decide + CertifiedBounds`,
+# `geom_core::CertifiedBounds + Decide`. Order-insensitivity was #676's
+# fix for one half-blindness; the ALIAS half is the same defect one name
+# later, because an enumerating matcher is blind to the next alias the day
+# it is written -- which is how `CertifiedBounds` stayed invisible while
+# the paragraph above asserted it fired. `\w*Bounds` takes the reverse
+# trade knowingly: a future trait whose name ends in `Bounds` but which is
+# NOT a bracket door will fire and have to be ratified here. That is the
+# conservative direction, and the answer to it is a ratification line,
+# never a narrowing of this regex back to a list of known names.
+# A SOLE bound -- `T: CertifiedBounds`, `T: Bounds` -- is outside the
+# class and does NOT fire; the self-test plants that as a negative case,
+# since a matcher that fired on it would red every certification file in
+# geom-brep and geom.
 # KNOWN GAP 1: the match is line-based, so a bound broken across lines —
 # `T: Bounds` ending one line and `+ Foo` beginning the next — is
 # invisible to it. Stated rather than left to be discovered; closing it
@@ -129,6 +146,26 @@
 # satisfied by the RULE, and it evades the GREP. A second use of the
 # supertrait spelling to dodge this gate is a violation; ratify it here
 # first, exactly as a file entry would be.
+#
+# KNOWN GAP 3: a compound bound given a NAME is invisible at its USE
+# sites. `profile/src/path/arc_fillet.rs:593` declares
+#
+#     pub trait ArcCarrierScalar: Decide + Bounds {}
+#
+# The DECLARATION fires (it writes `Decide + Bounds` literally) and is
+# ratified by this file's arc_fillet.rs entry. Every USE of the name is a
+# `Decide + Bounds` bound that this matcher cannot see, and there are ~49
+# of them across profile/src/path/{family,program}.rs, with the name
+# re-exported from profile/src/path.rs, profile/src/lib.rs and
+# pncad/src/profile.rs -- so the pair is `pub` from the top-level crate.
+# This is KNOWN GAP 2's family (a bound reached through a supertrait
+# obligation), and closing it by grep would mean redding those two files
+# and allowlisting them, which is the confession this gate exists to avoid
+# rather than a disposition. Recorded as S124 of
+# docs/SMELL-SCAN-2026-08.md and owned by the row that decides the alias's
+# final bound (S87's `ArcCarrierScalar` conversion), because whether these
+# sites are legal depends on what the alias is bound to -- not on whether
+# a regex can spell it.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -136,7 +173,7 @@ set -euo pipefail
 gate() {
   gate_require_crate_sources
   local hits
-  hits=$(grep -rnE '(\+\s*(geom_core::)?Bounds\b)|(\b(geom_core::)?Bounds\s*\+)' crates/*/src \
+  hits=$(grep -rnE '(\+\s*(\w+::)*\w*Bounds\b)|(\b(\w+::)*\w*Bounds\s*\+)' crates/*/src \
     | grep -vE ':[0-9]+:\s*(//|///|//!)' \
     | grep -vE ':[0-9]+:(pub )?trait CertifiedBounds:' \
     | grep -vE ':[0-9]+:impl<T: Bounds \+ CertifiedEnclosure> CertifiedBounds for T ' \
@@ -188,6 +225,63 @@ plant_dual_equivalent_spelling() {
   printf 'impl<T: Bounds + KinkJacobian> Bounds for Dual<T> {}\n' > "$1/crates/planted/src/lib.rs"
 }
 
+# The ALIAS cases, and the reason they are planted one spelling at a time
+# for the same reason the two operand orders are: the gate was blind to
+# BOTH `Decide + CertifiedBounds` orders while its own header asserted it
+# fired on them, and a fixture carrying both would still pass with only
+# one spelling matched.
+plant_certified_decide_first() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn f<T: Decide + CertifiedBounds>(_t: T) {}\n' > "$1/crates/planted/src/lib.rs"
+}
+
+plant_certified_bounds_first() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn f<T: geom_core::CertifiedBounds + Decide>(_t: T) {}\n' > "$1/crates/planted/src/lib.rs"
+}
+
+# The property that stops this being S56/S59 a third time: the matcher is
+# shaped by the NAME, so an alias that does not exist yet is already
+# covered. This case goes red the day someone narrows `\w*Bounds` back to
+# an enumeration of the names in the tree today.
+plant_unknown_alias() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn f<T: Decide + RingBounds>(_t: T) {}\n' > "$1/crates/planted/src/lib.rs"
+}
+
+# The NEAR MISS, and the case that keeps the widening honest. A SOLE
+# bracket bound is outside this gate's class by construction; a matcher
+# that fired on it would red geom-brep/src/ssi/enclose.rs, geom/src/net.rs
+# and both geom nurbs files, and the cheap way green would be to allowlist
+# them -- which is how a gate stops guarding the case it was written for.
+plant_sole_bracket_bounds() {
+  mkdir -p "$1/crates/planted/src"
+  {
+    printf 'pub fn a<T: CertifiedBounds>(_t: T) {}\n'
+    printf 'pub fn b<T: geom_core::CertifiedBounds>(_t: T) {}\n'
+    printf 'pub fn c<T: Bounds>(_t: T) {}\n'
+    printf 'pub struct S<T: CertifiedBounds, P: ControlPoint<T>>(T, P);\n'
+  } > "$1/crates/planted/src/lib.rs"
+}
+
+# gate_selftest_case's negative twin: the fixture must PASS. lib.sh has no
+# such helper -- its only passing fixture is the empty clean tree, which
+# proves nothing about a spelling that must not fire. Local until the
+# shared file can take it.
+selftest_passes() {
+  local what=$1; shift
+  local tmp out
+  tmp=$(mktemp -d)
+  gate_plant_clean "$tmp"
+  "$@" "$tmp"
+  if ! out=$(cd "$tmp" && gate 2>&1); then
+    rm -rf "$tmp"
+    printf 'SELFTEST FAILED: the gate FIRED on %s, which is not a violation\n%s\n' "$what" "$out" >&2
+    exit 1
+  fi
+  rm -rf "$tmp"
+}
+
 plant_real_rs_signature() {
   mkdir -p "$1/crates/geom-core/src"
   {
@@ -198,12 +292,17 @@ plant_real_rs_signature() {
 }
 
 gate_selftest() {
+  local want="compound Bounds bound outside the ratified seams"
   gate_selftest_clean
-  gate_selftest_case "compound Bounds bound outside the ratified seams" plant_decide_first
-  gate_selftest_case "compound Bounds bound outside the ratified seams" plant_bounds_first
-  gate_selftest_case "compound Bounds bound outside the ratified seams" plant_real_rs_signature
-  gate_selftest_case "compound Bounds bound outside the ratified seams" plant_dual_equivalent_spelling
-  printf '%s selftest OK: passes a clean fixture, fires on both operand orders, fires on a compound bound in real.rs beside the skipped definition lines, and fires on the equivalent spelling of dual.rs Bounds impl (KNOWN GAP 2)\n' "$(gate_name)"
+  gate_selftest_case "$want" plant_decide_first
+  gate_selftest_case "$want" plant_bounds_first
+  gate_selftest_case "$want" plant_certified_decide_first
+  gate_selftest_case "$want" plant_certified_bounds_first
+  gate_selftest_case "$want" plant_unknown_alias
+  gate_selftest_case "$want" plant_real_rs_signature
+  gate_selftest_case "$want" plant_dual_equivalent_spelling
+  selftest_passes "a sole bracket bound" plant_sole_bracket_bounds
+  printf '%s selftest OK: passes a clean fixture and a sole bracket bound, fires on both operand orders of `Decide + Bounds` and of `Decide + CertifiedBounds`, fires on an alias name not in the tree today, fires on a compound bound in real.rs beside the skipped definition lines, and fires on the equivalent spelling of dual.rs Bounds impl (KNOWN GAP 2)\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
