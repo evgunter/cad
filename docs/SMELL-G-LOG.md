@@ -230,14 +230,14 @@ before the merge, so answering saves a round.
 
 ## Lane roster
 
-**Wave 1 — open now.** These three share no file with each other, with Track
-C's open lanes (#732, `stl/`), with Track E's (#753 `scripts/`+`ci.yml`, #763
-`crates/*/tests/all.rs`, #767 `editor-core/src/eval/`, #768
-`sweep/src/fillet/`), or with Track F's.
+**Wave 1 — opened together.** These three share no file with each other, with
+Track C's open lanes (#732, `stl/`), with Track E's (#753 `scripts/`+`ci.yml`,
+#763 `crates/*/tests/all.rs`, #767 `editor-core/src/eval/`, #768
+`sweep/src/fillet/`), or with Track F's. **G-a has landed its PR and left this
+roster** (see *Landings*).
 
 | lane | row | scope | review | state |
 |---|---|---|---|---|
-| **G-a** | **G1** (S72 + S110(h), S111(c), S112(b)(c), S114(a)(d), S116(r)(t)) | `interval-transcendentals/` (its own workspace), and `ci.yml`'s oracle-job comments only — see **G-R3** | **ADVERSARIAL** | — |
 | **G-b** | **G2** (S110(g)(j), S112(h), S113(a)(b), S114(b)(c), S116(d)) | `demos/` | style; **S114(c) is a design PR to Evan** | — |
 | **G-c** | **G3** (S74, and the *"deliberately NOT unified"* class re-check) | `sweep/src/{swept,revolve/mod,extrude,loft,revolve/tube}.rs` | style | — |
 
@@ -265,7 +265,9 @@ C's open lanes (#732, `stl/`), with Track E's (#753 `scripts/`+`ci.yml`, #763
 
 ## Landings
 
-*(none yet)*
+| lane | row | PR | note |
+|---|---|---|---|
+| **G-a** | **G1** — S72 + S110(h), S111(c), S112(b)(c), S114(a)(d), S116(r)(t) | **#786** | Fence published per **G-R3**: three `ci.yml` hunks, all inside the `interval-backend` job's header comment, ~790 lines from #753's. Two members came back with corrections to the findings rather than clean closures — **S111(c)** (`intersection` is called and is §D7's reference point; the inventory was the defect) and **S114(d)** (the decoration idiom is five sites, not six). Both are recorded at the findings. |
 
 ## Incidents
 

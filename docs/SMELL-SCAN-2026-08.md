@@ -7973,49 +7973,39 @@ covers.
 
 **Verdict:**
 
-## S72. `interval-transcendentals`: nothing constrains the pads from above, and the cheap tier catches a dropped outward round for division only
+## S72. FIXED by #786 — `interval-transcendentals`: the pads had no upper constraint, and the cheap tier caught a dropped outward round for division only
 
-Both halves were **executed** — the agent copied the crate to a scratch
-dir and ran the mutations.
+**The derivations were sound and are untouched**; the defect was in what
+the tests could see. Both halves were closed, and every mutation was
+re-executed at merge base `de103835` (reproducing the scan exactly) and
+again on the fix branch, with the oracle tier built and run locally.
 
-**The pads.** `PAD_ULPS = 64` (16× the derived value, `src/trig.rs:24`)
-passes the entire default-tier suite green. The oracle tier cannot catch
-it either: `tests/common/mod.rs:159-170`'s `assert_contains` asserts only
-`mine.lo() <= iv.inf() && iv.sup() <= mine.hi()`, which gets *easier* as
-the enclosure degrades. The only counterweight, `Tightness::report`,
-`println!`s and never asserts. `src/lib.rs:45` calls this *"Tightness
-(documented, measured in the harness)"* — the number is measured,
-printed, and never guarded, so the crate's headline tightness contract
-is one careless "let's pad a bit more to be safe" away from silently
-16×-ing every enclosure in the kernel with all lanes green.
+**The upper constraint.** `tests/pad_contract.rs` asserts, with no oracle
+and no C toolchain, that each endpoint is within the DERIVED pad of the
+backend's own value — 4 steps for the transcendentals, 1 for
+`+ − × ÷ sqrt`. `PAD_ULPS = 64` and even `PAD_ULPS = 5` now go red there.
+`Tightness::report` additionally asserts a ceiling on the worst width
+ratio against the oracle (8 for the 1-step ops, 64 for the 4-step ones;
+structural worst `2·pad+1`, measured maxima 3 and 8–10), which catches a
+widening that does not come from a pad. `powi` and the huge-magnitude
+window carry no ceiling, with the reason at each call site: their
+looseness is documented and unbounded by design.
 
-**The cheap tier.** Three more scratch probes: `PAD_ULPS = 0` (every
-transcendental pad gone) — green; `add_lo`/`add_hi`/`mul_lo`/`mul_hi`
-reduced to bare round-to-nearest, i.e. an *unsound* interval arithmetic
-— green; `sqrt_lo`/`sqrt_hi` pads removed — green. Only the division pad
-goes red. `.github/workflows/ci.yml:1097-1099` says of this row *"that
-tripwire is what catches a dropped outward round"*; `README.md:34` says
-*"a dropped pad is caught by the same pipeline that gates the kernel."*
-Both are true for `÷` and false for `+ − × sqrt sin cos tan asin acos
-atan atan2`. `oracle-certify` does fire on `src/` changes, so CI overall
-is not blind — but the cheap row's stated purpose, and the README's
-claim about it, overreach by nine operations.
+**The cheap tier.** `review_fuzz_div.rs` became `review_fuzz_exact.rs`
+and grew `×` and `sqrt` lanes on the same exact-rational primitives —
+which is also the answer to *"the bugfix protected the site that did not
+have the bug"*. Reducing `mul_*` to bare round-to-nearest, or dropping
+the `sqrt` pads, now goes red without an oracle. `+ −` deliberately have
+no such lane: TwoSum's error term is representable for all finite doubles
+with no underflow proviso, so their witness has no validity floor to get
+wrong, and the rational comparator cannot serve them anyway (~2100 bits).
+The seven transcendentals cannot be covered cheaply at all — their truth
+needs a multi-precision reference — so `ci.yml`'s and `README.md`'s
+claims were rewritten to split by DIRECTION (a pad widened: every
+operation; a pad dropped: `÷ × sqrt` cheaply, the rest under
+`oracle-certify`, which fires on every change to the crate).
 
-**The bugfix protected the site that did not have the bug.** The
-containment violation that motivated the magnitude gate was found in
-`mul_exact` (`src/round.rs:131-133`, `docs/derivations.md:144-151`); the
-response was a dedicated exact-rational fuzz for **division**. `mul` and
-`sqrt` got no equivalent.
-
-**Bottom line the agent volunteered, and it matters for S1:** the pad
-*derivations* are real. `docs/derivations.md` §1 P1/P2/P3 are genuine
-proofs, correctly applied per function, and the one non-derived
-ingredient (Assumption A) is stated plainly rather than smuggled. No
-unsoundness was found in `round.rs`'s witnesses, `Div`'s pole case
-split, or `atan2`'s three-case table. The finding is about what the
-tests can see, not about the mathematics.
-
-**Verdict:**
+**Verdict:** FIXED.
 
 ## S73. The tessellation instruments resolve every broken measurement in the cannot-fire direction
 
@@ -8887,10 +8877,11 @@ written for. Beyond S60, S75, S76, S78, S84 and S91 above:
 - (g) `demos/wild/src/main.rs:321-325` —
   `assert_eq!(scenes.len(), WILD_CELLS.len())` where `scenes` is built
   from `WILD_CELLS.iter().map(…).collect()`. Equal by construction.
-- (h) `interval-transcendentals/tests/common/mod.rs:149-152` —
-  `assert!(mine.is_empty() || !mine.is_nai())` is strictly subsumed by
-  the `assert!(mine.is_empty())` three lines below; it can only change
-  the panic message.
+- (h) **FIXED by #786** — the subsumed
+  `assert!(mine.is_empty() || !mine.is_nai())` in
+  `interval-transcendentals/tests/common/mod.rs` is gone; the
+  `assert!(mine.is_empty())` below it carries the whole claim, with the
+  offending value in its message.
 - (i) `crates/sweep/tests/review_d8_consumer_differential.rs:217,298,398`
   — pinned literal seeds (`fuzz::pinned(…, 0x00d8_c0de_0000_000N)`) are
   licensed by the memory for the *digest* half, which is printed and
@@ -8927,15 +8918,23 @@ written for. Beyond S60, S75, S76, S78, S84 and S91 above:
   class; #672 records the residue and does not name this. Also:
   `sweep::fillet::surgery` is `pub` while every other item in it is
   `pub(super)`.
-- (c) `interval-transcendentals/src/ops.rs:93` — `intersection` is
-  outside the crate's declared scope (`lib.rs:10-13`: *"Scope is the
-  kernel's inventoried surface only … Nothing else"*), is in neither of
-  `docs/inventory.md`'s lists, and has **zero call sites** anywhere
-  (every other public method has 1–1375). It is also the one op with a
-  decoration rule nothing else follows. Mirror case:
-  `src/consts.rs:40`'s `neg_frac_pi_2` is `pub fn` in a private module
-  and, unlike `pi`/`frac_pi_2`, never cross-checked in
-  `certify_constants`.
+- (c) **FIXED by #786, and the charge was wrong about the code.**
+  `intersection` is neither uncalled (five call sites in `ops.rs`'s
+  `intersection_trv_cap_and_taxonomy`, pinning the `Trv` cap, the
+  empty/disjoint taxonomy and NaI propagation) nor decorative:
+  `docs/semantics-diffs.md` §D7 defines `hull`'s single deliberate
+  1788 divergence AGAINST it, so deleting it would remove what a
+  surviving argument points at — S74's mechanism. What the diagnostic
+  actually convicted was `docs/inventory.md`, which omits `hull` by the
+  same test, and `hull` is unquestionably used. **Both set operations
+  are inventoried now**, in their own section with their callers, and
+  `lib.rs`'s scope sentence names them apart from the `Real` surface
+  rather than claiming *"nothing else"*. The mirror case,
+  `consts.rs`'s `neg_frac_pi_2`, is `pub(crate)` and IS `-frac_pi_2()`
+  rather than a second hand-written endpoint pair, which puts it under
+  `certify_constants`' cross-check transitively (the step between them
+  being exact); two unit tests pin that and the constants' one-ulp
+  brackets. Recorded as a ruling in `SMELL-G-LOG`.
 - (d) `crates/sweep/src/fillet/naming.rs:56` — `Retired` still has no
   face channel, so the one thing it exists to catch (a source entity
   destroyed without a record) is structurally uncatchable for faces. The
@@ -8950,20 +8949,21 @@ written for. Beyond S60, S75, S76, S78, S84 and S91 above:
   `emit_fillet.rs:220-221` builds `retired_e`/`retired_v` straight out
   of `rec.dead` and consults them. The diff rewrote the paragraphs
   immediately above and below and left this one.
-- (b) `interval-transcendentals/tests/certify.rs:20-21` and
-  `.github/workflows/ci.yml:1106-1107` still assert *"run this lane by
-  hand"* / *"stays a by-hand gate"*. Commit `fb883b27` (2026-08-13)
-  added the `oracle-certify` job and rewrote `README.md`; the `ci.yml`
-  sentence sits ~55 lines above the job that contradicts it, in the same
-  file.
-- (c) `interval-transcendentals/src/ops.rs:1-2` and
-  `docs/inventory.md:33,37` promise a `copysign`-style sign transfer as
-  part of the exact surface. No such function exists in `src/`; the
-  implementation lives in the consumer
-  (`crates/geom-core/src/interval.rs:356`) with its own signed-zero and
-  decoration-cap reasoning. **This bears on S1**: "delete `RingInterval`
-  in favour of this crate" leaves at least one exact-surface op hosted
-  inside a consumer.
+- (b) **FIXED by #786** — `certify.rs`'s header now names
+  `oracle-certify`, its `ORACLE_PATHS` trigger and its effort setting,
+  and gives the by-hand invocation as an addition rather than as the
+  gate; `ci.yml`'s *"stays a by-hand gate"* sentence is gone from the
+  `interval-backend` job's header.
+- (c) **FIXED by #786 — the promise, not the placement.** `ops.rs`'s
+  header and `docs/inventory.md` now say that `copysign` is on the
+  `Real` surface but NOT in `src/`, that it lives with the trait impl
+  at `crates/geom-core/src/interval.rs:356`, and why: a `sign` operand
+  containing zero has no sign to transfer, so the result is a hull of
+  `±|self|` with the decoration capped at `Def` — not endpoint
+  selection. **The code did not move, and S1 is untouched**: where it
+  should ultimately live is part of the `RingInterval`-vs-`Interval`
+  question, and this member's fix is only to stop two documents
+  promising code that was never there.
 - (d) `crates/geom-brep/src/props/curved.rs:886-890` — `cone_arm`'s doc
   still says its `T::one()` fallback *"covers the no-rim case, where
   `du_of_rims` refuses before any margin is metered"*. After the
@@ -9028,14 +9028,14 @@ Beyond S64, S67, S74 and S98:
 
 ## S114. Duplications the fix passes did not reach (roll-up)
 
-- (a) `interval-transcendentals/src/round.rs:134` and
-  `src/algebraic.rs:16` — `TWO_PROD_VALID_MIN` and
-  `SQRT_EXACT_WITNESS_MIN` are the identical bit pattern
-  `0x03F0_0000_0000_0000` in two files, reconciled by prose (*"the same
-  2Prod validity floor as `round.rs`"*). The FMA witness itself is
-  written out four times, two of them outside `round.rs` despite that
-  module's doc claiming *"the load-bearing lemmas are restated at each
-  helper"*.
+- (a) **FIXED by #786** — one `TWO_PROD_VALID_MIN` and one
+  `two_prod_witness(x, y, z, mag)` in `round.rs`, called by `mul`, `div`
+  and `sqrt`. The FMA witness went from four spellings to one and
+  `SQRT_EXACT_WITNESS_MIN` is gone with its prose reconciliation;
+  `derivations.md` §3 already derived ONE floor for all three, so the
+  code now matches the derivation's shape. `round.rs`'s header no
+  longer claims the lemmas are restated at each helper — it says the
+  shared one has a single home.
 - (b) `demos/tour/src/skinned.rs:195-215` — `quad`, `PRISM_SQUARE`,
   `PRISM_TRAPEZOID`, `lofted_at_z`, `ELBOW_H` mirrored constant for
   constant from `crates/step-export/tests/common/mod.rs:733` and
@@ -9053,11 +9053,15 @@ Beyond S64, S67, S74 and S98:
   `check_render_provenance.py:104,112` announces the shape outright —
   *"Kept in sync with render.sh's `--montage=` arguments"*, *"keep the
   three spellings in sync"* (there are two).
-- (d) `interval-transcendentals/src/trig.rs:30-58` vs `:62-88` and
-  `invtrig.rs:21-39` vs `:43-61` — `sin`/`cos` and `asin`/`acos` are
-  ~25-line near-verbatim twins differing in two constants and a libm
-  call; the `if bounded { Com } else { Dac }` idiom is spelled out
-  separately six times.
+- (d) **FIXED by #786** — `sin`/`cos` share one `sinusoid` body
+  parameterized by the libm entry point and the two extremum phase
+  offsets; `asin`/`acos` share `clamp_to_unit` (propagate, full-miss
+  Empty, partial-miss clamp-and-poison) and each keeps visible the half
+  that genuinely differs, which endpoint feeds which bound.
+  `Decoration::continuous_on` and `DInterval::is_bounded` replace the
+  hand-spelled idiom everywhere. **Count corrected:** the decoration
+  idiom was FIVE sites, not six — the sixth spelling of `bounded` is
+  `tan`'s, where it is a refusal condition rather than a decoration.
 - (e) `crates/geom/src/curves.rs:942` and
   `crates/geom/src/surfaces.rs:1118` — `fn contains` duplicated with two
   parameter names, in the same crate, beside the four converters the
@@ -9235,15 +9239,16 @@ see §C.
   payloads are ignored. So the `set_edge_curve(e, spec)` that
   `split_site`'s doc justifies at length is not checked by the property
   it was written for; delete it and the roundtrip still passes.
-- (r) `interval-transcendentals/src/ops.rs:90-106` — `intersection`
-  returns `Trv` on **every** input, a 1788 formality about set
-  operations rather than a domain-violation record, on the same wire
-  that carries domain clamps. `lib.rs:19-22` documents only the clamp
-  class; the `atan2`-at-origin case (`invtrig.rs:113`) is undocumented
-  too. A consumer that (per S41) started consulting the decoration in
-  `lo()`/`hi()` would poison every intersection result.
-  `interval.rs:135-143` is the natural place for the caveat and does not
-  carry it.
+- (r) **FIXED by #786, narrowed to what it really was — a pointer
+  problem.** The analysis was never missing: `docs/semantics-diffs.md`
+  §D7 has it. What was missing is a pointer where the reader hits it, so
+  `lib.rs`'s decoration paragraph now enumerates the three things that
+  lower a decoration to `Trv` — a domain clamp, `atan2` at the origin,
+  and `intersection` on EVERY input — and says why the third is named
+  there rather than only in the divergences file. §D7's argument is not
+  restated; a second home for it would be S13's defect. The consumer-side
+  half (`crates/geom-core/src/interval.rs:135-143`) is outside this
+  lane's workspace and is not closed here.
 - (s) `crates/geom/tests/surfaces/m5_pr7_surface_projection.rs:224-228`
   and `crates/geom/tests/curves/projection.rs:219` — both new overflow
   rows are built around *"Finite inputs throughout"*, which is the
@@ -9251,11 +9256,14 @@ see §C.
   `p.x.is_finite() && p.z.is_finite()` and skips `y`, the coordinate
   that actually varies across the fixture, and the curve row checks `x`
   alone.
-- (t) `interval-transcendentals/examples/bench.rs:2` tells you to run
-  `cargo run --release --example bench`, which fails: `Cargo.toml:74`
-  gives it `required-features = ["oracle-inari"]`. And
-  `tests/review_fuzz_div.rs:96-100`'s `cmp_f64_vs_rat` is
-  `#[allow(dead_code)]` justified by a *future* property test.
+- (t) **FIXED by #786** — `bench.rs`'s header gives the invocation that
+  works (`--features oracle-inari` plus inari's AVX+FMA floor) and states
+  what cargo does otherwise, both verified: `cargo run --example bench`
+  refuses outright, `cargo build --examples` matches no target.
+  `cmp_f64_vs_rat`'s deviation is discharged by USE rather than by a
+  schedule — it is what the new `×` lanes of `review_fuzz_exact.rs`
+  (formerly `review_fuzz_div.rs`) compare against, and the
+  `#[allow(dead_code)]` is gone.
 - (u) Residue: `crates/sweep/tests/m5_pr12_refusals.rs:518` has a
   leftover `let p = Point3::new(0.0,0.0,0.0); let _ = p;`.
   `crates/pncad-py/src/py/doc.rs:206-218`'s raise-site literal is
@@ -10852,7 +10860,9 @@ the track log):
 - **G1's `ci.yml` sites are not #753's.** #753's two hunks are at `:73-79` and
   `:302-308`; S72's and S112(b)'s are ~790 lines away in the `oracle-*` job
   region. Unlike F8 (F-R1), G1's fix does not land in a hunk #753 rewrites, so
-  the row opens with a published fence rather than a gate. (G-R3.)
+  the row opened with a published fence rather than a gate. (G-R3.)
+  **Landed: #786**, whose three `ci.yml` hunks are all inside the
+  `interval-backend` job's header comment.
 
 **S67's quotation of `face_normal.rs:26-31` is a paraphrase, not the tree's
 sentence** — the finding survives on its substance, and the correction is
@@ -10860,7 +10870,6 @@ recorded at G-R5 so a lane does not go looking for text that is not there.
 
 | # | Work | From | Scope | Proposed verdict | Review |
 |---|---|---|---|---|---|
-| **G1** | **`interval-transcendentals`: nothing constrains the pads from above.** `assert_contains` checks containment only; `Tightness::report` contains no assertion; `PAD_ULPS = 4` is unpinned; the cheap tier catches a dropped outward round for division only — while `ci.yml` and the README make broader claims. **The finding is careful that the derivations are sound and the defect is in what the tests can see; keep that framing.** Seven Tier-3 members live in the same workspace and come with it: S110(h), S111(c), S112(c), S114(a)(d), S116(r)(t) — and **S112(c) bears on S1**, since the `RingInterval` question leaves an exact-surface op hosted in a consumer. | **S72** + 7 roll-up members | `interval-transcendentals/` (its own workspace) | **ACCEPTED** | **ADVERSARIAL** |
 | **G2** | **`demos/` — nine roll-up members, one tree, no owner.** Equal-by-construction asserts (S110(g)(j)), prose describing a world the code left (S112(h)), two drifted counts (S113(a)(b) — **give these to E-b and let this lane consume the result**, or the two collide on `demos/tour/Cargo.toml`), duplications the fix passes did not reach (S114(b)), and **the one design question in the cluster: three hand-rolled JSON emitters, four readers, no schema (S114(c))**. | S110(g)(j), S112(h), S113(a)(b), S114(b)(c), S116(d) | `demos/` | **ACCEPTED**; S114(c) is a design row, not a patch | style |
 | **G3** | **`swept.rs`'s new shared home states a reason for not unifying that is factually false, and the same commit deleted the duplication markers.** `swept.rs:17-20` says revolve's builder has neither a reversal arm nor the orientation bit; `revolve/mod.rs:625` is `swept_segments(lp, reverse: bool)` and its own doc states the full involution. **The class claim is the valuable half**: re-check every *"deliberately NOT unified"* sentence in the S6 record. | **S74** | `sweep/src/{swept,revolve/mod,extrude,loft,revolve/tube}.rs` | **ACCEPTED** — and the deliverable is the class re-check, not the single fix | style |
 | **G4** | **`profile`'s fifth lane trait, blanket-implemented, which D1 never looked at** — `ArcCarrierScalar` over `T: Decide + Bounds`, so `Dual64` carries the whole `path::family` arc surface today, re-exported from `pncad`. **Per Evan's ruling this is mechanical**: `CertifiedBounds` is the bound that excludes a dual. **Gated on F1** — the gate that is supposed to force ratification of the new spelling is blind to it until S59 lands. | **S87** (and S88's `profile` half) | `profile/src/path/{arc_fillet,family}.rs`, `profile/src/lib.rs`, `pncad/src/profile.rs` | **ACCEPTED — RULED** (the admitting set) | **ADVERSARIAL** |
