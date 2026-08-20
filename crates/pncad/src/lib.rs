@@ -2,12 +2,31 @@
 //!
 //! # The contract
 //!
-//! 1. **One dependency.** Everything an authoring consumer needs is
-//!    reachable from `pncad`. The kernel crates are re-exported as
-//!    modules (`pncad::profile`, `pncad::topo`, …), so a consumer's
-//!    manifest names `pncad` and nothing else — including for the
-//!    *payload types of error enums*, which are otherwise the leak
-//!    that forces a second `path` dependency (see [`closure`]).
+//! 1. **One dependency, closed over error payloads.** Everything an
+//!    authoring consumer needs is reachable from `pncad`. The kernel
+//!    crates are re-exported as modules (`pncad::profile`,
+//!    `pncad::topo`, …), so a consumer's manifest names `pncad` and
+//!    nothing else — including the *payload types of error enums*,
+//!    which are otherwise the leak that forces a second `path`
+//!    dependency: `topo::BooleanError::CurvedBooleanUnsupported`
+//!    carries a `geom_brep::SurfaceKind` that `topo` does not
+//!    re-export, so a `topo`-only consumer can receive the error and
+//!    not spell its payload. Re-exporting the owning crates closes
+//!    that whole class rather than one case, at the cost of a longer
+//!    path for the few payloads that sit below their owner's root
+//!    (`geom_core::spline::KnotAlgebraError`,
+//!    `sweep::fillet::FilletError`, `topo::boolean::ContainError`,
+//!    `mesh::validate::MeshError`) — a longer path, never a second
+//!    crate — and it required **zero kernel edits**, which is the
+//!    ruling other crates cite when they need a payload type and find
+//!    its owner does not re-export it: the answer is a direct edge on
+//!    the owning crate, never a new re-export added to somebody
+//!    else's root. The one stated exception is `MigrationStep`, whose
+//!    signature speaks `serde_json::Value`; [`document`] records why
+//!    it stays out. `tests/all.rs` is the pin: it matches on the
+//!    cross-crate payloads using only `pncad::` paths, and a guard
+//!    test there reads its own source and fails if any kernel crate
+//!    is named outside one.
 //! 2. **A prelude.** [`prelude`] is the curated common surface,
 //!    derived from what the demo corpus actually imports rather than
 //!    from taste: the profile vocabulary, the four body operations,
@@ -29,12 +48,36 @@
 //!    façade that panicked where the kernel refused would be a worse
 //!    library than no façade.
 //!
-//! The façade contains no geometry and no numeric behavior of its
-//! own. Every item below is either a re-export or a thin wrapper that
-//! does nothing but call into the kernel: six of the seven seam
-//! functions are a single kernel constructor call, and [`validated`]
-//! is the one two-call form (`Profile::new` then `Profile::validate`)
-//! — the exact pair the demo corpus wrote by hand at every scene.
+//! # What the façade itself contains
+//!
+//! No geometry and no numeric behavior. The **authoring** surface is
+//! re-exports and thin wrappers that do nothing but call into the
+//! kernel: every [`authoring`] seam but one is a single kernel
+//! constructor call, and [`validated`] is that one — the two-call
+//! form (`Profile::new` then `Profile::validate`) the demo corpus
+//! wrote by hand at every scene.
+//!
+//! (Stated as a shape, not a count, on purpose. The previous wording
+//! said "six of the seven", which had been wrong since the `polygon`
+//! door was removed — a stale count in the sentence whose job is to
+//! say what is true. The shape is guarded:
+//! `the_authoring_seam_roster_is_what_the_crate_doc_claims` in
+//! `tests/all.rs` reads `authoring.rs` and fails if a seam is added
+//! or removed, or if a second one chains a follow-up kernel call, so
+//! this sentence cannot rot the same way twice.)
+//!
+//! **[`workspace`] is not that, deliberately.** It is a real
+//! subsystem: it scans a directory of save files, reads each one's
+//! `id:` header, refuses a duplicate id naming both claimants,
+//! resolves a `DocRef` through the full load door and checks the
+//! content pin it recomputes, writes new and rewritten files, mints
+//! random document ids from OS entropy, and implements
+//! [`document::PartResolver`] so an evaluation can cross the
+//! document seam. It lives here rather than in `editor-core` because
+//! the kernel is deterministic by construction: ambient randomness
+//! and the filesystem are exactly what must stay out of it, so the
+//! layer allowed to hold them is this one. What it adds is I/O and
+//! identity — still no geometry and still no numerics.
 //!
 //! [`validated`]: authoring::validated
 //!
@@ -49,6 +92,10 @@
 //!   scene and corpus document, and what each demonstrates.
 //! - [`guide::fail_loud`] — the refusal vocabulary, layer by layer.
 //!   If something refused and you want to know why, start there.
+//! - [`guide::selecting`] — naming and selecting entities: the
+//!   materializers, the pattern language, the geometric filters, and
+//!   the detect/declare protocol. The worked examples for
+//!   [`select`].
 //! - [`guide::north_star_audit`] — what the Python bindings can
 //!   author today, and the named gaps.
 //!
@@ -132,7 +179,6 @@ pub use topo;
 // the re-export. Re-export it the day a consumer needs it.
 
 pub mod authoring;
-pub mod closure;
 pub mod document;
 pub mod export;
 pub mod guide;
