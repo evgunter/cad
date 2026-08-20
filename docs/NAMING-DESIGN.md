@@ -353,7 +353,7 @@ door, not the signal.
 The LIB audit's "G14" turned out to be TWO disjoint M4-era
 deferrals (one logged sentence, M4-LOG:311), disentangled by
 measurement (cad-work/g14-survey.md; the conflation persisted
-because NamingError has no Display — #380 — so Python saw one
+because NamingError had no Display until #380, so Python saw one
 opaque refusal):
 
 **Wall B — tied-upstream over-strictness: ALIGN TO RATIFIED
