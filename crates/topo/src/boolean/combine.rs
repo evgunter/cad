@@ -360,9 +360,7 @@ pub(crate) fn graft_solids_with<T: geom_core::Decide>(
                 .with_remapped_surfaces(|sk| surfaces.get(sk).copied())
                 .ok_or_else(corrupt)?;
             let Some(slot) = dst.curves.get_mut(dk) else {
-                unreachable!(
-                    "graft: `dk` was minted into `dst.curves` by this call's curve pass"
-                )
+                unreachable!("graft: `dk` was minted into `dst.curves` by this call's curve pass")
             };
             *slot = CurveGeom::Certified(remapped);
             continue;

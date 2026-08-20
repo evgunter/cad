@@ -29,10 +29,10 @@ use geom::Surface;
 use geom_brep::EdgeCurveSpec;
 use geom_core::{Point3, Vec3};
 
+use crate::EulerOpError;
 use crate::entity::{EntityId, FaceKey};
 use crate::euler::FaceSurface;
 use crate::fixtures::{deep_snapshot, ops_cube};
-use crate::EulerOpError;
 
 fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
     Point3::new(x, y, z)
@@ -161,7 +161,10 @@ fn d21_movefac_refuses_a_dead_face_reached_by_the_walk_typed() {
 fn d21_a_cloned_body_resolves_every_key_of_the_original() {
     let body = ops_cube().body;
     let out = body.clone();
-    assert!(!body.half_edges.is_empty(), "fixture must exercise the walk");
+    assert!(
+        !body.half_edges.is_empty(),
+        "fixture must exercise the walk"
+    );
     for (he_key, _) in body.half_edges.iter() {
         assert!(
             out.get_half_edge(he_key).is_some(),
