@@ -539,10 +539,12 @@ fn main() {
     let mut manifest = String::new();
     let mut scenes: Vec<String> = Vec::new();
     let mut dumps: Vec<uvdump::FaceDump> = Vec::new();
+    let mut cells = 0usize;
     let mut run = |stop: &Stop| {
         manifest.clear();
         if run_stop(stop, &outdir, &mut manifest, &mut dumps) {
             scenes.push(manifest.clone());
+            cells += usize::from(stop.montage);
         }
     };
 
@@ -556,7 +558,16 @@ fn main() {
         .expect("write uv.json");
     let curved = dumps.iter().filter(|d| d.curved).count();
     let refused = dumps.iter().filter(|d| d.note.is_some()).count();
-    println!("\ntour complete: STL/STEP + scenes.json in {outdir}/ — render with demos/render.sh");
+    // The scene and cell counts, MEASURED. `demos/README.md` explains
+    // WHICH scenes stay off the montage and why; the arithmetic is
+    // here, where the scenes are, so the README never has to restate a
+    // number that a new stop changes.
+    println!(
+        "\ntour complete: {} scenes ({cells} montage cells, {} standalone) — \
+         STL/STEP + scenes.json in {outdir}/, render with demos/render.sh",
+        scenes.len(),
+        scenes.len() - cells
+    );
     println!(
         "uv lane: {} face charts ({curved} curved, {refused} unwalkable) in {outdir}/uv/ \
          + uv.json — sheet with demos/render-uv.sh",

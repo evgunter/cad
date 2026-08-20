@@ -11,8 +11,9 @@
 #   cd .. && ./render-wild.sh               # cells + sheet -> renders-wild/
 #
 # The cell set is governed by docs/WILD-CORPUS-LICENSES.md (the
-# license audit): the generator pins it (8 cells) and fails loud on
-# drift, and the attribution block rides demos/README.md.
+# license audit): the generator pins it -- in WILD_CELLS's own array
+# length, which is where the count lives -- and fails loud on drift,
+# and the attribution block rides demos/README.md.
 #
 # The lane keeps the committed-tree contracts of render.sh:
 #   * STAGING — cells render into out/stage/renders-wild/ (untracked)
