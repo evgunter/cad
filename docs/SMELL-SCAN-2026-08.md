@@ -4115,9 +4115,20 @@ convention covers a *sentence*, so #705 grepped the prose and found three
 live citations. The load-bearing one was `sweep/src/skin.rs`, whose
 entire "placement in this crate" argument rested on it. The other two
 were placement rationales in `geom-surfaces`' and `profile`'s promoted
-review suites. `DESIGN.md:1132` still names `geom-curves` inside the
-ratified **D2 addendum's** rationale — left alone as outside #705's
-authorisation, and now a stale crate name in a ratified document.
+review suites.
+
+`DESIGN.md:1132` named `geom-curves` inside the ratified **D2
+addendum's** rationale. #705 escalated it rather than fixing it — the
+merge ruling authorised the crate-table row and the line-369 pointer and
+nothing else — and **Evan ruled it separately (C-R8, 2026-08-20):
+rename in place.** The renamed sentence is the addendum's *why*
+paragraph, which observes that two crates gave opposite answers to
+"this state can only be a bug"; only the crate's NAME was stale, and the
+observation, the taxonomy table and the ruling it introduces are
+untouched. Recording the boundary explicitly, because a rename inside a
+ratified decision is exactly the edit that should not be inferable from
+a later diff: **the D2 addendum's rationale was renamed under an
+explicit authorisation; its ruling was not touched.**
 
 **The sentence recorded a placement rule, not a crate-graph fact**, and
 its real subject is `geom-brep/src/nurbs_iso.rs` — iso-curve extraction
@@ -6280,13 +6291,15 @@ because several rows want a decision inside them that the taker should expect
 to make and record.
 
 **Gating, stated 2026-08-19, because "nothing here is blocked" was too loose.**
-Six of these are edge-free and could start today: **C1**, **C2**, **S30**,
-**S31**, **S32**, **S24**. Three unblock when **A1** (#682) lands — **C7**
+Four of these are edge-free and could start today: **C1**, **C2**, **S30**,
+**S24**. Three unblock when **A1** (#682) lands — **C7**
 entirely and **C4's S33** — and their input is now better than "wait for the
 report": #682's adversarial pass produced a *compile-verified* table of which
 lanes sit behind `CertifiedEnclosure`, which is the premise W2a would otherwise
-have been designed against wrongly. **S27** waits on **A2** and **S28's
-duplication half** on **A3**, both for file overlap rather than for knowledge.
+have been designed against wrongly. **S27** waits on **A2**, **S28's
+duplication half** on **A3**, and **S32** on **#705** — all three for file
+overlap rather than for knowledge. (**S31** was the sixth edge-free row and is
+FIXED by #705; a landing leaves this paragraph as well as the table.)
 
 Two will not unblock by waiting, and should not be read as queued: **C6**'s
 rows are gated on other programmes entirely, and **S26** wants a written

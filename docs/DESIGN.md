@@ -1153,7 +1153,7 @@ raised by S43).**
 *Why:* the kernel had **five** answers to "this state can only be a
 bug", two of them mutual negations — `crates/topo` discards a missed
 Euler precondition silently ~60 times (blessed by the footnote above),
-while `geom-curves` argues in its own prose that silent discard is the
+while `geom` argues in its own prose that silent discard is the
 wrong direction and a bare index panic is the right one (PR #447, never
 brought back to D9). Both cited "fail loud". The rule below picks one.
 
