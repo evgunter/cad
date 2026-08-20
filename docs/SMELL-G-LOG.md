@@ -131,9 +131,10 @@ from the orchestrator.
 | lane | §D rows | findings |
 |---|---|---|
 | **G-a** | D71, D72 | S127, S128 |
-| ~~**G-b**~~ (landed, #787) | D73, D74 — **unused, returned**; **D79** used | S129 and **S130** used; S135, S136 free |
+| **G-d** (G5 half, #831) | **D72** used | **S128**, **S135** used |
+| ~~**G-b**~~ (landed, #787) | D73, D74 — **unused, returned**; **D79** used | S129 and **S130** used; S135 later taken by G-d, S136 free |
 | ~~**G-c**~~ (landed, #781) | D75–D77 — **unused, returned** | S131, S132, S133 — **all spent** |
-| unassigned | D72, D73, D74, D75, D76, D77, D80 | S128, S135, S136 |
+| unassigned | D73, D74, D75, D76, D77, D80 | S136 |
 
 **G-a used D71 and D78, and S127 and S134** (see *Landings*); D72 and S128 came
 back. **The `unassigned` line above is a reconciliation across three landings**
@@ -257,7 +258,7 @@ complete; wave 2 is the live one.
 
 | lane | row | scope | review |
 |---|---|---|---|
-| **G-d** | **G5** (S71) + **G10** (S112, re-scoped by **G-R2**) | `profile/tests/review_s2.rs`, `profile/src/sugar.rs` (re-read for G5, edited for S112(f)), `crates/pncad/src/lib.rs` | style |
+| **G-d** | **G10** only (S112, re-scoped by **G-R2**) — **G5/S71 landed as #831** | `profile/src/sugar.rs` (S112(f)), `crates/pncad/src/lib.rs` (S112(g)), plus the eight-member ledger at S112 | style |
 | **G-e** | **G6** (S104) | `editor-core/src/assembly.rs`, `pncad-py/src/py/doc.rs`, plus `editor-core/src/mate.rs` and `pncad-py/src/py/select.rs`, which the scan did not read | **ADVERSARIAL** |
 | **G-f** | **G8** (S67) | `topo/src/face_normal.rs` (docs), `topo/src/chord_join.rs` (the real question) | style **+ one ADVERSARIAL sub-unit**, not folded together |
 
@@ -280,6 +281,30 @@ complete; wave 2 is the live one.
 | lane | row | PR | note |
 |---|---|---|---|
 | **G-a** | **G1** — S72 + S110(h), S111(c), S112(b)(c), S114(a)(d), S116(r)(t) | **#786** | Fence published per **G-R3**: `ci.yml` hunks confined to the `interval-backend` job's header comment, ~790 lines from #753's. **NOT CLEARED on first review; fix pass landed in the same PR** — the tightness ceiling had reproduced S72's own defect (a max over a sample set the degradation empties), and the structural derivation beside it was wrong in the crate's favour (`4·pad+1`, not `2·pad+1`). One member came back correcting its finding: **S114(d)**'s decoration idiom is five sites, not six. **S111(c)'s first write-up over-corrected and is withdrawn** — the diagnostic was right about the code, only the remedy was wrong; see **G-R8** as amended. New findings taken: **S127**/D71, **S134**/D78. |
+
+### G-d — **G5**, `profile/tests/review_s2.rs`, #831
+
+**S71's prose half only; G10 stays open on this lane's roster row.** The header
+now states the boundary the deleting commit established and cites the shipped
+pins; `sugar.rs` was re-read and not edited. Three things beyond the doc edit:
+
+- **The parenthetical is issue #827.** The unreachable r > R class was called
+  *"a design question"* with no number and no unit — Q6's shape. Filed with
+  what would close it either way; the decision stays Evan's.
+- **`S128`/`D72`.** Making `check_corner`'s own doc claim true (rather than
+  narrowing it) turned a row red: the ε-keyed conditioning pin builds on a
+  hairline lens's TWIN crossing, so the collapsed lever it was mined for is
+  never exercised on the building bands. Not a kernel defect — the file's fuzz
+  skips exactly these draws — and now asserted rather than described. D72
+  schedules the re-mine.
+- **`S135`.** The dangling-link class was measured: 277 intra-doc links in 105
+  test files, **all inert**, because `cargo doc` builds no test targets — the
+  doc gate's own header says so. Nine are already broken; three fixed here (one
+  in `geom-core/tests/`, outside the Scope cell and named in the PR), six
+  dispositioned.
+- **S133's `profile/` half discharged** and recorded at the finding: 9 hits in
+  the lane's scope with no duplication, 14 in `profile/src/path/` with three
+  candidates left for the lanes that own those files.
 
 ### G-b — **G2**, `demos/`, #787
 

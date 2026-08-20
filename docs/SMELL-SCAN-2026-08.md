@@ -8264,34 +8264,34 @@ and remaps as it goes, with no atomicity added anywhere in the diff.
 
 **Verdict:**
 
-## S71. The ONARC shim deletion dropped the enclosing (ρ < 0) fillet class, and the file still argues at length that it built it
+## S71. FIXED by #831 — the ONARC prose now states the boundary the deletion established
 
-**[verified]** `crates/profile/tests/review_s2.rs`'s module header
-argues over forty lines that *"the class is built"* and points at
-`[enclosing_tangency_is_constructed_not_stumbled_upon]`, which runs
-*"the SAME oracle battery the sweep runs"* so *"a fixture cannot quietly
-assert less than the fuzz did"*.
+**Corrected, not restored.** Per Evan's ruling the finding's framing was
+wrong: the enclosing (ρ < 0) class was never dropped by accident. It is a
+deliberate, pinned boundary of the lattice door, and `sugar.rs:720-1010`
+is the raw-builder path that boundary is defined *against* — untouched
+here, and not dead code.
 
-**That function does not exist anywhere in the tree.** Two references
-point at nothing (`:45` as an intra-doc link, `:735` as a comment). What
-shipped is `the_lattice_door_never_emits_an_enclosing_tangency`
-(`:942`), which pins the **opposite** — every table row REFUSES — and
-the fuzz's own comment at `:806-813` says the class is now *"structurally
-0"* through the surviving door.
+**The prose.** `review_s2.rs`'s header claimed *"the class is built"* and
+cited `enclosing_tangency_is_constructed_not_stumbled_upon`, which the
+deleting commit (`6b8205ef`) removed — twice, at `:45` as an intra-doc
+link and at `:735` as a comment. It now says what the six rows of
+`enclosing_cases` are for (they still DEMAND the class) and what the
+shipped pin records (the door refuses, or answers with a fillet that
+swallows neither carrier). The witness-vs-floor argument above it stands:
+it is still why `n_enclosing` carries no floor.
 
-So the answer to "was the gap closed or the capability dropped" is: arc
-× arc with differing far points is genuinely authorable on the lattice
-(`build_corner`, `sugar.rs:389-415`), but the r > R enclosing class the
-v1 builder could author is **gone**; the `sugar.rs:720-1010` machinery
-that computes those candidates is unreachable from any shipped door; and
-the only note of it is a parenthetical at `:938-941` calling it *"a
-design question"* with no issue number and no named unit.
+**The parenthetical at `:938-941` is now issue #827.** It called the
+unreachable r > R class *"a design question"* with no number and no named
+unit. The question is real — the geometry is authorable, the machinery
+computes it, and only a door that AUTHORS the corner can emit it — so it
+is filed with what would close it either way, and the parenthetical cites
+it. Filing is not deciding.
 
-The dangling intra-doc link is invisible to `scripts/doc-gate.sh`
-because it is in a `tests/` file — see S63's note on what the doc gate
-covers.
-
-**Verdict:**
+**What the whole-file read found, which is the larger half.** The same
+false claim lived one level down at `check_corner`'s own doc, and making
+it true rather than narrowing it turned a row red: see **S128**. The
+dangling-link class was measured rather than assumed: see **S135**.
 
 ## S72. FIXED by #786 — `interval-transcendentals`: the pads had no upper constraint, and the cheap tier caught a dropped outward round for division only
 
@@ -10528,11 +10528,97 @@ read, which is a lane, not a paragraph.
 **Where to look, and who owns it.** `topo/src/chord_join.rs` and
 `profile/src/path/` are the other trees that took consolidation passes
 this milestone. Both are already staffed — `chord_join.rs` is G-f's
-(G8) and G-g's (G9), `profile/` is G-d's (G5) — so this is **not a new
+(G8) and G-g's (G9), `profile/` was G-d's (G5) — so this is **not a new
 lane**: it is an obligation those lanes can discharge cheaply while they
 are in the file, by running the marker vocabulary over the tree in their
 scope and dispositioning what it returns. The one-command version is in
 **S131**.
+
+**The `profile/` half is discharged, by #831 (G5).** Run over
+`profile/tests/review_s2.rs` and `profile/src/sugar.rs` (that lane's scope):
+**9 hits, 0 duplications** — six *"re-derived"*s are the oracle declaring it
+is written from the geometry rather than from `src`, which is the file's
+purpose; one *"verbatim"* modifies mined coordinates; and `sugar.rs:190,390`
+both say *"extracted verbatim so … share one code path"*, i.e. they declare a
+unification, not a copy. Run again over `profile/src/path/` and `path.rs`,
+which is the tree this row actually names and is **outside** that lane's scope
+cell: **14 hits, three candidates**, all left for whoever owns those files —
+`path.rs:1668` (*"this is `fillet_corner`'s emission verbatim"*, a
+self-declared duplicate emission sequence, though its own sentence is D9
+bit-identity vocabulary and so partly fenced), `family.rs:826` (*"the sharp
+`Via` leg mode's own derivation, verbatim"*), and `program.rs:1875` (*"the
+dynamic mirror of the typestate lattice"*, a duplication by design and the
+biggest of the three). **The vocabulary's blind spot from S131 holds here
+too**: a marker in fresh words is invisible to it, and nothing in this run
+tested for one.
+
+**Verdict:**
+
+## S128. A pin's building bands round the twin crossing, so the conditioning it was mined for is never exercised there
+
+**[verified, #831]** `crates/profile/tests/review_s2.rs`'s
+`an_uncertifiable_tangent_point_refuses_instead_of_being_returned` is ε-keyed:
+at ε = 1e-12 it must refuse typed, at 1e-9 and 1e-6 it must build with its
+tangent point on the outgoing carrier at the ulp floor — *"because the
+construction no longer has any 1/ρ amplification left to spend"*.
+
+**On the building bands there is no amplification, because it is not this
+corner's fillet.** Found by making `check_corner`'s doc claim true instead of
+narrowing it — the doc said every hand-built row runs the battery, one did not,
+and adding the call turned the row red with a ρ-predictor residual of
+`1.134 = 2r`. The pair's carriers sit within 3e-4 of external tangency
+(`|O₁O₂| = 2.2663` against `R₁+R₂ = 2.2666`), so the crossings are 1.7e-2
+apart, `mirror_excluded` is **false**, and the ladder rounds the twin: the
+returned fillet has `|P−O| = R−r` on the incoming leg and `R+r` on the
+outgoing, the opposite offset sign on both from the ρ the row re-derives. The
+8-ulp assertion holds for any fillet tangent to that circle, so it was never
+evidence about the collapsed lever. The refusing band is sound — there the
+typed error carries `offset_radius` and the row checks it against ρ.
+
+**Not a kernel defect**: the file's own fuzz *skips* draws whose mirror
+survives the gates, for exactly this reason. It is a fixture that bypassed that
+skip. #831 makes the twin fact an assertion rather than a description, so the
+row goes red if the ladder ever returns the drawn corner's candidate; **`D72`
+schedules the re-mine** of a corner whose twin is excluded, which is what the
+building band needs to mean what its prose says.
+
+**The general shape, which is why this is recorded and not just fixed:** *a
+fixture can pass on geometry that is not the geometry it was mined for, and a
+one-sided residual check cannot tell.* The distinguishing instrument existed in
+the same file the whole time and one row did not call it.
+
+**Verdict:**
+
+## S135. Every intra-doc link under `tests/` is inert — nothing renders them, nothing checks them, and nine are already broken
+
+**[verified, #831]** S71's dangling link was invisible to
+`scripts/doc-gate.sh` *"because it is in a `tests/` file"*. The measurement
+behind that: **463 test files across the workspace, 105 of them carrying
+277 bracket-link candidates in doc lines.** None of the 277 is ever resolved.
+`cargo doc` documents lib and bin targets, and the gate's own header says the
+consequence in its own words — *"rustdoc builds no test targets"*
+(`scripts/doc-gate.sh:71`), written there to justify `--all-features`. So an
+intra-doc link in a `tests/` file is decoration with a promise attached, on
+every tier, at every eps, forever.
+
+**Nine are broken today**, resolved root-by-root against each file's own scope:
+three point at names that exist nowhere (`profile/tests/review_s2.rs:45` —
+S71's own; `geom-core/tests/review_m0_pr4.rs:17`, whose target was renamed AND
+inverted by the M5 backend swap; `editor-core/tests/corpus/mod.rs:21`'s
+`Vocab`, which never was an item), and six name items that exist but are not in
+scope where they are cited (`review_s2.rs:1347`'s `Leg::tangent_point`, which
+is `pub(crate)` and can never be; `editor-core/tests/m9_d1_r1_probes.rs:42`;
+`geom/tests/surfaces/span_window_pairing.rs:2,17`;
+`step-import/tests/freecad.rs:1163`; `topo/tests/common/mod.rs:439`). #831
+fixed the three in its own reach and left the rest with dispositions in its PR.
+
+**The disposition is a policy question, not a patch**, and no §D row is taken
+for it: either the form stops being used in `tests/` (it promises a link that
+cannot exist), or something is built that resolves it, which rustdoc cannot be
+asked to do for a test target. **The sweep's own blind spots are in #831's
+body** — the largest is that it verifies a link's ROOT and never its member
+path, so `Type::method` counts as resolving when `Type` is in scope even if
+`method` does not exist.
 
 **Verdict:**
 
@@ -12454,6 +12540,7 @@ tessellation pin are red on main).
 | # | Work | From | Scope | Proposed verdict | Review |
 |---|---|---|---|---|---|
 | **D71** | **The local gate has no `oracle-certify` mirror, and nothing enforces ci.yml ↔ ci-local.sh JOB parity.** Fell out of G1's fix pass: `ci-local.sh` carried both sentences G1 corrected in `ci.yml`, and under it the transcendental and `+ −` pads have no containment guard at all. Two decisions, neither a patch: does the local gate carry a ~250s GMP build, and is job parity enforced (like `gate-roster.sh` does for gate scripts) or declared per job? | **S127** | `local-scripts/{ci-local.sh,gate.sh}`, `scripts/gates/` | **ACCEPTED**, unstaffed | style |
+| **D72** | **Re-mine the ε-keyed conditioning pin so its building bands exercise the collapse.** `review_s2.rs`'s `an_uncertifiable_tangent_point_refuses_instead_of_being_returned` builds on the twin crossing of a hairline lens at ε = 1e-9 and 1e-6, so the near-collapsed offset lever it was mined for decides nothing there; #831 turned that from prose into an assertion, which is a tripwire and not a fix. Wanted: a corner whose mirror IS excluded by the harness's bracketing, so the build arm's ulp claim is about the geometry its prose describes. A witness search, not a doc edit. | **S128** | `profile/tests/review_s2.rs` | **ACCEPTED**, unstaffed | style |
 | **D78** | **What is still one-directional in the interval backend after G1.** Three items: `powi`'s tightness ceiling is a deferral with a downstream consumer, not an unguardable; the oracle tier's upper constraint is a scale-free ratio and misses a fixed absolute over-widening on non-monotone shapes with wide boxes; S116(r)'s consumer-side caveat at `crates/geom-core/src/interval.rs:135-143` is outside G1's fence and unclosed. **`copysign`'s placement is NOT on this list — it is S1's.** | **S134** | `interval-transcendentals/tests/`, and `crates/geom-core/src/interval.rs` for the third item | **ACCEPTED**, unstaffed | ADVERSARIAL for the first two |
 | **G4** | **`profile`'s fifth lane trait, blanket-implemented, which D1 never looked at** — `ArcCarrierScalar` over `T: Decide + Bounds`, so `Dual64` carries the whole `path::family` arc surface today, re-exported from `pncad`. **Per Evan's ruling this is mechanical**: `CertifiedBounds` is the bound that excludes a dual. **Was gated on F1; that gate lifts with #791** (see the note below). **Two corrections #791's lane owes this row.** (a) The widened matcher fires on **none of G4's own sites** — `arc_fillet.rs` is allowlisted by file, the ~49 uses in `family.rs`/`program.rs` reach the bound through the alias NAME and are invisible to any grep, and `geom`'s doors are sole bounds outside the class — so a **green gate here is not ratification evidence**; what #791 delivers is that `real.rs`'s rule is true and enforced against new spellings. (b) **D68/S124 is a VISIBILITY defect and G4 does not discharge it**: changing what `ArcCarrierScalar` is bound to leaves all ~49 uses exactly as invisible. | **S87** (and S88's `profile` half) | `profile/src/path/{arc_fillet,family}.rs`, `profile/src/lib.rs`, `pncad/src/profile.rs` | **ACCEPTED — RULED** (the admitting set) | **ADVERSARIAL** |
 
@@ -12471,7 +12558,6 @@ tessellation pin are red on main).
 > worse than none — a reader acting on the paragraph above would open straight
 > into a conflict.
 
-| **G5** | **`profile`'s ONARC prose outlived the boundary it describes.** Per the ruling above, this is **not** the capability question the finding posed: `review_s2.rs:45` claims the class *"is built"* and cites a test the deleting commit removed, while the shipped pin records the boundary the commit deliberately established. Correct the prose to state the boundary; **do not delete `sugar.rs`'s machinery**, which is the raw-builder path the boundary is defined against. | **S71** | `profile/tests/review_s2.rs`, and only a re-read of `profile/src/sugar.rs` | **ACCEPTED IN PART — RULED** | style |
 | **G6** | **A wildcard over a deliberately closed enum, in the wave that de-wildcarded two siblings** — `attribute()`'s `_ =>` decides `AtRest` vs `Uncertified`, and a literal tag string bypasses the one-home tag map; the dead `Attribution::Refuted` corroborates. | **S104** | `editor-core/src/assembly.rs`, `pncad-py/src/py/doc.rs`, and two files the scan did not read | **ACCEPTED** | **ADVERSARIAL** |
 | **G7** | **The `Step` vocabulary was unified inside `profile` only** — of the three cross-crate copies, one breaks loudly and two go silently short. S4 named five copies across three crates; one crate was swept. **Partly collides with Track E's E-e** (`editor-core/src/eval/`) — sequence after it. | **S106** | `profile/src/path/program.rs`, `editor-core/src/{program,persist/wire,eval/mod}.rs` | **ACCEPTED** | style |
 | **G8** | **`face_normal.rs`'s one-door module names three flip sites: one does not flip, and at least five that do are unlisted.** The enumeration repair is style — but the sub-question it parks (*is `chord_join`'s missing flip a defect, given it feeds `point_in_loop` for ring re-homing?*) is a **correctness** question and must be a separate adversarial unit, not folded into a doc edit. Overlaps the standing open decision **D6**, whose stated sweep shape is `grep sense_sign`. | **S67** | `topo/src/face_normal.rs` (docs), `topo/src/chord_join.rs` (the real question) | **ACCEPTED**, with the routing caveat | style + one **ADVERSARIAL** sub-unit |
