@@ -134,6 +134,9 @@
 // and a whole-crate re-export would hand them out one hop past that
 // seal. Kernel crates keep their module re-exports below —
 // they carry geometry, not keys into a particular evaluation.
+/// Geometry: the analytic `Curve3`/`Surface` kinds, NURBS curves in
+/// 2-D and 3-D and NURBS surfaces, fitting, projection.
+pub use geom;
 /// B-rep geometry primitives: surface/curve kinds, pcurves, section
 /// classification. Mostly interior, but it owns error payload types
 /// that surface through `topo` and `sweep` refusals.
@@ -143,10 +146,6 @@ pub use geom_brep;
 ///
 /// [`Real`]: geom_core::Real
 pub use geom_core;
-/// Curves: NURBS curves in 2-D and 3-D, fitting, projection.
-pub use geom_curves;
-/// Surfaces: the analytic `Surface` kinds and NURBS surfaces.
-pub use geom_surfaces;
 /// Certified tessellation and the mesh validation cross-checks.
 pub use mesh;
 // `profile` is NOT re-exported whole:

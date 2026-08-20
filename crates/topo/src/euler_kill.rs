@@ -1109,10 +1109,7 @@ impl<T: Decide> Body<T> {
     ///
     /// As [`Body::mfkrh`].
     pub fn mfkrh_plug(&mut self, ring: LoopKey) -> Result<MfkrhCreated, EulerOpError> {
-        self.mfkrh(
-            ring,
-            FaceSurface::New(geom_surfaces::Surface::nurbs_placeholder()),
-        )
+        self.mfkrh(ring, FaceSurface::New(geom::Surface::nurbs_placeholder()))
     }
 }
 

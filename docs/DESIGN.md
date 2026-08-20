@@ -366,7 +366,8 @@ component-aware E–P form found and corrected in M1 PR 4).**
   and angle-π meridians). A deliberate consequence of the tier
   definitions, not a defect.
 - **Parameterization conventions (M2 PR 1, ratified-by-documentation;
-  authoritative text in the geom-curves/geom-surfaces crate docs):**
+  authoritative text in the `geom` crate docs and its `curves`/
+  `surfaces` module docs):**
   curve entities are complete loci (full circle, infinite line); an
   edge's bounds derive from its vertices via the `he_plus`-forward
   contract (increasing parameter runs start→end of `he_plus`;
@@ -1152,7 +1153,7 @@ raised by S43).**
 *Why:* the kernel had **five** answers to "this state can only be a
 bug", two of them mutual negations — `crates/topo` discards a missed
 Euler precondition silently ~60 times (blessed by the footnote above),
-while `geom-curves` argues in its own prose that silent discard is the
+while `geom` argues in its own prose that silent discard is the
 wrong direction and a bare index panic is the right one (PR #447, never
 brought back to D9). Both cited "fail loud". The rule below picks one.
 
@@ -1394,8 +1395,8 @@ Each layer depends only on the layers below it.
 | Crate | Contents |
 |---|---|
 | `geom-core` | Scalar trait (`f64`, intervals, duals), 2-D/3-D points/vectors/transforms (hand-rolled, small, fixed-dim — we control the scalar trait), robust predicates, root finding |
-| `bvh` | *(added M5 PR 8, C10)* Deterministic AABB tree: arena-order build, fixed split rule with total tie-breaks, conservative-superset contract — the tree prunes, exact predicates decide (D9). Deliberately BELOW the geometry crates (only `geom-core` under it) so SSI subdivision can consume it; certified box constructors live beside their invariants in `geom-curves`/`geom-surfaces` |
-| `geom-curves` / `geom-surfaces` | Analytic + NURBS types, evaluators, closest-point, curve×curve and curve×surface intersection |
+| `bvh` | *(added M5 PR 8, C10)* Deterministic AABB tree: arena-order build, fixed split rule with total tie-breaks, conservative-superset contract — the tree prunes, exact predicates decide (D9). Deliberately BELOW the geometry crates (only `geom-core` under it) so SSI subdivision can consume it; certified box constructors live beside their invariants in `geom` |
+| `geom` | Analytic + NURBS types, evaluators, closest-point, curve×curve and curve×surface intersection. Curves and surfaces are two modules of one crate, so what they share is stated once: the parameterization conventions and the totality/poison policy in the crate docs, the §6.1 projection constants and the azimuthal frame in interior modules |
 | `geom-brep` | The B-rep geometry layer: D2's intensional edge descriptions, certified carrier caches, the dihedral classification predicate, Newell face equations, pcurve caches |
 | `profile` | 2-D sketch profiles: the PATHS authoring algebra and the profile-program it records (PATHS-DESIGN, PROFILES-V2-DESIGN), lowering to the bulge-chain `Profile` and its trilean validation |
 | `topo` | Arenas, entities, Euler operators, validation (watertightness, orientation, Euler characteristic); the boolean engine and its splitting/census machinery, which sit as sibling modules at the crate root rather than underneath `boolean` |

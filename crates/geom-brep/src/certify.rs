@@ -35,7 +35,7 @@
 //!
 //! # The stored parameter interval — a certified cache, not an authority
 //!
-//! `geom-curves`' ratified convention stands: an edge's bounds are
+//! `geom`'s ratified curve convention stands: an edge's bounds are
 //! *derived from its vertices* — the authority is the vertex geometry.
 //! The [`EdgeCurve`] nevertheless **stores** the parameter interval,
 //! as a certified derived cache in exactly the carrier's sense: the
@@ -51,10 +51,10 @@
 //! (no atan2 branch selection). It can never disagree with the vertices
 //! by more than ε without failing loudly — a cache, never a peer.
 
+use geom::Curve3;
+use geom::Surface;
 use geom_core::spline::SpanLocate;
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point3, Real, Sign};
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
 
 use crate::dihedral::{DihedralClass, classify_dihedral, decide};
 use crate::edge_geometry::EdgeGeometry;
@@ -602,9 +602,9 @@ impl<T: Decide> EdgeCurve<T> {
 /// has always produced. There is no third outcome — no door accepts
 /// the description without the certificate.
 pub type NurbsLane<'a, T> = &'a dyn Fn(
-    &geom_curves::NurbsCurve3<T>,
+    &geom::NurbsCurve3<T>,
     &Surface<T>,
-    &geom_surfaces::NurbsSurface<T>,
+    &geom::NurbsSurface<T>,
     T,
     Band,
 ) -> Result<
@@ -1025,7 +1025,7 @@ fn run_checks<T: Decide>(
         /// (M7-8): the declare-and-check lane's shape.
         PlaneNurbs {
             plane: Surface<T>,
-            wall: std::sync::Arc<geom_surfaces::NurbsSurface<T>>,
+            wall: std::sync::Arc<geom::NurbsSurface<T>>,
             witness: Point3<T>,
         },
     }
@@ -1555,9 +1555,9 @@ fn run_checks<T: Decide>(
 fn plane_nurbs_pair<T: Real>(
     s1: Option<Surface<T>>,
     s2: Option<Surface<T>>,
-) -> Option<(Surface<T>, std::sync::Arc<geom_surfaces::NurbsSurface<T>>)> {
+) -> Option<(Surface<T>, std::sync::Arc<geom::NurbsSurface<T>>)> {
     let (a, b) = (s1?, s2?);
-    let described = |n: &std::sync::Arc<geom_surfaces::NurbsSurface<T>>| !n.is_placeholder();
+    let described = |n: &std::sync::Arc<geom::NurbsSurface<T>>| !n.is_placeholder();
     match (&a, &b) {
         (Surface::Plane { .. }, Surface::Nurbs(n)) if described(n) => Some((a.clone(), n.clone())),
         (Surface::Nurbs(n), Surface::Plane { .. }) if described(n) => Some((b.clone(), n.clone())),

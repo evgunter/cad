@@ -15,10 +15,10 @@
 
 use core::f64::consts::PI;
 
+use geom::Curve3;
+use geom::Surface;
 use geom_brep::{implicit_residual, tangent_jet};
 use geom_core::{Point3, Vec3};
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
 use sweep::fillet::Convexity;
 use sweep::fillet::blend::{corner_ball, plane_plane_blend, plane_sphere_blend};
 

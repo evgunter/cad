@@ -37,8 +37,8 @@
 
 use std::collections::BTreeMap;
 
+use geom::Surface;
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin};
-use geom_surfaces::Surface;
 use slotmap::SecondaryMap;
 
 use crate::body::Body;
@@ -910,7 +910,7 @@ impl<T: Decide> Body<T> {
                 .and_then(|hd| self.get_edge(hd.edge))
                 .and_then(|e| self.get_curve_geom(e.curve))
                 .and_then(crate::null::CurveGeom::certified)
-                .is_some_and(|c| matches!(c.carrier(), geom_curves::Curve3::Line { .. }))
+                .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Line { .. }))
         });
         if !all_lines {
             return Ok(None);

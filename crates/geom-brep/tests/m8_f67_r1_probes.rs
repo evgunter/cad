@@ -16,6 +16,8 @@
 use core::f64::consts::FRAC_1_SQRT_2;
 use std::sync::Arc;
 
+use geom::{Curve3, NurbsCurve2, NurbsCurve3};
+use geom::{NurbsSurface, Surface};
 use geom_brep::keys::SurfaceKey;
 use geom_brep::{
     CertifyError, ChartWindow, EdgeCurve, EdgeCurveSpec, EdgeGeometry, Pcurve, PcurveCache,
@@ -24,8 +26,6 @@ use geom_brep::{
 use geom_core::k_stats::{self, Probe};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, MarginDiag, Point2, Point3, Vec2, Vec3};
-use geom_curves::{Curve3, NurbsCurve2, NurbsCurve3};
-use geom_surfaces::{NurbsSurface, Surface};
 use slotmap::SlotMap;
 
 fn band() -> Band {

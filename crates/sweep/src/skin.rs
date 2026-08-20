@@ -21,12 +21,16 @@
 //!
 //! # Placement in this crate (M5 PR 10, numbered deviation 1)
 //!
-//! Skinning needs curves AND surfaces in one place, and `geom-surfaces`
-//! deliberately does not depend on `geom-curves` (its crate docs: the
-//! two are peer evaluators; machinery spanning both belongs one layer
-//! up). `sweep` is that layer for constructions — it already depends on
-//! both, and §10.3/§10.4 are sweep operations by name. The produced
-//! payload is `geom_surfaces::NurbsSurface`, so nothing about the
+//! Not "constructions live here" — `geom` builds NURBS payloads too
+//! (`geom::curves::fit`, which this module calls). The binding reason
+//! is the layering: skinning reads a `profile::ValidatedProfile`
+//! through a `SketchPlane` and a `geom_brep::SketchSegment`, so it
+//! depends on two layers ABOVE `geom` and cannot live below them. Of
+//! the crates that sit above both, `sweep` is the one whose subject
+//! this is — §10.3/§10.4 are sweep operations by name. The import list
+//! below is the check: nothing in it may be pushed down.
+//!
+//! The produced payload is `geom::NurbsSurface`, so nothing about the
 //! surface type moved.
 //!
 //! # Structure selection is f64 (C6/D9)
@@ -42,12 +46,12 @@
 
 use std::sync::Arc;
 
+use geom::NurbsCurve3;
+use geom::NurbsSurface;
+use geom::curves::fit::{FitError, interpolate_columns};
 use geom_brep::SketchSegment;
 use geom_core::spline::{KnotAlgebraError, KnotVector, SplineError};
 use geom_core::{Affine3, COINCIDENCE_RECOURSE, Point2, Point3, Real, Vec3};
-use geom_curves::NurbsCurve3;
-use geom_curves::fit::{FitError, interpolate_columns};
-use geom_surfaces::NurbsSurface;
 use profile::{Profile, ProfileError, ProfileLoop, SketchPlane, ValidatedProfile};
 
 /// The quarter-turn ceiling on one rational-quadratic arc span: every

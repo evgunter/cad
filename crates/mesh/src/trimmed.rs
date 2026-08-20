@@ -90,10 +90,10 @@
 
 use std::collections::{HashMap, HashSet};
 
+use geom::Curve3;
+use geom::Surface;
 use geom_brep::Pcurve;
 use geom_core::Point3;
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
 use spade::{ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulation};
 use topo::{Body, EdgeKey, FaceKey};
 

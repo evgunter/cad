@@ -6,9 +6,9 @@
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom::Surface;
 use geom_brep::EdgeGeometry;
 use geom_core::{Bounds, Interval, Point2, Real, Tolerance};
-use geom_surfaces::Surface;
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, extrude};
