@@ -1245,11 +1245,11 @@ that operator's plan phase gained *new* row-1 `StaleKey` checks on
 `s2_data.faces` / `s2_data.solid` — those checks are added
 preconditions, not discard sites converting to row 1, and the two
 discards they license are among the 56. **Those last two
-arms carry a precondition rather than a per-site proof, and cannot
-carry one**: a shared helper does not know its caller, so the proof
-lives at each call site and the arm is `#[track_caller]` so a panic
-reports which one. Retiring that asymmetry — a `Live` key type that
-makes the discharge structural — is `SMELL-SCAN-2026-08.md`'s **D25**. **No site was row
+arms take a proven-live key rather than a precondition in prose**: a
+shared helper does not know its caller, so the proof is the argument
+type — `topo`'s `Live`, obtainable only through doors that perform the
+lookup — and the arms announce a proof that outlived its key,
+`#[track_caller]` so a panic reports the call site. **No site was row
 5** — rows 4/5 split on re-derivation, and a failed key lookup is
 observed rather than re-derived. The standard the conversion holds to,
 and the reason it survives a corrupt body: **every converted key is
