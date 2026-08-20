@@ -160,15 +160,18 @@ fn calls_in(text: &str) -> Vec<(usize, String)> {
         if !prev_ok {
             continue;
         }
+        // Doc and line comments mention the name in prose. This is checked
+        // BEFORE the turbofish scan, not after: that scan stops the census
+        // on anything it cannot read, and a commented-out mention is not a
+        // site, so reading it first would turn prose into a build failure.
+        let line_start = text[..at].rfind('\n').map_or(0, |n| n + 1);
+        if text[line_start..at].trim_start().starts_with("//") {
+            continue;
+        }
         let rest = &text[i..];
         let open = skip_turbofish(rest, at);
         if rest[open..].starts_with('(') {
             let line = text[..at].lines().count();
-            // Doc and line comments mention the name in prose.
-            let line_start = text[..at].rfind('\n').map_or(0, |n| n + 1);
-            if text[line_start..at].trim_start().starts_with("//") {
-                continue;
-            }
             out.push((line, args_of(&text[i + open + 1..])));
             i += open + 1;
         }
