@@ -68,9 +68,37 @@
 //! Multi-link open chains (junction carry-through), concave chains
 //! (material-adding blends), partially-requested corners (run-outs),
 //! rims that are not circle-carried rings of a plane against a
-//! sphere cap — each refuses [`FilletError::AssemblyUnsupported`]
-//! naming itself. The refusals are the honest boundary of the unit,
+//! sphere cap — each refuses through the `Unsupported*` frontier
+//! vocabulary ([`FilletError::UnsupportedChain`],
+//! [`FilletError::UnsupportedCorner`],
+//! [`FilletError::UnsupportedGeometry`],
+//! [`FilletError::UnsupportedBody`]), naming itself and carrying the
+//! offending entity. The refusals are the honest boundary of the unit,
 //! not gates hiding reachable geometry.
+//!
+//! # The three refusal classes, and what is NOT one
+//!
+//! A frontier is one thing; an invalid input is another; an impossible
+//! state is a third (D2 addendum, rows 2, 1 and 4). This module keeps
+//! them apart at every site:
+//!
+//! - **Row 2**, above: valid input, unbuilt door, carries the fillet
+//!   recourse that is true of it.
+//! - **Row 1**, [`FilletError::BodyNotIntact`] (and
+//!   [`FilletError::EmptyChain`]): a stored reference that did not
+//!   resolve, or a cycle that did not close. **This is not a kernel
+//!   bug channel.** A body that fails referential integrity is
+//!   reachable at this door without any kernel bug in the trace —
+//!   `topo::instance::graft_disjoint_all`'s own docs record that a
+//!   refusal raised mid-transplant leaves its destination *spent,
+//!   never resumable*, and a caller that keeps that body may hand it
+//!   here. So these sites refuse typed, naming the entity.
+//! - **Row 4**, `unreachable!`: only where the state is impossible on
+//!   facts THIS call establishes — a key this call minted, a key a
+//!   walk in this call returned, or a count this call checked. Each
+//!   carries that proof in its message. No site inherits its proof
+//!   from whole-body validity, which the paragraph above is exactly
+//!   why.
 
 use geom::Curve3;
 use geom::Surface;

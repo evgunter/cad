@@ -2916,14 +2916,107 @@ be unified."
   *Lesson: a deliberate independence exemption needs an expiry — the suites
   were never combed back, so a temporary licence became four permanent copies.*
 
-## S19. Stringly-typed catch-alls in a codebase whose thesis is closed typed errors
+## S19. PARTLY FIXED by #NNN — the fillet catch-all was three state classes wearing one name, and only 18 of its 103 sites were the assertions the finding read them as
+
+**The `AssemblyUnsupported` row is closed (D2, #NNN). Every other row of this
+finding is LIVE** — `MissingEntity` (mesh, Track A), `UnsupportedCarrier`,
+`ValidationError`, `pncad-py/tags.rs`, `SkippedMerge` and
+`ProgramRefusal::Geometry` are untouched, and the table below keeps them. Only
+the first row is struck.
 
 - **Confidence**: sure
 - **Found independently by five scans.**
 
+### `AssemblyUnsupported` — FIXED by #NNN
+
+**Re-derived census: 103 construction sites**, not the row's 102 and not the
+finding's 146. `grep -o 'unsupported('` counts 97 in `fillet/surgery.rs`
+(through nine closure declarations) and 5 in `fillet/build.rs` (through two
+more); the 103rd is `build.rs:127`, which constructs the variant **directly**
+and which a closure-call count cannot see. #688's retirement of the whole-body
+door had already taken the finding's 146 down to these.
+
+**The partition, against the D2 addendum's rows:**
+
+| Row | Sites | What they became |
+|---|---|---|
+| 2 — valid input, unbuilt | **38** | `UnsupportedBody { solids, shells }`, `UnsupportedChain { edge, detail }`, `UnsupportedCorner { vertex, detail }`, `UnsupportedGeometry { at, detail }` — each names the refused class and carries the offending entity |
+| 1 — reachable, invalid | **47** | `RepeatedEdge { edge }` (1), `EmptyChain` (2 arms), `BodyNotIntact { at: FilletEntity, detail }` (46) |
+| 4 — kernel bug, observable | **18** | `unreachable!`, each carrying its own per-site proof |
+| 5 — re-derivation | **0** | rows 4/5 split on re-derivation; a failed lookup is observed |
+
+**The per-site standard, stated so a reader can check a site against it.** A
+site became `unreachable!` only where BOTH hold: **(i)** every arena key it
+dereferences was minted by an operator in THAT call, returned by a walk that
+succeeded in THAT call, or proven present by an explicit check in THAT call —
+never inherited from "the body is valid"; and **(ii)** the condition it
+observes is a property of state that call itself produced (a table it built, a
+count it checked, the immediate result of an operator it ran), not of the body,
+verdict or request handed in.
+
+**This finding's headline reading of those sites is REFUTED, with a number.**
+S19 records that #171's closure took the variant to 146 and that "~120 assertion
+sites rode in" — the `.ok_or_else(|| unsupported("a ring does not walk"))`
+shape, described as *arena lookups that cannot fail on a valid body*. On the
+standard, **18 of 103** are assertions. The other 46 are not assertions at all,
+and the reason is the one #720 established: **the standard proves liveness, not
+correctness, and it may not be borrowed from whole-body validity.** A body that
+fails referential integrity is reachable at `fillet_edges`' door **with no
+kernel bug anywhere in the trace** — `topo::instance::graft_disjoint_all` is a
+public door whose own doc (`instance.rs:130-136`) records that a refusal raised
+mid-transplant leaves `dst` partially written and *spent, never resumable*, and
+#720 sharpened it further: because these are slotmap keys, an unpatched key may
+resolve to an **unrelated live entity** rather than dangle. That is the open
+**S14** question, cited here and untouched. Converting those 46 would turn D9's
+documented garbage-out into a panic — exactly what #720 refused for
+`link_half_edges`.
+
+**Two site-level defects found while partitioning, both fixed:**
+
+- `build::octant_chart`'s `"a vertex has no requested edge"` is **false at one
+  of its two `None` paths**. `best` also stays `None` when every incident link
+  `continue`d — i.e. the link's supports are not among the corner's three faces
+  — which is a different refusal wearing the same sentence.
+- `build::corner_convexity`'s two arms are documented *"not reachable through
+  the front door"*, and they stay typed. **Not because a test reaches them** —
+  an in-crate test calling a private helper says nothing about input
+  reachability — but because the function cannot observe the fact that would
+  make them impossible: `links` is a parameter, and the door that establishes
+  convexity is two frames up in `fillet_surgery`, which carries its verdict as
+  prose rather than as a type. Making that branch row 4 honestly needs the door
+  to mint a "convex link" type. Second-order, and it is this finding's own
+  recorded lesson pointing at itself: if the branch **is** input-unreachable,
+  then `surgery::tests::a_corner_plan_whose_links_disagree_refuses` is a suite
+  asserting a typed refusal on an unreachable branch — *a refusal the suite
+  proves unreachable gets reviewed for reachability, never for diagnosability.*
+
+**The `Display` recourse — the concrete user-facing wrong this row named.**
+`AssemblyUnsupported`'s `Display` appended `FILLET3_ASSEMBLY_RECOURSE` — *fillet
+a set of edges whose open chains are single convex plane–plane links…* — to all
+103 sites, including every "does not resolve". It now attaches **only** to
+`UnsupportedChain`, where it is true. Corner refusals take the existing
+`FILLET3_CORNER_RECOURSE`; two new constants (`FILLET3_BODY_RECOURSE`,
+`FILLET3_GEOMETRY_RECOURSE`) serve the other two frontiers; and **the row-1
+variants carry no recourse at all** and say so in their own `Display`, because
+"your body is not intact here" has no fillet advice attached to it. The mapping
+is held by an **exhaustive match** in `fillet/mod.rs`'s
+`a_recourse_is_appended_only_where_the_table_allows_it`, so a variant added
+later is a compile error rather than a false sentence shipped to a user; the
+test also asserts no variant carries a recourse that is not its own. Both
+halves were checked to fail (the exhaustiveness half caught a real omission
+while being written).
+
+**The `pncad-py` boundary rule holds, and not for the reason the addendum
+implies.** `FilletError` does **not** appear in `tags.rs`: the map is one level
+above it, at `NodeErrorKind::Fillet { .. } => "fillet"`, so the new variant
+names need no entry there — and, separately, that tag drops the whole
+`FilletError` payload, which is this finding's own `tags.rs` row and stays
+live. `pncad-py` contains no `catch_unwind`, so nothing would re-type a panic;
+the boundary holds because none of the 18 is reachable at all, their proofs
+being local to the call rather than conditional on the input.
+
 | Variant | Sites | Problem |
 |---|---|---|
-| `AssemblyUnsupported { detail: &'static str }` | 146 | Mixes user refusals with kernel-bug assertions ("a corner left two spur struts (kernel bug)"); `Display` unconditionally appends a recourse telling the user to fillet every edge of a convex trivalent polyhedron |
 | `MissingEntity` | 49 | Documented as "corrupt input"; also carries "non-iso trim carrier reached the iso-rectangle walk (**router defect**)" — kernel bugs reported to the caller through the dangling-key variant |
 | `UnsupportedCarrier` | ~20 | Doc and `Display` say something specific and *different* from what most sites mean; sits in the same enum as `IsoUnsupported { what }`, which does name the refused class |
 | `SplitJoinError::Corrupt` | ~42 | Payload-free — no key, no half-edge, no face — beside `SplitReduceError`, which carries the offending entity and `Indeterminate` diagnostics on nearly every variant. Also used for "the section frame was never established", which is not a corruption |
@@ -2940,14 +3033,18 @@ vocabulary for "this can only be a kernel bug"?
 **Postmortem (2026-08-18). Evan's hypothesis is substantiated for the three
 highest-volume rows, and S43 turns out to be their generator.**
 
-- **`AssemblyUnsupported`** — born legitimate at #166 (9 sites, an explicit
+- **`AssemblyUnsupported`** (**fixed by #NNN** — the disposition and the
+  refutation of this bullet's last sentence are above; the archaeology below
+  stands and is why the row existed) — born legitimate at #166 (9 sites, an explicit
   "front door does not exist yet" marker). #171 then declared the idiom
   `let unsupported = |detail: &'static str| …` at the head of ~12 functions,
   and that closure is what took it to 146: the overwhelming majority are
   `.ok_or_else(|| unsupported("a ring does not walk"))` — arena lookups that
   cannot fail on a valid body, **five of which say "(kernel bug)" outright**.
   #171's deviation 3 declared only the four genuine scope gaps; ~120 assertion
-  sites rode in under that sentence. **NEVER FLAGGED** — #166's F6 is the
+  sites rode in under that sentence — but see above: on a per-site standard
+  **18 of 103** are assertions, and the rest report invalid input. **NEVER
+  FLAGGED** — #166's F6 is the
   closest miss: the reviewer was *inside this enum*, split a tangential case
   into its own variant, and still did not remark on 146 sites sharing one
   string. *Count as scanned:* **#688's retirement took `crates/sweep/src`
@@ -5416,8 +5513,9 @@ re-derivation, and a failed key lookup is observed rather than re-derived, so
 remains the only row-5 member in these modules and is untouched.
 
 *What the taxonomy still owes.* Idiom 2's `MissingEntity` router defects and
-`AssemblyUnsupported`'s rename are the addendum's remaining unexecuted rows,
-in `mesh` and `sweep` — outside `topo` and outside D16. S14's disposition
+`AssemblyUnsupported`'s rename were the addendum's remaining unexecuted rows,
+in `mesh` and `sweep` — outside `topo` and outside D16. The `sweep` half landed
+as **#NNN** (D2); `MissingEntity` in `mesh` is what is left. S14's disposition
 follows from this rule and should be re-read against it rather than re-argued;
 S12 is closed.
 
@@ -6877,7 +6975,8 @@ mutation-path correction also produced a **second witness for S14**, filed in
 *Open decisions* rather than settled here.
 
 **Reviews are style-only** (`docs/prompts/reviewer-style-lane.md`) except at
-the rows marked ADVERSARIAL — D2, D8 and **D18** still live, with D1
+the rows marked ADVERSARIAL — D8 and **D18** still live, with D2
+(**retired, #NNN**), D1
 (**retired, #710**), D9 (**retired, #712**), D15 (**retired, #718**), D16
 (**retired, #720**) and D11 (**retired, #719**) landed — and D5's `seqgen`
 half, landed with #713.
@@ -6907,6 +7006,19 @@ that had already been done and recorded at the finding. It is closed here, not
 scheduled.
 
 ### Landed
+
+**D2 — PARTLY FIXES S19, as #NNN.** The fillet half of the error catch-alls.
+The re-derived census is **103**, not the row's 102 — `build.rs:127` constructs
+`AssemblyUnsupported` directly rather than through a closure, so a
+closure-call count cannot see it. The partition is **38 row 2 + 47 row 1 + 18
+row 4**, and the last number is the unit's result: **the row's premise that
+these are row-4 sites is refuted for 46 of them**, because a body that fails
+referential integrity is reachable at fillet's door with no kernel bug in the
+trace (`graft_disjoint_all`'s spent destination — S14, cited not resolved), so
+converting them would turn a documented garbage-out into a panic. Full record,
+the per-site standard, the two site-level defects found while partitioning and
+the `Display`/recourse disposition: **S19**. S19's other rows are untouched and
+stay live.
 
 **D1 — FIXED by #710.** **Ten** helpers across **twelve** sites: the row's
 nine names, of which one (`arc_apex`) had a third copy the name-based list
@@ -7093,8 +7205,7 @@ have failed loudly even if it had been attempted.
 
 | # | Work | Was | Scope | Review | Gated on |
 |---|---|---|---|---|---|
-| **D2** | **B3 / S19 — the fillet half of the error catch-alls.** D2's addendum is ratified, so these are row 4 (`unreachable!`) and the rename to `Unsupported*` is owed. **The count has moved: 102 construction sites on today's main, not 146** — 97 in `surgery.rs` through one closure, 5 in `build.rs` through two more — because B1's retirement took the rest with the whole-body door. Scope still excludes `MissingEntity` (mesh — Track A) and `SplitJoinError::Corrupt` (splitting — B4/#690). | B3 | `sweep/src/fillet/` | **ADVERSARIAL** — converting a refusal into `unreachable!` in a kernel whose D9 rule is *never a panic* is only sound if "cannot fail on a valid body" is **proven** per site rather than inherited from the closure's name. | **D1** (same crate) |
-| **D7** | **U1 / D4 — the decided deletions. One of three executed; two are unexecuted, so the row stays.** Decided by Evan 2026-08-19. **`Mat2`/`Affine2` landed as #721** (2026-08-20); the execution record, its SHA and the row it minted are in the D4 DECIDED block, which is their one home. **What remains is two rows**, each still owing a provenance note next to the thread that produced it and a recoverable **commit SHA** in its deleting PR: `PairSolve` → **#611**, and the two inlined fillet helpers → **#319**/**#554**. `trimline_description`'s doc is the only place D7's prefer-intrinsic obligation is *named*: that sentence migrates with the fillet row, it does not die. | U1 | remaining: `editor-core/src/mate{.rs,/solve.rs}`, `sweep/src/fillet/{blend,battery}.rs` (`geom-core/src/linalg/{mat,affine}.rs` done) | style | **split by row.** `Mat2`/`Affine2` was free and is done. **`PairSolve` is unblocked and unstarted** — #702 merged 2026-08-20 as `f382c4aa`, and it was the only gate on that row; it is open for a successor. The fillet helpers stay blocked on **D2** alone: **#705 merged 2026-08-20**, discharging the file-overlap gate it held on all four `sweep/src/fillet/` files. Evan placed the whole row *"back of the queue, but ahead of W3b"*, and its rationale — noise to lanes reading the same files — is what D2 still discharges. |
+| **D7** | **U1 / D4 — the decided deletions. One of three executed; two are unexecuted, so the row stays.** Decided by Evan 2026-08-19. **`Mat2`/`Affine2` landed as #721** (2026-08-20); the execution record, its SHA and the row it minted are in the D4 DECIDED block, which is their one home. **What remains is two rows**, each still owing a provenance note next to the thread that produced it and a recoverable **commit SHA** in its deleting PR: `PairSolve` → **#611**, and the two inlined fillet helpers → **#319**/**#554**. `trimline_description`'s doc is the only place D7's prefer-intrinsic obligation is *named*: that sentence migrates with the fillet row, it does not die. | U1 | remaining: `editor-core/src/mate{.rs,/solve.rs}`, `sweep/src/fillet/{blend,battery}.rs` (`geom-core/src/linalg/{mat,affine}.rs` done) | style | **split by row.** `Mat2`/`Affine2` was free and is done. **`PairSolve` is unblocked and unstarted** — #702 merged 2026-08-20 as `f382c4aa`, and it was the only gate on that row; it is open for a successor. The fillet helpers were blocked on **D2** alone, and **D2 landed as #NNN**, so the row is free — but it must re-read all four `sweep/src/fillet/` files, because D2 rewrote every refusal site in `surgery.rs` and `build.rs`. Evan placed the whole row *"back of the queue, but ahead of W3b"*, and its rationale — noise to lanes reading the same files — is what D2 discharged. |
 | **D8** | **U4's remainder — the knot-vector queries.** `KnotVector` offers `multiplicity_of(u)`, which requires you to already know `u`; every consumer that needs *the list* of distinct interior knots hand-writes the same scan, four times (`compose.rs:274`, `algebra.rs:563`, `geom/curves/fit.rs:378`, `sweep/skin.rs:370`). Beside it, knot insertion exists twice in one module, one of them re-deriving the span with a linear scan where `find_span`'s binary search is one module away. The scan's own lesson: *a data structure whose API was frozen one PR before its first consumer is the tell.* | U4 (rows) | `geom-core/src/spline/{compose,algebra}.rs`, `geom/src/curves/fit.rs`, `sweep/src/skin.rs` | **ADVERSARIAL** — it adds to a certified type's API and replaces a linear scan with a binary search inside knot arithmetic, where an off-by-one is a wrong curve rather than a compile error. | nothing (but it edits `sweep/src/skin.rs`, so sequence it against D1/D2 within this track) |
 | **D17** | **No CI lane builds any crate's `probe` test targets except editor-core's — 14 suites across four crates are not type-checked, let alone run.** Stated precisely, because the loose version is false and the difference is the whole row: the `sweep`, `topo`, `profile` and `geom-brep` **libraries** ARE compiled under `probe` on every building merge (`editor-core`'s `probe` feature forwards `sweep/probe` et al., and `scripts/k_probe_sweep.sh:49` runs `cargo test -p editor-core --features probe`). What no workflow does is build those crates' **own `tests/` targets** under `probe`. `rg 'feature = "probe"' crates/*/tests/` returns **16 files**; only editor-core's 2 are compiled by CI. The other 14 — 5 `topo`, 4 `profile`, 4 `geom-brep`, 1 `sweep` — can bit-rot green or red with nothing noticing. **The diagnosis was already in the tree and this row is its fifth rediscovery**: `crates/topo/tests/probe_s5_sectors.rs:24-31` (`c0e05322`, 2026-08-19 — *one day before* #718) already says *"NOT run by CI, and not a gate … nothing in `.github/workflows/` runs `cargo test -p topo --features probe` … a class, not this suite's peculiarity"*. D15 then found the sweep instance by tripping over it. Finding the next instance by the same accident is the standing failure this track exists to break, so **the row is the class, not `sweep`**. Two mechanisms, and they are NOT interchangeable: (a) a `cargo check -p <crate> --features probe --all-targets` step per crate, or (b) fold the M2 corpus into `k_probe_sweep.sh` so the M2-era instrument runs beside the M4/M5/M7 one. **(a) would not have caught the defect that spawned this row** — the pre-fix `k_report.rs` compiled perfectly; its failure was a runtime panic, so only (b) would have gone red on 2026-07-25. Choose on that, not on cost; the costs below are close enough to mislead. **Cost, measured on an agent container — a RATIO, not a hosted number** (#706's comparable step was 93 s hosted cold): running the harness is **0.05 s** per ε row; (a) for `sweep` cold is **12.0 s** over 36 crates; (b) needs codegen + link, **35.2 s** cold. Honest counterweight: `probe` is a `Real` instantiation, so it monomorphizes every generic-over-`Real` body — **the build is the bill**, and it is not free even though the tests are. **Read #706's job before designing this one** (`ci.yml:731`): same shape — a surface CI never compiled — showing how narrow such a job should be (one crate, own cache key, filter-gated) and carrying the trap that matters most here, that **a name filter matching nothing exits 0**, which is exactly the silence an `--ignored` module-prefix selection would reintroduce. | raised by D15 (#718); class already stated at `probe_s5_sectors.rs:24-31` | `.github/workflows/ci.yml`, and `scripts/k_probe_sweep.sh` if (b) | style | nothing |
 | **D18** | **Two callers hand `link_half_edges` a `prev` nothing proves, and they are the last thing standing between W2c and done.** Both read `prev` straight out of the arena and splice through it, and in both cases the *symmetric* `next` **is** proven live in the same plan phase: `split.rs:253` passes `prev(hm)` while `:155-160` checks `next(hp)`; `euler_kill.rs:830` passes `a = prev(he)` while `b = next(he)` is proven by the cycle walk — **`loop_walk` steps `next`** (`body.rs:796-800`), so the walk proves one and not the other. `kef` is the outlier among the operators: `mev` (`euler.rs:1437-1443`), `mef` (`euler.rs:1701-1707`), `kev` (`euler_kill.rs:605-613`) and `mekr_cycles` (`euler_ring.rs:1032-1037`) each check their own `prev`s explicitly and say so. The fix is **one `contains_key` per site**, symmetric with the check each plan phase already has — `kev`'s four-link loop is the shape. **Why the row is worth doing rather than a tidy-up**: `link_half_edges` is the site S12 led with and the site the D2 addendum names, and #720 left its two discards unconverted for exactly this reason — so **D18 unblocks the last two sites of W2c**, after which the helper converts in one line. **Both** call sites are required: fixing only `split.rs` leaves `kef`'s `a` unproven and the helper still unconvertible. The distinction a future reader will not re-derive: the helper's old qualifier was *"cannot fail on **the operator paths**"*, and one of the two gaps is **inside an operator** — the qualifier was not merely narrow, it was wrong. **How it was found**: #720's own sibling sweep obligation, discharged late — the unit established that a `prev` is not proven by a `next`-walk and did not immediately run that read over the operators; its review did. | raised by D16 (#720) | `topo/src/split.rs`, `topo/src/euler_kill.rs`, then `topo/src/euler.rs`'s `link_half_edges` | **ADVERSARIAL** — it adds preconditions to a non-operator mutator and to a kill operator on the delicate-site path, then converts a discard behind them; getting any part wrong re-opens the hole #720 proved is real, and this time as a panic. | nothing (#720 leaves both call sites' code untouched, correcting only the false comments on them) |
@@ -7289,7 +7400,7 @@ A1 (Bounds for Dual) ──► C7  (S3 lane traits, S1/S2 scalars, S44's residue
                      └─► C4  (S33's dual ladders)
 A2 (iso-rectangle)   ──► C3  (S27, and S18's step-export row — same props/ files)
 A3 (#678)            ──► C5  (S28's duplication half)
-D1 (#710, landed) ─────► D2 (S19 fillet errors) ──► D7's fillet-helper row
+D1 (#710) ──► D2 (#NNN, landed) ──────────────────► D7's fillet-helper row
 #702 (assembly door, merged) ─► D7's PairSolve row — edge discharged
 #690 (B4, splitting) ──► D9 (S17's ray-parity twins, #712) ──► D10, D12 (#717)
                                                           └─► D11 (bool_join_nearest, #719)
@@ -7300,12 +7411,12 @@ all deletions        ──────────────► L2 (S38 comme
 **Track B is now edge-free in full** — B1 landed, and B2/B3, the only chain it
 had, are Track D's D1/D2.
 
-**Track D's one remaining edge is `sweep/` internal** — D2 gates D7's
-fillet-helper row, and nothing else in the track waits on anything. Landed: D1 as #710, D3 as #704, D4 as #707 — which also discharges
-D13's gate — D5 as #713, D6 as #706, D9 as #712, D10 and D12 as #717, D15 as
-#718, D16 as #720, D11 as #719, D7's first third as #721, and D13/D14 as
-#722, which **placed D20** — the +46% its measurement left unattributed.
-**Nothing is in flight.**
+**Track D is now edge-free.** D2's landing discharged the track's last
+internal edge, so D7's fillet-helper row is free. Landed: D1 as #710, D3 as
+#704, D4 as #707 — which also discharges D13's gate — D5 as #713, D6 as #706,
+D9 as #712, D10 and D12 as #717, D15 as #718, D16 as #720, D11 as #719, D7's
+first third as #721, D13/D14 as #722 — which **placed D20**, the +46% its
+measurement left unattributed — and **D2 as #NNN**. **Nothing is in flight.**
 **D17, D18, D19 and D20 are edge-free and unstarted.** D17 is the only row in
 the track whose file set is `.github/workflows/`, so it collides with no
 kernel lane and can run at any time; D18's is
@@ -7313,17 +7424,19 @@ kernel lane and can run at any time; D18's is
 only the two `prev` checks and the conversion behind them remain; D19's is
 `docs/K-REPORT.md` plus whatever the enforcement shape names.
 
-**Both external edges are discharged.** #705 (the `geom-curves` +
+**Both external edges were discharged.** #705 (the `geom-curves` +
 `geom-surfaces` merge, ≥200 files) blocked **D2** and D7's fillet-helper row —
 it edits all four `sweep/src/fillet/` files — and **D8**, whose
 `geom-curves/src/fit.rs` it relocated to `geom/src/curves/fit.rs`. It **merged
 2026-08-20**, so all three are free. #702 discharged D7's `PairSolve` row the
 same day (`f382c4aa`).
 
-So the only edge left anywhere in the track is internal: **D2 → D7's
-fillet-helper row**. D8 also edits `sweep/src/skin.rs` but sequences against
-**D2** alone, since D1 landed and left `skin.rs` untouched. **D2 is now the
-single widest unblocked row**, and nothing outside Track D gates it.
+No edge is left anywhere in the track. **D7's fillet-helper row is
+unblocked** now that D2 has landed — and it should re-read the four
+`sweep/src/fillet/` files first, because D2 rewrote every refusal site in
+`surgery.rs` and `build.rs`. **D8** sequenced against D2 alone for
+`sweep/src/skin.rs` (D1 landed and left `skin.rs` untouched) and is free
+too.
 
 ---
 

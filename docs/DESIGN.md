@@ -1185,8 +1185,9 @@ exists so that arrival does not reopen the question.
 *Row 2 is a naming rule, not a new mechanism.* `Unsupported*` means
 "valid input, the kernel has not built this yet" and nothing else —
 which makes the frontier inventory grep-able. The convention is already
-dominant (13 distinct variant names in `src`); `AssemblyUnsupported` is
-renamed to match. A macro (`not_implemented!`) was considered and
+dominant (13 distinct variant names in `src`); `AssemblyUnsupported`
+was renamed to match (D2, PR #NNN — into four variants that each name
+the refused class and carry the offending entity). A macro (`not_implemented!`) was considered and
 **rejected**: these refusals are reachable by valid user input and must
 stay recoverable, so a panicking macro would convert a user-facing
 frontier into a crash. Where a frontier branch genuinely cannot be
@@ -1235,9 +1236,26 @@ remain, both in `link_half_edges`, because two of its callers pass a
 documented garbage-out into a panic, which this addendum's headline
 forbids. Those two call sites are `SMELL-SCAN-2026-08.md`'s **D18**.
 
-*Still outstanding:* idiom 2's `MissingEntity` router defects, and
-`AssemblyUnsupported`'s rename to `Unsupported*` — both outside
-`crates/topo`.
+*The `crates/sweep/src/fillet` half is also done* (D2, PR #NNN).
+`AssemblyUnsupported`'s **103** construction sites re-derived to
+**38 row 2** (four `Unsupported*` variants naming chain, corner,
+geometry and body), **47 row 1** (one repeated-edge refusal plus
+`BodyNotIntact`/`EmptyChain`, each carrying the entity) and **18
+row 4**. The 18 are the whole set that survives the per-site standard:
+every key an `unreachable!` dereferences is minted by an operator in
+that call, returned by a walk that succeeded in that call, or proven
+present by a check in that call. **This is a partial refutation of the
+finding that generated the row.** S19 reads the ~120 `.ok_or_else(||
+unsupported("… does not resolve"))` sites as assertions that rode in
+under #171's closure; on the standard they are not assertions at all.
+A body that fails referential integrity is reachable at `fillet`'s door
+with no kernel bug in the trace — `topo::instance::graft_disjoint_all`
+is a public door whose own docs record that a mid-transplant refusal
+leaves its destination *spent, never resumable* (the S14 residue,
+untouched here) — so those sites are row 1, and converting them would
+turn a documented garbage-out into a panic.
+
+*Still outstanding:* idiom 2's `MissingEntity` router defects.
 
 **Replay with kills (M1, pinned in PRs #20/#23):** the determinism
 contract holds with destructive operators in the history. Identical

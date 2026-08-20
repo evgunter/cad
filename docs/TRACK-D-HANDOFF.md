@@ -37,10 +37,11 @@ real risk, which took a full adversarial lane as well.
 | D16 | W2c — the D2 addendum executed over 58 discard sites | #720 |
 | D7 (1 of 3) | `Mat2`/`Affine2` deleted, with the orphan its deletion made | #721 |
 | D13, D14 | The pcurve-staleness convention checked; D14 **refuted**, not closed | #722 |
+| D2 | S19's fillet half — 103 sites partitioned 38/47/18; the row-4 reading **partly refuted** | #NNN |
 
 ## Nothing is in flight
 
-All twelve units are merged. The four that were mid-fix-pass when the first
+All thirteen units are merged. The four that were mid-fix-pass when the first
 version of this file was written — #719, #720, #721, #722 — each finished its
 pass and landed, so the table that listed them is gone rather than left to rot.
 What each pass actually turned up is in its PR body, which is the record.
@@ -82,9 +83,10 @@ fillet-helper row, and **D8**, whose `geom-curves/src/fit.rs` it relocated to
 
 What is unstarted is unstarted for schedule reasons only, not technical ones:
 
-- **D2** (B3 / S19, the fillet error catch-alls, ADVERSARIAL) is the widest
-  unblocked row and gates D7's fillet-helper row — the only edge left in the
-  track.
+- **D7's fillet-helper row** is unblocked now that **D2** landed as #NNN,
+  which was the last edge in the track. It must re-read all four
+  `sweep/src/fillet/` files first: D2 rewrote every refusal site in
+  `surgery.rs` and `build.rs`.
 - **D8**, **D17**, **D18**, **D19**, **D20** and D7's **`PairSolve`** row are
   edge-free. `PairSolve`'s provenance note goes to **issue #611**, not the PR
   body, because R2's thread is live; the deleting PR must cite the recoverable
@@ -104,9 +106,16 @@ it:
 2. **#720's review** — sharper: because these are slotmap keys, an unpatched
    source-internal key may **resolve to an unrelated live entity** rather than
    dangle. That is *live but wrong*, which no plan phase can refuse.
+3. **#NNN (D2)** — the first witness that **changed a disposition**. The
+   fillet surgery's 46 "this lookup cannot fail on a valid body" sites stayed
+   typed errors rather than becoming `unreachable!`, and witness 1 is the whole
+   reason: a caller that keeps a spent graft destination hands `fillet_edges` a
+   tier-1-invalid body with no kernel bug in the trace. So S14's residue is not
+   only a gap in the taxonomy — it is now load-bearing for how much of the
+   kernel can be converted at all.
 
-Both are the "reachable by API misuse" row S43 proposed and the ratified D2
-addendum's five classes do not contain.
+All three are the "reachable by API misuse" row S43 proposed and the ratified
+D2 addendum's five classes do not contain.
 
 ## What the review lane actually caught
 
