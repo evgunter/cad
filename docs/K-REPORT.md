@@ -348,26 +348,157 @@ margin sources, exactly the pressure source Finding 4 anticipated:
   `crates/geom-brep/src/enters.rs`): `enters_material`,
   `enters_material_arm`.
 
-(Inventory method: `grep -r 'decide("' crates/*/src` diffed against
-this report's M2 CSV predicate column — which is a 2026-07-21
-snapshot and today lists 63 of the funnel's names, so the diff is
-sound only in the direction that matters, catching a name in the code
-that no CSV column carries — plus the census's
-`gap_is_zero`/`signed_is_zero` helper call sites, which pass names
-into the same funnel, plus — **since #712** — the row-name TABLES.
-A predicate name supplied as a parameter is invisible to the `decide("`
-grep, so any type holding row names must be listed here for the
-inventory to stay complete. Today there is exactly one:
-`topo::ray_parity::ParityRows`, whose two values
-(`splitting::containment::ROWS`, `chart_region::ROWS`) carry four
-names each — `grep -rn 'ParityRows {' -A 6 crates/*/src`, which also
-surfaces a third, `#[cfg(test)]`-only value that ships in nothing.
-Adding a
-name table without adding it here silently drops its rows from the
-roster, which is the standing cost of parameterising a predicate name
-and the reason it is written down rather than discovered. The three M2 refusal-path predicates dead on
-the M2 corpus — `carrier_circles_internal`, `collinear_overlap`,
+(Inventory method: **superseded 2026-08-20 — see "The inventory
+method, restated" below.** The method this addendum was cut with was
+`grep -r 'decide("' crates/*/src` diffed against this report's M2 CSV
+predicate column, plus the census's `gap_is_zero`/`signed_is_zero`
+helper call sites, plus — since #712 — the row-name TABLES. It reaches
+one spelling of one funnel entry point in one directory tree, and the
+crop above is what it found. The three M2 refusal-path predicates dead
+on the M2 corpus — `carrier_circles_internal`, `collinear_overlap`,
 `extrusion_obliquity` — are M2-era, not counted here.)
+
+### The inventory method, restated (2026-08-20)
+
+**READ THIS FIRST: the roster is not complete, and was not.** The row
+that ordered this restatement (§D's D19) described the roster as
+*"complete today by luck of era"*. That premise is wrong, and it is
+corrected here rather than worked around. **Seven predicate names that
+the `k-lint`-gated corpus actually emits are recorded in neither this
+document nor `docs/predicate-dimension-audit.md`, under any reading**
+(tabled below). A reader who meets the old premise first and then finds
+seven missing names will conclude the restatement is broken; it is the
+premise that was.
+
+**And a count of SITES was never the right measure of a NAME roster.**
+The old method's blind spot was sized at *"37 sites across 24 files"*.
+That figure reproduces exactly — and it understates the hole by more
+than a factor of two, because one parameterised site carries many
+names: those 37 sites carry **83 of the 233 names** in the committed M7
+baseline. Size a name roster's hole in names.
+
+**The rule.** A predicate name is in scope if it reaches the
+`geom_core::k_stats` funnel — `decide`, `decide_flagged` or
+`decide_invariant` — from anywhere the sweep can execute, **however it
+is spelled at the call site**. That is the criterion
+`docs/predicate-dimension-audit.md` already states for the same funnel
+(*"every `classify`/`require_zero`/`require_extent`/`decide` funnel
+call and every raw `sign_within` use"*); this document was using a
+narrower one.
+
+**Why the old rule under-reached, measured at `4a007a76`.** Of **349**
+funnel call sites under `crates/*/src` (338 `decide`, 8
+`decide_flagged`, 3 `decide_invariant`), **311 pass a bare string
+literal** and carry **238 distinct names**. The other **37 sites, in 24
+files**, do not — and the site count badly understates the consequence,
+because one parameterised site carries many names: **83 of the 233
+names in the committed M7 baseline have no `decide("<name>"` site
+anywhere in the tree.**
+
+Five ways a name escapes the old pattern, all live today:
+
+1. **A different funnel entry — the sharpest instance, because the
+   site satisfies the method's own criterion.** `decide("` does not
+   match `decide_flagged("` or `decide_invariant("`. **Eleven sites,
+   ten of them passing a bare string literal**: by the old rule's own
+   description — "a name written as a literal at the funnel site" —
+   these are covered, and they are not.
+   `volume_backstop{,_operand,_violation}`, `bool_ray_cylinder_disc`,
+   `revolve_axis_dir_in_plane`, `revolve_full_vs_partial`,
+   `pcurve_cone_chart_nappe`, `bool_point_in_solid_denom`.
+2. **A different wrapper spelling.** Names reach the funnel through at
+   least `check_residual`, `classify`, `require_zero`, `coincident`,
+   `zero`, `gap_is_zero` and `signed_is_zero`. The old method named the
+   last two.
+3. **A module-private `const &str`.** Five, not the three previously
+   recorded: `sector_shape.rs`'s `SECTOR_{ARM,REFLEX,STRAIGHT}`, plus
+   `editor-core/src/names/geompred.rs`'s `SEL_DATUM_DISTANCE`
+   (`sel_datum_distance`) and `sweep/src/fillet/surgery.rs`'s
+   `RING_CLEARANCE` (`fillet3_ring_clearance`).
+4. **A struct field or a local table.** `ray_parity::ParityRows` (the
+   one carrier this document already listed), `swept.rs`'s
+   `CosurfaceNames`, and `transform.rs:129`'s seven-element
+   `[(&'static str, T); 7]` array consumed by a loop variable.
+5. **The scan root — a scope error in the method, not a missed site.**
+   The pattern greps `crates/*/src`, while the corpus the gate is fed
+   from is not confined to it: `demos/tour/src/booleans.rs` decides
+   `demo_flush_{offset,orient,parallel}` through the same funnel, and
+   `k_probe_sweep.sh` records them into the very CSV `k-lint` reads. A
+   roster method that sweeps one tree and calls itself complete, while
+   the gated corpus is fed from two, is wrong by construction — no
+   amount of care at the sites it does scan would have found these.
+
+**Both halves have a blind spot, and the union is the roster.** The
+code scan misses names not written as a literal at a funnel site (the
+83 above). The CSV column — "what the corpus actually emitted" — misses
+names the corpus never reaches: **88** of the 238 literal names are
+absent from the M7 baseline, `bool_join_chord` among them, and it is
+listed in the M3 crop above. Neither is a roster alone. Re-deriving:
+
+```sh
+# behavioural half — what a fresh sweep emitted
+scripts/k_probe_sweep.sh target/k-fresh
+tail -n +2 target/k-fresh/k-eps-1e-9.csv | cut -d, -f2 | sort -u
+# code half — every funnel site, all three entries, all roots
+grep -rnE '\b(decide|decide_flagged|decide_invariant)\s*\(' \
+  crates/*/src demos/*/src
+```
+
+The second command is a **starting set, not an answer**: it reports
+sites, and a site whose first argument is not a literal has to be read.
+That residue is the roster's standing cost, and it is why this is
+written down rather than discovered.
+
+**What the restatement catches that the old one did not.** *Measured
+against this document AS THE ROW FOUND IT (`ff5ad78e`, before this
+section existed) — re-running them against the text below now returns
+smaller numbers, because the seven orphans are tabled here.* Of the 83
+carried names, **53 appear nowhere in the pre-restatement document**
+verbatim, and **17** are not covered even by a `family_*` mention
+there. Cross-checked
+against `docs/predicate-dimension-audit.md`, which carries
+`transform_rigid_*` and `transform_rigid_trans_finite_*` as family rows,
+**seven names are recorded in neither document under any reading**:
+
+| name | home | carrier |
+|---|---|---|
+| `arc_apex_identity` | `profile/src/seg.rs` | `coincident(…)` wrapper |
+| `contact_at_shared_vertex` | `profile` | wrapper |
+| `side_planes_cosurface` | `sweep/src/swept.rs` | `CosurfaceNames` field |
+| `side_cylinders_cosurface` | `sweep/src/swept.rs` | `CosurfaceNames` field |
+| `demo_flush_offset` | `demos/tour/src/booleans.rs` | outside the scan root |
+| `demo_flush_orient` | `demos/tour/src/booleans.rs` | outside the scan root |
+| `demo_flush_parallel` | `demos/tour/src/booleans.rs` | outside the scan root |
+
+They are recorded here rather than folded into the M3 crop above: that
+crop is a dated era snapshot of what M3 added, and back-filling it
+would make it describe something it never described.
+
+**Maintenance: this roster is a RECORD, and stays hand-maintained.**
+The decision is on what the roster is *for*, and the evidence is that
+nothing computes with it:
+
+- No tool opens `docs/K-REPORT.md`. Every reference to it in `*.rs`,
+  `*.sh`, `*.py`, `*.toml` and `*.yml` is a prose citation.
+- `tools/k-lint` is handed CSV paths and lints rows against constants
+  pinned in its own source. Its one name-keyed rule,
+  `EPS_COUPLED_PREDICATES`, is a deliberate allow-list that fails
+  **loud** — an ε-coupled predicate missing from it *keeps flagging*
+  under the metre rules until someone rules. A roster omission
+  therefore cannot silently weaken the gate. (Its neighbour `tess-lint`
+  *does* diff a committed baseline; k-lint deliberately does not, and
+  that difference is what makes this ruling possible.)
+- A gate would have to be fed a machine-readable roster, which is the
+  maintenance burden this decision declines; a reporting register would
+  commit a second copy of a number the sweep already produces on every
+  merge in `target/k-fresh`, one `cut -d, -f2 | sort -u` away.
+
+So: **stated criterion, disclosed residue, no CI row.** What a future
+reader is owed instead is above — the rule, the five escape routes, the
+two blind spots, and the seven names measured outside both documents.
+Adding a name carrier without recording it here still silently drops
+its rows from the roster; that is now a disclosed cost rather than an
+undetected one.
 
 **Why no per-predicate margin data in this snapshot.** The recording
 mechanism is the `Probe` scalar: per-predicate CSVs require running a
