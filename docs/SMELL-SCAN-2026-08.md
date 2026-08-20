@@ -3691,6 +3691,19 @@ designated venue, still unexecuted.
 a **substitute** for stating the policy, not a step toward it — N well-defended
 deviations read as N decisions when they are one undecided question.
 
+**The vocabulary grew again (2026-08-19, PR #684).** `curved::grid_steps` now
+carries a sixth rule: `pole_columns`, a floor on the u step count when the
+boundary walk carries a chart singularity (issue #678 — `nu == 2` meshes a pole
+fan silently non-manifold). Two things to record honestly. It is a
+**correctness** floor, not another tuning constant, and the routed-out design
+conversation does **not** cover it: #568 and `docs/TESS-SPLIT-SPEC.md` are
+scoped entirely to the NURBS **per-cell** schedule (`nurbs_cert`'s
+`grid_steps`, certified cells, the first fundamental form), and nothing open
+covers `curved::grid_steps`. But it lands squarely on this smell's *class*
+complaint anyway: with no stated sizing policy, rule six arrives as one more
+locally-argued decision in a module that already has five, and the reader still
+has to read all six to know what the schedule promises.
+
 ## S30. `budget` and `probe_stats` are ~1,050 lines of instrument in the kernel's hot loop
 
 - **Where**: `crates/mesh/src/budget.rs:1`,
