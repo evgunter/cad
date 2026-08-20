@@ -81,7 +81,7 @@ cases. A finding is a *question worth answering*, not a defect.
 - [Tier 3 — real but lower stakes](#tier-3--real-but-lower-stakes) (S38–S48)
 - [Findings raised by the Wave-1 fix lanes](#findings-raised-by-the-wave-1-fix-lanes-2026-08-18) (S49–S56)
 - [§A. Where I would start](#a-where-i-would-start)
-- [§D. The schedule](#d-the-schedule) — live rows only; Track B is the parallel-orchestrator list
+- [§D. The schedule](#d-the-schedule) — live rows only; Track B is the parallel-orchestrator list, and **Accepted, unscheduled** is the tail with verdicts but no rows
 - [§C. Process observations](#c-process-observations)
 - [§B. Negative results and coverage](#b-negative-results-and-coverage)
 
@@ -5125,6 +5125,11 @@ unit is recorded at its own finding as a bolded `FIXED by #NNN` lead, which is
 the one home for it. A row leaves this section when it lands. What follows is
 therefore what is *left*, and its length is the honest measure of that.
 
+That claim held only for work someone had already been assigned. An audit of
+all 56 finding IDs against this schedule (2026-08-20) found eleven accepted,
+disputed or decided findings with no row anywhere; they are now tabulated under
+**Accepted, unscheduled** below, so the measure counts them.
+
 **Overhauled 2026-08-19.** The original schedule's Waves 0, 1 and 1b are
 complete except where a row appears below; W1a–W1e all landed, H1–H10 all
 landed, and four of the six Wave-0 decisions were made in one sitting. The
@@ -5224,6 +5229,44 @@ the taker should expect to make and record.
 | **L1** | **S36** — comb-and-rename, **per suite**, never a rename pass. | A PR-numbered name currently *carries signal*: it marks a suite not yet combed. Renaming first converts a visible backlog into an invisible one. Needs an owner and a slot, not just permission — the 2026-08-13 retirement licence has produced zero deletions. |
 | **L2** | **S38** — comment trimming. | Must follow every deletion above; trimming comments on code about to be deleted is pure waste. Note the pressure runs the other way too: three fix passes this week added prose because a finding demanded a claim-site reason that did not exist. |
 | **L3** | Remaining **S35** roll-up rows. | Lowest value density; several will be resolved incidentally. |
+
+---
+
+## Accepted, unscheduled
+
+**These have a verdict and no row.** This section exists because §D's opening
+claim — *"what follows is what is left, and its length is the honest measure of
+that"* — was not true without it: an audit of all 56 finding IDs against the
+schedule (2026-08-20) found eleven findings that Evan accepted, disputed or
+decided and that appear in **no track, no decision table, and no `FIXED by`
+lead**. They were not dropped on purpose. They were accepted in *batches* —
+`ACCEPTED … see S16`, `ACCEPTED, SORT REQUIRED … see S8` — and when the work
+was scheduled, the batch's leader got a lane and its siblings got a verdict and
+nothing else.
+
+That is §C3 (*"deferrals must land in a register that executes"*) happening to
+this document, which is the register. A row here is **not** a claim that the
+work should start; several of these want a decision inside them first. It is a
+claim that the item is real, has been agreed to be real, and currently has
+nowhere to be picked up from.
+
+| # | Finding | Verdict as recorded | What it is waiting on |
+|---|---|---|---|
+| **U1** | **S11 / D4** — `Mat2`/`Affine2`, `PairSolve`, and the two inlined fillet helpers. | **DECIDED** (Evan, 2026-08-19): delete. | Nothing — this one is *decided and unexecuted*, the sharpest case here. The ruling gave it a queue position, **"back of the queue, but ahead of W3b"**, on ordering rule 1's logic that comments must not be trimmed on condemned code; "Last, deliberately" has no D4 row, so that instruction binds nothing. It also carries three provenance-note obligations (`PairSolve` → **#611**; the fillet helpers → **#319**/**#554**; `Mat2`/`Affine2` → the deleting PR body cross-referenced from **#614**) and the requirement that the deleting PR cite the **commit SHA** the code is recoverable from. |
+| **U2** | **S8, S9, S10** — the fitted rung-3 pcurve lane with no producer; the vacuous trim-containment limb; the dead schema-migration mechanism and its fourteen versions. | **ACCEPTED, SORT REQUIRED** (2026-08-18). | The sort itself: *frontier* (keep, gate, say so) or *deletion*, decided per lane. §A ranked this third of four and it is the only §A item never taken up — *"several of these lanes are the reason other things are awkward — S8 is why `Pcurve` is not `Copy`."* |
+| **U3** | **S17** — three ray-parity point-in-polygon implementations, one an admitted transcription. | **ACCEPTED** (2026-08-18) — recorded only as *"see S16"*. | A row. S16 was fixed by **#620**; this is the sibling that rode in on its acceptance. The transcription is self-declared in prose at the copy site, which is the shape §C11 says nobody reads. |
+| **U4** | **S18** — certified numeric derivations duplicated across crates (roll-up). | **ACCEPTED** (2026-08-18) — also *"see S16"*, with *"they should certainly be unified."* | A row, and a scope: it is a roll-up, so it needs the same frontier/deletion sort U2 needs before it can be one lane. |
+| **U5** | **S12** — Euler atomicity by convention: every write silently no-ops on a missed precondition. | **ACCEPTED** (2026-08-18), identified as one half of a pair. | A row. This is the one item in this table that describes a **silent** failure mode in kernel writes rather than a structural or documentation defect. |
+| **U6** | **S15** — other invariants held by prose rather than by types (roll-up). | **ACCEPTED** (2026-08-18) — *"lots of other great catches."* | A row, and the same roll-up sort. Its own body notes the repo demonstrably knows how to do all three alternatives. |
+| **U7** | **S14** — `Span` validity is prose, and the guard's removal turned poison into a documented panic. | **DISPUTED — REFRAME PROPOSED** (2026-08-18). | **A place to be answered.** A proposed reframe is a question to Evan, but S14 is not in *Open decisions — Evan only* either, so the reframe has no channel. This is the only row here that is a *decision* rather than *work*. |
+| **U8** | **S44** — the founding ruling for the lane-trait pattern exists only as an agent's paraphrase. | **OPEN** "for the part that matters". | Its priced half (D1) was ruled 2026-08-19 and is executing as **A1**; the part recorded as still open was not carried across into C7 with the rest of the lane-trait question. |
+| **U9** | **S51** — S42's verification never varies the loft's `v` direction. | **ACCEPTED** (2026-08-18) — *"worth a lane on its own terms."* | The lane it says it is worth. S42 itself closed **NO DEFECT** on #619's evidence, and this row is the observation that the evidence did not vary the axis that would have mattered. |
+| **U10** | **S55** — `Enclosure` is a live trait with no consumer left. | **DEFERRED** (Evan, 2026-08-19), pending the `Bounds` narrow-vs-broad question. | Legitimately blocked on **A1** — but C4 and C7 name their A1-blocked items explicitly and S55 is not among them, so it is blocked *in prose* rather than in the schedule. It belongs in an edge, not in this table, and is listed here only until it is put in one. |
+
+**How to retire a row from this table:** move it into a track, into *Open
+decisions*, or into *Last, deliberately* — or close it with a `FIXED by`. Do
+not delete a row from here without one of those, which is the failure this
+table records.
 
 ---
 
