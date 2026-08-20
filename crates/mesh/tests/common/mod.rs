@@ -114,6 +114,18 @@ pub fn cone() -> Body<f64> {
         .body
 }
 
+/// A PARTIAL revolve of the cone profile — base radius `s`, height 1,
+/// swept `theta` — so the cone face carries the apex as a chart
+/// singularity AND has a bounded azimuth span. Issue #678's shape:
+/// both variables that reach `nu == 2` (a tiny `s`, which saturates
+/// the sagitta cap at every δ, and a narrow `theta`) live here.
+pub fn cone_wedge(s: f64, theta: f64) -> Body<f64> {
+    let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(s, 0.0), p2(0.0, 1.0)]);
+    revolve(&validated(vec![lp]), axis_y(), Revolution::Partial(theta))
+        .unwrap()
+        .body
+}
+
 /// The washer: rectangle [1,2]×[0,1] revolved fully (genus 1, slit
 /// annuli + full-2π cylinder walls).
 pub fn washer() -> Body<f64> {

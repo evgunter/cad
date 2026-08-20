@@ -160,6 +160,7 @@ pub(crate) fn tessellate_curved(
         u1 - u0,
         v1 - v0,
         v0.abs().max(v1.abs()),
+        polygon.iter().any(|e| e.pole),
     )?;
 
     // CDT: boundary entries (fixed walk order) + constraints + grid.
@@ -471,6 +472,47 @@ fn require_swept_rectangle(
     })
 }
 
+/// The pole-fan separation floor on the u step count (issue #678).
+///
+/// A chart singularity inside the domain enters the CDT as TWO polygon
+/// entries, at `(u0, v_pole)` and `(u1, v_pole)`, that map to ONE mesh
+/// vertex. The module header's fan argument — "one dropped triangle per
+/// collapsed side; its two non-collapsed edges become the identified
+/// fan edges" — holds only when those two entries share exactly that
+/// one triangle, and `nu == 2` is the one step count that breaks it:
+/// there is a SINGLE interior grid column, at `u = (u0 + u1)/2`, and it
+/// is equidistant from both pole entries, so the Delaunay triangulation
+/// gives BOTH of them a fan over its upper half. Every column vertex in
+/// the overlap is an interior fan vertex twice over, so the identified
+/// mesh edge `(pole, column)` is used FOUR times: `check_mesh` reports
+/// `NonManifoldEdge`, and `tessellate` — which does not run it —
+/// returns that mesh as `Ok`.
+///
+/// `nu == 2` is singular, which is why the floor is written as an
+/// equality and not as `max(3)`. With `nu == 1` the inner grid range
+/// `1..nu` is empty, so there is no interior column at all and the two
+/// entries fan over the BOUNDARY walk, which is ordered along the rim
+/// and splits between them at one shared vertex. With `nu >= 3` each
+/// entry's nearest column occludes the other's, so the fans are
+/// disjoint again.
+///
+/// The floor is a step count, not a manifoldness test, so it also
+/// re-sizes the `nu == 2` pole faces whose fans happened NOT to overlap
+/// — the ones with too few interior rows for the overlap to contain an
+/// edge (a pi/4 cone wedge at delta = 0.1 goes 10 -> 14 triangles; a
+/// pi/2 sphere wedge at delta = 0.2 goes 18 -> 24). Those meshes were
+/// watertight before and are watertight after; the alternative is a
+/// per-face manifoldness re-derivation of the emitted patch, which is
+/// the D2-addendum row-5 backstop, not the sizing rule.
+///
+/// Reached only where the sagitta cap already rules (`hu = pi/4`) or
+/// the wedge is narrow: `uspan <= 2*hu`. A full revolve spans `2*pi`
+/// and is never affected; the executed cases are partial revolves whose
+/// cone/sphere face contains the apex or pole.
+fn pole_columns(nu: usize, has_pole: bool) -> usize {
+    if has_pole && nu == 2 { 3 } else { nu }
+}
+
 /// Interior grid step counts (nu, nv) for the face's UV spans.
 fn grid_steps(
     chart: &Chart,
@@ -478,6 +520,7 @@ fn grid_steps(
     uspan: f64,
     vspan: f64,
     v_absmax: f64,
+    has_pole: bool,
 ) -> Result<(usize, usize), TessellateError> {
     let cap = core::f64::consts::FRAC_PI_4;
     match chart.kind {
@@ -489,7 +532,10 @@ fn grid_steps(
             let rho_max = v_absmax * half_angle.sin();
             let hu = sagitta_angle(delta_s, rho_max);
             let hv = rho_max * hu;
-            Ok((ceil_count(uspan, hu)?, ceil_count(vspan, hv)?))
+            Ok((
+                pole_columns(ceil_count(uspan, hu)?, has_pole),
+                ceil_count(vspan, hv)?,
+            ))
         }
         ChartKind::Sphere { r } => {
             // Deliberate 1.25 sizing margin: near the equator a
@@ -501,7 +547,10 @@ fn grid_steps(
             // sizing tweaks from silently landing on the certificate
             // boundary; the certificate remains the backstop.
             let h = sagitta_angle(delta_s / 1.25, r);
-            Ok((ceil_count(uspan, h)?, ceil_count(vspan, h)?))
+            Ok((
+                pole_columns(ceil_count(uspan, h)?, has_pole),
+                ceil_count(vspan, h)?,
+            ))
         }
         ChartKind::Torus { major, minor } => {
             let h = torus_grid_step(delta_s, major, minor).min(cap);
