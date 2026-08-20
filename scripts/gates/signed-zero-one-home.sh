@@ -11,66 +11,265 @@
 # recognition modules, and the home itself. A claim nothing checks is
 # how copy five lands too, so this is the check.
 #
-# WHAT FIRES IT: a flush spelled anywhere under `crates/step-import/src`
-# except the home — either form the four copies actually used, `x + 0.0`
-# (add-to-flush) or `if x == 0.0 { 0.0 }` (branch-and-substitute).
+# WHY IT IS NOT LINE-BASED. rustfmt's canonical form for the branch
+# spelling is FIVE LINES once the identifier is long enough to cross
+# `single_line_if_else_max_width` (50), and that wrapped form is what
+# rustfmt PRODUCES — the common case, not an edge case. A line matcher
+# passes it green, so whether the guard fired would depend on how long
+# the author's variable name was. This is S56's shape one level over
+# (a matcher that saw `T: Bounds + Decide` and not the other order),
+# and the ruling there was that the matcher must see both forms rather
+# than carve one out. So each file is stripped of comments and scanned
+# as overlapping SIX-LINE WINDOWS with whitespace collapsed, which
+# makes the one-line and rustfmt-wrapped spellings the same string.
 #
-# WHAT IT CANNOT SEE: a flush written without a literal `0.0` on either
-# side (an `f64::from_bits` sign-bit mask, `x - x.min(x)`), one behind a
-# generic or a trait method, and any copy outside this crate. The claim
-# guarded is the one the module makes — one flush in THIS importer — not
-# a workspace-wide uniqueness that is false by design
-# (`pncad-py/src/py/doc.rs` folds `-0.0` for `__hash__`/`__eq__`
-# consistency, a different rule with a different reason).
+# WHAT FIRES IT, anywhere under `crates/step-import/{src,tests}` except
+# the home — the tests are in scope because four of this crate's suites
+# hand-construct frames, so a re-derived helper there is a plausible
+# copy and a suite is exactly where one would be written to avoid
+# touching `src`:
+#
+#   * `if <e> == 0.0 { 0.0 } …`  — branch-and-substitute, either the
+#     one-line or the rustfmt-wrapped form;
+#   * `<e> + 0.0`                — add-to-flush, the spelling both
+#     deleted copies used, including `*value + 0.0`;
+#   * `0.0 + <e>`                — the same technique with the operands
+#     reversed, where `<e>` opens with an identifier, a deref or a
+#     paren (so `0.0 + 1e-12`, a real offset, does not fire).
+#
+# `0.0` is matched as a WHOLE literal: `+ 0.05` and `+ 0.0125` are
+# ordinary constants and stay green. A gate that cried wolf on those
+# would teach the next author that it is noise.
+#
+# WHAT IT STILL CANNOT SEE (stated because a sweep whose blind spot is
+# unstated is an unverified claim, §C15):
+#
+#   * a flush with no literal `0.0` on either side — an
+#     `f64::from_bits` sign-bit mask, `x - x.min(x)`, `x.abs() * s`;
+#   * one spelled across MORE than six lines, or split so that no
+#     window holds the whole expression (a `+` and its `0.0` seven
+#     lines apart, a `match` arm ladder standing in for the `if`);
+#   * one behind a generic, a trait method, or a macro that expands to
+#     any of the above — the scan reads source text, never expansions;
+#   * a same-shaped guard that is NOT a flush (`if den == 0.0 { 0.0 }
+#     else { num / den }`) fires here on purpose: it looks identical
+#     and wants a human, not an allowlist;
+#   * anything outside `crates/step-import/{src,tests}`. The claim
+#     guarded is the one the module makes — one flush in THIS importer
+#     — not a workspace-wide uniqueness that is false by design
+#     (`pncad-py/src/py/doc.rs` folds `-0.0` for `__hash__`/`__eq__`
+#     consistency, a different rule with a different reason).
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 HOME_FILE=crates/step-import/src/signed_zero.rs
+SCAN_DIRS=(crates/step-import/src crates/step-import/tests)
 GATE_SCAN_NOUN='step-import source file'
 
+# One window per source line: comments removed, six lines joined, runs
+# of whitespace collapsed to one space. Emitted as `FILE:LINE: TEXT` so
+# a hit reports where the flush starts.
+flatten() {
+  local f
+  for f in "$@"; do
+    awk -v FILE="$f" '
+      BEGIN { inblock = 0 }
+      {
+        s = $0; out = ""; i = 1
+        while (i <= length(s)) {
+          if (inblock) {
+            p = index(substr(s, i), "*/")
+            if (p == 0) { i = length(s) + 1 } else { inblock = 0; i = i + p + 1 }
+          } else {
+            p = index(substr(s, i), "/*")
+            q = index(substr(s, i), "//")
+            if (q > 0 && (p == 0 || q < p)) { out = out substr(s, i, q - 1); i = length(s) + 1 }
+            else if (p > 0) { out = out substr(s, i, p - 1); i = i + p + 1; inblock = 1 }
+            else { out = out substr(s, i); i = length(s) + 1 }
+          }
+        }
+        line[NR] = out
+      }
+      END {
+        for (i = 1; i <= NR; i++) {
+          w = line[i]
+          for (j = i + 1; j <= i + 5 && j <= NR; j++) w = w " " line[j]
+          gsub(/[ \t]+/, " ", w); sub(/^ /, "", w)
+          if (w != "") print FILE ":" i ": " w
+        }
+      }' "$f"
+  done
+}
+
+# Three spellings of one technique. `0.0` as a whole literal each time.
+PAT_BRANCH='== 0\.0 \{ 0\.0 \}'
+PAT_ADD='\+ 0\.0([^0-9]|$)'
+PAT_ADD_REVERSED='0\.0 \+ [A-Za-z_*(]'
+
 gate() {
-  # The home must exist (a renamed subject would make this green
-  # forever), and the crate it guards must actually have sources.
+  # The home must exist — a renamed subject would make this gate green
+  # forever (see bit-identity-debug-only.sh's header for the live
+  # instance) — and the trees it guards must actually hold sources.
   gate_require_file "$HOME_FILE"
-  GATE_SCAN_FILES=$(find crates/step-import/src -type f -name '*.rs' | wc -l)
-  if grep -rnE '\+[[:space:]]*0\.0|==[[:space:]]*0\.0[[:space:]]*\{[[:space:]]*0\.0' \
-    crates/step-import/src \
+  local files hits
+  mapfile -t files < <(find "${SCAN_DIRS[@]}" -type f -name '*.rs' 2>/dev/null | sort)
+  GATE_SCAN_FILES=${#files[@]}
+  if [ "$GATE_SCAN_FILES" -eq 0 ]; then
+    gate_error "$(gate_name): no .rs files under ${SCAN_DIRS[*]} in $PWD — the gate scanned nothing, which is not a pass"
+    exit 1
+  fi
+  hits=$(flatten "${files[@]}" \
     | grep -vE "^$HOME_FILE:" \
-    | grep -vE ':[0-9]+:[[:space:]]*(//|/\*|\*)'; then
+    | grep -E "$PAT_BRANCH|$PAT_ADD|$PAT_ADD_REVERSED" \
+    | cut -c1-140 || true)
+  if [ -n "$hits" ]; then
+    printf '%s\n' "$hits"
     gate_error "a negative-zero flush outside the sanctioned home ($HOME_FILE) — call crate::signed_zero instead of re-deriving it"
     exit 1
   fi
   gate_ok "the negative-zero flush lives only in $HOME_FILE"
 }
 
-# This gate's subject is one crate's sources, not `crates/*/src`.
+# This gate's subject is one crate's src+tests, not `crates/*/src`. The
+# clean fixture puts the home in rustfmt's WRAPPED form — the exemption
+# has to hold for the shape the formatter actually produces — beside a
+# caller, two innocent literals that begin `0.0`, and a comment that
+# spells a flush out. Every one of those was a way to make this gate
+# lie, so the negative control carries all of them.
 gate_plant_clean() {
-  mkdir -p "$1/crates/step-import/src"
-  printf 'pub fn plus_zero_scalar(x: f64) -> f64 { if x == 0.0 { 0.0 } else { x } }\n' \
-    > "$1/$HOME_FILE"
-  printf 'pub fn mint(x: f64) -> f64 { crate::signed_zero::plus_zero_scalar(-x) }\n' \
-    > "$1/crates/step-import/src/recognize.rs"
+  mkdir -p "$1/crates/step-import/src" "$1/crates/step-import/tests"
+  cat > "$1/$HOME_FILE" <<'RS'
+pub fn plus_zero_scalar(component_value: f64) -> f64 {
+    if component_value == 0.0 {
+        0.0
+    } else {
+        component_value
+    }
+}
+RS
+  cat > "$1/crates/step-import/src/recognize.rs" <<'RS'
+// A mint whose flush is `x + 0.0` would be a copy; this one calls the home.
+pub fn mint(x: f64) -> f64 {
+    crate::signed_zero::plus_zero_scalar(-x)
+}
+pub fn pad(t: f64) -> f64 {
+    t + 0.05
+}
+pub fn nudge() -> f64 {
+    0.0 + 1e-12
+}
+RS
+  printf 'pub fn probe() -> f64 { super::mint(1.0) }\n' \
+    > "$1/crates/step-import/tests/probe.rs"
+}
+
+# Each planted case is one way the previous matcher was evaded. They are
+# separate cases, not one fixture, so a fix that closes three of them
+# and reopens the fourth fails visibly (the S56 lesson).
+
+# The one that mattered: rustfmt's own output for the branch spelling.
+plant_rustfmt_branch() {
+  cat > "$1/crates/step-import/src/adopt.rs" <<'RS'
+fn flush_component(component_value: f64) -> f64 {
+    if component_value == 0.0 {
+        0.0
+    } else {
+        component_value
+    }
+}
+RS
+}
+
+plant_oneline_branch() {
+  printf 'fn flush(x: f64) -> f64 { if x == 0.0 { 0.0 } else { x } }\n' \
+    > "$1/crates/step-import/src/adopt.rs"
 }
 
 plant_add() {
-  printf 'pub fn flush(x: f64) -> f64 { x + 0.0 }\n' \
-    > "$1/crates/step-import/src/recognize.rs"
+  printf 'fn flush(x: f64) -> f64 { x + 0.0 }\n' \
+    > "$1/crates/step-import/src/adopt.rs"
 }
 
-plant_branch() {
-  printf 'pub fn flush(x: f64) -> f64 { if x == 0.0 { 0.0 } else { x } }\n' \
-    > "$1/crates/step-import/src/recognize_curve.rs"
+# `*value + 0.0` — the shape any `.map(|v| ...)` over a `&f64` takes,
+# and the exact idiom at the site this row's fourth copy lived on. The
+# old comment filter discarded it as a block-comment continuation.
+plant_deref_add() {
+  cat > "$1/crates/step-import/src/adopt.rs" <<'RS'
+fn flush(value: &f64) -> f64 {
+    *value + 0.0
+}
+RS
 }
 
-# Two known spellings, two cases: a gate that caught only the form the
-# home uses would have missed the two copies this row actually had.
+plant_reversed_add() {
+  printf 'fn flush(x: f64) -> f64 { 0.0 + x }\n' \
+    > "$1/crates/step-import/src/adopt.rs"
+}
+
+# A suite is where a copy gets written to avoid touching `src`.
+plant_in_tests() {
+  printf 'fn flush(x: f64) -> f64 { x + 0.0 }\n' \
+    > "$1/crates/step-import/tests/probe.rs"
+}
+
+# GREEN cases. A gate that fires on these is a gate people route
+# around, so they are asserted, not assumed.
+plant_innocent_literals() {
+  cat > "$1/crates/step-import/src/adopt.rs" <<'RS'
+fn pad(t: f64) -> f64 {
+    t + 0.05
+}
+fn scale(x: f64) -> f64 {
+    x + 0.0125
+}
+fn offset() -> f64 {
+    0.0 + 1e-12
+}
+RS
+}
+
+plant_comment_only() {
+  cat > "$1/crates/step-import/src/adopt.rs" <<'RS'
+// The old copies spelled this `x + 0.0`, and one wrote
+// `if x == 0.0 { 0.0 } else { x }`. Both are prose here.
+/* A block comment naming `*value + 0.0`
+ * across a continuation line.
+ */
+fn adopt(x: f64) -> f64 {
+    crate::signed_zero::plus_zero_scalar(x)
+}
+RS
+}
+
+# The clean fixture plus PLANTER must still PASS.
+selftest_green_case() {
+  local tmp out
+  tmp=$(mktemp -d)
+  gate_plant_clean "$tmp"
+  "$1" "$tmp"
+  if ! out=$(cd "$tmp" && gate 2>&1); then
+    rm -rf "$tmp"
+    printf 'SELFTEST FAILED: the gate FIRED on a legitimate fixture (%s)\n%s\n' "$1" "$out" >&2
+    exit 1
+  fi
+  rm -rf "$tmp"
+}
+
 gate_selftest() {
   gate_selftest_clean
-  gate_selftest_case "outside the sanctioned home" plant_add
-  gate_selftest_case "outside the sanctioned home" plant_branch
-  printf '%s selftest OK: passes a clean fixture, fires on both planted spellings\n' "$(gate_name)"
+  local want="outside the sanctioned home"
+  gate_selftest_case "$want" plant_rustfmt_branch
+  gate_selftest_case "$want" plant_oneline_branch
+  gate_selftest_case "$want" plant_add
+  gate_selftest_case "$want" plant_deref_add
+  gate_selftest_case "$want" plant_reversed_add
+  gate_selftest_case "$want" plant_in_tests
+  selftest_green_case plant_innocent_literals
+  selftest_green_case plant_comment_only
+  printf '%s selftest OK: 6 planted spellings fire (rustfmt-wrapped, one-line, add, deref-add, reversed, in tests/); clean fixture, innocent literals and comment-only mentions stay green\n' \
+    "$(gate_name)"
 }
 
 gate_parse_args "$@"
-gate_main "outside the sanctioned home" plant_add
+gate_main

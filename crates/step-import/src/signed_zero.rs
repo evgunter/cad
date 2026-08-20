@@ -23,10 +23,23 @@
 //! normalizations, whose half turns negate exact zeros
 //! (`normalize::half_turn` and the frames it re-mints); and every frame
 //! RECOGNITION derives — `center`/`axis`/`u_ref`/`origin` on a promoted
-//! analytic surface or curve, which are minted, not read. Derivations
-//! that only select or copy components already flushed upstream —
-//! `Resolver::placement`, `Resolver::direction` — cannot introduce a
-//! sign and do not call it.
+//! analytic surface or curve, which are minted, not read.
+//!
+//! `Resolver::placement` and `Resolver::direction` DO arithmetic —
+//! `candidate - axis * along`, then `perpendicular / norm` and
+//! `ratios / norm` — and still do not call it, for a stronger reason
+//! than "they only copy". Under round-to-nearest a difference of zeros
+//! is `-0.0` only when the minuend is `-0.0` and the subtrahend `+0.0`;
+//! the minuend here is a component the reader already flushed, so it
+//! never is. The `axis * along` product CAN be `-0.0` (an exact zero
+//! times a negative), but it appears as the SUBTRAHEND, and
+//! `+0.0 − (−0.0)` is `+0.0`. Division by a strictly positive norm
+//! carries the sign through unchanged. So no sign is minted there.
+//!
+//! That is a property of those three operations, not a licence for
+//! those functions: a negation, a cross product, or a multiply whose
+//! result is kept added to either resolver mints `-0.0` from an exact
+//! zero and owes the flush.
 //!
 //! The recognition half is pinned by the promoted one-cycle fixed point
 //! (`tests/corpus_fold.rs:130`): without the flush, `nonuniform_loft`'s
