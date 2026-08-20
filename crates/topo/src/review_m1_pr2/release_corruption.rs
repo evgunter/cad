@@ -3,13 +3,38 @@
 //! fixtures; the independence is the regression value. Promoted per
 //! Evan's request (PR #17 thread).
 //!
-//! Tier-1-INVALID bodies fed into the operators. Contract: typed errors
-//! or garbage bodies -- never a panic, never a hang. Run this under BOTH
-//! profiles; the garbage-success cases are meaningful in --release
-//! (debug builds fire the postcondition assert on them -- see the
+//! Tier-1-INVALID bodies fed into the operators. The debug-vs-release
+//! expectations are split with `cfg(debug_assertions)` guards, so neither
+//! profile alone covers this file and BOTH have to run it: the
+//! garbage-success cases exist only in --release (debug builds fire the
+//! postcondition assert on them -- see the
 //! debug_postcondition_fires_on_corrupt_input test, which documents that
-//! tension). The debug-vs-release expectations are split with
-//! `cfg(debug_assertions)` guards so the suite is green in both.
+//! tension).
+//!
+//! Both are gated. The debug rows ride the standard nextest matrix; the
+//! release rows are the `corrupt input (release profile)` job in
+//! `.github/workflows/ci.yml`, which is the only release-profile test
+//! invocation the kernel workspace has. That job greps this sentence, so
+//! renaming it here or there is loud.
+//!
+//! # What of the contract is still ratified
+//!
+//! "Never a panic, never a hang" is: DESIGN.md's D9 footnote, as amended
+//! by the **D2 addendum** (2026-08-19), keeps exactly the bounded-traversal
+//! half -- "never a hang; every traversal is bounded".
+//!
+//! "Or garbage bodies" is NOT. The addendum's rule is **silent discard is
+//! never an answer**, and it explicitly supersedes the footnote's original
+//! "typed errors where cheaply detectable, or documented garbage-out in
+//! release". The ~60 silent discards in `euler{,_ring,_kill}.rs` that
+//! produce those garbage bodies are now a known deviation pending **W2c**,
+//! not a ratified disposition. So
+//! `foreign_parent_loop_garbage_in_garbage_out_release` below documents
+//! what the kernel currently DOES, not what it is entitled to do, and W2c
+//! is expected to change its meaning or retire it. Its independent value
+//! until then is that it is the file's only
+//! `#[cfg(not(debug_assertions))]` item, so it is the one thing here that
+//! a debug-only CI could not even type-check.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -126,19 +151,33 @@ fn large_torn_body_terminates_quickly() {
         })
         .unwrap_err();
     assert!(matches!(err, EulerOpError::LoopCycleBroken { .. }));
+    let walked = start.elapsed();
+    // The clause this row defends is D9's surviving one: every traversal
+    // is bounded. MEASURED for the attacked call itself -- 1.5 us in
+    // release (n = 3000) and 7.4 us in debug at opt-0 (n = 500), on a
+    // 4-core container with four other lanes live, so not CI's 2-vCPU
+    // box. 10 ms is therefore ~1400x the slower measurement: a
+    // hang-and-blowup detector with room for scheduler jitter on a shared
+    // runner, NOT a perf budget. What that catches: an unbounded walk,
+    // and any growth beyond roughly quadratic at this n. What it does
+    // NOT catch: a constant-factor regression. A bound tight enough for
+    // that would sit within a few multiples of runner jitter, which
+    // buys a flaky gate rather than a stricter one.
     assert!(
-        start.elapsed().as_secs() < 5,
-        "bounded walk took too long: {:?}",
-        start.elapsed()
+        walked < std::time::Duration::from_millis(10),
+        "bounded walk took too long: {walked:?}"
     );
 }
 
 /// Foreign-parent-loop corruption that PASSES every precondition: the op
-/// completes and returns Ok, producing a garbage body. Allowed by the
-/// documented contract in RELEASE (no validity promise on corrupt
-/// input); in DEBUG builds the postcondition assert fires instead --
-/// which contradicts the module doc's claim that a firing postcondition
-/// is "never an input failure". Kept release-only here.
+/// completes and returns Ok, producing a garbage body. This RECORDS
+/// current behaviour rather than blessing it -- the D2 addendum retired
+/// the garbage-out half of the contract and W2c converts the discards
+/// that cause it (see the module docs). In DEBUG builds the postcondition
+/// assert fires instead -- which contradicts the module doc's claim that
+/// a firing postcondition is "never an input failure". Kept release-only
+/// here, which also makes it the file's only item a debug-only CI cannot
+/// compile.
 #[test]
 #[cfg(not(debug_assertions))]
 fn foreign_parent_loop_garbage_in_garbage_out_release() {
