@@ -341,26 +341,25 @@ The tour ships **two montage sheets** with identical grids, captions,
 scene order, and cameras (both read `scenes.json`) — cell-for-cell
 comparable, differing ONLY in whose tessellation is on screen:
 
-**Cell count: 19 on each sheet** (4 columns × 5 rows, last row short
-by one — `compose_montage.py` derives the row count, nothing is
-hardcoded). The derivation: the tour emits 34 scenes, of which 15 are
-`montage: false` — the four standalone renders kept out of the sheet
-by the #91 revision notes and the M6 curation pass (`bracket`, `die`,
-`silhouette`, `az`), the two under-filled heat-sink variants
-(`heatsink5`, `heatsink7` — the sheet carries only the 9-fin panel),
-the five shadow proofs (`silhouette3_shadow_{z,x,y}`,
-`twisted_duct_shadow_{z,y}`), and the four scenes the **montage-v2
-curation** (Evan's #218 follow-up) moved to standalone:
-`tube_along_arc`, `diefillet`, `diepips` (interesting for how they
-work — stored intent parameters, the fillet battery, the closed-group
-cut — but not visually without that context), and `s_duct` (its S
-solid is two glued partial revolves, shape for shape, so the honest
-not-a-revolve sweep cell is now `twisted_duct`). 34 − 15 = 19. The
-count was 18 at the globe lily; the **montage refresh** added
-`tube_along_arc` (19), the trimmed-NURBS tessellation lane landed the
-refresh's three blocked NURBS-walled scenes (22), the #218 review
-re-posed the sweep cell as `s_duct`, and **montage-v2** cut four cells
-and added `twisted_duct` (19).
+**Cell count: every scene the tour marks `montage: true`.** The tour
+prints the three numbers (scenes, montage cells, standalone) on its
+last line, and `compose_montage.py` derives the grid from the manifest
+— nothing is hardcoded, here included. A count written down here is a
+number a new stop makes wrong.
+
+**The rule for staying off the sheet**, which is the part that does not
+drift: a scene is `montage: false` when it is a *proof* rather than a
+part. That is the shadow renders (a silhouette read against its own
+projection needs its own frame), the parameter variants whose point is
+the comparison and not the shape (`heatsink5`/`heatsink7` against the
+9-fin panel the sheet carries), and the scenes whose interest is HOW
+they are built rather than how they look — `diefillet`, `diepips`,
+`tube_along_arc`, `s_duct` (its S solid is two glued partial revolves,
+shape for shape, so the honest not-a-revolve sweep cell is
+`twisted_duct`), plus the standalone renders the #91 revision notes and
+the M6 curation pass set aside (`bracket`, `die`, `silhouette`, `az`).
+The authority is the `montage` field at each `Stop`, and each one that
+is `false` says why beside it.
 
 - `renders/montage.png` — **the kernel's own facets**. Every cell
   renders the tour's exported STL mesh, i.e. the M5 trimmed/pcurve
@@ -900,7 +899,7 @@ tree used to be meaningless, because those cells were drawn against a
 developer host's GL stack and these by llvmpipe on a runner; since the
 #338 canonical-producer ruling and its re-baseline, both sides are the
 hosted producer's output, and a repeat hosted render of one commit is
-byte-identical (measured across all 55 cells of both PNG lanes). So each
+byte-identical (measured across every cell of both PNG lanes). So each
 lane's diff is a real finding, and ci.yml's `renders` job fails on it.
 
 The one caveat that survives is the runner image: its mesa bumps roughly

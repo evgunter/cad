@@ -163,7 +163,7 @@ pub fn stops() -> Vec<Stop> {
                 // The lifted copy is a TRANSFORM result, not a boolean
                 // result — its contacts don't survive the move; it
                 // validates through the plain tier-3 gate.
-                SceneBody::plain_planar("crosslap_exp_b", [0.55, 0.42, 0.65], b_lifted),
+                SceneBody::plain("crosslap_exp_b", [0.55, 0.42, 0.65], b_lifted),
             ],
         },
     ]
