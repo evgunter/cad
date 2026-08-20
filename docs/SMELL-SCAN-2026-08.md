@@ -10865,7 +10865,11 @@ consequence in its own words — *"rustdoc builds no test targets"*
 intra-doc link in a `tests/` file is decoration with a promise attached, on
 every tier, at every eps, forever.
 
-**Nine are broken today**, resolved root-by-root against each file's own scope:
+**Nine are broken today, and nine is a FLOOR rather than a count** — see the
+blind spot below, which is the same shape as the defect being fixed: the check
+resolves a link's ROOT and never its member path, so every `Type::method` link
+whose `Type` is in scope was counted as resolving without `method` being looked
+for at all. The nine are resolved root-by-root against each file's own scope:
 three point at names that exist nowhere (`profile/tests/review_s2.rs:45` —
 S71's own; `geom-core/tests/review_m0_pr4.rs:17`, whose target was renamed AND
 inverted by the M5 backend swap; `editor-core/tests/corpus/mod.rs:21`'s
@@ -10880,9 +10884,47 @@ fixed the three in its own reach and left the rest with dispositions in its PR.
 for it: either the form stops being used in `tests/` (it promises a link that
 cannot exist), or something is built that resolves it, which rustdoc cannot be
 asked to do for a test target. **The sweep's own blind spots are in #831's
-body** — the largest is that it verifies a link's ROOT and never its member
-path, so `Type::method` counts as resolving when `Type` is in scope even if
-`method` does not exist.
+body**; the one that bounds the count is above, and the others (doc lines only,
+identifier-shaped targets only, no `benches/` or `examples/`) each only push
+the floor further down.
+
+**Verdict:**
+
+## S136. A band-keyed row's NAME asserts one arm, and it is the arm the shipped default does not take
+
+**[verified, #831]** `crates/profile/tests/review_s2.rs:1266`,
+`an_uncertifiable_tangent_point_refuses_instead_of_being_returned`, refuses on
+exactly one of the three shipped bands: the ε-crossover it carries is
+≈ 2.53e-10, so at 1e-12 it refuses and at 1e-9 (the default) and 1e-6 it
+BUILDS. Its own doc says so in a section header — *"# This corner is now
+BUILT, not refused, at ε = 1e-9"* — which is the file telling the reader that
+the name is wrong rather than fixing it. **The sibling one screen down is the
+shape it wants**: `a_collapsed_offset_lever_refuses_typed_at_every_band` names
+its band scope, so a reader knows what the row claims without opening it.
+
+**Not renamed by #831, deliberately.** `profile/src/sugar.rs:911` cites the row
+BY NAME as `LEVER_ULPS`'s *"what goes red if this stops being true"* — the
+issue-#667 Q6 pointer — so the rename is a two-file change into a file §D
+fences to a re-read for that lane. Recorded rather than done, and the
+orchestrator concurred.
+
+**It is a class, with at least two more members**, found by grepping
+`crates/*/tests` for rows that branch on the ambient band
+(`Tolerance::get().eps`, `tol().eps`, `eps <`/`eps >=`) and reading each
+enclosing name: `step-import/tests/recognize_pins.rs:281`'s
+`the_integral_mixed_body_imports_first_class_with_a_charted_seam` and `:396`'s
+`the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm`
+both assert a first-class import in the name and then assert `eps >= 1e-9`
+inside the `Ok` arm — true on two bands of three. Checked and NOT members:
+`r1_dm1_probe.rs:86`'s `dm1_no_longer_refuses_at_the_instancing_gate` (the
+refusal panic is unconditional; only the frontier cell is band-keyed) and
+`review_s2.rs`'s own `a_collapsed_offset_lever_refuses_typed_at_every_band`.
+
+**What that grep could not match:** a row whose outcome is band-keyed but which
+does not read ε explicitly (the branch hidden in a helper, or the row simply
+not run at the other bands), and the judgement itself — *does this name assert
+an arm* is a reading, not a match, so the negative results above are one
+reader's.
 
 **Verdict:**
 

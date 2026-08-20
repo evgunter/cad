@@ -131,10 +131,10 @@ from the orchestrator.
 | lane | §D rows | findings |
 |---|---|---|
 | **G-a** | D71, D72 | S127, S128 |
-| **G-d** (G5 half, #831) | **D72** used | **S128**, **S135** used |
-| ~~**G-b**~~ (landed, #787) | D73, D74 — **unused, returned**; **D79** used | S129 and **S130** used; S135 later taken by G-d, S136 free |
+| **G-d** (G5 half, #831) | **D72** used | **S128**, **S135**, **S136** used |
+| ~~**G-b**~~ (landed, #787) | D73, D74 — **unused, returned**; **D79** used | S129 and **S130** used; S135 and S136 later taken by G-d |
 | ~~**G-c**~~ (landed, #781) | D75–D77 — **unused, returned** | S131, S132, S133 — **all spent** |
-| unassigned | D73, D74, D75, D76, D77, D80 | S136 |
+| unassigned | D73, D74, D75, D76, D77, D80 | **none — the S127–S136 block is spent** |
 
 **G-a used D71 and D78, and S127 and S134** (see *Landings*); D72 and S128 came
 back. **The `unassigned` line above is a reconciliation across three landings**
@@ -305,6 +305,10 @@ pins; `sugar.rs` was re-read and not edited. Three things beyond the doc edit:
 - **S133's `profile/` half discharged** and recorded at the finding: 9 hits in
   the lane's scope with no duplication, 14 in `profile/src/path/` with three
   candidates left for the lanes that own those files.
+- **`S136`.** The ε-keyed row's NAME asserts the arm the default band does not
+  take, and its own doc header says so instead of fixing it. Not renamed —
+  `sugar.rs:911` cites it by name as `LEVER_ULPS`'s *"what goes red"* — so it
+  is recorded, with two more members found in `step-import/tests/`.
 
 ### G-b — **G2**, `demos/`, #787
 
@@ -326,7 +330,8 @@ required, one new finding and one issue raised.
 - **Numbers.** D73 and D74 stay free. **S129** (no runner under `demos/`) came
   from the first pass; **S130** and **D79** came from the fix pass — the
   `lily.rs` roll-up the review raised over free ground, recorded and *not*
-  fixed, with D79 scheduling it. **S135 and S136 stay free.**
+  fixed, with D79 scheduling it. **S135 and S136 stayed free** at that landing;
+  both were taken by G-d in #831.
 
 **Fix pass (style review: NOT CLEARED, ten must-fixes).** All ten addressed.
 Three mattered: `run_body`'s `Option` return had no `None` path left and four
