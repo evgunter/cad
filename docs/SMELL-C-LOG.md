@@ -747,6 +747,24 @@ cannot know who else is in it.
 | **C-p** | C9 — the `agreement` column | **#738** | **MERGED** `a0a6e1a5` |
 | **C-e** | H13 — `sweep_body`'s helix orientation coverage | — | implementing; **adversarial** + style |
 | **C-i** | H15 — #635's unclassified siblings (**23 rows**, not the three the finding names) | **#775** | **MERGED** `3fa135fa` |
+| **C-q** | C10 — `geom_core::k_stats`, S30's class one crate over | — | dispatched; **adversarial** + style; row **C22** reserved |
+| **C-j** | S29 — the mesh sizing vocabulary (mechanical half) | — | dispatched; **style only**, and owes the byte-identity proof C-R12 bought it with; row **C23** reserved |
+| **C-g** | S32 — `Surface`'s one-partial-per-call API and SSI's shadow enum | — | dispatched **plan-first** (C-R19 tier 2); **adversarial** + style; row **C24** reserved |
+
+**Three reservations, and what they are reservations against.** C22/C23/C24
+are the next free numbers *as of `1a94204d`* — C9 and C20 are holes (C9 landed
+and left; C20 is #779's, unmerged). Per **C-R21** each lane re-verifies against
+`origin/main` immediately before writing, because §D is shared and another
+track can land a number in the ten minutes between assignment and write. That
+is not a hypothetical: it is exactly how Track A's C11 collided with mine.
+
+**Why C-g routes a plan before a diff.** S32 adds public API to a kernel
+geometry enum (`Surface` gains a jet accessor) and deletes a downstream one
+(`geom-brep`'s `Chart`). C-R19's discriminator is *whether a design element is
+present*, not where the change lands, and "what should the enum's natural query
+be" is a design element. The lane measures first and sends a ≤60-line plan; the
+orchestrator decides whether it needs Evan. It is told explicitly not to idle
+during the wait — oracle-building is available to it the whole time.
 
 ### #731 (C-f / H11) — style lane, 2026-08-20: **not cleared**
 
