@@ -10548,6 +10548,230 @@ or D37+D47+D48 is cheaper than any of them alone.
 
 ---
 
+## Tracks F and G, and the second scan's unscheduled table
+
+**Constituted 2026-08-20**, out of the second scan (S59–S116) plus what Tracks C
+and E could not absorb. They exist so the second scan's findings have somewhere
+to be picked up from before anyone has to rediscover them — §C3's whole lesson,
+applied on the day the findings landed rather than a month later.
+
+**Read this before taking either track.** The second scan's findings arrived
+with **every `Verdict:` line blank**, and verdicts are Evan's. Four have been
+ruled (below); the rest carry a **proposed** disposition in the tables, written
+by the Track E orchestrator from three independent scoping passes. **A proposal
+is not a verdict.** A lane may act on one where the finding is a plain defect
+with one sensible answer; where the table says *needs Evan*, the row is a
+decision and a lane must not resolve it by implementing something.
+
+### What Evan ruled, 2026-08-20
+
+| # | Question | Ruling |
+|---|---|---|
+| **S61** | Is the docs-tier CI skip — which silently disables all 13 gates whenever a change set is only `.md` / `local-scripts/` / `memories/` / `.claude/` — a cost posture or a defect? | **Posture.** Cheap docs CI stays. The rule it implies is the deliverable: **a gate must be sited where it can fire on its own inputs.** `probe-suite-census.sh`'s citation half and `gate-roster.sh`'s roster claim are re-sited accordingly, and `gate-roster.sh` stops citing the hole as its reason not to read `local-scripts/`. This settles the *shape* of S59, S62 and S63 as well. |
+| **S87 / S88** | Did D1 rule on *explicit `Dual` seams* or on *the set of scalars a certified lane admits*? | **The admitting set** — with a correction Evan supplied and the finding missed: **`CertifiedBounds` already exists for exactly this.** `geom-core/src/real.rs:792` is `pub trait CertifiedBounds: Bounds + CertifiedEnclosure {}` with a blanket impl, and **`Dual` implements `Decide` and `Bounds` but not `CertifiedEnclosure`** — so `Dual: CertifiedBounds` is false and the alias is precisely the bound that excludes it. See the note below; this makes S87/S88 mechanical and couples them to S59. |
+| **S71** | Is the enclosing (ρ < 0) fillet class planned or dropped? | **Neither — the question was wrong, and the merge record says so.** See the note below. |
+| **C25 / S38** | When the honest answer to a finding is *"we are not going to change this"*, how long may that answer be and where does it live? | **No standing rule.** A reviewer may return *"this is too long"* as a finding; there is no line budget and no mandated home. L1/L2 keep their existing mandate and gain no new criterion. |
+
+### S87/S88, sharpened by the ruling — and why it is now one chain with S59
+
+`CertifiedBounds` is a **sole** bound whose whole reason to exist, per its own
+doc, is that the inventory *"is spelled as one name rather than as a compound
+bound the compound-`Bounds` gate would have to special-case"*. `Dual` satisfies
+`Decide` and `Bounds` unconditionally (`dual.rs:723`, `:807`) and satisfies
+`CertifiedEnclosure` nowhere — the four impls are `Interval`, `RingInterval`,
+`f64` and `Probe`. So the fix for `ArcCarrierScalar` and for `geom`'s three
+sole-`T: Bounds` projection doors is **mechanical**: bound them on
+`CertifiedBounds` where they should exclude a dual, and record what each admits
+where they should not.
+
+**Two things stop that being a one-line change, and both are why this is a
+chain rather than a row.** First, `real.rs:787` states that
+`T: Decide + CertifiedBounds` *"is still a compound bound, still fires the gate,
+and still needs ratification"* — so converting `ArcCarrierScalar` would newly
+require a ratification. Second, **S59 says the gate does not in fact fire on
+that spelling**: its matcher recognises `Decide + Bounds` and is blind to
+`Decide + CertifiedBounds`, verified by execution. So the sentence that makes
+the conversion safe is currently false, and **S59 must land before S87/S88, or
+the ratification requirement is unenforced at exactly the moment new code starts
+relying on it.**
+
+### S71, answered from the merge record rather than from the tree
+
+Evan asked for the PR description behind the deletion. It is `6b8205ef`,
+*"LIB-ONARC 1.7 (part): review_s2 migrates to the lattice door"*, and it is
+explicit:
+
+> **Boundary finding, pinned instead of papered over:** the enclosing (rho < 0)
+> tangency class is UNREACHABLE through the lattice door — the pair's other
+> crossing always carries a cheaper ordinary candidate and cannot be
+> gate-excluded, so the ladder never picks the enclosing one; the raw builder
+> reached it only by authoring the corner. The enclosing fixtures now pin
+> exactly that boundary (**geometry still demands the class**; the door refuses
+> or rounds without swallowing).
+
+So **neither "planned" nor "dropped" is the answer, and the finding's framing —
+and the three options put to Evan — were all wrong.** The class was not
+abandoned: it is a **known, deliberate, pinned boundary of the lattice door**,
+recorded as a boundary finding at the time, with *geometry still demands the
+class* stated in the merge commit. `the_lattice_door_never_emits_an_enclosing_tangency`
+is not a test that contradicts the capability; it is the pin that boundary was
+given.
+
+**What survives of S71 is therefore narrower and entirely real**: `review_s2.rs:45`
+still says *"So the class is built"* and cites
+`enclosing_tangency_is_constructed_not_stumbled_upon`, **a test the same commit
+deleted** — a stale claim plus a dangling intra-doc citation, which is S39's and
+S112's class, not a capability question. **Proposed verdict: ACCEPTED IN PART**
+— the prose is stale and must be corrected to state the boundary the commit
+records; `sugar.rs`'s enclosing-candidate machinery is **not** dead code to
+delete, because it is the raw-builder path the boundary is defined against; and
+whether the lattice door should ever reach the class is a design question that
+keeps its existing home and needs no row here.
+
+*The general lesson, which is worth more than the row:* **a finding that reads a
+deletion without reading the deleting commit's description reconstructs the
+wrong question.** This repo documents the logic of a change in the PR body by
+standing convention (`CLAUDE.md`), so a scan that reads only the tree is reading
+the conclusion without the argument. Three of the four questions put to Evan
+were answerable from the tree; this one was answerable only from the record, and
+the finding got it wrong in a way no amount of re-deriving against `main` would
+have caught.
+
+---
+
+## Track F — the instruments: what this project uses to know things, and what those cannot see
+
+**The thesis, in the second scan's own words:** *"several of the mechanisms this
+project uses to know things do not fire, and until they are done a green board
+is weaker evidence than it looks."* That is why this track is first in §A2's
+ordering and why it is worth its own orchestrator: every other track's evidence
+is downstream of it.
+
+**Its gate is Track E's lane E-a (#753)**, which holds `scripts/gates/` and
+`.github/workflows/ci.yml` and is in review now. Nothing in F1–F3 or F8 may open
+until that lands. **This is a file-overlap gate, not a dependency gate** — see
+the Track E log's E-R4: a lane that disproves the *reason* for a gate has not
+disproved the gate.
+
+| # | Work | From | Scope | Proposed verdict | Review |
+|---|---|---|---|---|---|
+| **F1** | **The compound-`Bounds` gate is blind to `CertifiedBounds`, and `real.rs` tells authors to write the invisible spelling.** Its matcher fires on `Decide + Bounds` and not on `Decide + CertifiedBounds`; `real.rs:46-48` and `:789` both assert that it does. **This is S56 returning one alias later**, and per the ruling above it now **gates S87/S88**. | **S59** `[verified]` | `scripts/gates/bounds-allowlist.sh`, `geom-core/src/real.rs` (two prose sites), plus whatever the widened matcher then reds | **ACCEPTED** — executed, self-evidencing | style; **ADVERSARIAL** for any conversion the widened matcher forces |
+| **F2** | **Re-site the gates that cannot fire on their own inputs**, per Evan's S61 ruling. `probe-suite-census.sh:52-57` asserts two docs still name a CI step and cannot fire on a docs-only change; `gate-roster.sh:31-39` argues it need not read `local-scripts/` *because* the discipline job never runs there. Carries **D58**, **D59** and **D60** (below), which are E-a's own re-derived residues. | **S61**, **S62**, and E-a's report | `.github/workflows/ci.yml`, `scripts/ci-filter.py`, `scripts/gates/{probe-suite-census,gate-roster}.sh`, `local-scripts/ci-local.sh` | **ACCEPTED — RULED** (posture; re-site) | style |
+| **F3** | **Three of six grep gates pass the spellings they exist to forbid.** `no-extra-real-bounds.sh` greps `\bReal\s*\+` raw with no comment strip; `bit-identity-debug-only.sh` counts uses and `cfg(debug_assertions)` separately and prints an unsupported sentence; `interval-square-allowlist.sh`'s PCRE backreference cannot see `self.x * self.x`, and `geom-core/src/linalg/vec.rs:325-326` is a live unallowlisted instance. The cry-wolf-then-allowlist outcome is **already realised** at `linalg/mat.rs`. **Its line numbers are fiction — re-derive, do not transcribe.** | **S63** | `scripts/gates/{no-extra-real-bounds,bit-identity-debug-only,interval-square-allowlist,lib.sh}`, `scripts/ci-filter.py` | **ACCEPTED** | style for the gates; **ADVERSARIAL** for the `x*x → powi(2)` conversions, which change numerics in `Interval`-generic production code |
+| **F4** | **Guards whose failure mode is their pass condition** — four instances bound by one missing idiom rather than by files. The spent-graft hammer row lacks the `oks > 0` its twin has, and `ci.yml` cites it by name (**S76**); a fuzz corpus is built entirely behind `if let Ok` with no floor (**S78**); a floor row matches into a `println!("SKIPPED")` arm and returns green (**S84**); a new differential test compares an expression against itself (**S91**). | S76, S78, S84, S91 | `topo/src/review_d18.rs`, `sweep/tests/review_d2_adv_probes.rs`, `geom-brep/tests/*`, `geom-core/src/spline/knots.rs` | **ACCEPTED** on all four | **ADVERSARIAL** for S76 and S78 (each is a guard on a soundness contract); style for S84, S91 |
+| **F5** | **Two scraped-source registries of "what is a public mutation door", both classifying by `body.contains("literal")`** — so a comment satisfies the guard. The undisclosed string-match blind spot is the sharper half. | **S92** | `topo/src/review_m1_pr5_internal.rs`, `topo/src/pcurves.rs` | **ACCEPTED** | style |
+| **F6** | **`tess-lint` resolves broken measurements in the cannot-fire direction**: `ratio` returns `1.0` on a non-positive denominator or non-finite numerator and feeds `recoverable()`; `GROWTH_TOLERANCE = 1.05` is unpinned. **Part two of the finding — the positional-ordinal join — is already Track C's row C15 (#746) and is NOT this track's.** | **S73**, parts 1 and 3 | `tools/tess-lint/src/lib.rs` | **ACCEPTED IN PART** — parts 1 and 3 only | style |
+| **F7** | **Assertions that cannot go red, sorted.** The roll-up is **three dispositions, not one**: *(a)* genuinely vacuous assertions in shipped test files — a normal fix lane, cheap and edge-free; *(b)* hand-run diff artefacts whose comparison no longer exists (`probe_s5_sectors.rs` has no runner and says so in the file; `review_m6_5_pr2_sweep_probes.rs`'s printed hash; `review_d8_consumer_differential.rs`'s pinned seeds) — **C23's class, and §A2 already routes them to the test-suite-cost sweep**; *(c)* equal-by-construction asserts in `demos/`, which go to **Track G**. **The skip-reads-as-a-pass shape is deliberately NOT here** — Evan ruled it un-rolled-up (C21), because a floor concedes the skip and *whether the test should skip at all* comes first. **Do not re-propose the floors.** | **S110** (10 members, enumerated) | six crates' `tests/`, plus `memories/test-suite-cost.md` | **ACCEPTED, SORT REQUIRED** — the sort is above and is the row's first deliverable | style |
+| **F8** | **D44 and D45**, placed by Track E's lane E-b out of D23. **D44:** the *executed* probe-suite set has no floor — `k_probe_sweep.sh` filters to two suites, so CI runs **2 of 16** and 14 are type-checked and never run; `editor-core/tests/m5_pr5_corpus_probe.rs` carries a plain non-`#[ignore]`d test that **has never run in CI**. Every document's *"thirteen of the fourteen"* came from reading `-p editor-core` out of the invocation instead of the filter out of the command. **D45:** a REPORT-ONLY survey's stated scan base does not warrant its counts — three of six wrong-when-written enumerations live in documents that *do* name a base and are wrong there. | D44, D45 | `scripts/k_probe_sweep.sh` (**neither of E-a's two files — sequence it beside D22**), `docs/` | **ACCEPTED** | style |
+
+**Not in Track F, and each for a reason:** S60 is Track C's **C5** and wants a
+written proposal rather than a lane; S75 is `sweep/src/fillet/mod.rs` and goes to
+Track E's **E-g**; S113 folds into Track E's **E-b**, which is the same class
+and already scoped as *"closes on a count plus a verdict, not necessarily on a
+guard"*.
+
+**Do not propose a general "tests that cannot go red" gate.** Its live cousin
+**D48** closes on *a verdict plus two comments matching it*, not on a guard;
+C21's one kept mechanisation is narrow and concrete (*for every enclosure-style
+acceptance row, require a ceiling alongside the containment*) and belongs to
+S60/S66's rows; and a general gate re-proposes exactly what Evan declined.
+
+### Rows placed for Track F by lane E-a
+
+| # | Work |
+|---|---|
+| **D58** | **S61's docs-tier conditionality as it lands on `probe-suite-census.sh`'s citation half.** Re-derived by E-a at `ci-filter.py:108-114`: an all-`.md` change is docs-tier, so the citation half cannot fire on the only change class that breaks it. Now **ruled** (re-site), so this is scoped work rather than an open question. |
+| **D59** | **The executable bit is the registration mechanism.** Both halves derive the roster with `[ -x "$script" ] || continue`, so a gate landing mode `0644` is invisible to both — **confirmed by planting** a mode-0644 `zz-unwired-nonexec.sh`, which `gate-roster.sh` reports as *"all 14 gates"*, exit 0. Squarely D34's subject and past its one-move budget. |
+| **D60** | **S62's four remaining hand-named checks, plus the `ci-local.sh:217` drift** — the mirror prose names *"the `k-lint` job's 'demos render provenance' step"* when that step is `render provenance (demos)` in the **`discipline`** job. S13's own defect, in the same file pair, after S13's fix. E-a's own D34 enumeration was over `scripts/…` paths in `ci.yml`, so `demos/check_render_provenance.py` and `demos/compose_uv_montage.py` were invisible to it. |
+
+---
+
+## Track G — the ground no track owns, and the passes that deleted their own evidence
+
+Two things bind this track. **One:** `interval-transcendentals/`, `demos/`,
+`profile/` and `sweep/src/` outside `fillet/` are the second scan's *new ground*
+— code the first scan explicitly excluded — and **no track is live in any of
+them**, so a new orchestrator can run here from day one with no sequencing at
+all. **Two:** several of its rows share a mechanism worth naming — *a
+consolidation or deletion pass removed the prose that was its own evidence, and
+left a positive claim behind that is now false.*
+
+| # | Work | From | Scope | Proposed verdict | Review |
+|---|---|---|---|---|---|
+| **G1** | **`interval-transcendentals`: nothing constrains the pads from above.** `assert_contains` checks containment only; `Tightness::report` contains no assertion; `PAD_ULPS = 4` is unpinned; the cheap tier catches a dropped outward round for division only — while `ci.yml` and the README make broader claims. **The finding is careful that the derivations are sound and the defect is in what the tests can see; keep that framing.** Seven Tier-3 members live in the same workspace and come with it: S110(h), S111(c), S112(c), S114(a)(d), S116(r)(t) — and **S112(c) bears on S1**, since the `RingInterval` question leaves an exact-surface op hosted in a consumer. | **S72** + 7 roll-up members | `interval-transcendentals/` (its own workspace) | **ACCEPTED** | **ADVERSARIAL** |
+| **G2** | **`demos/` — nine roll-up members, one tree, no owner.** Equal-by-construction asserts (S110(g)(j)), prose describing a world the code left (S112(h)), two drifted counts (S113(a)(b) — **give these to E-b and let this lane consume the result**, or the two collide on `demos/tour/Cargo.toml`), duplications the fix passes did not reach (S114(b)), and **the one design question in the cluster: three hand-rolled JSON emitters, four readers, no schema (S114(c))**. | S110(g)(j), S112(h), S113(a)(b), S114(b)(c), S116(d) | `demos/` | **ACCEPTED**; S114(c) is a design row, not a patch | style |
+| **G3** | **`swept.rs`'s new shared home states a reason for not unifying that is factually false, and the same commit deleted the duplication markers.** `swept.rs:17-20` says revolve's builder has neither a reversal arm nor the orientation bit; `revolve/mod.rs:625` is `swept_segments(lp, reverse: bool)` and its own doc states the full involution. **The class claim is the valuable half**: re-check every *"deliberately NOT unified"* sentence in the S6 record. | **S74** | `sweep/src/{swept,revolve/mod,extrude,loft,revolve/tube}.rs` | **ACCEPTED** — and the deliverable is the class re-check, not the single fix | style |
+| **G4** | **`profile`'s fifth lane trait, blanket-implemented, which D1 never looked at** — `ArcCarrierScalar` over `T: Decide + Bounds`, so `Dual64` carries the whole `path::family` arc surface today, re-exported from `pncad`. **Per Evan's ruling this is mechanical**: `CertifiedBounds` is the bound that excludes a dual. **Gated on F1** — the gate that is supposed to force ratification of the new spelling is blind to it until S59 lands. | **S87** (and S88's `profile` half) | `profile/src/path/{arc_fillet,family}.rs`, `profile/src/lib.rs`, `pncad/src/profile.rs` | **ACCEPTED — RULED** (the admitting set) | **ADVERSARIAL** |
+| **G5** | **`profile`'s ONARC prose outlived the boundary it describes.** Per the ruling above, this is **not** the capability question the finding posed: `review_s2.rs:45` claims the class *"is built"* and cites a test the deleting commit removed, while the shipped pin records the boundary the commit deliberately established. Correct the prose to state the boundary; **do not delete `sugar.rs`'s machinery**, which is the raw-builder path the boundary is defined against. | **S71** | `profile/tests/review_s2.rs`, and only a re-read of `profile/src/sugar.rs` | **ACCEPTED IN PART — RULED** | style |
+| **G6** | **A wildcard over a deliberately closed enum, in the wave that de-wildcarded two siblings** — `attribute()`'s `_ =>` decides `AtRest` vs `Uncertified`, and a literal tag string bypasses the one-home tag map; the dead `Attribution::Refuted` corroborates. | **S104** | `editor-core/src/assembly.rs`, `pncad-py/src/py/doc.rs`, and two files the scan did not read | **ACCEPTED** | **ADVERSARIAL** |
+| **G7** | **The `Step` vocabulary was unified inside `profile` only** — of the three cross-crate copies, one breaks loudly and two go silently short. S4 named five copies across three crates; one crate was swept. **Partly collides with Track E's E-e** (`editor-core/src/eval/`) — sequence after it. | **S106** | `profile/src/path/program.rs`, `editor-core/src/{program,persist/wire,eval/mod}.rs` | **ACCEPTED** | style |
+| **G8** | **`face_normal.rs`'s one-door module names three flip sites: one does not flip, and at least five that do are unlisted.** The enumeration repair is style — but the sub-question it parks (*is `chord_join`'s missing flip a defect, given it feeds `point_in_loop` for ring re-homing?*) is a **correctness** question and must be a separate adversarial unit, not folded into a doc edit. Overlaps the standing open decision **D6**, whose stated sweep shape is `grep sense_sign`. | **S67** | `topo/src/face_normal.rs` (docs), `topo/src/chord_join.rs` (the real question) | **ACCEPTED**, with the routing caveat | style + one **ADVERSARIAL** sub-unit |
+| **G9** | **Two operand gates with different admitted kind sets and a doc that describes only one** (S95), and **`chord_join`'s top-level-sibling placement argument contradicted by its own imports from `splitting/`** (S96). S96's imports reach `splitting/rules.rs`, which is Track C's — **confirm with Track C before touching it**. | S95, S96 | `topo/src/boolean/{ops,reduce}.rs`, `topo/src/chord_join.rs` | **ACCEPTED** on both | style; S95 escalates only if the drift ever admits a kind |
+| **G10** | **Prose describing a world the code has left** — eight members, the cleanest class in Tier 3, scattered by file. Three of them (`geom-brep/props/curved.rs`, `geom-brep/src/ssi/`) are **Track C's and must be left**; the rest are free. | **S112** | scattered; the free members only | **ACCEPTED** | style |
+
+**Rides along, and is not a new row:** S111(a)(b)(d) and S112(a) are
+`sweep/src/fillet/` and belong to Track E's **E-g**, which is already ADVERSARIAL
+on those files. S115(e) is E-e's; S115(f) and S116(e) are `topo/src/euler.rs`,
+now landed under #755. S116(m)(n)(o) are E-a's.
+
+**Already fixed or already owned, do not staff:** **S115(a) is FIXED** —
+`57843d45` deleted the `agreement` ratio and `span_cells` from both tools, and
+`span_cells` returns zero hits workspace-wide; it also removes C23's sharpest
+example. **S115(b) and S116(l)** are Track C's row **C17**, which already rules
+them *"a plan before implementation, not a patch"*. **S113(c)** is S89.
+**S116(h)** is S29 / Track C's **C3**; **S116(g)** is S28 / Track C's **C5**.
+
+---
+
+## The second scan's unscheduled table — frozen, and why
+
+**Nothing here is unimportant.** Every row is a real finding, and several are
+the sharpest in the scan. They are unscheduled because **their files are Track
+C's**, and two tracks editing one file with no shared orchestrator is the
+collision this whole schedule exists to prevent — the same rule that sent D30 to
+C-m and D32 to C-q. **They unfreeze when Track C's corresponding lane lands**,
+and a row that unfreezes goes to Track F or G by its mechanism, not back to
+nobody.
+
+| Frozen behind | Findings | Note |
+|---|---|---|
+| **C-m, C3** (`geom-brep/src/props/`) | **S60**, **S77**, **S80**, **S81**, **S82**, S112(d) | The largest cluster in the scan and the one with the most reachable wrong answers. S77, S80 and S81 are all descendants of **#723**'s unstated-extent shape; **S82** additionally needs a decision (below). S60 is C5's, and #472 deferred it in writing as *needing its own proposal with re-measured floors*. |
+| **C-k, C5** (`mesh/`) | **S64**, **S65**, **S108**, **S109**, S114(f), S115(d), S116(g) | S64 and S65 are one conversation about `mesh`'s ε ledger and its watertightness backstop, and **S65 needs Evan** (below). S108 and S109 are both *a lever that degenerates to zero makes a guard fail open* — the same mechanism as the `props/` cluster, one crate over. |
+| **C-g, C-l, C-q** (`geom/`, `geom-core/`) | **S85**, **S86**, **S88**'s `geom` half, **S89**, **S90**, **S99**–**S103**, S110(f), S116(b) | **S86 should not wait for the others**: `CertifiedEnclosure for RingInterval` returns `Some((NaN, NaN))` for a poison ring — the exact laundering the trait doc forbids — and it is one file and hours of work. S99–S103 are one merge's residue and want **one** lane, not five rows. |
+| **C-h** (`topo/src/census.rs`) | **S66**, **S97** | **S66 is the largest correctness exposure in the scan**: the cylinder box is widened by a full radius along its own axis, S16's fix promoted that construction into a containment envelope, `hi().abs()` is not an upper bound on `|x|`, and the suite meant to catch it offsets in **x** only — monotone in the failing direction. |
+| **C15, C17** (`tools/`) | S73's part 2, S116(i)(j)(k)(l) | Already owned; listed so they are not re-derived. |
+
+### Decisions only Evan can make, from the second scan
+
+These are **not** work and no lane may resolve them. They join the *Open
+decisions* table above rather than any track.
+
+| # | The question |
+|---|---|
+| **S65** | **The #678 watertightness backstop is `#[cfg(debug_assertions)]`, so it is absent from every build that ships a mesh**, and the module header presents floor and assert as a pair without saying one is absent from release. Either it pays an O(triangles) per-patch re-derivation in release — against D9's *never a panic* and against tessellation cost — or it stays debug-only and the header says so. Both are defensible; the finding must not resolve it silently. |
+| **S70** | **`DESIGN.md`'s ratified graft footnote is documented-as-false in a source comment**: `euler.rs:84-91` says *"All three understate it"* while `DESIGN.md:1131-1140` carries the weaker `SolidWithoutShells` claim. Either the graft gets real atomicity and the footnote stands, or the footnote is corrected to state the stronger failure and the door is documented unsafe-on-`Err`. **This is S14, one crate over, and S14 is now a bound on other lanes rather than a taxonomy question** — #740 left 46 lookup sites as typed errors because it is open. |
+| **S82** | **The sphere rim predicate's lever understates in the *accepting* direction near the poles** — `RimLevel::Unit(sin v, 0)` makes the margin axial, so near-polar distinct rims decide `Zero` and the predicate accepts. Two documents and a test file already say so and both file it as *conversation input*; the audit table still marks the row `OK`. Is this a #723 sibling that needs an issue and a row, or genuinely typed-margin-conversation input that can wait? |
+| **S90** | **The largest D1 residue is the only one without a schedule.** It says a lane is owed *"on the **public** surface"*, and every smaller residue got a number. Is that lane owed now, is the written reason sufficient, or is the verdict closed — and if closed, does §D's *"a verdict and no row only if the verdict is closed"* rule apply to it? |
+| **S107** | **The `DimensionError` untangling renamed the Rust type and left the Python-visible confusion in place**, now defended in prose. Is that a defect or a deliberate compatibility choice — and if deliberate, may the tree stop re-documenting it? |
+| **S116(p)** | **`MultipleAxisRuns` changed what the kernel promises**, from *"deferred to M3"* to *"a **permanent** refusal under the ratified sweeps-vs-voids invariant"*. That rests on an unstated geometric claim — that every profile with ≥2 disjoint on-axis runs encloses a void when fully revolved — with no test, no proof, and the reporting agent's own confidence at `unsure`. It is a promise already shipped to callers. |
+| **The C-namespace** | After the merge renumbered the second scan's observations to **C18–C25**, §D's Track C rows still occupy **C15** and **C17** for different things. One sentence giving Track C's rows a distinct prefix closes it permanently. |
+
+### What §B2 says nobody has looked at
+
+A scheduling input, not a finding. The second scan did not scope
+`crates/step-import/`, `crates/step-export/`, `crates/stl/`, `crates/bvh/`,
+`crates/quantity/`, `crates/pncad-py/` or `crates/profile/` (the last two only
+incidentally), and **`demos/tour/src/lily.rs` — 2,446 lines — was sampled, not
+read**, flagged by its own agent as the thinnest part of its coverage. `stl/`
+and `step-*` are Track C's and Track E's files, so a scan there collides with
+live work unless it is timed after those land. **`lily.rs` is the single
+highest-yield uncovered file and it is free ground today.**
+
+*(`crates/persist` is named in §B2 and does not exist as a crate directory —
+which is S113's own class, inside the section that reports coverage.)*
+
+---
+
 ## Last, deliberately
 
 | # | Item | Why last |
