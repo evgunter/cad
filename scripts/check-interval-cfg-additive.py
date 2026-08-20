@@ -91,6 +91,8 @@ def carries_interval_cfg(line):
     matters.
     """
     return CARRIES_CFG.search(line) is not None
+
+
 # Any cfg that mentions the feature under a `not(...)`, or any
 # `all(...)`/`any(...)` combination — all of these can make the default
 # build differ, so none is allowed.
@@ -206,10 +208,10 @@ def check_file(path, rel, violations, in_tests=False):
 # as carrying interval gates, and no PR whose change closure was any
 # subset of them could derive a test selection at all.
 PROSE_CASES = [
-    "//! attributes (`#![cfg(feature = \"interval\")]` and friends work as",
-    "// a gate is spelled #[cfg(feature = \"interval\")], like this",
-    "/// See `#[cfg(feature = \"interval\")]` for the additive half.",
-    "    //! indented prose about #[cfg(feature = \"interval\")]",
+    '//! attributes (`#![cfg(feature = "interval")]` and friends work as',
+    '// a gate is spelled #[cfg(feature = "interval")], like this',
+    '/// See `#[cfg(feature = "interval")]` for the additive half.',
+    '    //! indented prose about #[cfg(feature = "interval")]',
 ]
 # Every spelling a real gate can take that this repo must not miss.
 GATE_CASES = [
