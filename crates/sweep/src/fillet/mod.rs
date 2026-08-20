@@ -48,10 +48,15 @@
 //! In: closed smooth chains, and open chains terminating in the
 //! three-convex-edge vertex whose corner patch is a sphere octant.
 //! Out, refused typed with the OQ6 payload vocabulary: every other
-//! corner configuration ([`FilletError::FilletCornerUnsupported`]), and every
-//! chain whose spine is not a line or a circle
-//! ([`FilletError::SpineUnsupported`] — the canal-surface
-//! approximating-blend lane, banked as its own reviewed unit).
+//! corner CONFIGURATION ([`FilletError::FilletCornerUnsupported`],
+//! carrying a [`CornerConfig`] — the battery's classifier and the
+//! assembly's valence and convexity doors both), and every chain whose
+//! spine is not a line or a circle ([`FilletError::SpineUnsupported`] —
+//! the canal-surface approximating-blend lane, banked as its own
+//! reviewed unit). A corner whose configuration is the supported one
+//! but whose edges are not all requested is a **run-out**, which is
+//! about the request rather than the configuration and refuses as
+//! [`FilletError::UnsupportedRunOut`].
 
 pub mod battery;
 pub mod blend;
@@ -62,7 +67,7 @@ pub mod surgery;
 use core::fmt;
 
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Sign};
-use topo::{EdgeKey, FaceKey, HalfEdgeKey, LoopKey, VertexKey};
+use topo::{EdgeKey, EntityId, FaceKey, VertexKey};
 
 pub use battery::{BatteryVerdict, ChainClosure, Convexity, FilletRequest, Link, run_battery};
 pub use blend::{BlendArm, CornerBall, EdgeBlend, RimBlend};
@@ -79,35 +84,6 @@ pub(crate) fn decide<T: Decide>(
     band: Band,
 ) -> Result<Sign, Indeterminate> {
     geom_core::k_stats::decide(name, margin, band)
-}
-
-/// Which entity a surgery refusal or assertion is about — the payload
-/// every row-1 and row-2 surgery refusal carries, so a reader never has
-/// to re-derive the site from prose.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum FilletEntity {
-    /// A vertex.
-    Vertex(VertexKey),
-    /// An edge.
-    Edge(EdgeKey),
-    /// A half-edge.
-    HalfEdge(HalfEdgeKey),
-    /// A loop (a face's outer cycle or one of its rings).
-    Loop(LoopKey),
-    /// A face.
-    Face(FaceKey),
-}
-
-impl fmt::Display for FilletEntity {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Vertex(k) => write!(f, "vertex {k:?}"),
-            Self::Edge(k) => write!(f, "edge {k:?}"),
-            Self::HalfEdge(k) => write!(f, "half-edge {k:?}"),
-            Self::Loop(k) => write!(f, "loop {k:?}"),
-            Self::Face(k) => write!(f, "face {k:?}"),
-        }
-    }
 }
 
 /// Where a fillet escalation happened — the payload half of the
@@ -171,7 +147,9 @@ pub enum CornerConfig {
     /// contact set is not a spherical triangle there, so the corner
     /// patch is not one sphere octant.
     NEdgeVertex {
-        /// The vertex's edge valence as found.
+        /// The vertex's valence as found — the edge orbit at the
+        /// battery and the assembly door, the face orbit at the octant
+        /// derivation, which agree on a manifold body.
         valence: usize,
     },
     /// Three edges, but their convexity signs do not agree: the
@@ -263,11 +241,24 @@ pub const FILLET3_SPINE_KIND_RECOURSE: &str = "use a chain whose rolling-ball sp
 /// A fillet refusal. Closed enum, D3 style. Every variant is one of
 /// three things, and the D2 addendum row it belongs to is stated on
 /// it: a battery verdict (refused BEFORE construction — the whole
-/// point), an `Unsupported*` frontier naming a front door that does
-/// not exist yet (row 2), or a statement that the input was invalid
-/// (row 1). A state the surgery can prove impossible is not in this
-/// enum at all — it is an `unreachable!` at the branch that would
-/// observe it (row 4).
+/// point), a frontier naming a front door that does not exist yet
+/// (row 2), or a statement that the input was invalid (row 1). A state
+/// the surgery can prove impossible is not in this enum at all — it is
+/// an `unreachable!` at the branch that would observe it (row 4).
+///
+/// # Which frontier variant a site takes
+///
+/// The rule is **what the branch READS**, never which noun the frame
+/// happens to hold — otherwise one fact refuses two ways and ships two
+/// different recourse sentences for it:
+///
+/// | The branch reads | Variant |
+/// |---|---|
+/// | the body's solid/shell inventory | [`FilletError::UnsupportedBody`] |
+/// | a stored `Surface`, carrier or trimline | [`FilletError::UnsupportedGeometry`] |
+/// | a corner's own valence or convexity mix | [`FilletError::FilletCornerUnsupported`] |
+/// | which edges the REQUEST covers at a termination | [`FilletError::UnsupportedRunOut`] |
+/// | any other property of the chain or how it sits on its supports | [`FilletError::UnsupportedChain`] |
 #[derive(Clone, Debug)]
 pub enum FilletError {
     /// The run's tolerance did not yield a valid band.
@@ -400,24 +391,43 @@ pub enum FilletError {
         /// How many shells the body holds.
         shells: usize,
     },
-    /// **Frontier** (D2 addendum row 2): the chain's own shape is
-    /// outside the built door — multi-link open chains (junction
-    /// carry-through), support pairs no arm covers, concave chains,
-    /// and rims that are not whole circular rings against a half-cap.
+    /// **Frontier** (D2 addendum row 2): a property of the requested
+    /// CHAIN puts it outside the built door.
+    ///
+    /// Two families, and the second is not a shape of the chain in
+    /// isolation: (a) the chain's own form — multi-link open chains
+    /// (junction carry-through), support pairs no arm covers, concave
+    /// chains, one-edge chains; and (b) how the chain sits on its
+    /// supports — a rim that is not a whole ring of its plane, a
+    /// sphere support carrying rings of its own or more than its own
+    /// arc, a rim vertex that does not drop exactly one meridian, a
+    /// half-cap arc not flanked by split points, a trimline that does
+    /// not cross a meridian inside its span.
     UnsupportedChain {
         /// An edge of the chain that names the site.
         edge: EdgeKey,
         /// Which chain shape is not built.
         detail: &'static str,
     },
-    /// **Frontier** (D2 addendum row 2): the configuration at a chain
-    /// termination is not the sphere-octant corner the surgery
-    /// builds — run-outs at partially-requested corners, non-trivalent
-    /// corners, corners whose links disagree.
-    UnsupportedCorner {
-        /// The corner vertex whose configuration is not built.
-        vertex: VertexKey,
-        /// Which corner configuration is not built.
+    /// **Frontier** (D2 addendum row 2): the REQUEST does not cover a
+    /// chain termination the way the octant assembly needs — a
+    /// run-out.
+    ///
+    /// This is deliberately *not* [`FilletError::FilletCornerUnsupported`],
+    /// which is the OQ6 vocabulary for what a corner's own
+    /// CONFIGURATION is (valence, convexity mix) and which every such
+    /// refusal here does use. A corner whose shape is exactly the
+    /// supported one, with only some of its edges requested, has no
+    /// [`CornerConfig`] arm: the only one that fits is
+    /// [`CornerConfig::ThreeConvexEdges`], which renders as the
+    /// configuration that IS built. Minting an arm for it would extend
+    /// a vocabulary decided at #85, which is a design change rather
+    /// than an execution.
+    UnsupportedRunOut {
+        /// Where the request's coverage ran out — the terminating
+        /// vertex, or the boundary edge that is not requested.
+        at: EntityId,
+        /// What the request does not cover.
         detail: &'static str,
     },
     /// **Frontier** (D2 addendum row 2): a stored carrier, trimline or
@@ -426,7 +436,7 @@ pub enum FilletError {
     /// support, a torus band).
     UnsupportedGeometry {
         /// The entity whose stored geometry is not covered.
-        at: FilletEntity,
+        at: EntityId,
         /// Which stored shape was found instead.
         detail: &'static str,
     },
@@ -442,7 +452,7 @@ pub enum FilletError {
     /// invalid, and the surgery refuses rather than building on it.
     BodyNotIntact {
         /// The entity the plan was reading.
-        at: FilletEntity,
+        at: EntityId,
         /// What the plan was reading when the reference failed.
         detail: &'static str,
     },
@@ -587,10 +597,9 @@ impl fmt::Display for FilletError {
                 "fillet assembly: {detail} (chain at edge {edge:?}) — \
                  {FILLET3_ASSEMBLY_RECOURSE}"
             ),
-            Self::UnsupportedCorner { vertex, detail } => write!(
+            Self::UnsupportedRunOut { at, detail } => write!(
                 f,
-                "fillet assembly: {detail} (corner at vertex {vertex:?}) — \
-                 {FILLET3_CORNER_RECOURSE}"
+                "fillet assembly: {detail} (at {at}) — {FILLET3_CORNER_RECOURSE}"
             ),
             Self::UnsupportedGeometry { at, detail } => write!(
                 f,
@@ -622,15 +631,19 @@ impl core::error::Error for FilletError {}
 
 #[cfg(test)]
 #[allow(clippy::panic)]
+#[allow(clippy::expect_used)]
 mod recourse_tests {
-    use topo::{EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
+    use core::mem::discriminant;
+
+    use geom_core::{Band, Indeterminate, MarginDiag};
+    use topo::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
     use super::{
         FILLET3_ASSEMBLY_RECOURSE, FILLET3_BODY_RECOURSE, FILLET3_CHAIN_RECOURSE,
         FILLET3_CLEARANCE_RECOURSE, FILLET3_CONVEXITY_RECOURSE, FILLET3_CORNER_RECOURSE,
         FILLET3_GEOMETRY_RECOURSE, FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE,
         FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE, FILLET3_TANGENTIAL_RECOURSE,
-        FilletEntity, FilletError,
+        FilletError, FilletSite,
     };
 
     /// Every recourse sentence this module can append.
@@ -649,48 +662,98 @@ mod recourse_tests {
         FILLET3_SPINE_KIND_RECOURSE,
     ];
 
-    /// **The recourse contract, as a table the compiler forces you to
-    /// extend.** A recourse is advice, so it must be TRUE of the
-    /// variant that appends it; a variant that reports invalid input
-    /// has no fillet advice to give and must append none. The match is
-    /// exhaustive, so adding a variant without deciding its recourse is
-    /// a compile error rather than a wrong sentence shipped to a user.
-    fn allowed(err: &FilletError) -> Option<&'static str> {
+    /// What a variant's `Display` is allowed to append.
+    enum Recourse {
+        /// This sentence, and no other.
+        Exactly(&'static str),
+        /// One sentence, chosen at render time by the escalation's own
+        /// predicate name — so the contract is "at most one", not
+        /// "which one". (`Escalated` routes to six different
+        /// constants; a table row naming one of them would be false.)
+        RoutedByPredicate,
+        /// None at all: the variant reports invalid input, or forwards
+        /// another error's own text.
+        None,
+    }
+
+    /// **The recourse contract, as one exhaustive table.**
+    ///
+    /// A recourse is advice, so it must be TRUE of the variant that
+    /// appends it, and a variant reporting invalid input has no fillet
+    /// advice to give. Each arm carries BOTH halves — the decision and
+    /// a witness value of its own variant — so the two cannot drift
+    /// apart by omission, which is exactly how a hand-kept witness list
+    /// lets a wrong decision ship green.
+    ///
+    /// **What this still cannot do:** Rust cannot enumerate a type's
+    /// variants, so the *seeds* below are hand-written. Adding a
+    /// variant is a compile error here (the match is exhaustive, and
+    /// the arm must produce a witness of that variant), but nothing
+    /// in-file forces the new witness to be *rendered* until it is
+    /// seeded. `tests/review_d2_recourse_at_the_site.rs` closes that at
+    /// the place it matters, by reaching refusals through
+    /// `fillet_edges`.
+    fn contract(err: &FilletError) -> (FilletError, Recourse) {
         match err {
-            // Battery verdicts and the frontiers the battery names —
-            // each already routes its own recourse.
-            FilletError::Band(_) => None,
-            FilletError::ChainNotConnected { .. } => Some(FILLET3_CHAIN_RECOURSE),
-            FilletError::RadiusHeadroom { .. } => Some(FILLET3_RADIUS_RECOURSE),
-            FilletError::FaceClearanceUncertified { .. } => Some(FILLET3_CLEARANCE_RECOURSE),
-            FilletError::TangentialEdge { .. } => Some(FILLET3_TANGENTIAL_RECOURSE),
-            FilletError::SpineIrregular { .. } => Some(FILLET3_SPINE_RECOURSE),
-            FilletError::ChainNotG1 { .. } => Some(FILLET3_CHAIN_RECOURSE),
-            FilletError::ConvexitySignFlip { .. } => Some(FILLET3_CONVEXITY_RECOURSE),
-            FilletError::FilletCornerUnsupported { .. } => Some(FILLET3_CORNER_RECOURSE),
-            FilletError::SpineUnsupported { .. } => Some(FILLET3_SPINE_KIND_RECOURSE),
-            // Escalations route by predicate name, not by variant.
-            FilletError::Escalated { .. } => None,
+            FilletError::Band(_) => (err.clone(), Recourse::None),
+            FilletError::ChainNotConnected { .. } => {
+                (err.clone(), Recourse::Exactly(FILLET3_CHAIN_RECOURSE))
+            }
+            FilletError::RadiusHeadroom { .. } => {
+                (err.clone(), Recourse::Exactly(FILLET3_RADIUS_RECOURSE))
+            }
+            FilletError::FaceClearanceUncertified { .. } => {
+                (err.clone(), Recourse::Exactly(FILLET3_CLEARANCE_RECOURSE))
+            }
+            FilletError::TangentialEdge { .. } => {
+                (err.clone(), Recourse::Exactly(FILLET3_TANGENTIAL_RECOURSE))
+            }
+            FilletError::SpineIrregular { .. } => {
+                (err.clone(), Recourse::Exactly(FILLET3_SPINE_RECOURSE))
+            }
+            FilletError::ChainNotG1 { .. } => {
+                (err.clone(), Recourse::Exactly(FILLET3_CHAIN_RECOURSE))
+            }
+            FilletError::ConvexitySignFlip { .. } => {
+                (err.clone(), Recourse::Exactly(FILLET3_CONVEXITY_RECOURSE))
+            }
+            FilletError::FilletCornerUnsupported { .. } => {
+                (err.clone(), Recourse::Exactly(FILLET3_CORNER_RECOURSE))
+            }
+            FilletError::SpineUnsupported { .. } => {
+                (err.clone(), Recourse::Exactly(FILLET3_SPINE_KIND_RECOURSE))
+            }
+            FilletError::Escalated { .. } => (err.clone(), Recourse::RoutedByPredicate),
             // The surgery's own frontiers (D2 addendum row 2).
-            FilletError::UnsupportedBody { .. } => Some(FILLET3_BODY_RECOURSE),
-            FilletError::UnsupportedChain { .. } => Some(FILLET3_ASSEMBLY_RECOURSE),
-            FilletError::UnsupportedCorner { .. } => Some(FILLET3_CORNER_RECOURSE),
-            FilletError::UnsupportedGeometry { .. } => Some(FILLET3_GEOMETRY_RECOURSE),
-            FilletError::RingClearance { .. } => Some(FILLET3_RING_RECOURSE),
-            // Invalid input (row 1) and operator refusals: no advice.
-            FilletError::RepeatedEdge { .. } => None,
-            FilletError::EmptyChain => None,
-            FilletError::BodyNotIntact { .. } => None,
-            FilletError::Certify { .. } => None,
-            FilletError::Op { .. } => None,
+            FilletError::UnsupportedBody { .. } => {
+                (err.clone(), Recourse::Exactly(FILLET3_BODY_RECOURSE))
+            }
+            FilletError::UnsupportedChain { .. } => {
+                (err.clone(), Recourse::Exactly(FILLET3_ASSEMBLY_RECOURSE))
+            }
+            FilletError::UnsupportedRunOut { .. } => {
+                (err.clone(), Recourse::Exactly(FILLET3_CORNER_RECOURSE))
+            }
+            FilletError::UnsupportedGeometry { .. } => {
+                (err.clone(), Recourse::Exactly(FILLET3_GEOMETRY_RECOURSE))
+            }
+            FilletError::RingClearance { .. } => {
+                (err.clone(), Recourse::Exactly(FILLET3_RING_RECOURSE))
+            }
+            // Invalid input (row 1), and the two forwarding variants.
+            FilletError::RepeatedEdge { .. } => (err.clone(), Recourse::None),
+            FilletError::EmptyChain => (err.clone(), Recourse::None),
+            FilletError::BodyNotIntact { .. } => (err.clone(), Recourse::None),
+            FilletError::Certify { .. } => (err.clone(), Recourse::None),
+            FilletError::Op { .. } => (err.clone(), Recourse::None),
         }
     }
 
-    /// The surgery's own variants, rendered. The battery's are covered
-    /// by their own suites; what this row defends is the boundary this
-    /// unit moved — the assembly recourse used to ride on EVERY
-    /// surgery refusal, including the ones that report invalid input.
-    fn surgery_variants() -> Vec<FilletError> {
+    /// The seeds this row renders: the surgery's own variants, plus
+    /// `Escalated`, whose `Display` routes to six different constants
+    /// and is the one arm a single-sentence table gets wrong.
+    fn seeds() -> Vec<FilletError> {
+        let band = Band::new(1e-9, 1e-6).expect("a band");
         vec![
             FilletError::UnsupportedBody {
                 solids: 2,
@@ -700,12 +763,12 @@ mod recourse_tests {
                 edge: EdgeKey::default(),
                 detail: "a chain shape that is not built",
             },
-            FilletError::UnsupportedCorner {
-                vertex: VertexKey::default(),
-                detail: "a corner configuration that is not built",
+            FilletError::UnsupportedRunOut {
+                at: EntityId::Vertex(VertexKey::default()),
+                detail: "a termination the request does not cover",
             },
             FilletError::UnsupportedGeometry {
-                at: FilletEntity::Face(FaceKey::default()),
+                at: EntityId::Face(FaceKey::default()),
                 detail: "a stored shape the closed forms do not cover",
             },
             FilletError::RepeatedEdge {
@@ -713,38 +776,52 @@ mod recourse_tests {
             },
             FilletError::EmptyChain,
             FilletError::BodyNotIntact {
-                at: FilletEntity::HalfEdge(HalfEdgeKey::default()),
+                at: EntityId::HalfEdge(HalfEdgeKey::default()),
                 detail: "a reference the plan followed",
+            },
+            FilletError::Escalated {
+                site: FilletSite::Chain,
+                source: Indeterminate {
+                    margin: MarginDiag::Value(0.0),
+                    band,
+                    predicate: Some("fillet3_ring_clearance"),
+                },
             },
         ]
     }
 
+    /// How many of `ALL` appear in `text`.
+    fn recourses_in(text: &str) -> Vec<&'static str> {
+        ALL.into_iter().filter(|r| text.contains(r)).collect()
+    }
+
     #[test]
     fn a_recourse_is_appended_only_where_the_table_allows_it() {
-        for err in surgery_variants() {
-            let text = err.to_string();
-            match allowed(&err) {
-                Some(expected) => {
-                    assert!(
-                        text.contains(expected),
-                        "{err:?} must carry its own recourse: {text}"
-                    );
-                    for other in ALL {
-                        assert!(
-                            other == expected || !text.contains(other),
-                            "{err:?} carries a recourse that is not its own: {text}"
-                        );
-                    }
-                }
-                None => {
-                    for other in ALL {
-                        assert!(
-                            !text.contains(other),
-                            "{err:?} reports invalid input and must give no fillet \
-                             recourse: {text}"
-                        );
-                    }
-                }
+        for seed in seeds() {
+            let (witness, expected) = contract(&seed);
+            assert_eq!(
+                discriminant(&witness),
+                discriminant(&seed),
+                "the table's arm must witness its OWN variant: {seed:?}"
+            );
+            let text = witness.to_string();
+            let found = recourses_in(&text);
+            match expected {
+                Recourse::Exactly(one) => assert!(
+                    found == [one],
+                    "{witness:?} must carry exactly its own recourse, found {} — {text}",
+                    found.len()
+                ),
+                Recourse::RoutedByPredicate => assert!(
+                    found.len() == 1,
+                    "{witness:?} must route to exactly one recourse, found {} — {text}",
+                    found.len()
+                ),
+                Recourse::None => assert!(
+                    found.is_empty(),
+                    "{witness:?} reports invalid input and must give no fillet recourse: \
+                     {text}"
+                ),
             }
         }
     }
