@@ -2012,22 +2012,42 @@ invisible — several of these fixes *state* their scope
 ladders stay where they are"; "the reported instances"), and the
 statement reads as completeness.
 
-**The shape is already named; what is missing is the fixer's half.**
+**The rule already exists, on both sides, and it did not fire.**
 `docs/REVIEW-STYLE-DISPATCH.md` §2 names *"the fix reproducing the
-defect it closes"* as a shape to emphasise, and
-`docs/prompts/reviewer-style-lane.md` §3's class-not-instance rule
-already says that sweeping only the reported instance *"is a **half-fix**
-and should be labelled one"*. Both are aimed at the **reviewer's
-report**. Neither puts an obligation on the **fix pass**, and this scan
-is thirteen measurements of what that gap costs.
+defect it closes"*; `docs/prompts/reviewer-style-lane.md` §3's
+class-not-instance rule says that sweeping only the reported instance
+*"is a **half-fix** and should be labelled one"*; and
+`docs/prompts/implementer-discipline.md` §5 puts the obligation on the
+fix pass directly: *"If your unit fixes an instance of a class, say what
+pattern you swept with and **what that pattern could not match**."*
+Thirteen instances landed anyway. The interesting question is not what
+rule is missing but why the one we have does not bite.
 
-The fixer-side version is cheap and mechanical: *before writing the
-scope sentence, grep for the shape you are fixing, and either fix or
-name every hit — with the grep and its output in the PR description.*
-That one artefact would have caught almost every row above. S60 is the
-cleanest demonstration: `rg area_pad crates/*/tests` returns two
-tightness-relevant sites, neither bounds it, and the fix pass was
-editing the file that contains both.
+**Two mechanisms, both visible in the artefacts.**
+
+- **§5's trigger is the author's own classification.** *"If your unit
+  fixes an instance of a class"* — and the recurring failure is a fix
+  that was never classified as a class fix. `volume_pad` was fixed as a
+  row, not as an instance of the monotone-enclosure class (S60). The
+  both-operand-orders ruling was applied to the gate that reported it
+  (S59, S63). The condition is exactly the judgement that fails.
+- **§5's deliverable is a pattern, not a hit list.** An author who greps,
+  sees three hits, fixes one, and writes *"swept `euler*.rs`; the pattern
+  could not match delegating callers"* has complied in full. And a scope
+  sentence reads as completeness even when the claim above it does not
+  share its scope: `euler.rs:24` asserts the universal — *"at every
+  write"* — while its evidence is *"these modules"*, which is how
+  `split_edge` ended up three discards deep in the same diff (S68).
+
+**So the amendment is small and specific: make the trigger unconditional
+and make the artefact the hits.** Grep for the *shape* — not the symbol
+(Q4's distinction) — before writing the scope sentence, and put the hit
+list and its disposition in the PR description, one line per hit: fixed,
+or not-this-unit and why. A pattern with no hits recorded is a claim; a
+hit list is a receipt. S60 is the cleanest demonstration:
+`rg area_pad crates/*/tests` returns two tightness-relevant sites,
+neither bounds it, and the fix pass was editing the file that contains
+both.
 
 ## C17. C11's mechanism is real and has now been observed running backwards
 
@@ -2057,21 +2077,25 @@ set `PAD_ULPS = 64` and `PAD_ULPS = 0` and reduced the rounding helpers
 to round-to-nearest; the `scripts/gates` agent planted fixtures against
 every gate. **Every claim so produced held.**
 
-Two sub-shapes recur and are worth naming separately in the brief:
+One sub-shape dominates:
 
 - **Monotone in the wrong direction.** `area_pad > 0.0` plus
   containment; `assert_contains` on a widening enclosure;
   `worst_ratio ≤ 1` as `bound` grows; `holds(&box, sample)` on a box
   that only widens; `!contains(&anchor_idx)` on a list that may empty.
   The pattern is: *the assertion is satisfied more easily by exactly the
-  degradation it exists to catch.*
-- **A skip reads as a pass.** `else { continue }`; `if let Ok(...)`
-  corpus construction; `SsiError::… => {}` tolerant arms;
-  `println!("SKIPPED")`. S25's own postmortem named this and the tree
-  kept doing it. The counter-idiom exists in this repo
-  (`interval_lane_skipped_no_certified_coverage_here`, and the
-  case-count floors in `d8_knot_queries_adversarial.rs:601-635`) and is
-  not the default.
+  degradation it exists to catch.* `reviewer-style-lane.md` Q3 already
+  names this one; these are measurements of it, not a gap in the brief.
+
+**A second shape — a skip reading as a pass — is deliberately left
+un-rolled-up.** The instances stand on their own (S84 and the
+`else { continue }` / `if let Ok(...)` / tolerant-arm /
+`println!("SKIPPED")` sites cited with them). A class-level rule was
+drafted and dropped: it was written around giving skips *floors*, which
+concedes the skip, and the prior question — whether a test should be
+skipping at all — is the one to answer first. Recorded here so the
+next scan re-opens the question rather than re-proposing the floors
+(Evan, 2026-08-20).
 
 **Cheapest mechanisation available:** for every enclosure-style
 acceptance row, require a *ceiling* alongside the containment. The
