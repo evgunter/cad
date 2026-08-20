@@ -2546,14 +2546,15 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 /// - **Types whose curated face is a different shape**
 ///   (`ProfilePayload`, `ProgramRefusal`, `ExprPath`, `ParamValue`,
 ///   `Product`, `product_recorded`, `Assembly`, `AssemblyError`,
-///   `assemble`, `AtRestFinding`, `MintedDeclaration`,
+///   `assemble`, `AtRestFinding`, `Attribution`, `MintedDeclaration`,
+///   `ClassAdmission`, `class_admission`,
 ///   `BifurcationKind`, `NamingError`, `MetaValue`, `MetaError`,
 ///   `MetaVersionError`, `from_value`, `to_value`): each has a
 ///   curated door of its own or is machinery behind one.
 /// - **`MigrationStep`**: the stated exception in the crate docs —
 ///   its signature speaks `serde_json::Value`, which does not cross
 ///   the curated surface.
-const NOT_CARRIED: [&str; 87] = [
+const NOT_CARRIED: [&str; 90] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -2565,9 +2566,11 @@ const NOT_CARRIED: [&str; 87] = [
     "Attr",
     "AttrKind",
     "AttrSet",
+    "Attribution",
     "BifurcationKind",
     "BranchCertification",
     "BranchMarginEvidence",
+    "ClassAdmission",
     "ContentKey",
     "Coset",
     "Diagnosis",
@@ -2625,6 +2628,7 @@ const NOT_CARRIED: [&str; 87] = [
     "apply_with_names",
     "assemble",
     "body_name",
+    "class_admission",
     "derivation_nodes",
     "diff_summaries",
     "diff_verdicts",
