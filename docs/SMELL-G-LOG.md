@@ -131,7 +131,7 @@ from the orchestrator.
 | lane | §D rows | findings |
 |---|---|---|
 | **G-a** | D71, D72 | S127, S128 |
-| **G-b** *(landed)* | D73, D74 — **neither used** | S129 used; S130 free |
+| **G-b** *(landed)* | D73, D74 — **neither used**; **D79** used | S129, **S130** used; S135, S136 free |
 | **G-c** | D75, D76 | S131, S132 |
 | unassigned | D77–D80 | S133–S136 |
 
@@ -281,9 +281,24 @@ required, one new finding and one issue raised.
   now read out of the scripts and compared in the selftest.
 - **G-R1 discharged.** The routing to E-b was void, as ruled; S113(a)(b) were
   this lane's work and there was nothing to consume.
-- **No §D row number used.** D73 and D74 stay free: the lane's one new finding
-  was a smell-doc row (**S129**), and the other thing it found belonged in the
-  issue register. **S130 is also free.**
+- **Numbers.** D73 and D74 stay free. **S129** (no runner under `demos/`) came
+  from the first pass; **S130** and **D79** came from the fix pass — the
+  `lily.rs` roll-up the review raised over free ground, recorded and *not*
+  fixed, with D79 scheduling it. **S135 and S136 stay free.**
+
+**Fix pass (style review: NOT CLEARED, ten must-fixes).** All ten addressed.
+Three mattered: `run_body`'s `Option` return had no `None` path left and four
+things still believed it did — **S112's own class, created by the PR that closed
+S112(h)** — plus a doc paragraph describing the staged-stop world the code had
+left; `render_freecad.py:153` was the *same* guard-against-nothing one file over,
+under a new and false docstring claim that the two readers read the field the
+same way; and the `loft_prism` volume pin checked a `9.0` literal against an
+**unbounded** `volume_pad`, which is G-a's `assert_contains` shape reproduced in
+`demos/`. The uv winding contradiction is now **fatal in the tour**, per the
+orchestrator's ruling — see the lane's report for which escalation target it
+argues for. Two issues filed: **#795** (should a demo surface a typed refusal as
+a clean nonzero exit — S110(j)'s deferral, now scheduled) and **#796** (`Vec3`
+ergonomics, a library finding in the `memories/demo-purpose.md` sense).
 
 **What it turned up that was not on the list.** Establishing S110(j) required
 knowing what runs the tour, and **nothing ran `cargo test` anywhere under

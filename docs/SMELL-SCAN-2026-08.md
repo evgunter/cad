@@ -8931,8 +8931,13 @@ written for. Beyond S60, S75, S76, S78, S84 and S91 above:
   are distinct (a name is an STL stem, a scene name and a PNG stem at
   once, so a collision silently overwrote one export and put one body
   on the sheet twice — checked before any cell runs, so the failure
-  arrives before the clobber), and every STL the manifest names exists
-  on disk when the manifest is written. Both can go red.
+  arrives before the clobber). **One assertion, not two**: the fix pass
+  dropped a companion "every named STL exists on disk" check, itself
+  near-equal-by-construction — with distinct names, `run_cell` writes
+  `{name}.stl` from the same field the manifest then names and panics
+  on a failed write, so it could only fire on an external deletion
+  mid-run. The site says so, rather than letting S110(g) read as closed
+  twice.
 - (h) `interval-transcendentals/tests/common/mod.rs:149-152` —
   `assert!(mine.is_empty() || !mine.is_nai())` is strictly subsumed by
   the `assert!(mine.is_empty())` three lines below; it can only change
@@ -8952,9 +8957,12 @@ written for. Beyond S60, S75, S76, S78, S84 and S91 above:
   a usage error, and every typed refusal on the scene path is a panic
   by construction. The DOC was describing a contract the demo does not
   implement; the header now states the one it has (green means exit 0,
-  that is the whole assertion, and nothing else is available to assert)
-  and says what would have to change before an exit code could carry a
-  refusal. **Two things came out of establishing that**: no gate had
+  that is the whole assertion, and nothing else is available to assert).
+  **Whether that is the right posture is now issue #795**, not a
+  sentence in a test-file comment: review was right that the first
+  replacement deferred without a schedule. The old arm dropped the body
+  and still exited 0, so the deleted sentence was never true at any
+  commit — doc rotten, not code drift. **Two things came out of establishing that**: no gate had
   ever run this pin — or any assertion under `demos/` — which is S129
   below and is partly closed by the same PR, and `demos/tour`'s unit
   tests turned out to be RED on main (issue #782).
@@ -9055,6 +9063,15 @@ written for. Beyond S60, S75, S76, S78, S84 and S91 above:
   emits is wrong under every schema, so this half did not wait for it.
   Verified by rendering all 35 tour scenes before and after: identical
   PNGs, chunk for chunk.
+  **Both twins, after the fix pass.** The first pass closed the
+  `render.py` half and left two siblings standing, both found by
+  review: `render_freecad.py:153`'s `if not body.get("step")` guards a
+  null `step` that this reader's producer (the tour) cannot emit — the
+  wild generator writes one for every cell but is rendered by
+  `render.py` and never reaches that file — and `render.py`'s own new
+  docstring claimed the two readers read "the same field the same way",
+  true of `stl` and false of `step`. Guard deleted with its producer
+  named at the site; docstring narrowed to the claim it can support.
 
 ## S113. Counts and enumerations stated in prose, already drifted (roll-up)
 
@@ -9118,8 +9135,17 @@ Beyond S64, S67, S74 and S98:
   fixtures. What the claim was FOR is checked instead: `stops()` asks
   `mass_properties` for the prism's volume and pins it inside its own
   certified enclosure against the 9 m³ that
-  `sweep/tests/m6_loft_body.rs` DERIVES for the fixture, so a section
-  drifting apart from the corpus fails the tour. `ELBOW_H`'s
+  `sweep/tests/m6_loft_body.rs` DERIVES for the fixture. **Corrected in
+  the fix pass, on both halves review named.** The number is no longer
+  a `9.0` literal — it is computed from the sections themselves
+  (`V = 8 + 8d/3`, `d` read off `PRISM_TRAPEZOID`), so a section
+  drifting *here* makes the note wrong before the kernel is asked; and
+  `volume_pad` is now **bounded from above** before it is used as a
+  tolerance, because `|V − v| ≤ pad` alone gets easier as the enclosure
+  degrades (G-a's `assert_contains` shape, reproduced in `demos/` by a
+  fix pass for a different finding). What the pin does **not** check —
+  agreement with the corpus fixture, which this demo cannot read — is
+  stated at the site instead of asserted in the panic message. `ELBOW_H`'s
   *"shared"* becomes *"the same value, copied; nothing links them"*.
   **Not this unit**: the byte-identical three-way `fn quad` across
   `sweep/`, `mesh/` and `step-export/` test-commons lives in three
@@ -9146,8 +9172,18 @@ Beyond S64, S67, S74 and S98:
   `check_render_provenance.py:104,112`, which are now COMPUTED — the
   selftest reads the sheet names back out of `render.sh` /
   `render-wild.sh` / `compose_montage.py` and the wild Author string
-  out of `render-wild.sh`, and compares. *"The three spellings"* was
-  two, and is now two that are checked.
+  out of `render-wild.sh`, and compares — with `render-wild.sh:54`'s own
+  end of that pair rewritten to say it is read rather than to ask for
+  hand-syncing. *"The three spellings"* was two, and is now two that are
+  checked. **The third pair the finding names is checked too**, after
+  review caught it left silent: `compose_uv_montage.py`'s
+  `legend_colors_in_emitter()` reads `uvdump.rs`, and its selftest
+  asserts every `LEGEND` swatch is a stroke the emitter actually
+  writes. That immediately caught two: the "derived pcurve" row's grey
+  `#777777`, which appears nowhere in a cell (a derived pcurve is
+  dashed in its own FORM's colour), and `#333333` against the emitter's
+  `#333`. Both corrected and the committed sheet re-baselined — two
+  legend lines, nothing else.
 - (d) `interval-transcendentals/src/trig.rs:30-58` vs `:62-88` and
   `invtrig.rs:21-39` vs `:43-61` — `sin`/`cos` and `asin`/`acos` are
   ~25-line near-verbatim twins differing in two constants and a libm
@@ -9239,7 +9275,14 @@ see §C.
   not a writer that broke), which is what the conditional was
   pretending to decide. `ManifestBody.step` follows it from
   `Option<String>` to `String`, since the arm that produced `None` no
-  longer exists. Tour output byte-identical before and after.
+  longer exists. **And so does everything downstream, after the fix
+  pass**: with no `None` path left, `run_body`'s `Option` return,
+  `run_stop`'s `filter_map`, its `if bodies.is_empty()`, its `-> bool`
+  and `main`'s `if run_stop(…)` were dead, and `run_stop`'s doc
+  described a staged-stop world the code had left — **S112's own class,
+  created by the PR closing S112(h)**, and caught by review. Tour output
+  byte-identical before and after, verified against `origin/main`'s
+  `demos/` on the same kernel.
 - (e) `crates/topo/src/euler.rs:1-208` — the module header grew ~55
   lines in this diff, and the new material is a titled essay
   (*"**The exception, and it is a real one.**"*) about `crate::instance`'s
@@ -9393,11 +9436,84 @@ analytic rows are exact. That is a kernel-behaviour question, so it is
 **issue #782**, not a row here.
 
 **PARTLY FIXED by #787**: the ε pin is armed in `k-lint` (`cargo test
---release --test eps_regression`, ~7 s on top of the release build that
-job already pays), mirrored in `ci-local.sh`. **The `--bin demo-tour`
-unit tests are deliberately NOT armed** — arming them today lands a red
-gate — and widening the row is owed the moment #782 is decided. Until
-then those five other probes stay unguarded and this row stays open.
+--release --test eps_regression`), mirrored in `ci-local.sh`. **It is
+not free** — the row builds `demo-tour` in release at DEFAULT features
+while the tess-budget sweep below builds the same crate at `--features
+budget`, a different unification, so the job now pays two release
+builds of the kernel where it paid one; the runs themselves are ~7 s.
+The comment at the row carries that, and rejects the obvious saving
+(folding the pin into `--features budget` would arm the per-face meter
+inside the run the pin is about). **The `--bin demo-tour` unit tests
+are deliberately NOT armed** — arming them today lands a red gate — and
+what stays unrun is load-bearing: those seven include
+`the_spine_curl_wall_re_measured`, which pins a typed
+`LoftError::ReversedStacking` frontier from both sides, so `lily.rs`
+keeps its frontier pins in two spellings of which only the
+tour-runtime one (`wall_probes`) executes. Widening the row is owed the
+moment **#782** is decided; until then this row stays open.
+
+## S130. `demos/tour/src/lily.rs` — the first end-to-end read (roll-up, raised by #787)
+
+**Raised by #787's style review**, which took the file as free ground:
+§B2 named `lily.rs` as the scan's highest-yield uncovered file and
+nothing had read it end to end. 2,446 lines, 975 comment / 1,393 code
+(41%), with a 137-line module header before the first item — the
+tour's most geometrically involved scene and the one written most like
+a user modelling a real object, which is what makes it worth reading.
+
+**Nothing here is fixed.** #787's scope was `demos/`'s nine G2 members,
+and one item — `bud`/`sepals` returning `Vec<Body<S>>` where a naming
+`.zip` truncates silently — was pulled forward into it as a sweep of
+that PR's own governing move (`WILD_CELLS: [Cell; 8]`); both now return
+`[Body<S>; 3]`. The rest are recorded:
+
+- (a) **`:1104-1113` is an orphaned comment block whose live number is
+  wrong.** Ten lines about the globe centre and the sepal polar angle
+  sit between `};` and `// The BUD:` with no code between them and no
+  blank line, saying *"38 degrees puts them on the shoulder of the
+  globe"* — while the live `sepals(…)` call passes
+  `(FLOWER_TOP / FLOWER_GLOBE).acos() + deg(4.0)` = **28.6°**, with its
+  own restatement of the same argument. S112's class, in the file the
+  scan flagged as least read.
+- (b) **A shadow vector algebra beside the kernel's own.** `nrm` is
+  byte-identical at `:395-397` and `:972-974`; `rot` at `:162`; the
+  radial-frame builders at `:387` and `:932` — all in bare
+  `(f64, f64, f64)` tuples, converting to `Vec3`/`Point3` only at the
+  API boundary through `v3`/`pt3`, while `mod review_probes` in the
+  same file uses `Vec3::norm`/`cross` freely. The duplication is this
+  bullet; **the reason is a library finding and is issue #796** — if
+  authoring a plant naturally means not using `Vec3`, that is evidence
+  about `Vec3`'s ergonomics (`memories/demo-purpose.md`).
+- (c) **Two near-parallel "extract the single stored carrier" helpers
+  with different rigor**, inside one `mod review_probes`: `:1687`
+  `torus()` scans all faces and cross-checks that multiple torus faces
+  share one carrier; `:2300` `sphere_of()` documents itself as *"The
+  single stored sphere of a body"* and returns the **first** one with
+  no such check. And `torus()`'s own agreement check is partly
+  vacuous — it compares `center.x`/`center.z` but never `center.y`,
+  compares `axis.y.abs()` only (so two tori whose axes differ in x/z
+  pass), and ignores `u_ref` — while the surrounding prose claims the
+  stored parameters come back bit-for-bit.
+- (d) **`assert_cap` is an existential over two, and gets easier as the
+  caps converge.** `:1755-1770` is
+  `[caps.start, caps.end].into_iter().any(…)`, so a body whose two
+  joint frames collapsed onto one plane satisfies every call. The
+  comment defends the disjunction (*"which of the two ends answers is
+  the revolve's business"*), which is reasonable; the check as written
+  cannot see the degeneracy.
+- (e) **`cap_frames` asserts `on.len() == 8` for every planar face it
+  meets** (`:2325-2372`), then returns a `Vec<Cap>` with no arity check
+  at all. For a body with a third planar face, or two nearly-coplanar
+  caps on a shallow blade, the vertex set is wrong before the assert
+  fires.
+- (f) **41% comment, 137-line header, accumulated one titled essay at a
+  time.** S116(e)'s class, one crate over.
+
+**Reading (b)–(e) together**: this is the file `mod review_probes`
+lives in, and those probes are exactly the seven `#[test]`s no gate
+runs (**S129**, **#782**). A rigor gradient inside an unrun suite is
+worth less attention than the same gradient inside a running one — but
+it is also why nobody found it.
 
 ## §A2. Where the second scan would start
 
@@ -11079,6 +11195,7 @@ tessellation pin are red on main).
 | **G8** | **`face_normal.rs`'s one-door module names three flip sites: one does not flip, and at least five that do are unlisted.** The enumeration repair is style — but the sub-question it parks (*is `chord_join`'s missing flip a defect, given it feeds `point_in_loop` for ring re-homing?*) is a **correctness** question and must be a separate adversarial unit, not folded into a doc edit. Overlaps the standing open decision **D6**, whose stated sweep shape is `grep sense_sign`. | **S67** | `topo/src/face_normal.rs` (docs), `topo/src/chord_join.rs` (the real question) | **ACCEPTED**, with the routing caveat | style + one **ADVERSARIAL** sub-unit |
 | **G9** | **Two operand gates with different admitted kind sets and a doc that describes only one** (S95), and **`chord_join`'s top-level-sibling placement argument contradicted by its own imports from `splitting/`** (S96). S96's imports reach `splitting/rules.rs`, which is Track C's — **confirm with Track C before touching it**. | S95, S96 | `topo/src/boolean/{ops,reduce}.rs`, `topo/src/chord_join.rs` | **ACCEPTED** on both | style; S95 escalates only if the drift ever admits a kind |
 | **G10** | **Prose describing a world the code has left** — eight members, the cleanest class in Tier 3, scattered by file. Three of them (`geom-brep/props/curved.rs`, `geom-brep/src/ssi/`) are **Track C's and must be left**; the rest are free. | **S112** | scattered; the free members only | **ACCEPTED** | style |
+| **D79** | **`lily.rs`, read end to end for the first time — six members, no owner.** Raised by #787's review over free ground §B2 had flagged as the scan's highest-yield unread file: an orphaned comment block whose live number is wrong (38° vs 28.6°), a shadow tuple vector algebra beside `Vec3` (whose *reason* is issue **#796**), two carrier extractors with different rigor plus a partly-vacuous agreement check, an existential-over-two cap assert, an unchecked arity beside a hard `== 8`, and 41% comment with a 137-line header. **All six sit inside `mod review_probes`' orbit, which no gate runs (S129, #782)** — so the row's first question is whether it waits on that or precedes it. | **S130** | `demos/tour/src/lily.rs` | proposed: **ACCEPT**, after or with S129 | style |
 
 **Rides along, and is not a new row:** S111(a)(b)(d) and S112(a) are
 `sweep/src/fillet/` and belong to Track E's **E-g**, which is already ADVERSARIAL
