@@ -11612,18 +11612,28 @@ S60/S66's rows; and a general gate re-proposes exactly what Evan declined.
 **Found by Track F's lane F-f (#798) while demonstrating F2's re-siting, and
 handed over rather than taken — `scripts/gates/lib.sh` is lane F-g's file.**
 
-On hosted CI a failing gate prints **no readable reason**. On run
-`32408775985` — a deliberate breakage, so the failure is known and expected —
-the only failure text anywhere, in the job log *and* in the check-run
-annotations queried across every check run on the head SHA, is:
+> **NARROWED 2026-08-20, and the over-claim was Track F's own.** This finding
+> was first written as *"all fifteen gates currently fail on the hosted half
+> without saying why"* and *"readable only by re-running locally"*. **That is
+> false, and it was refuted by the lane that raised it**, on run `32413754011`:
+> `ERROR:` and `##[error]` lines both appear, carrying the full diagnosis. The
+> `::error::` plumbing works when it is reached. **What is true is only the
+> narrower mechanism below** — a gate that dies under `errexit` never reaches
+> it. The original text generalised one silent run into a property of fifteen
+> gates on the strength of a single observation. **That is the *claim wider
+> than its evidence* failure this track has ruled on four times today,
+> committed by the orchestrator in the register itself**, which is the one
+> place it is hardest to notice: a lane's over-claim gets a reviewer, and the
+> record's does not.
+
+On run `32408775985` — a deliberate breakage, so the failure was known and
+expected — the only failure text anywhere, in the job log *and* in the
+check-run annotations queried across every check run on the head SHA, was:
 
     Process completed with exit code 1
 
-`gate_error` emits `::error::<msg>` when `GITHUB_ACTIONS` is set; **that line
-appears in neither.** The plain `ERROR:` branch is local-only. So **all fifteen
-gates currently fail on the hosted half without saying why**, and this
-directory's carefully written failure messages are readable only by re-running
-locally — which is the half that does not gate.
+**not because `::error::` is unavailable, but because the gate died before
+emitting it.**
 
 ### The mechanism, found by #798's style review — and it is larger than the finding
 
@@ -11638,8 +11648,9 @@ empty-scan guard.
 
 So the finding is not *"gates print nothing on hosted CI"*. It is:
 
-> **Every gate can die before its own error message, and every gate's self-test
-> is blind to that by construction.**
+> **A gate whose diagnostic path runs a pipeline or a command substitution can
+> die before its own error message — and every gate's self-test is blind to
+> that by construction.**
 
 The harness suppresses the exact condition that kills the diagnostic. **That is
 a guard whose verification mechanism cannot observe its own failure mode** — the

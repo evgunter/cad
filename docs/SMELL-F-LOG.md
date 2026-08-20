@@ -388,6 +388,36 @@ constraint is, and it is stated here so a Track G taker can read it.
 
 ---
 
+## Incidents (orchestrator's own)
+
+### The register's over-claim, 2026-08-20 — S157 as filed was wider than its evidence
+
+**S157 was recorded, escalated and merged with a claim one observation could
+not carry**: *"all fifteen gates currently fail on the hosted half without
+saying why."* The evidence was a single run showing only
+`Process completed with exit code 1`. **The lane that raised the finding
+refuted it** on run `32413754011`, where `ERROR:` and `##[error]` both appear
+with the full diagnosis. The `::error::` plumbing works; a gate that dies under
+`errexit` simply never reaches it.
+
+The finding survives, **narrowed to the mechanism** — which is where it was
+always strongest, and which the style review had already stated precisely. What
+did not survive is the generalisation the orchestrator wrapped around it.
+
+**Why this one is worth an incident when a lane's would be worth a fix.**
+This track has ruled on *a claim wider than its evidence* four times today —
+F-a's record edits, F-b's box twice, F-f's *"stated as total and is not"*. Every
+one of those was caught because **a lane's claims get a reviewer**. The
+register's do not. An orchestrator writing a finding is the one author on this
+track with no adversary, and the failure mode is identical.
+
+**Two things follow.** *A finding is not exempt from the standard it enforces* —
+S157 was written from one run and escalated on a review's diagnosis without
+re-deriving the escalated part. And **the sharpest reviewer of a finding is the
+lane that raised it**: F-f had the run open, knew what its own gate printed, and
+said so against a document that had just credited it. That is worth more than
+the finding was.
+
 ## Standing rules this track derived
 
 ### A verification is valid for the PATHS it verified, not for the SHA it ran on
