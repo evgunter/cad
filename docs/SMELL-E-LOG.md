@@ -336,10 +336,16 @@ as an A/B row anywhere. If something seems to require it, stop and ask the
 orchestrator.
 
 **3. Your branch and your lane.** Branch `smelle/<row>` (e.g. `smelle/d25`),
-off current `origin/main`. Use **your own** `CARGO_TARGET_DIR`; never one shared
-with another worktree. Anything to be published — a PR body, a review findings
-file — goes to a **lane-private** path, never the session scratchpad, which is
-shared between concurrently running agents.
+off current `origin/main`. Use **your own** `CARGO_TARGET_DIR` — never one
+shared with another worktree, **and never one inside the session scratchpad.**
+Put it in your own worktree. The scratchpad is shared between concurrently
+running agents and it is on the same fixed per-session disk allowance as every
+lane's build: six lanes each parking a 1–7 GB target directory there took this
+container from 24 GB free to **6.4 GB** in under two hours, which is past the
+point where a build can fail mid-link and leave torn binaries behind. Anything
+to be **published** — a PR body, a review findings file — goes to a
+**lane-private** path for the same reason plus a second one: another agent can
+read and overwrite it.
 
 **4. Commit and push at every coherent seam**, not at the end. Two lanes have
 been lost mid-unit with everything uncommitted; a pushed commit is the only
@@ -777,6 +783,35 @@ routed that to D47 — correctly identifying the shape and mis-identifying its
 extent by a whole crate. A disclosure that names the right pattern and the wrong
 scope reads exactly like a discharge, which is why the standing rule is that a
 disclosure is a work order.
+
+### Six lanes filled the disk with target directories in the shared scratchpad (2026-08-20)
+
+**24 GB free to 6.4 GB in under two hours**, with four lanes building. Cause:
+every lane obeyed *"use your own `CARGO_TARGET_DIR`"* — which is the rule, and
+which each of them followed correctly — and put it under
+`/tmp/.../scratchpad/`. Six distinct directories, 13 GB, one of them 6.6 GB.
+
+**The rule was right and incomplete.** `memories/agent-lane-operations.md` says
+*never share a `CARGO_TARGET_DIR`* and separately says *the scratchpad is shared,
+so lane-private files go elsewhere* — but the second rule is written about
+**published** artefacts (PR bodies, findings files), and its stated reason is
+*another agent can overwrite it*. A target directory is neither published nor at
+risk of being overwritten, so nothing in the rule as written excluded the
+scratchpad, and six independent lanes all read it the same way. **When six
+careful agents make the same call, the brief is what is wrong.**
+
+Reclaimed 11 GB from four finished lanes' target directories; the standing lane
+header now says *put it in your own worktree*, with the number, because the
+reason is a disk allowance and not a correctness argument and the number is what
+makes it stick.
+
+*The reason this is worth a paragraph:* the container's writable space is a
+**fixed per-session allowance**, so a disk-full does not degrade gracefully —
+it produces torn binaries and test results that must be treated as suspect for
+the whole pressure window (`memories/agent-lane-operations.md`). This came
+within a couple of gigabytes of costing every in-flight lane's verification, and
+the only reason it did not is that a routine `df` was run before dispatching the
+next lane.
 
 ---
 
