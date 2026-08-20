@@ -60,75 +60,52 @@ use super::rules;
 use super::{PlaneSide, SectorEntry, SectorEntryKind, SplitPlane, SplitReduceError};
 use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey, VertexKey};
+use crate::sector_face::{SectorCarrier, SectorFaceError, sector_face as shared_sector_face};
 use crate::sector_shape::{SectorShape, sector_shape};
 use crate::validate::decide;
 
 /// Resolves the sector face for the sector CW-after `he` (module docs:
 /// `face(loop(mate(he)))`) together with its outward normal **at the
-/// base vertex** and whether the surface is a plane. For a `Plane` the
-/// normal is the stored one (the M3 path); for a `Cylinder` (M5 PR 5)
-/// it is the chart-outward radial at the vertex point — the local
-/// normal every sector predicate meters through. Kinds the gate
-/// refuses are typed here too (unreachable post-gate).
+/// base vertex** and whether the surface is a plane.
 ///
-/// **Both arms fold in the face's `sense` bit** (S10) by minting an
-/// [`OutwardNormal`]: each reads a chart normal and returns it as the
-/// face's OUTWARD normal, and the chart is the only orientation
-/// encoding they have.
-/// This is the splitting lane's chokepoint, the twin of the boolean's
-/// `boolean::sectors::sector_face`: `rules::apply_rule_a`'s
-/// `enters_material` call, the sector-shape rungs (since S5 part 1 they
-/// are [`crate::sector_shape`], called below rather than written below),
-/// and the departure trileans all consume this value and are
-/// sense-invariant GIVEN it — they pair it with the STORED orbit
-/// order, which `revert` reverses together with the sense bit, so a
-/// second `sense_sign` factor at any of those sites would cancel this
-/// one.
+/// The walk and the normals are [`crate::sector_face`] — ONE
+/// implementation, called from here and from the boolean lane's sector
+/// walk (smell scan S5). What stays here is this lane's adaptation of
+/// it, and only that: the split lane's error type, the planar flag
+/// `rules::apply_rule_a` branches on, and the `Sphere` refusal.
+///
+/// **`Sphere` refuses here rather than there.** The shared walk has a
+/// wired sphere arm — the boolean lane executes it (M5 PR 9) — and
+/// this lane does not; the F5 operand gate ([`super::classify`]) has
+/// already refused any sphere-carried face before an orbit is ever
+/// walked, so this arm is unreachable post-gate and is typed for the
+/// same reason the gate's other kinds are (C12.1, per arm).
+///
+/// The normal arrives as an [`OutwardNormal`] with the face's `sense`
+/// folded in (S10), minted at the shared chokepoint. Everything
+/// downstream of it here — `rules::apply_rule_a`'s `enters_material`
+/// call, the sector-shape rungs, the departure trileans — is
+/// sense-invariant GIVEN that value and must not multiply again: those
+/// sites pair it with the STORED orbit order, which `revert` reverses
+/// together with the sense bit, so a second `sense_sign` factor would
+/// cancel this one.
 pub(super) fn sector_face<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
     he: HalfEdgeKey,
 ) -> Result<(FaceKey, OutwardNormal<T>, bool), SplitReduceError> {
-    let corrupt = SplitReduceError::CorruptOperand { vertex };
-    let mate = body
-        .mate(he)
-        .ok_or(SplitReduceError::CorruptOperand { vertex })?;
-    let half_edge = body.get_half_edge(mate).ok_or(corrupt)?;
-    let r#loop = body
-        .get_loop(half_edge.parent_loop)
-        .ok_or(SplitReduceError::CorruptOperand { vertex })?;
-    let face_key = r#loop.face;
-    let face = body
-        .get_face(face_key)
-        .ok_or(SplitReduceError::CorruptOperand { vertex })?;
-    let sense = face.sense;
-    match body.get_surface(face.surface) {
-        Some(geom_surfaces::Surface::Plane { normal, .. }) => {
-            Ok((face_key, OutwardNormal::from_chart(*normal, sense), true))
+    let resolved = shared_sector_face(body, vertex, he).map_err(|e| match e {
+        SectorFaceError::Corrupt => SplitReduceError::CorruptOperand { vertex },
+        SectorFaceError::Unsupported { face, kind } => {
+            SplitReduceError::CurvedBooleanUnsupported { face, kind }
         }
-        Some(geom_surfaces::Surface::Cylinder { origin, axis, .. }) => {
-            let p = *body
-                .get_point(
-                    body.get_vertex(vertex)
-                        .ok_or(SplitReduceError::CorruptOperand { vertex })?
-                        .point,
-                )
-                .ok_or(SplitReduceError::CorruptOperand { vertex })?;
-            let w = p - *origin;
-            let radial = w - *axis * w.dot(*axis);
-            Ok((
-                face_key,
-                OutwardNormal::from_chart(radial.normalize(), sense),
-                false,
-            ))
-        }
-        Some(s) => Err(SplitReduceError::CurvedBooleanUnsupported {
-            face: face_key,
-            kind: geom_brep::SurfaceKind::of(s),
-        }),
-        None => Err(SplitReduceError::CurvedBooleanUnsupported {
-            face: face_key,
-            kind: geom_brep::SurfaceKind::Nurbs,
+    })?;
+    match resolved.carrier {
+        SectorCarrier::Plane => Ok((resolved.face, resolved.normal, true)),
+        SectorCarrier::Cylinder => Ok((resolved.face, resolved.normal, false)),
+        SectorCarrier::Sphere => Err(SplitReduceError::CurvedBooleanUnsupported {
+            face: resolved.face,
+            kind: geom_brep::SurfaceKind::Sphere,
         }),
     }
 }
