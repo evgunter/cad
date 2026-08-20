@@ -299,13 +299,41 @@ decade 39+|          866   (exact tie-break bands: canonical_order_*,
 ```
 
 The 240-sample decade-3 tail (the floor's neighborhood): 173
-demo/az (bool_point_in_solid_plane 89, bool_join_nearest 38 — those
-38 are chord LENGTHS and record under `bool_join_chord` since that
-name was split off, and the pm_census gap/residual family), 63 die
-`witness_at_mid_parameter` (42 corpus + 21 demo — the same document
-through both paths), 3 demo/projectbox_cutaway `split_bisector_side`,
-1 demo/table. All are real millimeter-scale feature clearances, not
-noise.
+demo/az (bool_point_in_solid_plane 89, bool_join_nearest 38, and the
+pm_census gap/residual family), 63 die `witness_at_mid_parameter`
+(42 corpus + 21 demo — the same document through both paths), 3
+demo/projectbox_cutaway `split_bisector_side`, 1 demo/table. All are
+real millimeter-scale feature clearances, not noise.
+
+**The `bool_join_nearest` 38 stay under that name after #719's split**
+(which minted `bool_join_chord` for the germ-chord LENGTH gate and left
+the name on the nearest-candidate DIFFERENCE). Two independent reads of
+the committed M7 rows say so, identically at all three ε rows:
+
+- **Sign.** Three of the 38 are negative
+  (`-5.172658143638709e-3` ×1, `-5.88521089089028e-3` ×2), and across
+  all of az's sub-1e-1 samples every magnitude appears with both signs
+  at bit-identical values (`±5.474101278454191e-2` at 130/15). A chord
+  norm cannot be negative; a difference of two of them can.
+- **Recording order.** The CSV rows are in decision order, and the two
+  sites have distinct signatures: the gate is followed by the facing or
+  conic-section decision it guards, the selection is preceded by a
+  facing decision. Partitioning M7's 41 745 `bool_join_nearest` samples
+  that way is total (no unclassified row) and splits them **28 544
+  chord-gate / 13 201 selection**; the gate half is entirely positive
+  with `min |m| = 5.000e-2 m` and contributes **nothing** to this
+  decade-3 tail and nothing to the zero cluster, while the selection
+  half carries all 4 726 exact zeros, all 466 negatives, and all 38 of
+  these. The partition rule was checked against ground truth on the
+  twin boolean configurations at the post-split head, where the names
+  are known: 656 of 656 correct, none ambiguous.
+
+The corollary is that the split is **not** a clean cleave of the pooled
+row into the report's two clusters: on the M7 corpus the chord row is
+all-positive with a 5 cm floor while the selection row keeps positives,
+zeros and negatives together. `docs/k-report-data/`
+rule 1 stands — nothing in those files is renamed, and a `bool_join_*`
+row there dates to its era.
 
 Zero-side: 447 581 of 458 734 zero-classified margins are EXACTLY 0;
 the rest are ≤ 5.33e-15 m (worst: `pm_census_ee_span`, demo/az).

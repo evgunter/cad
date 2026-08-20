@@ -2408,7 +2408,7 @@ cites that gate as its justification — and when a scan finds a stale premise,
 the fix is to re-derive **all** arms resting on it, not the one that matched
 the search term.
 
-## S17. FIXED by #712 and #719 — the two topo ray-parity copies now share one home, the K convention did not forbid it, and the drift class is closed
+## S17. FIXED by #712 and #719 — the two topo ray-parity copies now share one home, the K convention did not forbid it, and the class's worst instance is closed
 
 - **Where**: `crates/topo/src/chart_region.rs:897`,
   `crates/topo/src/splitting/containment.rs:154`,
@@ -2462,46 +2462,92 @@ anchors is `boolean/solid_contain.rs:76` vs
 `chart_region`'s `SCHEDULE_2D` is a different table by dimension, not
 a re-declaration. It is scheduled as **D10**.
 
-**The class is closed — #719 (D11).** #712 closed the drift where the
-finding pointed and nowhere else, and labelled that a half-fix on the
-*class*: one predicate name deciding two questions. The instance it
-pointed at was `bool_join_nearest`, which asked *"is this chord
-degenerate?"* (`Margin::of(dist)`) and *"is this candidate nearer than
-the incumbent?"* (`Margin::of(dist - bd)`) under one name — a distance
-and a difference of distances. #719 split it: the degeneracy gate is
+**The class's worst instance is closed — #719 (D11); the class is
+not.** #712 closed the drift where the finding pointed and nowhere
+else, and was made to label that a half-fix on the *class*: one
+predicate name deciding two questions. The instance it pointed at was
+`bool_join_nearest`, which asked *"is this chord degenerate?"*
+(`Margin::of(dist)`) and *"is this candidate nearer than the
+incumbent?"* (`Margin::of(dist - bd)`) under one name — a distance and
+a difference of distances. #719 split it: the degeneracy gate is
 `bool_join_chord`, and `bool_join_nearest` keeps the selection it
 names, its two sites untouched in the diff. The row named four sites;
-the name had **six** — `boolean/rest.rs` reuses the join's matcher, so
-the split covers the name rather than the file.
+the name had **six** — `boolean/rest.rs` decides the same two questions
+under the same name, so the split covers the name rather than the file.
 
-**What that measured, which the argument alone could not.** The two
-populations are not merely different, they are disjoint: on the twin
-boolean configurations the 228 `Margin::of(dist)` samples per scale are
-`Definite(Positive)` at the model's own scale and the 100
-`Margin::of(dist - bd)` samples are `Definite(Zero)` at exactly 0. One
-K row was carrying the report's bimodal split *inside a single
-predicate name*. The rename is value-preserving by measurement, not
-just by the funnel's construction: with the predicate column stripped
-the base and branch sample streams are byte-identical in order, and
-byte-identical in full under the inverse rename.
+**The same standard #712 was held to applies here: this closes one
+instance and samples the rest.** #719's sweep left thirteen other names
+flagged, twelve lines below this claim, and the residue set is
+*criterion-dependent* rather than a bounded enumeration — a
+definition-resolving sweep run in review of #719 flags **43** names
+against #719's own 14/19. Nobody has counted the class; two units have
+now closed its two named members.
 
-**Nothing would have gone red, and that is the finding.** No test in
-the workspace names `bool_join_nearest`; the boolean suites assert
-verdicts, not populations, and the twins suite's predicate-set equality
-holds by construction under any static rename. The sites are covered by
-execution (328 samples per twin, so a moved *verdict* would surface as
-a refusal) but the population split ships unpinned.
+**What the measurement pins, and what it does not.** On the twin
+boolean configurations the base and branch `bool_join*` streams were
+dumped in recording order and compared two ways: with the predicate
+column stripped they are byte-identical in order, and under the inverse
+rename they are byte-identical in full. That pins **value preservation**
+— same margins, same outcomes, same order of operations, same
+interleaving with `bool_join_facing`, no stray third name, 784 = 328 +
+456 samples either side. It does **not** pin the site→name assignment,
+and the record originally claimed it did: check one discards the name
+by construction, and check two collapses two names into one, which
+reproduces the base stream under *any* partition of the six sites —
+including the inversion and including a partial rename. What pins the
+assignment is the diff, plus the histogram read with the outside
+knowledge of which population is the norm.
 
-**The three candidates behind it are negative results.**
+**The populations are disjoint on the twins and NOT on the corpus.**
+Twins: 228 `Margin::of(dist)` samples per scale `Definite(Positive)` at
+model scale, 100 `Margin::of(dist - bd)` samples `Definite(Zero)` at
+exactly 0 — the fixtures are symmetric enough that every incumbent
+comparison ties. On the M7 corpus the same split is 28 544 chord-gate
+(all positive, floor 5.0e-2 m) against 13 201 selection (8 009
+positive, 4 726 exact zero, 466 negative), so both rows keep positives
+and only the selection row carries zeros. `K-REPORT.md`'s decade-3 note
+records that partition and the two independent reads behind it.
+
+**Nothing WOULD have gone red — so #719 added the pin that does.** No
+test named `bool_join_nearest`; the boolean suites assert verdicts, and
+the twins suite's predicate-set equality holds by construction under
+any static rename, so a swapped assignment would have left every
+assertion passing. The fix was one line in the file already being
+measured: `rim_dim_boolean_twins.rs`'s must-fire block already asserts,
+per name, that a predicate fires with a nonzero margin — a population
+claim inside the existing charter. `bool_join_chord` joins that list,
+and under the swapped assignment it fails with *"expected a nonzero
+margin to pin the metering"* (verified by inverting the six sites and
+running it). The pin's own limit: the twins run two `subtract`s on
+axis-aligned prisms with default contact records, and the REST lane
+fires only on declared coincident faces after a typed refusal, so
+`rest.rs:401/421` contribute **zero** of those 784 samples — the two
+out-of-scope sites are argued and compiled, not measured.
+
+**The candidates behind it are negative results.**
 `bool_join_facing` (4 sites) is `dir·chord` at both ends of one chord;
 `bool_point_in_solid_plane` (3) is the signed distance to a face's
 surface for plane, cylinder and sphere; `bool_dir_same` (3) is
-`levered(a·b, arm)` on already-parallel directions. Each decides one
-question at several sites — the useful half of the sweep. The residue
-it flagged instead is `pm_census_ef_cut_span` / `pm_census_bound_end`
-(`Margin::of(s)` beside `Margin::of(e.len - s)`, the same pooling one
-line apart), `tangent_locus_side`, `props_rim_level_group` and
-`fillet_leg_fit` — recorded, not taken.
+`levered(a·b, arm)` on already-parallel directions; and
+`bool_contact_edge_span` (`contain.rs:105/108`) is one edge's span
+coordinate measured from each end (`s0`, then `len - s0`). Each decides
+one question at several sites — the useful half of the sweep. The
+residue it flagged instead is `pm_census_ef_cut_span` /
+`pm_census_bound_end` (`Margin::of(s)` beside `Margin::of(e.len - s)`,
+the same pooling one line apart), `tangent_locus_side`,
+`props_rim_level_group` and `fillet_leg_fit` — recorded, not taken.
+
+**A duplication row this unit uncovered and did not take.**
+#719's scope argument was that *"the REST lane reuses the join's
+matcher"*. It does not: `rest.rs:390-430` **re-implements** it,
+inlining the planar arm of `join.rs`'s `germs_face_each_other` and
+carrying a near-verbatim copy of the class-(c) metering comment from
+`join.rs:725-728`. Two copies of one matcher is why one K name had six
+sites in two files rather than four in one. `rest` already depends on
+`join` and `join` exposes the function in-module, so the shared core is
+hosted inside one of its two consumers — the same shape S17's own
+finding is about, one module over. Recorded here rather than widened
+into.
 
 **The sweeps' blind spots, stacked.** #712's was door-based: it finds
 names decided through two different `Margin` doors and misses one
@@ -2512,15 +2558,18 @@ precisely what `bool_join_nearest` was. #719 swept the complement
 307/19 over wrapper-shaped calls) and inherits a different one: it keys
 on syntax, so two plain `Margin::of(x)` sites measuring different
 quantities stay invisible — `bool_point_in_solid_plane`'s exact shape,
-which had to be read. Both sweeps share #712's third blind spot: ~30
-sites pass the name through a parameter or a const. `K-REPORT.md:203`'s
-roster obligation names one such table, `ParityRows`; `sweep`'s
-`swept.rs::CosurfaceNames` is a second and is not listed there.
-`topo`'s `sector_shape.rs` carries three more names as private
-`const &str`s — not a table, so the obligation as written does not
-reach them, and equally not reachable by the `decide("` grep. Worth
-someone's row: the obligation is stated over types and the hole is
-over *anything that is not a literal at the call site*.
+which had to be read. **A fourth, found in review and not by either
+sweep: a difference that is `let`-bound before the call.**
+`contain.rs:105/108` decides `Margin::of(s0)` and `Margin::of(s1)`
+where `s1 = len - s0` three lines above — the flag criterion exactly,
+invisible because the subtraction is not in the argument. It falsifies
+#719's own claim to have flagged *every* `bool_*` name of this shape;
+the substantive verdict there is a negative result, but the sweep did
+not earn it. Both sweeps also share #712's blind spot: ~30 sites pass
+the name through a parameter or a const, and the roster obligation at
+`K-REPORT.md:209` is stated over *types* holding row names where the
+hole is over anything not reachable as a bare literal at the call site.
+That is now **D19**.
 
 ### What the unit is evidence about: the convention charges, but not what the spec inferred
 
@@ -2536,7 +2585,7 @@ The unification tests that claim, and splits it in two:
   `K-REPORT.md`'s documented `grep -r 'decide("'` inventory, so seven of
   the eight names in these two files stopped being discoverable by the
   project's stated method and nothing went red. The method now names the
-  row-name table explicitly (`K-REPORT.md:203`); the `ROWS` blocks say so
+  row-name table explicitly (`K-REPORT.md:209`); the `ROWS` blocks say so
   at the definition. **That is the charge, and it is the concrete one.**
 - **What was imagined is the stronger inference the spec drew** — that
   *sharing the walk forces pooling the ledger*. It does not. `ParityRows`
@@ -6297,9 +6346,11 @@ set, and D1 declined to widen into it.
 | **D14** | **`seqgen`'s candidate enumeration is eager.** `choose_op` builds every candidate `Vec` on every call — including rows whose weight is zero because the body has stopped growing — and then discards all but one. D5's `split_edge` row is what makes that cost visible rather than what causes it: `split_edge_candidates` runs a full `EdgeCurve::recertify` plus an O(V) separation scan **per edge, per step** (~14 re-certifications and ~200 metered decisions at `GROW_CAP`), which is where its measured +46% went. `memories/test-suite-cost.md` is categorical that an ungated fuzzer is a defect in the fuzzer. The fix is not to drop the gates — they are what keep the lane honest — but to skip zero-weight rows and to enumerate lazily. | S15 (`seqgen` half) | `topo/src/seqgen.rs` | style, but **measure before and after**: the row exists because a number was measured, and it closes on a number, not on a shape | nothing |
 | **D15** | **The K-report harness does not run, so the provenance behind `docs/K-REPORT.md` is currently unreproducible.** `sweep/tests/k_report.rs` is the instrument that dumps `docs/k-report-data/`'s CSVs, and the standing convention is that reviewers **byte-reproduce** them. Under `--features probe` it does not reach a sweep call: it panics at `k_report.rs:40`'s `.unwrap()` with `UndeclaredTangency { loop 0, segments 7 and 0, joint 0 }` inside `profile::validate`, on the **second** corpus shape (the rounded square, `k_report.rs:101-118`) — reproduced 2026-08-20 on the D1 branch, and pre-existing: nothing in `crates/sweep` is on the failing path. Until it is fixed, **every K claim in this report is verifiable only statically** (reading the predicate-name literals), not by running the instrument — which is how D1's byte-identity check had to be made. **Diagnosis first**: establish whether the corpus shape drifted out of `profile`'s tangency-declaration rule or the rule tightened under it, and say which, before changing either. A rounded square with `.fillet(r)`-shaped corners that no longer validates is a fact about the profile door, not necessarily about the harness. | raised by D1 (#710) | `sweep/tests/k_report.rs`, and whatever the diagnosis names | **ADVERSARIAL** — the two available fixes (declare the joint in the corpus, or change what `profile` requires) are not equivalent, and picking the convenient one silently re-baselines the dataset the K census is built on. | nothing |
 | **D16** | **W2c — the D2 addendum, executed in `crates/topo`.** S43's verdict (`:4517`) ratified the taxonomy on 2026-08-19 and named W2c as what remains: the ~60 silent `if let Some(...)` discards in `euler.rs`/`euler_ring.rs`/`euler_kill.rs` are the superseded idiom 4, and **silent discard is never an answer**. Each site sorts into row 4 (`unreachable!`, observable in a branch) or row 5 (`debug_assert`, detectable only by re-derivation) — the split is **re-derivation, not cost**. This is the topo half of the same addendum **D2** is applying in `sweep/src/fillet/`; the two must not diverge on how row 4 is spelled, so whoever takes the second one reads the first one's PR. Retiring the discards also changes what `release_corruption.rs`'s garbage-out row means — see S12. **The row existed only in S43's prose (`:4532`, "now unblocked and unstarted") until #706 placed it**; that miss is §D's fourth ordering rule failing on the section that states it. | S43 / Wave 0 D2 | `topo/src/euler{,_ring,_kill}.rs` | **ADVERSARIAL** — it converts ~60 silent no-ops into panics or debug asserts inside the mutation phase of a kernel whose D9 headline is *never a panic on any input*, so every row 4 needs its not-input-reachable argument made per site, not inherited. | nothing (the addendum opened the `unreachable` lint in both manifests) |
+| **D19** | **The K roster's inventory method has a hole, and the roster is complete today by luck of era.** `K-REPORT.md:209` states the method as `grep -r 'decide("'` plus the census helpers plus — since #712 — the row-name TABLES, listing exactly one (`topo::ray_parity::ParityRows`). Two more name carriers already ship and are listed nowhere: `sweep/src/swept.rs:216`'s `CosurfaceNames` (a second table) and `topo/src/sector_shape.rs:169/172/176`'s three private `const &str`s, which are invisible to **both** halves of the method — not in the `decide("` grep, and their names postdate the M2 CSV column it is diffed against. The obligation is stated over *types*; the hole is over **anything not reachable as a bare literal at the call site**, of which a sweep at this head counts 37 across 24 files (25 across 22 by the reviewer's stricter count, which excludes thin per-crate wrappers whose own callers pass literals — cost the definition before counting). Restate the rule over that criterion, list what it catches, and say whether the enumeration is meant to be maintained by hand or by a test. | #719 (D11), which inherited the blind spot and verified the two unlisted carriers | `docs/K-REPORT.md`, and whatever the enforcement shape names | style | nothing |
 
 **No row number is reserved any more.** D15 (D1's `k_report.rs` harness) landed
-with #710 and D16 (D6's W2c discards) with #706, which were the last two. Row
+with #710 and D16 (D6's W2c discards) with #706; **D19** (the K roster's
+inventory hole) was assigned to #719 with D17 and D18 already taken. Row
 numbers are assigned centrally because several lanes mint rows in parallel and
 three collided once already: a lane that needs a row takes the next number the
 orchestrator has not assigned, never the next gap it can see.
@@ -6419,9 +6470,9 @@ all deletions        ──────────────► L2 (S38 comme
 had, are Track D's D1/D2.
 
 **Track D's own edges are all inside `sweep/`, plus one on another track's open
-PR.** D8, D10, D12, D13, D14, D15 and D16 are edge-free and unstarted (D1
-landed as #710, D3 as #704, D4 as #707 — which also discharges D13's gate —
-D5 as #713, D6 as #706, D9 as #712, D11 as #719). D8 edits `sweep/src/skin.rs`, so it
+PR.** D8, D10, D12, D13, D14, D15, D16 and D19 are edge-free and unstarted
+(D1 landed as #710, D3 as #704, D4 as #707 — which also discharges D13's
+gate — D5 as #713, D6 as #706, D9 as #712, D11 as #719). D8 edits `sweep/src/skin.rs`, so it
 sequences against **D2** alone within the track: D1 has landed and left
 `skin.rs` untouched. The one remaining external edge is D7's `PairSolve` row,
 behind **#702**.
