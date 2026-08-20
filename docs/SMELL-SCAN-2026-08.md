@@ -10786,7 +10786,9 @@ rather than only in its log because the *"take the next unassigned number from
 the orchestrator"* rule was written for lanes inside one track and does not
 survive three concurrent orchestrators drawing on one sequence from branches
 none of them can see. Tracks C and E should take blocks of their own the same
-way.
+way — **Track E has: `D81`–`D100`**, and its first two placements out of it are
+**D84** and **D85** (D23, #763), renumbered out of `D61`–`D70` when this
+reservation landed. Track C's block is still unclaimed.
 
 **Claimed 2026-08-20; one live orchestrator, log at `docs/SMELL-F-LOG.md`.**
 Reviews are **style-only** except where a row says ADVERSARIAL, and the track
