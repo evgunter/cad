@@ -82,8 +82,12 @@ fn every_face_gets_a_row_and_only_nurbs_faces_get_sizing() {
         // separates from its seed only when a face has more than one
         // knot-span cell, so that the BAND takes a max the per-cell
         // ideal does not — and every NURBS face of this fixture has
-        // `cells = 1`. A multi-band body would make it a real check;
-        // the bodies that produce one live in `crates/mesh`.)
+        // `cells = 1`. Multi-cell faces are not rare (56 of the
+        // committed tour baseline's 64 NURBS rows), but a fixture
+        // built from one would buy a guard rather than a detector:
+        // over those 56 the ratio `span_opt_cells / grid_cells` runs
+        // 0.16 to 0.73, and the one mechanism that could invert it is
+        // the per-cell `ceil` named just below.)
         //
         // (No `grid_cells <= patch_cells` assertion either: the
         // per-cell schedule pays a `ceil` per cell, and a face with

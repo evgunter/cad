@@ -4739,10 +4739,10 @@ directions of a realisation failure are already watched by instruments
 that read the mesh (the per-triangle certificate exactly, the
 scene-total triangle-growth rule only to within its 5% tolerance); a
 realised point count matches no stated value, so its tolerance could
-only be read off the baseline; and nothing consumed the ratio. #738 also found that
-#709's correction of the false sentence reached the four MODULE-doc
-sites and left the ITEM docs and the report legend still describing two
-derivations.
+only be read off the baseline; and nothing consumed the ratio. #738
+also found that #709's correction of the false sentence reached the
+four MODULE-doc sites and left the ITEM docs and the report legend
+still describing two derivations.
 
 ## S31. FIXED by #705 — `geom-curves` / `geom-surfaces` was a crate split that bought nothing and was paid for in duplication
 

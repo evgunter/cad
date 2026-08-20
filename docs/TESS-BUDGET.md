@@ -71,12 +71,12 @@ The committed baseline is `docs/tess-budget-data/tess-budget-baseline.csv`
 It is NOT the cut this document's measurement was taken from and its
 numbers are not the ones quoted below: "The finding" reports 1,025
 faces and 390,100 grid cells against the shipped whole-patch schedule
-of the time, and the total-slack figures come from that same
-pre-TESS-SPAN cut. Read the committed file as the gate's reference
-point and the figures below as the pre-fix record they are labelled
-as. CI runs the sweep
-`--sizing-only` and gates on REGRESSION against it: a scene's mesh
-growing, a face's sizing getting wastefuller, or a scene silently
+of the time, where the committed file's own `grid_cells` sum is
+163,182, and the total-slack figures come from that same pre-TESS-SPAN
+cut. Read the committed file as the gate's reference point and the
+figures below as the pre-fix record they are labelled as. CI runs the
+sweep `--sizing-only` and gates on REGRESSION against it: a scene's
+mesh growing, a face's sizing getting wastefuller, or a scene silently
 dropping out of the sweep. The gate reads triangle counts and the
 sizing columns only, so the resampling is a cost the gate has no use
 for; re-cutting the baseline drops the flag.
