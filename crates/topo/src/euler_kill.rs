@@ -1267,7 +1267,8 @@ mod tests {
 
     #[test]
     fn kvfs_rejects_extra_shells_and_rings() {
-        // Extra shell (raw-built; multi-shell solids arrive at M3).
+        // Extra shell, raw-built: a legal multi-shell solid, which
+        // `kvfs` still refuses because it unmakes the seed shell only.
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(p(0.0)).unwrap();
         let extra = body.add_shell(

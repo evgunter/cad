@@ -162,9 +162,11 @@ impl ContactAcc {
 /// sweep's crossing lanes, the join's section table), where they cite
 /// the C5 routing. Kinds with no wired arm at all (`Cone`, `Torus`)
 /// keep the gate refusal. Edge carriers: `Line`/`Circle`/`Ellipse`
-/// pass (the crossing and split lanes handle all three); `Nurbs`
-/// operand edges refuse typed (rung-3 INPUT operands are not in the
-/// M5 envelope — rung-3 edges are what the zip MINTS).
+/// pass this gate (the crossing lanes handle all three; the both-split
+/// point lane still needs a `Line`, and says so where it refuses);
+/// `Nurbs` operand edges refuse typed — a rung-3 INPUT operand is
+/// outside the supported envelope, rung-3 edges being what the zip
+/// MINTS rather than what it consumes.
 pub(super) fn gate_operand_kinds<T: Decide>(
     body: &Body<T>,
     operand: Operand,
@@ -947,8 +949,11 @@ fn split_at<T: Decide>(
 
 /// Splits the OTHER solid's boundary edge at the (already-computed)
 /// event point `p` — the both-edges-split lane that turns an edge-edge
-/// crossing into a v-v pair. The carrier is a line (post-gate), so the
-/// parameter is the exact projection `t = (p − origin)·dir`.
+/// crossing into a v-v pair. A `Line` carrier gives the parameter as
+/// the exact projection `t = (p − origin)·dir`; anything else refuses
+/// typed as [`BooleanError::PointSplitCarrierUnsupported`], its own
+/// variant because this precondition is NOT the operand gate's — the
+/// gate admits `Circle` and `Ellipse` and this lane cannot take them.
 fn split_other_at_point<T: Decide>(
     y: &mut Body<T>,
     y_is: Operand,
@@ -965,7 +970,7 @@ fn split_other_at_point<T: Decide>(
         }
     };
     let geom::Curve3::Line { origin, dir } = *curve.carrier() else {
-        return Err(BooleanError::CurvedEdgeUnsupported {
+        return Err(BooleanError::PointSplitCarrierUnsupported {
             operand: y_is,
             edge,
         });
