@@ -212,6 +212,35 @@ pub fn level_ring_plane(lofted: &Lofted<f64>, t: f64) -> (Point3<f64>, Vec3<f64>
     (ring[0], n.normalize())
 }
 
+/// How closely a level plane's normal must sit to a fixed stacking
+/// chord for that chord to orient it. The loft corpus's index needs
+/// this at EVERY level and refuses the body otherwise; a swept body
+/// whose path turns has no such chord, which is the condition
+/// [`LevelIndex`] exists for. Shared so that a suite asserting the
+/// fixed-axis index cannot run on its fixture, and the index itself,
+/// cannot drift apart.
+pub const FIXED_AXIS_GUARD_COS: f64 = 0.1;
+
+/// How far a wall's outward normal turns along `v`, accumulated over
+/// `samples` steps rather than compared end to end.
+///
+/// The end-to-end form (`n(0)·n(1)` against a threshold) is the right
+/// anti-vacuity for a quarter turn and says nothing at all about a
+/// WHOLE turn, where the two ends coincide at `cos = 1` exactly as
+/// they would on a straight path. Accumulating distinguishes them.
+pub fn chart_normal_turn(body: &Body<f64>, face: FaceKey, samples: usize) -> f64 {
+    let mut total = 0.0_f64;
+    let mut prev = wall_outward_at(body, face, 0.5, 0.0).1;
+    for i in 1..=samples {
+        #[allow(clippy::cast_precision_loss)]
+        let v = i as f64 / samples as f64;
+        let n = wall_outward_at(body, face, 0.5, v).1;
+        total += prev.dot(n).clamp(-1.0, 1.0).acos();
+        prev = n;
+    }
+    total
+}
+
 /// The body's own level set at `v`-fraction `t`, against a plane the
 /// caller's index has already oriented: one closed polyline per loop,
 /// walls in traversal order, sampled off the shipped charts.

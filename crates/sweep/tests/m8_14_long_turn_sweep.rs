@@ -38,6 +38,9 @@ use geom_core::{Affine3, Mat3, Point3, Vec3};
 use sweep::sweep_body;
 
 mod common;
+use common::orient::{
+    FIXED_AXIS_GUARD_COS, LevelIndex, along_v, assert_walls_face_out, chart_normal_turn, stack_axis,
+};
 use common::quad;
 
 /// Profile half-width: small against the helix radius, so the swept
@@ -183,4 +186,113 @@ fn a_two_turn_helical_sweep_builds_and_certifies() {
     let coarse = helix_oracle_gap(2.0, 65);
     let fine = helix_oracle_gap(2.0, 129);
     assert_second_order("two turns", coarse, fine, 1.2e-2);
+}
+
+// ---------------------------------------------------------------------
+// Orientation: every wall of a rolling chart faces out of the material
+// ---------------------------------------------------------------------
+
+/// The step off a wall, both ways, that the material-side probe takes.
+/// A quarter of the profile's half-width [`H`], so an inward step from
+/// a column at `u = 0.25` or `0.75` stays `0.04` clear of the two
+/// neighbouring walls, and fourteen orders above the level rings'
+/// measured planarity and chord error (`4e-16` and `2e-16` on these
+/// fixtures — the section's walls are straight lines).
+const PROBE_DELTA: f64 = 0.02;
+
+/// Samples of `v` the anti-vacuity turn is accumulated over. Coarse
+/// enough to be cheap, fine enough that two turns advance the normal by
+/// ~3° per step.
+const TURN_SAMPLES: usize = 256;
+
+/// **Every wall of a `turns`-revolution helical sweep faces out of the
+/// material, at every level of a chart that rolls the whole way.**
+///
+/// The claim is the one `m5_s11_concave_sense` makes of a loft and of
+/// the quarter-turn elbow: a wall's `sense_sign · (S_u × S_v)` has
+/// material against it and void along it. Nothing here reads that
+/// datum to decide the question — the oracle
+/// (`common::orient::LevelIndex`) sees only positions off the shipped
+/// charts.
+///
+/// Two ANTI-VACUITY conditions, because a row that never reaches its
+/// own premise passes for the wrong reason:
+///
+/// - **the frame really rolls.** The elbow row's form — `n(0)·n(1)`
+///   near zero — is worthless here: after a whole turn the two ends
+///   coincide at `cos = 1`, exactly as on a straight path. The turn is
+///   ACCUMULATED instead and must reach `0.9 · turns · 2π`.
+/// - **no fixed axis orients these level planes**, so the loft
+///   corpus's index could not have answered and this row is not a
+///   restatement of it. Its guard needs every level plane's normal
+///   within [`FIXED_AXIS_GUARD_COS`] of the stacking chord; here the
+///   worst level is far outside it, and the row asserts that rather
+///   than resting on the derivation in [`common::orient::LevelIndex`].
+fn assert_helix_walls_face_out(turns: f64, stations: usize) {
+    let path = helix_path(turns);
+    let place = start_place(&path);
+    let profile = quad([(-H, -H), (H, -H), (H, H), (-H, H)]);
+    let swept = sweep_body::<f64>(&profile, place, &path, stations, 3)
+        .unwrap_or_else(|e| panic!("a {turns}-turn helical sweep must build: {e:?}"));
+    assert_eq!(topo::validate(&swept.body), Ok(()), "{turns} turns: tier 1");
+    assert_eq!(
+        topo::validate_closed(&swept.body),
+        Ok(()),
+        "{turns} turns: tier 2"
+    );
+
+    let turned = chart_normal_turn(&swept.body, swept.side_faces[0][0], TURN_SAMPLES);
+    let want = 0.9 * turns * std::f64::consts::TAU;
+    assert!(
+        turned >= want,
+        "{turns} turns: a wall's outward normal accumulated only {turned} rad of \
+         turn along v, under the {want} this fixture exists to exercise — the \
+         chart is not rolling and the rows below would pass on a straight tube"
+    );
+
+    let index = LevelIndex::build(&swept);
+    let axis = stack_axis(&swept);
+    let worst = index
+        .planes()
+        .iter()
+        .map(|&(_, n)| (n.dot(axis) / axis.norm()).abs())
+        .fold(f64::INFINITY, f64::min);
+    assert!(
+        worst < FIXED_AXIS_GUARD_COS,
+        "{turns} turns: the level planes must NOT be orientable against the \
+         stacking chord (worst cos {worst}), or the loft corpus's fixed-axis \
+         index would answer here and this row restates it instead of reaching \
+         past it"
+    );
+
+    let samples = along_v();
+    let oracle = |q| index.contains(q);
+    let probes = assert_walls_face_out(&swept, &oracle, &samples, PROBE_DELTA, 4);
+    assert_eq!(
+        probes,
+        4 * samples.len(),
+        "{turns} turns: every wall at every level"
+    );
+}
+
+/// The half-turn signature — the threshold the frontier issue filed —
+/// carries an honest orientation bit on every wall.
+#[test]
+fn a_half_turn_helical_sweeps_walls_face_out() {
+    assert_helix_walls_face_out(0.5, 17);
+}
+
+/// A whole revolution of frame roll: the ends of the chart coincide in
+/// direction, and the level planes have swept a complete cone.
+#[test]
+fn a_full_turn_helical_sweeps_walls_face_out() {
+    assert_helix_walls_face_out(1.0, 33);
+}
+
+/// Two revolutions — the row where a query point lies on as many as
+/// nine level planes at once, which is the configuration the loft
+/// corpus's single-root index has no answer for.
+#[test]
+fn a_two_turn_helical_sweeps_walls_face_out() {
+    assert_helix_walls_face_out(2.0, 65);
 }

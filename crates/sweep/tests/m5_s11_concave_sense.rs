@@ -56,8 +56,8 @@ use core::f64::consts::{FRAC_PI_2, FRAC_PI_8, PI};
 use profile::RawLoop;
 
 use common::orient::{
-    along_v, assert_walls_face_out, level_ring, level_ring_plane, level_set_contains, stack_axis,
-    wall_outward, wall_outward_at,
+    FIXED_AXIS_GUARD_COS, along_v, assert_walls_face_out, level_ring, level_ring_plane,
+    level_set_contains, stack_axis, wall_outward, wall_outward_at,
 };
 use geom::Surface;
 use geom_core::{Affine3, Band, Point3, Tolerance, Vec3};
@@ -769,7 +769,7 @@ fn level_plane(lofted: &Lofted<f64>, axis: Vec3<f64>, t: f64) -> (Point3<f64>, V
     let (origin, n) = level_ring_plane(lofted, t);
     let along = if n.dot(axis) < 0.0 { -1.0 } else { 1.0 };
     assert!(
-        (n.dot(axis) * along) / axis.norm() > 0.1,
+        (n.dot(axis) * along) / axis.norm() > FIXED_AXIS_GUARD_COS,
         "the level plane at v-fraction {t} must be orientable against the \
          stacking chord: cos = {}",
         n.dot(axis) * along / axis.norm()
