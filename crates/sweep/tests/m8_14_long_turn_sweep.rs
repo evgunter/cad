@@ -39,7 +39,7 @@ use sweep::sweep_body;
 
 mod common;
 use common::orient::{
-    FIXED_AXIS_GUARD_COS, LevelIndex, along_v, assert_walls_face_out, chart_normal_turn, stack_axis,
+    FIXED_AXIS_GUARD_COS, LevelIndex, along_v, assert_walls_face_out, stack_axis,
 };
 use common::quad;
 

@@ -367,11 +367,17 @@ pub fn level_set_contains(
 // The index for a stack that TURNS
 // ---------------------------------------------------------------------
 
-/// Level planes sampled along `v`. Fine enough that a full revolution
-/// of frame roll advances the ring normal by ~0.7° per step, which is
-/// what makes the continuity chain below unambiguous; the ROOT
-/// resolution it also has to buy is not argued from this number but
-/// measured, by re-counting on the half-density subsample.
+/// Level planes sampled along `v`. Two things have to be bought with
+/// this number, and only one of them is argued:
+///
+/// - the CONTINUITY chain, which needs consecutive normals to agree.
+///   A full revolution of frame roll advances the ring normal by ~0.7°
+///   per step here, and the chain asserts the agreement anyway.
+/// - the ROOT resolution, which is not argued at all — it is measured
+///   per query, by re-counting the sign changes on the half-density
+///   subsample. On the corpus's two-turn helix that check FIRES at
+///   `LEVELS = 128` (9 roots against 5) and is satisfied from 256 up,
+///   so the value below carries one doubling over the measured floor.
 pub const LEVELS: usize = 512;
 
 /// How closely consecutive level normals must agree for the continuity
