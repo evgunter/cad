@@ -22,6 +22,26 @@ use interval_transcendentals::DInterval;
 use interval_transcendentals::Decoration;
 use test_utils::fuzz;
 
+/// Signed distance in representable steps from `from` to `to`, counted
+/// on the ladder `f64::next_up`/`next_down` walk — the ladder
+/// `round.rs`'s `step_up`/`step_down` climb, so the number this returns
+/// is the number of pad steps taken. `steps(x, x.next_up()) == 1` for
+/// every finite `x`, and the two zeros are ONE rung, because that ladder
+/// steps from `+0.0` straight to `-MIN_SUBNORMAL`.
+///
+/// One home, shared by `pad_contract.rs` (which pins it) and by
+/// [`Tightness`] below. Unlike the derived pad constant, which
+/// `pad_contract.rs` copies ON PURPOSE, this is a metric and not a
+/// claim: sharing it cannot disarm anything.
+pub fn steps(from: f64, to: f64) -> i128 {
+    fn key(x: f64) -> i128 {
+        assert!(x.is_finite(), "step distance is only defined on finites");
+        let m = i128::from(x.abs().to_bits());
+        if x < 0.0 { -m } else { m }
+    }
+    key(to) - key(from)
+}
+
 /// Signed, log-uniform magnitude in [2^emin, 2^emax): stresses
 /// subnormals through huge values evenly per binade.
 ///
@@ -82,14 +102,64 @@ pub fn dec_of(d: inari::Decoration) -> Decoration {
     }
 }
 
-/// Tightness accumulator: ratio of my width to oracle width where both
-/// are finite, nonempty, and the oracle width is positive.
+/// What a [`Tightness`] run is allowed to look like. Passing one turns
+/// the accumulator from a printer into a guard; passing `None` to
+/// [`Tightness::report`] leaves it a printer, and the caller owes a
+/// reason at the call site.
+#[cfg(feature = "oracle-inari")]
+pub struct Ceiling {
+    /// Upper bound on the worst width ratio vs the correctly-rounded
+    /// oracle, over the samples where a ratio is meaningful.
+    pub max_ratio: f64,
+    /// Anti-vacuity: the least fraction of `total` that must yield a
+    /// comparable ratio. Without this the ceiling is defeated by the
+    /// degradation it exists to catch — an operation that regressed to
+    /// `entire()` on every draw contributes no ratios at all, and a
+    /// max-over-nothing passes. The new fuzz lanes in this crate carry
+    /// floors of exactly this shape; so does this.
+    ///
+    /// Its reach, stated rather than assumed: a change to `src/` can
+    /// only push cases into the `empty` bucket (which `assert_contains`
+    /// already catches, on taxonomy agreement) or into
+    /// `mine_unbounded_oracle_bounded` (which has its own assert
+    /// immediately below). What this floor uniquely covers is the
+    /// HARNESS — a generator that stopped producing comparable cases, or
+    /// a `record` that started dropping them. Demonstrated: skewing
+    /// `gen_interval` to 90% unbounded draws reds `add` at n=2 989 and
+    /// `tan` at n=24 486.
+    pub min_ratio_fraction: f64,
+    /// Upper bound, in representable steps, on OUR width for the class
+    /// the ratio cannot score: the oracle proved the value exact
+    /// (`wid() == 0`) and we padded anyway. The ratio there is infinite
+    /// and SOUND — an exactly-representable result still gets its
+    /// outward pad — so the honest bound is absolute, not relative, and
+    /// it is the one class where a width blow-up would otherwise be
+    /// invisible to both instruments.
+    pub max_steps_when_oracle_exact: i128,
+}
+
+/// Tightness accumulator. Every drawn case lands in exactly one bucket,
+/// and the buckets that carry no ratio are COUNTED rather than dropped:
+/// the shape this guard exists to catch shows up as an empty sample set,
+/// so a silent drop is the defect one level up.
 #[cfg(feature = "oracle-inari")]
 #[derive(Default)]
 pub struct Tightness {
     pub ratios: Vec<f64>,
     pub mine_wider_cases: u64,
     pub total: u64,
+    /// Either side empty: no widths to compare.
+    pub empty_cases: u64,
+    /// The oracle's own enclosure is unbounded, so a ratio of two
+    /// infinities says nothing about us.
+    pub oracle_unbounded: u64,
+    /// **Ours is unbounded while the oracle's is bounded.** The loudest
+    /// degradation available, and a ratio cannot express it.
+    pub mine_unbounded_oracle_bounded: u64,
+    /// The oracle proved the value exact (`wid() == 0`); scored in
+    /// representable steps instead of as a ratio.
+    pub oracle_exact: u64,
+    pub worst_steps_when_oracle_exact: i128,
 }
 
 #[cfg(feature = "oracle-inari")]
@@ -97,21 +167,38 @@ impl Tightness {
     pub fn record(&mut self, mine: &DInterval, oracle: &DecInterval) {
         self.total += 1;
         let (Some(iv), false) = (oracle.interval(), mine.is_empty()) else {
+            self.empty_cases += 1;
             return;
         };
+        if iv.is_empty() {
+            self.empty_cases += 1;
+            return;
+        }
         let (ow, mw) = (iv.wid(), mine.hi() - mine.lo());
-        if ow.is_finite() && mw.is_finite() && ow > 0.0 {
-            let r = mw / ow;
-            self.ratios.push(r);
-            if r > 1.0 {
-                self.mine_wider_cases += 1;
-            }
+        if !ow.is_finite() {
+            self.oracle_unbounded += 1;
+            return;
+        }
+        if !mw.is_finite() {
+            self.mine_unbounded_oracle_bounded += 1;
+            return;
+        }
+        if ow == 0.0 {
+            self.oracle_exact += 1;
+            self.worst_steps_when_oracle_exact = self
+                .worst_steps_when_oracle_exact
+                .max(steps(mine.lo(), mine.hi()));
+            return;
+        }
+        let r = mw / ow;
+        self.ratios.push(r);
+        if r > 1.0 {
+            self.mine_wider_cases += 1;
         }
     }
 
-    /// Print the summary line `label: n mean p50 p99 max wider%`, and —
-    /// where the caller supplies one — ASSERT a ceiling on the worst
-    /// width ratio seen.
+    /// Print the distribution and the bucket census, then — where the
+    /// caller supplies a [`Ceiling`] — assert it.
     ///
     /// The ceiling is the upper counterpart to `assert_contains`, in the
     /// tier that has an oracle. `assert_contains` alone gets EASIER as
@@ -123,51 +210,93 @@ impl Tightness {
     /// from a pad — an extremum-capture rule that fires too often, a
     /// range clip dropped, a corner evaluation gone wide.
     ///
-    /// **The ceiling is DERIVED and then confirmed, not fitted.** Our
-    /// width exceeds a correctly-rounded one by at most `2·pad` steps,
-    /// and the oracle's own width is at least one step wherever it is
-    /// inexact, so the worst ratio is structurally about `2·pad + 1` —
-    /// 3 for the 1-step ops, 9 for the 4-step ones. The ceilings the
-    /// callers pass sit far above that (see `certify.rs`), and the
-    /// measured maxima on this branch, at efforts 1 and 2 over four
-    /// varying seeds, were 3 and 8–10 respectively.
+    /// **The line prints before the assert fires**, so a red run hands
+    /// the reader the distribution the number was derived from instead
+    /// of telling them to go and find it.
     ///
-    /// **`None` means the caller has a documented reason no ceiling
-    /// applies**, not that it forgot: `powi`'s pad count is a function
-    /// of its exponent rather than a constant, and the huge-magnitude
-    /// window is where the crate's localization is DOCUMENTED to degrade
-    /// to `[-1, 1]` (semantics-diffs D3), with observed ratios past
-    /// 2^70. Bounding either would be a guard that fires on a sound
-    /// enclosure.
-    pub fn report(&mut self, label: &str, max_ratio: Option<f64>) {
+    /// **Where the ratio bound comes from, corrected.** Our width
+    /// exceeds a correctly-rounded one by at most `2·pad` outward
+    /// STEPS — but the ratio is on WIDTHS, and a step that crosses a
+    /// binade boundary is worth twice the oracle's ulp (the factor
+    /// `docs/derivations.md` §1 Lemma P2 carries and P3's step-counting
+    /// route drops). So the structural worst is `≈ 4·pad + 1`: **17**
+    /// for the 4-step ops and **5** for the 1-step ops, not 9 and 3.
+    /// Measured maxima across seeds and efforts are 3 for the 1-step ops
+    /// and 8–12 for the 4-step ones — inside 17, and the earlier
+    /// derivation of 9 was the thing that was wrong, not the
+    /// measurement. **Do not tighten the ceilings toward 9 or 3**; those
+    /// numbers were never the bound.
+    ///
+    /// **The ceiling's exemption depends on a window boundary, not on
+    /// the `4·10^15` figure the crate's prose quotes.** Ratios blow past
+    /// any ceiling only through FALSE EXTREMUM CAPTURE, whose onset is
+    /// `|x| ≈ 2^32` — partial degradation, seven binades before the
+    /// total degradation at `2^52` that the prose describes. It is safe
+    /// here only because `certify.rs`'s exempt window starts at `2^30`.
+    /// **Widening a ceiling-carrying window's `emax` past 30 would
+    /// produce a red on a sound enclosure**; that is the constraint, and
+    /// it lives with the windows too.
+    pub fn report(&mut self, label: &str, ceiling: Option<Ceiling>) {
         self.ratios.sort_unstable_by(f64::total_cmp);
         let n = self.ratios.len();
-        if n == 0 {
-            println!(
-                "TIGHTNESS {label}: no finite-ratio samples of {} total",
-                self.total
-            );
-            return;
-        }
-        let worst = self.ratios[n - 1];
-        if let Some(cap) = max_ratio {
-            assert!(
-                worst <= cap,
-                "TIGHTNESS CEILING EXCEEDED for {label}: worst width ratio \
-                 {worst} vs oracle exceeds {cap} over n={n} samples. The \
-                 enclosure got wider; find out why before touching this \
-                 number, and if the new width is right, re-derive the \
-                 ceiling rather than restoring the old one."
-            );
-        }
-        let mean: f64 = self.ratios.iter().sum::<f64>() / n as f64;
-        let p = |q: f64| self.ratios[((n - 1) as f64 * q) as usize];
+        let (mean, p50, p99, worst) = if n == 0 {
+            (f64::NAN, f64::NAN, f64::NAN, f64::NAN)
+        } else {
+            let p = |q: f64| self.ratios[((n - 1) as f64 * q) as usize];
+            (
+                self.ratios.iter().sum::<f64>() / n as f64,
+                p(0.5),
+                p(0.99),
+                self.ratios[n - 1],
+            )
+        };
         println!(
-            "TIGHTNESS {label}: n={n} mean={mean:.6} p50={:.6} p99={:.6} max={:.6} wider={:.3}%",
-            p(0.5),
-            p(0.99),
-            worst,
-            100.0 * self.mine_wider_cases as f64 / self.total as f64
+            "TIGHTNESS {label}: n={n}/{} mean={mean:.6} p50={p50:.6} p99={p99:.6} \
+             max={worst:.6} wider={:.3}% | empty={} oracle_unbounded={} \
+             MINE_UNBOUNDED={} oracle_exact={} (worst {} steps)",
+            self.total,
+            100.0 * self.mine_wider_cases as f64 / self.total as f64,
+            self.empty_cases,
+            self.oracle_unbounded,
+            self.mine_unbounded_oracle_bounded,
+            self.oracle_exact,
+            self.worst_steps_when_oracle_exact,
+        );
+        let Some(c) = ceiling else {
+            return;
+        };
+        assert_eq!(
+            self.mine_unbounded_oracle_bounded, 0,
+            "{label}: {} draws returned an UNBOUNDED enclosure where the oracle's \
+             was bounded. That is the widest a result can get, and a ratio cannot \
+             say so — which is why it is counted.",
+            self.mine_unbounded_oracle_bounded
+        );
+        let floor = c.min_ratio_fraction * self.total as f64;
+        assert!(
+            n as f64 >= floor,
+            "{label}: only n={n} of {} draws produced a comparable ratio, below \
+             the anti-vacuity floor of {floor:.0}. A ceiling over too few samples \
+             is the defect this guard exists to catch, one level up: find out \
+             which bucket absorbed them (census above) before touching this floor.",
+            self.total
+        );
+        assert!(
+            self.worst_steps_when_oracle_exact <= c.max_steps_when_oracle_exact,
+            "{label}: on the {} draws the oracle proved EXACT, our widest \
+             enclosure was {} representable steps; the contract allows {}. This \
+             is the class a width ratio cannot score, so it is scored absolutely.",
+            self.oracle_exact,
+            self.worst_steps_when_oracle_exact,
+            c.max_steps_when_oracle_exact
+        );
+        assert!(
+            worst <= c.max_ratio,
+            "TIGHTNESS CEILING EXCEEDED for {label}: worst width ratio {worst} vs \
+             oracle exceeds {} over n={n} samples. The enclosure got wider; find \
+             out why before touching this number, and if the new width is right, \
+             re-derive the ceiling rather than restoring the old one.",
+            c.max_ratio
         );
     }
 }
