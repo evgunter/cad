@@ -11261,6 +11261,28 @@ gates currently fail on the hosted half without saying why**, and this
 directory's carefully written failure messages are readable only by re-running
 locally — which is the half that does not gate.
 
+### The mechanism, found by #798's style review — and it is larger than the finding
+
+**`set -euo pipefail` kills the gate before its own error message, and the
+self-test harness structurally cannot see it.**
+
+At `gate-roster.sh:156-159`, `loopvar=$(grep … | head -1 | awk …)` **aborts the
+script** under `errexit` before `gate_error` can run. The self-test passes only
+because `gate_selftest_case` runs the gate inside `if out=$(…)` — **a context in
+which bash suppresses errexit.** The same shape kills `ci-mirror-parity.sh`'s
+empty-scan guard.
+
+So the finding is not *"gates print nothing on hosted CI"*. It is:
+
+> **Every gate can die before its own error message, and every gate's self-test
+> is blind to that by construction.**
+
+The harness suppresses the exact condition that kills the diagnostic. **That is
+a guard whose verification mechanism cannot observe its own failure mode** — the
+subject of this entire track — sitting in the file that defines the harness for
+all fifteen gates. It is also why the class was invisible to fifteen separate
+self-tests that all pass: they were never able to fail this way.
+
 **Why this is worth its own finding rather than a line in F2's record.** The
 `scripts/gates/` directory's whole design premise is that a gate explains
 itself: S13, S59, S61, S62 and S63 are all findings about gates whose *prose*
@@ -11268,8 +11290,12 @@ was wrong, argued over at length, and every one of those arguments is about
 text no CI reader has ever seen. The mechanism was not determined, only that it
 reproduces.
 
-**Scope:** `scripts/gates/lib.sh`. **Owner:** Track F's **F-g** (row F3), which
-already holds that file. **Row: D101.**
+**Scope:** `scripts/gates/lib.sh` — the harness — plus every gate whose
+diagnostic path runs a pipeline or a command substitution under `errexit`.
+**Owner:** Track F's **F-g** (row F3), which already holds that file. **Row:
+D101.** F-f owns only the two instances in its own new code and fixes those; the
+harness and the sweep are F-g's, and the sweep is the deliverable — *fifteen
+self-tests passing is not evidence here, because the harness is what hides it.*
 
 ---
 
