@@ -9553,8 +9553,9 @@ the silent hop is not where this finding put it.
 - So *"`res_step` matches on `ProgramStep` and constructs `Step`, so a
   verb added to the table leaves the wire and the expression-slot
   vocabulary silently short"* is right about `res_step` and wrong about
-  the consequence: `from_recorded`, in the same file forty lines away,
-  is the compile guard the finding says is absent. And `WireStep` is not
+  the consequence: `from_recorded` — same file, `:1279` against
+  `res_step`'s `:687` — is the compile guard the finding says is
+  absent. And `WireStep` is not
   a silent copy at all — `from_step`/`into_step` are exhaustive on
   `ProgramStep` and on `WireStep`, so the wire cannot go short of the
   document form. The one real silence is *upstream* of both: two compile

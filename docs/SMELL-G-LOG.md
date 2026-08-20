@@ -346,7 +346,8 @@ until #782 decides them.
 **S106's diagnosis held; its mechanism did not, and correcting it was most of
 the unit.** Measured with a probe verb added to `transition_table!`: adding a
 verb breaks the workspace at **exactly two** sites, both exhaustive matches on
-`profile::Step` — `eval::feed_step` and `LoopProgram::from_recorded`. So the
+`profile::Step` — `eval::feed_step` and `LoopProgram::from_recorded`
+(`program.rs:1279`, in the same file as `res_step` at `:687`). So the
 finding's *"one breaks loudly and two go silently short"* is wrong in both
 halves: two break loudly, and `WireStep` cannot go short of `ProgramStep` at
 all (`from_step`/`into_step` are exhaustive both ways). The real silence is
