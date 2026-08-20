@@ -36,8 +36,9 @@
 //!   involution twin and the pole's zero azimuth lever (see
 //!   [`azimuth_arm`]/`sphere_twin`). Carriers OUTSIDE the closed-form
 //!   classes refuse typed with the class named — the sphere's general
-//!   circles route through the fitted lane
-//!   ([`geom_brep::PcurveCache::certify_fitted`]), the cone/torus
+//!   circles have a certified route that this pass cannot reach
+//!   ([`geom_brep::PcurveCache::certify_fitted`], whose docs carry the
+//!   frontier), so those faces stay uncached; the cone/torus
 //!   oblique classes have no honest route (no ring-computable meters
 //!   composite) and stay refused.
 //! - **Described NURBS charts mint** their iso lane (M6-3,
@@ -968,9 +969,10 @@ pub fn mint_pcurves<T: Decide>(body: &mut Body<T>) -> Result<(), PcurveMintError
             // Circle-carrier arm, mate from the edge's description);
             // wiring it into this pass needs the `PcurveFittedLane`
             // bound on every constructor and is banked with that
-            // ripple. Every OTHER failure — a covered class whose
-            // residuals, envelope, continuity or closure refuse — is
-            // a genuine defect and propagates.
+            // ripple — banked in no milestone plan and in no
+            // carried-items register. Every OTHER failure — a covered
+            // class whose residuals, envelope, continuity or closure
+            // refuse — is a genuine defect and propagates.
             Err(PcurveMintError::Certify {
                 error: PcurveCertifyError::UnsupportedCarrier,
                 ..
@@ -1043,19 +1045,18 @@ fn mint_face<T: Decide>(
     // region the domain-validity limb certifies against (C4; the exact
     // point-in-region test is PR 11's tessellation consumer).
     //
-    // **Where this limb has teeth, stated plainly.** At MINT time the
-    // containment check is vacuous by construction: the window IS the
-    // hull of exactly the boxes being checked against it, so no minted
-    // pcurve can escape it. That is deliberate, not an oversight — a
-    // freshly derived face has no independent prior notion of its own
-    // trim region, and inventing one (say, the loop's vertex box) would
-    // refuse legitimate faces whose boundary arcs bulge past their
-    // endpoints. The limb bites at RE-certification
-    // (`validate_pcurves`) and on the attach path, where the window
-    // comes from the OTHER stored caches and from a body the checked
-    // pcurve did not help build: a swapped, shifted or hand-attached
-    // cache is then measured against a window it had no part in
-    // setting. `TrimEscape` rows exercise exactly that direction.
+    // **Check 5 is vacuous on both of this crate's callers.** The
+    // window IS the hull of exactly the boxes checked against it, so
+    // no minted pcurve can escape it, and `validate_pcurves` re-derives
+    // its window the same self-referential way. Check 5 is a
+    // precondition the caller supplies, not a check that fires on any
+    // path this crate walks; what the precondition buys is stated once,
+    // at `geom_brep::PcurveCache`'s module docs.
+    //
+    // The vacuity at mint is deliberate: a freshly derived face has no
+    // independent prior notion of its own trim region, and inventing
+    // one (say, the loop's vertex box) would refuse legitimate faces
+    // whose boundary arcs bulge past their endpoints.
     let mut window: Option<ChartWindow<T>> = None;
     for w in &walked {
         let b = w.pcurve.chart_box(w.t0, w.t1);
