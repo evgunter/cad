@@ -443,11 +443,7 @@ impl<'a> LevelIndex<'a> {
     /// Is `q` inside the stacked solid? Every level whose plane holds
     /// `q`, tested for ring containment.
     pub fn contains(&self, q: Point3<f64>) -> SolidContainment {
-        let h: Vec<f64> = self
-            .planes
-            .iter()
-            .map(|&(p, n)| (q - p).dot(n))
-            .collect();
+        let h: Vec<f64> = self.planes.iter().map(|&(p, n)| (q - p).dot(n)).collect();
         let crossings = |step: usize| {
             (0..LEVELS / step)
                 .filter(|i| (h[i * step] > 0.0) != (h[(i + 1) * step] > 0.0))
