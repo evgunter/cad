@@ -2513,11 +2513,14 @@ precisely what `bool_join_nearest` was. #719 swept the complement
 on syntax, so two plain `Margin::of(x)` sites measuring different
 quantities stay invisible — `bool_point_in_solid_plane`'s exact shape,
 which had to be read. Both sweeps share #712's third blind spot: ~30
-sites pass the name through a parameter or a const, and
-`K-REPORT.md:203`'s roster obligation names only one such table
-(`ParityRows`) where at least three exist —
-`sector_shape.rs`'s `BOOL_SECTOR_PREDICATES` and `swept.rs`'s name
-struct are the others.
+sites pass the name through a parameter or a const. `K-REPORT.md:203`'s
+roster obligation names one such table, `ParityRows`; `sweep`'s
+`swept.rs::CosurfaceNames` is a second and is not listed there.
+`topo`'s `sector_shape.rs` carries three more names as private
+`const &str`s — not a table, so the obligation as written does not
+reach them, and equally not reachable by the `decide("` grep. Worth
+someone's row: the obligation is stated over types and the hole is
+over *anything that is not a literal at the call site*.
 
 ### What the unit is evidence about: the convention charges, but not what the spec inferred
 
