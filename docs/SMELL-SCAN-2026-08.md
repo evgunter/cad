@@ -5228,15 +5228,29 @@ mutually independent and independent of the B1–B3 chain.
 
 ## Track C — ready, unclaimed by either orchestrator
 
-Nothing here is blocked. It is listed separately because neither track has
-capacity for it now, and because several rows want a decision inside them that
-the taker should expect to make and record.
+It is listed separately because neither track has capacity for it now, and
+because several rows want a decision inside them that the taker should expect
+to make and record.
+
+**Gating, stated 2026-08-19, because "nothing here is blocked" was too loose.**
+Six of these are edge-free and could start today: **C1**, **C2**, **S30**,
+**S31**, **S32**, **S24**. Three unblock when **A1** (#682) lands — **C7**
+entirely and **C4's S33** — and their input is now better than "wait for the
+report": #682's adversarial pass produced a *compile-verified* table of which
+lanes sit behind `CertifiedEnclosure`, which is the premise W2a would otherwise
+have been designed against wrongly. **S27** waits on **A2** and **S28's
+duplication half** on **A3**, both for file overlap rather than for knowledge.
+
+Two will not unblock by waiting, and should not be read as queued: **C6**'s
+rows are gated on other programmes entirely, and **S26** wants a written
+proposal rather than a lane. **The binding constraint on the rest is capacity
+and the width-1 build mutex, not dependency.**
 
 | # | Work | Why it is here rather than in a track |
 |---|---|---|
 | **C1** | **H12–H15** — four lanes' own residues: the SSI sweeps' other never-silence doors (no acceptance row in either lane), `sweep_body`'s helix rows with no orientation coverage, #637's two jurisdiction residues, #635's unclassified siblings. | Each is small; together they are a lane. They are the clearest instance of ordering rule 3. |
 | **C2** | **H11, H16, H17** — #632's two residues; the STL header not being caller-settable while `StepOptions` carries `product_name`; and S37's rustdoc remainder, ~1115 lines across 130 files. | H17 is large and mechanical; H16 is a small asymmetry with a clear right answer. |
-| **C3** | **S27, S29, S30** — `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block; the sizing vocabulary fragmented across five modules with self-admitted magic constants; and ~1,050 lines of instrument in the mesh crate's hot loop. | **S29's policy question is already routed out** to `docs/TESS-SPLIT-SPEC.md` and PR #568, unexecuted — so S29 is blocked on a design conversation, not on capacity. S27 touches `props/`, so it must follow **A2**. |
+| **C3** | **S27, S29, S30** — `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block; the sizing vocabulary fragmented across five modules with self-admitted magic constants; and ~1,050 lines of instrument in the mesh crate's hot loop. **S29 is NOT blocked on a design conversation — corrected 2026-08-19.** This row previously said its policy question was routed to `docs/TESS-SPLIT-SPEC.md` and PR #568. #684's review checked: both are scoped **entirely to the NURBS per-cell schedule** (`nurbs_cert`'s `grid_steps`, certified cells, the first fundamental form — TESS-SPLIT-SPEC's D-1 replaces the AM-GM grouping, with `leaf_a f2` as its poster child). **Nothing in either covers analytic-chart sizing**, so `curved::grid_steps` has no venue at all — and #684 has since added a sixth rule to it. S29's own lesson applies to that: *N well-defended deviations read as N decisions when they are one undecided question.* S27 touches `props/`, so it must follow **A2**; S29 and S30 are edge-free. |
 | **C4** | **S31, S32, S33** — the `geom-curves`/`geom-surfaces` split that buys nothing; `Surface`'s one-partial-per-call API, which is what created the shadow surface enum in SSI; and neither geometry enum being able to lift itself to another scalar. | **S33 is coloured by A1**: several of its ~14 hand-written ladders exist only to reach `Dual`, and what `Bounds for Dual` changes there is A1's report to give. |
 | **C5** | **S24, S26, S28's duplication half** — the assembly gate whose success arm is documented unreachable; the certified area enclosure that is never metered against anything (`area.width()` appears nowhere in the file); and the three tessellation lanes that remain three pipelines now that #648/#674 have settled their ordering and column questions. | S26 was explicitly deferred in writing by #472 — *"metering against `area.lo()` … deserves its own proposal with re-measured floors"* — so it is a proposal, not a patch. S28's duplication half must follow **A3**. |
 | **C6** | **W2f remainder / S4** — `ProgramStep`/`WireStep`, `SegTag`, and the "no usable value" core. | Each is blocked on something real: the first behind OnArc + RESPELL-TABLE and crossing the same files, the second needs the workspace's first proc-macro crate, the third by a persisted format. |
