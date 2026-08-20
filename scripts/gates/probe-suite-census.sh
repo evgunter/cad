@@ -159,7 +159,7 @@ census_second_features() {
 }
 
 gate() {
-  local files tally rc=0 entry want n have silenced extra
+  local files tally rc=0 entry want n have silenced extra hosted
 
   # A CENSUS THAT SCANNED NOTHING IS NOT A PASS. `crates/*/tests` is a
   # glob; with no match `find` is handed the literal, prints nothing, and
@@ -225,7 +225,13 @@ gate() {
     # `unexpected_cfgs`. That only fails a run where the workspace clippy
     # row still denies warnings over all targets, so the row is checked
     # rather than assumed.
-    grep -vE '^[[:space:]]*#' .github/workflows/ci.yml | grep -qE "$CLIPPY_ROW_RE" ||
+    # MATERIALISED, NOT PIPED, for the reason `gate-roster.sh`'s header
+    # records: `grep -q` exits on its first match, SIGPIPEs the upstream
+    # `grep -v`, and `pipefail` calls the whole pipeline failed. Which
+    # side wins is a race — this passed locally on a six-line fixture and
+    # fired against a correctly wired ci.yml on the first hosted run.
+    hosted=$(grep -vE '^[[:space:]]*#' .github/workflows/ci.yml || true)
+    grep -qE "$CLIPPY_ROW_RE" <<<"$hosted" ||
       { gate_error "$(gate_name): .github/workflows/ci.yml has no workspace \`cargo clippy … --all-targets -- -D warnings\` row. That row is what turns a misspelt cfg gate (\`feature = \"prboe\"\`) into a failure, through rustc's \`unexpected_cfgs\`; without it such a suite compiles to nothing under every row and this census never sees it. Restore the row or re-argue the coverage here"; rc=1; }
   else
     gate_error "$(gate_name): .github/workflows/ci.yml does not exist under $PWD — the cited step cannot be checked"
@@ -296,6 +302,29 @@ plant_second_feature() {
     > "$1/crates/topo/tests/probe_0.rs"
 }
 
+# A SIX-LINE ci.yml CANNOT SHOW A SIGPIPE RACE. The real one is 2,000
+# lines, and a `grep -q` that matches near the top leaves the upstream
+# filter writing into a closed pipe — which `pipefail` then reports as a
+# failed pipeline, i.e. the gate firing against a correctly wired file.
+# That is what a first hosted run did. Padding the fixture past the match
+# makes the race deterministic, so the structural fix is held in place.
+selftest_hosted_half_is_large() {
+  local tmp out i
+  tmp=$(mktemp -d)
+  gate_plant_clean "$tmp"
+  # NOT comment lines: those are what the filter drops, so they would
+  # never reach the downstream matcher and the race would not happen.
+  for ((i = 0; i < 20000; i++)); do
+    printf '      - run: echo filler, below every row this gate matches on\n'
+  done >> "$tmp/.github/workflows/ci.yml"
+  if ! out=$(cd "$tmp" && gate 2>&1); then
+    rm -rf "$tmp"
+    printf 'SELFTEST FAILED: the gate FAILED on a clean fixture with a long ci.yml\n%s\n' "$out" >&2
+    exit 1
+  fi
+  rm -rf "$tmp"
+}
+
 # A COMPOUND GATE IS CORRECT, NOT A VIOLATION, and the fixture asserts
 # the census counts it — `sweep`'s floor is 1 over exactly one file, so
 # a predicate with no vocabulary for `all(…)` reds this case.
@@ -315,6 +344,7 @@ selftest_compound_counted() {
 
 gate_selftest() {
   gate_selftest_clean
+  selftest_hosted_half_is_large
   selftest_compound_counted
   gate_selftest_case 'scanned nothing' plant_no_tests_dirs
   gate_selftest_case 'no longer matches it' plant_gate_renamed
@@ -325,7 +355,7 @@ gate_selftest() {
   gate_selftest_case 'no workspace `cargo clippy' plant_clippy_undenied
   gate_selftest_case 'silences `unexpected_cfgs`' plant_cfg_lint_allowed
   gate_selftest_case 'requires a SECOND feature' plant_second_feature
-  printf '%s selftest OK: passes a clean fixture and counts a compound gate; fires on an absent tests/ tree, a renamed gate spelling, one file re-gated onto a misspelt feature, a gate line replaced by a prose mention, a dropped citation, a renamed CI step, a clippy row that stopped denying warnings, the cfg lint silenced at the site, and a gate requiring a second feature no CI row builds\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture, one with a ci.yml long enough to race, and a compound gate; fires on an absent tests/ tree, a renamed gate spelling, one file re-gated onto a misspelt feature, a gate line replaced by a prose mention, a dropped citation, a renamed CI step, a clippy row that stopped denying warnings, the cfg lint silenced at the site, and a gate requiring a second feature no CI row builds\n' "$(gate_name)"
 }
 
 gate_main
