@@ -40,9 +40,10 @@ struct Site {
 /// **What this pattern matches**: the identifier followed by `(`, under
 /// every import spelling — `geom_core::k_stats::decide_flagged(`,
 /// `k_stats::decide_flagged(`, and the bare `decide_flagged(` a `use`
-/// makes available. An earlier version of this census matched only the
-/// literal `k_stats::decide_flagged(`, so the bare spelling — which
-/// three sites in tests and demos already use — was invisible to it.
+/// makes available. Keying on a path prefix instead would make the
+/// census a statement about how calls are SPELLED rather than about
+/// how many there are — and the bare form is in use today, at three
+/// sites in tests and demos.
 ///
 /// **What it cannot match, and nothing here would notice:** a call
 /// through a renamed import (`use …::decide_flagged as df;`), a call
