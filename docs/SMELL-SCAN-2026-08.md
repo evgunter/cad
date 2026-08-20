@@ -85,7 +85,7 @@ cases. A finding is a *question worth answering*, not a defect.
   - [Tier 2 — significant](#second-scan--tier-2--significant) (S76–S109)
   - [Tier 3 — real but lower stakes](#second-scan--tier-3--real-but-lower-stakes) (S110–S116), as class roll-ups
 - [§A. Where I would start](#a-where-i-would-start)
-- [§D. The schedule](#d-the-schedule) — live rows only, in tracks: **A**, **B** and **D** complete; **C** and **E** running; **F**, **G** and the unscheduled table are the second scan's
+- [§D. The schedule](#d-the-schedule) — live rows only, in tracks: **A**, **B** and **D** complete; **C** (`docs/SMELL-C-LOG.md`), **E** (`docs/SMELL-E-LOG.md`) and **F** (`docs/SMELL-F-LOG.md`) running; **G** and the unscheduled table are the second scan's and unclaimed
 - [§C. Process observations](#c-process-observations) — C1–C17 from the first scan, C18–C25 from the second
 - [§B. Negative results and coverage](#b-negative-results-and-coverage)
 
@@ -10649,11 +10649,31 @@ is weaker evidence than it looks."* That is why this track is first in §A2's
 ordering and why it is worth its own orchestrator: every other track's evidence
 is downstream of it.
 
-**Its gate is Track E's lane E-a (#753)**, which holds `scripts/gates/` and
-`.github/workflows/ci.yml` and is in review now. Nothing in F1–F3 or F8 may open
-until that lands. **This is a file-overlap gate, not a dependency gate** — see
-the Track E log's E-R4: a lane that disproves the *reason* for a gate has not
-disproved the gate.
+**Claimed 2026-08-20; one live orchestrator, log at `docs/SMELL-F-LOG.md`.**
+Reviews are **style-only** except where a row says ADVERSARIAL, and the track
+runs beside the model A/B experiment without touching `docs/MODEL-AB-LOG.md`.
+The lane roster, the rulings and the landings are in that file; this table stays
+the schedule and a row leaves it when it lands.
+
+**Its gate is Track E's lane E-a (#753)**, which is in review now. Nothing in
+F1–F3 or F8 may open until that lands. **This is a file-overlap gate, not a
+dependency gate** — see the Track E log's E-R4: a lane that disproves the
+*reason* for a gate has not disproved the gate.
+
+**Two edges this table did not carry, both re-derived from the branches rather
+than from the schedule** (F-R1, F-R2 in the track log):
+
+- **#753 is ten files, not the two named above** — it also holds
+  `local-scripts/ci-local.sh`, `scripts/check-test-aggregation.sh` and
+  `scripts/ci-filter.py`'s neighbours. F8's scope cell says its file is
+  *"neither of E-a's two files"* and concludes it is free; that conclusion is
+  drawn from this table's Scope column instead of from the PR, and D44's fix
+  reaches the probe **invocation**, which is in `ci.yml`. F8 stays gated. **The
+  general shape is C-R11's: a scope cell is a claim site**, and this one is the
+  second scan's own table stating a file set it had not read.
+- **F4's S84 half is `geom-brep/tests/m5_pr7_ssi.rs`, the one code file Track
+  C's open #734 edits.** F4 waits on it as a whole rather than splitting, since
+  its four members are one missing idiom and closing three of four is §C13.
 
 | # | Work | From | Scope | Proposed verdict | Review |
 |---|---|---|---|---|---|
