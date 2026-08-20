@@ -51,7 +51,9 @@
 # fixture tree. Widening the glob would make "in this directory" and
 # "under lib.sh's contract" two different sets, and this roster is worth
 # something only while they are one. What keeps a python check from
-# going unmirrored instead is `ci-mirror-parity.sh`, not this glob.
+# going unmirrored instead is `scripts/check-ci-mirror-parity.py`, not
+# this glob — which is also where that check itself now lives, for the
+# reason its own header gives.
 #
 # WHY `lib.sh` IS EXCLUDED BY NAME AND NOT BY MODE. `lib.sh` is sourced,
 # not run, and it is the only member of this directory that is not a
@@ -78,14 +80,21 @@ LOCAL_HALF=local-scripts/ci-local.sh
 # The one member of scripts/gates/ that is sourced rather than run.
 NOT_A_GATE=lib.sh
 
-# ci.yml with comment lines removed: what the runner would actually
-# execute. Materialised into a variable rather than piped into each
-# check: `grep -q` exits on its first match, which SIGPIPEs the upstream
+# A half with its comment lines removed: what would actually run.
+# MATERIALISED into a variable by every caller, never piped into a check:
+# `grep -q` exits on its first match, which SIGPIPEs the upstream
 # `grep -v`, which `pipefail` then reports as a failed pipeline. That
-# made the check flaky — it fired against a correctly wired ci.yml
-# depending on which side won the race.
-hosted_commands() {
-  grep -vE '^[[:space:]]*#' "$HOSTED_HALF"
+# made this check flaky — it fired against a correctly wired ci.yml
+# depending on which side won the race. `|| true` for the same reason a
+# matcher below carries one: a file of nothing but comments is an empty
+# result, not a reason to die before the diagnosis.
+#
+# One home per file, and this is the third spelling of it in the repo
+# (`probe-suite-census.sh` has the fourth). The shared home is
+# `scripts/gates/lib.sh`, which lane F-g owns; this note is here so
+# whoever takes it can lift all four at once.
+non_comment() {
+  grep -vE '^[[:space:]]*#' "$1" || true
 }
 
 gate() {
@@ -120,7 +129,7 @@ gate() {
   [ "$rc" -eq 0 ] || exit 1
 
   local cmds
-  cmds=$(hosted_commands)
+  cmds=$(non_comment "$HOSTED_HALF")
 
   for name in "${roster[@]}"; do
     esc=${name//./\\.}
@@ -151,10 +160,18 @@ gate() {
   # there, which is the whole reason this gate now reads this file. The
   # loop variable is read out of the `for` line rather than assumed, so
   # renaming it is not a way to fail this check.
+  # `|| true` ON EVERY MATCHER, and it is load-bearing rather than tidy.
+  # Under `set -euo pipefail` a command substitution whose pipeline fails
+  # kills the script AT THE ASSIGNMENT — so the first version of this
+  # block died before reaching the `gate_error` three lines down, and the
+  # gate reported the failure it was written to explain as a bare `exit
+  # 1` with no message. The self-test could not see it: lib.sh's harness
+  # runs the gate inside `if out=$(…)`, and bash suppresses errexit
+  # there. `gate_selftest_real` below is why this is now caught.
   local body
-  body=$(grep -vE '^[[:space:]]*#' "$LOCAL_HALF")
+  body=$(non_comment "$LOCAL_HALF")
   loopvar=$(grep -oE 'for[[:space:]]+[A-Za-z_][A-Za-z0-9_]*[[:space:]]+in[[:space:]]+scripts/gates/\*\.sh' <<<"$body" \
-            | head -1 | awk '{print $2}')
+            | head -1 | awk '{print $2}' || true)
   if [ -z "$loopvar" ]; then
     gate_error "$LOCAL_HALF no longer loops \`scripts/gates/*.sh\` — that loop is the ONLY reason the local half has no hand-written roster to drift from this directory, and this gate's header says so. Restore the loop, or give the local half a roster and a check on it"
     rc=1
@@ -267,19 +284,57 @@ plant_lib_invoked() {
   printf '          scripts/gates/lib.sh\n' >> "$1/.github/workflows/ci.yml"
 }
 
-# Eight known evasions, all permanent fixture cases.
+# THE SHARED HARNESS CANNOT SEE ONE CLASS OF FAILURE, SO THIS ONE DOES.
+# `lib.sh`'s `gate_selftest_case` runs the gate as `if out=$(… gate …)`,
+# and bash SUPPRESSES errexit inside an `if` condition — which is exactly
+# the condition under which a `set -euo pipefail` script dies at a
+# failing matcher pipeline before printing its own diagnosis. So the
+# harness passes a gate whose message never prints on a real run, which
+# is what happened here: the local-half diagnostic was unreachable and
+# hosted CI reported it as a bare `exit 1`. Every case below therefore
+# runs the gate THE WAY CI RUNS IT — as a subprocess, through `--root`.
+#
+# This belongs in `lib.sh`, which is lane F-g's file and is escalated as
+# S157; it is written here to be lifted unchanged.
+gate_selftest_real() {
+  local want=$1; shift
+  local tmp out rc=0
+  tmp=$(mktemp -d)
+  gate_plant_clean "$tmp"
+  [ "$#" -eq 0 ] || { "$@" "$tmp"; }
+  out=$("$0" --root "$tmp" 2>&1) || rc=$?
+  rm -rf "$tmp"
+  if [ -z "$want" ]; then
+    [ "$rc" -eq 0 ] && return 0
+    printf 'SELFTEST FAILED: a REAL invocation failed on a clean fixture\n%s\n' "$out" >&2
+    exit 1
+  fi
+  if [ "$rc" -eq 0 ]; then
+    printf 'SELFTEST FAILED: a REAL invocation PASSED a planted violation (%s)\n%s\n' "${1:-clean}" "$out" >&2
+    exit 1
+  fi
+  case "$out" in
+    *"$want"*) ;;
+    *) printf 'SELFTEST FAILED (%s): a REAL invocation exited %s WITHOUT its diagnosis — wanted %s, got:\n%s\n' \
+         "${1:-clean}" "$rc" "$want" "$out" >&2
+       exit 1 ;;
+  esac
+}
+
+# Nine known evasions, all permanent fixture cases, all run as real
+# subprocesses.
 gate_selftest() {
-  gate_selftest_clean
-  gate_selftest_case "never RUNS scripts/gates/unwired-gate.sh" plant_unwired
-  gate_selftest_case "never RUNS scripts/gates/commented-gate.sh" plant_comment_only
-  gate_selftest_case "never RUNS scripts/gates/selftest-only-gate.sh" plant_selftest_only
-  gate_selftest_case "which is not a gate in this directory" plant_ghost
-  gate_selftest_case "not executable" plant_nonexecutable
-  gate_selftest_case "no longer loops" plant_local_loop_deleted
-  gate_selftest_case "never runs \"\$g\" --selftest" plant_local_no_selftest
-  gate_selftest_case "excluding it by mode rather than by name" plant_local_mode_exclusion
-  gate_selftest_case "SOURCED and not a gate" plant_lib_invoked
-  printf '%s selftest OK: passes a clean fixture; fires on an unwired gate, a comment-only mention, a selftest-only call, a ghost step, a gate that landed mode 0644, a deleted local loop, a local loop that stopped self-testing, a local loop that went back to excluding lib.sh by mode, and a step running lib.sh\n' "$(gate_name)"
+  gate_selftest_real ''
+  gate_selftest_real "never RUNS scripts/gates/unwired-gate.sh" plant_unwired
+  gate_selftest_real "never RUNS scripts/gates/commented-gate.sh" plant_comment_only
+  gate_selftest_real "never RUNS scripts/gates/selftest-only-gate.sh" plant_selftest_only
+  gate_selftest_real "which is not a gate in this directory" plant_ghost
+  gate_selftest_real "not executable" plant_nonexecutable
+  gate_selftest_real "no longer loops" plant_local_loop_deleted
+  gate_selftest_real "never runs \"\$g\" --selftest" plant_local_no_selftest
+  gate_selftest_real "excluding it by mode rather than by name" plant_local_mode_exclusion
+  gate_selftest_real "SOURCED and not a gate" plant_lib_invoked
+  printf '%s selftest OK: every case is a REAL subprocess invocation, so a diagnosis lost to errexit fails the self-test. Passes a clean fixture; fires on an unwired gate, a comment-only mention, a selftest-only call, a ghost step, a gate that landed mode 0644, a deleted local loop, a local loop that stopped self-testing, a local loop that went back to excluding lib.sh by mode, and a step running lib.sh\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

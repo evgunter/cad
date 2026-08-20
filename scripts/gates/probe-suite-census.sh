@@ -135,14 +135,28 @@ CITING_FILES=(
 # it exists to catch is caught by the `ci.yml` check below, which is the
 # load-bearing half, and by the four live claims above.
 #
-# Shell globs, matched against the repo-relative path.
+# `docs/` IS EXEMPT AS A TREE, and that is the deliberate half of the
+# trade. The first version exempted named patterns — dated scans, track
+# logs, milestone plans — which left `docs/prompts/`, `docs/REVIEW-*.md`
+# and every future document quoting the step name as a hard CI failure
+# on EVERY tier, in a directory four concurrent tracks write to daily.
+# That replaced one literal-string dependency with a wider one. What
+# survives is the claim worth having: a citation in CODE or in CI —
+# `crates/`, `scripts/`, `local-scripts/`, `.github/` — is a live claim
+# about a mechanism and must be registered. `docs/K-REPORT.md` stays a
+# registered live claim below because it is the runbook a reader is sent
+# to; the rest of `docs/` is record, and a record naming a step by the
+# name it had is not false when the step is renamed.
+#
+# WHAT THIS GIVES UP, plainly: a NEW document that cites the step and
+# later goes stale is not caught. The load-bearing check against the
+# rename — that ci.yml still carries a step of this name — is unaffected.
+#
+# Shell globs, matched against the repo-relative path; `*` matches `/`.
 CITATION_EXEMPT=(
   '.github/workflows/ci.yml'                # the step itself
   'scripts/gates/probe-suite-census.sh'     # this gate
-  'docs/SMELL-SCAN-*.md'                    # dated scans: history
-  'docs/SMELL-*-LOG.md'                     # per-track execution records
-  'docs/M*-PLAN.md'                         # milestone work orders
-  'docs/M*-LOG.md'                          # milestone logs
+  'docs/*'                                  # records, plans, prompts, logs
 )
 
 # The clippy row that makes a misspelt cfg gate a hard error.
@@ -405,14 +419,15 @@ plant_citing_file_gone() { rm -f "$1/${CITING_FILES[2]}"; }
 # completeness check the hand list could go stale silently; this is the
 # case that keeps it a roster rather than a sample.
 plant_undeclared_citation() {
-  mkdir -p "$1/docs"
-  printf 'CI runs %s on every merge.\n' "$CITED_STEP" > "$1/docs/NEW-RUNBOOK.md"
+  mkdir -p "$1/scripts"
+  printf 'CI runs %s on every merge.\n' "$CITED_STEP" > "$1/scripts/new-check.sh"
 }
 # The same citation in a file the gate declares as history: exempt, and
 # the NEGATIVE CONTROL for the case above.
 plant_exempt_citation() {
-  mkdir -p "$1/docs"
+  mkdir -p "$1/docs/prompts"
   printf 'On 2026-08-20 CI ran %s.\n' "$CITED_STEP" > "$1/docs/SMELL-SCAN-2026-08.md"
+  printf 'A brief quoting %s.\n' "$CITED_STEP" > "$1/docs/prompts/zz-new-brief.md"
 }
 plant_step_renamed() { printf 'jobs: {}\n' > "$1/.github/workflows/ci.yml"; }
 # The clippy row loses the flag that promotes `unexpected_cfgs`.

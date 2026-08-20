@@ -134,11 +134,39 @@ else
   done < <(scripts/ci-filter.py --base "$BASE")
 fi
 echo "=== change filter: tier=$TIER scope='$SCOPE' (--full forces tier 'all')"
+
+# --- tier-blind rows: A CHECK MUST BE SITED WHERE IT CAN FIRE ON ITS OWN
+# INPUTS (Evan, 2026-08-20, on S61). These read prose, documentation and this
+# file — inputs whose change sets classify TIER=docs, which is exactly what the
+# early exit below returns on. Placed ABOVE it, because a check the tier
+# selection can skip is not a check, and because siting them below would
+# reproduce in the local half the defect the hosted half was fixed for.
+# No cargo, no build slot: greps over three files, milliseconds.
+# `gate-roster.sh` runs again inside the discipline loop on a building change
+# set; running a grep twice is cheaper than a second hand-written roster.
+# HOSTED MIRROR: mirror / gate roster parity (both halves run every gate)
+# HOSTED MIRROR: mirror / probe type-check loop citations
+# HOSTED MIRROR: mirror / CI half parity (both halves name the same checks)
+tier_blind_rows() {
+  local rc=0
+  scripts/gates/gate-roster.sh --selftest || rc=1
+  scripts/gates/gate-roster.sh || rc=1
+  scripts/gates/probe-suite-census.sh --citations || rc=1
+  python3 scripts/check-ci-mirror-parity.py --selftest || rc=1
+  python3 scripts/check-ci-mirror-parity.py || rc=1
+  return $rc
+}
+echo
+echo "=== [tier-blind rows] (run on every tier, including docs)"
+if tier_blind_rows; then TIER_BLIND_RC=0; else TIER_BLIND_RC=1; fi
+
 if [ "$TIER" = docs ]; then
   echo "=== documentation-only change set: nothing to build."
-  echo "=== (hosted CI gates such a PR on the 'docs-only ok' marker job.)"
+  echo "=== (hosted CI gates such a PR on the 'docs-only ok' marker job and"
+  echo "===  on the 'mirror' job, which carries no if: and runs on every tier.)"
   echo "=== re-run with --full to force the whole matrix anyway."
-  exit 0
+  [ "$TIER_BLIND_RC" -eq 0 ] || echo "=== TIER-BLIND ROWS FAILED"
+  exit "$TIER_BLIND_RC"
 fi
 
 # Anything past here builds and runs tests: take the machine-wide build
@@ -493,8 +521,11 @@ klint_tool() {
 # (`--all-targets` reaches the lib's own `#[cfg(test)]` modules, which
 # `--test all` never builds), and the listing asks which counted suites
 # were actually built.
-# The census half needs no mirror: it is `scripts/gates/`, so the
-# discipline loop above already runs it and its --selftest.
+# The census half needs no mirror row of its own: it is `scripts/gates/`, so
+# the discipline loop above runs it and its --selftest in DEFAULT mode. That
+# argument is about the file and not the mode — the loop passes no flags, so
+# `--citations` is not covered by it and has its own row above the docs exit.
+# `check-ci-mirror-parity.py`'s claim 2 is what keeps that distinction checked.
 #
 # `crates` is BOUND FIRST, not expanded inside the `for` list: a command
 # substitution in a `for` list is not subject to `set -e` and would leave

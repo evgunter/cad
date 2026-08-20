@@ -238,8 +238,13 @@ jobs:
   # sited here.
   #
   # THIS JOB HAS NO `if:`, so it runs on every tier — including the
-  # docs-only runs where everything else is skipped. It is greps over
-  # three files: no toolchain, no cargo, no cache.
+  # docs-only runs where every other job carrying one is skipped.
+  # (`filter` and `docs-only` also carry no `if:`; neither runs a check.)
+  # No toolchain, no cargo, no cache: greps and a stdlib python reader
+  # over the two CI halves, the workflow directory, and the citing files.
+  # Measured on three docs-tier runs: 8, 9 and 12 s wall clock, finishing
+  # before `filter`, so the added critical-path latency on a docs PR is
+  # zero and the cost is one extra billed job-minute.
   #
   # THIS IS THE ONE JOB THAT DOES NOT PRUNE local-only tooling, and the
   # exception is the reason it exists: its subject IS the agreement
@@ -260,11 +265,17 @@ jobs:
       # halves, so nothing detected a lost row on either side. Two
       # separate enumerations of that population each missed a member,
       # and the second was found by another track by accident — so the
-      # population is derived here rather than listed.
+      # population is derived here rather than listed. It also checks
+      # THE SITING RULE ITSELF: without that, hollowing this job and
+      # moving these three steps back into `discipline` restores the
+      # exact state S61 recorded with nothing firing. Python, not bash:
+      # its subject is which job a step belongs to and whether that job
+      # carries an `if:`, and the bash version read that with a regex
+      # that could not see an uppercase job name.
       - name: CI half parity (both halves name the same checks)
         run: |
-          scripts/gates/ci-mirror-parity.sh --selftest
-          scripts/gates/ci-mirror-parity.sh
+          python3 scripts/check-ci-mirror-parity.py --selftest
+          python3 scripts/check-ci-mirror-parity.py
       # The claims in the tree about what CI does to probe-gated suites.
       # Prose is this guard's input, so this is where it can fire.
       - name: probe type-check loop citations
