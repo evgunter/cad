@@ -87,8 +87,8 @@ gate_require_file() {
   GATE_SCAN_FILES=1
 }
 
-# Gates say what they proved, like their siblings
-# (`scripts/check-test-aggregation.sh`, `check-interval-cfg-additive.py`).
+# Gates say what they proved, like their sibling
+# `scripts/check-interval-cfg-additive.py`.
 #
 # GATE_SCAN_NOUN names what was counted. Most gates scan `crates/*/src`
 # and inherit the default; a gate whose subject is something else sets
