@@ -1223,8 +1223,10 @@ sanctioned deviation is `unsafe_code` — so the two move together).
 `panic`, `todo` and `unimplemented` stay banned.
 
 *Conversion work this licenses.* Opening the lint permitted the work;
-it did not perform it. **W2c is done**: the Euler surgery modules
-`euler.rs` / `euler_ring.rs` / `euler_kill.rs` discard nothing. The
+it did not perform it. **W2c is done**, and W2c is narrower than
+`crates/topo`: what is discharged is the **three-module census** — the
+Euler surgery modules `euler.rs` / `euler_ring.rs` / `euler_kill.rs`,
+which now discard nothing — not the crate. The
 census re-derived to **58** sites, of which 56 became row 4 with a
 per-site not-input-reachable proof and 2 became row-1 typed errors (PR
 #720), and the last two — the shared write helper `link_half_edges` —
@@ -1239,10 +1241,11 @@ never by the body's tier-1 validity** — which is a whole-body property
 no single call establishes, and which would have been falsified across
 roughly half the sites.
 
-*Still outstanding:* discards elsewhere in `crates/topo` —
-`split_edge`'s three remaining arena re-reads, plus `attach.rs`,
-`movefac.rs` and `revert.rs` — which W2c's census never covered
-(`SMELL-SCAN-2026-08.md`'s **D21**); and, outside `crates/topo`, idiom
+*Still outstanding:* **eleven discard sites elsewhere in
+`crates/topo`**, which the three-module census never counted and this
+addendum has never covered — three in `split_edge`, two in
+`attach.rs`, three in `movefac.rs`, three in `revert.rs`
+(`SMELL-SCAN-2026-08.md`'s **D21**). And, outside `crates/topo`, idiom
 2's `MissingEntity` router defects and `AssemblyUnsupported`'s rename
 to `Unsupported*`.
 
