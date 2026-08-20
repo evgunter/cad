@@ -128,7 +128,19 @@ main moves while it is open"; after any push, confirm checks actually
 STARTED. PR watchers treat CONFLICTING as a loud failure, and the hourly
 sweep checks open PRs' mergeable state, not just lane activity.
 Binary/render conflicts are never hand-picked — take a side, regenerate
-through the pipeline, re-verify the reproducibility contract.
+through the pipeline, re-verify the reproducibility contract. Confirm a push
+actually STARTED a run by reading the workflow **runs** list, not the PR's
+checks list — a CONFLICTING PR produces no run at all, which the checks UI
+cannot distinguish from a queued one. A per-job tally is not the run's verdict
+either; wait for the run's own `conclusion`. And ancestry is not conflict: test
+the merge (`git merge-tree`), not whether main is an ancestor.
+
+**Enumerate the local gate surface from `ci.yml`**
+(`grep -nE 'run: (scripts/|python3 scripts/|demos/|python3 demos/)'`), never
+from `ls scripts/gates/` — `cargo test` and `cargo clippy --all-targets` cover
+none of it, ten CI-invoked checks live outside that directory, and the workflow
+calls some scripts more than once and from more than one job, so the invocation
+matters as much as the file.
 
 **The session scratchpad is SHARED between concurrently running agents
 of one session.** PR/issue bodies and anything else to-be-published go
