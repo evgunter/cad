@@ -744,10 +744,10 @@ cannot know who else is in it.
 | lane | finding | PR | state |
 |---|---|---|---|
 | **C-d** | H12 — the SSI sweeps' other never-silence doors | **#734** | **not cleared** — style review returned both track questions No; fix pass running |
-| **C-f** | H11 — #632's residues (**nine**, not the two the finding states) | **#731** | fix pass complete; owes a verification pass re-deriving its probe table (C-R16) |
-| **C-h** | H14 — the census's record-keyed deferrals | **#737** | both reviews in, four fix passes done, CI green — **ready to merge** |
+| **C-f** | H11 — #632's residues (**ten**, not the two the finding states) | **#731** | verification pass done and **not cleared** — one probe row wrong a second time, plus a tenth member; second fix pass running |
+| **C-h** | H14 — the census's record-keyed deferrals | **#737** | **MERGED** `ec12b7ce` |
 | **C-o** | H16 — `StlOptions` | **#732** | fix pass complete, CI green; **waits for Evan's sign-off**; owes one re-run of the byte-identity probe on the merged head |
-| **C-p** | C9 — the `agreement` column | **#738** | fix pass complete, CI green; adding row C17 — **then ready to merge** |
+| **C-p** | C9 — the `agreement` column | **#738** | **MERGED** `a0a6e1a5` |
 
 ### #731 (C-f / H11) — style lane, 2026-08-20: **not cleared**
 
@@ -1103,3 +1103,52 @@ path in prose still resolves — so that pointer was set to survive indefinitely
 and 108 files were just deleted. Not this track's to close and not minted here;
 recorded because the ledger records *what was deleted* and nothing checks *who
 still points at it*.
+
+### #731's verification pass — the same error, twice, in the same PR
+
+**C-R16 exists because #731's first mutation table was measured on an
+intermediate working state and never re-run.** The fix pass re-derived it. The
+verification pass then re-derived the re-derivation, and **one row of five is
+wrong the same way**: probe D's head figure is 6 where it measures **7**, and
+the missing span is `expr.rs:806` — `with_replaced`, **the PR's own newest
+fix**. The row reproduces exactly at `0f902553`, *the commit before*
+`571c34c4` closed that wildcard.
+
+So the defect recurred **inside the correction to itself**, and both times the
+omitted site was the lane's most recent fix. That makes the mechanism visible,
+and it is not carelessness:
+
+> **A mutation table always lags the diff by exactly the last fix** — you run
+> the probes, then you fix one more thing, and nothing re-runs the table. The
+> lagging row is therefore the *newest* one, which is the row most likely to be
+> the finding's own headline.
+
+The cheap tells, both present twice: a cited line matching neither base nor
+head, and **the body's own prose contradicting the table beside it** (here, two
+paragraphs below, naming `expr.rs:804` as found and closed while the table
+omits it). *Re-run the probes after the last code change, not before* is now
+the operative sentence — an ordering rule, not an exhortation to be careful.
+
+**A tenth class member, found by a third instrument.** `doc.rs:65`'s
+`DocParam::bit_eq` — `match (self, other) { … _ => false }` with arms spelled
+`Self::Continuous` / `Self::Count`. Same shape, same crate, **one of the PR's
+own four target enums**, and the **same alias tell** as the `use RoleSeg as R`
+miss the style lane caught, which is why neither earlier instrument saw it. A
+future `DocParam` variant compares unequal to itself, and it feeds `Doc::bit_eq`
+and `diff.rs` — D7 replay identity and change detection.
+
+*The instrument that found it is the generalisable part:* a whole-file
+brace/string/comment-accurate scan with **no window**, covering `match`,
+`if let`, `while let` and `matches!`, keyed on **every enum-variant name in
+`crates/`** rather than a hand-picked vocabulary, with guarded arms excluded per
+rustc's own rule. Three instruments have now been run at this one class, each
+found what the previous could not, and **the progression was never a wider
+pattern — it was a differently-shaped one**: prose vocabulary → arm content →
+whole-file, vocabulary-free.
+
+**And one methodological correction worth keeping.** The PR claims its
+instrument is self-tested — run against `main` it rediscovers `remap_seg`
+unaided. **The PR ships no script**, so that claim cannot be re-executed; the
+verification confirmed the *property* on an independently written instrument of
+the same family. That is weaker evidence than a runnable check and the body
+must not imply otherwise. **A claim about an instrument owes the instrument.**
