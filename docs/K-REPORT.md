@@ -414,9 +414,13 @@ sites, and a site whose first argument is not a literal has to be read.
 That residue is the roster's standing cost, and it is why this is
 written down rather than discovered.
 
-**What the restatement catches that the old one did not.** Of the 83
-carried names, **53 appear nowhere in this document** verbatim, and
-**17** are not covered even by a `family_*` mention here. Cross-checked
+**What the restatement catches that the old one did not.** *Measured
+against this document AS THE ROW FOUND IT (`ff5ad78e`, before this
+section existed) — re-running them against the text below now returns
+smaller numbers, because the seven orphans are tabled here.* Of the 83
+carried names, **53 appear nowhere in the pre-restatement document**
+verbatim, and **17** are not covered even by a `family_*` mention
+there. Cross-checked
 against `docs/predicate-dimension-audit.md`, which carries
 `transform_rigid_*` and `transform_rigid_trans_finite_*` as family rows,
 **seven names are recorded in neither document under any reading**:

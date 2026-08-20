@@ -24,14 +24,14 @@
 //!   footnote, is the bounded-traversal half: no panic, no hang, every
 //!   traversal bounded — plus a typed error where corruption is
 //!   detectable. **A mutation phase announces a failed lookup rather
-//!   than discarding it, at every write but one.** Every key a
+//!   than discarding it, at every write.** Every key a
 //!   mutation writes through is either minted in that phase or proven
 //!   live by the plan phase, which returns
 //!   [`EulerOpError::StaleKey`] otherwise; the writes themselves state
-//!   that impossibility as `unreachable!` (the addendum's row 4). The
-//!   exception is [`Body::link_half_edges`], whose own docs name the
-//!   two call sites that do not prove the key they pass it — one of
-//!   them an operator. The
+//!   that impossibility as `unreachable!` (the addendum's row 4), and
+//!   the one write helper these modules share
+//!   ([`Body::link_half_edges`]) states it as a precondition its
+//!   callers discharge. The
 //!   *output* still carries no validity promise on corruption the plan
 //!   phase cannot see — a consistently wrong `parent_loop` makes every
 //!   lookup succeed and write the wrong topology — but that residue is
@@ -102,8 +102,8 @@
 //!   phase cannot detect they return `Ok` with a garbage body. That is
 //!   wrong data written by lookups that all succeeded — the silent
 //!   discards the D2 addendum superseded are gone from these three
-//!   modules, and the one write helper still carrying them
-//!   ([`Body::link_half_edges`]) says on itself why.
+//!   modules, the shared write helper
+//!   ([`Body::link_half_edges`]) included.
 //!
 //! # Geometry policy at M2 (PR 3 — the M0 placeholders retired)
 //!
@@ -2074,35 +2074,40 @@ impl<T: Decide> Body<T> {
 
     /// Writes the mutual `next`/`prev` link `a → b`.
     ///
-    /// **The one write helper in these three modules that still
-    /// discards a failed lookup, and the invariant it needs is not the
-    /// one it can state.** At all but two of its call sites both keys
-    /// are minted in the mutation phase or proven live by the plan
-    /// phase, so a failed lookup would be the D2 addendum's row 4.
-    /// **Two call sites do not prove their key, and both hand it the
-    /// same thing — a `prev` read straight out of the arena:**
+    /// **Precondition: both keys are live, and the caller discharges
+    /// that in its own call.** The closure property is the claim; a
+    /// list of the ways to discharge it is not — an enumeration frozen
+    /// here is what rots as callers are added. A key qualifies when
+    /// *this call* has already established it resolves: minted in this
+    /// mutation phase, or refused by this plan phase if it did not.
+    /// Never because the body is tier-1 valid, which is a whole-body
+    /// property no single call establishes.
     ///
-    /// - [`Body::split_edge`] passes `prev(hm)`, the symmetric partner
-    ///   of the `next(hp)` its preconditions *do* check.
-    /// - [`Body::kef`] passes `a = prev(he)`. Its cycle walk steps
-    ///   `next`, so the walk proves `next(he)` and not `prev(he)`;
-    ///   `kev`, `mev`, `mef` and `mekr` each check their own `prev`s
-    ///   explicitly, and `kef` is the outlier.
+    /// **A bounded walk proves its members, not their `prev` fields.**
+    /// [`Body::loop_cycle`] and [`Body::vertex_orbit`] resolve every
+    /// member they return, so a walk hands you those keys proven — and
+    /// nothing else. `loop_cycle` steps `next`, so having walked from
+    /// `he` proves `next(he)` and says nothing about `prev(he)`. That
+    /// inference is the one that put an unproven key here, so it is
+    /// named rather than left to be re-derived.
     ///
-    /// So the qualifier this comment used to carry — *"cannot fail on
-    /// the operator paths"* — was not merely narrow, it was wrong:
-    /// one of the two gaps is inside an operator. Both keys are live
-    /// on a tier-1-valid body and unproven on any other, so making
-    /// this helper announce would convert a documented garbage-out
-    /// into a panic on exactly the paths that have no proof. The
-    /// proofs belong at those two call sites, not here.
+    /// A failed lookup here is therefore the D2 addendum's row 4. The
+    /// two arms below cannot name their call site the way a per-site
+    /// `unreachable!` does — a shared helper knows none of its
+    /// callers — so it is `#[track_caller]` and the panic reports the
+    /// caller's location instead. `SMELL-SCAN-2026-08.md`'s **D25**
+    /// proposes retiring the prose precondition for a `Live` key type
+    /// that makes the discharge structural.
+    #[track_caller]
     pub(crate) fn link_half_edges(&mut self, a: HalfEdgeKey, b: HalfEdgeKey) {
-        if let Some(he) = self.get_half_edge_mut(a) {
-            he.next = b;
-        }
-        if let Some(he) = self.get_half_edge_mut(b) {
-            he.prev = a;
-        }
+        let Some(he) = self.get_half_edge_mut(a) else {
+            unreachable!("link_half_edges: `a` was not proven live by its caller")
+        };
+        he.next = b;
+        let Some(he) = self.get_half_edge_mut(b) else {
+            unreachable!("link_half_edges: `b` was not proven live by its caller")
+        };
+        he.prev = a;
     }
 
     /// D1's ratified postcondition-assert clause: after a successful

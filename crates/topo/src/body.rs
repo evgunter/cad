@@ -1172,6 +1172,40 @@ mod tests {
         assert_eq!(t.body.loop_cycle(HalfEdgeKey::default()), None);
     }
 
+    /// **A `Closed` walk proves `next(first)` resolves.** This is the
+    /// property [`Body::kef`] consumes: it takes `b = next(he)` as
+    /// proven by `loop_cycle(he)` succeeding rather than checking it,
+    /// then passes `b` to a helper that announces on a dead key.
+    ///
+    /// [`Body::bounded_walk`] holds that property twice over — by the
+    /// explicit `contains_key(next)`, and by `step` itself, which is a
+    /// `half_edges.get(..)` and so returns `None` when asked to
+    /// advance from a dead key one iteration later. Either alone
+    /// suffices, which is why reordering the explicit check against
+    /// the `next == first` return does NOT break `kef`: a `next` equal
+    /// to `first` is live by the walk's entry check. What would break
+    /// it is a rewrite that drops both — and dropping both is hard to
+    /// do by accident, because reading `he.next` at all requires
+    /// resolving `he`, so a step proves its own source and the only
+    /// unchecked candidate is a `next` equal to the entry-checked
+    /// `first`. **So this row is a cheap statement of a consumed
+    /// property, not a guard**: no small mutation of `bounded_walk`
+    /// was found that makes it red. Its value is that a future rewrite
+    /// of the walk has to keep the sentence true.
+    #[test]
+    fn a_closed_walk_proves_the_first_step_resolves() {
+        let mut t = pillow();
+        // Dangle the very link kef consumes: next(first).
+        let first = t.hes_a[0];
+        t.body.get_half_edge_mut(first).unwrap().next = HalfEdgeKey::default();
+        assert_eq!(
+            t.body.loop_cycle(first),
+            None,
+            "a walk whose first step dangles must not report Closed; kef \
+             reads next(he) as proven by this walk succeeding"
+        );
+    }
+
     #[test]
     fn vertex_orbit_visits_the_half_edges_starting_at_the_vertex() {
         let t = pillow();
