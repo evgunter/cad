@@ -8856,9 +8856,14 @@ written for. Beyond S60, S75, S76, S78, S84 and S91 above:
   drives `surface_curve_residual` with adversarial break parameters and
   asserts only `Ok` and finiteness. A break parameter that mislocated a
   span but produced a finite bound passes.
-- (g) `demos/wild/src/main.rs:321-325` —
-  `assert_eq!(scenes.len(), WILD_CELLS.len())` where `scenes` is built
-  from `WILD_CELLS.iter().map(…).collect()`. Equal by construction.
+- (g) **FIXED by #783** — `demos/wild/src/main.rs`. The vacuous
+  `assert_eq!(scenes.len(), WILD_CELLS.len())` is replaced by the two
+  properties it stood in for, neither of which was checked: cell NAMES
+  are distinct (a name is an STL stem, a scene name and a PNG stem at
+  once, so a collision silently overwrote one export and put one body
+  on the sheet twice — checked before any cell runs, so the failure
+  arrives before the clobber), and every STL the manifest names exists
+  on disk when the manifest is written. Both can go red.
 - (h) `interval-transcendentals/tests/common/mod.rs:149-152` —
   `assert!(mine.is_empty() || !mine.is_nai())` is strictly subsumed by
   the `assert!(mine.is_empty())` three lines below; it can only change
@@ -8872,12 +8877,18 @@ written for. Beyond S60, S75, S76, S78, S84 and S91 above:
   project's life. Two shapes in one test, of which only one is safe to
   pin. The merge-base comparison that motivated it has happened;
   nothing schedules another.
-- (j) `demos/tour/tests/eps_regression.rs:1-4` vs `:37-53` — the doc
-  says *"the only legal outcomes are a working run or a typed refusal
-  (which the tour surfaces as a clean nonzero exit)"*; `run_tour`
-  asserts `output.status.success()`, so a clean nonzero exit fails
-  exactly as a panic does. The tour appears to have no such exit path
-  anyway.
+- (j) **FIXED by #783** — `demos/tour/tests/eps_regression.rs`. The
+  finding's "appears to" is confirmed: the tour's only
+  `std::process::exit` sites are the two feature-gated modes reporting
+  a usage error, and every typed refusal on the scene path is a panic
+  by construction. The DOC was describing a contract the demo does not
+  implement; the header now states the one it has (green means exit 0,
+  that is the whole assertion, and nothing else is available to assert)
+  and says what would have to change before an exit code could carry a
+  refusal. **Two things came out of establishing that**: no gate had
+  ever run this pin — or any assertion under `demos/` — which is S129
+  below and is partly closed by the same PR, and `demos/tour`'s unit
+  tests turned out to be RED on main (issue #782).
 
 ## S111. Frontier vocabulary and API surface with no reachable caller (roll-up)
 
@@ -8964,29 +8975,46 @@ written for. Beyond S60, S75, S76, S78, S84 and S91 above:
   does not appear. Not nothing: `report()` and `eps_source()` commit the
   process-global ε as a side effect of being called, which the module
   itself flags as a hazard.
-- (h) `demos/render.py:95-101,127-131` — `draw()` branches on
-  `if body["stl"] is None` and carries a whole second branch plus a
-  `#111 pin` warning for a manifest state neither producer can emit
-  (`ManifestBody.stl` is a `String`; `run_body` panics rather than
-  omitting it). `render_freecad.py:159` reads the same field with no
-  guard and would `TypeError`. The two renderers disagree about the
-  schema and the one that guards is guarding against nothing.
+- (h) **FIXED by #783** — `demos/render.py`. The `stl is None` branch,
+  its `#111 pin` warning, the `drawn` counter, `draw()`'s boolean
+  return and `main`'s skip-the-scene arm are all gone: neither producer
+  can emit that state, and `run_stop` never emits a bodiless scene, so
+  the empty-scene path below it was unreachable for the same reason.
+  `render.py` and `render_freecad.py:159` now read `body["stl"]` the
+  same way. The docstring states what the two PRODUCERS do and defers
+  what the FORMAT promises to (c) — a guard against a state nothing
+  emits is wrong under every schema, so this half did not wait for it.
+  Verified by rendering all 35 tour scenes before and after: identical
+  PNGs, chunk for chunk.
 
 ## S113. Counts and enumerations stated in prose, already drifted (roll-up)
 
 Beyond S64, S67, S74 and S98:
 
-- (a) `demos/tour/src/uvdump.rs:23,60` and
-  `demos/compose_uv_montage.py:17` — *"879 of the 982 M7 faces"*,
-  *"all 982 faces"*. Written 2026-08-09; `klein.rs` landed 2026-08-16
-  adding twelve faces on the bulb alone, and `tube.rs`/`skinned.rs`
-  scenes landed after. `main.rs:604-608` prints the live `dumps.len()`
-  and never compares. `demos/tour/Cargo.toml:33,65` says *"eighteen
-  scenes"* against 27 `Stop {` literals and 35 committed PNGs.
-- (b) `demos/wild/src/main.rs:85` says *"The pinned cell set: 6 cells"*;
-  the derivation in the same paragraph arrives at eight and the array is
-  `[Cell; 8]`. In a module that treats the cell set as *"LAW, not
-  discovery"*.
+- (a) **FIXED by #783** — every count in this member is COMPUTED
+  rather than restated, because a fresh number would drift on the next
+  scene exactly as these did. The tour's closing lines now print
+  `35 scenes (20 montage cells, 15 standalone)`, `1049 face charts`,
+  `946 checkable / 103 branch-jumped / 0 disagree`, and the two worst
+  junction gaps; `uvdump.rs` and `compose_uv_montage.py` point at that
+  line and state no number. **Measured on `de103835`, and every prose
+  figure was wrong**: 982 → 1049 faces, 879 → 946 checkable, and
+  `9.4e-16` → `9.93e-16` for the worst 3-D loop gap (`uvdump.rs:294`,
+  which the finding did not name). `Cargo.toml`'s *"eighteen scenes"*
+  is deleted at both sites — it carried no load in either sentence and
+  a TOML comment cannot compute one. The sweep also reached
+  `demos/README.md:346` (*"the tour emits 34 scenes … 34 − 15 = 19"*,
+  drifted to 35/20; the paragraph now states the RULE for staying off
+  the sheet and leaves the arithmetic to the run) and
+  `demos/render-wild.sh:14` (*"8 cells"*, a second copy of the count
+  (b) had just moved into `WILD_CELLS`'s array length).
+- (b) **FIXED by #783** — `demos/wild/src/main.rs`. The heading's
+  *"6 cells"* is deleted rather than corrected to eight: the derivation
+  it headed already ends at 8, and `WILD_CELLS: [Cell; 8]` is the
+  enforcement — a cell added or dropped without re-deriving is a type
+  error. The doc now says so, and says why the count is not written in
+  prose a second time. `render-wild.sh`'s duplicate *"8 cells"* went
+  with it.
 - (c) `crates/geom-core/src/ring_interval.rs`'s `from_certified` doc
   carries a prose census of its own callers, already corrected once
   (`88616177`). See S89.
@@ -9008,13 +9036,25 @@ Beyond S64, S67, S74 and S98:
   written out four times, two of them outside `round.rs` despite that
   module's doc claiming *"the load-bearing lemmas are restated at each
   helper"*.
-- (b) `demos/tour/src/skinned.rs:195-215` — `quad`, `PRISM_SQUARE`,
-  `PRISM_TRAPEZOID`, `lofted_at_z`, `ELBOW_H` mirrored constant for
-  constant from `crates/step-export/tests/common/mod.rs:733` and
-  friends. The captions claim the fixture is used *"VERBATIM"* — a
-  byte-equality claim nothing computes. `fn quad` now has four homes
-  (`sweep`, `mesh`, `step-export` test-commons, plus the demo);
-  `ELBOW_H = 0.25` is copied with a comment saying it is *"shared"*.
+- (b) **FIXED by #783** — `demos/tour/src/skinned.rs`. The
+  *"VERBATIM"* claim was false twice over: nothing computed byte
+  equality, and `fn quad` is not even the same code — the corpus builds
+  the section with `ProfileLoop::polygon`, the demo through the PATHS
+  lattice (`paths::path_polygon`), which is the spelling the tour
+  exists to show. The duplication STAYS, stated as deliberate with its
+  reason at the copy site: the fixture's other home is another crate's
+  test-support module, unreachable from outside that crate's test build
+  and not something a user could import, so reaching into it would make
+  the demo worse evidence — and no public door hands out corpus
+  fixtures. What the claim was FOR is checked instead: `stops()` asks
+  `mass_properties` for the prism's volume and pins it inside its own
+  certified enclosure against the 9 m³ that
+  `sweep/tests/m6_loft_body.rs` DERIVES for the fixture, so a section
+  drifting apart from the corpus fails the tour. `ELBOW_H`'s
+  *"shared"* becomes *"the same value, copied; nothing links them"*.
+  **Not this unit**: the byte-identical three-way `fn quad` across
+  `sweep/`, `mesh/` and `step-export/` test-commons lives in three
+  crates' test trees, not in `demos/`.
 - (c) The demo manifest and UV cell formats have no definition: three
   hand-rolled JSON emitters, four readers, one field
   (`transparency`) written by one producer and `.get(…, 0)`-defaulted by
@@ -9025,6 +9065,20 @@ Beyond S64, S67, S74 and S98:
   `check_render_provenance.py:104,112` announces the shape outright —
   *"Kept in sync with render.sh's `--montage=` arguments"*, *"keep the
   three spellings in sync"* (there are two).
+
+  **Still open, and deliberately.** #783 (Track G, G2) produced the
+  full producer/consumer census this row asks for — three emitters,
+  five readers, field by field, each disagreement with both sides'
+  `file:line` — and stopped there rather than inventing a schema; the
+  census is that PR's report and the design conversation is Evan's.
+  Two things did NOT wait for it, because they are wrong under every
+  schema anyone might pick: **(h)** above (a guard against a state no
+  producer emits), and the two sync claims at
+  `check_render_provenance.py:104,112`, which are now COMPUTED — the
+  selftest reads the sheet names back out of `render.sh` /
+  `render-wild.sh` / `compose_montage.py` and the wild Author string
+  out of `render-wild.sh`, and compares. *"The three spellings"* was
+  two, and is now two that are checked.
 - (d) `interval-transcendentals/src/trig.rs:30-58` vs `:62-88` and
   `invtrig.rs:21-39` vs `:43-61` — `sin`/`cos` and `asin`/`acos` are
   ~25-line near-verbatim twins differing in two constants and a libm
@@ -9106,13 +9160,17 @@ see §C.
   => {} }` is a no-op whose only purpose is to make a future variant a
   compile error — an invariant held by a statement where a type would
   hold it structurally.
-- (d) `demos/tour/src/main.rs:118-124,142-155` — `plain_planar` and
-  `seamed_curved` are exact forwarders to `plain`/`seamed`, kept alive
-  by doc-comments arguing that *"the CALLER is asserting planarity"*.
-  Nothing consumes that. `step_expected` is `true` at both construction
-  sites and its doc says so, so `assert!(!sb.step_expected, …)` is an
-  unconditional panic wearing a conditional, re-checked a second way
-  twelve lines later.
+- (d) **FIXED by #783** — `demos/tour/src/main.rs`. Both forwarders
+  are deleted and their four call sites say `plain`/`seamed`; what
+  `seamed_curved`'s doc was actually for (a curved boolean result
+  validates the same way — the contacts decide, not the surface kind)
+  moved onto `seamed`, which had no doc at all. `step_expected` is gone
+  with both of its checks: the subset-frontier arm now panics outright
+  and says what reaching it would MEAN (a scene grew past the writer,
+  not a writer that broke), which is what the conditional was
+  pretending to decide. `ManifestBody.step` follows it from
+  `Option<String>` to `String`, since the arm that produced `None` no
+  longer exists. Tour output byte-identical before and after.
 - (e) `crates/topo/src/euler.rs:1-208` — the module header grew ~55
   lines in this diff, and the new material is a titled essay
   (*"**The exception, and it is a real one.**"*) about `crate::instance`'s
@@ -9239,6 +9297,38 @@ see §C.
   that is chosen rather than proven.
 
 ---
+
+## S129. `demos/` has assertions and no runner (raised by #783)
+
+**Raised by Track G's G2 lane while establishing what CI actually does
+with `demos/`, which S110(j) required knowing.** Searched
+`.github/workflows/{ci,render}.yml`, `local-scripts/ci-local.sh` and
+`scripts/`: **nothing ran `cargo test` anywhere under `demos/`.**
+
+- `ci.yml:1693,1695` run `cargo fmt --check && cargo clippy
+  --all-targets -- -D warnings` in `demos/tour` and `demos/wild`.
+  `--all-targets` **type-checks** the test targets and executes none of
+  them — S110(a)'s shape (`probe_s5_sectors.rs`), one tree over.
+- `render.yml:334` and `ci-local.sh:258` run `cargo run --release`, the
+  binary's scene path only.
+- `scripts/k_probe_sweep.sh` and `scripts/tess_budget_sweep.sh` run the
+  two feature-gated modes.
+
+Ten assertions were therefore unguarded: `tests/eps_regression.rs`'s
+three (the #99 ε pin, whose whole purpose is gating) and
+`lily.rs::review_probes`' seven. **Two rows of the seventh have been
+red for an unknown period** — `finding_13_tessellation_table_reproduces`
+pins seven `(body, δ, triangle_count)` rows and the two SWEPT blades
+now tessellate to 1016/854 against a pinned 976/826 while all five
+analytic rows are exact. That is a kernel-behaviour question, so it is
+**issue #782**, not a row here.
+
+**PARTLY FIXED by #783**: the ε pin is armed in `k-lint` (`cargo test
+--release --test eps_regression`, ~7 s on top of the release build that
+job already pays), mirrored in `ci-local.sh`. **The `--bin demo-tour`
+unit tests are deliberately NOT armed** — arming them today lands a red
+gate — and widening the row is owed the moment #782 is decided. Until
+then those five other probes stay unguarded and this row stays open.
 
 ## §A2. Where the second scan would start
 
@@ -10780,16 +10870,22 @@ S60/S66's rows; and a general gate re-proposes exactly what Evan declined.
 
 Two things bind this track. **One:** `interval-transcendentals/`, `demos/`,
 `profile/` and `sweep/src/` outside `fillet/` are the second scan's *new ground*
-— code the first scan explicitly excluded — and **no track is live in any of
-them**, so a new orchestrator can run here from day one with no sequencing at
+— code the first scan explicitly excluded, and which no track was live in when
+this one was constituted, so it could run from day one with no sequencing at
 all. **Two:** several of its rows share a mechanism worth naming — *a
 consolidation or deletion pass removed the prose that was its own evidence, and
 left a positive claim behind that is now false.*
 
+**`demos/` has left this table.** Its row (G2, nine roll-up members) landed as
+**#783**: S110(g)(j), S112(h), S113(a)(b), S114(b) and S116(d) are recorded
+FIXED at their own bullets, S114(c) stays open as the design question it was
+always going to be, and the lane raised **S129** (nothing runs an assertion
+under `demos/`) and **issue #782** (two rows of `demos/tour`'s tessellation pin
+are red on main).
+
 | # | Work | From | Scope | Proposed verdict | Review |
 |---|---|---|---|---|---|
 | **G1** | **`interval-transcendentals`: nothing constrains the pads from above.** `assert_contains` checks containment only; `Tightness::report` contains no assertion; `PAD_ULPS = 4` is unpinned; the cheap tier catches a dropped outward round for division only — while `ci.yml` and the README make broader claims. **The finding is careful that the derivations are sound and the defect is in what the tests can see; keep that framing.** Seven Tier-3 members live in the same workspace and come with it: S110(h), S111(c), S112(c), S114(a)(d), S116(r)(t) — and **S112(c) bears on S1**, since the `RingInterval` question leaves an exact-surface op hosted in a consumer. | **S72** + 7 roll-up members | `interval-transcendentals/` (its own workspace) | **ACCEPTED** | **ADVERSARIAL** |
-| **G2** | **`demos/` — nine roll-up members, one tree, no owner.** Equal-by-construction asserts (S110(g)(j)), prose describing a world the code left (S112(h)), two drifted counts (S113(a)(b) — **give these to E-b and let this lane consume the result**, or the two collide on `demos/tour/Cargo.toml`), duplications the fix passes did not reach (S114(b)), and **the one design question in the cluster: three hand-rolled JSON emitters, four readers, no schema (S114(c))**. | S110(g)(j), S112(h), S113(a)(b), S114(b)(c), S116(d) | `demos/` | **ACCEPTED**; S114(c) is a design row, not a patch | style |
 | **G3** | **`swept.rs`'s new shared home states a reason for not unifying that is factually false, and the same commit deleted the duplication markers.** `swept.rs:17-20` says revolve's builder has neither a reversal arm nor the orientation bit; `revolve/mod.rs:625` is `swept_segments(lp, reverse: bool)` and its own doc states the full involution. **The class claim is the valuable half**: re-check every *"deliberately NOT unified"* sentence in the S6 record. | **S74** | `sweep/src/{swept,revolve/mod,extrude,loft,revolve/tube}.rs` | **ACCEPTED** — and the deliverable is the class re-check, not the single fix | style |
 | **G4** | **`profile`'s fifth lane trait, blanket-implemented, which D1 never looked at** — `ArcCarrierScalar` over `T: Decide + Bounds`, so `Dual64` carries the whole `path::family` arc surface today, re-exported from `pncad`. **Per Evan's ruling this is mechanical**: `CertifiedBounds` is the bound that excludes a dual. **Gated on F1** — the gate that is supposed to force ratification of the new spelling is blind to it until S59 lands. | **S87** (and S88's `profile` half) | `profile/src/path/{arc_fillet,family}.rs`, `profile/src/lib.rs`, `pncad/src/profile.rs` | **ACCEPTED — RULED** (the admitting set) | **ADVERSARIAL** |
 | **G5** | **`profile`'s ONARC prose outlived the boundary it describes.** Per the ruling above, this is **not** the capability question the finding posed: `review_s2.rs:45` claims the class *"is built"* and cites a test the deleting commit removed, while the shipped pin records the boundary the commit deliberately established. Correct the prose to state the boundary; **do not delete `sugar.rs`'s machinery**, which is the raw-builder path the boundary is defined against. | **S71** | `profile/tests/review_s2.rs`, and only a re-read of `profile/src/sugar.rs` | **ACCEPTED IN PART — RULED** | style |
