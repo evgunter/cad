@@ -1,7 +1,9 @@
 # The tessellation budget — measuring over-tessellation (issue #320)
 
 **Status: measurement complete; the SPAN half is FIXED (TESS-SPAN,
-docs/TESS-SPAN-SPEC.md).** #320 asked whether the NURBS-wall grid
+merged as #594; its binding spec was deleted with the other
+closed-unit artifacts and is recoverable through
+`docs/DOC-LEDGER.md`).** #320 asked whether the NURBS-wall grid
 sizing is "honestly tight … or systematically over-conservative", and
 asked for measurement first. This document is that measurement, the
 instrument that produced it, and what the numbers said a fix would
