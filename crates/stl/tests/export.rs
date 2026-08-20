@@ -6,7 +6,7 @@
 mod common;
 
 use mesh::tessellate;
-use stl::{write_ascii, write_binary};
+use stl::{StlOptions, write_ascii, write_binary};
 
 fn fnv(bytes: &[u8]) -> u64 {
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;
@@ -37,13 +37,13 @@ fn meshes() -> Vec<(&'static str, mesh::Mesh)> {
 
 fn binary_of(mesh: &mesh::Mesh) -> Vec<u8> {
     let mut out = Vec::new();
-    write_binary(mesh, &mut out).unwrap();
+    write_binary(mesh, &StlOptions::default(), &mut out).unwrap();
     out
 }
 
 fn ascii_of(mesh: &mesh::Mesh) -> Vec<u8> {
     let mut out = Vec::new();
-    write_ascii(mesh, &mut out).unwrap();
+    write_ascii(mesh, &StlOptions::default(), &mut out).unwrap();
     out
 }
 
@@ -146,7 +146,9 @@ fn parse_ascii(text: &str) -> Vec<[f32; 12]> {
 /// - `ascii_and_binary_triangle_sets_identical` → the `AGREE` block;
 /// - `normals_are_unit_and_outward_consistent` → the `NORMAL` / `FLUX`
 ///   blocks;
-/// - `binary_header_is_constant_and_not_solid` → the `HEADER` block;
+/// - `binary_header_is_constant_and_not_solid` → the `HEADER` block,
+///   and the `SOLID NAME` / `NAME/OPTIONS` blocks that pin the ASCII
+///   name's shipped default and its caller-settable path;
 /// - `repeated_export_is_byte_identical` → the `BYTE-IDENTITY` block.
 ///
 /// # One tessellation of eleven bodies, every law on it
@@ -167,8 +169,8 @@ fn parse_ascii(text: &str) -> Vec<[f32; 12]> {
 ///
 /// What the split bought and a merged row cannot is failure ISOLATION,
 /// so every assertion NAMES its law — `AGREE`, `NORMAL`, `FLUX`,
-/// `HEADER`, `BYTE-IDENTITY` — and the message alone says which one
-/// broke.
+/// `HEADER`, `NAME`, `NAME/OPTIONS`, `BYTE-IDENTITY` — and the message
+/// alone says which one broke.
 #[test]
 fn the_acceptance_exports_agree_are_honest_and_are_byte_identical() {
     // THE one tessellation. INVARIANT: nothing below may call
@@ -229,8 +231,8 @@ fn the_acceptance_exports_agree_are_honest_and_are_byte_identical() {
     }
 
     // ---- HEADER: two DIFFERENT bodies must produce the same 80-byte
-    // header, it must not sniff as ascii, and the record size must be
-    // exactly 84 + 50·n. The two are the "l_prism" and "ball" rows of
+    // DEFAULT header, it must not sniff as ascii, and the record size
+    // must be exactly 84 + 50·n. The two are the "l_prism" and "ball" rows of
     // `common::acceptance_bodies` (rows 0 and 2, both at δ = 1e-2) —
     // taken out of the list above rather than rebuilt.
     let by_name = |want: &str| -> &mesh::Mesh {
@@ -257,15 +259,18 @@ fn the_acceptance_exports_agree_are_honest_and_are_byte_identical() {
     // ---- SOLID NAME: the ASCII writer's `solid <name>` opener is a
     // SHIPPED byte string with no other coverage — the byte oracles
     // above compare exports to each other, so a changed name is
-    // invisible to them. Pin the exact text, its input-independence,
-    // and that `endsolid` closes on the same name.
+    // invisible to them. Pin the exact DEFAULT text, its
+    // input-independence, and that `endsolid` closes on the same name.
+    // The expected strings are literals on purpose: sourcing them from
+    // `StlOptions::default()` would pin the writer's agreement with
+    // itself, not the bytes the library ships.
     let ascii_a = String::from_utf8(ascii_of(by_name("l_prism"))).expect("NAME: ascii is utf-8");
     let ascii_b = String::from_utf8(ascii_of(by_name("ball"))).expect("NAME: ascii is utf-8");
     for (which, text) in [("l_prism", &ascii_a), ("ball", &ascii_b)] {
         let first = text.lines().next().expect("NAME: ascii export is empty");
         assert_eq!(
             first, "solid cad-kernel",
-            "NAME: {which}: the shipped solid name"
+            "NAME: {which}: the shipped default solid name"
         );
         let last = text
             .lines()
@@ -276,6 +281,61 @@ fn the_acceptance_exports_agree_are_honest_and_are_byte_identical() {
             "NAME: {which}: endsolid must close on the same name"
         );
     }
+
+    // ---- NAME/OPTIONS: a caller-supplied name reaches BOTH the opener
+    // and the closer, and nothing else in the file moves. The tail
+    // comparison is what makes this a claim about the name rather than
+    // about the whole file: everything after the first line is
+    // byte-identical to the default export.
+    let named = {
+        let mut out = Vec::new();
+        write_ascii(
+            by_name("l_prism"),
+            &StlOptions {
+                solid_name: "widget-7".to_owned(),
+                ..Default::default()
+            },
+            &mut out,
+        )
+        .unwrap();
+        String::from_utf8(out).expect("NAME/OPTIONS: ascii is utf-8")
+    };
+    assert_eq!(
+        named.lines().next().unwrap(),
+        "solid widget-7",
+        "NAME/OPTIONS: the caller's name opens the solid"
+    );
+    assert_eq!(
+        named.lines().next_back().unwrap(),
+        "endsolid widget-7",
+        "NAME/OPTIONS: endsolid closes on the caller's name"
+    );
+    let body_of = |text: &str| -> String {
+        text.lines()
+            .skip(1)
+            .take_while(|l| !l.starts_with("endsolid"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    assert_eq!(
+        body_of(&named),
+        body_of(&ascii_a),
+        "NAME/OPTIONS: only the solid name moves"
+    );
+    assert!(
+        matches!(
+            write_ascii(
+                by_name("l_prism"),
+                &StlOptions {
+                    solid_name: "two\nlines".to_owned(),
+                    ..Default::default()
+                },
+                &mut Vec::new(),
+            ),
+            Err(stl::StlError::UnrepresentableSolidName { character: '\n' })
+        ),
+        "NAME/OPTIONS: a newline in the name is refused, not written"
+    );
 
     // ---- BYTE-IDENTITY: repeat-call identity through the FULL
     // pipeline — rebuild the body, retessellate, rewrite; bytes must
@@ -315,7 +375,7 @@ fn the_acceptance_exports_agree_are_honest_and_are_byte_identical() {
 fn coarse_cone_apex_fan_is_refused_typed() {
     let mesh = tessellate(&common::cone(), 0.05).unwrap();
     let mut out = Vec::new();
-    match write_binary(&mesh, &mut out) {
+    match write_binary(&mesh, &StlOptions::default(), &mut out) {
         Err(stl::StlError::DegenerateTriangle { .. }) => {}
         other => panic!("expected DegenerateTriangle at coarse delta, got {other:?}"),
     }
@@ -338,7 +398,7 @@ fn degenerate_mesh_is_refused_typed() {
         boundaries: vec![],
     };
     let mut out = Vec::new();
-    match write_binary(&mesh, &mut out) {
+    match write_binary(&mesh, &StlOptions::default(), &mut out) {
         Err(stl::StlError::DegenerateTriangle { triangle }) => {
             assert_eq!(triangle, [0, 1, 2]);
         }

@@ -30,7 +30,7 @@ fn main() {
         assert!(v > 0.0, "{name}: mesh signed volume must be positive");
         let path = format!("{outdir}/{name}.stl");
         let mut file = std::fs::File::create(&path).expect("create stl file");
-        stl::write_binary(&mesh, &mut file).expect("write stl");
+        stl::write_binary(&mesh, &stl::StlOptions::default(), &mut file).expect("write stl");
         println!(
             "exported {path}: {} triangles, V_exact = {:.6}, V_mesh = {v:.6}, A_exact = {:.6}",
             triangle_count(&mesh),

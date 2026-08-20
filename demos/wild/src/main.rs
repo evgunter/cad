@@ -254,8 +254,14 @@ fn run_cell(cell: &Cell, outdir: &str) -> String {
         rel * 100.0
     );
 
+    // The binary header is the one caller-visible identity binary STL
+    // carries; this corpus names each body in it.
+    let stl_options = pncad::stl::StlOptions {
+        header: name.to_owned(),
+        ..Default::default()
+    };
     let mut stl_buf = Vec::new();
-    pncad::stl::write_binary(&mesh, &mut stl_buf)
+    pncad::stl::write_binary(&mesh, &stl_options, &mut stl_buf)
         .unwrap_or_else(|e| panic!("{name}: STL write failed: {e:?}"));
     std::fs::write(format!("{outdir}/{name}.stl"), &stl_buf).expect("write stl");
     println!("   [{name}] exported {name}.stl");

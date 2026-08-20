@@ -102,7 +102,7 @@ fn survives_az_intersect_exports_watertight_stl() {
     assert!(facets > 0, "empty mesh");
 
     let mut ascii = Vec::new();
-    stl::write_ascii(&mesh, &mut ascii).expect("ascii STL");
+    stl::write_ascii(&mesh, &stl::StlOptions::default(), &mut ascii).expect("ascii STL");
     let text = String::from_utf8(ascii).expect("ascii STL is UTF-8");
     assert_eq!(
         text.matches("facet normal").count(),
@@ -111,7 +111,7 @@ fn survives_az_intersect_exports_watertight_stl() {
     );
 
     let mut bin = Vec::new();
-    stl::write_binary(&mesh, &mut bin).expect("binary STL");
+    stl::write_binary(&mesh, &stl::StlOptions::default(), &mut bin).expect("binary STL");
     assert_eq!(bin.len(), 84 + 50 * facets, "binary STL length");
     let declared = u32::from_le_bytes([bin[80], bin[81], bin[82], bin[83]]);
     assert_eq!(declared as usize, facets, "binary header facet count");

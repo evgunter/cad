@@ -62,7 +62,7 @@ fn corner_kiss_assembly_exports() {
     assert!((v - 2.0).abs() < 1e-9, "mesh volume {v}");
     let path = format!("{}/corner_kiss.stl", stl_dir());
     let mut file = std::fs::File::create(&path).unwrap();
-    stl::write_binary(&mesh, &mut file).unwrap();
+    stl::write_binary(&mesh, &stl::StlOptions::default(), &mut file).unwrap();
 }
 
 /// The tangent-edge assembly (certified 3′ with the D3-reconstructed
@@ -89,5 +89,5 @@ fn tangent_edge_assembly_exports() {
     assert!((v - 2.0).abs() < 1e-9, "mesh volume {v}");
     let path = format!("{}/tangent_edge.stl", stl_dir());
     let mut file = std::fs::File::create(&path).unwrap();
-    stl::write_binary(&mesh, &mut file).unwrap();
+    stl::write_binary(&mesh, &stl::StlOptions::default(), &mut file).unwrap();
 }
