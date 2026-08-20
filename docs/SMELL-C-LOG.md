@@ -1152,3 +1152,50 @@ unaided. **The PR ships no script**, so that claim cannot be re-executed; the
 verification confirmed the *property* on an independently written instrument of
 the same family. That is weaker evidence than a runnable check and the body
 must not imply otherwise. **A claim about an instrument owes the instrument.**
+
+### #732 (C-o / H16) — complete, green, **waiting on Evan's sign-off**
+
+The design PR. All four of Evan's rulings (C-R13/C-R14/C-R15) landed, the style
+review's twenty findings are addressed, and the byte-identity probe was re-run
+on the merged head rather than carried forward.
+
+**The re-run earned more than the number it confirmed.** The pre-merge figure
+reproduced exactly — 13/13 binary byte-identical, 13/13 ASCII differing in
+exactly the two `solid`/`endsolid` lines C-R13 moves, four diff lines per file
+and nothing else. But the reason for asking got its own measurement: `crates/mesh`
+moved in three files across the 106 commits, so the lane exported the same
+thirteen fixtures at **both** main SHAs and compared — **13/13 binary
+byte-identical**. None of the three mesh changes reaches any fixture in the set.
+
+*That is C-R16's point stated positively:* **the stale measurement happened to
+still be true, and only the run could establish that.** "It probably still holds"
+and "it holds, and here is what would have made it not" are different claims, and
+the second is the one a reader can act on. The probe is deliberately **not
+committed** — it is a measurement, not a fixture.
+
+### An operational finding about §D itself, and it is not this track's alone
+
+The lane's closing disclosure:
+
+> This branch went `dirty` **twice within minutes of going green**, both times on
+> §D's table, and both times the resolution needed a judgement about someone
+> else's landed row.
+
+**The window between "green and clean" and "CONFLICTING" on `docs/SMELL-SCAN-2026-08.md`
+is now shorter than one CI run.** Five programmes are live and every unit of
+every one of them edits the same table by construction — the recording
+convention requires it. Nothing has been lost: *resolve by merging, keep both
+sides* held on all three of this lane's merges, but only because each side's
+edits were to different rows, which is luck holding rather than a mechanism
+working.
+
+Two consequences already visible, both recorded rather than fixed here:
+
+- **C-R21's rule is doing real work** — three of this session's row numbers moved
+  under a lane between assignment and write, one of them across tracks.
+- **A green PR on this document is a perishable result.** Expect to re-merge
+  before merging; do not read "clean an hour ago" as clean.
+
+This is a cross-programme question (a per-track table? a landing lock? a
+generated index?) and belongs to whoever owns §D's shape, not to Track C. Named
+here because Track C produced the measurement.
