@@ -9,10 +9,13 @@
 //! Cast a ray from `q` along a direction of the fixed schedule — the
 //! same 16-member golden-angle table as [`point_in_loop`], and
 //! literally the same const (`SCHEDULE`, read from
-//! `splitting::containment`), used as space directions directly.
-//! Determinism here rests on this module and `point_in_loop` sweeping
-//! identical directions in identical order; with one definition that
-//! is true by construction, so no guard checks it. For each face
+//! `splitting::containment`), used here as space directions
+//! **directly**: this module normalizes the raw triple, where
+//! `point_in_loop` projects it into the loop's plane and skips the
+//! near-parallel members. One table, two different sweeps — the
+//! shared const buys the absence of drift between copies, not
+//! agreement on a direction, and determinism is per site (a `const`
+//! swept in a fixed order every run). For each face
 //! (planar — the F5 regime):
 //! intersect the ray with the face plane, test the hit point against
 //! the face's loops (outer minus rings) via [`point_in_loop`], and

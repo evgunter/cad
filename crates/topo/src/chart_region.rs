@@ -1376,18 +1376,16 @@ fn overlap_of_regions<T: Decide + Bounds>(
     // `net_2a` IS the shoelace sum, not half of it, so the divisor is
     // the FULL perimeter.
     //
-    // `split_section_area` asks the same question in 3-D through that
-    // same door, and the two stop sharing there. Neither accumulator
-    // can be the other's: this one sums `perp_dot` over chart
-    // `Point2`s, that one sums `a×b·n̂` over `Point3`s precisely so
-    // that no in-plane basis is chosen, and projecting either into
-    // the other's space to share ten lines would move the shoelace
-    // sum's last bits and with them a shipped margin. Past the
-    // accumulator each runs a correction the other has no counterpart
-    // for — conic excess there, the conservative ring deduction here
-    // — and takes the opposite sign convention (`|2A|` there, signed
-    // here, because a ring deduction may legitimately drive this one
-    // negative).
+    // `split_section_area` asks the same question in 3-D through the
+    // same door, and that is where the sharing ends. The accumulator
+    // could be shared ONE way — embedding these `Point2`s as
+    // `(x, y, 0)` with `n̂ = ẑ` makes `a×b·n̂` reduce to `perp_dot`
+    // bit for bit — but not the other, which would need the in-plane
+    // basis the 3-D form exists to avoid. Past the accumulator
+    // nothing lines up: conic excess there against the conservative
+    // ring deduction here, `|2A|` there against a signed `net_2a`
+    // here (a ring deduction may legitimately drive this one
+    // negative), and one K row each.
     //
     // Positive certifies; an exact Zero or a definite Negative after
     // the conservative ring deduction cannot certify EITHER direction

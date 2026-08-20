@@ -2235,7 +2235,7 @@ one under #688, one is moot post-#688, and one leaves as a tracked issue.
 |---|---|---|
 | Fillet birth-record provenance | `fillet/naming.rs:95` | **Left, deliberate.** Re-read on today's main; the written self-assessment is honest and the discipline is the guarantee. |
 | `flipped_face_sense_for_tests` | `body.rs:630` | **Left, deliberate.** Re-verified `&self` + clone — it is not even a mutation path, and confers nothing `set_face_sense` lacks. |
-| The 16-direction ray schedule | `splitting/containment.rs:132` — now the one table | **CLOSED by #717** (D10). `solid_contain`'s copy is gone and its *"to keep the module boundaries thin"* justification went with it; `containment::SCHEDULE` is `pub(crate)` and `boolean` reads it, as `splitting/order.rs` already did. #712's reviewer's three premises were re-verified rather than inherited (byte-identity by diff; `boolean` a **sibling** of `splitting`, so `pub(crate)` is the minimum that reaches; `order.rs` unaffected by widening). One definition makes the determinism claim true by construction, so no guard is owed — both sites now say that, which is the part a reader needs. Exactly byte-preserving: 417 lib + 339 integration tests, no margin, verdict or K row moved. |
+| The 16-direction ray schedule | `splitting/containment.rs:154` — now the one table | **CLOSED by #717** (D10), **and the row was worried about the wrong thing.** The copy is gone and its *"to keep the module boundaries thin"* justification went with it; `containment::SCHEDULE` is `pub(crate)`, read by `boolean` and by `splitting/order.rs`. #712's reviewer's three premises were re-verified rather than inherited (byte-identity by diff, independently md5'd on review; `boolean` a **sibling** of `splitting`, so `pub(crate)` is the minimum that reaches; `order.rs` unaffected). But **determinism never depended on byte-identity** — each consumer needs only its own table to be a `const` swept in fixed order, which rustc guarantees per site, and two divergent-but-constant tables would each have been perfectly deterministic. The real defect was ordinary duplication drift, and it was **completely unguarded**: on the pre-fix tree, reordering the first three entries of `solid_contain`'s private copy, and separately replacing them with unrelated obliques, each left 417/417 lib and 339/339 integration green. Nothing on the boolean side ever pinned that table — not order, not values. Exactly byte-preserving: no margin, verdict or K row moved. **The values are still pinned only by accident** — `tests/review_m3_pr3_pil.rs` hand-copies the fifteen `+z` in-plane projections and `splitting::order`'s sort tests pin iteration order, each as a side effect of testing something else; both consts now say so. |
 | `topo::iso` geometry-blindness | `iso.rs:56` | **Closed by #635**, which replaced the *"`Placeholder` ballast"* justification with the reason that survives. #713 swept the **sibling** it left one bullet down: *"at M1 no geometry hangs off"* `he_plus` is false — a carrier runs forward `start(he_plus) → end(he_plus)` — and the bullet now says why the bit is still ignored (the carrier is ignored too, so a flip and its re-minted curve are invisible together). |
 | pcurve cache staleness — *"should say which in its own docs"* | `pcurves.rs:124` | **STILL OPEN, and it is not what #635 closed.** #635 closed the steelman's *fourth claim* (`merge_coplanar_faces` mis-bucketed as neither-clearing — verified fixed, no D4 hand-off owed). The row itself is verbatim where it was: a convention with a survey beside it, `"The lists above are a survey, not an enforced invariant"`. Placed as **D13**. |
 | Which door fills which naming field | `fillet/build.rs:48` | **Moot post-#688.** The claim was about the whole-body door's `FaceKind` plan payload; that block, that type and that door were all deleted. What survives of it is the fillet-provenance row above, which the surgery door already carried and which is sorted `left, deliberate`. |
@@ -2411,7 +2411,7 @@ the search term.
 ## S17. FIXED by #712 — the two topo ray-parity copies now share one home, and the K convention did not forbid it
 
 - **Where**: `crates/topo/src/chart_region.rs:897`,
-  `crates/topo/src/splitting/containment.rs:154`,
+  `crates/topo/src/splitting/containment.rs:206`,
   `crates/profile/src/validate.rs:1298`; the home is now
   `crates/topo/src/ray_parity.rs`
 - **Confidence**: sure
@@ -2483,40 +2483,67 @@ on that.
 The only *derivation* at either site — that `2A/P` is a mean width in
 metres — already has exactly one home, `Margin::over_lever`, whose door
 doc states the dimensional argument and both sites call. What was
-duplicated was the **sentence**, not the computation. Past that door
-nothing is shared: `chart_region::loop_measures` sums `perp_dot` over
-chart `Point2`s while `certify_section_area` sums `a×b·n̂` over
-`Point3`s **precisely so no in-plane basis is chosen** (the argument
-`containment.rs` makes for the ray schedule), so the ten-line
-accumulator can only be shared through a projection that would move the
-shoelace sum's last bits and with them a shipped margin. Each then runs
-a correction the other has no counterpart for — conic excess in 3-D,
-the conservative ring deduction in chart space — under opposite sign
-conventions, different K rows and different typed errors. No code
-moved; the self-declaration was replaced by the reason, and
-`splitting/join.rs` carries the reciprocal pointer.
+duplicated was the **sentence**, not the computation.
+
+**The accumulators are asymmetric, and only one direction is
+foreclosed.** 2-D into 3-D is bit-exact and needs no basis: embedding
+`Point2` as `(x, y, 0)` with `n̂ = ẑ` reduces `a×b·n̂` to `perp_dot`
+identically — 20 000 randomized polygons, both loops compared term for
+term, **0 mismatches** on the `twice_area` and `perimeter` bit
+patterns. Only 3-D into 2-D needs an in-plane basis, which is what the
+`a×b·n̂` form exists to avoid. Reaching for #712's
+projection-perturbs-margins argument in both directions is the
+available mistake here; it holds in one.
+
+**What the verdict does rest on** is everything past the accumulator:
+conic excess over certified conic carriers in 3-D against the
+conservative ring deduction in chart space — neither has a counterpart
+— opposite sign conventions (`|2A|` against a signed `net_2a`, which a
+ring deduction may legitimately drive negative), one K row each, and
+different typed errors. Ten shareable lines under that much divergence
+do not pay. No code moved; the self-declaration was replaced by the
+reason, and `splitting/join.rs` carries the reciprocal pointer.
 
 **The standing sweep was run, which neither #712 nor the original scan
 had done.** `rg -n 'verbatim|re-derived|ported from|mirror of'
 crates/topo/src` returns **61 hits, and D12's was the only one
 declaring a derivation copied into a second body of code.** The other
-sixty are four healthy classes: book provenance (*"ch. 15 §15.8 …
-re-derived under OUR conventions"*), data-flow verbatim (a provenance
-record or certificate carried unchanged), *"shared verbatim"* meaning
-literally one function (`validate.rs:1683`'s *"extraction, not
-copy-paste"*, `attach.rs:174`, `reduce.rs:540`) — the opposite of a
-copy — and the `review_m*` promotion headers. **Stated blind spot:** a
-prose sweep finds only *disclosed* duplication, which is the minority
-case, and sees nothing across a crate boundary.
+sixty are four healthy classes — book provenance, data-flow verbatim
+(a provenance record or certificate carried unchanged), *"shared
+verbatim"* meaning literally one shared function (`validate.rs:1683`'s
+*"extraction, not copy-paste"*, `attach.rs:174`, `reduce.rs:540`), and
+the `review_m*` promotion headers.
 
-`boolean/ops.rs:627` is the corroboration: `volume_backstop_operand`
-follows *"verbatim the `positive_volume` precedent"* by calling the
-same `over_lever` door with `V/A`. **The repo's own idiom for "same
-derivation, one dimension apart" is to go through the shared door and
-point at it** — D12's site restated it instead, and a restatement is
-what drifts. This pair had already proved that once: the rim-dimensional
-audit `join.rs` records caught the 3-D side computing `4·|A|/P` against
-a documented `2·|A|/P`.
+**Stated blind spots, corrected on review.** The sweep was scoped to
+`crates/topo/src`; `crates/topo/tests` holds **14 further hits** and
+was not read. It sees nothing across a crate boundary. And the
+governing limit: a prose sweep finds only *disclosed* duplication,
+which is the minority case — the hand-copy that actually pins this
+unit's table (below) carries no such word and no sweep of this shape
+can reach it.
+
+**The inversion is the durable lesson.** The review found that copy by
+grepping the **constants** — `rg '0\.9375' crates/` — not the prose
+about them. A disclosed copy is findable by its prose; an undisclosed
+one only by its data, and the undisclosed ones are the majority. The
+standing sweep is a cheap high-precision filter, not a duplication
+census, and the constants grep belongs beside it.
+
+`positive_volume` (`validate.rs:2307`) is the corroborating idiom:
+signed volume over surface area as a mean thickness, through
+`Margin::over_lever` — the same door `split_section_area` and
+`chart_region_area` use for `2A/P`. **The repo's idiom for "same
+derivation, one dimension or one measure apart" is to go through the
+shared door and point at it**; D12's site restated the argument
+instead, and a restatement is what drifts. This pair proved that once
+already — the rim-dimensional audit caught the 3-D side computing
+`4·|A|/P` against a documented `2·|A|/P`, a contract that survives at
+`splitting/join.rs:34` and in `predicate-dimension-audit.md`'s row for
+the predicate. (`boolean/ops.rs`'s `volume_backstop_operand` is **not**
+an instance and an earlier draft of this record wrongly cited it: it
+forms `v / area` inline and decides on the invariant lane, which
+`Margin::over_lever`'s door doc names as deliberately outside the
+length seam under Evan's #213 layering ruling.)
 
 ### What the unit is evidence about: the convention charges, but not what the spec inferred
 
@@ -6277,25 +6304,44 @@ delta (a pure-statement reordering), the funnel copy handed to D2, and the
 three-member bypass class this unit half-fixed.
 
 **D10 and D12 — FIXED / ANSWERED by #717.** One lane, two rows, both in
-`topo`. **D10** was S15's ray-schedule row, the close #712 could not
-reach: `boolean/solid_contain.rs`'s re-declaration of
-`splitting/containment.rs`'s 16-entry 3-D table is gone, the const is
-`pub(crate)`, and its *"to keep the module boundaries thin"*
-justification went with the copy. The three premises #712's reviewer
-established were re-verified rather than inherited, and the change is
-exactly byte-preserving — no margin, verdict or K row moved. **D12 is a
-negative result**: `chart_region`'s self-declared *"`split_section_area`
-derivation verbatim"* is dimension-forced, and the one derivable part
-(`2A/P` as a mean width) was already unified at `Margin::over_lever`,
-which both sites call. The duplication was of the sentence; no code
-moved and none should. The unit also ran the standing
-`verbatim|re-derived|ported from|mirror of` sweep over all of
-`crates/topo/src` — 61 hits, D12's the only real one, the other sixty in
-four healthy classes. Full record at **S15**'s disposition table and
-under **S17**. *Lesson worth carrying:* the repo's own idiom for "same
-derivation, one dimension apart" is to go through the shared door and
-point at it (`boolean/ops.rs:627` does exactly that); a site that
-restates the argument instead is the one that drifts.
+`topo`. **D10**: `solid_contain`'s re-declaration of `containment`'s
+16-entry table is gone with its *"to keep the module boundaries thin"*
+justification, the const is `pub(crate)`, and the change is exactly
+byte-preserving. Its row's own premise was wrong — determinism never
+depended on byte-identity — and the real finding is sharper: the copy
+was **completely unguarded** on the boolean side, order and values
+alike. **D12** is a negative result: the self-declared
+*"`split_section_area` derivation verbatim"* shares only
+`Margin::over_lever`, which both sites already call, and diverges in
+everything past the accumulator. The duplication was of the sentence;
+no code moved and none should. Full record at **S15**'s disposition
+table and under **S17**, including the two corrections review made to
+this unit's own reasoning.
+
+*Two lessons worth carrying.* **(a)** The repo's idiom for "same
+derivation, one dimension or one measure apart" is to go through the
+shared door and point at it (`positive_volume`, `validate.rs:2307`,
+against `split_section_area`); the site that restates the argument is
+the one that drifts. **(b)** The standing prose sweep finds only
+*disclosed* copies. The hand-copy that actually pins D10's table
+(`tests/review_m3_pr3_pil.rs`) declares nothing and was found by
+grepping the **constants**, `rg '0\.9375' crates/`. Undisclosed copies
+are the majority and only their data can find them — run the constants
+grep beside the prose sweep.
+
+**One question this unit left open, deliberately.** `lib.rs:180`
+records the repo's idiom for a concept two module trees share:
+`sector_face` / `sector_shape` sit at the crate root *"top-level
+siblings of `boolean/` and `splitting/` on purpose: both lanes ask
+these questions, so neither hosts them (S5)"*, and `chord_join` and
+`face_normal` are placed on the same argument. The schedule now has
+that property — three readers across two trees, none owning it — and
+`crate::ray_parity` already exists as the shared home for the walk
+those readers run. #717 widened the host instead of moving it, because
+the alternative is a placement change touching a fourth module for a
+sixteen-line table, and the unit's mandate was the duplication. **The
+placement question is open, not settled**, and it belongs with S5's
+one-pipeline-built-twice thread rather than in a duplication row.
 
 **This unblocks D2**, whose only gate was D1's hold on the same crate. Nothing
 else in the table is gated on D1. D1 also **hands D2 one extra item**: the
