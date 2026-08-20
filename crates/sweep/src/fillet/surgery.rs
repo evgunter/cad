@@ -68,12 +68,13 @@
 //! Multi-link open chains (junction carry-through), concave chains
 //! (material-adding blends), partially-requested corners (run-outs),
 //! rims that are not circle-carried rings of a plane against a
-//! sphere cap — each refuses through the `Unsupported*` frontier
-//! vocabulary ([`FilletError::UnsupportedChain`],
-//! [`FilletError::UnsupportedCorner`],
+//! sphere cap — each refuses through the frontier vocabulary
+//! ([`FilletError::UnsupportedChain`],
+//! [`FilletError::UnsupportedRunOut`],
 //! [`FilletError::UnsupportedGeometry`],
-//! [`FilletError::UnsupportedBody`]), naming itself and carrying the
-//! offending entity. The refusals are the honest boundary of the unit,
+//! [`FilletError::UnsupportedBody`], and
+//! [`FilletError::FilletCornerUnsupported`] for a corner's own
+//! configuration), naming itself and carrying the offending entity. The refusals are the honest boundary of the unit,
 //! not gates hiding reachable geometry.
 //!
 //! # The three refusal classes, and what is NOT one

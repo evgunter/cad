@@ -110,8 +110,9 @@ pub struct Filleted<T: Real> {
 /// Any [`FilletError`] the battery produces;
 /// [`FilletError::RepeatedEdge`] when the request names one edge
 /// twice; [`FilletError::UnsupportedBody`],
-/// [`FilletError::UnsupportedChain`], [`FilletError::UnsupportedCorner`]
-/// or [`FilletError::UnsupportedGeometry`] when the request is outside
+/// [`FilletError::UnsupportedChain`], [`FilletError::UnsupportedRunOut`],
+/// [`FilletError::UnsupportedGeometry`] or
+/// [`FilletError::FilletCornerUnsupported`] when the request is outside
 /// the assembly's front door ([`super::surgery`] names each case);
 /// [`FilletError::BodyNotIntact`] when the body does not hold together
 /// where the plan reads it;
