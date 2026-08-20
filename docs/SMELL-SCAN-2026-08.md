@@ -516,7 +516,8 @@ could have been cosmetic, one because the seal's own cleanup was nearly
 missed, one because the residual was measured wrong before the work
 started, and one because sealing MOVED where the coverage gap lives:
 
-- **The second mint.** `LengthUnit`/`AngleUnit` keep PUBLIC fields, and
+- **The second mint — now CLOSED by #686, see the `#669` note below.**
+  `LengthUnit`/`AngleUnit` kept PUBLIC fields, and
   their `def()` was a public `const fn` — so `AngleUnit { symbol: "mm",
   factor: 1.0 }.def()` rebuilt #650's exact counterexample with `UnitDef`
   sealed. Sealing `UnitDef` alone would have renamed the hole. `def()` is
@@ -543,28 +544,50 @@ started, and one because sealing MOVED where the coverage gap lives:
   cost of keeping one testable is a cargo feature plus two dependency
   edges — price that before paying it, and check whether a neighbouring
   function in the same block already answered the question.**
-- **`pncad-py` is NOT in the blast radius**, contrary to the count this
-  work was scoped from. Its six `self.0.symbol`/`self.0.factor` reads are
-  on `LengthUnit`/`AngleUnit`, whose fields stay public — so #639's live
-  diff on that file was never touched. The residual is that those two
-  typed views are still openly constructible, and **this note first
-  scoped it wrong in two directions; corrected here and filed as
-  #669.** It is not formatter-only and it is not a display string: (a)
-  `fmt.rs`'s own pin is `parse(fmt(x, unit))`, so `fmt_length(0.025,
-  LengthUnit { symbol: "deg", factor: 1e-3 })` → `Ok("25 deg")` is
-  parser input BY DESIGN and `25 deg` parses to an Angle literal that
-  enters an `Expr` and a document; (b) `25.0 * LengthUnit { symbol:
-  "mm", factor: 1.0 }` is a 25-METRE `Length` labelled `mm`, via
-  `impl Mul`/`in_unit` — a wrong VALUE at the D6 boundary. Five public
-  entry points trust the caller's `symbol`/`factor`, not the one this
-  note named. **Scheduled at #669**, not #639 (which is the S37
-  de-milestoning lane and will not close it); closing it needs a
-  `UnitDef → LengthUnit` conversion plus edits in the file #639 owns,
-  which is why the two lanes were confused. The lesson for a sealing
-  diff: seal the ROW and the residue moves to the VIEW of the row —
-  the dimension stays typed, the symbol and factor go free, and that
-  asymmetry is invisible unless the residual is executed rather than
-  reasoned about.
+- **The view of a sealed row — #669, FIXED by #686.** Sealing `UnitDef`
+  moved the hole rather than closing it: the dimension stayed typed while
+  the symbol and factor went free one level out, and that asymmetry was
+  invisible until the residual was *executed* rather than reasoned about.
+  It was neither formatter-only nor a display string, as #662's note had
+  scoped it: `fmt.rs`'s own pin is `parse(fmt(x, unit))`, so a mislabelled
+  view reached an `Expr` and a document along the route the module
+  guarantees, and `25.0 * LengthUnit { symbol: "mm", factor: 1.0 }` was a
+  25-METRE `Length` labelled `mm` — a wrong VALUE at the D6 boundary,
+  across five public entry points (eight functions).
+
+  **#686 made it unrepresentable, and the first attempt was not enough.**
+  The views became newtypes wrapping the sealed row; review then
+  demonstrated by mutation that the `compile_fail` guard was **already
+  dead** — every view row failed `E0560` (*no field named `symbol`*), a
+  SHAPE mismatch that stays true however open the seal becomes, so
+  reopening the field left all seven rows green. It also planted
+  `pub const MM_BAD: LengthUnit = length("mm", 1.0)` INSIDE `units.rs`,
+  using the private helper the docs called the only place a row is
+  written down, and reproduced #669's headline defect with every guard
+  green: the real guarantee was *"constructed inside `units.rs`"*, not
+  *"is a row of `UNITS`"*, which the rustdoc claimed in four places.
+
+  What landed instead is what `editor-core` had already invented for this
+  same table in `UnitSym(u8)`: **the view is a private INDEX into
+  `UNITS`**, behind a private module, so `of_row` and `UnitDef::as_*` are
+  the only mints *anywhere* — `units.rs` included. *"Is a row of
+  `UNITS`"* is now true by construction rather than by a convention
+  confined to one file, the duplicated `quantity` field is gone, and a
+  seventh constant or a mislabelled one is a **const-eval** error rather
+  than a lint. The guard rows are now refused on **privacy** (`E0423` /
+  `E0616`), verified by mutation off-branch: opening the field reddens
+  six view rows and correctly leaves the two `UnitDef` rows green.
+
+  Two things the fix found that #669 did not name: a **sixth,
+  non-public trust point** — `def()` built `UNITS` *from* the views, so
+  the table's own rows were minted through the unsealed surface, which is
+  why #662 had to demote it — and that the **Python mirror was never
+  open**: `pncad.LengthUnit`/`AngleUnit` are `#[pyclass(frozen)]` with no
+  `#[new]`, so the anticipated `pncad-py` work was six `.symbol` →
+  `.symbol()` reads and no `.pyi` change. The lesson stands generalised:
+  seal the ROW and the residue moves to the VIEW of the row — and a
+  guard that pins the seal by quoting the PRE-SEAL spelling tests the
+  shape, not the seal.
 - **Sealing moves the coverage gap to the load door.** With construction
   closed by the type, the only production-realistic route to a corrupt
   document is a `.cad` file carrying a TABLED symbol on the wrong
@@ -761,7 +784,76 @@ crate); (9) `profile::Step` re-parameterised — *"I would not do it."*
   `crates/topo/src/boolean/mod.rs:548`
 - **Confidence**: sure
 
-**PARTIALLY FIXED by #647 and #661 — the sector-predicate fork only.**
+**MOSTLY FIXED by #647, #661 and #690; the remainder is #695.**
+
+**#690 gave the three shared things homes of their own.** The `sector_face`
+twins became one producer (`sector_face.rs`), the ch. 14 join core left
+`splitting/join.rs` for `chord_join.rs` — 2,714 lines down to 400 — and
+`SplitJoinError::Corrupt` gained a required `entity: EntityId` across its
+sites, so the compiler proved that sweep complete rather than a grep. Eleven
+sites that were **not** corruption were retyped (ten to the existing
+`SectionInvariant`, one to `Band`), minting no sixth bug channel. What did
+**not** move, on the steelman's reasoning: `SectorEntry` vs `BoolSector`
+(a correct divergence — only the producer was duplicated) and the shared
+error variants (every boolean twin carries `operand`, so unification touches
+a public API re-exported into four crates).
+
+**The fix's own review is the more useful record.** Two independent lanes
+found what the diff hid:
+
+*A load-bearing invariant was falsified inside the PR's own scope.*
+`boolean/reduce.rs` stated as an INVARIANT that the planar sense flip lives
+in one door *"so there is one flip, not two that could drift"* — and the new
+shared producer re-derived it, making two. Fixed by **routing, not
+rewording**: `face_normal.rs` is now the door's home (it had to leave
+`boolean/`, since a crate-root module importing from one half is the same
+wrong-way edge pointed the other way), and the invariant is a **standing
+gate** — `the_planar_sense_flip_lives_in_one_place` walks `topo/src` and
+fails if any file but the door both destructures a plane surface and mints
+an `OutwardNormal`. Four blind spots are written out beside it, chiefly that
+`normal * f.sense_sign()` is invisible to it — which is exactly what the
+three known D6 sites do.
+
+*The module built to end "built twice" contained a self-declared mirror.*
+`chord_spec` and `bool_planar_chord_spec` sat 500 lines apart in the new
+`chord_join.rs`, the second saying outright *"Selection logic mirrors
+[`chord_spec`]'s S9 block deliberately"* — the C11 vocabulary §C11 says
+nobody ever reads, in the file whose subject was that residue. Unified into
+`section_case` and `select_arc`, with `Straight`/`Tangent` handed back
+because that is the one thing the lanes genuinely disagree about. Its
+adjacency-guard twin went the same way, as a class rather than an instance.
+Also a standing gate: `the_arc_side_rungs_are_decided_in_one_place` **counts**
+decide-sites and requires exactly one each — a cross-file guard that would
+have been green throughout the mirror's life, with the rung names assembled
+from parts so the guard's own file is subject to it.
+
+**K-neutrality, reproduced twice — and the first instrument was blind.**
+`probe_s5_sectors` reproduces 26541 rows at SHA `7c0e4ee0…` between base and
+tip, matching #647's precedent. But that probe's fixtures are **all-planar
+and contain zero arc-rung rows**, so it could not have seen the mirror
+unification at all — the lane noticed and added a Band-4 corpus sweep at
+ε=1e-9: 306,143 rows, `cmp`-identical, carrying 400 `split_arc_window`, 80
+`split_arc_chart_orientation`, 64 `split_sphere_section_polar` and 16
+`bool_between_arc_window`. *The general lesson: a reproduction is only
+evidence about the rows its fixtures actually generate, and "the probe
+reproduced" is not the same claim as "the change was neutral."*
+
+**What is left, and it is more than the fix first estimated — #695.** The
+pipeline is not "one built twice" any more, but two shared cores still live
+inside one half: `carve`/`single_solid` (already imported by `boolean/`), and
+`conic_plane_crossing_roots`, which `boolean/reduce.rs` calls on the
+**production** path and which decides four `split_*`-named K predicates from
+the boolean lane — the same *"bidirectional in fact"* shape this finding
+cited, refuting the PR's own "nothing shared to extract" for the vertex
+sweep. The gate's **edge** halves are token-identical modulo the error
+constructor and want the same treatment. `DESIGN.md:1275`'s *"the boolean
+engine and its splitting/census machinery"* is now **less** false and shown
+to be unmakeable as written: the honest sentence names two peer lanes over a
+shared core, which is a design conversation, not a lane's call.
+
+---
+
+*The sector-predicate fork, fixed earlier by #647 and #661:*
 The vertex-neighborhood sector-shape rungs — the metering arm, the
 wideness verdict, and the subdivision direction — are ONE
 implementation, `crates/topo/src/sector_shape.rs`, a top-level sibling
@@ -1130,30 +1222,69 @@ worse than a typed refusal"*).
 among them), and whether the S11 defect class has a live analogue in
 loft — see **S42**.
 
-## S7. Two complete fillet assembly implementations, and the older one shadows the newer
+## S7. FIXED by #688 — two complete fillet assembly implementations, and the older one shadowed the newer
 
-- **Where**: `crates/sweep/src/fillet/build.rs:205`,
-  `crates/sweep/src/fillet/build.rs:14`,
-  `crates/sweep/src/fillet/surgery.rs:1`
+- **Where**: `crates/sweep/src/fillet/build.rs`, `surgery.rs`
 - **Confidence**: sure
 
-`fillet_edges` tries `whole_body_links` first and falls back to
-`fillet_surgery` on `AssemblyUnsupported`. But the surgery's own front
-door (single-link open chains ending at fully-requested trivalent convex
-corners) already covers every input the whole-body door admits —
-filleting all 12 edges of a cube satisfies both — so ~1200 lines of
-plan/greedy-mint machinery exist to handle a strict subset of what
-surgery handles, and win the race by being tried first. Corner balls,
-octant charts, trimline/arc carriers, sense bits and naming rows are
-derived twice, in two different idioms (plan-then-assemble vs
-mutate-in-place).
+**FIXED by #688**, executing D3 below. `fillet_surgery` is the fillet
+assembly and its front door is the only one: **901 lines of
+whole-body-exclusive code plus 63 lines of its in-crate tests** deleted —
+landing on the steelman's ~890 correction, not the original ~1200 — with
+the `Plan`/`Build`/`Runway` stack, the eleven unreachable `unsupported(…)`
+refusal strings, `build.rs:213`'s dead `Err(other) => Err(other)` arm, and
+`build.rs:26`'s *"kept (not subsumed) … bit-preserved"* sentence going with
+it. The five shared helpers (`face_cycle`, `vertex_faces`, `outward_of`,
+`octant_chart`, `corner_convexity`) stay and are called from the surgery.
+`FilletNaming::supports` was **assessed rather than assumed**: dead, and
+deleted *with* its consumer rather than left as a permanently-empty loop —
+S11's shape, refused. The three naming tests were rewritten, not deleted;
+the rewrite asserts a **mint/survivor partition** stronger than the claim
+it replaced.
 
-The stated reason is bit-preservation: "kept (not subsumed) so its M5
-outputs stay bit-preserved." A consequence worth noting separately:
-every one of `whole_body_links`' ~10 carefully-worded refusal detail
-strings is unreachable, because the caller discards the error to fall
-through — which also makes the `Err(other) => Err(other)` arm at
-`build.rs:213` dead.
+**What the goldens actually did, because the first account was wrong.** The
+PR's first explanation said chart normals moved and the face `sense` bit
+compensated. Review re-derived it from both files: the multiset of face
+surfaces — type, location, axis, **ref-direction**, radius, `same_sense` —
+is *exactly identical*, and **no `sense` bit differs anywhere in either
+file** (`ADVANCED_FACE` 26/26 `.T.`, `EDGE_CURVE` 48/48 `.T.`). What moved
+is the **edge carriers**: 15 of 24 corner-arc `CIRCLE` placements
+re-oriented and 13 of 24 trimline `LINE` records re-based, same curves as
+point sets, and **all 48 `EDGE_CURVE` ordered `(v1,v2)` pairs differ against
+an identical unordered multiset**. That vertex order *is* the compensation.
+The mechanism: the surgery fixes a carrier's parametric direction from the
+face-walk that reaches it first, where the retired door derived every
+carrier from a plan in edge-arena order. Volume moved by **ulp distance
+exactly 1**.
+
+**The evidence is now mechanical, which is the transferable part.** A
+regenerated byte-golden cannot be its own evidence — the change that needs
+checking is the change that rewrote it. `filleted_die.probe.py` (on the
+existing `check_step.sh` sidecar hook, Part 21 parsed with the stdlib, no
+CAD kernel) now checks four kernel-side facts every run: every face's
+outward normal points away from the body centroid; every `EDGE_CURVE` is
+used exactly twice in opposite directions with `ORIENTED_EDGE`/`FACE_BOUND`/
+`same_sense` folded by XOR; every planar support winds CCW about its own
+outward normal at `(L−2r)² = 0.5776`; and every arc sweeps exactly 90° in
+its own frame. Verified to go red under a flipped `same_sense`, a flipped
+`ORIENTED_EDGE`, and a moved vertex. Also recorded against the acceptance
+row that read as evidence and was not: the FreeCAD job's orientation
+guarantee comes from `isValid()`, **not** from the volume assertion — the
+die is `[0,1]³`, so three support planes pass through the origin and
+flipping a face whose plane contains the origin is volume-invariant.
+
+**The sweep had to be run outward, and inward was not enough.** The PR's
+first pass asked *where does this code's vocabulary appear*; nobody asked
+*who cited this code*. Three live registers did: `PERF-SCAN`'s finding 12
+(an **open** row whose prescribed fix could no longer be applied — now
+struck as RETIRED, subject deleted) and its `mint_pcurves` site list
+(10 → 9, re-derived from the tree rather than decremented), plus this
+report's own S15 and S19 rows. Stale references in `editor-core/src/eval/`
+are **#693** — three sites, of which the one a symbol-scoped sweep can
+never reach quotes the deleted predicate *verbatim while naming no door and
+no deleted symbol*. **Blind spot, stated:** a register row naming code in
+prose with no path and no symbol has no pattern; issue and PR bodies are
+registers but are not greppable from the tree.
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18), together with S5 and S6 — with a
 pointed note on the *justification*: "yikes, trying to keep outputs
@@ -2015,8 +2146,8 @@ held open by a stale 2026-07 deferral.
 |---|---|---|
 | pcurve cache staleness | A paragraph ending "an op that starts mutating already-minted bodies must either clear the map or re-mint, and **should say which in its own docs**" | `topo/src/pcurves.rs:84` |
 | Fillet birth-record provenance | Same-type key tuples `(FaceKey, FaceKey)`, `(EdgeKey, EdgeKey, FaceKey)` — swapping minted and source compiles and emits wrong names silently. Guard offered: "written three lines from the geometry it describes" | `fillet/naming.rs:95` |
-| Which door fills which naming field | Doc claim, no type or test | `fillet/build.rs:48` |
-| Fillet `Retired` survivor guard | Has no face channel; the comment justifying the omission ("faces are never retired by either door") is **false for the whole-body door**, where every source face is gone | `names/emit_fillet.rs:238` |
+| ~~Which door fills which naming field~~ | **MOOT — #688.** There is one door; the doc claim went with the other one | ~~`fillet/build.rs:48`~~ |
+| ~~Fillet `Retired` survivor guard~~ | **CLOSED BY #688, incidentally.** The comment's premise ("faces are never retired by either door") was false only *for the whole-body door*; retiring that door made the sentence true, and the survivor branch is now the only one. Recorded because it closed without anyone acting on this row | ~~`names/emit_fillet.rs:238`~~ |
 | "The only public mutation paths" | Frozen count of eleven. `split_edge`, `movefac`, `merge_coplanar_faces`, three setters and the splitting pipeline's bulk arena delete are now also public — and `seqgen` inherited the number, so `split_edge` (Euler vector **identical to `mev`'s**) never enters the fuzz lane | `euler.rs:41`, `seqgen.rs:12` |
 | Tie propagation across emitters | Per-emitter convention; `emit_fillet`'s `up()` never inspects `Entry`, so a legitimate upstream tie surfaces as `NamingError::Duplicate` — an error whose own docs say it means "the no-silent-aliasing bug" | `names/emit_fillet.rs:94` |
 | `topo::iso` geometry-blindness | Justified by "at M1 they are `Placeholder` ballast". Carriers have been real since M2, so the isomorphism oracle now calls two bodies with entirely different geometry isomorphic | `topo/src/iso.rs:56` |
@@ -2295,7 +2426,9 @@ highest-volume rows, and S43 turns out to be their generator.**
   sites rode in under that sentence. **NEVER FLAGGED** — #166's F6 is the
   closest miss: the reviewer was *inside this enum*, split a tangential case
   into its own variant, and still did not remark on 146 sites sharing one
-  string.
+  string. *Count as scanned:* **#688's retirement took `crates/sweep/src`
+  from 172 to 119 `AssemblyUnsupported` sites**, so B3 re-counts before
+  scoping rather than inheriting 146.
 - **`MissingEntity`** — born a catch-all in one commit (28 sites on day one)
   because the crate needed *some* error for "the arena did not return the key I
   was handed". #157 then used it for a genuinely different thing (`"router
@@ -2355,21 +2488,54 @@ ratified contract; they are its only sanctioned option**, which is why no
 reviewer could flag them as violations. **S43 is not a neighbour of S19 — it is
 the generator of its three largest rows.**
 
-## S20. The façade layers each invented a vocabulary instead of forwarding
+## S20. FIXED by #689 — the façade layers each invented a vocabulary instead of forwarding
 
-- **Where**: `crates/pncad/src/closure.rs:1`,
-  `crates/pncad/src/select.rs:450`, `crates/pncad/src/lib.rs:80`,
-  `crates/pncad/src/workspace.rs:235`
+- **Where**: `crates/pncad/src/`
 - **Confidence**: sure
 
-Excluding `workspace.rs` and `export.rs`, `pncad` is ~180 lines of code
-under ~1170 lines of narrative. `closure.rs` is 151 lines that compile
-to **nothing** — a module existing solely to hold an audit essay, whose
-own tail (`:135`) documents that its headline enforcement claim was
-previously false and the real guard is weaker. `select.rs` is 449
-comment lines in front of one `pub use`. The curated re-export lists are
-a permanent manual sync obligation with no mechanism keeping them
-complete.
+**FIXED by #689.** `closure.rs` — 151 lines compiling to nothing — is
+deleted, and its audit output went where `LIB-U1-SPEC` §3 said in the first
+place: the PR body. `select.rs` went **461 → 55**, its prose becoming
+`docs/guide/selecting.md` pulled into rustdoc, with all six code blocks
+**byte-identical** after the move and the doctest count unchanged at 34.
+`lib.rs`'s "no behavior of its own" claim now says what is true about
+`workspace`, and `workspace.rs`'s own header no longer claims a read-only
+file that ships three write doors. Narrative went ~1170 → ~700 lines against
+194 of code.
+
+**The manual sync obligation is now mechanical**:
+`every_document_layer_root_export_is_carried_or_listed` checks all 240
+`editor-core` root exports in both directions against an 87-name
+reasoned `NOT_CARRIED` list, and is falsified by execution. Its
+name-vs-path hole — matching leaf names rather than statements, so a future
+`editor-core` export colliding with a name the façade re-exports from
+another crate would pass while uncarried — was **closed rather than
+disclosed**; the two blind spots that remain are named at the test and
+routed to **#696**, which also files the rustdoc-JSON check that three
+separate guards had been deferring to an unscheduled nightly.
+
+**One report claim was wrong, and the check that established it is the
+useful part.** S20 said `workspace.rs:432` classified kernel faults by
+**string-matching** on `PersistError`. It does not, and no revision ever
+did: the line is a typed `matches!`, a sweep for classification-by-string
+across two statements returns zero, and walking the last 30 commits touching
+the file finds `contains(`/`starts_with(` in **none** of them. The real
+defect was adjacent — the classification ended in a **wildcard**, so a new
+arm would silently read as `Unresolved`. Removing it immediately caught two
+`PersistError` arms a hand-written list had missed. *A scan reading a
+`matches!` as string-matching is a false positive that pointed at a true
+defect one line over.*
+
+**Not closed, and labelled:** the *class* S20 names — per-unit narrative
+accretion into a façade file no unit owns — has no mechanism. The ~700-line
+figure lives in a PR body with no guard and no scheduled re-measure. The
+same PR demonstrated why that matters: its rewritten `lib.rs` contract
+shipped a **stale count** (*"six of the seven seam functions"*; there are
+six, the seventh removed in `58bcc54f` with its gravestone still in the
+file) in the commit whose subject was making `lib.rs` state what is true.
+That one is now a shape rather than a count, guarded by
+`the_authoring_seam_roster_is_what_the_crate_doc_claims`; three sibling
+unguarded counts are recorded as a class and not swept.
 
 Meanwhile `lib.rs:36` states "the façade contains no geometry and no
 numeric behavior of its own. Every item below is either a re-export or a
@@ -2409,12 +2575,52 @@ think about how to fix these."
   *Lesson: a cross-program contradiction belongs to no PR, so no per-PR review
   protocol will catch it.*
 
-## S21. Two concrete holes in the Python surface
+## S21. FIXED by #689 (hole 1) / instrumented and re-filed as #694 (hole 2) — two concrete holes in the Python surface
 
-- **Where**: `crates/pncad-py/src/py/doc.rs:200`,
-  `crates/pncad-py/src/errors.rs:54`,
-  `crates/editor-core/src/expr.rs:48`
+- **Where**: `crates/pncad-py/src/`
 - **Confidence**: sure
+
+**Hole 1, the constant `DocumentId`: fully closed by #689.** `Doc()` mints a
+fresh random id and `Doc(label)` derives one deterministically, with
+`IdentityError` refusing on an entropy failure rather than falling back —
+there is no remaining path to a constant. Minting lives in a pyo3-free
+`pncad_py::identity`, so it is exercised on the default no-Python CI path.
+The guard is the invariant itself rather than the constructor: two documents
+minted through the seam `Doc()` uses are asserted distinct, `Workspace::create`d
+into **one workspace**, and the directory re-opened cold. The residue —
+Python still cannot *use* identity — is **G15** in the north-star audit,
+whose `test_the_named_gaps_are_still_gaps` fails the day a door lands. That
+register has fired four times already, so unlike this finding's own
+postmortem it is not a deferral into a closed register.
+
+**Hole 2, three types named `DimensionError`: instrumented, not closed —
+and the instrument's premise was false.** #689 renamed the Rust-internal
+struct (three names to two, no surface change) and declined the published
+Python rename, arguing the collision was latent because the kernel enum
+reaches Python through exactly one door, `Expr::literal`, and no bound door
+binds the `Expr` operator builders.
+
+**Review falsified that by execution.** `persist/wire.rs`'s
+`WireExpr::rebuild()` calls `Expr::add`, `mul`, `sin`, `atan2` and the rest —
+those *are* the operator builders — and it sits on the **load** path, which
+Python binds as `pncad.load(text)`. Probing found **seven of the ten** arms
+reachable today with no new binding, all arriving as `PersistError`/`parse`
+with the structured refusal Debug-formatted into a message. The general
+shape, worth more than the instance: **reachability argued from the
+authoring doors while ignoring the deserialization doors** — every
+`Deserialize` impl in `wire.rs` re-runs a smart constructor, so every kernel
+refusal reachable from one is reachable from `load`.
+
+The *decision* survives on narrower ground (no bound door raises Python's
+`LiteralError` for a genuine dimension mismatch, so the published rename is
+still not owed), but the reasoning had been shipped on the **published**
+surface in four places — `.pyi`, both `create_exception!` docstrings, and
+`ErrorClass::Literal` — all now corrected and citing **#694**, which carries
+the misrouting itself. The trigger test could not have detected its own
+premise failing, S23's shape exactly; it is now scoped to the door it
+actually covers, and a new row drives the seven arms through `load` and
+fails when their class changes — with a vacuity guard that fires if the wire
+shape moves out from under it.
 
 `Doc::new` calls `ProfileDoc::empty_derived("pncad-py:Doc")`, so **every
 document authored from Python carries an identical constant
@@ -2910,21 +3116,71 @@ is hard to tell apart from a bug when it fires.
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
 baffle me with how they ever happened." Postmortem pass commissioned.
-## S25. Two ε vocabularies flow through SSI with nothing reconciling them
+## S25. FIXED by #692 — two ε vocabularies flowed through SSI with nothing reconciling them
 
-- **Where**: `crates/geom-brep/src/ssi.rs:488`, `:507`,
-  `crates/geom-brep/src/pcurve_cache.rs:1012`
+- **Where**: `crates/geom-brep/src/ssi.rs`, `ssi/march.rs`, `ssi/certify.rs`
 - **Confidence**: sure
 
-Every SSI entry point takes both a `Band` (whose `zero()` *is* the run
-tolerance) and a separate `eps`. All trilean decisions read `band`; the
-tube-radius floor, the exhaustiveness floor, `SSI_NEWTON_TOL` and
-`SSI_STEP_DEVIATION` read `eps`. Nothing checks the two agree, so a
-caller can march and size tubes at one tolerance while certifying at
-another. Two of the four `certify_rung3` call sites have already noticed
-and derive `eps = band.zero()` — one says so in a comment — while the
-SSI arms keep the independent knob. Same quantity, two sources of truth,
-reconciled by convention at some call sites and not others.
+**FIXED by #692.** The knob turned out to be **misplaced, not redundant**,
+and that is what made a type the answer rather than a deletion. Every
+*certifying* call site was already passing `band.zero()` — `edge_nurbs.rs`
+silently, `pcurve_cache.rs` with a comment, the rest via `SsiDomain::eps`.
+Exactly one site genuinely differed: `review_m5_pr7b_ssi.rs`'s
+`trace_deviation`, which marches at a fixed ladder while the run is banded
+at ambient ε, deliberately measuring the marcher against itself — and it
+goes through `trace_plane_nurbs_uncertified`, which produces **no
+certificate**. So the decoupled knob has one legitimate home, and it is the
+certificate-free door.
+
+`MarchTol` is the bridge the postmortem asked for, at the signature:
+`certify_rung3`/`certify_branch` lose `eps`, `SsiDomain` loses the field,
+and `MarchContext`'s `f64` becomes a `MarchTol`, so **no bare `f64`
+tolerance can enter the marcher**. Nothing loosened and nothing tightened —
+review checked all seven decision sites individually and found every one a
+substitution of one operand into an unchanged expression, with no
+re-association and no changed evaluation order. The basis is now stated at
+the door: `Band::linear()` stores `zero` unmodified through
+`from_zero_threshold` → `Band::new`, so `band.zero()` is
+`Tolerance::get().eps` **bit-for-bit**, not to within an ulp — with the
+contingency named, since `certify_rung3` is `pub` and an angular band would
+floor the ladder in radians.
+
+**A name is not a rule, and the first attempt only had a name.** Review
+demonstrated the hole rather than suspecting it: swapping
+`MarchTol::from_band(band)` for `MarchTol::decoupled(…)` *inside*
+`cylinder_sphere_ssi` — one line, no signature change, S25's exact
+divergence reintroduced inside a certifying door — compiled clean with all
+19 rows green. Decoupling was prevented neither by a type nor by visibility
+nor by a test, only by the name being embarrassing: S25's own lesson one
+layer in, where the second copy now enters as an innocent
+`MarchTol::decoupled(…)` instead of an innocent `eps: f64`.
+
+So the property is **enforced, not asserted**. `decoupled` is `pub(super)`
+and the uncertified door takes a bare `f64` and mints its own, so no other
+crate can produce one; and because `cylinder_sphere_ssi` sits in the same
+module, both finishers additionally call `seam_tol(ctx.tol, band)`, which
+refuses `MarchTolMismatch` **before** `fit_branch` runs. `SsiBranch` is
+constructed at exactly two sites, both behind that seam; the only
+`fit_branch` call that bypasses it is the uncertified door's. Every
+certified branch carries the receipt as `SsiBranch::march_tol`, pinned by a
+`MARCH-TOL` row.
+
+**The most transferable finding is why the reviewer's mutation looked
+green.** A *tighter* decoupled generator blows the sample budget, so the
+fixture row **skips on `FitSampleBudget`** — and a skip reads as a pass.
+The receipt row alone would not have caught it; the seam is what makes that
+case loud. With the seam disabled, a 2× decoupling fires `MARCH-TOL`
+directly and a 1000× decoupling escalates on `ssi_on_locus` — the
+certificate refusing honestly at the band on a worse carrier, which is the
+substantive argument, now demonstrated rather than asserted.
+
+**Residue, scheduled:** the same class is open in `props/` at three
+signatures (`quad.rs`'s `cylinder_cut_face`, `rational_patch_face`,
+`nurbs_patch_face`) and two call sites (`topo/src/props.rs`'s `cut_face`,
+`nurbs_face`) — **#699**, a Track A boundary this lane correctly stopped at.
+The count is twice what #692 first disclosed; it was found by a sweep aimed
+at that PR's *own declared blind spot*, parsing bodies as well as
+signatures.
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
 baffle me with how they ever happened." Postmortem pass commissioned.
@@ -3549,22 +3805,55 @@ be kept exhaustive by hand as variants are added, and each silently maps
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
 baffle me with how they ever happened." Postmortem pass commissioned.
-## S34. `readback.rs` is a body-wide accessor module housed in `sweep`
+## S34. FIXED by #697 — `readback.rs` was a body-wide accessor module housed in `sweep`
 
-- **Where**: `crates/sweep/src/readback.rs:163`, `:379`, `:559`
+- **Where**: `crates/topo/src/readback.rs` (its new home)
 - **Confidence**: sure
 
-`face_pose`, `edge_pose` and `vertex_point` take a `topo::Body` and touch
-nothing from `sweep`; `blend_arcs` reads only a `profile::ValidatedLoop`.
-Because they live here, `editor-core` and `pncad` depend on the whole
-`sweep` crate — NURBS skinning included — to read a face's plane. The
-three op-specific doors on top (`extruded_caps`, `lofted_caps`,
-`revolved_caps`) are each two `face_pose` calls on public fields the
-caller already holds, and two of the three have no callers outside their
-own doctests. `vertex_point` is additionally a near-copy of
-`revolve/upgrade.rs`'s, differing only in error type. The module's home
-was chosen by provenance ("these questions arose from sweep ops") rather
-than by what the code depends on.
+**FIXED by #697**, on the rule *a door lives in the crate whose types it
+reads*. Body-wide reads went to `topo::readback`; `blend_arcs` became
+`ValidatedLoop::blend_arcs()` in `profile` — a method rather than a second
+readback module, since a second module would have had to **restate** the
+three read-back rules, which is this finding's own smell class; the
+op-result door stayed in `sweep::revolve`. `sweep::readback` no longer
+exists and no reference to it survives anywhere. The dependency claim was
+verified narrowly and honestly: `editor-core/src/names/interrogate.rs` now
+names **no** `sweep` item, and `editor-core`/`pncad` still depend on `sweep`
+only for *evaluating* sweep ops and for façade re-export — neither
+removable by moving an accessor.
+
+**Two of the three op doors had zero callers, and their doctests were their
+only evidence** — S11's shape, and the doctest was the door's own
+advertisement. Deleted, with every assertion preserved as a six-test
+integration suite written the way a caller writes it now, which is
+simultaneously the proof the deletion is lossless (review mutation-tested
+that suite to red). `revolved_caps` survived on a real distinction:
+`Extruded` exposes `top`/`bottom` as flat public fields, so its door was
+three field reads, while `Revolved`'s caps live inside
+`RevolvedKind::Partial`, so its door carries case analysis and a "a full
+revolve has no caps" refusal a field read cannot give.
+
+**The finding under-counted: `vertex_point` had FIVE copies, not two** —
+and the obstacle to sharing was self-inflicted. `Dangling` named the
+failing lookup as a `&'static str`, which no caller can map back to a key,
+so each site kept its own walk to keep its own error fidelity. A
+`DanglingRef` payload (`Entity(EntityId)` | `Geometry(GeomRef)`) dissolves
+that: one body, the two discriminating callers keeping their exact arms
+through one `From`, the two corrupt-verdict callers collapsing both
+deliberately. *The general shape: a refusal that describes its cause in
+prose instead of naming it forces every caller to re-derive the thing it
+refused about.*
+
+**Left open, and named rather than lost.** Review ran the
+`face_pose`-shaped sweep this PR declined to run and found the class alive
+one crate over — see **S57** below. And the "five became one" claim is a
+**measurement with no guard**, in the one crate that holds the exact
+machine for guarding it (`topo::face_normal`'s anti-re-fork row, whose own
+docs record that the fix pass which built it had re-forked the walk in the
+same commit). Per Q6 that owes a guard, a scheduled re-measure, or a
+written reason it can have neither; it has none of the three, and it is now
+the fourth crate-root module in this fix class shipping without the guard
+its sibling has (**#695**).
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
 baffle me with how they ever happened." Postmortem pass commissioned.
@@ -3634,7 +3923,7 @@ baffle me with how they ever happened." Postmortem pass commissioned.
 | `ch_scale_left`/`ch_scale_right` are the same function kept apart "to preserve the rehearsal's association" — but `RingInterval::mul` is bit-for-bit commutative, so production shape is anchored to a test file for nothing | `spline/compose.rs:519` | likely |
 | `CurvePlan::apply_points` defends against malformed plans its own three private constructors rule out, and pushes the cost onto callers as an invented poison value plus four near-identical lerp closures | `spline/algebra.rs:161` | likely |
 | `lsq::solve_normal` forms `AᵀA` (squaring the condition number) on the fitting path while the sibling `svd.rs` already contains Householder QR; the adversarial review test validates it by implementing QR a *third* time | `linalg/lsq.rs:158`, `svd.rs:183` | unsure |
-| `certify_rung3`'s `arm` and `extent` are the same value at three of four call sites, so the `#[allow(too_many_arguments)] // one parameter per named quantity` covers a parameter varied once | `ssi.rs:925`, `:729` | sure |
+| ~~`certify_rung3`'s `arm` and `extent` are the same value at three of four call sites, so the `#[allow(too_many_arguments)] // one parameter per named quantity` covers a parameter varied once~~ **FIXED by #692** — `TubeScale<T>` names the two cases (`uniform(arm)` at the three sites where they are one quantity, `split(arm, extent)` at `finish_r3`); `certify_rung3` goes 8 args to 6 and the `allow` is deleted **on merit**. Found by review as a residue of #692's own diff: the PR removed one redundant parameter and left its twin in the same argument list — the exact class it existed to close, one line below the one it closed | ~~`ssi.rs:925`, `:729`~~ | sure |
 | Two unrelated `compose` modules with two unrelated `ComposeError`s; defended on the grounds that "the two never meet in one scope", which is a claim about today's imports | `geom-curves/compose.rs:18`, `geom-core/spline/compose.rs:57` | sure |
 | `names/flush.rs` puts document-editing sugar and seven kernel contact-type re-exports inside the naming subsystem; `declare` → `declare_all` → `declare_node` is three public doors over one operation, each with a doc block longer than its body | `names/flush.rs:440`, `:113` | sure |
 | `mesh`'s `trimmed` retry loop serves two opposite failure modes (one shrinks the candidate set, one grows it) under one budget with two exit conditions, index-coupled mutable state, and an unreachable trailing `Err` — so the stated termination argument no longer covers the loop | `trimmed.rs:264`, `:349` | likely |
@@ -5387,6 +5676,50 @@ Notes for whoever takes it, so the unit does not quietly become four:
   precondition is an argument for refusing such a body once at `validate`
   rather than at each door. Not decided here.
 
+## S57. The `readback` class is alive one crate over, and the "one door" guard cannot see it
+
+- **Where**: `crates/editor-core/src/names/emit_topo.rs:48`,
+  `crates/sweep/src/fillet/build.rs:247`,
+  `crates/sweep/src/fillet/battery.rs:175`, `:183`, `:189`
+- **Confidence**: sure
+- **Raised by**: the S34 fix lane's review (#697), 2026-08-20, by running the
+  `face_pose`-shaped sweep that PR declined to run and stated as its blind
+  spot. **The blind spot was real and it hit.**
+
+**A sixth copy of the readback walk, in the crate the fix was about.**
+`emit_topo.rs:48`'s `face_plane` is `get_face` → dangling refusal →
+`get_surface` → dangling refusal → destructure `Surface::Plane`. It is not a
+literal copy — it folds `sense_sign` and refuses non-planar carriers — but it
+refuses with `NamingError::Emission { what: "face_plane: dangling" }`, which
+is **verbatim the `&'static str`-names-the-lookup defect #697 eliminated**,
+still standing in `editor-core`, the crate whose dependency on `sweep` the
+whole finding was about.
+
+**Four `Body`-only accessors housed in an op crate — S34's own shape, one
+crate away from where it was looked for.** `fillet/build.rs`'s `outward_of`
+and `battery.rs`'s `outward` / `face_of` / `carrier_of` each take a `&Body`
+plus an arena key and touch nothing from `sweep`. `outward_of` is a
+hand-written copy of `topo::face_normal::face_outward_normal` — the function
+whose module doc calls itself **"the one door"** and whose mechanical
+anti-re-fork guard walks `topo/src` **only**, and therefore cannot see a
+re-fork that lives in `sweep`.
+
+That last point is the finding's sharpest edge and generalises past these
+sites: **a guard scoped to one crate cannot enforce a rule stated about a
+concept.** The `face_normal` guard was built (#690) precisely because a fix
+pass re-forked the planar sense flip while creating the door, and it is
+correct and load-bearing within `topo` — but the copy it was built to catch
+already existed outside its walk.
+
+Where else to look, unswept: `crates/mesh/src/walk.rs:973`,
+`crates/step-export/src/`, and the three sites already named as D6's
+hand-multiply class (`boolean::solid_contain::face_plane`,
+`chord_join::face_plane_normal`, `merge_faces.rs`).
+
+**Verdict:** _(unreviewed)_
+
+---
+
 ---
 # §A. Where I would start
 
@@ -5497,27 +5830,56 @@ Do not take these. Each has a running lane.
 
 ---
 
-## Track B — ready now, for a parallel orchestrator
+## Track B — COMPLETE (2026-08-20)
 
-**These are chosen to be file-disjoint from Track A**, so both orchestrators
-can run at full width without coordination. The scope column is the contract:
-a lane that needs to edit outside it should stop and say so rather than widen.
+**All six rows this track ran are merged**, and the two it did not run were
+handed to Track D. A row leaves §D when it lands, so this section is kept
+only as the record of what the track was and where its residues went; delete
+it once those are picked up.
 
-**Do not touch, while Track A runs:** `crates/geom-core/src/{dual,real}.rs`,
-`crates/geom-brep/src/props/`, `crates/mesh/`, `crates/editor-core/src/eval/`.
+| row | landed as | finding |
+|---|---|---|
+| **B1** | **#688** | S7 — the whole-body fillet door retired; `filleted_die.probe.py` now checks orientation mechanically |
+| **B4** | **#690** | S5 — the join core, the sector-face producer and the planar sense flip get homes, with two standing gates |
+| **B5** | **#689** | S20 + S21 — the façade forwards; Python documents get identities |
+| **B6** | **#686** | S4's `units` row / #669 — typed unit views become private indices into `UNITS` |
+| **B7** | **#692** | S25 — one tolerance per run, enforced at a certifying seam |
+| **B8** | **#697** | S34 — body-wide readback moves to the crate whose types it reads |
 
-**B1 landed as #688, and B2 and B3 were handed to Track D on 2026-08-20** —
-they are D1 and D2 there, and the `sweep/` crate is Track D's for the duration.
-What is left here is mutually independent and edge-free.
+**B2 and B3 went to Track D** on 2026-08-20 as D1 and D2; `sweep/` is Track
+D's for the duration.
 
-| # | Work | Scope | Note |
-|---|---|---|---|
-| **B1** | **Execute D3 — retire the whole-body fillet door.** Decided 2026-08-19, never executed, and it is the largest single deletion the report authorises. ~890 whole-body-exclusive lines; the surgery door provably subsumes it and builds the same solid (identical census and coordinate set, volume one ulp apart). | `sweep/src/fillet/` | Price already measured: one naming test **rewritten** (its `supports` row is a by-design difference, not a bug), two goldens regenerated, one FreeCAD acceptance re-run. Eleven unreachable refusal strings and `build.rs:213`'s dead arm go with the code. `FilletNaming::supports` becomes dead — assess, do not assume. |
-| **B4** | **W2e remainder / S5 — `splitting/` vs `boolean/`.** The forked sector predicates are done (#647, #661); what remains is the `sector_face` twins, the duplicated pipeline, and the wrong-way dependency — the shared core lives inside one half by a one-sentence instruction in `M3-PLAN.md:230`. Fold in `SplitJoinError::Corrupt`'s 42 payload-free sites while you are in the file. | `topo/src/{splitting,boolean}/` | The steelman weakened two sub-claims: the shared error variants are **not** simple duplicates (every boolean twin carries `operand: Operand`, so unification touches a public API re-exported into four crates), and `SectorEntry` vs `BoolSector` is a **correct** divergence — only the producer is duplicated. |
-| **B5** | **S20 + S21 — the façade's invented vocabulary, and the two Python holes.** `closure.rs` is 151 lines compiling to nothing; `select.rs` is 449 comment lines before one `pub use`; `lib.rs:36` claims the façade has "no behavior of its own" while `workspace.rs` is 260 lines of real subsystem. And **every Python-authored document carries an identical constant `DocumentId`**, so two of them cannot coexist in a workspace — a hole, not a gap. | `pncad/`, `pncad-py/` | #639 has merged, so `pncad-py` is free. The `DocumentId` constant was a lane-contention artifact, disclosed and then deferred into a register that had closed the day before — §C3's worked example. |
-| **B6** | **#669 — seal `LengthUnit` / `AngleUnit`.** The same decision as #650's, one type over: their public fields produce **wrong values** at the D6 boundary (`25.0 * LengthUnit { symbol: "mm", factor: 1.0 }` is a 25-metre `Length` labelled mm), and reach an `Expr` and a document through `parse(fmt(x, unit))`, which is the module's own contract. | `quantity/`, `editor-core/src/expr.rs` | #662 sealed `UnitDef` and took `def() -> pub(crate)`; this is the bigger diff it declined, needing a `UnitDef -> LengthUnit` conversion. Evan approved the pattern. |
-| **B7** | **S25 — two ε vocabularies flow through SSI with nothing reconciling them.** Every entry point takes both a `Band` (whose `zero()` *is* the run tolerance) and a separate `eps`; two of four `certify_rung3` call sites already derive `eps = band.zero()` and say so, the SSI arms keep the independent knob. | `geom-brep/src/ssi/`, `certify.rs` | Both were born in one commit for a real reason — the marcher is deliberately the untrusted f64 candidate generator — but nobody wrote the bridge. `M4-PR6-SPEC.md:51`'s "a process may not host two ε values simultaneously" was scoped to ambient ε and never read as applying to a parameter list. |
-| **B8** | **S34 — `readback.rs` is a body-wide accessor module housed in `sweep`.** `face_pose`, `edge_pose`, `vertex_point` take a `topo::Body` and touch nothing from `sweep`, so `editor-core` and `pncad` depend on the whole sweep crate — NURBS skinning included — to read a face's plane. | `sweep/src/readback.rs` and its new home | Small and clear. Two of the three op-specific doors have no callers outside their own doctests; `vertex_point` is a near-copy of `revolve/upgrade.rs`'s. In flight as **#697**. |
+**Residues this track opened, all with owners:**
+
+| # | What |
+|---|---|
+| **#693** | Three stale descriptions of the retired fillet door in `editor-core/src/eval/` — Track A's files, so the lane stopped. One quotes the deleted predicate verbatim while naming no door and no deleted symbol, so no symbol-scoped sweep can reach it |
+| **#694** | The load path stringifies structured kernel refusals, contradicting the bindings' "never strings" contract — seven of ten `DimensionError` arms reach Python through `load` today |
+| **#695** | Two shared cores still hosted inside one half (`carve`/`single_solid`, and `conic_plane_crossing_roots`, which decides four `split_*` K predicates from the boolean lane), plus the question of whether the crate root is an architecture or an accumulation |
+| **#696** | The rustdoc-JSON check three separate façade guards had been deferring to an unscheduled nightly |
+| **#699** | S25's class in `props/` — three signatures and two call sites, twice what the fixing PR first disclosed |
+| **S57** | The readback class alive one crate over, and a "one door" guard that cannot see outside its own crate |
+
+**What this track learned that outlived its rows**, since the rows are gone
+and these are the transferable part:
+
+- **A regenerated golden cannot be its own evidence.** B1's byte-golden was
+  rewritten by the change that needed checking; what establishes the result is
+  a mechanical probe of properties the format cannot fake.
+- **A reproduction is only evidence about the rows its fixtures generate.**
+  B4's K-probe reproduced 26541 rows byte-identically and was **blind to the
+  change being made** — its fixtures are all-planar and carry zero arc-rung
+  rows. "The probe reproduced" is not "the change was neutral".
+- **A guard that pins a seal by quoting the pre-seal spelling tests the shape,
+  not the seal.** B6's `compile_fail` rows stayed green with the field made
+  public.
+- **A skip reads as a pass.** B7's decoupling mutation looked green because a
+  tighter generator blew the sample budget and the row skipped.
+- **Reachability argued from the authoring doors misses the deserialization
+  doors.** B5's central justification failed because every `Deserialize` impl
+  re-runs a smart constructor.
+- **A guard scoped to one crate cannot enforce a rule stated about a concept**
+  (S57).
 
 ---
 
