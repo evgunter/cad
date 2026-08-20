@@ -128,6 +128,24 @@ work and inherits **C-m**'s gate on A2 / #649.
 
 ## Incidents
 
+**2026-08-20, second preemption — nothing lost.** The container went down
+again roughly two hours later, killing two implementer lanes and both of
+#705's reviewers. **Every lane clone had a clean tree and every branch was
+pushed**: the loss was zero, against a whole uncommitted unit the first time.
+The difference is entirely that the lanes had been told, after the first
+incident, where their seams were.
+
+Two further adjustments came out of it, both about *what survives a kill*:
+
+- **Reviewers now report incrementally**, appending each settled finding to a
+  lane-private file as they go, rather than holding a verdict in context until
+  the end. A killed reviewer's reasoning is not recoverable; a file is. Both
+  #705 reviewers were resumed with a priority order attached, so a third
+  preemption costs the least valuable findings rather than an arbitrary
+  suffix.
+- **Resumption beat restart again.** Four agents were resumed from transcript
+  across the two incidents and none needed re-briefing on its own work.
+
 **2026-08-20 — container restart, three lanes lost.** The session's container
 went down with C-a, C-b and C-c all live. In-process subagents do not survive a
 restart; the lane clones under `~/.local/share/cad-work/` and the subagent
