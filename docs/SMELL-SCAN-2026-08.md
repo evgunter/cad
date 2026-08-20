@@ -9846,13 +9846,15 @@ Beyond S64, S67, S74 and S98:
   (including the four `up: "y"` scenes and the transparent `klein`),
   the tour montage sheet is byte-identical, the scene lister returns
   the same 35/20 names, and `renders-uv/montage-uv.svg` regenerates
-  clean. The FreeCAD camera is not reachable locally and **`render.yml`
-  is `workflow_dispatch`-only, so no PR runs it** (see **S175**): its
-  `camera_rotation` was checked instead by extracting both revisions
+  clean. `freecadcmd` is not installed on the lane box, so
+  `camera_rotation` was checked locally by extracting both revisions
   and comparing the camera basis under an `App.Vector` shim over 151
   views — 43 from the two committed manifests, 108 synthetic, 50
   through the straight-down fallback (2 of them committed scenes) —
-  bit-identical throughout.
+  bit-identical throughout. **Hosted CI is the verification of record
+  for that lane and does run it**: `ci.yml`'s `render lanes` job calls
+  `render.yml` through its `workflow_call` entry on every PR that
+  builds, all four lanes, and reports render drift.
 
   **What is not enforced, stated.** Nothing compares the two emitters'
   field sets; that is the ruling's choice, not an oversight. What
@@ -12525,38 +12527,6 @@ scope cell, and the honest fix is an editorial pass over that whole
 section — the half of it that can only be restated has to say at the
 site why. A partial recount is §C13's half-fix. **Row: D111.**
 
-## S175. The FreeCAD render lane runs on no pull request
-
-**Raised by G11 / #837, as the disclosure its own change owes.**
-`.github/workflows/render.yml` is `workflow_dispatch:` only. Nothing
-on a PR, a push or a schedule executes `demos/render.sh`,
-`demos/render_freecad.py` or the FreeCAD/OCC lane at all; `ci.yml`
-runs `cargo fmt`/`clippy` in `demos/tour` and `demos/wild` and four
-stdlib-python tripwires over `demos/*.py`, none of which imports
-FreeCAD.
-
-**So `render_freecad.py` — 240 lines of camera construction, document
-lifecycle and offscreen-renderer workarounds — is checked by nothing
-automatic**, and that is *the mechanism* behind S114(c)'s sharpest
-item: a `view.up` map could sit there facing the wrong way and only a
-human dispatching the workflow and looking at the pixels would ever
-learn. #837 closed the duplication; it did not close this.
-
-**This is S129 one lane over** and should be read with it: S129 is
-*nothing runs an assertion under `demos/`* on the Rust side, PARTLY
-FIXED. This is the Python/FreeCAD side, and it is not the same
-question — arming it means either a FreeCAD-provisioning job on every
-PR (the render lane exists precisely because that is expensive: ~106 s
-per scene on this host) or a cheaper substitute that exercises the
-camera without a renderer. **#837 built the substitute for its own
-change and did not commit it** — extracting `camera_rotation` under an
-`App.Vector` shim and comparing bases — because a shim of a
-third-party API is a fixture that can drift into agreeing with itself.
-Whether that trade is worth making is the question.
-
-**Scope:** `.github/workflows/render.yml` (its trigger), `ci.yml`'s
-cheap-tripwire job, `demos/render_freecad.py`. **Row: D112.**
-
 ---
 
 ## Track G — the ground no track owns, and the passes that deleted their own evidence
@@ -12637,8 +12607,7 @@ are recorded FIXED at their own bullets, and the lane raised **S129**
 (nothing runs an assertion under `demos/`) and **issue #782** (two rows of
 `demos/tour`'s tessellation pin are red on main). **S114(c)** was the design
 question it was always going to be: Evan closed it on 2026-08-20 and the
-ordinary work it left behind landed as **G11 / #837**, which raised **S174**
-and **S175**.
+ordinary work it left behind landed as **G11 / #837**, which raised **S174**.
 
 | # | Work | From | Scope | Proposed verdict | Review |
 |---|---|---|---|---|---|
@@ -12668,7 +12637,6 @@ and **S175**.
 | **G10** | **Prose describing a world the code has left** — eight members, the cleanest class in Tier 3, scattered by file. Three of them (`geom-brep/props/curved.rs`, `geom-brep/src/ssi/`) are **Track C's and must be left**; the rest are free. | **S112** | scattered; the free members only | **ACCEPTED** | style |
 | **D79** | **`lily.rs`, read end to end for the first time — six members, no owner.** Raised by #787's review over free ground §B2 had flagged as the scan's highest-yield unread file: an orphaned comment block whose live number is wrong (38° vs 28.6°), a shadow tuple vector algebra beside `Vec3` (whose *reason* is issue **#796**), two carrier extractors with different rigor plus a partly-vacuous agreement check, an existential-over-two cap assert, an unchecked arity beside a hard `== 8`, and 41% comment with a 137-line header. **All six sit inside `mod review_probes`' orbit, which no gate runs (S129, #782)** — so the row's first question is whether it waits on that or precedes it. | **S130** | `demos/tour/src/lily.rs` | proposed: **ACCEPT**, after or with S129 | style |
 | **D111** | **`demos/README.md`'s uv-lane numbers, which S113(a) is recorded as having swept.** Five figures the FIXED record itself names are still standing in the file that fix pass edited — 982 faces, 879 checkable, a 9e-16 worst gap that is 9.93e-16, 238 curved faces — plus two more that no run prints and cannot simply be recounted. The work is #787's own rule applied to the prose: **compute or delete, never restate**, and say at the site why for the half that can only be restated. | **S174** | `demos/README.md` (the uv-lane section) | **proposed: ACCEPT** | style |
-| **D112** | **The FreeCAD render lane runs on no pull request** — `render.yml` is `workflow_dispatch:` only, so `demos/render_freecad.py` is checked by nothing automatic. Two answers, and it is a cost decision rather than a patch: provision FreeCAD on every PR, or commit a renderer-free substitute for the camera (which G11 built for its own change and deliberately did not commit — a shim of a third-party API is a fixture that can drift into agreeing with itself). Read with **S129**, which is the same gap on the Rust side. | **S175** | `.github/workflows/{render,ci}.yml`, `demos/render_freecad.py` | **proposed: ACCEPT** | style |
 
 **Rides along, and is not a new row:** S111(a)(b)(d) and S112(a) are
 `sweep/src/fillet/` and belong to Track E's **E-g**, which is already ADVERSARIAL
