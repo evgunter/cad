@@ -50,6 +50,11 @@ fn face_verts(body: &Body<f64>, f: FaceKey) -> Vec<(VertexKey, Point3<f64>)> {
     for &lk in core::iter::once(&face.outer).chain(&face.rings) {
         let l = body.get_loop(lk).unwrap();
         let LoopBoundary::Cycle { first } = l.boundary else {
+            // A lone-vertex loop has no cycle to walk. These fixtures
+            // are cubes, which have none; the skip is a shape
+            // requirement of the walk, not a judgement that an empty
+            // loop carries nothing — which is the reading §H14's
+            // residue 2 was about.
             continue;
         };
         for he in body.loop_cycle(first).unwrap() {
@@ -77,20 +82,31 @@ fn the_face(body: &Body<f64>, pick: impl Fn(Point3<f64>) -> bool) -> FaceKey {
 }
 
 /// Does some `CensusUndecidable` name the two SOLIDS of a two-instance
-/// arena? Arm 2 is the only arm that reports at solid granularity, so
-/// such a finding IS the containment arm's.
-fn containment_refused(errors: &[ValidationError]) -> bool {
+/// arena with the given verdict? Arm 2 is the only arm that reports at
+/// solid granularity, so such a finding IS the containment arm's — but
+/// it mints THREE distinct verdicts (definite containment, in-band, and
+/// an unclaimable container extent), and a row that accepts any of them
+/// gets easier as the guarantee degrades. `want` is matched as a
+/// substring of the refusal's `what`, so each row names the verdict it
+/// means.
+fn containment_refused(errors: &[ValidationError], want: &str) -> bool {
     errors.iter().any(|e| {
         matches!(
             e,
             ValidationError::CensusUndecidable {
                 a: EntityId::Solid(_),
                 b: EntityId::Solid(_),
-                ..
-            }
+                what,
+            } if what.contains(want)
         )
     })
 }
+
+/// The verdict the embedded fixture must draw: its extents are in a
+/// containment relation the arm cannot definitely separate. Not the
+/// weaker "unclaimable extent" verdict, which would mean the arm never
+/// compared the two solids at all.
+const IN_BAND: &str = "not definitely separable from containment";
 
 /// **The embedded-instance fixture.** A 1 m cube sitting wholly inside
 /// a 4 m cube, flush at `z = 0`, with its four bottom corners declared
@@ -156,8 +172,9 @@ fn an_embedded_instance_is_examined_though_its_contact_is_declared() {
          loudness cannot be borrowed from a refuted record: {errors:?}"
     );
     assert!(
-        containment_refused(&errors),
-        "the containment arm must name the solid pair: {errors:?}"
+        containment_refused(&errors, IN_BAND),
+        "the containment arm must name the solid pair, with the verdict about \
+         THESE two extents rather than a weaker one: {errors:?}"
     );
     // And the declaration did its own job: the four corner rests it
     // names are no longer reported as undeclared contacts, so the
@@ -184,8 +201,9 @@ fn the_embedded_pair_is_refused_undeclared_too() {
     let errors = validate_pseudomanifold(&body, &ContactRecords::default())
         .expect_err("the undeclared twin refuses");
     assert!(
-        containment_refused(&errors),
-        "the containment arm names the solid pair with no records at all: {errors:?}"
+        containment_refused(&errors, IN_BAND),
+        "the containment arm names the solid pair, same verdict, with no records \
+         at all: {errors:?}"
     );
 }
 

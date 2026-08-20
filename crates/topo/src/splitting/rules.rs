@@ -3,6 +3,17 @@
 //! adjudicated between the two contradicting witnesses (F4) — the
 //! derivation is this module's docs (M3-LOG-ready).
 //!
+//! **[`face_extent`] is not one of those rules, and this is not its
+//! home.** It is the `Margin::levered` lever arm for the
+//! coplanarity/sense predicates, and two of its three callers are
+//! outside this module (`chord_join`'s section chooser, twice) against
+//! one inside it (`apply_rule_a`) — a shared core hosted inside the
+//! minority consumer. §H14 is where that cost showed: the function's
+//! error contract was extended, documented on the function, and
+//! discarded by both outside callers, which `map_err` it into their
+//! own refusals. Named here rather than moved; moving it is a
+//! placement decision with its own callers to re-audit.
+//!
 //! # Rule (a) — coplanar sectors, derived
 //!
 //! A sector whose face lies in the split plane belongs to the closure
@@ -275,6 +286,21 @@ pub(super) fn apply_rule_b(
 ///   gates (`gate_operand_kinds`, `gate_maximal_faces`) do not run
 ///   that check, which is why the refusal is here rather than assumed.
 ///
+/// The refusal is [`SplitReduceError::CorruptOperand`], whose own doc
+/// is *"a traversal failed (broken orbit/loop or a **lone vertex**):
+/// the operand is not a well-formed closed solid"* — which is what an
+/// empty outer loop is, and what `validate_closed` calls
+/// `ScaffoldingEmptyLoop`. It names the loop's **lone vertex**, not the
+/// caller's base vertex, so the message points at the thing that is
+/// wrong. It cannot also name the FACE: the variant carries a
+/// `VertexKey` only, and widening it to an `EntityId` is public API,
+/// filed as issue #695 (`splitting/neighborhood.rs`). Both outside
+/// callers (`chord_join.rs:1088`, `:1289`) then `map_err` this into
+/// their own corrupt-face / corrupt-vertex refusals, so at those two
+/// the distinction is flattened on arrival — loud, but reported as a
+/// body corruption for what is really unsupported inventory. Closing
+/// that properly is #695's, not this arm's.
+///
 /// [`LoopBoundary::Empty`]: crate::entity::LoopBoundary::Empty
 /// [`Margin::levered`]: geom_core::Margin::levered
 pub(crate) fn face_extent<T: Decide>(
@@ -299,7 +325,11 @@ pub(crate) fn face_extent<T: Decide>(
         let first = match loop_data.boundary {
             LoopBoundary::Cycle { first } => first,
             // An unbounded face has no finite lever arm (docs above).
-            LoopBoundary::Empty { .. } if loop_key == outer => return Err(corrupt()),
+            // Named at the loop's own lone vertex, not the caller's
+            // base vertex: that is the entity the refusal is about.
+            LoopBoundary::Empty { vertex: lone } if loop_key == outer => {
+                return Err(SplitReduceError::CorruptOperand { vertex: lone });
+            }
             LoopBoundary::Empty { vertex: lone } => {
                 extent = extent.max((point_of(lone)? - p_base).norm());
                 continue;
@@ -391,12 +421,26 @@ mod tests {
             body.get_loop(seed.r#loop).unwrap().boundary,
             crate::entity::LoopBoundary::Empty { .. }
         ));
+        // `face_extent` mints `CorruptOperand` from eleven arena
+        // lookups as well as from the arm under test, so the variant
+        // alone cannot tell the refusal from a broken fixture. Pin the
+        // fixture first — every lookup the function makes resolves —
+        // and then pin the vertex the refusal NAMES, which is the
+        // loop's lone vertex and not the base vertex the eleven others
+        // would report.
+        assert!(body.get_face(seed.face).is_some(), "fixture: face resolves");
+        assert!(
+            body.get_vertex(seed.vertex)
+                .and_then(|v| body.get_point(v.point))
+                .is_some(),
+            "fixture: the base vertex and its point resolve"
+        );
         assert!(
             matches!(
                 face_extent(&body, seed.vertex, seed.face),
-                Err(SplitReduceError::CorruptOperand { .. })
+                Err(SplitReduceError::CorruptOperand { vertex }) if vertex == seed.vertex
             ),
-            "an empty OUTER loop refuses; it must not answer zero"
+            "an empty OUTER loop refuses at its own lone vertex; it must not answer zero"
         );
     }
 

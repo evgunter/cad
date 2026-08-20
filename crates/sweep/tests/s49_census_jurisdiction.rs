@@ -18,6 +18,13 @@
 //! These rows need a real arc-bounded planar face, so they live here
 //! rather than in `topo`'s own suite. The fixture is #S16's extruded
 //! three-arc cylinder (radius 0.5, three arc edges per cap).
+//!
+//! **§H14's row is here too**, on the same fixtures and for the same
+//! reason: arm 1's v-on-f deferral named the other SOLID where the
+//! finding it suppresses is about the other FACE, and separating the
+//! two needs one solid with several faces reaching the same plane
+//! without sharing a vertex — which the three-arc cylinder's three
+//! wall faces give. See the banner below.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -284,6 +291,10 @@ fn walls_by_vertex(body: &Body<f64>, v: topo::VertexKey) -> (Vec<FaceKey>, Vec<F
         for &lk in core::iter::once(&data.outer).chain(&data.rings) {
             let Some(l) = body.get_loop(lk) else { continue };
             let topo::LoopBoundary::Cycle { first } = l.boundary else {
+                // A lone-vertex loop has no cycle to walk. Extruded
+                // bodies have none; the skip is a shape requirement of
+                // the walk, not a judgement that an empty loop carries
+                // nothing — the reading §H14's residue 2 was about.
                 continue;
             };
             for he in body.loop_cycle(first).unwrap() {
@@ -333,6 +344,18 @@ fn a_vf_record_defers_the_faces_at_its_own_interface_and_no_others() {
         vertex: v0,
         face: brick_top,
     });
+    // The fixture's own precondition, and it is what makes the
+    // "stays deferred" assertion below a statement about the
+    // DEFERRAL: if the record ever stops being built, this reddens
+    // here rather than at an assertion that would read as the
+    // deferral having been deleted. The two are indistinguishable
+    // downstream — both leave every wall refused.
+    assert_eq!(
+        records.b_on_a.len(),
+        1,
+        "the fixture declares exactly one rest, on the brick's top face"
+    );
+    assert_eq!(records.b_on_a[0].face, brick_top);
     let (holding, apart) = walls_by_vertex(&body, v0);
     assert_eq!(holding.len(), 2, "two walls share each rim vertex");
     assert_eq!(apart.len(), 1, "one wall holds neither of its ends");
