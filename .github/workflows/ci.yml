@@ -675,7 +675,7 @@ jobs:
       - name: run archived tests
         run: ${{ matrix.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', matrix.eps) || '' }} cargo nextest run --archive-file nextest-default.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2
 
-  # THE RELEASE-PROFILE ROW. Two adversarial suites in `crates/topo` feed
+  # THE RELEASE-PROFILE ROW. Three adversarial suites in `crates/topo` feed
   # tier-1-INVALID bodies to the Euler operators and are written about
   # RELEASE semantics; the archive matrix above is the dev profile at
   # opt-2 with debug-assertions ON, so it cannot be what runs them.
@@ -696,6 +696,18 @@ jobs:
   #     postcondition sweep makes the construction loop quadratic). The
   #     case the gate sees is six times larger in this job, and the
   #     clause it defends is not superseded by anything.
+  #   * THE ROW-4 ARMS ARE NOT INPUT-REACHABLE, which is the clause the
+  #     whole D2 addendum rests on and the only one with an executable
+  #     test. `review_d18`'s two hammer rows drive every operator that
+  #     reaches `link_half_edges` over randomly torn bodies and over a
+  #     genuinely spent graft destination, counting mutation-phase
+  #     completions. They are release-only BY CONSTRUCTION, not by
+  #     preference: in debug a torn body may legitimately panic at the
+  #     postcondition, so telling that apart from a row-4 arm needs a
+  #     process-global panic hook, which races the threaded matrix. With
+  #     the postcondition compiled out, any panic IS a row-4 arm. So this
+  #     job is the only lane in which those rows mean anything, and the
+  #     only lane that runs them at all.
   #   * COMPILE ROT, which is a PROFILE-level hazard and independent of
   #     what any row asserts: a `#[cfg(not(debug_assertions))]` item that
   #     no CI job ever type-checks can rot into a build error with every
@@ -755,6 +767,7 @@ jobs:
           cargo test --release -p topo --lib -- \
             review_m1_pr2::release_corruption \
             review_m1_pr4::kill_ops_survive_torn_bodies_without_panicking \
+            review_d18 \
             | tee release-corruption.log
           # A name filter that matches NOTHING exits 0 — the exact
           # silence this job exists to remove. So assert the selection is
@@ -767,6 +780,14 @@ jobs:
           grep -q 'garbage_in_garbage_out_release \.\.\. ok' release-corruption.log
           grep -q 'large_torn_body_terminates_quickly \.\.\. ok' release-corruption.log
           grep -q 'kill_ops_survive_torn_bodies_without_panicking \.\.\. ok' release-corruption.log
+          # `review_d18`'s two hammer rows are `cfg(not(debug_assertions))`
+          # on purpose — in debug a torn body may legitimately panic at the
+          # postcondition, so classifying one needs a process-global hook
+          # that races the matrix; in release the postcondition is compiled
+          # out, so any panic IS a row-4 `unreachable!` and no hook is
+          # needed. This job is therefore the ONLY lane that runs them.
+          grep -q 'torn_bodies_never_reach_a_row_four_unreachable \.\.\. ok' release-corruption.log
+          grep -q 'a_spent_graft_destination_never_reaches_a_row_four_unreachable \.\.\. ok' release-corruption.log
           # Both suite headers name this job as their mechanism. Nothing
           # else greps for that name, so renaming the job would leave two
           # doc comments quietly false; this is what makes it loud.

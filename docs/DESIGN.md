@@ -1227,12 +1227,17 @@ it did not perform it. **W2c is done**, and W2c is narrower than
 `crates/topo`: what is discharged is the **three-module census** — the
 Euler surgery modules `euler.rs` / `euler_ring.rs` / `euler_kill.rs`,
 which now discard nothing — not the crate. The
-census re-derived to **58** sites, of which 56 became row 4 with a
-per-site not-input-reachable proof and 2 became row-1 typed errors (PR
-#720), and the last two — the shared write helper `link_half_edges` —
-converted once its two unproven callers gained the missing plan-phase
-link check (`split_edge`'s `prev(he_minus)` and `kef`'s `prev(he)`;
-each operator already proved the symmetric `next`). **Those last two
+census re-derived to **58** sites and **all 58 are now row 4**: 56
+converted in PR #720, each carrying its own per-site
+not-input-reachable proof, and the last 2 — the shared write helper
+`link_half_edges`' — once its two unproven callers gained the missing
+plan-phase link check (`split_edge`'s `prev(he_minus)` and `kef`'s `prev(he)`;
+each operator already proved the symmetric `next`). **The `kfmrh` pair
+is not a third bucket**: two of the 56 became provable only because
+that operator's plan phase gained *new* row-1 `StaleKey` checks on
+`s2_data.faces` / `s2_data.solid` — those checks are added
+preconditions, not discard sites converting to row 1, and the two
+discards they license are among the 56. **Those last two
 arms carry a precondition rather than a per-site proof, and cannot
 carry one**: a shared helper does not know its caller, so the proof
 lives at each call site and the arm is `#[track_caller]` so a panic

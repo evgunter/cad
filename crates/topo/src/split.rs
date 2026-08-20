@@ -258,11 +258,14 @@ impl<T: Decide> Body<T> {
         // Splice 2: current prev(hm) → n⁻ → hm, in hm's loop. The
         // prev is re-read AFTER splice 1 so the strut case
         // (next(hp) == hm ⇒ prev(hm) is now n⁺) chains correctly.
-        // Splice 1 rewrites exactly one `prev` — `hp_next`'s, to the
-        // minted `n_plus` — so the value read here is `n_plus` when
-        // `hm == hp_next` and the plan phase's `hm_prev` otherwise.
-        // Both are live: the first is minted above, the second is
-        // proven by the plan phase's link check.
+        // Splice 1 writes two `prev` fields: `n_plus`'s and
+        // `hp_next`'s. `hm != n_plus` — `n_plus` is minted in this
+        // call and `hm` came out of the arena — so the only one that
+        // can be `hm`'s is `hp_next`'s, which splice 1 set to the
+        // minted `n_plus`. The value read here is therefore `n_plus`
+        // when `hm == hp_next` and the plan phase's `hm_prev`
+        // otherwise. Both are live: the first is minted above, the
+        // second is proven by the plan phase's link check.
         let Some(hm_data_spliced) = self.get_half_edge(hm) else {
             unreachable!(
                 "split_edge: `hm` resolved in the plan phase and this op kills no half-edge"
