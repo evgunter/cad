@@ -3370,28 +3370,130 @@ it.
 duties, the duty must become a parameter the caller states — otherwise duty B's
 acceptance row gets written on a fixture that guarantees duty B.
 
-## S24. The assembly gate's success path is documented as unreachable
+## S24. FIXED by #702 — the intended frontier, but stated only in prose, in a door that reported it as a raw kernel enum
 
-- **Where**: `crates/editor-core/src/assembly.rs:42`, `:314`,
-  `crates/editor-core/src/mate.rs:44`
-- **Confidence**: likely
+- **Where**: `crates/editor-core/src/assembly.rs`,
+  `crates/editor-core/src/mate.rs` (+ `mate/solve.rs`, `node.rs`,
+  `persist/mod.rs`), and the ASM-R2b acceptance suite
+- **Confidence**: sure
+- **Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
+  baffle me with how they ever happened." Postmortem pass commissioned.
 
-The module doc states plainly that a declared cross-instance contact
-"still ends at the chart door's typed refusal, surfacing as
-`CensusUnsupported`" — i.e. `assemble` cannot return `Ok` for any
-document whose mates actually declare something. On top of that, `mint`
-refuses every class but `Rest` with `NoAtRestRecord`, so `Tangent` —
-which `mate.rs` advertises as admitted in v1, and which the solver folds
-happily — can never assemble.
+**The lane's decision: frontier, not drift** — established from the ASM
+documents, not assumed. `ASM-R2B-SPEC.md` D-3 anticipates the arm ("where the
+census inventory refuses a carrier kind, the refusal passes through typed —
+honest boundary, state it"); the ASM-R2b implementer REPORTED the F1 deviation
+rather than absorbing it; its review adjudicated that as MAJOR-1 and steered the
+gap to M9, where `ASM-LOG.md` still carries it as an open finding. The mechanism
+is structural and was never open: the census's `chart_region_overlap` gates on
+`same_chart`, which wants a shared `SurfaceKey` within one body or the same
+`GeomSource` across bodies, and two instances of one part satisfy neither by
+construction. So the missing capability is a census rung, and building it was
+explicitly NOT this lane's patch.
 
-This may well be the intended frontier posture rather than drift; the
-scanning agent could not tell. What makes it a finding either way is
-that a shipped door whose success arm is known-unreachable, with the
-explanation living in prose rather than in the type or a feature gate,
-is hard to tell apart from a bug when it fires.
+**What was actually wrong was the encoding, and it was two defects.** First, the
+class policy was stated three times — the solve door's match (`Rest | Tangent`),
+the mint door's match (`Rest`), and prose claiming v1 "admits" both — so a
+capability the library advertised could not execute. Second, a caller who
+declared a `Rest` mate received `AtRest { findings: [CensusUnsupported {
+entity: Face(..) }] }`: a raw kernel enum, indistinguishable from a verdict
+against their own geometry, with the difference living in a module doc.
 
-**Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
-baffle me with how they ever happened." Postmortem pass commissioned.
+**Executed by #702.** The class policy is now one value, `mate::class_admission`
+→ `ClassAdmission::{Mints, NoAtRestRecord { why }, NotAdmitted}`, read by both
+enforcing doors, carrying the per-class REASON so the mint door's message can
+never be another class's; `ContactClass` being `#[non_exhaustive]`, a class the
+kernel grows is deferred by default. `Tangent` stays admitted at the solve door
+— ratified, and the defect was the word "assembles" — and the user-visible
+`CLASS_DEFERRAL` now says v1 SOLVES Rest and Tangent and ASSEMBLES Rest alone.
+
+**The frontier became a variant, not a predicate** (style review, ruled). The
+first pass answered it with two `bool` methods a caller could forget to call,
+which leaves them exactly where S24 found them. `assemble` now refuses
+`AssemblyError::Uncertified { contacts, findings }` — distinct from `AtRest`,
+which a caller must match separately — when every finding is the census
+DECLINING a declared pair and nothing was refuted or left undeclared. One
+dispatch decides both halves: `attribute` returns an `Attribution` of
+`Refuted(decl) | Declined(decl) | Unattributed`, so the relation is a property
+of the kernel's own arm rather than a second reading of it, and "declined but
+attributed to nothing" is not representable. The kernel's finding still travels
+verbatim.
+
+**The acceptance rows could not see the transition, and the first pass's
+mutation table overstated how much of that it had fixed** — the style reviewer
+falsified it by running it. Three genuine widenings left the whole suite green,
+because nothing in the suite mixed a declined finding with a refuted one, which
+is the exact case the `all` exists to exclude. The fix pass added that fixture
+(one touching pair and one gapped pair in a single gate run); an orchestrator
+verification pass then re-ran the corrected table independently, reproduced five
+of six rows exactly, and found a **second** dead arm. Both are below, measured
+at the final head:
+
+| mutation | rows red |
+| --- | --- |
+| the split's `all` → `any` | 4 |
+| the split never fires | 3 |
+| the census arm relabelled `Refuted` | 4 |
+| `class_admission(Tangent)` → `Mints` | 3 |
+| the mint door's `why` replaced with ANOTHER class's reason | 2 |
+| the mint door's `why` replaced with a LITERAL COPY of the same class's reason | **0** |
+| `CensusUnsupported { entity: Face(_) }` widened to any entity | **0** |
+| the `StaleContactDeclaration` arm relabelled `Declined` | **0** |
+| dropping the split's `!findings.is_empty()` conjunct | **0** |
+
+**The holes found are four, not one** — the first pass's text called its single
+disclosure *"the hole"*, which claims a completed search it had not done:
+
+1. *The literal-copy `why`.* The row pins the string VALUE, so a hard-coded copy
+   of the same class's sentence — the exact drift the table exists to prevent —
+   is observationally identical to sourcing it, and no row can separate them
+   while only ONE class is in the `NoAtRestRecord` state. The fix pass made the
+   row **self-arming** instead: it loops the roster's non-minting classes and
+   requires each to render its own distinct reason, so a copy fails the day a
+   second such class lands, without anyone remembering to return.
+2. *The entity widening.* No fixture produces a `CensusUnsupported` on a
+   non-`Face` entity, and one could not be attributed to a declaration anyway —
+   there is no face key to match on.
+3. *The dead `StaleContactDeclaration` arm* — the verifier's find, and the
+   serious one, because its `Refuted` label can be flipped to `Declined` with
+   nothing going red, which would promote a REFUTED declaration into the
+   frontier arm and report it as unrefuted. Probed rather than assumed: the
+   whole route is closed because every `PatchContact` the gate sees is one
+   `mint` made (a declared flush union carries none — measured), every minted
+   record is cross-instance since a same-instance mate refuses `SelfMate`, and
+   for a cross-instance pair the chart door DIVERGES rather than answering
+   `Empty`. So the arm's unreachability is a consequence of the very frontier
+   this finding is about; it is now stated **at the site**, with what makes it
+   live — the same census chart rung that closes `Uncertified`, whose landing
+   owes this arm an acceptance row.
+4. *The `!findings.is_empty()` conjunct*, defensibly: the kernel contract
+   forbids a refusal with no finding, and the code says so where it is written.
+
+The irony belongs in the record rather than being quietly fixed: the first pass
+scheduled `step-import/recognize.rs:126` under #711 for being *"unfalsifiable by
+execution"* while shipping a second instance of exactly that inside the function
+it had just rewritten. The first pass's other reported mutation — dropping the
+`mate.is_some()` conjunct — is no longer expressible: the variant carries the
+declaration.
+
+**Residues.** Three prose sites inside the crate are FIXED, not reported:
+`mate.rs`, `node.rs:700`, and `persist/mod.rs:285` — the last one the first
+pass's sweep missed entirely while reading prose ten lines above it, because the
+pattern keyed on the phrase "admits" and that site spelled the same claim as
+"outside v1's admitted `Rest`/`Tangent`". Two instances outside `editor-core`
+are SCHEDULED as **#711** (§D row C8), not left inside a finding marked FIXED:
+`step-import/src/recognize.rs:126`, whose `try_cylinder` promoting arm is
+documented unreachable — the claim site now cites the issue — and
+`docs/ASM-R2A-SPEC.md:21`, a landed unit spec whose sentence is true of the door
+it binds and no longer of v1 as a whole.
+
+*Lesson:* a boundary encoded as a predicate is still a boundary the caller may
+not consult; a mutation table is evidence only for the mutations someone
+actually ran, and *"the hole is X"* claims a search that *"the holes I found
+are X"* does not. Both corrections came from someone re-running the table
+rather than reading it, twice — which is the only reason either is in this
+record as measured rather than as claimed.
+
 ## S25. FIXED by #692 — two ε vocabularies flowed through SSI with nothing reconciling them
 
 - **Where**: `crates/geom-brep/src/ssi.rs`, `ssi/march.rs`, `ssi/certify.rs`
@@ -6213,8 +6315,8 @@ because several rows want a decision inside them that the taker should expect
 to make and record.
 
 **Gating, stated 2026-08-19, because "nothing here is blocked" was too loose.**
-Six of these are edge-free and could start today: **C1**, **C2**, **S30**,
-**S31**, **S32**, **S24**. Three unblock when **A1** (#682) lands — **C7**
+Five of these are edge-free and could start today: **C1**, **C2**, **S30**,
+**S31**, **S32**. Three unblock when **A1** (#682) lands — **C7**
 entirely and **C4's S33** — and their input is now better than "wait for the
 report": #682's adversarial pass produced a *compile-verified* table of which
 lanes sit behind `CertifiedEnclosure`, which is the premise W2a would otherwise
@@ -6232,9 +6334,10 @@ and the width-1 build mutex, not dependency.**
 | **C2** | **H11, H16, H17** — #632's two residues; the STL header not being caller-settable while `StepOptions` carries `product_name`; and S37's rustdoc remainder, ~1115 lines across 130 files. | H17 is large and mechanical; H16 is a small asymmetry with a clear right answer. |
 | **C3** | **S27, S29, S30** — `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block; the sizing vocabulary fragmented across five modules with self-admitted magic constants; and ~1,050 lines of instrument in the mesh crate's hot loop. **S29 is NOT blocked on a design conversation — corrected 2026-08-19.** This row previously said its policy question was routed to `docs/TESS-SPLIT-SPEC.md` and PR #568. #684's review checked: both are scoped **entirely to the NURBS per-cell schedule** (`nurbs_cert`'s `grid_steps`, certified cells, the first fundamental form — TESS-SPLIT-SPEC's D-1 replaces the AM-GM grouping, with `leaf_a f2` as its poster child). **Nothing in either covers analytic-chart sizing**, so `curved::grid_steps` has no venue at all — and #684 has since added a sixth rule to it. S29's own lesson applies to that: *N well-defended deviations read as N decisions when they are one undecided question.* S27 touches `props/`, so it must follow **A2**; S29 and S30 are edge-free. |
 | **C4** | **S31, S32, S33** — the `geom-curves`/`geom-surfaces` split that buys nothing; `Surface`'s one-partial-per-call API, which is what created the shadow surface enum in SSI; and neither geometry enum being able to lift itself to another scalar. | **S33 is coloured by D1**: several of its ~14 hand-written ladders exist only to reach `Dual`, and what `Bounds for Dual` changes there is written in S44's **D1 DECIDED** block. |
-| **C5** | **S24, S26, S28's duplication half** — the assembly gate whose success arm is documented unreachable; the certified area enclosure that is never metered against anything (`area.width()` appears nowhere in the file); and the three tessellation lanes that remain three pipelines now that #648/#674 have settled their ordering and column questions. | S26 was explicitly deferred in writing by #472 — *"metering against `area.lo()` … deserves its own proposal with re-measured floors"* — so it is a proposal, not a patch. S28's duplication half must follow **A3**. |
+| **C5** | **S26, S28's duplication half** — the certified area enclosure that is never metered against anything (`area.width()` appears nowhere in the file); and the three tessellation lanes that remain three pipelines now that #648/#674 have settled their ordering and column questions. (**S24 left this row FIXED by #702.**) | S26 was explicitly deferred in writing by #472 — *"metering against `area.lo()` … deserves its own proposal with re-measured floors"* — so it is a proposal, not a patch. S28's duplication half must follow **A3**. |
 | **C6** | **W2f remainder / S4** — `ProgramStep`/`WireStep`, `SegTag`, and the "no usable value" core. | Each is blocked on something real: the first behind OnArc + RESPELL-TABLE and crossing the same files, the second needs the workspace's first proc-macro crate, the third by a persisted format. |
 | **C7** | **W2a / S3 and W2b / S1+S2** — the lane-trait collapse, and `RingInterval` versus an always-on `Interval`. | **The S3 half no longer waits — D1 is ruled, and its report is S44's D1 DECIDED block.** The steelman's compiled collapse for S3 **predates #643's `Bounds`/`CertifiedEnclosure` split** and must be re-derived against the two-trait world; read *"What this does NOT settle"* first, in particular its per-lane correction — deleting a lane trait leaves **three of the four** seams still uninstantiable at a dual, and only `chart_region_overlap` would become instantiable. W2b's blast radius is 535 refs in 15 files with five carrying 60%. **Two rows joined this one on 2026-08-20**, both from the unscheduled audit: **S44's open residue** — whether the four lane traits survive and whether D9's four bit-identity assertions may be re-expressed, which is what S44 means by *"open for the part that matters"* now that its priced half (D1) is ruled — and **S55**, `Enclosure` as a live trait with no consumer, which Evan deferred *pending the `Bounds` narrow-vs-broad split* and which is therefore this row's, not a lane of its own. Whoever takes C7 absorbs both. |
+| **C8** | **#711 — S24's residues outside `editor-core`**: `step-import/src/recognize.rs:126`, whose `try_cylinder` promoting arm is documented unreachable and whose `Plane > Cylinder` preference order is *"unfalsifiable by execution"*; and `docs/ASM-R2A-SPEC.md:21`, a landed spec sentence (*"v1 admits `Rest`/`Tangent`"*) that is true of the door it binds and no longer of v1 as a whole. | Filed by #702's fix pass rather than left inside a finding marked FIXED. The first may want the tighter cylinder certificate rather than an encoding change; the second is a one-line ruling — clarifier, or "landed specs read as of their own date". Small, edge-free, and **not** a lane on its own: fold into whoever next opens `step-import`. |
 
 ---
 

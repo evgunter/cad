@@ -696,9 +696,10 @@ pub enum Node<P> {
         /// The declared contact class — the KERNEL vocabulary (M9-1),
         /// re-exported rather than re-minted, so a mate's declaration
         /// is already the currency the boolean wrapper's records
-        /// speak. v1 admits `Rest`/`Tangent`; a class outside that
-        /// refuses typed at both the wire and the solve door, naming
-        /// the deferral.
+        /// speak. How far each class gets is
+        /// [`crate::mate::class_admission`], not a set restated here;
+        /// separately, a spelling this build has no name for refuses
+        /// typed at the wire door.
         #[serde(with = "crate::persist::kernel_wire::contact_class")]
         class: crate::mate::ContactClass,
         /// Which frames coincide, with which axis senses, at which
