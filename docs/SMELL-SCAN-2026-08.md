@@ -5075,7 +5075,9 @@ does not survive contact with the tree. Three corrections, all measured at
   "module `sealed` is private"**, on naming the seal. *Above* geom-core:
   naming `Decide` means depending on geom-core, which must depend back —
   **cargo refuses with "cyclic package dependency"**. Both directions are in
-  `local-scripts`' seal oracle rather than argued.
+  `local-scripts/seal-oracle.sh` rather than argued — named by path, and
+  committed, because the first version of this sentence cited a script that
+  lived only in a lane's home directory.
   **What is NOT pinned is the `Probe` type**, and #801's first version claimed
   otherwise — *"`Probe` cannot be defined outside `geom-core`"* was **false**,
   found by #801's adversarial review and reproduced here: a `crates/adv-probe`
