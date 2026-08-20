@@ -1,7 +1,8 @@
 //! Adversarial e2e review artifact for M1 PR 3 (2026-07-16), promoted
-//! into the shipped suite per the standing convention (docs/M1-LOG.md,
-//! process conventions): reviewers write and run real consumer programs
-//! against the API under review, and the programs are kept.
+//! into the shipped suite per the standing convention
+//! (`memories/review-and-dependency-policy.md`): reviewers write and run
+//! real consumer programs against the API under review, and the
+//! programs are kept.
 //!
 //! Everything here goes through the public API. The derivations
 //! (ledgers, anchor rules, orbit orders, slot/generation semantics) are

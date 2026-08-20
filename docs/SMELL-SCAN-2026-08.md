@@ -80,6 +80,8 @@ cases. A finding is a *question worth answering*, not a defect.
 - [Tier 2 — significant](#tier-2--significant) (S16–S37)
 - [Tier 3 — real but lower stakes](#tier-3--real-but-lower-stakes) (S38–S48)
 - [Findings raised by the Wave-1 fix lanes](#findings-raised-by-the-wave-1-fix-lanes-2026-08-18) (S49–S58)
+- [**S59 onwards live in `docs/SMELL-SCAN-2-2026-08.md`**](SMELL-SCAN-2-2026-08.md) — the second scan (2026-08-20): the fixes,
+  and the ground this scan never covered
 - [§A. Where I would start](#a-where-i-would-start)
 - [§D. The schedule](#d-the-schedule) — live rows only, in tracks: **A**, **B** and **D** complete, **C** the parallel orchestrator's, **E** everything left
 - [§C. Process observations](#c-process-observations)
@@ -7273,6 +7275,26 @@ exactly 0: the domain genuinely IS an iso-rectangle. So:
 
 ---
 ---
+## S59 onwards — the second scan, in its own document
+
+**IDs `S59` and above are allocated in `docs/SMELL-SCAN-2-2026-08.md`.**
+Do not mint them here.
+
+That document is the 2026-08-20 follow-up: thirteen parallel scopes over
+(a) the code this scan's fixes rewrote, read as a diff and audited for
+what the fixes introduced, and (b) the ground this scan explicitly
+excluded — `interval-transcendentals/`, `demos/`, `tools/`,
+`scripts/gates/`, and the test files added since `4258584`. It runs on
+the same one global ID space so a citation never means two things, and
+it carries its own §A / §B / §C. Its §C continues this document's
+process numbering at **C15**.
+
+It exists as a separate file because this one is owned by live fix
+tracks (§D, `docs/SMELL-C-LOG.md`, `docs/SMELL-E-LOG.md`) and appending
+would collide with work in flight.
+
+---
+
 # §A. Where I would start
 
 **Superseded 2026-08-19 by §D, and kept as written.** Three of its four items

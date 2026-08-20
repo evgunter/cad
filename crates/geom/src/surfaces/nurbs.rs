@@ -3,7 +3,7 @@
 //!
 //! Data model, evaluation contract, and fixed-association rules are
 //! the curve module's, lifted to the tensor product (see
-//! [`crate::curves::nurbs`] and `docs/M5-PR3-SPEC.md`; the conventions are
+//! [`crate::curves::nurbs`]; the conventions are
 //! stated once there and once here — clamped-v1 per direction, f64
 //! structure, positive weights, span contract with documented
 //! polynomial-extension garbage-out). There is no poison-on-invalid-
