@@ -1516,3 +1516,65 @@ is easy to miss.* The rule usually stops someone re-running a red until it goes
 green. Here the re-run went green **on its own**, which is the case where
 nothing forces the question — and the finding was a real defect in another
 crate's test generator, reachable by any seed.
+
+### A third category for §S39, found by C-i: the prediction that came true the other way
+
+§S39 asks one question of a stale-looking claim: **benign rot, or a latent
+defect wearing a documentation costume?** #775 found a member that is neither.
+
+`geom-brep/src/edge_geometry.rs:285` — a **public enum variant doc** — said the
+witness would double as *"the marching seed when numerical SSI arrives (M3+)"*.
+SSI arrived. The sentence is still false, and **not because it went stale**:
+`ssi::certify` states that nothing about the witness contract moves at rung 3,
+and `exhaust::seed_r3` seeds from surviving cell centres instead. The prediction
+**came true the other way** — the thing it was waiting for shipped, and shipped
+differently.
+
+*Why it is a third category and not a wording of the first two.* Benign rot means
+the subject moved and the sentence did not; the repair is a corrected sentence.
+A latent defect means something **was** meant to hold and the code drifted; the
+repair is the code, and deleting the sentence would erase the only record of the
+intent. Here the subject arrived **on schedule**, and **nothing was ever meant to
+hold** — so there is no date to correct and no invariant to restore. The repair
+is a **statement of what actually happened instead**, which is what the fix
+wrote: the witness selects the component and nothing else, and here is where the
+marcher gets its own seed.
+
+*Why this one hid.* All four of the unit's instruments passed over it, and it sat
+inside the 102-hit bucket the lane had named as a population rather than read —
+which is now row **C21**, and is the argument for that row being worth minting:
+**a population that has already hidden one live member is not a backlog, it is an
+unread result.**
+
+### "A measurement is a measurement of a tree" has a second failure mode
+
+The rule has fired four times today on **stale** numbers — a table measured on a
+tree that no longer exists. #775's round produced both ends of it at once, and
+C-i's framing is the one to keep:
+
+> the reviewer's S4 measured a tree that had moved, and my S1 reasoned about a
+> line number without saying which tree it belonged to. Both are *"a measurement
+> is a measurement of a tree"* — from opposite ends.
+
+The second is the **unlabelled** case: the number may be perfectly correct and is
+still unusable, because no reader can tell which tree it describes. It produced a
+worse artefact than staleness here — the lane performed C-R11's check on a
+citation, compared it against a tree it had not named, and **reported a defect
+that does not exist**. `:193` is `},` on every tree; the claim starts at `:194`,
+exactly where H15 cited it.
+
+*The repair is cheaper than re-measuring:* **name the tree each table is numbered
+against**, and name a merge commit as a merge commit rather than as a base. And
+the lesson underneath, which is C-R11 sharpened:
+
+> **C-R11 asks you to check a citation, not to find something wrong with one.** A
+> check that reports a defect it did not find is worse than an unchecked
+> citation, because the next reader stops checking.
+
+*And one nuance from the same round, in the other direction:* S10 flagged
+`face_normal.rs`'s *"five consumers"* as wrong. It is **right** — it counts
+lanes, and three of the four remaining reach the door through
+`reduce::face_plane`, so two direct call sites do not falsify four. The defect
+was that it never said **what it counted**. **A reviewer flagging an unclear
+claim is not the same as the claim being false**, and rewriting a true number to
+satisfy a review would have been the worse outcome.
