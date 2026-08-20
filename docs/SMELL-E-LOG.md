@@ -413,11 +413,12 @@ constituted.**
 | D61–D62 | E-h (D21) | reserved 2026-08-20 |
 | D63–D64 | E-a's fix pass (#753) | reserved 2026-08-20 |
 | D65–D66 | E-b's fix pass (#763) | reserved 2026-08-20 |
+| D67–D68 | E-e's fix pass (#767) | reserved 2026-08-20 — D67 for the `Debug`-at-a-composing-layer class, D47's shape outside `pncad-py` |
 | D54 | E-e (D28) | **used** — five arms that still render prose, each with a stated reason |
 | D55 | E-e | **returned unused** |
 | D46 | E-d (D33) | reserved 2026-08-20 |
 
-Next unassigned: **D67**; D42 and D43 are back in the pool and deliberately not
+Next unassigned: **D69**; D42 and D43 are back in the pool and deliberately not
 re-issued — a number that has appeared in a lane's report, even as *unused*, is
 cheaper to skip than to explain.
 
@@ -449,7 +450,7 @@ serialized here and each lane re-merges `origin/main` when one lands.
 | **E-f** | D25 | `smelle/d25` | **#755** | **CLEARED by both lanes**; combined fix pass running (3 must-fix, 2 → rows D49/D50). Merges after #752 |
 | **E-b** | D23 | `smelle/d23` | **#763** | **NOT CLEARED** — a live wrong answer inside D45, plus 4 MAJOR; fix pass running |
 | **E-d** | D33 | `smelle/d33` | **#761** | **MERGED 2026-08-20.** Placed D46, D51, D57; handed D56 back |
-| **E-e** | D28 + #693 | `smelle/d28` | **#767** | reported; **style review running**. Census re-derived at **12** arms, not 8; placed D54, returned D55 |
+| **E-e** | D28 + #693 | `smelle/d28` | **#767** | **CLEARED**; fix pass running (8 findings, 1 → row D67). **Next in the merge queue** |
 | **E-h** | D21 | `smelle/d21` | — | dispatched — **unblocked by #755**, whose lane verified D21 inherits nothing from D25 |
 
 **E-g dispatched 2026-08-20** (`smelle/d27-d29`), D27 then D29 — one lane
@@ -742,6 +743,40 @@ its own class.** This one published ~25 and got at least four wrong. That is not
 an argument against the unit — it is the strongest available argument *for* the
 finding, and the fix pass should say so rather than quietly correcting the
 numbers.
+
+### #767 (E-e / D28 + #693) — style lane, 2026-08-20: **CLEARED**
+
+The census was re-derived independently and the lane's number and reading both
+hold: **twelve** arms, not the row's eight, because the row counted *op* arms
+while the class is *a payload with a `Display`, discarded*. Two payload types had
+no `Display` at all, and the second is the find — `EditError::MetaUnversioned`
+was rendering *"lacks the integer `v` version field"* for all three arms of a
+dropped error, **two of which are not that**, and the test covering it matched
+the variant and so could not see the message. A live wrong message, pre-existing,
+found by a lane whose row was about thin messages rather than wrong ones.
+
+**Eight style findings, and the first is a consequence of the fix itself.**
+Forwarding now ships `Debug` struct guts into the Python exception string:
+`splitting/finish.rs` renders a `BandError` as `{e:?}` and an `Indeterminate` as
+`{diag:?}` — **both types have good `Display`s, and this PR starts forwarding one
+of them fifteen lines away.** So the same `BandError` now has two spellings and
+the `Debug` one became FFI-reachable *because of this change*, while
+`refusals_render_as_prose_not_debug_guts` — asserting a rendered refusal contains
+no `{` — runs on one fixture and cannot see it. **A fix that invalidates the
+premise a neighbouring test states as the rule.**
+
+The second finding is the same class **outside the crate the existing row
+covers**: five more `Debug`-dumps of typed payloads in `editor-core/src/persist/`
+and `product.rs`, including one that bypasses the very `Display` this PR
+corrected, one layer up in the same crate. D47 is scoped to `pncad-py`, so these
+had no home. Placed as **D67**.
+
+*Worth carrying:* **the lane's disclosed blind spot was where the class lived.**
+It said its `Self::V(_)` pattern could not match a `Debug`-derived rendering and
+routed that to D47 — correctly identifying the shape and mis-identifying its
+extent by a whole crate. A disclosure that names the right pattern and the wrong
+scope reads exactly like a discharge, which is why the standing rule is that a
+disclosure is a work order.
 
 ---
 
