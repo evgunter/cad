@@ -227,13 +227,13 @@ impl LengthUnit {
     /// The unit's symbol, e.g. `"mm"`.
     #[getter]
     fn symbol(&self) -> &'static str {
-        self.0.symbol
+        self.0.symbol()
     }
 
     /// Metres per unit.
     #[getter]
     fn factor(&self) -> f64 {
-        self.0.factor
+        self.0.factor()
     }
 
     fn __rmul__(&self, value: f64) -> Length {
@@ -245,7 +245,7 @@ impl LengthUnit {
     }
 
     fn __repr__(&self) -> String {
-        format!("LengthUnit({})", self.0.symbol)
+        format!("LengthUnit({})", self.0.symbol())
     }
 }
 
@@ -260,13 +260,13 @@ impl AngleUnit {
     /// The unit's symbol, e.g. `"deg"`.
     #[getter]
     fn symbol(&self) -> &'static str {
-        self.0.symbol
+        self.0.symbol()
     }
 
     /// Radians per unit.
     #[getter]
     fn factor(&self) -> f64 {
-        self.0.factor
+        self.0.factor()
     }
 
     fn __rmul__(&self, value: f64) -> Angle {
@@ -278,7 +278,7 @@ impl AngleUnit {
     }
 
     fn __repr__(&self) -> String {
-        format!("AngleUnit({})", self.0.symbol)
+        format!("AngleUnit({})", self.0.symbol())
     }
 }
 
