@@ -84,7 +84,7 @@ cases. A finding is a *question worth answering*, not a defect.
   - [Tier 1 — act on these](#second-scan--tier-1--act-on-these) (S59–S75)
   - [Tier 2 — significant](#second-scan--tier-2--significant) (S76–S109)
   - [Tier 3 — real but lower stakes](#second-scan--tier-3--real-but-lower-stakes) (S110–S116), as class roll-ups
-- [Findings raised by the Track F lanes](#findings-raised-by-the-track-f-lanes-2026-08-20) (S117–S126) — each track's lanes append here as they land
+- [Findings raised by the Track F lanes](#findings-raised-by-the-track-f-lanes-2026-08-20) (S117–S126, S157–S166) — each track's lanes append here as they land
 - [§A. Where I would start](#a-where-i-would-start)
 - [§D. The schedule](#d-the-schedule) — live rows only, in tracks: **A**, **B** and **D** complete; **C** (`docs/SMELL-C-LOG.md`), **E** (`docs/SMELL-E-LOG.md`), **F** (`docs/SMELL-F-LOG.md`) and **G** (`docs/SMELL-G-LOG.md`) running; the unscheduled table is the second scan's and frozen
 - [§C. Process observations](#c-process-observations) — C1–C17 from the first scan, C18–C25 from the second
@@ -7770,21 +7770,32 @@ at its uses. That is **KNOWN GAP 4**, and what holds the line is that the
 ratified first; the residue is a ratified file's alias used elsewhere,
 which is **KNOWN GAP 3**.
 
-**That mitigation was published false first, and the correction is the
-part worth recording.** It was written as *"the declaration writes the
-pair literally and therefore fires"* — true only of
+**That mitigation was published false, twice, and the retraction is the
+part worth recording.** It was first written as *"the declaration writes
+the pair literally and therefore fires"* — true only of
 `trait Bracket: Bounds + CertifiedEnclosure`. **`trait Bracket:
-CertifiedBounds` carries both bracket doors with no `+` anywhere on the
-line**, so under a `+`-only matcher neither the declaration nor
-`Decide + Bracket` fired: *S59's own defect, minted by the change that
-closes it*, which is the failure mode this track's lane header names
-first. The matcher gained a **third alternative** — a trait declaration
-whose supertrait or `where Self:` list names a `…Bounds` identifier — and
-all three spellings are planted; deleting the alternative reds the
-sole-supertrait case. It reds **nothing** in the tree: the only two
-declarations it reaches are `real.rs`'s own alias (skipped by exact text)
-and `arc_fillet.rs`'s (allowlisted by file). It inherits GAP 1 — a
-supertrait list broken across lines is still invisible.
+CertifiedBounds` carries both bracket doors with no `+` on the line**, so
+neither it nor `Decide + Bracket` fired: *S59's own defect, minted by the
+change that closes it*, the failure mode this track's lane header names
+first. The matcher gained a **third alternative** — a single-line trait
+declaration whose supertrait or `where` list names a `…Bounds` identifier
+— which catches that spelling and reds **nothing** in the tree (the only
+two declarations it reaches are `real.rs`'s own alias, skipped by exact
+text, and `arc_fillet.rs`'s, allowlisted by file).
+
+**That was still not a mitigation, and the verification pass proved it
+with a compiled counterexample.** `rustfmt --edition 2021` rewrites the
+caught single-line `where Self:` spelling into a multi-line `where` block,
+**and the multi-line form is silent** — so the silent form is the
+formatter-stable one. No line-based matcher reaches it, and widening the
+alternative to drop its `:` requirement false-positives on a trait generic
+over a *sole* bracket bound. **GAP 4 is therefore disclosed as OPEN WITH
+NO MITIGATION**, and the false sentence is out of the header rather than
+narrowed: *"disclosed with a mitigation that does not work"* is worse than
+"disclosed", because it tells the next author the door is shut. The
+general form — that this gate anchors on `+`, and `+` is one of several
+ways Rust writes a compound bound — is **S158 / D102**, with the
+allowlist's file granularity split off as **S159 / D103**.
 
 **The exact-text definition skip gained a subject check for the
 brittleness it introduced.** An exact anchor fails in the opposite
@@ -10301,6 +10312,79 @@ sibling. The file is **F3 / lane F-g**'s, so #791 did not touch it.
 
 **Verdict:**
 
+## S158. The compound-`Bounds` gate anchors on `+`, and `+` is not how Rust expresses a compound bound
+
+**[verified, with compiled counterexamples]** Found by the F-e verification
+pass, and it **subsumes S59 rather than sitting beside it**. S59 was *"the
+matcher is blind to an alias"*; this is *"the matcher is blind to a
+spelling"*, and the alias case is one member.
+
+`scripts/gates/bounds-allowlist.sh` matches a `…Bounds` identifier adjacent
+to a `+`. Rust has several ways to write the same obligation, and the others
+are silent. **Plain compound bounds, no alias involved:**
+
+```rust
+pub fn f<T>(_t: T) where T: Decide, T: Bounds {}   // gate exits 0
+pub fn g<T: Decide>(_t: T) where T: Bounds {}      // gate exits 0
+```
+
+**And the alias form, which is `bounds-allowlist.sh`'s KNOWN GAP 4:**
+
+```rust
+pub trait Bracket: CertifiedEnclosure           // gate exits 0
+where
+    Self: Bounds,
+{
+}
+pub fn use_it<T: Decide + Bracket>(t: T) { t.lo(); t.sgn(); }
+```
+
+**The fact that makes this a hole rather than a curiosity: that last form is
+what `rustfmt --edition 2021` converges on** from the single-line spelling
+the gate *does* catch. A gap a formatter produces out of the caught form is
+the resting state, not a corner case. Two further members, independent of
+each other: the same declaration in an **allowlisted** file is silent (so a
+file ratified for one bound silently ratifies this one — that half is
+**S159**), and a chain through a non-`…Bounds`-named intermediate is silent.
+
+**Not a violation today.** Every `where`-clause `…Bounds` line in
+`crates/*/src` was checked: no live instance in an unratified file. This is a
+hole in the instrument, not a breach of the rule.
+
+**Deliberately not closed by #791**, on the orchestrator's ruling: it is a
+redesign of what the gate matches, no line-based matcher can reach the
+formatter-stable spelling, and widening the declaration matcher far enough to
+try false-positives on a trait generic over a **sole** bracket bound
+(`trait ArrivalSpec<T: CertifiedBounds>`), which is outside the class.
+Whoever takes it will red a population nobody has counted, so **F-R6's
+grandfathering caveat becomes live on a real residue** rather than the empty
+one #791 met.
+
+**Verdict:**
+
+## S159. The compound-`Bounds` allowlist is file-granular, so ratifying one bound in a file ratifies every bound later added to it
+
+**[verified]** Found by the F-e verification pass, alongside S158 and
+**recorded separately because it is a different mechanism and will outlive
+whatever the matcher does.** Every entry in `bounds-allowlist.sh` is a path:
+`^crates/geom-brep/src/(pcurve_cache|ssi|ssi/certify|edge_nurbs)\.rs$` and so
+on. The ratification argument in the header is per-*seam* and often
+per-*function* — `probe_tube_chart` is justified by what that one body does —
+but the enforcement is per-*file*. A second, unrelated compound bound added to
+any allowlisted file inherits the first one's ratification silently.
+
+This is the same shape as S63's `linalg/mat.rs` (allowlisted wholesale to
+resolve a false positive, now unguarded for the genuine case), except that
+here it is the *design* of every entry rather than one bad entry.
+
+The cheap half is that the header already writes the per-seam argument, so the
+information exists; what does not exist is any check that a file's current
+bounds are the ones argued for. Options a taker should weigh rather than
+assume: line-scoped or symbol-scoped entries; a count pinned per file; or
+accepting file granularity and saying so at each entry.
+
+**Verdict:**
+
 ---
 
 # §A. Where I would start
@@ -11810,6 +11894,8 @@ S60/S66's rows; and a general gate re-proposes exactly what Evan declined.
 | # | Work |
 |---|---|
 | **D68** | **`ArcCarrierScalar`'s 49 use sites are a compound `Decide + Bounds` bound no grep gate can see** (**S124**). The declaration is ratified by file under LB3; the uses are not, and the name is `pub` from `pncad`. **This is a VISIBILITY row and G4 does not discharge it** — G4 changes what the alias is *bound to*, which decides whether the 49 sites are legal, and leaves them exactly as invisible; after G4 lands, `bounds-allowlist.sh`'s KNOWN GAP 3 is as open as before. The two jobs are separate and this row stays live through G4. #791 deliberately did not close it by grep: that means redding `family.rs` and `program.rs` and allowlisting them, S63's already-realised outcome. **Open question for whoever takes it** — whether the answer is a gate that reads the alias's declaration and follows the name, or a rule that a compound bound may not be given a name at all. |
+| **D102** | **The compound-`Bounds` gate anchors on `+`, and `+` is not how Rust expresses a compound bound** (**S158**). `where T: Decide, T: Bounds` and `<T: Decide>(…) where T: Bounds` are silent; so is the multi-line `where` alias declaration **that `rustfmt` converges on** from a spelling the gate does catch. **Subsumes S59** — S59 was blindness to an alias, this is blindness to a spelling. No live instance in an unratified file, so a hole rather than a violation. **Deliberately not closed by #791**: it is a redesign of what the gate matches, no line-based matcher reaches the formatter-stable form, and a colon-free widening false-positives on a trait generic over a sole bracket bound. **The taker should expect F-R6's grandfathering caveat to be live on a real residue**, unlike #791's empty one, and should count the population before choosing a matcher. |
+| **D103** | **The allowlist is file-granular while its justifications are per-seam** (**S159**). Every entry is a path, so a second unrelated compound bound added to an allowlisted file inherits the first's ratification silently. **A different mechanism from D102 and it outlives whatever the matcher does** — S63's `linalg/mat.rs` is the same shape as one bad entry; this is the shape of every entry. Options to weigh rather than assume: line- or symbol-scoped entries, a per-file count pinned, or accepting file granularity and saying so at each entry. |
 | **D69** | **`no-extra-real-bounds.sh` matches `Real +` and not `+ Real`** (**S125**) — S56's order-sensitivity defect, never swept to this gate, with one live invisible hit at `geom-core/src/spline/locate.rs:82`. **Belongs to F3 / lane F-g**, whose scope already holds this file; recorded here so it is scheduled rather than remembered. The fix is the shape #791 used: make the matcher order-insensitive **and** name-shaped in one move, since doing only the first is what produced S59 out of S56. |
 
 ---
@@ -13003,7 +13089,7 @@ with ~180 doc lines over ~55 lines of guard code (S116g);
 `scripts/gates/bounds-allowlist.sh` — 130 lines of header defending a
 20-line function, restating a ledger it declares it is not restating
 (S116m). **Re-measured: 131 lines when #791 opened, and #791 takes it to
-178** — it cut five lines of comment archaeology and compressed its own
+195** — it cut five lines of comment archaeology and compressed its own
 additions twice, and the remainder is three newly disclosed blind spots
 (GAPs 3, 4, 5), the reason the definition skip is exact text, and the
 correction of a mitigation that was published false. The finding is *not*
@@ -13017,7 +13103,7 @@ false claim retracted, or a repair the next reader is told *not* to make.
 The conclusion is that **this directory wants the ratification ledger
 split out of the script** — the per-seam justifications are a document
 that happens to live in a comment block, and they are what makes a 20-line
-function carry a 178-line header. That is a real observation about the
+function carry a 195-line header. That is a real observation about the
 shape of `scripts/gates/`, not an argument for un-disclosing anything, and
 it is the disposition S116(m) should close on.
 

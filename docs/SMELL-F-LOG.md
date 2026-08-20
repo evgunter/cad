@@ -235,7 +235,8 @@ sub-block, from the orchestrator.
 | **F-e** | D68, D69 — **both used** | S124, S125 — **both used** |
 | **F-d** | D70 | S126 |
 | **F-f** | **D101** | **S157** |
-| unassigned (2nd block) | D102–D110 | S158–S166 |
+| **F-e** (2nd) | D102, D103 — **both used** | S158, S159 — **both used** |
+| unassigned (2nd block) | D104–D110 | S160–S166 |
 
 **Second block claimed 2026-08-20: `D101`–`D110` and `S157`–`S166`.** The first
 block is spent. Taken beyond Track E's `D81`–`D100` / `S137`–`S156` and Track
@@ -728,6 +729,32 @@ when the review lands, which is why it trails.
   sequencing exists to prevent. **The gate-specific name is what makes the
   handoff safe**, and it is in the tree at `bounds-allowlist.sh` beside the
   function so F-g inherits it from the code rather than from a message.
+- **F-R15: GAP 4's mitigation was REFUTED by the verification pass and is out
+  of the tree.** `rustfmt --edition 2021` rewrites the single-line
+  `trait Bracket: CertifiedEnclosure where Self: Bounds` — which the lane's
+  third matcher alternative *does* catch — into a multi-line `where` block
+  that is **silent**, so the silent form is the formatter-stable one. GAP 4 is
+  now disclosed as **open with no mitigation**, with the reason written at the
+  gap: no line-based matcher reaches it, and a colon-free widening
+  false-positives on `trait ArrivalSpec<T: CertifiedBounds>`, a sole bracket
+  bound outside the class. **The lane published a false mitigation twice and
+  had it caught by attack rather than by measurement** — the second time after
+  it had already self-caught the first. Recorded because that is the datum:
+  self-measurement did not settle a claim of this shape either time, and the
+  thing that settled it was a compiled counterexample plus a formatter run.
+- **S158/D102 and S159/D103 recorded, not closed**, per the ruling. S158
+  subsumes S59 — the gate anchors on `+`, and `+` is one of several ways Rust
+  writes a compound bound; `where T: Decide, T: Bounds` is silent with no
+  alias in sight. S159 is the allowlist's file granularity against its
+  per-seam justifications. Neither has a live instance in an unratified file
+  today. **A taker of D102 should expect F-R6's grandfathering caveat to be
+  live on a real residue**, unlike this lane's empty one.
+- **The dead `\b` in `(\b\w*Bounds\s*\+)` removed**, symmetric with the dead
+  path group: the tree-wide hit set is identical with and without it.
+- **Header now 195 lines against 131 at open**, and the growth is still the
+  argument recorded at S116(m): every line past the fix is a blind spot named
+  or a false claim retracted. This lane's own two retractions are three of
+  those lines.
 
 ## Incidents
 

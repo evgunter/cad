@@ -106,11 +106,13 @@
 # precise statement of what is exempted; the guarantee is the check's.
 # WHAT THE MATCHER MATCHES, shaped by NAME rather than by a list of names.
 # Three alternatives: an identifier ending in `Bounds` after a `+` (path
-# prefix allowed); one before a `+` (no prefix group needed -- `\b` already
-# matches after `::`, so writing one would be dead); and a trait
-# DECLARATION whose supertrait or `where Self:` list names a `…Bounds`
-# identifier, which is the only one that catches an alias spelled WITHOUT
-# a `+`. Each is planted separately below. An enumerating matcher is blind to the next
+# prefix allowed); one before a `+` (no prefix group and no `\b` -- `\w*`
+# already spans a path segment and `\b` adds nothing; both verified dead by
+# a tree-wide hit-set diff, and a dead regex element is removed rather than
+# kept as untested reassurance); and a SINGLE-LINE trait DECLARATION whose
+# supertrait or `where` list names a `…Bounds` identifier, which is the
+# only one that catches an alias spelled without a `+`. Each is planted
+# separately below. An enumerating matcher is blind to the next
 # alias the day it is written — which is how `CertifiedBounds` stayed
 # invisible while this header asserted it fired. The trade is knowing: any
 # `…Bounds` IDENTIFIER fires, not only a trait (`TangentSpanBounds`,
@@ -152,25 +154,40 @@
 # rather than a disposition. S124 / D68 — NOT discharged by changing what
 # the alias is bound to.
 #
-# KNOWN GAP 4 is GAP 3 aimed at this matcher's own shape: an alias NOT
-# named `…Bounds` — `trait Bracket: CertifiedBounds`, used as
-# `Decide + Bracket` — is invisible at its USES. Shaping by name covers the
-# next `…Bounds` alias, not the next alias. What holds the line is that the
-# DECLARATION is caught, so the file declaring such an alias must be
-# ratified here first, and the residue is a ratified file's alias used
-# elsewhere, i.e. GAP 3.
+# KNOWN GAP 4, and it is OPEN WITH NO MITIGATION -- read this before
+# trusting the alternative above. An alias NOT named `…Bounds` is invisible
+# at its USES (`Decide + Bracket` says nothing about brackets), so the only
+# possible defence is catching the DECLARATION. The third alternative
+# catches the single-line spellings -- `trait Bracket: CertifiedBounds`,
+# `trait Bracket: CertifiedEnclosure where Self: Bounds` -- and that is
+# worth having, but it DOES NOT CLOSE THE GAP:
 #
-# THE MITIGATION IS STATED IN ITS TRUE FORM BECAUSE THE FIRST FORM WAS
-# FALSE. It was written as "the declaration writes the pair literally and
-# therefore fires", which holds only for
-# `trait Bracket: Bounds + CertifiedEnclosure`.
-# `trait Bracket: CertifiedBounds` carries both bracket doors with NO `+`
-# anywhere on the line, and under a `+`-only matcher neither it nor
-# `Decide + Bracket` fired -- S59's own defect, reproduced by the change
-# that closes it. The declaration alternative is what makes the sentence
-# true; all three spellings are planted, and deleting that alternative reds
-# the sole-supertrait case. The mitigation inherits GAP 1: a supertrait
-# list broken across lines is invisible to it, being still a line grep.
+#     pub trait Bracket: CertifiedEnclosure
+#     where
+#         Self: Bounds,
+#     {
+#     }
+#
+# is silent, and it is the form `rustfmt --edition 2021` CONVERGES ON from
+# the single-line spelling above. A hole a formatter produces out of the
+# caught form is not a corner case; it is the resting state. No line-based
+# matcher closes it, and widening alternative three to drop its `:`
+# requirement false-positives on a trait generic over a SOLE bracket bound
+# (`trait ArrivalSpec<T: CertifiedBounds>`), which is outside this gate's
+# class -- so the answer is not a bigger regex.
+#
+# This header previously claimed a mitigation here ("the declaration writes
+# the pair literally and therefore fires"). THAT WAS FALSE, and a false
+# mitigation is worse than a disclosed hole because it tells the next
+# author the door is shut. Retracted rather than narrowed.
+#
+# The real subject is bigger than aliases and is recorded as S158 / D102:
+# this matcher anchors on `+`, and `+` is not how Rust expresses a compound
+# bound, only one of the ways. `where T: Decide, T: Bounds` and
+# `<T: Decide>(…) where T: Bounds` are plain compound bounds with no alias
+# in sight and are silent too -- no live instance in an unratified file
+# today, so a hole rather than a violation. Closing that is a redesign of
+# what this gate matches, not a patch to this regex.
 #
 # KNOWN GAP 5: the comment strip is leading-`//` only, so a trailing or
 # block comment or a string literal carrying the spelling fires. S63's
@@ -203,7 +220,7 @@ gate() {
   gate_require_crate_sources
   gate_definition_skip_subject
   local hits
-  hits=$(grep -rnE '(\+\s*(\w+::)*\w*Bounds\b)|(\b\w*Bounds\s*\+)|(\btrait\s+\w+\b[^;{]*:[^;{]*\w*Bounds\b)' crates/*/src \
+  hits=$(grep -rnE '(\+\s*(\w+::)*\w*Bounds\b)|(\w*Bounds\s*\+)|(\btrait\s+\w+\b[^;{]*:[^;{]*\w*Bounds\b)' crates/*/src \
     | grep -vE ':[0-9]+:\s*(//|///|//!)' \
     | grep -vE ':[0-9]+:pub trait CertifiedBounds: Bounds \+ CertifiedEnclosure \{\}$' \
     | grep -vE ':[0-9]+:impl<T: Bounds \+ CertifiedEnclosure> CertifiedBounds for T \{\}$' \
@@ -272,16 +289,15 @@ plant_certified_path_prefixed() {
   printf 'pub fn f<T: Decide + geom_core::CertifiedBounds>(_t: T) {}\n' > "$1/crates/planted/src/lib.rs"
 }
 
-# KNOWN GAP 4's mitigation, planted so it is a fact rather than a promise:
-# an alias whose name does NOT end in `Bounds` is invisible at its USES, but
-# its DECLARATION is caught, so the file declaring it cannot exist
-# unratified. THREE shapes, because the first draft of this mitigation held
-# only for the first -- which is S59's own defect one turn later, minted by
-# the fix that closes it. An alias spelled as a `+` PAIR; an alias spelled
-# as a SOLE supertrait (`trait Bracket: CertifiedBounds`), which carries
-# both bracket doors with no `+` anywhere on the line; and the same thing
-# spelled `where Self:`. The matcher's third alternative catches the latter
-# two, and without it they are invisible at the declaration AND at the use.
+# The three SINGLE-LINE alias declarations the third alternative catches: a
+# `+` PAIR; a SOLE supertrait (`trait Bracket: CertifiedBounds`), which
+# carries both bracket doors with no `+` anywhere on the line; and the
+# `where Self:` spelling. These pin what that alternative DOES. They are
+# NOT a mitigation for GAP 4 -- rustfmt rewrites the third into a
+# multi-line `where` block that is silent, so the gap is open. The first
+# draft of this gate claimed otherwise on the strength of the pair spelling
+# alone, which was S59's own defect one turn later, minted by the fix that
+# closes it.
 plant_non_bounds_alias_declaration() {
   mkdir -p "$1/crates/planted/src"
   printf 'pub trait Bracket: Bounds + CertifiedEnclosure {}\n' > "$1/crates/planted/src/lib.rs"
