@@ -2,12 +2,27 @@
 //!
 //! # The contract
 //!
-//! 1. **One dependency.** Everything an authoring consumer needs is
-//!    reachable from `pncad`. The kernel crates are re-exported as
-//!    modules (`pncad::profile`, `pncad::topo`, …), so a consumer's
-//!    manifest names `pncad` and nothing else — including for the
-//!    *payload types of error enums*, which are otherwise the leak
-//!    that forces a second `path` dependency (see [`closure`]).
+//! 1. **One dependency, closed over error payloads.** Everything an
+//!    authoring consumer needs is reachable from `pncad`. The kernel
+//!    crates are re-exported as modules (`pncad::profile`,
+//!    `pncad::topo`, …), so a consumer's manifest names `pncad` and
+//!    nothing else — including the *payload types of error enums*,
+//!    which are otherwise the leak that forces a second `path`
+//!    dependency: `topo::BooleanError::CurvedBooleanUnsupported`
+//!    carries a `geom_brep::SurfaceKind` that `topo` does not
+//!    re-export, so a `topo`-only consumer can receive the error and
+//!    not spell its payload. Re-exporting the owning crates closes
+//!    that whole class rather than one case, at the cost of a longer
+//!    path for the few payloads that sit below their owner's root
+//!    (`geom_core::spline::KnotAlgebraError`,
+//!    `sweep::fillet::FilletError`, `topo::boolean::ContainError`,
+//!    `mesh::validate::MeshError`) — a longer path, never a second
+//!    crate. The one stated exception is `MigrationStep`, whose
+//!    signature speaks `serde_json::Value`; [`document`] records why
+//!    it stays out. `tests/all.rs` is the pin: it matches on the
+//!    cross-crate payloads using only `pncad::` paths, and a guard
+//!    test there reads its own source and fails if any kernel crate
+//!    is named outside one.
 //! 2. **A prelude.** [`prelude`] is the curated common surface,
 //!    derived from what the demo corpus actually imports rather than
 //!    from taste: the profile vocabulary, the four body operations,
@@ -147,7 +162,6 @@ pub use topo;
 // the re-export. Re-export it the day a consumer needs it.
 
 pub mod authoring;
-pub mod closure;
 pub mod document;
 pub mod export;
 pub mod guide;

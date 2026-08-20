@@ -2,10 +2,10 @@
 //! crate (each extra test target cost ~1.9 s of codegen+link on the
 //! 2-vCPU CI runner).
 //!
-//! What this file pins is the **closure property** (`pncad::closure`):
-//! every type reachable through the public API of the re-exported
-//! surface — every error-enum payload included — is nameable from
-//! `pncad` without naming a second crate.
+//! What this file pins is the **closure property** (the crate docs'
+//! contract clause 1): every type reachable through the public API of
+//! the re-exported surface — every error-enum payload included — is
+//! nameable from `pncad` without naming a second crate.
 //!
 //! # How the pin is enforced, precisely
 //!
@@ -167,9 +167,9 @@ fn node_error_payload(e: &pncad::document::NodeErrorKind) {
     }
 }
 
-// #234: `DuplicateName` — the refusal of `NameTable::insert` — was the
-// closure property's second stated exception until `editor_core`
-// re-exported it at its root. Destructuring it by a `pncad::` path is
+// `DuplicateName` — the refusal of `NameTable::insert` — is
+// re-exported at `editor_core`'s root and carried beside `NameTable`
+// by `pncad::select`. Destructuring it by a `pncad::` path is
 // what "nameable" means here; the field's type is named too, so the
 // whole payload has a writable path and not just the outer struct.
 fn duplicate_name_payload(e: &pncad::select::DuplicateName) {
@@ -565,14 +565,13 @@ fn this_file_reaches_the_kernel_only_through_pncad() {
 fn no_arena_key_is_nameable_through_the_facade_document_surface() {
     // Every file of the façade's own source. A new module added here
     // without being listed is caught by the companion test below.
-    const SOURCES: [(&str, &str); 11] = [
+    const SOURCES: [(&str, &str); 10] = [
         ("lib.rs", include_str!("../src/lib.rs")),
         ("prelude.rs", include_str!("../src/prelude.rs")),
         ("profile.rs", include_str!("../src/profile.rs")),
         ("select.rs", include_str!("../src/select.rs")),
         ("document.rs", include_str!("../src/document.rs")),
         ("authoring.rs", include_str!("../src/authoring.rs")),
-        ("closure.rs", include_str!("../src/closure.rs")),
         ("export.rs", include_str!("../src/export.rs")),
         ("guide.rs", include_str!("../src/guide.rs")),
         ("tolerance.rs", include_str!("../src/tolerance.rs")),
@@ -663,14 +662,13 @@ fn no_arena_key_is_nameable_through_the_facade_document_surface() {
 /// neither alone is the claim.
 #[test]
 fn no_raw_loop_minting_door_is_nameable_through_the_facade() {
-    const SOURCES: [(&str, &str); 11] = [
+    const SOURCES: [(&str, &str); 10] = [
         ("lib.rs", include_str!("../src/lib.rs")),
         ("prelude.rs", include_str!("../src/prelude.rs")),
         ("profile.rs", include_str!("../src/profile.rs")),
         ("select.rs", include_str!("../src/select.rs")),
         ("document.rs", include_str!("../src/document.rs")),
         ("authoring.rs", include_str!("../src/authoring.rs")),
-        ("closure.rs", include_str!("../src/closure.rs")),
         ("export.rs", include_str!("../src/export.rs")),
         ("guide.rs", include_str!("../src/guide.rs")),
         ("tolerance.rs", include_str!("../src/tolerance.rs")),
@@ -750,7 +748,6 @@ fn the_boundary_guard_scans_every_facade_source_file() {
         "select.rs".to_string(),
         "document.rs".to_string(),
         "authoring.rs".to_string(),
-        "closure.rs".to_string(),
         "export.rs".to_string(),
         "guide.rs".to_string(),
         "tolerance.rs".to_string(),

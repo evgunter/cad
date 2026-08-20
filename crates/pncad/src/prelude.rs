@@ -90,7 +90,8 @@ pub use sweep::{
 // `geom_brep::SurfaceKind` rides here on purpose: it is the payload
 // of `BooleanError::CurvedBooleanUnsupported`, so any code that
 // matches on a curved-Boolean refusal needs it in the same breath as
-// the error itself (see `crate::closure`).
+// the error itself — the one-dependency contract's closure over
+// error payloads (crate docs, contract clause 1).
 pub use geom_brep::SurfaceKind;
 // `PlaneRelation` rides here because it is the verdict a
 // `FlushFinding`'s evidence carries (SameOpposite = resting contact,
