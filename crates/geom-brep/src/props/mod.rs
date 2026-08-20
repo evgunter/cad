@@ -75,10 +75,48 @@
 //! consistency residuals through the crate's
 //! [`decide`](crate::dihedral) funnel, and a definite failure of any
 //! of them is a typed [`PropsError`] — scope-boxed fail-loud, no
-//! silent quadrature fallback. Outside that verification: the
-//! loop-local vertex **tags** are trusted as declared (the [`LoopEdge`]
-//! trust boundary), and the residuals certify carriers, not that the
-//! traversed arcs jointly close a loop.
+//! silent quadrature fallback.
+//!
+//! **The rectangle itself is ONE named predicate** —
+//! `curved::require_rims_at_extremes` (`props_rim_level`): *every rim
+//! sits at one of the face's two extreme `v`-levels*. The total
+//! `u`-measure `w(v)` changes only where a rim is (between rim levels
+//! the boundary is meridians, which move no `u`-endpoint), so the rule
+//! establishes `w ≡ Δu`. Before S58 the property was re-derived per
+//! consumer to three different strengths; the rim-group span-sum rule
+//! that stood in for it on three of the four kinds admitted a
+//! cross-shaped domain and certified a 19%-low volume with `pad = 0.0`
+//! (#649).
+//!
+//! **What the predicate is and is not, stated exactly** (#714's
+//! review; the loose version of this paragraph asserted the premise
+//! outright):
+//!
+//! * Every **flux/area closed form** runs it before integrating —
+//!   cylinder, cone, rim-bearing sphere, torus — with **two
+//!   exemptions**, so "every curved kind" is not the claim. The first
+//!   is the **rimless sphere band**, which has no rims to place and
+//!   whose whole-latitude-band domain is a rectangle by construction.
+//!   The second is [`boundary_material_sign`], which derives only a
+//!   SIDE from one rim's traversal and integrates nothing; its callers
+//!   must treat any error as exempt, so running the predicate there
+//!   could only convert an answer into an exemption.
+//! * `w ≡ Δu` is **one** of the two premises `area = r·Δu·(hi − lo)`
+//!   needs. The other is that `(lo, hi)` is the face's true
+//!   `v`-extent, and **this predicate does not establish it**. The
+//!   torus derives its extent from the anchor meridian's stored span
+//!   and is sound; the linearly-leveled kinds take theirs from
+//!   `min_max` over edge ENDPOINT levels, and on the sphere a meridian
+//!   arc crossing a pole reaches ±1 in its interior, unseen — a −47%
+//!   certified volume at `pad = 0.0`, tier 3 green. That is **open at
+//!   issue #723**, pre-existing and untouched by S58. A face can pass
+//!   `props_rim_level` at margin 0 and still be measured wrong that
+//!   way.
+//!
+//! Outside that verification: the loop-local vertex **tags** are
+//! trusted as declared (the [`LoopEdge`] trust boundary), and the
+//! residuals certify carriers, not that the traversed arcs jointly
+//! close a loop.
 
 mod curved;
 mod loop_area;

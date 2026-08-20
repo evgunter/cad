@@ -75,7 +75,8 @@ reads as an editing error otherwise.
 ## Blocked, and on what
 
 **Nothing is blocked by another track any more.** Both external edges closed
-on 2026-08-20: **#702** (`f382c4aa`) discharged D7's `PairSolve` row, and
+on 2026-08-20: **#702** (`f382c4aa`) discharged D7's `PairSolve` row, which
+then landed as **#735**, and
 **#705** — the ≥200-file `geom-curves` + `geom-surfaces` merge that had been
 the track's single largest scheduling constraint — discharged **D2**, D7's
 fillet-helper row, and **D8**, whose `geom-curves/src/fit.rs` it relocated to
@@ -83,20 +84,19 @@ fillet-helper row, and **D8**, whose `geom-curves/src/fit.rs` it relocated to
 
 What is unstarted is unstarted for schedule reasons only, not technical ones:
 
-- **D7's fillet-helper row** is unblocked now that **D2** landed as #740,
-  which was the last edge in the track. It must re-read all four
-  `sweep/src/fillet/` files first: D2 rewrote every refusal site in
-  `surgery.rs` and `build.rs`.
+- **D7's fillet-helper row** is unblocked now that **D2** landed as #740. It
+  must re-read all four `sweep/src/fillet/` files first: D2 rewrote every
+  refusal site in `surgery.rs` and `build.rs`.
 - **D26**, **D27**, **D28** and **D29** were placed by #740: S19's four
   unplaced rows; the surgery's front-door invariants carried in comments
   (**ADVERSARIAL**, and it also owes the addendum a home for `EmptyChain`);
   `editor-core`'s eight payload-discarding `Display` arms; and
   `FilletError::Op`/`Certify`'s ~20 `format!` sites. **D27 and D29 share
   `sweep/src/fillet/`** — the only edge left in the track.
-- **D8**, **D17**, **D18**, **D19**, **D20** and D7's **`PairSolve`** row are
-  edge-free. `PairSolve`'s provenance note goes to **issue #611**, not the PR
-  body, because R2's thread is live; the deleting PR must cite the recoverable
-  commit SHA. **D18 is ADVERSARIAL** — it converts a discard behind two new
+- **D8**, **D17**, **D18**, **D19** and **D20** are edge-free. D7's
+  **`PairSolve`** row was too, and landed as **#735**; its provenance note is a
+  comment on **issue #611**, not the PR body, because R2's thread is live, and
+  the PR cites the commit the type is recoverable from. **D18 is ADVERSARIAL** — it converts a discard behind two new
   preconditions on the delicate-site path, and #720 proved the hole is real.
 
 ## For Evan — S14 now has three witnesses

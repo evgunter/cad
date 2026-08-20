@@ -1767,7 +1767,7 @@ adversarially reviewed.
 | `FlipSet::flips_on_path`, `flips_at` | `resolve/vdiff.rs:181`, `:150` | Public, documented against a spec line, no callers; the one consumer that wants exactly this calls the raw primitive underneath |
 | `jet.rs` cone and torus Taylor arms | `ssi/jet.rs:274` | Own comment: "the cone arm refuses at both the enclosure and the certificate today, so nothing depends on it yet" |
 | `CornerBall::surface`, `corner_contact_circle`, `trimline_description` | `fillet/blend.rs:56`, `:301`, `battery.rs:1100` | The first builds a chart both production callers discard and replace; the other two have no consumer at all |
-| `PairSolve`, `CLASS_DEFERRAL` | `mate/solve.rs:66`, `mate.rs:245` | `pub`, re-exported, never constructed or read |
+| `PairSolve` — **DELETED by #735**, see the D4 DECIDED block — and `CLASS_DEFERRAL` | `mate/solve.rs:66` (pre-deletion), `mate.rs:254` | `pub`, re-exported, never constructed or read |
 
 `DESIGN.md` names building reviewed machinery with no consumer as "the
 dead-code pattern M5's reviews repeatedly punished", which makes the
@@ -1792,14 +1792,14 @@ being written.**
 | `Node::Sweep` | **DELIBERATE-FRONTIER → now PLANNED with a landed first half.** LQ3 ratified (#362); the door landed (`compose_chain`); the `wire_sweep` discharge is explicitly fenced out of U4A as its own later unit. |
 | STEP cylinder recognition | **DELIBERATE-FRONTIER** — the refusal is the honest result and the module doc says so in advance; the algebraic tightening is banked but tied to **no issue or plan**. |
 | `ProfileError`'s five fillet variants | **SUPERSEDED — and now fully orphaned.** #377 closed 2026-08-18 by PR #608; `test_support.rs` **no longer exists on `origin/main`**. The retirement removed their producer and left the variants. *This row's sort changed while the scan was being written.* |
-| `Mat2`/`Affine2` | **GENUINELY DEAD?** — the only row with **no source at all** for a future consumer, against the M0 review's own norm *"add only on consumer demand"*. |
+| `Mat2`/`Affine2` — **deleted by #721** | **GENUINELY DEAD?** — the only row with **no source at all** for a future consumer, against the M0 review's own norm *"add only on consumer demand"*. |
 | `PatchContact` | **PLANNED — the strongest row.** Producer is spec-written and queued: `ASM-R2B-SPEC.md` D-2 mints it; `M9-3-SPEC.md:143` is its acceptance row. |
 | `trace_plane_nurbs_uncertified` | **DELIBERATE-FRONTIER** — `M5-PR7B-SPEC.md:71` authorised exactly this fate. |
 | `flips_on_path`/`flips_at` | **DELIBERATE-FRONTIER** — `M4-PR4-SPEC.md` D2 mandated a general engine: *"must not be specialized to either consumer"*. |
 | `jet.rs` cone/torus arms | **DELIBERATE-FRONTIER**, structurally forced by the closed `Surface` enum (D3); the refusal is downstream and reasoned. |
 | `CornerBall::surface` | **SUPERSEDED** — both callers replace the chart, with the reason in code. |
 | `corner_contact_circle`, `trimline_description` | **SUPERSEDED** — inlined duplicates; the spec's obligation is met by the inline form. |
-| `PairSolve` | **GENUINELY DEAD?** — written by ASM-R2a, unmentioned by ASM-R2b, which is the unit that consumes the solve. |
+| `PairSolve` — **deleted by #735** | **GENUINELY DEAD?** — written by ASM-R2a, unmentioned by ASM-R2b, which is the unit that consumes the solve. |
 | `CLASS_DEFERRAL` | **This report's claim is WRONG** — it **is** read, at `mate.rs:350`. What is unreachable is the *variant*, kept knowingly (PR #575 deviation 5). |
 
 *On `DESIGN.md`'s "dead-code pattern M5's reviews repeatedly punished":* that
@@ -1913,10 +1913,81 @@ see method calls (`v.dot(w)`, `p.distance(q)`), whose `Vec2`-vs-`Vec3` receiver
 needs type inference rather than grep; the method half of the surface is
 therefore unswept.
 
-Of the two remaining rows, **`PairSolve` is unblocked and unstarted** — #702
-merged 2026-08-20 as `f382c4aa`, its only gate — and the fillet helpers still
-wait on **D2**; **#705** merged 2026-08-20, discharging its file-overlap
-gate.
+**EXECUTED — row 2 of 3, `PairSolve`, by #735 (2026-08-20).** The census was
+re-run on that day's tree before anything was deleted, and had not moved since
+2026-08-18: workspace-wide, `PairSolve` was still exactly two lines — the `pub
+struct` at `mate/solve.rs:66` and the re-export at `mate.rs:66` — with no
+constructor and no reader. The re-run widened the census past `crates/*/src`
+to the whole tree bar `.git` and `target`, so `crates/pncad-py/`, every
+crate's `tests/`, `demos/`, `tools/`, `scripts/`, `review/` and
+`review-probes/` are covered; outside `docs/` there were no other hits, in
+either spelling (`PairSolve` or `pair_solve`, matched case-insensitively).
+**Recoverable from `adbeff0976dd6d2fc1a0a4f663aef965f01f8dd7`** —
+*ASM-R2a: the Mate node, the coset algebra, clusters and the solve*, the
+commit that wrote it — whose tree carries the type in full, checked by
+reading the struct out of that tree rather than trusting `git log -S`.
+The authoring commit is the citation #611's successor wants: the shape and
+the intent that produced it sit together there. The provenance note
+is on **issue #611**, per the table above. It is two comments: the note itself
+(`#issuecomment-5353012588`) and the **authoritative** correction carrying this
+SHA (`#issuecomment-5353068751`). Cite the second — no tool in the lane's
+surface can edit a posted comment, so the first still names a weaker SHA.
+Nothing migrated: the type had no `impl`, so it read nothing, and its three
+field types (`RecipeNodeId`, `Vec`, `Coset`) all keep consumers.
+
+**This deletion could orphan nothing, and that is provable by inspection
+rather than by sweeping.** `PairSolve` was a field-only struct — three fields,
+`#[derive(Debug, Clone)]`, no `impl`, not one method call inside it. Its
+*entire* reference footprint was therefore three type names: `RecipeNodeId`,
+`Vec`, `Coset`. That closes the set of things its removal can strand, and all
+three keep consumers (`Coset` alone has seven further uses in `solve.rs`, plus
+`editor-core` and `pncad` tests). Row 1's trap — a deletion orphaning a
+helper whose last caller was the deleted code — **has no purchase on a type
+that called nothing**. Row 1's lesson still holds in general; it simply does
+not bind here, and a grep-shaped sweep was never what established that.
+
+**The instrument that did establish it, and what it found.** Grep answers
+liveness only approximately: it matches bare identifiers, so a method name
+that collides with a common one elsewhere reads as consumed whether or not its
+own callers survive. The exact instrument is **rename-and-rebuild** — rename a
+definition in place, rebuild, and let the compiler enumerate the consumers.
+Run over all sixteen `pub` items of `mate/coset.rs` and `mate/solve.rs`
+(`cargo check -p editor-core -p pncad --all-targets`, with `SolvedPoses::role`
+planted first to prove the instrument can go red), it found **one dead item:
+`MateRole::name`**, ten lines above the deleted struct, documented *"The
+role's name, for messages"*, with nothing anywhere formatting a role into a
+message. It builds clean without it under default features, under
+`--features probe`, and for `pncad-py`. R2-a wrote it too, so
+`adbeff09` above is its recoverable commit as well. **Deleted here**: dead in `mate/` is
+the class D4 ruled on, so removing it applies the ruling rather than making a
+fourth decision. Every other item answered LIVE, including all three
+`MateRole` arms — `Determining` in production at `solve.rs:666`, `Declaring`
+at `:535`/`:639`, `Refused` at `:554`/`:584`. **The instrument's own limit:**
+renaming a *type* always answers LIVE, because its own `impl` block and fields
+count as consumers, so it measures functions and methods exactly and says
+nothing about type-level deadness.
+
+**Two items tabled without a verdict** — found by the instrument, but a sweep
+of newly-discovered rows is a new decision, not an application of D4's:
+
+- `Subgroup::name` and `Subgroup::dimension` (`coset.rs:159`, `:147`) have
+  **no production caller**: rename either and the lib-only build is clean;
+  every consumer is in `editor-core/tests/asm_r2a_mate_solve.rs`. (`mate.rs:428`
+  and `:479` call `MateSide::name`, a different type's method — not these.)
+- `fold_pair` (`solve.rs:436`) is `pub` in `pub mod solve` but named by no
+  `pub use` in `mate.rs`. This is **facade completeness**, not a visibility
+  bug: `mate` presents a curated re-export surface, and four of its
+  submodules' public items escape it under no stated rule — while the deep
+  path is a *used* idiom here, `asm_r2a_mate_solve.rs:725` calling
+  `mate::coset::intersect_subgroups` by full path. Whether the facade is meant
+  to be complete has not been asked.
+
+The class behind `MateRole::name` is placed as **D24**: a `pub` item that is
+dead workspace-wide is exempt from `dead_code`, and the workspace lints carry
+only `unsafe_code`/`missing_docs`, so nothing mechanical catches one.
+
+**One row remains: the two inlined fillet helpers**, still waiting on **D2**;
+**#705** merged 2026-08-20, discharging its file-overlap gate.
 
 ## S12. CLOSED — #706 ran the suite CI never did, #720 retired the discards behind it
 
@@ -6706,7 +6777,7 @@ hand-multiply class (`boolean::solid_contain::face_plane`,
 **Verdict:** _(unreviewed)_
 
 ---
-## S58. "This face's domain is an iso-rectangle" is re-derived per consumer, in three representations, and no two agree on what it means
+## S58. FIXED IN PART by #714 — "This face's domain is an iso-rectangle" was re-derived per consumer, in three representations, and no two agreed on what it meant
 
 - **Where**: `crates/geom-brep/src/props/curved.rs:421` (`du_of_rims` /
   `props_du_consistent`), `crates/mesh/src/curved.rs`
@@ -6758,6 +6829,132 @@ Notes for whoever takes it, so the unit does not quietly become four:
 - **Ask whether it is a tier property.** Three consumers sharing one
   precondition is an argument for refusing such a body once at `validate`
   rather than at each door. Not decided here.
+
+**Executed by #714 (2026-08-19). It closed #649 as prescribed, and it
+did NOT close #649's CLASS — read the scope statement at the end of
+this block before citing it.**
+
+The predicate is `geom_brep::props::curved::require_rims_at_extremes`,
+decided under the name the torus already used — **`props_rim_level`**:
+*every rim sits at one of the face's two extreme `v`-levels*. `w(v)`
+changes only where a rim is (between rim levels the boundary is
+meridians, which move no `u`-endpoint), so the rule establishes
+`w ≡ Δu` — **one** of the two premises `area = r·Δu·(hi − lo)` and its
+per-kind siblings integrate; the other is the `v`-extent, and it is NOT
+established here (see SCOPE below). Cylinder, cone and sphere adopt it, each passing its own two
+extremes in its own `RimLevel` representation (`Length` bare;
+`Unit` direction pairs levered — sphere `× R`, torus `× minor`); the
+torus's private loop **became** the shared call rather than a second
+copy. `du_of_rims` keeps its M5-PR-9 span-sum check, which now pins the
+`Δu` VALUE of a domain already known to be a rectangle instead of
+standing in for the shape test — its doc says so, and a multi-arc-rim
+row proves PR 9's reason survives.
+
+Measured: the plus domain now refuses on **all four** kinds
+(cylinder/cone/sphere were accepting it at −28.57 %/−29.91 %/−29.30 %),
+the tall-arm, double-plus and Z-staircase rows with it, and every
+control iso-rectangle still measures **exactly**. Both proven doors are
+closed with #649's own fixtures, committed under
+`crates/step-import/tests/fixtures/iso-rect/` with their generator and
+pinned in `tier_gate`'s corpus: `cross.step` refuses at import, and
+`merge_coplanar_faces()` on `xsplit.step` — which used to turn an exact
+`8.96e-7 m³` into `7.2533e-7` with `pad = 0.0` — now refuses instead of
+mis-measuring.
+
+Over-refusal: nothing legitimate newly refuses. The wild and FreeCAD
+corpora, the whole `tier_gate` matrix (every committed STEP file × 3
+ambient ε × 3 ε_in), the volume oracle at its `1e-11` budget, and the
+`geom-brep` / `topo` / `mesh` / `sweep` / `step-import` suites are all
+green. Exactly **one** disposition moved — `cross.step`, from Pass to
+Refused. `tee.step` was already refused (on `props_du_consistent`, its
+one-sided arm making the span sums disagree); only the REASON in its
+refusal string moved, which is why those rows pin the reason.
+
+The "zero refusals" evidence is *ran and passed*, not *never reached*,
+and structurally rather than by instrument: every curved flux/area
+closed form calls the predicate before it integrates, so a curved face
+that produced an area is a face where it ran and returned `Ok`. Its
+blind spot, stated (§C15): rimless sphere bands and
+`boundary_material_sign` are exempt, planar and quadrature-lane faces
+never reach it, and neither does a face on a body refused before check
+7 runs. The COUNT is not instrumented.
+
+**The third consumer's prose was also wrong, and that is fixed —
+twice.** `ValidationError::VolumeUncomputable`'s doc read *"at rest
+every M2-constructible body computes; this is corruption surfaced
+loudly"* — D2-addendum **row 1** framing, falsified by an executed
+counterexample: an imported keyed shaft is not corruption. #714's first
+pass replaced it with a flat **row 2** claim, which is wrong the other
+way, because `source: MassPropsError` has five arms. It is now stated
+PER SOURCE: `Face` is row 2 and the reachable one; `Corrupt`,
+`NullScaffoldEdge` and `RingOnCurvedFace` document themselves as
+corruption or mid-surgery and are row 1; `Band` is neither. Its closing
+sentence used to assert an invariant the doc site does not enforce, and
+now names what actually makes the row-1 arms near-unreachable — the
+`if errors.is_empty()` gate on check 7's call — and says that is a
+sequencing fact, not an invariant. `mass_properties`' own `# Errors`
+doc carried the same falsified claim (*"bodies that pass the structural
+tiers and were built by M2's public operations always compute"*) one
+crate-module over, and is fixed with it: `merge_coplanar_faces` is the
+public operation that falsifies it.
+
+**Two residues, both PLACED as rows** (§D ordering rule 3 — a lane's
+own residues are rows, not footnotes; they were footnotes here until
+#714's style review said so):
+
+- **`mesh`'s half of the fragmentation still stands** — issue **#726**,
+  and §D row **C11**. `entries_off_bbox` answers a second question the
+  face predicate cannot (#653's walk consistency; the bar is spatial
+  for that reason), so only the first question folds in. Its prose now
+  names the shared predicate rather than calling the agreement a
+  coincidence. **Nothing was loosened** — #648 is what makes tightening
+  `props` safe at all.
+- **The tier-property question is answered "no, and here is the real
+  gap"** — issue **#727**, and §D row **C11**. The predicate is a
+  **capability boundary** (D2 row 2), not a validity property, so a body
+  that trips it is *valid* and a tier property asserting otherwise would
+  have to be deleted the day the certified-quadrature lane can measure
+  such a domain. What the question is really pointing at is that `mesh`
+  and (once its curved-pierce door lands) the boolean are still
+  protected **transitively**, through tier 3's check 7 calling
+  `mass_properties` — the same shape as the pre-#648 mesher. The thing
+  worth writing down is which door owns the refusal, not a new
+  invariant.
+
+**SCOPE OF THE FIX — why this reads FIXED IN PART.** #714's
+adversarial review broke the sufficiency argument on the sphere, with
+an executed at-rest counterexample, and the residue is **issue #723**.
+
+What the predicate establishes is `w ≡ Δu`: the domain's `u`-measure is
+constant across the open `v`-interval. `area = r·Δu·(hi − lo)` needs a
+**second** premise that nothing states — that the `(lo, hi)` handed to
+it is the face's true `v`-extent. The **torus is immune precisely
+because it does not use `min_max`**: its extent comes from the anchor
+meridian's stored span. The other three take theirs from `min_max`,
+which folds edge ENDPOINT levels only. On the sphere that is
+falsifiable: `sphere_boundary` certifies a meridian's CARRIER is a
+great circle, not that the traversed ARC stays on one meridian half, so
+an arc can cross a pole — `u` jumps by π mid-edge and the latitude
+reaches ±1 in the arc's INTERIOR, unseen. Through `import_step`: tier 3
+**green**, `volume = 1.858e-7` against exact `3.518e-7`, **`pad = 0.0`,
+−47.19%** — more than twice #649's 19%. The identical solid without the
+extra vertex is refused (`DegenerateFace`), so **one added vertex turns
+a refusal into a wrong certified volume**, which is #649's second door
+in the other direction.
+
+`require_rims_at_extremes` passes that face **correctly**, at margin
+exactly 0: the domain genuinely IS an iso-rectangle. So:
+
+- **Fixed**: the fragmentation this finding names, on the `props` side —
+  three derivations to three strengths became one named predicate with
+  one margin, one refusal name and one justification. #649's own
+  fixtures and both of its proven doors are closed.
+- **Not fixed, and not this unit's**: the wrong-certified-volume CLASS.
+  It is open on the sphere at −47% (#723), pre-existing and carried
+  across untouched — #714 carried the rim rule to cylinder/cone/sphere
+  and did **not** carry the extent derivation with it. Nothing in this
+  entry, in `props/mod.rs` or at the predicate may be read as closing
+  that class; all three now say so and cite #723.
 
 ---
 ---
@@ -6864,7 +7061,7 @@ Do not take these. Each has a running lane.
 
 | # | Work | Scope |
 |---|---|---|
-| **A2** | **S58 / #649** — one named iso-rectangle predicate, generalising the torus's level rule to cylinder/cone/sphere. Closes the wrong-certified-volume defect (19% low at `pad = 0.0`). | `geom-brep/src/props/curved.rs`, `topo/src/validate.rs`, new STEP fixtures |
+| **A2** | **#714, in review — the finding is FIXED IN PART.** **S58 / #649** — one named iso-rectangle predicate, generalising the torus's level rule to cylinder/cone/sphere. Closes #649 and both of its proven doors (19% low at `pad = 0.0`). It does **not** close the wrong-certified-volume CLASS: the extent premise the closed forms also need is open on the sphere at **#723**, at −47%. Two residues placed as **C11** (#726, #727). | `geom-brep/src/props/curved.rs`, `topo/src/validate.rs`, new STEP fixtures |
 | **A3** | **#678** — the slender partial-revolve cone wedge that meshes silently non-watertight, A/B against `main` first. | `crates/mesh/` |
 | **A4** | **#667** — the measured-claim sweep continuation, pattern fixed first. | docs + scattered claim sites |
 
@@ -6936,6 +7133,11 @@ and #692 are all merged**, and **#705** merged the two geometry crates into
 one `geom`. So C1's remaining members, C3's S29, C4 in full, C5's S28 half,
 C7, C9 and C10 are all edge-free and takeable today.
 
+**C11 joined 2026-08-19**, as A2/#714's own two residues (§D ordering rule 3),
+and it is edge-free in the same sense C9 is: its #727 half is a **decision**
+reacting to an answer already written down at S58, and its #726 half sequences
+with **#723** and C3's S27 for the same `props/curved.rs` reason.
+
 **Two gates remain, and they are different in kind.** **C3's S27** waits on
 **A2** (#649, open as #714) for file overlap in `props/` — as does the
 `step-export/volume.rs` row Track D handed over, whose immediate cause is
@@ -6956,7 +7158,7 @@ rewritten rather than appended to.
 |---|---|---|
 | **C1** | **H12–H15** — four lanes' own residues: the SSI sweeps' other never-silence doors (no acceptance row in either lane), `sweep_body`'s helix rows with no orientation coverage, #637's two jurisdiction residues, #635's unclassified siblings. | Each is small; together they are a lane. They are the clearest instance of ordering rule 3. |
 | **C2** | **H11, H16, H17** — #632's two residues; the STL header not being caller-settable while `StepOptions` carries `product_name`; and S37's rustdoc remainder, ~1115 lines across 130 files. | H17 is large and mechanical; H16 is a small asymmetry with a clear right answer. |
-| **C3** | **S27, S29** — `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block; and the sizing vocabulary fragmented across five modules with self-admitted magic constants. (S30, the mesh crate's 1,060 lines of instrument, was the third member and is FIXED by #709.) **S29 is NOT blocked on a design conversation — corrected 2026-08-19.** This row previously said its policy question was routed to `docs/TESS-SPLIT-SPEC.md` and PR #568. #684's review checked: both are scoped **entirely to the NURBS per-cell schedule** (`nurbs_cert`'s `grid_steps`, certified cells, the first fundamental form — TESS-SPLIT-SPEC's D-1 replaces the AM-GM grouping, with `leaf_a f2` as its poster child). **Nothing in either covers analytic-chart sizing**, so `curved::grid_steps` has no venue at all — and #684 has since added a sixth rule to it. S29's own lesson applies to that: *N well-defended deviations read as N decisions when they are one undecided question.* S27 touches `props/`, so it must follow **A2**; S29 is edge-free. |
+| **C3** | **S27, S29** — `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block; and the sizing vocabulary fragmented across five modules with self-admitted magic constants. (S30, the mesh crate's 1,060 lines of instrument, was the third member and is FIXED by #709.) **S29 is NOT blocked on a design conversation — corrected 2026-08-19.** This row previously said its policy question was routed to `docs/TESS-SPLIT-SPEC.md` and PR #568. #684's review checked: both are scoped **entirely to the NURBS per-cell schedule** (`nurbs_cert`'s `grid_steps`, certified cells, the first fundamental form — TESS-SPLIT-SPEC's D-1 replaces the AM-GM grouping, with `leaf_a f2` as its poster child). **Nothing in either covers analytic-chart sizing**, so `curved::grid_steps` has no venue at all — and #684 has since added a sixth rule to it. S29's own lesson applies to that: *N well-defended deviations read as N decisions when they are one undecided question.* S27 touches `props/`, so it must follow **A2** (#714) **and #723**, which re-opens the same file on the same closed forms — see the gating note above; S29 is edge-free. |
 | **C4** | **S32, S33** — `Surface`'s one-partial-per-call API, which is what created the shadow surface enum in SSI; and neither geometry enum being able to lift itself to another scalar. (S31, the `geom-curves`/`geom-surfaces` split, was the third member and is FIXED by #705.) | **S32 is now additionally gated on #705's merge**: the enum and its NURBS payload are one crate's two modules, so a `SurfaceJet` door at the enum no longer crosses a crate boundary. **S33 is coloured by D1**: several of its ~14 hand-written ladders exist only to reach `Dual`, and what `Bounds for Dual` changes there is written in S44's **D1 DECIDED** block. |
 | **C5** | **S26, S28's duplication half** — the certified area enclosure that is never metered against anything (`area.width()` appears nowhere in the file); and the three tessellation lanes that remain three pipelines now that #648/#674 have settled their ordering and column questions. (**S24 left this row FIXED by #702.**) | S26 was explicitly deferred in writing by #472 — *"metering against `area.lo()` … deserves its own proposal with re-measured floors"* — so it is a proposal, not a patch. S28's duplication half must follow **A3**. |
 | **C6** | **W2f remainder / S4** — `ProgramStep`/`WireStep`, `SegTag`, and the "no usable value" core. | Each is blocked on something real: the first behind OnArc + RESPELL-TABLE and crossing the same files, the second needs the workspace's first proc-macro crate, the third by a persisted format. |
@@ -6964,6 +7166,7 @@ rewritten rather than appended to.
 | **C8** | **#711 — S24's residues outside `editor-core`**: `step-import/src/recognize.rs:126`, whose `try_cylinder` promoting arm is documented unreachable and whose `Plane > Cylinder` preference order is *"unfalsifiable by execution"*; and `docs/ASM-R2A-SPEC.md:21`, a landed spec sentence (*"v1 admits `Rest`/`Tangent`"*) that is true of the door it binds and no longer of v1 as a whole. | Filed by #702's fix pass rather than left inside a finding marked FIXED. The first may want the tighter cylinder certificate rather than an encoding change; the second is a one-line ruling — clarifier, or "landed specs read as of their own date". Small, edge-free, and **not** a lane on its own: fold into whoever next opens `step-import`. |
 | **C9** | **The `tess-meter` CSV's `agreement` column measures nothing**, and its `≤ 1%` assertion in `budget_meter` was vacuous. `grid_cells` and `span_cells` are the same `Σ nuc·nvc` from the same `band_schedule`, so the ratio is `≡ 1.0` by arithmetic — while the module docs claimed it *"verifies the lane's REALISATION of the schedule (candidate generation, dedup, counting)"*, which was never true because neither number counts a candidate. `tess-lint`'s own report legend already printed *"1.00 by construction"*: **the tool knew and the docs disagreed.** #709 corrected the column's doc to stop claiming a check; making the column *real* needs a CSV schema change and a re-cut committed baseline. | Disclosed in #709's body and correctly out of that unit's scope — **and it had no row until now, which is this track's own instance of §C3.** The substantive question is whether a realisation check is worth having at all: if the answer is no, the honest fix is to delete the column rather than re-derive it, and that is a decision the lane should make and record. Edge-free; `tools/tess-meter/`, `tools/tess-lint/`, the committed baseline, `docs/TESS-BUDGET.md`. |
 | **C10** | **`geom_core::k_stats` is S30's class one crate over** — 598 lines, ~96 of them separable instrument, in the kernel's own core crate. | Reported by #709 and deliberately untouched, for a reason that is the whole row: the recording sits **inside** `decide`/`decide_flagged`/`decide_invariant`, which are load-bearing kernel predicate doors, so the `mesh::budget` split does **not** transfer mechanically. Whoever takes this must first decide whether the instrument can leave a door that certifies, and record that decision — it is not a cut-and-paste of #709. Note also `profile::k_stats`, a self-declared compatibility shim whose retirement is **STILL OPEN** at S40. Edge-free but not small. |
+| **C11** | **#726 and #727 — A2/#714's own two residues.** #726: fold the iso-rectangle SHAPE question out of `mesh::curved`'s `require_swept_rectangle` and onto the named predicate, leaving `entries_off_bbox` only #653's walk-consistency question. #727: which door owns the refusal — `mesh` and (once its curved-pierce door lands) the boolean are still protected **transitively**, through tier 3's check 7 calling `mass_properties`, which is the pre-#648 mesher's shape. | Both were footnotes inside a finding marked fixed until #714's style review applied ordering rule 3. #726 is a lane; #727 is a **decision** with a written answer to react to (S58's entry), not a patch. Whoever takes either reads **#723** first — `props_rim_level` is not the whole closed-form premise, so "protected by `props` refusing" is weaker than it reads. |
 
 ---
 
@@ -7231,12 +7434,13 @@ have failed loudly even if it had been attempted.
 
 | # | Work | Was | Scope | Review | Gated on |
 |---|---|---|---|---|---|
-| **D7** | **U1 / D4 — the decided deletions. One of three executed; two are unexecuted, so the row stays.** Decided by Evan 2026-08-19. **`Mat2`/`Affine2` landed as #721** (2026-08-20); the execution record, its SHA and the row it minted are in the D4 DECIDED block, which is their one home. **What remains is two rows**, each still owing a provenance note next to the thread that produced it and a recoverable **commit SHA** in its deleting PR: `PairSolve` → **#611**, and the two inlined fillet helpers → **#319**/**#554**. `trimline_description`'s doc is the only place D7's prefer-intrinsic obligation is *named*: that sentence migrates with the fillet row, it does not die. | U1 | remaining: `editor-core/src/mate{.rs,/solve.rs}`, `sweep/src/fillet/{blend,battery}.rs` (`geom-core/src/linalg/{mat,affine}.rs` done) | style | **split by row.** `Mat2`/`Affine2` was free and is done. **`PairSolve` is unblocked and unstarted** — #702 merged 2026-08-20 as `f382c4aa`, and it was the only gate on that row; it is open for a successor. The fillet helpers were blocked on **D2** alone, and **D2 landed as #740**, so the row is free — but it must re-read all four `sweep/src/fillet/` files, because D2 rewrote every refusal site in `surgery.rs` and `build.rs`. Evan placed the whole row *"back of the queue, but ahead of W3b"*, and its rationale — noise to lanes reading the same files — is what D2 discharged. |
+| **D7** | **U1 / D4 — the decided deletions. Two of three executed; one is unexecuted, so the row stays.** Decided by Evan 2026-08-19. **`Mat2`/`Affine2` landed as #721** and **`PairSolve` as #735** (both 2026-08-20); each execution record, its recoverable SHA and any row it minted are in the D4 DECIDED block, which is their one home. #735 also removed **`MateRole::name`**, dead workspace-wide and ten lines from the deleted struct — an application of this same ruling, not a new one — and placed **D24** for the class that hid it. **What remains is one row**: the two inlined fillet helpers, still owing a provenance note on **#319**/**#554** and a recoverable **commit SHA** in its deleting PR. `trimline_description`'s doc is the only place D7's prefer-intrinsic obligation is *named*: that sentence migrates with the fillet row, it does not die. | U1 | remaining: `sweep/src/fillet/{blend,battery}.rs` (`geom-core/src/linalg/{mat,affine}.rs` and `editor-core/src/mate{.rs,/solve.rs}` done) | style | **split by row.** `Mat2`/`Affine2` and `PairSolve` were both free and are done; `PairSolve`'s provenance note is a comment on **#611**. The fillet helpers were blocked on **D2** alone, and **D2 landed as #740**, so the row is free — but it must re-read all four `sweep/src/fillet/` files, because D2 rewrote every refusal site in `surgery.rs` and `build.rs`. Evan placed the whole row *"back of the queue, but ahead of W3b"*, and its rationale — noise to lanes reading the same files — is what D2 discharged. |
 | **D8** | **U4's remainder — the knot-vector queries.** `KnotVector` offers `multiplicity_of(u)`, which requires you to already know `u`; every consumer that needs *the list* of distinct interior knots hand-writes the same scan, four times (`compose.rs:274`, `algebra.rs:563`, `geom/curves/fit.rs:378`, `sweep/skin.rs:370`). Beside it, knot insertion exists twice in one module, one of them re-deriving the span with a linear scan where `find_span`'s binary search is one module away. The scan's own lesson: *a data structure whose API was frozen one PR before its first consumer is the tell.* | U4 (rows) | `geom-core/src/spline/{compose,algebra}.rs`, `geom/src/curves/fit.rs`, `sweep/src/skin.rs` | **ADVERSARIAL** — it adds to a certified type's API and replaces a linear scan with a binary search inside knot arithmetic, where an off-by-one is a wrong curve rather than a compile error. | nothing (but it edits `sweep/src/skin.rs`, so sequence it against D1/D2 within this track) |
 | **D17** | **No CI lane builds any crate's `probe` test targets except editor-core's — 14 suites across four crates are not type-checked, let alone run.** Stated precisely, because the loose version is false and the difference is the whole row: the `sweep`, `topo`, `profile` and `geom-brep` **libraries** ARE compiled under `probe` on every building merge (`editor-core`'s `probe` feature forwards `sweep/probe` et al., and `scripts/k_probe_sweep.sh:49` runs `cargo test -p editor-core --features probe`). What no workflow does is build those crates' **own `tests/` targets** under `probe`. `rg 'feature = "probe"' crates/*/tests/` returns **16 files**; only editor-core's 2 are compiled by CI. The other 14 — 5 `topo`, 4 `profile`, 4 `geom-brep`, 1 `sweep` — can bit-rot green or red with nothing noticing. **The diagnosis was already in the tree and this row is its fifth rediscovery**: `crates/topo/tests/probe_s5_sectors.rs:24-31` (`c0e05322`, 2026-08-19 — *one day before* #718) already says *"NOT run by CI, and not a gate … nothing in `.github/workflows/` runs `cargo test -p topo --features probe` … a class, not this suite's peculiarity"*. D15 then found the sweep instance by tripping over it. Finding the next instance by the same accident is the standing failure this track exists to break, so **the row is the class, not `sweep`**. Two mechanisms, and they are NOT interchangeable: (a) a `cargo check -p <crate> --features probe --all-targets` step per crate, or (b) fold the M2 corpus into `k_probe_sweep.sh` so the M2-era instrument runs beside the M4/M5/M7 one. **(a) would not have caught the defect that spawned this row** — the pre-fix `k_report.rs` compiled perfectly; its failure was a runtime panic, so only (b) would have gone red on 2026-07-25. Choose on that, not on cost; the costs below are close enough to mislead. **Cost, measured on an agent container — a RATIO, not a hosted number** (#706's comparable step was 93 s hosted cold): running the harness is **0.05 s** per ε row; (a) for `sweep` cold is **12.0 s** over 36 crates; (b) needs codegen + link, **35.2 s** cold. Honest counterweight: `probe` is a `Real` instantiation, so it monomorphizes every generic-over-`Real` body — **the build is the bill**, and it is not free even though the tests are. **Read #706's job before designing this one** (`ci.yml:731`): same shape — a surface CI never compiled — showing how narrow such a job should be (one crate, own cache key, filter-gated) and carrying the trap that matters most here, that **a name filter matching nothing exits 0**, which is exactly the silence an `--ignored` module-prefix selection would reintroduce. | raised by D15 (#718); class already stated at `probe_s5_sectors.rs:24-31` | `.github/workflows/ci.yml`, and `scripts/k_probe_sweep.sh` if (b) | style | nothing |
 | **D18** | **Two callers hand `link_half_edges` a `prev` nothing proves, and they are the last thing standing between W2c and done.** Both read `prev` straight out of the arena and splice through it, and in both cases the *symmetric* `next` **is** proven live in the same plan phase: `split.rs:253` passes `prev(hm)` while `:155-160` checks `next(hp)`; `euler_kill.rs:830` passes `a = prev(he)` while `b = next(he)` is proven by the cycle walk — **`loop_walk` steps `next`** (`body.rs:796-800`), so the walk proves one and not the other. `kef` is the outlier among the operators: `mev` (`euler.rs:1437-1443`), `mef` (`euler.rs:1701-1707`), `kev` (`euler_kill.rs:605-613`) and `mekr_cycles` (`euler_ring.rs:1032-1037`) each check their own `prev`s explicitly and say so. The fix is **one `contains_key` per site**, symmetric with the check each plan phase already has — `kev`'s four-link loop is the shape. **Why the row is worth doing rather than a tidy-up**: `link_half_edges` is the site S12 led with and the site the D2 addendum names, and #720 left its two discards unconverted for exactly this reason — so **D18 unblocks the last two sites of W2c**, after which the helper converts in one line. **Both** call sites are required: fixing only `split.rs` leaves `kef`'s `a` unproven and the helper still unconvertible. The distinction a future reader will not re-derive: the helper's old qualifier was *"cannot fail on **the operator paths**"*, and one of the two gaps is **inside an operator** — the qualifier was not merely narrow, it was wrong. **How it was found**: #720's own sibling sweep obligation, discharged late — the unit established that a `prev` is not proven by a `next`-walk and did not immediately run that read over the operators; its review did. | raised by D16 (#720) | `topo/src/split.rs`, `topo/src/euler_kill.rs`, then `topo/src/euler.rs`'s `link_half_edges` | **ADVERSARIAL** — it adds preconditions to a non-operator mutator and to a kill operator on the delicate-site path, then converts a discard behind them; getting any part wrong re-opens the hole #720 proved is real, and this time as a panic. | nothing (#720 leaves both call sites' code untouched, correcting only the false comments on them) |
 | **D19** | **The K roster's inventory method has a hole, and the roster is complete today by luck of era.** `K-REPORT.md:341` states the method as `grep -r 'decide("'` plus the census helpers plus — since #712 — the row-name TABLES, listing exactly one (`topo::ray_parity::ParityRows`). Two more name carriers already ship and are listed nowhere: `sweep/src/swept.rs:216`'s `CosurfaceNames` (a second table) and `topo/src/sector_shape.rs:169/172/176`'s three private `const &str`s, which are invisible to **both** halves of the method — not in the `decide("` grep, and their names postdate the M2 CSV column it is diffed against. The obligation is stated over *types*; the hole is over **anything not reachable as a bare literal at the call site**, of which a sweep at this head counts 37 across 24 files: 25 of them (in 20 files) are a bare `name` parameter — the thin per-crate wrappers, whose callers may still pass a literal one hop away — and the rest are carried by a const or a struct field, which nothing recovers. Cost the definition before counting. Restate the rule over that criterion, list what it catches, and say whether the enumeration is meant to be maintained by hand or by a test. | #719 (D11), which inherited the blind spot and verified the two unlisted carriers | `docs/K-REPORT.md`, and whatever the enforcement shape names | style | nothing |
 | **D20** | **D5's +46% on the `seqgen` lane is real, and after #722 it is unattributed.** #713 measured `split_edge`'s entry into the catalog at +0.9 s median (1.91 → 2.78 s) and charged it to the generator's eager candidate enumeration, which #722 placed as D14 and then **excluded by measurement**: `choose_op` is 2.4–2.7% of the lane on two independently built deterministic replays, so the whole of it cannot hold a 46% regression, and making it lazy moved no suite number. **What is left is the row.** The named candidates, in the order #722's measurement points at them: what a split *does* when applied (`EdgeCurve::certify` on both children), its inverse in the roundtrip arm, the isomorphism oracle's deep compare over the bodies splits make bigger, and the second-order cost of every later step running against a larger body. **Start by attributing, not by fixing** — the instrument is a deterministic replay of `run_properties` over a fixed stream set (S15 records its shape, its box and its spread), and the first deliverable is a per-phase attribution, which may find the cost is inherent to what the lane now covers rather than a defect. Two eager-enumeration instances have now been measured out of the frame (`choose_op` at 2.7% of the lane, `teardown` at 1.2% with the shape worth ~1% of that), so **the enumeration class is closed as a candidate**: do not re-open it without a number. `memories/test-suite-cost.md`'s rule still applies to whatever it finds. | S15 (`seqgen` half), via D14's refutation in **#722** | `topo/src/seqgen.rs` | style, and it **closes on an attribution**: a number that says where the 46% lives, or a written finding that it is inherent — not a shape | nothing |
+| **D24** | **A `pub` item that is dead workspace-wide is invisible to every mechanical check this repo runs.** `dead_code` exempts anything `pub`, on the assumption that an external crate may call it — an assumption that is false for a workspace whose only consumers are its own members plus `pncad`/`pncad-py`. `[workspace.lints.rust]` (`Cargo.toml:130`) carries exactly `unsafe_code = "forbid"` and `missing_docs = "warn"` — plus D9's panic family under `clippy` — and **no `unreachable_pub`**, so nothing fires. The verified first instance is `MateRole::name` (`editor-core/src/mate/solve.rs`), deleted by #735: `pub`, documented *"The role's name, for messages"*, and never called anywhere in the workspace under default features, under `--features probe`, or from `pncad-py`. It was found by hand, by a lane that happened to open the file for an unrelated deletion — which is the finding. S11's whole dead-machinery table is drawn from the same blind spot. **Two fix shapes, and the row closes on choosing one, not on deleting anything**: (a) add `unreachable_pub` to the workspace lints, which demotes items that need not be `pub` and makes the genuinely-`pub`-and-dead ones visible as a residue — cheapest, but it will fire widely on first run and the triage is the real cost; (b) a `pub`-surface census job, in the shape D17's enforcement work takes, that enumerates the workspace's public items and reports the ones with no consumer, tests included. This is **enforcement work like D17, not a deletion row** — it does not itself condemn anything, and any item it surfaces still needs a verdict. The exact instrument for a single item is rename-and-rebuild, which #735's body documents; the row's job is to make that mechanical instead of manual. | S11 (the dead-machinery table's method), via #735 | `Cargo.toml`'s workspace lints, or `.github/workflows/` | style, and it **closes on a chosen mechanism** that runs in CI — not on a list of dead items | nothing |
 | **D26** | **Four of S19's eight rows have no row anywhere — their only appearance is inside S19, whose verdict is ACCEPTED, i.e. not closed.** §D's fourth ordering rule (*a verdict is not a placement*) is unsatisfied for `UnsupportedCarrier` (~20 sites; doc and `Display` say something specific and *different* from what most sites mean, beside a sibling `IsoUnsupported { what }` that does name its refused class), `pncad-py/tags.rs` (384 lines of hand-maintained enum→`&'static str` that drops every payload — and **#740 makes its cost concrete**: fillet refusals now carry the offending `EntityId` and Python still sees the bare string `"fillet"`), `SkippedMerge { reason: String }` (`merge_faces.rs:489` — the row S19's own postmortem calls *the reverse of the others*, where a reviewer killed the generic label and the implementer discharged it with `format!`), and `ProgramRefusal::Geometry` (`program.rs:846` — a typed refusal degraded to `String` because `PathError` derives no equality). The other four are accounted for and this row says so rather than re-auditing them: `MissingEntity` has a Track A placement, `SplitJoinError::Corrupt` is FIXED by #690, `AssemblyUnsupported` is FIXED by #740, `ValidationError` is FLAGGED AND OVERRULED at `GENERICS-BUILD-COST.md:169`. **This is ONE audit row, not four lanes**: it names what each of the four needs — a verdict, a placement, or a "no action, and here is why" — and closes when each has one. **This PR is the moment it became visible**, because it is the PR that changed S19's heading to PARTLY FIXED and wrote *"every other row is LIVE"* without placing any of them. | S19, via **#740** | `docs/SMELL-SCAN-2026-08.md` §D and §S19 | style | nothing |
 | **D27** | **The fillet surgery's front-door invariants are carried in comments, and the D2 addendum has no home for what that leaves.** Two halves, one mechanism. **(a)** Three private helpers cannot observe the fact that would make their refusals impossible, because the door that establishes it is one or two frames up and carries its verdict as prose: `build::corner_convexity`'s two arms (*"neither refusal is reachable through the front door"*), `build::octant_chart`'s `best`-is-`None`, and `blank_phase`'s `surgery.rs`-documented *"the front-door invariant: a face touched by an open link has its ENTIRE outer cycle requested"*, which two refusals hang off. #740 converted three neighbouring sites only after adding the local checks that make them provable; these are the ones no local check can reach. The mechanism is a **newtype minted at the door** — a value that says "this link was admitted as convex", "this face's boundary is wholly requested" — after which those arms are honestly row 4. **(b)** #740 found a state the addendum's five classes do not contain: `FilletError::EmptyChain` is **not input-reachable** (`walk_chains` seeds every chain with one link — pinned over 1,841 verdicts) and **not locally provable** (clause (ii): the emptiness is a property of the verdict handed in), so it is filed under row 1 while failing row 1's own definition of *"reachable by input"*. Either (a)'s newtype dissolves it, or the addendum owes a sentence. Decide (b) with (a), not separately. | #740 (D2) | `sweep/src/fillet/{build,surgery}.rs`, and `docs/DESIGN.md`'s D2 addendum if (b) needs a sentence | **ADVERSARIAL** — it converts refusals to panics behind a type, in the crate whose D9 rule is *never a panic*; the newtype must be unforgeable outside the door or it proves nothing | nothing |
 | **D28** | **`editor-core`'s node-error `Display` discards the kernel payload one level below the FFI boundary — eight arms.** `eval/mod.rs:678`'s `Self::Fillet(_) => f.write_str("the fillet op refused")` throws away class, key and recourse **before `pncad-py/tags.rs` ever sees it**, and `Extrude`, `Revolve`, `Split`, `Boolean`, `Transform`, `Skin` and `Loft` do the same. Fifteen lines up, `Self::Mate(fault) => write!(f, "…: {fault}")` forwards correctly, so the idiom exists in the same match. This is S20's *"the façade layers each invented a vocabulary instead of forwarding"* recurring one layer lower, and it is the **actual** site of the loss S19's `tags.rs` row describes: the payload is already gone by the time the tag map runs. **#740's sweep could not have found it** — its pattern was `AssemblyUnsupported\|FILLET3_ASSEMBLY_RECOURSE` and neither token appears there, which is the sweep blind spot that PR reports. Check whether `NodeError`'s own `Display` is what any consumer actually renders before assuming eight `write!`s are the whole fix. | #740 (D2), via its FFI-boundary check | `editor-core/src/eval/mod.rs` | style | nothing |
@@ -7244,19 +7448,23 @@ have failed loudly even if it had been attempted.
 
 **No row number is reserved; D29 is the highest one placed.** Placements:
 D15 by #710, D16 by #706, **D17** by #718, **D18** by #720, **D19** by #719,
-**D20** by **#722**, and **D26–D29** by **#740** (D5's +46%, unattributed once that unit's measurement
-excluded the enumeration D14 blamed). All four of the lanes that retired this
-hour placed their own residue on the way out rather than leaving it in a PR
-body — D15's as **D17** (the 14 `probe` test suites no CI lane type-checks),
-D16's as **D18** (`link_half_edges`' two unproven callers, which are W2c's
-last two sites), D11's as **D19** (the K roster's inventory hole) and
-D13/D14's as **D20** (D5's +46%, once the enumeration it was charged to was
-measured out of the frame). Row numbers are assigned centrally
-because several lanes mint rows in parallel and three collided once already: a
-lane that needs a row takes the next number the orchestrator has not assigned,
-never the next gap it can see. **A verdict is not a placement** (§D's fourth
-ordering rule) is why all four are rows here rather than sentences in four
-PR bodies.
+**D20** by **#722** (D5's +46%, unattributed once that unit's measurement
+excluded the enumeration D14 blamed), **D24** by **#735**, and **D26–D29** by
+**#740**. Every lane that retired placed its own residue on the way out rather
+than leaving it in a PR body — D15's as **D17** (the 14 `probe` test suites no
+CI lane type-checks), D16's as **D18** (`link_half_edges`' two unproven
+callers, which are W2c's last two sites), D11's as **D19** (the K roster's
+inventory hole), D13/D14's as **D20** (D5's +46%, once the enumeration it was
+charged to was measured out of the frame), D7's `PairSolve` row as **D24**
+(nothing mechanical can catch a `pub` item that is dead workspace-wide), and
+D2's as **D26–D29** — including **D26**, which is not D2's own residue but
+S19's: four of that finding's rows had never been placed at all, and the PR
+that changed its heading to PARTLY FIXED is what made the omission visible. Row
+numbers are assigned centrally because several lanes mint rows in parallel and
+three collided once already: a lane that needs a row takes the next number the
+orchestrator has not assigned, never the next gap it can see. **A verdict is
+not a placement** (§D's fourth ordering rule) is why all of them are rows here
+rather than sentences in PR bodies.
 
 **D16 is retired — done as #720** (`topo/src/euler{,_ring,_kill}.rs`, S43/S12).
 The re-derived census is **58 discard sites**, not the ~60 the row carried: the
@@ -7398,7 +7606,7 @@ Where each went:
 
 | Was | Now |
 |---|---|
-| **U1** — S11/D4's three decided deletions | **D7**, split by row: `Mat2`/`Affine2` done (#721), `PairSolve` unblocked and unstarted since #702 merged, the fillet helpers behind D2 (#705 merged, its gate discharged) |
+| **U1** — S11/D4's three decided deletions | **D7**, split by row: `Mat2`/`Affine2` done (#721), `PairSolve` done (#735), the fillet helpers behind D2 (#705 merged, its gate discharged) |
 | **U2** — S8, S9, S10 | **D4 — DONE, #707.** All three sorted to *keep*; the prose the sort contradicts is truthed at each finding |
 | **U3** — S17's ray-parity twins | **D9** — done as **#712**, which spawned three rows, all now retired: **D10** (the S15 ray-schedule row, a different pair) and **D12** (its sweep residue), both by **#717** — D10 fixed, D12 answered dimension-forced — and **D11** (`bool_join_nearest`, the drift class D9 closed only at S17's anchor) by **#719**, which closed its worst instance and left the class open |
 | **U4** — S18's duplicated derivations | **D3** (the negative-zero flush) — **landed as #704**, row retired — and **D8** (the knot-vector queries); the `step-export/volume.rs` row goes to **C3**, because closing it needs a per-shell door in `props/` |
@@ -7430,8 +7638,7 @@ A1 (Bounds for Dual) ──► C7  (S3 lane traits, S1/S2 scalars, S44's residue
                      └─► C4  (S33's dual ladders)
 A2 (iso-rectangle)   ──► C3  (S27, and S18's step-export row — same props/ files)
 A3 (#678)            ──► C5  (S28's duplication half)
-D1 (#710) ──► D2 (#740, landed) ──────────────────► D7's fillet-helper row
-#702 (assembly door, merged) ─► D7's PairSolve row — edge discharged
+D1 (#710) ──► D2 (#740) ──► D7's fillet-helper row, and ──► D27, D29
 #690 (B4, splitting) ──► D9 (S17's ray-parity twins, #712) ──► D10, D12 (#717)
                                                           └─► D11 (bool_join_nearest, #719)
 all deletions        ──────────────► L2 (S38 comments)
@@ -7441,12 +7648,14 @@ all deletions        ──────────────► L2 (S38 comme
 **Track B is now edge-free in full** — B1 landed, and B2/B3, the only chain it
 had, are Track D's D1/D2.
 
-**Track D is now edge-free.** D2's landing discharged the track's last
-internal edge, so D7's fillet-helper row is free. Landed: D1 as #710, D3 as
-#704, D4 as #707 — which also discharges D13's gate — D5 as #713, D6 as #706,
-D9 as #712, D10 and D12 as #717, D15 as #718, D16 as #720, D11 as #719, D7's
-first third as #721, D13/D14 as #722 — which **placed D20**, the +46% its
-measurement left unattributed — and **D2 as #740**. **Nothing is in flight.**
+**D2's landing discharged the track's last inherited edge**, so D7's
+fillet-helper row is free — and minted two new ones, since **D27** and **D29**
+both edit `sweep/src/fillet/`. Landed: D1 as #710, D3 as #704, D4 as #707 —
+which also discharges D13's gate — D5 as #713, D6 as #706, D9 as #712, D10 and
+D12 as #717, D15 as #718, D16 as #720, D11 as #719, D7's first two thirds as
+#721 and #735, D13/D14 as #722 — which **placed D20**, the +46% its measurement
+left unattributed — and **D2 as #740**, which placed **D26–D29**. **Nothing is
+in flight.**
 **D17, D18, D19 and D20 are edge-free and unstarted.** D17 is the only row in
 the track whose file set is `.github/workflows/`, so it collides with no
 kernel lane and can run at any time; D18's is
@@ -7459,14 +7668,15 @@ only the two `prev` checks and the conversion behind them remain; D19's is
 it edits all four `sweep/src/fillet/` files — and **D8**, whose
 `geom-curves/src/fit.rs` it relocated to `geom/src/curves/fit.rs`. It **merged
 2026-08-20**, so all three are free. #702 discharged D7's `PairSolve` row the
-same day (`f382c4aa`).
+same day (`f382c4aa`), and that row landed as **#735**.
 
-No edge is left anywhere in the track. **D7's fillet-helper row is
-unblocked** now that D2 has landed — and it should re-read the four
-`sweep/src/fillet/` files first, because D2 rewrote every refusal site in
-`surgery.rs` and `build.rs`. **D8** sequenced against D2 alone for
-`sweep/src/skin.rs` (D1 landed and left `skin.rs` untouched) and is free
-too.
+No inherited edge is left. **D7's fillet-helper row is unblocked** now that D2
+has landed — and it should re-read the four `sweep/src/fillet/` files first,
+because D2 rewrote every refusal site in `surgery.rs` and `build.rs`. **D8**
+sequenced against D2 alone for `sweep/src/skin.rs` (D1 landed and left
+`skin.rs` untouched) and is free too. **The one edge that remains is new**:
+D2 placed **D27** and **D29**, and both edit `sweep/src/fillet/`, so they
+sequence against each other and against D7's fillet-helper row.
 
 ---
 
