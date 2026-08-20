@@ -119,7 +119,9 @@
 # spelling it catches into a multi-line `where` block that this matcher
 # CANNOT see, so the silent form is the formatter-stable one. Seeing this
 # alternative fire tells you nothing about the neighbouring form. KNOWN
-# GAP 4 below has the counterexample and the reason it stays open. An enumerating matcher is blind to the next
+# GAP 4 below has the counterexample and the reason it stays open.
+#
+# An enumerating matcher is blind to the next
 # alias the day it is written — which is how `CertifiedBounds` stayed
 # invisible while this header asserted it fired. The trade is knowing: any
 # `…Bounds` IDENTIFIER fires, not only a trait (`TangentSpanBounds`,

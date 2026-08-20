@@ -730,7 +730,7 @@ when the review lands, which is why it trails.
   it. The same group on the left of `+` was dead and is gone. The header's
   gap list gained **GAP 4** (an alias not named `…Bounds`, and see F-R15 — it
   is disclosed OPEN, with no mitigation) and **GAP 5** (the leading-only comment strip, F-g's to close).
-  **The header is 202 lines against 131 at open** — S116(m) measures this very
+  **The header is 204 lines against 131 at open** — S116(m) measures this very
   file at 130 and is re-measured in place rather than restored; five lines of
   comment archaeology were cut and the lane's own additions compressed twice.
   **The argument that came out of that row is worth more than the row**, and
@@ -738,7 +738,7 @@ when the review lands, which is why it trails.
   gaps are honest is longer than one whose gaps are silent, so **this
   directory wants the ratification ledger split out of the script**. The
   per-seam justifications are a document that happens to live in a comment
-  block, and they are what makes a 20-line function carry a 202-line header.
+  block, and they are what makes a 20-line function carry a 204-line header.
 - **The lane minted a fresh instance of the defect it closed.** GAP 4's
   mitigation was published as *"the declaration writes the pair literally and
   therefore fires"* — true only of `trait Bracket: Bounds +
@@ -787,7 +787,7 @@ when the review lands, which is why it trails.
   live on a real residue**, unlike this lane's empty one.
 - **The dead `\b` in `(\b\w*Bounds\s*\+)` removed**, symmetric with the dead
   path group: the tree-wide hit set is identical with and without it.
-- **Header now 202 lines against 131 at open** (131 → 157 → 195 → 202), and the
+- **Header now 204 lines against 131 at open** (131 → 157 → 195 → 204), and the
   growth is the argument recorded at S116(m): every line past the fix is a
   blind spot named, a false claim retracted, or a repair the next reader is
   told not to make. **Placed as D106** — *split the ratification ledger out of
