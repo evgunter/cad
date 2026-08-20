@@ -153,6 +153,15 @@ class FrameError(PncadError):
 
     variant: str
 
+class IdentityError(PncadError):
+    """A document identity could not be minted: the OS entropy source
+    refused. Identity is never defaulted — two documents sharing an id
+    are the same part, and a workspace refuses to hold both.
+
+    `variant` is `randomness_unavailable`."""
+
+    variant: str
+
 # --- quantities -------------------------------------------------------
 # Canonical metres and radians underneath. The arithmetic is
 # exactly `crates/quantity`'s infallible subset; anything else raises
@@ -871,7 +880,21 @@ class DocEdit:
 class Doc:
     """A parametric document: the recipe, not the geometry."""
 
-    def __init__(self) -> None: ...
+    def __init__(self, label: Optional[str] = None) -> None:
+        """An empty document.
+
+        `Doc()` mints a FRESH random identity, so two documents
+        authored here are two parts and one workspace holds both.
+        `Doc(label)` derives the id from the label instead — same
+        label, same id, on every platform, which makes it the
+        reproducible spelling and, deliberately, the one that makes
+        two same-label documents the SAME part. Raises IdentityError
+        if the OS entropy source refuses."""
+    @property
+    def id(self) -> str:
+        """This document's identity as 32 lowercase hex digits — the
+        save file's `id:` header, and the workspace store's key.
+        Identity survives every edit; it is not a content hash."""
     def apply(self, edit: DocEdit) -> Optional[NodeId]: ...
     def insert(self, node: Node) -> NodeId: ...
     def declare(self, finding: FlushFinding) -> NodeId:

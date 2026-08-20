@@ -43,18 +43,44 @@ fn dimension_error_carries_structure_not_prose() {
     assert_eq!(err.to_string(), "cannot apply `+` to length and angle");
 }
 
+/// Every class name is pinned, and the pin cannot go stale: the
+/// expected spelling comes from a SECOND exhaustive match, so a new
+/// [`ErrorClass`] variant stops this test compiling rather than
+/// slipping past a list someone forgot to extend (`Frame` did).
 #[test]
 fn error_classes_name_the_python_hierarchy() {
-    assert_eq!(ErrorClass::Edit.class_name(), "EditError");
-    assert_eq!(ErrorClass::Evaluation.class_name(), "EvaluationError");
-    assert_eq!(ErrorClass::Validation.class_name(), "ValidationError");
-    assert_eq!(ErrorClass::Dimension.class_name(), "DimensionError");
-    assert_eq!(ErrorClass::Literal.class_name(), "LiteralError");
-    assert_eq!(ErrorClass::Persist.class_name(), "PersistError");
-    assert_eq!(ErrorClass::Export.class_name(), "ExportError");
-    assert_eq!(ErrorClass::StepImport.class_name(), "StepImportError");
-    assert_eq!(ErrorClass::Path.class_name(), "PathError");
-    assert_eq!(ErrorClass::Select.class_name(), "SelectRefusal");
+    fn expected(class: ErrorClass) -> &'static str {
+        match class {
+            ErrorClass::Edit => "EditError",
+            ErrorClass::Evaluation => "EvaluationError",
+            ErrorClass::Validation => "ValidationError",
+            ErrorClass::Dimension => "DimensionError",
+            ErrorClass::Literal => "LiteralError",
+            ErrorClass::Persist => "PersistError",
+            ErrorClass::Export => "ExportError",
+            ErrorClass::StepImport => "StepImportError",
+            ErrorClass::Path => "PathError",
+            ErrorClass::Select => "SelectRefusal",
+            ErrorClass::Frame => "FrameError",
+            ErrorClass::Identity => "IdentityError",
+        }
+    }
+    for class in [
+        ErrorClass::Edit,
+        ErrorClass::Evaluation,
+        ErrorClass::Validation,
+        ErrorClass::Dimension,
+        ErrorClass::Literal,
+        ErrorClass::Persist,
+        ErrorClass::Export,
+        ErrorClass::StepImport,
+        ErrorClass::Path,
+        ErrorClass::Select,
+        ErrorClass::Frame,
+        ErrorClass::Identity,
+    ] {
+        assert_eq!(class.class_name(), expected(class));
+    }
 }
 
 /// LIB-PYSEL: `SelectRefusal` is `#[non_exhaustive]`, so the tag
@@ -295,4 +321,69 @@ fn crate_lints_match_the_workspace_minus_unsafe_code() {
                 .collect::<Vec<_>>(),
         );
     }
+}
+
+// ---------------------------------------------------------------
+// Document identity: the id a Python-authored document carries.
+// ---------------------------------------------------------------
+
+/// **Two Python-authored documents are two PARTS**: distinct ids, and
+/// one workspace holds both.
+///
+/// The store's uniqueness invariant is keyed on the id, so a constant
+/// id makes the second document unstorable beside the first — and per
+/// the assembly model it is not a second part at all, because
+/// `DocRef`/`ContentPin` references resolve by id. This test refuses
+/// both halves at once: it fails on the ids if a constant comes back,
+/// and it fails on `create` if the store ever stops enforcing what
+/// the ids are for.
+#[test]
+fn two_python_authored_documents_are_two_parts_in_one_workspace() {
+    let a = crate::identity::interactive().expect("OS entropy");
+    let b = crate::identity::interactive().expect("OS entropy");
+    assert_ne!(
+        a.id(),
+        b.id(),
+        "two interactively authored documents share an id, so they are \
+         one part and one workspace cannot hold both"
+    );
+
+    let dir = std::env::temp_dir().join(format!(
+        "pncad-py-identity-{}-{:?}",
+        std::process::id(),
+        std::thread::current().id()
+    ));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("a scratch workspace directory");
+
+    let mut store = pncad::workspace::Workspace::open(&dir).expect("an empty workspace opens");
+    let first = store.create(&a).expect("the first document writes");
+    let second = store.create(&b).expect("the second document writes beside it");
+    assert_ne!(first, second, "two parts, two files");
+    assert_eq!(
+        store.documents().len(),
+        2,
+        "both documents are in the store's id map"
+    );
+
+    // And the scan agrees from cold: the header ids are what the map
+    // was built from, so a re-open is the store's own verdict.
+    let reopened = pncad::workspace::Workspace::open(&dir).expect("the store rescans clean");
+    assert_eq!(reopened.documents().len(), 2);
+
+    std::fs::remove_dir_all(&dir).expect("cleanup");
+}
+
+/// The LABELLED spelling is deterministic — same label, same part —
+/// which is what makes it the reproducible door and NOT the default.
+#[test]
+fn a_labelled_document_is_the_same_part_every_time() {
+    assert_eq!(
+        crate::identity::derived("plate-param").id(),
+        crate::identity::derived("plate-param").id()
+    );
+    assert_ne!(
+        crate::identity::derived("plate-param").id(),
+        crate::identity::derived("bracket").id()
+    );
 }

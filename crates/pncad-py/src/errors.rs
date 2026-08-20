@@ -128,6 +128,11 @@ pub enum ErrorClass {
     /// reference along the aim, a zero mirror normal), or a tolerance
     /// yielding no usable band.
     Frame,
+    /// A document identity that could not be minted: the OS entropy
+    /// source refused. Identity is not defaultable — a document with
+    /// a made-up id is a document that collides with another part —
+    /// so the refusal surfaces instead.
+    Identity,
 }
 
 impl ErrorClass {
@@ -145,6 +150,7 @@ impl ErrorClass {
             Self::Path => "PathError",
             Self::Select => "SelectRefusal",
             Self::Frame => "FrameError",
+            Self::Identity => "IdentityError",
         }
     }
 }

@@ -109,6 +109,15 @@ pyo3::create_exception!(
 );
 pyo3::create_exception!(
     pncad,
+    IdentityError,
+    PncadError,
+    "A document identity could not be minted: the OS entropy source \
+     refused. Identity is never defaulted — two documents sharing an \
+     id are the same part, and a workspace refuses to hold both — so \
+     the refusal is surfaced. Carries `variant`."
+);
+pyo3::create_exception!(
+    pncad,
     FrameError,
     PncadError,
     "A frame constructor refused its inputs — the same typed refusal \
@@ -143,6 +152,7 @@ pub(crate) fn typed_err(
         ErrorClass::Path => PathError::new_err(message),
         ErrorClass::Select => SelectRefusal::new_err(message),
         ErrorClass::Frame => FrameError::new_err(message),
+        ErrorClass::Identity => IdentityError::new_err(message),
     };
     // Attaching attributes needs the instance, which materialises the
     // exception value; a failure here would itself be a Python error,
@@ -182,6 +192,7 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("PathError", py.get_type::<PathError>())?;
     m.add("SelectRefusal", py.get_type::<SelectRefusal>())?;
     m.add("FrameError", py.get_type::<FrameError>())?;
+    m.add("IdentityError", py.get_type::<IdentityError>())?;
 
     quantity::register(m)?;
     path::register(m)?;

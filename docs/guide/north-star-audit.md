@@ -171,6 +171,13 @@ Everything Python can say about geometry, in full:
 - Edits: `insert_node`, `delete_node`, `set_tolerance`, and — since
   R1-PARAMS — `set_doc_param(ParamName, DocParam)`, the named
   document parameter edit (guide §3.2).
+- `Doc(label=…)` and `Doc.id` — a document's IDENTITY. `Doc()` mints
+  a fresh random id, so two documents authored from Python are two
+  parts and one workspace holds both; `Doc(label)` derives the id
+  from the label for callers whose saves must reproduce. `Doc.id` is
+  the canonical 32 hex digits the save header carries and the store
+  keys on. What is NOT bound is the rest of the identity surface —
+  see G15.
 
 Plus evaluation, validation, mass properties, STEP export/import,
 persistence, and typed quantities. That is the whole vocabulary.
@@ -342,11 +349,12 @@ The rows are the record and the tallies are derived — every number
 above is counted off the table just now, never carried forward from
 the previous revision.
 
-One further gap blocks no tour scene but matters to the library:
+Two further gaps block no tour scene but matter to the library:
 
 | # | gap | register / pointer | why it matters |
 |---|---|---|---|
 | G11 | **Tessellation and STL** | register B (named there as completing the ladder) | No mesh door, so Python loses steps 4 and 5 of the guide's ladder — no tessellate, and therefore no mesh-vs-exact cross-check. Step 6 does work: `Evaluation.step_string` exports STEP, and re-importing it is the strongest check available from Python |
+| G15 | **The workspace store, content pins, and cross-document references** | THIS PAGE (`test_the_named_gaps_are_still_gaps` asserts the absence of `Workspace`, `ContentPin`, `DocRef` and `random_document_id`, so the row fails the day a door lands) | Identity itself is bound now — `Doc()` mints a distinct id per document and `Doc.id` reads it — but the surface identity EXISTS FOR is not. Python can save a document to text and load one back; it cannot open a directory of them, resolve a `DocRef`, compute or compare a `ContentPin`, or say "this part instantiates that one". So a Python author can produce two documents a workspace will accept side by side, and cannot then assemble them. The doors are `pncad::workspace::{Workspace, random_document_id, update_to_store}` and `pncad::document::{DocRef, ContentPin, content_pin}` — all curated in Rust already, so this is a binding unit and not a kernel one. The identity half is what made the rest sayable: before it, every Python document was the same part |
 
 ## Closed gaps
 
