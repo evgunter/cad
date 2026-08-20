@@ -1,7 +1,9 @@
-//! Shared test support: the geometric unit cube, generic over the
-//! scalar lane (`f64`, `Dual`, `Interval` — every `Decide` scalar), and
-//! the intersection-upgrade pass. Used by `geometric_cube.rs` and the
-//! interval lane in `interval_body.rs`.
+//! Shared test support: the geometric unit cube and the prism builders,
+//! generic over the scalar lane (`f64`, `Dual`, `Interval` — every
+//! `Decide` scalar), the intersection-upgrade pass, and the declaration
+//! flush. Most of this crate's suites declare `mod common;` — the
+//! consumers are deliberately not listed here, because the compiler
+//! knows that set and prose does not.
 //!
 //! Compiled into the test binary, not the library: the cheapest of this
 //! crate's three homes for test vocabulary, and the right one whenever

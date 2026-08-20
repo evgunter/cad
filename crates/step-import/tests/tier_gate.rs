@@ -120,8 +120,8 @@ const EPS_IN_ROWS: [(&str, Option<f64>); 3] =
 /// **`dm1-id-214.stp` is swept at its own ε_in only** (the 2026-08-13
 /// test-time audit). dm1 is by far the most expensive import in the
 /// corpus, and importing it three times per ambient row was 74% of this
-/// test's entire cost — the other 53 files, across all three ε_in tags,
-/// together cost a small fraction of it.
+/// test's entire cost — every other file in [`CORPUS`], across all three
+/// ε_in tags, together cost a small fraction of it.
 ///
 /// **What that costs, said plainly:** the EXECUTED measurement that
 /// dm1's disposition is ε_in-invariant at each ambient band. Its nine

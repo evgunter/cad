@@ -168,7 +168,19 @@ gathered across M2's full pipeline.
   `scripts/k_probe_sweep.sh` then *executes* this
   harness at all three ε beside the Band 4 corpus and the tour scenes.
   The two are not interchangeable: a type-check cannot see a panic, and
-  running one harness says nothing about the other thirteen suites.
+  running one harness says nothing about the suites nothing runs.
+
+  **Which suites CI executes, derived rather than inferred** (D23,
+  re-derived at `f87b203`). `scripts/k_probe_sweep.sh` makes exactly two
+  `run_dump` calls, and each passes an `--ignored <module>::` filter:
+  `editor-core`'s `m4_pr8_k_probe::` and `sweep`'s `k_report::`. So **2
+  of the 16 probe-gated suites are executed and 14 are type-checked and
+  never run**. `crates/editor-core/tests/m5_pr5_corpus_probe.rs` is one
+  of the fourteen: the sweep *compiles* it, because building
+  `editor-core`'s `--test all` binary compiles every suite in it, but no
+  filter selects it. Naming the crate does not name the suite, and the
+  earlier count of thirteen came from reading the crate out of the
+  invocation instead of the filter out of the command.
 
   **The M2 dump rides beside the gate, not inside it.** The sweep writes
   it to `<outdir>/m2/<prefix><ε>.csv`; `tools/k-lint` is handed the

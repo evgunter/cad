@@ -7613,7 +7613,12 @@ targets under `probe`**. The looser claim — that nothing compiles `sweep
 --features probe` — is **false**, and the distinction is load-bearing: the
 sweep *library* IS compiled under `probe` on every building merge, because
 `editor-core`'s `probe` feature forwards `sweep/probe` and
-`scripts/k_probe_sweep.sh:49` runs `cargo test -p editor-core --features probe`.
+`scripts/k_probe_sweep.sh`'s `run_dump` runs `cargo test -p editor-core
+--features probe --test all -- --ignored m4_pr8_k_probe::`. (The line cite was
+`:49`; it resolved exactly at `8a2d230` and points at `mkdir` today, the filter
+having become a `run_dump` parameter. The filter is quoted in full here because
+abridging it past the `--ignored <module>::` is what produced D23's third
+correction below.)
 What nothing does is type-check `crates/sweep/tests/` under that feature. So a
 type error in this file would have gone unnoticed the same way the panic did.
 Cost was never the reason: the harness is **0.05 s** of test time per ε row.
@@ -7826,7 +7831,9 @@ census reaches it. The sweep could not
 match it because LIB spells the claim *"CI compiles no whole-file feature-gated
 test lane"* — no shared phrase with any of this row's five wordings. Verified
 here: the only feature strings gating anything under `crates/*/tests/` are
-`probe` (16 files by the census's gate-line predicate), `interval` (89 files,
+`probe` (16 files by the census's gate-line predicate), `interval` (89 files
+by the looser any-mention predicate — 77 by the gate-line one, and the
+sentence changes criterion mid-list; both figures reproduce at `f87b203`,
 compiled by `build-interval`'s `cargo nextest archive --features interval` and
 `lint-interval`'s `clippy --all-targets --features interval`) and `budget` (2
 files, compiled by `k-lint`'s `clippy -p mesh --all-targets --features
@@ -7844,8 +7851,14 @@ misspelt-feature drop for files already on the floor — what it cannot see is a
 and never covered (**D22**). (ii) The sweep was over English prose; a premise
 expressed only as a disabled test, a skipped assertion, or a name would not
 match — #601 is the live instance, matched by no wording of this class in the
-tree. (iii) Six of the census files are named `*probe*` but say nothing about
+tree. (iii) Most of the census files are named `*probe*` and say nothing about
 CI, so an absence of hits there is not evidence of an absence of premises.
+*(This blind spot said **six**, and six is D23's second instance rather than a
+figure. Re-derived at `f87b203` — and at this entry's own merge base
+`8a2d230`, where the census file set is identical — **11** of the 16 are named
+`*probe*`, **13** name no CI mechanism at all, and **10** are both. No
+criterion yields six. The set was taken by reading filenames, which is exactly
+what the blind spot was disclosing.)*
 
 **Two residues, placed as rows rather than left in the PR body** (§D's third
 ordering rule). **D22** is what the gate-line predicate still cannot see: a new
@@ -7856,10 +7869,18 @@ produced by reading names rather than contents — of which this unit produced a
 second instance in its own blind spot (iii).
 
 
-**What this does NOT buy.** Thirteen of the fourteen suites are type-checked
-and still not run. They remain reproducible hand-run artifacts whose recorded
-streams can drift green; their headers now say exactly that instead of claiming
-they are uncompiled.
+**What this does NOT buy — corrected by D23, re-derived at `f87b203`.**
+**Fourteen of the sixteen suites are type-checked and still not run**, not
+thirteen of fourteen. `scripts/k_probe_sweep.sh` makes two `run_dump` calls and
+each passes an `--ignored <module>::` filter — `m4_pr8_k_probe::` and
+`k_report::` — so the executed set is two suites, not one plus a crate.
+`crates/editor-core/tests/m5_pr5_corpus_probe.rs` is compiled by that crate's
+`--test all` build and selected by no filter, so it has never run in CI; the
+count of thirteen came from reading `-p editor-core` out of the invocation
+rather than the filter out of the command. The unrun suites remain reproducible
+hand-run artifacts whose recorded streams can drift green; their headers now
+say exactly that instead of claiming they are uncompiled. **The set of suites
+CI executes has no floor of its own** — that is **D44**.
 
 **D19 — FIXED by #747.** D19 was placed by #719 rather than raised at a
 numbered finding, so its full record is here.

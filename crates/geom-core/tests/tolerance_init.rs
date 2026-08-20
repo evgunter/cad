@@ -2,10 +2,12 @@
 //!
 //! The global tolerance commits exactly ONCE PER PROCESS, and this suite
 //! needs to be the first thing to touch it. `tests/all.rs` aggregates
-//! every suite into one binary (one process under `cargo test`), and six
+//! every suite into one binary (one process under `cargo test`), and
 //! other suites there touch `Tolerance` — so this cannot simply assert
 //! against the ambient global: whichever suite ran first would have
-//! committed it, and `init` would return `AlreadyInitialized`.
+//! committed it, and `init` would return `AlreadyInitialized`. How many
+//! of them there are is not the point and is not restated here; that one
+//! exists is.
 //!
 //! So the assertions run in a FRESH PROCESS, via the same self-re-exec
 //! pattern the multi-ε suites use (`ambiguity_k_env.rs`,

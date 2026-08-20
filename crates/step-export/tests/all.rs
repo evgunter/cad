@@ -1,7 +1,10 @@
 //! Aggregated integration-test binary for `step-export`.
 //!
 //! Every `tests/*.rs` suite is included here VERBATIM via `#[path]`, so
-//! this one binary replaces what were 4 separate test targets. The files
+//! this one binary stands in for one test target per suite. The suite
+//! count is deliberately not restated in prose — a restated number goes
+//! stale silently, and `every_suite_file_is_aggregated` below computes
+//! it from the directory instead. The files
 //! themselves are untouched: each keeps its own `//!` docs, its inner
 //! attributes (`#![cfg(feature = "interval")]` and friends work as
 //! module-level attributes), and its own `mod <helper>;` lines — a
