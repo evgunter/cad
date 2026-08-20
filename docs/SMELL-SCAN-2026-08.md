@@ -8303,24 +8303,45 @@ is counted, and compiles under no row this repo runs, because none builds
 `probe` alongside another feature. It is refused by name, with the two ways out
 in the message.
 
-**The behavioural check was built, works, and is rejected on a measurement.**
-`cargo test -p <crate> --features probe --test all -- --list` per crate,
-asserting every counted suite appears as a module prefix, catches the one case
-left: a gate whose extra condition is not a feature and is false on every
-runner (`not(target_os = "linux")`, `miri`). Planted, it reds the listing while
-`cargo clippy -p topo --all-targets -- -D warnings` stays green — so the residue
-is real, and stated rather than assumed away. **The row's cost figure was wrong
-in both directions.** It cited *"a `cargo check` (sweep's was measured at 23 s
-marginal), across four crates"*: the loop covers **five** crates, and hosted the
-whole step costs **35 s** (run 32386792956, `ubuntu-latest`, 2026-08-20). From
-an empty target dir on a 4-vCPU container, `k-lint`'s two probe steps cost
-**141 s** today (55 s type-check loop, 85 s for the sweep's own probe binaries)
-against **205 s** for build-everything-then-list — **+64 s a merge**, because
-the behavioural form pays codegen the type-check never does. `--test all` alone
-is 132 s, *cheaper* than today, but it drops `--all-targets` and with it every
-`#[cfg(test)]` module in `src/` under `probe`; that is not a trade this row
-would take. The numbers and the argument are in the gate's header, so the
+**The behavioural check was built, works, and is rejected — one measured
+reason, one structural.** `cargo test -p <crate> --features probe --test all --
+--list` per crate, asserting every counted suite appears as a module prefix,
+catches the one case left: a gate whose extra condition is not a feature and is
+false on every runner (`not(target_os = "linux")`, `miri`). Planted, it reds the
+listing while `cargo clippy -p topo --all-targets -- -D warnings` stays green —
+so the residue is real, and stated rather than assumed away. **Measured**: the
+step was swapped to the behavioural form for one run of this PR and swapped
+back, so both numbers come off `ubuntu-latest` against one cache. `k-lint`'s two
+probe steps cost **196 s** today (35 s type-check + 161 s sweep) against
+**219 s** (107 s + 112 s) — **+23 s a merge**, for a case nobody has written.
+**Structural**: the assertion has no home. It cannot live in the census gate,
+which runs in `discipline` with no cargo build, so it would be inline bash in a
+workflow step with no `--root`, no fixture and no `--selftest` — which is what
+`scripts/gates/` exists to be the alternative to, and D34 in the same PR is
+about exactly that boundary. It also reds on a counted suite that defines no
+`#[test]` of its own, whose only remedies are an exception list or restructuring
+the file. **The row's own cost figure was wrong in both directions**: it cited
+*"a `cargo check` (sweep's was measured at 23 s marginal), across four crates"*,
+where the loop covers **five** crates at 35 s hosted, and a variant that drops
+`--all-targets` is *cheaper* than today (132 s vs 141 s from an empty target dir
+on a 4-vCPU container) at the price of every `#[cfg(test)]` module in `src/`
+under `probe`. The numbers and the argument are in the gate's header, so the
 decision can be re-run rather than re-derived.
+
+**Two fixture cases the unit owes to hosted CI, both invisible locally.** The
+new clippy-row check was written as `grep -v … | grep -q …` and fired against a
+correctly wired `ci.yml` on its first hosted run: `grep -q` exits on its first
+match, SIGPIPEs the upstream filter, and `pipefail` calls the pipeline failed —
+which is the trap `gate-roster.sh`'s header already records, one gate over. The
+six-line fixture could not show it, because the race needs enough output to fill
+a pipe. The filter's result is now materialised before matching, and the fixture
+pads its `ci.yml` past the match with **non-comment** lines, which reproduces the
+failure against the old body and passes against the new. `test-aggregation.sh`
+had the sibling shape — cargo's stderr folded into the JSON it parses, harmless
+on a machine whose cargo is quiet and fatal on a runner fetching the pinned
+toolchain — and now carries a fixture case that shims `cargo` on `PATH` to write
+to stderr. **A gate's self-test is only as good as the fixture's resemblance to
+the tree**, and "small" is a resemblance failure.
 
 **What the predicate cannot match**, since the previous one's blind spot went
 unstated: a gate broken across lines; a gate reached through `cfg_attr` or a

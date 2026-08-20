@@ -54,16 +54,27 @@
 # `miri` — is correctly spelled, counted, silenced by nothing, and
 # compiled nowhere. Only a behavioural check sees it: `cargo test -p
 # <crate> --features probe --test all -- --list` per crate, asserting
-# every counted suite appears as a module prefix. It was built, it works
-# (planting such a gate reds the listing while `cargo clippy -p topo
-# --all-targets -- -D warnings` stays green), and it was rejected ON A
-# MEASUREMENT. From an empty target dir on a 4-vCPU container, the
-# `k-lint` job's probe steps cost 141 s today (55 s type-check loop, 85 s
-# for the sweep's own probe binaries); building every probe target and
-# listing the aggregate costs 205 s. +64 s on every merge buys the case
-# above and nothing else, and the three cases that are actually plausible
-# are answered for free. If that trade ever changes, the check is four
-# lines and this paragraph is the argument to re-run.
+# every counted suite appears as a module prefix. It was built and it
+# works — planting such a gate reds the listing while `cargo clippy -p
+# topo --all-targets -- -D warnings` stays green — and it was rejected
+# for two reasons, one measured and one structural.
+#
+# MEASURED: hosted, `k-lint`'s two probe steps cost 196 s with the
+# type-check loop and 219 s with the behavioural one, paired runs on one
+# PR against one cache. +23 s a merge, for a case nobody has written,
+# when the three plausible shapes are answered for free. STRUCTURAL: the
+# assertion has no home. It cannot live here — this gate runs in
+# `discipline`, which has no cargo build — so it would be inline bash in
+# a workflow step, with no `--root`, no fixture, and no `--selftest`,
+# which is exactly what `scripts/gates/` exists to be the alternative to.
+# Its fixture root would have to be a compilable multi-crate workspace
+# with a `probe` feature.
+#
+# It also has a false-positive mode worth naming: a counted suite that
+# defines no `#[test]` of its own lists nothing and would red, and the
+# only remedies are an exception list — a second roster — or restructuring
+# the file. If the trade ever changes, this paragraph is the argument to
+# re-run, not the starting point for a fresh one.
 #
 # WHAT THIS PREDICATE CANNOT MATCH, stated because the previous one's
 # blind spot was not: a gate broken across lines (rustfmt keeps these on
