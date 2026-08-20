@@ -173,7 +173,11 @@ class IdentityError(PncadError):
     refused. Identity is never defaulted — two documents sharing an id
     are the same part, and a workspace refuses to hold both.
 
-    `variant` is `randomness_unavailable`."""
+    `variant` is the workspace refusal's own tag. Only
+    `randomness_unavailable` is reachable through this door today —
+    minting an identity has one failure mode — but the tag names the
+    refusal that actually occurred, so a second one would arrive under
+    its own name rather than this one."""
 
     variant: str
 

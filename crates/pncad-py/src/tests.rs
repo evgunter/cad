@@ -10,7 +10,9 @@
 #![allow(clippy::expect_used, clippy::panic)]
 
 use crate::errors::{ErrorClass, QuantityOpMismatch, canonical_unit, dimension_tag};
-use crate::tags::{expr_dimension_error_tag, path_error_tag, persist_error_tag};
+use crate::tags::{
+    expr_dimension_error_tag, path_error_tag, persist_error_tag, workspace_error_tag,
+};
 use pncad::document::Dimension;
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -349,6 +351,28 @@ fn persist_error_tags_are_stable() {
     assert_eq!(persist_error_tag(&header), "header");
     let unknown = pncad::document::load("schema: 9999\n{}").expect_err("a future schema refuses");
     assert_eq!(persist_error_tag(&unknown), "unknown_schema");
+}
+
+/// The workspace tags `Doc()` publishes. `randomness_unavailable` is
+/// the one `pncad.pyi` names, and it is minted here rather than
+/// provoked: `getrandom::fill` has no injection seam (see
+/// `crate::identity::interactive`), so the reachable-arm door cannot
+/// be driven from a test. `Io` IS driven through the real door, which
+/// is what shows the map answers about the VALUE rather than about
+/// the one door that raises it today.
+#[test]
+fn workspace_error_tags_are_stable() {
+    use pncad::workspace::{Workspace, WorkspaceError};
+
+    assert_eq!(
+        workspace_error_tag(&WorkspaceError::RandomnessUnavailable {
+            message: "entropy source refused".to_string(),
+        }),
+        "randomness_unavailable"
+    );
+    let missing = Workspace::open(Path::new("/nonexistent/pncad-workspace"))
+        .expect_err("a directory that is not there refuses");
+    assert_eq!(workspace_error_tag(&missing), "io");
 }
 
 #[test]
