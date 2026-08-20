@@ -202,10 +202,13 @@ fn fourth_argument(args: &str) -> String {
 /// whereas every file this walks is rustfmt-clean (the pre-push hook
 /// enforces it), so a test module's closing brace is the next line
 /// equal to its own indent plus `}`. What the cut does NOT remove: a
-/// `#[cfg(test)]` on a **function** or a `use` rather than a module,
-/// and a module gated by any other spelling (`#[cfg(all(test, …))]`).
-/// Both leave their calls counted, so the census fails loudly rather
-/// than quietly widening its own scope.
+/// `#[cfg(test)]` on a **function** or a `use` rather than a module; a
+/// module declared `pub`/`pub(crate)`; an out-of-line `#[cfg(test)] mod
+/// x;` whose body is a separate file; and a module gated by any other
+/// spelling (`#[cfg(all(test, …))]`). Every one of those leaves its
+/// calls COUNTED, so the census fails loudly rather than quietly
+/// widening its own scope — the safe direction, and the reason the cut
+/// can afford to be this narrow.
 fn strip_test_mods(text: &str) -> String {
     let lines: Vec<&str> = text.lines().collect();
     let mut keep: Vec<String> = lines.iter().map(|l| (*l).to_string()).collect();
