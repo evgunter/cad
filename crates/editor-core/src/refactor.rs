@@ -97,7 +97,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::doc::Doc;
 use crate::edit::{DocEdit, EditError, apply};
 use crate::ident::{DocRef, DocumentId};
-use crate::names::{Qualifier, RoleSeg, StableName};
+use crate::names::{Qualifier, RoleSeg, StableName, name_free_seg};
 use crate::node::{InterfaceCrossing, InterfaceRecord, Node, PatternKind, RecipeNodeId};
 use crate::part::{PartResolver, ResolveFailure};
 use crate::persist::{PersistError, content_pin};
@@ -554,23 +554,7 @@ fn remap_seg(seg: &RoleSeg, map: &NodeMap) -> Result<RoleSeg, RecipeNodeId> {
     };
     Ok(match seg {
         // Name-free segments cross verbatim.
-        R::OutputBody
-        | R::Cap(_)
-        | R::Lateral(_)
-        | R::RimEdge(..)
-        | R::LateralEdge(_)
-        | R::CapVertex(..)
-        | R::Band(_)
-        | R::BandRim(_)
-        | R::BandRimPi(_)
-        | R::BandPi(_)
-        | R::Meridian(..)
-        | R::MeridianVertex(..)
-        | R::RevolveCap(_)
-        | R::Pole(_)
-        | R::AxisEdge(_)
-        | R::SplitBody(_)
-        | R::SectionFace { .. } => seg.clone(),
+        name_free_seg!() => seg.clone(),
         R::FromA(n) => R::FromA(one(n)?),
         R::FromB(n) => R::FromB(one(n)?),
         R::Seam { a, b } => R::Seam {

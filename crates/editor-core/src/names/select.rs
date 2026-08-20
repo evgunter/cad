@@ -54,6 +54,7 @@ use super::geompred::{self, GeomPred, SelectRefusal};
 use super::interrogate;
 use super::role::{
     CapEnd, EntityKind, MeridianEnd, Qualifier, RimSupport, RoleSeg, SplitHalf, StableName,
+    name_free_seg,
 };
 use super::table::{EntityRef, Entry};
 
@@ -353,24 +354,7 @@ fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
         RoleSeg::Merged(set) | RoleSeg::BandFace(set) => set.iter().collect(),
         // A verdict qualifier, not a role argument (see the doc note).
         RoleSeg::Fragment(Qualifier::SideOf(_) | Qualifier::OrderAlong { .. }) => Vec::new(),
-        // Name-free segments (kept explicit — see the doc note).
-        RoleSeg::OutputBody
-        | RoleSeg::Cap(_)
-        | RoleSeg::Lateral(_)
-        | RoleSeg::RimEdge(..)
-        | RoleSeg::LateralEdge(_)
-        | RoleSeg::CapVertex(..)
-        | RoleSeg::Band(_)
-        | RoleSeg::BandRim(_)
-        | RoleSeg::BandRimPi(_)
-        | RoleSeg::BandPi(_)
-        | RoleSeg::Meridian(..)
-        | RoleSeg::MeridianVertex(..)
-        | RoleSeg::RevolveCap(_)
-        | RoleSeg::Pole(_)
-        | RoleSeg::AxisEdge(_)
-        | RoleSeg::SplitBody(_)
-        | RoleSeg::SectionFace { .. } => Vec::new(),
+        name_free_seg!() => Vec::new(),
     }
 }
 

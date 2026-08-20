@@ -74,7 +74,9 @@ use crate::appearance::{AppearanceLoss, AppearanceLossCause, AppearanceMap};
 use crate::diff::NodeChange;
 use crate::doc::Doc;
 use crate::eval::{Evaluation, NodeResult};
-use crate::names::{EntityKey, EntityKind, EntityRef, Entry, Qualifier, RoleSeg, StableName};
+use crate::names::{
+    EntityKey, EntityKind, EntityRef, Entry, Qualifier, RoleSeg, StableName, name_free_seg,
+};
 use crate::node::{RecipeNodeId, SlotId};
 use crate::program::ProfileProgram;
 use crate::witness::WitnessBifurcation;
@@ -1044,24 +1046,7 @@ fn walk_names<'a>(name: &'a StableName, partners: Partners, f: &mut impl FnMut(&
                 }
                 Qualifier::OrderAlong { .. } => {}
             },
-            // Name-free segments (kept explicit — see the doc note).
-            RoleSeg::OutputBody
-            | RoleSeg::Cap(_)
-            | RoleSeg::Lateral(_)
-            | RoleSeg::RimEdge(..)
-            | RoleSeg::LateralEdge(_)
-            | RoleSeg::CapVertex(..)
-            | RoleSeg::Band(_)
-            | RoleSeg::BandRim(_)
-            | RoleSeg::BandRimPi(_)
-            | RoleSeg::BandPi(_)
-            | RoleSeg::Meridian(..)
-            | RoleSeg::MeridianVertex(..)
-            | RoleSeg::RevolveCap(_)
-            | RoleSeg::Pole(_)
-            | RoleSeg::AxisEdge(_)
-            | RoleSeg::SplitBody(_)
-            | RoleSeg::SectionFace { .. } => {}
+            name_free_seg!() => {}
         }
     }
 }
