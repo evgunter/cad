@@ -29,11 +29,13 @@
 //! and does not falsify the four.
 //!
 //! **"One door" is true of these consumers, not of the workspace.**
-//! `boolean::solid_contain::face_plane`, `chord_join`'s
-//! `face_plane_normal` and `merge_faces.rs` each still carry their own
-//! hand-multiply (smell-scan D6). This module is where they belong
-//! when that is executed; naming them here rather than leaving the
-//! claim unqualified is the point.
+//! Other outward normals are still built by hand-multiplying a chart
+//! normal by [`Face::sense_sign`](crate::entity::Face::sense_sign),
+//! and this module is where they belong when smell-scan D6 is
+//! executed. **Where they are is computed, not recited**: the guard
+//! test below walks `topo/src`, inventories every code read of that
+//! method with its disposition, and fails on a read its table does
+//! not carry.
 //!
 //! **A better home exists and is not reachable from this lane.** The
 //! function is a `Body` query, exactly like `Body::mate` or
@@ -90,12 +92,10 @@ mod tests {
     ///
     /// **What it cannot match** — four shapes, said plainly:
     ///
-    /// 1. **A flip written without `from_chart`** — `normal *
-    ///    f.sense_sign()` reaching a material verdict. Three such sites
-    ///    exist and are NAMED (smell-scan D6:
-    ///    `solid_contain::face_plane`, `chord_join::face_plane_normal`,
-    ///    `merge_faces.rs`); this row does not see them and is not a
-    ///    claim that they are gone.
+    /// 1. **A flip written without `from_chart`** — a chart normal
+    ///    multiplied by the face's own `±1` and reaching a material
+    ///    verdict. This row does not see those; the inventory row
+    ///    below does, and names each one.
     /// 2. **A flip in another crate.** The walk is scoped to
     ///    `topo/src`.
     /// 3. **A caller that takes the door's answer and negates it.**
@@ -129,6 +129,86 @@ mod tests {
         assert!(
             here.contains("Surface::Plane {") && here.contains("from_chart"),
             "the door no longer mints the flip, so this row guards nothing"
+        );
+    }
+
+    /// **The hand-multiply inventory** — smell-scan D6's `grep
+    /// sense_sign` written as a gate rather than as a sentence. Every
+    /// CODE read of [`Face::sense_sign`](crate::entity::Face::sense_sign)
+    /// under `topo/src` is counted per file and pinned below with its
+    /// disposition, so a new hand-multiply cannot land without either
+    /// going through the door or being argued for in the table:
+    ///
+    /// - `entity.rs` — the definition itself.
+    /// - `boolean/solid_contain.rs` — `face_plane` and `face_geo`, two
+    ///   plane arms whose consumers are ray-parity walks and therefore
+    ///   blind to the sign; they thread it to keep the doors' stated
+    ///   contract (an OUTWARD normal) honest for the next consumer.
+    /// - `boolean/join.rs` — `ring_run_ccw`, which picks an island's
+    ///   new outer boundary and needs exactly one of its two signs
+    ///   threaded.
+    /// - `boolean/rest.rs` — `face_carrier`, the curved generalization
+    ///   of the door; it binds the `±1` to a local before multiplying,
+    ///   which is the form a textual `* ….sense_sign` sweep misses.
+    /// - `merge_faces.rs` — two sense-tuple reads in the coplanarity
+    ///   gate and the survivor's plane hand-multiply.
+    /// - `props.rs` — the `±1` handed to `curved_face`'s closed form.
+    ///   Not a normal multiply, and the only read whose consumer is a
+    ///   curved carrier.
+    /// - `validate.rs` — check 6's outward normal, where the sense bit
+    ///   is read as a claim to be falsified rather than honored.
+    /// - `face_normal.rs` — **zero**: the door takes the sense BIT
+    ///   through [`OutwardNormal::from_chart`], never the `±1`. That
+    ///   is why the walk below reads the method name out of `concat!`
+    ///   — spelled whole, this file would be its own first hit.
+    ///
+    /// **What this cannot match**, and it is a work order rather than
+    /// a discharge: a flip written through a helper that already
+    /// returns an outward normal; a `Face::sense` bool read and
+    /// branched on without the `±1`; and every crate but this one —
+    /// `sweep/src/fillet/`, `editor-core/src/names/`, `geom-brep` and
+    /// `mesh` each read the sense in their own trees, which is D6's
+    /// full scope and not this walk's.
+    #[test]
+    fn every_hand_multiply_of_the_face_sign_is_inventoried() {
+        const PINNED: [(&str, usize); 8] = [
+            ("boolean/join.rs", 1),
+            ("boolean/rest.rs", 1),
+            ("boolean/solid_contain.rs", 2),
+            ("entity.rs", 1),
+            ("face_normal.rs", 0),
+            ("merge_faces.rs", 3),
+            ("props.rs", 1),
+            ("validate.rs", 1),
+        ];
+        let needle = concat!("sense", "_sign");
+        let root = crate::fixtures::src_root();
+        let mut found: Vec<(String, usize)> = Vec::new();
+        for path in crate::fixtures::crate_sources() {
+            let text = std::fs::read_to_string(&path).expect("a readable source file");
+            let reads = text
+                .lines()
+                .filter(|l| !l.trim_start().starts_with("//") && l.contains(needle))
+                .count();
+            let rel = path
+                .strip_prefix(&root)
+                .expect("a walked file lies under topo/src")
+                .to_string_lossy()
+                .replace('\\', "/");
+            if reads > 0 || PINNED.iter().any(|(pinned, _)| *pinned == rel) {
+                found.push((rel, reads));
+            }
+        }
+        found.sort();
+        let pinned: Vec<(String, usize)> = PINNED
+            .iter()
+            .map(|(path, reads)| ((*path).to_string(), *reads))
+            .collect();
+        assert_eq!(
+            found, pinned,
+            "the inventory of hand-multiplies moved: a read of the face's own ±1 was added, \
+             removed or relocated. Route it through `face_outward_normal` if it wants an \
+             outward normal; otherwise add it to this table with its disposition (D6)."
         );
     }
 }

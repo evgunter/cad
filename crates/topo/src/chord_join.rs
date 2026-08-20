@@ -1785,13 +1785,15 @@ impl ChordJoiner {
                     start_of(body, h1)?,
                     start_of(body, outside)?,
                 )?;
-                // SENSE HAZARD (M5 S11, banked): this mef re-mint
-                // stamps `sense: true` on the new fragment. Splitting
-                // a reversed (`sense: false`) face here would silently
-                // reset the bit — the fragment must INHERIT `oldf`'s
-                // sense before curved booleans make such splits
-                // reachable (`Body::set_face_sense` docs; guard:
-                // review_s11_adv's touching-union probe).
+                // The fragment INHERITS `oldf`'s orientation bit.
+                // Both arms hand `mef` the parent's surface, and
+                // `mint_face_surface_and_sense` returns the parent's
+                // sense whenever the fragment lands on it: a piece of
+                // a reversed wall is the same surface region with the
+                // same material side, so stamping `true` here would
+                // mint a silently inside-out fragment. Guard: sweep's
+                // `m5_s12_curved_ops.rs`, the row named
+                // `a_boolean_that_splits_a_reversed_wall_inherits_the_parent_bit`.
                 let created = match spec {
                     None => body.mef_chord(site)?,
                     Some(spec) => body.mef(site, spec, FaceSurface::Inherit)?,
@@ -2016,7 +2018,29 @@ impl ChordJoiner {
     }
 }
 
-/// The face's plane normal (F5-gated: always a `Plane`).
+/// The face's **chart** plane normal (F5-gated: always a `Plane`),
+/// deliberately without the face's sense folded in.
+///
+/// Its one consumer is [`point_in_loop`], which reads the normal only
+/// to recover the loop's PLANE. It projects each schedule member as
+/// `r − n̂(n̂·r)`, which is invariant under `n̂ ↦ −n̂`, and hands the
+/// parity walk the in-plane frame `(d, n̂ × d)` — whose second axis is
+/// the only thing a sign flip moves. Negating that axis negates every
+/// vertex ordinate `y`, so the straddle test `sign(yᵢ) ≠ sign(yⱼ)` is
+/// unchanged, the vertex-on-the-ray `Zero` graze is unchanged, and the
+/// crossing's advance `(xᵢyⱼ − xⱼyᵢ)/(yⱼ − yᵢ)` has numerator and
+/// denominator both negated. Negation is exact and both classifiers
+/// are symmetric about zero, so the verdict and the graze and
+/// escalation arms with it are bit-identical either way: ring re-homing
+/// cannot move a ring on the sense bit. `tests/review_m3_pr3_pil.rs`
+/// pins that.
+///
+/// The contrast with [`crate::boolean::solid_contain`]'s `face_plane`,
+/// which multiplies although its own consumer is equally sign-blind,
+/// is a naming contract rather than a correctness one: that door
+/// promises an OUTWARD normal to whoever calls it next. This one
+/// promises a chart normal and is named for it, so it is not a site
+/// of [`crate::face_normal`]'s hand-multiply inventory.
 fn face_plane_normal<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
