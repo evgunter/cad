@@ -264,7 +264,9 @@ impl<T: Decide> Body<T> {
         // Both are live: the first is minted above, the second is
         // proven by the plan phase's link check.
         let Some(hm_data_spliced) = self.get_half_edge(hm) else {
-            unreachable!("split_edge: `hm` resolved in the plan phase and this op kills no half-edge")
+            unreachable!(
+                "split_edge: `hm` resolved in the plan phase and this op kills no half-edge"
+            )
         };
         self.link_half_edges(hm_data_spliced.prev, n_minus);
         self.link_half_edges(n_minus, hm);
