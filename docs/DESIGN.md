@@ -1218,7 +1218,7 @@ is a complete answer and is recorded as the reason a row below applies,
 not as a defeat.
 
 *Row 4's message convention stays prose, and D35 is the decision not to
-gate it (PR #NNN, 2026-08-20).* The shape the conversion passes applied
+gate it (PR #809, 2026-08-20).* The shape the conversion passes applied
 — **the message states WHY the state cannot occur, not merely WHAT was
 violated, and carries the values a reader debugging it would want** —
 was settled by ruling across #740 and #744 and is recorded here rather
