@@ -502,6 +502,28 @@ fn attribute(error: &ValidationError, minted: &[MintedDeclaration]) -> Attributi
         // A declared FACE-PAIR record the kernel could not confirm —
         // the other direction of the certification diff. The record's
         // own faces are in the error, so it names its mate exactly.
+        //
+        // **UNREACHABLE through this door today, and no row can pin
+        // its `Refuted` label.** Every `PatchContact` the gate sees
+        // here is one `mint` made (the gather itself contributes none
+        // — `row2_a` asserts that), and a minted record is
+        // cross-instance by construction, because a same-instance
+        // mate refuses `SelfMate` at the solve door. For such a pair
+        // the census's chart door answers DIVERGENCE, never `Empty`,
+        // so the staleness arm never fires; both faces are in the
+        // gathered body by construction, so its other trigger cannot
+        // fire either; and the `CurveLocus` half needs a
+        // `CurveContact`, which `mint` refuses to make at all.
+        //
+        // The label still has to be right, because it is exactly the
+        // dangerous direction: relabelled `Declined`, a REFUTED
+        // declaration would be promoted into
+        // `AssemblyError::Uncertified` and reported as an unrefuted
+        // frontier. What makes the arm live is the same census
+        // cross-instance chart rung that closes `Uncertified` — when
+        // the chart door starts answering `Empty` instead of
+        // diverging, this arm executes and wants its own acceptance
+        // row in the same change.
         ValidationError::StaleContactDeclaration {
             declaration:
                 topo::StaleDeclaration::Patch { face_a, face_b, .. }

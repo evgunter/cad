@@ -538,6 +538,13 @@ fn row3_b_the_declared_touching_pair_is_not_an_undeclared_contact() {
 /// certified nor contradicted — it escalates TYPED, and the escalation
 /// carries the kernel's predicate name.
 ///
+/// **This row carries more than its own invariant.** It is the suite's
+/// only fixture whose findings are attributed to NO declaration, so it
+/// is the sole guard against two structurally distinct widenings of
+/// the frontier arm: an `Unattributed` finding being swept into
+/// `Uncertified`, and an undeclared contact being swept there with it.
+/// Delete it and both open silently.
+///
 /// The gap is DERIVED FROM THE COMMITTED BAND, never spelled as a
 /// literal: the hosted matrix runs ε = 1e-12 and 1e-6 as well as the
 /// default, and a hard-coded 3e-9 is definitely-separated in one lane
@@ -1169,6 +1176,61 @@ fn a_mixed_verdict_is_the_at_rest_arm_not_the_frontier() {
         "and the touching one is declined in the SAME run, which is \
          what makes this the mixed case: {rows:?}"
     );
+}
+
+/// INVARIANT: the mint door renders the reason the TABLE gives for the
+/// class in front of it — never a sentence of its own, and never
+/// another class's.
+///
+/// **Self-arming, deliberately.** With one non-minting class in the
+/// tree this row cannot distinguish "sourced from the table" from "a
+/// literal copy of that class's sentence", and no row can: the two are
+/// observationally identical until a SECOND class enters the state.
+/// The row is therefore written as a loop over the roster's
+/// non-minting classes, each asserted against its own reason and the
+/// reasons asserted distinct — so the day `Fit` lands with a reason of
+/// its own, a hard-coded copy fails here without anyone remembering to
+/// come back.
+#[test]
+fn the_mint_door_renders_each_class_its_own_reason() {
+    let mut seen: Vec<&'static str> = Vec::new();
+    for class in [ContactClass::Rest, ContactClass::Tangent] {
+        let editor_core::ClassAdmission::NoAtRestRecord { why } =
+            editor_core::class_admission(class)
+        else {
+            continue;
+        };
+        let (doc, ids, _, store) = stacked("asm-r2b-reason", 1.0);
+        let mut node = rest_mate(ids[0], ids[1], 1.0);
+        if let Node::Mate { class: c, .. } = &mut node {
+            *c = class;
+        }
+        let (doc, mate) = step(doc, DocEdit::InsertNode { node });
+        let mate = mate.expect("the mate mints");
+        let ev = run(&doc, &opts(store));
+        match assemble(&doc, &ev) {
+            Err(AssemblyError::NoAtRestRecord {
+                class: refused,
+                mate: named,
+                why: rendered,
+            }) => {
+                assert_eq!(refused, class);
+                assert_eq!(named, mate);
+                assert_eq!(
+                    rendered, why,
+                    "the door renders THIS class's reason: {class:?}"
+                );
+            }
+            other => panic!("{class:?} must refuse at the mint door: {other:?}"),
+        }
+        assert!(
+            !seen.contains(&why),
+            "each non-minting class states its own reason, or the door \
+             cannot be telling them apart: {class:?}"
+        );
+        seen.push(why);
+    }
+    assert!(!seen.is_empty(), "the roster has a non-minting class");
 }
 
 /// INVARIANT (**the two tables agree, where it is observable**): a
