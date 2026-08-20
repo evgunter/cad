@@ -64,7 +64,7 @@ head, merge without waiting for a second CI run.**
 | **C-R11** | **The roster's own scope citations are stale, and a lane checks them rather than complying.** `C-h`'s `splitting/rules.rs:268` lands on `face_extent`, a lever-arm helper, not on anything the `bridged` skip reads. | **Every scope cell is a claim site.** A lane that finds a citation unresolvable says so in its report and states what the line actually contains; it does not silently work around it or silently obey it. This is the same failure as the brief that fenced a lane against a memory deleted from main two days earlier — recorded there as an incident, promoted here to a standing rule, because the roster is now the third document on this track to carry a citation that outlived what it described. | orchestrator, 2026-08-20 |
 | **C-R12** | **How many lanes get an adversarial review.** The inherited roster marked 7 of the 12 remaining lanes adversarial, which is more than *"a minority of the track"* claims. | **Retrimmed to five: C-e, C-g, C-h, C-k, C-m** — plus **C-q**, which is new. The criterion Evan gave is *"complex enough that there's a significant chance the change will introduce a regression not caught by CI"*, and it is a narrower test than "this code is load-bearing". **C-j drops to style-only** because its mechanical half is a re-spelling whose correctness is provable by byte-identity of mesh output — a wrong answer is visible without an adversary, and the lane owes that proof. **C-l drops provisionally**, because a lane-trait collapse is type-level and the compiler is the adversary; the sub-lane that *rewrites* `Dual` arithmetic rather than re-spelling it is promoted back. | Evan (criterion) + orchestrator (application), 2026-08-20 |
 | **C-R13** | **H16 — what the STL `solid` name should default to.** The lane defaulted `solid_name` to the producer (`cad-kernel`, the Q9 placeholder) and flagged that `StepOptions::product_name` defaults to `part` — a *part* — so the mirror C-R1 asked for is not exact. | **Make it semantically correct; symmetry with STEP is not the criterion.** Evan, 2026-08-20: *"i don't care about the symmetry with STEP, it should just match what that field is supposed to be."* STL's `solid <name>` names **the solid being described**, so a producer string is the wrong kind of thing there; the binary 80-byte header is free text conventionally carrying a producer, so it is right as it stands and does not move. **This moves the default output bytes**, which is permitted and is not a reason to hesitate (`memories/output-stability-as-justification.md`) — but the PR's *"26/26 byte-identical"* evidence must be restated as what it then proves, not kept as written. Bonus the change buys: today's exported bytes carry the **Q9 placeholder project name**, so a part-shaped default decouples STL output from the naming decision entirely. | Evan, 2026-08-20 |
-| **C-R14** | **H16 — `StlOptions` derives `Eq` and `StepOptions` cannot** (its `Option<f64>`). The lane offered keep-as-a-strengthening or drop-to-match. Evan, 2026-08-20: *"this feels off, is there a cleaner third option?"* | **Both offered options answer the wrong question, and that is why it read as off.** `Eq` is not a feature — it is a marker asserting the existing `PartialEq` is reflexive. Underneath sit two real questions. **(a) Does anything need it?** No: every `StlOptions` consumer in the workspace constructs one or passes `&StlOptions::default()`; none uses it as a set element, map key, or anywhere total equality is required. So drop it — on the ground that **nothing needs it**, never on the ground that `StepOptions` lacks it. **(b) Why can `StepOptions` not have it?** `uncertainty_m: Option<f64>` — a bare `f64` tolerance in a public options struct, in a codebase whose ratified thesis is that bare `f64` tolerances get types. **The `Eq` asymmetry is not a fact about STL; it is a symptom of S25's shape in the other struct**, one crate over from where #692 fixed an instance of it with `MarchTol(f64)`. Typing it would move the *"finite and > 0"* check from write time to construction time and make `Eq` honest on both (a NaN-rejecting newtype has reflexive equality, so `impl Eq {}` is sound where `derive` cannot reach). That half is a `step-export` public API change → **C-R7: an issue and a §D row, not a widening of #732.** Half (a) is taken now; half (b) awaits Evan. | orchestrator, 2026-08-20 (from Evan's question) |
+| **C-R14** | **H16 — `StlOptions` derives `Eq` and `StepOptions` cannot** (its `Option<f64>`). The lane offered keep-as-a-strengthening or drop-to-match. Evan, 2026-08-20: *"this feels off, is there a cleaner third option?"* | **Both offered options answer the wrong question, and that is why it read as off.** `Eq` is not a feature — it is a marker asserting the existing `PartialEq` is reflexive. Underneath sit two real questions. **(a) Does anything need it?** No: every `StlOptions` consumer in the workspace constructs one or passes `&StlOptions::default()`; none uses it as a set element, map key, or anywhere total equality is required. So drop it — on the ground that **nothing needs it**, never on the ground that `StepOptions` lacks it. **(b) Why can `StepOptions` not have it?** `uncertainty_m: Option<f64>` — a bare `f64` tolerance in a public options struct, in a codebase whose ratified thesis is that bare `f64` tolerances get types. **The `Eq` asymmetry is not a fact about STL; it is a symptom of S25's shape in the other struct**, one crate over from where #692 fixed an instance of it with `MarchTol(f64)`. Typing it would move the *"finite and > 0"* check from write time to construction time and make `Eq` honest on both (a NaN-rejecting newtype has reflexive equality, so `impl Eq {}` is sound where `derive` cannot reach). That half is a `step-export` public API change → **C-R7: an issue and a §D row, not a widening of #732.** Half (a) is taken now. **Half (b), CORRECTED by Evan, 2026-08-20** — *"it sounds similar to what epsilon already is"*, and he is right, which makes the finding **smaller and better**: `uncertainty_m` **is** an ε — same quantity, same units, same validity rule that `geom_core::Tolerance::init` already enforces (*finite and strictly positive*). So this is not a missing newtype, it is **S4's dominant shape — one vocabulary, N hand-synced copies** — with `StepOptions` restating ε's rule by hand as the Nth. `step-import/src/entities.rs` carries the same bare `f64` twice, so import and export each restate it independently. One real distinction survives: `Tolerance` is `{eps, k}`, the **run configuration**, whereas this wants **ε alone**, which has no type while ε-plus-K does. Filed rather than done, per Evan's standing scope rule for this track. | orchestrator, 2026-08-20 (from Evan's question) |
 | **C-R15** | **H16's two remaining flags.** Empty strings accepted for both fields (`solid_name: ""` writes `solid ` with a trailing space; `header: ""` writes 80 zero bytes), and the stale pre-#639 artifacts under `crates/stl/target/m3pr6-stl/`. | **Both stay as they are** (Evan, 2026-08-20: *"no opinion"* / *"sounds good"*), with one addition: the empty-string behaviour is **documented at the field**, not only in the PR body. A reader of the type currently cannot learn it, and a PR body is not where a type's contract lives. | Evan, 2026-08-20 |
 | **C-R16** | **#731's E0004 mutation table was taken on an intermediate working state and never re-run.** Two of four rows are wrong, and both omit `eval/anchor.rs` — the PR's own headline fix. The tell is a cited line (`resolve/mod.rs:977`) matching **neither** tree (main 975, head 1007), under the claim *"identical to #632's post-state"* — true only because it literally **is** #632's post-state. | **Re-derive every row on the shipped head and name the tree each number came from.** Not re-read — re-run. A table taken during development is not evidence about what merges. | orchestrator, 2026-08-20 |
 | **C-R17** | **Three more in-crate members of H11's class**, declined or unfound: `eval/mod.rs:1372` (`content_key`'s payload wildcard under an **exhaustive** tag match — the identical split the PR closed elsewhere), `node.rs:955`/`:1004`, and `expr.rs:686/696` (a wildcard nested in a tuple, inside the PR's own declared blind spot). | **Fix all three. C-R6 is explicit that in-crate residues are fixed, not reported.** `eval/mod.rs:1372` carries the most: **S4's own record documents this bug having already happened** — *"`Step::AtToward`'s memo content-key tag 28 COLLIDED with `ArcContinue`'s existing 28 — a hit would serve wrong geometry"*, caught by a reviewer rather than a type. Routing `node.rs` to "S4's payload-lists row, marked FIXED by #618" is C-R7's named failure verbatim: a live problem parked inside a record labelled FIXED. | orchestrator, 2026-08-20 |
@@ -721,3 +721,72 @@ and any enum not named were invisible until read by hand.** Three differently
 shaped instruments have now been run at this one class and each found what the
 previous two could not — which is Q1's *the question is the instrument* with a
 third worked example.
+
+### #732 (C-o / H16) — style lane, 2026-08-20: no MAJOR, twenty findings
+
+The design PR, and the first row where the style lane's answer to track
+question 1 turned on **an argument rather than a sweep**. Both questions came
+back qualified rather than No.
+
+**Where the asymmetry is not gone.** H16 is a finding *about an asymmetry
+between two export doors*, so "is STL fixed" was never the question. The
+reviewer found that `step-export/src/writer.rs:913-930` still hardcodes two
+**caller-facing free-text** fields — `FILE_NAME`'s seventh argument, which is
+Part 21's `authorisation` and is assigned by the standard to the **user**, and
+the description list in `FILE_DESCRIPTION((''), '2;1')`. The PR's §7 names only
+`'2;1'` and the schema name and then promotes them to the whole entity.
+
+That is the load-bearing gap, because **§7's Part-21 argument is exactly what
+makes STL's 80 bytes "the caller's"**. The argument that decides the finding
+was incomplete in the direction that hurts: STEP keeps free text the caller
+cannot reach, while STL's becomes settable in the same PR.
+
+**Two guards blind to their own weakening.** Q3's shape, at the property the
+PR itself says moved **from structural to checked**: mutating the sniff from
+`starts_with(b"solid")` to `starts_with(b"solid ")` leaves the suite green,
+because the fixture `"solid widget"` still trips it — the row sees the guard
+*deleted* but not *narrowed*. Likewise dropping the name range's upper bound
+admits DEL, `é`, emoji and U+2028 while the doc promises `0x20..=0x7E`, with
+only `'\n'` actually pinned. `HeaderTooLong` is the counter-example done right.
+
+And the predicate is narrower than the sentence above it: `"Solid widget"`,
+`" solid widget"`, `"\tsolid widget"` and `"SOLID widget"` are all accepted,
+so a reader that lowercases or trims before sniffing misreads those files.
+
+**The sentence one level up was never re-read.** C-R1 named `ascii.rs`'s
+*"constant in this build"* wording and the lane preserved it correctly — and
+`crates/stl/src/lib.rs:10-15`, the crate header a reader meets **first**, still
+says byte-identical output for *"identical inputs"* and never names
+`StlOptions`. The mirror target does it right, naming `StepOptions` in its own
+crate header.
+
+*Generalisable:* **a ruling that names a sentence protects that sentence, and
+a lane that satisfies it exactly has still only checked the sentence it was
+handed.** C-R1's instruction was precise and was followed precisely; the defect
+moved one level up, into prose nobody had been told to look at.
+
+**The field the PR is built on is exercised by nothing but its own tests.**
+`solid_name` is constructed at exactly two sites in the repo, both in
+`crates/stl/tests/export.rs`; **every consumer-seat site sets `header`** — both
+demos and `GUIDE.md`. So the headline correspondence (`product_name` ↔
+`solid_name`) is between the field nobody uses and its STEP twin, while the
+field everyone uses has no STEP counterpart at all. §5.3's argument for one
+struct — *"a caller exporting both formats states its identity once"* — is
+contradicted by every call site it has: both demos are binary-only and their
+`solid_name` silently stays the default.
+
+**A demo finding that must not be hidden.** Both demos pipe an arbitrary body
+label into `header` under `unwrap_or_else(panic!)`, so a body named
+`solid-block` — or any label over 80 bytes — hard-panics the demo. Per
+`memories/demo-purpose.md` that is a library finding the demos surfaced, and
+it is filed rather than smoothed away.
+
+**A sweep whose blind spot was the glob, not the regex.** Both of the lane's
+sweeps excluded `demos/` by path, which contains `uvdump::emit` — a door its
+own verb list would have caught had it looked there. The lane declared regex
+blindness and not path blindness. The conclusion still holds (an
+independently-shaped third sweep reproduced the door set exactly and found no
+seventh in-crate door); it is the **disclosure** that was incomplete, which is
+§C15's question one turn further in: *a sweep's result is worth nothing
+without a statement of what its pattern cannot match* — and a path glob is
+part of the pattern.
