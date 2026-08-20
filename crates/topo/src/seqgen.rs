@@ -1664,7 +1664,6 @@ mod tests {
     /// runs `debug_assertions` on at opt-2, which is the suite's
     /// configuration and not a release one.
     #[test]
-    #[ignore = "measurement: a per-phase report, minutes long, asserting nothing about time"]
     fn phase_attribution_over_a_fixed_stream_set() {
         let reps: usize = std::env::var("CAD_SEQGEN_ATTRIBUTION_REPS")
             .ok()
@@ -1691,6 +1690,7 @@ mod tests {
             (&counted_without, &timed_without),
         );
         println!("{report}");
+        panic!("TEMPORARY measurement run on hosted CI — the report is the deliverable:\n{report}");
 
         // The only claims this test makes: the instrument covered the
         // replay it reports on, and both catalogs actually ran.
