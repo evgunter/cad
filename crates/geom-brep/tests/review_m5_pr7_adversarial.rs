@@ -58,7 +58,6 @@ fn a_loop_smaller_than_the_seed_floor_is_found_or_refused_typed() {
         center: Point3::new(0.0, 0.0, 0.0),
         half_extent: 1.5,
         extent: 2.0,
-        eps: eps(),
         floor_scale: 1.0,
     };
     match run(cyl, d) {
@@ -100,7 +99,6 @@ fn a_loop_straddling_cell_boundaries_is_found_or_refused_typed() {
         center: Point3::new(0.0137, -0.0261, 0.0407),
         half_extent: 1.47,
         extent: 1.9,
-        eps: eps(),
         floor_scale: 1.0,
     };
     match run(cyl, d) {
@@ -131,7 +129,6 @@ fn one_loop_slab_seed_count_reproduces() {
         center: Point3::new(0.03, 0.0, 0.996),
         half_extent: 0.2,
         extent: 0.4,
-        eps: eps(),
         floor_scale: 1.0,
     };
     match run(cyl, d) {
@@ -158,7 +155,6 @@ fn the_tiny_pair_floor_variant_refuses_typed() {
         center: Point3::new(0.01, 0.0, 0.9999),
         half_extent: 0.05,
         extent: 0.1,
-        eps: eps(),
         floor_scale: 1.0e8,
     };
     match run(cyl, d) {

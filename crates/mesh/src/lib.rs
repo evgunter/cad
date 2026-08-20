@@ -196,9 +196,9 @@
 //! `BTreeSet` fix and `[patch.crates-io]` it first.
 //!
 //! **Nothing here has a mechanical guard, and nothing can** (§Q6 of
-//! `docs/REVIEW-STYLE-BRIEF.md`): every figure above is a wall-clock
-//! timing on a named box, so no row in the tree can go red when one
-//! stops being true. That is not hypothetical — the "~10⁴× more CDT
+//! `docs/prompts/reviewer-style-lane.md`): every figure above is a
+//! wall-clock timing on a named box, so no row in the tree can go red
+//! when one stops being true. That is not hypothetical — the "~10⁴× more CDT
 //! time" this section used to claim was wrong by ~150× **on its own
 //! datapoints**, for three milestones, and what caught it was a scan run
 //! for another reason. What re-checks these numbers is the perf lane's
