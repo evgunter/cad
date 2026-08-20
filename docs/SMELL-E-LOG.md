@@ -122,9 +122,9 @@ discharged before this track existed.
 | lane | row(s) | scope | gate | review | state |
 |---|---|---|---|---|---|
 | **E-a** | D22 + D34 | `scripts/gates/`, `.github/workflows/ci.yml` | none | style | **in flight** |
-| **E-b** | D23 | `docs/` + suite headers; code set is what the re-derivation finds | none | style | unstarted |
-| **E-c** | D26 | `docs/SMELL-SCAN-2026-08.md` §D and §S19 | none | style | **in flight** |
-| **E-d** | D33 | `docs/predicate-dimension-audit.md` | none | style | unstarted |
+| **E-b** | D23 | `docs/` + suite headers; code set is what the re-derivation finds | none | style | **in flight** |
+| **E-c** | D26 | `docs/SMELL-SCAN-2026-08.md` §D and §S19 | none | style | **#752, in review** |
+| **E-d** | D33 | `docs/predicate-dimension-audit.md` | none | style | **in flight** |
 | **E-e** | D28 + issue #693 | `editor-core/src/eval/` | **confirm against C-f (#731)** — same crate, disjoint files | style | unstarted |
 | **E-f** | D25 | `topo/src/euler.rs` and every `link_half_edges` caller | none | **ADVERSARIAL** | **in flight** |
 | **E-g** | D27, then D29 | `sweep/src/fillet/{build,surgery,mod}.rs` | none | **ADVERSARIAL** (D27), style (D29) | unstarted |
@@ -223,11 +223,20 @@ constituted.**
 
 | block | lane | state |
 |---|---|---|
-| D36–D39 | E-c (D26) | reserved 2026-08-20 |
+| D36–D39 | E-c (D26) | **all four used** — D36 `UnsupportedCarrier`, D37 `tags.rs`'s residue, D38 `SkippedMerge`, D39 `ProgramRefusal::Geometry` |
 | D40–D41 | E-a (D22 + D34) | reserved 2026-08-20 |
 | D42–D43 | E-f (D25) | reserved 2026-08-20 |
+| D44–D45 | E-b (D23) | reserved 2026-08-20 |
+| D46 | E-d (D33) | reserved 2026-08-20 |
 
-Next unassigned: **D44**.
+Next unassigned: **D47**.
+
+**D36–D39 are placed and unstaffed**, and they are Track E's to schedule.
+E-c's report says D37(a) and D39 want **one** lane, not two: both need a
+fieldless `Copy + Eq` discriminant on `PathError`, which `pncad-py/src/tags.rs`
+has already hand-written once. D37 is gated on **D28** (E-e). Schedule them
+once #752 lands and the review has had its say about whether these four are
+rows a taker can act on — which is one of the two things that review owes.
 
 ---
 
@@ -237,16 +246,17 @@ Next unassigned: **D44**.
 `docs/SMELL-SCAN-2026-08.md` — which every Track E PR edits, so merges are
 serialized here and each lane re-merges `origin/main` when one lands.
 
-| lane | row(s) | branch | state |
-|---|---|---|---|
-| **E-c** | D26 | `smelle/d26` | dispatched — doc-only; **merge this one first** |
-| **E-a** | D22 + D34 | `smelle/d22-d34` | dispatched |
-| **E-f** | D25 | `smelle/d25` | dispatched — ADVERSARIAL, and **E-h (D21) is scoped against its head**, not against the old census |
+| lane | row(s) | branch | PR | state |
+|---|---|---|---|---|
+| **E-c** | D26 | `smelle/d26` | **#752** | reported, CI green on the merged head; **style review running**. Merge first once cleared — it is doc-heavy and every other lane edits the same file |
+| **E-a** | D22 + D34 | `smelle/d22-d34` | — | implementing |
+| **E-f** | D25 | `smelle/d25` | — | implementing; ADVERSARIAL, and **E-h (D21) is scoped against its head**, not against the old census |
+| **E-b** | D23 | `smelle/d23` | — | dispatched. **Fenced off `scripts/gates/probe-suite-census.sh` and `ci.yml`** while E-a holds them |
+| **E-d** | D33 | `smelle/d33` | — | dispatched |
 
-Not yet dispatched, and why: E-b, E-d, E-e, E-g are wave-1-eligible and held
-only by this container's build capacity (4 CPUs, ~29 GB) — dispatch as wave 1
-reports. E-h waits on E-f, E-k on E-g and E-h, E-j on a Track C confirmation.
-E-i, E-l, E-m are wave 2; E-n is last.
+Not yet dispatched: E-e and E-g are wave-1-eligible and held only by this
+container's build capacity. E-h waits on E-f, E-k on E-g and E-h, E-j on a
+Track C confirmation. E-i, E-l, E-m are wave 2; E-n is last.
 
 ---
 
