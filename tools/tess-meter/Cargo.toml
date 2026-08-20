@@ -1,0 +1,40 @@
+# The tessellation-budget meter's CONSUMER half (issue #320).
+# Deliberately OUTSIDE the kernel workspace (the empty [workspace] table
+# detaches it; the root manifest lists `tools` in workspace.exclude),
+# and that is the point of the crate: the CSV schema, the slack
+# factors, the counterfactual schedules and the split optimizer are
+# derivations over measurements, not kernel work, so they live where a
+# reader of the numbers can change them without touching the
+# tessellation lane.
+#
+# `mesh::budget::FaceMeasure` is the contract between the two halves.
+# It is DATA and it is ungated, so depending on this crate never turns
+# `mesh`'s `budget` feature on for anybody: a build that wants
+# measurements arms the meter through `mesh/budget` itself
+# (`scripts/tess_budget_sweep.sh` does, via the tour's own feature).
+[package]
+name = "tess-meter"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[workspace]
+
+[dependencies]
+geom = { path = "../../crates/geom" }
+mesh = { path = "../../crates/mesh" }
+topo = { path = "../../crates/topo" }
+
+# `features = ["budget"]` on the kernel HERE, in dev-dependencies only:
+# these tests arm the meter, and `arm`/`take` exist only in the live
+# half. A dev-dependency of a workspace-excluded tooling crate reaches
+# no shipped build, and it does not reach this crate's own library
+# either — `demos/tour` depends on the library, so nothing it builds
+# carries the instrument unless the tour itself asks for it.
+[dev-dependencies]
+mesh = { path = "../../crates/mesh", features = ["budget"] }
+geom-core = { path = "../../crates/geom-core" }
+profile = { path = "../../crates/profile" }
+sweep = { path = "../../crates/sweep" }
+test-utils = { path = "../../crates/test-utils" }

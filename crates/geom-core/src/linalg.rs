@@ -1,5 +1,6 @@
-//! Fixed-dimension linear algebra: vectors, points, matrices, and affine
-//! maps for the 2-D/3-D evaluation layer.
+//! Fixed-dimension linear algebra for the 2-D/3-D evaluation layer:
+//! vectors and points in both dimensions, matrices and affine maps in
+//! 3-D only (see the omission below).
 //!
 //! Hand-rolled per `docs/DESIGN.md`'s layering table — small, fixed
 //! dimension, and generic over our own [`Real`](crate::real::Real) scalar
@@ -23,14 +24,20 @@
 //!   do not add or scale; the operations are `Point − Point = Vec`,
 //!   `Point ± Vec = Point`, and affine combinations ([`Point3::lerp`]).
 //!   `Point + Point` does not typecheck, by design.
-//! - [`Mat2`] / [`Mat3`] are **linear endomorphisms of the tangent
-//!   space**, stored column-major as named column fields.
-//! - [`Affine2`] / [`Affine3`] are **affine maps**: a linear part (the
+//! - [`Mat3`] is a **linear endomorphism of the tangent space**, stored
+//!   column-major as named column fields.
+//! - [`Affine3`] is an **affine map**: a linear part (the
 //!   map's differential, which is all a pushed-forward tangent vector
 //!   feels) plus a translation (which only points feel).
 //!
 //! # Deliberate omissions
 //!
+//! - **No 2-D linear or affine maps.** [`Vec2`] and [`Point2`] have no
+//!   `Mat2`/`Affine2` to move them: the asymmetry with the 3-D half is
+//!   intended, not an oversight. Nothing in the kernel maps the 2-D
+//!   tangent space through a stored matrix — chart work carries its own
+//!   parameterization — and this layer adds only on consumer demand, so
+//!   the pair is absent until something asks for it.
 //! - **No array storage, no indexing, no `Index` impls.** Indexing has a
 //!   panic path on out-of-range input, and D9 forbids panic paths; named
 //!   fields (`x`, `y`, `z`, `c0`, …) make every component access total
@@ -89,9 +96,9 @@ mod point;
 pub mod svd;
 mod vec;
 
-pub use affine::{Affine2, Affine3};
+pub use affine::Affine3;
 pub use frame::{FrameError, FrameInput};
-pub use mat::{Mat2, Mat3};
+pub use mat::Mat3;
 pub use point::{Point2, Point3};
 pub use svd::{Svd, Svd2x3, Svd3x4};
 pub use vec::{Vec2, Vec3};

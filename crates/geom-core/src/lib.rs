@@ -34,9 +34,7 @@ pub use dual::{Dual, Dual64};
 pub use interval::Interval;
 #[cfg(feature = "probe")]
 pub use k_stats::{MarginSample, Probe, SampleOutcome};
-pub use linalg::{
-    Affine2, Affine3, FrameError, FrameInput, Mat2, Mat3, Point2, Point3, Vec2, Vec3,
-};
+pub use linalg::{Affine3, FrameError, FrameInput, Mat3, Point2, Point3, Vec2, Vec3};
 pub use predicate::{
     Band, BandError, BandField, COINCIDENCE_RECOURSE, DEFAULT_K, Decide, Indeterminate,
     IndeterminatePayload, Margin, MarginDiag, Sign,

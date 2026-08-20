@@ -1,6 +1,7 @@
 //! The **tessellation-budget lint** (issue #320): reads the per-face
-//! budget CSV `mesh::budget` records (`demo-tour tess-budget`) and
-//! answers two different questions with it.
+//! budget CSV that `mesh::budget` MEASURES and `tools/tess-meter`
+//! writes (`demo-tour tess-budget`), and answers two different
+//! questions with it.
 //!
 //! # 1. The report: where does the mesh actually go, and why
 //!
@@ -13,21 +14,24 @@
 //! grid is per-knot-span-cell-sized now, recorded as `grid_cells`;
 //! the retired whole-patch-sup schedule rides along as the
 //! COUNTERFACTUAL `patch_cells` column so the held gain stays a
-//! number; `span_cells` is the shipped schedule's cell count summed
-//! through the SAME derivation the lane consumes (`band_schedule` —
-//! the agreement column verifies the lane's realisation of it, not an
-//! independent re-derivation; what guards the schedule itself is the
-//! per-triangle certificate refusal, this gate's growth rules, and
-//! the committed render cells).
+//! number; `span_cells` is IDENTICALLY `grid_cells` (see `agree`
+//! below). What guards the schedule itself is the per-triangle
+//! certificate refusal, this gate's growth rules, and the committed
+//! render cells.
 //!
 //! * **held** = `patch_cells / grid_cells` — the span gain TESS-SPAN
 //!   holds over whole-patch sizing. A regression toward whole-patch
 //!   sizing drives it toward 1.0 (and fires the gate through
 //!   `recoverable`, below).
-//! * **agree** = `grid_cells / span_cells` — 1.00 by construction:
-//!   the lane's realised cell count against the same schedule's sum.
-//!   Drift means candidate generation/dedup/counting no longer
-//!   realise the schedule.
+//! * **agree** = `grid_cells / span_cells` — **1.00 identically, and
+//!   it checks nothing.** The two are the same `band_schedule` sum:
+//!   `grid_cells` is `Σ nuc·nvc` accumulated in the very loop that
+//!   emits the candidates, and `span_cells` is that number copied.
+//!   Neither counts a realised candidate, so the column cannot detect
+//!   the drift it was described as detecting. It is kept because the
+//!   committed baseline and this parser read it by position; making
+//!   it a real check is a schema change and a re-cut baseline, and
+//!   is unscheduled.
 //! * **split** = `grid_cells / span_opt_cells` — what is still
 //!   recoverable by picking a cheaper point on each cell's
 //!   constraint ellipse `muu·h_u² + 2·muv·h_u·h_v + mvv·h_v² ≤ δ_s`;
@@ -51,7 +55,7 @@
 //! on a ruled wall (one division across the flat direction, thousands
 //! along the curved one). It certifies, but it is an upper bound on
 //! what an aspect-respecting schedule would recover — see
-//! `mesh::budget`'s module docs and docs/TESS-BUDGET.md.
+//! `tess_meter`'s module docs and docs/TESS-BUDGET.md.
 //!
 //! # 2. The gate: has the budget regressed?
 //!
@@ -105,7 +109,7 @@ pub struct Row {
     pub nurbs: Option<Nurbs>,
 }
 
-/// The NURBS lane's sizing columns (`mesh::budget::NurbsBudget`).
+/// The NURBS lane's sizing columns (`tess_meter::NurbsColumns`).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Nurbs {
     /// The grid the lane actually built (TESS-SPAN: per-cell-sized),
@@ -178,7 +182,7 @@ pub struct ParseError {
 }
 
 /// The column order [`parse`] requires, byte for byte
-/// `mesh::budget::CSV_HEADER`. Pinned HERE as well as there on
+/// `tess_meter::CSV_HEADER`. Pinned HERE as well as there on
 /// purpose: the two halves are separate cargo roots by design, so
 /// there is no shared constant to import, and a drifting sweep must
 /// fail as harness breakage rather than parse into wrong columns.

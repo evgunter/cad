@@ -9,6 +9,7 @@ use topo::Body;
 
 use crate::chords::{compute_chords, edge_vertices};
 use crate::curved::tessellate_curved;
+use crate::nurbs_cert::FaceBounds;
 use crate::planar::tessellate_planar;
 use crate::types::{BoundaryPolyline, FacePatch, Mesh, TessellateError};
 
@@ -57,14 +58,19 @@ pub fn tessellate(body: &Body<f64>, chordal: f64) -> Result<Mesh, TessellateErro
         positions.push(*p);
     }
 
+    // Certified whole-patch NURBS bounds, assembled once per face and
+    // shared by both passes that need them (`chords::FaceBounds`).
+    let mut bounds = FaceBounds::new();
+
     // Chord pass: per-edge polylines, computed once (crate docs);
     // `chord_ts` is the matching parameter schedule (the trimmed lane
     // evaluates pcurves on it — one derivation, both consumers).
-    let (chords, chord_ts) = compute_chords(body, delta_s, &vids, &mut positions)?;
+    let chords = compute_chords(body, delta_s, &vids, &mut positions, &mut bounds)?;
     let mut boundaries = Vec::new();
     for (ek, _) in body.edges() {
         let (start_vertex, end_vertex) = edge_vertices(body, ek)?;
         let points = chords
+            .ids
             .get(&ek)
             .ok_or(TessellateError::MissingEntity {
                 what: "edge chords",
@@ -80,11 +86,7 @@ pub fn tessellate(body: &Body<f64>, chordal: f64) -> Result<Mesh, TessellateErro
 
     // Per-face dispatch, face-arena order.
     let mut patches = Vec::new();
-    for (ordinal, (fk, face)) in body.faces().enumerate() {
-        // BUDGET METER (dead in normal runs): open this face's row, so
-        // a previous face that REFUSED cannot leave its sizing behind
-        // to be reported under this one's name (`crate::budget`).
-        crate::budget::begin_face();
+    for (fk, face) in body.faces() {
         let surface = body
             .get_surface(face.surface)
             .ok_or(TessellateError::MissingEntity {
@@ -109,16 +111,16 @@ pub fn tessellate(body: &Body<f64>, chordal: f64) -> Result<Mesh, TessellateErro
                 fk,
                 surface,
                 &chords,
-                &chord_ts,
                 &mut positions,
                 &tol,
+                &mut bounds,
             )?,
             // The planar lane derives its chart frame from the face's
             // own boundary (planar.rs module docs, #284) — the stored
             // plane axes are deliberately not passed: imported axes
             // carry translator noise that projects valid boundaries
             // below spade's coordinate domain.
-            Surface::Plane { .. } => tessellate_planar(body, fk, &chords, &positions)?,
+            Surface::Plane { .. } => tessellate_planar(body, fk, &chords.ids, &positions)?,
             // Structural routing (M5 PR 11): a conic/B-spline trim
             // carrier means the face is not an iso-rectangle — the
             // pcurve-driven trimmed lane takes it.
@@ -138,26 +140,12 @@ pub fn tessellate(body: &Body<f64>, chordal: f64) -> Result<Mesh, TessellateErro
                 fk,
                 surface,
                 &chords,
-                &chord_ts,
                 &mut positions,
                 &tol,
+                &mut bounds,
             )?,
-            _ => tessellate_curved(body, fk, surface, &chords, &mut positions, &tol)?,
+            _ => tessellate_curved(body, fk, surface, &chords.ids, &mut positions, &tol)?,
         };
-        // BUDGET METER (dead in normal runs): one row per face, every
-        // chart — "which face IS the scene's cost" is unanswerable if
-        // only the Hessian-sized lane reports (`crate::budget`).
-        if crate::budget::armed() {
-            let chart = match *surface {
-                Surface::Plane { .. } => crate::budget::Chart::Plane,
-                Surface::Cylinder { .. } => crate::budget::Chart::Cylinder,
-                Surface::Cone { .. } => crate::budget::Chart::Cone,
-                Surface::Sphere { .. } => crate::budget::Chart::Sphere,
-                Surface::Torus { .. } => crate::budget::Chart::Torus,
-                Surface::Nurbs(_) => crate::budget::Chart::Nurbs,
-            };
-            crate::budget::finish_face(ordinal, chart, chordal, triangles.len());
-        }
         patches.push(FacePatch {
             face: fk,
             triangles,
