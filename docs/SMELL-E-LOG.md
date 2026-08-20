@@ -751,7 +751,7 @@ serialized here and each lane re-merges `origin/main` when one lands.
 | **E-d** | D33 | `smelle/d33` | **#761** | **MERGED 2026-08-20.** Placed D46, D51, D57; handed D56 back |
 | **E-e** | D28 + #693 | `smelle/d28` | **#767** | **MERGED 2026-08-20** — 37/37 finished, 0 failed. Census 12 arms not 8; placed D54, D81 |
 | **E-h** | D21 | `smelle/d21` | **#773** | **style lane NOT CLEARED** — 8 MAJOR; adversarial lane running. Placed D88, D89 |
-| **E-k** | D35 | `smelle/d35` | **#809** | **complete, stacked on #817.** Closes on **(d) — no gate**. **103** sites, 7 crates; **76 are one state** (answered *no* by #755), **13 row-0 candidates** → **D96** (written as its own finding), 3 messages fixed. Found **#777 never reached `main`** → **#817**, which merges first |
+| **E-k** | D35 | `smelle/d35` | **#809** | **MERGED 2026-08-20.** D35 closes on **(d)**; 103 sites re-derived, 76 one state, 13 row-0 candidates → **D96**, 3 messages fixed. Found **#777 never reached `main`** → **#817** |
 | **E-l** | #681 | `smelle/681` | **#810** | **MERGED 2026-08-20.** 7 of 9 surfaces swept, 2 declared; 24 claims → 7 guarded, 2 scheduled, 13 unguardable-with-reason, **1 unguarded (#807)**. #808 stands free now that #763 is in; `memories/` raised as a tenth surface |
 | **E-o** | D86 | `smelle/d86` | — | **dispatched** 2026-08-20. Crosses into `scripts/` with Evan's ruling, after F's and G's logs were checked for a claim on the file and neither had one (E-R8) |
 | **E-p** | S14 | `smelle/s14` | — | **dispatched** 2026-08-20. A design-conversation PR, not a fix; **waits for Evan** and never self-merges |
@@ -1643,6 +1643,58 @@ finding cannot absorb.
 ---
 
 ## Landings
+
+### #809 — D35 + D96 (E-k), merged 2026-08-20
+
+**D35 closes on (d): no gate**, with the reason written into the D2 addendum
+beside row 0 rather than left in a PR body — a row that closes on *"no, and here
+is why"* has to put the why where a reader of row 4 will meet it.
+
+**Population re-derived: 103 kernel call sites across seven crates**, not the
+row's 101/102 over nine. The row's figure *reproduces*, and the lane could say
+exactly how: its census counted `crates/**` including `tests/`, which is where
+its `geom-brep` 5 and `profile` 1 came from — **both crates have zero call sites
+in `src`**. The file list in the row was wrong the same way and is corrected.
+
+**76 of the 103 are one state**, an arena key proven live earlier in the same
+call, written by three conversion passes under one ruling. **Their row 0 was
+already answered *no* by #755, before row 0 existed.** So for 74% of the
+population neither D35's question nor row 0's has live work in it — which is the
+measurement that made (d) the answer rather than a shrug.
+
+**(a) was falsified by the tree in both directions**, not argued against. False
+negatives: `topo` already contains a source walk over these exact messages, and
+it works *because* it forbids one spelling — *"does this message state why the
+state cannot occur"* is not decidable by grep. False positives: `quantity`'s
+`row_index` is message-**less** on purpose and a required-message rule **cannot
+be satisfied there** — `unreachable!` routes even a literal through
+`format_args!`, which is not const-callable, so `unreachable!("literal")` in a
+`const fn` is `E0015`. The lane doubted the site's doc comment, compiled it, and
+found the comment right and its own first reading wrong.
+
+**13 row-0 candidates → D96**, written as its own finding. Its evidence is
+`battery.rs:796`: **D35's own roster line had already named it** — *"the third
+non-empty-by-construction sequence in that file and the only one still a
+`Vec`"* — published in the register, and still a `Vec` when the lane opened the
+file. *Findable from the register and unfixed* is the register failing at the
+one thing it is for.
+
+**Two durable method findings, both from the lane's own errors.**
+
+*The fence's file list is stable; its head set is not.* D96's Track C fence was
+measured three times in one session and was stale twice by the time it was read
+— **six SHAs had moved within the hour**, three PRs merged, two opened. The lane
+then widened from Track C to **all** open heads, correctly: file overlap is the
+mechanism and it does not care who owns the branch. The row now tells its taker
+to re-derive rather than cite, and says why.
+
+*And it transcribed a claim in the same breath as insisting on re-derivation.*
+Its merge commit message named three roster rows **from the dispatch instead of
+from the tree**; the tree disagreed thirty seconds later, during the
+verification step it had already scheduled. It reported this plainly rather than
+amending it away. **That is an argument for the step, not for care** — the lane
+that spent a day on re-derivation still copied one sentence, and what caught it
+was procedure, not vigilance.
 
 ### #826 — `memories/` (E-q), merged 2026-08-20
 
