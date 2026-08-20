@@ -2186,6 +2186,59 @@ mod tests {
             .collect()
     }
 
+    /// **§H14 — what the containment arm actually says about these
+    /// scaffolds, and that it is not about where they are.**
+    ///
+    /// Each `cyl_sheet` keeps its `mvfs` NURBS placeholder on the seed
+    /// face. A placeholder net is poison, so the solid has no claimable
+    /// extent and can never be the container: arm 2 must reach its
+    /// TYPED refusal for that case. Folding the poison net instead
+    /// yields `Some((NaN, NaN))`, every margin decides neither sign,
+    /// and the arm falls out at its in-band refusal having compared no
+    /// geometry — which reads, in a suite, exactly like the arm
+    /// measuring two overlapping sheets.
+    ///
+    /// The second half is what makes that unmistakable: a sheet a
+    /// KILOMETRE away produces the byte-identical refusal. If this row
+    /// ever fails there, an extent comparison has started happening and
+    /// the `face_findings` allowance above needs re-reading.
+    #[test]
+    fn a_placeholder_seed_leaves_the_containing_extent_unclaimable() {
+        let refusals = |z0: f64, z1: f64| -> Vec<String> {
+            let mut body = Body::<f64>::new();
+            let (_w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
+            let (_w2, _) = cyl_sheet(&mut body, Some(cyl), 1.0, 2.4, z0, z1, false);
+            crate::pcurves::mint_pcurves(&mut body).unwrap();
+            census_and_certify(&body, &ContactRecords::default(), band())
+                .into_iter()
+                .filter_map(|e| match e {
+                    ValidationError::CensusUndecidable {
+                        a: EntityId::Solid(a),
+                        b: EntityId::Solid(b),
+                        what,
+                    } => Some(format!("{a:?}~{b:?}: {what}")),
+                    _ => None,
+                })
+                .collect()
+        };
+        let near = refusals(0.3, 0.7);
+        assert!(
+            !near.is_empty()
+                && near.iter().all(|r| r.contains(
+                    "a surface kind with no cheap sound box leaves the containing \
+                     instance's extent unclaimable"
+                )),
+            "the placeholder seed must reach the TYPED refusal, not the in-band \
+             fallout of a NaN box: {near:?}"
+        );
+        assert_eq!(
+            near,
+            refusals(1000.3, 1000.7),
+            "the refusal is about an unclaimable extent, so moving a sheet a \
+             kilometre away must not change it"
+        );
+    }
+
     #[test]
     fn a_patch_record_backs_the_pair_and_confirms_through_both_doors() {
         let (body, w1, w2) = conformal_pair();
