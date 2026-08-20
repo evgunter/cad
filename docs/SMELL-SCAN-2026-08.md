@@ -8578,12 +8578,19 @@ uncovered by the roster — which is a trade to make deliberately, in its own ro
 
 **And one hole the gate names about itself, unscheduled since #709: placed as
 D41.** `doc-gate.sh` runs `cargo doc --workspace`, which sees workspace
-*members*; the root manifest excludes `demos/` and `tools/`, and none of the
-`k-lint` rows that build those roots runs `cargo doc`. The script's own header
-says a row is owed for it and that it is unscheduled — #709 moved ~1,050 lines
-of prose from `crates/mesh/src/budget.rs` into `tools/tess-meter` and it went
-from covered to uncovered by moving, with a `cargo doc` step added to that one
-row as a stopgap. Four roots are still outside the gate.
+*members*, and `Cargo.toml` excludes `demos`, `tools` and
+`interval-transcendentals`. Its own header says a row is owed and is
+unscheduled — #709 moved ~1,050 lines of prose from `crates/mesh/src/budget.rs`
+into `tools/tess-meter` and it went from covered to uncovered by moving, with a
+`cargo doc` step added to that row as a stopgap and #738 copying it to
+`tess-lint`. **Re-derived at `7db79c1`: four excluded roots have no rustdoc gate
+at all** — `tools/k-lint`, `demos/tour`, `demos/wild` and
+`interval-transcendentals` — and the two that are covered are covered by a step
+hand-copied into two rows, with no shared home, which is the drift shape
+`lib.sh` exists to prevent. The header's own count is *"only two of those five
+rows"*, which misses `interval-transcendentals`: it is excluded by the root
+manifest but runs in its own job rather than in `k-lint`, so a count taken off
+that job's rows cannot see it.
 ---
 
 ## Last, deliberately
