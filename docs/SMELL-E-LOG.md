@@ -286,6 +286,35 @@ ADVERSARIAL policy and a second track on those files is the collision the
 sequencing exists to prevent. S68 is D21 (E-h). S67, S69 and S70 are unplaced
 and want rows after E-h lands — S70 is S14 and is Evan's.
 
+### The dispatcher wrote a stale index inside the section warning about stale indexes (2026-08-20)
+
+**#766 placed D49, D50 and D58–D60 and left §D's *"D48 is the highest one
+placed"* sentence untouched.** E-d found it while re-merging and corrected it to
+**D60**. That sentence is the placement register's own index — the one artefact
+whose entire job is to say what the highest number is — and I broke it in the
+same PR that added three new §D sections about findings travelling between
+documents without being re-derived.
+
+*Why it is worth a paragraph rather than a shrug:* it is **not** the same
+mechanism as E-R4 or as #752's inherited-gate finding. Those were claims copied
+from one place to another without checking. This was a claim I **did not touch
+at all** — the defect is that a number-carrying sentence sits far from the table
+whose contents determine it, so an edit to the table is not an edit to the
+sentence and nothing connects them. That is C14's shape (*pins guard the
+invariant as it was reachable then*) applied to prose, and D23's class exactly:
+**an enumeration stated in prose, already drifted.**
+
+The honest reading is that the register has now produced this defect twice in
+one day, in two different sentences, and both were caught by a lane rather than
+by the orchestrator who wrote them. **The instrument that works here is a lane
+re-deriving on its way past** — which is what the standing header's rule 5
+asks for, and it has now paid for itself four times on this track.
+
+**E-d also re-measured a third time** at the new base after #755 gave `topo` a
+`live.rs` and rewrote `split.rs`; all ten figures reproduced, and the file names
+all three commits. That is the discipline D23 asks for, applied without being
+asked, on a measurement nobody would have re-checked.
+
 ---
 
 ## The standing lane header
@@ -416,7 +445,7 @@ serialized here and each lane re-merges `origin/main` when one lands.
 | **E-a** | D22 + D34 | `smelle/d22-d34` | **#753** | reported; **style review running**. Placed D40, D41, and D58–D60 for Track F |
 | **E-f** | D25 | `smelle/d25` | **#755** | **CLEARED by both lanes**; combined fix pass running (3 must-fix, 2 → rows D49/D50). Merges after #752 |
 | **E-b** | D23 | `smelle/d23` | **#763** | reported; **style review running**. Placed D44 and D45 |
-| **E-d** | D33 | `smelle/d33` | **#761** | **CONFLICTING** after #766 — re-merge requested; fix pass accepted, **first in the merge queue** once green |
+| **E-d** | D33 | `smelle/d33` | **#761** | **MERGED 2026-08-20.** Placed D46, D51, D57; handed D56 back |
 | **E-e** | D28 + #693 | `smelle/d28` | **#767** | reported; **style review running** |
 | **E-h** | D21 | `smelle/d21` | — | dispatched — **unblocked by #755**, whose lane verified D21 inherits nothing from D25 |
 
@@ -581,6 +610,45 @@ one finding recorded as certain.
 ---
 
 ## Landings
+
+### #761 — D33 (E-d), merged 2026-08-20
+
+The audit's coverage of its own two crates, measured, and its bound stated.
+**246 funnel-reaching predicate names; the document dimensions 121, reaches 223
+under the most generous reading, and misses 23** — a ceiling on reach, a floor
+on the hole, and a verdict count, three numbers the file had conflated into one.
+The two-crate bound is **deliberate and binds the TABLE, not the document**,
+which is sharper than the yes/no the row asked for: four of the dispositions are
+`editor-core` rows, so *"the document is bounded"* would have been false.
+
+**Its review returned four MAJORs and every one was on the axis the row exists
+to close** — the number is the deliverable, and a published number was wrong, an
+omitted spelling was named in the document's own scope line, and the sentence
+that made the floor safe to build on was falsified by the section the same
+change added. All four closed, two of them better than asked:
+
+- **The site ledger is published and demoted** — 322 raw → 315 funnel calls →
+  302 name-fixing sites, every subtraction named, rather than a headline that
+  contradicted the one piece of arithmetic the paragraph offered.
+- **D56 was handed back with a measurement as the reason.** Asked to check
+  whether "a helper that fixes a name" is a class, the lane re-derived it at
+  **~30 instances** and found every one benign — *a helper that fixes a name
+  calls the funnel with that name as a literal, so all of them are already in
+  the 210.* The class costs a **site** count its canonicity and costs the roster
+  nothing. A row declined on evidence is worth more than a row taken on
+  suspicion.
+- **The published re-derivation recipe now strips the file's two
+  self-describing sections**, so the next re-deriver does not have to exclude
+  one by hand as the reviewer did.
+- **The overclaim was retired in place, not footnoted:** *"The word* every *was
+  this document's for a year and it was never true of the second bound."*
+
+Placed **D46** (audit the 23), **D51** (`DESIGN.md:31`'s F-range, where two
+findings the audit itself RETIRED are still listed as open — and the residue was
+*re-homed*, so the pointer redirects rather than merely missing) and **D57** (a
+class measured at seven names by one spelling and **nine** by two, over two
+crates out of a dozen — an unknown population read by a known-incomplete
+instrument, which is S113/D23's shape caught inside the review looking for it).
 
 ### #752 — D26 (E-c), merged 2026-08-20. **Track E's first.**
 
