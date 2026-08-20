@@ -1495,6 +1495,22 @@ mod staleness_posture {
     /// `mint_pcurves`; and an entry naming a door that no longer
     /// exists.
     ///
+    /// **Where the door set comes from.**
+    /// [`crate::fixtures::mutation_doors`], shared with the tier-1
+    /// postcondition guard in [`crate::review_m1_pr5_internal`], which
+    /// walks the same population to ask a different question. The walk
+    /// and the `&mut self` / `&mut Body` predicate live there because
+    /// they are one concept; the two tables stay in their own guards
+    /// because they are two properties of that one set, and a merged
+    /// table would let an edit about tier 1 red this guard.
+    ///
+    /// **"Calls `mint_pcurves`" is a read of code, not of prose.**
+    /// [`crate::fixtures::MutationDoor::calls`] searches the door's
+    /// body with comments and string literals blanked. This guard used
+    /// a raw `body.contains`, and a planted door whose body only
+    /// *mentioned* `mint_pcurves(` in a comment was counted as
+    /// re-minting, in both this guard and the tier-1 one, both green.
+    ///
     /// **What it does not check.** That a `Maintains` entry is TRUE. A
     /// re-mint reached through a delegate is invisible to a source
     /// read, so those two entries are taken at their word — the guard
@@ -1502,7 +1518,8 @@ mod staleness_posture {
     /// silently started minting, not that each sort is correct. The
     /// module docs' *"what the guard does NOT establish"* list carries
     /// this and the rest of the blind spot: delegation, and everything
-    /// outside `topo/src`'s `&mut Body` surface.
+    /// outside `topo/src`'s `&mut Body` surface. The full inherited
+    /// list is on [`crate::fixtures::mutation_doors`].
     #[test]
     fn every_mutation_door_declares_its_pcurve_posture() {
         use Posture::{Maintains, Neither, Transfers};
@@ -1618,23 +1635,17 @@ mod staleness_posture {
         let mut undeclared: Vec<String> = Vec::new();
         let mut mislabelled: Vec<String> = Vec::new();
 
-        for path in &crate::fixtures::crate_sources() {
-            let text = std::fs::read_to_string(path).expect("a readable source file");
-            for (name, params, body) in crate::fixtures::public_fns(&text) {
-                if !params.contains("&mut self") && !params.contains("&mut Body") {
-                    continue;
+        for door in crate::fixtures::mutation_doors() {
+            let entry = DECLARED.iter().find(|(n, _, _)| *n == door.name);
+            if door.calls("mint_pcurves(") {
+                if let Some((_, posture, _)) = entry.filter(|(_, p, _)| *p != Maintains) {
+                    mislabelled.push(format!("{} declared {posture:?}", door.name));
                 }
-                let entry = DECLARED.iter().find(|(n, _, _)| *n == name);
-                if body.contains("mint_pcurves(") {
-                    minting.push(name.to_string());
-                    if let Some((_, posture, _)) = entry.filter(|(_, p, _)| *p != Maintains) {
-                        mislabelled.push(format!("{name} declared {posture:?}"));
-                    }
-                } else if let Some((n, _, _)) = entry {
-                    declared.push(n);
-                } else {
-                    undeclared.push(format!("{}::{name}", path.display()));
-                }
+                minting.push(door.name);
+            } else if let Some((n, _, _)) = entry {
+                declared.push(n);
+            } else {
+                undeclared.push(door.site());
             }
         }
 

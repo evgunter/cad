@@ -36,13 +36,19 @@
 //!
 //! # Not fixtures: the source walk
 //!
-//! [`src_root`], [`collect_rs`], [`crate_sources`] and [`public_fns`]
-//! read this crate's own `.rs` files. They are here rather than beside
-//! any one caller because several guards walk the sources — an
-//! anti-re-fork guard should not be the next copy of its own walk —
-//! and [`public_fns`] is a hand-rolled Rust reader, deliberately: the
-//! properties those guards check are about the SOURCE surface, which
-//! nothing at runtime can enumerate.
+//! [`src_root`], [`collect_rs`], [`crate_sources`], [`public_fns`] and
+//! [`mutation_doors`] read this crate's own `.rs` files. They are here
+//! rather than beside any one caller because several guards walk the
+//! sources — an anti-re-fork guard should not be the next copy of its
+//! own walk — and [`public_fns`] is a hand-rolled Rust reader,
+//! deliberately: the properties those guards check are about the
+//! SOURCE surface, which nothing at runtime can enumerate.
+//!
+//! [`mutation_doors`] is the layer above: *which* of those functions
+//! are the crate's public mutation doors, which two guards need and
+//! neither owns. It hands each door's body over with comments and
+//! string literals blanked, so a guard classifying a door by the calls
+//! it makes cannot be satisfied by a comment mentioning one.
 
 // Test-support code: panicking is a test's failure mechanism (L5), and
 // fixture unwraps are on keys the fixture itself just minted.
@@ -1094,4 +1100,279 @@ fn matching(text: &str, open: usize, l: u8, r: u8) -> Option<usize> {
         i += 1;
     }
     None
+}
+
+/// One public mutation door into a [`Body`], as the guards that walk
+/// the mutation surface see it.
+pub(crate) struct MutationDoor {
+    /// The source file the door is declared in.
+    pub(crate) file: std::path::PathBuf,
+    /// The door's name.
+    pub(crate) name: String,
+    /// The door's body with every comment and string literal blanked
+    /// out — see [`mutation_doors`] for why the raw body is not here.
+    code: String,
+}
+
+impl MutationDoor {
+    /// `file::name`, the spelling both guards report an offender by.
+    pub(crate) fn site(&self) -> String {
+        format!("{}::{}", self.file.display(), self.name)
+    }
+
+    /// Whether the door's own body **calls** `needle` — a search over
+    /// code only, so a sentence about the call does not count as one.
+    pub(crate) fn calls(&self, needle: &str) -> bool {
+        self.code.contains(needle)
+    }
+}
+
+/// Every public mutation door into a [`Body`] declared in this crate's
+/// `src/`: a `pub fn` whose parameter list takes `&mut self` or
+/// `&mut Body<T>`.
+///
+/// **This is the shared concept, and it lives here for the reason
+/// [`src_root`] gives.** Two guards classify this same population by
+/// two different properties — the tier-1 postcondition surface
+/// (`review_m1_pr5_internal`) and the pcurve-staleness posture
+/// (`pcurves`) — and before this function each carried its own copy of
+/// the walk and of the `&mut self` / `&mut Body` predicate. The
+/// classifications stay in their own guards deliberately: they are two
+/// properties of one set, not one property, and a merged table would
+/// make an edit to either concern able to red the other's guard. What
+/// is one thing — *which functions are the doors* — is one thing here.
+///
+/// **[`MutationDoor::calls`] reads code, not prose.** A door's body
+/// arrives with comments and string literals blanked
+/// ([`code_only`]), so a door cannot be classified by a comment that
+/// mentions the call it does not make. Both guards used a raw
+/// `body.contains("<literal>")` and both were demonstrably satisfied by
+/// a comment.
+///
+/// **What this walk still cannot see**, and every guard built on it
+/// inherits:
+///
+/// - **Delegation.** A door that reaches the call one hop away, through
+///   a helper, reads as not calling it.
+/// - **`topo/src` only.** A `&mut Body` door in another crate, or in
+///   this crate's `tests/`, is outside [`crate_sources`].
+/// - **Text, not semantics.** `cfg`-gated code counts as present; an
+///   occurrence of the needle that is not a call — a `use` line, a
+///   function-pointer mention — counts as one; and a call reached under
+///   a different name (alias, re-export) does not.
+pub(crate) fn mutation_doors() -> Vec<MutationDoor> {
+    let mut out = Vec::new();
+    for file in crate_sources() {
+        let text = std::fs::read_to_string(&file).expect("a readable source file");
+        for (name, params, body) in public_fns(&text) {
+            if !params.contains("&mut self") && !params.contains("&mut Body") {
+                continue;
+            }
+            out.push(MutationDoor {
+                file: file.clone(),
+                name: name.to_string(),
+                code: code_only(body),
+            });
+        }
+    }
+    out
+}
+
+/// `text` with the content of every comment, string literal and char
+/// literal replaced by spaces, so a textual search over the result sees
+/// code and nothing else. Byte length and line structure are preserved,
+/// and each byte of the input is either copied or blanked, so a
+/// multi-byte character is never half-erased.
+///
+/// Hand-rolled for the reason [`public_fns`] is: the property being
+/// checked is about the SOURCE surface, and nothing at runtime can
+/// enumerate it. Handles line and block comments (Rust's nest), plain
+/// and raw string literals, and char literals — including `'"'`, which
+/// a naive scanner reads as opening a string. Lifetimes are left alone.
+fn code_only(text: &str) -> String {
+    let b = text.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0usize;
+    // Blank `n` bytes from `i`, preserving newlines.
+    macro_rules! blank {
+        ($n:expr) => {{
+            for k in i..(i + $n).min(b.len()) {
+                out.push(if b[k] == b'\n' { b'\n' } else { b' ' });
+            }
+            i = (i + $n).min(b.len());
+        }};
+    }
+    while i < b.len() {
+        match b[i] {
+            b'/' if b.get(i + 1) == Some(&b'/') => {
+                let end = text[i..].find('\n').map_or(b.len(), |r| i + r);
+                blank!(end - i);
+            }
+            b'/' if b.get(i + 1) == Some(&b'*') => {
+                let (mut depth, mut j) = (1usize, i + 2);
+                while j < b.len() && depth > 0 {
+                    if b[j] == b'/' && b.get(j + 1) == Some(&b'*') {
+                        depth += 1;
+                        j += 2;
+                    } else if b[j] == b'*' && b.get(j + 1) == Some(&b'/') {
+                        depth -= 1;
+                        j += 2;
+                    } else {
+                        j += 1;
+                    }
+                }
+                blank!(j - i);
+            }
+            b'r' if raw_string_hashes(b, i).is_some() => {
+                let h = raw_string_hashes(b, i).expect("just matched");
+                // Keep the `r` and the opening delimiter as code; blank
+                // from after it to the closing `"#*` inclusive.
+                let open = 1 + h + 1;
+                let mut close = b.len();
+                let mut j = i + open;
+                while j < b.len() {
+                    if b[j] == b'"' && b[j + 1..].iter().take(h).all(|c| *c == b'#') {
+                        close = (j + 1 + h).min(b.len());
+                        break;
+                    }
+                    j += 1;
+                }
+                let keep = (i + open).min(b.len());
+                out.extend_from_slice(&b[i..keep]);
+                i = keep;
+                blank!(close.saturating_sub(i));
+            }
+            b'"' => {
+                let mut j = i + 1;
+                while j < b.len() && b[j] != b'"' {
+                    j += usize::from(b[j] == b'\\') + 1;
+                }
+                blank!((j + 1).min(b.len()) - i);
+            }
+            b'\'' if char_literal_len(b, i).is_some() => {
+                let n = char_literal_len(b, i).expect("just matched");
+                blank!(n);
+            }
+            c => {
+                out.push(c);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8(out).expect("blanking never splits a character")
+}
+
+/// The `#` count of the raw-string opener at `i` (`r"`, `r#"`, …), or
+/// `None` if `i` is not one.
+fn raw_string_hashes(b: &[u8], i: usize) -> Option<usize> {
+    if b[i] != b'r' {
+        return None;
+    }
+    // `r` glued to an identifier is not an opener.
+    if i > 0 && (b[i - 1].is_ascii_alphanumeric() || b[i - 1] == b'_') {
+        return None;
+    }
+    let mut h = 0usize;
+    while b.get(i + 1 + h) == Some(&b'#') {
+        h += 1;
+    }
+    (b.get(i + 1 + h) == Some(&b'"')).then_some(h)
+}
+
+/// The byte length of the char literal at `i`, or `None` when the quote
+/// opens a lifetime instead.
+fn char_literal_len(b: &[u8], i: usize) -> Option<usize> {
+    if b.get(i + 1) == Some(&b'\\') {
+        // `'\n'`, `'\''`, `'\u{1F600}'` — up to the next unescaped quote.
+        let mut j = i + 2;
+        while j < b.len() && b[j] != b'\'' {
+            j += usize::from(b[j] == b'\\') + 1;
+        }
+        return (j < b.len()).then_some(j + 1 - i);
+    }
+    // One character, then a closing quote. A multi-byte char is one
+    // char and several bytes, so step by the character's own width.
+    let rest = std::str::from_utf8(&b[i + 1..]).ok()?;
+    let c = rest.chars().next()?;
+    let w = c.len_utf8();
+    (b.get(i + 1 + w) == Some(&b'\'')).then_some(w + 2)
+}
+
+#[cfg(test)]
+mod source_reader {
+    use super::{MutationDoor, code_only, mutation_doors};
+
+    fn door(code: &str) -> MutationDoor {
+        MutationDoor {
+            file: std::path::PathBuf::from("planted.rs"),
+            name: "planted".to_string(),
+            code: code_only(code),
+        }
+    }
+
+    /// **The hole S92 named, as a row that goes red if it reopens.**
+    /// Both mutation-surface guards classified a door by a raw
+    /// `body.contains("<literal>")`, so a door whose body only
+    /// *mentions* the call in a comment was classified as making it —
+    /// demonstrated by planting one, at which point both guards stayed
+    /// green. Each line below is that plant in miniature.
+    #[test]
+    fn a_mention_is_not_a_call() {
+        for prose in [
+            "// calls mint_pcurves( on the way out\n    Ok(())",
+            "/* mint_pcurves( */ Ok(())",
+            "/* outer /* mint_pcurves( */ still a comment */ Ok(())",
+            "let msg = \"mint_pcurves(\"; Ok(())",
+            "let msg = r#\"mint_pcurves(\"#; Ok(())",
+            "let msg = r\"mint_pcurves(\"; Ok(())",
+        ] {
+            assert!(
+                !door(prose).calls("mint_pcurves("),
+                "a mention classified as a call: {prose}"
+            );
+        }
+    }
+
+    /// The other direction, which is what stops the fix above from
+    /// being a classifier that answers `false` to everything: a real
+    /// call still reads as one, through each construct the blanker has
+    /// to walk past to reach it.
+    #[test]
+    fn a_call_is_still_a_call() {
+        for code in [
+            "mint_pcurves(&mut b)?;",
+            "// mint_pcurves( in prose first\n    mint_pcurves(&mut b)?;",
+            "let q = '\"'; mint_pcurves(&mut b)?;",
+            "let q = '\\''; mint_pcurves(&mut b)?;",
+            "let s = \"a // b /* c\"; mint_pcurves(&mut b)?;",
+            "let l: &'static str = \"x\"; mint_pcurves(&mut b)?;",
+            "let s = \"π…\"; mint_pcurves(&mut b)?;",
+        ] {
+            assert!(
+                door(code).calls("mint_pcurves("),
+                "a call read as a mention: {code}"
+            );
+        }
+    }
+
+    /// The walk's own floor. Both guards carry one; this is the shared
+    /// walk's, so a walk that silently found nothing cannot reach them
+    /// looking green.
+    #[test]
+    fn the_door_walk_reads_the_real_surface() {
+        let doors = mutation_doors();
+        assert!(
+            doors.len() > 30,
+            "the walk found {} mutation door(s) — it is not reading topo/src",
+            doors.len()
+        );
+        assert!(
+            doors.iter().any(|d| d.name == "mint_pcurves"),
+            "the walk lost `mint_pcurves`, which is a door"
+        );
+        assert!(
+            doors.iter().any(|d| d.site().ends_with("::mev")),
+            "the walk lost `mev`, which is a door"
+        );
+    }
 }

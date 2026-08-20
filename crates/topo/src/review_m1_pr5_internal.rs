@@ -18,7 +18,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::entity::EntityId;
-use crate::fixtures::{ops_cube, pillow, prov, public_fns};
+use crate::fixtures::{ops_cube, pillow, prov};
 use crate::validate::{ValidationError, validate, validate_closed};
 
 /// Pass 12, all seven arenas, MISSING direction: remove each kind's
@@ -250,6 +250,27 @@ fn tier2_strut_scan_echoes_on_dangling_start() {
 /// Stale entries are caught in both directions: an entry naming a door
 /// that no longer exists, or one that has since started asserting,
 /// fails as loudly as an unlisted door.
+///
+/// **Where the door set comes from.** [`crate::fixtures::mutation_doors`],
+/// shared with the pcurve-posture guard in [`crate::pcurves`], which
+/// walks the same population to ask a different question. The walk and
+/// the `&mut self` / `&mut Body` predicate live there because they are
+/// one concept; the two allowlists stay in their own guards because
+/// they are two properties of that one set, and a merged table would
+/// let an edit about pcurve staleness red this guard.
+///
+/// **"Declares the postcondition" is a read of code, not of prose.**
+/// [`crate::fixtures::MutationDoor::calls`] searches the door's body
+/// with comments and string literals blanked. This guard used a raw
+/// `body.contains`, and a planted door whose body only *mentioned*
+/// `assert_euler_postcondition` in a comment was counted as asserting
+/// it, in both this guard and the pcurve one, both green.
+///
+/// **What it still cannot see** is [`crate::fixtures::mutation_doors`]'
+/// list, inherited whole: delegation (a door that asserts one hop
+/// away through a helper reads as not asserting), `topo/src` only, and
+/// text rather than semantics — a `use` line naming the macro would
+/// count, and so would a call under `cfg(false)`.
 #[test]
 fn every_public_mutation_path_preserves_tier1() {
     // `(door, why tier 1 survives it)`.
@@ -320,25 +341,17 @@ fn every_public_mutation_path_preserves_tier1() {
         ),
     ];
 
-    let files = crate::fixtures::crate_sources();
     let mut asserting: Vec<String> = Vec::new();
     let mut listed: Vec<String> = Vec::new();
     let mut unlisted: Vec<String> = Vec::new();
 
-    for path in &files {
-        let text = std::fs::read_to_string(path).expect("a readable source file");
-        for (name, params, body) in public_fns(&text) {
-            if !params.contains("&mut self") && !params.contains("&mut Body") {
-                continue;
-            }
-            let where_ = format!("{}::{name}", path.display());
-            if body.contains("assert_euler_postcondition") {
-                asserting.push(where_);
-            } else if ALLOWED.iter().any(|(n, _)| *n == name) {
-                listed.push(name.to_string());
-            } else {
-                unlisted.push(where_);
-            }
+    for door in crate::fixtures::mutation_doors() {
+        if door.calls("assert_euler_postcondition") {
+            asserting.push(door.site());
+        } else if ALLOWED.iter().any(|(n, _)| *n == door.name) {
+            listed.push(door.name);
+        } else {
+            unlisted.push(door.site());
         }
     }
 
