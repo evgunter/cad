@@ -330,11 +330,10 @@ impl<T: SpanLocate> Surface<T> {
     /// defined as its projections, so each field here is, by
     /// construction, exactly what the corresponding accessor returns,
     /// bit for bit (pinned by test, as [`SurfaceJet3`]'s common fields
-    /// are). A caller wanting more than
-    /// one partial at a point asks once: the analytic arms build the
-    /// azimuthal frame and `sin_cos(v)` a single time, and
-    /// [`Surface::Nurbs`] makes a single [`NurbsSurface::ders`] pass
-    /// rather than one per partial.
+    /// are). A caller wanting more than one partial at a point asks
+    /// once: the analytic arms build the azimuthal frame and
+    /// `sin_cos(v)` a single time, and [`Surface::Nurbs`] makes a
+    /// single [`NurbsSurface::ders`] pass rather than one per partial.
     ///
     /// `point` is the payload jet's own point for [`Surface::Nurbs`] —
     /// [`Surface::eval`] keeps its cheaper dedicated pass and is **not**
