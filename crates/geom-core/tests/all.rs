@@ -44,6 +44,8 @@ mod eps_provenance;
 mod flagged_census;
 #[path = "interval_band.rs"]
 mod interval_band;
+#[path = "k_stats_doors.rs"]
+mod k_stats_doors;
 #[path = "knot_queries_differential.rs"]
 mod knot_queries_differential;
 #[path = "m5_pr1_poison_conservation.rs"]

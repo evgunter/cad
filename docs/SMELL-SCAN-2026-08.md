@@ -2323,7 +2323,9 @@ scope; it belongs with whoever next opens `spline/`.
   `.github/workflows/ci.yml` at `:322`, `:420`, `:444` when this was
   written; #626 moved them),
   `crates/geom-core/src/real.rs:348`,
-  `crates/geom-core/tests/flagged_census.rs:20`
+  `crates/geom-core/tests/flagged_census.rs` (the count is
+  `LEDGER_FLAGGED_SITES`; it was `:20` when this was written and moved
+  when #801 rewrote the scan around it)
 - **Confidence**: sure
 
 The disciplines the design leans on hardest are text-matching CI steps:
@@ -2331,9 +2333,18 @@ a `Bounds` compound-bound gate with thirteen hand-maintained path
 regexes; an `EvalScalar` gate ("the Bounds gate, over the name");
 `grep -rnE '\bReal\s*\+'` to catch extra bounds on evaluation type
 parameters; a `\b([a-z_]\w*)\s*\*\s*\1\b` regex banning `x * x` with its
-own file allowlist; an env-read ban; and a test that counts occurrences
-of the literal string `k_stats::decide_flagged(` across `crates/*/src`
-and asserts it equals **8**.
+own file allowlist; an env-read ban; and a test that counts
+`decide_flagged` call sites across `crates/*/src` and asserts the total
+equals a hand-written **8**. **#801 narrowed this last one without
+retiring it**: the scan no longer keys on the literal string
+`k_stats::decide_flagged(` — which a site spelled bare after a `use`
+evaded — and a second assertion now requires each site's `ledger_row`
+argument to name a row that exists in
+`docs/predicate-dimension-audit.md`, so the *citations* are computed
+rather than trusted. **The count itself is still the magic one**: `8` is
+a literal in the test, hand-synced with the audit's own prose, derived
+from nothing. That half of this row stands unfixed, and #801 says so at
+the constant.
 
 Correspondingly, `Bounds`'s doc comment has become an append-only
 ratification ledger: ~157 lines and six "Ratified amendment / Extension"

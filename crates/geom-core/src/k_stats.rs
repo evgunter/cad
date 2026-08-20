@@ -13,11 +13,11 @@
 //! `<unnamed>` is unreachable from shipped decide paths.
 //!
 //! All three doors — [`decide`], [`decide_flagged`], [`decide_invariant`]
-//! — delegate to one private `classify`. The name write and the
-//! verdict push therefore happen in exactly one place, so no door can
-//! carry one channel and miss the other, and the two doors whose docs
-//! call themselves *"[`decide`] verbatim"* are verbatim by compilation
-//! rather than by a maintainer keeping them so.
+//! — delegate to one private `classify`. The name write and the verdict
+//! push therefore happen in exactly one place, so no door can carry one
+//! channel and miss the other, and the three doors classify identically
+//! because they are the same code and not because three bodies are kept
+//! level.
 //!
 //! Cost on the production path: one thread-local `Cell` write per
 //! decision, plus — **whenever a verdict log is installed** — one
@@ -62,15 +62,19 @@
 //! and can be fixed directly. Do not add call sites that deepen the
 //! dependency on the current shape. **The `classify` consolidation was
 //! measured against this fence and clears it in the permitted
-//! direction**: the number of places that read the thread-local's
-//! shape went from three to one, and whichever remedy the obligation
-//! settles on has one site to change instead of three.
+//! direction**: the per-decision `VERDICTS` push went from three sites
+//! to one. That is the funnel's share and not the remedy's blast
+//! radius — [`start_verdict_log`] and [`take_verdict_log`] also touch
+//! the thread-local, and either named remedy (verdicts as a returned
+//! value, or an RAII bracket) has to change those two and their callers
+//! as well. The consolidation makes that work smaller by one door pair;
+//! it does not make it small.
 //!
 //! Recording happens through the [`Probe`] scalar: a transparent `f64`
 //! wrapper whose `Decide` implementation logs `(predicate, margin,
 //! band, outcome)` to a thread-local sink before delegating. Running
 //! validation at `T = Probe` therefore yields the complete per-predicate
-//! margin distribution of the run — the data PR 7's K report pulls —
+//! margin distribution of the run — the data `docs/K-REPORT.md` pulls —
 //! with **zero** instrumentation in the validation code itself and
 //! bit-identical decisions to `f64` (delegation is exact). The sink is
 //! thread-local and explicitly installed ([`start_recording`] /
@@ -147,9 +151,11 @@ fn classify<T: Decide>(name: &'static str, margin: T, band: Band) -> Result<Sign
 /// The one classification funnel of the kernel: notes `name` for the
 /// recorder, classifies `margin` against `band`, and names any
 /// indeterminate outcome. Every deciding crate routes its predicates
-/// through this function (directly or via a thin crate-local wrapper),
-/// so it is the only shipped `sign_within` call site outside [`Probe`]
-/// (greppable per crate).
+/// through this function (directly or via a thin crate-local wrapper).
+/// The shipped `sign_within` call outside [`Probe`] is the private
+/// `classify` these doors delegate to — **exactly one**, which is what
+/// makes the greppability claim true rather than approximately true;
+/// each door carrying its own copy is what made it false before.
 ///
 /// The margin is a [`Margin<T>`] **by signature** (D4's margin
 /// dimensional convention, clause (i)): the caller states its
@@ -187,10 +193,8 @@ pub fn decide<T: Decide>(
 /// the dimension it lacks.
 ///
 /// Classification and recording are otherwise [`decide`]'s, so the K
-/// stream is unchanged — not as a promise to keep in sync but as a
-/// fact of the code: both doors are calls to the same private
-/// `classify`, and [`decide`] merely unwraps its `Margin` on the way
-/// in.
+/// stream is unchanged; the only difference reaching `classify` is that
+/// [`decide`] unwraps a `Margin` and this door has none to unwrap.
 ///
 /// `ledger_row` names the audit row that argues the absence (e.g.
 /// `"F2"`, `"F13"`). It is an obligation, not telemetry: the value
@@ -203,15 +207,24 @@ pub fn decide<T: Decide>(
 /// **Standing rule (the debt lane is tracked as issue #214): no new
 /// `decide_flagged` site ships without a ledger row in
 /// `docs/predicate-dimension-audit.md`.** Two assertions in
-/// `flagged_census.rs` carry it over `crates/*/src` minus
-/// `#[cfg(test)]` modules: the site COUNT must equal the ledger's
-/// inventory, and every site's `ledger_row` must name a row the ledger
-/// actually has. **That, exactly, is what self-enforces** — the test
-/// states at its own pattern what it cannot see (a renamed import, a
-/// macro-generated call, a block-commented site), because a census
-/// whose blind spot is unstated reads as coverage it does not have.
-/// Fixtures and demos are outside the scan and cite a prose reason
-/// rather than a row.
+/// `flagged_census.rs` carry it over `crates/*/src`, and **only one of
+/// them computes anything**:
+///
+/// - **Self-enforcing:** every site's `ledger_row` must name a row the
+///   audit actually has. The rows are read out of the document at run
+///   time, so a citation to a row that was renumbered or never existed
+///   fails without anyone remembering to look.
+/// - **Hand-synced, and it is the residue:** the site COUNT is compared
+///   against a literal in the test, which is kept level with the audit's
+///   prose by hand. Nothing derives it. That is the *magic count* §S13
+///   names, unfixed; it is stated at the constant rather than covered
+///   over here.
+///
+/// The scan's own pattern says what it cannot see (a renamed import, a
+/// macro-generated call, a block-commented site), because a census whose
+/// blind spot is unstated reads as coverage it does not have. Fixtures
+/// and demos are outside the scan and cite a prose reason rather than a
+/// row.
 ///
 /// # Errors
 ///
@@ -241,11 +254,10 @@ pub fn decide_flagged<T: Decide>(
 /// so the margin stays **bare `T`** — no [`Margin`] is minted, keeping
 /// the lane visibly distinct from every geometric decision.
 ///
-/// Classification and recording are [`decide`]'s — same recorder,
-/// same names, same values, the K stream unchanged — because both
-/// doors are calls to the same private `classify` rather than two
-/// bodies a maintainer keeps aligned. A
-/// certified violation on this lane is a **kernel invariant** failure:
+/// Classification and recording are [`decide`]'s: same recorder, same
+/// names, same values, the K stream unchanged.
+///
+/// A certified violation on this lane is a **kernel invariant** failure:
 /// callers surface it as their Corrupt-class typed error ("this is a
 /// bug", with a report affordance), never as a validity refusal and
 /// never as a panic (the `clippy::panic` denial; the Corrupt
@@ -615,78 +627,5 @@ mod tests {
         let log = take_verdict_log();
         assert_eq!(log.len(), 1);
         assert_eq!(log[0].predicate, "vlog_h");
-    }
-
-    /// The three doors write ONE verdict stream, in decision order,
-    /// and each door's own name reaches it. Order is the property the
-    /// consumer needs: `resolve::vdiff` compares two runs' logs
-    /// positionally, so a stream with the right multiset in the wrong
-    /// order is a wrong diff, not a slower one.
-    ///
-    /// The fixture interleaves the doors deliberately — a run that
-    /// grouped them would pass under any per-door ordering.
-    #[test]
-    fn the_three_doors_share_one_verdict_stream_in_decision_order() {
-        let b = band();
-        let mid = f64::midpoint(b.zero(), b.escalate());
-        start_verdict_log();
-        assert_eq!(decide("door_a", Margin::of(1.0f64), b), Ok(Sign::Positive));
-        assert_eq!(decide_invariant("door_b", -1.0f64, b), Ok(Sign::Negative));
-        assert_eq!(
-            decide_flagged("door_c", 1.0f64, b, "test fixture: door interleaving"),
-            Ok(Sign::Positive)
-        );
-        // One indeterminate per door: escalated outcomes are not verdicts,
-        // so none of these may appear or shift the positions after them.
-        assert!(decide("door_d", Margin::of(mid), b).is_err());
-        assert!(decide_flagged("door_e", mid, b, "test fixture: door interleaving").is_err());
-        assert!(decide_invariant("door_f", mid, b).is_err());
-        assert_eq!(
-            decide_flagged("door_g", 0.0f64, b, "test fixture: door interleaving"),
-            Ok(Sign::Zero)
-        );
-        assert_eq!(decide("door_h", Margin::of(-1.0f64), b), Ok(Sign::Negative));
-        assert_eq!(
-            take_verdict_log(),
-            vec![
-                Verdict {
-                    predicate: "door_a",
-                    sign: Sign::Positive
-                },
-                Verdict {
-                    predicate: "door_b",
-                    sign: Sign::Negative
-                },
-                Verdict {
-                    predicate: "door_c",
-                    sign: Sign::Positive
-                },
-                Verdict {
-                    predicate: "door_g",
-                    sign: Sign::Zero
-                },
-                Verdict {
-                    predicate: "door_h",
-                    sign: Sign::Negative
-                },
-            ]
-        );
-    }
-
-    /// The other channel every door writes: the predicate name the
-    /// recording scalar reads. Same fixture shape, same reason —
-    /// a door that stopped setting the name would tag its sample with
-    /// whatever the previous decision left behind, which is a silently
-    /// misattributed margin rather than a missing one.
-    #[test]
-    #[cfg(feature = "probe")]
-    fn every_door_names_its_own_sample_for_the_recording_scalar() {
-        let b = band();
-        start_recording();
-        decide("name_a", Margin::of(Probe(1.0)), b).unwrap();
-        decide_invariant("name_b", Probe(-1.0), b).unwrap();
-        decide_flagged("name_c", Probe(1.0), b, "test fixture: name channel").unwrap();
-        let names: Vec<&str> = take_samples().iter().map(|s| s.predicate).collect();
-        assert_eq!(names, vec!["name_a", "name_b", "name_c"]);
     }
 }

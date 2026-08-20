@@ -7,9 +7,10 @@
 //!
 //! 1. the number of sites matches the ledger's inventory — F2 ×4,
 //!    F10 ×1 (one loop over seven rigidity residuals), F13 ×1, F14 ×1,
-//!    F15 ×1, **8 sites**;
+//!    F15 ×1, **8 sites**. This total is hand-synced; see
+//!    [`LEDGER_FLAGGED_SITES`].
 //! 2. every site's `ledger_row` argument names a row the ledger
-//!    actually has.
+//!    actually has. This one is computed from the document.
 //!
 //! (2) is what makes the fourth parameter mean something. Without it
 //! the argument reaches no recorder, no column and no assertion, so a
@@ -25,6 +26,16 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 /// The ledger's current shipped `decide_flagged` inventory.
+///
+/// **This number is hand-synced and nothing derives it** — it is the
+/// *magic count* `docs/SMELL-SCAN-2026-08.md` §S13 names, and it is the
+/// half of this census that does not enforce itself. It is kept level by
+/// hand with the audit's own prose inventory. The sibling assertion,
+/// [`every_shipped_site_cites_a_ledger_row_that_exists`], reads its rows
+/// out of the audit and does compute; this one only says the total has
+/// not moved. Deriving it — from the ledger's own per-row counts, so
+/// that adding a site to the audit is what raises it — is §S13's to
+/// close, not this test's.
 const LEDGER_FLAGGED_SITES: usize = 8;
 
 /// One shipped call site: where it is, and the row it cites.
@@ -51,10 +62,17 @@ struct Site {
 /// (line comments ARE stripped). A site whose `ledger_row` is not a
 /// string literal — a `const`, a field, a table entry — is not skipped
 /// but **fails loudly**, because a census that skipped it would report
-/// a smaller tree than the one that ships. Same for a site inside a
-/// `#[cfg(test)]` **function** rather than module: [`strip_test_mods`]
-/// removes only module bodies, so such a site is counted and the
-/// census fails rather than quietly widening its own scope.
+/// a smaller tree than the one that ships.
+///
+/// **`src/` is this census's proxy for "shipped", and the proxy is not
+/// exact**: an in-file `#[cfg(test)]` module lives in `src/` and ships
+/// in no build, so a `decide_flagged` call written there is COUNTED.
+/// There are none in the tree, and the failure is the safe direction —
+/// the count stops matching and the message names the file and line. The
+/// fix for such a site is to move the fixture to the crate's `tests/`
+/// tree, which this scan does not walk. Teaching this scan to parse Rust
+/// modules is not the fix: it buys a scanner, with blind spots of its
+/// own, to excuse a fixture that had no reason to sit in `src/`.
 fn calls_in(text: &str) -> Vec<(usize, String)> {
     let bytes = text.as_bytes();
     let mut out = Vec::new();
@@ -187,61 +205,6 @@ fn fourth_argument(args: &str) -> String {
         .to_string()
 }
 
-/// Blanks out `#[cfg(test)]` module bodies, preserving line numbering.
-///
-/// A `src/` tree is the census's proxy for "shipped", and the proxy is
-/// wrong for in-file test modules: they live in `src/` and ship in no
-/// build. The fixture convention makes the difference visible — a
-/// fixture's `ledger_row` is a prose reason, not a row code — but the
-/// COUNT would still move, so the proxy is corrected here rather than
-/// leaned on.
-///
-/// **The cut is by indentation, not by brace matching**, and that is
-/// deliberate: a brace scanner has to understand string literals,
-/// `'static` lifetimes and block comments before it can be trusted,
-/// whereas every file this walks is rustfmt-clean (the pre-push hook
-/// enforces it), so a test module's closing brace is the next line
-/// equal to its own indent plus `}`. What the cut does NOT remove: a
-/// `#[cfg(test)]` on a **function** or a `use` rather than a module; a
-/// module declared `pub`/`pub(crate)`; an out-of-line `#[cfg(test)] mod
-/// x;` whose body is a separate file; and a module gated by any other
-/// spelling (`#[cfg(all(test, …))]`). Every one of those leaves its
-/// calls COUNTED, so the census fails loudly rather than quietly
-/// widening its own scope — the safe direction, and the reason the cut
-/// can afford to be this narrow.
-fn strip_test_mods(text: &str) -> String {
-    let lines: Vec<&str> = text.lines().collect();
-    let mut keep: Vec<String> = lines.iter().map(|l| (*l).to_string()).collect();
-    let mut i = 0;
-    while i < lines.len() {
-        let indent = lines[i].len() - lines[i].trim_start().len();
-        if lines[i].trim() == "#[cfg(test)]"
-            && lines
-                .get(i + 1)
-                .is_some_and(|l| l.trim_start().starts_with("mod ") && l.trim_end().ends_with('{'))
-        {
-            let close = format!("{}}}", " ".repeat(indent));
-            let mut j = i + 2;
-            while j < lines.len() && lines[j].trim_end() != close {
-                j += 1;
-            }
-            assert!(
-                j < lines.len(),
-                "a #[cfg(test)] mod at line {} has no closing brace at its own indent — the \
-                 source is not rustfmt-clean and this census cannot cut it",
-                i + 1
-            );
-            for line in keep.iter_mut().take(j + 1).skip(i) {
-                line.clear();
-            }
-            i = j + 1;
-        } else {
-            i += 1;
-        }
-    }
-    keep.join("\n")
-}
-
 fn count_in_tree(dir: &Path, hits: &mut Vec<Site>) {
     for entry in std::fs::read_dir(dir).expect("readable src tree") {
         let path = entry.expect("dir entry").path();
@@ -249,7 +212,7 @@ fn count_in_tree(dir: &Path, hits: &mut Vec<Site>) {
             count_in_tree(&path, hits);
         } else if path.extension().is_some_and(|e| e == "rs") {
             let text = std::fs::read_to_string(&path).expect("readable source file");
-            for (line, ledger_row) in calls_in(&strip_test_mods(&text)) {
+            for (line, ledger_row) in calls_in(&text) {
                 hits.push(Site {
                     file: path.clone(),
                     line,
