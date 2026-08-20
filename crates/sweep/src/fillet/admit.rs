@@ -377,3 +377,81 @@ impl<T: Decide + Bounds> RequestedBoundary<T> {
         &self.stations
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::panic)]
+mod tests {
+    use topo::FaceKey;
+
+    use super::CornerFaces;
+    use crate::test_support::{L, all_links, cube};
+
+    /// **What guards the unforgeability claim**, since nothing else
+    /// can.
+    ///
+    /// Field privacy is the compiler's job and needs no test: no
+    /// sibling module can name a field of any type here. What privacy
+    /// does NOT guard is a second constructor added *inside* this
+    /// module that skips the check — which is exactly how the sibling
+    /// row's `Live` shipped two raw-construction sites while its own
+    /// docs and its register row both said one, found by two reviewers
+    /// independently rather than by anything mechanical.
+    ///
+    /// So the count is the claim: **four token types, four `Self`
+    /// struct literals, one apiece**, each inside the door that checks.
+    /// A fifth reddens this row and has to justify itself.
+    ///
+    /// **Its blind spot, stated:** this is a text scan of this file. A
+    /// literal spelled `Self{…}` without the space, one written as
+    /// `ConvexOpen { link }` by name, or a constructor built through
+    /// `Default` would all escape it. It catches the accident it is
+    /// aimed at — a convenience constructor added next to the door —
+    /// not a determined evasion, and it cannot see whether the check a
+    /// door performs is the RIGHT one. The rows below cover that half
+    /// for the doors that have a decision to make.
+    #[test]
+    fn every_token_type_has_exactly_one_construction_site() {
+        let source = include_str!("admit.rs");
+        // Spelled in pieces so this row does not match itself.
+        let lit = ["Self", " {"].concat();
+        let returns = ["-> ", "Self", " {"].concat();
+        let literals = source.matches(&lit).count() - source.matches(&returns).count();
+        assert_eq!(
+            literals, 4,
+            "admit.rs must hold exactly one construction site per token type \
+             (ConvexOpen, CornerLinks, CornerFaces, RequestedBoundary) — found {literals}"
+        );
+    }
+
+    /// **The admission is what makes [`CornerFaces::third`] total**, so
+    /// this row exercises both halves against a real corner: the door
+    /// returns three distinct faces, and every exclusion pair over them
+    /// — the three that are members and one that is not — still names a
+    /// face.
+    ///
+    /// That is the whole reason the octant's chart pick no longer
+    /// carries a run-out refusal it could not justify.
+    #[test]
+    fn admission_makes_the_third_support_total() {
+        let body = cube(L);
+        let vertex = all_links(&body)[0].start;
+        let faces = CornerFaces::admit(&body, vertex).expect("a cube corner is trivalent");
+        let [f0, f1, f2] = match faces.as_slice() {
+            [a, b, c] => [*a, *b, *c],
+            other => panic!("admission must yield exactly three faces, got {other:?}"),
+        };
+        assert!(
+            f0 != f1 && f1 != f2 && f0 != f2,
+            "admission must yield three DISTINCT faces"
+        );
+        for (a, b) in [(f0, f1), (f1, f2), (f0, f2)] {
+            let t = faces.third(a, b);
+            assert!(t != a && t != b, "the third support excludes both");
+            assert!(faces.contains(t), "and is one of the corner's own");
+        }
+        // A pair that is not both members: still an answer, never a
+        // missing one.
+        let stranger = FaceKey::default();
+        assert!(faces.contains(faces.third(f0, stranger)));
+    }
+}
