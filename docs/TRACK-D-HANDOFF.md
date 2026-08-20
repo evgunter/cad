@@ -6,8 +6,9 @@ schedule itself lives in `docs/SMELL-SCAN-2026-08.md` §D; this file is the
 operational state that does not belong there** — what each lane was told, and
 what a successor should not re-derive.
 
-**Every dispatched unit has landed and no branch is live**, so what remains
-here is the part a successor cannot reconstruct from the schedule: why the row
+**Every dispatched unit through #722 has landed; D18 is dispatched and in
+flight as #736**, so what remains here is the part a successor cannot
+reconstruct from the schedule: why the row
 numbers are assigned centrally, S14's three witnesses, what the style-only
 review lane actually caught, and four operational facts this session paid for.
 Delete this file once a successor absorbs it.
@@ -37,10 +38,13 @@ real risk, which took a full adversarial lane as well.
 | D16 | W2c — the D2 addendum executed over 58 discard sites | #720 |
 | D7 (1 of 3) | `Mat2`/`Affine2` deleted, with the orphan its deletion made | #721 |
 | D13, D14 | The pcurve-staleness convention checked; D14 **refuted**, not closed | #722 |
+| D18 | The two unproven `prev`s proven; `link_half_edges` converted — **W2c done** | #736 |
 
-## Nothing is in flight
+## In flight: D18 only
 
-All twelve units are merged. The four that were mid-fix-pass when the first
+The twelve units through #722 are merged; **D18 is open as #736** (W2c's last
+two sites plus the helper, and the release-corruption CI row's disposition —
+its PR body is the record). The four that were mid-fix-pass when the first
 version of this file was written — #719, #720, #721, #722 — each finished its
 pass and landed, so the table that listed them is gone rather than left to rot.
 What each pass actually turned up is in its PR body, which is the record.
@@ -60,12 +64,13 @@ both used D10 and D11). Numbers are now assigned by the orchestrator:
 | Row | Owner | Subject |
 |---|---|---|
 | D17 | placed by #718 | No CI lane builds any crate's `probe` **test targets** but editor-core's — 14 suites unbuilt |
-| D18 | placed by #720 | `split.rs:253`'s unproven `prev`, **and** `kef`'s — unblocks W2c's last two sites |
+| D18 | placed by #720 | `split.rs:253`'s unproven `prev`, **and** `kef`'s — unblocked W2c's last two sites (**landed, #736**) |
 | D19 | placed by #719 | The K roster obligation reaches types, not names-not-reachable-as-bare-literals (37 sites across 24 files) |
 | D20 | placed by #722 | D5's +46% is real and **unattributed**; `choose_op` is excluded by measurement |
+| D21 | placed by #736 | The discard idiom's **11 sites in `crates/topo` outside W2c's three-module census** — 3 in `split_edge`, 2 `attach.rs`, 3 `movefac.rs`, 3 `revert.rs` |
 
-All four are landed rows in §D now, and all four are **edge-free and
-unstarted** — D20 is the highest number placed.
+All five are landed rows in §D. D18 has since landed as #736; the other four
+are **edge-free and unstarted** — D21 is the highest number placed.
 
 **The rule, which a successor should keep:** a lane takes the next number the
 orchestrator has assigned, never the next gap it can see. A roster with holes
@@ -74,7 +79,8 @@ reads as an editing error otherwise.
 ## Blocked, and on what
 
 **Nothing is blocked by another track any more.** Both external edges closed
-on 2026-08-20: **#702** (`f382c4aa`) discharged D7's `PairSolve` row, and
+on 2026-08-20: **#702** (`f382c4aa`) discharged D7's `PairSolve` row, which
+then landed as **#735**, and
 **#705** — the ≥200-file `geom-curves` + `geom-surfaces` merge that had been
 the track's single largest scheduling constraint — discharged **D2**, D7's
 fillet-helper row, and **D8**, whose `geom-curves/src/fit.rs` it relocated to
@@ -85,19 +91,21 @@ What is unstarted is unstarted for schedule reasons only, not technical ones:
 - **D2** (B3 / S19, the fillet error catch-alls, ADVERSARIAL) is the widest
   unblocked row and gates D7's fillet-helper row — the only edge left in the
   track.
-- **D17**, **D18**, **D19**, **D20** and D7's **`PairSolve`** row are
-  edge-free. `PairSolve`'s provenance note goes to **issue #611**, not the PR
-  body, because R2's thread is live; the deleting PR must cite the recoverable
-  commit SHA. **D18 is ADVERSARIAL** — it converts a discard behind two new
-  preconditions on the delicate-site path, and #720 proved the hole is real.
+- **D17**, **D19**, **D20**, **D21**, **D25**, **D30** and **D31** are edge-free. D7's
+  **`PairSolve`** row was too, and landed as **#735**; its provenance note is a
+  comment on **issue #611**, not the PR body, because R2's thread is live, and
+  the PR cites the commit the type is recoverable from. **D18 landed as #736**,
+  finishing W2c and placing D21 and D25. **D21 is now the ADVERSARIAL one**, for
+  the reason D18 was: each conversion turns a garbage-out into a panic, and #720
+  proved that hole is real. It should sequence after **D25**, which would
+  discharge its half-edge sites structurally rather than site by site.
 - **D8 landed as #744** (ADVERSARIAL, S18's two knot-vector rows). The census
   was **eight** copies, not four, so it edits `crates/mesh/` and
   `crates/step-export/`, which its row did not name — **Track C's C5** now
   finds two of its C¹ carrier gates already four lines each. It **placed D30**
   (ADVERSARIAL, `geom-brep/props/quad.rs`: the type cannot represent the
   intermediate, so the consumer re-derives the vocabulary — S32's shape) and
-  **D31** (style, `make_compatible`/`deviation_from` as one routine). Both are
-  edge-free and unstarted.
+  **D31** (style, `make_compatible`/`deviation_from` as one routine).
 
 ## For Evan — S14 now has three witnesses
 
