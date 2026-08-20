@@ -64,17 +64,21 @@
 # rectangle-trim read) and the bit-identical-region fast path —
 # so `Decide + Bounds` is its honest signature. The
 # PropsQuadLane-shape static lane that PR-1 owed its first
-# Decide-generic consumer (M9-2 PR-2's census arms) EXISTS: it is
+# Decide-generic consumer (M9-2 PR-2's census arms) EXISTS:
 # `topo::chart_region::ChartRegionLane`, with a refusing `Dual`
-# impl. Since the D1 ruling (2026-08-19) `Bounds` IS implemented
-# for `Dual`, so the predicate is instantiable at a dual and that
-# lane is the whole guard on the census path — and `chart_region`
-# is not `no dual lane exists to split`, which is what this
-# paragraph used to say. `chart_region_overlap` itself is `pub`
-# and re-exported (topo/src/lib.rs), so an EXTERNAL caller is
-# bounded only by `Decide + Bounds` and a dual satisfies it; the
-# lane guards the census, not the function. See the real.rs rule
-# entry.
+# impl. (This paragraph used to say "no dual lane exists to split
+# today (Bounds has no Dual impl, so the predicate is
+# uninstantiable at duals)". Both clauses are false: the lane
+# exists, and since the D1 ruling of 2026-08-19 `Bounds` IS
+# implemented for `Dual`.)
+#
+# SCOPE OF THE GUARD, since it is easy to overstate: the lane is
+# the whole guard on the CENSUS path, and only there. Alone among
+# the four lanes' doors this one's bound carries no
+# CertifiedEnclosure, and `chart_region_overlap` is `pub` and
+# re-exported from topo/src/lib.rs — so an EXTERNAL caller is
+# bounded by `Decide + Bounds`, which a dual satisfies, and the
+# lane is never consulted. See the real.rs rule entry.
 # Sole-bound `T: Bounds`
 # (certification/driver code) is untouched by this check. A NEW
 # file writing a compound Bounds bound fails here until it is
