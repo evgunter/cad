@@ -8572,11 +8572,16 @@ than one solid**.
 requests** — the sample's only route into `rim_phase`, which holds 6 of
 the 18 `unreachable!` sites, and which the file's own docs named as the
 reason those requests exist.
-`d2_the_battery_never_hands_the_surgery_an_empty_chain` floors both the
-verdicts it obtained and the **chains it inspected**: its `else {
-continue }` and its inner loop are two separate ways for the row to
-assert nothing, and a run of verdicts that all carry zero chains reaches
-no `chain.links` at all.
+**The finding's second half closed itself, upstream and better.**
+`d2_the_battery_never_hands_the_surgery_an_empty_chain` — the
+`let Ok(v) = … else { continue; }` row that counted `verdicts` and never
+floored them — was **retired by Track D's D27b** while this lane was
+open: `FilletError::EmptyChain` no longer has a site, because `Chain`'s
+own type now carries non-emptiness. This lane had floored it (two
+floors: verdicts obtained *and* chains inspected, since a run of
+verdicts all carrying zero chains reaches no `chain.links` either); the
+merge takes main's deletion instead. A guard whose claim is now carried
+by a type is better retired than floored.
 
 **The hypothetical was already actual.** The finding said *"if
 `boolean_op_with` or `revolve` ever starts refusing these fixtures, the
@@ -9850,11 +9855,11 @@ needs, and nothing else. Scheduled as **D70**.
 written as `if x.is_none() { return; }` or `match … { None => return, …
 }`; one spelled as an early `return` inside a helper the test calls; any
 whole-binary skip behind `#[cfg(feature = …)]` (a different, already
-loud idiom); and the 113 `let`-else sites whose body is `continue`, which
+loud idiom); and the 116 `let`-else sites whose body is `continue`, which
 this sweep deliberately excludes. Those are a **selector** over a
 heterogeneous collection — *"only the certified circle edges"* — rather
 than a stand-down, in every one of the ~20 I read; the distinction is
-not one a regex can draw, and I read a sample, not all 113. If any of
+not one a regex can draw, and I read a sample, not all 116. If any of
 them is in fact a stand-down, it is inside this blind spot.
 
 ---
