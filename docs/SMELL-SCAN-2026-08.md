@@ -758,9 +758,11 @@ mate, and now refuses to load at all.
 *Drift (b) CONFIRMED, **FIXED by #632**, and its residues **FIXED by #731**
 (H11).* The `Fragment(SideOf)` disagreement is **documented and intentional**
 and was preserved. #632 disclosed two residues; #731 closed them, and closed
-**two further members of the same class that #632's own body had ruled out** —
-one set aside on a *"different enum"* that is the same enum, one asserted not
-to exist at all:
+**seven further fail-quiet classifications of the same shape in the same
+crate** — two that #632's own body had ruled out in writing, and five that
+neither #632 nor #731's first pass found. The class as reported was *"#632's
+two residues"*; the class as it existed was nine. That gap, not either fix, is
+the finding.
 
 - `resolve::apply_with_names`' `DocEdit` wildcard is now three named groups —
   checked, name-carrying-and-deliberately-unchecked, name-free — which encodes
@@ -787,6 +789,37 @@ to exist at all:
   embedding a profile locator, so behaviour was right; a thirteenth carrier
   would have crossed a profile re-anchor with a **stale locator**, silently.
   See **C15**, which this corrects.
+- **The five #731's own first pass missed, found by its style review**, all
+  in `editor-core` and all closed under **C-R17**. The one that carries the
+  argument is `eval::content_key`'s structural-payload match: its **tag**
+  half was exhaustive and its **payload** half wildcarded, so the compiler
+  forced a decision at one half of one key and silently defaulted at the
+  other. A `Node` variant whose recipe payload lives outside its slots would
+  hash identically to one that differs in it, and the memo would serve
+  another node's geometry — which is not hypothetical, and is recorded two
+  paragraphs below as `Step::AtToward`'s tag-28 collision, *caught by a
+  reviewer, not by a type*. The others: `Node::expr`/`expr_mut` and
+  `placement_rule_fault` on the `Node` axis, and `Expr::child` and
+  `with_replaced` on the `ExprKind` axis. `node.rs`'s two nameless-payload
+  lists — #618's own growth of the same duplication — and `expr.rs`'s four
+  arity lists took the same treatment as the triplication above
+  (`name_free_node!`, `binary_kind!`/`unary_kind!`/`leaf_kind!`).
+- **What the second sweep changed about the method.** #731's first
+  instrument was type-aware (`--force-warn
+  clippy::wildcard_enum_match_arm`) and it *declared* a blind spot — an
+  enum nested in `Option`/`Result`/a tuple is attributed to the outer type —
+  and then did not compensate for it, which is the exact failure **C15**
+  names and which #731 was simultaneously correcting C15 about. The
+  compensating instrument is **arm-content-directed**: find every `match`
+  whose ARMS mention a target vocabulary's variants and which has a
+  catch-all, `_` or a bare binding, never consulting the scrutinee's type.
+  It is self-tested — run against `origin/main` it re-derives
+  `eval::anchor::remap_seg` unaided, through both the alias and the binding
+  catch-all. **Its own blind spot**: a brace-balance window, so it
+  false-positives across a long `impl` (it flagged `pncad-py`'s
+  `select_refusal_tag`, whose wildcard is forced by `#[non_exhaustive]` and
+  compensated by a pin test), and it cannot see a classification written as
+  `if let` / `matches!` chains rather than a `match`.
 
 *One confirmation this report did not cite: the hand-synced tag table has
 already produced a live measured bug.* `MODEL-AB-LOG.md:782` — *"**MAJOR-1 =
@@ -6872,7 +6905,7 @@ rewritten rather than appended to.
 | # | Work | Why it is here rather than in a track |
 |---|---|---|
 | **C1** | **H12–H15** — four lanes' own residues: the SSI sweeps' other never-silence doors (no acceptance row in either lane), `sweep_body`'s helix rows with no orientation coverage, #637's two jurisdiction residues, #635's unclassified siblings. | Each is small; together they are a lane. They are the clearest instance of ordering rule 3. |
-| **C2** | **H16, H17** — the STL header not being caller-settable while `StepOptions` carries `product_name`; and S37's rustdoc remainder, ~1115 lines across 130 files. (H11, #632's residues, was the third member and is **FIXED by #731** — which also closed two further members of the class that #632's body had ruled out, one of them live; see S4's drift (b) and **C15**.) | H17 is large and mechanical; H16 is a small asymmetry with a clear right answer. |
+| **C2** | **H16, H17** — the STL header not being caller-settable while `StepOptions` carries `product_name`; and S37's rustdoc remainder, ~1115 lines across 130 files. (H11, #632's residues, was the third member and is **FIXED by #731**. The residues were two as recorded and nine as they existed — see S4's drift (b) for the seven further fail-quiet classifications in the same crate, **C15** for what each sweep could not match, and **C11** for what #731 filed rather than fixed.) | H17 is large and mechanical; H16 is a small asymmetry with a clear right answer. |
 | **C3** | **S27, S29** — `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block; and the sizing vocabulary fragmented across five modules with self-admitted magic constants. (S30, the mesh crate's 1,060 lines of instrument, was the third member and is FIXED by #709.) **S29 is NOT blocked on a design conversation — corrected 2026-08-19.** This row previously said its policy question was routed to `docs/TESS-SPLIT-SPEC.md` and PR #568. #684's review checked: both are scoped **entirely to the NURBS per-cell schedule** (`nurbs_cert`'s `grid_steps`, certified cells, the first fundamental form — TESS-SPLIT-SPEC's D-1 replaces the AM-GM grouping, with `leaf_a f2` as its poster child). **Nothing in either covers analytic-chart sizing**, so `curved::grid_steps` has no venue at all — and #684 has since added a sixth rule to it. S29's own lesson applies to that: *N well-defended deviations read as N decisions when they are one undecided question.* S27 touches `props/`, so it must follow **A2**; S29 is edge-free. |
 | **C4** | **S32, S33** — `Surface`'s one-partial-per-call API, which is what created the shadow surface enum in SSI; and neither geometry enum being able to lift itself to another scalar. (S31, the `geom-curves`/`geom-surfaces` split, was the third member and is FIXED by #705.) | **S32 is now additionally gated on #705's merge**: the enum and its NURBS payload are one crate's two modules, so a `SurfaceJet` door at the enum no longer crosses a crate boundary. **S33 is coloured by D1**: several of its ~14 hand-written ladders exist only to reach `Dual`, and what `Bounds for Dual` changes there is written in S44's **D1 DECIDED** block. |
 | **C5** | **S26, S28's duplication half** — the certified area enclosure that is never metered against anything (`area.width()` appears nowhere in the file); and the three tessellation lanes that remain three pipelines now that #648/#674 have settled their ordering and column questions. (**S24 left this row FIXED by #702.**) | S26 was explicitly deferred in writing by #472 — *"metering against `area.lo()` … deserves its own proposal with re-measured floors"* — so it is a proposal, not a patch. S28's duplication half must follow **A3**. |
@@ -6881,6 +6914,7 @@ rewritten rather than appended to.
 | **C8** | **#711 — S24's residues outside `editor-core`**: `step-import/src/recognize.rs:126`, whose `try_cylinder` promoting arm is documented unreachable and whose `Plane > Cylinder` preference order is *"unfalsifiable by execution"*; and `docs/ASM-R2A-SPEC.md:21`, a landed spec sentence (*"v1 admits `Rest`/`Tangent`"*) that is true of the door it binds and no longer of v1 as a whole. | Filed by #702's fix pass rather than left inside a finding marked FIXED. The first may want the tighter cylinder certificate rather than an encoding change; the second is a one-line ruling — clarifier, or "landed specs read as of their own date". Small, edge-free, and **not** a lane on its own: fold into whoever next opens `step-import`. |
 | **C9** | **The `tess-meter` CSV's `agreement` column measures nothing**, and its `≤ 1%` assertion in `budget_meter` was vacuous. `grid_cells` and `span_cells` are the same `Σ nuc·nvc` from the same `band_schedule`, so the ratio is `≡ 1.0` by arithmetic — while the module docs claimed it *"verifies the lane's REALISATION of the schedule (candidate generation, dedup, counting)"*, which was never true because neither number counts a candidate. `tess-lint`'s own report legend already printed *"1.00 by construction"*: **the tool knew and the docs disagreed.** #709 corrected the column's doc to stop claiming a check; making the column *real* needs a CSV schema change and a re-cut committed baseline. | Disclosed in #709's body and correctly out of that unit's scope — **and it had no row until now, which is this track's own instance of §C3.** The substantive question is whether a realisation check is worth having at all: if the answer is no, the honest fix is to delete the column rather than re-derive it, and that is a decision the lane should make and record. Edge-free; `tools/tess-meter/`, `tools/tess-lint/`, the committed baseline, `docs/TESS-BUDGET.md`. |
 | **C10** | **`geom_core::k_stats` is S30's class one crate over** — 598 lines, ~96 of them separable instrument, in the kernel's own core crate. | Reported by #709 and deliberately untouched, for a reason that is the whole row: the recording sits **inside** `decide`/`decide_flagged`/`decide_invariant`, which are load-bearing kernel predicate doors, so the `mesh::budget` split does **not** transfer mechanically. Whoever takes this must first decide whether the instrument can leave a door that certifies, and record that decision — it is not a cut-and-paste of #709. Note also `profile::k_stats`, a self-declared compatibility shim whose retirement is **STILL OPEN** at S40. Edge-free but not small. |
+| **C11** | **`editor-core`'s remaining classification residues, from #731's style review** — filed here rather than left inside a finding marked FIXED (**C-R7**). Three things. **(a)** `tests/m4_pr4_resolve.rs`'s `embeds_structurally` reimplements `walk_names`' structural half with a `_ => false` arm, so a future name-embedding variant makes the test oracle under-report silently; it is **S52**'s shape (the `tests/`-is-another-crate boundary) and S52 has no row of its own, which is why this one is written out rather than pointed at. **(b)** `resolve/mod.rs`'s undeclared duplication, found by a whole-file read: `qualifier_delta`, `merge_offers` and `rebind_suggestions` open with a byte-identical table scan differing only in the predicate (`lookup` is a fourth, shallower spelling), and `ResolveError::Ambiguous` + `TieWitness` is minted at three sites with different `candidates`/`at` and no constructor. Nothing self-declares, so **C11**'s confessed-copy grep cannot see any of it. **(c)** `merge_offers` scans only top-level `path` segments for `Merged` while `rebind_suggestions` uses the recursive `walk_names`, so a `Merged` nested inside `FromA` is visible to one offer ladder and not the other — an undeclared asymmetry between adjacent doors, and it is not established whether it is intended. | Small, edge-free, in one crate. (a) is a one-function fix once someone decides whether a test may call the crate's own walk; (b) is the same collapse S4 has done four times; (c) is a question before it is a fix. Fold into whoever next opens `editor-core/src/resolve/`. |
 
 ---
 
