@@ -257,6 +257,35 @@ claim-travels-between-documents failure #752's review caught, one document
 further out. The second scan has no schedule; that does not make its findings
 absent, it makes them unowned.
 
+### Tracks F and G exist, and F took part of Track E's territory (2026-08-20)
+
+**#766 folded the second smell scan into the first document and carved Tracks F
+and G out of it.** Three things follow for this track:
+
+- **Track F has an orchestrator.** It owns the instrument surface — gates,
+  `ci-filter.py`, the guards that cannot fire, the tests that cannot go red —
+  and it is **gated on E-a (#753)**, which holds `scripts/gates/` and `ci.yml`
+  until it lands. **D58, D59 and D60 were placed for Track F, not for here**,
+  out of E-a's own re-derivation of S61 and S62. **D50** (the `Live`
+  unforgeability gate) is `scripts/gates/` work and belongs to F for the same
+  reason; it stays listed here only until F picks it up.
+- **Track G is unstarted and edge-free.** `interval-transcendentals/`,
+  `demos/`, `profile/` and `sweep/src/` outside `fillet/` — no track is live in
+  any of them.
+- **Every open Track E PR went CONFLICTING**, because #766 grew
+  `docs/SMELL-SCAN-2026-08.md` by ~2,400 lines and every lane edits it. That is
+  the cost of the merge, it was foreseeable, and it is worth stating plainly
+  rather than letting four lanes each rediscover it: **a register that every
+  lane edits makes a structural change to that register expensive in exactly
+  proportion to how many lanes are live.** The alternative — leaving two
+  documents — cost a silently-wrong C-number in both. The merge was still right.
+
+**What Track E keeps:** the Euler-surgery rows the second scan added land here
+rather than in F or G, because `topo`'s mutation surface is fenced under one
+ADVERSARIAL policy and a second track on those files is the collision the
+sequencing exists to prevent. S68 is D21 (E-h). S67, S69 and S70 are unplaced
+and want rows after E-h lands — S70 is S14 and is Evan's.
+
 ---
 
 ## The standing lane header
@@ -349,10 +378,14 @@ constituted.**
 | D46 | E-d (D33) | **used** — the 23 funnel predicate names the audit reaches under no reading |
 | D51 | E-d (D33) | assigned 2026-08-20 — `DESIGN.md:31` describes the audit's open findings as including two the audit itself has RETIRED |
 | D52–D53 | E-g (D27 + D29) | reserved 2026-08-20 |
+| D56 | E-d | **handed back unused** — the "helper that fixes a name" class was re-derived at ~30 instances and every one is benign for the roster, so the class costs a site count its canonicity and costs the roster nothing |
+| D57 | E-d | **used** — the nine diagnostic-only K names (seven by one spelling, nine by two) |
+| D58–D60 | **Track F**, via E-a | S61's docs-tier conditionality, the mode-0644 registration hole, S62's four remaining hand-named checks |
+| D61–D62 | E-h (D21) | reserved 2026-08-20 |
 | D54–D55 | E-e (D28 + #693) | reserved 2026-08-20 |
 | D46 | E-d (D33) | reserved 2026-08-20 |
 
-Next unassigned: **D56**; D42 and D43 are back in the pool and deliberately not
+Next unassigned: **D63**; D42 and D43 are back in the pool and deliberately not
 re-issued — a number that has appeared in a lane's report, even as *unused*, is
 cheaper to skip than to explain.
 
@@ -380,10 +413,12 @@ serialized here and each lane re-merges `origin/main` when one lands.
 | lane | row(s) | branch | PR | state |
 |---|---|---|---|---|
 | **E-c** | D26 | `smelle/d26` | **#752** | **MERGED 2026-08-20** — Track E's first landing |
-| **E-a** | D22 + D34 | `smelle/d22-d34` | — | implementing |
+| **E-a** | D22 + D34 | `smelle/d22-d34` | **#753** | reported; **style review running**. Placed D40, D41, and D58–D60 for Track F |
 | **E-f** | D25 | `smelle/d25` | **#755** | **CLEARED by both lanes**; combined fix pass running (3 must-fix, 2 → rows D49/D50). Merges after #752 |
-| **E-b** | D23 | `smelle/d23` | — | dispatched. **Fenced off `scripts/gates/probe-suite-census.sh` and `ci.yml`** while E-a holds them |
-| **E-d** | D33 | `smelle/d33` | **#761** | reported, green, `clean`; **style review running**; D51 assigned for its `DESIGN.md` finding |
+| **E-b** | D23 | `smelle/d23` | **#763** | reported; **style review running**. Placed D44 and D45 |
+| **E-d** | D33 | `smelle/d33` | **#761** | **CONFLICTING** after #766 — re-merge requested; fix pass accepted, **first in the merge queue** once green |
+| **E-e** | D28 + #693 | `smelle/d28` | **#767** | reported; **style review running** |
+| **E-h** | D21 | `smelle/d21` | — | dispatched — **unblocked by #755**, whose lane verified D21 inherits nothing from D25 |
 
 **E-g dispatched 2026-08-20** (`smelle/d27-d29`), D27 then D29 — one lane
 because both edit `sweep/src/fillet/`, and D27 first because its newtype may
