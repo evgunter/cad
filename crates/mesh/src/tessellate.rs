@@ -11,6 +11,7 @@ use crate::chords::{compute_chords, edge_vertices};
 use crate::curved::tessellate_curved;
 use crate::nurbs_cert::FaceBounds;
 use crate::planar::tessellate_planar;
+use crate::sizing::{Tol, sizing_target};
 use crate::types::{BoundaryPolyline, FacePatch, Mesh, TessellateError};
 
 /// Tessellates a closed body into a watertight [`Mesh`] within the
@@ -42,7 +43,7 @@ pub fn tessellate(body: &Body<f64>, chordal: f64) -> Result<Mesh, TessellateErro
         return Err(TessellateError::InvalidChordalTolerance { value: chordal });
     }
     let eps = Tolerance::get().eps;
-    let delta_s = chordal * 0.5;
+    let delta_s = sizing_target(chordal);
 
     // Mesh vertex ids: topology vertices first, arena order (D9).
     let mut positions = Vec::new();
@@ -92,7 +93,7 @@ pub fn tessellate(body: &Body<f64>, chordal: f64) -> Result<Mesh, TessellateErro
             .ok_or(TessellateError::MissingEntity {
                 what: "face surface",
             })?;
-        let tol = crate::curved::Tol {
+        let tol = Tol {
             delta: chordal,
             delta_s,
             eps,

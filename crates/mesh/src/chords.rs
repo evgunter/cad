@@ -6,11 +6,10 @@
 //! documented sizing safety factor):
 //!
 //! - Line carriers: 1 chord (a segment of the exact locus).
-//! - Circle carriers (radius ρ, forward span Δt): per-chord angle
+//! - Circle carriers (radius ρ, forward span Δt): per-chord step
 //!   φ = 2·acos(1 − δ_s/ρ) (the closed-form sagitta bound
-//!   ρ(1 − cos(φ/2)) ≤ δ_s), capped at π/4 (so periodic unwrapping is
-//!   branch-unambiguous and full-period rims polygonalize with ≥ 8
-//!   chords); n = ceil(Δt/φ).
+//!   ρ(1 − cos(φ/2)) ≤ δ_s), capped at π/4 (`sizing::MAX_ANGULAR_STEP`);
+//!   n = ceil(Δt/φ).
 //! - Adjacent-torus tightening: a face on a torus certifies through
 //!   the UV interpolation bound (crate docs), which needs boundary UV
 //!   steps ≤ its grid step h = √(δ_s/(3(R+2r))); a circle edge's
@@ -50,73 +49,8 @@ use geom_core::spline::hull::derivative_coeffs;
 use topo::{Body, EdgeKey};
 
 use crate::nurbs_cert::{FaceBounds, face_bound};
+use crate::sizing::{ceil_count, curvature_step, ellipse_step, sagitta_step, torus_step};
 use crate::types::TessellateError;
-
-/// Sanity cap on any single count (δ small enough to exceed this would
-/// allocate gigabytes before failing anywhere else).
-const MAX_STEPS: f64 = 16_777_216.0; // 2^24
-
-/// The per-chord azimuth angle for sagitta ≤ `delta_s` on a circle of
-/// radius `rho`, capped at π/4. Total (poison-free for positive
-/// inputs): if δ_s ≥ ρ the sagitta constraint is vacuous and the π/4
-/// cap rules.
-pub fn sagitta_angle(delta_s: f64, rho: f64) -> f64 {
-    let cap = core::f64::consts::FRAC_PI_4;
-    if delta_s < rho {
-        let phi = 2.0 * (1.0 - delta_s / rho).acos();
-        if phi < cap { phi } else { cap }
-    } else {
-        cap
-    }
-}
-
-/// The per-chord parameter step for chord deviation ≤ `delta_s` on an
-/// ellipse with semi-axes `major > minor` (M5 PR 5), capped at π/4.
-///
-/// Certified-conservative from the standard C² chord bound
-/// `deviation ≤ κ_max·L²/8`: over a parameter span φ the arc length is
-/// `L ≤ major·φ` (`|dP/dθ| ≤ major`) and the ellipse's maximum
-/// curvature is `κ_max = major/minor²` (at the major vertices), so
-/// `deviation ≤ R_eff·φ²/8` with `R_eff = major·(major/minor)²` and
-/// `φ = √(8·δ_s/R_eff)` guarantees the bound. Coarser than the
-/// circle's exact sagitta near `major = minor` — conservative is the
-/// promised direction.
-pub fn ellipse_step(delta_s: f64, major: f64, minor: f64) -> f64 {
-    let cap = core::f64::consts::FRAC_PI_4;
-    let r_eff = major * (major / minor) * (major / minor);
-    let phi = (8.0 * delta_s / r_eff).sqrt();
-    if phi < cap { phi } else { cap }
-}
-
-/// `ceil(span/step)` as a chord/grid count, with the `MAX_STEPS` (2^24)
-/// sanity cap surfaced as a typed error and a floor of 1.
-pub fn ceil_count(span: f64, step: f64) -> Result<usize, TessellateError> {
-    let raw = (span / step).ceil();
-    if !(raw.is_finite() && raw < MAX_STEPS) {
-        return Err(TessellateError::ResolutionOverflow { count: raw });
-    }
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-    Ok(if raw < 1.0 { 1 } else { raw as usize })
-}
-
-/// The torus boundary-step requirement `h` (crate docs) for a face's
-/// surface, if that surface is a torus.
-fn torus_step(surface: &geom::Surface<f64>, delta_s: f64) -> Option<f64> {
-    match *surface {
-        geom::Surface::Torus {
-            major_radius,
-            minor_radius,
-            ..
-        } => Some(torus_grid_step(delta_s, major_radius, minor_radius)),
-        _ => None,
-    }
-}
-
-/// The torus UV grid step `h = √(δ_s/(3(R+2r)))` — shared with the
-/// curved-face grid sizing so boundary and interior steps agree.
-pub(crate) fn torus_grid_step(delta_s: f64, major: f64, minor: f64) -> f64 {
-    (delta_s / (3.0 * (major + 2.0 * minor))).sqrt()
-}
 
 /// The chord pass's output: every edge's chord-point ids and the
 /// parameter schedule they were sampled at.
@@ -160,7 +94,7 @@ pub(crate) fn compute_chords(
             Curve3::Line { .. } => 1,
             Curve3::Circle { .. } => {
                 let mut n =
-                    ceil_count(span, sagitta_angle(delta_s, circle_radius(curve.carrier())))?;
+                    ceil_count(span, sagitta_step(delta_s, circle_radius(curve.carrier())))?;
                 for fk in adjacent_faces(body, ek)? {
                     let face = body
                         .get_face(fk)
@@ -337,8 +271,7 @@ fn nurbs_chord_count(
     if m_bound == 0.0 {
         return Ok(1);
     }
-    let h = (8.0 * delta_s / m_bound).sqrt();
-    ceil_count(span, h)
+    ceil_count(span, curvature_step(delta_s, m_bound))
 }
 
 /// Certified `sup‖C″‖` for a RATIONAL B-spline carrier (M8-5): the
