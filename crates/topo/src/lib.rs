@@ -170,6 +170,8 @@ mod review_d18;
 #[cfg(test)]
 mod review_d18_probes;
 #[cfg(test)]
+mod review_d21_probes;
+#[cfg(test)]
 mod review_m0_pr7;
 #[cfg(test)]
 mod review_m1_pr1;
