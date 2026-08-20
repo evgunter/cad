@@ -133,7 +133,7 @@ discharged before this track existed.
 | **E-j** | D31 | `sweep/src/skin.rs`, `geom/src/curves/fit.rs`, home in `geom-core/src/spline/algebra.rs` | **Track C (C-l, C-g)** | style, escalates if the sort order is load-bearing | unstarted |
 | **E-k** | D35 | `docs/DESIGN.md`'s D2 addendum, and whatever the answer names | **E-g**, **E-h** | style | unstarted |
 | **E-l** | #681 | everything outside `crates/*/src` | none | style | unstarted |
-| **E-m** | #711 | `step-import/src/recognize.rs`, `docs/ASM-R2A-SPEC.md` | none | style | unstarted |
+| **E-m** | #711 | `step-import/src/recognize.rs` | **BLOCKED by D86** — no `step-import`-only PR can go green | style | **#784, red on infrastructure**; both verdicts accepted |
 | **E-n** | D20 | `topo/src/seqgen.rs` | none | style; closes on an attribution off hosted CI | unstarted |
 
 **Not taken by Track E:** D30 and D32 (Track C's files — C-m, C-q); C11's #726
@@ -334,6 +334,13 @@ following the pointers your row actually touches.
 not read, cite, or edit `docs/MODEL-AB-LOG.md`, and do not describe your unit
 as an A/B row anywhere. If something seems to require it, stop and ask the
 orchestrator.
+
+**A repo-wide grep is a read of every file in the repo.** A lane here had
+`MODEL-AB-LOG.md` lines enter its context from an unexcluded `grep -rn`, and
+handled it correctly: stopped, cited nothing, excluded it from every subsequent
+search, and **reported it**. That is the whole obligation — the fence is against
+reading and editing, not a tripwire, and an honest report costs nothing.
+Exclude it in your search commands rather than relying on not looking.
 
 **3. Your branch and your lane.** Branch `smelle/<row>` (e.g. `smelle/d25`),
 off current `origin/main`. Use **your own** `CARGO_TARGET_DIR` — never one
@@ -1126,6 +1133,47 @@ uncertainty is not evidence against it.
 3.6× prose growth, three present-tense citations of a deleted symbol. A refuted
 headline does not discredit a report, and treating it that way would have cost
 three real findings.
+
+### The unfalsifiable claim, falsified by execution (2026-08-20)
+
+E-m's row offered two options for `step-import`'s recognizer: the tighter
+cylinder certificate, or an encoding change. **It took neither, because the
+premise was false** — and it is the second lane today to answer a row by
+refuting it rather than choosing from its menu.
+
+`recognize.rs` claimed three things: the first-order envelope refuses *every*
+cylinder certificate; the `Plane > Cylinder` preference order is *"unfalsifiable
+by execution"*; and *"no authorable patch double-certifies"*. **All three are
+false on main**, shown with one fixture — an exact unit rational cylinder — that
+double-certifies at ε = 0.99 and promotes to `Cylinder` at ε = 0.9.
+
+**The claim that no execution could falsify the order was falsified by
+execution.** Two mutations: stubbing the promoting arm → **0 red before**, two
+new rows red after; **inverting the preference order → 0 red before**, one red
+after. The test cited as pinning the order stays green under the inverted order,
+so it never could pin what it was cited for.
+
+*Why it was believed, which is the transferable half:* the certificate is
+**scale-covariant** — its slack is a per-knot-span extent, not an ε — so what
+decides it is per-span extent **against** `eps_in`. Fixing one side of that ratio
+at the wild corpus's scale makes a local reading look universal. **A claim about
+a ratio, tested at one value of the denominator, is a claim about that value.**
+
+And the travel is the register's own shape: *"unfalsifiable by execution"* passed
+through **four documents** — #711 → C8 → Track E's roster → the lane brief —
+with every reader treating it as a property of the world rather than a claim to
+check.
+
+*Also settled:* the row's second item, `docs/ASM-R2A-SPEC.md:21`, **does not
+exist** — deleted in DOC-LEDGER Sweep 1. A clarifier is impossible and the
+general rule should not be minted, because `DOC-LEDGER` already rules that merged
+per-unit specs are deleted and were never normative — **stronger** than *"landed
+specs read as of their own date"*, since a merged spec is not read with a caveat,
+it is not kept. The class is empty by construction. Reported rather than enacted,
+which was the right call; **D87** carries what it leaves behind — the ledger's
+*"no file was deleted that a live pointer depends on for its content"* misses a
+live pointer depending on a deleted file **as a target**, which is what silently
+voided half of C8's option set.
 
 ---
 
