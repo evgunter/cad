@@ -14,15 +14,25 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 root=$(pwd)
 
-# `run_dump` verbatim from the script under test — extracted rather than
-# copied so a change to it cannot leave this selftest testing a fossil.
-extract_run_dump() {
-  sed -n '/^run_dump() {/,/^}/p' "$root/scripts/k_probe_sweep.sh"
+# The guarded functions verbatim from the script under test — extracted
+# rather than copied so a change to one cannot leave this selftest
+# testing a fossil. `run_dump` selects `--ignored` tests and dumps CSV;
+# `run_plain` selects the default set and asserts; both share the
+# passed-count reader and the tally both write.
+extract_fn() {
+  sed -n "/^$1() {/,/^}/p" "$root/scripts/k_probe_sweep.sh"
 }
-if [ -z "$(extract_run_dump)" ]; then
-  echo "SELFTEST FAILED: no run_dump() found in scripts/k_probe_sweep.sh" >&2
-  exit 1
-fi
+extract_guards() {
+  local f
+  for f in passed_count record_ran run_dump run_plain; do
+    if [ -z "$(extract_fn "$f")" ]; then
+      echo "SELFTEST FAILED: no $f() found in scripts/k_probe_sweep.sh" >&2
+      exit 1
+    fi
+    extract_fn "$f"
+  done
+}
+extract_guards >/dev/null
 
 # stub cargo: $STUB_PASSED rows "passed"; writes $CAD_K_REPORT_OUT only
 # if $STUB_ROWS is set.
@@ -48,14 +58,34 @@ drive() {
   t=$(mktemp -d); make_stub "$t/bin"
   set +e
   ( set -euo pipefail
-    export PATH="$t/bin:$PATH"
-    eval "$(extract_run_dump)"
+    export PATH="$t/bin:$PATH" RAN_TALLY="$t/ran.tsv"
+    eval "$(extract_guards)"
     run_dump 1e-9 selftest somepkg some_module:: "$out"
   ) >/dev/null 2>&1
   local rc=$?
   set -e
   rm -rf "$t"
   echo "$rc"
+}
+
+# The same for `run_plain`, plus the row it wrote — because the row is
+# what the executed-set floor reads, and a guard that exits non-zero
+# while recording nothing would leave the floor with no evidence either
+# way. Echoes `<rc> <tally row>`.
+drive_plain() {
+  local t rc row
+  t=$(mktemp -d); make_stub "$t/bin"
+  set +e
+  ( set -euo pipefail
+    export PATH="$t/bin:$PATH" RAN_TALLY="$t/ran.tsv"
+    eval "$(extract_guards)"
+    run_plain selftest somepkg some_module
+  ) >/dev/null 2>&1
+  rc=$?
+  set -e
+  row=$(tr '\t' ' ' < "$t/ran.tsv" 2>/dev/null | head -1)
+  rm -rf "$t"
+  echo "$rc|$row"
 }
 
 expect() {
@@ -92,4 +122,13 @@ expect 1 "$(STUB_PASSED=1 drive "$tmp/absent.csv")" 'harness passed, wrote no CS
 printf 'shape,predicate,margin,band_zero,band_escalate,outcome\n' > "$tmp/hdr.csv"
 expect 1 "$(STUB_PASSED=1 drive "$tmp/hdr.csv")" 'header only, no sample rows'
 
-echo 'rundump-guard selftest OK: run_dump passes a clean dump and fires on an empty selection, an absent CSV, and a header-only CSV' >&2
+# 5. THE DEFAULT-SELECTION GUARD, both directions. `run_plain` exists
+#    because `run_dump`'s `--ignored` runs ONLY `#[ignore]`d tests, so a
+#    filter naming a suite of plain `#[test]`s selects the module and
+#    executes none of it. That is the case a reachability floor scores as
+#    covered, so the row `run_plain` writes must say 0 and the guard must
+#    exit non-zero — the tally is the executed-set floor's only evidence.
+expect '0|plain somepkg some_module 1' "$(STUB_PASSED=1 drive_plain)" 'plain: one test ran, tally records it'
+expect '1|plain somepkg some_module 0' "$(STUB_PASSED=0 drive_plain)" 'plain: module selected, zero tests executed'
+
+echo 'rundump-guard selftest OK: run_dump passes a clean dump and fires on an empty selection, an absent CSV, and a header-only CSV; run_plain passes a live selection and fires on one that matched the module and executed nothing, recording the executed count either way' >&2

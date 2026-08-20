@@ -7,6 +7,13 @@
 //! `split_section_area`). `bool_strut_order` stays SILENT here too —
 //! it is verified by code-read + suites-green only (rare germ-fan
 //! lane), stated in the audit doc's row.
+//!
+//! **CI COMPILES THIS SUITE AND DOES NOT RUN IT.** The probe suites CI
+//! executes are rostered in `scripts/gates/probe-suite-census.sh`
+//! (`RUN_FLOOR`) and run by `scripts/k_probe_sweep.sh`; this one is on
+//! neither list, so nothing here can go red on a merge and its assertions
+//! are evidence for a reader rather than a gate. By hand:
+//! `cargo test -p topo --features probe --test all -- rim_dim_review_probes::`.
 
 #![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

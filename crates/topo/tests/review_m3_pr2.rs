@@ -4,6 +4,13 @@
 //! copied from the shipped tests.
 //!
 //! Naming: R1.. tags match the review report's findings/witnesses.
+//!
+//! **CI COMPILES THIS SUITE AND DOES NOT RUN IT.** The probe suites CI
+//! executes are rostered in `scripts/gates/probe-suite-census.sh`
+//! (`RUN_FLOOR`) and run by `scripts/k_probe_sweep.sh`; this one is on
+//! neither list, so nothing here can go red on a merge and its assertions
+//! are evidence for a reader rather than a gate. By hand:
+//! `cargo test -p topo --features probe --test all -- review_m3_pr2::`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

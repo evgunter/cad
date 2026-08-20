@@ -1,6 +1,14 @@
 //! Review probe (review/f34): dump the FULL per-sample census of both
 //! twin boolean configurations at both scales, for merge-base-vs-tip
 //! byte-identity diffing (T3).
+//!
+//! **CI COMPILES THIS SUITE AND DOES NOT RUN IT.** The probe suites CI
+//! executes are rostered in `scripts/gates/probe-suite-census.sh`
+//! (`RUN_FLOOR`) and run by `scripts/k_probe_sweep.sh`; this one is on
+//! neither list, so nothing here can go red on a merge and its assertions
+//! are evidence for a reader rather than a gate. By hand:
+//! `cargo test -p topo --features probe --test all -- probe_census::`.
+
 #![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod common;

@@ -21,19 +21,22 @@
 //! claim — a reordering of decisions shows up even when the multiset is
 //! preserved — so the rows are NOT sorted.
 //!
-//! **TYPE-CHECKED by CI, but not run, and not a gate.** CI's `k-lint`
-//! job has a step named *"compile and list every probe-gated test target"*
-//! (`scripts/gates/probe-suite-census.sh` derives the crate set; the
-//! step `cargo check`s each one `--features probe --all-targets`), so
-//! this file can no longer rot into a build error unnoticed. That step
+//! **CI COMPILES THIS SUITE AND DOES NOT RUN IT.** CI's `k-lint` job has
+//! a step named *"compile and list every probe-gated test target"*
+//! (`scripts/gates/probe-suite-census.sh` derives the crate set; the step
+//! builds each one `--features probe --all-targets` and feeds the listing
+//! back), so this file cannot rot into a build error unnoticed. That step
 //! name is grepped for by the census gate, so this sentence cannot go
-//! quietly false. Nothing
-//! *executes* it: `cargo test -p topo --features probe` appears in no
-//! workflow, and the rows here are not asserted anywhere. So it stays a
-//! reproducible HAND-RUN artifact whose recorded stream can drift, and
-//! a claim that leans on it must still say so. `tests/probe_census.rs`
-//! is in the same position. The standing gate over the same telemetry
-//! is CI's `k-lint`, which runs `scripts/k_probe_sweep.sh` at three ε.
+//! quietly false. What no merge does is EXECUTE it: the probe suites CI
+//! runs are rostered in that gate's `RUN_FLOOR` and this is not one of
+//! them, so the recorded stream can drift — and, the sharper half, the
+//! six per-lane coverage assertions below cannot go red either. Both are
+//! evidence for whoever runs the diff rather than a gate, and a claim
+//! leaning on either must say so. By hand:
+//! `cargo test -p topo --features probe --test all -- probe_s5_sectors::`.
+//! `tests/probe_census.rs` is in the same position. The standing gate over
+//! the same telemetry is CI's `k-lint`, which runs
+//! `scripts/k_probe_sweep.sh` at three ε.
 //!
 //! The fixtures are chosen to drive BOTH lanes: two boolean subtracts
 //! at two scales, and three plane splits of the notched block whose
@@ -45,8 +48,9 @@
 //! recorded into two sinks, drained in order and printed as one stream
 //! (so the dump is byte-for-byte what it was when they shared a sink),
 //! and each of the three rungs is asserted to have fired in EACH lane.
-//! Delete the splitting fixtures and six assertions go red, exactly as
-//! they did when the six lane-prefixed names carried that job.
+//! Delete the splitting fixtures and six assertions go red ON A HAND RUN,
+//! exactly as they did when the six lane-prefixed names carried that job —
+//! no merge runs them, per the disposition above.
 #![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod common;

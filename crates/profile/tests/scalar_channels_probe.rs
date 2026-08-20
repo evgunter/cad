@@ -8,6 +8,14 @@
 //! default build has no reason to pay for a diagnostics scalar. The
 //! `Dual<f64>` cross-scalar tests stay ungated in `scalar_channels.rs`;
 //! only this file carries the whole-file gate.
+//!
+//! **CI COMPILES THIS SUITE AND DOES NOT RUN IT.** The probe suites CI
+//! executes are rostered in `scripts/gates/probe-suite-census.sh`
+//! (`RUN_FLOOR`) and run by `scripts/k_probe_sweep.sh`; this one is on
+//! neither list, so nothing here can go red on a merge and its assertions
+//! are evidence for a reader rather than a gate. By hand:
+//! `cargo test -p profile --features probe --test all -- scalar_channels_probe::`.
+
 #![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

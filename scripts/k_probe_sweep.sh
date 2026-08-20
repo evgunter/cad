@@ -47,6 +47,32 @@ prefix=${K_SWEEP_PREFIX:-k-eps-}
 
 mkdir -p "$outdir/m2"
 
+# WHAT ACTUALLY RAN, one row per invocation:
+# `<mode><TAB><crate><TAB><module><TAB><passed>`. The mode is the
+# SELECTION — `--ignored` or the default — because the two run disjoint
+# halves of a suite and confusing them is the whole of D84: every
+# document put `editor-core` on the executed side because this script
+# names it with `-p`, while the only thing it ran there was the one
+# `#[ignore]`d dump. `probe-suite-census.sh --check-executed` reads this
+# file at the end and floors it. The count comes from the test runner's
+# own `N passed` line, never from what a filter could have matched: a
+# filter matching a suite whose tests carry no `#[ignore]` selects the
+# module and runs none of it, so reachability and execution are
+# different questions and only the second one is worth a floor.
+ran="$outdir/.executed.tsv"
+: > "$ran"
+export RAN_TALLY="$ran"
+record_ran() {
+  printf '%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4" >> "$RAN_TALLY"
+}
+
+# `test result: ok. N passed` — the runner's own count of tests that
+# EXECUTED, which is the only number that can tell a covered suite from
+# a selected and inert one.
+passed_count() {
+  sed -n 's/^test result: ok\. \([0-9]\{1,\}\) passed.*/\1/p' "$1" | head -1
+}
+
 # A NAME FILTER THAT MATCHES NOTHING EXITS 0. Every harness below is
 # selected by `--ignored <module>::` against an aggregated `--test all`
 # binary, so nothing about the selection is checked by cargo: a renamed
@@ -61,8 +87,9 @@ run_dump() {
   CAD_TOLERANCE_EPS=$eps CAD_K_REPORT_OUT="$out" \
     cargo test -p "$pkg" --features probe --test all -- \
       --ignored --nocapture "$filter" | tee "$log"
-  passed=$(sed -n 's/^test result: ok\. \([0-9]\{1,\}\) passed.*/\1/p' "$log" | head -1)
+  passed=$(passed_count "$log")
   rm -f "$log"
+  record_ran ignored "$pkg" "${filter%%::*}" "${passed:-0}"
   if [ "${passed:-0}" -lt 1 ]; then
     echo "ERROR: \`$filter\` matched no test in $pkg — the sweep recorded nothing and would have exited 0. Check the module name and its \`#[ignore]\`." >&2
     exit 1
@@ -76,6 +103,41 @@ run_dump() {
     exit 1
   fi
 }
+
+# THE PROBE LANE'S PRECONDITIONS, and they are not part of the sweep.
+# Each of these is a plain `#[test]` — no `#[ignore]` — asserting that
+# the recording scalar is a WRAPPER and not a second arithmetic: the
+# corpus evaluates green at `Probe`, and a corpus document replays there
+# with bit-identical decisions. Every margin row the loop below writes
+# rests on that, which is why they run FIRST.
+#
+# ONCE, AND OUTSIDE THE eps LOOP, deliberately. Both assert bit-identity
+# against the f64 lane, not a margin distribution, so there is nothing
+# per-eps about either claim; sweeping them would state three times over
+# something neither test says. The loop was simply where the other
+# invocations were.
+#
+# THE SELECTION IS THE DEFAULT ONE, which is the point. `run_dump` above
+# passes `--ignored` and therefore runs ONLY `#[ignore]`d tests; that is
+# how both of these — one of them in a module the sweep already named —
+# went from being written to never having executed, without anyone
+# choosing it.
+run_plain() {
+  local label=$1 pkg=$2 module=$3 log passed
+  log=$(mktemp)
+  echo "=== probe-lane precondition ($label) ==="
+  cargo test -p "$pkg" --features probe --test all -- --nocapture "$module::" | tee "$log"
+  passed=$(passed_count "$log")
+  rm -f "$log"
+  record_ran plain "$pkg" "$module" "${passed:-0}"
+  if [ "${passed:-0}" -lt 1 ]; then
+    echo "ERROR: \`$module::\` selected no runnable test in $pkg — the precondition asserted nothing and would have exited 0. Check the module name, and that its tests are NOT \`#[ignore]\`d." >&2
+    exit 1
+  fi
+}
+
+run_plain "corpus green at Probe" editor-core m4_pr8_k_probe
+run_plain "corpus replay at Probe" editor-core m5_pr5_corpus_probe
 
 for eps in 1e-6 1e-9 1e-12; do
   corpus="$outdir/.corpus-$eps.csv"
@@ -105,3 +167,9 @@ for eps in 1e-6 1e-9 1e-12; do
     echo "wrote $merged and $m2"
   fi
 done
+
+# THE FLOOR ON WHAT RAN. Every invocation above recorded its own passed
+# count; this is what turns a sweep that selected everything and executed
+# nothing into a failure, and it is the only place with the evidence to
+# do it.
+scripts/gates/probe-suite-census.sh --check-executed < "$ran"
