@@ -24,9 +24,8 @@
 //!   carries the profile's canonical winding; the sweep therefore
 //!   traverses the chains **reversed** for θ > 0, forward for θ < 0.
 //!   `θ > 0` is this verb's answer to the question extrude answers
-//!   with `w·n < 0`; both feed the one
-//!   [`crate::swept::swept_segments`], which is where the involution
-//!   itself lives. [`Revolution::Full`] sweeps +2π and reverses
+//!   with `w·n < 0`; both feed the one `swept::swept_segments`, which
+//!   is where the involution itself lives. [`Revolution::Full`] sweeps +2π and reverses
 //!   likewise.
 //! - **The shared azimuthal frame.** Every revolution surface minted by
 //!   one revolve call uses `axis = +a₃` and `u_ref = u₃ = place·ê_r`,

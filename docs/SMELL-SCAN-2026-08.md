@@ -9589,6 +9589,30 @@ never over the tree. **The cheap generalisation: any claim of the form
 "X now has one home" is owed a marker-vocabulary grep of the tree in
 the scope it claims**, and that is one command.
 
+**Two measurements on the vocabulary itself**, from running it over
+`crates/sweep/src` (minus `fillet/`) at `6a479c94` — 13 hits:
+
+- **It is mostly false positives here: 9 or 10 of the 13.** *"verbatim"*
+  overwhelmingly modifies a **value** carried through unchanged — a
+  carrier, a parameter interval, the caller's centre and radii
+  (`extrude.rs:47,983`, `upgrade.rs:8,199`, `tube.rs:190`) — not a body
+  being a copy. *"re-derived"* twice cites Mäntylä, a book
+  (`lib.rs:8`, `extrude.rs:4`). Only 3 clearly declare duplicated code
+  (`tube.rs:169`, `loft.rs:400`, `skin.rs:302`, the last cross-crate and
+  already recorded at S6), plus `skin.rs:1121` arguably. **Every hit has
+  to be read**; the grep is a candidate list, never a count.
+- **It cannot see a marker written in fresh words.** `tube.rs:216`'s
+  marker existed and was honest, and the vocabulary missed it because it
+  said *"the same transform `swept_segments` applies"* — none of the
+  eleven phrases. #781's first fix pass then rewrote it as *"a
+  HAND-APPLICATION of"*, which was **still invisible to the grep**. It
+  now reads *"a hand-written COPY OF"* and says at the site why the
+  wording is not free. **A duplication declared in words the tree's own
+  greps do not carry is a duplication nothing will find** — which is
+  C11's observation with the mechanism named, and it is the argument for
+  a fixed vocabulary being written down somewhere a marker's author will
+  read.
+
 `swept.rs`'s sentence is corrected to state the qualifier that makes it
 true (*from a validated loop*) and to name `tube.rs` as the exception.
 Recorded because the *shape* — a consolidation's headline claim

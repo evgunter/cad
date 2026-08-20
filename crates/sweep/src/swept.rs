@@ -197,13 +197,20 @@ impl<T: Real> SweptChord<T> for SweptSeg<T> {
 /// reversed via the profile crate's reversal involution (endpoints
 /// swapped, bulge negated, turn flipped).
 ///
-/// **The one home of that involution.** Every verb reverses for its
-/// own reason — extrude for `w·n < 0`, revolve for θ > 0, loft never —
+/// **The one home of that involution for a validated loop** — every
+/// caller that has one comes through here. Each verb reverses for its
+/// own reason (extrude for `w·n < 0`, revolve for θ > 0, loft never),
 /// but the relabelling itself is one rule, and reversal is a
 /// relabelling only: the carrier class is carried through, never
 /// re-decided from scalar data. Swept segment `j` retraces canonical
 /// segment `n − 1 − j`, and swept vertex `j` is canonical vertex
 /// `(n − j) mod n`.
+///
+/// **The qualifier is not a hedge.** `revolve::tube` has no validated
+/// loop — it stores the caller's radii instead of reconstructing them
+/// — so it writes the same relabelling out by hand for its two known
+/// arcs, and its site says so. A change to the rule here is a change
+/// to those constants (S131).
 pub(crate) fn swept_segments<T: Real>(
     lp: &profile::ValidatedLoop<T>,
     reverse: bool,

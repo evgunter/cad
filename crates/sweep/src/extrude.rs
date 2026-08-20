@@ -329,8 +329,8 @@ pub(crate) struct WallSeg<T: Real> {
 /// Builds the swept traversal of one canonical loop and attaches each
 /// segment's wall sense.
 ///
-/// The traversal is [`crate::swept::swept_segments`] — one home, one
-/// reversal involution, for every verb. All this adds is
+/// The traversal is [`crate::swept::swept_segments`], shared with every
+/// verb that sweeps a validated loop. All this adds is
 /// [`wall_sense_of`], read off the CANONICAL segment the traversal
 /// records, so the bit is the same whichever direction the loop is
 /// swept.

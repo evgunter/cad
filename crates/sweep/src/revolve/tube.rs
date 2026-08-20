@@ -218,9 +218,12 @@ pub fn tube_along_arc<T: Decide>(
     // centre `(R, 0)` and radius `r` are the exact intent values, in
     // the REVERSED order the positive-θ sweep traverses.
     //
-    // A HAND-APPLICATION of `swept::swept_segments`' reversal
+    // A hand-written COPY OF `swept::swept_segments`' reversal
     // involution — endpoints swapped, bulge negated, turn flipped —
     // written out for a known two-arc input instead of computed.
+    // (Phrased with the marker vocabulary on purpose: a duplication
+    // declared in words the tree's own greps do not carry is a
+    // duplication nothing will find. S131.)
     // It cannot call the shared builder: that takes a `ValidatedLoop`,
     // whose arc centre and radius come back from bulge arithmetic,
     // and storing the caller's numbers instead of reconstructing them
