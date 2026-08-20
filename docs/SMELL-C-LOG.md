@@ -2037,6 +2037,58 @@ C-R22. It happened to be checked out on the branch that has it. Had I been on
 `main`, the reviewer would have read a brief citing a ruling that does not exist
 — which is C-R11's exact subject, from the other side.
 
+### I committed Track F's S162/D108 within minutes of it landing — and my stated remedy for the CI capability gap is FALSE
+
+**Two corrections, and both are mine.**
+
+**1. My docs-only merge cancelled a code merge's verification on `main`.** Run
+2407 on `3ddd6011` — #801's merge commit, full tier — was **`cancelled` at
+22:26:07**, seconds after my #832 docs merge started run 2416 at 22:25:48. Track
+F had just landed exactly this as **S162/D108**: *"a docs-tier push cancels a
+code merge's run, and the board goes green having run two jobs."* The successor
+run is docs-tier, so it skips every code check.
+
+**So `main` now carries #801's code with no completed hosted run over it.** What
+exists instead: #801's own PR head was green on the full matrix (run 2392 on
+`21b51426`), and the lane re-ran `clippy --workspace --all-targets -D warnings`,
+the geom-core probe suite and `probe-suite-census.sh` **on the merged tree**
+before merging. That is real evidence and it is not the verification of record.
+**Stated rather than papered over**, because "the board is green" will be true
+and will mean less than it looks.
+
+*The mechanism is worth naming precisely:* the cancellation is **not** caused by
+the docs push being unimportant. It is caused by concurrency grouping treating
+"a push to `main`" as one class, so **the cheapest possible change evicts the
+most expensive verification.** The ordering is what makes it dangerous — a lane
+that merges docs behind a code merge does the damage, and neither party can see
+the other.
+
+**2. I told a lane to hand CI re-runs to me because "the orchestrator can
+trigger workflow runs and a lane cannot". I cannot.** Both endpoints return
+**403 Resource not accessible by integration** for me too:
+`POST /actions/runs/{id}/rerun` and
+`POST /actions/workflows/ci.yml/dispatches`.
+
+So the capability gap I recorded is real but **misdescribed, and my remedy does
+not work**. The true statement is: **nobody in this session can trigger or
+re-run CI — only a push can.** That makes C-e's empty commit not a workaround
+around a gap it should have escalated, but **the only mechanism available to
+anyone here**, which changes the disposition entirely. The rule I wrote — *"say
+so instead of pushing"* — would have sent a lane to an orchestrator who is
+equally powerless.
+
+**Corrected rule:** a lane that needs a re-run and has established the failure is
+not its own should **say so in its report and stop**, and the *human* decides
+whether to push. Do not tell a lane the orchestrator can do it.
+
+*What this pair costs, honestly:* I recorded a capability I had not tested, and
+built a rule on top of it — **the same defect as the one-directional seal
+oracle, committed in an operational register rather than a technical claim.** A
+capability is a claim like any other and needs its receipt.
+
+**Left for Evan, since it needs a push nobody here can make:** `main` at
+`3ddd6011`/`9626075e` wants one full-tier run to close #801's verification.
+
 **The mechanical fix**, which is what the previous three write-ups all lacked:
 the orchestrator branch merges to `main` **at every ruling**, not at every
 session. A ruling is dispatch-visible the moment it is cited, so the merge has to
