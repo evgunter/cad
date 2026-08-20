@@ -36,8 +36,9 @@
 //!   involution twin and the pole's zero azimuth lever (see
 //!   [`azimuth_arm`]/`sphere_twin`). Carriers OUTSIDE the closed-form
 //!   classes refuse typed with the class named — the sphere's general
-//!   circles route through the fitted lane
-//!   ([`geom_brep::PcurveCache::certify_fitted`]), the cone/torus
+//!   circles have a certified route that this pass cannot reach
+//!   ([`geom_brep::PcurveCache::certify_fitted`], whose docs carry the
+//!   frontier), so those faces stay uncached; the cone/torus
 //!   oblique classes have no honest route (no ring-computable meters
 //!   composite) and stay refused.
 //! - **Described NURBS charts mint** their iso lane (M6-3,
@@ -969,10 +970,9 @@ pub fn mint_pcurves<T: Decide>(body: &mut Body<T>) -> Result<(), PcurveMintError
             // wiring it into this pass needs the `PcurveFittedLane`
             // bound on every constructor and is banked with that
             // ripple — banked in no milestone plan and in no
-            // carried-items register, so this comment is the only
-            // place the obligation is written down. Every OTHER failure — a covered class whose
-            // residuals, envelope, continuity or closure refuse — is
-            // a genuine defect and propagates.
+            // carried-items register. Every OTHER failure — a covered
+            // class whose residuals, envelope, continuity or closure
+            // refuse — is a genuine defect and propagates.
             Err(PcurveMintError::Certify {
                 error: PcurveCertifyError::UnsupportedCarrier,
                 ..
@@ -1045,24 +1045,18 @@ fn mint_face<T: Decide>(
     // region the domain-validity limb certifies against (C4; the exact
     // point-in-region test is PR 11's tessellation consumer).
     //
-    // **Check 5 is vacuous here, and on every other in-tree caller.**
-    // The window IS the hull of exactly the boxes checked against it,
-    // so no minted pcurve can escape it — and `validate_pcurves`
-    // re-derives its window the same self-referential way, so it is
-    // vacuous there too. It is a PRECONDITION on the public door
-    // (`PcurveCache::certify`/`certify_fitted` take the window from
-    // the caller), not a check that fires on any path this crate
-    // walks; the `TrimEscape` rows drive it from the tests' attach
-    // path.
+    // **Check 5 is vacuous on both of this crate's callers.** The
+    // window IS the hull of exactly the boxes checked against it, so
+    // no minted pcurve can escape it, and `validate_pcurves` re-derives
+    // its window the same self-referential way. Check 5 is a
+    // precondition the caller supplies, not a check that fires on any
+    // path this crate walks; what the precondition buys is stated once,
+    // at `geom_brep::PcurveCache`'s module docs.
     //
     // The vacuity at mint is deliberate: a freshly derived face has no
     // independent prior notion of its own trim region, and inventing
     // one (say, the loop's vertex box) would refuse legitimate faces
-    // whose boundary arcs bulge past their endpoints. What the
-    // precondition buys is that check 5 is the cache's only BRANCH
-    // constraint — on a periodic chart a τ-shifted pcurve certifies
-    // every other check identically, so `TrimEscape` is the only thing
-    // separating it from the unshifted one.
+    // whose boundary arcs bulge past their endpoints.
     let mut window: Option<ChartWindow<T>> = None;
     for w in &walked {
         let b = w.pcurve.chart_box(w.t0, w.t1);

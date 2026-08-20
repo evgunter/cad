@@ -122,13 +122,13 @@
 //!   that the pcurve's chart-box enclosure lies inside the face's chart
 //!   window ([`ChartWindow`], supplied by the caller — the face's own
 //!   one-branch hull); escaping it is the typed
-//!   [`PcurveCertifyError::TrimEscape`]. It is a **precondition on
-//!   this door**, not a check that fires inside the kernel: both
-//!   in-tree callers hull exactly the boxes they then check, so the
-//!   limb is vacuous on every path `topo` walks. What it buys is that
-//!   it is the cache's only BRANCH constraint — on a periodic chart a
-//!   τ-shifted pcurve certifies every other check identically. Two
-//!   honesty notes, both binding:
+//!   [`PcurveCertifyError::TrimEscape`]. It is a **precondition this
+//!   door requires of its caller**, and what it buys is that it is the
+//!   cache's only BRANCH constraint: on a periodic chart a τ-shifted
+//!   pcurve certifies every other check identically, so this is the
+//!   one check that can tell the two apart. Whether any given caller
+//!   can trip it is that caller's property — `topo::pcurves` records
+//!   that neither of its own can. Two honesty notes, both binding:
 //!   - The window is a conservative *over-approximation* of the trim
 //!     region (a box, not the region bounded by the loop).
 //!     Point-in-trim-region is the tessellation trim-loop consumer's,
@@ -742,8 +742,9 @@ impl core::fmt::Display for PcurveCertifyError {
                 f,
                 "pcurve certification: a closed-form (Harmonic) chart image was offered for a \
                  carrier with no {{1, cos, sin, t}} form. The general fitted/marched rung \
-                 is live — store the chart image as Pcurve::Fitted and it certifies \
-                 through the control-hull lane"
+                 certifies this class through the control-hull lane, but no kernel \
+                 constructor mints one — reaching it means offering the chart image to \
+                 PcurveCache::certify_fitted yourself"
             ),
             Self::FittedLaneUnsupported { scalar } => write!(
                 f,
@@ -1369,11 +1370,14 @@ impl<T: PcurveFittedLane> PcurveCache<T> {
     ///
     /// **This door has no `src` caller** — the certified route exists,
     /// and no kernel constructor mints a `Fitted` cache into a body.
-    /// It is the only callerless item of the lane: `Fitted`'s check
-    /// suite runs in production through [`PcurveCache::recertify`],
-    /// which the tier-3 validator calls per half-edge, which is why
+    /// It is nonetheless the lane's only callerless ITEM: the rest is
+    /// reached through [`PcurveCache::recertify`], whose `Fitted` arm
+    /// the tier-3 validator dispatches per half-edge, which is why
     /// `topo::validate_pcurves` carries the [`PcurveFittedLane`] bound
-    /// at all.
+    /// at all. That arm cannot execute on a body this workspace
+    /// builds, since this door is the variant's sole origin; it is
+    /// live for a caller who attaches a `Fitted` cache through
+    /// `topo::Body::attach_pcurve`.
     ///
     /// Three consumers are waiting on it, in decreasing firmness:
     ///

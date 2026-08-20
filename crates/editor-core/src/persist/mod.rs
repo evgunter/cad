@@ -5,14 +5,17 @@
 //! because LQ7a rules it so ([`migration_step`]), not because no one
 //! has filled it in yet.
 //!
-//! Every version below carries an entry, enforced by
-//! `ledger_guard::every_version_has_a_ledger_entry` rather than left to
-//! discipline: the version constant is ONE LINE, so two units claiming
-//! the same number merge CLEANLY, and these entries are the only place
-//! the two claims meet — which also makes dropping one a way to resolve
-//! them.
+//! Every version from v2 on carries an entry on [`SCHEMA_VERSION`],
+//! enforced by `tests/schema_ledger.rs` rather than left to
+//! discipline: the version is ONE LINE, so two units
+//! claiming the same number merge CLEANLY, and those entries are where
+//! their reasoning can be compared — and equally where one of them can
+//! be dropped to resolve a conflict.
 //!
 //! # Schema history
+//!
+//! v1 and v2 only, because the format TEXT below is theirs; every
+//! version's own entry is on [`SCHEMA_VERSION`].
 //!
 //! - **v1** (M4 PR 6) — the ratified text format below.
 //! - **v2** (M5 PR 10) — the same text format carrying the grown node
@@ -292,17 +295,6 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// reader has no v11-shaped meaning to migrate from, so v11 and below
 /// refuse TYPED with the regenerate recourse and the migration table
 /// stays empty.
-///
-/// **Why 12, and the lesson the v11 entry above predicted.** This unit
-/// claimed 10 at dispatch, moved to 11 when ASM-UPD merged with 10,
-/// and moved again to 12 when M9-1 PR-2 merged with 11 — and the
-/// SECOND shift is the one worth reading. Both branches had written
-/// `11`, so the constant merged CLEANLY: git raised no conflict on the
-/// line that matters, exactly as the paragraph above warned, and only
-/// an EXPLICIT read of main's constant at the final re-merge caught
-/// it. That is now the rule rather than an observation: at every
-/// re-merge, read the number on main and take the next one — never
-/// infer from the absence of a conflict that the claim still holds.
 ///
 /// Version 13 is **node vocabulary growth** (ASSEMBLY-DESIGN
 /// A3/A12, ratified #522; ASM-R2a D-1): [`crate::Node`] gained the
@@ -875,44 +867,5 @@ fn parse_err(e: serde_json::Error) -> PersistError {
         line: e.line(),
         column: e.column(),
         message: e.to_string(),
-    }
-}
-
-#[cfg(test)]
-mod ledger_guard {
-    use super::SCHEMA_VERSION;
-
-    /// This module's own source, read at compile time so the test can
-    /// see the doc-comment ledger. Not recursive: `include_str!` takes
-    /// bytes, not code.
-    const SOURCE: &str = include_str!("mod.rs");
-
-    /// **Every version from 2 to [`SCHEMA_VERSION`] carries a ledger
-    /// entry.** This is the ledger's only mechanical guard. The version
-    /// is one line of constant, so two units claiming the same number
-    /// merge CLEAN and the entries are the only place their claims
-    /// collide — but a colliding paragraph can equally be resolved by
-    /// dropping one, and that loss is silent to every other check.
-    ///
-    /// v1 is excluded deliberately: it is the origin format, described
-    /// in the module docs rather than as a bump from anything.
-    ///
-    /// **What this cannot catch.** It reads for a heading, not for
-    /// meaning — an entry that describes the wrong format, contradicts
-    /// the break it names, or is a bare placeholder line passes. It
-    /// also says nothing about whether `SCHEMA_VERSION` holds the right
-    /// number: that is a by-eye read of main's constant at the final
-    /// re-merge, and nothing automates it.
-    #[test]
-    fn every_version_has_a_ledger_entry() {
-        let missing: Vec<u32> = (2..=SCHEMA_VERSION)
-            .filter(|n| !SOURCE.contains(&format!("Version {n} is")))
-            .collect();
-        assert!(
-            missing.is_empty(),
-            "schema ledger has no entry for version(s) {missing:?} — every bump owes one \
-             (module docs). An entry lost to a conflict resolution is recoverable from the \
-             branch that claimed that number."
-        );
     }
 }

@@ -1357,9 +1357,15 @@ finding was built on it.
 
 **Also false: "machinery with no caller", by ~10×.** Only `certify_fitted`
 is callerless. `PcurveCache::recertify` dispatches
-`Fitted → run_fitted_checks` and runs in production tier-3 at
+`Fitted → run_fitted_checks`, dispatched by the tier-3 validator at
 `topo/src/pcurves.rs:1379`, which is why `validate_pcurves` carries the
-`PcurveFittedLane` bound at all.
+`PcurveFittedLane` bound at all. **That is static reachability, not
+execution**, and the first draft of this fix said "runs in production",
+which is the same overclaim in the other direction: since
+`certify_fitted` is the variant's sole origin, no body this workspace
+builds holds a `Fitted` cache and the arm never executes in-tree. It is
+live for an out-of-tree caller attaching one through
+`topo::Body::attach_pcurve`, and the code now says exactly that.
 
 **What was true.** The docs read as *shipped* where the truth is that the
 certified route exists and no kernel constructor mints one — which #176's
@@ -1377,8 +1383,23 @@ in `DESIGN.md` and **in no milestone plan and no carried-items register**
 down: most of S9's inventory is check-5-only only if this lane goes too.
 
 **Owed elsewhere: #250 needs a row** for (a). Not edited by this unit; the
-obligation's interim home is the claim site in `mint_pcurves`, which now
-says it is written down nowhere else, plus §D below.
+obligation is recorded at the `mint_pcurves` claim site, at
+`certify_fitted`, and in §D below.
+
+**Two sites read as shipped through the first pass, and the sweep is why.**
+`pcurve_cache.rs`'s `UnsupportedCarrier` refusal told a **user** that *"The
+general fitted/marched rung is live — store the chart image as
+`Pcurve::Fitted`"*, instructing a caller toward a rung no in-tree
+constructor mints; and `topo::pcurves`' module header still said in the
+present tense that the sphere's general circles *"route through the fitted
+lane"*, contradicted twenty lines into the function it describes. Both are
+fixed. **The sweep missed them because it was scoped to the phrases being
+removed** — a literal match over `crates/*/src` and `crates/*/tests` finds
+prose that *quotes* the false claim, and neither of these quotes it: one is
+a user-facing `write!` string, the other a present-tense paraphrase. The
+same blind spot left §A's roll-up saying *"S8 is why `Pcurve` is not
+`Copy`"* — the exact falsehood this unit exists to kill, in the document
+being edited. Sweep for the CLAIM, not for the sentence.
 
 ## S9. The trim-containment limb is vacuous on both production paths
 
@@ -1402,12 +1423,26 @@ written in response to a reviewer's mint-time-vacuity note against code
 already in the branch.
 
 **What was true, and is now what the code says.** Check 5 is a
-**precondition on the public door**, vacuous on every in-tree caller, and
-`TrimEscape` is driven only from the tests' attach path. The design still
-buys something and the comment now says what: check 5 is the cache's only
-**branch** constraint — on a periodic chart a τ-shifted pcurve certifies
-every other check identically. The same downgrade is stated in
-`pcurve_cache`'s module docs for geom-brep readers.
+**precondition the caller supplies**, vacuous on both of `topo`'s callers.
+The design still buys something and the comment says what: check 5 is the
+cache's only **branch** constraint — on a periodic chart a τ-shifted pcurve
+certifies every other check identically. Those two facts now live in one
+home each, split by which crate can know them: the vacuity in
+`topo::pcurves`, which owns the callers, and the branch constraint in
+`geom_brep::pcurve_cache`, which owns the checks. The first draft of this
+fix put both in both, and the geom-brep copy asserted a fact about its
+consumer crate across a layering boundary, held by nothing.
+
+**This finding repeated itself inside its own fix.** S9's defect was a
+justification written to survive a review note, asserting teeth it did not
+have. The first replacement removed that clause and inserted a *new*
+empirical one of the same shape — *"the `TrimEscape` rows drive it from the
+tests' attach path"* — which is false: there are **zero** `TrimEscape`
+assertions under any `tests/`, and the tree's only one
+(`geom-brep/src/pcurve_cache.rs:3918`) is a geom-brep unit test handing
+`certify` two hand-built windows. One row, not rows; not an attach path.
+The clause is gone with nothing in its place. **The lesson, general:** the
+replacement for a false justification must not be another justification.
 
 **The inventory claim did not survive.** Only `trim_containment`,
 `TrimEscape`, `ChartWindow::hull`, the `window` threading and two hull
@@ -1453,23 +1488,39 @@ pointed at this file and nothing fired. The right account is neither "the
 entry was skipped" nor "the tripwire failed" — it is that a document
 everything assumed was guarded had no guard at all.
 
-**What was fixed.** The v12 entry is restored verbatim from `3931d68`.
-`migration_step`'s clean-break list, which stopped at `10 → 11`, now runs
-through `13 → 14`. That doc leads with *empty by RULING, not by omission*
-and cites LQ7a, replacing *"the mechanism stays because it costs nothing"*
-— a weaker claim than the ratified one.
+**What was fixed.** v12's **format** paragraphs are restored from
+`3931d68` — what the version means and why it is a clean break. Its
+eleven-line merge-race post-mortem is **not** restored: this finding named
+exactly that prose as the ledger's problem, and reinstating it verbatim
+would have been fidelity to what the finding condemned. `migration_step`'s
+clean-break list, which stopped at `10 → 11`, now runs through `13 → 14`,
+and leads with *empty by RULING, not by omission*, citing LQ7a in place of
+*"the mechanism stays because it costs nothing"*. The `# Schema history`
+header, which narrates v1–v2 and drifted twelve versions ago, now says it
+covers only those two and points at `SCHEMA_VERSION` for the rest — the
+file narrates its versions in three places and this makes clear which one
+is the ledger.
 
-**And the ledger now has the guard it never had.**
-`persist::ledger_guard::every_version_has_a_ledger_entry` asserts an entry
-exists for every `n` in `2..=SCHEMA_VERSION`, reading the module's own
-source through `include_str!`. Verified to go red on a **mid-ledger**
-deletion, not merely at the tail: excising the v13 entry locally fails the
-test naming `[13]`. Its blind spot is stated at the test — it sees that a
-heading exists, not that the entry describes the format the number
-shipped, and it says nothing about whether `SCHEMA_VERSION` holds the
-right number, which remains a by-eye read of main's constant with nothing
-automating it. Q6: the ledger's completeness is now a mechanism rather
-than an assumption.
+**And the ledger now has the guard it never had** —
+`crates/editor-core/tests/schema_ledger.rs`, beside the other per-version
+suites rather than inside the file S38/L2 will trim. Three rows, each
+proven red for its own reason:
+
+- *an entry for every `n` in `2..=SCHEMA_VERSION`* — excising the **v13**
+  entry (mid-ledger, not the tail) fails naming `[13]`;
+- *a golden per version whose header carries that version* — relabelling
+  `v7_golden.cad` to `schema: 6` fails naming it. This is the semantic
+  anchor: a deleted golden is already a compile error from the existing
+  suites, but a **mislabelled** one is caught by nothing else;
+- *no golden above the constant* — planting a `v15_golden.cad` fails,
+  catching a rolled-back bump or a golden written under a number main
+  never took.
+
+Stated at the suite: it cannot tell whether an entry describes the format
+the number shipped, and it says nothing about whether `SCHEMA_VERSION`
+holds the *right* number — that remains the by-eye read at the final
+re-merge, unautomated. Q6: the ledger's completeness is a mechanism now,
+not an assumption resting on a deleted pointer.
 
 **Deliberately not done.** The ledger is not trimmed and the five
 byte-identical goldens are untouched: comment trimming is **S38 / L2** and
@@ -1818,10 +1869,12 @@ is tracked as **issue #214** with a per-family retirement plan; `ledger_row` is
 `let _ =` at runtime, existing only to force the author to name a row; and the
 count **has moved exactly once, downward** (12 → 8, `d92f56b5`, authored by
 Evan, in the same diff that converted the ledger rows). Growth is the forbidden
-move. Its inherited weakness — named by `memories/schema-claim-discipline.md`,
-which was **deleted 2026-08-18 at `dd6d1990`** and reads at `151afc2b` — is
-that it asserts a **total**: one site added and one retired nets to 8 and
-passes.
+move. Its weakness is that it asserts a **total**: one site added and one retired
+nets to 8 and passes. (The scan credited that observation to
+`memories/schema-claim-discipline.md`, which says nothing about censuses or
+totals — it is about `SCHEMA_VERSION` races merging clean. Same
+misattribution as S10's, corrected there; the observation itself stands on
+its own.)
 
 ## S14. `Span` validity is prose, and the guard's removal turned poison into a documented panic
 
@@ -5068,7 +5121,8 @@ but about which questions look most worth answering first.
 3. **S8, S9, S10, S11.** Deciding per-lane whether each is a *frontier*
    (keep, gate, say so) or a *deletion* would measurably shrink the
    surface, and several of these lanes are the reason other things are
-   awkward — S8 is why `Pcurve` is not `Copy`.
+   awkward. (Not S8, though: that lane was accused of costing `Pcurve`
+   its `Copy` and does not — see its record.)
 4. **S4.** The two observed drifts (mate names not rewritten by
    `Rebind`; `name_args`' fail-quiet wildcard) are worth checking
    regardless of what is decided about the pattern.
@@ -5262,13 +5316,17 @@ the obligation's only in-tree home is now the claim site in
 `topo::mint_pcurves`, which says so. Adding the register row is a one-line
 job for whoever next touches #250.
 
-**Also left by D4, one line so it is not carried only in a PR body:** the
-`PcurveCache` clone at `topo/src/boolean/combine.rs:343` is a **fourth**
-residual clone the S8 steelman's count of three missed. It is correct as
-written (the graft copies caches the boolean's final mint pass then clears
-and re-derives) and it is in `boolean/`, another track's file set — so it
-is a count correction, not work. Whoever next prices `Pcurve`'s
-non-`Copy`ness should start from four sites, not three.
+**Also left by D4, so it is not carried only in a PR body:** the steelman's
+*"three `.clone()` sites"* is a count of **explicit `.clone()` calls naming a
+`Pcurve` or a `PcurveCache`** — three in `topo/src/pcurves.rs`, and a fourth
+the steelman missed at `topo/src/boolean/combine.rs:343`. It is **not** a
+count of cache copies. `Body` derives `Clone` (`topo/src/body.rs:131`) and
+the boolean clones whole operands twice (`boolean/mod.rs:1265-1266`,
+`:1323-1324`), each copying every stored cache in the body. The real price
+of `Pcurve`'s non-`Copy`ness is therefore a body-sized quantity that no
+grep finds, and anyone pricing it should start from that rather than from
+four call sites. All four are correct as written; this is a count
+correction, not work, and `boolean/` is another track's file set.
 
 **Not taken, and why.** S18's `step-export/volume.rs` row stays out of Track D: its
 immediate cause is that `topo::props` exposes only body-scoped
