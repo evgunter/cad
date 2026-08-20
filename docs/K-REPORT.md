@@ -167,11 +167,12 @@ unified `geom_core::k_stats` funnel — the richest crop yet, and the
 first computed-intersection (rather than construction-controlled)
 margin sources, exactly the pressure source Finding 4 anticipated:
 
-- **24 `bool_*`** (boolean reduction/classification/join;
+- **25 `bool_*`** (boolean reduction/classification/join;
   `crates/topo`): `bool_contact_edge`, `bool_contact_edge_span`,
   `bool_contact_vertex`, `bool_dir_parallel`, `bool_dir_same`,
   `bool_ee_collinear`, `bool_faces_parallel`, `bool_germ_line`,
-  `bool_join_facing`, `bool_join_nearest`, `bool_plane_offset`,
+  `bool_join_chord`, `bool_join_facing`, `bool_join_nearest`,
+  `bool_plane_offset`,
   `bool_plane_orient`, `bool_plane_parallel`,
   `bool_point_in_solid_{advance,denom,infinity,order,plane}`,
   `bool_sector_{arm,coplanar,reflex,straight,within}`,
@@ -298,11 +299,13 @@ decade 39+|          866   (exact tie-break bands: canonical_order_*,
 ```
 
 The 240-sample decade-3 tail (the floor's neighborhood): 173
-demo/az (bool_point_in_solid_plane 89, bool_join_nearest 38, and the
-pm_census gap/residual family), 63 die `witness_at_mid_parameter`
-(42 corpus + 21 demo — the same document through both paths), 3
-demo/projectbox_cutaway `split_bisector_side`, 1 demo/table. All are
-real millimeter-scale feature clearances, not noise.
+demo/az (bool_point_in_solid_plane 89, bool_join_nearest 38 — those
+38 are chord LENGTHS and record under `bool_join_chord` since that
+name was split off, and the pm_census gap/residual family), 63 die
+`witness_at_mid_parameter` (42 corpus + 21 demo — the same document
+through both paths), 3 demo/projectbox_cutaway `split_bisector_side`,
+1 demo/table. All are real millimeter-scale feature clearances, not
+noise.
 
 Zero-side: 447 581 of 458 734 zero-classified margins are EXACTLY 0;
 the rest are ≤ 5.33e-15 m (worst: `pm_census_ee_span`, demo/az).

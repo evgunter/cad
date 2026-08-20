@@ -23,10 +23,10 @@
 //!
 //! 1. **Segments**: the null-pair germ records are matched into seam
 //!    segments by the SAME mutual-facing/nearest tests as the join
-//!    (`bool_join_facing` / `bool_join_nearest` — reused predicate
-//!    funnels, no new numeric predicate), with the ambiguous face-pair
-//!    identity dropped. Incomplete matching ⇒ not this frontier (the
-//!    original join refusal stands).
+//!    (`bool_join_chord` / `bool_join_facing` / `bool_join_nearest` —
+//!    reused predicate funnels, no new numeric predicate), with the
+//!    ambiguous face-pair identity dropped. Incomplete matching ⇒
+//!    not this frontier (the original join refusal stands).
 //! 2. **Lane door**: every declared face pair is verified through
 //!    [`super::oriented_plane_eq`]'s declared rung — a false
 //!    declaration refuses [`BooleanError::ContactContradicted`]
@@ -398,7 +398,7 @@ fn enumerate_segments<T: Decide>(
                 }
                 let chord = germs[j].point - germs[i].point;
                 let dist = chord.norm();
-                match decide("bool_join_nearest", Margin::of(dist), band).map_err(escalate)? {
+                match decide("bool_join_chord", Margin::of(dist), band).map_err(escalate)? {
                     Sign::Positive => {}
                     _ => continue,
                 }
