@@ -1857,11 +1857,12 @@ fn an_unaffordable_chart_seed_floor_refuses_the_cell_budget_typed() {
 /// `UnsupportedCertificate`, of which the certificate stack has many.
 ///
 /// Without the arm the sweep does not go wrong quietly in one step: a
-/// poisoned enclosure excludes nothing, so every cell refines to the
-/// floor and the caller gets `ExhaustivenessInconclusive` — a refusal
-/// that says "a branch may be hiding in that cell" when the truth is
-/// "this operand has no certificate". That is the silence this arm
-/// exists to prevent: not a wrong answer, a wrong DIAGNOSIS.
+/// poisoned enclosure excludes nothing, so every cell refines and
+/// **another door answers** — measured, on this fixture, the cell
+/// budget. The caller is then told the search was too big, when the
+/// truth is that this operand has no certificate at all and no budget
+/// would have helped. That is what this arm exists to prevent: not a
+/// wrong answer, a wrong DIAGNOSIS.
 #[test]
 fn a_degenerate_r3_operand_refuses_the_enclosure_typed() {
     let point_sphere = Surface::Sphere {
