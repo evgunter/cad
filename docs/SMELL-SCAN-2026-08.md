@@ -8317,7 +8317,9 @@ samples: 1.82%; 200: 0.096%; 1,000: 0.0034%). The `ceil` quantisation
 sits on top and is not these constants' to control. A guard on the
 continuous quantity is possible and is not written, because it measures
 something the columns do not report; a guard on the cell count is not
-possible at all. **Nobody should re-attempt the third box**, and the
+possible at all — the guard that IS possible, with the measurements
+behind it, is **S160 / D105**. **Nobody should re-attempt the third box
+on the cell count**, and the
 claim site now says why.
 
 **Verdict:**
@@ -9882,9 +9884,13 @@ is why they are scheduled (**D64**) rather than left in a PR body.
   **What a register could measure is not the cell count**: the same
   excess without the two `ceil`s is continuous, falls smoothly with
   resolution, and depends only on the sampling step and the range —
-  i.e. on exactly what these constants set. Whoever takes this owns
-  `ci.yml` and should decide between a scheduled re-measure of that
-  continuous quantity and an explicit "unwatched, and here is why".
+  i.e. on exactly what these constants set. That quantity, and the
+  guard on it, are **S160 / D105**, placed with their evidence; this
+  bullet is the register half only. Whoever takes it owns `ci.yml` and
+  should decide between a scheduled re-measure of S160's quantity and
+  an explicit "unwatched, and here is why" — **and should take D105
+  first or together**, since a register over a quantity nothing
+  computes yet is not a register.
 - **(d) `k-lint`'s other three constants are unpinned, and one sweep
   shape is unswept.** `PROXIMITY_FACTOR`, `EPS_COUPLED_FLOOR_RATIO` and
   `AMBIENT_BAND_MIN` were disclosed by #783 as outside its sweep, and
@@ -11964,6 +11970,62 @@ diagnostic path runs a pipeline or a command substitution under `errexit`.
 D101.** F-f owns only the two instances in its own new code and fixes those; the
 harness and the sweep are F-g's, and the sweep is the deliverable — *fifteen
 self-tests passing is not evidence here, because the harness is what hides it.*
+
+## S160. The split scan's constants can be guarded — on the continuous objective, which the cell count is not
+
+**Placed by the orchestrator out of #783's F-R14 ruling, with lane F-b's
+evidence, so the taker inherits the argument rather than re-deriving it.**
+
+`tools/tess-meter`'s `SPLIT_SCAN_DECADES` / `SPLIT_SCAN_SAMPLES` ship with
+**no mechanical guard and a written reason why** (S73's record, and the
+constants' own docstring): the cell-count excess they produce is
+**discontinuous in them**, moving ~4 percentage points between adjacent
+sample counts — 321: 5.88%, 322: 3.64%, **323: 5.24%**, 324: 1.79%, 325:
+3.94% — with no convergence (2,000 samples is still 0.79%). Two
+instruments were built against that quantity and both failed; `323` is
+the witness that killed the second, two samples above shipped and a
+strict refinement.
+
+**The guard that is possible is on a different quantity, and the
+discontinuity is the reason it works.** The jumps are *entirely* the two
+`ceil`s in `divisions`. Compute the same worst relative excess over the
+same family **without** them — the cost as a continuous function of the
+aspect ratio `t` — and it moves by **hundredths** of a point across the
+same neighbours (321: 0.017%, 322: 0.083%, 323: 0.011%, 324: 0.030%)
+and falls smoothly with resolution:
+
+| samples (8 decades) | 65 | 161 | 200 | 321 | 400 | 1,000 | 2,000 |
+|---|---|---|---|---|---|---|---|
+| continuous excess | 1.82% | 0.449% | 0.096% | 0.017% | 0.0069% | 0.0034% | 0.0022% |
+
+It is continuous because it is a sampled minimum of a smooth function of
+`log t` with no rounding in it, so it depends on the sampling step
+`2·DECADES/(SAMPLES−1)` and the range — **and on nothing else these
+constants do not set**. It reds on both failure modes with one number:
+too narrow (`DECADES = 2` → 10.44%, the optimum outside the scanned
+range) and too coarse (`DECADES = 40` → 1.82% at the shipped sample
+count).
+
+**The validation, and it is the part that should convince a taker rather
+than the argument above it:** `DECADES = 40` at 321 samples scores
+**1.82%**, *identical* to 8 decades at 65 samples — the two configurations
+that share a sampling step. A quantity that is equal wherever the step is
+equal is measuring resolution, not which lattice the count happened to
+land on, which is exactly what the cell-count excess could not do.
+
+**Why it is not in #783.** F-R14 forbade a third instrument in a row that
+had already shipped two; it needs `best_split_steps` parameterized by
+`(decades, samples)`, which is code #783's brief marked read-only; and it
+measures a quantity the budget CSV does not report, so it deserves its
+own review rather than riding another unit's clearance.
+
+**Scope:** `tools/tess-meter/src/lib.rs` (a parameterization, and the
+constants' docstring, which currently says a guard on this quantity is
+possible and unwritten) and `tools/tess-meter/tests/derivations.rs`.
+**Sequencing:** the register half of **S120(c)** asks whether CI should
+re-measure this and belongs with it — that gate structurally cannot see a
+degraded scan, so if the answer is a scheduled re-measure, this is the
+quantity it would measure. **Row: D105.**
 
 ---
 

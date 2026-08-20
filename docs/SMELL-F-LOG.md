@@ -706,7 +706,13 @@ in *aspect ratio* and no bound on the answer at all, because the
 discontinuity is the two `ceil`s and not the scan. The divisions pin on
 the ruled wall survives; the verification judged it a real property.
 
-**Two new findings: S119 / D63** (`k-lint` scores a `NaN` margin CLEAN
+**The proposal that came out of the failure is placed, not shipped:
+S160 / D105** — pin the *continuous* objective, which is smooth where the
+cell count is discontinuous, with the lane's evidence written into the
+finding so the taker inherits the argument. It is not in #783: F-R14
+forbade a third instrument in a row that had already shipped two.
+
+**Two new findings from the unit itself: S119 / D63** (`k-lint` scores a `NaN` margin CLEAN
 — S73's part one in the sibling instrument) and **S120 / D64** (four
 things the instruments still cannot see after F6, including the
 baseline-side direction argument F6's own sweep got half right). Both
