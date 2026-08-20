@@ -301,7 +301,6 @@ Track C's open lanes, or with Track E's.
 | lane | row | branch | scope | review | state |
 |---|---|---|---|---|---|
 | **F-a** | **F5** (S92) | `smellf/f5-door-registries` | `topo/src/review_m1_pr5_internal.rs`, `topo/src/pcurves.rs` | style | **dispatched** 2026-08-20 |
-| **F-b** | **F6** (S73 parts 1 and 3) | `smellf/f6-tess-lint` | `tools/tess-lint/` | style | **dispatched** 2026-08-20 |
 | **F-c** | **F7** (S110, sort first) | `smellf/f7-cannot-go-red` | six crates' `tests/`, `memories/test-suite-cost.md` | style | **dispatched** 2026-08-20 |
 
 Lane clones are `~/.local/share/cad-work/smellf-{a,b,c}/cad`. They are
@@ -355,7 +354,26 @@ constraint is, and it is stated here so a Track G taker can read it.
 
 ## Landings
 
-*(none yet)*
+**F-b — F6 (S73 parts 1 and 3), PR #NNN.** `ratio` is gone: the sizing
+columns are admitted or refused **per column** where they are parsed, so
+a broken measurement leaves in the harness voice instead of becoming the
+gate's pass value, while the one legitimately-absent column (`worst_dev`,
+`NaN` on every `--sizing-only` sweep — the CI gate's own) parses to
+`None` rather than to a float. `GROWTH_TOLERANCE` was boxed from
+`[1.0384615, 1.9615385]` (re-derived by bisection on `4f959cb4`, not
+transcribed) into `[1.04, 1.06)`, on both rules it governs. **Class check
+taken, not deferred:** `tess-meter`'s `SPLIT_SCAN_DECADES` /
+`SPLIT_SCAN_STEPS` turned out to be pinned *non-monotonically* — green at
+5 steps, red at 9/17/33/65, green at 161 — i.e. by an accident of sample
+placement, which is not a box; they are now boxed by the ruled wall's
+interior optimum, which reds on narrowing and on coarsening and stays
+green under refinement. **One new finding: S119 / D63** — `k-lint` scores
+a `NaN` margin CLEAN, S73's part one in the sibling instrument, left for
+its own lane. **The C15/#746 boundary is stated at the site**, in
+`compare`'s face loop, so it can be read out of the tree.
+
+**Numbers**: D63 and S119 used; **D64 and S120 unused** and returned to
+the block.
 
 ## Incidents
 
