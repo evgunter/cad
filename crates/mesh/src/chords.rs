@@ -59,7 +59,7 @@ use crate::types::TessellateError;
 /// thing either pass does, but BOTH passes need it: the chord pass for
 /// the adjacent-face tightening (it bounds however many edges the face
 /// has) and the trimmed lane for its band schedule. One memo, threaded
-/// from [`crate::tessellate`] through both, is what makes it one
+/// from [`crate::tessellate()`] through both, is what makes it one
 /// assembly per face per tessellation instead of one per pass.
 pub(crate) type FaceBounds = HashMap<topo::FaceKey, NurbsFaceBound>;
 
