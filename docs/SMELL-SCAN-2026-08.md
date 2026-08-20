@@ -5544,23 +5544,40 @@ Unclassified siblings went to **H15**, **FIXED by #775**; the `enters.rs`
 question was **D5**, answered by #665 (the newtype).
 
 **What H15 found, because it corrects this entry's own arithmetic.** H15 named
-three sites; the population was twenty, and two of them falsify records written
-here. (i) *"Unclassified siblings"* omitted the **"Still not swept, and why"**
-list above — four more residues, of which two were still live. (ii) The sibling
-table's `topo/src/entity.rs` row is marked **Swept**, and the identical sentence
-(*"multi-shell solids arrive at M3"*, false since M3) was live in two other
-files of the same crate. (iii) `splitting/mod.rs`'s *"unimplemented until SSI"*
-was not one site: the literal phrase stood at **eight** places in `src/` across
-`topo` and `geom-brep`, plus two test pins, while the corrected form was already
-in the same file it most often appeared in. (iv) The not-yet-checked list's
-*"M6 interval clearance"* contradicted `DESIGN.md`, which schedules it at
-**M10** in two places. None of the three sites was a lost invariant:
-`planar.rs`'s outward-normal claim is TRUE and survives S10 because it reads the
-walk and never a chart; the other two were benign rot whose substance is now
-stated against a name (`ContactMark::Unmarked`) or against the per-arm
-retirement rule, rather than against a date.
+three sites. #775's disposition table has **twenty-three rows**, four of which
+cover more than one site each — a row count, not a site count, and the
+distinction is stated because the first version of this sentence lost it. Two
+of the rows falsify records written here. (i) *"Unclassified siblings"* omitted the
+**"Still not swept, and why"** list above — three further residues once its
+overlap with H15's own third site is removed, two of them still live. (ii) The
+sibling table's `topo/src/entity.rs` row is marked **Swept**, and the identical
+sentence (*"multi-shell solids arrive at M3"*, false since M3) was live in two
+other files of the same crate. (iii) `splitting/mod.rs`'s *"unimplemented until
+SSI"* was not one site: the literal phrase stood at **eight** places in `src/`
+across `topo` and `geom-brep`, plus two test pins, and **three further members
+of the class used none of those words** — `edge_geometry.rs`'s public variant
+doc, a test header's future tense about a shipped variant, and `bvh`'s
+seam — while the corrected form was already in the file the phrase most often
+appeared in. (iv) The not-yet-checked list's *"M6 interval clearance"*
+contradicted `DESIGN.md`, which schedules it at **M10** in two places. None of
+the three named sites was a lost invariant: `planar.rs`'s outward-normal claim
+is TRUE and survives S10 because it reads the walk and never a chart; the other
+two were benign rot whose substance is now stated against a name
+(`ContactMark::Unmarked`) or against the per-arm retirement rule, rather than
+against a date.
 
-**Two rows were added after that fix**, both from #647's style review. The first
+**And the method fact this leaves for the next sweep, which is the entry's own
+subject.** #775 ran four instruments and the class still had three survivors,
+because each instrument's **selection rule** — not its regex — excluded them:
+one required the live-scope marker *before* the milestone token (*"SSI arrives
+(M3+)"* puts it after), and one *discarded* every clause carrying a milestone
+token. A fixed-string re-grep for the retired wording then returned zero and was
+read as the class being closed. **A fixed-string grep cannot close a class; it
+can only prove one phrasing is gone.** The mechanical guard that can is now in
+`geom-brep/tests/intersect_table.rs`: every route-table note is asserted not to
+carry the retired vocabulary, on every row rather than only the rung-3 ones.
+
+**Two rows were added after #635's fix**, both from #647's style review. The first
 needed Evan, because `DESIGN.md` is the ratified contract — he authorised the edit
 and it is closed. **The second is still open**: it needs a per-row read rather than
 a script, for the reason its own entry gives.
@@ -9610,7 +9627,8 @@ to make and record.
 The 2026-08-19 statement of this paragraph is superseded: every gate it
 named has since fallen. **A1 (#682), A3 (issue #678, landed as #684), #690
 and #692 are all merged**, and **#705** merged the two geometry crates into
-one `geom`. So C1's remaining members, C3's S29, C4 in full, C5's S28 half,
+one `geom`. So C1's one remaining member (H13), C3's S29, C4 in full,
+C5's S28 half,
 C7 and C10 are edge-free and takeable today. (**C9 — the `agreement`
 column — is FIXED by #738**, which deleted it rather than re-deriving
 it; the similarly-numbered **§C9** is an unrelated process
