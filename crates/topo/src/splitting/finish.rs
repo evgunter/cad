@@ -46,9 +46,9 @@ use geom_core::{Decide, Real, Vec3};
 use slotmap::SecondaryMap;
 
 use super::join::{CompletedSection, loop_points_of};
-use crate::chord_join::SplitJoinError;
 use super::{PlaneSide, SplitReduction};
 use crate::body::Body;
+use crate::chord_join::SplitJoinError;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
 use crate::euler::{EulerOpError, FaceSurface};
 use geom_surfaces::Surface;

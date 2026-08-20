@@ -147,7 +147,10 @@ pub(crate) fn sector_face<T: Decide>(
         geom_surfaces::Surface::Plane { normal, .. } => charted(*normal, SectorCarrier::Plane),
         geom_surfaces::Surface::Cylinder { origin, axis, .. } => {
             let w = point()? - *origin;
-            charted((w - *axis * w.dot(*axis)).normalize(), SectorCarrier::Cylinder)
+            charted(
+                (w - *axis * w.dot(*axis)).normalize(),
+                SectorCarrier::Cylinder,
+            )
         }
         geom_surfaces::Surface::Sphere { center, .. } => {
             charted((point()? - *center).normalize(), SectorCarrier::Sphere)

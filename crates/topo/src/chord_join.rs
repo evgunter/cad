@@ -354,7 +354,10 @@ impl std::error::Error for SplitJoinError {}
 pub(crate) type FragmentRows = Vec<(FaceKey, FaceKey)>;
 
 /// The point of a vertex.
-pub(crate) fn vertex_point<T: Decide>(body: &Body<T>, v: VertexKey) -> Result<Point3<T>, SplitJoinError> {
+pub(crate) fn vertex_point<T: Decide>(
+    body: &Body<T>,
+    v: VertexKey,
+) -> Result<Point3<T>, SplitJoinError> {
     let vertex = body.get_vertex(v).ok_or(SplitJoinError::Corrupt)?;
     body.get_point(vertex.point)
         .copied()
@@ -2016,7 +2019,8 @@ fn ring_representative<T: Decide>(
         LoopBoundary::Empty { vertex } => vertex,
     };
     vertex_point(body, v)
-}#[cfg(test)]
+}
+#[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
