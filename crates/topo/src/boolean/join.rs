@@ -508,7 +508,11 @@ pub(super) fn bool_connect<T: Decide>(
 /// a B-side face-pair or sense disagreement at matched slots is a
 /// loud desync, never an alternative pairing. Zero-distance
 /// combinations (distinct pair records at one coincident site) are
-/// skipped. Deterministic scan order breaks exact ties (D9).
+/// skipped — that degeneracy gate is `bool_join_chord` (margin = the
+/// chord LENGTH), a separate question from `bool_join_nearest`'s
+/// selection (margin = a DIFFERENCE of chord lengths), so the two
+/// populations meter separately. Deterministic scan order breaks
+/// exact ties (D9).
 fn find_match<T: Decide>(
     open: &[OpenRecord<T>],
     red: &BooleanReduction<T>,
@@ -560,7 +564,7 @@ fn find_match<T: Decide>(
                     let chord = p_e - p_c;
                     let dist = chord.norm();
                     let escalate = |diag| BooleanError::Escalated { diag };
-                    match decide("bool_join_nearest", Margin::of(dist), band).map_err(escalate)? {
+                    match decide("bool_join_chord", Margin::of(dist), band).map_err(escalate)? {
                         Sign::Positive => {}
                         _ => continue, // coincident sites: no polygon edge
                     }
@@ -796,7 +800,7 @@ fn loose_partners<T: Decide>(
             let p2 = point_of(g2.he)?;
             let chord = p2 - p;
             let dist = chord.norm();
-            match decide("bool_join_nearest", Margin::of(dist), band).map_err(escalate)? {
+            match decide("bool_join_chord", Margin::of(dist), band).map_err(escalate)? {
                 Sign::Positive => {}
                 _ => continue,
             }
