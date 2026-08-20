@@ -52,3 +52,7 @@ Details: `memories/cad-working-style.md`, `memories/evan-profile.md`.
   is installed).
 - License: dual MIT OR Apache-2.0. Project name: pending (Q9), placeholder
   acceptable.
+- `docs/DOC-LEDGER.md` records every document deleted from `docs/` —
+  filenames, why each went, and the SHA to recover it from. If a
+  pointer names a `docs/` file that isn't there, look it up in the
+  ledger; don't assume the pointer is wrong.
