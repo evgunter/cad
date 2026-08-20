@@ -77,19 +77,6 @@ struct SceneBody {
     /// shape whose point is what happens INSIDE it (a neck entering a
     /// body wall) cannot be read from an opaque render at any camera.
     transparency: u8,
-    /// Whether STEP export MUST succeed for this body (#91 review M2:
-    /// a refusal on a body inside the writer's subset is a regression
-    /// that fails the tour, never a silently hollowed F6 dogfood).
-    ///
-    /// **Since M5 PR 13 this is true for every tour body.** The
-    /// writer's subset grew to the whole elementary-surface vocabulary
-    /// plus conic and NURBS carriers, and since M6-3 to described
-    /// NURBS faces (the loft walls) — every shape the tour builds is
-    /// inside it. The field stays because the one live refusal (a
-    /// multi-shell CURVED solid, which the outward/void classifier
-    /// cannot sign) would produce a body the tour must not silently
-    /// drop.
-    step_expected: bool,
 }
 
 impl SceneBody {
@@ -103,7 +90,6 @@ impl SceneBody {
             contacts: None,
             color,
             transparency: 0,
-            step_expected: true,
         }
     }
 
@@ -115,14 +101,12 @@ impl SceneBody {
         self
     }
 
-    /// An all-planar non-boolean body (split halves, transformed
-    /// planar bodies). Kept as a distinct spelling because the CALLER
-    /// is asserting planarity, which is information about the body;
-    /// the STEP posture is now the same as [`Self::plain`]'s.
-    fn plain_planar(name: impl Into<String>, color: [f64; 3], body: Body<f64>) -> Self {
-        Self::plain(name, color, body)
-    }
-
+    /// A boolean RESULT: validated at tier 3′ against the op's own
+    /// declared contacts rather than through the plain geometric gate.
+    /// Curved results (M5 PR 11's boss ∪ plate, whose cylinder walls
+    /// and circle seam arcs are what the curved arms were written for)
+    /// take this door too — the contacts, not the surface kind, are
+    /// what it is about.
     fn seamed(
         name: impl Into<String>,
         color: [f64; 3],
@@ -135,23 +119,7 @@ impl SceneBody {
             contacts: Some(contacts),
             color,
             transparency: 0,
-            step_expected: true,
         }
-    }
-
-    /// A CURVED boolean result (M5 PR 11's boss∪plate): 3′ validation
-    /// with the op's declared contacts. Its STEP export is REQUIRED
-    /// since M5 PR 13 — this body's cylinder walls and circle seam
-    /// arcs are exactly what the curved arms were written for, and it
-    /// is the tour's end-to-end proof that they work on a boolean
-    /// result and not only on a swept primitive.
-    fn seamed_curved(
-        name: impl Into<String>,
-        color: [f64; 3],
-        body: Body<f64>,
-        contacts: ContactRecords,
-    ) -> Self {
-        Self::seamed(name, color, body, contacts)
     }
 }
 
@@ -194,11 +162,17 @@ fn census(body: &Body<f64>) -> (usize, usize, usize, usize, usize, i64) {
 }
 
 /// A body entry for the scene manifest: file stems + render color.
-/// Every body exports STL; `step` is `None` where the writer's
-/// analytic subset legitimately refuses (curved surfaces until M5).
+///
+/// Both stems are unconditional here. Every tour body exports STL and
+/// STEP — [`run_body`] fails the tour on any refusal rather than
+/// emitting a body without one — so neither is optional on this side.
+/// The manifest FORMAT still admits a null `step` (the wild-corpus
+/// generator writes one for every cell), which is why the renderers
+/// keep reading it defensively; what the format actually promises is
+/// undefined and is smell-scan S114(c).
 struct ManifestBody {
     stl: String,
-    step: Option<String>,
+    step: String,
     color: [f64; 3],
     transparency: u8,
 }
@@ -300,40 +274,31 @@ fn run_body(
         Ok(doc) => {
             std::fs::write(format!("{outdir}/{step_name}"), doc).expect("write step");
             println!("   [{label}] exported {stl} + {step_name}");
-            Some(step_name)
+            step_name
         }
-        // The subset-frontier refusal stays an acceptable CLASS (a
-        // multi-shell curved solid awaits a curved outward/void
-        // classifier; NURBS faces export natively since M6-3), but no
-        // tour body is in it today — `step_expected` is true
-        // everywhere, so reaching this arm fails the tour loud. The
-        // arm is kept, not deleted: it is what keeps a future curved
-        // frontier from being silently dropped from the manifest.
+        // Every tour body is inside the writer's analytic subset, so
+        // any refusal here fails the tour. The named subset frontier
+        // (a multi-shell curved solid, which the outward/void
+        // classifier cannot sign) is still spelled out as its own arm
+        // because it says something different: reaching it means a
+        // tour SCENE grew past the writer, not that the writer broke.
+        // Either way the body does not go silently into the manifest
+        // without its STEP — which is what #91 review M2 asked for.
         Err(
             e @ (pncad::step_export::StepExportError::UnsupportedSurface { .. }
             | pncad::step_export::StepExportError::UnsupportedCurve { .. }
             | pncad::step_export::StepExportError::CurvedShellClassification { .. }),
-        ) => {
-            assert!(
-                !sb.step_expected,
-                "{label}: this body is inside the writer's analytic \
-                 subset and MUST export STEP, but the writer refused: {e:?}"
-            );
-            println!(
-                "   [{label}] exported {stl}; STEP refused typed ({e:?}) — \
-                 a named subset frontier, not a silent drop"
-            );
-            None
-        }
+        ) => panic!(
+            "{label}: STEP refused typed at the writer's named subset \
+             frontier ({e:?}). No tour body is in that class; a scene that \
+             legitimately enters it needs the tour to say so at the scene, \
+             not a body dropped from the manifest here"
+        ),
         Err(other) => panic!(
             "{label}: STEP export failed OUTSIDE the analytic-subset \
              refusal class: {other:?}"
         ),
     };
-    assert!(
-        !(sb.step_expected && step.is_none()),
-        "{label}: STEP expected but not produced"
-    );
 
     // The UV lane (`demos/render-uv.sh`): every face's chart domain as
     // its own SVG. Runs beside the exports rather than in a separate
@@ -400,19 +365,10 @@ fn scene_json(stop: &Stop, bodies: &[ManifestBody]) -> String {
     let body_entries: Vec<String> = bodies
         .iter()
         .map(|b| {
-            let opt = |o: &Option<String>| match o {
-                Some(s) => format!("\"{s}\""),
-                None => "null".to_string(),
-            };
             format!(
-                "{{\"stl\": \"{}\", \"step\": {}, \"color\": [{}, {}, {}], \
+                "{{\"stl\": \"{}\", \"step\": \"{}\", \"color\": [{}, {}, {}], \
                  \"transparency\": {}}}",
-                b.stl,
-                opt(&b.step),
-                b.color[0],
-                b.color[1],
-                b.color[2],
-                b.transparency
+                b.stl, b.step, b.color[0], b.color[1], b.color[2], b.transparency
             )
         })
         .collect();
@@ -605,6 +561,38 @@ fn main() {
         "uv lane: {} face charts ({curved} curved, {refused} unwalkable) in {outdir}/uv/ \
          + uv.json — sheet with demos/render-uv.sh",
         dumps.len()
+    );
+    // The uv lane's own claims, MEASURED on this run rather than
+    // pinned in prose beside the code that computes them. Every number
+    // the module documents about the corpus is here: how many charts
+    // the winding check can speak about (a branch jump makes the
+    // shoelace meaningless), how many agree with `Face::sense`, and
+    // the two worst junction gaps. A count written down beside its own
+    // computation is the one that drifts; this line is the record.
+    let jumped = dumps.iter().filter(|d| d.stats.chart_jump > 1e-9).count();
+    let disagree: Vec<&uvdump::FaceDump> = dumps.iter().filter(|d| !d.stats.winding_ok).collect();
+    let worst_gap = dumps.iter().map(|d| d.stats.gap).fold(0.0f64, f64::max);
+    let worst_jump = dumps
+        .iter()
+        .map(|d| d.stats.chart_jump)
+        .fold(0.0f64, f64::max);
+    println!(
+        "   winding vs Face::sense: {} chart(s) checkable, {} carry a branch jump \
+         (shoelace meaningless there); {} disagree",
+        dumps.len() - jumped,
+        jumped,
+        disagree.len()
+    );
+    for d in &disagree {
+        println!(
+            "   WINDING CONTRADICTION: {} face {} ({}) — chart area and sense disagree; \
+             the even-odd interior would be the complement of the intended one",
+            d.body, d.face, d.chart
+        );
+    }
+    println!(
+        "   closure: worst 3-D loop gap {worst_gap:.2e} m; worst chart jump \
+         {worst_jump:.6} (seam/pole structure, not a defect)"
     );
     // The ε this whole tour was decided at, and WHERE IT CAME FROM
     // (S22, 2026-08-19). ε is a declared run parameter, so a run says

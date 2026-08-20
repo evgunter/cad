@@ -14,7 +14,8 @@ clean without the wall-clock-stamp surgery the PNG lanes need
 (`strip_png_stamps.py`).
 
 SELECTION, STATED. `out/uv.json` carries EVERY face of every tour body
-(982 of them at M7). A sheet of 982 cells is not a sheet, so this
+— four figures, and growing with the corpus. A sheet with one cell per
+face is not a sheet, so this
 composer takes one representative per (body, chart kind) among the
 CURVED charts — the richest one, by distinct pcurve forms then loop
 count then face ordinal — and every face whose trim walk FAILED,

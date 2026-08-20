@@ -108,8 +108,9 @@ SHEETS = {"montage.png", "montage-freecad.png", "montage-wild.png"}
 FREECAD_AUTHOR = "FreeCAD (https://www.freecad.org)"
 FREECAD_SOFTWARE = "FreeCAD"
 MATPLOTLIB_SOFTWARE_PREFIX = "Matplotlib"
-# The wild lane's own signature (render-wild.sh passes it to
-# render.py --author; keep the three spellings in sync).
+# The wild lane's own signature. Two spellings, and they must agree:
+# this constant and `render-wild.sh`'s AUTHOR, which it passes to
+# `render.py --author`.
 WILD_AUTHOR = "pncad wild-corpus lane (kernel tessellation of licensed third-party STEP)"
 
 
