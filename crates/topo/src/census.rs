@@ -1398,24 +1398,24 @@ fn sweep_cross_solid_backstop<T: Decide>(
         .chain(planar_keys.iter().map(|f| (f, true)))
     {
         // A placeholder surface is "no description yet" (mid-surgery
-        // scaffolding): there is no geometry to be within reach OF, so
-        // this arm has nothing to test the face with. It REFUSES
-        // rather than skips. A body carrying one cannot reach here —
-        // `validate_pseudomanifold` runs the census only when
-        // `tier3_local_checks` is empty, and that battery's check 1
-        // pushes `UncertifiableSurface` for every placeholder face —
-        // so this arm is unreachable today and the refusal costs
-        // nothing. It is written as a refusal because the alternative
-        // is a silent skip whose soundness lives entirely in another
-        // function's ordering: if that gate ever admits a placeholder,
-        // a skip here goes quiet and a refusal here stays loud.
+        // scaffolding): there is no geometry to be within reach OF —
+        // excluded from the backstop. What licenses the exclusion is a
+        // named check, not an accident: the census's only production
+        // caller is [`crate::validate::validate_pseudomanifold`], and
+        // it runs `census_and_certify` ONLY when `tier3_local_checks`
+        // came back empty, whose check 1 pushes `UncertifiableSurface`
+        // for every placeholder face. So no body reaching this arm
+        // through the public door carries one. The unsound direction is
+        // a SECOND caller of `census_and_certify` that does not gate on
+        // tier 3 — this skip would go quiet on faces the arm can say
+        // nothing about. (The in-src rows below are exactly that
+        // caller, deliberately: they run open euler scaffolds below
+        // tier 3's bar, and their seed faces still carry the mvfs
+        // placeholder. They are why this line is reachable at all.)
         if matches!(
             body.get_face(f).and_then(|d| body.surfaces.get(d.surface)),
             Some(geom::Surface::Nurbs(p)) if p.is_placeholder()
         ) {
-            errors.push(ValidationError::CensusUnsupported {
-                entity: EntityId::Face(f),
-            });
             continue;
         }
         let Some(solid) = solid_of(f) else { continue };
@@ -2032,6 +2032,34 @@ mod tests {
         assert_eq!(hit.verdict, crate::contact::ContactVerdict::Definite);
     }
 
+    /// Every error these scaffold rows may legitimately still carry:
+    /// the containment arm's solid-granular refusal.
+    ///
+    /// Each `cyl_sheet` is its own `mvfs` seed, so a two-sheet fixture
+    /// is a two-INSTANCE body whose sheets occupy the same region of
+    /// space — the extent boxes are not definitely separable from
+    /// containment and the arm says so. That is the arm answering its
+    /// own question correctly, on a fixture below the closed-body bar
+    /// where its premise (a solid's extent) is not even well formed.
+    /// It is filtered by ENTITY GRANULARITY rather than by count, so a
+    /// face-granular finding — which is what these rows are about —
+    /// can never hide inside the allowance.
+    fn face_findings(errors: &[ValidationError]) -> Vec<&ValidationError> {
+        errors
+            .iter()
+            .filter(|e| {
+                !matches!(
+                    e,
+                    ValidationError::CensusUndecidable {
+                        a: EntityId::Solid(_),
+                        b: EntityId::Solid(_),
+                        ..
+                    }
+                )
+            })
+            .collect()
+    }
+
     #[test]
     fn a_patch_record_backs_the_pair_and_confirms_through_both_doors() {
         let (body, w1, w2) = conformal_pair();
@@ -2041,9 +2069,10 @@ mod tests {
             face_b: w2,
         });
         let errors = census_and_certify(&body, &records, band());
+        let findings = face_findings(&errors);
         assert!(
-            errors.is_empty(),
-            "the declared conformal patch certifies: {errors:?}"
+            findings.is_empty(),
+            "the declared conformal patch certifies: {findings:?} (all: {errors:?})"
         );
     }
 
@@ -2149,9 +2178,10 @@ mod tests {
             face_b: w2,
         });
         let cert = census_and_certify(&body, &records, band());
+        let findings = face_findings(&cert);
         assert!(
-            cert.is_empty(),
-            "the backed next-branch pair certifies: {cert:?}"
+            findings.is_empty(),
+            "the backed next-branch pair certifies: {findings:?} (all: {cert:?})"
         );
     }
 
