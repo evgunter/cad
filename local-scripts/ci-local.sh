@@ -180,13 +180,23 @@ run_row_if() {
 # checks it against this directory. The ratified allowlist prose lives
 # WITH each gate — read the script before touching a membership.
 #
-# `lib.sh` is sourced, not run, and is mode 0644: the -x test skips it.
+# `lib.sh` is sourced, not run, and is skipped BY NAME. It used to be
+# skipped by `[ -x "$g" ] || continue`, which made the executable bit
+# the registration mechanism: a gate landing mode 0644 was silently
+# skipped here and equally silently skipped by `gate-roster.sh`, so it
+# ran nowhere while being counted among "all N gates". A member of that
+# directory that cannot be executed is a failure now, not a skip.
 # Each gate runs its `--selftest` first, as the sibling python gate
 # does — a guard that has never been shown to fire is not a guard.
 discipline() {
   local rc=0 g
   for g in scripts/gates/*.sh; do
-    [ -x "$g" ] || continue
+    [ "$(basename "$g")" = lib.sh ] && continue
+    if [ ! -x "$g" ]; then
+      echo "ERROR: $g is not executable — a gate in scripts/gates/ that no half can run is registered nowhere" >&2
+      rc=1
+      continue
+    fi
     "$g" --selftest || rc=1
     "$g" || rc=1
   done
