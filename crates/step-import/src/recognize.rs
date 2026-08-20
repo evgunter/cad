@@ -127,7 +127,8 @@ pub(crate) enum Recognition {
 /// NOTE-2), the preference order is unfalsifiable by execution — no
 /// authorable patch double-certifies — so only the plane-first arm is
 /// pinned (P6); the order stays stated for the day a tighter cylinder
-/// certificate lands.
+/// certificate lands. **That the promoting arm is unreachable is
+/// stated here and nowhere the compiler can see it — issue #711.**
 pub(crate) fn recognize(patch: &NurbsSurface<f64>, eps_in: f64) -> Recognition {
     if let Some((surface, residual)) = try_plane(patch, eps_in) {
         return Recognition::Promoted {

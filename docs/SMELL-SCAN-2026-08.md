@@ -2864,8 +2864,8 @@ acceptance row gets written on a fixture that guarantees duty B.
 ## S24. FIXED by #702 — the intended frontier, but stated only in prose, in a door that reported it as a raw kernel enum
 
 - **Where**: `crates/editor-core/src/assembly.rs`,
-  `crates/editor-core/src/mate.rs` (+ three lines of
-  `crates/editor-core/src/mate/solve.rs`), and the ASM-R2b acceptance suite
+  `crates/editor-core/src/mate.rs` (+ `mate/solve.rs`, `node.rs`,
+  `persist/mod.rs`), and the ASM-R2b acceptance suite
 - **Confidence**: sure
 - **Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
   baffle me with how they ever happened." Postmortem pass commissioned.
@@ -2884,49 +2884,71 @@ explicitly NOT this lane's patch.
 
 **What was actually wrong was the encoding, and it was two defects.** First, the
 class policy was stated three times — the solve door's match (`Rest | Tangent`),
-the mint door's match (`Rest`), and prose in `mate.rs` claiming v1 "admits" both
-— so a capability the library advertised could not execute. Second, a caller who
+the mint door's match (`Rest`), and prose claiming v1 "admits" both — so a
+capability the library advertised could not execute. Second, a caller who
 declared a `Rest` mate received `AtRest { findings: [CensusUnsupported {
 entity: Face(..) }] }`: a raw kernel enum, indistinguishable from a verdict
-against their own geometry, with the explanation of the difference living in a
-module doc they were not reading.
+against their own geometry, with the difference living in a module doc.
 
 **Executed by #702.** The class policy is now one value, `mate::class_admission`
-→ `ClassAdmission::{Mints, NoAtRestRecord, NotAdmitted}`, that both enforcing
-doors read; `ContactClass` being `#[non_exhaustive]`, a class the kernel grows
-is deferred by default and admitted only by an edit there. `Tangent` stays
-admitted at the solve door — that is ratified, and the defect was the word
-"assembles", not the solve — and the prose a user sees (`CLASS_DEFERRAL`, which
-renders inside `MateFault::ClassNotAdmitted`) now says v1 SOLVES Rest and
-Tangent and ASSEMBLES Rest alone. The frontier itself became
-`AssemblyError::is_declared_frontier` (built on
-`AtRestFinding::declaration_declined`): true when the gate refused and every
-finding is the census DECLINING a declared pair — no certifier lane, nothing
-decided either way — as against contradicting one. The kernel's finding still
-travels verbatim and nothing is re-labelled; the predicate classifies the
-kernel's own answer, which is what `attribute()` already did. `Display` names
-the frontier when it holds.
+→ `ClassAdmission::{Mints, NoAtRestRecord { why }, NotAdmitted}`, read by both
+enforcing doors, carrying the per-class REASON so the mint door's message can
+never be another class's; `ContactClass` being `#[non_exhaustive]`, a class the
+kernel grows is deferred by default. `Tangent` stays admitted at the solve door
+— ratified, and the defect was the word "assembles" — and the user-visible
+`CLASS_DEFERRAL` now says v1 SOLVES Rest and Tangent and ASSEMBLES Rest alone.
 
-**The acceptance rows could not see the transition, which is the part worth
-keeping.** `row2_a` and `row2_b` matched `Ok(..) | Err(AtRest { .. })` and
-asserted through either arm — `row2_a`'s `Ok` arm had never executed once — so
-the census growing its rung would have reddened nothing. One helper now pins the
-boundary through the door's own predicate and every declaring row reads its
-minting through it; `row4_a` pins the other side, that a REFUTED declaration is
-never dressed as the frontier. Three mutations verified red:
-`is_declared_frontier` widened (`row4_a`), stubbed false (`row2_a`, `row3_b`),
-and `class_admission(Tangent) → Mints` (the tangent row).
+**The frontier became a variant, not a predicate** (style review, ruled). The
+first pass answered it with two `bool` methods a caller could forget to call,
+which leaves them exactly where S24 found them. `assemble` now refuses
+`AssemblyError::Uncertified { contacts, findings }` — distinct from `AtRest`,
+which a caller must match separately — when every finding is the census
+DECLINING a declared pair and nothing was refuted or left undeclared. One
+dispatch decides both halves: `attribute` returns an `Attribution` of
+`Refuted(decl) | Declined(decl) | Unattributed`, so the relation is a property
+of the kernel's own arm rather than a second reading of it, and "declined but
+attributed to nothing" is not representable. The kernel's finding still travels
+verbatim.
 
-**Residue, stated rather than left to be found:**
-`crates/editor-core/src/node.rs:700` repeats the false advertisement verbatim in
-the `Node::Mate { class }` field doc, and conflates two refusals (the wire door
-refuses an unknown *spelling*, not a class outside v1). Outside the lane's scope
-column, so reported not taken; the one-line remedy is a pointer to
-`class_admission`. A sibling instance of the same class also sits at
-`crates/step-import/src/recognize.rs:126`, where `try_cylinder`'s success arm is
-prose-declared unreachable ("the first-order envelope refuses every cylinder
-certificate"); better pinned than S24 was, but still stated in a comment rather
-than in a type.
+**The acceptance rows could not see the transition, and the first pass's
+mutation table overstated how much of that it had fixed** — the style reviewer
+falsified it by running it. Three genuine widenings left the whole suite green,
+because nothing in the suite mixed a declined finding with a refuted one, which
+is the exact case the `all` exists to exclude. The fix pass added that fixture
+(one touching pair and one gapped pair in a single gate run) and re-ran the
+battery honestly:
+
+| mutation | rows red |
+| --- | --- |
+| the split's `all` → `any` | 3 |
+| the split never fires | 2 |
+| the census arm relabelled `Refuted` | 3 |
+| `class_admission(Tangent)` → `Mints` | 1 |
+| the mint door's reason hard-coded instead of table-sourced | 1 |
+| widening `CensusUnsupported { entity: Face(_) }` to any entity | **0 — unguarded, stated** |
+
+The last is a real hole with a reason: no fixture produces a `CensusUnsupported`
+on a non-`Face` entity, and one cannot be attributed to a declaration anyway
+(there is no face key to match), so the pattern is structural rather than
+observably load-bearing. The first pass's other reported mutation — dropping the
+`mate.is_some()` conjunct — is no longer expressible: the variant carries the
+declaration.
+
+**Residues.** Three prose sites inside the crate are FIXED, not reported:
+`mate.rs`, `node.rs:700`, and `persist/mod.rs:285` — the last one the first
+pass's sweep missed entirely while reading prose ten lines above it, because the
+pattern keyed on the phrase "admits" and that site spelled the same claim as
+"outside v1's admitted `Rest`/`Tangent`". Two instances outside `editor-core`
+are SCHEDULED as **#711** (§D row C8), not left inside a finding marked FIXED:
+`step-import/src/recognize.rs:126`, whose `try_cylinder` promoting arm is
+documented unreachable — the claim site now cites the issue — and
+`docs/ASM-R2A-SPEC.md:21`, a landed unit spec whose sentence is true of the door
+it binds and no longer of v1 as a whole.
+
+*Lesson:* a boundary encoded as a predicate is still a boundary the caller may
+not consult, and a mutation table is evidence only for the mutations someone
+actually ran — the reviewer's ability to falsify this one by running it is why
+it is stated here as measured rather than as claimed.
 
 ## S25. Two ε vocabularies flow through SSI with nothing reconciling them
 
@@ -5274,6 +5296,7 @@ and the width-1 build mutex, not dependency.**
 | **C3** | **S27, S29, S30** — `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block; the sizing vocabulary fragmented across five modules with self-admitted magic constants; and ~1,050 lines of instrument in the mesh crate's hot loop. **S29 is NOT blocked on a design conversation — corrected 2026-08-19.** This row previously said its policy question was routed to `docs/TESS-SPLIT-SPEC.md` and PR #568. #684's review checked: both are scoped **entirely to the NURBS per-cell schedule** (`nurbs_cert`'s `grid_steps`, certified cells, the first fundamental form — TESS-SPLIT-SPEC's D-1 replaces the AM-GM grouping, with `leaf_a f2` as its poster child). **Nothing in either covers analytic-chart sizing**, so `curved::grid_steps` has no venue at all — and #684 has since added a sixth rule to it. S29's own lesson applies to that: *N well-defended deviations read as N decisions when they are one undecided question.* S27 touches `props/`, so it must follow **A2**; S29 and S30 are edge-free. |
 | **C4** | **S31, S32, S33** — the `geom-curves`/`geom-surfaces` split that buys nothing; `Surface`'s one-partial-per-call API, which is what created the shadow surface enum in SSI; and neither geometry enum being able to lift itself to another scalar. | **S33 is coloured by A1**: several of its ~14 hand-written ladders exist only to reach `Dual`, and what `Bounds for Dual` changes there is A1's report to give. |
 | **C5** | **S26, S28's duplication half** — the certified area enclosure that is never metered against anything (`area.width()` appears nowhere in the file); and the three tessellation lanes that remain three pipelines now that #648/#674 have settled their ordering and column questions. (**S24 left this row FIXED by #702.**) | S26 was explicitly deferred in writing by #472 — *"metering against `area.lo()` … deserves its own proposal with re-measured floors"* — so it is a proposal, not a patch. S28's duplication half must follow **A3**. |
+| **C8** | **#711 — S24's residues outside `editor-core`**: `step-import/src/recognize.rs:126`, whose `try_cylinder` promoting arm is documented unreachable and whose `Plane > Cylinder` preference order is *"unfalsifiable by execution"*; and `docs/ASM-R2A-SPEC.md:21`, a landed spec sentence (*"v1 admits `Rest`/`Tangent`"*) that is true of the door it binds and no longer of v1 as a whole. | Filed by #702's fix pass rather than left inside a finding marked FIXED. The first may want the tighter cylinder certificate rather than an encoding change; the second is a one-line ruling — clarifier, or "landed specs read as of their own date". Small, edge-free, and **not** a lane on its own: fold into whoever next opens `step-import`. |
 | **C6** | **W2f remainder / S4** — `ProgramStep`/`WireStep`, `SegTag`, and the "no usable value" core. | Each is blocked on something real: the first behind OnArc + RESPELL-TABLE and crossing the same files, the second needs the workspace's first proc-macro crate, the third by a persisted format. |
 | **C7** | **W2a / S3 and W2b / S1+S2** — the lane-trait collapse, and `RingInterval` versus an always-on `Interval`. | **Both wait on A1's report.** The steelman's compiled collapse for S3 **predates #643's `Bounds`/`CertifiedEnclosure` split** and must be re-derived against the two-trait world; W2b's blast radius is 535 refs in 15 files with five carrying 60%. **Two rows joined this one on 2026-08-20**, both from the unscheduled audit: **S44's open residue** — whether the four lane traits survive and whether D9's four bit-identity assertions may be re-expressed, which is what S44 means by *"open for the part that matters"* now that its priced half (D1) is ruled — and **S55**, `Enclosure` as a live trait with no consumer, which Evan deferred *pending the `Bounds` narrow-vs-broad split* and which is therefore this row's, not a lane of its own. Whoever takes C7 absorbs both. |
 
