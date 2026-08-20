@@ -51,9 +51,12 @@ const CASES_BINARY: usize = 300_000;
 /// Magnitude windows (binade exponents) swept per case batch: everyday
 /// values, subnormal/tiny, huge (argument-reduction stress).
 ///
-/// **The tightness ceilings depend on window 3's `emin` and on the
-/// other three windows' `emax`, and this is the only place that says
-/// so.** Ratios can exceed any ceiling only through a FALSE extremum
+/// **The RATIO CEILING depends on window 3's `emin` and on the other
+/// three windows' `emax`, and this is the only place that says so.**
+/// (Only the ratio ceiling. `Tightness`' zero-tolerance assert on
+/// `mine_unbounded_oracle_bounded` is constrained by something else
+/// entirely — a few-ulp band around each `tan` pole, deep inside these
+/// windows — and that constraint is recorded on the field itself.) Ratios can exceed any ceiling only through a FALSE extremum
 /// capture, which pins a bound at ±1 where the true image is a sliver.
 /// Its onset is `|x| ≈ 2^32` (`consts::grid_possibly_hits`), and window
 /// 3 — the one whose accumulator carries NO ceiling — begins at `2^30`.

@@ -66,6 +66,16 @@ pub fn gen_interval(rng: &mut fuzz::Rng, emin: i32, emax: i32) -> DInterval {
         2 => DInterval::from_bounds(a.min(0.0), a.max(0.0)), // touches 0
         3 => {
             // Straddle a trig-critical point k·π/2, tight jitter.
+            //
+            // The minimum jitter here is load-bearing for the oracle
+            // tier: at 2^-40 it always swallows the <= 5.6e-15 band in
+            // which `tan`'s grid test refuses beside a pole, so these
+            // draws make the ORACLE unbounded too and land in a bucket
+            // that carries no assert. Narrowing it — or adding a
+            // near-pole-but-pole-free class beside it — puts sound,
+            // unbounded results under `Tightness`' zero-tolerance
+            // assert on `mine_unbounded_oracle_bounded`. See that
+            // field's docs before changing this exponent.
             let k = (rng.next_u64() % 64) as f64 - 32.0;
             let c = k * core::f64::consts::FRAC_PI_2;
             let w = log_mag(rng, -40, 2).abs();
@@ -155,6 +165,39 @@ pub struct Tightness {
     pub oracle_unbounded: u64,
     /// **Ours is unbounded while the oracle's is bounded.** The loudest
     /// degradation available, and a ratio cannot express it.
+    ///
+    /// **What keeps this at zero is NOT the window bounds** — that is
+    /// the ratio ceiling's constraint, recorded on `certify.rs`'s
+    /// `WINDOWS`, and pointing a reader there for this assert would send
+    /// them to the wrong place. Two SOUND classes land in this bucket,
+    /// and both sit deep inside the ceiling-carrying windows:
+    ///
+    /// 1. **`tan`'s honest pole refusal.** The conservative grid test
+    ///    refuses for 2–5 ulps either side of the f64 image of every
+    ///    pole `(k + 1/2)·π`, at every `k` from ±1 to ±651 — i.e.
+    ///    `|x| ≈ 1.57 … 1022`, twenty-four binades BELOW the `2^32`
+    ///    false-capture onset. `point(next_up(FRAC_PI_2)).tan()` returns
+    ///    `[-inf, inf]` with `Trv` where inari returns a bounded
+    ///    `≈ 6.2e15`. Sound, and unbounded.
+    /// 2. **The overflow pad.** `[MAX, MAX] + [-1, -1]` pads up to
+    ///    `+inf` where inari stays bounded; `certify_arith` and
+    ///    `certify_atan2` sweep all four windows into one ceilinged
+    ///    accumulator, so there is no exempt window to catch it.
+    ///
+    /// Neither is reachable from the shipped generator (0 hits in ~10x
+    /// CI's effort-8 volume), and for class 1 that is provable rather
+    /// than lucky: [`gen_interval`]'s pole-straddling case 3 has a
+    /// minimum jitter of `2^-40 ≈ 9.1e-13`, which always swallows the
+    /// `<= 5.6e-15` pole offset, so it always lands in
+    /// `oracle_unbounded` instead. **What protects this assert is the
+    /// measure of a few-ulp band around each pole (~1e-14), and nothing
+    /// about `emax`.**
+    ///
+    /// So: **a generator that added a deliberate near-pole-but-pole-free
+    /// case class — an obvious thing to want in a trig harness — would
+    /// red this assert on a sound enclosure.** That is the change to
+    /// watch for, and the fix then is to route those draws to an
+    /// accumulator with no ceiling, not to loosen this.
     pub mine_unbounded_oracle_bounded: u64,
     /// The oracle proved the value exact (`wid() == 0`); scored in
     /// representable steps instead of as a ratio.
@@ -269,7 +312,11 @@ impl Tightness {
             self.mine_unbounded_oracle_bounded, 0,
             "{label}: {} draws returned an UNBOUNDED enclosure where the oracle's \
              was bounded. That is the widest a result can get, and a ratio cannot \
-             say so — which is why it is counted.",
+             say so — which is why it is counted. If this fired because the \
+             GENERATOR changed, read the two sound classes documented on this \
+             field first: a near-pole-but-pole-free trig draw, or an \
+             overflow-padded endpoint, is sound here and belongs in an \
+             accumulator with no ceiling.",
             self.mine_unbounded_oracle_bounded
         );
         let floor = c.min_ratio_fraction * self.total as f64;

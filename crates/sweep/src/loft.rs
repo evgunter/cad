@@ -65,9 +65,8 @@ use topo::{
     PcurveMintError, ShellKey, SolidKey,
 };
 
-use crate::extrude::{SweptSeg, swept_segments};
 use crate::skin::{LoftGeometry, Section, SkinError, lift_surface, loft_geometry, sweep_places};
-use crate::swept::{cap_points, face_surface_key, placed_segment_spec};
+use crate::swept::{SweptSeg, cap_points, face_surface_key, placed_segment_spec, swept_segments};
 
 /// Everything [`loft_body`]/[`sweep_body`] built, keyed — the
 /// [`crate::Extruded`] bundle one operation over.
@@ -263,7 +262,6 @@ fn assemble<T: Decide>(
     geometry: &LoftGeometry,
 ) -> Result<Lofted<T>, LoftError> {
     let band = Band::linear().map_err(LoftError::Band)?;
-    let k = sections.len();
     let (Some(sec_bottom), Some(sec_top), Some(place_bottom), Some(place_top)) = (
         sections.first(),
         sections.last(),
@@ -278,7 +276,6 @@ fn assemble<T: Decide>(
     let tplace: Affine3<T> = lift_affine(place_top);
     let n_bottom = bplace.linear.c2;
     let n_top = tplace.linear.c2;
-    let _ = k;
 
     // ---- Traversals and world points, both ends, per loop. ----
     let bloops: Vec<Vec<SweptSeg<T>>> = bottom_profile
