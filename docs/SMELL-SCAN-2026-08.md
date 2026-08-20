@@ -6723,7 +6723,7 @@ but about which questions look most worth answering first.
 # §D. The schedule
 
 **Live rows only.** Completed work is **not** listed here — every finished
-unit is recorded at its own finding as a bolded `FIXED by #737` lead, which is
+unit is recorded at its own finding as a bolded `FIXED by #NNN` lead, which is
 the one home for it. A row leaves this section when it lands. What follows is
 therefore what is *left*, and its length is the honest measure of that.
 
@@ -6932,7 +6932,7 @@ completely gone, and whether the way it was closed is the best one available —
 not merely a way that compiles.
 
 **Each unit records its own completion, in its own PR**: the bolded
-`FIXED by #737` lead at the finding, with the original problem statement
+`FIXED by #NNN` lead at the finding, with the original problem statement
 removed (version control keeps it). Every Track D PR therefore edits this file
 and they conflict with each other by construction. Merge one at a time.
 
