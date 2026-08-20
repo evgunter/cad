@@ -273,11 +273,18 @@ fn run_body(
         rel * 100.0
     );
 
-    // STL export — fail-loud on any refusal.
+    // STL export — fail-loud on any refusal. The binary format's
+    // 80-byte header is the one caller-visible identity it carries, so
+    // it gets this body's name, exactly as the STEP export below sets
+    // `product_name`.
+    let stl_options = pncad::stl::BinaryOptions {
+        header: pncad::stl::BinaryHeader::new(label.clone())
+            .unwrap_or_else(|e| panic!("{label}: STL header refused: {e}")),
+    };
     let stl_name = format!("{label}.stl");
     let stl_path = format!("{outdir}/{stl_name}");
     let mut stl_buf = Vec::new();
-    pncad::stl::write_binary(&mesh, &mut stl_buf)
+    pncad::stl::write_binary(&mesh, &stl_options, &mut stl_buf)
         .unwrap_or_else(|e| panic!("{label}: STL write failed: {e:?}"));
     std::fs::write(&stl_path, &stl_buf).expect("write stl");
     let stl = stl_name.clone();
