@@ -20,7 +20,9 @@
 //!    **evaluation count**. That `normal` reads one jet rather than two
 //!    is a source fact (`n.ders` occurs once in the enum), not
 //!    something any bitwise row can witness.
-//! 3. **`eval` is NOT a projection** and must not become one: for
+//! 3. **`eval` and the jet's point agree.** `eval` is deliberately not
+//!    a projection — that is a source fact no bitwise row can witness,
+//!    and it is not claimed here. What is pinned is agreement: for
 //!    [`Surface::Nurbs`] it runs a dedicated cheaper pass
 //!    (`NurbsSurface::eval`) while the jet's point comes out of
 //!    `NurbsSurface::ders`' order-2 tensor pass. What the two owe each
@@ -181,17 +183,17 @@ fn every_accessor_is_bit_identical_to_the_jet_field_it_names() {
     for (name, s) in corpus() {
         for (u, v) in params() {
             let j = s.jet(u, v);
-            for (field, from_jet, from_accessor) in [
-                ("du", j.du, s.deriv_u(u, v)),
-                ("dv", j.dv, s.deriv_v(u, v)),
-                ("duu", j.duu, s.deriv_uu(u, v)),
-                ("duv", j.duv, s.deriv_uv(u, v)),
-                ("dvv", j.dvv, s.deriv_vv(u, v)),
+            for (field, accessor, from_jet, from_accessor) in [
+                ("du", "deriv_u", j.du, s.deriv_u(u, v)),
+                ("dv", "deriv_v", j.dv, s.deriv_v(u, v)),
+                ("duu", "deriv_uu", j.duu, s.deriv_uu(u, v)),
+                ("duv", "deriv_uv", j.duv, s.deriv_uv(u, v)),
+                ("dvv", "deriv_vv", j.dvv, s.deriv_vv(u, v)),
             ] {
                 assert_eq!(
                     bits(from_jet),
                     bits(from_accessor),
-                    "{name}: jet.{field} forked from deriv_{field} at ({u}, {v})"
+                    "{name}: jet.{field} forked from {accessor} at ({u}, {v})"
                 );
             }
         }
@@ -206,14 +208,14 @@ fn normal_is_du_cross_dv_normalized() {
             assert_eq!(
                 bits(s.normal(u, v)),
                 bits(j.du.cross(j.dv).normalize()),
-                "{name}: normal is not the jet's own cross product at ({u}, {v})"
+                "{name}: normal is not du × dv normalized at ({u}, {v})"
             );
         }
     }
 }
 
 #[test]
-fn eval_agrees_with_the_jets_point_without_being_a_projection_of_it() {
+fn eval_agrees_bitwise_with_the_jets_point() {
     for (name, s) in corpus() {
         let analytic = !matches!(s, Surface::Nurbs(_));
         for (u, v) in params() {
