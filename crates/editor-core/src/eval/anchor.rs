@@ -296,7 +296,40 @@ fn remap_seg(naming: &ProfileNaming, seg: RoleSeg) -> RoleSeg {
         R::MeridianVertex(m, v) => R::MeridianVertex(m, remap_vertex(naming, v)),
         R::Pole(v) => R::Pole(remap_vertex(naming, v)),
         R::AxisEdge(e) => R::AxisEdge(remap_edge(naming, e)),
-        other => other,
+        // EXHAUSTIVE on purpose (the `walk_names` rule): the arms above
+        // are exactly the variants that embed a `ProfileEdgeRef` or a
+        // `ProfileVertexRef`, and these are exactly the ones that do
+        // not. A future variant carrying a profile locator must be
+        // classified here or the compile breaks; a catch-all would let
+        // it cross a re-anchor with a stale locator, silently.
+        R::OutputBody
+        | R::Cap(..)
+        | R::RevolveCap(..)
+        | R::FromA(..)
+        | R::FromB(..)
+        | R::Seam { .. }
+        | R::Merged(..)
+        | R::Fragment(..)
+        | R::SplitBody(..)
+        | R::SectionFace { .. }
+        | R::SectionEdge { .. }
+        | R::SplitFragment { .. }
+        | R::CrossingVertex { .. }
+        | R::OnToolVertex { .. }
+        | R::FromTarget(..)
+        | R::BlendFace(..)
+        | R::CornerFace(..)
+        | R::TrimEdge { .. }
+        | R::FootVertex { .. }
+        | R::CornerArc { .. }
+        | R::BandFace(..)
+        | R::BandTrim { .. }
+        | R::BandFoot(..)
+        | R::BandCross(..)
+        | R::BandCut(..)
+        | R::BandSlit(..)
+        | R::InPart { .. }
+        | R::Instance { .. } => seg,
     }
 }
 
