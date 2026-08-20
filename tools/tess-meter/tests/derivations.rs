@@ -161,7 +161,6 @@ fn both_row_shapes_have_the_headers_width() {
             grid_cells: 12.0,
             patch_cells: 20.0,
             opt_cells: 10.0,
-            span_cells: 12.0,
             span_opt_cells: 8.0,
             worst_cert: 1e-4,
             worst_dev: 5e-5,
