@@ -281,6 +281,48 @@ already ratifies as **one**; and four byte-identical test converters under two
 spellings. Q1's caveat that *the question is the instrument, not the pattern*
 now has three worked examples in one PR.
 
+### #702's corrected evidence — independently verified, 2026-08-20
+
+The first round's MAJOR was an overstated mutation table. The fix pass restated
+it, and **the restatement was not taken on trust** — a verification pass re-ran
+every claim and then went beyond the lane's own list. That is now the rule for
+this track: *a claim that has once been found overstated is re-derived, not
+re-read.*
+
+**It held.** Five of six claimed mutations reproduce exactly, three down to the
+**named row identities** rather than merely the counts; the claimed zero is
+real and was disclosed rather than hidden; ten of the verifier's twelve
+independent mutations were caught, including every widening that would let a
+*contradicted* declaration reach the frontier arm. The mixed-verdict fixture
+the lane added is the sole or joint guard in four of those.
+
+**What it found anyway, and it is the interesting one.** The
+`StaleContactDeclaration` arm is **never executed by any row** — proved by
+replacing the arm's body with a `panic!` and observing 584/584 still green. So
+its `Attribution::Refuted` label is unpinned: a refuted declaration can be
+relabelled a decline, promoted into `AssemblyError::Uncertified`, and reported
+as an *unrefuted, uncertified frontier*, with nothing going red. That is the
+dangerous direction, in the same dispatch the PR rewrote, and it is exactly the
+confusion S24 was raised about.
+
+The record carried the irony without noticing it: it quotes *"unfalsifiable by
+execution"* as the diagnosis for which it schedules `step-import/recognize.rs:126`
+under **#711**, while shipping a second instance of that inside the function
+the PR rewrote.
+
+Two smaller corrections, both about *how a claim is worded rather than whether
+it is true*: one table row names a mutation and reports a neighbouring one's
+count (the faithful reading of "hard-coded instead of table-sourced" reddens
+nothing, because the assertion pins the string *value*, not its sourcing); and
+the scope sentence says *"the last is a real hole"* where three exist, which
+claims a complete search rather than reporting one.
+
+*Generalisable:* **"a hole" and "the hole" are different claims**, and the
+second is the one a reader acts on. The style brief's Q6 already asks whether a
+disclosure owes a schedule; it does not ask whether the disclosure is
+*exhaustive*. On this row that gap was the difference between a disclosed
+limitation and an undisclosed live one.
+
 ---
 
 ## Landings
