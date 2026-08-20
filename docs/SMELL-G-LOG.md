@@ -131,10 +131,10 @@ from the orchestrator.
 | lane | §D rows | findings |
 |---|---|---|
 | **G-a** | D71, D72 | S127, S128 |
-| **G-d** (G5 half, #831) | **D72** used | **S128**, **S135**, **S136** used |
+| **G-d** (G5 half, #831) | **D72**, **D113** used | **S128**, **S135**, **S136**, **S176** used |
 | ~~**G-b**~~ (landed, #787) | D73, D74 — **unused, returned**; **D79** used | S129 and **S130** used; S135 and S136 later taken by G-d |
 | ~~**G-c**~~ (landed, #781) | D75–D77 — **unused, returned** | S131, S132, S133 — **all spent** |
-| unassigned | D73, D74, D75, D76, D77, D80 | **none — the S127–S136 block is spent** |
+| unassigned | D73, D74, D75, D76, D77, D80 | **none — the S127–S136 block is spent**; `D113`–`D125` / `S176`–`S181` opened for the fix pass, `D113` and `S176` taken |
 
 **G-a used D71 and D78, and S127 and S134** (see *Landings*); D72 and S128 came
 back. **The `unassigned` line above is a reconciliation across three landings**
@@ -297,11 +297,14 @@ pins; `sugar.rs` was re-read and not edited. Three things beyond the doc edit:
   never exercised on the building bands. Not a kernel defect — the file's fuzz
   skips exactly these draws — and now asserted rather than described. D72
   schedules the re-mine.
-- **`S135`.** The dangling-link class was measured: 277 intra-doc links in 105
-  test files, **all inert**, because `cargo doc` builds no test targets — the
-  doc gate's own header says so. Nine are already broken; three fixed here (one
-  in `geom-core/tests/`, outside the Scope cell and named in the PR), six
-  dispositioned.
+- **`S135` + `D113`.** The dangling-link class was measured: **285 intra-doc
+  links in 106 of 465 test files**, all inert, because `cargo doc` builds no
+  test targets — the doc gate's own header says so. **At least nine** are
+  already broken (nine is a floor: the check resolves a link's root, never its
+  member path); three fixed here — one in `geom-core/tests/`, outside the Scope
+  cell and named in the PR — six dispositioned. **`D113` holds the decision**,
+  Evan's, after the review pointed out that D71 is the same shape and no row
+  was an amnesty rather than a scoping call.
 - **S133's `profile/` half discharged** and recorded at the finding: 9 hits in
   the lane's scope with no duplication, 14 in `profile/src/path/` with three
   candidates left for the lanes that own those files.
@@ -309,6 +312,22 @@ pins; `sugar.rs` was re-read and not edited. Three things beyond the doc edit:
   take, and its own doc header says so instead of fixing it. Not renamed —
   `sugar.rs:911` cites it by name as `LEVER_ULPS`'s *"what goes red"* — so it
   is recorded, with two more members found in `step-import/tests/`.
+- **`S176`.** Raised BY the style review, out of this lane's own register
+  entries: a landing PR's record drifts from the change it documents, two ways
+  — stale `file:line` written inside the diff that renumbers the file, and one
+  census restated in log + scan + PR body that a re-sweep updates in one place.
+  Both recorded as classes; neither swept.
+
+**Style review: NOT CLEARED, and the fix pass is in the same PR.** The review's
+verdict was that the PR **re-minted S71 at the site it was correcting** — the
+header still opened on the flagged sentence with a rider, `check_corner`'s doc
+contradicted itself inside one paragraph, and the new prose promised a
+two-answer pin against code that panics on one. All eight must-fixes and every
+judgement call taken; nothing disputed. The three that mattered: `n_enclosing`
+is **asserted** rather than printed (0 at 24 000 corners on all three bands
+locally); `check_corner`'s enclosing arm was **inverted onto the boundary**,
+having failed on the legitimate build and passed on the boundary-moving one;
+and three copies of the non-swallowing check got one home.
 
 ### G-b — **G2**, `demos/`, #787
 

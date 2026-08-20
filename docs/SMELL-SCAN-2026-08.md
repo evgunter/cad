@@ -8549,7 +8549,24 @@ it. Filing is not deciding.
 **What the whole-file read found, which is the larger half.** The same
 false claim lived one level down at `check_corner`'s own doc, and making
 it true rather than narrowing it turned a row red: see **S128**. The
-dangling-link class was measured rather than assumed: see **S135**.
+dangling-link class was measured rather than assumed: see **S135**, with
+**D113** holding the decision it implies, and **S136** on the row whose
+NAME asserts the arm the default band does not take.
+
+**The style review found this PR re-minting S71 at the site it was
+correcting**, and the fix pass is the more interesting half of the unit.
+The header still opened on the flagged sentence with a rider appended;
+`check_corner`'s doc contradicted itself inside one paragraph; and the
+new prose promised a two-answer pin where the code panics on one of the
+two. Three things came out of closing them properly: the sweep's
+`n_enclosing` **is asserted now** (`assert_eq!(…, 0)` — the old `>= 1`
+floor's monotone-safe inverse, where a printed number `cargo test`
+swallows was corroborating nothing); `check_corner`'s enclosing arm was
+**inverted onto the boundary**, because as written it failed on the
+legitimate non-swallowing build and PASSED on exactly the emission that
+would mean the boundary had moved; and the three copies of that
+non-swallowing check got one home. See **S133** for why no vocabulary
+sweep could have found the duplication.
 
 ## S72. FIXED by #786 — `interval-transcendentals`: the pads had no upper constraint, and the cheap tier caught a dropped outward round for division only
 
@@ -10796,7 +10813,13 @@ are in the file, by running the marker vocabulary over the tree in their
 scope and dispositioning what it returns. The one-command version is in
 **S131**.
 
-**The `profile/` half is discharged, by #831 (G5).** Run over
+**The `profile/` half is discharged, by #831 (G5).** Vocabulary run: the
+eleven phrases of the reviewer brief's Q2 pattern minus the D9 `bit-identical`
+family, plus `verbatim`, `re-derived`, `ported from`, `mirror of`, `one
+dimension down`, `the twin of`, `hand-written copy`, `hand-applic`,
+`duplicated from` — **but not `restated`**, which the standing prompt carries
+and this run dropped (it matches `review_s2.rs:1108`, checked, not a
+duplication). A sweep's vocabulary is part of its result. Run over
 `profile/tests/review_s2.rs` and `profile/src/sugar.rs` (that lane's scope):
 **9 hits, 0 duplications** — six *"re-derived"*s are the oracle declaring it
 is written from the geometry rather than from `src`, which is the file's
@@ -10811,8 +10834,15 @@ bit-identity vocabulary and so partly fenced), `family.rs:826` (*"the sharp
 `Via` leg mode's own derivation, verbatim"*), and `program.rs:1875` (*"the
 dynamic mirror of the typestate lattice"*, a duplication by design and the
 biggest of the three). **The vocabulary's blind spot from S131 holds here
-too**: a marker in fresh words is invisible to it, and nothing in this run
-tested for one.
+too**, and in this instance it did real damage in the file the sweep was run
+over: `review_s2.rs`'s two enclosing pins carried the SAME `Ok`-branch body —
+`fillet_segment` → `circle_from_bulge` → per-leg `d + radius > r - 1e-9` →
+the same panic with the same literal — plus a third copy of that arithmetic,
+inverted, in `check_corner`'s enclosing arm. Three copies, **none of them
+declaring the other**, so no marker vocabulary could have found them; #831's
+style review found them by reading, and its fix pass gave them one home
+(`assert_swallows_nothing`). That is the argument for the reading, not for a
+longer word list.
 
 **Verdict:**
 
@@ -10829,7 +10859,7 @@ corner's fillet.** Found by making `check_corner`'s doc claim true instead of
 narrowing it — the doc said every hand-built row runs the battery, one did not,
 and adding the call turned the row red with a ρ-predictor residual of
 `1.134 = 2r`. The pair's carriers sit within 3e-4 of external tangency
-(`|O₁O₂| = 2.2663` against `R₁+R₂ = 2.2666`), so the crossings are 1.7e-2
+(`|O₁O₂| = 2.26646` against `R₁+R₂ = 2.26655`), so the crossings are 1.7115e-2
 apart, `mirror_excluded` is **false**, and the ladder rounds the twin: the
 returned fillet has `|P−O| = R−r` on the incoming leg and `R+r` on the
 outgoing, the opposite offset sign on both from the ρ the row re-derives. The
@@ -10869,31 +10899,54 @@ every tier, at every eps, forever.
 blind spot below, which is the same shape as the defect being fixed: the check
 resolves a link's ROOT and never its member path, so every `Type::method` link
 whose `Type` is in scope was counted as resolving without `method` being looked
-for at all. The nine are resolved root-by-root against each file's own scope:
-three point at names that exist nowhere (`profile/tests/review_s2.rs:45` —
-S71's own; `geom-core/tests/review_m0_pr4.rs:17`, whose target was renamed AND
-inverted by the M5 backend swap; `editor-core/tests/corpus/mod.rs:21`'s
-`Vocab`, which never was an item), and six name items that exist but are not in
-scope where they are cited (`review_s2.rs:1347`'s `Leg::tangent_point`, which
-is `pub(crate)` and can never be; `editor-core/tests/m9_d1_r1_probes.rs:42`;
-`geom/tests/surfaces/span_window_pairing.rs:2,17`;
-`step-import/tests/freecad.rs:1163`; `topo/tests/common/mod.rs:439`). #831
-fixed the three in its own reach and left the rest with dispositions in its PR.
+for at all. Resolved root-by-root against each file's own scope, three point at
+names that exist nowhere and six name items that exist but are out of scope
+where they are cited. **Cited by target rather than by line**, because a fix
+renumbers its own file and the line then names something else (see **S176**);
+line numbers below are at merge base `3ddd6011`.
 
-**The disposition is a policy question, not a patch**, and no §D row is taken
-for it: either the form stops being used in `tests/` (it promises a link that
+**#831 fixed three of the nine** — `review_s2.rs`'s module-header link to
+`enclosing_tangency_is_constructed_not_stumbled_upon` (`:45`, S71's own, a
+name that exists nowhere), its `Leg::tangent_point` link (`:1347`, a real
+`pub(crate)` item an integration test can never resolve), and
+`geom-core/tests/review_m0_pr4.rs:17`'s link to
+`powi_diverges_from_the_tight_enclosure` (renamed AND inverted by the M5
+backend swap). **The other six are dispositioned in its PR and untouched**:
+`editor-core/tests/corpus/mod.rs:21`'s `Vocab` (never an item — the fix turns
+on what the sentence means, in a crate that lane did not read),
+`editor-core/tests/m9_d1_r1_probes.rs:42`,
+`geom/tests/surfaces/span_window_pairing.rs:2,17`,
+`step-import/tests/freecad.rs:1163` and `topo/tests/common/mod.rs:439`.
+
+**#831 also added four such links before removing them again**, which is the
+finding arguing with itself inside one diff: the replacement prose and
+`check_corner`'s doc were first written in the `[`item`]` form this finding
+calls a promise that cannot be kept. They are plain backticks now, and the
+two in-tree precedents for that spelling are `geom-core/src/interval.rs:62` and
+`interval-transcendentals/src/lib.rs:114`. **The links that were already in
+those files are left alone** — converting them is the policy call **D113**
+holds, not a lane's to take mid-review.
+
+**The disposition is a policy question, not a patch — and it takes a row,
+`D113`.** Either the form stops being used in `tests/` (it promises a link that
 cannot exist), or something is built that resolves it, which rustdoc cannot be
-asked to do for a test target. **The sweep's own blind spots are in #831's
-body**; the one that bounds the count is above, and the others (doc lines only,
-identifier-shaped targets only, no `benches/` or `examples/`) each only push
-the floor further down.
+asked to do for a test target. Not taking a row was wrong: **D71** sits in the
+same table as `ACCEPTED, unstaffed` and is exactly a decision with no patch, so
+the channel exists and declining it was an amnesty rather than a scoping call.
+The decision-holder is **Evan**, and the shape is already ruled once — S61's
+*"a gate must be sited where it can fire on its own inputs"*; if the answer is
+build something, the work belongs with Track F's instruments. **The sweep's own
+blind spots are in #831's body**; the one that bounds the count is above, and
+the others (doc lines only, identifier-shaped targets only, no `benches/` or
+`examples/`) each only push the floor further down.
 
 **Verdict:**
 
 ## S136. A band-keyed row's NAME asserts one arm, and it is the arm the shipped default does not take
 
-**[verified, #831]** `crates/profile/tests/review_s2.rs:1266`,
-`an_uncertifiable_tangent_point_refuses_instead_of_being_returned`, refuses on
+**[verified, #831]** `crates/profile/tests/review_s2.rs`'s
+`an_uncertifiable_tangent_point_refuses_instead_of_being_returned` (cited by
+name, per **S176**) refuses on
 exactly one of the three shipped bands: the ε-crossover it carries is
 ≈ 2.53e-10, so at 1e-12 it refuses and at 1e-9 (the default) and 1e-6 it
 BUILDS. Its own doc says so in a section header — *"# This corner is now
@@ -10925,6 +10978,37 @@ does not read ε explicitly (the branch hidden in a helper, or the row simply
 not run at the other bands), and the judgement itself — *does this name assert
 an arm* is a reading, not a match, so the negative results above are one
 reader's.
+
+**Verdict:**
+
+## S176. A landing PR's own record drifts from the change it documents, in two mechanical ways (roll-up)
+
+**[verified, #831 — found in that PR's own entries, by its style review]** The
+*Recording convention* has each unit write its record in the landing PR. Two
+things go wrong there by construction, and both did:
+
+- **(a) `file:line` citations are correct when written and stale in the commit
+  that writes them.** #831's S135 and S136 entries cited
+  `review_s2.rs:45`, `:1347` and `:1266` — and the same diff renumbered that
+  file, so `:1347` landed on a coordinate literal and `:1266` on a `let`. The
+  fix in #831 is to **cite by target name** (names are stable and greppable;
+  lines are not) and to say which commit any surviving line number is relative
+  to. **Every `FIXED by #NNN` entry in this document has the same exposure**,
+  because every one of them was written inside the diff it describes —
+  recorded, not swept; S72's and S127's are the samples to check first if
+  someone takes it.
+- **(b) One census, written into three documents, drifts inside the PR that
+  took it.** #831 put its link census in `SMELL-G-LOG.md`, in this document and
+  in its PR body; the re-sweep at its second merge of `origin/main` updated one
+  of the three, so the log said *"277 links in 105 files"* while this document
+  said 285 in 106 of 465. **The general form:** a number restated in N places is
+  guarded in none, and the moment that bites is a re-sweep, which is exactly
+  when the register is supposed to be right. The cheap discipline is one home
+  plus pointers; the cheaper one is to re-derive every restatement after the
+  final edit rather than before.
+
+**Why this is a roll-up and not two rows:** one mechanism — the record is
+written before the change is final and is never re-derived against it.
 
 **Verdict:**
 
@@ -12912,6 +12996,7 @@ tessellation pin are red on main).
 | # | Work | From | Scope | Proposed verdict | Review |
 |---|---|---|---|---|---|
 | **D71** | **The local gate has no `oracle-certify` mirror, and nothing enforces ci.yml ↔ ci-local.sh JOB parity.** Fell out of G1's fix pass: `ci-local.sh` carried both sentences G1 corrected in `ci.yml`, and under it the transcendental and `+ −` pads have no containment guard at all. Two decisions, neither a patch: does the local gate carry a ~250s GMP build, and is job parity enforced (like `gate-roster.sh` does for gate scripts) or declared per job? | **S127** | `local-scripts/{ci-local.sh,gate.sh}`, `scripts/gates/` | **ACCEPTED**, unstaffed | style |
+| **D113** | **Decide what an intra-doc link in a `tests/` file is.** `cargo doc` builds no test targets, so all 285 of them across 106 test files are inert — never rendered, never resolved, never checked, on any tier; at least nine are already broken. Two answers, and the row wants one: the form stops being used under `tests/` (it promises a link that cannot exist, and plain backticks say the same thing honestly — precedents at `geom-core/src/interval.rs:62` and `interval-transcendentals/src/lib.rs:114`), or something is built that resolves them, which rustdoc cannot be asked to do for a test target. **Evan's call** — the shape is S61's ruling (*a gate must be sited where it can fire on its own inputs*) applied to a target kind rather than a root; if the answer is build something, it belongs with Track F's instruments. | **S135** | `scripts/doc-gate.sh`, and whatever the answer names | **ACCEPTED**, unstaffed | style |
 | **D72** | **Re-mine the ε-keyed conditioning pin so its building bands exercise the collapse.** `review_s2.rs`'s `an_uncertifiable_tangent_point_refuses_instead_of_being_returned` builds on the twin crossing of a hairline lens at ε = 1e-9 and 1e-6, so the near-collapsed offset lever it was mined for decides nothing there; #831 turned that from prose into an assertion, which is a tripwire and not a fix. Wanted: a corner whose mirror IS excluded by the harness's bracketing, so the build arm's ulp claim is about the geometry its prose describes. A witness search, not a doc edit. | **S128** | `profile/tests/review_s2.rs` | **ACCEPTED**, unstaffed | style |
 | **D78** | **What is still one-directional in the interval backend after G1.** Three items: `powi`'s tightness ceiling is a deferral with a downstream consumer, not an unguardable; the oracle tier's upper constraint is a scale-free ratio and misses a fixed absolute over-widening on non-monotone shapes with wide boxes; S116(r)'s consumer-side caveat at `crates/geom-core/src/interval.rs:135-143` is outside G1's fence and unclosed. **`copysign`'s placement is NOT on this list — it is S1's.** | **S134** | `interval-transcendentals/tests/`, and `crates/geom-core/src/interval.rs` for the third item | **ACCEPTED**, unstaffed | ADVERSARIAL for the first two |
 | **G4** | **`profile`'s fifth lane trait, blanket-implemented, which D1 never looked at** — `ArcCarrierScalar` over `T: Decide + Bounds`, so `Dual64` carries the whole `path::family` arc surface today, re-exported from `pncad`. **Per Evan's ruling this is mechanical**: `CertifiedBounds` is the bound that excludes a dual. **Was gated on F1; that gate lifts with #791** (see the note below). **Two corrections #791's lane owes this row.** (a) The widened matcher fires on **none of G4's own sites** — `arc_fillet.rs` is allowlisted by file, the ~49 uses in `family.rs`/`program.rs` reach the bound through the alias NAME and are invisible to any grep, and `geom`'s doors are sole bounds outside the class — so a **green gate here is not ratification evidence**; what #791 delivers is that `real.rs`'s rule is true and enforced against new spellings. (b) **D68/S124 is a VISIBILITY defect and G4 does not discharge it**: changing what `ArcCarrierScalar` is bound to leaves all ~49 uses exactly as invisible. | **S87** (and S88's `profile` half) | `profile/src/path/{arc_fillet,family}.rs`, `profile/src/lib.rs`, `pncad/src/profile.rs` | **ACCEPTED — RULED** (the admitting set) | **ADVERSARIAL** |
