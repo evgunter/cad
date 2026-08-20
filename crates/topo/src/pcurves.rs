@@ -1642,7 +1642,7 @@ mod staleness_posture {
             undeclared.is_empty(),
             "public mutation path(s) that neither re-mint the pcurve map nor declare a \
              posture in this test: {undeclared:?}. Either re-mint before returning, or add \
-             the door above WITH the reason its posture is safe.",
+             the door above with the posture it holds.",
         );
         assert!(
             mislabelled.is_empty(),
