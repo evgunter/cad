@@ -85,7 +85,7 @@ cases. A finding is a *question worth answering*, not a defect.
   - [Tier 2 — significant](#second-scan--tier-2--significant) (S76–S109)
   - [Tier 3 — real but lower stakes](#second-scan--tier-3--real-but-lower-stakes) (S110–S116), as class roll-ups
 - [§A. Where I would start](#a-where-i-would-start)
-- [§D. The schedule](#d-the-schedule) — live rows only, in tracks: **A**, **B** and **D** complete; **C** and **E** running; **F**, **G** and the unscheduled table are the second scan's
+- [§D. The schedule](#d-the-schedule) — live rows only, in tracks: **A**, **B** and **D** complete; **C** (`docs/SMELL-C-LOG.md`), **E** (`docs/SMELL-E-LOG.md`) and **F** (`docs/SMELL-F-LOG.md`) running; **G** and the unscheduled table are the second scan's and unclaimed
 - [§C. Process observations](#c-process-observations) — C1–C17 from the first scan, C18–C25 from the second
 - [§B. Negative results and coverage](#b-negative-results-and-coverage)
 
@@ -4036,6 +4036,58 @@ patch whose control net reaches 0.05 m past the cutting plane while the true
 surface comes no closer than 0.002 m. That 25:1 hull-vs-truth gap is what
 drives the sweep into the all-seeds-fail mode, and the floor ordering that
 makes the row work is a fact about lengths rather than about ε.
+
+**H12 — the rest of the doors — landed as #734**, tests only. The
+never-silence claims in this area were enumerated from the refusal sites
+in `exhaust.rs` and the one guard in `ssi.rs` that makes the sweep's
+floor meaningful. **Sites are not the grid**: the budget check and both
+poison arms sit in the ONE shared recursion, which runs under both
+values of `SweepDuty` on separate calls with separate floors, so duty is
+an axis — and it is the axis this finding's bug lived on. Crossed with
+the lane, with duty where duty applies, and with the tube set for the
+floor refusal (the one site that exists under the accounting duty only),
+the grid is **thirteen cells, of which three had rows. Five more do**:
+the floor refusal's fourth {lane}×{tube set} cell, and the cell budget
+and the poison arm in each lane under the **seeding** duty — verified by
+instrumenting both `exhaust` entry points on each new row. The eight
+cells that had a row and the five that still do not are enumerated at
+the block itself in `geom-brep/tests/m5_pr7_ssi.rs`. **The four
+Account-duty cells are §D row C18**, together with the two other
+residues of this enumeration — the macro blind spot on the containment
+measurement below, and the file header's claim that the battery runs it
+at the interval scalar when the interval leg runs only the set
+difference of the two test lists. A sixth row landed that covers no
+cell: it is the executable record of a live defect, below.
+
+The one that matters beyond the count is the **chart lane's containment
+test**. Each lane's accounting predicate reaches the sweep through one
+`SweepCell::contained_in` forwarder, and those two are the like-for-like
+pair: making the chart one return `true` for every cell — the accounting
+pass claiming to have proved cells it never touched — reddened **one** of
+`geom-brep`'s 260 rows, and making the ℝ³ one return `true` reddened
+**three** (measured on the merged head, 92 lib + 168 integration). One
+against three is the asymmetry. Mutating the ℝ³ predicate at its
+*definition* reddens six, but three of those are not accounting coverage:
+one is the predicate's own unit test in `enclose.rs`, and two are
+adversarial loop rows that go red only when the ℝ³ **seed dedup** at
+`ssi.rs:781` — a second, unrelated consumer — breaks at the same time.
+#633 had examined the chart cell and argued it should stay unwritten; the
+argument priced the shared floor arm and not the containment test
+underneath it.
+
+**One door is recorded rather than closed, and one is LIVE.** The
+chart-speed guard's own two arms are unreachable from the public doors as
+they stand. The hole *beside* them is not: `plane_nurbs_ssi` guards on
+`speed.is_nan() || speed <= 0.0`, so a certified chart speed of `+∞`
+passes, both floors translate to exactly `0`, the certified tube padding
+would be zero-width, and the **cell budget answers with the wrong
+diagnosis** — the caller is told its search was too big when the wall has
+no usable chart speed. Reachable from the public door on a NURBS surface
+any caller can build, and measured. That is a source-side logic fix
+inside a certifying door, so under C-R19 it is **issue #762** and no §D
+row; the same issue carries the latent `f64::max`-drops-a-lone-`NaN` in
+the same expression, and the ℝ³ poison arm's message naming surface kinds
+its own door excludes.
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
 baffle me with how they ever happened." Postmortem pass commissioned.
@@ -9551,7 +9603,7 @@ rewritten rather than appended to.
 
 | # | Work | Why it is here rather than in a track |
 |---|---|---|
-| **C1** | **H12, H13, H15** — three lanes' own residues: the SSI sweeps' other never-silence doors (no acceptance row in either lane), `sweep_body`'s helix rows with no orientation coverage, #635's unclassified siblings. (**H14**, #637's two jurisdiction residues, left this row FIXED by #737.) | Each is small; together they are a lane. They are the clearest instance of ordering rule 3. |
+| **C1** | **H13, H15** — two lanes' own residues: `sweep_body`'s helix rows with no orientation coverage, and #635's unclassified siblings. (**H12**, the SSI sweeps' other never-silence doors, left this row **FIXED by #734**; **H14**, #637's two jurisdiction residues, left it **FIXED by #737**.) | Each is small; together they are a lane. They are the clearest instance of ordering rule 3. |
 | **C2** | **H16, H17** — the STL header not being caller-settable while `StepOptions` carries `product_name`; and S37's rustdoc remainder, ~1115 lines across 130 files. (H11, #632's residues, was the third member and is **FIXED by #731**. The residues were two as recorded and ten as they existed — see S4's drift (b) for the seven further fail-quiet classifications in the same crate, **§C15** for what each sweep could not match, and **C12** for what #731 filed rather than fixed.) | H17 is large and mechanical; H16 is a small asymmetry with a clear right answer. |
 | **C3** | **S27, S29** — `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block; and the sizing vocabulary fragmented across five modules with self-admitted magic constants. (S30, the mesh crate's 1,060 lines of instrument, was the third member and is FIXED by #709.) **S29 is NOT blocked on a design conversation — corrected 2026-08-19.** This row previously said its policy question was routed to `docs/TESS-SPLIT-SPEC.md` and PR #568. #684's review checked: both are scoped **entirely to the NURBS per-cell schedule** (`nurbs_cert`'s `grid_steps`, certified cells, the first fundamental form — TESS-SPLIT-SPEC's D-1 replaces the AM-GM grouping, with `leaf_a f2` as its poster child). **Nothing in either covers analytic-chart sizing**, so `curved::grid_steps` has no venue at all — and #684 has since added a sixth rule to it. S29's own lesson applies to that: *N well-defended deviations read as N decisions when they are one undecided question.* S27 touches `props/`, so it must follow **A2** (#714) **and #723**, which re-opens the same file on the same closed forms — see the gating note above; S29 is edge-free. |
 | **C4** | **S32, S33** — `Surface`'s one-partial-per-call API, which is what created the shadow surface enum in SSI; and neither geometry enum being able to lift itself to another scalar. (S31, the `geom-curves`/`geom-surfaces` split, was the third member and is FIXED by #705.) | **S32 is now additionally gated on #705's merge**: the enum and its NURBS payload are one crate's two modules, so a `SurfaceJet` door at the enum no longer crosses a crate boundary. **S33 is coloured by D1**: several of its ~14 hand-written ladders exist only to reach `Dual`, and what `Bounds for Dual` changes there is written in S44's **D1 DECIDED** block. |
@@ -9564,6 +9616,7 @@ rewritten rather than appended to.
 | **C12** | **`editor-core`'s remaining classification residues, from #731's style review** — filed here rather than left inside a finding marked FIXED (**C-R7**). Three things. **(a)** `tests/m4_pr4_resolve.rs`'s `embeds_structurally` reimplements `walk_names`' structural half with a `_ => false` arm, so a future name-embedding variant makes the test oracle under-report silently; it is **S52**'s shape (the `tests/`-is-another-crate boundary) and S52 has no row of its own, which is why this one is written out rather than pointed at. **(b)** `resolve/mod.rs`'s undeclared duplication, found by a whole-file read: `qualifier_delta`, `merge_offers` and `rebind_suggestions` open with a byte-identical table scan differing only in the predicate (`lookup` is a fourth, shallower spelling), and `ResolveError::Ambiguous` + `TieWitness` is minted at three sites with different `candidates`/`at` and no constructor. Nothing self-declares, so **§C11**'s confessed-copy grep cannot see any of it (the clause, not the §D row of that number). **(c)** `merge_offers` scans only top-level `path` segments for `Merged` while `rebind_suggestions` uses the recursive `walk_names`, so a `Merged` nested inside `FromA` is visible to one offer ladder and not the other — an undeclared asymmetry between adjacent doors, and it is not established whether it is intended. **(d) An open QUESTION, not a defect — `persist::check::edit_non_finite`'s `Node` axis.** #731 made that match exhaustive on `DocEdit` and left `InsertNode { .. } => None`, so a future `Node` variant carrying a raw float is still classified silently at the load door. It is correct today, and the fix is not mechanical: two of the variants it already classifies — `Node::Mate`'s `alignment` and `SetPlacement`'s `frame` — hold raw `f64` and are safe only because `apply` refuses them on replay, which is the door this function's own doc says it does **not** rely on (*"a saved log is DATA — it has not necessarily been applied by this process"*). Closing the axis means ruling whether the load door may lean on `apply`, which is a policy call. | Small, edge-free, in one crate. (a) is a one-function fix once someone decides whether a test may call the crate's own walk; (b) is the same collapse S4 has done four times; (c) is a question before it is a fix. **(d) is a design element under C-R19** (orchestrator, 2026-08-20) — **middle tier: a plan goes to Evan before implementation, not a patch.** Fold (a)–(c) into whoever next opens `editor-core/src/resolve/`. |
 | **C15** | **#746 — `tess-lint`'s budget gate joins baseline to fresh rows on the face ORDINAL**, so a face reorder either compares two unrelated faces or drops one from the gate with no finding at all. `compare`'s key is `(scene, face)`; when a permutation lands a baseline NURBS ordinal on a fresh NON-NURBS face, `fresh_faces.get` misses, `recoverable()` is `None`, and the loop `continue`s — under a comment explaining the miss as *"the scene's absence is already a Vanished finding"*, which is not what happened. One key, both directions, one defect. | **Live today, measured, not hypothetical**: #738's sweep found `diefillet/diefillet` with **16 face ordinals permuted** against the committed baseline, deterministic across two machines. It does not fire only because that scene has no NURBS faces. Filed by #738's style review rather than left as a sentence in the body of a finding marked FIXED (**C-R7**). **Not a re-cut** — re-cutting hides the instance and leaves the key; the unit must choose between a reorder-proof join and an explicit refusal when a scene's ordinal→chart mapping moves, and record which. May reach `topo`/`mesh` for a stable per-face identity. |
 | **C17** | **Two of four excluded cargo roots now carry a hand-copied `cargo doc` step, and nothing gates the copies against drift.** `scripts/doc-gate.sh` is `cargo doc --workspace`, which sees workspace MEMBERS only; `tools/tess-meter` has a step copied into its CI row by #709 and `tools/tess-lint` one copied by #738, while `tools/k-lint`, `demos/tour` and `demos/wild` have none. The copies are prose in a YAML row: nothing checks that a root has one, that it matches its siblings, or that the sentences describing the arrangement are still true. | **The drift is measured, not predicted.** `doc-gate.sh:50` asserted *"**none** of those rows runs `cargo doc`"* four lines above its own record of #709's stopgap — false BEFORE #738 and falsified twice over by it — and `ci.yml:1718` said tess-meter documents *"unlike its sibling rows"*, and `local-scripts/ci-local.sh:518`, whose header says it mirrors ci.yml's row of the same name, stopped mirroring it the moment the hosted row gained a step. Three sites, all corrected by hand in #738, none of them caught by anything. **Tier (C-R19): the middle one — this asks for a plan before implementation, not a patch.** The row is not "add three more copies": the mechanism question is whether the doc gate stops being workspace-scoped and iterates every cargo root (changing what the gate IS, and its cost on every tier), or whether the copies stay and a gate asserts each excluded root's row carries one. That choice has a design element, and the local mirror is a second copy set that either answer has to account for. |
+| **C18** | **Three residues of H12's own enumeration, left open by #734** — a tests-only unit, so all three are coverage or prose, none a source change. **(a) The four Account-duty cells of the sweeps' never-silence grid have no acceptance row.** The grid is thirteen, not the nine #734 first claimed: the cell budget and both enclosure-poison arms sit in `exhaust.rs`'s ONE shared recursion, which runs under both values of `SweepDuty` on separate calls with separate floors, so **duty is an axis** — and it is the axis S23's own bug lived on. Three cells had rows before #734 and five more do now, all five under the **seeding** duty, because seeding runs first on both lanes. The residue is {cell budget, poison arm} × {ℝ³, chart} under **Account**. **What was tried and did not reach them, so the next taker does not repeat it:** the accounting floor is routinely orders finer than the seeding one (measured on the substrate wall, `8.8e-10` against `2.1e-2` in chart units), so the road looks open — but at `floor_scale` of 0, 1e-12 and 1e-9 both lanes' fixtures still terminate `Ok`, because exclusion and the banked tubes between them resolve every cell above any floor. What is needed is a fixture leaving a region neither excluded nor accounted at every width, and that is a new fixture, not a new assertion. **(b) The macro blind spot on #734's population sweep is open.** The 1-vs-3 containment measurement rests on `plane_nurbs_ssi` having exactly the callers a whole-tree name grep finds; a caller reaching it through a macro-generated path would not be matched. There is no such macro in this workspace to the lane's knowledge, and the reviewer did not close it either — but it is the one declared blind spot on the measurement and it should not live only in a PR body. **(c) `m5_pr7_ssi.rs`'s header claims the battery runs it "at the interval scalar", and the interval CI leg runs only the set difference of the two nextest lists** — so rows present in both configs never run there, and every row in that file is. A coverage claim about the file, false as the workflow stands; either the claim goes or the selection does, and which is a question for whoever owns the interval leg. | **C-R19 tier one — a lane takes it.** No design fork: (a) is test coverage needing a fixture whose non-existence is established rather than assumed, (b) is a sweep widened or a blind spot restated, (c) is one sentence corrected against one workflow file. Nothing here is a kernel change — H12's only source-side residue is **issue #762** (the chart-speed guard's `+∞` hole), which is deliberately NOT part of this row. |
 
 **Three ownership changes made to this table from outside the track (2026-08-20,
 Track E), stated here rather than only in Track E so this table is not read as
@@ -10663,11 +10716,38 @@ is weaker evidence than it looks."* That is why this track is first in §A2's
 ordering and why it is worth its own orchestrator: every other track's evidence
 is downstream of it.
 
-**Its gate is Track E's lane E-a (#753)**, which holds `scripts/gates/` and
-`.github/workflows/ci.yml` and is in review now. Nothing in F1–F3 or F8 may open
-until that lands. **This is a file-overlap gate, not a dependency gate** — see
-the Track E log's E-R4: a lane that disproves the *reason* for a gate has not
-disproved the gate.
+**`D61`–`D70` and `S117`–`S126` are reserved to Track F**, and are recorded here
+rather than only in its log because the *"take the next unassigned number from
+the orchestrator"* rule was written for lanes inside one track and does not
+survive three concurrent orchestrators drawing on one sequence from branches
+none of them can see. Tracks C and E should take blocks of their own the same
+way.
+
+**Claimed 2026-08-20; one live orchestrator, log at `docs/SMELL-F-LOG.md`.**
+Reviews are **style-only** except where a row says ADVERSARIAL, and the track
+runs beside the model A/B experiment without touching `docs/MODEL-AB-LOG.md`.
+The lane roster, the rulings and the landings are in that file; this table stays
+the schedule and a row leaves it when it lands.
+
+**Its gate is Track E's lane E-a (#753)**, which is in review now. Nothing in
+F1–F3 or F8 may open until that lands. **This is a file-overlap gate, not a
+dependency gate** — see the Track E log's E-R4: a lane that disproves the
+*reason* for a gate has not disproved the gate.
+
+**Two edges this table did not carry, both re-derived from the branches rather
+than from the schedule** (F-R1, F-R2 in the track log):
+
+- **#753 is ten files, not the two named above** — it also holds
+  `local-scripts/ci-local.sh`, `scripts/check-test-aggregation.sh` and
+  `scripts/ci-filter.py`'s neighbours. F8's scope cell says its file is
+  *"neither of E-a's two files"* and concludes it is free; that conclusion is
+  drawn from this table's Scope column instead of from the PR, and D44's fix
+  reaches the probe **invocation**, which is in `ci.yml`. F8 stays gated. **The
+  general shape is C-R11's: a scope cell is a claim site**, and this one is the
+  second scan's own table stating a file set it had not read.
+- **F4's S84 half is `geom-brep/tests/m5_pr7_ssi.rs`, the one code file Track
+  C's open #734 edits.** F4 waits on it as a whole rather than splitting, since
+  its four members are one missing idiom and closing three of four is §C13.
 
 | # | Work | From | Scope | Proposed verdict | Review |
 |---|---|---|---|---|---|
