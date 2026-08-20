@@ -106,6 +106,8 @@ mod surfaces_review_m2_pr1_interval;
 mod surfaces_review_m5_pr3_attack;
 #[path = "surfaces/review_m5_pr3_attack_interval.rs"]
 mod surfaces_review_m5_pr3_attack_interval;
+#[path = "surfaces/s32_jet_projection.rs"]
+mod surfaces_s32_jet_projection;
 #[path = "surfaces/span_window_pairing.rs"]
 mod surfaces_span_window_pairing;
 
