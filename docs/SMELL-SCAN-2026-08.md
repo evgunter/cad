@@ -4728,15 +4728,21 @@ because it is fast.
 byte; only who computes it moved. Both sweeps (`--sizing-only` and
 `--deviation`) are byte-identical to main's, all 1,050 rows.
 
-**One finding surfaced and deliberately NOT fixed there:** the
-`agreement` column measures nothing. `grid_cells` and `span_cells` were
-the same `band_schedule` sum computed twice, so `grid_cells / span_cells
-≡ 1.0` by arithmetic and `budget_meter`'s `≤ 1%` assertion on it was
-vacuous — the docs' claim that it "verifies the lane's REALISATION of the
-schedule (candidate generation, dedup, counting)" was never true, because
-neither number counts a candidate. `tess-meter` now says so in the
-column's doc rather than claiming a check. Making it real needs a CSV
-schema change and a re-cut committed baseline.
+**One finding surfaced here and deliberately NOT fixed here — the
+`agreement` column, which measured nothing. FIXED by #738**, which took
+the other branch: the column is **deleted**, not made real. The ruling
+and its argument are in `docs/TESS-BUDGET.md`, "Why there is no
+realisation column" — a realisation ratio divides what the lane built
+by what the schedule asked for, so it is blind BY CONSTRUCTION to the
+schedule bug the meter's own docs name as the blind spot; both
+directions of a realisation failure are already watched by instruments
+that read the mesh (the per-triangle certificate exactly, the
+scene-total triangle-growth rule only to within its 5% tolerance); a
+realised point count matches no stated value, so its tolerance could
+only be read off the baseline; and nothing consumed the ratio. #738
+also found that #709's correction of the false sentence reached the
+four MODULE-doc sites and left the ITEM docs and the report legend
+still describing two derivations.
 
 ## S31. FIXED by #705 — `geom-curves` / `geom-surfaces` was a crate split that bought nothing and was paid for in duplication
 
@@ -7412,7 +7418,14 @@ The 2026-08-19 statement of this paragraph is superseded: every gate it
 named has since fallen. **A1 (#682), A3 (issue #678, landed as #684), #690
 and #692 are all merged**, and **#705** merged the two geometry crates into
 one `geom`. So C1's remaining members, C3's S29, C4 in full, C5's S28 half,
-C7, C9 and C10 are all edge-free and takeable today.
+C7 and C10 are edge-free and takeable today. (**C9 — the `agreement`
+column — is FIXED by #738**, which deleted it rather than re-deriving
+it; the similarly-numbered **§C9** is an unrelated process
+observation. **C15** and **C17** are new, both filed by #738's review,
+and both collide the same way — **§C15** and **§C17** are process
+observations with nothing to do with either row. The convention is
+#731's and it is the only thing separating them: a bare `CNN` is a §D
+schedule row, a `§CNN` is a §C observation.)
 
 **C11 joined 2026-08-19**, as A2/#714's own two residues (§D ordering rule 3),
 and it is edge-free in the same sense C9 is: its #727 half is a **decision**
@@ -7445,9 +7458,10 @@ rewritten rather than appended to.
 | **C6** | **W2f remainder / S4** — `ProgramStep`/`WireStep`, `SegTag`, and the "no usable value" core. | Each is blocked on something real: the first behind OnArc + RESPELL-TABLE and crossing the same files, the second needs the workspace's first proc-macro crate, the third by a persisted format. |
 | **C7** | **W2a / S3 and W2b / S1+S2** — the lane-trait collapse, and `RingInterval` versus an always-on `Interval`. | **The S3 half no longer waits — D1 is ruled, and its report is S44's D1 DECIDED block.** The steelman's compiled collapse for S3 **predates #643's `Bounds`/`CertifiedEnclosure` split** and must be re-derived against the two-trait world; read *"What this does NOT settle"* first, in particular its per-lane correction — deleting a lane trait leaves **three of the four** seams still uninstantiable at a dual, and only `chart_region_overlap` would become instantiable. W2b's blast radius is 535 refs in 15 files with five carrying 60%. **Two rows joined this one on 2026-08-20**, both from the unscheduled audit: **S44's open residue** — whether the four lane traits survive and whether D9's four bit-identity assertions may be re-expressed, which is what S44 means by *"open for the part that matters"* now that its priced half (D1) is ruled — and **S55**, `Enclosure` as a live trait with no consumer, which Evan deferred *pending the `Bounds` narrow-vs-broad split* and which is therefore this row's, not a lane of its own. Whoever takes C7 absorbs both. |
 | **C8** | **#711 — S24's residues outside `editor-core`**: `step-import/src/recognize.rs:126`, whose `try_cylinder` promoting arm is documented unreachable and whose `Plane > Cylinder` preference order is *"unfalsifiable by execution"*; and `docs/ASM-R2A-SPEC.md:21`, a landed spec sentence (*"v1 admits `Rest`/`Tangent`"*) that is true of the door it binds and no longer of v1 as a whole. | Filed by #702's fix pass rather than left inside a finding marked FIXED. The first may want the tighter cylinder certificate rather than an encoding change; the second is a one-line ruling — clarifier, or "landed specs read as of their own date". Small, edge-free, and **not** a lane on its own: fold into whoever next opens `step-import`. |
-| **C9** | **The `tess-meter` CSV's `agreement` column measures nothing**, and its `≤ 1%` assertion in `budget_meter` was vacuous. `grid_cells` and `span_cells` are the same `Σ nuc·nvc` from the same `band_schedule`, so the ratio is `≡ 1.0` by arithmetic — while the module docs claimed it *"verifies the lane's REALISATION of the schedule (candidate generation, dedup, counting)"*, which was never true because neither number counts a candidate. `tess-lint`'s own report legend already printed *"1.00 by construction"*: **the tool knew and the docs disagreed.** #709 corrected the column's doc to stop claiming a check; making the column *real* needs a CSV schema change and a re-cut committed baseline. | Disclosed in #709's body and correctly out of that unit's scope — **and it had no row until now, which is this track's own instance of §C3.** The substantive question is whether a realisation check is worth having at all: if the answer is no, the honest fix is to delete the column rather than re-derive it, and that is a decision the lane should make and record. Edge-free; `tools/tess-meter/`, `tools/tess-lint/`, the committed baseline, `docs/TESS-BUDGET.md`. |
 | **C10** | **`geom_core::k_stats` is S30's class one crate over** — 598 lines, ~96 of them separable instrument, in the kernel's own core crate. | Reported by #709 and deliberately untouched, for a reason that is the whole row: the recording sits **inside** `decide`/`decide_flagged`/`decide_invariant`, which are load-bearing kernel predicate doors, so the `mesh::budget` split does **not** transfer mechanically. Whoever takes this must first decide whether the instrument can leave a door that certifies, and record that decision — it is not a cut-and-paste of #709. Note also `profile::k_stats`, a self-declared compatibility shim whose retirement is **STILL OPEN** at S40. Edge-free but not small. |
 | **C11** | **#726 and #727 — A2/#714's own two residues.** #726: fold the iso-rectangle SHAPE question out of `mesh::curved`'s `require_swept_rectangle` and onto the named predicate, leaving `entries_off_bbox` only #653's walk-consistency question. #727: which door owns the refusal — `mesh` and (once its curved-pierce door lands) the boolean are still protected **transitively**, through tier 3's check 7 calling `mass_properties`, which is the pre-#648 mesher's shape. | Both were footnotes inside a finding marked fixed until #714's style review applied ordering rule 3. #726 is a lane; #727 is a **decision** with a written answer to react to (S58's entry), not a patch. Whoever takes either reads **#723** first — `props_rim_level` is not the whole closed-form premise, so "protected by `props` refusing" is weaker than it reads. |
+| **C15** | **#746 — `tess-lint`'s budget gate joins baseline to fresh rows on the face ORDINAL**, so a face reorder either compares two unrelated faces or drops one from the gate with no finding at all. `compare`'s key is `(scene, face)`; when a permutation lands a baseline NURBS ordinal on a fresh NON-NURBS face, `fresh_faces.get` misses, `recoverable()` is `None`, and the loop `continue`s — under a comment explaining the miss as *"the scene's absence is already a Vanished finding"*, which is not what happened. One key, both directions, one defect. | **Live today, measured, not hypothetical**: #738's sweep found `diefillet/diefillet` with **16 face ordinals permuted** against the committed baseline, deterministic across two machines. It does not fire only because that scene has no NURBS faces. Filed by #738's style review rather than left as a sentence in the body of a finding marked FIXED (**C-R7**). **Not a re-cut** — re-cutting hides the instance and leaves the key; the unit must choose between a reorder-proof join and an explicit refusal when a scene's ordinal→chart mapping moves, and record which. May reach `topo`/`mesh` for a stable per-face identity. |
+| **C17** | **Two of four excluded cargo roots now carry a hand-copied `cargo doc` step, and nothing gates the copies against drift.** `scripts/doc-gate.sh` is `cargo doc --workspace`, which sees workspace MEMBERS only; `tools/tess-meter` has a step copied into its CI row by #709 and `tools/tess-lint` one copied by #738, while `tools/k-lint`, `demos/tour` and `demos/wild` have none. The copies are prose in a YAML row: nothing checks that a root has one, that it matches its siblings, or that the sentences describing the arrangement are still true. | **The drift is measured, not predicted.** `doc-gate.sh:50` asserted *"**none** of those rows runs `cargo doc`"* four lines above its own record of #709's stopgap — false BEFORE #738 and falsified twice over by it — and `ci.yml:1718` said tess-meter documents *"unlike its sibling rows"*, and `local-scripts/ci-local.sh:518`, whose header says it mirrors ci.yml's row of the same name, stopped mirroring it the moment the hosted row gained a step. Three sites, all corrected by hand in #738, none of them caught by anything. **Tier (C-R19): the middle one — this asks for a plan before implementation, not a patch.** The row is not "add three more copies": the mechanism question is whether the doc gate stops being workspace-scoped and iterates every cargo root (changing what the gate IS, and its cost on every tier), or whether the copies stay and a gate asserts each excluded root's row carries one. That choice has a design element, and the local mirror is a second copy set that either answer has to account for. |
 
 **Three ownership changes made to this table from outside the track (2026-08-20,
 Track E), stated here rather than only in Track E so this table is not read as
