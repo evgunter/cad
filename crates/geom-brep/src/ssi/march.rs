@@ -328,7 +328,7 @@ pub(crate) fn march<const M: usize, const N: usize, S>(
 where
     S: LocalSystem<M, N> + TransversalityData<N>,
 {
-    let mut x = newton_refine(sys, seed, ctx.tol.meters())
+    let mut x = newton_refine(sys, seed, ctx.tol)
         .ok_or(SsiError::SeedRefinementFailed { mode: mode.name() })?;
     let seed_state = x;
     let mut states = vec![x];
@@ -494,7 +494,7 @@ where
         }
 
         // ---- 6. Newton refinement to the surface pair ----
-        let Some(refined) = newton_refine(sys, next, ctx.tol.meters()) else {
+        let Some(refined) = newton_refine(sys, next, ctx.tol) else {
             // A step that will not settle is a step into nothing: end
             // the branch honestly rather than record a bad sample.
             return Err(SsiError::SeedRefinementFailed { mode: mode.name() });
@@ -597,12 +597,12 @@ where
 pub(crate) fn newton_refine<const M: usize, const N: usize, S>(
     sys: &S,
     mut x: [f64; N],
-    eps: f64,
+    step_tol: MarchTol,
 ) -> Option<[f64; N]>
 where
     S: LocalSystem<M, N>,
 {
-    let tol = SSI_NEWTON_TOL * eps;
+    let tol = SSI_NEWTON_TOL * step_tol.meters();
     for _ in 0..SSI_NEWTON_ITERS {
         let f = sys.residual(&x);
         let mut worst = 0.0f64;
@@ -767,7 +767,7 @@ fn push_boundary<const M: usize, const N: usize, S>(
         for (i, v) in t.iter_mut().enumerate() {
             *v = inside[i] + (outside[i] - inside[i]) * m;
         }
-        match newton_refine(sys, t, ctx.tol.meters()) {
+        match newton_refine(sys, t, ctx.tol) {
             Some(r) if within(&r, &ctx.domain) => {
                 lo = m;
                 best = Some(r);

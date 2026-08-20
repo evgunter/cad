@@ -483,7 +483,13 @@ pub struct SsiOutcome {
 }
 
 /// Knobs a caller must name rather than have guessed: the bounded
-/// domain, the feature extent, and the tolerance.
+/// domain and the feature extent.
+///
+/// **The tolerance is not among them.** Every door that takes an
+/// `SsiDomain` also takes the run's [`Band`], whose `zero()` *is* the
+/// run's ε, and the floors this struct derives read it from there — so
+/// a caller cannot size the accounting floor at one tolerance and
+/// decide against another.
 #[derive(Clone, Copy, Debug)]
 pub struct SsiDomain {
     /// The session-box slab (ℝ³ lane) or the plane window (ℝ⁴ lane),
@@ -699,7 +705,7 @@ pub fn cylinder_sphere_ssi(
         // component, and an exhaustiveness receipt that double-counts
         // the same tube). Refine first, then test.
         let state = [seed.x, seed.y, seed.z];
-        let landed = march::newton_refine::<2, 3, _>(&sys, state, ctx.tol.meters());
+        let landed = march::newton_refine::<2, 3, _>(&sys, state, ctx.tol);
         let probe = landed.map_or(*seed, |x| Point3::new(x[0], x[1], x[2]));
         if tubes
             .iter()
