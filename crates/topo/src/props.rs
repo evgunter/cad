@@ -135,9 +135,20 @@ impl std::error::Error for MassPropsError {}
 /// # Errors
 ///
 /// [`MassPropsError`] — a misconfigured band, an out-of-inventory
-/// face, rings on a curved face, or unresolvable structure. Bodies
-/// that pass the structural tiers and were built by M2's public
-/// operations always compute.
+/// face, rings on a curved face, or unresolvable structure.
+///
+/// **Not every valid body computes**, and the sentence that used to
+/// stand here (*"bodies that pass the structural tiers and were built
+/// by M2's public operations always compute"*) is falsified by #649's
+/// own fixture: `merge_coplanar_faces` is a public operation that
+/// moves no geometry and conserves χ, and running it on a body whose
+/// cylindrical walls are authored as rectangular sub-faces produces a
+/// structurally valid body carrying a plus-shaped iso domain, which
+/// the closed forms refuse (`props_rim_level`, S58). A refusal here is
+/// D2-addendum row 2 for that arm — valid input, lane not built — not
+/// a claim about the body's integrity. See
+/// [`ValidationError::VolumeUncomputable`](crate::ValidationError)'s
+/// per-source breakdown.
 pub fn mass_properties<T: PropsQuadLane>(
     body: &Body<T>,
 ) -> Result<MassProperties<T>, MassPropsError> {

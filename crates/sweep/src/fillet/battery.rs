@@ -36,7 +36,6 @@
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::EdgeGeometry;
 use geom_core::{
     Band, Bounds, Decide, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Vec3,
 };
@@ -1089,22 +1088,5 @@ fn shares_vertex<T: Decide>(body: &Body<T>, a: EdgeKey, b: EdgeKey) -> bool {
     match (ends(a), ends(b)) {
         (Some((a0, a1)), Some((b0, b1))) => a0 == b0 || a0 == b1 || a1 == b0 || a1 == b1,
         _ => false,
-    }
-}
-
-/// The description a blend trimline is BORN with: the intrinsic
-/// tangential contact locus of the blend surface and its support
-/// (prefer-intrinsic, D7), never a `MappedCurve` pushforward of the
-/// construction that happened to produce it.
-#[must_use]
-pub fn trimline_description<T: Real>(
-    blend_surface: geom_brep::SurfaceKey,
-    support: geom_brep::SurfaceKey,
-    witness: Point3<T>,
-) -> EdgeGeometry<T> {
-    EdgeGeometry::TangentIntersection {
-        s1: blend_surface,
-        s2: support,
-        witness,
     }
 }

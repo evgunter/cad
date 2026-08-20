@@ -27,7 +27,10 @@
 //! never an answer**, and it explicitly supersedes the footnote's original
 //! "typed errors where cheaply detectable, or documented garbage-out in
 //! release". W2c executed that rule across `euler{,_ring,_kill}.rs`: no
-//! mutation phase there discards a failed lookup any more.
+//! mutation phase there discards a failed lookup any more, and neither
+//! does the one write helper they share — `link_half_edges` announces,
+//! on a precondition its callers each discharge by minting the key or
+//! proving it live in the same call.
 //!
 //! **That did not retire the row below, and the reason is the row's whole
 //! point.** `foreign_parent_loop_garbage_in_garbage_out_release` corrupts
@@ -43,8 +46,8 @@
 //!
 //! # What this file does NOT cover, stated rather than left to be found
 //!
-//! The row-4 `unreachable!`s the Euler modules now carry fire on a key
-//! that fails to RESOLVE. Every corruption planted below is either
+//! The row-4 `unreachable!`s the Euler modules and `link_half_edges` now
+//! carry fire on a key that fails to RESOLVE. Every corruption planted below is either
 //! live-but-wrong (`parent_loop`, the edge<->half bijection) or a torn
 //! `next` -- by construction none of them makes a lookup fail, which is
 //! why the whole file still passes unchanged after the conversion. So

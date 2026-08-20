@@ -1403,9 +1403,8 @@ fn check_direction(kv: &KnotVector, fk: FaceKey) -> Result<(), TessellateError> 
             note: "degree-0 NURBS direction (a degenerate face description)",
         });
     }
-    let interior = &kv.knots()[p + 1..kv.knots().len() - p - 1];
     if p == 1 {
-        if interior.is_empty() {
+        if kv.interior_knots().next().is_none() {
             return Ok(());
         }
         return Err(TessellateError::UnsupportedNurbsFace {
@@ -1415,21 +1414,14 @@ fn check_direction(kv: &KnotVector, fk: FaceKey) -> Result<(), TessellateError> 
                    the crease",
         });
     }
-    let mut i = 0;
-    while i < interior.len() {
-        let mut j = i + 1;
-        while j < interior.len() && interior[j] == interior[i] {
-            j += 1;
-        }
-        if j - i > p - 1 {
-            return Err(TessellateError::UnsupportedNurbsFace {
-                face: fk,
-                note: "NURBS direction with a C⁰ crease (interior multiplicity = \
-                       degree) — the interpolation Taylor bound needs C¹; split \
-                       the face at the crease",
-            });
-        }
-        i = j;
+    // C¹ needs every interior multiplicity ≤ p − 1 (p ≥ 2 here).
+    if kv.interior_knots().any(|(_, m)| m > p - 1) {
+        return Err(TessellateError::UnsupportedNurbsFace {
+            face: fk,
+            note: "NURBS direction with a C⁰ crease (interior multiplicity = \
+                   degree) — the interpolation Taylor bound needs C¹; split \
+                   the face at the crease",
+        });
     }
     Ok(())
 }

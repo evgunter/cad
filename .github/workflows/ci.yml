@@ -303,6 +303,27 @@ jobs:
       # never opted in — that is the hole this closes.
       - name: test-aggregation discipline
         run: scripts/check-test-aggregation.sh
+      # The census half of the probe test surface. Its consumer — the
+      # `type-check every probe-gated test target` step in `k-lint` —
+      # `cargo check`s exactly the crates this prints, and this gate is
+      # what makes an empty or shrinking answer loud rather than silent.
+      # It rides here, not there, so the LOUD FAILURE IS OWNED BY A GATE
+      # rather than by the order of two steps in one job: it is
+      # roster-enforced like its siblings, its `--selftest` proves the
+      # guards fire, and the local half reaches it through the loop that
+      # runs this whole directory instead of a hand-written mirror row.
+      - name: probe-suite census + citation guard
+        run: |
+          scripts/gates/probe-suite-census.sh --selftest
+          scripts/gates/probe-suite-census.sh
+      # The run half's guards. `k_probe_sweep.sh`'s `run_dump` is the only
+      # thing between "the harness ran" and "the sweep recorded nothing
+      # and exited 0", and nothing else in the tree exercises it. No
+      # cargo: the function is extracted from the script under test and
+      # driven against a stub, so it costs milliseconds and cannot end up
+      # testing a fossil.
+      - name: k-probe sweep guard selftest (run_dump)
+        run: scripts/rundump-guard-selftest.sh
       # The `interval` feature must stay PURELY ADDITIVE. This is not a
       # style rule: the `test-interval` legs run only the tests that
       # feature ADDS (see that job's header), which is sound only while
@@ -675,7 +696,7 @@ jobs:
       - name: run archived tests
         run: ${{ matrix.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', matrix.eps) || '' }} cargo nextest run --archive-file nextest-default.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2
 
-  # THE RELEASE-PROFILE ROW. Two adversarial suites in `crates/topo` feed
+  # THE RELEASE-PROFILE ROW. Three adversarial suites in `crates/topo` feed
   # tier-1-INVALID bodies to the Euler operators and are written about
   # RELEASE semantics; the archive matrix above is the dev profile at
   # opt-2 with debug-assertions ON, so it cannot be what runs them.
@@ -696,6 +717,18 @@ jobs:
   #     postcondition sweep makes the construction loop quadratic). The
   #     case the gate sees is six times larger in this job, and the
   #     clause it defends is not superseded by anything.
+  #   * THE ROW-4 ARMS ARE NOT INPUT-REACHABLE, which is the clause the
+  #     whole D2 addendum rests on and the only one with an executable
+  #     test. `review_d18`'s two hammer rows drive every operator that
+  #     reaches `link_half_edges` over randomly torn bodies and over a
+  #     genuinely spent graft destination, counting mutation-phase
+  #     completions. They are release-only BY CONSTRUCTION, not by
+  #     preference: in debug a torn body may legitimately panic at the
+  #     postcondition, so telling that apart from a row-4 arm needs a
+  #     process-global panic hook, which races the threaded matrix. With
+  #     the postcondition compiled out, any panic IS a row-4 arm. So this
+  #     job is the only lane in which those rows mean anything, and the
+  #     only lane that runs them at all.
   #   * COMPILE ROT, which is a PROFILE-level hazard and independent of
   #     what any row asserts: a `#[cfg(not(debug_assertions))]` item that
   #     no CI job ever type-checks can rot into a build error with every
@@ -703,16 +736,22 @@ jobs:
   #     `foreign_parent_loop_garbage_in_garbage_out_release` and the
   #     `use crate::validate;` it needs are exactly that shape.
   #
-  # WHAT IT DOES NOT BUY, and the scheduled change underneath it. That
-  # same row also certifies today's silent-discard behaviour — the op
-  # returns Ok on corruption its preconditions cannot see. That was D9's
-  # ratified disposition until 2026-08-19, when the **D2 addendum**
-  # superseded it: "Silent discard is never an answer." The ~60 discards
-  # in `euler{,_ring,_kill}.rs` are now a known deviation pending **W2c**,
-  # and WHEN W2C LANDS THIS ROW CHANGES MEANING OR DIES — it will be
-  # asserting a converted mechanism, not garbage-out. The two bullets
-  # above are what survives that; whoever lands W2c should re-read this
-  # row rather than assume the job still means what it meant.
+  # WHAT IT DOES NOT BUY: it does not certify silent discard, and that
+  # distinction is why it survived **W2c**. D9's ratified corrupt-input
+  # disposition allowed "documented garbage-out in release" until the
+  # **D2 addendum** (2026-08-19) superseded that half with "Silent
+  # discard is never an answer"; W2c executed the addendum across
+  # `euler{,_ring,_kill}.rs`, `link_half_edges` and its two unproven
+  # callers included, so no write there swallows a failed lookup any
+  # more. `foreign_parent_loop_garbage_in_garbage_out_release` passes
+  # unchanged across that conversion because the `parent_loop` it plants
+  # is LIVE BUT WRONG: no lookup fails, every write lands, and what the
+  # row observes is wrong DATA, never a swallowed failure. That is the
+  # residue the addendum deliberately leaves standing — corruption a
+  # plan phase cannot observe still yields `Ok` plus a body the
+  # validator refuses — and it is what the row records. The three greps
+  # below are unchanged for the same reason: the conversion renamed and
+  # retired nothing here.
   #
   # The other rows in the file are profile-independent — `pillow()` runs
   # three SUCCESSFUL operators, so they do fire the debug postcondition
@@ -749,6 +788,7 @@ jobs:
           cargo test --release -p topo --lib -- \
             review_m1_pr2::release_corruption \
             review_m1_pr4::kill_ops_survive_torn_bodies_without_panicking \
+            review_d18 \
             | tee release-corruption.log
           # A name filter that matches NOTHING exits 0 — the exact
           # silence this job exists to remove. So assert the selection is
@@ -761,6 +801,14 @@ jobs:
           grep -q 'garbage_in_garbage_out_release \.\.\. ok' release-corruption.log
           grep -q 'large_torn_body_terminates_quickly \.\.\. ok' release-corruption.log
           grep -q 'kill_ops_survive_torn_bodies_without_panicking \.\.\. ok' release-corruption.log
+          # `review_d18`'s two hammer rows are `cfg(not(debug_assertions))`
+          # on purpose — in debug a torn body may legitimately panic at the
+          # postcondition, so classifying one needs a process-global hook
+          # that races the matrix; in release the postcondition is compiled
+          # out, so any panic IS a row-4 `unreachable!` and no hook is
+          # needed. This job is therefore the ONLY lane that runs them.
+          grep -q 'torn_bodies_never_reach_a_row_four_unreachable \.\.\. ok' release-corruption.log
+          grep -q 'a_spent_graft_destination_never_reaches_a_row_four_unreachable \.\.\. ok' release-corruption.log
           # Both suite headers name this job as their mechanism. Nothing
           # else greps for that name, so renaming the job would leave two
           # doc comments quietly false; this is what makes it loud.
@@ -1761,7 +1809,64 @@ jobs:
           cd tools/tess-lint && cargo run -- \
             ../../target/tess-budget-fresh.csv \
             --baseline ../../docs/tess-budget-data/tess-budget-baseline.csv
-      - name: K-telemetry probe sweep (corpus + demo scenes, 3 eps rows)
+      # THE PROBE TEST SURFACE. `probe` is an opt-in feature, so a
+      # `tests/*.rs` behind `#![cfg(feature = "probe")]` is invisible to
+      # every default row in this file: it can rot into a build error, or
+      # out of existence, with the whole matrix green. Sixteen such
+      # suites exist across five crates and only editor-core's two were
+      # ever compiled — as a side effect of the sweep below, not by
+      # anything that meant to.
+      #
+      # WHY HERE AND NOT IN A JOB OF ITS OWN, which is the shape
+      # `release-corruption` above would suggest. That job is separate
+      # because release artifacts share no fingerprint with any
+      # dev-profile job, so it had to own a cache key. The opposite holds
+      # here: this is already the only job that passes `--features
+      # probe`, so its cache is where the probe-instantiated graph lives,
+      # and its gate (`run_k_lint`, "whenever anything builds") is
+      # already the right one — `probe` is a `Real` instantiation, so a
+      # change in ANY kernel crate can break a probe suite's type-check,
+      # and a job keyed on a hand-written root set would be the same
+      # snapshot-goes-stale failure one level up.
+      #
+      # WHAT THAT COSTS, stated so a debugger is not surprised by it:
+      # COUPLING, and about 40 s a merge. A probe type-check failure now
+      # reds `k-lint`, which is otherwise the margin-distribution gate:
+      # if this job is red at the step below, the margins are not the
+      # subject — a probe-gated `tests/*.rs` stopped compiling, and
+      # nothing about the K thresholds has moved.
+      #
+      # The 40 s is the number to plan against, not the ~1 s a fully warm
+      # local tree shows. `rust-cache` does not cache workspace crates,
+      # only deps (see this file's cache header), so the operating point
+      # is a restored dep graph with every member recompiled: 37-41 s
+      # measured over two runs on a 4-vCPU agent container, against
+      # 43-61 s from an empty target dir. A RATIO, not a hosted number.
+      #
+      # The selection is DERIVED, not listed: the census gate (in the
+      # `discipline` job, which owns its guards and its self-test) scans
+      # the tree, and this loop checks exactly what it prints, so a crate
+      # that gains its first probe suite is covered with nothing to
+      # remember. THE SUBSTITUTION IS BOUND FIRST, deliberately: a
+      # command substitution inside a `for` list is not subject to
+      # `set -e`, so a census refusal there would print its error and
+      # leave this step green over zero crates — the silence one level
+      # up from the one the census exists to remove.
+      - name: type-check every probe-gated test target
+        run: |
+          set -euo pipefail
+          crates=$(scripts/gates/probe-suite-census.sh --crates)
+          test -n "$crates"
+          echo "probe-gated crates to type-check: $(echo "$crates" | tr '\n' ' ')"
+          for c in $crates; do
+            cargo check -p "$c" --features probe --all-targets
+          done
+      # Runs the M2-era harness (crates/sweep) beside the M4/M5/M7 one
+      # (editor-core + tour) — see the script header for why its dump
+      # rides beside the linted CSV rather than inside it. A type-check
+      # would not have caught what that harness actually did: it compiled
+      # perfectly and panicked, unnoticed, for 26 days.
+      - name: K-telemetry probe sweep (corpus + M2 corpus + demo scenes, 3 eps rows)
         run: scripts/k_probe_sweep.sh target/k-fresh
       - name: large-K lint (gate — a flagged margin fails this row)
         run: |

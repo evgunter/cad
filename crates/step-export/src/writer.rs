@@ -98,37 +98,29 @@ fn refs(ids: &[u64]) -> String {
     out
 }
 
-/// Run-length-encodes a flat clamped knot vector into STEP's
-/// `(multiplicities)` / `(distinct knots)` pair, returning both as
-/// ready-to-splice argument text.
+/// Formats a knot vector's runs as STEP's `(multiplicities)` /
+/// `(distinct knots)` pair, both as ready-to-splice argument text.
 ///
-/// Runs are cut on **exact f64 equality** — the kernel's own
-/// multiplicity predicate (`KnotVector`'s type docs: knots are
-/// structure, and structure identity is bitwise-value identity, never
-/// a tolerance question). So the pair round-trips to the identical
-/// flat vector, and no ε enters this path.
+/// The run-length encoding itself is `KnotVector::knot_runs`, which
+/// cuts on **exact f64 equality** — knots are structure, and structure
+/// identity is bitwise-value identity, never a tolerance question. So
+/// the pair round-trips to the identical flat vector, and no ε enters
+/// this path. What is left here is formatting: the separators and the
+/// `fmt_real` refusal, which is why this walks the runs rather than
+/// collecting them.
 fn run_length_knots(
-    knots: &[f64],
+    knots: &KnotVector,
     context: &'static str,
 ) -> Result<(String, String), StepExportError> {
     let mut mults = String::new();
     let mut values = String::new();
-    let mut index = 0;
-    let mut first = true;
-    while index < knots.len() {
-        let value = knots[index];
-        let mut run = 1;
-        while index + run < knots.len() && knots[index + run] == value {
-            run += 1;
-        }
-        if !first {
+    for (index, (value, run)) in knots.knot_runs().enumerate() {
+        if index > 0 {
             mults.push_str(", ");
             values.push_str(", ");
         }
-        first = false;
         let _ = write!(mults, "{run}");
         values.push_str(&fmt_real(value, context)?);
-        index += run;
     }
     Ok((mults, values))
 }
@@ -390,7 +382,7 @@ impl<'a> Writer<'a> {
         }
         let points = refs(&points);
         let degree = knots.degree();
-        let (mults, values) = run_length_knots(knots.knots(), "b-spline curve knot")?;
+        let (mults, values) = run_length_knots(knots, "b-spline curve knot")?;
         if weights.iter().all(|w| *w == 1.0) {
             Ok(self.emit(&format!(
                 "B_SPLINE_CURVE_WITH_KNOTS('', {degree}, ({points}), .UNSPECIFIED., .U., .U., \
@@ -454,10 +446,8 @@ impl<'a> Writer<'a> {
         }
         let points = rows.join(", ");
         let (du, dv) = (surface.knots_u().degree(), surface.knots_v().degree());
-        let (u_mults, u_values) =
-            run_length_knots(surface.knots_u().knots(), "b-spline surface u-knot")?;
-        let (v_mults, v_values) =
-            run_length_knots(surface.knots_v().knots(), "b-spline surface v-knot")?;
+        let (u_mults, u_values) = run_length_knots(surface.knots_u(), "b-spline surface u-knot")?;
+        let (v_mults, v_values) = run_length_knots(surface.knots_v(), "b-spline surface v-knot")?;
         if surface.weights().iter().all(|w| *w == 1.0) {
             Ok(self.emit(&format!(
                 "B_SPLINE_SURFACE_WITH_KNOTS('', {du}, {dv}, ({points}), .UNSPECIFIED., .U., \
@@ -1029,7 +1019,7 @@ mod tests {
     fn interior_knot_multiplicities_encode_exactly() {
         let flat = vec![0.0, 0.0, 0.0, 0.25, 0.5, 0.5, 1.0, 1.0, 1.0];
         let knots = KnotVector::clamped(flat.clone(), 2).unwrap();
-        let (mults, values) = run_length_knots(knots.knots(), "test").unwrap();
+        let (mults, values) = run_length_knots(&knots, "test").unwrap();
         assert_eq!(mults, "3, 1, 2, 3");
         assert_eq!(values, "0.0, 0.25, 0.5, 1.0");
         // Round trip: multiplicities × values rebuild the flat vector.

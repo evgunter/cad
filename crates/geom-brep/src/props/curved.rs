@@ -376,11 +376,171 @@ fn same_level<T: Decide>(
     }
 }
 
+/// **The iso-rectangle predicate**: every rim sits at one of the
+/// face's two extreme `v`-levels.
+///
+/// This is the one named test of *"this face's domain is an
+/// iso-parameter rectangle"* — the premise the closed forms in this
+/// module integrate against (`super`'s module docs; `cylinder()`'s
+/// `area = r·Δu·(hi − lo)`). Before S58 it existed on **one** arm,
+/// inside `torus()`, for a periodicity reason rather than as a
+/// decision about how the property should be tested; the other three
+/// kinds tested rim-group span SUMS instead, and a sum is not a shape
+/// (#649: a cross-shaped domain passed, and `topo::mass_properties`
+/// certified a 19%-low volume with `volume_pad = 0.0`).
+///
+/// **Why the level rule gives `w ≡ Δu`.** Let `w(v)` be the total
+/// `u`-measure of the domain at height `v`. Between consecutive rim
+/// levels the boundary consists of meridians only — iso-`u` curves,
+/// which move no `u`-endpoint — so `w` is constant there, and it can
+/// change ONLY at a level carrying a rim. If every rim sits at `lo` or
+/// at `hi`, then `w` is constant on the whole open interval
+/// `(lo, hi)`: `w ≡ Δu`, which is what the closed forms assume ABOUT
+/// `w`. (`du_of_rims` supplies the `Δu` value and, once this holds,
+/// its span-sum agreement is a genuine rectangle test rather than a
+/// proxy for one.) This paragraph used to be headed *"why the level
+/// rule is sufficient"*; it is not sufficient, and the next one says
+/// what is missing.
+///
+/// **What this does NOT establish — open at #723.** The rule gives
+/// `w ≡ Δu` on `(lo, hi)` and nothing more. `area = r·Δu·(hi − lo)`
+/// needs a SECOND premise, which is not this one: that the `(lo, hi)`
+/// handed in really is the face's `v`-extent. The torus's is sound by
+/// derivation — its ends are the anchor meridian's STORED span — but
+/// the linearly-leveled kinds take theirs from `min_max`, which folds
+/// edge ENDPOINT levels only. On the sphere that is falsifiable: a
+/// meridian arc crossing a pole reaches latitude ±1 in its INTERIOR,
+/// where `min_max` never looks, and the face measures **−47% at
+/// `pad = 0.0` with tier 3 green** (#723, pre-existing, not fixed
+/// here). Such a face passes THIS predicate correctly, at margin 0,
+/// because its domain genuinely is a rectangle. Do not read a pass
+/// here as "the closed form's preconditions are checked".
+///
+/// **Deliberately a little stricter than necessary.** An interior
+/// level carrying matching `+`/`−` groups would leave `w` unchanged
+/// and is refused here anyway. Erring strict is the right direction
+/// for a precondition: the refusal is D2-addendum row 2 (valid input,
+/// lane not built — [`PropsError::NotIsoRectangle`]), and the
+/// capability answer for such a domain is the certified-quadrature
+/// lane, not a wider closed form.
+///
+/// `ends` are the two extreme levels in the SAME representation the
+/// rims carry ([`RimLevel`]), so the margin is metered by the level's
+/// own dimension: bare for `Length` (already meters), `× arm` for the
+/// dimensionless `Unit` direction pair. The torus passes its
+/// meridian-derived `[v0, v1]` endpoints; the linearly-leveled kinds
+/// pass `min_max`'s `(lo, hi)`.
+///
+/// **The margin is not always exactly zero.** On the ordinary domain
+/// it is: `min_max` folds the rim levels among the rest, so each rim's
+/// own level IS one of the extremes and the difference is bitwise 0.
+/// It is a different expression whenever a MERIDIAN endpoint sets `lo`
+/// or `hi` — then the margin is the rim's disagreement with that
+/// endpoint, a real quantity that this predicate would decide. That
+/// case is subsumed upstream rather than owned here: a rim wobbled a
+/// nanometre off the vertex its meridian starts at is already refused
+/// by `certify`'s `carrier_endpoint_start`, a length residual at the
+/// same band. So the near-degenerate reachable input for this
+/// predicate arrives already refused, and the two spellings of "0" —
+/// bitwise and decided — never have to be told apart here.
+///
+/// **Fail direction, stated because its twin fails the other way.**
+/// The mixed-representation arm below is the same structurally-
+/// impossible idiom [`same_level`] carries, but the two answers point
+/// opposite ways: `same_level` falls back to `Ok(false)` (do not
+/// group — conservative), whereas routing a poisoned margin through
+/// [`require_zero`] would PASS on a `Zero`. So this arm refuses
+/// explicitly instead of relying on the poison, and the escalation is
+/// still attempted first (D9: typed, never a panic).
+fn require_rims_at_extremes<T: Decide>(
+    rims: &[Rim<T>],
+    ends: (RimLevel<T>, RimLevel<T>),
+    arm: T,
+    band: Band,
+) -> Result<(), PropsError> {
+    for rim in rims {
+        let margin = match (rim.level, ends.0, ends.1) {
+            (RimLevel::Length(v), RimLevel::Length(lo), RimLevel::Length(hi)) => {
+                Margin::of((v - lo).abs().min((v - hi).abs()))
+            }
+            (RimLevel::Unit(s, c), RimLevel::Unit(s0, c0), RimLevel::Unit(s1, c1)) => {
+                // powi(2), not x*x: the interval square is tight and
+                // nonnegative, so the sqrt stays fully in-domain even
+                // when the difference encloses zero (an x*x interval
+                // product has a negative lower bound there, and the
+                // domain-clamped sqrt's decoration would poison the
+                // margin — found live on the interval-lane donut).
+                let d0 = ((s - s0).powi(2) + (c - c0).powi(2)).sqrt();
+                let d1 = ((s - s1).powi(2) + (c - c1).powi(2)).sqrt();
+                Margin::levered(d0.min(d1), arm)
+            }
+            // One surface builds every rim of a face AND both ends, so
+            // mixed representations are structurally impossible. The
+            // poisoned margin is classified first, so the ordinary
+            // outcome is a typed escalation rather than a panic (D9);
+            // if it ever answered `Zero` the refusal below is what
+            // fires, because `require_zero` would let a `Zero` through
+            // and this idiom's twin (`same_level`) refuses instead.
+            // (This also replaces the torus's own former message,
+            // "torus rim carries a non-angular level" — same
+            // unreachable state, now an `Escalated` NaN margin rather
+            // than a described `NotIsoRectangle`. Diagnosability
+            // regression, D9-legal, recorded so it is not rediscovered
+            // as a defect.)
+            _ => {
+                classify("props_rim_level", Margin::of(T::from_f64(f64::NAN)), band)?;
+                return Err(PropsError::NotIsoRectangle {
+                    what: "props_rim_level",
+                });
+            }
+        };
+        require_zero("props_rim_level", margin, band)?;
+    }
+    Ok(())
+}
+
 /// Check all rims agree on `Δu`; returns the face's `Δu`. `arm` is
 /// the azimuthal lever arm (meters), metering the DIMENSIONLESS
 /// margins here (`Unit` level components, the ±1 traversal-direction
 /// difference, the `Δu` angle difference); `Length` level margins are
 /// already meters and never touch it.
+///
+/// **Why the torus meters level coincidence at a different arm here
+/// than [`require_rims_at_extremes`] does, one line apart.** Both
+/// decide a difference of [`RimLevel::Unit`] pairs; the predicate
+/// levers it at `minor` and this function at `major`, roughly 4×
+/// apart on a real donut. `minor` is the EXACT one — a difference of
+/// minor-circle direction pairs induces a point deviation at the minor
+/// radius — and it is used where the answer is a REFUSAL. The `major`
+/// here is `docs/predicate-dimension-audit.md`'s **note N1**, recorded
+/// and deliberately deferred to the typed-margin conversation: it
+/// overstates by `major / minor`, and the direction of that error is
+/// safe, because an overstated grouping margin ESCALATES a truly
+/// coincident pair (D9: never guess) rather than merging a distinct
+/// one. This function's `arm` also meters the Δu angle difference and
+/// the ±1 direction difference, for which `major` is the right arm;
+/// splitting it in two would resolve N1 in passing, which is not this
+/// unit's to do.
+///
+/// **This is the Δu VALUE, not the shape test.** Every caller runs
+/// [`require_rims_at_extremes`] first, which is what makes the domain
+/// a rectangle; with all rims at the two extreme levels the span-sum
+/// agreement checked here says the two ends carry the same total
+/// `u`-measure, i.e. it pins the value the rectangle's `w ≡ Δu`
+/// already guarantees is constant. Standing alone — as it did before
+/// S58 — it guaranteed only `w(v) ∈ {k·Δu}`, which is #649.
+///
+/// **`props_du_consistent`'s reachability is `unsure`** (recorded, not
+/// settled — #714's review). With every rim pinned to an extreme and
+/// every non-rim boundary edge a meridian, no loop has been
+/// constructed whose extreme-level groups disagree on their span
+/// sums, and nothing in the workspace asserts that refusal by name.
+/// If it is in fact unreachable then this `require_zero` is a value
+/// computation wearing a typed-refusal costume and should be an
+/// `unreachable`-class site (D2 addendum row 4/5) instead. It is left
+/// as a refusal because the argument for unreachability rests on the
+/// predicate above being complete, and #723 is a live demonstration
+/// that a premise about these domains can be one clause short.
 fn du_of_rims<T: Decide>(rims: &[Rim<T>], arm: T, band: Band) -> Result<T, PropsError> {
     if rims.is_empty() {
         return Err(PropsError::NotIsoRectangle {
@@ -472,9 +632,28 @@ fn cylinder<T: Decide>(
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
     let (rims, levels) = cylinder_boundary(origin, axis, radius, edges, band)?;
-    let du = du_of_rims(&rims, radius, band)?;
     let (lo, hi) = min_max(&levels)?;
     require_extent(Margin::of(hi - lo), band)?;
+    // The iso-rectangle premise, before anything integrates against it
+    // (S58/#649): cylinder levels are `Length` (axial arc length), so
+    // the extremes go in bare and `radius` meters only the Δu margins
+    // inside `du_of_rims`.
+    //
+    // The predicate needs `(lo, hi)`, so `du_of_rims` moved BELOW
+    // `min_max`/`require_extent` here and in `cone`. One diagnosability
+    // regression falls out, D9-legal and deliberate: a rim-free wall
+    // whose meridian endpoints all sit at one level now reports
+    // `DegenerateFace` (zero extent) where it used to report
+    // `du_of_rims`' "curved face without a rim (non-sphere)". Both are
+    // typed refusals of the same input; the second named the cause
+    // better. Recorded so it is not rediscovered as a defect.
+    require_rims_at_extremes(
+        &rims,
+        (RimLevel::Length(lo), RimLevel::Length(hi)),
+        radius,
+        band,
+    )?;
+    let du = du_of_rims(&rims, radius, band)?;
     // `radius` is the azimuthal lever arm; the rim-side margin itself
     // is Length-leveled (meters) and never touches it.
     let s_f = t_sign::<T>(s_f_from_rim(&rims[0], lo, hi, radius, band)?);
@@ -602,9 +781,18 @@ fn cone<T: Decide>(
     let (sin_a, cos_a) = half_angle.sin_cos();
     let (rims, levels) = cone_boundary(apex, axis, sin_a, cos_a, edges, band)?;
     let arm = cone_arm(&rims, sin_a);
-    let du = du_of_rims(&rims, arm, band)?;
     let (lo, hi) = min_max(&levels)?;
     require_extent(Margin::of(hi - lo), band)?;
+    // The iso-rectangle premise (S58/#649). Cone levels are the signed
+    // SLANT arc length — `Length`, so bare — and `arm` (the first rim's
+    // own radius) meters only the dimensionless margins downstream.
+    require_rims_at_extremes(
+        &rims,
+        (RimLevel::Length(lo), RimLevel::Length(hi)),
+        arm,
+        band,
+    )?;
+    let du = du_of_rims(&rims, arm, band)?;
     // Single-nappe check: definitely-negative low AND definitely-positive
     // high would straddle the apex through both nappes.
     let s_lo = classify("props_cone_nappe", Margin::of(lo), band)?;
@@ -765,6 +953,16 @@ fn sphere<T: Decide>(
         // the face's sense IS `s_f` here, not a cross-check of it.
         s_f = sense_sign;
     } else {
+        // The iso-rectangle premise (S58/#649). Sphere levels are
+        // latitude SINES — dimensionless `Unit` with a zero second
+        // component — so the extremes are lifted into the same
+        // representation and metered at the sphere radius.
+        require_rims_at_extremes(
+            &rims,
+            (RimLevel::Unit(lo, T::zero()), RimLevel::Unit(hi, T::zero())),
+            radius,
+            band,
+        )?;
         du = du_of_rims(&rims, radius, band)?;
         s_f = t_sign::<T>(s_f_from_rim(&rims[0], lo, hi, radius, band)?);
     }
@@ -883,7 +1081,6 @@ fn torus<T: Decide>(
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
     let (rims, meridians) = torus_boundary(center, axis, major, minor, edges, band)?;
-    let du = du_of_rims(&rims, major, band)?;
     let Some(m0) = meridians.first() else {
         return Err(PropsError::NotIsoRectangle {
             what: "torus face without a meridian",
@@ -915,25 +1112,24 @@ fn torus<T: Decide>(
         }
         Sign::Zero => unreachable_zero(),
     };
-    // Rim levels must sit at the interval ends.
-    for rim in &rims {
-        // Torus rims are minted `Unit` a page up; the refusal arm is
-        // structurally unreachable but stays typed, never a panic (D9).
-        let RimLevel::Unit(rs, rc) = rim.level else {
-            return Err(PropsError::NotIsoRectangle {
-                what: "torus rim carries a non-angular level",
-            });
-        };
-        // powi(2), not x*x: the interval square is tight and
-        // nonnegative, so the sqrt stays fully in-domain even when the
-        // difference encloses zero (an x*x interval product has a
-        // negative lower bound there, and the domain-clamped sqrt's
-        // decoration would poison the margin — found live on the
-        // interval-lane donut).
-        let d0 = ((rs - s0).powi(2) + (rc - c0).powi(2)).sqrt();
-        let d1 = ((rs - s1).powi(2) + (rc - c1).powi(2)).sqrt();
-        require_zero("props_rim_level", Margin::levered(d0.min(d1), minor), band)?;
-    }
+    // The iso-rectangle premise (S58/#649) — the SAME predicate the
+    // other three kinds now run, which is where it came from: this arm
+    // was the only one #649's adversarial probe could not break, and
+    // generalising it is the fix. The torus's `v` is periodic, so its
+    // two extreme levels come from the anchor meridian's stored
+    // `[v0, v1]` rather than from `min_max`, and they are dimensionless
+    // `Unit` direction pairs metered at the minor radius — which is
+    // NOT the arm `du_of_rims` gets on the next line. See its docs:
+    // `minor` is the exact lever for a minor-circle direction pair and
+    // is used where the answer is a refusal; the `major` below is
+    // audit note N1, overstating conservatively, deferred there.
+    require_rims_at_extremes(
+        &rims,
+        (RimLevel::Unit(s0, c0), RimLevel::Unit(s1, c1)),
+        minor,
+        band,
+    )?;
+    let du = du_of_rims(&rims, major, band)?;
     // s_f: the rim topologically adjacent to the anchor endpoint; the
     // interior sweeps from it in the `dv/dt = −orient` direction.
     let rim_a = torus_anchor_rim(&rims, m0)?;
@@ -1113,5 +1309,44 @@ mod rim_level_review_probe {
             band,
         );
         assert!(got.is_err(), "mixed kinds must poison typed: {got:?}");
+    }
+
+    /// **The same idiom, in the predicate, must fail the same
+    /// direction** (#714's review). `same_level` answers `Ok(false)` —
+    /// refuse to group — where `require_rims_at_extremes` routes its
+    /// poison through `require_zero`, which would PASS a `Zero`. Both
+    /// rows here pin the refusing direction: whatever the poisoned
+    /// classify does, a mixed-representation face never measures.
+    #[test]
+    fn mixed_representation_rim_and_ends_never_measure() {
+        let band = Band::linear().expect("band");
+        let rim = Rim {
+            d_u: 1.0_f64,
+            d_u_sign: Sign::Positive,
+            dt: 1.0,
+            level: RimLevel::Unit(0.5, 0.5),
+            tags: (0, 1),
+        };
+        // Rim is `Unit`, the ends are `Length`.
+        let got = require_rims_at_extremes(
+            std::slice::from_ref(&rim),
+            (RimLevel::Length(0.0), RimLevel::Length(1.0)),
+            1.0,
+            band,
+        );
+        assert!(got.is_err(), "mixed rim/ends must not measure: {got:?}");
+
+        // And the other way round: `Length` rim, `Unit` ends.
+        let rim = Rim {
+            level: RimLevel::Length(0.5),
+            ..rim
+        };
+        let got = require_rims_at_extremes(
+            std::slice::from_ref(&rim),
+            (RimLevel::Unit(0.0, 1.0), RimLevel::Unit(1.0, 0.0)),
+            1.0,
+            band,
+        );
+        assert!(got.is_err(), "mixed ends/rim must not measure: {got:?}");
     }
 }

@@ -270,7 +270,7 @@ fn nurbs_chord_count(
         // is a locus fact). One with interior knots is a C⁰ polyline
         // whose kinks a uniform parameter schedule would miss —
         // refused, not guessed at.
-        return if kv.knots().len() == 4 {
+        return if kv.interior_knots().next().is_none() {
             Ok(1)
         } else {
             Err(TessellateError::UnsupportedCurve {
@@ -280,22 +280,14 @@ fn nurbs_chord_count(
             })
         };
     }
-    // C¹ needed for the secant bound: interior multiplicities ≤ p − 1.
-    let interior = &kv.knots()[p + 1..kv.knots().len() - p - 1];
-    let mut i = 0;
-    while i < interior.len() {
-        let mut j = i + 1;
-        while j < interior.len() && interior[j] == interior[i] {
-            j += 1;
-        }
-        if j - i > p - 1 {
-            return Err(TessellateError::UnsupportedCurve {
-                edge: ek,
-                note: "B-spline carrier with a C⁰ kink (interior multiplicity = degree) — \
-                       the hull sagitta bound needs C¹; split the edge at the kink",
-            });
-        }
-        i = j;
+    // C¹ needed for the secant bound: interior multiplicities ≤ p − 1
+    // (p ≥ 2 here — degree 1 returned above).
+    if kv.interior_knots().any(|(_, m)| m > p - 1) {
+        return Err(TessellateError::UnsupportedCurve {
+            edge: ek,
+            note: "B-spline carrier with a C⁰ kink (interior multiplicity = degree) — \
+                   the hull sagitta bound needs C¹; split the edge at the kink",
+        });
     }
     let m_bound = if rational {
         rational_carrier_m_bound(n, ek)?

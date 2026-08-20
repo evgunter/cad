@@ -128,12 +128,20 @@ pub fn graft_disjoint<T: geom_core::Decide>(
 ///
 /// # Errors
 ///
-/// [`BooleanError`] — as [`graft_disjoint`]: `JoinDesync` when `src`
-/// holds no solid or is otherwise not well formed, `GraftRecertify`
-/// when a transplanted edge description does not re-certify. Parity
-/// with the single door extends to the failure state: a refusal RAISED
-/// MID-TRANSPLANT (`GraftRecertify`) leaves `dst` partially written, so
-/// a failed graft's destination is spent, never resumable.
+/// [`BooleanError::JoinDesync`] — when `src` holds no solid, when a
+/// solid has no provenance, or when a source-internal reference does
+/// not resolve during the remap. **`GraftRecertify` is not among them
+/// at this door**, and the distinction is load-bearing rather than
+/// pedantic: this door bridges with `combine::Bridge::RemapKeys`, whose
+/// arm carries each certificate verbatim and never reaches the
+/// re-certification that is the only site raising that variant. Only
+/// the in-crate `Bridge::Recertify` path (the booleans') can.
+///
+/// The failure STATE is unchanged and is what a caller must plan for:
+/// the destination solids are minted before the transplant, and the
+/// remap writes as it goes, so a `JoinDesync` raised mid-transplant
+/// leaves `dst` partially written — a failed graft's destination is
+/// spent, never resumable.
 pub fn graft_disjoint_all<T: geom_core::Decide>(
     dst: &mut Body<T>,
     src: &Body<T>,
