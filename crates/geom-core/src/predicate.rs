@@ -124,7 +124,10 @@ use crate::tolerance::Tolerance;
 /// constant's original doc anticipated ("piggyback on the tolerance
 /// env mechanism later only if the experiments demand per-run
 /// variation"). The default remains the ratified 10 (the M2 K report
-/// found no empirical pressure to move it — `docs/K-REPORT.md`).
+/// found no empirical pressure to move it — `docs/K-REPORT.md`), and
+/// that finding is **re-measured on every build by `ci.yml`'s
+/// `k-lint (gate)`** rather than left as a dated observation — see
+/// [`crate::tolerance::DEFAULT_K`] for the register and what fires.
 pub use crate::tolerance::DEFAULT_K;
 
 /// The definite outcome of a sign classification: which side of zero a

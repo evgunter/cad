@@ -763,6 +763,15 @@ impl<T: Real> Leg<T> {
     /// displaces the tangent point ALONG its carrier. That one is real,
     /// is not removable here, and is what a conditioning gate should be
     /// measured against — see [`ArcCarrier::offset_circles`].
+    ///
+    /// The residual claim this section makes is pinned, and by name
+    /// (issue #667): `profile/tests/review_s2.rs`'s
+    /// `an_ill_conditioned_corner_lands_its_tangent_point_on_the_carrier`
+    /// asserts 8 ulps of the scene magnitude on the worst corner the
+    /// `fillet_offset_lever` gate accepts — 5.3x above everything the
+    /// measured-spoke form produced across 2.4M accepted corners, and 11x
+    /// below what the nominal `R/ρ` form produced there, so restoring
+    /// `R/ρ` fails it immediately.
     fn tangent_point(&self, center: Point2<T>, sgn: T, radius: T) -> Point2<T> {
         match self.arc {
             None => center - left_normal(self.dir) * (sgn * radius),
@@ -895,6 +904,17 @@ impl<T: Real> Leg<T> {
 /// It is a machine-precision count, not a tolerance: ε enters the gate
 /// through the band, so the affordable conditioning loosens at ε = 1e-6 and
 /// tightens at ε = 1e-12 without this number moving.
+///
+/// **What goes red if this stops being true** (issue #667's Q6 — the
+/// guard existed and this site did not name it):
+/// `profile/tests/review_s2.rs`'s
+/// `an_uncertifiable_tangent_point_refuses_instead_of_being_returned`
+/// carries the ε-crossover this constant implies (≈ 2.53e-10) as a
+/// literal, deliberately as a tripwire — moving 128 moves which corners
+/// the gate accepts, and the row makes that a diff on a witness that
+/// says WHICH corners rather than a silent capability change. It is a
+/// guard on the constant, not on the table above: the 300 000-corner
+/// sweeps are a one-shot adversarial search and nothing re-runs them.
 const LEVER_ULPS: f64 = 128.0;
 
 impl<T: Real> ArcCarrier<T> {

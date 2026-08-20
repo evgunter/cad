@@ -5654,11 +5654,20 @@ Nothing re-derives a pin when a new caller arrives. And a stale comment on a
 still-passing test reads as **evidence the invariant holds**.
 
 **The weaker case — no pin at all — is #651**, raised by the style review of
-#646. The rule it produced is in `docs/REVIEW-STYLE-BRIEF.md` §Q6 (a
+#646. The rule it produced is in `docs/prompts/reviewer-style-lane.md` §Q6 (a
 measured claim owes a mechanical guard, a scheduled register that
 re-measures it, or a written reason at the claim site that it can have
 neither); the classification sweep is a comment on #651, and is not
-repeated here.
+repeated here. #667 continued it over a corrected population (a
+provenance-vocabulary pattern restricted to comment text, deduplicated to
+the comment block and filtered by a numeral: **197** blocks, 37 of them
+claim-bearing, against #663's 146 `measured` lines) and its rows are the second comment on the
+same issue. Its finding for THIS clause is C14's own shape one turn
+further on: `ci.yml` runs more registers than #663 found, and two of them
+gate — but each re-takes a **subset of the columns** of the document it
+produced, so "`docs/TESS-BUDGET.md` is re-measured per merge" is itself a
+guard described wider than it is read. The register roster and what each
+one actually re-takes live in the sweep comment, not here.
 
 ---
 
