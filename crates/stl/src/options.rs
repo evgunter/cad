@@ -23,6 +23,12 @@
 //! rather than once per export after tessellation. The writers'
 //! [`StlError`](crate::StlError) is therefore about the *mesh and the
 //! sink* only.
+//!
+//! Nothing here derives `Eq`. `Eq` is not a feature — it is a marker
+//! asserting that the derived `PartialEq` is reflexive — and no
+//! consumer in the workspace uses one of these types as a set element,
+//! a map key, or anywhere total equality is required, so asserting it
+//! would be unearned.
 
 use crate::ascii::DEFAULT_SOLID_NAME;
 use crate::binary::DEFAULT_HEADER;
@@ -32,7 +38,7 @@ use crate::binary::DEFAULT_HEADER;
 /// Its own type rather than an arm of [`StlError`](crate::StlError):
 /// the writers cannot produce this failure, and an error variant no
 /// door can return is a claim nothing can falsify.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SolidNameError {
     /// The name carries a character outside the printable-ASCII range
     /// the `solid <name>` grammar admits — a newline would make
@@ -49,7 +55,7 @@ pub enum SolidNameError {
 /// Its own type, for the same reason as [`SolidNameError`], and a
 /// *different* type because the two fields fail in different ways: a
 /// name cannot be too long and a header cannot be unrepresentable.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum BinaryHeaderError {
     /// The header does not fit binary STL's 80-byte header field.
     /// Refused rather than truncated.
@@ -112,7 +118,7 @@ impl std::error::Error for BinaryHeaderError {}
 ///
 /// [`Default`] is a generic part name, which carries no project or
 /// producer identity — so the exported bytes do not depend on Q9.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct SolidName(String);
 
 /// The binary writer's header text, zero-padded to the format's
@@ -126,7 +132,7 @@ pub struct SolidName(String);
 /// [`Self::new`] — see [`BinaryHeaderError::SniffsAscii`] for how wide
 /// that check is and why. The empty string is accepted and writes 80
 /// zero bytes.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct BinaryHeader(String);
 
 impl SolidName {
@@ -206,7 +212,7 @@ impl Default for BinaryHeader {
 /// `(mesh, options)` — equal inputs give byte-identical files. It
 /// reads no clock, no environment variable and no global state, and
 /// the default carries none.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct AsciiOptions {
     /// The `solid <name>` name this export writes.
     pub solid_name: SolidName,
@@ -221,7 +227,7 @@ pub struct AsciiOptions {
 /// reads a header, so **neither can be given a field it ignores**.
 ///
 /// Determinism (D9): as [`AsciiOptions`].
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct BinaryOptions {
     /// The 80-byte header field's text, zero-padded at write time.
     pub header: BinaryHeader,

@@ -5347,17 +5347,22 @@ STEP writer takes `product_name`, `author`, `organization` and
 `originating_system` as options — was scheduled as **H16** and left as a
 residue for Evan, because closing it is an API design call.
 
-**H16 is FIXED by #732** (rulings C-R1, C-R13–C-R15). `stl::StlOptions`
-carries `solid_name` and `header`, and both writers take `&StlOptions` where
-`step_string` takes `&StepOptions`. **The ASCII default moved**, by ruling:
+**H16 is FIXED by #732** (rulings C-R1, C-R13–C-R15, C-R19). Both writers now
+take options where `step_string` takes `&StepOptions` — **one options type per
+writer**: `stl::AsciiOptions` carries the `solid <name>` name,
+`stl::BinaryOptions` carries the 80-byte header, and neither can be handed a
+field its format does not read, so the inert-field class the one-struct draft
+had does not exist. Each field is a **validated newtype** — `SolidName` and
+`BinaryHeader`, each refusing at construction with its own error type — so the
+three refusals (a solid name outside the single-line grammar's printable
+ASCII, a header over 80 bytes, and a header that would read as the ASCII-STL
+`solid` keyword, whitespace-skipping and case-folding because sniffers do
+both) are properties of the values rather than of the write, and `StlError` is
+about the mesh and the sink only. **The ASCII default moved**, by ruling:
 `solid <name>` names the solid the file describes, so a producer identity was
 the wrong kind of thing in it — the default is now `part`, and the producer
 stays in the binary header, which is the field the format leaves free. That
-also takes the exported bytes off Q9, which the old default rode on. Three
-typed refusals guard what the options can break: a solid name outside the
-single-line grammar's printable ASCII, a header over 80 bytes, and a header
-that would read as the ASCII-STL `solid` keyword (whitespace-skipping and
-case-folding, because sniffers do both).
+also takes the exported bytes off Q9, which the old default rode on.
 
 *What was measured, and what nothing re-runs.* A cross-tree probe exported
 thirteen fixtures in both formats from `origin/main`'s writer and from the
@@ -5366,7 +5371,9 @@ files differing in exactly the two lines that carry the name** — the `solid`
 opener and the `endsolid` closer — and nowhere else. That was a one-off local
 run and **no committed byte-golden of an STL exists to reproduce it**, so
 nothing in the hosted matrix re-derives it; what does have a standing guard is
-the option path, via literal pins in `export.rs` and `review_m2_pr7.rs`.
+the option path, via literal pins in `export.rs` and `review_m2_pr7.rs`. It was
+re-run on the shipped shape rather than carried forward from the first draft —
+a measurement is a measurement of a tree, and this one had two of them.
 No byte-comparison golden moved,
 because there are none: the STL oracles compare exports to each other across
 ε rows and repeat runs, so they are header-blind. That blindness was itself
