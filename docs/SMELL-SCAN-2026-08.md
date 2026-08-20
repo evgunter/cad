@@ -4885,20 +4885,35 @@ repository*: bytes written into export files, strings that reach a caller at
 runtime, the Python package, and the rustdoc of the façade crate that is the
 library.
 
-**The shipped bytes.** The ASCII solid name is `cad-kernel` and the binary
-header `binary STL; CAD kernel tessellation export` — the milestone token
-only. **Q9 is untouched**; the placeholder is not a name proposal. The
+**The shipped bytes as #639 left them.** The ASCII solid name was
+`cad-kernel` and the binary header `binary STL; CAD kernel tessellation
+export` — the milestone token only. **Q9 was untouched**; the placeholder
+was not a name proposal. The
 finding's other half — that the STL header is not caller-settable while the
 STEP writer takes `product_name`, `author`, `organization` and
 `originating_system` as options — was scheduled as **H16** and left as a
-residue for Evan, because closing it is an API design call. **H16 is FIXED
-by #732** (ruling C-R1): `stl::StlOptions` carries `solid_name` and
-`header`, both writers take `&StlOptions` where `step_string` takes
-`&StepOptions`, and the two defaults are the bytes above — a cross-tree
-comparison of all thirteen export fixtures in both formats shows the default
-path byte-identical to its merge base. Three typed refusals guard what the
-options can break: a solid name outside the single-line grammar's printable
-ASCII, a header over 80 bytes, and a header that would sniff as ASCII STL.
+residue for Evan, because closing it is an API design call.
+
+**H16 is FIXED by #732** (rulings C-R1, C-R13–C-R15). `stl::StlOptions`
+carries `solid_name` and `header`, and both writers take `&StlOptions` where
+`step_string` takes `&StepOptions`. **The ASCII default moved**, by ruling:
+`solid <name>` names the solid the file describes, so a producer identity was
+the wrong kind of thing in it — the default is now `part`, and the producer
+stays in the binary header, which is the field the format leaves free. That
+also takes the exported bytes off Q9, which the old default rode on. Three
+typed refusals guard what the options can break: a solid name outside the
+single-line grammar's printable ASCII, a header over 80 bytes, and a header
+that would read as the ASCII-STL `solid` keyword (whitespace-skipping and
+case-folding, because sniffers do both).
+
+*What was measured, and what nothing re-runs.* A cross-tree probe exported
+thirteen fixtures in both formats from `origin/main`'s writer and from the
+PR's: **all thirteen binary files byte-identical**, and **all thirteen ASCII
+files differing in exactly the two lines that carry the name** — the `solid`
+opener and the `endsolid` closer — and nowhere else. That was a one-off local
+run and **no committed byte-golden of an STL exists to reproduce it**, so
+nothing in the hosted matrix re-derives it; what does have a standing guard is
+the option path, via literal pins in `export.rs` and `review_m2_pr7.rs`.
 No byte-comparison golden moved,
 because there are none: the STL oracles compare exports to each other across
 ε rows and repeat runs, so they are header-blind. That blindness was itself
@@ -6822,7 +6837,7 @@ The 2026-08-19 statement of this paragraph is superseded: every gate it
 named has since fallen. **A1 (#682), A3 (issue #678, landed as #684), #690
 and #692 are all merged**, and **#705** merged the two geometry crates into
 one `geom`. So C1's remaining members, C3's S29, C4 in full, C5's S28 half,
-C7, C9, C10 and C11 are all edge-free and takeable today.
+C7 and C9–C14 are all edge-free and takeable today — with the caveat that **C13 and C14 want a plan signed off by Evan before implementation**, being cross-crate public-API changes with a design element rather than cleanups.
 
 **Two gates remain, and they are different in kind.** **C3's S27** waits on
 **A2** (#649, open as #714) for file overlap in `props/` — as does the
@@ -6852,7 +6867,10 @@ rewritten rather than appended to.
 | **C8** | **#711 — S24's residues outside `editor-core`**: `step-import/src/recognize.rs:126`, whose `try_cylinder` promoting arm is documented unreachable and whose `Plane > Cylinder` preference order is *"unfalsifiable by execution"*; and `docs/ASM-R2A-SPEC.md:21`, a landed spec sentence (*"v1 admits `Rest`/`Tangent`"*) that is true of the door it binds and no longer of v1 as a whole. | Filed by #702's fix pass rather than left inside a finding marked FIXED. The first may want the tighter cylinder certificate rather than an encoding change; the second is a one-line ruling — clarifier, or "landed specs read as of their own date". Small, edge-free, and **not** a lane on its own: fold into whoever next opens `step-import`. |
 | **C9** | **The `tess-meter` CSV's `agreement` column measures nothing**, and its `≤ 1%` assertion in `budget_meter` was vacuous. `grid_cells` and `span_cells` are the same `Σ nuc·nvc` from the same `band_schedule`, so the ratio is `≡ 1.0` by arithmetic — while the module docs claimed it *"verifies the lane's REALISATION of the schedule (candidate generation, dedup, counting)"*, which was never true because neither number counts a candidate. `tess-lint`'s own report legend already printed *"1.00 by construction"*: **the tool knew and the docs disagreed.** #709 corrected the column's doc to stop claiming a check; making the column *real* needs a CSV schema change and a re-cut committed baseline. | Disclosed in #709's body and correctly out of that unit's scope — **and it had no row until now, which is this track's own instance of §C3.** The substantive question is whether a realisation check is worth having at all: if the answer is no, the honest fix is to delete the column rather than re-derive it, and that is a decision the lane should make and record. Edge-free; `tools/tess-meter/`, `tools/tess-lint/`, the committed baseline, `docs/TESS-BUDGET.md`. |
 | **C10** | **`geom_core::k_stats` is S30's class one crate over** — 598 lines, ~96 of them separable instrument, in the kernel's own core crate. | Reported by #709 and deliberately untouched, for a reason that is the whole row: the recording sits **inside** `decide`/`decide_flagged`/`decide_invariant`, which are load-bearing kernel predicate doors, so the `mesh::budget` split does **not** transfer mechanically. Whoever takes this must first decide whether the instrument can leave a door that certifies, and record that decision — it is not a cut-and-paste of #709. Note also `profile::k_stats`, a self-declared compatibility shim whose retirement is **STILL OPEN** at S40. Edge-free but not small. |
-| **C11** | **#730 — the Python STEP door exposes one of `StepOptions`' six fields.** `pncad-py`'s `step_string(node, product_name=None)` sets `product_name` and silently takes the Rust defaults for `timestamp`, `author`, `organization`, `originating_system` and `uncertainty_m` — the last of which is the exported `UNCERTAINTY_MEASURE_WITH_UNIT` value, so a Python caller cannot override the ambient tolerance a Rust caller can. | Found by **H16**'s sweep and filed rather than left as a sentence in a PR body (**C-R7**). It is H16's own class one layer out: an export door writing caller-visible file content the caller cannot set. The fix may be a Python options object, keyword arguments, or a written argument for the narrowing — what is wrong today is that the narrowing is neither argued nor visible. Small, edge-free: fold into whoever next opens `pncad-py`. |
+| **C11** | **#730 — the Python STEP door exposes one of `StepOptions`' six fields.** `pncad-py`'s `step_string(node, product_name=None)` sets `product_name` and silently takes the Rust defaults for `timestamp`, `author`, `organization`, `originating_system` and `uncertainty_m` — the last of which is the exported `UNCERTAINTY_MEASURE_WITH_UNIT` value. A Python caller **can** move the ambient tolerance (`DocEdit.set_tolerance`, `pncad-py/src/py/doc.rs:1193`); what they cannot do is set the exported uncertainty **independently of** it, which is exactly what `uncertainty_m: Some(ε)` is for. | Found by **H16**'s sweep and filed rather than left as a sentence in a PR body (**C-R7**). It is H16's own class one layer out: an export door writing caller-visible file content the caller cannot set. The fix may be a Python options object, keyword arguments, or a written argument for the narrowing — what is wrong today is that the narrowing is neither argued nor visible. Small, edge-free: fold into whoever next opens `pncad-py`. |
+| **C12** | **#743 — a plausible part name is a hard panic in both demos.** `StlOptions::header` refuses `solid-block` (the ASCII-sniff guard) and any label over 80 bytes; both demos pipe an arbitrary body label in and unwrap. | Surfaced by the demos doing their job (`memories/demo-purpose.md`), so #732 left it visible rather than papering over it. Both refusals are **correct for the format** — the fix is a behaviour question at the door (caller handles it / a typed escape / an opt-in sanitizer / fix the demos and keep the door honest), not a narrowing of the guard. Do **not** narrow the sniff check to make it pass. |
+| **C13** | **#742 — the STEP writer hardcodes two Part 21 header fields the standard assigns to the *user*:** `FILE_NAME`'s 7th argument (`authorisation`) and `FILE_DESCRIPTION`'s description list. `preprocessor_version` and the schema name are correctly the software's / the standard's. | **H16's own class in H16's sibling exporter, and the remainder of it**: #732's argument that STL's 80 bytes belong to the caller rests on Part 21's software/user split, which these two fields fail — so the asymmetry is reduced, not eliminated. **Its plan goes to Evan before implementation**: which of the two to expose, and whether the description is one string or the list the standard allows, is a design call. |
+| **C14** | **#741 — ε has no type of its own**, so `StepOptions::uncertainty_m` and `step-import/src/entities.rs`'s two bare `f64`s each restate `geom_core::Tolerance::init`'s *finite-and-strictly-positive* rule by hand. | **S4's shape** (one vocabulary, N hand-synced copies), not a missing newtype on one struct. The distinction that survives: `Tolerance` is `{eps, k}`, the run configuration, while these want **ε alone**. **Plan to Evan before implementation** — the open parts are whether the ε-alone type lives in `geom-core` beside `Tolerance`, and whether `Tolerance::eps` becomes that type or merely validates into it. Cross-crate public API. |
 
 ---
 
