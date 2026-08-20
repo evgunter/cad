@@ -123,7 +123,7 @@ fn apex_wedges_never_size_to_a_single_azimuth_column() {
 ///
 /// `grep Revolution::Partial crates/mesh/tests` finds washers, cones,
 /// silos and half-discs, and not one of them lands a sphere pole face
-/// on `nu == 2`; deleting `pole_columns` from `curved::grid_steps`'s
+/// on `nu == 2`; deleting `pole_columns` from `curved::grid_counts`'s
 /// SPHERE arm left the whole suite green, while that arm is 49 of the
 /// 57 measured mesh-output changes.
 ///

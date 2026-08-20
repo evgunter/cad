@@ -20,7 +20,7 @@
 //! - a **count** — how many chords or grid divisions a span is cut
 //!   into, always `usize`, always named `*_count` or `*_counts`. Every
 //!   count in the crate is [`ceil_count`]`(span, step)` or a floor
-//!   applied to one ([`crate::curved::pole_columns`]).
+//!   applied to one (`curved::pole_columns`).
 //!
 //! The one deliberate second spelling is `tess_meter::divisions`, in
 //! the consumer half of the budget meter: a different cargo root, so
