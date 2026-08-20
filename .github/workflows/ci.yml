@@ -1097,18 +1097,34 @@ jobs:
     # The `interval` feature's backend lives in its own workspace
     # (interval-transcendentals/), so the kernel's workspace rows never
     # build its tests. Its pad tripwire therefore had no CI at all until
-    # M5 PR 1's review asked for one — and that tripwire is what catches a
-    # dropped outward round, which the kernel's own lane-agreement tests
-    # provably cannot (both lanes share the round-to-nearest chain).
+    # M5 PR 1's review asked for one — and it catches what the kernel's
+    # own lane-agreement tests provably cannot, both lanes there sharing
+    # the round-to-nearest chain.
     #
-    # This row is deliberately the crate's DEFAULT feature set: unit
-    # tests, the edges sweep's oracle-free half, and review_fuzz_div's
-    # exact-rational division fuzz, which needs no oracle at all because
-    # it compares against u128 rational arithmetic. Without
+    # WHAT THIS ROW CATCHES, by direction, because the two are not the
+    # same job. A pad WIDENED: every operation, via pad_contract.rs,
+    # which bounds each endpoint's distance from the backend's own value
+    # by the derived pad — no oracle needed, since the comparison is
+    # against libm, not against truth. A pad DROPPED: division,
+    # multiplication and sqrt only, via review_fuzz_exact.rs, which
+    # computes the true value in exact u128 rational arithmetic.
+    #
+    # NOT `+` and `-`: their truth is exactly computable but not with a
+    # u128 comparator (aligning 2^1023 with 2^-1074 needs ~2100 bits),
+    # and mutating add_lo/add_hi to bare round-to-nearest leaves this
+    # whole row green — only certify_arith reds. NOT the seven
+    # transcendentals: their truth needs a multi-precision reference at
+    # all. Both belong to oracle-certify below, which fires on changes
+    # under interval-transcendentals/{src,tests}/, Cargo.toml or
+    # Cargo.lock (ci-filter.py's ORACLE_PATHS — four paths, not the whole
+    # directory: docs/ is NOT among them, so editing the derivation that
+    # sets PAD_ULPS does not by itself re-certify). That is a trigger
+    # set, not a convention.
+    #
+    # This row is deliberately the crate's DEFAULT feature set: without
     # `oracle-inari` there is no inari/gmp-mpfr-sys and no C toolchain in
-    # the graph, so the row takes seconds. The full differential lane
-    # (certify.rs, behind --features oracle-inari) stays a by-hand gate;
-    # see the crate README's "Certification" section.
+    # the graph, so it takes seconds. See the crate README's
+    # "Certification" section.
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -1696,6 +1712,41 @@ jobs:
         run: cd demos/tour && cargo fmt --check && cargo clippy --all-targets -- -D warnings
       - name: demos wild fmt + clippy
         run: cd demos/wild && cargo fmt --check && cargo clippy --all-targets -- -D warnings
+      # THE #99 ε PIN, ARMED. `--all-targets` above type-checks the test
+      # targets and runs none of them, so until this row landed nothing
+      # in any gate had ever EXECUTED an assertion under `demos/`. The
+      # pin spawns the tour three times (default ε, 1e-6, 1e-12).
+      #
+      # COST, AND IT IS NOT FREE. This row builds `demo-tour` in release
+      # at DEFAULT features. The tess-budget sweep below builds the same
+      # crate at `--features budget` — a different feature unification,
+      # so the two share nothing and this job now pays two release
+      # builds of the kernel where it paid one. The runs themselves are
+      # ~7 s (measured on the lane's own box, warm cargo registry); the
+      # build in front of them took 1m06 there from a cold target and
+      # the sweep's own comment below prices such a build at "tens of
+      # seconds" on a runner with this job's cache warm. Folding the
+      # pin into `--features budget` would share that build, and is
+      # rejected: it would arm the per-face meter inside the run this
+      # pin is about, so the tour under test would not be the tour that
+      # ships.
+      #
+      # SCOPED TO THE INTEGRATION TEST, DELIBERATELY, AND NOT A
+      # SILENCING. A plain `cargo test --release` here would also run
+      # `--bin demo-tour`'s seven `lily::review_probes` unit tests, and
+      # two rows of `finding_13_tessellation_table_reproduces` are red
+      # on main today (issue #782: the two SWEPT blades tessellate to
+      # 1016/854 triangles against a pinned 976/826, while all five
+      # analytic rows are exact). Whether that new count is correct is a
+      # `mesh` question. **What stays unrun is load-bearing**: those
+      # seven include `the_spine_curl_wall_re_measured`, which pins a
+      # typed `LoftError::ReversedStacking` frontier from both sides,
+      # so `lily.rs` keeps its frontier pins in two spellings of which
+      # only the tour-runtime one (`wall_probes`) executes. Widening
+      # this row to the whole suite is owed the moment #782 is decided —
+      # #782 carries that obligation and the split.
+      - name: demos tour eps pin (#99)
+        run: cd demos/tour && cargo test --release --test eps_regression
       - name: k-lint tool fmt + clippy + tests (incl. the #99 litmus)
         run: cd tools/k-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
       # `cargo doc` here is the same stopgap #709 added to the

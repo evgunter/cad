@@ -220,7 +220,21 @@ sub-block, from the orchestrator.
 | **F-a** | D61, D62 | S117, S118 |
 | **F-b** | D63, D64 | S119, S120 |
 | **F-c** | D65, D66, D67 | S121, S122, S123 |
-| unassigned | D68–D70 | S124–S126 |
+| **F-e** | D68, D69 | S124, S125 |
+| **F-d** | D70 | S126 |
+| **F-f** | **D101** | **S157** |
+| unassigned (2nd block) | D102–D110 | S158–S166 |
+
+**Second block claimed 2026-08-20: `D101`–`D110` and `S157`–`S166`.** The first
+block is spent. Taken beyond Track E's `D81`–`D100` / `S137`–`S156` and Track
+G's `D71`–`D80` / `S127`–`S136` rather than into any gap — **and the reason is
+now demonstrated rather than argued**: between Track F claiming D61–D70 and
+that claim landing, **Track E's orchestrator issued D61–D70 to five of its own
+lanes**, and had to reissue them as D82–D89 once both branches were visible.
+Two orchestrators, one sequence, neither able to see the other's unmerged
+work — the exact failure the block convention exists to prevent, caught only
+because both blocks were published. A block that is not landed is not a
+reservation.
 
 ---
 
@@ -374,6 +388,41 @@ constraint is, and it is stated here so a Track G taker can read it.
 
 ---
 
+## Standing rules this track derived
+
+### A verification is valid for the PATHS it verified, not for the SHA it ran on
+
+Two correct rules pulled against each other: **a PR must never sit CONFLICTING**
+(it runs *no* checks at all and reads as CI being absent rather than failing),
+and **a head must not move under a running verification**. Freezing the branch
+resolves it in the wrong direction — it trades a real risk for a bookkeeping
+convenience.
+
+The resolution costs one command. A verification names **the SHA it measured**
+and **the path set it is about**; the lane, after any merge, reports the new
+SHA **paired with**
+
+    git diff <verified-sha> <new-head> -- <that path set>
+
+**Empty → the verification still holds, whatever else moved.** Non-empty → it
+is re-run rather than reasoned about. Neither party has to wait for the other,
+and each half is checkable by the other.
+
+**Two refinements the lane added, both better than the rule as issued.** *Merge
+while still `MERGEABLE` rather than waiting to conflict* — same move, strictly
+cheaper, and it never passes through the state where CI is silent. And *widen
+the path-diff past the paths under verification to the whole subtree the unit
+owns*, so the answer covers the rest of the unit rather than only the row being
+checked.
+
+**Report the merge and the diff together.** A merge reported without its
+path-diff is a claim the orchestrator then has to go and check; the diff is the
+thing that makes the merge harmless, so it travels with it.
+
+*(Second instance today of two correct rules colliding. The first: a unit records
+its completion in its own PR, yet cannot cite a PR number before the PR exists —
+resolved by opening with an honest placeholder rather than a claim.)*
+
 ## Reviews
 
 ### #783 (F-b / S73 parts 1 and 3) — style lane, 2026-08-20: **NOT CLEARED**
@@ -392,6 +441,37 @@ all"*.
 | # | Ruling |
 |---|---|
 | **F-R7** | **The `tess-meter` box reds on a refinement that improves the answer.** Holding `SPLIT_SCAN_DECADES = 8.0`, **S=1000 fails while returning 4844 cells — strictly better than the shipped 4911**; S=322 fails `cells <= 4911` at 4987. The green step counts are exactly the lattices containing exponent `-3.7`; the reds are the ones that do not. So the row pins the constants to **a sample lattice, not a resolution**, and its failure message — *"the range is too narrow or the step is too coarse"* — is wrong in the surprising cases, because those step counts are **finer**. The unit's own defence, *"refinement cannot red it, deliberately"*, is **false**: the superset argument holds only when `S-1` is a multiple of 320. **Direction ruled, shape left to the lane: pin the RELATION, not the answer** — a test that computes its own reference refinement and asserts the shipped pair is within a stated tolerance is monotone-safe by construction. **"No honest box exists" is a passing answer**, recorded at the claim site per Q6; *making it worse than the non-monotone pin it replaced* is the one outcome the row cannot ship. Riding with it: the *"within 2.0%"* figure is **2.04%** on the reviewer's measurement and rests on an unstated choice of denominator. |
+
+### #798 (F-f / S61, S62, D58–D60) — style lane, 2026-08-20: **NOT CLEARED**, five MAJORs
+
+**What held, and it is substantial.** All three isolated demonstration commits
+verified as descendants of the review head, all TIER=docs, with `discipline` and
+every build/lint/test job **skipped** in all three while `mirror` red for the
+plant the lane named. **D58 and D59 are completely closed** — mode 0644
+re-planted by the reviewer and it reds correctly. **S62/D60's class is genuinely
+mechanised**, and the population was *derived rather than listed*: twelve
+non-`scripts/gates/` executables, eleven already mirrored, including the member
+two prior enumerations missed. **Q6 came out in the unit's favour**: 8/9/12 s,
+in parallel with `filter`, **zero added critical-path latency** — one extra
+billed job-minute per docs run, which honours *"cheap docs CI stays"*.
+
+| # | Ruling |
+|---|---|
+| **F-R12** | **S157's mechanism, and it is much larger than S157.** `set -euo pipefail` **aborts the gate before its own `gate_error`** whenever the diagnostic path runs a pipeline or command substitution — and `gate_selftest_case` runs each gate inside `if out=$(…)`, **where bash suppresses errexit**, so the self-test is *structurally incapable* of seeing it. **Every gate can die before its own error message, and every gate's self-test is blind to that by construction.** S157 is escalated to carry this. **F-f owns only the two instances in its own new code; the harness and the sweep are F-g's** — and *fifteen self-tests passing is not evidence here, because the harness is what hides it.* |
+| **F-R13** | **The re-siting invariant is unguarded, and the row's own defect is reproducible after the fix.** The reviewer hollowed `mirror` to checkout+echo and moved all three gate steps back into `discipline`: **all three gates stayed green.** The exact S61 state can be restored in one commit with nothing firing. Evan's ruling is a *rule* — *a gate must be sited where it can fire on its own inputs* — currently held as **prose in three headers**. A rule this repo has now paid for twice deserves a check. |
+
+**Three more that each break a stated claim.** Claim 2 is *stated as total and is
+not* — the job regex misses uppercase names, and a planted `buildXtra:` reading
+`ci-local.sh` after a pruning job returned **OK, exit 0**. The **local half still
+`exit 0`s at TIER=docs**, so the ruled rule holds hosted-side only — S61's
+deliverable half-closed and reading as closed. And `--citations` is now
+**hosted-only**, moved out of one blind spot into another.
+
+**The shape verdict, worth more than the individual defects.** The reviewer's
+answer to *best available way* is **no**, and the reason generalises: **grep/awk
+over YAML, in a repo that already ships a parser.** Four of the five MAJORs are
+text-processing failures — errexit inside a pipeline, a case-sensitive regex, a
+blind exclusion. That is not bad luck, it is the tool.
 
 ### #791 (F-e / S59) — style lane, 2026-08-20: **NOT CLEARED**, and **G4 is cleared to proceed**
 
