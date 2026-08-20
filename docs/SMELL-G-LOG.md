@@ -308,6 +308,31 @@ longer supports*, invisible until someone stood in an environment the author
 did not have. It is local tooling and not a smell-scan row, so it is recorded
 here and nowhere else.
 
+### A pipe swallowed a merge failure, and conflict markers reached the register
+
+**2026-08-20, lane G-a, self-reported and self-fixed** (`385c9c10`, before its
+PR merged). A `git merge … | tail -2 && git commit` chain **took the pipe's exit
+status, not the merge's**, so a failed merge reported success and two conflicted
+ledger hunks were committed with their markers intact.
+
+**The lane found it, resolved both properly, swept every file it had touched
+(0 remaining), and flagged it unprompted** — on the reasoning that *a lane that
+pushes conflict markers into the register is a worse failure than the one under
+review*. That is the correct instinct and the reason this row exists rather than
+a reprimand.
+
+**The mechanism is general and this orchestrator was exposed to it too.** Every
+`git pull --no-rebase origin main -q 2>&1 | tail -2` in this log's own history
+has the identical defect. Swept `main`, this branch, and every `docs/*.md` on
+both: **zero markers, zero unmerged paths** — the orchestrator got away with it,
+which is not the same as having been careful.
+
+**The rule, and it costs nothing:** in a chain that commits, **never pipe the
+command whose exit status decides whether committing is safe.** Let `git merge`
+or `git pull` stand alone, or check `git ls-files -u` before the commit. Four
+concurrent orchestrators are merging one 11 000-line document all day; this will
+bite someone else.
+
 ### Wave 1 was dispatched before this file was on `main`
 
 **2026-08-20, and the mistake is the orchestrator's.** The three wave-1 lanes
