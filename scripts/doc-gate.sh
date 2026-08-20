@@ -47,15 +47,17 @@
 # MEMBERS, and the root manifest excludes `demos/` and `tools/`
 # (Cargo.toml's `workspace.exclude`). Those crates are separate cargo
 # roots with their own fmt+clippy+test rows in ci.yml's `k-lint` job,
-# and **none of those rows runs `cargo doc`** — so the prose in
-# `tools/tess-lint`, `tools/k-lint`, `tools/tess-meter`, `demos/tour`
-# and `demos/wild` is outside this gate entirely. That is a real hole
-# by this gate's own argument: #709 moved ~1,050 lines of prose from
-# `crates/mesh/src/budget.rs` into `tools/tess-meter`, which is
-# precisely the prose-goes-dark case above, and it went from covered to
-# uncovered by moving. #709 added a `cargo doc` step to the tess-meter
-# row as a stopgap; **a row is owed that does the same for every
-# excluded root**, and it is unscheduled.
+# and **only two of those five rows run `cargo doc`** — so the prose in
+# `tools/k-lint`, `demos/tour` and `demos/wild` is outside this gate
+# entirely, and `tools/tess-meter` and `tools/tess-lint` are covered
+# only by a step hand-copied into their own rows, not by anything here.
+# That is a real hole by this gate's own argument: #709 moved ~1,050
+# lines of prose from `crates/mesh/src/budget.rs` into
+# `tools/tess-meter`, which is precisely the prose-goes-dark case
+# above, and it went from covered to uncovered by moving. #709 added a
+# `cargo doc` step to the tess-meter row as a stopgap and #738 copied
+# it to the tess-lint row for the same reason; **a row is owed that
+# does the same for every excluded root**, and it is unscheduled.
 
 set -euo pipefail
 
