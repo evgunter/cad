@@ -778,8 +778,8 @@ cannot know who else is in it.
 | **C-p** | C9 — the `agreement` column | **#738** | **MERGED** `a0a6e1a5` |
 | **C-e** | H13 — `sweep_body`'s helix orientation coverage | **#779** | fix pass in, CI **35/2/0 green on `0494295e`** (verified at source, not taken); cleared to merge after writing row **C25** |
 | **C-i** | H15 — #635's unclassified siblings (**23 rows**, not the three the finding names) | **#775** | **MERGED** `3fa135fa` |
-| **C-q** | C10 — `geom_core::k_stats`, S30's class one crate over | — | dispatched; **adversarial** + style; row **C22** reserved |
-| **C-j** | S29 — the mesh sizing vocabulary (mechanical half) | — | dispatched; **style only**, and owes the byte-identity proof C-R12 bought it with; row **C23** reserved |
+| **C-q** | C10 — `geom_core::k_stats`, S30's class one crate over | **#801** | complete, **CI green on `9fb929d2`** (full matrix, TIER=all); adversarial + style reviews dispatched. Answer to C10 is **no, with the compiler as witness** (C-R22). Row **C22 released unused** — the lane declined to mint a row to have minted one. |
+| **C-j** | S29 — the mesh sizing vocabulary (mechanical half) | **#803** | **MERGED** `d6b5ae01` — **before its style review, which is my dispatch gap, not the lane's**: the brief said a style review would happen and never said it was a merge gate. Post-hoc style review dispatched; its output is a follow-up PR. Row C23 landed. Policy half is a plan, unimplemented, waiting on Evan (C-R2). |
 | **C-g** | S32 — `Surface`'s one-partial-per-call API and SSI's shadow enum | — | dispatched **plan-first** (C-R19 tier 2); **adversarial** + style; row **C24** reserved |
 
 **Three reservations, and what they are reservations against.** C22/C23/C24
@@ -1855,6 +1855,66 @@ recorded here rather than only in one lane's message.
 *And the lane's own flag is the useful half*: if that scene is intermittently
 failing to produce a cell on the runner, it will hit the next lane too. Three are
 live.
+
+### A register that has not landed is not a register — the fourth instance, and it is mine again
+
+**2026-08-20, late.** I cited **C-R22** by number in a reviewer's brief and told
+the reviewer to read it in `docs/SMELL-C-LOG.md`. It is not on `main`. Nor are
+C-R23, C-R24, or **thirty-three commits** of this session's rulings, incidents
+and corrections — everything since #754.
+
+*This is the same lesson for the fourth time in one session*, and the pattern of
+the four is the point:
+
+1. **#745** — eight rulings committed and pushed to the orchestrator branch,
+   cited by number in briefs, **never merged**. Caught by a lane applying C-R11.
+2. **The standing lane header** — the section *describing* it committed, the
+   header itself not. Caught by two lanes independently.
+3. **The `0.0635` sentence** — corrected in the PR body, still shipping in
+   `orient.rs`. Caught by an adversarial lane.
+4. **This** — rulings pushed to a branch, cited in a brief, not on `main`.
+
+Every one is *"the thing was written"* mistaken for *"the thing is where it is
+read from"*, and I have now recorded the lesson three times **while committing
+it a fourth**. Recording a lesson is not the same act as installing it.
+
+**What actually saved this instance is luck, and worth naming:** the lane helper
+clones from the orchestrator's working copy rather than from the remote, so
+review lanes inherit whatever branch that copy is on and *would* have found
+C-R22. It happened to be checked out on the branch that has it. Had I been on
+`main`, the reviewer would have read a brief citing a ruling that does not exist
+— which is C-R11's exact subject, from the other side.
+
+**The mechanical fix**, which is what the previous three write-ups all lacked:
+the orchestrator branch merges to `main` **at every ruling**, not at every
+session. A ruling is dispatch-visible the moment it is cited, so the merge has to
+precede the citation, not follow the batch.
+
+### C-R21 is a rule about reliance, and a lane read it as a rule about truth
+
+#803 re-derived §D's numbering paragraph — correctly, it is the orchestrator's
+paragraph and a landing leaves it — and wrote:
+
+> **C20** has never been assigned on `main` at all, **so it is a gap and not a
+> reservation.**
+
+The premise is true and the inference is false. **C20 is assigned**, to #779,
+which was unmerged when that sentence was written. C-R21 says *a number is not
+owned until it is on `main`* — that tells a lane what it may not **rely** on, not
+what is **true**. A hole on `main` is perfectly consistent with an unmerged
+reservation, and here it was one.
+
+*The generalisation is worth more than the correction.* This track has now
+written several rules of the form *"do not trust X"*, and every one of them is
+about **what a reader may act on**. None of them licenses the converse — that
+what cannot be relied on is therefore absent. **A rule that bounds your
+knowledge is not a source of knowledge**, and the tell is a sentence that turns
+an epistemic limit into an ontological claim with a *"so"*.
+
+Corrected in §D, and the reading rule is left standing with its real reason: a
+taker asks the orchestrator for a number **not because the hole is unreserved,
+but because from `main` alone you cannot tell** — which is exactly why the
+asking exists.
 
 ### Reviewers age out of their own tree, twice now — and it is not their error
 
