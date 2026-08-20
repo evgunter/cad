@@ -14,7 +14,7 @@
 //!   results outside tight enclosures) is dropped: it was exploratory and
 //!   assertion-free; the documented certification hazard it illustrated
 //!   is pinned deterministically by
-//!   [`powi_f64_lane_is_contained_by_the_padded_enclosure`] instead —
+//!   `powi_f64_lane_is_contained_by_the_padded_enclosure` instead —
 //!   which, since the backend swap, pins the INVERSE property: a
 //!   pad-based backend contains its own `f64` lane op-for-op, so the
 //!   divergence witness cannot exist. That row's own doc carries the
