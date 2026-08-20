@@ -1781,6 +1781,14 @@ jobs:
       # and a job keyed on a hand-written root set would be the same
       # snapshot-goes-stale failure one level up.
       #
+      # WHAT THAT COSTS, stated so a debugger is not surprised by it:
+      # COUPLING. A probe type-check failure in any of these crates now
+      # reds `k-lint`, which is otherwise the margin-distribution gate.
+      # If this job is red at one of the two steps below, the margins are
+      # not the subject — a probe-gated `tests/*.rs` stopped compiling,
+      # and nothing about the K thresholds has moved. The step names say
+      # which.
+      #
       # The selection is DERIVED, not listed: the census script scans the
       # tree, and the loop checks exactly what it prints, so a crate that
       # gains its first probe suite is covered with nothing to remember.

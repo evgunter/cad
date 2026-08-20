@@ -483,6 +483,11 @@ klint_tool() {
 # matches nothing exits 0, so `--selftest` proves the census refuses an
 # empty answer before the real pass — the same order the scripts/gates/
 # rows run in.
+#
+# Its own row here, unlike hosted's two steps inside one job, so a probe
+# type-check failure reads as itself rather than as a k-lint failure:
+# the coupling hosted accepts (the probe graph lives in that job's cache)
+# buys nothing locally, where there is one target dir.
 probe_targets() {
   scripts/probe-suite-census.sh --selftest || return 1
   scripts/probe-suite-census.sh || return 1
