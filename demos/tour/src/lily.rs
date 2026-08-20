@@ -1535,8 +1535,8 @@ pub fn wall_probes<S: Scalar>() {
 
     // 6. The lantern's mouth is a hard circle where the sphere zone
     //    meets the conical pucker. A rolling ball would soften it —
-    //    but `fillet_edges` is the whole-body door on a convex,
-    //    planar-faced, trivalent polyhedron.
+    //    but the battery refuses the seam before any door is
+    //    reached: its two supports meet tangentially.
     let rim: Vec<pncad::topo::EdgeKey> = lant.edges().map(|(k, _)| k).collect();
     wall(
         6,
