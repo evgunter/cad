@@ -21,6 +21,14 @@
 //! inscribed triangular prism, whose x extent starts at −0.25 while
 //! the cylinder's starts at −0.5. Every nested probe below lives in
 //! that annulus.
+//!
+//! # 2. The NURBS extent re-gate's blocker
+//!
+//! `topo`'s fallback re-gate has no end-to-end path today, and one of
+//! the two reasons is a `sweep` fact: a lofted body's NURBS EDGES are
+//! refused before any face box is built. That blocker is pinned below,
+//! with the operand's face class asserted so the row cannot outlive the
+//! premise it argues from.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -64,8 +72,10 @@ fn nested_box(cx: f64, h: f64) -> Body<f64> {
             .map(|(x, y)| ProfileVertex::new(p2(x, y), 0.0))
             .collect(),
     );
-    // Lifted clear of both caps: z in [0.3, 0.7] inside the
-    // cylinder's [0, 1], so the pair is nested, never touching.
+    // z in [0.3, 0.7]. Against section 1's cylinder (z in [0, 1]) that
+    // is clear of both caps, so a pair there is nested or separated in
+    // x alone, never touching; section 2 uses the same box only as a
+    // far operand, where the lift carries no claim.
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.3)));
     let profile = Profile::new(plane, vec![lp])
         .validate(Tolerance::get())
@@ -134,26 +144,14 @@ fn a_body_beside_the_cylinder_is_still_cleared_by_containment() {
     let outer = cylinder();
     let beside = nested_box(3.0, 0.2);
     let body = assembly(&outer, &beside);
+    // The whole verdict, not a filtered slice of it. Filtering to
+    // `CensusUndecidable` and asserting that list empty makes a row
+    // named "still cleared" green whenever the pair starts refusing for
+    // some OTHER reason — the shape this file's section 2 exists about.
     let verdict = validate_pseudomanifold(&body, &ContactRecords::default());
-    let containment: Vec<&ValidationError> = match &verdict {
-        Ok(()) => Vec::new(),
-        Err(errors) => errors
-            .iter()
-            .filter(|e| {
-                matches!(
-                    e,
-                    ValidationError::CensusUndecidable {
-                        a: EntityId::Solid(_),
-                        b: EntityId::Solid(_),
-                        ..
-                    }
-                )
-            })
-            .collect(),
-    };
     assert!(
-        containment.is_empty(),
-        "a separated pair must not refuse as containment: {containment:?}"
+        verdict.is_ok(),
+        "a separated pair must validate cleanly, not refuse: {verdict:?}"
     );
 }
 
@@ -200,12 +198,8 @@ fn lofted() -> Body<f64> {
 #[test]
 fn a_lofted_operand_is_refused_at_its_nurbs_edges_before_any_face_box() {
     let a = lofted();
-    // The premise the argument above rests on, asserted rather than
-    // assumed: this operand is IN the class the re-gate exists for.
-    // Nothing else in the row says so — the refusal below is a fact
-    // about the operand's EDGES — so without this the row would stay
-    // green over a loft that stopped producing NURBS walls, which is
-    // the change that retires its argument.
+    // The operand is IN the class the re-gate exists for. Nothing else
+    // in the row says so: the refusal below is about its EDGES.
     let nurbs_faces = a
         .faces()
         .filter(|(_, f)| matches!(a.get_surface(f.surface), Some(geom::Surface::Nurbs(_))))

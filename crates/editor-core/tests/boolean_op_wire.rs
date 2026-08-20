@@ -13,14 +13,27 @@
 //! written with.
 //!
 //! The write door's own refusal — an operation this build can spell but
-//! cannot read back — has no row here and can have none: the read table
-//! is private to the `with` module, so nothing outside it can construct
-//! the state that refusal guards. The argument for the check lives with
-//! the check, in `persist::kernel_wire::boolean_op`'s module doc.
+//! cannot read back — has no row here and can have none: in a build
+//! whose read table is complete, nothing constructs the state that
+//! refusal guards, inside the `with` module or outside it. The argument
+//! for the check lives with the check, in
+//! `persist::kernel_wire::boolean_op`'s module doc; that doc's
+//! "Pinned by test" reaches the *admit* path below, not the refusal.
+//!
+//! The vocabulary is written down ONCE here, in [`EVERY_OPERATION`].
+//! It is still a hand-written literal — safe Rust cannot tie an array
+//! to a variant list without a proc macro, which is why the `with`
+//! module carries a run-time check instead — but one copy is one place
+//! to update when the kernel grows an operation, and the rows below
+//! then cover it without being touched.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{BooleanOp, Node, ProfileProgram, RecipeNodeId};
+
+/// Every operation the vocabulary has, in one place.
+const EVERY_OPERATION: [BooleanOp; 3] =
+    [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract];
 
 fn boolean(op: BooleanOp) -> Node<ProfileProgram> {
     Node::Boolean {
@@ -37,29 +50,26 @@ fn boolean(op: BooleanOp) -> Node<ProfileProgram> {
 /// spelling.
 #[test]
 fn the_operation_rides_the_wire_as_its_variant_name() {
-    for (op, expected) in [
-        (
-            BooleanOp::Union,
-            r#"{"Boolean":{"op":"Union","a":1,"b":2,"declare":null}}"#,
-        ),
-        (
-            BooleanOp::Intersect,
-            r#"{"Boolean":{"op":"Intersect","a":1,"b":2,"declare":null}}"#,
-        ),
-        (
-            BooleanOp::Subtract,
-            r#"{"Boolean":{"op":"Subtract","a":1,"b":2,"declare":null}}"#,
-        ),
-    ] {
+    // The expected bytes come from an EXHAUSTIVE match, so an
+    // operation added to the kernel fails to compile here until it is
+    // given a spelling — the one tie the compiler can carry.
+    let expected = |op: BooleanOp| -> &'static str {
+        match op {
+            BooleanOp::Union => r#"{"Boolean":{"op":"Union","a":1,"b":2,"declare":null}}"#,
+            BooleanOp::Intersect => r#"{"Boolean":{"op":"Intersect","a":1,"b":2,"declare":null}}"#,
+            BooleanOp::Subtract => r#"{"Boolean":{"op":"Subtract","a":1,"b":2,"declare":null}}"#,
+        }
+    };
+    for op in EVERY_OPERATION {
         let text = serde_json::to_string(&boolean(op)).unwrap();
-        assert_eq!(text, expected, "the wire spelling of {op:?} moved");
+        assert_eq!(text, expected(op), "the wire spelling of {op:?} moved");
     }
 }
 
 /// Both directions, over every operation the vocabulary has.
 #[test]
 fn every_operation_round_trips() {
-    for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
+    for op in EVERY_OPERATION {
         let node = boolean(op);
         let text = serde_json::to_string(&node).unwrap();
         let back: Node<ProfileProgram> = serde_json::from_str(&text).unwrap();

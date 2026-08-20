@@ -157,17 +157,14 @@ fn sharp_after_arc_arrival() {
         !declared.contains(&anchor_idx),
         "the sharp junction at the anchor is not declared tangent, among {declared:?}"
     );
-    // And the continuation is the sharp one that was authored: a
-    // STRAIGHT leg leaving the anchor on the authored heading of
-    // 2.6 rad, where the arrival tangent is +y — a turn of ~1.03 rad,
-    // which is the corner the declared set must not contain.
+    // And the continuation is the sharp one that was authored: the leg
+    // leaves the anchor on the authored heading of 2.6 rad, where the
+    // arrival tangent is +y — a turn of ~1.03 rad, which is the corner
+    // the declared set must not contain. (A straightness check on the
+    // same segment is not here: `.line()` after `.angle()` emits a zero
+    // bulge by construction, so it could only restate the builder.)
     let anchor_v = lp.vertices()[anchor_idx];
-    let next = lp.vertices()[anchor_idx + 1];
-    assert!(
-        anchor_v.bulge().abs() < 1e-12,
-        "the continuation is a straight leg; got bulge {}",
-        anchor_v.bulge()
-    );
+    let next = lp.vertices()[(anchor_idx + 1) % lp.vertices().len()];
     let leg = next.pos() - anchor_v.pos();
     let heading = leg.y.atan2(leg.x);
     assert!(

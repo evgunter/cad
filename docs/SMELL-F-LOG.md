@@ -639,21 +639,44 @@ when the review lands, which is why it trails.
 
 ## Landings
 
-**F-c — F7 (S110), PR #790, opened 2026-08-20.** The sort ran and moved
-one member off §D's proposal: **(a)(b)(i) are disposition (b)** and go
-to C23's test-suite-cost sweep, **(g)(h)(j) are disposition (c)** and
-are already named by **G2** and **G1**, **(c)(e)(f) are disposition
-(a)** and are closed, and **(d) is not disposition (a)** — it is a
-working tripwire that goes red on its documented trigger, missing only
-the premise that puts its operand in the class the re-gate exists for.
-Two of S110's own claims about member (c) did not survive re-derivation
-(it is a semantic, not a literal, duplicate, and it sits 29 lines away,
-not eleven). Every closed member carries a **mutation receipt** — the
-guarded thing changed, the assertion watched go red — and two of them
-carry the sharper pair: pre-#790 green and post-#790 red under one
-mutation. F-R4 held: a test **function** was deleted, no test **file**
-was, and `crates/*/tests/all.rs` was not touched. New rows **D65**
-(S121) and **D66** (S122); **D67 / S123 unspent**.
+**F-c — F7 (S110), PR #790, opened 2026-08-20; NOT CLEARED at first
+style review, 26 findings, re-worked in place.** The sort ran and the
+review reproduced every receipt in it and confirmed all ten placements:
+**(c)(d)(e)(f)** closed in lane, **(g)(h)(j)** already closed by #787
+and #786, **(a)(b)(i)** disposition (b). **(d) is not disposition (a)**
+— a working tripwire that goes red on its documented trigger, missing
+only the premise that puts its operand in the class the re-gate exists
+for — so **S110(d) was over-stated, which is a finding about the
+scan.** Two of S110's own claims about (c) did not survive
+re-derivation.
+
+**The review's largest finding was not the lane's.** §D's F7 row and
+the lane brief both routed (a)(b)(i) to *"C23's class … the
+test-suite-cost sweep"*, and **no such target exists**; the lane
+complied with a citation instead of testing it, and with F7 struck in
+the same commit three members would have been marked ROUTED with no
+scheduled home. Re-homed by the orchestrator — **(a) to F8**, whose
+probe-suite finding it *is*, **(b) and (i) to D104** — and #790 carries
+the corrected record plus a note that the target was tested.
+
+**Three findings were the lane's own and are fixed in place.** The one
+assertion whose receipt the lane declared impossible had a one-line
+receipt: its red condition is a property of the *operand*, so the
+demonstration is a **fixture swap**, not a code mutation — *"no
+mutation models it"* was a claim about the method presented as a claim
+about the world. (f)'s new assertion was blind to half the contract it
+quoted, because the fixture gave both curves the same knot vector; the
+carrier now carries its own, and both halves of the merge are
+demonstrated. And the (f) fix had minted **S110(h)'s exact shape** one
+line down by hoisting an `unwrap()` past an `is_ok()` — the fifth
+instance of *the fix reproducing the defect it closes* on this track,
+which is a standing hazard of a pass that has the file open and the
+defect in mind, not carelessness.
+
+F-R4 held throughout: a test **function** was deleted, no test **file**
+was, and `crates/*/tests/all.rs` was never touched. New rows **D65**
+(S121, re-filed as a five-site class after the review found three more),
+**D66** (S122) and **D67** (S123). F-c's block is fully spent.
 
 ## Incidents
 

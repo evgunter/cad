@@ -83,7 +83,7 @@ cases. A finding is a *question worth answering*, not a defect.
 - [The second scan (2026-08-20)](#the-second-scan-2026-08-20--the-fixes-and-the-ground-the-first-scan-never-covered) — the fixes, and the ground the first scan never covered (S59–S116), with its own §A2 and §B2. **Merged in on 2026-08-20; its verdicts are unruled.**
   - [Tier 1 — act on these](#second-scan--tier-1--act-on-these) (S59–S75)
   - [Tier 2 — significant](#second-scan--tier-2--significant) (S76–S109)
-  - [Tier 3 — real but lower stakes](#second-scan--tier-3--real-but-lower-stakes) (S110–S116), as class roll-ups, and the fix lanes' own Tier-3 findings from S117 up
+  - [Tier 3 — real but lower stakes](#second-scan--tier-3--real-but-lower-stakes) (S110–S116), as class roll-ups, with the fix lanes' own findings appended after them
 - [§A. Where I would start](#a-where-i-would-start)
 - [§D. The schedule](#d-the-schedule) — live rows only, in tracks: **A**, **B** and **D** complete; **C** (`docs/SMELL-C-LOG.md`), **E** (`docs/SMELL-E-LOG.md`), **F** (`docs/SMELL-F-LOG.md`) and **G** (`docs/SMELL-G-LOG.md`) running; the unscheduled table is the second scan's and frozen
 - [§C. Process observations](#c-process-observations) — C1–C17 from the first scan, C18–C25 from the second
@@ -10229,38 +10229,56 @@ scope and dispositioning what it returns. The one-command version is in
 
 ---
 
-## S121. The composite bound's tightness floor is applied in one row of three
+## S121. Bound-domination rows with no ceiling and no floor — five sites, four crates
 
-`geom-core/tests/m5_pr7b_tensor_compose.rs` checks the tensor
-composition's residual bound against a sampled true residual. The first
-row does the whole job: it asserts `sup >= max` **and** `sup <= 10.0 *
-max`, with the reason written down — *"the bound is TIGHT — the whole
-point of the composition … the composite must track the residual's own
-scale."* Its two siblings,
-`the_bound_dominates_when_the_two_curves_disagree_on_knots` and
-`the_bound_dominates_when_the_pcurve_straddles_surface_cells`, assert
-`sup.is_finite() && sup >= max` and nothing else.
+A recurring test shape: a certified bound is compared against a sampled
+true value and asserted to **dominate** it, and nothing else is
+asserted. `sup >= max` is monotone in the safe direction — an
+implementation that returned `f64::MAX`, or that lost a cancellation,
+satisfies it forever. Several of the rows are *named* for domination,
+so the geometry each was written to cover is the one thing it never
+constrains.
 
-That is monotone in the safe direction. An implementation that returned
-`f64::MAX`, or that lost the cancellation the center-shift exists to
-buy, passes both rows unchanged — and losing exactly that cancellation
-is the regression this module's own history records (`tensor.rs`
-carries an executed witness of a six-orders-of-magnitude bound loss).
-The two rows are named for domination and can only ever report
-domination, so the geometries they were written to cover — disagreeing
-knot sets, a pcurve straddling surface cells — are the two the file
-never checks tightness on.
+The discipline exists in the tree and is written down where it is
+applied: `geom-core/tests/m5_pr7b_tensor_compose.rs:195-207` carries
+both halves — `assert!(max > 1e-3, "the fixture's residual must be
+genuine")` as an anti-vacuity floor, and `sup <= 10.0 * max` as the
+ceiling, with the reason stated: *"the bound is TIGHT — the whole point
+of the composition … the composite must track the residual's own
+scale."* **A row missing the ceiling can be arbitrarily loose; a row
+missing the floor is satisfied for free by a fixture whose sampled
+residual collapsed.** Most of the sites below are missing both.
 
-**The floor has to be measured, not copied.** `10.0` is the first row's
-number for the first row's geometry; the fix is a ratio taken at more
-than one ε on each of these two, and a floor that is a re-pin of today's
-value is `memories/output-stability-as-justification.md`'s shape rather
-than a fix. Placed as **D65**.
+- `geom-core/tests/m5_pr7b_tensor_compose.rs:222` —
+  `the_bound_dominates_when_the_two_curves_disagree_on_knots`.
+- `geom-core/tests/m5_pr7b_tensor_compose.rs:244` —
+  `the_bound_dominates_when_the_pcurve_straddles_surface_cells`.
+- `geom-core/tests/m5_pr7b_tensor_compose.rs:425-426` —
+  `a_bicubic_bicubic_composition_completes_within_the_budget`, whose
+  doc says the composition *"must complete with a finite, sound
+  bound"*; `is_finite` plus `sup >= max` is exactly that and no more.
+- `mesh/src/nurbs_cert.rs:1538` —
+  `hessian_hull_dominates_sampled_second_partials`, doc *"the convexity
+  claim, measured (never the other way round)"*; the measurement has no
+  upper side.
+- `geom-brep/tests/r1_pxn_probes.rs:176` — `hull_sup >= truth * 0.99`,
+  labelled `UNSOUND:` on failure, with no companion ceiling.
+- `geom/tests/curves/m5_pr7_speed_meter.rs:36` —
+  `the_meter_lower_bounds_the_real_speed`, a one-sided meter claim with
+  only a positivity check above it.
 
-Found by lane F-c's sweep for S110's shapes, not by S110's own
-enumeration: it is the second of the style brief's Q3 shapes — *an
-assertion monotone in the safe direction* — one directory away from
-S110(f).
+**The floors and ceilings have to be measured, not copied.** `10.0` is
+one row's number for one row's geometry; a constant transplanted from
+the row above, or a threshold that re-pins today's output, is
+`memories/output-stability-as-justification.md`'s shape rather than a
+fix. Whoever takes this owes a ratio per site at more than one ε, and
+is entitled to conclude for some site that no honest ceiling exists —
+which is a written verdict, not a silent omission. Placed as **D65**.
+
+Found by lane F-c's sweep for S110's shapes: the second of the style
+brief's Q3 shapes, *an assertion monotone in the safe direction*. F-c's
+first pass filed only the two `tensor_compose` rows and called the
+class a single-file instance; #790's review found the other three.
 
 ## S122. The NURBS re-gate's comment sends a reader to the wrong crate for half of its evidence
 
@@ -10271,21 +10289,55 @@ pruned) — `sweep`'s `s16_box_soundness` pins both blockers, so the day
 one lifts is loud."*
 
 `sweep/tests/s16_box_soundness.rs` pins **one** — the lofted operand,
-refused at its NURBS edges. The placeholder blocker is pinned three
-assertions earlier in `ops.rs` itself, as door 1
-(`CurvedBooleanUnsupported { kind: Nurbs }` from the crossing layer).
-So the sentence is wrong in both directions at once: it credits a
-sibling crate with a row it does not have, and it hides a row the
+refused at its NURBS edges. The placeholder blocker is pinned in
+`ops.rs` itself, as **door 1** at `crates/topo/src/boolean/ops.rs:2126-2132`
+— a `let … else { panic! }`, thirteen lines above the comment, not an
+`assert!` (the function's three `assert!`s are at `:2150-2152`, after
+door 2). So the sentence is wrong in both directions at once: it credits
+a sibling crate with a row it does not have, and it hides a row the
 reader is standing in.
 
-Nothing checks it — it is a comment naming a test file in another
-crate, which is the one cross-reference shape no compiler and no gate
-in this tree can see (C-R11's class, and S39's).
+Nothing checks it — a comment naming a test file in another crate is
+the one cross-reference shape no compiler and no gate in this tree can
+see (C-R11's class, and S39's).
 
 Two answers, and the choice is the deliverable: correct the sentence, or
 write the missing row. The second is available — `sweep` can build the
 placeholder operand, and a row there would make both blockers loud in
-the same file the sentence already points at. Placed as **D66**.
+the file the sentence already points at. Placed as **D66**.
+
+## S123. Assertions whose condition is the value's own codomain
+
+The narrowest member of S110's class and the one a reader is most
+likely to walk past, because it looks like a soundness check:
+
+- `geom-core/tests/review_m5_pr7b_tensor.rs:520` —
+  `assert!(sup_far >= 0.0 || sup_far.is_nan(), "bound must stay sound")`.
+  `SurfaceResidual::sup_bound`'s own doc (`tensor.rs:252-255`) says the
+  value is a fold of **nonnegative magnitudes**, `NaN` on every poison
+  path. The disjunction is the function's entire range, so the row can
+  only ever change a panic message — **S110(h)'s exact shape**, and it
+  sits one line above a genuine ceiling (`sup_far <= 1e-8`) that does
+  the work. This is in the file S121's text cites as its cancellation
+  witness.
+- `geom-core/src/real.rs:1393` — `prop_assert!(r >= 0.0)` on
+  `Real::sqrt(x)` for `x in 1.0e-12..1.0e12`. IEEE `sqrt` of a positive
+  finite is positive finite; the line below it (`(r*r - x).abs() <=
+  1e-15 * x`) is the property.
+
+Both are cheap deletions rather than repairs: the real assertion is
+already adjacent in each case, and removing the redundant one makes the
+surviving message unambiguous, which is what
+`memories/test-suite-cost.md` asks of a merged row. Neither is a
+correctness risk. Placed as **D67**.
+
+**This shape is invisible to the obvious detector**, which is why it is
+recorded separately from S121: a rule of the form *"a test whose EVERY
+assertion is weak"* cannot see a vacuous assertion standing beside a
+real one, and both members here do exactly that — as does S110(h), and
+as did the `nurbs_edges > 0` assertion #790 wrote and removed in
+S110(d). Anyone sweeping for this must key on the assertion, not the
+test.
 
 ---
 
@@ -11828,21 +11880,14 @@ S60/S66's rows; and a general gate re-proposes exactly what Evan declined.
 
 ### Rows placed by lane F-c, out of F7's sweep
 
-Both are the shapes F7's sort was looking for, found outside S110's ten
-by the sweep #790 reports. Neither is a general gate; each names its
-sites.
+The shapes F7's sort was looking for, found outside S110's ten. None is
+a general gate; each names its sites.
 
 | # | Work |
 |---|---|
-| **D65** | **The composite bound's tightness floor is applied in one row of three** (**S121**). `geom-core/tests/m5_pr7b_tensor_compose.rs` asserts `sup.is_finite() && sup >= max` against a sampled true residual in `the_bound_dominates_when_the_two_curves_disagree_on_knots` and `…_when_the_pcurve_straddles_surface_cells`, and nothing else — monotone in the safe direction, so an implementation returning an arbitrarily loose bound passes both. The row above them does the whole job and says why: it adds `sup <= 10.0 * max` and calls tightness *"the whole point of the composition"*. The deliverable is a floor per geometry, chosen from a measured ratio at more than one ε, **not** a copied `10.0`; a floor that is really a re-pin of today's number is `memories/output-stability-as-justification.md`'s shape. Scope: `geom-core/tests/`, three rows in one file. |
-| **D66** | **`topo`'s NURBS re-gate cites a sibling suite as pinning two blockers; it pins one** (**S122**). `topo/src/boolean/ops.rs`'s door-2 comment says *"`sweep`'s `s16_box_soundness` pins both blockers"*. That file pins one — the lofted operand refused at its NURBS edges. The placeholder blocker (*"a placeholder's poison box is never pruned"*) is pinned in `ops.rs`'s own door 1, three assertions earlier, not in `sweep`. C-R11's class: a cross-reference is a claim site, and this one sends a reader to the wrong crate for half of it. The fix is either the sentence or the missing row, and whoever takes it should decide which — `sweep` can build the placeholder operand, so the second row is writable. Scope: `topo/src/boolean/ops.rs`, and `sweep/tests/s16_box_soundness.rs` if the answer is the row. |
-
-**D67 and S123 stay unused.** F-c's third pair was reserved and not
-spent; the sweep's other repeat hit — `SCHEMA_VERSION` pinned
-identically in eight `editor-core/tests/*_schema_v*.rs` files, one of
-them behind a seven-clause milestone chronicle — is **S4**'s hand-synced-copy
-shape and **S38**'s comment shape, not a new finding, and both those
-rows are live.
+| **D65** | **Bound-domination rows with no ceiling and no floor** (**S121**) — five sites in four crates: `geom-core/tests/m5_pr7b_tensor_compose.rs:222, :244, :425-426`; `mesh/src/nurbs_cert.rs:1538`; `geom-brep/tests/r1_pxn_probes.rs:176`; `geom/tests/curves/m5_pr7_speed_meter.rs:36`. Each asserts that a certified bound dominates a sampled true value and nothing else — monotone in the safe direction, so an arbitrarily loose bound passes; most also lack the anti-vacuity floor that keeps a collapsed fixture from satisfying the comparison for free. The discipline is written down in the tree at `m5_pr7b_tensor_compose.rs:195-207`, which carries both halves and says why. **The deliverable is a measured ratio per site at more than one ε, not a transplanted `10.0`** — a threshold that re-pins today's output is `memories/output-stability-as-justification.md`'s shape. A written verdict that some site admits no honest ceiling is a passing answer. Scope: `geom-core/tests/`, `mesh/src/`, `geom-brep/tests/`, `geom/tests/` — check `geom-brep/tests/m5_pr7_ssi.rs`'s neighbourhood against Track C's **#734** before opening. |
+| **D66** | **`topo`'s NURBS re-gate cites a sibling suite as pinning two blockers; it pins one** (**S122**). `topo/src/boolean/ops.rs`'s door-2 comment says *"`sweep`'s `s16_box_soundness` pins both blockers"*. That file pins one. The placeholder blocker is pinned in `ops.rs` itself at `:2126-2132`, thirteen lines above the comment, as a `let … else { panic! }`. C-R11's class: a cross-reference is a claim site, and this one sends a reader to the wrong crate for half of it. The fix is either the sentence or the missing row, and whoever takes it should decide which — `sweep` can build the placeholder operand, so the second row is writable. Scope: `topo/src/boolean/ops.rs`, and `sweep/tests/s16_box_soundness.rs` if the answer is the row. |
+| **D67** | **Assertions whose condition is the value's own codomain** (**S123**) — `geom-core/tests/review_m5_pr7b_tensor.rs:520` and `geom-core/src/real.rs:1393`. Both are S110(h)'s shape standing beside a real assertion rather than alone, so both are deletions, not repairs; the surviving message is then unambiguous, which is what `memories/test-suite-cost.md` asks of a merged row. Cheap and edge-free. Recorded apart from D65 because the detector shape differs: an "every assertion is weak" rule cannot see either of them, and that blind spot is what made F-c's first pass under-report the class. Scope: two files in two crates. |
 
 ---
 
