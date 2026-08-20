@@ -104,7 +104,7 @@ pub struct SplitNaming {
     /// the verdict vector — N4's covariance).
     pub sections: Vec<(FaceKey, PlaneSide)>,
     /// Chord-mef fragment rows: `(new face, divided-from face)` in
-    /// mint order, call-time keys ([`super::join`]'s `ChordJoiner`
+    /// mint order, call-time keys ([`crate::chord_join`]'s `ChordJoiner`
     /// log). Section faces appear here too (they are minted by the
     /// same mefs); consumers exclude the keys listed in `sections`.
     pub face_fragments: Vec<(FaceKey, FaceKey)>,
