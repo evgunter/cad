@@ -463,9 +463,14 @@ jobs:
   # local-scripts/ci-local.sh, the ci-filter.py arrangement.
   #
   # NOT scoped by the filter, deliberately: the gate is a workspace-wide
-  # ratchet over a fixed crate set, and it runs in ~15 s cold, so scoping
-  # it to the change closure would trade the ratchet's meaning for no
-  # measurable time. It still respects the docs tier via run_build.
+  # ratchet over a fixed crate set, and the rustdoc pass runs in ~15 s
+  # cold, so scoping it to the change closure would trade the ratchet's
+  # meaning for no measurable time. It still respects the docs tier via
+  # run_build.
+  #
+  # THIS JOB ALSO HOSTS THE wasm32 GUARD (#807) — a second workspace-wide
+  # ratchet that wanted the same unscoped, off-critical-path seat rather
+  # than a job of its own. Its own reasoning is at the step.
   doc:
     name: rustdoc (gate)
     runs-on: ubuntu-latest
@@ -480,6 +485,85 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: scripts/doc-gate.sh
+      # WASM32 GUARD (#807). docs/GUI-DESIGN.md §GQ6 and
+      # docs/GQ6-RESURVEY.md §4 both state, as a MEASURED fact that a
+      # ratified toolkit row rests on, that the kernel plus `editor-core`
+      # compiles to wasm32-unknown-unknown, `--features interval`
+      # included. Nothing re-took that reading: before this step no CI
+      # row named a wasm target at all, so a dependency bump could
+      # falsify the sentence with every other row green — a transitive
+      # crate growing a `std::os::unix`, `getrandom` or `mmap` path on a
+      # default feature is enough, and the two documents would still read
+      # as checked fact.
+      #
+      # SITED IN THIS JOB, not in one of its own (Evan's constraint: the
+      # guard must not add runner time). A new job pays runner
+      # allocation, checkout, toolchain install and cache restore before
+      # it compiles anything — on this workflow that overhead is most of
+      # a light job's wall-clock. A step reuses all four plus the warm
+      # Swatinem cache, so it costs the incremental compile and nothing
+      # else. `doc` is the lighter of the two candidates (`clippy` is the
+      # other) and, like this guard, is deliberately NOT filter-scoped:
+      # both are workspace-wide ratchets over a fixed crate set. The
+      # job's NAME is therefore narrower than its contents; renaming it
+      # was rejected because the name is cited from prose and from
+      # local-scripts/ci-local.sh's mirror markers.
+      #
+      # SITING (S61): the inputs are the kernel crates and the dependency
+      # graph. Cargo.toml/Cargo.lock are not `_is_docs` paths, so a
+      # dependency bump classifies TIER=all and this job runs. The only
+      # change class that skips it is a docs-tier one (`*.md`,
+      # `memories/`, `local-scripts/`, `.claude/`), none of which can
+      # move a wasm build.
+      #
+      # `check`, NOT `build`: the guarded sentence is "compiles clean".
+      # This step does not link, does not run a linker at all, and
+      # therefore establishes nothing about whether a wasm artifact
+      # links, loads or runs — see the two caveats GQ6-RESURVEY §4
+      # already flags (threads, and `mul_add` lowering).
+      #
+      # Target install goes through `rustup target add` rather than the
+      # toolchain action's `targets:` input on purpose: rust-toolchain.toml
+      # pins 1.97.0, and `rustup` resolves that directory override, so the
+      # std artifacts land on the toolchain cargo will actually use.
+      - name: install the wasm32 target (pinned toolchain)
+        run: rustup target add wasm32-unknown-unknown
+      # THREE LEGS, and the order is load-bearing. The two unflagged legs
+      # run FIRST so the third's `getrandom` backend cfg can never mask a
+      # kernel result: if a kernel crate ever grows a dependency that
+      # needs a wasm randomness backend, that has to fail here rather
+      # than be absorbed by the flag the façade needs.
+      #
+      #  1. the kernel + editor-core, default features, NO flags — the
+      #     exact sentence GUI-DESIGN §GQ6 states. `pncad` is excluded
+      #     because it is the one member that needs the backend cfg (leg
+      #     3 covers it); `pncad-py` rides with it because its `getrandom`
+      #     edge comes through `pncad`.
+      #  2. the same set with `--features interval`. The `interval`
+      #     backend is the in-repo `interval-transcendentals` crate —
+      #     pure libm, no C — and its gmp-backed `inari` oracle is a
+      #     DEV-dependency of a path dependency, so it never enters this
+      #     graph. That is why this leg crosses at all, and it is exactly
+      #     the property a dependency bump could take away.
+      #  3. the whole workspace, façade and bindings included, with the
+      #     backend cfg and `getrandom`'s `wasm_js` feature — the
+      #     "verified fix" GQ6-RESURVEY §4 records for `pncad`. RUSTFLAGS
+      #     is set INLINE, not as step or job env, so Swatinem/rust-cache
+      #     (which hashes CARGO_*/RUST* env into its key before any step
+      #     runs) sees one stable key; the cost is that the wasm dep graph
+      #     is fingerprinted twice in target/.
+      #
+      #     `pncad-py` needs no exclusion here: `pyo3` is behind its
+      #     non-default `python` feature, so the default path this checks
+      #     has no Python involvement at all. The "PyO3 targets a native
+      #     CPython" exclusion is about `--features python`, not about
+      #     this command.
+      - name: wasm32 check (kernel + editor-core, default features)
+        run: cargo check --workspace --exclude pncad --exclude pncad-py --target wasm32-unknown-unknown
+      - name: wasm32 check (kernel + editor-core, --features interval)
+        run: cargo check --workspace --exclude pncad --exclude pncad-py --features interval --target wasm32-unknown-unknown
+      - name: wasm32 check (whole workspace, wasm_js getrandom backend)
+        run: RUSTFLAGS='--cfg getrandom_backend="wasm_js"' cargo check --workspace --features getrandom/wasm_js --target wasm32-unknown-unknown
 
   # BUILD job, default features (see the build-once header comment above
   # the `env:` block). Compiles the scoped test binaries exactly once and

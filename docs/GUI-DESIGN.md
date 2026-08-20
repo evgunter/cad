@@ -383,10 +383,10 @@ Fornjot was archived 2026-06 and CADmium 2025-09, so "no CAD-ness to
 borrow" is now *stronger*; and the wasm row below is **wrong in our
 favor** — the whole kernel plus `editor-core` compiles to
 `wasm32-unknown-unknown` today, `--features interval` included
-(measured, not surveyed). **Unguarded** (§Q6): nothing in CI builds
-for wasm32, so a dependency bump can falsify this sentence with every
-check green. A guard is cheap and available — issue **#807** carries
-the row and the commands.
+(measured, not surveyed). **Guarded** since #807: `ci.yml`'s `doc` job
+re-takes the reading on every code-tier run — `cargo check` against
+the wasm32 target, so it establishes that the crates *compile*, not
+that they link or run.
 
 Ecosystem snapshot 2026-07 (SUPERSEDED by the re-survey — kept as
 the record of what was believed when GQ6 was banked): the

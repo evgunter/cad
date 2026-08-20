@@ -242,15 +242,26 @@ problem: it is ASM-1's OS-randomness dependency for interactively-
 authored document ids. Verified fix — with `getrandom`'s `wasm_js`
 feature enabled and `RUSTFLAGS='--cfg getrandom_backend="wasm_js"'`,
 `pncad` and its full dependency closure **check clean on wasm32**.
-(`pncad-py` is out of scope by construction: PyO3 targets a native
-CPython.)
 
-**Unguarded, and it should not be** (§Q6). This table is a reading of
-one tree at one revision on one toolchain, and nothing re-takes it: CI
-builds no wasm32 target, so any dependency bump can turn a `clean` cell
-red while every existing row stays green. The guard is the two `cargo
-check` commands above, run in CI; it is filed as **#807** rather than
-added here because `.github/workflows/` is another track's surface.
+**`pncad-py` crosses too, and the reason it was set aside does not
+apply to the default path** (#807). `pyo3` is an *optional* dependency
+behind that crate's non-default `python` feature, so a default-feature
+check has no Python involvement at all and passes on wasm32 with the
+same backend cfg. "PyO3 targets a native CPython" is true of
+`--features python`/`extension-module`, which is where the exclusion
+belongs; it is not a reason to exclude the crate from a wasm check.
+
+**Guarded since #807** (§Q6). This table was a reading of one tree at
+one revision on one toolchain and nothing re-took it, so any dependency
+bump could turn a `clean` cell red while every existing row stayed
+green. `ci.yml`'s `doc` job now re-takes it on every code-tier run, in
+three legs: the kernel plus `editor-core` unflagged, the same set with
+`--features interval`, and the whole workspace under the `wasm_js`
+backend cfg. The unflagged legs run **first** on purpose — a kernel
+crate that grew its own `getrandom` edge would be masked by the third
+leg's flag, which was demonstrated by planting exactly that. What the
+guard establishes is *compiles clean*: `cargo check` runs no linker, so
+neither of the two caveats below is covered by it.
 
 So: **the whole product below the GUI compiles to wasm today,
 certified-interval lane included.** That is a materially different
