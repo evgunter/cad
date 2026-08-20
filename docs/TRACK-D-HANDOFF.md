@@ -98,7 +98,8 @@ What is unstarted is unstarted for schedule reasons only, not technical ones:
   `editor-core`'s eight payload-discarding `Display` arms; and
   `FilletError::Op`/`Certify`'s ~20 `format!` sites. **D27 and D29 share
   `sweep/src/fillet/`** — the only edge left in the track.
-- **D17**, **D19**, **D20**, **D21**, **D25**, **D30** and **D31** are edge-free. D7's
+- **D17**, **D19**, **D20**, **D21**, **D25**, **D30**, **D31** and **D35**
+  are edge-free. D7's
   **`PairSolve`** row was too, and landed as **#735**; its provenance note is a
   comment on **issue #611**, not the PR body, because R2's thread is live, and
   the PR cites the commit the type is recoverable from. **D18 landed as #736**,
@@ -112,7 +113,13 @@ What is unstarted is unstarted for schedule reasons only, not technical ones:
   finds two of its C¹ carrier gates already four lines each. It **placed D30**
   (ADVERSARIAL, `geom-brep/props/quad.rs`: the type cannot represent the
   intermediate, so the consumer re-derives the vocabulary — S32's shape) and
-  **D31** (style, `make_compatible`/`deviation_from` as one routine).
+  **D31** (style, `make_compatible`/`deviation_from` as one routine), and
+  **D35** — the `unreachable!` message convention, prose-held at 102 sites the
+  week the D2 addendum ratified the mechanism. **D35 is the time-critical one
+  in this track**: 101 of those sites were written inside one week, and the
+  message shape was settled by orchestrator ruling across #740 and #744 — a
+  mechanism that vanishes with the lanes. It closes on a decision plus its
+  reason, and "no gate" is a passing answer.
 
 ## For Evan — S14 now has three witnesses
 
