@@ -15,7 +15,7 @@ mod common;
 
 use common::{annulus, lift, near_tangent_hole, profile, tol};
 use geom_core::Sign;
-use profile::k_stats::{self, Probe, SampleOutcome};
+use geom_core::k_stats::{self, Probe, SampleOutcome};
 
 #[test]
 fn probe_records_margin_distributions_without_changing_decisions() {

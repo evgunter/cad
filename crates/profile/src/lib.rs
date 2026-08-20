@@ -86,7 +86,7 @@
 //! simplicity, the containment forest, and canonicalization, every
 //! decision through named trilean predicates (geom-core's
 //! [`geom_core::Decide`] door — see `crate::validate` docs for the
-//! predicate inventory and `crate::k_stats` for the margin-statistics
+//! predicate inventory and `geom_core::k_stats` for the margin-statistics
 //! hook). Its canonical-form rules (deterministic starting vertex, loop
 //! order, traversal senses) are documented on [`ValidatedProfile`]; the
 //! canonical form is invariant under input traversal order and
@@ -116,7 +116,6 @@
 //! guess (the poison policy of `geom_core::real`).
 
 mod fillet_select;
-pub mod k_stats;
 pub mod lift;
 pub mod path;
 mod seg;

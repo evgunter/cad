@@ -64,12 +64,12 @@ use geom_core::{Band, Bounds, Decide, Margin, Point2, Real, Sign, Tolerance, Vec
 
 use super::{ArcData, Dir, PathError, PathNoCornerReason};
 use crate::fillet_select::nearest_joint;
-use crate::k_stats::decide;
 use crate::sugar::{
     ArcFilletCandidate, ArcFilletOutcome, ArcSweep, ArcTrimRefusal, FilletLegShape,
     arc_fillet_trims, signed_swept,
 };
 use crate::validate::FilletLegCarrier;
+use geom_core::k_stats::decide;
 
 /// A fillet side's carrier, as the algebra binds it: a straight ray, or
 /// a circle about a centre with a structural winding.

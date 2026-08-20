@@ -41,7 +41,7 @@
 //!
 //! # Predicate inventory (margins in meters; lever arms named)
 //!
-//! Every decision goes through the [`crate::k_stats::decide`] funnel
+//! Every decision goes through the [`geom_core::k_stats::decide`] funnel
 //! with one of these names — the unit of the K-experiment margin
 //! statistics:
 //!
@@ -106,9 +106,9 @@ use geom_core::{
     Tolerance, Vec2,
 };
 
-use crate::k_stats::decide;
 use crate::seg::{self, CKind, PairOutcome, Seg, SegIssue, SegKind, build_seg};
 use crate::{Profile, ProfileLoop, ProfileVertex};
+use geom_core::k_stats::decide;
 
 /// Identifies a segment of the *input* profile: `segment_index` k is the
 /// segment from vertex k to vertex k+1 (mod n) of loop `loop_index`, in

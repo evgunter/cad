@@ -18,6 +18,6 @@ use common::{annulus, lift, tol};
 fn generic_instantiation_smoke_probe() {
     // The whole pipeline is generic over Decide: run it at the k-stats
     // Probe scalar (delegating wrapper) as a second instantiation.
-    let p = lift::<profile::k_stats::Probe>(&annulus());
+    let p = lift::<geom_core::k_stats::Probe>(&annulus());
     assert!(p.validate(tol()).is_ok());
 }

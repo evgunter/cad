@@ -21,8 +21,8 @@
 mod common;
 
 use common::{lift, profile, tol};
+use geom_core::k_stats::{self, Probe};
 use profile::SegmentKind;
-use profile::k_stats::{self, Probe};
 
 // ------------------------------------------------------------ K-hook --
 
