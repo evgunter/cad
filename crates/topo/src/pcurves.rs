@@ -968,7 +968,9 @@ pub fn mint_pcurves<T: Decide>(body: &mut Body<T>) -> Result<(), PcurveMintError
             // Circle-carrier arm, mate from the edge's description);
             // wiring it into this pass needs the `PcurveFittedLane`
             // bound on every constructor and is banked with that
-            // ripple. Every OTHER failure — a covered class whose
+            // ripple — banked in no milestone plan and in no
+            // carried-items register, so this comment is the only
+            // place the obligation is written down. Every OTHER failure — a covered class whose
             // residuals, envelope, continuity or closure refuse — is
             // a genuine defect and propagates.
             Err(PcurveMintError::Certify {
@@ -1043,19 +1045,24 @@ fn mint_face<T: Decide>(
     // region the domain-validity limb certifies against (C4; the exact
     // point-in-region test is PR 11's tessellation consumer).
     //
-    // **Where this limb has teeth, stated plainly.** At MINT time the
-    // containment check is vacuous by construction: the window IS the
-    // hull of exactly the boxes being checked against it, so no minted
-    // pcurve can escape it. That is deliberate, not an oversight — a
-    // freshly derived face has no independent prior notion of its own
-    // trim region, and inventing one (say, the loop's vertex box) would
-    // refuse legitimate faces whose boundary arcs bulge past their
-    // endpoints. The limb bites at RE-certification
-    // (`validate_pcurves`) and on the attach path, where the window
-    // comes from the OTHER stored caches and from a body the checked
-    // pcurve did not help build: a swapped, shifted or hand-attached
-    // cache is then measured against a window it had no part in
-    // setting. `TrimEscape` rows exercise exactly that direction.
+    // **Check 5 is vacuous here, and on every other in-tree caller.**
+    // The window IS the hull of exactly the boxes checked against it,
+    // so no minted pcurve can escape it — and `validate_pcurves`
+    // re-derives its window the same self-referential way, so it is
+    // vacuous there too. It is a PRECONDITION on the public door
+    // (`PcurveCache::certify`/`certify_fitted` take the window from
+    // the caller), not a check that fires on any path this crate
+    // walks; the `TrimEscape` rows drive it from the tests' attach
+    // path.
+    //
+    // The vacuity at mint is deliberate: a freshly derived face has no
+    // independent prior notion of its own trim region, and inventing
+    // one (say, the loop's vertex box) would refuse legitimate faces
+    // whose boundary arcs bulge past their endpoints. What the
+    // precondition buys is that check 5 is the cache's only BRANCH
+    // constraint — on a periodic chart a τ-shifted pcurve certifies
+    // every other check identically, so `TrimEscape` is the only thing
+    // separating it from the unshifted one.
     let mut window: Option<ChartWindow<T>> = None;
     for w in &walked {
         let b = w.pcurve.chart_box(w.t0, w.t1);

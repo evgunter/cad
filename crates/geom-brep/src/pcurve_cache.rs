@@ -122,8 +122,13 @@
 //!   that the pcurve's chart-box enclosure lies inside the face's chart
 //!   window ([`ChartWindow`], supplied by the caller — the face's own
 //!   one-branch hull); escaping it is the typed
-//!   [`PcurveCertifyError::TrimEscape`]. Two honesty notes, both
-//!   binding:
+//!   [`PcurveCertifyError::TrimEscape`]. It is a **precondition on
+//!   this door**, not a check that fires inside the kernel: both
+//!   in-tree callers hull exactly the boxes they then check, so the
+//!   limb is vacuous on every path `topo` walks. What it buys is that
+//!   it is the cache's only BRANCH constraint — on a periodic chart a
+//!   τ-shifted pcurve certifies every other check identically. Two
+//!   honesty notes, both binding:
 //!   - The window is a conservative *over-approximation* of the trim
 //!     region (a box, not the region bounded by the loop).
 //!     Point-in-trim-region is the tessellation trim-loop consumer's,
@@ -173,8 +178,10 @@ use crate::ssi::{SsiCertificate, SsiLimb, SsiOperand};
 /// `span{1, cos t, sin t, t}`, with an envelope that is a *closed-form
 /// sup bound* over the whole span and nothing sampled.
 ///
-/// [`Pcurve::Fitted`] is the general rung: the 2-D NURBS chart image an
-/// SSI trace produces **on the carrier's own parameter**, by
+/// [`Pcurve::Fitted`] is the general rung, and the one rung no kernel
+/// constructor mints — see [`PcurveCache::certify_fitted`], its sole
+/// door, for what that frontier is waiting on. It is the 2-D NURBS
+/// chart image an SSI trace produces **on the carrier's own parameter**, by
 /// construction rather than by coincidence (the ℝ⁴ trace yields the
 /// 3-D curve and both pcurves as projections of one parameterized
 /// object, and `geom_curves::NurbsCurve2::interpolate_with_params` fits
@@ -194,14 +201,11 @@ use crate::ssi::{SsiCertificate, SsiLimb, SsiOperand};
 /// angle by a transcendental piecewise map. Each variant's own docs
 /// carry the derivation.
 ///
-/// **The `Arc` and the missing `Copy` (M6-2).** `Fitted` carries a
-/// whole spline, so [`Pcurve`] and [`PcurveCache`] are `Clone` and not
-/// `Copy` — the `Surface` payload precedent (M5 PR 3). The variant was
-/// deferred at PR 7 as "a storage item that lands with the PR that
-/// first needs it"; what actually blocked it was that its certificate
-/// could not be *derived* anywhere but `f64` (M5-LOG PR 9c deviation
-/// 2), which is what M6-2's lift of `ssi::enclose`/`ssi::certify`/
-/// `NurbsSurface::project` removed.
+/// **Not `Copy`.** Two variants carry heap payloads — `Fitted` an
+/// `Arc<NurbsCurve2>`, `IsoArc` a `Vec`-backed
+/// [`geom_core::spline::KnotVector`] — so [`Pcurve`] and
+/// [`PcurveCache`] are `Clone` only, and either variant alone is
+/// enough for that. Removing one does not make the enum `Copy`.
 #[derive(Clone, Debug)]
 pub enum Pcurve<T: Real> {
     /// The closed-form chart image
@@ -1246,8 +1250,7 @@ where
 /// fields are private, so an uncertified pcurve is unrepresentable
 /// (D4 ¶2 made structural, exactly as for [`crate::EdgeCurve`]).
 ///
-/// `Clone`, not `Copy`, since M6-2: [`Pcurve::Fitted`] carries a
-/// spline behind an `Arc` (the `Surface` payload precedent, M5 PR 3).
+/// `Clone`, not `Copy`, for the reason [`Pcurve`] is not.
 #[derive(Clone, Debug)]
 pub struct PcurveCache<T: Real> {
     pcurve: Pcurve<T>,
@@ -1362,7 +1365,30 @@ impl<T: Decide> PcurveCache<T> {
 }
 
 impl<T: PcurveFittedLane> PcurveCache<T> {
-    /// Certifies a **fitted** (rung-3) chart image — the M6-2 door.
+    /// Certifies a **fitted** (rung-3) chart image.
+    ///
+    /// **This door has no `src` caller** — the certified route exists,
+    /// and no kernel constructor mints a `Fitted` cache into a body.
+    /// It is the only callerless item of the lane: `Fitted`'s check
+    /// suite runs in production through [`PcurveCache::recertify`],
+    /// which the tier-3 validator calls per half-edge, which is why
+    /// `topo::validate_pcurves` carries the [`PcurveFittedLane`] bound
+    /// at all.
+    ///
+    /// Three consumers are waiting on it, in decreasing firmness:
+    ///
+    /// 1. **Mint-side wiring of the general-circle route** — the
+    ///    oblique-trihedron octant faces whose boundary circles are
+    ///    GENERAL sphere circles stay legally uncached because
+    ///    `topo::mint_pcurves` cannot reach this door without the
+    ///    [`PcurveFittedLane`] bound on every constructor. Named as an
+    ///    open frontier in `docs/DESIGN.md`, and currently in **no**
+    ///    milestone plan and no carried-items register.
+    /// 2. The `General` curve-in-UV arm of the ratified pcurve
+    ///    unification (`docs/PCURVE-UNIFY-DESIGN.md` U2), which
+    ///    defines that arm as certifying at this lane's grade.
+    /// 3. The cyl×sphere germ-chord lane, banked with the join-lane
+    ///    analog.
     ///
     /// Same five checks in the same fixed order as
     /// [`PcurveCache::certify`], with two differences that are the
