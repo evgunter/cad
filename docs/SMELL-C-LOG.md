@@ -71,6 +71,7 @@ head, merge without waiting for a second CI run.**
 | **C-R18** | **#731's prose-hygiene pass manufactured the defect it was fixing.** Its correction to **§C15** replaced a false clause with *"the conclusion survived in two of three"* — a reading C15's own bullets do not support (under the reading that makes #632 fail, all three failed). It also corrected the **meta**-record while leaving the **object-level** sentences that carry #632's wrong population (`SMELL-SCAN:627`, `:728`). | **State a reading the bullets actually support and say which it is, or leave C15 alone and record the #632 fact elsewhere — not the split difference.** And sweep the object-level sentences: correcting the record *about* a claim while leaving the claim is the same half-fix one level up. **This is §C16 committed inside a correction to §C15**, which is the sharpest instance of that section the scan has produced. | orchestrator, 2026-08-20 |
 | **C-R19** | **What this track may take, restated.** The working rule had drifted to *style fixes only; anything cross-crate or public-API gets filed and left*, which is what sent H16's ε item out as a parked issue. | **Cross-crate and public-API changes are within scope** (Evan, 2026-08-20): *"cross crate and public api is potentially within scope for these style fixes, though it may have a design element that means the plan should go by me before implementation."* So the discriminator is **not** where the change lands — it is whether a **design element** is present. Three tiers: a style or encoding fix is taken by the lane; a change with a design element is written up as a **plan that goes to Evan before implementation**; **implementing a new feature or fixing a logic bug is never this track's** and gets a GitHub issue. The middle tier is new and is where the ε item, the two Part-21 user-assigned STEP header fields, and anything like them now sit — **takeable Track C rows asking for a plan, not parked issues.** A filed row must say which tier it is in, or the next reader re-derives the judgement. | Evan, 2026-08-20 |
 | **C-R20** | **Two lanes minted §D row `C11` independently**, an hour apart, in two unmerged branches (#732's `pncad-py` option surface and #731's `editor-core` residues). Neither could see the other's number. | **Row numbers are assigned by the orchestrator, never taken from the next visible gap.** Assigned: **C11** C-o/#732 (issue #730), **C12** C-f/#731, **C13** and **C14** C-o's ε and Part-21 rows, **C15** reserved for C-p's per-face slack gate hole. A lane needing a row asks for the number. **This rule already existed one track over** — Track D hit the identical collision when three lanes minted in parallel and two landed on D10/D11 — and its handoff states it explicitly. I read that handoff at session start and did not apply it, which is the whole failure: *a rule recorded in another track's operational file is not carried by reading it once.* The cost was small only because both PRs were still unmerged. | orchestrator, 2026-08-20 |
+| **C-R21** | **C-R20 is not sufficient, and its third instance proved it.** I assigned §D row numbers centrally *within Track C*. Track A's #714 fix pass then landed its own **C11** on `main` — roughly ten minutes after I assigned C11 to #732, and cited from three other places in the document. Neither track could see the other's unmerged branch. | **A row number is not owned until it is on `main`, and a lane mints against the merged tree, never against an assignment.** Central assignment prevents *intra*-track collisions and cannot prevent cross-track ones, because **§D is shared by every track**. So: the orchestrator still assigns, but the assignment is a *reservation against a tree that may move*, and a lane re-verifies against `origin/main` immediately before it writes the number — exactly what C-o did, which is why this cost a relabel instead of a silent duplicate. **Holes in the sequence are named in the gating paragraph** so the next reader does not tidy them away. Settled state: C11 Track A; C12 #731; C13/C14/C16 #732; C15/C17 #738. | orchestrator, 2026-08-20 |
 
 ---
 
@@ -737,13 +738,18 @@ caller; a brief is a claim site too).
 
 ### In flight
 
+Refreshed 2026-08-20 after the container reclaim. Two lanes flagged the
+previous version as stale within minutes of each other and both correctly
+declined to edit it — it is the orchestrator's table and concurrent lanes
+cannot know who else is in it.
+
 | lane | finding | PR | state |
 |---|---|---|---|
-| **C-d** | H12 — the SSI sweeps' other never-silence doors | **#734** | open, CI green; awaiting the lane's report before its style review |
-| **C-f** | H11 — #632's residues (**four**, not the two the finding states) | **#731** | **NOT CLEARED** — style review returned a MAJOR; fix pass running |
-| **C-h** | H14 — the census's record-keyed deferrals | **#737** | open; needs **both** reviewers once it reports |
-| **C-o** | H16 — `StlOptions` | **#732** | green; **waits for Evan's sign-off**, and a fix pass for C-R13/C-R14/C-R15 held until its style review lands |
-| **C-p** | C9 — the `agreement` column | — | implementing, at its fourth seam |
+| **C-d** | H12 — the SSI sweeps' other never-silence doors | **#734** | **not cleared** — style review returned both track questions No; fix pass running |
+| **C-f** | H11 — #632's residues (**nine**, not the two the finding states) | **#731** | fix pass complete; owes a verification pass re-deriving its probe table (C-R16) |
+| **C-h** | H14 — the census's record-keyed deferrals | **#737** | both reviews in, four fix passes done, CI green — **ready to merge** |
+| **C-o** | H16 — `StlOptions` | **#732** | fix pass complete, CI green; **waits for Evan's sign-off**; owes one re-run of the byte-identity probe on the merged head |
+| **C-p** | C9 — the `agreement` column | **#738** | fix pass complete, CI green; adding row C17 — **then ready to merge** |
 
 ### #731 (C-f / H11) — style lane, 2026-08-20: **not cleared**
 
