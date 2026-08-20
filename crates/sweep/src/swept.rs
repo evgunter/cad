@@ -26,9 +26,11 @@ use geom_core::{
 use geom_curves::Curve3;
 use topo::{Body, EulerOpError, FaceKey, SurfaceKey};
 
-/// The classification funnel of this shared lowering and of the three
-/// sweep verbs above it (the `geom-brep` pattern; `fillet` still has
-/// its own): delegates to the unified recorder funnel
+/// The classification funnel of this shared lowering, and of `extrude`
+/// and `revolve` above it (the `geom-brep` pattern). It is not the
+/// crate's only one: `fillet` keeps a second copy, and `loft` and
+/// three other sites reach past a funnel to the recorder directly.
+/// Delegates to the unified recorder funnel
 /// [`geom_core::k_stats::decide`], so every decision's predicate name
 /// reaches the margin-telemetry recorder. The name is a parameter —
 /// each verb keeps its own predicate names through one shared body.

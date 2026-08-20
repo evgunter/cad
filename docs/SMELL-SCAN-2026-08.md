@@ -993,7 +993,7 @@ and rejected it — no spec was committed and the log is silent, so this
 reads as *"happened, then documented"*. PRs #62 and #65 have **zero
 comments**; the fork was never surfaced to Evan.
 
-## S6. FIXED by #710 — eleven token-identical helpers, kept apart by a fork note whose own expiry condition had fired
+## S6. FIXED by #710 — ten helpers duplicated across twelve sites, kept apart by a fork note whose own expiry condition had fired
 
 - **Where**: the shared home is now `crates/sweep/src/swept.rs`
   (crate-level, sibling to the verbs) plus `crates/sweep/src/revolve/chain.rs`
@@ -1003,21 +1003,31 @@ comments**; the fork was never surfaced to Evan.
 - **Verdict**: ACCEPTED (Evan, 2026-08-18), with a steelman pass that
   retracted four of the finding's claims. Executed as Track D unit **D1**.
 
-**What was found.** Each pair named in the D1 row was extracted from
-`main` by brace matching and compared under a normalisation that strips
-comments, path spellings (`geom_core::`, `super::`, `geom_brep::`), the
-`_eff` parameter suffix and the predicate-name literals. Nine came back
-identical to the character: `cosurface` (532), `cap_points` (260),
-`arc_apex` (212), `arc_span` (41), `turn_axis` (98), `face_surface_key`
-(106), `SweptKind` (60), `decide` (39), and — a tenth the row did not
-list — `SweptSeg::sketch_segment` (179). `rim_spec`/`chain_spec` differ
-by exactly one piece of Rust sugar: extrude writes the field-init
-shorthand `place,` where revolve writes `place: place_eff,`.
+**What was found — ten distinct helpers, twelve copies.** Each pair
+named in the D1 row was extracted from `main` by brace matching and
+compared under a normalisation that strips comments, path spellings
+(`geom_core::`, `super::`, `geom_brep::`), the `_eff` parameter suffix
+and the predicate-name literals. **Eight** came back identical to the
+character: `cosurface` (532), `cap_points` (260), `arc_apex` (212),
+`arc_span` (41), `turn_axis` (98), `SweptKind` (60), `decide` (39), and
+— a ninth helper the row did not list — `SweptSeg::sketch_segment`
+(179). Two more are identical only under a stated allowance, and the
+allowance belongs in the record rather than only in the PR body:
 
-Sweeping for the **closed forms** rather than the names found two copies
-nobody had named: `revolve/axis.rs`'s private `apex_of(a, b, bulge)` is
-an eleventh copy of the sagitta form, and `extrude.rs` had hand-inlined
-`face_surface_key`'s body at one site rather than calling its own helper.
+- `face_surface_key` (106) is identical *once the return type is also
+  normalised* — `ExtrudeError` against `RevolveError`. That difference
+  is the substance of how it was unified, not an artifact of reading.
+- `rim_spec`/`chain_spec` differ by exactly one piece of Rust sugar:
+  extrude writes the field-init shorthand `place,` where revolve writes
+  `place: place_eff,`. `_eff` is a formal parameter name; every caller
+  passes the same argument it did before.
+
+Sweeping for the **closed forms** rather than the names found two
+further *copies* — not further helpers: `revolve/axis.rs`'s private
+`apex_of(a, b, bulge)` is a **third copy of `arc_apex`**, and
+`extrude.rs` had hand-inlined `face_surface_key`'s body at one site
+rather than calling its own helper. Ten helpers, twelve sites;
+`swept.rs` hosts the ten.
 
 **What was unified.** All eleven, into `crates/sweep/src/swept.rs` — a
 private crate-level module, deliberately *not* inside `extrude`, even
@@ -1033,8 +1043,16 @@ Three decisions carry the retractions:
 
 - **`SweptChord` is a trait, not a struct.** Four accessors (`a`, `b`,
   `bulge`, `kind`) let every identical body be shared while both
-  `SweptSeg` definitions stand untouched, so extrude's `wall_sense` bit
-  cannot leak to a verb it would be wrong for.
+  `SweptSeg` definitions stand untouched, so no shared body can read
+  extrude's `wall_sense`. Note the precise scope: this keeps the bit
+  out of **revolve**, which has its own record. It does not keep it out
+  of **loft**, which still imports `SweptSeg` and `swept_segments` from
+  `extrude` (`loft.rs:69`) and therefore carries the bit. Loft never
+  reads it, so there is no defect — but that is loft's habit, not a
+  structural guarantee, and the trait bought the guarantee only against
+  revolve. `sketch_segment` is a free function over the accessors
+  rather than a provided method for the same reason: a provided method
+  is one an impl may override, which would put the body back to two.
 - **Predicate names are a parameter.** `cosurface` takes a
   `CosurfaceNames { lines, arcs }`. The K-telemetry premise held, and
   the conclusion was checked rather than assumed: the string-literal
@@ -1064,24 +1082,100 @@ inference, both retracted by the steelman and both confirmed here.
 it discretises arcs in `f64` with a signed `θ = 4·atan(bulge)`, a
 different derivation that happens to look similar.
 
-**What the sweep could not match:** a copy that changed *representation*
-rather than spelling. No token pattern relates `skin.rs`'s `f64`
-`mul_add` arc arithmetic to `SweptKind::Arc`; nor would a chain built
-through a different operator vocabulary (`mev_line` plus
-`set_edge_curve` rather than `mev` with a spec) match `build_chain`'s
-shape.
+**One behavioural delta, and it is a reordering.** Folding
+`partial.rs`'s outer chain into `build_chain` hoisted the cap-plane
+computation above the chain: `main` ran `mvfs → mev×(n−1) →
+cap_points/newell_plane → mef`, the branch runs `mvfs →
+cap_points/newell_plane → build_chain`. Both moved statements are pure
+and touch no entity, so the solid is identical. Two consequences follow
+anyway and are recorded here rather than left to be rediscovered: a
+`RevolveError::CapPlane` now pre-empts an operator fault the chain
+would have raised first (unreachable — `profile`'s
+`vertex_separation` already refuses coincident chord endpoints), and
+the **order** in which K samples are emitted changes, because
+`newell_plane` emits `newell_plane_residual` and `mev` emits
+certification samples. Nothing gates on emission order, and the
+byte-identity check above is a multiset comparison and therefore
+order-blind, so this costs nothing — which is why it is written down
+rather than relied on silently.
 
-**Residue.** (a) `extrude`'s and `loft`'s lamina chains are the same
-operator sequence as `build_chain` and still stand apart from it;
-`build_chain` is already error-agnostic, so what remains is passing a
-placement pair instead of an `AxisFrame` and moving the module to the
-crate root. (b) `loft.rs:517`'s `map_err(|_| LoftError::SectionStructure)`
-— the live regression the steelman found — is untouched, being
-a loft-side error-mapping bug outside D1's scope; it is more visible
-now, since the discarded error is spelled `EulerOpError` at the call
-site. (c) `revolve/tube.rs` reaches past the crate funnel to
-`geom_core::k_stats::decide` directly; equivalent today, and the one
-place a predicate name could stop being funnel-visible.
+**What the change is guarded by.** No guard was added for the ten
+shared bodies: every row that covers them was already green, and the
+compensating gain is structural — a defect in what was extrude's copy
+is now under revolve's suite too. One guard **was** added, at the
+weakest of the three `build_chain` callers. `mass_props.rs` carries
+exact closed-form volume and area rows for the washer, ball, cone and
+three wedges, but had none for a **partial revolve with a hole** —
+which is the `kemr`-ring path, the third copy this unit discovered, and
+whose only acceptance was `revolve_partial.rs:111-125`'s counts plus
+`signed_volume(&body) > 0.0`, the monotone-in-one-direction shape Q3
+exists to catch. `mass_props::holed_wedge_matches_theta_scaled_closed_forms`
+adds the exact row (V = 3π, A = 12π + 6, both hand-derived by Pappus
+and both binding: perturbing the area expectation by 1e-9 reddens it).
+
+**What the sweep could not match** — three blind spots, one of which
+was demonstrated on this very unit:
+
+- A copy that changed *representation* rather than spelling. No token
+  pattern relates `skin.rs`'s `f64` `mul_add` arc arithmetic to
+  `SweptKind::Arc`; nor would a chain built through a different
+  operator vocabulary (`mev_line` plus `set_edge_curve` rather than
+  `mev` with a spec) match `build_chain`'s shape.
+- **Prose that states a sequencing constraint.** S7's verdict carried
+  *"W2d (S6) follows the retirement, not beside it: both are in `sweep`
+  and will collide"* — a sentence this fix invalidates, in a finding
+  whose identifier this unit never touched. An identifier-scoped sweep
+  structurally cannot see it (Q4's class). It is corrected at S7.
+- **A bare delegation.** A funnel that is nothing but
+  `geom_core::k_stats::decide(name, margin, band)` has no distinctive
+  token to grep for, which is why the third copy in the same crate
+  survived this pass — see residue (d).
+
+**Residue.**
+
+(a) `extrude`'s and `loft`'s lamina chains are the same operator
+sequence as `build_chain` and still stand apart from it. `build_chain`
+returns a concrete `EulerOpError` — not "error-agnostic", but not tied
+to a verb's enum either — so what remains is passing a placement pair
+instead of an `AxisFrame` and moving the module to the crate root.
+
+(b) `loft.rs:517`'s `map_err(|_| LoftError::SectionStructure)` — the
+live regression the steelman found — is untouched, being a loft-side
+error-mapping bug outside D1's scope; it is more visible now, since the
+discarded error is spelled `EulerOpError` at the call site.
+
+(c) **A half-fix on a class, stated as such.** `sweep/src` held three
+copies of the classification funnel; this unit collapsed two and left
+the third, `sweep/src/fillet/mod.rs:76`, which is identical to
+`swept.rs`'s down to the parameter names. **`sweep/src/fillet/` is
+D2's**, so it is handed over rather than widened into here. Until it
+goes, `swept.rs`'s own doc names itself the funnel of the shared
+lowering and of `extrude` and `revolve` — and says plainly that it is
+not the crate's only one — rather than claiming to be *the* funnel.
+
+(d) **The K-report harness does not run**, so the "byte-reproduce the
+CSVs" provenance behind `docs/K-REPORT.md` is currently unreproducible
+and the byte-identity check above had to be made statically rather than
+by running the instrument. Pre-existing, unrelated to this diff, and
+larger than it: raised as Track D row **D12**, diagnosis-first.
+
+(e) **And the funnel bypass is a three-member class, not the one site
+first recorded.** Three sites reach past a funnel to
+`geom_core::k_stats::decide` directly: `revolve/tube.rs:29`,
+`extrude.rs:886` (`tangent_second_order` — in the file that imports the
+funnel four lines from the top) and `loft.rs:321` (`loft_stacking`).
+Equivalent today, since every funnel is a pure delegation; they are the
+places a predicate name could stop being funnel-visible if a funnel
+ever stopped being pure.
+
+**Observations, recorded and deliberately not acted on** — each may be
+boundary-forced, and none was investigated far enough to say:
+`SweptKind` is close to `profile::SegmentKind` but sits on the far side
+of a crate boundary and carries swept-traversal, not canonical,
+orientation; and the sagitta closed form has two more instances outside
+`sweep`'s reach — `profile/src/seg.rs:149`, which is its origin, and
+`skin.rs:298-307`, which self-declares as *"the profile crate's ratified
+bulge closed forms, verbatim"* at a different scalar.
 
 
 ## S7. Two complete fillet assembly implementations, and the older one shadows the newer
@@ -1278,8 +1372,12 @@ Three consequences the executing lane inherits:
   becomes dead and should be assessed rather than assumed.
 - **Sequencing.** #640 (H9 / S50) is editing `fillet/build.rs:692`, which sits
   *inside* the door being retired — the retirement makes that half of #640
-  moot, so the two must not run concurrently. **W2d (S6) follows the
-  retirement**, not beside it: both are in `sweep` and will collide.
+  moot, so the two must not run concurrently. **The W2d (S6) half of this
+  constraint is spent**: S6 ran as Track D's D1 and landed as **#710**,
+  after the retirement and without colliding with it — it touched
+  `extrude.rs`, `revolve/` and a new crate-level module, and no file
+  under `sweep/src/fillet/`. What remains of the sequencing note is the
+  #640 clause.
 
 Also worth recording against `build.rs:26`, the sentence that kept the door
 alive: `memories/output-stability-as-justification.md` now names exactly this
@@ -5200,7 +5298,8 @@ edits `docs/MODEL-AB-LOG.md`. Sampling resumes when the A/B does; until then
 these units are simply implemented.
 
 **Reviews are style-only** (`docs/prompts/reviewer-style-lane.md`) except at
-the four rows marked ADVERSARIAL — D1, D2, D8, D9 — and D5's `seqgen` half.
+the rows marked ADVERSARIAL — D2, D8, D9, D12, and D1 before it landed — and
+D5's `seqgen` half.
 Those five are where a wrong answer is reachable; everywhere else the risk is
 that the fix is ugly or incomplete, which is the style lane's question. The style review carries two questions beyond its
 standing brief: whether the finding's *original* stylistic problem is now
@@ -5228,19 +5327,27 @@ scheduled.
 
 ### Landed
 
-**D1 — FIXED by #710.** The nine twins, plus a tenth
-(`SweptSeg::sketch_segment`) and an eleventh (`revolve/axis.rs`'s `apex_of`)
-that the row's name-based list did not reach, now live in
+**D1 — FIXED by #710.** **Ten** helpers across **twelve** sites: the row's
+nine names, of which one (`arc_apex`) had a third copy the name-based list
+could not reach (`revolve/axis.rs`'s `apex_of`) and one (`face_surface_key`)
+had a hand-inlined copy in `extrude.rs`, plus a helper the row did not list
+at all (`SweptSeg::sketch_segment`). All ten now live in
 `crates/sweep/src/swept.rs`; the `partial`/`full` chain duplication, which
 turned out to have a third copy in `partial`'s own hole ring, lives in
-`crates/sweep/src/revolve/chain.rs`. Every retraction on the row's do-not list
-was re-checked and held. The K-telemetry premise held too, and the conclusion
-was verified rather than assumed — the crate's string-literal multiset is
-byte-identical across the change, so no K row moved. See S6 for the full
-record.
+`crates/sweep/src/revolve/chain.rs`. Every retraction on the row's do-not
+list was re-checked and held. The K-telemetry premise held too, and the
+conclusion was verified rather than assumed — the crate's string-literal
+multiset is byte-identical across the change, so no K row moved. One exact
+closed-form guard was added, at the `kemr`-ring path whose only acceptance
+was a sign test. See S6 for the full record, including the one behavioural
+delta (a pure-statement reordering), the funnel copy handed to D2, and the
+three-member bypass class this unit half-fixed.
 
 **This unblocks D2**, whose only gate was D1's hold on the same crate. Nothing
-else in the table is gated on D1.
+else in the table is gated on D1. D1 also **hands D2 one extra item**: the
+third copy of the classification funnel, `sweep/src/fillet/mod.rs:76`,
+identical to `swept.rs`'s down to the parameter names — it is in D2's file
+set, and D1 declined to widen into it.
 
 | # | Work | Was | Scope | Review | Gated on |
 |---|---|---|---|---|---|
@@ -5250,8 +5357,9 @@ else in the table is gated on D1.
 | **D5** | **U6 — S15's stale-prose and accretion rows.** The steelman sorted nine rows into three dispositions; three need nothing. What is left: `iso.rs:56`'s stale "Placeholder ballast" sentence in front of a still-correct decision; `pcurves.rs:91`'s staleness index, which lists `merge_coplanar_faces` among the ops that neither clear nor re-mint and has been false since 2026-08-05; the frozen count of **eleven** public mutation paths, now ≥ sixteen, stale in four places (`euler.rs:47`, `seqgen.rs:15`, `seqgen.rs:96`, `DESIGN.md:1110`) with `split_edge` carrying `mev`'s Euler vector and never entering the fuzz lane; and `emit_fillet.rs:216`'s *"Faces are never retired"* — **check this one first: B1 retired the door the comment was false for, so it may now be true, in which case the row closes as a note rather than a fix.** | U6 | `topo/src/{iso.rs,euler.rs,seqgen.rs}`, `editor-core/src/names/emit_fillet.rs`, `DESIGN.md` | style, **plus ADVERSARIAL on the `seqgen` half** — adding `split_edge` to a randomised fuzz lane over cases `split.rs:94` calls delicate is the one part of the row that can find a real defect, and the one that can burn CI time on a bad schedule. | nothing |
 | **D6** | **U5 — S12's executable residue.** The finding's headline was overturned (`assert_euler_postcondition` runs full tier-1 validate after every operator under `debug_assertions`), and what remains of it is a **D9 question** — whether the write helpers should be unable to silently do nothing — which is Evan's, not this track's, and is filed above. What is executable now is the gap the steelman found underneath it: `review_m1_pr2/release_corruption.rs` instructs *"Run this under BOTH profiles"* and **CI runs it under one**. The only `cargo test --release` in `ci.yml` is the `oracle-inari` lane (`:1061`), verified on today's main. The unit adds the release run, or states at the instruction why it cannot have one — and measures what it costs before claiming either. | U5 | `.github/workflows/ci.yml`, `topo/src/review_m1_pr2/release_corruption.rs` | style | nothing |
 | **D7** | **U1 / D4 — the three decided deletions.** Decided by Evan 2026-08-19 and unexecuted. Each row owes a provenance note next to the thread that produced it (`PairSolve` → **#611**; the two fillet helpers → **#319**/**#554**; `Mat2`/`Affine2` → the deleting PR body, cross-referenced from **#614**), and the deleting PR must cite the **commit SHA** the code is recoverable from. `trimline_description`'s doc is the only place D7's prefer-intrinsic obligation is *named*: that sentence migrates, it does not die. | U1 | `geom-core/src/linalg/{mat,affine}.rs`, `editor-core/src/mate{.rs,/solve.rs}`, `sweep/src/fillet/{blend,battery}.rs` | style | **split by row.** `Mat2`/`Affine2` is free now. `PairSolve` waits on **#702**, which is editing `mate.rs`, `mate/solve.rs` and the `lib.rs` re-export block it lives in. The fillet helpers wait on **D2**. Evan placed the whole row *"back of the queue, but ahead of W3b"*, and its rationale — noise to lanes reading the same files — is what these two gates discharge. |
-| **D8** | **U4's remainder — the knot-vector queries.** `KnotVector` offers `multiplicity_of(u)`, which requires you to already know `u`; every consumer that needs *the list* of distinct interior knots hand-writes the same scan, four times (`compose.rs:274`, `algebra.rs:563`, `geom-curves/fit.rs:378`, `sweep/skin.rs:370`). Beside it, knot insertion exists twice in one module, one of them re-deriving the span with a linear scan where `find_span`'s binary search is one module away. The scan's own lesson: *a data structure whose API was frozen one PR before its first consumer is the tell.* | U4 (rows) | `geom-core/src/spline/{compose,algebra}.rs`, `geom-curves/src/fit.rs`, `sweep/src/skin.rs` | **ADVERSARIAL** — it adds to a certified type's API and replaces a linear scan with a binary search inside knot arithmetic, where an off-by-one is a wrong curve rather than a compile error. | nothing (but it edits `sweep/src/skin.rs`, so sequence it against D1/D2 within this track) |
+| **D8** | **U4's remainder — the knot-vector queries.** `KnotVector` offers `multiplicity_of(u)`, which requires you to already know `u`; every consumer that needs *the list* of distinct interior knots hand-writes the same scan, four times (`compose.rs:274`, `algebra.rs:563`, `geom-curves/fit.rs:378`, `sweep/skin.rs:370`). Beside it, knot insertion exists twice in one module, one of them re-deriving the span with a linear scan where `find_span`'s binary search is one module away. The scan's own lesson: *a data structure whose API was frozen one PR before its first consumer is the tell.* | U4 (rows) | `geom-core/src/spline/{compose,algebra}.rs`, `geom-curves/src/fit.rs`, `sweep/src/skin.rs` | **ADVERSARIAL** — it adds to a certified type's API and replaces a linear scan with a binary search inside knot arithmetic, where an off-by-one is a wrong curve rather than a compile error. | nothing (but it edits `sweep/src/skin.rs`, so sequence it against D2 within this track — D1 landed as #710 and left `skin.rs` untouched) |
 | **D9** | **U3 — S17's ray-parity twins.** `chart_region::point_in_polygon` is a line-for-line port of `splitting::containment::point_in_loop`, self-declared as one in its own doc. `profile::validate::point_in_loop` is a third and is **not** in scope: `topo` does not depend on `profile` and never has, so that copy is DAG-forced and the unit's job is to say so as a negative result rather than to close it. Both topo copies also reuse one predicate name for two different questions (`point_in_loop_boundary` decides both the degeneracy gate and the point-to-segment distance) — the drift `splitting/rules.rs:117` mints a distinct name to avoid. | U3 | `topo/src/{chart_region.rs,splitting/containment.rs}` and the shared home | **ADVERSARIAL** — the K-ledger convention makes new predicate names new K rows, so a unification *removes* rows, and the margins it merges were metered separately. This is also S15's byte-identical-ray-schedule row, whose determinism claim nothing checks. | **#690** (Track B's B4), which is editing `splitting/mod.rs`, `solid_contain.rs` and `topo/src/lib.rs` |
+| **D12** | **The K-report harness does not run, so the provenance behind `docs/K-REPORT.md` is currently unreproducible.** `sweep/tests/k_report.rs` is the instrument that dumps `docs/k-report-data/`'s CSVs, and the standing convention is that reviewers **byte-reproduce** them. Under `--features probe` it does not reach a sweep call: it panics at `k_report.rs:40`'s `.unwrap()` with `UndeclaredTangency { loop 0, segments 7 and 0, joint 0 }` inside `profile::validate`, on the **second** corpus shape (the rounded square, `k_report.rs:101-118`) — reproduced 2026-08-20 on the D1 branch, and pre-existing: nothing in `crates/sweep` is on the failing path. Until it is fixed, **every K claim in this report is verifiable only statically** (reading the predicate-name literals), not by running the instrument — which is how D1's byte-identity check had to be made. **Diagnosis first**: establish whether the corpus shape drifted out of `profile`'s tangency-declaration rule or the rule tightened under it, and say which, before changing either. A rounded square with `.fillet(r)`-shaped corners that no longer validates is a fact about the profile door, not necessarily about the harness. | raised by D1 (#710) | `sweep/tests/k_report.rs`, and whatever the diagnosis names | **ADVERSARIAL** — the two available fixes (declare the joint in the corpus, or change what `profile` requires) are not equivalent, and picking the convenient one silently re-baselines the dataset the K census is built on. | nothing |
 
 **Not taken, and why.** S18's `step-export/volume.rs` row stays out of Track D: its
 immediate cause is that `topo::props` exposes only body-scoped
