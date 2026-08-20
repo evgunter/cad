@@ -717,7 +717,7 @@ placed. Reissued:
 | D69–D70 | **D86–D87** | E-m |
 | D61–D62 | **D88–D89** | E-h — D88 is `merge_faces.rs:766`'s `unwrap_or_default` discard |
 
-Next unassigned in Track E's block: **D100**, which is the block's LAST. (**D96** is E-k's — the thirteen row-0 candidates out of D35. **D97**, **D98** and **D99** are E-p's, out of S14: `from_algebra`'s do-nothing debug arm, `unit_segment`'s clamp and its false caller claim, and the `indexing_slicing` deferral that lost its revisit condition.) **Anything past D100 comes to the orchestrator before it is written** — the block is exhausted, not extensible by whoever notices first, which is the whole point of E-R3.
+Next unassigned in Track E's block: **D100**, which is the block's LAST. (**D96** is E-k's — the thirteen row-0 candidates out of D35. **D97**, **D98** and **D99** are E-p's, out of S14: `from_algebra`'s do-nothing debug arm, `unit_segment`'s clamp and its false caller claim, and the `indexing_slicing` deferral that lost its revisit condition — **placed on `main` by #PPP**, deliberately split out of E-p's design PR because all three are true however S14 is decided and **E-R5 says a row is not placed until it is on `main`**. Leaving them on a branch that waits for Evan would have left three numbers reading as assigned here and free in the register.) **Anything past D100 comes to the orchestrator before it is written** — the block is exhausted, not extensible by whoever notices first, which is the whole point of E-R3.
 re-issued — a number that has appeared in a lane's report, even as *unused*, is
 cheaper to skip than to explain.
 
@@ -754,7 +754,7 @@ serialized here and each lane re-merges `origin/main` when one lands.
 | **E-k** | D35 | `smelle/d35` | **#809** | **MERGED 2026-08-20.** D35 closes on **(d)**; 103 sites re-derived, 76 one state, 13 row-0 candidates → **D96**, 3 messages fixed. Found **#777 never reached `main`** → **#817** |
 | **E-l** | #681 | `smelle/681` | **#810** | **MERGED 2026-08-20.** 7 of 9 surfaces swept, 2 declared; 24 claims → 7 guarded, 2 scheduled, 13 unguardable-with-reason, **1 unguarded (#807)**. #808 stands free now that #763 is in; `memories/` raised as a tenth surface |
 | **E-o** | D86 | `smelle/d86` | — | **dispatched** 2026-08-20. Crosses into `scripts/` with Evan's ruling, after F's and G's logs were checked for a claim on the file and neither had one (E-R8) |
-| **E-p** | S14 | `smelle/s14` | — | **dispatched** 2026-08-20. A design-conversation PR, not a fix; **waits for Evan** and never self-merges |
+| **E-p** | S14 | `smelle/s14`, `smelle/d97-d99` | **#823** (conversation, open for Evan); **#PPP** (D97–D99) | **dispatched** 2026-08-20. A design-conversation PR, not a fix; **waits for Evan** and never self-merges. Its three residues were **split into #PPP off `main`** under E-R5 — they do not depend on how S14 is decided, so coupling them to it would have made them invisible until it was |
 | **E-q** | `memories/` | `smelle/memories` | **#826** | **MERGED 2026-08-20.** 21 blocks → 17 keeps, 4 repointed; two drifted second-copies resolved; #681's `.md` instrument corrected |
 
 **E-g dispatched 2026-08-20** (`smelle/d27-d29`), D27 then D29 — one lane
