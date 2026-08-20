@@ -292,7 +292,9 @@ pub fn foreign_cache(built: &Built<f64>) -> PcurveCache<f64> {
 }
 
 /// The dual lane's refusal, executed: the same fitted image offered at
-/// a scalar with no bracket.
+/// a scalar that may not certify. Since the D1 ruling (2026-08-19) a
+/// dual DOES carry a bracket, so the refusal this exercises is the
+/// lane's own, not a missing `Bounds` impl standing in for it.
 pub fn certify_at_dual(built: &Built<f64>) -> geom_brep::PcurveCertifyError {
     type D = geom_core::Dual<f64>;
     let carrier = Curve3::Nurbs(Arc::new(lift3::<D>(&built.carrier)));

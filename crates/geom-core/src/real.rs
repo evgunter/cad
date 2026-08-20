@@ -406,18 +406,24 @@ pub trait Real:
 /// `f64` payload, which is a bracket read. So `T: Decide + Bounds` is
 /// its honest signature.
 ///
-/// What differs from PR 11 is only the SPLIT, and it differs because
-/// there is nothing to split: no dual-scalar path can reach this code.
-/// [`Bounds`] is implemented for `f64`, the interval scalar, and the
-/// telemetry probe — never for [`Dual`](crate::Dual), which has no
-/// bracket to offer — and the one production caller
-/// (`editor_core::eval`'s fillet wiring) already sits beneath an
-/// evaluation service whose own signature carries `Bounds` and which
-/// instantiates at `f64` and `Interval` only. A `PropsQuadLane`-style
-/// static lane split would therefore have had an EMPTY refusing side:
-/// a dual impl that refuses a call no dual scalar can make. The seam
-/// is ratified instead, and the day a dual lane wants fillets is the
-/// day the static split earns its keep.
+/// What differed from PR 11 was only the SPLIT, and it differed because
+/// there was nothing to split: no dual-scalar path could reach this
+/// code, since [`Bounds`] had no [`Dual`](crate::Dual) impl. A
+/// `PropsQuadLane`-style static lane split would therefore have had an
+/// EMPTY refusing side, so the seam was ratified instead.
+///
+/// **That guard is gone as of the D1 ruling (2026-08-19).** `Bounds` is
+/// now implemented for `Dual` over a bracket-carrying base scalar, so
+/// these signatures ARE satisfiable at a dual and the refusing side is
+/// no longer empty in principle. Nothing reaches them at a dual today —
+/// the one production caller (`editor_core::eval`'s fillet wiring) sits
+/// beneath `evaluate<T>`, which additionally requires
+/// `editor_core::ContentBits`, and that has no `Dual` impl — so this is
+/// a **standing obligation, not a live hole**: the day E4 seeds a dual
+/// through `evaluate`, this seam is the one allowlisted `Decide + Bounds`
+/// seam with no lane to refuse on, and it owes either that lane or a
+/// reason it does not need one. Recorded here rather than in a lane's
+/// notes because this paragraph is what a reader consults.
 ///
 /// **Extension (M6-2, authorized by `docs/M6-2-SPEC.md` §2 under the
 /// PR 11/PR 12 precedent; retroactive Evan review per the self-merge
@@ -469,13 +475,16 @@ pub trait Real:
 /// gate (a `Harmonic` trig channel is straight only when its bracket
 /// is a point at exactly `0.0`; the `props.rs` rectangle-trim read)
 /// plus the bit-identical-region fast path — so `T: Decide + Bounds`
-/// is its honest signature; a sole-bound form is unsatisfiable. No
-/// dual path exists to split TODAY: [`Dual`](crate::Dual) implements
-/// no `Bounds`, so the predicate is simply uninstantiable at dual
-/// scalars, and its first `Decide`-generic consumer (the M9-2 PR-2
-/// census arms) owes the `PropsQuadLane`-shape static lane with a
-/// refusing dual impl — stated here so the obligation is on the
-/// record before the consumer lands.
+/// is its honest signature; a sole-bound form is unsatisfiable. When
+/// this was ratified no dual path existed to split, because
+/// [`Dual`](crate::Dual) implemented no `Bounds` and the predicate was
+/// uninstantiable at dual scalars; the obligation stated here was that
+/// its first `Decide`-generic consumer would owe a `PropsQuadLane`-shape
+/// static lane with a refusing dual impl. **That obligation was
+/// discharged** — `ChartRegionLane`'s refusing `Dual` impl is the lane,
+/// and it is now the whole guard: since the D1 ruling (2026-08-19)
+/// `Bounds` IS implemented for `Dual`, so the predicate is satisfiable
+/// at a dual and only the lane's refusal keeps one out.
 ///
 /// **Not an extension — a spelling.** The pair
 /// `Bounds + CertifiedEnclosure` — both bracket doors, no `Decide` — is
@@ -639,10 +648,15 @@ impl<T: Bounds> Enclosure for T {
 ///   and no decorations: poison is NaN endpoints, which
 ///   `RingInterval::from_bounds` already rejects.
 ///
-/// **[`crate::Dual`] is deliberately absent**, as it is from [`Bounds`].
-/// Nothing in `src` needs a dual in certified code, and leaving the impl
-/// unwritten keeps *whether a dual may certify* an open question to be
-/// settled on its own evidence rather than one answered in passing here.
+/// **[`crate::Dual`] is deliberately absent, and that absence is now the
+/// ruling rather than a deferral.** Evan settled it as Wave 0 decision
+/// **D1** of `docs/SMELL-SCAN-2026-08.md` (2026-08-19): *a `Dual` may not
+/// certify — at least for now — but it may have [`Bounds`].* So `Dual`
+/// implements [`Bounds`] and does **not** implement this trait, and this
+/// trait is what holds the line: it is the only door between a dual and
+/// certified code. *At least for now* is the ruling's own hedge — the
+/// door is shut, not nailed shut, and reopening it is a decision with a
+/// name rather than an impl someone can add in passing.
 pub trait CertifiedEnclosure: Copy {
     /// The bracket, or `None` if this value carries a domain violation.
     ///

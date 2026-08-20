@@ -119,8 +119,9 @@ fn a_rung3_edge_at_rest_carries_a_fitted_pcurve_with_the_full_c2_certificate() {
 // successor's. Nothing is lost.
 
 /// The `Dual` lane's refusing side, executed rather than assumed: a
-/// fitted cache cannot be certified where there is no bracket to reach
-/// the C9 ring with, and it says so.
+/// fitted cache cannot be certified by a scalar that may not certify
+/// (D1, 2026-08-19 — a dual now carries a bracket and still may not
+/// reach the C9 ring), and it says so.
 #[test]
 fn the_dual_lane_refuses_a_fitted_cache_typed() {
     let Some(built) = fixture::build::<f64>() else {

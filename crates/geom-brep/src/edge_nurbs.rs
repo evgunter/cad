@@ -95,8 +95,9 @@ pub struct PlaneNurbsLimbs<T: Real> {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum PlaneNurbsRefusal {
     /// This scalar has no certified lane ([`EdgeNurbsLane`]'s refusing
-    /// side): no bracket, so the C9 ring the hull bounds live in
-    /// cannot be reached from it at all.
+    /// side): it may not certify, so the C9 ring the hull bounds live
+    /// in is not reachable from it (D1, 2026-08-19 — a dual carries a
+    /// bracket but not the right to certify with it).
     LaneUnsupported {
         /// The scalar lane, named.
         scalar: &'static str,

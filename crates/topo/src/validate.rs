@@ -605,7 +605,7 @@ pub enum ValidationError {
     /// record or conformal candidate whose certifier lane refuses
     /// typed (no exact-constant-arm chart, seam-branch divergence,
     /// non-planar trims, a carrier kind outside the Rest ladder, a
-    /// scalar with no bracket lane). Refused loudly rather than
+    /// scalar with no certified lane). Refused loudly rather than
     /// sampled, exactly as before — only the inventory statement
     /// moved.
     CensusUnsupported {

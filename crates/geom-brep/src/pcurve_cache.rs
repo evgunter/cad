@@ -625,9 +625,10 @@ pub enum PcurveCertifyError {
     UnsupportedCarrier,
     /// A [`Pcurve::Fitted`] cache was offered to a scalar with **no
     /// certified fitted lane** — [`PcurveFittedLane`]'s refusing side.
-    /// A dual scalar carries no bracket, so the C9 ring cannot be
-    /// reached from it and the C2.2 hull bound does not exist there;
-    /// the refusal is typed and static rather than a silent success.
+    /// A dual scalar may not certify (D1, 2026-08-19), so the C9 ring
+    /// is not reachable from it and the C2.2 hull bound does not exist
+    /// there; the refusal is typed and static rather than a silent
+    /// success.
     FittedLaneUnsupported {
         /// The scalar lane, named.
         scalar: &'static str,
@@ -906,10 +907,12 @@ pub struct PcurveCertificate<T: Real> {
 /// PR 11's ratified pattern; `topo/src/props.rs`).
 ///
 /// A [`Pcurve::Fitted`] cache's between-samples obligation is a C9-ring
-/// hull bound, and the ring is reached through a scalar's **bracket**.
-/// `f64`, the telemetry probe and the interval scalar all have one;
-/// [`geom_core::Dual`] does not, and never will — a dual number is a
-/// value and a derivative, not an enclosure. So the fitted lane exists
+/// hull bound, and building it is **certification**. `f64`, the
+/// telemetry probe and the interval scalar may certify;
+/// [`geom_core::Dual`] may not — Evan's D1 ruling, 2026-08-19: a dual
+/// carries a bracket (the value channel's) and may still not certify,
+/// which is why `geom_core::CertifiedEnclosure` has no dual impl and
+/// `geom_core::Bounds` now does. So the fitted lane exists
 /// for the first three and is **statically absent** for the fourth,
 /// which is stated here as a refusing impl rather than discovered as a
 /// mysterious failure at run time.

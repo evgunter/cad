@@ -347,9 +347,12 @@ pub(crate) fn loop_edges<T: Decide>(
 /// reason**. A fitted (rung-3) pcurve's between-samples obligation is a
 /// C9-ring hull bound reached through a scalar's bracket, exactly as
 /// the quadrature's flux enclosures are; `f64`, the telemetry probe and
-/// the interval scalar can derive both, and the dual scalar — which has
-/// no bracket to offer, only a derivative — can derive neither and says
-/// so in a refusing impl on each side.
+/// the interval scalar can derive both, and the dual scalar can derive
+/// neither and says so in a refusing impl on each side. (Until the D1
+/// ruling of 2026-08-19 the dual's refusal was read off its lack of a
+/// bracket. It has one now — the value channel's — and the refusal
+/// stands on the ruling itself: a dual may not certify, which is
+/// `geom_core::CertifiedEnclosure`'s absence, not `Bounds`'.)
 ///
 /// So `T: PropsQuadLane` reads, at every consumer that already writes
 /// it, as **"this scalar can certify a body at rest"**, which is what

@@ -18,14 +18,18 @@
 # retroactive Evan review per the self-merge convention: the battery's margins are certified metric quantities
 # (sup-κ curvature hulls, blend setback bounds) reported as
 # `f64` payloads, i.e. enclosure consumers of exactly the
-# quadrature's class; and no dual-scalar path can reach it —
-# `Bounds` is implemented only for `f64`, `Interval` and
-# `Probe`, never for `Dual`, and the one wiring that calls
-# fillets (editor-core's `wire_fillet`) sits under `evaluate<T>`,
-# which is itself already `Bounds`-bounded and instantiated at
-# `f64`/`Interval` only. With no dual lane to split, the
-# `PropsQuadLane` static split would have had nothing on its
-# refusing side, so the seam is ratified instead.
+# quadrature's class; and, when it was ratified, no dual-scalar
+# path could reach it, because `Bounds` had no `Dual` impl. With
+# no dual lane to split, the `PropsQuadLane` static split would
+# have had nothing on its refusing side, so the seam was ratified
+# instead. NOTE (D1 ruling, 2026-08-19): `Bounds` IS now
+# implemented for `Dual`, so that guard has lapsed and this is the
+# one allowlisted seam with no refusing lane behind it. It is not
+# reachable at a dual today — the one wiring that calls fillets
+# (editor-core's `wire_fillet`) sits under `evaluate<T>`, which
+# also requires `editor_core::ContentBits`, and that has no `Dual`
+# impl — but the seam owes a lane, or a reason it needs none, the
+# day E4 seeds a dual through `evaluate`. See geom-core/src/real.rs.
 # geom-brep/src/{ssi.rs,ssi/certify.rs,pcurve_cache.rs} is the
 # M6-2 SSI generic-T lift: the rung-3 certificate simultaneously
 # DECIDES (its `ssi_*` funnel margins) and reads brackets into the
@@ -33,7 +37,9 @@
 # `Decide + Bounds` is its honest signature — the same class as
 # the quadrature seam, and unlike the fillet seam its refusing
 # side is NOT empty: `PcurveFittedLane` splits f64/Probe/Interval
-# (certified) from `Dual` (typed refusal, no bracket to offer).
+# (certified) from `Dual` (typed refusal — since the D1 ruling a
+# dual DOES carry a bracket, the value channel's; what it may not
+# do is certify, which is `CertifiedEnclosure`'s job to refuse).
 # `ssi/enclose.rs` is deliberately absent, and still decides nothing —
 # it holds both BRACKET doors (stored endpoints, plus the fallible
 # certified bracket that refuses below `Decoration::Def`) and no
