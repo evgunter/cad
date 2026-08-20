@@ -187,7 +187,7 @@ impl Row {
 /// this argument rests on. `patch_cells` and `opt_cells` are products
 /// and minima of `tess_meter`'s `divisions`, which floors at one.
 /// `grid_cells` is `Σ nuc·nvc` over the bands the lane actually ran,
-/// and `mesh::chords::ceil_count` floors each factor at one over at
+/// and `mesh::sizing::ceil_count` floors each factor at one over at
 /// least one band. `span_opt_cells` is an accumulator that starts at
 /// zero and skips analysis cells outside the trim box — so its floor
 /// is not arithmetic but geometric: the cell grid tiles the patch
