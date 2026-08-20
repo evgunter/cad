@@ -3,10 +3,14 @@
 Written before a usage-limit stop, per `memories/usage-limit-protocol.md` and
 the orchestration model's "commit crucial state before stopping". **The
 schedule itself lives in `docs/SMELL-SCAN-2026-08.md` §D; this file is the
-operational state that does not belong there** — which branches are live, what
-each was last told, and what a successor should not re-derive.
+operational state that does not belong there** — what each lane was told, and
+what a successor should not re-derive.
 
-Delete this file once Track D closes or a successor absorbs it.
+**Every dispatched unit has landed and no branch is live**, so what remains
+here is the part a successor cannot reconstruct from the schedule: why the row
+numbers are assigned centrally, S14's three witnesses, what the style-only
+review lane actually caught, and four operational facts this session paid for.
+Delete this file once a successor absorbs it.
 
 ## What Track D was
 
@@ -29,19 +33,24 @@ real risk, which took a full adversarial lane as well.
 | D9 | S17's ray-parity twins; the K roster method fixed | #712 |
 | D10, D12 | The ray schedule's second home; a verbatim copy adjudicated dimension-forced | #717 |
 | D15 | The K harness of record; K-REPORT's provenance corrected | #718 |
+| D11 | `bool_join_nearest`'s two questions split into two K rows | #719 |
+| D16 | W2c — the D2 addendum executed over 58 discard sites | #720 |
+| D7 (1 of 3) | `Mat2`/`Affine2` deleted, with the orphan its deletion made | #721 |
+| D13, D14 | The pcurve-staleness convention checked; D14 **refuted**, not closed | #722 |
 
-## In flight at handoff
+## Nothing is in flight
 
-Each had CI green, went through review, and was in a **fix pass** when this was
-written. None is merged. A successor should read the lane's last report and the
-orchestrator's fix-pass message before touching any of them.
+All twelve units are merged. The four that were mid-fix-pass when the first
+version of this file was written — #719, #720, #721, #722 — each finished its
+pass and landed, so the table that listed them is gone rather than left to rot.
+What each pass actually turned up is in its PR body, which is the record.
 
-| PR | Unit | State |
-|---|---|---|
-| #719 | D11 — `bool_join_nearest` split | Fix pass: three MAJORs. The K-REPORT decade-3 attribution is **backwards** (three of the 38 samples are negative; `Margin::of(norm)` cannot be); the inverse-rename check cannot detect a wrong site assignment; the declined guard was **one line, already in charter** at `rim_dim_boolean_twins.rs:246-268`. |
-| #720 | D16 — W2c, the D2 addendum executed | Fix pass: `kef` is a **second unproven `prev` path**, inside an operator, which re-scopes D18 — fixing `split.rs` alone does not make `link_half_edges` convertible. Also `DESIGN.md:1224-1230` still says the work is "NOT yet done". |
-| #721 | D7 (first of three) — `Mat2`/`Affine2` deleted | Fix pass: the deletion **orphaned `Vec2::unit_x`/`unit_y`**, a fresh instance of the `GENUINELY DEAD?` class the unit was closing. Told explicitly **not** to start `PairSolve`. |
-| #722 | D13/D14 | Fix pass: the new guard **cannot see a delegated mint**, and the one historical rot it cites (`merge_coplanar_faces`) is exactly that shape. D14 is a **refutation, not a closure**. |
+Two of them corrected the orchestrator rather than the lane: #720's review
+re-scoped D18 (`kef` is a second unproven `prev` path, *inside* an operator,
+so fixing `split.rs` alone would not have made `link_half_edges` convertible),
+and #722 refuted the attribution its own row rested on rather than closing it —
+`choose_op` is 2.7% of the `seqgen` lane and cannot hold D5's +46%, which is
+now **D20**, scoped to attribute before fixing.
 
 ## Row numbering — assigned centrally, and why
 
@@ -50,10 +59,13 @@ both used D10 and D11). Numbers are now assigned by the orchestrator:
 
 | Row | Owner | Subject |
 |---|---|---|
-| D17 | landed with #718 | Nothing in CI builds sweep's **test targets** under `probe` — 16 files, 2 compiled |
-| D18 | in #720 | `split.rs:253`'s unproven `prev`, **and** `kef`'s — unblocks W2c's last two sites |
-| D19 | in #719 | The K roster obligation reaches types, not names-not-reachable-as-bare-literals (~25 sites) |
-| D20 | in #722 | D5's +46% is real and **unattributed**; `choose_op` is excluded by measurement |
+| D17 | placed by #718 | No CI lane builds any crate's `probe` **test targets** but editor-core's — 14 suites unbuilt |
+| D18 | placed by #720 | `split.rs:253`'s unproven `prev`, **and** `kef`'s — unblocks W2c's last two sites |
+| D19 | placed by #719 | The K roster obligation reaches types, not names-not-reachable-as-bare-literals (37 sites across 24 files) |
+| D20 | placed by #722 | D5's +46% is real and **unattributed**; `choose_op` is excluded by measurement |
+
+All four are landed rows in §D now, and all four are **edge-free and
+unstarted** — D20 is the highest number placed.
 
 **The rule, which a successor should keep:** a lane takes the next number the
 orchestrator has assigned, never the next gap it can see. A roster with holes
@@ -73,9 +85,11 @@ What is unstarted is unstarted for schedule reasons only, not technical ones:
 - **D2** (B3 / S19, the fillet error catch-alls, ADVERSARIAL) is the widest
   unblocked row and gates D7's fillet-helper row — the only edge left in the
   track.
-- **D8**, **D17**, and D7's **`PairSolve`** row are edge-free. `PairSolve`'s
-  provenance note goes to **issue #611**, not the PR body, because R2's thread
-  is live; the deleting PR must cite the recoverable commit SHA.
+- **D8**, **D17**, **D18**, **D19**, **D20** and D7's **`PairSolve`** row are
+  edge-free. `PairSolve`'s provenance note goes to **issue #611**, not the PR
+  body, because R2's thread is live; the deleting PR must cite the recoverable
+  commit SHA. **D18 is ADVERSARIAL** — it converts a discard behind two new
+  preconditions on the delicate-site path, and #720 proved the hole is real.
 
 ## For Evan — S14 now has three witnesses
 

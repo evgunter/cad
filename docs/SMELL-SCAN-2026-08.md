@@ -7300,11 +7300,12 @@ all deletions        ──────────────► L2 (S38 comme
 **Track B is now edge-free in full** — B1 landed, and B2/B3, the only chain it
 had, are Track D's D1/D2.
 
-**Track D's remaining edges are `sweep/` internal, plus one on another track's
-open PR.** Landed: D1 as #710, D3 as #704, D4 as #707 — which also discharges
+**Track D's one remaining edge is `sweep/` internal** — D2 gates D7's
+fillet-helper row, and nothing else in the track waits on anything. Landed: D1 as #710, D3 as #704, D4 as #707 — which also discharges
 D13's gate — D5 as #713, D6 as #706, D9 as #712, D10 and D12 as #717, D15 as
-#718, D16 as #720, D11 as #719, and D13/D14 as #722, which **placed D20** —
-the +46% its measurement left unattributed. In flight: D7's first third.
+#718, D16 as #720, D11 as #719, D7's first third as #721, and D13/D14 as
+#722, which **placed D20** — the +46% its measurement left unattributed.
+**Nothing is in flight.**
 **D17, D18, D19 and D20 are edge-free and unstarted.** D17 is the only row in
 the track whose file set is `.github/workflows/`, so it collides with no
 kernel lane and can run at any time; D18's is
