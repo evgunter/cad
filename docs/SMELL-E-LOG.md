@@ -363,6 +363,15 @@ say in your report what did not resolve.
 class, name the pattern and its blind spot. A path glob is part of the pattern.
 A count is not a deliverable; a sweep with a stated blind spot is.
 
+**And never read a truncated result as a negative one.** A lane here swept for
+the strings its change would break, **found the breaking site as hit #2 of 37**,
+piped the grep through `head -10`, and read the truncated list as complete —
+shipping a change that reddened three CI shards on an assertion its own sweep had
+located. The pattern was fine. *Truncation is worse than a weak pattern, because
+it looks like a finished sweep*: a weak pattern's blind spot gets disclosed, and
+a truncated one's does not exist to disclose. If you cap output, say so and say
+the total.
+
 **7. Merge `origin/main` immediately before opening the PR, and re-merge
 whenever main moves while it is open.** A PR that goes CONFLICTING runs **no**
 check runs at all — it reads as CI absent, not CI failing. After any push,
@@ -372,12 +381,16 @@ confirm checks actually **started** by reading the workflow *runs* list.
 green.** *"22 of 26 green"* is true and unfalsifiable at once: nothing in it
 distinguishes *four still pending* from *all done*. One lane reported exactly
 that and three shards failed eight minutes later; on another run the last job
-finished **fourteen minutes** after the first. **Two instrument traps, both
+finished **fourteen minutes** after the first. **Three instrument traps, all
 observed here:** a jobs listing saying `unfinished: []` can mean *not yet
-spawned* rather than *done*; and the listing endpoint returned **30 rows while
+spawned* rather than *done*; the listing endpoint returned **30 rows while
 reporting `total_count: 37` in the same response** — the two disagreed, and only
-`get_check_runs` returned all 37. A lane taking its denominator from the listing
-under-counts by seven and can report a clean sweep over a partial set.
+`get_check_runs` returned all 37; and, the sharpest, **the `test (eps = …)`
+shards do not exist until `build + archive` finishes.** One run's job count went
+**26 → 32 → 37**, the shards spawning eleven minutes in. So an early snapshot is
+not merely incomplete — **it is a count of a list that does not yet contain the
+jobs which catch test failures**, which is precisely the class of failure a
+green count is being offered as evidence against.
 
 **8. Record your completion at the finding, in your own PR.** A bolded
 `FIXED by #NNN` lead at the finding in `docs/SMELL-SCAN-2026-08.md`, the
