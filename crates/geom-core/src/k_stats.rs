@@ -58,7 +58,11 @@
 //! UNRESOLVED — left open deliberately at merge (Evan, 2026-08-16), not
 //! overlooked.** The nesting bug itself is not blocked on that choice
 //! and can be fixed directly. Do not add call sites that deepen the
-//! dependency on the current shape.
+//! dependency on the current shape. **The `classify` consolidation was
+//! measured against this fence and clears it in the permitted
+//! direction**: the number of places that read the thread-local's
+//! shape went from three to one, and whichever remedy the obligation
+//! settles on has one site to change instead of three.
 //!
 //! Recording happens through the [`Probe`] scalar: a transparent `f64`
 //! wrapper whose `Decide` implementation logs `(predicate, margin,
@@ -177,23 +181,33 @@ pub fn decide<T: Decide>(
 /// not (yet) a length, and wrapping it in a [`Margin`] door would
 /// launder the very defect the ledger records. This function does NOT
 /// construct a `Margin` — the margin stays bare `T` and never claims
-/// the dimension it lacks; classification and recording are otherwise
-/// [`decide`] verbatim, so the K stream is unchanged.
+/// the dimension it lacks.
+///
+/// Classification and recording are otherwise [`decide`]'s, so the K
+/// stream is unchanged — not as a promise to keep in sync but as a
+/// fact of the code: both doors are calls to the same private
+/// `classify`, and only the `Margin` wrapper distinguishes them.
 ///
 /// `ledger_row` names the audit row that argues the absence (e.g.
-/// `"F2"`, `"F7"`). It is a compile-time obligation, not telemetry: a
-/// new call site without a corresponding flagged ledger row is a review
-/// reject — this lane is the greppable inventory of clause-(i) debt,
-/// shrinking as the flagged families get their own units, never a
-/// convenience door.
+/// `"F2"`, `"F13"`). It is an obligation, not telemetry: the value
+/// reaches no recorder and no column, and `classify` never sees it.
+/// What reads it is `geom-core/tests/flagged_census.rs`, which scans
+/// the shipped trees. This lane is the greppable inventory of
+/// clause-(i) debt, shrinking as the flagged families get their own
+/// units, never a convenience door.
 ///
 /// **Standing rule (the debt lane is tracked as issue #214): no new
 /// `decide_flagged` site ships without a ledger row in
-/// `docs/predicate-dimension-audit.md`.** The census count assertion
-/// (`geom-core/tests/flagged_census.rs`) pins the shipped-site count to
-/// the ledger's inventory, so adding a site without updating both the
-/// ledger and the assertion fails the suite — the rule enforces
-/// itself.
+/// `docs/predicate-dimension-audit.md`.** Two assertions in
+/// `flagged_census.rs` carry it over `crates/*/src` minus
+/// `#[cfg(test)]` modules: the site COUNT must equal the ledger's
+/// inventory, and every site's `ledger_row` must name a row the ledger
+/// actually has. **That, exactly, is what self-enforces** — the test
+/// states at its own pattern what it cannot see (a renamed import, a
+/// macro-generated call, a block-commented site), because a census
+/// whose blind spot is unstated reads as coverage it does not have.
+/// Fixtures and demos are outside the scan and cite a prose reason
+/// rather than a row.
 ///
 /// # Errors
 ///
@@ -220,8 +234,10 @@ pub fn decide_flagged<T: Decide>(
 /// so the margin stays **bare `T`** — no [`Margin`] is minted, keeping
 /// the lane visibly distinct from every geometric decision.
 ///
-/// Classification and recording are [`decide`] verbatim (same
-/// recorder, same names, same values — the K stream is unchanged). A
+/// Classification and recording are [`decide`]'s — same recorder,
+/// same names, same values, the K stream unchanged — because both
+/// doors are calls to the same private `classify` rather than two
+/// bodies a maintainer keeps aligned. A
 /// certified violation on this lane is a **kernel invariant** failure:
 /// callers surface it as their Corrupt-class typed error ("this is a
 /// bug", with a report affordance), never as a validity refusal and
@@ -610,15 +626,18 @@ mod tests {
         assert_eq!(decide("door_a", Margin::of(1.0f64), b), Ok(Sign::Positive));
         assert_eq!(decide_invariant("door_b", -1.0f64, b), Ok(Sign::Negative));
         assert_eq!(
-            decide_flagged("door_c", 1.0f64, b, "F2"),
+            decide_flagged("door_c", 1.0f64, b, "test fixture: door interleaving"),
             Ok(Sign::Positive)
         );
         // One indeterminate per door: escalated outcomes are not verdicts,
         // so none of these may appear or shift the positions after them.
         assert!(decide("door_d", Margin::of(mid), b).is_err());
-        assert!(decide_flagged("door_e", mid, b, "F10").is_err());
+        assert!(decide_flagged("door_e", mid, b, "test fixture: door interleaving").is_err());
         assert!(decide_invariant("door_f", mid, b).is_err());
-        assert_eq!(decide_flagged("door_g", 0.0f64, b, "F13"), Ok(Sign::Zero));
+        assert_eq!(
+            decide_flagged("door_g", 0.0f64, b, "test fixture: door interleaving"),
+            Ok(Sign::Zero)
+        );
         assert_eq!(decide("door_h", Margin::of(-1.0f64), b), Ok(Sign::Negative));
         assert_eq!(
             take_verdict_log(),
@@ -659,7 +678,7 @@ mod tests {
         start_recording();
         decide("name_a", Margin::of(Probe(1.0)), b).unwrap();
         decide_invariant("name_b", Probe(-1.0), b).unwrap();
-        decide_flagged("name_c", Probe(1.0), b, "F2").unwrap();
+        decide_flagged("name_c", Probe(1.0), b, "test fixture: name channel").unwrap();
         let names: Vec<&str> = take_samples().iter().map(|s| s.predicate).collect();
         assert_eq!(names, vec!["name_a", "name_b", "name_c"]);
     }
