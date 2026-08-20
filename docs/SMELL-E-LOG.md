@@ -121,12 +121,12 @@ discharged before this track existed.
 
 | lane | row(s) | scope | gate | review | state |
 |---|---|---|---|---|---|
-| **E-a** | D22 + D34 | `scripts/gates/`, `.github/workflows/ci.yml` | none | style | unstarted |
+| **E-a** | D22 + D34 | `scripts/gates/`, `.github/workflows/ci.yml` | none | style | **in flight** |
 | **E-b** | D23 | `docs/` + suite headers; code set is what the re-derivation finds | none | style | unstarted |
-| **E-c** | D26 | `docs/SMELL-SCAN-2026-08.md` §D and §S19 | none | style | unstarted |
+| **E-c** | D26 | `docs/SMELL-SCAN-2026-08.md` §D and §S19 | none | style | **in flight** |
 | **E-d** | D33 | `docs/predicate-dimension-audit.md` | none | style | unstarted |
 | **E-e** | D28 + issue #693 | `editor-core/src/eval/` | **confirm against C-f (#731)** — same crate, disjoint files | style | unstarted |
-| **E-f** | D25 | `topo/src/euler.rs` and every `link_half_edges` caller | none | **ADVERSARIAL** | unstarted |
+| **E-f** | D25 | `topo/src/euler.rs` and every `link_half_edges` caller | none | **ADVERSARIAL** | **in flight** |
 | **E-g** | D27, then D29 | `sweep/src/fillet/{build,surgery,mod}.rs` | none | **ADVERSARIAL** (D27), style (D29) | unstarted |
 | **E-h** | D21 | `topo/src/{split,attach,movefac,revert}.rs`, `splitting/finish.rs`, `boolean/combine.rs` | **E-f** | **ADVERSARIAL** | unstarted |
 | **E-i** | D24 | `Cargo.toml` workspace lints, or `.github/workflows/` | none | style | unstarted |
@@ -214,9 +214,39 @@ working lane, not a malfunction.
 
 ---
 
+## Row-number reservations
+
+Blocks handed to lanes so they do not round-trip for a number mid-unit. A lane
+uses only what it needs and hands the rest back; anything past its block comes
+from the orchestrator. **D35 was the highest number placed when Track E was
+constituted.**
+
+| block | lane | state |
+|---|---|---|
+| D36–D39 | E-c (D26) | reserved 2026-08-20 |
+| D40–D41 | E-a (D22 + D34) | reserved 2026-08-20 |
+| D42–D43 | E-f (D25) | reserved 2026-08-20 |
+
+Next unassigned: **D44**.
+
+---
+
 ## In flight
 
-*(none yet)*
+**Wave 1 opened 2026-08-20**, three lanes, no shared file except
+`docs/SMELL-SCAN-2026-08.md` — which every Track E PR edits, so merges are
+serialized here and each lane re-merges `origin/main` when one lands.
+
+| lane | row(s) | branch | state |
+|---|---|---|---|
+| **E-c** | D26 | `smelle/d26` | dispatched — doc-only; **merge this one first** |
+| **E-a** | D22 + D34 | `smelle/d22-d34` | dispatched |
+| **E-f** | D25 | `smelle/d25` | dispatched — ADVERSARIAL, and **E-h (D21) is scoped against its head**, not against the old census |
+
+Not yet dispatched, and why: E-b, E-d, E-e, E-g are wave-1-eligible and held
+only by this container's build capacity (4 CPUs, ~29 GB) — dispatch as wave 1
+reports. E-h waits on E-f, E-k on E-g and E-h, E-j on a Track C confirmation.
+E-i, E-l, E-m are wave 2; E-n is last.
 
 ---
 
