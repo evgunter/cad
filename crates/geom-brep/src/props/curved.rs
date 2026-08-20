@@ -389,16 +389,18 @@ fn same_level<T: Decide>(
 /// (#649: a cross-shaped domain passed, and `topo::mass_properties`
 /// certified a 19%-low volume with `volume_pad = 0.0`).
 ///
-/// **Why the level rule is sufficient.** Let `w(v)` be the total
+/// **Why the level rule gives `w ≡ Δu`.** Let `w(v)` be the total
 /// `u`-measure of the domain at height `v`. Between consecutive rim
 /// levels the boundary consists of meridians only — iso-`u` curves,
 /// which move no `u`-endpoint — so `w` is constant there, and it can
 /// change ONLY at a level carrying a rim. If every rim sits at `lo` or
 /// at `hi`, then `w` is constant on the whole open interval
-/// `(lo, hi)`: `w ≡ Δu`, which is exactly what the closed forms
-/// assume. (`du_of_rims` supplies the `Δu` value and, once this holds,
+/// `(lo, hi)`: `w ≡ Δu`, which is what the closed forms assume ABOUT
+/// `w`. (`du_of_rims` supplies the `Δu` value and, once this holds,
 /// its span-sum agreement is a genuine rectangle test rather than a
-/// proxy for one.)
+/// proxy for one.) This paragraph used to be headed *"why the level
+/// rule is sufficient"*; it is not sufficient, and the next one says
+/// what is missing.
 ///
 /// **What this does NOT establish — open at #723.** The rule gives
 /// `w ≡ Δu` on `(lo, hi)` and nothing more. `area = r·Δu·(hi − lo)`
