@@ -33,6 +33,16 @@
 //! documented geometric pictures live in the doc comments here and in
 //! the topology itself, and that is what orientation reasoning in tests
 //! points at.
+//!
+//! # Not fixtures: the source walk
+//!
+//! [`src_root`], [`collect_rs`], [`crate_sources`] and [`public_fns`]
+//! read this crate's own `.rs` files. They are here rather than beside
+//! any one caller because several guards walk the sources — an
+//! anti-re-fork guard should not be the next copy of its own walk —
+//! and [`public_fns`] is a hand-rolled Rust reader, deliberately: the
+//! properties those guards check are about the SOURCE surface, which
+//! nothing at runtime can enumerate.
 
 // Test-support code: panicking is a test's failure mechanism (L5), and
 // fixture unwraps are on keys the fixture itself just minted.
@@ -51,17 +61,17 @@ use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::provenance::Provenance;
 use crate::test_support_impl::ArenaCounts;
 
-/// The fixture provenance (all fixture entities share it).
 /// This crate's `src/`, resolved for both ways the suite runs: a plain
 /// `cargo test` (where the baked-in `CARGO_MANIFEST_DIR` is the tree
 /// that is here) and a nextest ARCHIVE replayed on a different runner
 /// (where that absolute path need not exist, but `--workspace-remap`
 /// has pointed the per-test cwd at the crate root).
 ///
-/// Lives here rather than in one of them because THREE anti-re-fork
-/// guards now walk the crate's own sources — the sector-shape rungs,
-/// the planar sense flip, and the arc-side rung — and a guard against
-/// duplication should not be the fourth copy of its own walk.
+/// Lives here rather than in any one of them because several
+/// anti-re-fork guards walk the crate's own sources — the sector-shape
+/// rungs, the planar sense flip, the arc-side rung, the tier-1
+/// postcondition surface, the pcurve-staleness postures — and a guard
+/// against duplication should not be the next copy of its own walk.
 pub(crate) fn src_root() -> std::path::PathBuf {
     let baked = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
     if baked.is_dir() {
@@ -101,6 +111,7 @@ pub(crate) fn crate_sources() -> Vec<std::path::PathBuf> {
     files
 }
 
+/// The fixture provenance (all fixture entities share it).
 pub(crate) fn prov() -> Provenance {
     Provenance::Primordial { op: "fixture" }
 }
@@ -997,4 +1008,90 @@ pub(crate) fn ops_genus2() -> Body<f64> {
     assert_eq!(v - e + f - r, -2, "genus 2");
     assert_eq!(crate::validate::validate(&body), Ok(()));
     body
+}
+
+/// Every `pub fn` in `text`, as `(name, parameter list, body)`.
+///
+/// Shared by the guards that walk this crate's mutation surface (tier-1
+/// postcondition coverage, pcurve-staleness posture), for the reason
+/// [`src_root`] gives: a guard against duplication should not be the
+/// next copy of its own walk.
+///
+/// Deliberately a source read: Rust offers no way to enumerate a
+/// type's methods at runtime, and the property being checked is about
+/// the SOURCE surface — what a future door will look like when someone
+/// adds one.
+pub(crate) fn public_fns(text: &str) -> Vec<(&str, &str, &str)> {
+    let mut out = Vec::new();
+    let bytes = text.as_bytes();
+    let mut from = 0usize;
+    while let Some(rel) = text[from..].find("pub fn ") {
+        let at = from + rel;
+        from = at + "pub fn ".len();
+        // Item position only: a `pub fn` glued to another identifier is
+        // not a definition.
+        if at > 0 && !matches!(bytes[at - 1], b'\n' | b' ') {
+            continue;
+        }
+        let rest = &text[from..];
+        let Some(name_end) = rest.find(|c: char| !c.is_alphanumeric() && c != '_') else {
+            continue;
+        };
+        let name = &rest[..name_end];
+        let Some(open) = text[from..].find('(') else {
+            continue;
+        };
+        let Some(close) = matching(text, from + open, b'(', b')') else {
+            continue;
+        };
+        let params = &text[from + open..close];
+        let Some(brace) = text[close..].find('{') else {
+            continue;
+        };
+        let Some(end) = matching(text, close + brace, b'{', b'}') else {
+            continue;
+        };
+        out.push((name, params, &text[close + brace..end]));
+        from = end;
+    }
+    out
+}
+
+/// The index of the delimiter closing the one at `open`, skipping
+/// string and comment content.
+fn matching(text: &str, open: usize, l: u8, r: u8) -> Option<usize> {
+    let b = text.as_bytes();
+    let (mut depth, mut i) = (0usize, open);
+    while i < b.len() {
+        match b[i] {
+            b'"' => {
+                i += 1;
+                while i < b.len() && b[i] != b'"' {
+                    i += usize::from(b[i] == b'\\') + 1;
+                }
+            }
+            b'/' if b.get(i + 1) == Some(&b'/') => {
+                while i < b.len() && b[i] != b'\n' {
+                    i += 1;
+                }
+            }
+            b'/' if b.get(i + 1) == Some(&b'*') => {
+                i += 2;
+                while i + 1 < b.len() && !(b[i] == b'*' && b[i + 1] == b'/') {
+                    i += 1;
+                }
+                i += 1;
+            }
+            c if c == l => depth += 1,
+            c if c == r => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(i);
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    None
 }
