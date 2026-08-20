@@ -45,7 +45,7 @@ pub use appearance::{
     Attr, AttrKind, AttrSet, Rgba8,
 };
 pub use assembly::{
-    Assembly, AssemblyError, AtRestFinding, MintedDeclaration, RefusedRef, assemble,
+    Assembly, AssemblyError, AtRestFinding, Attribution, MintedDeclaration, RefusedRef, assemble,
 };
 pub use diff::{DocDiff, NodeChange};
 pub use doc::{Doc, DocParam, ParamName};
@@ -60,9 +60,9 @@ pub use expr::{
 };
 pub use ident::{ContentPin, DocRef, DocumentId};
 pub use mate::{
-    Alignment, AxisSense, ClusterMaintenance, Coset, MateFault, MateFrame, MatePrimitive, MateRole,
-    MateSide, SolvedPoses, Subgroup, UNDER_RECOURSE, clusters, gauge_of, reading_edges,
-    relative_freedom_components, solve_document,
+    Alignment, AxisSense, ClassAdmission, ClusterMaintenance, Coset, MateFault, MateFrame,
+    MatePrimitive, MateRole, MateSide, SolvedPoses, Subgroup, UNDER_RECOURSE, class_admission,
+    clusters, gauge_of, reading_edges, relative_freedom_components, solve_document,
 };
 pub use meta::{MetaError, MetaValue, MetaVersionError, from_value, to_value};
 pub use names::{

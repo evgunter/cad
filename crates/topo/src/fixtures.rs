@@ -33,6 +33,16 @@
 //! documented geometric pictures live in the doc comments here and in
 //! the topology itself, and that is what orientation reasoning in tests
 //! points at.
+//!
+//! # Not fixtures: the source walk
+//!
+//! [`src_root`], [`collect_rs`], [`crate_sources`] and [`public_fns`]
+//! read this crate's own `.rs` files. They are here rather than beside
+//! any one caller because several guards walk the sources — an
+//! anti-re-fork guard should not be the next copy of its own walk —
+//! and [`public_fns`] is a hand-rolled Rust reader, deliberately: the
+//! properties those guards check are about the SOURCE surface, which
+//! nothing at runtime can enumerate.
 
 // Test-support code: panicking is a test's failure mechanism (L5), and
 // fixture unwraps are on keys the fixture itself just minted.
@@ -51,7 +61,6 @@ use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::provenance::Provenance;
 use crate::test_support_impl::ArenaCounts;
 
-/// The fixture provenance (all fixture entities share it).
 /// This crate's `src/`, resolved for both ways the suite runs: a plain
 /// `cargo test` (where the baked-in `CARGO_MANIFEST_DIR` is the tree
 /// that is here) and a nextest ARCHIVE replayed on a different runner
@@ -102,6 +111,7 @@ pub(crate) fn crate_sources() -> Vec<std::path::PathBuf> {
     files
 }
 
+/// The fixture provenance (all fixture entities share it).
 pub(crate) fn prov() -> Provenance {
     Provenance::Primordial { op: "fixture" }
 }
@@ -1049,7 +1059,7 @@ pub(crate) fn public_fns(text: &str) -> Vec<(&str, &str, &str)> {
 
 /// The index of the delimiter closing the one at `open`, skipping
 /// string and comment content.
-pub(crate) fn matching(text: &str, open: usize, l: u8, r: u8) -> Option<usize> {
+fn matching(text: &str, open: usize, l: u8, r: u8) -> Option<usize> {
     let b = text.as_bytes();
     let (mut depth, mut i) = (0usize, open);
     while i < b.len() {

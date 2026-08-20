@@ -124,19 +124,31 @@
 //! **Where it says which, and what checks it.** For a `&mut Body` door
 //! in this crate, in
 //! `staleness_posture::every_mutation_door_declares_its_pcurve_posture`
-//! — a walk of `topo/src` that reads each door's posture out of the
-//! source where it can (a `mint_pcurves` call in the door's own body)
-//! and otherwise requires a declared entry with a reason. It goes red
-//! the day a door is added, and red the day a door starts re-minting
-//! while its entry says it does not, which is the one direction this
-//! index has actually rotted in. Nothing in the type system enforces
-//! any of this; the guard is what keeps the index current instead of
-//! as current as its last reading.
+//! — a walk of `topo/src` requiring every such door to either call
+//! `mint_pcurves` in its own body or carry a declared posture. It goes
+//! red the day a door is added and nobody says which bucket it is in,
+//! and red the day a door whose entry says it does not re-mint starts
+//! calling `mint_pcurves` directly.
 //!
-//! The buckets above stay the human-readable survey and reach further
-//! than the guard does — to the pipelines that take a body and return
-//! one rather than taking `&mut Body`, and to the downstream crates —
-//! and over that remainder they are a survey, checked by nothing.
+//! **What the guard does NOT establish**, so that nothing above reads
+//! as more than it is:
+//!
+//! - **It checks that an entry exists, not that it is true.** A door
+//!   declared `Maintains` is taken at its word: no walk can see that a
+//!   delegate re-mints, and `mint_pcurves`'s own entry is a claim
+//!   about the pass this module defines. Only the
+//!   not-`Maintains`-but-minting direction is mechanical.
+//! - **Delegation is invisible to it.** The one entry that rotted
+//!   historically — an op that started re-minting through a helper
+//!   while its bucket entry stayed put — is caught here only if the
+//!   helper is itself a `&mut Body` door on this surface, which for
+//!   [`crate::Body::merge_coplanar_faces`] it happens to be. A private
+//!   delegate would be a green guard over the same rot.
+//! - **It reads `topo/src` only.** The pipelines that take a body and
+//!   return one rather than taking `&mut Body` (the splitting lane, the
+//!   boolean pipeline, [`crate::transform`]) and every downstream crate
+//!   are outside the walk; over that remainder the buckets above are a
+//!   survey, checked by nothing.
 
 use geom_brep::{
     ChartWindow, Pcurve, PcurveCache, PcurveCertifyError, PcurveFittedLane, chart_pcurve,
@@ -1470,27 +1482,35 @@ mod staleness_posture {
     /// `pub fn` taking `&mut self`, plus the free functions taking
     /// `&mut Body<T>` — either re-mints the map in its own body, which
     /// this walk reads directly, or is declared below with its posture
-    /// and the reason that posture is safe.
+    /// and a note on that door.
     ///
-    /// **Why a test and not a list in prose.** The prose list rotted
-    /// once, in one direction: an op started re-minting and its index
-    /// entry stayed in the bucket for ops that do not. That direction
-    /// is the one a walk can see for itself, and it is checked here —
-    /// a door declared anything but `Maintains` whose body calls
-    /// `mint_pcurves` fails, as does a door that is neither declared
-    /// nor minting, as does an entry naming a door that is gone.
+    /// **Why a test and not a list in prose.** A prose index has no way
+    /// to notice a door being added, and the previous one did not. This
+    /// goes red the day one lands unsorted, which is the rot the prose
+    /// could only describe.
     ///
-    /// **What the walk cannot reach**, and what the survey above still
-    /// carries alone: the coarse consumer-facing lanes (the splitting
-    /// lane, the boolean pipeline, [`crate::transform`] — pipelines
-    /// that take a body and return one, not `&mut Body` doors), and
-    /// every downstream crate (`sweep`'s loft, fillet build and
-    /// surgery, `step_import`'s assembly). This walk reads `topo/src`.
+    /// **What it checks, exactly.** Three failures, all mechanical: a
+    /// door that neither calls `mint_pcurves` nor appears below; a door
+    /// whose entry says anything but `Maintains` while its body calls
+    /// `mint_pcurves`; and an entry naming a door that no longer
+    /// exists.
+    ///
+    /// **What it does not check.** That a `Maintains` entry is TRUE. A
+    /// re-mint reached through a delegate is invisible to a source
+    /// read, so those two entries are taken at their word — the guard
+    /// establishes that every door is sorted and that no door has
+    /// silently started minting, not that each sort is correct. The
+    /// module docs' *"what the guard does NOT establish"* list carries
+    /// this and the rest of the blind spot: delegation, and everything
+    /// outside `topo/src`'s `&mut Body` surface.
     #[test]
     fn every_mutation_door_declares_its_pcurve_posture() {
         use Posture::{Maintains, Neither, Transfers};
 
-        // `(door, posture, why that posture is safe)`.
+        // `(door, posture, note)`. The reason a posture is SAFE lives
+        // once, on the `Posture` variant; a note here says only what is
+        // particular to this door — most often nothing beyond which
+        // family it belongs to.
         const DECLARED: &[(&str, Posture, &str)] = &[
             // ---- Maintains, one delegation away from the re-mint. ----
             (

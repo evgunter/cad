@@ -286,9 +286,13 @@ pub(crate) fn choose_op(body: &Body<f64>, d1: u32, d2: u32) -> Option<OpChoice> 
     // whose enumeration is cheap answers emptiness by building the
     // list, which is then kept for the roll; a row that carries a
     // `Some(probe)` is one whose enumeration is expensive enough that
-    // asking it 34 times per chosen op was the cost this catalog
-    // could not afford (`split_edge_candidates` re-certifies every
-    // edge and meters its split point against every vertex).
+    // building a list the roll then discards is not affordable —
+    // `split_edge_candidates` re-certifies every edge and meters its
+    // split point against every vertex, and the roll lands on that
+    // row a small fraction of the times the row is asked. No ratio is
+    // written here: it is a function of the weights below and of the
+    // body, and a constant beside a table that determines it is a
+    // constant nothing keeps true.
     let kinds: [(u32, Enumerate, Option<Probe>); 14] = [
         (
             if body.solids().count() < 2 {
@@ -959,6 +963,15 @@ pub(crate) fn roundtrip(
 /// structure, mfkrh/mekr/kfmrh resolve rings and empty-outer faces, and
 /// kvfs retires each skeletal solid. Panics if no progress is possible
 /// (a completeness bug) or the step cap is exceeded.
+///
+/// **The `*_candidates(body).first()` reads below build a list to take
+/// one element, and that is deliberate.** It is the shape
+/// [`choose_op`] does not use, for a reason that does not carry here:
+/// these three enumerators are pointer walks over the arenas, and the
+/// cost of the shape is a rounding error against what the kill ops
+/// themselves cost — the whole of teardown is ~1% of this lane, and
+/// making these reads lazy moved ~1% of THAT. Enumerate lazily where
+/// the enumerator is expensive, which here it is not.
 pub(crate) fn teardown(body: &mut Body<f64>) {
     let cap =
         10 * (body.half_edges().count() + body.faces().count() + body.vertices().count()) + 100;
@@ -1337,6 +1350,68 @@ mod tests {
         assert_eq!(
             crate::fixtures::deep_snapshot(&a),
             crate::fixtures::deep_snapshot(&b)
+        );
+    }
+
+    /// **What op a given roll selects, pinned over a fixed stream
+    /// set.** 64 deterministic decision streams of 32 steps each,
+    /// replayed through [`choose_op`] and [`apply`], fingerprinted by
+    /// the sequence of ops chosen. Every candidate filter in the
+    /// catalog feeds this, so the pin covers the whole selection path:
+    /// the weights, the catalog order, the emptiness tests, and the
+    /// enumerators' order.
+    ///
+    /// **Why a pin and not a property.** Making enumeration lazy — or
+    /// reordering a filter, or short-circuiting one — is supposed to
+    /// leave the choice for a given roll alone, and nothing else here
+    /// can tell: the properties hold for any distribution, and
+    /// `generator_is_deterministic_for_equal_decisions` compares a run
+    /// against itself, so it stays green while the walk moves under
+    /// it. This is the differential the in-process comparison is not.
+    ///
+    /// **The constant is not a target to preserve.** It is a report of
+    /// what this generator selects. If it moves, the question is
+    /// whether the new distribution is the one intended: re-pin
+    /// deliberately and say in the PR what moved the walk and why —
+    /// never adjust a filter to bring the old number back.
+    #[test]
+    fn selection_is_pinned_over_a_fixed_stream_set() {
+        const FINGERPRINT: u64 = 8_352_206_392_020_392_659;
+        let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+        let mut fold = |bytes: &[u8]| {
+            for b in bytes {
+                hash ^= u64::from(*b);
+                hash = hash.wrapping_mul(0x100_0000_01b3);
+            }
+        };
+        let mut chosen = 0_usize;
+        for seed in 0..64_u32 {
+            let mut x = seed.wrapping_mul(2_654_435_761).wrapping_add(12_345);
+            let mut roll = || {
+                x = x.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                x
+            };
+            let mut body = Body::<f64>::new();
+            let mut counter = 0_u32;
+            for _ in 0..32 {
+                let (d1, d2) = (roll(), roll());
+                let Some(choice) = choose_op(&body, d1, d2) else {
+                    fold(b"NONE");
+                    continue;
+                };
+                fold(format!("{choice:?}").as_bytes());
+                apply(&mut body, choice, &mut counter);
+                chosen += 1;
+            }
+        }
+        // A walk that chose nothing would fingerprint stably too.
+        assert_eq!(chosen, 64 * 32, "every step should have an applicable op");
+        assert_eq!(
+            hash, FINGERPRINT,
+            "the generator selects a different op sequence than this pin records. \
+             That is a change to the DISTRIBUTION, not a test failure to paper over: \
+             decide whether the new walk is the one intended, then re-pin here and say \
+             in the PR what moved it.",
         );
     }
 }
