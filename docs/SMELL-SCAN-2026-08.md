@@ -4753,7 +4753,7 @@ finding's other half — that the STL header is not caller-settable while the
 STEP writer takes `product_name`, `author`, `organization` and
 `originating_system` as options — was scheduled as **H16** and left as a
 residue for Evan, because closing it is an API design call. **H16 is FIXED
-by #PRNUMBER** (ruling C-R1): `stl::StlOptions` carries `solid_name` and
+by #732** (ruling C-R1): `stl::StlOptions` carries `solid_name` and
 `header`, both writers take `&StlOptions` where `step_string` takes
 `&StepOptions`, and the two defaults are the bytes above — a cross-tree
 comparison of all thirteen export fixtures in both formats shows the default
@@ -4775,7 +4775,7 @@ reachable items, with the reviewer's independent parse agreeing at 1188. The
 — `topo` 300, `editor-core` 267, `geom-brep` 192, `geom-core` 107, the rest
 below 70 — and is **scheduled as §D H17**. The
 caller-settable-header residue it was scheduled beside, H16, is FIXED by
-#PRNUMBER (above). It is not a leak in S37's sense while nothing
+#732 (above). It is not a leak in S37's sense while nothing
 in the workspace publishes; it becomes one the day anything does. `pncad`,
 `pncad-py` and `stl` are at zero.
 
@@ -6704,7 +6704,7 @@ rewritten rather than appended to.
 | # | Work | Why it is here rather than in a track |
 |---|---|---|
 | **C1** | **H12–H15** — four lanes' own residues: the SSI sweeps' other never-silence doors (no acceptance row in either lane), `sweep_body`'s helix rows with no orientation coverage, #637's two jurisdiction residues, #635's unclassified siblings. | Each is small; together they are a lane. They are the clearest instance of ordering rule 3. |
-| **C2** | **H11, H17** — #632's two residues; and S37's rustdoc remainder, ~1115 lines across 130 files. (**H16**, the STL header not being caller-settable while `StepOptions` carries `product_name`, was the third member and is **FIXED by #PRNUMBER**.) | H17 is large and mechanical. |
+| **C2** | **H11, H17** — #632's two residues; and S37's rustdoc remainder, ~1115 lines across 130 files. (**H16**, the STL header not being caller-settable while `StepOptions` carries `product_name`, was the third member and is **FIXED by #732**.) | H17 is large and mechanical. |
 | **C3** | **S27, S29** — `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block; and the sizing vocabulary fragmented across five modules with self-admitted magic constants. (S30, the mesh crate's 1,060 lines of instrument, was the third member and is FIXED by #709.) **S29 is NOT blocked on a design conversation — corrected 2026-08-19.** This row previously said its policy question was routed to `docs/TESS-SPLIT-SPEC.md` and PR #568. #684's review checked: both are scoped **entirely to the NURBS per-cell schedule** (`nurbs_cert`'s `grid_steps`, certified cells, the first fundamental form — TESS-SPLIT-SPEC's D-1 replaces the AM-GM grouping, with `leaf_a f2` as its poster child). **Nothing in either covers analytic-chart sizing**, so `curved::grid_steps` has no venue at all — and #684 has since added a sixth rule to it. S29's own lesson applies to that: *N well-defended deviations read as N decisions when they are one undecided question.* S27 touches `props/`, so it must follow **A2**; S29 is edge-free. |
 | **C4** | **S32, S33** — `Surface`'s one-partial-per-call API, which is what created the shadow surface enum in SSI; and neither geometry enum being able to lift itself to another scalar. (S31, the `geom-curves`/`geom-surfaces` split, was the third member and is FIXED by #705.) | **S32 is now additionally gated on #705's merge**: the enum and its NURBS payload are one crate's two modules, so a `SurfaceJet` door at the enum no longer crosses a crate boundary. **S33 is coloured by D1**: several of its ~14 hand-written ladders exist only to reach `Dual`, and what `Bounds for Dual` changes there is written in S44's **D1 DECIDED** block. |
 | **C5** | **S26, S28's duplication half** — the certified area enclosure that is never metered against anything (`area.width()` appears nowhere in the file); and the three tessellation lanes that remain three pipelines now that #648/#674 have settled their ordering and column questions. (**S24 left this row FIXED by #702.**) | S26 was explicitly deferred in writing by #472 — *"metering against `area.lo()` … deserves its own proposal with re-measured floors"* — so it is a proposal, not a patch. S28's duplication half must follow **A3**. |
