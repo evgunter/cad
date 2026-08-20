@@ -1,4 +1,4 @@
-//! **S56 / #649: the two proven doors to a wrongly-measured body, both
+//! **S58 / #649: the two proven doors to a wrongly-measured body, both
 //! closed.**
 //!
 //! Before this unit, `props`' rim-group span-SUM rule accepted a
@@ -127,9 +127,18 @@ fn merge_coplanar_faces_no_longer_turns_an_exact_body_into_a_wrong_one() {
     let out = body
         .merge_coplanar_faces()
         .expect("the merge itself is a legal Euler-op composition and still runs");
-    assert!(
-        !out.groups.is_empty(),
-        "the merge must actually fire — a no-op merge would make this row vacuous"
+    // Exactly the two cylindrical walls, each of whose three
+    // rectangular sub-faces shares one SurfaceKey. `is_empty()` alone
+    // would stay green if the merge found one wall, or found something
+    // else entirely; the count is what says it did the thing this row
+    // is about. (The load-bearing assertion is still the refusal
+    // below — this one only keeps a no-op merge from making it
+    // vacuous.)
+    assert_eq!(
+        out.groups.len(),
+        2,
+        "the merge must fuse exactly the two cylindrical walls, got {:?}",
+        out.groups
     );
 
     // The door: a wrong number is no longer available on the other side.

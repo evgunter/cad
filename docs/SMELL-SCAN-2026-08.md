@@ -6092,7 +6092,7 @@ hand-multiply class (`boolean::solid_contain::face_plane`,
 **Verdict:** _(unreviewed)_
 
 ---
-## S58. "This face's domain is an iso-rectangle" is re-derived per consumer, in three representations, and no two agree on what it means
+## S58. FIXED IN PART by #714 — "This face's domain is an iso-rectangle" was re-derived per consumer, in three representations, and no two agreed on what it meant
 
 - **Where**: `crates/geom-brep/src/props/curved.rs:421` (`du_of_rims` /
   `props_du_consistent`), `crates/mesh/src/curved.rs`
@@ -6145,7 +6145,9 @@ Notes for whoever takes it, so the unit does not quietly become four:
   precondition is an argument for refusing such a body once at `validate`
   rather than at each door. Not decided here.
 
-**Executed by #714 (2026-08-19), and it subsumed #649 as prescribed.**
+**Executed by #714 (2026-08-19). It closed #649 as prescribed, and it
+did NOT close #649's CLASS — read the scope statement at the end of
+this block before citing it.**
 
 The predicate is `geom_brep::props::curved::require_rims_at_extremes`,
 decided under the name the torus already used — **`props_rim_level`**:
@@ -6187,17 +6189,19 @@ an imported keyed shaft is not corruption. It now says what it reports,
 which is **row 2** — the body carries a face whose measurement lane the
 kernel has not built.
 
-**Two residues, deliberately left.**
+**Two residues, both PLACED as rows** (§D ordering rule 3 — a lane's
+own residues are rows, not footnotes; they were footnotes here until
+#714's style review said so):
 
-- **`mesh`'s half of the fragmentation still stands**, because
-  `entries_off_bbox` answers a second question the face predicate cannot
-  (#653's walk consistency; the bar is spatial for that reason). Its
-  prose now names the shared predicate instead of calling the agreement
-  a coincidence, so the fold-in is a stated follow-up rather than an
-  unrecorded one. **Nothing was loosened** — #648 is what makes
-  tightening `props` safe at all.
+- **`mesh`'s half of the fragmentation still stands** — issue **#726**,
+  and §D row **C9**. `entries_off_bbox` answers a second question the
+  face predicate cannot (#653's walk consistency; the bar is spatial
+  for that reason), so only the first question folds in. Its prose now
+  names the shared predicate rather than calling the agreement a
+  coincidence. **Nothing was loosened** — #648 is what makes tightening
+  `props` safe at all.
 - **The tier-property question is answered "no, and here is the real
-  gap"** by #714's report, not by this unit: the predicate is a
+  gap"** — issue **#727**, and §D row **C9**. The predicate is a
   **capability boundary** (D2 row 2), not a validity property, so a body
   that trips it is *valid* and a tier property asserting otherwise would
   have to be deleted the day the certified-quadrature lane can measure
@@ -6206,7 +6210,42 @@ kernel has not built.
   protected **transitively**, through tier 3's check 7 calling
   `mass_properties` — the same shape as the pre-#648 mesher. The thing
   worth writing down is which door owns the refusal, not a new
-  invariant. Left open for Evan.
+  invariant.
+
+**SCOPE OF THE FIX — why this reads FIXED IN PART.** #714's
+adversarial review broke the sufficiency argument on the sphere, with
+an executed at-rest counterexample, and the residue is **issue #723**.
+
+What the predicate establishes is `w ≡ Δu`: the domain's `u`-measure is
+constant across the open `v`-interval. `area = r·Δu·(hi − lo)` needs a
+**second** premise that nothing states — that the `(lo, hi)` handed to
+it is the face's true `v`-extent. The **torus is immune precisely
+because it does not use `min_max`**: its extent comes from the anchor
+meridian's stored span. The other three take theirs from `min_max`,
+which folds edge ENDPOINT levels only. On the sphere that is
+falsifiable: `sphere_boundary` certifies a meridian's CARRIER is a
+great circle, not that the traversed ARC stays on one meridian half, so
+an arc can cross a pole — `u` jumps by π mid-edge and the latitude
+reaches ±1 in the arc's INTERIOR, unseen. Through `import_step`: tier 3
+**green**, `volume = 1.858e-7` against exact `3.518e-7`, **`pad = 0.0`,
+−47.19%** — more than twice #649's 19%. The identical solid without the
+extra vertex is refused (`DegenerateFace`), so **one added vertex turns
+a refusal into a wrong certified volume**, which is #649's second door
+in the other direction.
+
+`require_rims_at_extremes` passes that face **correctly**, at margin
+exactly 0: the domain genuinely IS an iso-rectangle. So:
+
+- **Fixed**: the fragmentation this finding names, on the `props` side —
+  three derivations to three strengths became one named predicate with
+  one margin, one refusal name and one justification. #649's own
+  fixtures and both of its proven doors are closed.
+- **Not fixed, and not this unit's**: the wrong-certified-volume CLASS.
+  It is open on the sphere at −47% (#723), pre-existing and carried
+  across untouched — #714 carried the rim rule to cylinder/cone/sphere
+  and did **not** carry the extent derivation with it. Nothing in this
+  entry, in `props/mod.rs` or at the predicate may be read as closing
+  that class; all three now say so and cite #723.
 
 ---
 ---
@@ -6313,7 +6352,7 @@ Do not take these. Each has a running lane.
 
 | # | Work | Scope |
 |---|---|---|
-| **A2** | **DONE — #714.** **S58 / #649** — one named iso-rectangle predicate, generalising the torus's level rule to cylinder/cone/sphere. Closed the wrong-certified-volume defect (19% low at `pad = 0.0`). | `geom-brep/src/props/curved.rs`, `topo/src/validate.rs`, new STEP fixtures |
+| **A2** | **#714, in review — the finding is FIXED IN PART.** **S58 / #649** — one named iso-rectangle predicate, generalising the torus's level rule to cylinder/cone/sphere. Closes #649 and both of its proven doors (19% low at `pad = 0.0`). It does **not** close the wrong-certified-volume CLASS: the extent premise the closed forms also need is open on the sphere at **#723**, at −47%. Two residues placed as **C9** (#726, #727). | `geom-brep/src/props/curved.rs`, `topo/src/validate.rs`, new STEP fixtures |
 | **A3** | **#678** — the slender partial-revolve cone wedge that meshes silently non-watertight, A/B against `main` first. | `crates/mesh/` |
 | **A4** | **#667** — the measured-claim sweep continuation, pattern fixed first. | docs + scattered claim sites |
 
@@ -6384,8 +6423,20 @@ Five of these are edge-free and could start today: **C1**, **C2**, **S30**,
 entirely and **C4's S33** — and their input is now better than "wait for the
 report": #682's adversarial pass produced a *compile-verified* table of which
 lanes sit behind `CertifiedEnclosure`, which is the premise W2a would otherwise
-have been designed against wrongly. **S27** waits on **A2** and **S28's
-duplication half** on **A3**, both for file overlap rather than for knowledge.
+have been designed against wrongly. **S28's duplication half** waits on **A3**,
+for file overlap rather than for knowledge.
+
+**S27's gate moved, 2026-08-19.** It waited on **A2**; A2 is #714, which is
+written and in review. The overlap it was waiting for has not gone away, it has
+moved: **#723** re-opens `props/curved.rs` after #714 on the same closed forms,
+and **C9** (#726) may move the shape question out of `mesh` into that file. So
+S27 sequences behind #714 **and** #723 — knowledge as well as files now, since
+#723 can change what a closed form's preconditions are.
+
+**C9** joined 2026-08-19, as #714's own two residues. Its #727 half is a
+**decision** rather than a lane — it reacts to an answer already written down
+at S58 — and its #726 half sequences with **#723** and S27 for the same
+`props/curved.rs` reason.
 
 Two will not unblock by waiting, and should not be read as queued: **C6**'s
 rows are gated on other programmes entirely, and **S26** wants a written
@@ -6396,12 +6447,13 @@ and the width-1 build mutex, not dependency.**
 |---|---|---|
 | **C1** | **H12–H15** — four lanes' own residues: the SSI sweeps' other never-silence doors (no acceptance row in either lane), `sweep_body`'s helix rows with no orientation coverage, #637's two jurisdiction residues, #635's unclassified siblings. | Each is small; together they are a lane. They are the clearest instance of ordering rule 3. |
 | **C2** | **H11, H16, H17** — #632's two residues; the STL header not being caller-settable while `StepOptions` carries `product_name`; and S37's rustdoc remainder, ~1115 lines across 130 files. | H17 is large and mechanical; H16 is a small asymmetry with a clear right answer. |
-| **C3** | **S27, S29, S30** — `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block; the sizing vocabulary fragmented across five modules with self-admitted magic constants; and ~1,050 lines of instrument in the mesh crate's hot loop. **S29 is NOT blocked on a design conversation — corrected 2026-08-19.** This row previously said its policy question was routed to `docs/TESS-SPLIT-SPEC.md` and PR #568. #684's review checked: both are scoped **entirely to the NURBS per-cell schedule** (`nurbs_cert`'s `grid_steps`, certified cells, the first fundamental form — TESS-SPLIT-SPEC's D-1 replaces the AM-GM grouping, with `leaf_a f2` as its poster child). **Nothing in either covers analytic-chart sizing**, so `curved::grid_steps` has no venue at all — and #684 has since added a sixth rule to it. S29's own lesson applies to that: *N well-defended deviations read as N decisions when they are one undecided question.* S27 touches `props/`, so it must follow **A2**; S29 and S30 are edge-free. |
+| **C3** | **S27, S29, S30** — `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block; the sizing vocabulary fragmented across five modules with self-admitted magic constants; and ~1,050 lines of instrument in the mesh crate's hot loop. **S29 is NOT blocked on a design conversation — corrected 2026-08-19.** This row previously said its policy question was routed to `docs/TESS-SPLIT-SPEC.md` and PR #568. #684's review checked: both are scoped **entirely to the NURBS per-cell schedule** (`nurbs_cert`'s `grid_steps`, certified cells, the first fundamental form — TESS-SPLIT-SPEC's D-1 replaces the AM-GM grouping, with `leaf_a f2` as its poster child). **Nothing in either covers analytic-chart sizing**, so `curved::grid_steps` has no venue at all — and #684 has since added a sixth rule to it. S29's own lesson applies to that: *N well-defended deviations read as N decisions when they are one undecided question.* S27 touches `props/`, so it must follow **A2** (#714) **and #723**, which re-opens the same file on the same closed forms — see the gating note above; S29 and S30 are edge-free. |
 | **C4** | **S31, S32, S33** — the `geom-curves`/`geom-surfaces` split that buys nothing; `Surface`'s one-partial-per-call API, which is what created the shadow surface enum in SSI; and neither geometry enum being able to lift itself to another scalar. | **S33 is coloured by D1**: several of its ~14 hand-written ladders exist only to reach `Dual`, and what `Bounds for Dual` changes there is written in S44's **D1 DECIDED** block. |
 | **C5** | **S26, S28's duplication half** — the certified area enclosure that is never metered against anything (`area.width()` appears nowhere in the file); and the three tessellation lanes that remain three pipelines now that #648/#674 have settled their ordering and column questions. (**S24 left this row FIXED by #702.**) | S26 was explicitly deferred in writing by #472 — *"metering against `area.lo()` … deserves its own proposal with re-measured floors"* — so it is a proposal, not a patch. S28's duplication half must follow **A3**. |
 | **C6** | **W2f remainder / S4** — `ProgramStep`/`WireStep`, `SegTag`, and the "no usable value" core. | Each is blocked on something real: the first behind OnArc + RESPELL-TABLE and crossing the same files, the second needs the workspace's first proc-macro crate, the third by a persisted format. |
 | **C7** | **W2a / S3 and W2b / S1+S2** — the lane-trait collapse, and `RingInterval` versus an always-on `Interval`. | **The S3 half no longer waits — D1 is ruled, and its report is S44's D1 DECIDED block.** The steelman's compiled collapse for S3 **predates #643's `Bounds`/`CertifiedEnclosure` split** and must be re-derived against the two-trait world; read *"What this does NOT settle"* first, in particular its per-lane correction — deleting a lane trait leaves **three of the four** seams still uninstantiable at a dual, and only `chart_region_overlap` would become instantiable. W2b's blast radius is 535 refs in 15 files with five carrying 60%. **Two rows joined this one on 2026-08-20**, both from the unscheduled audit: **S44's open residue** — whether the four lane traits survive and whether D9's four bit-identity assertions may be re-expressed, which is what S44 means by *"open for the part that matters"* now that its priced half (D1) is ruled — and **S55**, `Enclosure` as a live trait with no consumer, which Evan deferred *pending the `Bounds` narrow-vs-broad split* and which is therefore this row's, not a lane of its own. Whoever takes C7 absorbs both. |
 | **C8** | **#711 — S24's residues outside `editor-core`**: `step-import/src/recognize.rs:126`, whose `try_cylinder` promoting arm is documented unreachable and whose `Plane > Cylinder` preference order is *"unfalsifiable by execution"*; and `docs/ASM-R2A-SPEC.md:21`, a landed spec sentence (*"v1 admits `Rest`/`Tangent`"*) that is true of the door it binds and no longer of v1 as a whole. | Filed by #702's fix pass rather than left inside a finding marked FIXED. The first may want the tighter cylinder certificate rather than an encoding change; the second is a one-line ruling — clarifier, or "landed specs read as of their own date". Small, edge-free, and **not** a lane on its own: fold into whoever next opens `step-import`. |
+| **C9** | **#726 and #727 — A2/#714's own two residues.** #726: fold the iso-rectangle SHAPE question out of `mesh::curved`'s `require_swept_rectangle` and onto the named predicate, leaving `entries_off_bbox` only #653's walk-consistency question. #727: which door owns the refusal — `mesh` and (once its curved-pierce door lands) the boolean are still protected **transitively**, through tier 3's check 7 calling `mass_properties`, which is the pre-#648 mesher's shape. | Both were footnotes inside a finding marked fixed until #714's style review applied ordering rule 3. #726 is a lane; #727 is a **decision** with a written answer to react to (S58's entry), not a patch. Whoever takes either reads **#723** first — `props_rim_level` is not the whole closed-form premise, so "protected by `props` refusing" is weaker than it reads. |
 
 ---
 

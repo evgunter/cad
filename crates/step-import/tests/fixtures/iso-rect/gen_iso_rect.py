@@ -1,5 +1,16 @@
 #!/usr/bin/env python3
-"""Hand-authored AP214 fixtures for the du-sum-rule probe.
+"""Hand-authored AP214 fixtures for the ISO-RECTANGLE PREDICATE
+(S58 / #649).  Writes FOUR files into the directory given as argv[1]:
+cross.step, rect.step, tee.step and xsplit.step.
+
+The rule these fixtures are about, in the vocabulary of the fix they
+were committed with: `geom_brep::props`' `props_rim_level` -- EVERY
+RIM SITS AT ONE OF THE FACE'S TWO EXTREME v-LEVELS.  A domain that
+satisfies it has constant u-measure w(v) = du across the whole open
+v-interval, which is the premise `area = r*du*(hi-lo)` integrates.
+The group-sum arithmetic quoted below is the rule that STOOD IN for
+this one before the fix; it is kept because slipping past it is
+exactly what these fixtures are for.
 
 `cross.step` -- an annular-sector stack whose OUTER and INNER
 cylindrical faces both have a PLUS/CROSS-shaped iso domain in
@@ -12,13 +23,35 @@ cylindrical faces both have a PLUS/CROSS-shaped iso domain in
 with UC = UO/2, i.e. the u-extent is U = 2*UO and the ARM WIDTH
 (the column) is 2*UC = UO = U/2 exactly.  Every rim group then sums
 to U/2:  bottom U/2; the two z=Z1 rims (UO-UC)+(UO-UC) = U/2; the two
-z=Z2 rims likewise; top U/2.
+z=Z2 rims likewise; top U/2.  That agreement is why the old span-SUM
+rule accepted it and `mass_properties` returned a 19%-low volume at
+pad = 0.0.  Under the level rule what refuses it is the four INTERIOR
+rims, at z = Z1 and z = Z2, sitting at neither extreme.
 
-`rect.step`  -- the CONTROL: the same annular sector with no arms
-               (u in [-UC,UC] over the full height), a genuine
-               iso-rectangle of identical du and identical v extent.
-`tee.step`   -- the NEGATIVE CONTROL: arms on one side only in v
-               (layer 3 absent), so the group sums are U/2, U/2, U.
+`rect.step`   -- the CONTROL: the same annular sector with no arms
+                 (u in [-UC,UC] over the full height), a genuine
+                 iso-rectangle of identical du and identical v extent.
+                 It must still import and still measure EXACTLY.
+`tee.step`    -- the NEGATIVE CONTROL: arms on one side only in v
+                 (layer 3 absent), so the group sums are U/2, U/2, U.
+                 This one was ALREADY refused before the fix, by the
+                 sum rule; the level rule refuses it on its interior
+                 z = Z1 rims instead.  Only the REASON moved.
+`xsplit.step` -- the second door, and the more alarming one: the same
+                 solid as `cross`, with each cylindrical wall authored
+                 as THREE RECTANGULAR sub-faces meeting on interior
+                 meridians at u = +-UC over [Z1, Z2].  All three
+                 reference ONE cylinder surface entity per radius, so
+                 the importer gives them the same SurfaceKey.  Every
+                 face is then a genuine iso-rectangle: the body
+                 imports, passes tier 3 and measures EXACTLY -- and
+                 the PUBLIC `Body::merge_coplanar_faces()` fuses each
+                 wall back into `cross`'s plus without moving any
+                 geometry.  Four inline `kind == "xsplit"` branches
+                 below build it: its contour, the extra interior
+                 meridian edges, the three sub-faces per wall, and the
+                 two `kind != "xsplit"` guards that suppress the
+                 single-face walls.
 """
 import math, sys
 

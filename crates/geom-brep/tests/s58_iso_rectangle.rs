@@ -1,9 +1,9 @@
-//! **S56 / #649: the iso-rectangle predicate, on all four curved
+//! **S58 / #649: the iso-rectangle predicate, on all four curved
 //! kinds.**
 //!
 //! `props`' closed forms integrate `area = r·Δu·(hi − lo)` and its
 //! per-kind siblings, whose premise is that the face's domain in
-//! `(u, v)` is an iso-parameter RECTANGLE. Until S56 that premise was
+//! `(u, v)` is an iso-parameter RECTANGLE. Until S58 that premise was
 //! tested three different ways to three different strengths, and the
 //! way three of the four kinds tested it — grouping rims on
 //! `(level, direction)` and requiring the per-group span SUMS to agree
@@ -57,6 +57,50 @@ fn edge(carrier: Curve3<f64>, a: f64, b: f64, start: u32, end: u32) -> LoopEdge<
 /// Rim/meridian carrier factories for one surface kind.
 type Rim<'a> = &'a dyn Fn(f64, f64, f64, u32, u32) -> LoopEdge<f64>;
 type Mer<'a> = &'a dyn Fn(f64, f64, f64, u32, u32) -> LoopEdge<f64>;
+/// An owned one, for the kit below to hand back.
+type EdgeFn = Box<dyn Fn(f64, f64, f64, u32, u32) -> LoopEdge<f64>>;
+
+/// The cylinder of radius `r` about +Z, with its rim (a coaxial
+/// circle at height `v`) and meridian (an axial line at azimuth `u`)
+/// carrier factories. Three rows below want the same three things;
+/// this is their one home. The sphere, cone and torus rows keep their
+/// own factories inline — each is used once, and the geometry IS the
+/// row.
+fn cylinder_kit(r: f64) -> (Surface<f64>, EdgeFn, EdgeFn) {
+    let s = Surface::Cylinder {
+        origin: p3(0.0, 0.0, 0.0),
+        axis: v3(0.0, 0.0, 1.0),
+        radius: r,
+        u_ref: v3(1.0, 0.0, 0.0),
+    };
+    let rim = move |v: f64, u0: f64, u1: f64, a: u32, b: u32| {
+        edge(
+            Curve3::Circle {
+                center: p3(0.0, 0.0, v),
+                axis: v3(0.0, 0.0, 1.0),
+                radius: r,
+                u_ref: v3(1.0, 0.0, 0.0),
+            },
+            u0,
+            u1,
+            a,
+            b,
+        )
+    };
+    let mer = move |u: f64, v0: f64, v1: f64, a: u32, b: u32| {
+        edge(
+            Curve3::Line {
+                origin: p3(r * u.cos(), r * u.sin(), 0.0),
+                dir: v3(0.0, 0.0, 1.0),
+            },
+            v0,
+            v1,
+            a,
+            b,
+        )
+    };
+    (s, Box::new(rim), Box::new(mer))
+}
 
 /// The genuine iso-rectangle `[u0,u1] × [v0,v1]`, walked CCW.
 fn rect_loop(rim: Rim, mer: Mer, v0: f64, v1: f64, u0: f64, u1: f64) -> Vec<LoopEdge<f64>> {
@@ -71,7 +115,7 @@ fn rect_loop(rim: Rim, mer: Mer, v0: f64, v1: f64, u0: f64, u1: f64) -> Vec<Loop
 /// The PLUS/CROSS domain: a column `u ∈ [−uc, uc]` over the full
 /// `[v0, v3]`, plus two arms out to `±uo` over the INTERIOR band
 /// `[v1, v2]`. With `uo − uc = uc` every rim group sums to `2·uc`, so
-/// the pre-S56 sum rule accepted it on cylinder, cone and sphere.
+/// the pre-S58 sum rule accepted it on cylinder, cone and sphere.
 #[allow(clippy::too_many_arguments)]
 fn plus_loop(
     rim: Rim,
@@ -118,7 +162,7 @@ fn accepts_exactly(kind: &str, s: &Surface<f64>, edges: &[LoopEdge<f64>], exact_
 
 /// The non-rectangular domain must be refused by the ONE named
 /// predicate — not by some other check that happens to fire, which is
-/// the whole point of S56 (the torus was already protected, by a
+/// the whole point of S58 (the torus was already protected, by a
 /// private rule, and that is what made the fragmentation invisible).
 fn refuses_on_rim_level(kind: &str, s: &Surface<f64>, edges: &[LoopEdge<f64>]) {
     let band = Band::linear().unwrap();
@@ -144,38 +188,7 @@ const UO: f64 = 1.0;
 #[test]
 fn cylinder_plus_domain_refuses_and_the_rectangle_still_measures() {
     let r = 0.010;
-    let s = Surface::Cylinder {
-        origin: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
-        radius: r,
-        u_ref: v3(1.0, 0.0, 0.0),
-    };
-    let rim = move |v: f64, u0: f64, u1: f64, a: u32, b: u32| {
-        edge(
-            Curve3::Circle {
-                center: p3(0.0, 0.0, v),
-                axis: v3(0.0, 0.0, 1.0),
-                radius: r,
-                u_ref: v3(1.0, 0.0, 0.0),
-            },
-            u0,
-            u1,
-            a,
-            b,
-        )
-    };
-    let mer = move |u: f64, v0: f64, v1: f64, a: u32, b: u32| {
-        edge(
-            Curve3::Line {
-                origin: p3(r * u.cos(), r * u.sin(), 0.0),
-                dir: v3(0.0, 0.0, 1.0),
-            },
-            v0,
-            v1,
-            a,
-            b,
-        )
-    };
+    let (s, rim, mer) = cylinder_kit(r);
     let (a0, a1, a2, a3) = (0.0, 0.006, 0.014, 0.020);
     accepts_exactly(
         "cylinder",
@@ -329,7 +342,7 @@ fn torus_plus_domain_still_refuses_by_the_shared_predicate() {
         &rect_loop(&rim, &mer, a0, a3, -UO, UO),
         band_area(2.0 * UO, a0, a3),
     );
-    // The torus refused this before S56 too — by its own private rule.
+    // The torus refused this before S58 too — by its own private rule.
     // The claim of this row is that it still refuses, and now by the
     // SHARED predicate: same name, same metering, one home.
     refuses_on_rim_level("torus", &s, &plus_loop(&rim, &mer, a0, a1, a2, a3, UC, UO));
@@ -348,38 +361,7 @@ fn torus_plus_domain_still_refuses_by_the_shared_predicate() {
 #[test]
 fn the_whole_649_family_refuses() {
     let r = 0.010;
-    let s = Surface::Cylinder {
-        origin: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
-        radius: r,
-        u_ref: v3(1.0, 0.0, 0.0),
-    };
-    let rim = move |v: f64, u0: f64, u1: f64, a: u32, b: u32| {
-        edge(
-            Curve3::Circle {
-                center: p3(0.0, 0.0, v),
-                axis: v3(0.0, 0.0, 1.0),
-                radius: r,
-                u_ref: v3(1.0, 0.0, 0.0),
-            },
-            u0,
-            u1,
-            a,
-            b,
-        )
-    };
-    let mer = move |u: f64, v0: f64, v1: f64, a: u32, b: u32| {
-        edge(
-            Curve3::Line {
-                origin: p3(r * u.cos(), r * u.sin(), 0.0),
-                dir: v3(0.0, 0.0, 1.0),
-            },
-            v0,
-            v1,
-            a,
-            b,
-        )
-    };
+    let (s, rim, mer) = cylinder_kit(r);
     let vtop = 0.020;
 
     // Tall arms: the undercount approaches −50%.
@@ -432,7 +414,7 @@ fn the_whole_649_family_refuses() {
     refuses_on_rim_level("cylinder Z-staircase", &s, &stair);
 
     // The L-shape: unequal group sums AND an interior level. It was
-    // already refused before S56; either predicate may claim it.
+    // already refused before S58; either predicate may claim it.
     let l_shape = vec![
         rim(0.0, -1.0, 0.0, 0, 1),
         mer(0.0, 0.0, v1, 1, 2),
@@ -459,38 +441,7 @@ fn the_whole_649_family_refuses() {
 #[test]
 fn multi_arc_rims_at_the_extremes_still_measure() {
     let r = 0.010;
-    let s = Surface::Cylinder {
-        origin: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
-        radius: r,
-        u_ref: v3(1.0, 0.0, 0.0),
-    };
-    let rim = move |v: f64, u0: f64, u1: f64, a: u32, b: u32| {
-        edge(
-            Curve3::Circle {
-                center: p3(0.0, 0.0, v),
-                axis: v3(0.0, 0.0, 1.0),
-                radius: r,
-                u_ref: v3(1.0, 0.0, 0.0),
-            },
-            u0,
-            u1,
-            a,
-            b,
-        )
-    };
-    let mer = move |u: f64, v0: f64, v1: f64, a: u32, b: u32| {
-        edge(
-            Curve3::Line {
-                origin: p3(r * u.cos(), r * u.sin(), 0.0),
-                dir: v3(0.0, 0.0, 1.0),
-            },
-            v0,
-            v1,
-            a,
-            b,
-        )
-    };
+    let (s, rim, mer) = cylinder_kit(r);
     let (v0, v1) = (0.0, 0.020);
     // Bottom rim as two arcs [-1, 0.25] and [0.25, 1]; top likewise.
     let split = vec![

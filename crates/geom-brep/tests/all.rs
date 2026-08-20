@@ -84,8 +84,8 @@ mod review_r1_rational_probes;
 mod rim_dim_review_probes;
 #[path = "rim_dim_scale_twins.rs"]
 mod rim_dim_scale_twins;
-#[path = "s56_iso_rectangle.rs"]
-mod s56_iso_rectangle;
+#[path = "s58_iso_rectangle.rs"]
+mod s58_iso_rectangle;
 #[path = "span_meter_dim_twins.rs"]
 mod span_meter_dim_twins;
 
