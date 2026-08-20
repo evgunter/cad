@@ -342,6 +342,15 @@ fn wild_files_import_and_agree_with_the_oracle() {
 /// something committed here, so a regression in one of the legs
 /// cannot pass this suite by importing a corpus that stopped
 /// exercising it.
+///
+/// **Sibling, same job, same crate:** `freecad.rs`'s
+/// `the_committed_freecad_corpus_still_says_what_chart_and_units_quote`
+/// pins the FreeCAD corpus's dialect facts. The two ask different
+/// questions on purpose — this row is `any(corpus contains X)`, because
+/// its claim is *"each gap is present in something committed"*; that one
+/// is all-or-none per file, because `chart`'s and `units`' claims are
+/// universally quantified over their corpus. A third corpus claim
+/// belongs beside whichever of these matches its quantifier.
 #[test]
 fn the_committed_corpus_still_carries_the_dialects_it_was_chosen_for() {
     let all: Vec<String> = WILD_IMPORTS
