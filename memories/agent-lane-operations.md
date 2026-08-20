@@ -27,11 +27,12 @@ one-liner fix. General lesson worth keeping: a repo-relative path cached
 in per-clone git config is invisible to a repo-side rename — grep for
 `git config` when moving directories.
 
-**Disk.** Each lane grows a 4–8 GB `target/`; never share
-`CARGO_TARGET_DIR` across parallel builds (cargo's lock serializes
-them); `~/.cache/gmp-mpfr-sys` IS shared safely. Session start: arm
-`disk-watchdog.sh` (WARN <15G, CRITICAL <8G) from the installed monitor
-copies. Under pressure: `local-scripts/clean-lanes.sh [--dry-run]`
+**Disk.** Each lane grows a multi-GB `target/` (`disk-watchdog.sh`'s
+header carries the current size, and the script its own WARN/CRITICAL
+thresholds — read them there); never share `CARGO_TARGET_DIR` across
+parallel builds (cargo's lock serializes them); `~/.cache/gmp-mpfr-sys`
+IS shared safely. Session start: arm `disk-watchdog.sh` from the
+installed monitor copies. Under pressure: `local-scripts/clean-lanes.sh [--dry-run]`
 (re-checks pushed/clean/no-stash before each rm and refuses loudly);
 NEVER touch a running gate's target; confirm the OWNING agent has
 terminated before cleaning its lane. After a disk-full crash, purge torn
@@ -45,12 +46,13 @@ batch loops.
 cleanup is pointed at: put outputs at `cad-work/<name>-substrate/`, the
 clone INSIDE it, and remove only the clone subdir at the seam.
 
-**Build concurrency.** 10 GB WSL2 ceiling. Heavy cargo operations are
-bounded machine-wide by `local-scripts/with-build-slot.sh` — flock slot
-files in `~/.local/share/cad-work/locks/`; flock releases on process
-death, including SIGKILL/OOM. **Width is 1 (a mutex), measured not
-assumed**: concurrent warm workspace rebuilds cost ~40% against
-sequential, and `-j` caps make it worse, so there is no jobs cap either
+**Build concurrency.** Bounded by the box's RAM ceiling, not by
+taste. Heavy cargo operations are bounded machine-wide by
+`local-scripts/with-build-slot.sh` — flock slot files in
+`~/.local/share/cad-work/locks/`; flock releases on process death,
+including SIGKILL/OOM. **Width is 1 (a mutex), measured not assumed**:
+concurrent warm workspace rebuilds were measured slower than sequential
+ones, and `-j` caps make it worse, so there is no jobs cap either
 (PR #230). `CAD_SLOT_WIDTH=2` re-widens if hardware changes; batteries
 then take ALL slots (`-x`), and two concurrent batteries are the
 documented OOM shape. `ci-local.sh` (hence `gate.sh`) and `test-fast.sh`
@@ -61,7 +63,7 @@ self-acquire; wrap raw `cargo` invocations yourself.
   starve behind a battery. Batteries and default jobs keep the main
   mutex. Its cost model is unverified — the leading suspect for
   pathological build waits is express-lane overlap with a main-slot
-  build on a 10 GB box, ahead of any compiler flag.
+  build on a memory-tight box, ahead of any compiler flag.
 - Choose `-n` (grab-or-exit-75, then retry) over the default blocking
   wait for long queues — a blocking wait can eat a Bash call's 10-min
   cap. Long rows that must survive the harness 590s timeout: launch
