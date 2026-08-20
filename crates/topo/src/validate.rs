@@ -541,8 +541,7 @@ pub enum ValidationError {
     /// M2-constructible body computes; this is corruption surfaced
     /// loudly"* — row 1 for every arm — and #649 falsified that with
     /// an executed counterexample. It is not row 2 for every arm
-    /// either. Per source ([`MassPropsError`](crate::props::
-    /// MassPropsError)):
+    /// either. Per source ([`crate::props::MassPropsError`]):
     ///
     /// * `Face` — **row 2**, and the reachable one. The body carries a
     ///   face whose measurement lane the kernel has not built: today
