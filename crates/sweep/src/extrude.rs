@@ -334,7 +334,7 @@ pub(crate) struct WallSeg<T: Real> {
 /// [`wall_sense_of`], read off the CANONICAL segment the traversal
 /// records, so the bit is the same whichever direction the loop is
 /// swept.
-pub(crate) fn wall_segments<T: Decide>(lp: &ValidatedLoop<T>, reverse: bool) -> Vec<WallSeg<T>> {
+pub(crate) fn wall_segments<T: Real>(lp: &ValidatedLoop<T>, reverse: bool) -> Vec<WallSeg<T>> {
     let canonical = lp.segments();
     swept::swept_segments(lp, reverse)
         .into_iter()
@@ -346,21 +346,16 @@ pub(crate) fn wall_segments<T: Decide>(lp: &ValidatedLoop<T>, reverse: bool) -> 
 }
 
 /// The wall sense of one CANONICAL segment ([`WallSeg::wall_sense`]):
-/// `false` iff it is a concave arc (canonical turn `Negative`). Reads
-/// the stored classification only — `Zero` is unreachable for
-/// classified arcs (a zero turn classified as a line); kept total by
-/// taking the convex arm, the [`crate::swept::turn_axis`] posture.
-///
-/// This arc rule is the one arm extrude and revolve share:
-/// `revolve::axis::classify_segment` derives the same
-/// `turn == Positive` criterion for its sphere and torus walls, and
-/// says so. Revolve's other walls (cylinder, cone, plane annulus) read
-/// a canonical Δz or Δr instead, which is why the sense derivation as
-/// a whole is per-verb and lives in neither shared home.
+/// `false` iff it is a concave arc. An extrude wall's chart normal is
+/// the outward radial of its carrier cylinder, so the face's sense is
+/// `true` exactly when the material is on the far side of the carrier
+/// from the chord — which is [`swept::centre_on_material_side`], the
+/// same rule and the same body revolve's arc walls use. Line walls are
+/// Newell-outward by construction.
 fn wall_sense_of<T: Real>(s: &profile::ValidatedSegment<T>) -> bool {
     match s.kind {
         SegmentKind::Line => true,
-        SegmentKind::Arc { turn, .. } => matches!(turn, Sign::Positive | Sign::Zero),
+        SegmentKind::Arc { turn, .. } => swept::centre_on_material_side(turn),
     }
 }
 

@@ -1,37 +1,48 @@
-//! The lowering every profile sweep shares: the carrier class of one
-//! swept segment, the sketch-level quantities derived from it (apex,
-//! span, turn-signed axis), the edge spec a placed segment mints, the
-//! cap-plane point list, the cosurface decision, and the two
-//! crate-wide accessors (the classification funnel, a face's surface
-//! key).
+//! The lowering every profile sweep shares: the swept-traversal record
+//! and the builder that fills it, the carrier class of one swept
+//! segment, the sketch-level quantities derived from it (apex, span,
+//! turn-signed axis), the arc material-side rule, the edge spec a
+//! placed segment mints, the cap-plane point list, the cosurface
+//! decision, and the two crate-wide accessors (the classification
+//! funnel, a face's surface key).
 //!
 //! This module is a sibling of the sweep verbs, not a member of one:
 //! its consumers are `extrude`, `revolve` and `loft`, and a core
 //! hosted inside one of its consumers is the shape that drifts.
 //!
 //! What is deliberately NOT here: anything a verb decides
-//! differently. The **wall-orientation sense** is per-verb — every
-//! extrude wall reads the canonical turn (`false` exactly on concave
-//! arcs), a revolve wall reads the canonical turn only where its
-//! carrier centre is on the meridian (sphere, torus) and reads the
-//! canonical Δz or Δr otherwise (cylinder, cone, plane annulus), and
-//! loft is uniform `true` — so the three rule sets share one arm, not
-//! a body, and `revolve::axis` names that arm where it states its own
-//! derivation. The **strut carrier** is per-verb: a translation
-//! trajectory is a line, a rotation trajectory is a circle, and the
-//! two specs agree on neither arity, carrier nor `MappedCurve`
-//! variant.
+//! differently. The **wall-orientation sense** is per-verb, and the
+//! split is by segment kind: on ARC walls every verb that has them
+//! reads the canonical turn, which is why that arm is here as
+//! [`centre_on_material_side`] and is called from both verbs rather
+//! than spelled twice. On LINE walls they diverge and no body is
+//! shared — extrude's are Newell-outward and always `true`, revolve's
+//! read a canonical Δz (cylinder, cone) or Δr (plane annulus), and
+//! loft is uniform `true`. The **strut carrier** is per-verb: a
+//! translation trajectory is a line, a rotation trajectory is a
+//! circle, and the two specs agree on neither arity, carrier nor
+//! `MappedCurve` variant.
 //!
 //! The **swept-traversal builder** is not in that list: it is here.
-//! [`swept_segments`] is the one home of the profile crate's reversal
-//! involution, and [`SweptSeg`] the record it fills. Each verb still
-//! decides *whether* to reverse for its own reason — extrude for
-//! `w·n < 0`, revolve for θ > 0, loft never — but the relabelling
-//! itself is one rule with one implementation. Extrude needs one field
-//! more than the record carries, and takes it the way [`SweptChord`]
-//! already prescribes: its own record (`extrude::WallSeg`) wraps these
-//! fields and adds the orientation bit, and every shared body below
-//! reads it through the trait, so no shared body can see that bit.
+//! [`swept_segments`] is the one place a validated loop is relabelled
+//! into traversal order, forward or reversed, and [`SweptSeg`] the
+//! record it fills. Each verb still decides *whether* to reverse for
+//! its own reason — extrude for `w·n < 0`, revolve for θ > 0, loft
+//! never — but the relabelling is one rule with one implementation.
+//! Extrude needs one field more than the record carries, and takes it
+//! the way [`SweptChord`] prescribes: its own record
+//! (`extrude::WallSeg`) wraps these fields and adds the orientation
+//! bit, and every shared body below reads it through the trait, so no
+//! shared body can see that bit.
+//!
+//! **One qualifier, and it is load-bearing: `from a validated loop`.**
+//! `revolve::tube` mints its two-arc traversal directly from the
+//! caller's intent values, because its whole purpose is to store the
+//! given centre and radii bit-exactly rather than reconstruct them
+//! from bulges — so it cannot take a `ValidatedLoop` and cannot come
+//! through here. It applies the same reversal convention by hand and
+//! **says so at its own site**; that marker is the only thing tying
+//! the two together, and it is deliberately not deleted.
 
 use geom::Curve3;
 use geom_brep::{EdgeCurveSpec, EdgeGeometry, MappedCurve, SketchSegment};
@@ -41,18 +52,25 @@ use geom_core::{
 use topo::{Body, EulerOpError, FaceKey, SurfaceKey};
 
 /// The classification funnel of this shared lowering, and of `extrude`
-/// and `revolve` above it (the `geom-brep` pattern). It is not the
-/// crate's only one, and it is not the crate's only door to the
-/// recorder: `fillet` keeps a second funnel, and three decisions —
-/// `loft`'s stacking test, `extrude`'s tangent test and
-/// `revolve::tube`'s angle window — call the recorder directly. They
-/// are named rather than counted because a name goes stale visibly
-/// and a count does not; the list is the `k_stats::decide` callers in
-/// `crates/sweep/src` that are not a funnel.
+/// and `revolve` above it (the `geom-brep` pattern).
+///
 /// Delegates to the unified recorder funnel
 /// [`geom_core::k_stats::decide`], so every decision's predicate name
 /// reaches the margin-telemetry recorder. The name is a parameter —
 /// each verb keeps its own predicate names through one shared body.
+///
+/// **This is not the crate's only funnel, nor its only door to the
+/// recorder**, and the population is a grep rather than a list here:
+/// `rg 'geom_core::k_stats::decide' crates/sweep/src` catches every
+/// module that reaches the recorder, because the only two ways to
+/// reach it are that path written out at the call site and that path
+/// imported at the top of a module — the second is why grepping for
+/// `decide(` instead finds neither this funnel's callers nor
+/// `revolve::tube`'s four. It over-catches by the doc comments that
+/// name the funnel, which are prose, not calls; that is the price of
+/// having no false negatives. Stated as the command rather than as a
+/// count or a list of names: both of those have already gone stale
+/// here once each, in opposite directions.
 pub(crate) fn decide<T: Decide>(
     name: &'static str,
     margin: Margin<T>,
@@ -68,8 +86,12 @@ pub(crate) fn decide<T: Decide>(
 /// Field-for-field the shape of `profile::SegmentKind`, and
 /// deliberately a separate type: `turn` here is the **swept** turn,
 /// flipped by a reversal, where the profile crate's is the canonical
-/// one. The two are the same data under different orientation, so a
-/// change to either enum's arms is a change to both.
+/// one — the same data under different orientation.
+///
+/// The correspondence is not kept by hand. [`swept_segments`] is the
+/// only place one is built from the other, and its `match` is
+/// exhaustive over `profile::SegmentKind`, so an arm added there stops
+/// this crate compiling until it is answered here.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum SweptKind<T: Real> {
     Line,
@@ -81,6 +103,27 @@ pub(crate) enum SweptKind<T: Real> {
         /// kept total — a `Zero` would take the `Positive` arm).
         turn: Sign,
     },
+}
+
+/// Whether an arc's carrier centre lies on the material side of its
+/// chord, from the segment's CANONICAL turn: `true` unless the turn is
+/// `Negative`.
+///
+/// The profile's canonical winding is material-left (outers
+/// counterclockwise, holes clockwise) and a counterclockwise arc curves
+/// around its centre, so the centre is left of the chord — the material
+/// side — exactly when the canonical turn is `Positive`. Concavity is a
+/// property of the 2-D region against the carrier alone, so the sweep
+/// direction never enters; callers pass a canonical turn, never a swept
+/// one.
+///
+/// Total by design. `Zero` is unreachable for a classified arc (a zero
+/// turn classifies as a line) and takes the convex arm, the
+/// [`turn_axis`] posture — decided here once rather than at each
+/// consumer, which is the reason this is a function and not a rule
+/// each verb spells for itself.
+pub(crate) fn centre_on_material_side(canonical_turn: Sign) -> bool {
+    !matches!(canonical_turn, Sign::Negative)
 }
 
 /// The sketch-level chord data this module's lowering reads from a
@@ -104,7 +147,7 @@ pub(crate) trait SweptChord<T: Real> {
 }
 
 /// One segment of a swept loop in swept traversal order, with the
-/// canonical indices it came from (for error reporting).
+/// canonical indices it came from.
 ///
 /// This is what a swept traversal *is*, for every verb: the canonical
 /// loop's chord data relabelled into traversal order. A verb that
@@ -122,9 +165,16 @@ pub(crate) struct SweptSeg<T: Real> {
     pub(crate) bulge: T,
     /// The carrier class in swept traversal order.
     pub(crate) kind: SweptKind<T>,
-    /// Canonical index of the start vertex (for error reporting).
+    /// Canonical index of the start vertex. Error reporting only.
     pub(crate) canonical_vertex: usize,
-    /// Canonical index of the segment (for error reporting).
+    /// Canonical index of the segment: the index in the loop's
+    /// CANONICAL segment slice that this traversal segment retraces.
+    ///
+    /// Not error reporting only — `extrude::wall_segments` indexes the
+    /// canonical slice with it to read the turn that decides a wall
+    /// face's orientation, so a wrong value here is wrong geometry,
+    /// not a wrong message. It is set from the traversal's own
+    /// relabelling below and never from anything else.
     pub(crate) canonical_segment: usize,
 }
 
@@ -154,7 +204,7 @@ impl<T: Real> SweptChord<T> for SweptSeg<T> {
 /// re-decided from scalar data. Swept segment `j` retraces canonical
 /// segment `n − 1 − j`, and swept vertex `j` is canonical vertex
 /// `(n − j) mod n`.
-pub(crate) fn swept_segments<T: Decide>(
+pub(crate) fn swept_segments<T: Real>(
     lp: &profile::ValidatedLoop<T>,
     reverse: bool,
 ) -> Vec<SweptSeg<T>> {

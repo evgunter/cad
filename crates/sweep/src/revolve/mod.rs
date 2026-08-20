@@ -22,10 +22,12 @@
 //!   `−n` side of the sketch plane (velocity `a₃ × radial` at angle 0),
 //!   so the **start cap** (on the sketch plane) is outward-`+n` and
 //!   carries the profile's canonical winding; the sweep therefore
-//!   traverses the chains **reversed** for θ > 0 (the profile crate's
-//!   reversal involution — the exact mirror of extrude's `w·n < 0`
-//!   case), forward for θ < 0. [`Revolution::Full`] sweeps +2π and
-//!   reverses likewise.
+//!   traverses the chains **reversed** for θ > 0, forward for θ < 0.
+//!   `θ > 0` is this verb's answer to the question extrude answers
+//!   with `w·n < 0`; both feed the one
+//!   [`crate::swept::swept_segments`], which is where the involution
+//!   itself lives. [`Revolution::Full`] sweeps +2π and reverses
+//!   likewise.
 //! - **The shared azimuthal frame.** Every revolution surface minted by
 //!   one revolve call uses `axis = +a₃` and `u_ref = u₃ = place·ê_r`,
 //!   anchored on the placed axis line — so the `u = 0` iso-curve of
