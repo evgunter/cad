@@ -674,6 +674,25 @@ when the review lands, which is why it trails.
 
 ## Landings
 
+### F6 (S73 parts 1 and 3) — **CLEARED 2026-08-20**, the track's first
+
+**It cleared on a deletion**, which F-R14 had pre-authorised. The row that failed
+twice is gone; what replaces it is Q6's written reason living on the constants —
+the adjacent-sample table (321: 5.88%, 322: 3.64%, **323: 5.24%**, 324: 1.79%,
+325: 3.94%), the non-convergence at 2,000, and `323` named as the witness. **It
+carries the fact rather than the conclusion.** S73 part 3's actual subject,
+`GROWTH_TOLERANCE`, is boxed to `[1.04, 1.06)` from 1.889× wide and was never in
+question; what died was the class-check member, with its reason written where the
+constants live.
+
+**Route: two failed instruments, one deletion, one row placed.** That is not a
+failure of the lane — every figure it reported reproduced under adversarial
+re-derivation, twice. It is what happens when a finding asks for a guard on a
+quantity that cannot carry one, and the honest end state took two attempts to
+reach because *"no honest box exists"* is the answer nobody reaches first.
+
+**What the lane landed, in its own words.**
+
 **F-b — F6 (S73 parts 1 and 3), PR #783.** *Recorded in the PR that
 carries it: this entry and the fix are one diff, so it lands when the PR
 does and not before. The `## Reviews` row above is the orchestrator's.*
@@ -718,6 +737,27 @@ things the instruments still cannot see after F6, including the
 baseline-side direction argument F6's own sweep got half right). Both
 reserved numbers used. **The C15/#746 boundary is stated at the site**,
 in `compare`'s face loop, so it can be read out of the tree.
+
+### D105 / S160 — the proposal that came out of it
+
+**Pin the continuous objective, not the cell count.** The discontinuity is
+*entirely* the two `ceil`s: the unceiled worst excess moves by **hundredths** of
+a point across the same neighbours (321: 0.017%, 322: 0.083%, 323: 0.011%, 324:
+0.030%) against ~4 points for the ceiled quantity, and falls smoothly with
+resolution (65: 1.82%, 200: 0.096%, 400: 0.0069%, 1,000: 0.0034%). It is
+continuous because it is a sampled minimum of a smooth function of `log t` with
+no rounding, so it depends only on the sampling step and the range — *exactly
+what these two constants set*. It reds on both failure modes with one number.
+
+**The validation is the part that convinces, and it is not an argument:**
+**`D = 40` → 1.82% is identical to `S = 65`, which has the same sampling step.**
+That equality is evidence the quantity measures **resolution** rather than
+lattice luck.
+
+Placed rather than landed: no third instrument in a row that has shipped two, it
+needs a parameterization of code the brief marked read-only, and it deserves its
+own review rather than riding a clearance. **The evidence is written into the
+row, which is the thing that was at risk.**
 
 ## Incidents
 

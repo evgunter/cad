@@ -228,7 +228,10 @@ fn cached_half_edge_on(body: &Body<f64>, want: impl Fn(&Surface<f64>) -> bool) -
 /// These were two tests until the test-cost audit, and the file's own
 /// note above already said what that cost: nextest runs one process per
 /// test, so the `OnceLock` shared nothing and EACH arm paid the whole
-/// cylinder×sphere trace (~3 s) for ~10 ms of tessellation work. The
+/// cylinder×sphere trace (~3 s) for ~10 ms of tessellation work — a
+/// dated reading from the test-cost audit that nothing re-measures, and
+/// nothing needs to: it justified a merge that has already happened, and
+/// no assertion below reads it. The
 /// cache is a value, immutable, and each arm attaches its own clone to
 /// its OWN host body, so nothing crosses between them but the cache
 /// itself — which is exactly what the memo was trying to say.
