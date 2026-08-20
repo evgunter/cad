@@ -1304,11 +1304,41 @@ and have no branch to write. **Nothing there became an `unreachable!`**
 — each refusal moved to the door that decides it rather than becoming a
 panic.
 
-*This paragraph records what happened to one state and claims nothing
-beyond it.* Whether "can the type stop representing it?" is the
-question to ask FIRST at the next site of this shape is a ruling about
-how this addendum is applied, it bears on **S14**, and it is not
-settled here; it is open for Evan's sign-off in its own PR.
+**Representability comes before classification** (proposed 2026-08-20
+out of D27; PENDING Evan's sign-off). When a state is neither
+reachable by input nor locally provable — neither row 1 nor row 4 —
+the first question is not which row it belongs in. It is whether the
+type that carries it can stop representing it. Only a state that
+survives that question is a taxonomy question at all.
+
+*Why this is a rule and not an anecdote.* The addendum is applied by
+walking a module's refusals and sorting them into five rows. That
+procedure has no step at which "this state should not exist" can be
+the answer, so a state that fits no row reads as a gap in the
+taxonomy — which is exactly how `EmptyChain` came to be filed under a
+row whose definition it failed, and how a sixth row came to look like
+the fix. The rule adds the missing step. It costs nothing when the
+answer is no, and when the answer is yes it removes a public error
+variant, its `Display` arm, its recourse row and its test seed rather
+than adding a class to the contract.
+
+*The two worked cases, which are the argument.* `FilletError::EmptyChain`
+**could** stop being representable: the emptiness was an artefact of
+`Chain` holding its links in a `Vec` when `walk_chains` mints every
+chain from a seed link, so moving the first link into its own field
+deleted the state, both its refusal sites and the pin that guarded it
+(#768). `topo::instance`'s graft class **cannot**: a public door
+genuinely produces a spent, partially-written destination and hands it
+back, so no type change removes the state — a caller can hold it. That
+is the difference between a state a type is careless about and a state
+the system really has, and it is the line this rule draws.
+
+*What it does NOT decide.* It does not touch the five rows, it does
+not classify the graft class, and it does not answer **S14** — a state
+that survives the representability question still needs a row, and
+S14 is exactly such a state. If anything, it sharpens S14 by removing
+a case that was being carried alongside it as if it were the same
+question. **S14 stays open and stays Evan's.**
 
 *Still outstanding:* **discard sites elsewhere in `crates/topo`**,
 which the three-module census never counted and this addendum has
