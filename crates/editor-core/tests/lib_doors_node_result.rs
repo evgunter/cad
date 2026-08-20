@@ -174,3 +174,56 @@ fn refusals_render_as_prose_not_debug_guts() {
         assert!(!message.contains(guts), "Debug guts leaked: {message}");
     }
 }
+
+/// **A `NodeErrorKind` arm that holds a kernel refusal RENDERS it.**
+/// The variant carries the typed error for a caller who can match; the
+/// message is the whole channel for one who cannot, and the bindings'
+/// `kind` attribute is the discriminant alone — so an arm that names
+/// the op and stops has spent the payload's class, keys and recourse
+/// on nothing.
+///
+/// **Representative, not exhaustive**, and nothing makes it
+/// exhaustive: `NodeErrorKind` cannot be enumerated at runtime and a
+/// hand-kept roster of arms is the very shape this repo keeps
+/// retiring. One arm per payload-owning crate is pinned instead —
+/// `profile`, `sweep` (three doors), `topo` (two). A new arm wrapping
+/// a new kernel error is not covered here; the module comment on the
+/// `Display` impl is what states the rule for it.
+#[test]
+fn a_kernel_payload_arm_forwards_the_payloads_own_message() {
+    use editor_core::NodeErrorKind as K;
+
+    let cases: Vec<K> = vec![
+        K::Profile(profile::ProfileError::EmptyProfile),
+        K::Extrude(sweep::ExtrudeError::ObliqueExtrusion),
+        K::Revolve(sweep::RevolveError::DegenerateAxis),
+        K::Skin(sweep::SkinError::TooFewSections { have: 1, need: 2 }),
+        K::Loft(sweep::LoftError::SeamStructure),
+        K::Fillet(sweep::fillet::FilletError::RepeatedEdge {
+            edge: topo::EdgeKey::default(),
+        }),
+        K::Transform(topo::transform::TransformError::NurbsPlaceholder),
+    ];
+
+    for kind in cases {
+        let rendered = kind.to_string();
+        let payload = match &kind {
+            K::Profile(e) => e.to_string(),
+            K::Extrude(e) => e.to_string(),
+            K::Revolve(e) => e.to_string(),
+            K::Skin(e) => e.to_string(),
+            K::Loft(e) => e.to_string(),
+            K::Fillet(e) => e.to_string(),
+            K::Transform(e) => e.to_string(),
+            other => panic!("add the new case's payload here: {other:?}"),
+        };
+        assert!(
+            rendered.ends_with(&payload),
+            "the arm dropped its payload: rendered {rendered:?}, payload {payload:?}"
+        );
+        assert!(
+            rendered.len() > payload.len(),
+            "the arm must still name the failing op: {rendered:?}"
+        );
+    }
+}

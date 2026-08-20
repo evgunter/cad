@@ -390,12 +390,17 @@ pub enum NodeErrorKind {
     Revolve(RevolveError),
     /// The split op refused.
     Split(SplitError),
-    /// The constant-radius fillet op refused (M5 PR 12) — the battery
-    /// verdict that rejected the request BEFORE anything was minted,
-    /// the assembly front door ("every edge of a convex, planar-faced,
-    /// trivalent-vertex polyhedron"), or a named frontier. Carried
-    /// UNALTERED like every other kernel refusal; the node never
-    /// passes its input body through.
+    /// The constant-radius fillet op refused (M5 PR 12): a structural
+    /// precondition on the requested chain, one of the numbered
+    /// rolling-ball predicates, a corner or spine class the in-place
+    /// surgery has not been built for, or an escalation. Which door
+    /// refused, and what it refused about, is stated on
+    /// [`sweep::fillet::FilletError`]'s own variants and rendered by
+    /// its `Display` — this doc names no predicate of its own, so it
+    /// cannot drift from one.
+    ///
+    /// Carried UNALTERED like every other kernel refusal; the node
+    /// never passes its input body through.
     Fillet(sweep::fillet::FilletError),
     /// The boolean op refused.
     Boolean(BooleanError),
@@ -642,19 +647,31 @@ pub enum NodeErrorKind {
 }
 
 // LIB-DOORS F6 (reopened on review): the human-readable rendering the
-// bindings' exception messages consume. Each arm states the PROBLEM
-// in the op's vocabulary, not the payload's guts — the kernel refusal
-// rides the variant, unaltered (D2), for callers who match; prose
-// here names the failing op and its violated expectation.
+// bindings' exception messages consume. Each arm names the failing op
+// and then FORWARDS its payload's own `Display` — the kernel refusal
+// still rides the variant unaltered (D2) for callers who match, but
+// this string is the only channel a caller who cannot match has, and
+// the bindings' `kind` tag carries the discriminant alone. An arm that
+// re-states a payload it holds in its own words invents a second
+// vocabulary for a refusal that already has one.
+//
+// Four arms render prose over a payload they hold, each for a stated
+// reason. `Expr`, `DeclareResolve`, `FilletSelectionResolve` and
+// `WitnessBifurcation` carry editor-core's OWN types, and `EvalError`,
+// `ResolveError` and `WitnessBifurcation` have no `Display` to forward
+// — so those messages are as good as the crate can currently make
+// them. `UndeclaredContact` owns a two-armed recourse menu (F6) that
+// its `Indeterminate` diagnostic does not carry, and its prose is
+// pinned by test in both languages.
 impl core::fmt::Display for NodeErrorKind {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Expr { slot, .. } => {
                 write!(f, "the expression at slot {slot:?} failed to evaluate")
             }
-            Self::Profile(_) => f.write_str("the replayed profile failed validation"),
-            Self::ProfileReplay { loop_, .. } => {
-                write!(f, "profile loop {loop_}'s program refused at replay")
+            Self::Profile(e) => write!(f, "the replayed profile failed validation: {e}"),
+            Self::ProfileReplay { loop_, error } => {
+                write!(f, "profile loop {loop_}'s program refused at replay: {error}")
             }
             Self::ProfileAnchor { loop_ } => write!(
                 f,
@@ -672,18 +689,19 @@ impl core::fmt::Display for NodeErrorKind {
                  re-verify against this version of the part",
                 instance.0, mate.0
             ),
-            Self::Extrude(_) => f.write_str("the extrude op refused"),
-            Self::Revolve(_) => f.write_str("the revolve op refused"),
-            Self::Split(_) => f.write_str("the split op refused"),
-            Self::Fillet(_) => f.write_str("the fillet op refused"),
-            Self::Boolean(_) => f.write_str(
+            Self::Extrude(e) => write!(f, "the extrude op refused: {e}"),
+            Self::Revolve(e) => write!(f, "the revolve op refused: {e}"),
+            Self::Split(e) => write!(f, "the split op refused: {e}"),
+            Self::Fillet(e) => write!(f, "the fillet op refused: {e}"),
+            Self::Boolean(e) => write!(
+                f,
                 "the Boolean op refused its operands (undeclared coincidence is the \
                  common case: the kernel never infers that touching faces are the \
-                 same face)",
+                 same face): {e}"
             ),
-            Self::Transform(_) => f.write_str("the transform op refused"),
-            Self::Skin(_) => f.write_str("the skin construction refused"),
-            Self::Loft(_) => f.write_str("the loft assembly refused"),
+            Self::Transform(e) => write!(f, "the transform op refused: {e}"),
+            Self::Skin(e) => write!(f, "the skin construction refused: {e}"),
+            Self::Loft(e) => write!(f, "the loft assembly refused: {e}"),
             Self::CurvedSolidFrontier { what } => write!(f, "not yet buildable: {what}"),
             Self::MissingInput { input } => {
                 write!(f, "input {} names no live node", input.0)
@@ -713,18 +731,20 @@ impl core::fmt::Display for NodeErrorKind {
             Self::DegenerateDirection { role } => {
                 write!(f, "the {role} direction has zero length")
             }
-            Self::Band(_) => {
-                f.write_str("the ambient tolerance could not form a classification band")
-            }
+            Self::Band(e) => write!(
+                f,
+                "the ambient tolerance could not form a classification band: {e}"
+            ),
             Self::MissingSlot { slot } => {
                 write!(
                     f,
                     "internal: the wiring expected slot {slot:?}, which is absent"
                 )
             }
-            Self::Escalated { predicate, .. } => {
-                write!(f, "predicate {predicate} escalated (in-band indeterminacy)")
-            }
+            Self::Escalated { predicate, source } => write!(
+                f,
+                "predicate {predicate} escalated (in-band indeterminacy): {source}"
+            ),
             Self::AxisNotInSketchPlane { axis } => write!(
                 f,
                 "revolve axis (node {}) does not lie in the profile's sketch plane",
