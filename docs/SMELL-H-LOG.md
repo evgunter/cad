@@ -266,6 +266,7 @@ seam.
 | **H-d** | H6 | **S88** (`geom` half only) | `geom/src/projection.rs`, `curves/projection.rs`, `surfaces/projection.rs`, `curves/boxes.rs`, `bvh/src/aabb.rs` | style | **dispatched** 2026-08-21, lane `smellh-d`, branch `smellh/h-d` |
 | **H-e** | H7 | **D109(a)** | `geom-core/src/linalg/{vec,mat}.rs`, `scripts/gates/`, whatever goldens move | **adversarial** + style | **dispatched** 2026-08-21, lane `smellh-e`, branch `smellh/h-e` |
 | **H-f** | H5 | **C7** (+ S44 residue, S55), **S33** | `geom-core/src/real.rs`, `ring_interval.rs`, `geom/src/{curves,surfaces}.rs`, +11 | style; **`Dual` sub-lane adversarial** | — |
+| **H-g** | **H-R4** (new) | **S90**'s implementation, **#874**'s structural half | `geom/src/{projection,curves/projection,surfaces/projection}.rs`, `topo/src/chart_region.rs`, `sweep/src/fillet/{build,surgery,battery}.rs`, `geom-core/src/real.rs`, `scripts/gates/bounds-allowlist.sh` | **adversarial** + style | **dispatched** 2026-08-21, lane `smellh-g`, branch `smellh/h-g` |
 
 **Why each adversarial row is adversarial**, since the criterion is
 narrower than "load-bearing":
@@ -280,6 +281,12 @@ narrower than "load-bearing":
   **~25 consumer sites**, and the described-net-with-poisoned-`x` case it
   newly catches is by construction one nothing currently constructs. The
   behaviour change is the point; its blast radius is the risk.
+- **H-g** — it **evicts `Dual` at the public API of a library crate**, on a
+  ruling whose own scope note is *"at least for now"*. The failure mode
+  is not a wrong answer but a tightened **pass**: H-R3 turns on the
+  doors/passes distinction, and the edit that respects it and the edit
+  that breaks it differ by one bound. Its first task is a
+  caller-propagation proof, not a change.
 - **H-e** — it **moves `f64` bytes and re-cuts goldens** at
   `mat.rs::rotation_about`. The sequencing is non-negotiable (convert,
   re-cut, *then* widen the matcher), and getting it backwards reds two
