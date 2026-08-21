@@ -372,7 +372,7 @@ work, not of the schedule.
 | Wave | Lanes | Why together |
 |---|---|---|
 | **1** | **H-a** (H1/S86), **H-d** (H6/S88), **H-e** (H7/D109(a)) | Disjoint files: `ring_interval.rs`, `geom`'s projection doors, `geom-core/src/linalg/`. `H1` is marked *take it first* by the frozen table — one file, hours of work, and a certification door returning a certificate for garbage. |
-| **2** | **H-b** (H2/S99–S103+S116(b)), **H-c** (H3/S85 + H4/S89) | Both wait on wave 1. `H-c`'s `S89` sits on `from_certified`, which `H-a` rewrites; `H-b`'s naming work wants `H-d`'s landed doc changes under it. |
+| **2** | **H-b** (H2/S99–S103+S116(b)), **H-c** (H3/S85 + H4/S89) | Both wait on wave 1. **The original reason given here was wrong** — it said `H-c`'s `S89` sits on `from_certified` *"which `H-a` rewrites"*, and #880's reviewer established that **`H-a` never touched `from_certified`**: its doc, its prose caller census and its three wrappers are all untouched. The real reason is H-R6's: `H-a`'s sweep took `real.rs`, `ssi/enclose.rs` and `tests/decoration_seam.rs`, **all three rostered to `H-c`**. Same conclusion, different fact, and the difference matters because a lane told the wrong reason checks the wrong file. `H-b`'s naming work wants `H-d`'s landed doc changes under it. |
 | **3** | **H-f** (H5/C7+S33), 2–3 sub-lanes | Collides with all of the above. Its `Dual`-arithmetic sub-lane is adversarial per C-R12 and §H. |
 
 **`S90` is Evan-only and is not a lane** — the largest D1 residue is the
@@ -505,6 +505,39 @@ brief must say so, because a lane that finds three of its files already
 edited by an unannounced hand reads it as a rogue actor, which is the
 lane-takeover courtesy `memories/agent-lane-operations.md` exists to
 prevent.
+
+### H-R8. Two orchestrator hypotheses, two falsifications, both by reviewers
+
+**Recorded as a pattern rather than twice as an apology.** This track has
+now put two hypotheses of its own into dispatches, and reviewers have
+killed both on first contact:
+
+- **H-R5's screen** — *"sole `T: Bounds` **and** `T` in the return type"* —
+  silent on `projection::mid`, the freeze site the finding is about.
+  Retracted above.
+- **The `S89` predicate worry** — that #880's poison checks at three
+  implementors would mint three spellings of one predicate, S89's defect
+  one finding over. **False.** Each door consults the type's own existing
+  one-home test (`f64::is_nan`, `RingInterval::is_poison`,
+  `Interval::is_certified`, `Probe` delegating). The reviewer's words:
+  *"I built on the hypothesis and it did not survive contact."*
+
+**What the second one cost, which is the part worth keeping.** The
+hypothesis was not merely wrong, it **pointed away from the finding that
+matters**: the defect *is* present, in the **prose** register (five
+restatements of one rule, a hand-maintained implementor census) and not
+the predicate register — and chasing the predicate register led away from
+**S5**, the postcondition hand-rolled in three other doors, which is the
+row the reviewer would actually schedule. **A wrong hypothesis in a brief
+does not just fail; it spends the reviewer's attention.**
+
+**Both were flagged as unverified when issued, and both were killed
+because a reviewer was told to kill them.** That is the mechanism working
+as designed — `docs/REVIEW-STYLE-DISPATCH.md` §3 says a dispatcher's
+unchecked causal story arrives carrying the dispatcher's authority. The
+standing practice for this track: **an orchestrator hypothesis ships with
+an explicit instruction to falsify it, or it does not ship.** A third one
+should also be cheaper to test than to believe.
 
 ## Incidents
 
