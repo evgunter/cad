@@ -567,12 +567,21 @@ DECLARATION — a single TRANSITION TABLE, one row per
 (state, verb, kernel fn, next state), macro-expanded (the
 point_state precedent) into all four artifacts: the typed
 method, the driver match arm, the Step variant, and the tag
-entry. Nothing is written twice, so nothing can drift: a
-missing row is missing EVERYWHERE consistently and loudly; an
-inconsistent pair is unwritable because there is no second
-place to write it. The round-9 exhaustiveness pressure rides
-the same table for free (wire enum, replay arms, tags enumerate
-its rows by construction). The V2 drift-proofing differential
+entry. None of those four is written twice, so no two of them
+can drift: a missing row is missing from all four, consistently
+and loudly; an inconsistent pair is unwritable because there is
+no second place to write it. All four are inside `profile`;
+what the table does not reach is at the head of
+`transition_table!`. **The round-9 exhaustiveness pressure does
+NOT ride the same table, and this sentence used to say it did**
+(smell-scan S195, corrected by #836): that pressure is over the
+ARC-MODE enum `ArcData`, the table is over the VERB vocabulary,
+and the three sites round 9 names as matching `ArcData`
+exhaustively — the replay driver's arc dispatchers, the persist
+wire, the tag map — are hand-written, none of them expanded
+from a row. The pressure is real at each of those matches; it
+is bought by hand at every site rather than projected from one
+declaration. The V2 drift-proofing differential
 census RETIRES to one smoke row (it becomes a tautology). The
 entry signatures genuinely differ (typed method vs step data),
 which is why the unification lives at the DECLARATION level —

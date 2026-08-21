@@ -16,7 +16,12 @@
 # exactly the seam real.rs already names, so the two steps agree
 # about where the seam is; growing it needs the same ratification
 # the Bounds allowlist does. Both bound positions are caught
-# (`T: EvalScalar` and `+ EvalScalar`), comments stripped as above.
+# (`T: EvalScalar` and `+ EvalScalar`), over `lib.sh`'s code-only view:
+# comments and string literals are gone in both directions, where the
+# leading-`//` filter this gate carried stripped neither a trailing
+# comment nor a block one — and over the STATEMENT view, because
+# `rustfmt` wraps a long bound list as `T: Clone\n    + EvalScalar,` and
+# a line matcher is blind to the form the formatter produces (S158).
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -24,10 +29,9 @@ set -euo pipefail
 gate() {
   gate_require_crate_sources
   local hits
-  hits=$(grep -rnE '(:|\+)\s*(editor_core::)?EvalScalar\b' crates/*/src \
-    | grep -vE ':[0-9]+:\s*(//|///|//!)' \
-    | cut -d: -f1 | sort -u \
-    | grep -vE '^crates/editor-core/src/eval/(mod|parts)\.rs$' || true)
+  hits=$(gate_rust_code --statements "${GATE_SOURCE_FILES[@]}" \
+    | grep -E '(:|\+)[[:space:]]*(editor_core::)?EvalScalar([^A-Za-z0-9_]|$)' \
+    | grep -vE '^crates/editor-core/src/eval/(mod|parts)\.rs:' || true)
   if [ -n "$hits" ]; then
     echo "$hits"
     gate_error "EvalScalar (a compound Bounds bound by another name) outside the evaluation-service seam — see geom-core/src/real.rs (Bounds scope rule) and editor-core/src/eval/mod.rs; ratify before allowlisting"
@@ -41,5 +45,51 @@ plant() {
   printf 'pub fn f<T: editor_core::EvalScalar>(_t: T) {}\n' > "$1/crates/planted/src/lib.rs"
 }
 
+plant_after_block_comment() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn f/* why */<T: editor_core::EvalScalar>(_t: T) {}\n' > "$1/crates/planted/src/lib.rs"
+}
+
+plant_plus_position() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn f<T: Clone + EvalScalar>(_t: T) {}\n' > "$1/crates/planted/src/lib.rs"
+}
+
+# The same bound as rustfmt leaves a long list.
+plant_plus_wrapped() {
+  mkdir -p "$1/crates/planted/src"
+  {
+    printf 'pub fn f<T>(_t: T)\n'
+    printf 'where\n'
+    printf '    T: Clone\n'
+    printf '        + EvalScalar,\n'
+    printf '{\n'
+    printf '}\n'
+  } > "$1/crates/planted/src/lib.rs"
+}
+
+plant_prose_only() {
+  mkdir -p "$1/crates/planted/src"
+  {
+    printf '//! `T: EvalScalar` is the evaluation-service bound.\n'
+    printf '/// Never write `+ EvalScalar` outside the seam.\n'
+    printf '/*\n * Nor T: editor_core::EvalScalar in a block comment.\n */\n'
+    printf 'pub const WHY: &str = "T: EvalScalar";\n'
+    printf 'pub fn ok<T: Real>(_t: T) {} // nor : EvalScalar in a trailing one\n'
+    printf 'pub fn near<T: EvalScalarish>(_t: T) {}\n'
+  } > "$1/crates/planted/src/lib.rs"
+}
+
+gate_selftest() {
+  local want="EvalScalar (a compound Bounds bound by another name)"
+  gate_selftest_clean
+  gate_selftest_case "$want" plant
+  gate_selftest_case "$want" plant_plus_position
+  gate_selftest_case "$want" plant_plus_wrapped
+  gate_selftest_case "$want" plant_after_block_comment
+  gate_selftest_passes "prose, doc comments, a string literal and a longer name starting with EvalScalar" plant_prose_only
+  printf '%s selftest OK: passes a clean fixture, prose/doc/string mentions and `EvalScalarish`; fires in both bound positions, on a rustfmt-wrapped plus, and on a bound hidden behind a block comment\n' "$(gate_name)"
+}
+
 gate_parse_args "$@"
-gate_main "EvalScalar (a compound Bounds bound by another name)" plant
+gate_main

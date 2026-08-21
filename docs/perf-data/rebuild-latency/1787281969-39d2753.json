@@ -1,0 +1,200 @@
+{
+  "commit": "39d2753f0a4d96891d8e5303fdd442e3193b7c6d",
+  "documents": {
+    "boss_union": {
+      "cone": 2,
+      "full_max_ms": 15.6,
+      "full_min_ms": 15.3,
+      "full_ms": 15.5,
+      "incremental_max_ms": 12.84,
+      "incremental_min_ms": 12.7,
+      "incremental_ms": 12.72,
+      "nodes": 5
+    },
+    "corner_table": {
+      "cone": 5,
+      "full_max_ms": 106.3,
+      "full_min_ms": 105.0,
+      "full_ms": 105.1,
+      "incremental_max_ms": 95.52,
+      "incremental_min_ms": 94.73,
+      "incremental_ms": 94.95,
+      "nodes": 18
+    },
+    "crossing_slots": {
+      "cone": 3,
+      "full_max_ms": 187.7,
+      "full_min_ms": 120.9,
+      "full_ms": 121.7,
+      "incremental_max_ms": 183.1,
+      "incremental_min_ms": 182.29,
+      "incremental_ms": 182.63,
+      "nodes": 9
+    },
+    "cut_cylinder": {
+      "cone": 2,
+      "full_max_ms": 3.9,
+      "full_min_ms": 3.7,
+      "full_ms": 3.7,
+      "incremental_max_ms": 2.72,
+      "incremental_min_ms": 2.69,
+      "incremental_ms": 2.7,
+      "nodes": 4
+    },
+    "declared_tangency": {
+      "cone": 1,
+      "full_max_ms": 11.8,
+      "full_min_ms": 11.3,
+      "full_ms": 11.3,
+      "incremental_max_ms": 5.79,
+      "incremental_min_ms": 5.7,
+      "incremental_ms": 5.74,
+      "nodes": 4
+    },
+    "die": {
+      "cone": 3,
+      "full_max_ms": 1120.3,
+      "full_min_ms": 1056.7,
+      "full_ms": 1057.7,
+      "incremental_max_ms": 100.86,
+      "incremental_min_ms": 96.23,
+      "incremental_ms": 96.6,
+      "nodes": 77
+    },
+    "die_composed": {
+      "cone": 3,
+      "full_max_ms": 72.4,
+      "full_min_ms": 72.1,
+      "full_ms": 72.2,
+      "incremental_max_ms": 71.88,
+      "incremental_min_ms": 69.1,
+      "incremental_ms": 69.42,
+      "nodes": 8
+    },
+    "die_fillet": {
+      "cone": 2,
+      "full_max_ms": 56.2,
+      "full_min_ms": 53.0,
+      "full_ms": 53.4,
+      "incremental_max_ms": 56.22,
+      "incremental_min_ms": 52.89,
+      "incremental_ms": 53.27,
+      "nodes": 3
+    },
+    "die_pips": {
+      "cone": 2,
+      "full_max_ms": 10.1,
+      "full_min_ms": 9.9,
+      "full_ms": 9.9,
+      "incremental_max_ms": 7.02,
+      "incremental_min_ms": 6.94,
+      "incremental_ms": 6.96,
+      "nodes": 7
+    },
+    "die_tool": {
+      "cone": 2,
+      "full_max_ms": 70.7,
+      "full_min_ms": 70.1,
+      "full_ms": 70.2,
+      "incremental_max_ms": 68.67,
+      "incremental_min_ms": 67.82,
+      "incremental_ms": 68.13,
+      "nodes": 7
+    },
+    "heat_sink": {
+      "cone": 12,
+      "full_max_ms": 106.3,
+      "full_min_ms": 103.8,
+      "full_ms": 104.0,
+      "incremental_max_ms": 103.2,
+      "incremental_min_ms": 101.08,
+      "incremental_ms": 102.02,
+      "nodes": 15
+    },
+    "heat_sink_fins": {
+      "cone": 2,
+      "full_max_ms": 4.6,
+      "full_min_ms": 4.5,
+      "full_ms": 4.5,
+      "incremental_max_ms": 4.55,
+      "incremental_min_ms": 4.48,
+      "incremental_ms": 4.52,
+      "nodes": 3
+    },
+    "kitchen_sink": {
+      "cone": 2,
+      "full_max_ms": 37.6,
+      "full_min_ms": 37.3,
+      "full_ms": 37.5,
+      "incremental_max_ms": 1.83,
+      "incremental_min_ms": 1.76,
+      "incremental_ms": 1.79,
+      "nodes": 15
+    },
+    "loft_prism": {
+      "cone": 1,
+      "full_max_ms": 2.8,
+      "full_min_ms": 2.7,
+      "full_ms": 2.7,
+      "incremental_max_ms": 2.62,
+      "incremental_min_ms": 2.52,
+      "incremental_ms": 2.57,
+      "nodes": 4
+    },
+    "nested_islands_105": {
+      "cone": 2,
+      "full_max_ms": 139.0,
+      "full_min_ms": 137.9,
+      "full_ms": 138.9,
+      "incremental_max_ms": 34.47,
+      "incremental_min_ms": 34.02,
+      "incremental_ms": 34.17,
+      "nodes": 11
+    },
+    "nested_islands_106_depth1": {
+      "cone": 2,
+      "full_max_ms": 239.0,
+      "full_min_ms": 237.6,
+      "full_ms": 238.2,
+      "incremental_max_ms": 135.0,
+      "incremental_min_ms": 133.22,
+      "incremental_ms": 133.88,
+      "nodes": 11
+    },
+    "nested_islands_106_depth2": {
+      "cone": 3,
+      "full_max_ms": 413.0,
+      "full_min_ms": 407.1,
+      "full_ms": 408.3,
+      "incremental_max_ms": 299.71,
+      "incremental_min_ms": 188.22,
+      "incremental_ms": 192.0,
+      "nodes": 14
+    },
+    "plate_param": {
+      "cone": 2,
+      "full_max_ms": 37.6,
+      "full_min_ms": 37.2,
+      "full_ms": 37.3,
+      "incremental_max_ms": 30.71,
+      "incremental_min_ms": 30.63,
+      "incremental_ms": 30.67,
+      "nodes": 5
+    }
+  },
+  "environment": {
+    "arch": "x86_64",
+    "cargo_profile_overrides": [],
+    "cargo_rustc_procs": 1,
+    "debug_assertions": true,
+    "mem_total_kb": 8128880,
+    "nproc": 2,
+    "os": "linux",
+    "runner": "Linux/X64 ubuntu-latest",
+    "rustflags": "",
+    "rustup_toolchain": "1.97.0-x86_64-unknown-linux-gnu",
+    "tolerance_eps": ""
+  },
+  "measured_at_epoch_s": 1787281967,
+  "method": "median of 5 runs in one process, std::time::Instant, sequential evaluation schedule (EvalOptions::default()); dev profile (opt-level 0 outside spade/mesh) — NOT release-representative"
+}

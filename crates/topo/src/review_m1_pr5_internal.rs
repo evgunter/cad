@@ -18,7 +18,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::entity::EntityId;
-use crate::fixtures::{ops_cube, pillow, prov, public_fns};
+use crate::fixtures::{ops_cube, pillow, prov};
 use crate::validate::{ValidationError, validate, validate_closed};
 
 /// Pass 12, all seven arenas, MISSING direction: remove each kind's
@@ -222,6 +222,79 @@ fn tier2_strut_scan_echoes_on_dangling_start() {
     );
 }
 
+/// `(door, why tier 1 survives it)` — the doors that do NOT declare
+/// the tier-1 postcondition, each with the reason tier 1 survives it.
+///
+/// Module-scoped rather than local to the guard so that
+/// [`the_two_door_tables_cover_the_same_surface`] can read it. That
+/// row is the only other reader; this table stays this guard's.
+pub(crate) const ALLOWED: &[(&str, &str)] = &[
+    // ---- Sugar: delegates to an asserting operator. ----
+    ("mev_line", "derives the spec, then calls `mev`"),
+    ("mef_chord", "derives the spec, then calls `mef`"),
+    ("mekr_chord", "derives the spec, then calls `mekr`"),
+    ("mfkrh_plug", "calls `mfkrh` with a placeholder surface"),
+    (
+        "set_edge_curve_nurbs_lane",
+        "`set_edge_curve` with the NURBS certifier injected — same body, same assertion",
+    ),
+    // ---- Pipelines composed of asserting operators. ----
+    (
+        "merge_coplanar_faces",
+        "calls `merge_coplanar_faces_declared` with no declarations",
+    ),
+    (
+        "merge_coplanar_faces_declared",
+        "gates on `validate_closed` at entry and mutates only through `ring_move`/`kef`",
+    ),
+    // ---- Setters carrying their own tier-1 debug_assert. ----
+    (
+        "set_face_surface",
+        "asserts tier 1 directly (a surface swap can orphan a key)",
+    ),
+    (
+        "set_edge_curve",
+        "asserts tier 1 directly (a curve swap can orphan a key)",
+    ),
+    // ---- Writes fields tier 1 does not constrain. ----
+    ("set_face_sense", "writes one `bool`; sense is tier 3's"),
+    ("set_surface_source", "GeomSource metadata, no arena key"),
+    ("set_curve_source", "GeomSource metadata, no arena key"),
+    ("set_point_source", "GeomSource metadata, no arena key"),
+    ("clear_geom_sources", "GeomSource metadata, no arena key"),
+    ("attach_pcurve", "pcurve cache; coherence is tier 3's"),
+    ("detach_pcurve", "pcurve cache; coherence is tier 3's"),
+    ("mint_pcurves", "pcurve caches only; no topology touched"),
+    (
+        "set_null_face_pair",
+        "null-face annotation; tier 2 bans it at rest, tier 1 does not see it",
+    ),
+    ("clear_null_face_pair", "removes that annotation"),
+    // ---- The exception. Not a waiver: a recorded hole. ----
+    (
+        "graft_disjoint",
+        "RAW TRANSPLANT — see `graft_disjoint_all_keyed`",
+    ),
+    (
+        "graft_disjoint_all",
+        "RAW TRANSPLANT — see `graft_disjoint_all_keyed`",
+    ),
+    (
+        "graft_disjoint_all_keyed",
+        "RAW TRANSPLANT, and the one door that does NOT preserve tier 1: it mints an \
+         empty destination solid per source solid before transplanting, and a refusal \
+         raised mid-transplant leaves `dst` partially written (its own docs: spent, \
+         never resumable). An empty solid IS `SolidWithoutShells`, a tier-1 error. A \
+         caller that discards the `Err` can fire a later operator's postcondition from \
+         API MISUSE rather than a kernel bug — the state class D9's footnote says \
+         cannot occur. Open as S14; this entry records it, it does not excuse it.",
+    ),
+    (
+        "graft_disjoint_all_onto_keyed",
+        "RAW TRANSPLANT — see `graft_disjoint_all_keyed`",
+    ),
+];
+
 /// **The closure property the module docs of [`crate::euler`] and D9's
 /// footnote both rest on, checked instead of asserted.** Every public
 /// mutation path into a [`crate::Body`] — `pub fn` taking `&mut self`,
@@ -250,95 +323,35 @@ fn tier2_strut_scan_echoes_on_dangling_start() {
 /// Stale entries are caught in both directions: an entry naming a door
 /// that no longer exists, or one that has since started asserting,
 /// fails as loudly as an unlisted door.
+///
+/// **Where the door set comes from, and what it cannot see:**
+/// [`crate::source_walk::mutation_doors`], shared with the
+/// pcurve-posture guard in [`crate::pcurves`], which walks the same
+/// population to ask a different question. That function's docs carry
+/// the reason the two tables do not merge and the whole inherited
+/// blind-spot list; this guard does not restate either.
+///
+/// **"Declares the postcondition" is a read of code, not of prose.**
+/// The needle is `assert_euler_postcondition(`, with the paren, over a
+/// body whose comments and literals are blanked — a bare name would be
+/// satisfied by a `use` line. This guard used a raw `body.contains`,
+/// and a planted door whose body only *mentioned* the call in a
+/// comment was counted as asserting it, in both this guard and the
+/// pcurve one, both green.
+
 #[test]
 fn every_public_mutation_path_preserves_tier1() {
-    // `(door, why tier 1 survives it)`.
-    const ALLOWED: &[(&str, &str)] = &[
-        // ---- Sugar: delegates to an asserting operator. ----
-        ("mev_line", "derives the spec, then calls `mev`"),
-        ("mef_chord", "derives the spec, then calls `mef`"),
-        ("mekr_chord", "derives the spec, then calls `mekr`"),
-        ("mfkrh_plug", "calls `mfkrh` with a placeholder surface"),
-        (
-            "set_edge_curve_nurbs_lane",
-            "`set_edge_curve` with the NURBS certifier injected — same body, same assertion",
-        ),
-        // ---- Pipelines composed of asserting operators. ----
-        (
-            "merge_coplanar_faces",
-            "calls `merge_coplanar_faces_declared` with no declarations",
-        ),
-        (
-            "merge_coplanar_faces_declared",
-            "gates on `validate_closed` at entry and mutates only through `ring_move`/`kef`",
-        ),
-        // ---- Setters carrying their own tier-1 debug_assert. ----
-        (
-            "set_face_surface",
-            "asserts tier 1 directly (a surface swap can orphan a key)",
-        ),
-        (
-            "set_edge_curve",
-            "asserts tier 1 directly (a curve swap can orphan a key)",
-        ),
-        // ---- Writes fields tier 1 does not constrain. ----
-        ("set_face_sense", "writes one `bool`; sense is tier 3's"),
-        ("set_surface_source", "GeomSource metadata, no arena key"),
-        ("set_curve_source", "GeomSource metadata, no arena key"),
-        ("set_point_source", "GeomSource metadata, no arena key"),
-        ("clear_geom_sources", "GeomSource metadata, no arena key"),
-        ("attach_pcurve", "pcurve cache; coherence is tier 3's"),
-        ("detach_pcurve", "pcurve cache; coherence is tier 3's"),
-        ("mint_pcurves", "pcurve caches only; no topology touched"),
-        (
-            "set_null_face_pair",
-            "null-face annotation; tier 2 bans it at rest, tier 1 does not see it",
-        ),
-        ("clear_null_face_pair", "removes that annotation"),
-        // ---- The exception. Not a waiver: a recorded hole. ----
-        (
-            "graft_disjoint",
-            "RAW TRANSPLANT — see `graft_disjoint_all_keyed`",
-        ),
-        (
-            "graft_disjoint_all",
-            "RAW TRANSPLANT — see `graft_disjoint_all_keyed`",
-        ),
-        (
-            "graft_disjoint_all_keyed",
-            "RAW TRANSPLANT, and the one door that does NOT preserve tier 1: it mints an \
-             empty destination solid per source solid before transplanting, and a refusal \
-             raised mid-transplant leaves `dst` partially written (its own docs: spent, \
-             never resumable). An empty solid IS `SolidWithoutShells`, a tier-1 error. A \
-             caller that discards the `Err` can fire a later operator's postcondition from \
-             API MISUSE rather than a kernel bug — the state class D9's footnote says \
-             cannot occur. Open as S14; this entry records it, it does not excuse it.",
-        ),
-        (
-            "graft_disjoint_all_onto_keyed",
-            "RAW TRANSPLANT — see `graft_disjoint_all_keyed`",
-        ),
-    ];
-
-    let files = crate::fixtures::crate_sources();
     let mut asserting: Vec<String> = Vec::new();
     let mut listed: Vec<String> = Vec::new();
     let mut unlisted: Vec<String> = Vec::new();
 
-    for path in &files {
-        let text = std::fs::read_to_string(path).expect("a readable source file");
-        for (name, params, body) in public_fns(&text) {
-            if !params.contains("&mut self") && !params.contains("&mut Body") {
-                continue;
-            }
-            let where_ = format!("{}::{name}", path.display());
-            if body.contains("assert_euler_postcondition") {
-                asserting.push(where_);
-            } else if ALLOWED.iter().any(|(n, _)| *n == name) {
-                listed.push(name.to_string());
-            } else {
-                unlisted.push(where_);
-            }
+    for door in crate::source_walk::mutation_doors() {
+        if door.code_contains("assert_euler_postcondition(") {
+            asserting.push(door.site());
+        } else if ALLOWED.iter().any(|(n, _)| *n == door.name) {
+            listed.push(door.name);
+        } else {
+            unlisted.push(door.site());
         }
     }
 
@@ -359,18 +372,63 @@ fn every_public_mutation_path_preserves_tier1() {
              entry.",
         );
     }
-    // A walk that found nothing would pass every assertion above.
+    // The walk's own floor is upstream, on `mutation_doors`. What is
+    // this guard's is the needle: a lexing gap that erased the call
+    // from a body would move that door from `asserting` to `unlisted`
+    // and red loudly — except for a door that is ALSO allowlisted,
+    // which cannot happen, and for the case where every door loses it
+    // at once, which the pin below catches by name.
     assert!(
-        asserting.len() >= 10 && listed.len() >= 10,
-        "the walk found {} asserting and {} allowlisted door(s) — it is not reading the \
-         real surface",
-        asserting.len(),
-        listed.len(),
+        asserting.iter().any(|s| s.ends_with("::mev")),
+        "`mev` no longer reads as declaring the tier-1 postcondition. Either the operator \
+         stopped asserting — a finding — or the source read lost the call.",
     );
     println!(
         "[mutation surface] {} public door(s): {} assert tier 1, {} allowlisted",
         asserting.len() + listed.len(),
         asserting.len(),
         listed.len(),
+    );
+}
+
+/// **The co-domain claim under "two properties of one set", asserted
+/// rather than assumed.**
+///
+/// [`crate::source_walk::mutation_doors`] argues that [`ALLOWED`] and
+/// [`crate::pcurves::staleness_posture::DECLARED`] should stay
+/// separate because they classify one population two ways. That
+/// argument is only worth its line while the two tables together
+/// still *cover* that population, and until this row nothing said so.
+///
+/// **The case it catches, which neither guard does.** A door that both
+/// declares the tier-1 postcondition and re-mints the pcurve map is
+/// classified by the walk on both sides and appears in **neither**
+/// table — so it is a door with no prose anywhere, and both guards
+/// stay green. Nothing in the crate forbids such a door; a compound
+/// operator is the natural way to get one.
+///
+/// Deliberately not a merge of the tables: this reads both and asserts
+/// one property of the pair. It lives here, in a test artifact, so the
+/// import runs from a review module to a kernel one and not the
+/// reverse.
+#[test]
+fn the_two_door_tables_cover_the_same_surface() {
+    let doors = crate::source_walk::mutation_doors();
+    let uncovered: Vec<String> = doors
+        .iter()
+        .filter(|d| {
+            !ALLOWED.iter().any(|(n, _)| *n == d.name)
+                && !crate::pcurves::staleness_posture::DECLARED
+                    .iter()
+                    .any(|(n, _, _)| *n == d.name)
+        })
+        .map(|d| d.site())
+        .collect();
+    assert!(
+        uncovered.is_empty(),
+        "mutation door(s) named by NEITHER table: {uncovered:?}. Each is a door the \
+         tier-1 guard sorted by its own body and the pcurve guard sorted by its own \
+         body, so both pass and no entry anywhere describes it. Give it an entry in \
+         whichever table its posture is not self-evident from.",
     );
 }

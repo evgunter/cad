@@ -693,6 +693,8 @@ pub(crate) fn find_span_in(knots: &[f64], degree: usize, t: f64) -> usize {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
+    use test_utils::vacuity::Exposure;
+
     use super::*;
 
     fn kv(knots: &[f64], p: usize) -> KnotVector {
@@ -785,14 +787,60 @@ mod tests {
         assert_eq!(k.multiplicity_of(0.25), None);
     }
 
-    /// `find_span_in` is the crate-internal door onto the same search
-    /// [`KnotVector::find_span`] uses, and the raw knot-algebra path
-    /// calls it instead of `find_span` only because it holds a slice.
-    /// Nothing outside this crate can reach it, so this is where the
-    /// two are pinned equal — including at all three totality exits,
-    /// where "the same search" is the entire content of the claim.
+    /// **The span search against a definitional oracle**, at every exit
+    /// its contract names.
+    ///
+    /// [`find_span_in`] and [`KnotVector::find_span`] are one
+    /// expression: both reduce to `span_offset_in(knots, degree, t) +
+    /// degree`, so no probe can separate them and an assertion that
+    /// they agree is satisfied by construction. What CAN go red is the
+    /// search itself, so that is what this row drives — a linear scan
+    /// written from the documented contract, independent of the binary
+    /// search it checks:
+    ///
+    /// - below the domain, and at NaN, the **first** span;
+    /// - at or above the domain end, the **last** span;
+    /// - inside, the unique `i` with `knots[i] ≤ t < knots[i+1]`, ties
+    ///   broken toward the span *starting* at a repeated knot.
+    ///
+    /// Plus the divergence [`find_span_in`]'s own docs warn about and
+    /// nothing else pinned: at or above the domain end it is **not**
+    /// "the last index `i` with `knots[i] ≤ t`", which walks on into the
+    /// trailing clamp. A refactor that quietly substituted such a scan
+    /// would pass every in-domain probe.
+    ///
+    /// The probe classes are censused and floored, because a builder
+    /// change that emptied one — no interior knot, no out-of-domain
+    /// probe — would leave the row green over a contract it never
+    /// exercised.
     #[test]
-    fn find_span_in_is_find_span_on_the_same_knots() {
+    fn the_span_search_matches_its_definitional_oracle_at_every_exit() {
+        // The contract, written as a linear scan. `first`/`last` are
+        // the span indices, not offsets. The negated comparison is the
+        // NaN route, exactly as in `span_offset_in`.
+        #[allow(clippy::neg_cmp_op_on_partial_ord)]
+        fn oracle(knots: &[f64], degree: usize, t: f64) -> usize {
+            let (first, last) = (degree, knots.len() - degree - 2);
+            if !(t > knots[first]) {
+                return first;
+            }
+            if t >= knots[last + 1] {
+                return last;
+            }
+            let mut got = first;
+            for i in first..=last {
+                if knots[i] <= t && t < knots[i + 1] {
+                    got = i;
+                }
+            }
+            got
+        }
+        // "The last index `i` with `knots[i] ≤ t`" — the scan the
+        // `find_span_in` docs say this is NOT.
+        fn last_index_at_or_below(knots: &[f64], t: f64) -> Option<usize> {
+            knots.iter().rposition(|&k| k <= t)
+        }
+
         let cases = [
             (vec![0.0, 0.0, 1.0, 1.0], 1),
             (vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2),
@@ -802,21 +850,70 @@ mod tests {
                 3,
             ),
         ];
+        let mut census = Exposure::new("knots: the span search against its oracle");
         for (knots, p) in cases {
             let k = kv(&knots, p);
             let (lo, hi) = k.domain();
+            let interior: Vec<f64> = knots[p + 1..knots.len() - p - 1].to_vec();
             let mut probes = vec![lo, hi, lo - 1.0, hi + 1.0, f64::NAN, f64::INFINITY, -0.0];
             probes.extend(knots.iter().copied());
             let mut distinct = knots.clone();
             distinct.dedup();
             probes.extend(distinct.windows(2).map(|w| 0.5 * (w[0] + w[1])));
             for t in probes {
+                census.note(if t.is_nan() {
+                    "NaN"
+                } else if t < lo {
+                    "below the domain"
+                } else if t > hi {
+                    "above the domain end"
+                } else if t == hi {
+                    "at the domain end"
+                } else if interior.contains(&t) {
+                    "at an interior knot"
+                } else {
+                    "strictly inside a span"
+                });
+                let got = find_span_in(&knots, p, t);
                 assert_eq!(
-                    find_span_in(&knots, p, t),
-                    k.find_span(t),
-                    "p{p} at {t}: the raw door and the typed door located different spans"
+                    got,
+                    oracle(&knots, p, t),
+                    "p{p} at {t}: the search left its documented contract"
                 );
+                // Equal BY CONSTRUCTION today — both doors are one
+                // expression. Kept as one line so a future edit that
+                // gives them separate bodies reds here; it is not this
+                // row's evidence, which is the oracle above.
+                assert_eq!(got, k.find_span(t), "p{p} at {t}: the two doors diverged");
+                // The documented divergence, where it applies.
+                if t >= hi {
+                    let naive = last_index_at_or_below(&knots, t)
+                        .expect("at or above the domain end some knot is ≤ t");
+                    assert!(
+                        got < naive,
+                        "p{p} at {t}: the span search returned {got}, the same as the \
+                         `knots[i] ≤ t` scan — the trailing-clamp divergence its docs \
+                         warn about has been lost"
+                    );
+                }
             }
         }
+        census.report();
+        // Every exit the contract names must have been probed. A floor
+        // of 1 is enough: these are enumerated, not sampled, so a class
+        // that reaches 0 means the probe list stopped covering it.
+        census.require_each(
+            &[
+                "NaN",
+                "below the domain",
+                "above the domain end",
+                "at the domain end",
+                "at an interior knot",
+                "strictly inside a span",
+            ],
+            1,
+            "the probe list no longer reaches this exit, so the contract it states is \
+             unchecked here",
+        );
     }
 }

@@ -29,13 +29,20 @@ use pncad::workspace::{WorkspaceError, random_document_id};
 /// a constant.
 ///
 /// **UNTESTED, and labelled as such rather than left looking
-/// guarded.** `getrandom::fill` has no injection seam, so this arm
-/// and the `IdentityError` raise it becomes in Python (with
-/// `variant = "randomness_unavailable"`) are reachable only on a host
-/// whose entropy source is broken. What IS pinned is the class
-/// mapping — `error_classes_name_the_python_hierarchy` — and the
-/// absence of any fallback: the `?` here is the whole control flow,
-/// so there is no second path for a constant to hide on.
+/// guarded.** `getrandom::fill` has no injection seam, so this arm —
+/// and the `IdentityError` it becomes in Python — is reachable only
+/// on a host whose entropy source is broken. What IS pinned is the
+/// class mapping (`error_classes_name_the_python_hierarchy`), the tag
+/// (`workspace_error_tags_are_stable`, over the map the raise site
+/// READS rather than a literal it writes), and the absence of any
+/// fallback: the `?` here is the whole control flow, so there is no
+/// second path for a constant to hide on.
+///
+/// The `variant` a caller sees is therefore whichever
+/// [`WorkspaceError`] arrives, not a name chosen at the raise site.
+/// That `RandomnessUnavailable` is the only arm this function can
+/// produce is a fact about [`random_document_id`] — stated here, and
+/// relied on nowhere.
 pub fn interactive() -> Result<ProfileDoc, WorkspaceError> {
     Ok(ProfileDoc::empty(random_document_id()?))
 }

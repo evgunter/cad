@@ -165,9 +165,10 @@ gate() {
   # kills the script AT THE ASSIGNMENT — so the first version of this
   # block died before reaching the `gate_error` three lines down, and the
   # gate reported the failure it was written to explain as a bare `exit
-  # 1` with no message. The self-test could not see it: lib.sh's harness
-  # runs the gate inside `if out=$(…)`, and bash suppresses errexit
-  # there. `gate_selftest_real` below is why this is now caught.
+  # 1` with no message. No self-test could see it while the harness ran
+  # the gate in-process inside an `if` condition, where bash suppresses
+  # errexit; lib.sh now runs every case as a real subprocess, so dropping
+  # one of these `|| true`s reds this gate's own self-test (S157).
   local body
   body=$(non_comment "$LOCAL_HALF")
   loopvar=$(grep -oE 'for[[:space:]]+[A-Za-z_][A-Za-z0-9_]*[[:space:]]+in[[:space:]]+scripts/gates/\*\.sh' <<<"$body" \
@@ -284,56 +285,22 @@ plant_lib_invoked() {
   printf '          scripts/gates/lib.sh\n' >> "$1/.github/workflows/ci.yml"
 }
 
-# THE SHARED HARNESS CANNOT SEE ONE CLASS OF FAILURE, SO THIS ONE DOES.
-# `lib.sh`'s `gate_selftest_case` runs the gate as `if out=$(… gate …)`,
-# and bash SUPPRESSES errexit inside an `if` condition — which is exactly
-# the condition under which a `set -euo pipefail` script dies at a
-# failing matcher pipeline before printing its own diagnosis. So the
-# harness passes a gate whose message never prints on a real run, which
-# is what happened here: the local-half diagnostic was unreachable and
-# hosted CI reported it as a bare `exit 1`. Every case below therefore
-# runs the gate THE WAY CI RUNS IT — as a subprocess, through `--root`.
-#
-# This belongs in `lib.sh`, which is lane F-g's file and is escalated as
-# S157; it is written here to be lifted unchanged.
-gate_selftest_real() {
-  local want=$1; shift
-  local tmp out rc=0
-  tmp=$(mktemp -d)
-  gate_plant_clean "$tmp"
-  [ "$#" -eq 0 ] || { "$@" "$tmp"; }
-  out=$("$0" --root "$tmp" 2>&1) || rc=$?
-  rm -rf "$tmp"
-  if [ -z "$want" ]; then
-    [ "$rc" -eq 0 ] && return 0
-    printf 'SELFTEST FAILED: a REAL invocation failed on a clean fixture\n%s\n' "$out" >&2
-    exit 1
-  fi
-  if [ "$rc" -eq 0 ]; then
-    printf 'SELFTEST FAILED: a REAL invocation PASSED a planted violation (%s)\n%s\n' "${1:-clean}" "$out" >&2
-    exit 1
-  fi
-  case "$out" in
-    *"$want"*) ;;
-    *) printf 'SELFTEST FAILED (%s): a REAL invocation exited %s WITHOUT its diagnosis — wanted %s, got:\n%s\n' \
-         "${1:-clean}" "$rc" "$want" "$out" >&2
-       exit 1 ;;
-  esac
-}
-
 # Nine known evasions, all permanent fixture cases, all run as real
-# subprocesses.
+# subprocesses by lib.sh's harness — the property this gate needs most,
+# because the `|| true` on every matcher in `gate()` is load-bearing and
+# nothing could observe its absence while the harness ran a gate
+# in-process (S157).
 gate_selftest() {
-  gate_selftest_real ''
-  gate_selftest_real "never RUNS scripts/gates/unwired-gate.sh" plant_unwired
-  gate_selftest_real "never RUNS scripts/gates/commented-gate.sh" plant_comment_only
-  gate_selftest_real "never RUNS scripts/gates/selftest-only-gate.sh" plant_selftest_only
-  gate_selftest_real "which is not a gate in this directory" plant_ghost
-  gate_selftest_real "not executable" plant_nonexecutable
-  gate_selftest_real "no longer loops" plant_local_loop_deleted
-  gate_selftest_real "never runs \"\$g\" --selftest" plant_local_no_selftest
-  gate_selftest_real "excluding it by mode rather than by name" plant_local_mode_exclusion
-  gate_selftest_real "SOURCED and not a gate" plant_lib_invoked
+  gate_selftest_clean
+  gate_selftest_case "never RUNS scripts/gates/unwired-gate.sh" plant_unwired
+  gate_selftest_case "never RUNS scripts/gates/commented-gate.sh" plant_comment_only
+  gate_selftest_case "never RUNS scripts/gates/selftest-only-gate.sh" plant_selftest_only
+  gate_selftest_case "which is not a gate in this directory" plant_ghost
+  gate_selftest_case "not executable" plant_nonexecutable
+  gate_selftest_case "no longer loops" plant_local_loop_deleted
+  gate_selftest_case "never runs \"\$g\" --selftest" plant_local_no_selftest
+  gate_selftest_case "excluding it by mode rather than by name" plant_local_mode_exclusion
+  gate_selftest_case "SOURCED and not a gate" plant_lib_invoked
   printf '%s selftest OK: every case is a REAL subprocess invocation, so a diagnosis lost to errexit fails the self-test. Passes a clean fixture; fires on an unwired gate, a comment-only mention, a selftest-only call, a ghost step, a gate that landed mode 0644, a deleted local loop, a local loop that stopped self-testing, a local loop that went back to excluding lib.sh by mode, and a step running lib.sh\n' "$(gate_name)"
 }
 
