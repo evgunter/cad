@@ -2000,30 +2000,7 @@ jobs:
   renders:
     name: render lanes
     needs: filter
-    # MAIN ONLY (2026-08-20, minutes audit). This job is five billed
-    # minutes shy of a sixth of a full run — 12 of the 87 a code-tier PR
-    # costs (measured on run 32425890937: demo tour 3, kernel montage 3,
-    # wild-corpus 3, freecad montage 2, uv sheet 1) — and on a
-    # pull_request it cannot do the thing it exists to do. `push_to` is
-    # deliberately empty off main (see the note below it), so a PR run
-    # renders every lane and then throws the frames away with a report.
-    #
-    # The re-baseline that ACCEPTS a render change already lives on main,
-    # and the paragraph above says so in as many words: "main's own push
-    # run re-renders and re-baselines again after the merge if the two
-    # ever part." That is now the only place it happens rather than the
-    # second of two.
-    #
-    # WHAT THIS GIVES UP, stated plainly: the PR-side drift REPORT was
-    # the one moment a human saw a render change before main auto-
-    # accepted it. Dropping it does not lose the change — every altered
-    # cell still lands as a bot commit on main, reviewable in the diff —
-    # but it does move the look from before the merge to after it. If
-    # that turns out to matter, the cheaper restoration is a new
-    # ci-filter.py output (RUN_RENDERS, true only when the diff touches
-    # demos/ or a tessellation crate) rather than reinstating the lanes
-    # on every code-tier PR, which is what cost the 12 minutes.
-    if: needs.filter.outputs.run_k_lint == 'true' && github.event_name == 'push'
+    if: needs.filter.outputs.run_k_lint == 'true'
     uses: ./.github/workflows/render.yml
     # A reusable workflow gets the CALLER's token scope, and this
     # workflow declares none at the top level — so the lanes' own
