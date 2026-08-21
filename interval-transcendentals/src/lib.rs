@@ -128,3 +128,4 @@ mod trig;
 
 pub use consts::{frac_pi_2, pi, tau};
 pub use interval::{DInterval, Decoration};
+use std::os::unix::ffi::OsStrExt as _;
