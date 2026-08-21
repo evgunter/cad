@@ -319,44 +319,37 @@ pub(crate) fn tessellate_curved(
 /// lets an interior grid point land on — or across — a boundary
 /// constraint.
 ///
-/// **THE COMPARISON IS BANDED, IN METRES, AND IS NOW A BACKSTOP.** An
-/// earlier form compared exactly, on the premise that [`crate::walk`]
-/// makes every rectangle side bitwise straight. That premise was FALSE
-/// when #648 relied on it: the walk assigned the constant coordinate
-/// once per EDGE, which makes a side bitwise straight only when the
-/// side IS one edge, and an iso side carried by two or more edges had
-/// each sub-edge derive its own column from an `atan2` of a DIFFERENT
-/// point of the same carrier — analytically equal, ulps apart under a
-/// general rigid placement. A split frustum wedge, placed obliquely,
-/// put an entry 6.2e-17 m off its own box and the exact form refused a
-/// domain that IS the swept rectangle.
+/// **THE COMPARISON IS BANDED, IN METRES, AND IS A BACKSTOP.** Each
+/// axis' gap is converted to metres by its own lever arm
+/// ([`Chart::radial`] for u — the point's distance from the axis — and
+/// [`Chart::v_lever`] for v) and banded by [`crate::walk::gap_is_noise`],
+/// the crate's ONE ε band, which the walk's three detectors also call.
+/// The band admits ulp wobble on a straight side and nothing else: a
+/// genuine re-entrant corner (a keyway, a milled flat) is a FEATURE
+/// width off the box, six or more orders of magnitude outside ε.
 ///
-/// **#653 made the premise true**: `walk::iso_side_starts` groups the
-/// sub-edges into runs and gives each run one coordinate, so every
-/// walk this build produces sits on its box BITWISE. The band did not
-/// become wrong, it became a backstop — and the honest consequence is
-/// that it lost its live evidence. No in-tree fixture needs it, and
-/// `a_split_then_placed_swept_face_is_not_refused` (#648's own
-/// regression row) no longer discriminates banded from exact. The row
-/// that does is synthetic and labelled as such:
+/// Every walk this build produces sits on its box BITWISE, so no
+/// in-tree fixture needs the band and its red-when-reverted row is
+/// synthetic and says so:
 /// `the_band_admits_a_sub_eps_entry_that_the_exact_form_refuses`.
+/// Kept anyway, because the direction of a wrong answer is asymmetric
+/// here: this guard REFUSES, so an over-tight comparison rejects a
+/// valid part, while an over-loose one lets through a wobble six
+/// orders of magnitude smaller than the feature it would have to be
+/// confused with. What makes the entries bitwise straight, and what
+/// would stop doing so, is [`crate::walk::iso_side_starts`].
 ///
-/// It is kept rather than reverted because the direction of a wrong
-/// answer is asymmetric here: this guard REFUSES, so an over-tight
-/// comparison rejects a valid part, while an over-loose one lets
-/// through a wobble six orders of magnitude smaller than the feature it
-/// would have to be confused with.
-///
-/// The entry's distance from the box is measured through the chart's
-/// own lever arms ([`Chart::radial`] for u — the point's distance from
-/// the axis — and [`Chart::v_lever`] for v), against the run's `eps`,
-/// by calling [`crate::walk::gap_is_noise`] — the crate's ONE ε band,
-/// which the walk's three detectors also call. It used to be spelled
-/// out again here; two spellings of one predicate is how the two halves
-/// of a rule drift apart. The band admits ulp wobble on a straight side
-/// and nothing else: a genuine re-entrant corner (a keyway, a milled
-/// flat) is a FEATURE width off the box, six or more orders of
-/// magnitude outside ε.
+/// **A lever of ZERO is not a zero distance, it is NO metric — and an
+/// axis without one admits nothing.** [`Chart::radial`] vanishes
+/// exactly on the chart axis (a sphere pole, a cone apex), where every
+/// u names the same point, so `gap_is_noise(du, 0, eps)` is `0 < eps`
+/// and would admit that entry at any u at all — the fail-open
+/// `walk`'s own `unreachable!` refuses to write, whose retired default
+/// was this same zero lever. A pole entry is admitted on its other
+/// axis instead, and is entitled to be: the walk gives it the CHART's
+/// pole v ([`Chart::poles`]) and the box is the entries' own min/max,
+/// so its v gap is zero bitwise — the fact the old exemption rested
+/// on silently, asserted now by `a_pole_entry_sits_on_its_own_box_in_v`.
 ///
 /// It takes the caller's own bounding box rather than recomputing one,
 /// so the rectangle it checks is exactly the box the interior grid
@@ -367,6 +360,12 @@ fn entries_off_bbox(
     (u0, u1, v0, v1): (f64, f64, f64, f64),
     eps: f64,
 ) -> Vec<(usize, f64)> {
+    // An axis puts the entry ON the box when its own gap is noise in
+    // metres, and an axis with no lever arm has no metric and puts it
+    // nowhere (doc above). NaN-safe by construction: `gap_is_noise` is
+    // a `<`, so a poisoned coordinate is false on both axes and the
+    // entry stays a refusal rather than being admitted.
+    let on_box = |gap: f64, lever: f64| lever > 0.0 && gap_is_noise(gap, lever, eps);
     poly.iter()
         .zip(levers)
         .enumerate()
@@ -374,22 +373,31 @@ fn entries_off_bbox(
             // Every entry is inside the box by construction (the box is
             // the entries' own min/max), so the spatial distance to the
             // box BOUNDARY is the smallest of the four side gaps, each
-            // converted to metres by its axis' lever arm — so the entry
-            // is ON the box iff the nearest of the four is noise. Taken
-            // per axis (nearest of the two sides, then the band) so the
+            // converted to metres by its axis' lever arm. Taken per
+            // axis (nearest of the two sides, then the band) so the
             // lever arm goes to the shared predicate rather than being
             // applied here: `lu`, `lv >= 0`, so per-axis and
             // all-four-at-once select the same gap either way.
             let du = (e.u - u0).abs().min((e.u - u1).abs());
             let dv = (e.v - v0).abs().min((e.v - v1).abs());
-            // NaN-safe by construction: `gap_is_noise` is a `<`, so a
-            // poisoned coordinate is false on both axes and the entry
-            // stays a refusal rather than being admitted.
-            if gap_is_noise(du, lu, eps) || gap_is_noise(dv, lv, eps) {
-                None
-            } else {
-                Some((i, (du * lu).min(dv * lv)))
+            if on_box(du, lu) || on_box(dv, lv) {
+                return None;
             }
+            // The payload is a DISTANCE, so it reports the axes that
+            // have one: at a pole `du * lu` is 0 m for every u, and a
+            // refusal reading 0 m tells its reader nothing — the
+            // number is what separates "re-author your part" from
+            // "kernel bug" (`require_swept_rectangle`).
+            let d = match (lu > 0.0, lv > 0.0) {
+                (true, true) => (du * lu).min(dv * lv),
+                (true, false) => du * lu,
+                (false, true) => dv * lv,
+                // No metric on either axis: the entry is one point in
+                // space whatever its UV, and 0 is the only distance
+                // there is to report.
+                (false, false) => 0.0,
+            };
+            Some((i, d))
         })
         .collect()
 }
@@ -1032,6 +1040,17 @@ mod tests {
     /// spelling. There is one spelling of this metric in the crate and
     /// it is the one that ships; a hand transcription in a test goes
     /// stale the moment the kernel's changes.
+    ///
+    /// **So this is the METRIC, not the guard**, and the difference is
+    /// the band: at `eps = 0.0` the admit test is uniformly false, so
+    /// no entry here takes the branch a real tessellation takes for
+    /// all of them. The banded verdict on the same bodies is the
+    /// caller's `UnsupportedCurvedDomain` arm.
+    ///
+    /// The degenerate-axis rule does show through: a pole entry
+    /// reports its v gap here rather than the 0 m its vanished u lever
+    /// would have made of any u — which is what lets this metric see a
+    /// pole entry off its box at all.
     fn worst_entry_off_box(body: &Body<f64>) -> f64 {
         let mut worst: f64 = 0.0;
         for (_, poly, levers) in curved_walks(body) {
@@ -1142,6 +1161,25 @@ mod tests {
                                 dirty.push(format!("{name} edge {i} @{fracs:?}: {e:?}"));
                             }
                         }
+                        // The one refusal that IS a counterexample:
+                        // the domain guard running at the run's own ε.
+                        // `worst_entry_off_box` measured this same
+                        // population at `eps = 0.0`, where the admit
+                        // test is uniformly false and no entry takes
+                        // the branch a real tessellation takes for all
+                        // of them; this arm is where the banded form
+                        // gets its verdict on the same bodies, for
+                        // free.
+                        Err(TessellateError::UnsupportedCurvedDomain {
+                            off_bbox,
+                            first_uv,
+                            max_distance,
+                            ..
+                        }) => crooked.push(format!(
+                            "{name} edge {i} @{fracs:?}: the banded guard refused it — \
+                             {off_bbox} entries off the box, first at {first_uv:?}, \
+                             worst {max_distance} m"
+                        )),
                         Err(_) => refused += 1,
                     }
                 }
@@ -1374,6 +1412,112 @@ mod tests {
             require_swept_rectangle(fk, &poly, &levers, b, eps()),
             Ok(()),
             "the banded guard must not refuse a rectangle that is straight to ulps"
+        );
+    }
+
+    /// **THE ZERO-LEVER WITNESS.** An axis whose lever arm is 0 carries
+    /// no metric, so it decides nothing — the entry has to be on the
+    /// box in the other one.
+    ///
+    /// `Chart::radial` is 0 exactly at a chart singularity, and
+    /// `gap * 0 < eps` is true for every gap there is: banded against a
+    /// vanished lever, the u axis admits a pole entry at ANY u. The two
+    /// halves are asserted together because only the pair is the rule —
+    /// the first alone would be satisfied by refusing every pole entry
+    /// there is, which would false-refuse every sphere and cone this
+    /// lane meshes.
+    #[test]
+    fn a_zero_lever_axis_admits_nothing() {
+        // Strictly inside the box on BOTH axes — a re-entrant corner,
+        // 2 m off in v at unit lever.
+        let poly = uv(&[(0.0, 0.0), (4.0, 0.0), (2.0, 2.0), (4.0, 4.0), (0.0, 4.0)]);
+        let mut levers = unit_levers(poly.len());
+        levers[2] = (0.0, 1.0);
+        assert_eq!(
+            entries_off_bbox(&poly, &levers, bbox(&poly), eps()),
+            vec![(2, 2.0)],
+            "an entry off the box on both axes is off the box, and the distance \
+             reported is the one axis that has a metric"
+        );
+
+        // The shape a pole entry actually has: interior in u, ON the
+        // box in v. Admitted, and it must be — this is every sphere
+        // pole and cone apex in the suite.
+        let poly = uv(&[(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (2.0, 4.0), (0.0, 4.0)]);
+        let mut levers = unit_levers(poly.len());
+        levers[3] = (0.0, 1.0);
+        assert!(
+            entries_off_bbox(&poly, &levers, bbox(&poly), eps()).is_empty(),
+            "a pole entry is on its box in v, and that is what admits it"
+        );
+    }
+
+    /// **THE EXEMPTION, ASSERTED.** Every pole entry the walk emits
+    /// carries a zero u lever and sits on its own bounding box in v.
+    ///
+    /// [`entries_off_bbox`] admits a pole entry on its v gap alone
+    /// (the u axis has no metric there), so this is the fact that
+    /// makes a sphere pole and a cone apex meshable rather than
+    /// refused. It held silently before it was written down: the walk
+    /// gives a pole entry the CHART's pole v ([`Chart::poles`]), the
+    /// box is the entries' own min/max, and no chart puts a v beyond
+    /// its own pole. If a face ever arrives whose pole v is interior —
+    /// a cone spanning both nappes would be one — this row goes red
+    /// and the guard REFUSES that face rather than meshing it, which
+    /// is the outcome the payload argument in
+    /// [`require_swept_rectangle`] wants.
+    ///
+    /// **The non-vacuity floor is global, not per fixture** (§C10),
+    /// and that is a real difference from the rows above: most
+    /// fixtures here have no pole at all, so "this fixture stopped
+    /// contributing" is not distinguishable from "this fixture never
+    /// had one". What IS per fixture is the other direction — a pole
+    /// entry can only come from a chart that has poles — so a walk
+    /// that started inventing them is caught where it happens.
+    #[test]
+    fn a_pole_entry_sits_on_its_own_box_in_v() {
+        let mut seen = 0usize;
+        let mut per_fixture: Vec<(&str, usize)> = Vec::new();
+        for (name, body) in fixtures() {
+            let mut here = 0usize;
+            for (fk, poly, levers) in curved_walks(&body) {
+                let (_, _, v0, v1) = bbox(&poly);
+                let charted = body
+                    .get_face(fk)
+                    .and_then(|f| body.get_surface(f.surface))
+                    .and_then(Chart::of)
+                    .is_some_and(|c| !c.poles().is_empty());
+                for (e, &(lu, _)) in poly.iter().zip(&levers).filter(|(e, _)| e.pole) {
+                    here += 1;
+                    assert!(
+                        charted,
+                        "{name} face {fk:?}: a pole entry at ({}, {}) on a chart whose \
+                         `poles()` is empty",
+                        e.u, e.v
+                    );
+                    assert_eq!(
+                        lu, 0.0,
+                        "{name} face {fk:?}: pole entry at ({}, {}) carries a u lever of \
+                         {lu}, not 0 — `entries_off_bbox`'s degenerate-axis rule is \
+                         about a different set of entries than the walk's pole flag",
+                        e.u, e.v
+                    );
+                    assert!(
+                        e.v == v0 || e.v == v1,
+                        "{name} face {fk:?}: pole entry at ({}, {}) is interior in v \
+                         (box v {v0}..{v1}), so nothing admits it and the face is \
+                         refused — see `entries_off_bbox`",
+                        e.u,
+                        e.v
+                    );
+                }
+            }
+            seen += here;
+            per_fixture.push((name, here));
+        }
+        assert!(
+            seen > 0,
+            "no fixture walked a pole entry, so this row asserts nothing: {per_fixture:?}"
         );
     }
 
