@@ -934,6 +934,53 @@ the two sites where the pattern was *deliberately declined*, and #883's
 fork is `S3`'s collapse question. The discarded receipt was the
 orchestrator's, not the record's.
 
+## Inherited from Track I (2026-08-21)
+
+**Track I closed in #890 and left decisions behind it.** Evan assigned
+**#884** to this orchestrator — *"you're responsible for 884 now"*, with
+**licence to correct it**, not merely to shepherd it. Recorded here
+because Track I's log is now a closed record and this is live state.
+
+- **`S82` → issue #893.** Its verdict line was empty; #884 had offered it
+  to Evan as a third decision and nothing answered. **Unowned rather than
+  deferred**, once Track I closed. Routed to an issue because it is a
+  defect in what a predicate *decides* — the sphere rim lever collapses
+  as `cos v̄ → 0`, so two distinct near-polar rims decide `Zero` and a
+  non-rectangular domain **passes**. `#723`/`#862` are the routing
+  precedents; `S82` is `#723`'s sibling by a second mechanism, which its
+  own text said. Re-derived before filing (`props/curved.rs:1193`),
+  per `H-R1`. **A second finding fell out of writing it**:
+  `docs/predicate-dimension-audit.md` marks the row **`OK`** while its own
+  prose at `:171`/`:550` describes the defect — a document passing in its
+  verdict column what it fails in its prose. Folded into #893.
+- **`S65`'s option table rests on a corrected premise, twice over.**
+  (1) Option B was argued as *"the only form consistent with D9"* on a
+  **misreading of D9** — fixed in **#892**; D9 is scoped to
+  input-reachable states and the D2 addendum makes a panic the ratified
+  mechanism for a bug state, so `assert!` was never excluded. (2) Evan's
+  release-profile directive may make the `#[cfg(debug_assertions)]`
+  backstop **live in release**, which would falsify `S65`'s founding
+  sentence — *"compiled out of every build that ships a mesh"* — and
+  leave the table describing a tree that no longer exists. **Being
+  verified by the `d9-pickup` lane against that specific block**, not
+  against release builds in general.
+- **#884 question 1 is RULED by this orchestrator**: D9's *"mesh
+  structure is a function of (body, δ) alone"* takes the **stronger**
+  reading, and the pole classification owes a **guard, not a qualifier**.
+  Weakening a ratified promise to accommodate a state that could only
+  arise from value coincidence makes the document quieter about exactly
+  the case worth hearing about. Evan reached the same answer independently
+  in ordering the `walk.rs` guard. **Open sub-question**: that guard is
+  vertex-against-*vertex* and the ε read at `walk.rs:995` is
+  vertex-against-*pole* — related, not identical, and not to be conflated
+  in the ruling until the lane reports whether one covers the other.
+- **Option C is mis-filed and leaves the decision table.** *"Keep the
+  floor, widen it"* is orthogonal to A/B, priced at zero, never costed —
+  the PR says so itself. A work item sitting in a decision table makes
+  the table read as a choice among equals. Its two named gaps: the
+  full-2π seam case has **no floor in any build**, and cross-face
+  identification has **no check at all**.
+
 ## Incidents
 
 ### A closed track left a lane with a dirty tree, and only the cleaner's refusal saw it (2026-08-21)
