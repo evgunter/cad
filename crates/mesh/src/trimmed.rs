@@ -301,6 +301,15 @@ pub(crate) fn tessellate_trimmed(
     // loop is the retries-exhausted path.
     let mut outcome: Option<Result<Vec<[u32; 3]>, TessellateError>> = None;
     'retry: for attempt in 0..=MAX_GRID_RETRIES {
+        // THIS ATTEMPT's columns, cleared at its FIRST line: a
+        // discarded attempt's triangles must not contribute to numbers
+        // that describe the mesh the face exits on, and every path out
+        // of this loop — including the ones that leave before the emit
+        // pass — reaches the hand-off below. (`worst_ratio` is
+        // deliberately not among them; see above.)
+        worst = 0.0;
+        (worst_dev, worst_dev_cert) = (f64::NAN, f64::NAN);
+        dev_samples = 0;
         let mut cdt: ConstrainedDelaunayTriangulation<SpadePoint<f64>> =
             ConstrainedDelaunayTriangulation::new();
         // Handle-index → (mesh id or grid candidate index, uv).
@@ -459,13 +468,6 @@ pub(crate) fn tessellate_trimmed(
             None
         };
         let mut triangles = Vec::new();
-        // THIS ATTEMPT's columns, cleared here: a discarded attempt's
-        // triangles must not contribute to numbers that describe the
-        // mesh the face exits on. (`worst_ratio` deliberately is not
-        // among them; see above.)
-        worst = 0.0;
-        (worst_dev, worst_dev_cert) = (f64::NAN, f64::NAN);
-        dev_samples = 0;
         // CERT-DRIVEN REFINEMENT (TESS-SPAN; module docs): NURBS
         // triangles certifying above the per-face sizing target get
         // their UV centroid queued as a new candidate for the next
