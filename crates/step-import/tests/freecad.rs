@@ -167,16 +167,6 @@ const SMALLEST_ROUND_FEATURE_M: f64 = 2.5e-4;
 /// | 1e-12 … 1e-6, 1e-5 | all 13 import, all three tiers green |
 /// | 1e-4 | ε is 40% of the smallest round feature: the corpus refuses typed across the attachment gates (`dihedral_arm`/`dihedral_wedge` in-band on edge certification, `interval_span_forward` on sub-band parameter spans, `tangent_second_order` escalations) — every refusal naming its predicate and band |
 ///
-/// (History, two retired landings: `cone_trunc`'s tier 3 once went
-/// red at 1e-7 as the project's first **in-band K landing** —
-/// `props_rim_level_group` margin 5.590169943747308e-7, an AREA where
-/// a length belonged; the rim-dimensional fix meters it bare and the
-/// honest ≈1.118e-3 m margin is decisively out of band — see
-/// `probe_review::a3_cone_trunc_all_tiers_green_at_1e7_landing_retired`.
-/// And the pre-M6-3 1e-7/1e-6 cylinder-chart refusals were the
-/// `pcurve_chart_radial_moving` trilean's r²-scaled metering, retired
-/// by the amplitude-in-metres correction above.)
-///
 /// The ceiling is set at the finest ε measured to hold the whole
 /// corpus (1e-5 m — 4% of the smallest round feature); the true
 /// boundary lies between there and 1e-4. Above it the certifying rows
@@ -221,10 +211,8 @@ fn corpus_scale_gate(row: &str) -> bool {
 /// Below the ceiling, `Ok(())`. Above it, `Ok(())` **or an
 /// escalation** — a K in-band / indeterminate classification, which is
 /// the kernel declining to answer at a tolerance too coarse for the
-/// geometry (the historical instance — `cone_trunc` at ε = 1e-7
-/// answering `VolumeUncomputable` on `props_rim_level_group` — turned
-/// out to be a dimensional-metering defect, since fixed and retired;
-/// the allowance stands for honestly-metered in-band margins). What
+/// geometry (the allowance stands for honestly-metered in-band
+/// margins). What
 /// is never allowed is a DEFINITE geometric falsehood
 /// such as `NegativeVolume`: "cannot compute at this ε" is honest,
 /// "computed, and it is inside out" is a body that should not have

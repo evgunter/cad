@@ -43,28 +43,15 @@
 //!    4 seams, and the #210 fold's two skinned documents), and nowhere
 //!    else, plus the placeholder-surface refusal.
 //!
-//!    *Lineage, kept because the names are cited in `docs/M5-EXIT-WALK.md`.*
-//!    `CENSUS` is the successor of `no_body_at_rest_carries_a_nurbs_\
-//!    carrier_or_face` (flipped at M6-2) and then of
-//!    `no_export_corpus_body_carries_a_nurbs_carrier_or_face` (flipped
-//!    at M6-3), and most recently of
-//!    `nurbs_geometry_appears_exactly_where_the_kernel_put_it` (merged
-//!    at the test-cost audit). The retired rows pinned a VACUITY
-//!    positively — that nothing anywhere reached a rung-3 carrier at
-//!    rest, which is what made "every fitted pcurve cache carries the
-//!    full C2 certificate" a statement about the empty set. M6-2 lifted
-//!    the SSI enclosure/certification stack off `f64` and landed
-//!    `Pcurve::Fitted` (`topo/tests/m6_2_fitted_at_rest.rs` now pins the
-//!    POSITIVE law); M6-3's `loft_prism` then brought the corpus's first
-//!    NURBS faces (four skinned walls) AND its first NURBS carriers (the
-//!    four wall–wall seam edges, which store the walls' u-boundary
-//!    control rows — so the carrier half flipped WITH the face half, not
-//!    later). The record-level pins in `writer.rs` still own the
-//!    field-level facts (rational complex instance, knot run-length
-//!    encoding). What survives here is CONTAINMENT: a corpus document
-//!    that silently acquired a NURBS carrier (fitted lane, live since
-//!    M6-2) or a writer that manufactured a spline out of an analytic
-//!    carrier still fails.
+//!    *Lineage (the names are cited in `docs/M5-EXIT-WALK.md`)*:
+//!    `CENSUS` succeeds `no_body_at_rest_carries_a_nurbs_carrier_or_face`,
+//!    `no_export_corpus_body_carries_a_nurbs_carrier_or_face` and
+//!    `nurbs_geometry_appears_exactly_where_the_kernel_put_it`. The
+//!    record-level pins in `writer.rs` own the field-level facts
+//!    (rational complex instance, knot run-length encoding); what
+//!    survives here is CONTAINMENT: a corpus document that silently
+//!    acquired a NURBS carrier (fitted lane) or a writer that
+//!    manufactured a spline out of an analytic carrier still fails.
 //! 4. **Determinism and the refusal arms** — their own rows, because
 //!    [`curved_exports_are_byte_deterministic`] builds the corpus TWICE
 //!    on purpose and that second build IS its content.

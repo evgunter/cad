@@ -742,8 +742,8 @@ mod tests {
 
     /// C6: the COVERAGE CERTIFICATE, tested AT THE MECHANISM.
     ///
-    /// **This pin used to be green for the wrong reason**, and both
-    /// reviews found it independently: its carrier placed a 120°
+    /// **This pin can go green for the wrong reason**: its carrier
+    /// once placed a 120°
     /// corner (`2r`, weight ½) over a 60° chord, so the span sat
     /// 1.22 mm off a 5 mm circle and the pin died at the LOCUS
     /// certificate, never reaching the gate it is named for. It now

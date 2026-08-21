@@ -53,7 +53,7 @@
 //! via [`NurbsCurve3::project_from_seed`], the raw-Newton entry that
 //! exists for exactly those fixtures and for warm-started consumers.
 
-use geom_core::{Bounds, Point2, Point3, Real};
+use geom_core::{Bounds, CertifiedBounds, Point2, Point3, Real};
 
 use crate::curves::{NurbsCurve2, NurbsCurve3};
 use crate::projection::{
@@ -97,6 +97,27 @@ macro_rules! nurbs_project {
         /// distance, so a bad projection cannot launder a bad cache —
         /// the consumer re-checks both through its own band machinery;
         /// see the module docs' honesty section).
+        ///
+        /// **At `T = Dual` every `T`-valued field here carries a partial
+        /// derivative rather than a total one — issue #874.** `t` is
+        /// selected as `f64` and frozen (`crate::projection::mid`), so
+        /// each field is differentiated at fixed `t*` and each is short
+        /// by its own `∂/∂t × dt*/dp` term: the coefficient is `C′(t*)`
+        /// for `foot`, `C″·(C − P) + |C′|²` for `orthogonality`, and
+        /// `C′·(C − P)/|C − P|` for `distance`.
+        ///
+        /// **`distance` is the only one the iteration bounds, and it
+        /// bounds it on ONE of the three exits.** Its coefficient is the
+        /// cosine acceptance quantity itself, so on the *cosine* exit
+        /// the dropped term is at most `ε₂·|C′|·|dt*/dp|` — small, not
+        /// zero. The *coincidence* exit returns with no orthogonality
+        /// condition held at all, and *stagnation* fires at any foot
+        /// whose parameter step dies — domain-end feet land there, and
+        /// are not the only ones that do — so on both of those the
+        /// coefficient is bounded only by `|C′|`. Every VALUE channel is
+        /// the plain-`T` run's bit-identically (D9); only the tangents
+        /// are at stake, and `geom/tests/dual_foot_tangent.rs` pins both
+        /// halves of that so this paragraph cannot quietly go stale.
         #[derive(Clone, Copy, Debug)]
         pub struct $Projection<T: Real> {
             /// The foot parameter `t*` (inside the knot domain) —
@@ -116,20 +137,9 @@ macro_rules! nurbs_project {
             pub iterations: usize,
         }
 
+        /// The seeding sweep is not a certification door and keeps the
+        /// sole bracket bound — module docs' `# Scalars` for why.
         impl<T: Bounds> $Curve<T> {
-            /// Projects `p` onto the curve: the fixed seeding sweep
-            /// (module docs) followed by [`Self::project_from_seed`].
-            /// Deterministic bit-for-bit per D9.
-            ///
-            /// # Errors
-            ///
-            /// [`ProjectionInconclusive`] when Newton's fixed budget
-            /// expires without meeting an acceptance condition (a NaN
-            /// input point lands here too — poison converges nowhere).
-            pub fn project(&self, p: $Point<T>) -> Result<$Projection<T>, ProjectionInconclusive> {
-                self.project_from_seed(p, self.project_seed(p))
-            }
-
             /// The fixed-count seeding sweep (module docs: the seeding
             /// rule). Public for warm-start consumers and the planted
             /// wrong-branch fixtures; `project` = this + Newton.
@@ -155,6 +165,21 @@ macro_rules! nurbs_project {
                     }
                 }
                 best_t
+            }
+        }
+
+        impl<T: CertifiedBounds> $Curve<T> {
+            /// Projects `p` onto the curve: the fixed seeding sweep
+            /// (module docs) followed by [`Self::project_from_seed`].
+            /// Deterministic bit-for-bit per D9.
+            ///
+            /// # Errors
+            ///
+            /// [`ProjectionInconclusive`] when Newton's fixed budget
+            /// expires without meeting an acceptance condition (a NaN
+            /// input point lands here too — poison converges nowhere).
+            pub fn project(&self, p: $Point<T>) -> Result<$Projection<T>, ProjectionInconclusive> {
+                self.project_from_seed(p, self.project_seed(p))
             }
 
             /// Newton on the orthogonality condition from an explicit

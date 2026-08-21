@@ -25,18 +25,11 @@
 //!
 //! # Coverage honesty (spec §3)
 //!
-//! The exportable NURBS class was bounded by the loft/sweep skin's
-//! weight drift (#207): `sweep_body` with any curved path and
-//! `loft_body` with any non-uniform section spacing refused at
-//! assembly (`nurbs_span_meter` poison — the meter had no rational
-//! arm at all, so a drifted weight channel was fatal on its own).
-//! #207 fixed the drift at its source and M7's rational span meter
-//! retired the poison itself, so the bodies this suite round-trips are
-//! uniformly-spaced lofts by the fixture's own choice, not by refusal
+//! The bodies this suite round-trips are uniformly-spaced lofts by
+//! the fixture's own choice, not by refusal
 //! — polyline profiles (non-rational, full tier 3) and arc-bearing
 //! profiles (rational walls, which since M7-7 refuse at the import
-//! gate on the banked QUADRATURE lane — a different bank from the span
-//! meter's, and the one still open). That is a statement about the
+//! gate on the banked QUADRATURE lane, the one still open). That is a statement about the
 //! builder and the quadrature, not the reader: the import side reads
 //! any file in the written vocabulary, and only the at-rest gate has
 //! anything left to say about the rational one.
@@ -178,13 +171,9 @@ fn rational_props_posture(body: &topo::Body<f64>, who: &str) -> Option<topo::Mas
 /// mapped description form, so the reader reaches the same state the
 /// builder does.
 ///
-/// The writer/reader symmetry the row was written for is now literal
-/// AND green: `StepImport::Solid` may only carry a body the shared
-/// at-rest gate passes, so an `Ok` here IS the imported body's tier-3
-/// verdict. What used to make that impossible — a body whose volume
-/// the kernel could not compute is not tier-valid at rest, and
-/// shipping it would be import quietly holding a laxer standard than
-/// the kernel — has stopped being true rather than been relaxed.
+/// The writer/reader symmetry the row was written for is literal:
+/// `StepImport::Solid` may only carry a body the shared at-rest gate
+/// passes, so an `Ok` here IS the imported body's tier-3 verdict.
 ///
 /// **The rational parse arm is still pinned BY this row**: a reader
 /// that dropped the `RATIONAL_B_SPLINE_SURFACE` weights would produce
@@ -202,9 +191,8 @@ fn rational_props_posture(body: &topo::Body<f64>, who: &str) -> Option<topo::Mas
 /// This row is the single home for the rational arc-loft body's
 /// disposition. Two rows that built a CHARACTER-IDENTICAL
 /// `native_arc_loft` and quadratured it again were merged in here;
-/// each rational quadrature is the expensive thing in this class, and
-/// the three rows paid for ten between them where five state the same
-/// facts. Authorship is kept, which is this project's convention for
+/// each rational quadrature is the expensive thing in this class.
+/// Authorship is kept, which is this project's convention for
 /// adopted review probes (M7-1's "adopted BY MERGE with authorship
 /// kept"):
 ///

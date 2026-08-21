@@ -347,12 +347,9 @@ fn the_pipped_cube_fillets_in_place_with_rings_carried() {
 /// **K-funnel coverage rides along**: the surgery's one new predicate,
 /// `fillet3_ring_clearance`, must reach the funnel BY NAME during the
 /// composed-die construction (the ring carry-through is decided, not
-/// assumed). That was its own test until the test-cost audit — it
-/// only ever OBSERVED the build this row already performs, and
-/// `composed_die()` costs ~1.7 s that nextest's process-per-test
-/// isolation made the suite pay twice, on every ε row. The verdict
-/// log is a `Vec` push per definite outcome inside `decide`, so
-/// installing it changes nothing the certification battery measures.
+/// assumed). The verdict log is a `Vec` push per definite outcome
+/// inside `decide`, so installing it changes nothing the certification
+/// battery measures.
 #[test]
 fn the_composed_die_certifies_and_tessellates_watertight() {
     use geom_core::k_stats::{start_verdict_log, take_verdict_log};

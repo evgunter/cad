@@ -342,6 +342,24 @@ search, and **reported it**. That is the whole obligation — the fence is again
 reading and editing, not a tripwire, and an honest report costs nothing.
 Exclude it in your search commands rather than relying on not looking.
 
+**A fence's track is derivable — from the head's own branch name.** A lane
+derived its fence correctly over eleven open heads and then reported that it
+could not tell a **cross-track fence** from an **intra-track sequencing
+question**, because `git diff --name-only` says which heads touch your files
+and nothing says who owns them. It is right that the overlap pipeline cannot
+answer it, and wrong that the tree cannot: **every branch carries its track as
+a prefix** — `smelle/`, `smellc/`, `smellf/`, `smellg/` — holding across all 81
+`smell*` branches. So `git ls-remote --heads origin`, or the head ref on the
+PR, answers it.
+
+**Why the distinction is worth deriving**: a head on *another* track is a fence
+and you stop. A head on *your own* track is the orchestrator's to sequence, and
+the question to ask is *"which lands first"*, not *"may I touch this."* The
+second question is answerable in a sentence and the first is not, which is why
+a lane that leads with the sequencing framing gets unblocked faster than one
+that leads with a defence of the crossing. **Lead the ask with the question the
+orchestrator can actually answer.**
+
 **And check that your exclusion is the right syntax for the tool you are
 running.** A second lane put the exclusion in the command, as instructed, and
 still read the file: it used git-pathspec syntax — `:!path` — in a `grep -rn`.
@@ -526,6 +544,49 @@ token, and the discipline forbids an empty commit to kick CI. So the sequence
 is: diagnose against `main`, then wait for a real reason to push — a re-merge
 when `main` next moves, which a long-running branch owes anyway. Waiting is not
 inaction here; it is the only honest trigger.
+
+### E-R10 — S14(a) has three halves, and a twin the tree declares (2026-08-21)
+
+**Evan ruled S14(a) closes as two changes rather than A′** — `window_of` off the
+public surface (E-s), and a two-integer structural refusal at the doors that
+already hold the vector (E-t). **E-t then demonstrated a third defect that
+neither closes**, and asked for the block's last row number for it.
+
+**Refused, and the reason is the ruling.** `SurfaceWindow` is `Span`'s
+two-dimensional twin **by its own doc comment**, and §S14's problem statement
+already reaches the surface case. A row whose subject is *"`Span` validity is
+prose"* covers the twin the tree itself declares to be the same thing, so a new
+number would put a second register entry on one subject — **§C3's shape**, the
+duplicate whose copies do not know about each other — and would spend `D100` to
+do it. **S14 stays open with three halves and two done**, which is both true and
+more informative than a `FIXED by` lead.
+
+**The finding itself is the thing to keep.** Neither half reaches the surface
+doors: E-t's guard sits at `basis_funs`, so the basis rows poison — but the
+surface then indexes its own control array with the *foreign* window's `base`,
+and **poison in a row does not stop an index**. E-s closes argument *order*, not
+cross-surface provenance: `window`/`window_at` stay public mints and the three
+`_in_span` doors stay public consumers. Executed with public constructors and
+safe Rust only, then reverted rather than committed — **a `should_panic` row
+would enshrine, in a kernel whose D9 says it never panics, a panic that the next
+lane exists to delete.** The reproduction goes in the PR body as a specification
+for E-u to invert.
+
+### The falsification step paid for itself inside one lane (2026-08-21)
+
+E-t's brief required it to break its own guard and show the test go red. **It
+did, and the test stayed green.** The shared `span_fixtures::vectors()` spread
+carries two cubics of *the same length*, so on that list the index compare never
+separated anything: the guard passed a suite that was provably testing half of
+it. **A guard verified only by its own green suite is not verified**, and the
+only reason this surfaced is that breaking it was a scheduled step rather than a
+judgement call.
+
+**And the repair was right in a way worth copying**: it added same-degree,
+different-length vectors *locally* rather than reordering the shared fixture,
+whose order is load-bearing for `span_basis_identity`'s golden table. A lane
+that had "improved" the shared fixture in place would have moved a golden and
+then argued with it.
 
 ### E-R9 — the standing lane header was not on `main` (2026-08-20)
 

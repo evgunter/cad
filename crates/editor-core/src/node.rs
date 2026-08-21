@@ -15,9 +15,8 @@ use topo::ContactClass;
 /// [`Node::payload_names`] and [`Node::rebind_payload_names`] must name
 /// the same variants — the read and the rewrite are one answer read two
 /// ways, and a variant one of them treats as nameless while the other
-/// rewrites it is a name that survives a `Rebind`. That agreement was
-/// held by hand and by a sentence saying so; it is held here instead,
-/// while both matches stay exhaustive: a new [`Node`] variant absent
+/// rewrites it is a name that survives a `Rebind`.
+/// Both matches stay exhaustive: a new [`Node`] variant absent
 /// from this list breaks both builds, and adding it to this list is one
 /// decision at one site.
 macro_rules! name_free_node {
@@ -1033,7 +1032,7 @@ impl<P> Node<P> {
     /// duplicating it.
     ///
     /// The two must name the same variants; [`name_free_node`] is where
-    /// that agreement is held, rather than in this sentence.
+    /// that agreement is held.
     pub(crate) fn rebind_payload_names(&mut self, from: &StableName, to: &StableName) -> usize {
         fn rewrite(name: &mut StableName, from: &StableName, to: &StableName) -> usize {
             if name == from {

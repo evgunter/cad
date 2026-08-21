@@ -62,7 +62,7 @@
 //! the cosine test with a trivially-zero residual that `distance`
 //! refuses.
 
-use geom_core::{Bounds, Point3, Real};
+use geom_core::{Bounds, CertifiedBounds, Point3, Real};
 
 use crate::projection::{
     PROJECT_EPS_COSINE, PROJECT_EPS_POINT, PROJECT_MAX_ITERS, PROJECT_SEEDS_PER_SPAN, mid,
@@ -72,6 +72,25 @@ use crate::surfaces::NurbsSurface;
 /// A converged surface foot point WITH its certified residuals (C2.1;
 /// see the module docs' honesty section — the consumer bands all three
 /// together, and this type exists so it *can*).
+///
+/// **At `T = Dual` every `T`-valued field here carries a partial
+/// derivative rather than a total one — issue #874.** `u` and `v` are
+/// selected as `f64` and frozen (`crate::projection::mid`), so each field
+/// is differentiated at fixed `(u*, v*)` and is short by the two
+/// `∂/∂u × du*/dp` and `∂/∂v × dv*/dp` terms a frozen parameter cannot
+/// produce — `S_u`, `S_v` for `foot`; `S_uu·r + |S_u|²` and
+/// `S_uv·r + S_u·S_v` for `orthogonality_u`, and their transposes for
+/// `orthogonality_v`; `S_u·r/|r|` and `S_v·r/|r|` for `distance`.
+///
+/// **`distance` is the only one the iteration bounds, and it bounds it on
+/// ONE of the three exits** — the *cosine* one, where its coefficients
+/// are the acceptance quantities in both directions and the dropped terms
+/// are at most `ε₂·|S_u|·|du*/dp|` and `ε₂·|S_v|·|dv*/dp|`. The
+/// *coincidence* exit holds no orthogonality condition, and *stagnation*
+/// fires at any foot whose step dies rather than only at a domain edge.
+/// Every VALUE channel is the plain-`T` run's bit-identically (D9); only
+/// the tangents are at stake; `geom/tests/dual_foot_tangent.rs` pins it.
+/// The curve half's type carries the same analysis in one parameter.
 #[derive(Clone, Copy, Debug)]
 pub struct SurfaceProjection<T: Real> {
     /// The foot parameter `u*` (inside the u knot domain) — **`f64`
@@ -133,24 +152,9 @@ impl core::fmt::Display for SurfaceProjectionInconclusive {
 
 impl core::error::Error for SurfaceProjectionInconclusive {}
 
+/// The seeding sweep is not a certification door and keeps the sole
+/// bracket bound — `crate::projection`'s `# Scalars` for why.
 impl<T: Bounds> NurbsSurface<T> {
-    /// Projects `p` onto the surface: the fixed seeding sweep (module
-    /// docs) followed by [`Self::project_from_seed`]. Deterministic
-    /// bit-for-bit per D9.
-    ///
-    /// # Errors
-    ///
-    /// [`SurfaceProjectionInconclusive`] when Newton's fixed budget
-    /// expires without meeting an acceptance condition (a NaN input
-    /// point lands here too — poison converges nowhere).
-    pub fn project(
-        &self,
-        p: Point3<T>,
-    ) -> Result<SurfaceProjection<T>, SurfaceProjectionInconclusive> {
-        let (u, v) = self.project_seed(p);
-        self.project_from_seed(p, u, v)
-    }
-
     /// The fixed-count seeding sweep (module docs: the seeding rule).
     /// Public for warm-start consumers (the PR 7 marcher and its
     /// subdivision seeds) and for the planted wrong-sheet fixtures.
@@ -189,6 +193,25 @@ impl<T: Bounds> NurbsSurface<T> {
             }
         }
         best
+    }
+}
+
+impl<T: CertifiedBounds> NurbsSurface<T> {
+    /// Projects `p` onto the surface: the fixed seeding sweep (module
+    /// docs) followed by [`Self::project_from_seed`]. Deterministic
+    /// bit-for-bit per D9.
+    ///
+    /// # Errors
+    ///
+    /// [`SurfaceProjectionInconclusive`] when Newton's fixed budget
+    /// expires without meeting an acceptance condition (a NaN input
+    /// point lands here too — poison converges nowhere).
+    pub fn project(
+        &self,
+        p: Point3<T>,
+    ) -> Result<SurfaceProjection<T>, SurfaceProjectionInconclusive> {
+        let (u, v) = self.project_seed(p);
+        self.project_from_seed(p, u, v)
     }
 
     /// Newton on the two orthogonality conditions from an explicit seed

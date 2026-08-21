@@ -27,9 +27,6 @@
 //!   Declarations is reachable too. It is deferred because the
 //!   naming/selection projection is a design subject of its own, and
 //!   binding a provisional shape here would fork it.
-//!
-//! Neither row is "no accessor exists"; an earlier revision of this
-//! comment claimed that, and it was false.
 
 use std::sync::Arc;
 

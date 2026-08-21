@@ -484,8 +484,7 @@ pub enum FilletError {
     /// The operator's own refusal is nested whole — `StaleKey`,
     /// `Certification`, and the rest of its vocabulary reach the caller
     /// typed rather than as prose. `site` names the surgery step that
-    /// ran the operator, which is what the message used to carry and
-    /// the type did not.
+    /// ran the operator.
     Op {
         /// The surgery step that ran the operator.
         site: &'static str,

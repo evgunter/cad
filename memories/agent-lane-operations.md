@@ -110,6 +110,19 @@ ONCE in the foreground before arming it. A catch-all retry arm
 (`|| echo retry`) converts a permanent error into silent eternal
 waiting.
 
+**A restart loses the INBOX and keeps the WORKTREE**, and they then
+disagree. A queued orchestrator message is delivered at the lane's next
+tool round; a container restart before that round drops it, while the
+uncommitted work done for it survives on disk. A lane wakes holding a
+change with no traceable authority — and a diff caught MID-TRANSITION
+between two lost instructions reads exactly like work nobody asked for,
+where a coherent one would have read as somebody's finished intention.
+One lane reported itself for fabricating a ruling from Evan on that
+evidence; the rulings were real and both had arrived. **Revert first,
+ask second, do not conclude**: *"I cannot find the authority"* is
+evidence about the records, and after a restart the records are the
+unreliable half.
+
 **Death recovery.** A dead subagent's transcript AND its isolation
 worktree (with uncommitted work) survive — `git worktree list` from the
 main checkout, then SendMessage resumes it. Choose **fresh over resume**
@@ -153,3 +166,18 @@ CONFLICTING as a loud failure.
 of one session.** PR/issue bodies and anything else to-be-published go
 to LANE-PRIVATE paths (`~/.local/share/cad-work/<lane>-*.md`), never the
 scratchpad; orchestrator briefs state this.
+
+**Reclaiming a finished lane is the ORCHESTRATOR's job, not a lane's.** A
+lane cannot judge whether a sibling directory is live and should not try —
+it should free its own and *report* the rest. Only the orchestrator knows
+which agents have reported. **Do it when a review returns, not when a lane
+runs out of disk**: a review lane's `target/` is pure waste the moment its
+report is in hand, and review lanes are the biggest consumers — one
+adversarial reviewer held 12G, more than any implementer lane. On one track
+six finished reviewers and three merged implementers were holding **23G**
+with nothing unpushed; reclaiming took free space from 2.4G to 27G, after
+disk had already hit 100% and killed a live lane's tool output twice.
+`local-scripts/clean-lanes.sh` refuses anything with unpushed commits or
+untracked files, so it is safe to run in bulk — but it needs **absolute
+paths**; a bare lane name is refused with *"does not exist / cannot
+resolve"*, which reads like a missing directory rather than a usage error.

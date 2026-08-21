@@ -27,15 +27,10 @@ use std::path::{Path, PathBuf};
 
 /// The ledger's current shipped `decide_flagged` inventory.
 ///
-/// **This number is hand-synced and nothing derives it** — it is the
-/// *magic count* `docs/SMELL-SCAN-2026-08.md` §S13 names, and it is the
-/// half of this census that does not enforce itself. It is kept level by
-/// hand with the audit's own prose inventory. The sibling assertion,
-/// [`every_shipped_site_cites_a_ledger_row_that_exists`], reads its rows
-/// out of the audit and does compute; this one only says the total has
-/// not moved. Deriving it — from the ledger's own per-row counts, so
-/// that adding a site to the audit is what raises it — is §S13's to
-/// close, not this test's.
+/// **This number is hand-synced and nothing derives it.** It is kept
+/// level by hand with the audit's own prose inventory; the sibling
+/// assertion, [`every_shipped_site_cites_a_ledger_row_that_exists`],
+/// reads its rows out of the audit and does compute.
 const LEDGER_FLAGGED_SITES: usize = 8;
 
 /// One shipped call site: where it is, and the row it cites.
@@ -120,8 +115,7 @@ fn skip_turbofish(rest: &str, at: usize) -> usize {
 /// and the bare `decide_flagged(` a `use` makes available) and with or
 /// without explicit type arguments ([`skip_turbofish`]). Keying on a
 /// path prefix instead would make the census a statement about how calls
-/// are SPELLED rather than about how many there are — and the bare form
-/// is in use today, at three sites in tests and demos.
+/// are SPELLED rather than about how many there are.
 ///
 /// **What it cannot match, and nothing here would notice:** a call
 /// through a renamed import (`use …::decide_flagged as df;`) and a call
@@ -145,8 +139,7 @@ fn skip_turbofish(rest: &str, at: usize) -> usize {
 /// that skips a site reports a smaller tree than the one that ships, so
 /// anything it cannot read it refuses to pass over. The converse is why
 /// the line-prefix check runs FIRST, before any of those three: a
-/// commented-out mention on its own line must not stop anything, and
-/// before the reorder a malformed turbofish written there did.
+/// commented-out mention on its own line must not stop anything.
 ///
 /// **`src/` is this census's proxy for "shipped", and the proxy is not
 /// exact**: an in-file `#[cfg(test)]` module lives in `src/` and ships

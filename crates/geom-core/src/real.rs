@@ -396,9 +396,21 @@ pub trait Real:
 /// which is the plain-`T` run's bit-identically (D9), so a dual run's
 /// certificate is the base scalar's certificate — the `f64` run's at
 /// `Dual<f64>`, the `Interval` run's at `Dual<Interval>`. No wrong
-/// certificate exists. Whether `separation` should nonetheless carry
-/// [`CertifiedEnclosure`] is a **#643-completeness** question, not D1's,
-/// and is deliberately left open here rather than answered in passing.
+/// certificate exists.
+///
+/// **Whether `separation` should carry [`CertifiedEnclosure`] was a
+/// #643-completeness question left open here. Answered NO, and the
+/// CALLER decides it, not the door.** `Separation::of`/`certify`'s one
+/// production caller is `editor_core::eval::wire::wire_placed_union`,
+/// beneath `evaluate<T>` — a MIXED pass whose node kinds are
+/// overwhelmingly non-certifying, which a [`CertifiedBounds`] bound
+/// here would reach by propagation. Doors tighten; passes keep their
+/// lanes. That these three signatures return NON-generic types is true
+/// and is why nothing a dual gets from them is WRONG, but it does not
+/// decide it: `topo::chart_region_overlap` has that property and WAS
+/// tightened, nothing generic calling it. Whether an answer is wrong at
+/// a dual is a third question with its own home — `geom::projection`'s
+/// `mid`, on freezing a selection (#874).
 ///
 /// **Ratified extension (M5 PR 11, Evan's lane-split ruling):**
 /// `topo::props`'s certified-quadrature plumbing joins the compound
@@ -511,9 +523,11 @@ pub trait Real:
 /// is written in the ratified shape — `geom_brep::EdgeNurbsLane` has
 /// certified impls for `f64`, [`Probe`](crate::Probe) and the interval
 /// scalar and a **refusing** impl for [`Dual`](crate::Dual) — and it
-/// is precisely what keeps `Bounds` out of `topo`'s signatures: the
-/// attach and validate doors take the lane as an injected function,
-/// so no `topo` API grows a bracket bound.
+/// is precisely what keeps `Bounds` off `topo`'s DEFAULT doors: the
+/// lane is a SEPARATE door whose own impl block carries the lane
+/// bound (`Body::set_edge_curve_nurbs_lane`), with `_via(…, f)`
+/// parameterising the shared machinery behind it. Injection moves a
+/// bound onto a narrower signature; it does not remove one.
 ///
 /// **Extension (M9-2 PR-1, under the PR 11 precedent; retroactive
 /// Evan review per the self-merge convention):** `topo::chart_region` — the chart-region overlap
@@ -523,25 +537,24 @@ pub trait Real:
 /// structure** through the bracket — the spec-mandated C6 inventory
 /// gate (a `Harmonic` trig channel is straight only when its bracket
 /// is a point at exactly `0.0`; the `props.rs` rectangle-trim read)
-/// plus the bit-identical-region fast path — so `T: Decide + Bounds`
-/// is its honest signature; a sole-bound form is unsatisfiable. When
-/// this was ratified no dual path existed to split, because
-/// [`Dual`](crate::Dual) implemented no `Bounds` and the predicate was
-/// uninstantiable at dual scalars; the obligation stated here was that
-/// its first `Decide`-generic consumer would owe a `PropsQuadLane`-shape
-/// static lane with a refusing dual impl. **That obligation was
-/// discharged** — `ChartRegionLane`'s refusing `Dual` impl is the lane.
-/// Since the D1 ruling (2026-08-19) `Bounds` IS implemented for `Dual`,
-/// so the predicate is satisfiable at a dual, and the lane is now the
-/// whole guard **on the census path** — which is the honest scope of the
-/// claim, not "nothing else keeps a dual out". `chart_region_overlap` is
-/// `pub` and re-exported from `topo`'s root, and its own bound is
-/// `Decide + Bounds` with no [`CertifiedEnclosure`]; an external caller
-/// may therefore instantiate it at a dual and the lane never sees the
-/// call. That is the one thing this seam does not share with the other
-/// three (`props::quad_lane`, `pcurve_cache::fitted_lane`,
-/// `edge_nurbs::lane`), whose signatures carry `CertifiedEnclosure` and
-/// stay uninstantiable at a dual with or without their lanes.
+/// plus the bit-identical-region fast path — so a compound bound is its
+/// honest signature; a sole-bound form is unsatisfiable.
+///
+/// **The door and the lane guard different things, and both are
+/// needed.** The door's bound is `Decide + `[`CertifiedBounds`], which
+/// no [`Dual`](crate::Dual) satisfies, so the predicate is
+/// uninstantiable at a dual however it is reached — including from
+/// outside the crate, where the lane is never consulted; this seam is
+/// no longer the exception among the four. `ChartRegionLane`'s refusing
+/// `Dual` impl is NOT redundant with that: it is what lets the census,
+/// a MIXED pass, decline this one arm and keep going, which no bound on
+/// a whole function can express.
+///
+/// The tightening replaced an audit, not a wrong answer — `ChartOverlap`
+/// is not generic in `T`, so a dual run's answer was the value
+/// channel's exactly. **That is not what decided it**: `topo::separation`
+/// shares the property and was NOT tightened, the difference being that
+/// nothing generic calls this door (the `separation` entry above).
 ///
 /// **Not an extension — a spelling.** The pair
 /// `Bounds + CertifiedEnclosure` — both bracket doors, no `Decide` — is
@@ -662,11 +675,8 @@ pub trait Enclosure: Copy {
 /// the smaller trait.
 ///
 /// **This blanket impl means [`Dual`](crate::Dual) is an `Enclosure` too,
-/// since the D1 ruling of 2026-08-19 gave it [`Bounds`].** Said out loud
-/// because the sentence above used to read *"usable by CERTIFICATION
-/// helpers"*, and post-#643 that is the wrong word for this trait:
-/// `Enclosure` is a bracket accessor, and the certification door is
-/// [`CertifiedEnclosure`]. Nothing in `crates/*/src` is
+/// since the D1 ruling of 2026-08-19 gave it [`Bounds`].**
+/// Nothing in `crates/*/src` is
 /// `Enclosure`-bounded today (`spline::hull` moved to
 /// [`CertifiedEnclosure`] at #643), so this is not a live hole — but it
 /// is not gated either: `scripts/gates/bounds-allowlist.sh` greps for
@@ -719,17 +729,26 @@ impl<T: Bounds> Enclosure for T {
 ///
 /// # Implementors
 ///
-/// - `f64` — always certified. The bracket is the value; a poisoned `f64`
-///   is NaN and surfaces as NaN through the bracket, which fails every
-///   downstream `residual ≤ ε` on its own (D4 ¶2). There is no separate
-///   domain-violation channel at `f64` to consult, so the accessor never
-///   refuses and this lane's numbers are exactly what they were.
+/// - `f64` — refuses on NaN, which is this lane's poison (D4's Q1
+///   residue: *∞ is not f64 poison*, so an infinity still certifies the
+///   degenerate bracket it is). The bracket is the value, so the value
+///   being poison IS the domain-violation channel; there is no second
+///   one to consult, and every finite or infinite `f64` certifies.
 /// - [`crate::Interval`] — refuses below `Decoration::Def`, the same
 ///   threshold [`crate::predicate::Decide::sign_within`] refuses at, and
-///   for the same reason.
-/// - [`crate::RingInterval`] — always certified. The ring has two states
-///   and no decorations: poison is NaN endpoints, which
-///   `RingInterval::from_bounds` already rejects.
+///   for the same reason. Empty and NaI sit below it, so the NaN
+///   brackets they store never leave the door.
+/// - [`crate::RingInterval`] — refuses on poison. The ring has two
+///   states and no decorations, so `is_poison` is its whole
+///   domain-violation channel.
+/// - `k_stats::Probe` (feature `probe`) — refuses on NaN, byte-for-byte
+///   as `f64` does; D9 forbids the recording lane diverging.
+///
+/// Every one of them therefore honours one postcondition, which is what
+/// a generic `T: CertifiedEnclosure` body may rely on: **a `Some` never
+/// carries a NaN end**. An infinite end is still possible and is not
+/// poison — `[−∞, ∞]` is a sound (useless) bracket of a real, and
+/// `Interval` certifies it at `Def`.
 ///
 /// **[`crate::Dual`] is deliberately absent, and that absence is now the
 /// ruling rather than a deferral.** Evan settled it as Wave 0 decision
@@ -753,11 +772,13 @@ pub trait CertifiedEnclosure: Copy {
     fn certified_bracket(self) -> Option<(f64, f64)>;
 }
 
-/// `f64` always certifies: it has no domain-violation channel to consult
-/// (see the trait docs).
+/// `f64` refuses on NaN and only on NaN: the bracket is the value, so
+/// the value being poison is the whole of its domain-violation channel
+/// (see the trait docs, and D4's Q1 residue for why ∞ is not poison
+/// here).
 impl CertifiedEnclosure for f64 {
     fn certified_bracket(self) -> Option<(f64, f64)> {
-        Some((self, self))
+        (!self.is_nan()).then_some((self, self))
     }
 }
 

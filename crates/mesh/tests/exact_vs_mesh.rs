@@ -36,11 +36,7 @@ fn check_at(body: &topo::Body<f64>, what: &str, delta: f64) {
 fn exact_volume_delta_consistent_with_mesh() {
     // δ = 1e-3 everywhere except the donut, whose CDT pays the
     // documented quadratic wall-clock (mesh crate docs) — it runs at
-    // 1e-2, which still puts ~18k triangles on the torus. That triangle
-    // count is an observation, not a contract: nothing asserts it and
-    // nothing re-takes it, so a mesher change may move it freely. What
-    // the row asserts is the volume agreement below, at whatever count
-    // 1e-2 produces.
+    // 1e-2.
     check_at(&common::l_prism(), "L-prism", 1e-3);
     check_at(&common::holed_prism(), "holed prism", 1e-3);
     check_at(&common::rounded_prism(), "rounded prism", 1e-3);

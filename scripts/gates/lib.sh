@@ -126,9 +126,12 @@ gate_ok() {
 #
 #   * CRY WOLF. A trailing comment is not stripped, so a line of prose
 #     naming the forbidden spelling fires the gate. That is not
-#     hypothetical: `interval-square-allowlist.sh`'s `linalg/mat.rs`
-#     entry is justified in writing partly by a false positive, and a
-#     false red is a nudge toward the allowlist rather than the fix.
+#     hypothetical: an `interval-square-allowlist.sh` entry was
+#     justified in writing partly by a false positive, and a false red
+#     is a nudge toward the allowlist rather than the fix. (That entry
+#     — `linalg/mat.rs` — has since been discharged by converting the
+#     site, so the example no longer resolves in that file; the
+#     mechanism it names is why this reader exists.)
 #   * GO BLIND. A block comment is stripped on no line at all, so the
 #     matcher reads commented-out prose as code -- and, in the other
 #     direction, a violation written after `/* ... */` on one line is

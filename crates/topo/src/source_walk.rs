@@ -5,9 +5,7 @@
 //!
 //! Its own module rather than a section of [`crate::fixtures`]: that
 //! module's subject is canonical well-formed bodies, this one's is a
-//! Rust reader, and one header cannot describe both. The two were one
-//! file, split ~900 lines apart with a *"Not fixtures:"* hedge doing a
-//! module boundary's work.
+//! Rust reader, and one header cannot describe both.
 //!
 //! # One lexer, for this walk
 //!
@@ -24,14 +22,6 @@
 //! spaces with byte positions preserved. That is a structural rule,
 //! not a convention: [`CodeOnly::public_fns`] is a method, so there is
 //! no way to run the item scan over un-blanked text.
-//!
-//! **It is a rule because it was broken.** This module's first shape
-//! had two lexers: a delimiter matcher that carved function bodies,
-//! and a blanker layered on top of it. The blanker knew `'"'`, nested
-//! block comments and raw strings; the matcher underneath it knew none
-//! of the three, so a door body containing `'"'` was dropped from the
-//! walk entirely and the next door's body corrupted — the guard's own
-//! subject, one layer beneath the guard.
 //!
 //! # Why text and not a parser
 //!
@@ -338,10 +328,8 @@ impl CodeOnly {
 /// first shape of this took the first `{`-or-`;` after the parameter
 /// list and gave up on a `;` — which silently dropped every
 /// `pub fn … -> [f64; 3]`, array types in return position being house
-/// style in this kernel. `crates/topo/src/null.rs`'s `loops` was one,
-/// live in the tree; a planted mutation door with an array return was
-/// invisible to both guards with **no count moving at all**. Depth is
-/// tracked so only a delimiter at the signature's own level decides.
+/// style in this kernel. Depth is tracked so only a delimiter at the
+/// signature's own level decides.
 fn body_start(b: &[u8], close: usize) -> Option<usize> {
     let (mut paren, mut bracket) = (0usize, 0usize);
     for (i, c) in b.iter().enumerate().skip(close + 1) {

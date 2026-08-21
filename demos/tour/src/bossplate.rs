@@ -53,10 +53,6 @@ fn boss<S: Scalar>() -> Body<S> {
     // pins the count. `circle` authors no seam at all (its private
     // lowering is the conventional two-semicircle split), so the split
     // count has to be said out loud; `circle_split` is the door that
-    // says it. Before LIB-RETTAIL this was a raw three-vertex
-    // `ProfileLoop` with hand-computed tan(pi/6) bulges — the same
-    // geometry, said in kernel vocabulary that is no longer presented
-    // surface (Evan's ruling on #413).
     let rim = circle_split(
         Point2::new(S::from_f64(2.0), S::from_f64(2.0)),
         S::from_f64(0.5),

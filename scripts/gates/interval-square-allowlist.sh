@@ -79,40 +79,76 @@
 # inherits the first entry's ratification silently. That is S159/D103's
 # class and it is not closed here.
 #
+# KNOWN GAP 5: the SCALED-square branch sees one spelling of the shape
+# and four others go past it. `(k * x) * x` is matched; `(x * k) * x` is
+# not, because the repeated operand must be the group's LAST factor —
+# requiring only that it appear somewhere inside is what starts
+# matching `(x + k) * x`. `((a + b) * x) * x` and `(f(k) * x) * x` are
+# not matched either: the group may contain no nested parenthesis at
+# all, which is the price of not walking past a call. `k * x * m * x`
+# — the same product with a third factor wedged between the operands
+# and no parentheses anywhere — is invisible to both branches, since
+# one needs adjacency and the other needs the paren. And a square split
+# across two statements (`let kx = k * x;` … `kx * x`) is invisible to
+# everything here: the scan's unit is a statement, and that square is
+# two of them.
+#
+# NONE OF THESE IS LIVE, AND A CLEAN RUN OF THIS GATE IS NOT WHY. These
+# five spellings are exactly what this matcher cannot see, so its own
+# green says nothing about them; only a differently-shaped sweep can.
+# One was run: separate patterns per spelling, plus a two-statement
+# `let`-binding scan over 52,471 production statements. `(x * k) * x`
+# and the nested-paren forms: 0. The three-factor and two-statement
+# forms: 21 + 3 candidates, every one either in an already-allowlisted
+# file, a `Mat3<f64>` projector conjugation, or a Taylor term over an
+# already-tight `.sqr()` value. A hole this gate cannot see is still a
+# hole, so it is written down rather than closed.
+#
 # Allowlist rationale, per file:
 #  - geom-core real.rs / ring_interval.rs — the scalar implementations
 #    themselves: `x * x` is definitional (powi is BUILT from it) and
 #    their tests deliberately contrast the plain product with the tight
 #    square;
-#  - geom-core linalg/mat.rs — `rotation_about` writes `t * x * x`,
-#    which is a SCALED square: tightening it reassociates `(t·x)·x`
-#    into `t·(x²)` rather than replacing a product by a square. That
-#    reassociation is **ratified** (Evan, 2026-08-21 — D9 is
-#    determinism at one kernel, not a pin on last year's output), so
-#    this entry is a SCHEDULED RESIDUE, not a settled exemption: it
-#    holds until D109(a) converts the site and re-cuts whatever
-#    goldens `t = 1 − cos θ` moves. Do not widen the matcher to see
-#    `(k·x)·x` before that lands — it reds this file and
-#    `linalg/vec.rs` together, and greening that by allowlisting is
-#    the outcome this gate's own history is a record of;
 #  - geom-core linalg/svd.rs / lsq.rs — documented f64-only
 #    selection lanes (lsq's hits are usize buffer sizing);
 #  - geom-brep ssi/jet.rs / march.rs / system.rs — f64-only jet and
 #    marcher numerics (finite differences, step control).
 #
-# `interval.rs` and `dual.rs` were on this list and are NOT any more:
-# once the scan stopped reading test modules, neither file had a
-# production hit left. An allowlist entry with nothing behind it is a
+# `interval.rs`, `dual.rs` and `linalg/mat.rs` were on this list and are
+# NOT any more. The first two lost their hits when the scan stopped
+# reading test modules; `mat.rs` lost its one hit —
+# `rotation_about`'s diagonal `t * x * x` — when that scaled square was
+# reassociated into `t·(x²)`. Its entry had been a scheduled residue
+# held open for exactly that conversion, and nothing else in the file
+# is a square. An allowlist entry with nothing behind it is a
 # ratification waiting to be inherited by the next line added to the
-# file.
+# file, which is why each of these came off rather than being left as
+# harmless.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-# `x * x` where x is an identifier or a field path. The trailing
-# look-ahead is the half that stops `a * a.method()` from reading as a
-# square.
-SQUARE_RE='(?<![\w.])((?:[a-z_][a-z0-9_]*)(?:\.[a-z_][a-z0-9_]*)*)\s*\*\s*\1(?![\w.(\[])'
+# `x * x` where x is an identifier or a field path, in TWO shapes.
+#
+# Branch 1 — the bare square `x * x`. The trailing look-ahead is the
+# half that stops `a * a.method()` from reading as a square. This branch
+# also covers the UNPARENTHESIZED scaled square `k * x * x`, because
+# `(k·x)·x` written without parentheses still puts the two operands
+# beside each other.
+#
+# Branch 2 — the PARENTHESIZED scaled square `(k * x) * x`, which is
+# the spelling branch 1 structurally cannot see: the `)` sits between
+# the two operands. It is the same defect — the second factor is a
+# fresh, independent view of the same variable — and its fix is a
+# reassociation into `k·(x²)` rather than a substitution. Two guards
+# keep it off correct code: the paren must NOT be preceded by an
+# identifier character, so `libm::sin(t) * t` and `foo(a * b) * b` are
+# calls and not squares; and the parenthesized group must itself
+# contain a `*` with the repeated operand as its LAST factor, so
+# `(a + b) * b` and `(a * b) * c` are untouched.
+SQUARE_PATH='(?:[a-z_][a-z0-9_]*)(?:\.[a-z_][a-z0-9_]*)*'
+SQUARE_RE="(?<![\w.])($SQUARE_PATH)\s*\*\s*\1(?![\w.(\[])"
+SQUARE_RE="$SQUARE_RE|(?<!\w)\(\s*[^()]*?\*\s*($SQUARE_PATH)\s*\)\s*\*\s*\2(?![\w.(\[])"
 
 # A module whose `mod` declaration is `#[cfg(test)]`-gated is test-only
 # code that happens to live in its own file, and the reader's per-item
@@ -164,7 +200,7 @@ gate() {
   hits=$(gate_rust_code --skip-cfg-test --statements "${files[@]}" \
     | grep -P "$SQUARE_RE" \
     | grep -vE '^crates/geom-core/src/(real|ring_interval)\.rs:' \
-    | grep -vE '^crates/geom-core/src/linalg/(mat|svd|lsq)\.rs:' \
+    | grep -vE '^crates/geom-core/src/linalg/(svd|lsq)\.rs:' \
     | grep -vE '^crates/geom-brep/src/ssi/(jet|march|system)\.rs:' || true)
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits"
@@ -195,6 +231,22 @@ plant_self_field() {
 plant_nested_field_path() {
   mkdir -p "$1/crates/planted/src"
   printf 'pub fn sq<T: Real>(s: S<T>) -> T { s.dir.z * s.dir.z }\n' > "$1/crates/planted/src/lib.rs"
+}
+
+# THE PARENTHESIZED SCALED SQUARE, which is what branch 2 exists for:
+# the `)` sits between the two operands, so branch 1 cannot see them
+# beside each other however the line is wrapped.
+plant_scaled_square() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn f<T: Real>(k: T, x: T) -> T { (k * x) * x }\n' > "$1/crates/planted/src/lib.rs"
+}
+
+# The same shape over a field path, and nested one level deeper — the
+# spelling `orthonormal_basis` had.
+plant_scaled_square_field_path() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'impl<T: Real> V<T> { pub fn f(self, s: T, a: T) -> T { T::one() + ((s * self.x) * self.x) * a } }\n' \
+    > "$1/crates/planted/src/lib.rs"
 }
 
 # WHAT RUSTFMT MAKES OF A LONG PRODUCT. One expression, two lines, and
@@ -243,6 +295,15 @@ plant_ungated_module_file() {
 # THE NEAR MISSES, bundled: in the must-NOT-fire direction any one line
 # firing fails the case, so a bundle is strictly stronger than separate
 # fixtures. Every line here is correct code, or prose, or test-only.
+#
+# EACH LINE MUST BE KILLABLE BY ONE DEFECT, or it is decoration. The two
+# branch-2 guards are independent, so a near-miss excluded by BOTH tests
+# neither: `libm::sin(t) * t` sat here and its group `(t)` has no `*`,
+# so removing either guard alone left it green. The rows below are
+# split so each dies to exactly one: `libm::sin(a * b) * b` and
+# `foo(a * b) * b` fire if the `(?<!\w)` call lookbehind goes (the
+# first in its `::`-qualified spelling), and `(a + b) * b` fires if the
+# group-must-contain-`*` rule goes.
 plant_not_squares() {
   mkdir -p "$1/crates/planted/src"
   {
@@ -255,6 +316,10 @@ plant_not_squares() {
     printf 'pub fn c<T: Real>(v: V<T>) -> T { v.x * v.x.abs() }\n'
     printf 'pub fn d<T: Real>(v: V<T>) -> T { v.norm() * v.norm() }\n'
     printf 'pub fn e<T: Real>(x: T) -> T { x.powi(2) }\n'
+    printf 'pub fn f<T: Real>(a: T, b: T) -> T { libm::sin(a * b) * b }\n'
+    printf 'pub fn g<T: Real>(a: T, b: T) -> T { foo(a * b) * b }\n'
+    printf 'pub fn h<T: Real>(a: T, b: T) -> T { (a + b) * b }\n'
+    printf 'pub fn i<T: Real>(a: T, b: T, c: T) -> T { (a * b) * c }\n'
     printf '#[cfg(test)]\nmod tests {\n    fn t() { let q = 2.0; let _ = q * q; }\n}\n'
   } > "$1/crates/planted/src/lib.rs"
 }
@@ -280,10 +345,12 @@ gate_selftest() {
   gate_selftest_case "$want" plant_ungated_module_file
   gate_selftest_case "$want" plant_any_gated_module_file
   gate_selftest_case "$want" plant_wrapped_product
-  gate_selftest_passes "prose, string literals, mixed products, a * a.method(), and a cfg(test) module" plant_not_squares
+  gate_selftest_case "$want" plant_scaled_square
+  gate_selftest_case "$want" plant_scaled_square_field_path
+  gate_selftest_passes "prose, string literals, mixed products, a * a.method(), a call whose result multiplies its own argument, a parenthesized product whose last factor is not the repeated one, and a cfg(test) module" plant_not_squares
   gate_selftest_passes "a square in a module file whose declaration is cfg(test)-gated" plant_gated_module_file
   gate_selftest_passes "the same, declared on one line" plant_gated_module_file_one_line
-  printf '%s selftest OK: passes a clean fixture, prose/strings/mixed products/`a * a.method()`/a cfg(test) module, and a test-only module file declared on one line or two; fires on a bare identifier, a field path, a `self.` field, a two-level path, a rustfmt-wrapped product, a square behind a block comment, the same module file registered WITHOUT the cfg gate, and one registered under any(debug_assertions, test), which is every debug build\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture, prose/strings/mixed products/`a * a.method()`/a cfg(test) module, and a test-only module file declared on one line or two; fires on a bare identifier, a field path, a `self.` field, a two-level path, a rustfmt-wrapped product, a square behind a block comment, a PARENTHESIZED SCALED square in both bare and field-path form, the same module file registered WITHOUT the cfg gate, and one registered under any(debug_assertions, test), which is every debug build\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

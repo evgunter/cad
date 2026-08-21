@@ -306,15 +306,12 @@ pub enum ContactMark {
 /// must say what it does with each new failure kind, because a
 /// wildcard there answers for the new kind silently and no existing
 /// row can notice: the rows that exist exercise the variants the named
-/// arms already handle. `editor_core`'s `attribute` is the one such
-/// site outside this crate, and what it decides is whether an assembly
-/// was refused or merely could not be certified.
+/// arms already handle.
 ///
 /// A site that EXTRACTS carries no such obligation — a
 /// `find_map`/`filter_map` picking one variant out and answering
 /// `None` to the rest is asking a question, not giving an answer, and
-/// its `_` arm IS the question. Several rows in this crate's own tests
-/// are that shape and are meant to be.
+/// its `_` arm IS the question.
 ///
 /// (`Eq` dropped at M2 PR 3: the tier-3 variants carry margin
 /// diagnostics with `f64` payloads.)
@@ -529,9 +526,29 @@ pub enum ValidationError {
     /// comparand, no new margin: the derived side reuses the flux
     /// lanes' already-length-metered named decides. Posture inherited
     /// from check 7: only a DEFINITE disagreement refuses; an
-    /// escalated/degenerate/out-of-inventory derivation is exempt, and
-    /// the **rimless** sphere band (whose boundary encodes no side —
-    /// its `s_f` IS the bit) stays exempt as the documented residual.
+    /// escalated/degenerate/out-of-inventory derivation is exempt.
+    ///
+    /// **What is exempt, in full**, because this set is larger than a
+    /// reader expects and it grew:
+    ///
+    /// * the **rimless** sphere band — its boundary encodes no side at
+    ///   all (`s_f` IS the bit), the documented residual;
+    /// * a face whose **domain is not an iso-parameter rectangle**.
+    ///   `props`' side derivation runs the `props_rim_level` predicate
+    ///   before answering, on all four curved kinds, because
+    ///   `lo + hi − 2v` reads *which extreme is this rim at* and that
+    ///   is a material side only on a rectangle. Such a face returns
+    ///   `Err` and is exempt HERE, which is correct — without the
+    ///   premise it returned a definite ±1 that depended on where
+    ///   `loop_edges` started the cycle, and this arm turned that into
+    ///   a refusal that also suppressed check 7's honest
+    ///   `VolumeUncomputable { NotIsoRectangle }` through the
+    ///   `errors.is_empty()` gate. **The coverage is real and is
+    ///   given up on purpose**: the corpus's `cross.step` and
+    ///   `tee.step` walls are exempt here now, and the flux lane
+    ///   refuses those bodies anyway;
+    /// * conic-trimmed faces the quadrature lane owns, and NURBS.
+    ///
     /// S11's honest `sense: false` faces (a washer's bore, a die's
     /// dimples) PASS: their traversals already place the material on
     /// the anti-chart-normal side — the gate refuses lone bit flips,
@@ -2262,9 +2279,21 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     // way the flux lanes read it:
     // `geom_brep::props::boundary_material_sign` re-runs the rim-side
     // / meridian-orientation sub-derivations (`props_rim_side`,
-    // `props_circle_axis_class`, `props_meridian_orient` — already
-    // length-metered named decides). No new comparand exists: the
-    // final comparison is two exact ±1s, genuinely combinatorial.
+    // `props_rim_level`, `props_circle_axis_class`,
+    // `props_meridian_orient` — already length-metered named decides).
+    // No new comparand exists: the final comparison is two exact ±1s,
+    // genuinely combinatorial.
+    //
+    // `props_rim_level` — the iso-rectangle premise — is on that list
+    // because the rim-side derivation rests on it: `lo + hi − 2v` is a
+    // material side only on a domain whose rims all sit at an extreme,
+    // and without it a plus-shaped face answered a definite ±1 that
+    // depended on where `loop_edges` started the cycle. Such a face now
+    // arrives here as `Err`, i.e. EXEMPT by the posture below, which is
+    // what it always should have been: this arm firing on it pushed a
+    // `CurvedSenseInverted` that suppressed check 7's honest
+    // `VolumeUncomputable { NotIsoRectangle }` through the
+    // `errors.is_empty()` gate.
     // Fires BEFORE check 7, which cannot see this defect — the flux is
     // traversal-derived, so a lone sense flip on a rim-bearing curved
     // face leaves the volume BIT-IDENTICAL (M6-6 substrate truth

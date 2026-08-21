@@ -36,12 +36,11 @@
 //! surface normal. `A⃗_f` is accumulated from the loops' stored
 //! traversal, and interior-left ties that traversal to the face's
 //! OUTWARD normal — so `A⃗_f` is the outward-oriented area vector by
-//! derivation. This matters since M5 S10, when the stored chart normal
-//! stopped being the outward normal in general (the outward normal is
-//! `topo::Face::sense_sign() · chart_normal`): the claim these docs
-//! used to open with — "every face's stored normal is its outward
-//! normal" — is no longer true, but the walk never depended on it and
-//! needs no repair. `sense_sign` must NOT be applied here: `revert`
+//! derivation. This matters since M5 S10: the stored chart normal is
+//! NOT the outward normal in general (the outward normal is
+//! `topo::Face::sense_sign() · chart_normal`), but the walk never
+//! depended on it and needs no repair. `sense_sign` must NOT be
+//! applied here: `revert`
 //! reverses the loops and flips `sense` together, so multiplying would
 //! negate the volume twice and misclassify exactly the reversed shells
 //! it would have been added for (S10 category B — the same

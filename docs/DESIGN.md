@@ -1129,8 +1129,22 @@ topology change is stated, not emergent.
 - Transcendentals via the pure-Rust `libm` crate: system libm sin/cos
   differ across platforms in the last ulp — enough to flip a marginal
   predicate.
-- The kernel never panics on any input: panics are bugs; every failure is
-  a typed error. *(Honest M1 footnote: operator debug postconditions
+- **The kernel never panics on any INPUT** — every failure that an input
+  can reach is a typed error. **A panic is therefore never a refusal: it
+  reports that a bug has already happened.** *Restated 2026-08-21 because
+  the original wording — "panics are bugs" — inverts on a careless read.*
+  It meant **a firing panic is evidence of a bug**; it reads just as
+  naturally as *"a panic in the source is a defect to remove"*, which is
+  the opposite of this rule, and it has been misread that way.
+  **The converse is a positive obligation, not a tolerance: a state that
+  can only be a kernel bug MUST panic** — as loudly and as early as it is
+  detectable (`unreachable!` or `debug_assert`, the D2 addendum's rows 4
+  and 5 below). The whole value of such a check is catching the defect at
+  the first moment it is observable, so downgrading one to silence, or to
+  a typed error, launders a bug into a supported outcome. The two halves
+  are **separate rules over disjoint state classes** — inputs never
+  panic; bug states always do — and neither licenses the other's
+  territory. *(Honest M1 footnote: operator debug postconditions
   are `debug_assert`s, and they are unreachable by input through the
   public API at every door but one — raw insertion is crate-internal,
   and the public mutation paths preserve tier 1: the Euler operators by
@@ -1721,6 +1735,15 @@ precursor of the error-propagation feature.
   the parameter box. Sketch solver when sketches should become
   constraint-driven rather than programmatic. Design record:
   `docs/ERROR-DESIGN.md`.
+  **Note, carried in as an open question (Evan, 2026-08-21):** *figure
+  out what a `Dual` actually has to do*, and clean up the `Bounds` /
+  `CertifiedEnclosure` split on that answer. **D1**'s *"at least for
+  now"* is what this collects — since 2026-08-19 the dual's refusal
+  rests on the ruling rather than on its lack of a bracket, so what a
+  dual may do is a decision rather than a fact about the type.
+  **Deliberately not answered here**, and not to be answered by
+  speculating about what M10 will need: recorded so it is a question
+  M10 opens with rather than one it rediscovers.
 - **The usability program** — see
   [Beyond the kernel](#beyond-the-kernel-the-usability-gap) below.
   Its library half is designed and RATIFIED as

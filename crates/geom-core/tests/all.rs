@@ -39,6 +39,8 @@
 mod ambiguity_k_env;
 #[path = "band_tolerance.rs"]
 mod band_tolerance;
+#[path = "certified_door.rs"]
+mod certified_door;
 #[path = "d8_knot_queries_adversarial.rs"]
 mod d8_knot_queries_adversarial;
 #[path = "decoration_seam.rs"]

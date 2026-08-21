@@ -169,7 +169,6 @@ fn tube_window_and_refusal_doors() {
     .body;
     assert_eq!(topo::validate_closed(&wedge), Ok(()), "wedge tier 2");
     assert_eq!(topo::validate_geometric(&wedge), Ok(()), "wedge tier 3");
-    // Wedge census: 2 half-tube walls + 2 planar caps.
     assert_eq!(wedge.faces().count(), 4, "two walls + two caps");
 
     let build = |axis: Vec3<f64>, u_ref: Vec3<f64>, window| {
