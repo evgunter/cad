@@ -168,7 +168,12 @@ impl RingInterval {
     /// bracket door, which never refuses. `Interval` records a domain
     /// violation in its decoration, not its endpoints — `sqrt([−1, 4])`
     /// is `[0, 2]` at `Trv` — and the ring has two states and no
-    /// decoration channel. Whatever is built from the crossing is a
+    /// *decoration* channel. It does have a domain-violation channel:
+    /// [`Self::is_poison`], which is where its own certified door reads
+    /// the refusal. The two are not the same thing, and only the second
+    /// survives the crossing — which is why a violation an operand
+    /// records in a decoration has to be read HERE, while the decoration
+    /// is still there to read. Whatever is built from the crossing is a
     /// certificate, so a scalar that carries a sound bracket its
     /// computation is not entitled to must become poison here, where the
     /// decoration is still readable, rather than a plausible bound

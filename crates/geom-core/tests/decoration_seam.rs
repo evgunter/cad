@@ -17,7 +17,12 @@
 //!    that produces a certificate may consume it.
 //!
 //! `Bounds` answers (1) and never refuses. [`CertifiedEnclosure`] answers
-//! (2) and refuses below `Def`. These rows pin both halves, and pin that
+//! (2), and at `Interval` — the scalar this suite is about — it refuses
+//! below `Def`. **That threshold is `Interval`'s spelling of the refusal,
+//! not the whole of it**: the door refuses on each type's own poison, which
+//! at `f64` and at `RingInterval` is read off the value rather than off a
+//! decoration. `certified_door.rs` sweeps all four implementors against
+//! that one postcondition; these rows pin both halves here, and pin that
 //! the three C9-ring crossings follow the second door rather than the
 //! first — which is the actual defect S41 found: they read the bracket,
 //! so a `Trv` enclosure crossed into `RingInterval` as a healthy bound.
