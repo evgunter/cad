@@ -10374,7 +10374,7 @@ one Python attribute per member — so the first question is whether the
 
 **Verdict:**
 
-## S193. The arc-mode vocabulary is S106 one level down, and it has no census at all
+## S195. The arc-mode vocabulary is S106 one level down, and it has no census at all
 
 **Raised by #836 (G7/S106) out of its own claim site.** The verb
 vocabulary now has a table, a `Verb::ALL` and a cross-crate census. The
@@ -15050,19 +15050,31 @@ draw. **G7's finding is `S170`**, the other number the same orchestrator had
 already given it; F-d's `S169` stands, because it landed first. No `D` number
 collided.
 
-**`S193` and `D121` are G7's too**, assigned after the review of #836 raised a
-second finding out of the same claim site. **Both are inside the second block
-published just below**, `D120`–`D139` / `S190`–`S209`, and were re-derived
-against `origin/main` after the merge that brought that block in — not only at
-mint time, per **G-R13**.
+**`S195` and `D121` are G7's**, assigned after the review of #836 raised a
+second finding out of the same claim site. Both are inside the second block
+published just below, `D120`–`D139` / `S190`–`S209`.
 
-That re-derivation is the point, because the first answer was different. When
-these two numbers were minted, the block visible on this branch was the
-retracted first attempt, and against *that* text `S193` read as a draw from
-above the reservation — which the lane flagged in both ledgers rather than use
-quietly. **The flag was right and the reading was wrong**, and it was wrong for
-exactly the reason G-R13 now states: a number checked once, against whatever
-text a branch happened to carry, is not a number checked.
+**The finding was `S193` when #836 landed, and that was a collision — G-R13's
+sixth, and the lane's own.** G-e's let-else finding was renumbered into `S193`
+on `main` (`78ac1c73`); G7's final merge of `origin/main` pulled that commit in,
+and the lane pushed the merged head **without re-deriving its own number
+against it**. Both `S193` headings shipped. Nothing but the number is shared:
+the two findings are unrelated and neither text needs changing.
+
+**Precedent decides who moves, and it is the same precedent this row already
+applied to itself.** When Track F's F-d took `S169` an hour apart from G7, G7
+moved because F-d landed first; G-e's `S193` reached `main` first here, so **G7
+moves again — the arc-mode finding is `S195`**, the first number in the block
+genuinely free (`S190`–`S194` are all spent; the block table's `unassigned` row
+had not caught up). `D121` never collided.
+
+**What makes this worth a paragraph rather than a quiet renumber**: the lane
+DID re-derive after that merge — every citation, by name, and the sweep — and
+**did not re-derive the number**, having taken the block membership as settled
+one merge earlier. G-R13 says numbers are re-derived against `origin/main`
+after **every** merge, and it says so because a number is exactly the kind of
+claim that a merge can falsify without touching a line you wrote. *Applying a
+rule to the artifacts you happen to be looking at is not applying the rule.*
 
 **Track G's second block is `D120`–`D139` and `S190`–`S209`**, claimed
 2026-08-21 **and published here rather than only in `SMELL-G-LOG.md`, which is
@@ -15151,7 +15163,7 @@ tessellation pin are red on main).
 | **D72** | **Re-mine the ε-keyed conditioning pin so its building bands exercise the collapse.** `review_s2.rs`'s `an_uncertifiable_tangent_point_refuses_instead_of_being_returned` builds on the twin crossing of a hairline lens at ε = 1e-9 and 1e-6, so the near-collapsed offset lever it was mined for decides nothing there; #831 turned that from prose into an assertion, which is a tripwire and not a fix. Wanted: a corner whose mirror IS excluded by the harness's bracketing, so the build arm's ulp claim is about the geometry its prose describes. A witness search, not a doc edit. | **S128** | `profile/tests/review_s2.rs` | **ACCEPTED**, unstaffed | style |
 | **D78** | **What is still one-directional in the interval backend after G1.** Three items: `powi`'s tightness ceiling is a deferral with a downstream consumer, not an unguardable; the oracle tier's upper constraint is a scale-free ratio and misses a fixed absolute over-widening on non-monotone shapes with wide boxes; S116(r)'s consumer-side caveat at `crates/geom-core/src/interval.rs:135-143` is outside G1's fence and unclosed. **`copysign`'s placement is NOT on this list — it is S1's.** | **S134** | `interval-transcendentals/tests/`, and `crates/geom-core/src/interval.rs` for the third item | **ACCEPTED**, unstaffed | ADVERSARIAL for the first two |
 | **D75** | **The PATHS verb vocabulary's sixth copy is `pncad-py`'s, and nothing anchors it.** Fell out of G7: with a probe verb added to `transition_table!` and `editor-core`'s two exhaustive matches discharged, the workspace — `pncad-py --all-targets` included — compiles clean, so the Python surface and its stub simply do not gain the verb. S4's row counts five copies and names no `pncad-py` file. Not a patch: the question is whether the `Step` mirror and the `RoleSeg` mirror share one census. | **S170** | `pncad-py/src/py/path.rs`, `pncad-py/pncad.pyi`, and a test | **ACCEPTED**, unstaffed | style |
-| **D121** | **The arc-mode vocabulary is S106 one level down, with no `ALL` and no census** (**S193**). Six spec structs in `profile/src/path/verbs.rs`, restated as `ArcData`'s six variants, restated as `ProgramArcData`, restated as `WireArcData`; `res_spec` matches the document form and CONSTRUCTS the kernel one, so the compiler cannot see a mode that fails to arrive. A seventh mode is forced into `spec_slots` by exhaustiveness but `spec_arg_access!` ends `_ => None`, so the new role would address nothing **silently** — S106's bijection test walks a corpus nothing forces to grow. Same shape in `ProgramTarget`/`WireTarget`, `ArcSide`/`WireSide`, `ArcSweep`/`WireWinding`. Raised by #836 out of its own claim site; the false sentence that said this was already solved is fixed there. | **S193** | `profile/src/path/{verbs,program}.rs`, `editor-core/src/{program,persist/wire}.rs`, and a census test | **ACCEPTED**, unstaffed | style |
+| **D121** | **The arc-mode vocabulary is S106 one level down, with no `ALL` and no census** (**S195**). Six spec structs in `profile/src/path/verbs.rs`, restated as `ArcData`'s six variants, restated as `ProgramArcData`, restated as `WireArcData`; `res_spec` matches the document form and CONSTRUCTS the kernel one, so the compiler cannot see a mode that fails to arrive. A seventh mode is forced into `spec_slots` by exhaustiveness but `spec_arg_access!` ends `_ => None`, so the new role would address nothing **silently** — S106's bijection test walks a corpus nothing forces to grow. Same shape in `ProgramTarget`/`WireTarget`, `ArcSide`/`WireSide`, `ArcSweep`/`WireWinding`. Raised by #836 out of its own claim site; the false sentence that said this was already solved is fixed there. | **S195** | `profile/src/path/{verbs,program}.rs`, `editor-core/src/{program,persist/wire}.rs`, and a census test | **ACCEPTED**, unstaffed | style |
 | **D120** | **S104's own defect one layer upstream, in `topo`.** `census.rs:1018` and `:1962` are `Some(Err(_))` over the CLOSED `ChartRegionError` (ten variants; its own doc says every arm names its recourse), and they decide `CensusEscalated` against `CensusUnsupported` — the discrimination `editor_core::attribute` turns into `AtRest` against `Uncertified`. An eleventh arm becomes an unrefuted frontier. `:1962` is the DECLARED record's confirm pass. Owes the sweep the row names: every `Err(_)`/`Some(Err(_))` over a `topo` refusal enum in `census.rs` and `boolean/`. | **S192** | `topo/src/census.rs`, and the sweep across `topo/src/boolean/` | **ACCEPTED**, unstaffed | **ADVERSARIAL** — the classification decides what the kernel tells a caller about an assembly, and CI cannot tell a right answer from a wrong one |
 | **G4** | **`profile`'s fifth lane trait, blanket-implemented, which D1 never looked at** — `ArcCarrierScalar` over `T: Decide + Bounds`, so `Dual64` carries the whole `path::family` arc surface today, re-exported from `pncad`. **Per Evan's ruling this is mechanical**: `CertifiedBounds` is the bound that excludes a dual. **Was gated on F1; that gate lifts with #791** (see the note below). **Two corrections #791's lane owes this row.** (a) The widened matcher fires on **none of G4's own sites** — `arc_fillet.rs` is allowlisted by file, the ~49 uses in `family.rs`/`program.rs` reach the bound through the alias NAME and are invisible to any grep, and `geom`'s doors are sole bounds outside the class — so a **green gate here is not ratification evidence**; what #791 delivers is that `real.rs`'s rule is true and enforced against new spellings. (b) **D68/S124 is a VISIBILITY defect and G4 does not discharge it**: changing what `ArcCarrierScalar` is bound to leaves all ~49 uses exactly as invisible. | **S87** (and S88's `profile` half) | `profile/src/path/{arc_fillet,family}.rs`, `profile/src/lib.rs`, `pncad/src/profile.rs` | **ACCEPTED — RULED** (the admitting set) | **ADVERSARIAL** |
 

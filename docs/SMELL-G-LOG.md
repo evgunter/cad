@@ -155,8 +155,8 @@ from the orchestrator.
 | ~~**G-b**~~ (landed, #787) | D73, D74 — **unused, returned**; **D79** used | S129 and **S130** used; S135 and S136 later taken by G-d |
 | ~~**G-c**~~ (landed, #781) | D75–D77 — **unused, returned** | S131, S132, S133 — **all spent** |
 | ~~**G-g**~~ (G8, landed #834) | **D77** and **D80** used | **S171**, **S172** and **S173** used |
-| ~~**G-f**~~ (G7, landed #836) | **D75** used; D76 returned | **S170** used; **S169** abandoned on a collision with Track F. Fix pass: **D121** and **S193** |
-| unassigned | D73, D74, D76 — **D77 and D80 went to G-g, D75 to G-f** | **none — the S127–S136 block is spent** (`D72`, `S128`, `S135` and `S136` are G-d's and are used, not returned — #831); the second block is **`D120`–`D139` / `S190`–`S209`** — `D121` and `S193` taken from it by G-f. `D113`, `D114`, `S176` and `S177` were minted under the **retracted** first attempt and stand as issued; the retracted range itself is not restated here, because a withdrawn reservation left standing is what sent a lane looking |
+| ~~**G-f**~~ (G7, landed #836) | **D75** used; D76 returned | **S170** used; **S169** abandoned on a collision with Track F. Fix pass: **D121** and **S195** (shipped as `S193`, which was G-e's; corrected after the merge) |
+| unassigned | D73, D74, D76 — **D77 and D80 went to G-g, D75 to G-f** | **none — the S127–S136 block is spent** (`D72`, `S128`, `S135` and `S136` are G-d's and are used, not returned — #831); the second block is **`D120`–`D139` / `S190`–`S209`** — `D121` and `S195` taken from it by G-f (`S193` was taken first and collided with G-e's). `D113`, `D114`, `S176` and `S177` were minted under the **retracted** first attempt and stand as issued; the retracted range itself is not restated here, because a withdrawn reservation left standing is what sent a lane looking |
 
 **G-a used D71 and D78, and S127 and S134** (see *Landings*); D72 and S128 came
 back. **The `unassigned` line above is a reconciliation across three landings**
@@ -179,21 +179,33 @@ spent — puts every track back on one unsynchronised sequence. The next
 exhausted block wants a second reservation, not another draw. No `D` number
 collided.
 
-**G-f also holds `S193`/`D121`**, assigned after #836's review raised a second
-finding (the arc-mode vocabulary) out of the unit's own claim site. **Both sit
-inside Track G's second block, `D120`–`D139` / `S190`–`S209`**, re-derived
-against `origin/main` after the merge that published it — per **G-R13**, not
-only at mint time.
+**G-f also holds `S195`/`D121`** for the arc-mode finding #836's review raised
+out of the unit's own claim site. Both are inside `D120`–`D139` / `S190`–`S209`.
 
-**The lane read this wrong once, and the record is worth keeping.** At mint
-time the only block text on this branch was the retracted first attempt, and
-against that text `S193` read as a draw from *above* the reservation — the
-shape that had just produced the `S169` collision. The lane flagged it in both
-ledgers instead of using it quietly, and asked whether `G-R12`/`G-R13` existed
-at all, since neither was in this file. Both questions were answered by the
-merge: the rulings are here, and the block that made `S193` look out of range
-was itself withdrawn. **Raising it was right; the reading was stale**, which is
-precisely what G-R13's post-merge rule exists to catch.
+**#836 shipped that finding as `S193`, and `S193` was already G-e's.** The
+lane's final merge of `origin/main` pulled in `78ac1c73`, which renumbered
+G-e's let-else finding into `S193`, and the lane pushed the merged head without
+re-deriving its own number against it. Two `S193` headings landed on `main`.
+**Same precedent as this lane's own `S169` case — the one that reached `main`
+first keeps the number**, so G7's finding moves to **`S195`**, the first
+genuinely free number in the block. `D121` did not collide. Corrected in a
+follow-up, not left for the next reader to trip on.
+
+**The part worth carrying.** The lane re-derived every *citation* after that
+merge, by name, and re-ran the sweep — and did not re-derive the *number*,
+because block membership had been settled one merge earlier and no longer felt
+like an open question. That is the failure G-R13(b) describes exactly: *a
+number checked once is not a number checked*, and a merge can falsify it
+without touching a line the lane wrote. **Re-deriving the artifacts you are
+already looking at is not the rule; the rule is the whole claim set.**
+
+**An earlier reading, now settled.** At mint time the only block text on this
+branch was the retracted first attempt, against which `S193` looked like a draw
+from *above* the reservation; the lane flagged that in both ledgers rather than
+use it quietly, and asked whether `G-R12`/`G-R13` existed at all. The merge
+answered both — the rulings landed, the retracted block was withdrawn — so
+**that** flag was right in raising and stale in reading. The collision above is
+a different miss, and a real one.
 
 **G-f was dispatched under a lane letter this roster gives to G8.** The brief
 opens *"implementer lane G-f on Track G, row G7, finding S106"*; the wave-2
@@ -233,10 +245,10 @@ have minted one, and a returned number that is never re-spent is a slow leak:
 | **G-h** | G11 | D111, D112 | S174, S175 |
 | **G-d** | G5 + G10 | D113, D114 | S176, S177 |
 | **G-e** | G6 | — | **S190, S191** (renumbered from S167/S168, which are Track F's) |
-| **G-f** | G7 | D75 | S170 |
+| **G-f** | G7 | D75, **D121** | S170, **S195** (was S193 — collided with G-e's; see the block note below) |
 | **G-g** | G8 | D77, D80 | S171, S172, S173 |
 | **G-h** | G11 | **D120** (renumbered from D113) | D111 spent; **S192** (renumbered from S176), S174 spent |
-| unassigned | — | D73, D74, D121–D139 | S193–S209 |
+| unassigned | — | D73, D74, D122–D139 | **S196–S209** — `S193` is G-e's and `S194` is #833's, so this row was two numbers behind the tree when G-f read it |
 
 **Sub-blocks, not a pool — G-R13(c).** Each lane takes only its own row. The
 `D113`/`S176` double-mint happened because G-d and G-h were handed the same
@@ -679,7 +691,8 @@ until #782 decides them.
 the unit.** Measured with a probe verb added to `transition_table!`: adding a
 verb breaks the workspace at **exactly two** sites, both exhaustive matches on
 `profile::Step` — `eval::feed_step` and `LoopProgram::from_recorded`
-(`program.rs:1279`, in the same file as `res_step` at `:687`). So the
+(`LoopProgram::from_recorded`, six hundred lines below `res_step` in the same
+file). So the
 finding's *"one breaks loudly and two go silently short"* is wrong in both
 halves: two break loudly, and `WireStep` cannot go short of `ProgramStep` at
 all (`from_step`/`into_step` are exhaustive both ways). The real silence is
@@ -692,23 +705,47 @@ over a document, wire, slot and Python vocabulary that never learned it.
   — plus `verb_tag`, which makes the content-key tag a total function of
   `Verb` and computes the injectivity the old comment asserted and
   `verb_tags_are_structure` never checked. Both negative-controlled.
-- **`StepArg` is `node.rs:84`**, not `program.rs`, and is a role vocabulary,
+- **`pub enum StepArg` is in `node.rs`**, not `program.rs`, and is a role vocabulary,
   not a verb one. **The count is six, not five**, and the five S4 names span
   two crates, not three — **S170**/D75 records the sixth (`pncad-py`'s PATHS
   surface and its `.pyi`), the only copy with neither compile guard nor
   census. (Raised as `S169`; renumbered before landing — see the number
   reservation above.)
-- **The lane's own first pass restated the falsehood one level up**, and the
-  re-audit caught it. The table header's round-9 parenthetical listed *"the
-  wire enum, the replay arms and the tags"* as riding the table for free; the
-  wire enum is `editor-core`'s and hand-written, which is S106 itself. The
-  first fix swapped in `ArcData` — also not generated: the macro body never
-  mentions it, and it is six arc modes written out by hand against the table's
-  eighteen verbs. One non-member for another leaves the sentence as unenforced
-  as it was. It now names the three the macro really expands and says `ArcData`
-  is not among them. **Checked against the macro body, not the prose** — this
-  is the third shape in the standing header, caught by re-deriving rather than
-  re-reading.
+- **Four passes at one sentence, and only the fourth could be right — this row's
+  clearest instance of its own thesis.** The table header's round-9
+  parenthetical named *"the wire enum, the replay arms and the tags"* as riding
+  the table for free. Pass 1 left it. Pass 2 saw that the wire enum is
+  `editor-core`'s and hand-written — S106 itself — and swapped in `ArcData`.
+  Pass 3 (the lane's own re-audit, against the macro body rather than the
+  prose) saw that `ArcData` is not expanded either, and named the three
+  artifacts the macro really does expand. **All three passes corrected the
+  sentence's MEMBERSHIP. The sentence was wrong about its SUBJECT**: it claims
+  the round-9 exhaustiveness pressure rides the table, and that pressure is
+  over the ARC-MODE vocabulary while the table is over the VERB vocabulary.
+  Every site that must handle each `ArcData` mode — `do_arc_to_point`,
+  `do_arc_to_directed`, the fused dispatchers, and `editor-core`'s two forms —
+  is hand-written. **So pass 4 is a deletion, not a substitution**, in both
+  copies, and the successor class is recorded at **S195**/D121.
+
+  *A claim can survive every correction to its details and still be false about
+  what it is a claim about.* That is why *"restating the falsehood one level
+  up"* keeps recurring on this track: each pass repairs the level it can see.
+
+- **What settled it was reading the design doc, not the code comment.**
+  `PATHS-DESIGN.md`'s round-9 forcing paragraph uses *"the wire enum"* for the
+  thing **matched** — `ArcData` — and names its three matchers; `:574`'s
+  parenthetical is that same triple of matchers, one for one. So the lane's own
+  second repair was a third wrong answer rather than a closer one. The same
+  reading also caught the neighbouring *"Nothing is written twice"* in the copy
+  **nobody had touched**, and it was scoped to match.
+
+- **A citation in the brief that told the lane to cite by name.** The forcing
+  paragraph was dispatched as `PATHS-DESIGN.md:667`; by the time the lane
+  re-derived its citations after the merge it was at **`:678`** — moved by this
+  unit's own edit a hundred lines above it, while the lane was re-deriving
+  *because* line numbers drift. Recorded here rather than only in the PR body,
+  because the standing header's *"a brief is a claim site"* is easier to act on
+  with a worked example attached.
 - **Issue #829** raised, not fixed: a hand-built fused step with two
   `Sweep`/`ArcLen`/`Bulge` specs enumerates one role twice and leaves the
   arrival spec's argument unaddressable. The fix adds variants to a persisted
