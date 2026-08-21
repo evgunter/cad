@@ -1107,6 +1107,18 @@ jobs:
         with:
           key: topo-release
       - name: corrupt-input suites, release profile
+        # DEBUG ASSERTIONS OFF, EXPLICITLY — this job's whole subject is
+        # the posture that SHIPS, and the shipping posture is
+        # debug-assertions off (`DESIGN.md`, "Before publishing"). The
+        # root `[profile.release]` turns them ON as a development
+        # measure, which would compile the three `cfg(not(debug_assertions))`
+        # rows below OUT of the only lane that runs them — silently
+        # deleting the coverage this job exists to provide. The count
+        # guard caught exactly that. Pinned here rather than inherited,
+        # so the job states which posture it tests instead of depending
+        # on a profile default that has now changed once.
+        env:
+          CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS: "false"
         run: |
           set -o pipefail
           cargo test --release -p topo --lib -- \
