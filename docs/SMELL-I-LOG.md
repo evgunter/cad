@@ -229,9 +229,10 @@ ledger, I-e `entries_off_bbox` and the guards). **I-c has landed as #872**
 and left this roster; `curved.rs` below its module header is untouched, so
 I-e starts from that merge with the guard bodies exactly as it found them.
 
-| lane | rows | scope | review | state |
-|---|---|---|---|---|
-| **I-e** | **I3** (**S108**, **S109**) + **I6**'s **S114(f)**, and **S116(g)**'s residue (the guard bodies — I-c narrowed it to them in #872; routed here by **I-R7**) | `mesh/src/{curved.rs,trimmed.rs,planar.rs,budget.rs}`, `mesh/tests/budget_meter.rs` | **ADVERSARIAL** + style | **in review as #887.** All four findings recorded in §D and both §D rows (I3, I6) are gone. **This roster row is deliberately still here**: it leaves in the landing commit, not while the PR is under review (I-a's incident). |
+**The roster is empty: every lane has landed and left it** — I-a **#877**,
+I-b **#873**, I-c **#872**, I-d **#876**, I-e **#887**. The rows each lane
+carried, and what it did with them, are in the landing narratives below and
+in §D of `SMELL-SCAN-2026-08.md`.
 
 **Struck from this track's schedule, with a pointer rather than a deletion:**
 **C-m** (S27, `props/quad.rs`'s four quadrature engines) — **not scheduled
