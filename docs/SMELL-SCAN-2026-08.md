@@ -8618,9 +8618,10 @@ and remaps as it goes, with no atomicity added anywhere in the diff.
 
 **Corrected, not restored.** Per Evan's ruling the finding's framing was
 wrong: the enclosing (ρ < 0) class was never dropped by accident. It is a
-deliberate, pinned boundary of the lattice door, and `sugar.rs:720-1010`
-is the raw-builder path that boundary is defined *against* — untouched
-here, and not dead code.
+deliberate, pinned boundary of the lattice door, and `sugar.rs`'s
+enclosing-candidate machinery (the signed offset radii and the antipodal
+tangent-point flip) is the raw-builder path that boundary is defined
+*against* — untouched here, and not dead code.
 
 **The prose.** `review_s2.rs`'s header claimed *"the class is built"* and
 cited `enclosing_tangency_is_constructed_not_stumbled_upon`, which the
@@ -11311,12 +11312,13 @@ eleven phrases of the reviewer brief's Q2 pattern minus the D9 `bit-identical`
 family, plus `verbatim`, `re-derived`, `ported from`, `mirror of`, `one
 dimension down`, `the twin of`, `hand-written copy`, `hand-applic`,
 `duplicated from` — **but not `restated`**, which the standing prompt carries
-and this run dropped (it matches `review_s2.rs:1108`, checked, not a
+and this run dropped (it matches one line in `review_s2.rs` — the MAJOR-1
+regression pin's *"restated at the lattice door"* — checked, not a
 duplication). A sweep's vocabulary is part of its result. Run over
 `profile/tests/review_s2.rs` and `profile/src/sugar.rs` (that lane's scope):
 **9 hits, 0 duplications** — six *"re-derived"*s are the oracle declaring it
 is written from the geometry rather than from `src`, which is the file's
-purpose; one *"verbatim"* modifies mined coordinates; and `sugar.rs:190,390`
+purpose; one *"verbatim"* modifies mined coordinates; and `sugar.rs`'s two *"extracted verbatim"* headers
 both say *"extracted verbatim so … share one code path"*, i.e. they declare a
 unification, not a copy. Run again over `profile/src/path/` and `path.rs`,
 which is the tree this row actually names and is **outside** that lane's scope
@@ -11484,7 +11486,8 @@ the name is wrong rather than fixing it. **The sibling one screen down is the
 shape it wants**: `a_collapsed_offset_lever_refuses_typed_at_every_band` names
 its band scope, so a reader knows what the row claims without opening it.
 
-**Not renamed by #831, deliberately.** `profile/src/sugar.rs:911` cites the row
+**Not renamed by #831, deliberately.** `profile/src/sugar.rs`'s `LEVER_ULPS`
+doc cites the row
 BY NAME as `LEVER_ULPS`'s *"what goes red if this stops being true"* — the
 issue-#667 Q6 pointer — so the rename is a two-file change into a file §D
 fences to a re-read for that lane. Recorded rather than done, and the
@@ -13378,8 +13381,9 @@ class* stated in the merge commit. `the_lattice_door_never_emits_an_enclosing_ta
 is not a test that contradicts the capability; it is the pin that boundary was
 given.
 
-**What survives of S71 is therefore narrower and entirely real**: `review_s2.rs:45`
-still says *"So the class is built"* and cites
+**What survives of S71 is therefore narrower and entirely real** (**closed by
+#831**; this paragraph is the question as it stood, kept for the argument):
+`review_s2.rs`'s module header **said** *"So the class is built"* and cited
 `enclosing_tangency_is_constructed_not_stumbled_upon`, **a test the same commit
 deleted** — a stale claim plus a dangling intra-doc citation, which is S39's and
 S112's class, not a capability question. **Proposed verdict: ACCEPTED IN PART**

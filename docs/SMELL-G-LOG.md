@@ -327,7 +327,7 @@ pins; `sugar.rs` was re-read and not edited. Three things beyond the doc edit:
   candidates left for the lanes that own those files.
 - **`S136`.** The ε-keyed row's NAME asserts the arm the default band does not
   take, and its own doc header says so instead of fixing it. Not renamed —
-  `sugar.rs:911` cites it by name as `LEVER_ULPS`'s *"what goes red"* — so it
+  `sugar.rs`'s `LEVER_ULPS` doc cites it by name as its *"what goes red"* — so it
   is recorded, with two more members found in `step-import/tests/`.
 - **`S176`.** Raised BY the style review, out of this lane's own register
   entries: a landing PR's record drifts from the change it documents, two ways
