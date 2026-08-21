@@ -335,6 +335,44 @@ body's `r = 0.5`). So the unmetered risk is concentrated in the **patch** lanes
 
 ## Incidents
 
+### The same defect, committed by the orchestrator, in the PR documenting it
+
+**2026-08-21, two hours after the entry below.** I reopened #723, wrote the
+diagnosis, and **quoted the responsible sentence verbatim into the body of
+#879** — the orchestrator-sync PR whose whole purpose was to land the record of
+that incident. Merging #879 **closed #723 again.** GitHub now lists two merged
+PRs as having closed it; neither changed a line of arithmetic.
+
+In the interval I had told lane I-c to sweep its own PR body for exactly this
+pattern before merging. I did not sweep mine.
+
+**Caught by lane I-a's style reviewer**, which checked the issue's live state
+instead of taking the brief's word for it. The brief in question was mine, and
+the rule it broke is this file's own: *a brief is a claim site*.
+
+**What it changes about the finding, and this is why the entry is worth its
+space.** The entry below concludes that the hazard lives in how PR bodies
+narrate parked lanes. True, and too narrow. The sharper statement is that
+**there is no way to write about this failure mode in a PR body without
+triggering it**: quoting the sentence fires it, describing it accurately fires
+it, and any of the seven keywords adjacent to the reference fires it under any
+grammar or negation. **A postmortem of an accidental close is itself an
+accidental close.** The only safe forms break the token adjacency — dropping
+the `#`, or putting a word between keyword and reference — which is a
+by-hand workaround applied by whoever remembers, and nothing checks it.
+
+Two independent authors hit this on one issue inside three hours. That is the
+argument for a mechanical guard, and it is recorded here rather than filed as
+work on #723, which is about a wrong certified volume and should not accumulate
+process rows.
+
+**Standing rule for this track, effective now: every PR body written by this
+orchestrator or its lanes is scanned for `(close|closes|closed|fix|fixes|fixed|
+resolve|resolves|resolved)` immediately followed by an issue reference, before
+the PR is opened or updated.** I-c ran exactly that scan on its own body when
+told to, and reported zero hits — so the check works when it is run. The
+failure was that I exempted myself from an instruction I had just given.
+
 ### #723 was closed by a document describing it, and three schedules were parked behind it
 
 **Found by lane I-b while measuring; verified and reopened by the orchestrator,
