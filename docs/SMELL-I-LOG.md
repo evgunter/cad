@@ -121,10 +121,16 @@ apart doing exactly that.
 
 | number | spent by | for |
 |---|---|---|
+<<<<<<< HEAD
 | **S235** | **I-d** (#876) | `geom::curves::boxes::circle_arc_aabb` computes the **exact** arc box — outward-bracketed and span-restricted, tighter on both counts — is **public**, takes the params `edge_box` already has, and has **no production caller**, while `topo`'s `edge_box` re-derives a looser, orientation-dependent, span-blind version by hand. **S16's shape one dimension lower**, and it **outlives #862's fix**: the duplication survives the correctness repair, so #862 alone is the wrong register |
 | **S234** | **I-d** (#876) | The door-inventory guard computes *where* the doors are and **not which direction each reads** — and the direction column is the entire content of the header's argument; the roster without it is a grep result. Its assert message **instructs the next author to write a direction into the docs**, minting a *"kept in step by hand"* invariant in the diff that closes one. **S66's own shape one level up**, and the third time on this track a lane's declared blind spot has come back as a finding |
 | **S233** | **I-a** (#877) | `geom-brep/tests/rim_dim_scale_twins.rs` states `Band { zero: 1e-7, escalate: 1e-6 }` in a comment while the tree's `DEFAULT_EPS` is **`1e-9`** — two decades off, in a file whose subject is the dimensional scaling of predicate margins. **The mechanism is the finding**: a lane took the comment for the constant and built a row on it that then **passed for the wrong reason at the default ε**. The file is off CI's roster and `probe-suite-census.sh` registers that fact — **but the registration covers the file's non-execution, not the constants inside it**, which is the gap |
 | **S232** | **I-d** (#876) | `geom/src/surfaces/boxes.rs` — S66(b)'s defect one crate down, on `nurbs_surface_aabb`, whose box `face_box` hands to four doors, three of which do not prune. **Routed to Track H**, whose scope is `geom-core/` and `geom/`; the lane had read it as unowned. **The contrast with S230/S231 is the point** — this row has an owner and says so |
+=======
+| **S235** | **I-d** (#876) | `geom::curves::boxes::circle_arc_aabb` computes the conic's exact amplitude AND restricts to the certified span, is **public**, and has **no production caller** — while `topo`'s `edge_box` hand-derives a looser, orientation-dependent, span-blind version that in-tree bodies already take (4 of 6 carriers on the extruded three-arc cylinder, factor 1.366). **S16's class, a fourth instance at the CURVE level**, and it outlives #862's fix: the correctness half is #862's (axial = deletion, conic = tightening with the NURBS arm's stated obligation), the *"two constructions, the correct one unused"* half is structural and would not retire with it |
+| **S234** | **I-d** (#876) | The lane's own door-inventory guard computes the roster's **keys** and none of its **content**: it pins where the four doors are and recites which direction each reads looseness in, which is the entire content of the header's argument. A door that changes its reading without moving leaves the docs false and the guard green — **S66's shape one level up, inside the fix for S66** — and the assert message mints a kept-in-step-by-hand invariant in the same diff that removed one. Lifted out of the guard's disclosure list per Q6: a disclosed deviation owes an owner. **Third declared blind spot on this track to come back as a finding.** Closable: one row per door that widens the box and asserts the verdict moves the stated way; #876 demonstrated the mechanism by hand for two of the four |
+| **S232** | **I-d** (#876) | `crates/geom/src/{surfaces,curves}/boxes.rs`'s *"looser is conservative"* / *"the poison box, which never prunes"* — six instances, one crate below the four doors `face_box` feeds, **three of which do not prune**. **Routed to Track H** (§D: Track H's scope is `crates/geom-core/` and `crates/geom/`), which is live on #865. The row carries I-d's corrected door count as the reason the sentence is false there too: `geom`'s copies inherit S66's *"two of three consumers"* arithmetic, and `boolean/ops.rs:1486` is the refusing door nobody counted. **A row that names its owner**, unlike S230 and S231 |
+>>>>>>> origin/main
 | **S231** | **I-c** (#872) | `mesh/src/chords.rs`'s *"These tightenings are the only places adjacent surfaces enter chord counts"* — S64's shape, in a file inside Track I's crate scope but in **none** of its five lanes' file sets. **Recorded unowned**, and deliberately not routed to I-e: widening a running lane's brief by writing a row at it is how a lane discovers its scope grew after dispatch |
 | **S230** | **I-b** (#873) | S60's class — certified widths with no ceiling — in `editor-core/tests/`, `pncad-py/tests/` and `sweep/tests/` files outside I-b's own three: a containment-only `volume_pad` row on the same tilted-cut fixture that never reads `area_pad`, a python row bounding `volume_pad` at 1e-6 while saying nothing about an `area_pad` measured at **0.199 m²** on the same loft (a bracket 0.397 m² wide), and an `Interval` union row in the same crate. **Recorded as unrouted, and it says so.** Three further members, all in `crates/sweep/tests/`, were fixed in #873 rather than recorded — one of them found by executing I-b's own declared blind spot |
 
@@ -231,7 +237,6 @@ ledger, I-e `entries_off_bbox` and the guards).
 |---|---|---|---|---|
 | **I-a** | **I1** minus S60 — **S77, S80, S81, S112(d)** | `geom-brep/src/props/{mod.rs,curved.rs}` | **ADVERSARIAL** + style | dispatching |
 | **I-c** | **I2** (**S64**; **S65** to Evan) + **I6**'s **S115(d)**, **S116(g)** | `mesh/src/{lib.rs,sizing.rs,walk.rs}`, `mesh/src/curved.rs` **header only** | style | dispatching |
-| **I-d** | **I4** + **I5** — **S66**'s style halves, **S97** | `topo/src/boolean/boxes.rs`, `topo/src/census.rs` (**doc only**), `sweep/tests/s16_box_soundness.rs` | style | dispatching |
 | **I-e** | **I3** (**S108**, **S109**) + **I6**'s **S114(f)** | `mesh/src/{curved.rs,trimmed.rs,planar.rs,budget.rs}`, `mesh/tests/budget_meter.rs` | **ADVERSARIAL** + style | **sequenced behind I-c** |
 
 **Struck from this track's schedule, with a pointer rather than a deletion:**
@@ -250,6 +255,52 @@ consolidates and the fix comes first. The lane is described in a comment on
 | **I-b** | **#873** — **MERGED** `82887044` (S60; issue **#870** for the metering half; `S230` for the residue) | style only, per **I-R6** | **running.** The sharpest question is handed over in the lane's own words and unanswered by me: the m5 ceiling **bites on CI's ε = 1e-6 leg and not on the default leg**, where it absorbs ~1500× before firing — *is declining an ε-aware ceiling discipline, or the easier thing?* The lane's argument for declining is that a per-ε table in a test file is how a deferred metering rule gets smuggled past its deferral; the argument against is that a row which cannot fire on the leg a developer actually runs is uncomfortably near the defect S60 is about. Also handed over: whether `3e-4` is anchored on a **structural** maximum or on the one knob the lane turned, and whether the 3× / 1.5× headroom asymmetry is derived or fitted |
 
 ## Landings
+
+### I-d — **S66**'s style halves and **S97**, #876 — **MERGED** `90a3385f`
+
+**The best-evidenced unit on this track.** Every claim was settled by execution,
+by the lane and again by its reviewer. `face_box → [-1e300, 1e300]` reds **only**
+the new row out of **449**; the row reds at **#862's own magnitude** and at
+**#862's own fix**; and the reviewer patched census's `reach_box` to widen
+radially only and found the whole `z0 = 1.05` case goes green — so all 19
+refusals are #862's, and the row's *"belongs here once #862 lands"* is verified
+rather than promised.
+
+**S66 stopped being latent.** The lane measured the over-claim **through the
+public API on a fixture the tree already ships**: a cylinder's cap faces claim
+`x, y ∈ [-0.683, 0.683]` against a true `[-0.5, 0.5]` — **37% over, today** —
+with **4 of 6** certified `u_ref`s wide, because `intersect.rs` mints the rim's
+`u_ref` from the surface and axis-alignment is the coincidence, not the rule.
+#862's title now leads with that correction; the old framing would have been
+triaged as *"loose box, low priority"*.
+
+**The roster is computed, and computed for the right function.** The first draft
+walked `face_box` only while the header's claim was about *"a box"* — so
+`ops.rs:1421`, a **refusing edge-box door**, would have landed green under a
+list computed for a different function. It now walks all four spellings: same
+reader, same loop, three more pinned counts.
+
+**The one disagreement, and the lane was right.** The reviewer found the
+cylinder formula pinned `2.0 * pad` — an implementation detail the rule's docs
+never state — and wanted the inner pad deleted. **The lane refused and said
+why: deleting it is a *tightening*, which changes which pairs three of the four
+doors refuse.** That is an answer, not a doc fix, and it is the same reasoning
+that kept the lane off #862's axial radius all lane. It closed the hazard from
+the rule end instead — `CylinderSlab`'s docs now state the double pad and that
+its removal is #862's — and the degradation still reds, now at a named term
+whose rule states it.
+
+**Its residues:** **`S234`** (the roster computes its keys and recites the
+direction column — **S66's shape one level up, inside the fix for S66** — with
+what would close it written down), **`S235`** (`circle_arc_aabb` computes the
+exact box, ships, is public, and has **no production caller**, while `edge_box`
+re-derives a looser one by hand — S16's class at the curve level, and it
+outlives #862's fix), and **`S232`**, routed to **Track H**.
+
+**Flagged, not fixed, and nothing enforces it:** `census.rs`'s `reach_box`
+carries the identical `- r` on every coordinate, so #862's axial deletion must
+move both copies together or the two derivations diverge silently — which is
+**#700's** own subject.
 
 ### I-c — **S64**, the mesh ε ledger, #872
 
