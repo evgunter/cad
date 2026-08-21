@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Shared rustdoc gate — the SINGLE implementation, called by BOTH
-# .github/workflows/ci.yml (its `doc` job) and local-scripts/ci-local.sh,
+# .github/workflows/ci.yml (its `fmt` job, since #852 folded the old
+# standalone `doc` job into it) and local-scripts/ci-local.sh,
 # the ci-filter.py arrangement applied to a second gate.
 #
 # WHY THIS GATE EXISTS (#465). `cargo check` and `cargo clippy -- -D
