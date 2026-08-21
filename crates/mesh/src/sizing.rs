@@ -37,7 +37,10 @@
 //! sample count. Nothing mechanical enforces either half today — the
 //! guard this wants is a source-scraping row in the shape of this
 //! crate's own `tests/all.rs`, which `include_str!`s its own source to
-//! prove every test file is registered. Until that exists the rule is
+//! prove every test file is registered — and, since the ε ledger,
+//! walks `crates/mesh/src` through `test_utils::source::code_only`
+//! (`the_eps_inventory_is_pinned`). **The shape exists; nobody has
+//! written this rule's row in it.** Until someone does, the rule is
 //! held by review, which is a weaker thing than the sentence above
 //! sounds.
 //!
@@ -69,74 +72,57 @@
 use crate::types::TessellateError;
 
 /// The call's tolerance bundle: δ (the promise), δ_s = δ/2 (sizing),
-/// and the run's kernel ε.
+/// and the run's kernel ε — fetched once by [`crate::tessellate`] and
+/// carried here, never re-read from `Tolerance`.
 ///
-/// # ε is never SIZING, and that is the checkable half
+/// # What ε may and may not do here
 ///
-/// No step, count or schedule in this crate takes ε as an input.
-/// [`sagitta_step`], [`ellipse_step`], [`curvature_step`],
-/// [`torus_grid_step`], [`cap_angular`] and [`ceil_count`] are
-/// functions of δ_s and geometry; `eps` appears nowhere in this module
-/// but on the field below. That is the claim D9 and the memo-key
-/// contract are read through, and it is checked by reading the
-/// signatures rather than by trusting a sentence.
+/// **No sizing function takes it as an argument**: `eps` appears
+/// nowhere in this module but on the field below, and no step or grid
+/// rule in the crate has it in its signature. **A count can still
+/// move**, which is why that sentence is about arguments —
+/// `curved::pole_columns(nu, has_pole)` returns 3 where it would
+/// return 2, and `has_pole` is a bit an ε comparison in
+/// [`crate::walk`] sets. ε is upstream of one argument of one rule.
 ///
-/// # What ε IS here is a bar, and the bars come in two kinds
+/// **No consumer SNAPS a value** (the loop-closure snap that did is
+/// gone, S22). The reads refuse a face, report into a `debug_assert`,
+/// classify a vertex, or scale a measurement — **which one each is, is
+/// stated at the read**, not restated here.
 ///
-/// **Neither kind SNAPS a value** — nothing in this crate replaces a
-/// coordinate with a nearby one because ε says they are close.
+/// Two of them make *"ε cannot move an emitted coordinate"* FALSE as
+/// stated: pole identification substitutes the pole's exact `v` for
+/// `Chart::v_of(p)` and emits TWO `pole: true` entries instead of one,
+/// and `walk::iso_side_starts` picks which of two analytically-equal
+/// columns a side carries. **Nothing in the tree flips either** — no
+/// in-tree body puts a non-pole vertex within any of the suite's ε rows
+/// of a pole, and no swept junction has landed at `0 < radial <= eps`.
+/// Whether one is REACHABLE is not established (`revolve` would very
+/// likely refuse such a sliver; a STEP import is the plausible route
+/// in), so the dependence is structural and UNEXERCISED, which is not
+/// the same as absent. *"Mesh structure is a function of (body, δ)"* is
+/// a statement about the tree, not a theorem.
 ///
-/// - **Bars that only REFUSE or REPORT**, and cannot move a
-///   coordinate whichever way they answer: [`crate::curved`]'s banded
-///   swept-rectangle domain guard (refuses the face), the
-///   [`crate::walk::gap_is_noise`] detectors (report and gate
-///   nothing), and [`crate::trimmed`]'s per-triangle certificate
-///   probe (asserts, and is absent from a default build).
-/// - **Bars that CLASSIFY**, whose answer selects which `f64` an
-///   emitted entry carries: pole/apex vertex identification in
-///   [`crate::walk`], and that module's `iso_side_starts` run
-///   grouping, which decides whether a traversal opens an iso side or
-///   repeats its predecessor's coordinate bitwise.
+/// One read is no bar at all: [`crate::trimmed`]'s deviation probe
+/// computes `d / (bound + eps)`, so ε scales the `worst_ratio` it
+/// publishes at **every** call, monotonically. No mesh coordinate
+/// moves; a reported number does.
 ///
-/// So *"ε cannot move an emitted coordinate"* is FALSE as stated, and
-/// the second kind is why. Pole identification substitutes the pole's
-/// exact `v` for `Chart::v_of(p)` and emits TWO `pole: true` polygon
-/// entries instead of one; both reach the UV polygon, hence the
-/// bounding box, hence the interior grid and the pole fan's triangles.
-/// `iso_side_starts` decides which of two analytically-equal columns a
-/// side's entries carry.
-///
-/// **What is true is that nothing in the tree flips either
-/// classification**: no in-tree body puts a non-pole vertex within any
-/// of the suite's ε rows of a pole, and no swept junction has landed
-/// at `0 < radial <= eps` (the sweep is recorded on
-/// `walk::iso_side_starts`). Whether one is REACHABLE is not
-/// established — `revolve` would very likely refuse such a sliver, and
-/// a STEP import is the plausible route in — so the ε-dependence here
-/// is structural and UNEXERCISED, which is not the same as absent or
-/// unreachable. Mesh structure is a function of (body, δ) alone **for
-/// every body this build can mint**, and that qualifier is the whole
-/// difference between the memo-key contract and a theorem.
-///
-/// # Deliberately not a roster of read sites
-///
-/// A list of *where* ε is read would be the natural shape for this doc
-/// and it is not used, because nothing can keep one true. Source
-/// locations are guardable only by a source-text walk; the shared one
-/// (`topo`'s `fixtures::code_only`) is `pub(crate)` and does not reach
-/// this crate, and a private copy here would be the thirteenth
-/// unshared such walk in the tree (`SMELL-SCAN-2026-08.md` S117). A
-/// count also answers the wrong question: what a reader of D9 needs is
-/// what a read may DO, which is the two kinds above, each argued at
-/// its own site. `rg eps crates/mesh/src` is the enumeration; this doc
-/// is the invariant.
+/// **Where the reads are is not written down here** — it is pinned by
+/// `mesh/tests/all.rs`'s `the_eps_inventory_is_pinned`, which counts ε
+/// identifiers per file and reds when one lands. A list here could
+/// not, and one here was short by a read for two milestones. That walk
+/// is textual and cannot see a read spelled another way; the mechanism
+/// that would (ε as a type whose operations are named, D2 addendum
+/// row 0) is **issue #881**.
 pub(crate) struct Tol {
     /// The chordal tolerance δ.
     pub delta: f64,
     /// The sizing target δ_s = δ/2.
     pub delta_s: f64,
-    /// The kernel ε. Never sizing; a bar of one of the two kinds
-    /// above, at every site that reads it.
+    /// The kernel ε. No sizing rule takes it; see above for what its
+    /// reads may do, and `the_eps_inventory_is_pinned` for where they
+    /// are.
     pub eps: f64,
 }
 

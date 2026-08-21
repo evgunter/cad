@@ -27,8 +27,10 @@ use crate::types::{BoundaryPolyline, FacePatch, Mesh, TessellateError};
 /// tier-3 geometry); tessellation does not re-validate — corrupt input
 /// surfaces as typed errors where cheaply detectable (dangling keys,
 /// `Nurbs` placeholders, certificate failures) and is otherwise
-/// garbage-in/garbage-out on the mesh *values* while
-/// [`crate::validate::check_mesh`] stays available as the backstop.
+/// garbage-in/garbage-out on the mesh *values*.
+/// [`crate::validate::check_mesh`] is the backstop for that, and
+/// **this function does not call it**: it is available to a caller,
+/// and the acceptance suites run it, but nothing on this path does.
 ///
 /// # Errors
 ///

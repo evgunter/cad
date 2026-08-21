@@ -481,13 +481,16 @@ fn entries_off_bbox(
 /// is not.**
 ///
 /// The sweep for the weaker form — prose asserting the per-edge
-/// premise without a number — took five more sites, in three files:
-/// this module's header, the interior-grid comment in
+/// premise without a number — took **six** more sites, in **four**
+/// files: this module's header, the interior-grid comment in
 /// [`tessellate_curved`], [`entries_off_bbox`],
-/// `TessellateError::UnsupportedCurvedDomain`'s doc in `types.rs`, and
-/// `mesh/lib.rs`'s crate header. Only two of those are in the file the
-/// guard lives in, which is the §C10 point: a claim lives wherever it
-/// was written down.
+/// `TessellateError::UnsupportedCurvedDomain`'s doc in `types.rs`,
+/// `mesh/lib.rs`'s crate header, and `crate::walk`'s module header,
+/// which states the premise more fully than any of the other five.
+/// **Three** of the six are in the file the guard lives in, which is
+/// the §C10 point: a claim lives wherever it was written down — and
+/// this roster is itself an unguarded list of the kind S64 was about,
+/// which is why it now carries a count it can be checked against.
 fn require_swept_rectangle(
     fk: FaceKey,
     poly: &[UvPoint],

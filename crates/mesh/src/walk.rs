@@ -557,9 +557,11 @@ fn unwrap_tie(raw: f64, prev: f64, anchor: f64) -> f64 {
 /// side is decided by kind and by a pole test, not by a gap-against-a-
 /// lever band — but it does read **ε**, directly, and its read DECIDES
 /// which `f64` the entries of a side carry. A reader taking the four
-/// consumers above for the crate's ε ledger would be short by one.
-/// [`crate::sizing::Tol`] carries the ledger; this list is
-/// `gap_is_noise`'s callers and nothing wider.
+/// consumers above for the crate's ε ledger would be short by three:
+/// this list is `gap_is_noise`'s callers and nothing wider.
+/// [`crate::sizing::Tol`] says what an ε read may DO; the inventory of
+/// where they are is computed by `mesh/tests/all.rs`'s
+/// `the_eps_inventory_is_pinned`.
 ///
 /// It is deliberately NOT named for the closure any more: it was
 /// `closure_is_snappable` while a snap read it, and three of its four

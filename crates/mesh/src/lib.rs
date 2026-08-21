@@ -48,17 +48,17 @@
 //! therefore δ + ε (+ rounding); grid sizing targets δ/2 so the slack
 //! never decides in practice.
 //!
-//! **ε is never read for SIZING** — no step, count or schedule in this
-//! crate takes it as an input, which is checkable from [`sizing`]'s
-//! signatures. It IS read: as bars that refuse or report,
-//! and as two CLASSIFICATION bars whose answer selects which `f64` an
-//! emitted entry carries. So mesh structure is a function of (body, δ)
-//! alone **for every body this build can mint** — an empirical claim
-//! about the tree, not a theorem, and the qualifier is the difference
-//! between the memo-key contract below and *"ε cannot move an emitted
-//! coordinate"*, which is false. The exact claim, both kinds, and why
-//! this crate does not keep a roster of the read sites are on
-//! [`sizing::Tol`], which is where ε enters (D9).
+//! **No sizing function reads ε** — no step or grid rule in this crate
+//! has it in its signature. A COUNT can still move:
+//! `curved::pole_columns` returns 3 rather than 2 on a walk carrying a
+//! pole, and that bit is set by an ε comparison in [`walk`]. So *"mesh
+//! structure is a function of (body, δ)"* holds **for every body in
+//! the tree** — a statement about the tree, not a theorem, and it is
+//! weaker than *"ε cannot move an emitted coordinate"*, which is
+//! false. ε arrives once, in [`fn@tessellate`], and is carried on
+//! [`sizing::Tol`], whose doc states what a read may do; where the
+//! reads ARE is pinned by `tests/all.rs`'s
+//! `the_eps_inventory_is_pinned` rather than written down (D9).
 //!
 //! # Watertightness and the memo-key contract
 //!
@@ -71,7 +71,9 @@
 //! [`validate::check_mesh`] re-derives that over an emitted mesh and
 //! is what the acceptance suites run — but **[`fn@tessellate`] does
 //! not call it**, so a mesh whose construction argument failed is
-//! returned as `Ok` unless a caller checks.
+//! returned as `Ok` unless the caller runs it. The same qualifier is
+//! owed wherever `check_mesh` is named as a backstop; it is stated at
+//! [`Mesh`], at [`fn@tessellate`] and in [`curved`]'s header.
 //!
 //! **Invariant (ratified via PR #32): per-face tessellation is a pure
 //! function of (face surface, loops, per-edge chord points, δ).** This
@@ -154,6 +156,7 @@
 //! should also run in release is an open question for Evan, priced at
 //! `SMELL-SCAN-2026-08.md` S65; `curved`'s module header states the
 //! same asymmetry at the site.
+//!
 //! `Surface::normal` is never sampled anywhere (winding
 //! needs no normals), so the ∂u → 0 poison is unreachable. Pole-to-pole
 //! bands (no rim in the loop) disambiguate their azimuth half via the
