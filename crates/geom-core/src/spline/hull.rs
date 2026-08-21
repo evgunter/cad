@@ -71,8 +71,11 @@
 //! of that vector, so a span of a *different* one is a representable
 //! input: [`span_indices`] therefore asks [`KnotVector::admits`]
 //! alongside the coefficient-length check, and either failing is
-//! poison. Emptiness is not re-checked — an admitted span that is empty
-//! in this `kv` poisons through its own zero knot difference.
+//! poison. Emptiness is **not** re-checked: `admits` relates a span to
+//! this vector's shape, so a foreign span that is empty here is
+//! admitted, and the bound below is then the hull of a window this
+//! vector's basis never reads — finite, and wrong. It cannot index out
+//! of bounds, which is what the check is for.
 //!
 //! # The two length-only relations, and the one that is a residue
 //!

@@ -429,11 +429,17 @@ impl KnotVector {
     /// the same length-only relation [`super::hull::span_hull`] holds
     /// its `coeffs` to, and closing either wants a brand, not a check.
     ///
-    /// Nonemptiness is **not** re-checked: a `Span` carries it from its
-    /// own vector, and an admitted span of a different vector may name
-    /// an empty span of this one — whose zero knot difference poisons
-    /// the basis denominators, which is the same poison a refusal
-    /// would have produced.
+    /// Nonemptiness is **not** re-checked, and the consequence is
+    /// stated rather than implied: a `Span` carries nonemptiness from
+    /// its own vector, so an admitted span of a *different* vector can
+    /// name an **empty** span of this one. That is inside the residue
+    /// above and it is the ugliest corner of it — the zero knot
+    /// difference divides in [`super::basis::basis_funs`], which at
+    /// `f64` yields a row of `±inf` and `NaN` rather than all-poison,
+    /// and [`super::hull::span_hull`] reads no knots at all and returns
+    /// a finite bound over the wrong window. Neither indexes out of
+    /// bounds, which is what this check is for; neither is a refusal,
+    /// which it is not.
     pub fn admits(&self, span: Span) -> bool {
         span.degree() == self.degree && span.index() <= self.last_span()
     }
