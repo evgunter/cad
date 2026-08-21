@@ -23,10 +23,18 @@
 //!   full-period self-loop edge, two-half-edge loop. An ENUMERATION,
 //!   not a fuzzer: the shapes are the whole content and nothing is
 //!   sampled.
-//! - The **torn-body sweep** drives every operator that reaches
-//!   `link_half_edges` over every key of a randomly torn body. A
+//! - The **torn-body sweep** CALLS every operator that reaches
+//!   `link_half_edges` at every key of a randomly torn body. A
 //!   counterexample search: varying seed, counts on `CAD_FUZZ_EFFORT`,
 //!   monotone in the safe direction.
+//!
+//!   **Calling is not reaching, and the two rows now say which they
+//!   did.** Both print an exposure per operator, and both floor on how
+//!   many of `LINK_OPS` entered a mutation phase — the only place a
+//!   row-4 arm can fire. Measured, `kemr` enters one in NEITHER row: its
+//!   plan phase refuses on every input either row produces, so the arms
+//!   below it are attacked by nothing here. That gap is **S161 / D107**,
+//!   not a claim this file makes.
 //!
 //! # Why the sweep is release-only
 //!
@@ -64,6 +72,8 @@ use crate::body::Body;
 use crate::entity::{EntityId, HalfEdgeKey};
 use crate::euler::{EulerOpError, MefSite, MevSite};
 use crate::fixtures::{deep_snapshot, ops_cube};
+#[cfg(not(debug_assertions))]
+use test_utils::vacuity::Exposure;
 
 fn p(x: f64) -> Point3<f64> {
     Point3::new(x, 0.0, 0.0)
@@ -446,8 +456,25 @@ fn plant(body: &mut Body<f64>, tear: Tear, rng: &mut test_utils::fuzz::Rng, dead
     }
 }
 
-/// The operators this pass drives, by name — the census categories, and
-/// the list the anti-vacuity floor counts over.
+/// The operators whose mutation phase **reaches
+/// [`crate::Body::link_half_edges`]**, and therefore the row-4 arms
+/// under attack: `kef`/`kev`/`kemr` (`euler_kill.rs`, `euler_ring.rs`),
+/// `mev_line`/`mef_chord` (`euler.rs`) and `split_edge` (`split.rs`).
+///
+/// **This is the list the floor counts over, and it is not the list the
+/// pass drives.** `mfkrh_plug` is driven and counted as evidence, but
+/// its mutation phase mints a face and touches no half-edge links, so a
+/// run that reached only it has reached none of the arms — which is
+/// exactly the run that made a floor on the total unfalsifiable here
+/// (`mfkrh`'s plan phase reads only `loop.face`, `face.outer`,
+/// `face.shell`, so it survives a fully nulled arena). An operator that
+/// cannot reach the arms cannot be evidence that the arms were reached.
+#[cfg(not(debug_assertions))]
+const LINK_OPS: [&str; 6] = ["kef", "kev", "kemr", "mev_line", "mef_chord", "split_edge"];
+
+/// Every operator the pass drives — [`LINK_OPS`] plus the one that does
+/// not reach the arms. Counted, printed, and deliberately absent from
+/// the floor.
 #[cfg(not(debug_assertions))]
 const OPS: [&str; 7] = [
     "kef",
@@ -462,31 +489,53 @@ const OPS: [&str; 7] = [
 #[cfg(not(debug_assertions))]
 const CALLS: &str = "operator calls";
 
-/// Drives every operator that reaches [`crate::Body::link_half_edges`]
-/// over every key of a torn body, and returns the pass as the tree's
-/// anti-vacuity census ([`test_utils::census`]).
+/// A [`Tear`] kind's exposure category: a planting of that kind that
+/// actually changed the body.
+///
+/// **The floor the CALLS one cannot be.** An intact cube hammers to 438
+/// calls and reaches five operators, so 27 no-op plantings clear both
+/// other floors while sweeping nothing but intact cubes — a sweep with
+/// no corruption in it, which is the vacuity this row is most exposed
+/// to. Counted per KIND rather than per trial: a single draw may
+/// legitimately find no eligible entity for the kind it was asked to
+/// plant (measured, 26 of 27 trials land on a typical seed), so *every
+/// trial corrupted* is a claim about luck, while *every corruption
+/// shape was planted somewhere* is the claim the sweep's own docs make
+/// — [`TEARS`] is an enumeration, and every kind is meant to be
+/// exercised on every run.
+#[cfg(not(debug_assertions))]
+fn tear_landed(tear: Tear) -> String {
+    format!("tear landed: {tear:?}")
+}
+
+/// Calls every operator that reaches [`crate::Body::link_half_edges`]
+/// at every key of a torn body, and returns what the pass actually
+/// reached as an anti-vacuity exposure ([`test_utils::vacuity`]).
 ///
 /// Nothing is caught: in this profile the postcondition is compiled out,
 /// so a panic escaping here is a row-4 arm and it should fail the test
 /// with its own message.
 ///
-/// **What the census counts, and why it is per operator.** [`CALLS`] is
-/// every operator driven at a key; each operator's own category counts
-/// the calls that returned `Ok`, i.e. that RAN THEIR MUTATION PHASE,
-/// which is the only place a row-4 `unreachable!` can fire. A pass whose
-/// calls all died in a plan phase proves nothing about the arms under
-/// attack. The count is kept per operator because a total does not
-/// distinguish *seven operators exercised* from *one exercised and six
-/// refused at the door*: on a destination whose every arena field is
-/// nulled, one loop-keyed operator still returns `Ok`, so a floor on the
-/// total alone is close to unfalsifiable here.
+/// **What it counts, and why per operator.** [`CALLS`] is every operator
+/// driven at a key; each operator's own category counts the calls that
+/// returned `Ok`, i.e. that RAN THEIR MUTATION PHASE, which is the only
+/// place a row-4 `unreachable!` can fire. A pass whose calls all died in
+/// a plan phase proves nothing about the arms under attack.
+///
+/// Per operator, because a total does not distinguish *six operators
+/// exercised* from *one exercised and five refused at the door* — and on
+/// this fixture family that is not hypothetical: null every arena field
+/// of the spent destination and `mfkrh_plug` still returns `Ok` six
+/// times, so a floor on the total is one almost nothing can break.
+/// [`LINK_OPS`] is therefore what the floor counts over, and
+/// `mfkrh_plug` is not in it.
 #[cfg(not(debug_assertions))]
-fn hammer(body: &Body<f64>) -> test_utils::census::Census {
+fn hammer(body: &Body<f64>) -> Exposure {
     use crate::entity::{EdgeKey, LoopKey};
     let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
     let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
     let loops: Vec<LoopKey> = body.loops().map(|(k, _)| k).collect();
-    let mut census = test_utils::census::Census::new("review_d18 hammer");
+    let mut census = Exposure::new("review_d18 hammer");
     for op in OPS {
         census.add(op, 0);
     }
@@ -580,7 +629,7 @@ fn torn_bodies_never_reach_a_row_four_unreachable() {
     use test_utils::fuzz;
     let mut rng = fuzz::start("review_d18::torn_bodies_row_four");
     let trials = fuzz::scaled(3);
-    let mut census = test_utils::census::Census::new("review_d18 torn sweep");
+    let mut census = Exposure::new("review_d18 torn sweep");
     for trial in 0..trials {
         for tear in TEARS {
             let cube = ops_cube();
@@ -588,26 +637,52 @@ fn torn_bodies_never_reach_a_row_four_unreachable() {
             let dead = recycled_dead_half_edge(&mut body);
             // Compound the tears: one on the first pass, more as the
             // trial index rises, so single and multiple corruption both
-            // get exercised.
-            for _ in 0..=trial {
-                plant(&mut body, tear, &mut rng, dead);
-            }
+            // get exercised. Each planting is snapshotted individually,
+            // so the exposure says which KINDS landed rather than which
+            // trials did.
             let extra = TEARS[(rng.next_u64() as usize) % TEARS.len()];
-            plant(&mut body, extra, &mut rng, dead);
+            for kind in core::iter::repeat_n(tear, trial + 1).chain([extra]) {
+                let before = deep_snapshot(&body);
+                plant(&mut body, kind, &mut rng, dead);
+                if deep_snapshot(&body) != before {
+                    census.note(&tear_landed(kind));
+                }
+            }
             census.merge(&hammer(&body));
         }
     }
     census.report();
+    // EVERY corruption shape must have landed somewhere: `plant` takes a
+    // `Tear` and a drawn key and can quietly become a no-op for a shape
+    // it no longer knows how to reach. Derived from `TEARS` rather than
+    // written out, so the floor cannot drift from the enumeration.
+    let landed: Vec<String> = TEARS.iter().map(|t| tear_landed(*t)).collect();
+    let landed: Vec<&str> = landed.iter().map(String::as_str).collect();
+    census.require_nonzero_among(
+        &landed,
+        TEARS.len(),
+        &format!(
+            "a corruption shape never landed on any body in the whole sweep, so the \
+             hammer below ran on bodies that shape had not torn — {}",
+            fuzz::replay()
+        ),
+    );
+    // The KEY ENUMERATION, and only that; the tear floor above carries
+    // the other half. Measured on an intact tree: 11907.
     census.require(
         CALLS,
         1_001,
         &format!(
-            "the tear planting or the key enumeration has collapsed — {}",
+            "the key enumeration has collapsed — the bodies no longer present the \
+             half-edges, edges and loops this sweep hammers — {}",
             fuzz::replay()
         ),
     );
+    // 4 of the 6 link-reaching operators, against 5 measured on an
+    // intact tree (`kemr` reaches none — S161). One operator of slack,
+    // deliberately: a coverage loss should be visible, not absorbed.
     census.require_nonzero_among(
-        &OPS,
+        &LINK_OPS,
         4,
         &format!(
             "too few operators reached a mutation phase, so most of the arms under \
@@ -652,7 +727,8 @@ fn a_spent_graft_destination_never_reaches_a_row_four_unreachable() {
     census.require(
         CALLS,
         101,
-        "the spent destination no longer presents the keys this row hammers",
+        "the spent destination no longer presents the keys this row hammers; measured \
+         on an intact tree: 876",
     );
     // THE FLOOR THIS ROW EXISTS BEHIND, and the one its twin already
     // had. A spent graft destination is more structurally damaged than
@@ -660,9 +736,12 @@ fn a_spent_graft_destination_never_reaches_a_row_four_unreachable() {
     // its calls refuse in a plan phase — the run that proves nothing
     // about the arms under attack while passing green.
     //
-    // Counted over OPERATORS, not over the total: see `hammer`.
+    // 4 of the 6 link-reaching operators, against 5 measured on an
+    // intact tree (`kef` 24, `kev` 24, `mef_chord` 64, `mev_line` 60,
+    // `split_edge` 72; `kemr` 0 — S161). Not over the total, and not
+    // over `OPS`: see `LINK_OPS`.
     census.require_nonzero_among(
-        &OPS,
+        &LINK_OPS,
         4,
         "too few operators reached a mutation phase on the spent destination, so the \
          arms under attack were never in scope and this green says nothing about them",

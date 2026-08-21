@@ -23,14 +23,23 @@
 //!   classes the corpus actually reaches, which is the number a
 //!   future reader of the partition wants.
 //!
-//! **Anti-vacuity floors** ([`test_utils::census`]). Every interesting
+//! **Anti-vacuity floors** ([`test_utils::vacuity`]). Every interesting
 //! body in the corpus is minted behind a fallible door, so the gates
-//! state how much they actually exercised and assert it: [`census_corpus`] floors the corpus and the
-//! rim/circle/multi-solid coverage the claims rest on, and
-//! `d2_no_input_reaches_a_panic` floors its request count and its
-//! all-rim requests — the sample's only route into `rim_phase`. Without
-//! these a run in which `boolean_op_with` or `revolve` began refusing
-//! would shrink to a bare cube and stay green.
+//! state how much they actually exercised and assert it:
+//! [`census_corpus`] floors the corpus and the rim/circle/multi-solid
+//! coverage the claims rest on, and `d2_no_input_reaches_a_panic` floors
+//! its request count and the number of requests that came back **with a
+//! band face** — the receipt `rim_phase` leaves, and the only evidence
+//! from outside the door that the phase holding 6 of the 18
+//! `unreachable!` sites ran at all. Without these a run in which
+//! `boolean_op_with` or `revolve` began refusing would shrink to a bare
+//! cube and stay green.
+//!
+//! **A floor on a request SHAPE would not have done.** The request
+//! builder pushes the rim set unconditionally for any rim-carrying body,
+//! so counting all-rim requests floors something `census_corpus` already
+//! implies, and every one of those calls could refuse above `rim_phase`
+//! with the count unmoved. The floor has to be on an outcome.
 //!
 //! Gating: these are written against `crates/sweep/src/fillet`; run
 //! them when that directory changes.
@@ -54,8 +63,8 @@ use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::fillet::{FilletError, fillet_edges};
 use sweep::test_support::cube;
 use sweep::{Revolution, RevolveAxis, revolve};
-use test_utils::census::Census;
 use test_utils::fuzz::{self, Rng};
+use test_utils::vacuity::Exposure;
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations, EdgeKey};
 
@@ -178,6 +187,14 @@ fn corpus() -> Vec<(&'static str, Body<f64>)> {
     }
     // A pip straddling an edge: its rim crosses two support faces, so
     // the closed chain is not a ring of one plane.
+    // ABSENT AT THE DEFAULT ε, AND THAT IS WHY THE FLOORS BELOW DO NOT
+    // NAME THESE THREE. Measured on an intact tree: `die_two_pips`
+    // refuses `Containment(PartialSphereFace)` and the straddling and
+    // corner pips refuse `CurvedPierceUnsupported` — declared-unsupported
+    // variants from `boolean_op_with`, not defects. So the corpus mints
+    // 8 of the 11 bodies written here, and `census_corpus` prints which,
+    // every run. A reader asking "does this ever fire?" reads the
+    // evidence line, not a comment that would go stale.
     if let Some(b) = subtract(&c, &pip(0.5, 0.0, 0.12, 0.06)) {
         out.push(("die_edge_straddling_pip", b));
     }
@@ -263,8 +280,8 @@ fn circle_edges(body: &Body<f64>) -> Vec<EdgeKey> {
 /// **rim** coverage the `rim_phase` sentence above depends on, and the
 /// **circle** coverage the curved-spine arms depend on. A run that
 /// loses any of those loses the file's reason to exist.
-fn census_corpus(bodies: &[(&'static str, Body<f64>)]) -> Census {
-    let mut c = Census::new("d2 corpus");
+fn census_corpus(bodies: &[(&'static str, Body<f64>)]) {
+    let mut c = Exposure::new("d2 corpus");
     for (name, b) in bodies {
         c.note("bodies");
         c.note(name);
@@ -281,6 +298,10 @@ fn census_corpus(bodies: &[(&'static str, Body<f64>)]) -> Census {
     c.report();
     let why = "the corpus has degraded — a door that mints one of these bodies now refuses, \
                and the sweep below would cover none of what this file was written for";
+    // Measured on an intact tree: 8 bodies, 3 with a rim, 5 with a
+    // circle, 2 multi-solid. The floors sit below those, not at them —
+    // a boolean is allowed to start refusing one pip without reddening
+    // a row that still has the coverage its claims rest on.
     c.require("bodies", 6, why);
     c.require_each(
         &["cube", "cube_rotated", "ball", "grafted_two_solid"],
@@ -290,7 +311,6 @@ fn census_corpus(bodies: &[(&'static str, Body<f64>)]) -> Census {
     c.require("bodies with a plane-sphere rim", 1, why);
     c.require("bodies with a circle-carried edge", 1, why);
     c.require("multi-solid bodies", 1, why);
-    c
 }
 
 /// Every request shape worth firing at one body: the empty set, each
@@ -383,6 +403,9 @@ fn class(e: &FilletError) -> &'static str {
     }
 }
 
+/// A completed rim blend, counted as the receipt `rim_phase` leaves.
+const RIM_PHASE: &str = "requests that came back with a band face";
+
 /// Radii spanning the scale: below, at, and above the features.
 const RADII: [f64; 6] = [1e-6, 1e-3, 0.02, 0.05, 0.12, 0.9];
 
@@ -401,24 +424,37 @@ fn d2_no_input_reaches_a_panic() {
     let hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(|_| {}));
     let mut fired: Vec<String> = Vec::new();
-    let mut census = Census::new("d2_no_input_reaches_a_panic");
+    let mut census = Exposure::new("d2_no_input_reaches_a_panic");
+    census.add(RIM_PHASE, 0);
     for (name, body) in &bodies {
         let rims = rim_edges(body);
         for req in requests(body, &mut rng, effort()) {
-            if !rims.is_empty() && !req.is_empty() && req.iter().all(|k| rims.contains(k)) {
-                census.note("all-rim requests");
-            }
+            let all_rim =
+                !rims.is_empty() && !req.is_empty() && req.iter().all(|k| rims.contains(k));
             for r in RADII {
                 census.note("requests");
+                if all_rim {
+                    census.note("all-rim requests");
+                }
+                // The closure yields the BAND-FACE COUNT, not the body:
+                // `Filleted::band_faces` is *"one per CLOSED chain (the
+                // rim blends)"* and is written by `rim_phase` itself, so
+                // a nonzero count is a receipt that the phase ran. That
+                // is the only outcome-level proof available from outside
+                // the door, and it is what the floor below counts.
                 let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    let _ = fillet_edges(body, &req, r, band());
+                    fillet_edges(body, &req, r, band())
+                        .map(|f| f.band_faces.len())
+                        .unwrap_or(0)
                 }));
-                if outcome.is_err() {
-                    fired.push(format!(
+                match outcome {
+                    Err(_) => fired.push(format!(
                         "{name}: {} edge(s), radius {r} — {}",
                         req.len(),
                         fuzz::replay()
-                    ));
+                    )),
+                    Ok(bands) if bands > 0 => census.note(RIM_PHASE),
+                    Ok(_) => {}
                 }
             }
         }
@@ -432,11 +468,10 @@ fn d2_no_input_reaches_a_panic() {
         fuzz::replay()
     );
     census.report();
-    // The floors, at `CAD_FUZZ_EFFORT=1`: the enumerated request shapes
-    // alone (empty, whole, reversed, two singletons, the repeat, six
-    // windows) are 11 per body over six bodies at six radii, so 300 is
-    // comfortably below what a healthy run reaches and comfortably
-    // above what a degraded one does.
+    // Measured on an intact tree at `CAD_FUZZ_EFFORT=1`: 1842 requests.
+    // The floor is 300, which the enumerated shapes alone (empty, whole,
+    // reversed, two singletons, the repeat, six windows — 11 per body,
+    // six radii) clear from the floored body count of 6.
     census.require(
         "requests",
         300,
@@ -446,12 +481,19 @@ fn d2_no_input_reaches_a_panic() {
             fuzz::replay()
         ),
     );
+    // THE FLOOR THAT HAD TO BE AN OUTCOME. Counting all-rim REQUESTS
+    // floors a shape the request builder produces unconditionally for
+    // any rim-carrying body — it is implied by `census_corpus`'s own rim
+    // floor twenty lines up, so it can never red first, and all of its
+    // calls could refuse above `rim_phase` with the count unmoved.
+    // `rim_phase` sits below five `?` returns; only a band face proves
+    // it ran. Measured on an intact tree: 12 all-rim requests reach `Ok`.
     census.require(
-        "all-rim requests",
+        RIM_PHASE,
         1,
         &format!(
-            "no request was a pure plane-sphere rim set, so the sample never reached \
-             `rim_phase` and 6 of the 18 `unreachable!` sites went unattacked — {}",
+            "no request came back with a band face, so nothing this run did reached \
+             `rim_phase`, which holds 6 of the 18 `unreachable!` sites — {}",
             fuzz::replay()
         ),
     );

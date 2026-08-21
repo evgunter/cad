@@ -649,7 +649,7 @@ pub(crate) fn find_span_in(knots: &[f64], degree: usize, t: f64) -> usize {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use test_utils::census::Census;
+    use test_utils::vacuity::Exposure;
 
     use super::*;
 
@@ -806,7 +806,7 @@ mod tests {
                 3,
             ),
         ];
-        let mut census = Census::new("knots: the span search against its oracle");
+        let mut census = Exposure::new("knots: the span search against its oracle");
         for (knots, p) in cases {
             let k = kv(&knots, p);
             let (lo, hi) = k.domain();

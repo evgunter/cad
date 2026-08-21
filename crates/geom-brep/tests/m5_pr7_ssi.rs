@@ -76,7 +76,7 @@
 //! and the trade is stated at the row.
 //!
 //! Every ε stand-down in this file is LOUD **and PROVED**: the run
-//! prints, by name ([`test_utils::census::stood_down`]), the coverage it
+//! prints, by name ([`test_utils::vacuity::stood_down`]), the coverage it
 //! did not deliver, and it first asserts that the excuse is the one it
 //! claims — D9's `SSI_MAX_FIT_SAMPLES`, genuinely overrun, at an ε finer
 //! than the compiled default. A stand-down that is only announced is
@@ -87,9 +87,11 @@
 //!
 //! **Planted quantities are stated in metres, not in multipliers.** The
 //! accounting floor is `SSI_FLOOR · band.zero() · floor_scale`, so a
-//! literal `floor_scale` names a different width at every ε; the
-//! floor-clamped fixture derives its scale from [`FLOOR_CLAMP_METRES`]
-//! instead, which is the quantity its premise is actually about.
+//! literal `floor_scale` names a different width at every ε. Every floor
+//! fixture in this file states its width and converts through
+//! [`SsiDomain::floor_scale_for`] — the inverse of `SsiDomain::floor`,
+//! which is where the identity lives rather than in a comment. Four
+//! sites, one spelling.
 
 #![allow(
     clippy::unwrap_used,
@@ -109,7 +111,7 @@ use geom_brep::ssi::{
 use geom_core::spline::KnotVector;
 use geom_core::tolerance::DEFAULT_EPS;
 use geom_core::{Band, Margin, Point3, Tolerance, Vec3};
-use test_utils::census;
+use test_utils::vacuity;
 
 /// The accounting floor the floor-clamped fixture plants, **in metres**
 /// — far wider than any certifiable tube radius on that pair, and the
@@ -294,14 +296,16 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
             let msg = format!("{}", SsiError::FitSampleBudget { samples, budget });
             assert!(msg.contains("fit budget"), "BUDGET: {msg}");
             assert!(msg.contains("raise the tolerance"), "BUDGET: {msg}");
-            println!(
-                "SKIPPED (planted fixture, eps = {:e}): the SSI door refused typed on its \
-                 named fit-sample budget ({samples} samples vs {budget}). THIS RUN \
-                 CONTRIBUTES NO SHAPE-(iv) COVERAGE — no found-and-certified row, no \
-                 three-limb row, no limb-1/limb-2 separation, no accounting receipt, no \
-                 dedup row, no idealized-vs-realized differential. Only the BUDGET \
-                 assertions above executed.",
-                eps()
+            vacuity::stood_down(
+                &format!("planted fixture, eps = {:e}", eps()),
+                &format!(
+                    "the SSI door refused typed on its named fit-sample budget \
+                     ({samples} samples vs {budget}). THIS RUN CONTRIBUTES NO \
+                     SHAPE-(iv) COVERAGE — no found-and-certified row, no three-limb \
+                     row, no limb-1/limb-2 separation, no accounting receipt, no dedup \
+                     row, no idealized-vs-realized differential. Only the BUDGET \
+                     assertions above executed."
+                ),
             );
             return;
         }
@@ -673,15 +677,13 @@ fn the_floor_clamped_planted_fixture_refuses_typed() {
         extent: 0.4,
         floor_scale: 1.0,
     };
-    // The clamp is stated **relative to the band the run resolved**, so
-    // the fixture means the same thing at every battery ε. A literal
-    // multiplier does not: `SsiDomain::floor` is `SSI_FLOOR · zero ·
-    // floor_scale`, so a fixed `1.0e8` reads 0.1 m only at the default
-    // ε and slides with the battery — at ε = 1e-12 it is 1e-4 m, and
-    // the same fixture shrunk to that floor returns `Ok` instead of
-    // refusing. The premise this row rests on is the floor's METRE
-    // value, so that is what the fixture pins.
-    d.floor_scale = FLOOR_CLAMP_METRES / (SSI_FLOOR * band().zero());
+    // The clamp is stated in METRES, through the same door as this
+    // file's other three floor fixtures. A literal multiplier states a
+    // different width at every ε: a fixed `1.0e8` reads 0.1 m only at
+    // the compiled default, and at ε = 1e-12 it is 1e-4 m — under which
+    // the same fixture, shrunk, returns `Ok` instead of refusing. The
+    // premise this row rests on is the floor's width.
+    d.floor_scale = SsiDomain::floor_scale_for(FLOOR_CLAMP_METRES, band());
     let err = ssi::cylinder_sphere_ssi(&c, &s, d, band()).expect_err("must refuse");
     let msg = format!("{err}");
     match err {
@@ -726,7 +728,7 @@ fn the_floor_clamped_planted_fixture_refuses_typed() {
                  owes it, not a stand-down",
                 eps()
             );
-            census::stood_down(
+            vacuity::stood_down(
                 &format!("the floor-clamped refusal, eps = {:e}", eps()),
                 &format!(
                     "the fit budget ({samples} of {budget} samples) refused before any \
@@ -793,12 +795,15 @@ fn an_unseeded_run_refuses_typed_rather_than_receipting_an_unprovable_domain() {
         radius: 0.5,
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
-    // `floor_m` is the accounting floor in meters, at every ε.
+    // `floor_m` is the accounting floor in METRES, at every ε — the
+    // width this fixture's premise is about, through the door that
+    // states it (`SsiDomain::floor_scale_for`, the inverse of
+    // `SsiDomain::floor`).
     let domain = |floor_m: f64| SsiDomain {
         center: Point3::new(1.0, 0.0, 0.0),
         half_extent: 0.2,
         extent: 0.4,
-        floor_scale: floor_m / eps(),
+        floor_scale: SsiDomain::floor_scale_for(floor_m, band()),
     };
 
     // ---- Run 1, the MODE PIN: a floor an order finer than the
@@ -928,14 +933,16 @@ fn the_uniqueness_tube_margin_dies_on_a_tangent_pair() {
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     let n = (need as usize).max(64);
     if n > geom_brep::ssi::SSI_MAX_FIT_SAMPLES {
-        println!(
-            "SKIPPED (equator interpolant, eps = {:e}): limbs 1 and 2 would need {n} samples \
-             against a fit budget of {} — THIS RUN DOES NOT EXERCISE THE LIMB-3 TUBE \
-             REFUSAL ON A TANGENT PAIR. The refusal itself is still reached end-to-end by \
-             `a_tangent_pair_refuses_toward_the_c7_regime_and_never_desingularizes`; what \
-             is absent is the isolated limb-3 statement.",
-            eps(),
-            geom_brep::ssi::SSI_MAX_FIT_SAMPLES
+        vacuity::stood_down(
+            &format!("equator interpolant, eps = {:e}", eps()),
+            &format!(
+                "limbs 1 and 2 would need {n} samples against a fit budget of {} — THIS \
+                 RUN DOES NOT EXERCISE THE LIMB-3 TUBE REFUSAL ON A TANGENT PAIR. The \
+                 refusal itself is still reached end-to-end by \
+                 `a_tangent_pair_refuses_toward_the_c7_regime_and_never_desingularizes`; \
+                 what is absent is the isolated limb-3 statement.",
+                SSI_MAX_FIT_SAMPLES
+            ),
         );
         return;
     }
@@ -1094,11 +1101,18 @@ fn wall_outcome() -> Option<geom_brep::SsiOutcome> {
 /// The wall fixture's stand-down, said out loud: which row stood down,
 /// and what it therefore did NOT cover. A bare `return` here reports
 /// coverage the run does not have (`docs/M5-EXIT-WALK.md` row 15).
+///
+/// One argument's worth of local vocabulary over
+/// [`test_utils::vacuity::stood_down`], not a second implementation of
+/// it: every caller stands down for the same reason, so the reason is
+/// written once here rather than at each `return`.
 fn wall_stand_down(row: &str, absent: &str) {
-    println!(
-        "SKIPPED ({row}, eps = {:e}): the plane×NURBS march wants more samples than the \
-         SSI fit budget allows, so the shape-(iii) wall never fitted at this ε — {absent}",
-        eps()
+    vacuity::stood_down(
+        &format!("{row}, eps = {:e}", eps()),
+        &format!(
+            "the plane×NURBS march wants more samples than the SSI fit budget allows, \
+             so the shape-(iii) wall never fitted at this ε — {absent}"
+        ),
     );
 }
 
@@ -1345,7 +1359,7 @@ fn an_inflected_wall_refuses_in_band_at_the_hull_limb_honestly() {
                 "the fit budget fired at ε = {:e}",
                 eps()
             );
-            census::stood_down(
+            vacuity::stood_down(
                 &format!("the limb-2 in-band row, eps = {:e}", eps()),
                 &format!(
                     "the fit budget ({samples} of {budget} samples) refused before limb 2 \
@@ -1563,9 +1577,9 @@ fn grazing_plane() -> Surface<f64> {
 /// stay green as a second spelling of the floor-clamped row rather than
 /// covering this mode at all.
 ///
-/// Neither run depends on ε: `floor_scale` is stated as `floor_m / ε`,
-/// the seed floor is a fraction of the extent, and the clearance is
-/// checked against the resolved band.
+/// Neither run depends on ε: `floor_scale` comes from
+/// [`SsiDomain::floor_scale_for`], the seed floor is a fraction of the
+/// extent, and the clearance is checked against the resolved band.
 #[test]
 fn an_unseeded_chart_run_refuses_typed_rather_than_receipting_an_unprovable_domain() {
     let (p, w) = (grazing_plane(), hull_slack_wall());
@@ -1606,12 +1620,15 @@ fn an_unseeded_chart_run_refuses_typed_rather_than_receipting_an_unprovable_doma
          ε — sampled clearance {clearance:e} against a net dipping to {dip:e}"
     );
 
-    // `floor_m` is the accounting floor in meters, at every ε.
+    // `floor_m` is the accounting floor in METRES, at every ε — the
+    // width this fixture's premise is about, through the door that
+    // states it (`SsiDomain::floor_scale_for`, the inverse of
+    // `SsiDomain::floor`).
     let domain = |floor_m: f64| SsiDomain {
         center: Point3::new(0.5, 0.0, 0.4),
         half_extent: 2.0,
         extent: 3.0,
-        floor_scale: floor_m / eps(),
+        floor_scale: SsiDomain::floor_scale_for(floor_m, band()),
     };
 
     // ---- Run 1, the MODE PIN: a floor fine enough that the first-order
@@ -1807,7 +1824,8 @@ fn assert_floor_is_the_meters_floor_over_the_chart_speed(floor: f64, meters: f64
 /// chart units, so it is `Ok` for every floor below that and refuses
 /// for every floor at or above the next admitted width, 0.25 — a
 /// half-line in each direction rather than an interval. Stated in
-/// meters as `floor_m / eps()`, so both stay put at every battery ε.
+/// meters through [`SsiDomain::floor_scale_for`], so both stay put at
+/// every battery ε.
 ///
 /// **No ε stand-down, deliberately.** Every other row on this wall
 /// carries a `FitSampleBudget` arm because `nurbs_wall()` outruns the
@@ -1832,9 +1850,12 @@ fn assert_floor_is_the_meters_floor_over_the_chart_speed(floor: f64, meters: f64
 #[test]
 fn the_floor_clamped_chart_run_refuses_typed_with_a_banked_tube_set() {
     let (p, w) = (cutting_plane(), certifiable_wall());
-    // `floor_m` is the accounting floor in meters, at every ε.
+    // `floor_m` is the accounting floor in METRES, at every ε — the
+    // width this fixture's premise is about, through the door that
+    // states it (`SsiDomain::floor_scale_for`, the inverse of
+    // `SsiDomain::floor`).
     let domain = |floor_m: f64| SsiDomain {
-        floor_scale: floor_m / eps(),
+        floor_scale: SsiDomain::floor_scale_for(floor_m, band()),
         ..wall_domain()
     };
 

@@ -249,10 +249,10 @@ sub-block, from the orchestrator.
 | **F-b** | D63, D64 | S119, S120 |
 | **F-c** | D65, D66, D67 | S121, S122, S123 |
 | **F-e** | D68, D69 — **both used** | S124, S125 — **both used** |
-| **F-d** | D70 | S126 |
+| **F-d** | D70, **D107** — both used | S126, **S161** — both used |
 | **F-f** | **D101** | **S157** |
 | **F-e** (2nd) | D102, D103, **D106** — all used | S158, S159 — **both used** |
-| unassigned (2nd block) | D107–D110 | S161–S166 |
+| unassigned (2nd block) | D108–D110 | S162–S166 |
 
 **Second block claimed 2026-08-20: `D101`–`D110` and `S157`–`S166`.** The first
 block is spent. Taken beyond Track E's `D81`–`D100` / `S137`–`S156` and Track

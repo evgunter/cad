@@ -5,10 +5,9 @@
 //!
 //! - [`fuzz`], the harness every randomized falsification sweep draws
 //!   its RNG, its per-run seed and its EFFORT dial from.
-//! - [`census`], the tree's one spelling of an **anti-vacuity floor** —
-//!   a statement of how much a sampling guard actually exercised,
-//!   printed every run and asserted, so a run that exercised nothing
-//!   goes red instead of green.
+//! - [`vacuity`], the **anti-vacuity floor** — a statement of how much a
+//!   sampling guard actually exercised, printed every run and asserted,
+//!   so a run that exercised nothing goes red instead of green.
 //!
 //! # DEV-ONLY, by convention
 //!
@@ -27,5 +26,5 @@
 //! without inverting the layering. Below everything, there is no cycle
 //! to create.
 
-pub mod census;
 pub mod fuzz;
+pub mod vacuity;
