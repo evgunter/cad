@@ -205,6 +205,33 @@ narrower than "load-bearing":
   re-cut, *then* widen the matcher), and getting it backwards reds two
   ratified sites — an outcome S63 has already realised twice.
 
+## Standing rules inherited from other tracks
+
+Landed on `main` 2026-08-21 by Track E (#869). **Lanes read the standing
+header from `main`**, which is why these are recorded here rather than
+pasted into a brief — and why this log lands at every pipeline seam
+rather than at session end.
+
+- **A restart loses the inbox and keeps the worktree.** Two container
+  restarts have happened on this project in one day. A lane that wakes
+  holding uncommitted work it cannot account for must **revert first,
+  ask second, and not conclude**: the restart drops the *delivery
+  record* of orchestrator messages while the work done for them survives
+  on disk, so the tree can hold a half-completed transition between two
+  instructions whose record is gone. *"I cannot find the authority for
+  this change"* is evidence about the records, and after a restart the
+  records are the unreliable half. One lane reported itself for
+  fabricating a ruling from Evan on exactly this; it had not.
+  **`H-e` carries extra exposure here** — a re-cut golden reads as
+  somebody's intention even when it is a mid-transition artifact — and
+  its dispatch says so.
+- **A fence's track is derivable from the branch prefix.** Every branch
+  carries its track as a prefix, verified across all 81 `smell*`
+  branches. So a head on **another** track is a fence and the lane
+  stops; a head on **its own** is the orchestrator's to sequence, and
+  the question is only *which lands first*. A lane does not need to ask
+  who owns a head it bumped into. `smellh/` is this track's.
+
 ## Open with Evan
 
 - **#867 — `S90`.** Does the twice-done enumeration discharge the fillet
