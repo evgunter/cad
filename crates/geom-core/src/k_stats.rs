@@ -530,14 +530,16 @@ impl Bounds for Probe {
 }
 
 /// `Probe` certifies exactly as `f64` does, and for the same reason: it
-/// IS an `f64` with a recorder attached, so it has no domain-violation
-/// channel to consult and the accessor never refuses. Anything else would
-/// make a `--features probe` build refuse where the `f64` build certifies,
-/// which is precisely the divergence D9 forbids of this scalar.
+/// IS an `f64` with a recorder attached, so its value is its whole
+/// domain-violation channel and it refuses on NaN and only on NaN.
+/// Delegating rather than restating the test is what keeps the two in
+/// step: a `--features probe` build that refused where the `f64` build
+/// certifies, or certified where it refuses, is precisely the divergence
+/// D9 forbids of this scalar.
 #[cfg(feature = "probe")]
 impl crate::real::CertifiedEnclosure for Probe {
     fn certified_bracket(self) -> Option<(f64, f64)> {
-        Some((self.0, self.0))
+        crate::real::CertifiedEnclosure::certified_bracket(self.0)
     }
 }
 

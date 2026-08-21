@@ -1052,9 +1052,12 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
 ///    exclusion ring. The reach boxes are SOUND per-kind supersets:
 ///    `reach_box` is [`crate::boolean::boxes::FaceBoxRule`] — the ONE
 ///    face-box rule — instantiated in this lane's arithmetic (the
-///    closure's own comment says why the arithmetic, and only the
-///    arithmetic, is separate). A kind with no cheap sound box refuses
-///    WITHOUT a distance test rather than under-claiming its reach. A
+///    closure's own comment carries what is LEFT of the reason for a
+///    second arithmetic, which since the D1 ruling is an allowlist
+///    gate and not a type fact; **#700** is where whether it survives
+///    is decided, and nothing compares the two derivations today). A
+///    kind with no cheap sound box refuses WITHOUT a distance test
+///    rather than under-claiming its reach. A
 ///    planar face vf-NAMED by a record whose vertex is on the OTHER
 ///    FACE OF THIS PAIR defers to the confirm pass (the declared
 ///    boss-on-plate class) — the record has to name both sides of the
@@ -1066,6 +1069,15 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
 ///    makes no boundary event at all (the reviewed nested-cube
 ///    witness), and interference is representable only through C6's
 ///    recorded gate-skips, which do not exist yet.
+///
+///    **This is the arm where a box that is too BIG is wrong**, and
+///    the direction is easy to get backwards: over-width in the
+///    containing reach box does not cost work here, it costs an
+///    answer — a solid genuinely outside stops having a definitely
+///    negative margin and is refused as the interference class. The
+///    cylinder arm is over-wide along its own axis by a full radius
+///    (**#862**), so the near-annulus case is reachable rather than
+///    hypothetical.
 ///
 /// Both arms clear a pair ONLY on a definitely-positive separation
 /// margin (`census_backstop_gap` / `census_backstop_containment` —

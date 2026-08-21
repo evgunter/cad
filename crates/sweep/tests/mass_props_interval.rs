@@ -137,11 +137,23 @@ fn f64_value_within_interval_enclosure() {
     )
     .unwrap();
     let v_f = mass_properties(&t_f.body).unwrap().volume;
+    // The `Interval` enclosure must CONTAIN the f64 value, and be
+    // narrow. Widening the admitted band by the enclosure's own width
+    // — which is what this row did — makes every degradation of the
+    // enclosure satisfy it twice over: once by admitting more, once by
+    // moving the endpoints out. Measured, no widening is needed: the
+    // enclosure is [4.188790204786388, 4.188790204786391] and the f64
+    // value sits inside it, 8.9e-16 from the midpoint. The ceiling is
+    // 28x the measured 3.6e-15 width.
     let width = enc.hi() - enc.lo();
     assert!(
-        enc.lo() - width <= v_f && v_f <= enc.hi() + width,
+        enc.lo() <= v_f && v_f <= enc.hi(),
         "f64 volume {v_f} vs enclosure [{}, {}]",
         enc.lo(),
         enc.hi()
+    );
+    assert!(
+        width < 1e-13,
+        "the revolve enclosure is {width} wide on a {v_f} body"
     );
 }
