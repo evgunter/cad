@@ -11169,6 +11169,71 @@ accepting file granularity and saying so at each entry.
 
 ---
 
+## S165. FIXED by #844 — a docstring asserting the one property its invocation denies, inside the probe suite every document counted as executed
+
+**Found by re-deriving F8's population rather than transcribing it.**
+`crates/editor-core/tests/m4_pr8_k_probe.rs` carries two `#[test]`s. One,
+`dump_corpus_k_samples`, is `#[ignore]`d and is the K-telemetry dump the sweep
+runs. The other, `corpus_evaluates_green_at_probe`, is a plain `#[test]` whose
+own doc reads *"Cheap standing pin: the whole corpus evaluates green at Probe
+(any divergence from the f64 rows' green would fail here first). **Runs in the
+normal (non-ignored) suite.**"*
+
+**It never has.** The only thing that runs that crate under `--features probe`
+is `scripts/k_probe_sweep.sh`'s `run_dump`, which passes `--ignored` — so the
+filter that names `m4_pr8_k_probe::` runs the dump and skips this test. The pin
+was written, documented as standing, and stood on nothing.
+
+**Why this is worse than D84's own instance and not merely another of them.**
+`m5_pr5_corpus_probe.rs` was at least *visibly* unnamed: no filter, no workflow,
+no script mentions it, and D23 found it by reading the filter instead of the
+`-p`. This one sits **inside a module the sweep does name**, in the crate every
+document put on the executed side, in a file whose header describes the CI
+mechanism — and the sentence that would tell a reader it does not run is a
+sentence saying it does. Naming the crate is not naming the suite; **naming the
+suite is not naming the selection**, and nothing in the tree had vocabulary for
+the second distinction.
+
+**Fixed** by running it: `scripts/k_probe_sweep.sh` gains `run_plain`, the
+default-selection twin of `run_dump`, and calls it for this module and for
+`m5_pr5_corpus_probe::` **once, before the ε loop** — both assert bit-identity
+against the f64 lane rather than a margin distribution, so neither has anything
+per-ε to say, and both are preconditions of every margin row the loop writes.
+**Made unable to recur** by making the *selection* part of the executed-set
+roster's key (`RUN_FLOOR`'s `ignored:` / `plain:` prefix), so a roster keyed on
+the module alone can no longer confuse *the dump ran* with *the pins ran*. See
+D84 for the floor itself.
+
+## S166. FIXED by #844 — a live count in `ci.yml` citing a gate that does not assert it
+
+**D85's sharpest instance, and it was not in D85** — found by re-deriving the
+row's named claims rather than transcribing them.
+`.github/workflows/ci.yml` read *"#179 and #387 took this workspace to **14 test
+targets** (`scripts/gates/test-aggregation.sh` **asserts the count**)"*, and the
+same **14** again in the `OPT LEVEL` note on the build job.
+
+Two things are wrong and the second is the interesting one. The count is
+**13** (`cargo metadata --no-deps`, one `[[test]]` per member across 13 members
+that have tests). And **that gate asserts no count at all**: it asserts the
+*invariant* — at most one `[[test]]` target per workspace member — and *prints*
+the total in its success line (`at most one [[test]] target per member (13 test
+targets in all)`). No number is pinned anywhere in the tree.
+
+**A count that cites a mechanism for its truth is worse than a bare count**, and
+this is the shape D23 was written about: a bare stale number invites a check,
+while a number carrying *"the gate asserts this"* forecloses one. It is exactly
+the shape D23's corpus excluded — an enumeration in a workflow comment,
+invisible to a `//!`-anchored sweep.
+
+**Fixed** by de-counting to the mechanism that derives it, which is D23's own
+ratified answer for a count particular to one claim: *assert the literal beside
+the claim, or do not write it*. A workflow comment has nowhere to assert it, so
+it does not write it — the same move D23 made to the twelve `all.rs` headers.
+Three more live counts in the same file went the same way (`24 binaries`, and
+the probe step's *"Sixteen such suites … across five crates"*, today 17 across
+six). The past-tense narratives around them are left as history. See D85.
+
+
 # §A. Where I would start
 
 **Superseded 2026-08-19 by §D, and kept as written.** Three of its four items
@@ -12950,71 +13015,6 @@ degraded scan, so if the answer is a scheduled re-measure, this is the
 quantity it would measure. **Row: D105.**
 
 ---
-
-## S165. FIXED by #844 — a docstring asserting the one property its invocation denies, inside the probe suite every document counted as executed
-
-**Found by re-deriving F8's population rather than transcribing it.**
-`crates/editor-core/tests/m4_pr8_k_probe.rs` carries two `#[test]`s. One,
-`dump_corpus_k_samples`, is `#[ignore]`d and is the K-telemetry dump the sweep
-runs. The other, `corpus_evaluates_green_at_probe`, is a plain `#[test]` whose
-own doc reads *"Cheap standing pin: the whole corpus evaluates green at Probe
-(any divergence from the f64 rows' green would fail here first). **Runs in the
-normal (non-ignored) suite.**"*
-
-**It never has.** The only thing that runs that crate under `--features probe`
-is `scripts/k_probe_sweep.sh`'s `run_dump`, which passes `--ignored` — so the
-filter that names `m4_pr8_k_probe::` runs the dump and skips this test. The pin
-was written, documented as standing, and stood on nothing.
-
-**Why this is worse than D84's own instance and not merely another of them.**
-`m5_pr5_corpus_probe.rs` was at least *visibly* unnamed: no filter, no workflow,
-no script mentions it, and D23 found it by reading the filter instead of the
-`-p`. This one sits **inside a module the sweep does name**, in the crate every
-document put on the executed side, in a file whose header describes the CI
-mechanism — and the sentence that would tell a reader it does not run is a
-sentence saying it does. Naming the crate is not naming the suite; **naming the
-suite is not naming the selection**, and nothing in the tree had vocabulary for
-the second distinction.
-
-**Fixed** by running it: `scripts/k_probe_sweep.sh` gains `run_plain`, the
-default-selection twin of `run_dump`, and calls it for this module and for
-`m5_pr5_corpus_probe::` **once, before the ε loop** — both assert bit-identity
-against the f64 lane rather than a margin distribution, so neither has anything
-per-ε to say, and both are preconditions of every margin row the loop writes.
-**Made unable to recur** by making the *selection* part of the executed-set
-roster's key (`RUN_FLOOR`'s `ignored:` / `plain:` prefix), so a roster keyed on
-the module alone can no longer confuse *the dump ran* with *the pins ran*. See
-D84 for the floor itself.
-
-## S166. FIXED by #844 — a live count in `ci.yml` citing a gate that does not assert it
-
-**D85's sharpest instance, and it was not in D85** — found by re-deriving the
-row's named claims rather than transcribing them.
-`.github/workflows/ci.yml` read *"#179 and #387 took this workspace to **14 test
-targets** (`scripts/gates/test-aggregation.sh` **asserts the count**)"*, and the
-same **14** again in the `OPT LEVEL` note on the build job.
-
-Two things are wrong and the second is the interesting one. The count is
-**13** (`cargo metadata --no-deps`, one `[[test]]` per member across 13 members
-that have tests). And **that gate asserts no count at all**: it asserts the
-*invariant* — at most one `[[test]]` target per workspace member — and *prints*
-the total in its success line (`at most one [[test]] target per member (13 test
-targets in all)`). No number is pinned anywhere in the tree.
-
-**A count that cites a mechanism for its truth is worse than a bare count**, and
-this is the shape D23 was written about: a bare stale number invites a check,
-while a number carrying *"the gate asserts this"* forecloses one. It is exactly
-the shape D23's corpus excluded — an enumeration in a workflow comment,
-invisible to a `//!`-anchored sweep.
-
-**Fixed** by de-counting to the mechanism that derives it, which is D23's own
-ratified answer for a count particular to one claim: *assert the literal beside
-the claim, or do not write it*. A workflow comment has nowhere to assert it, so
-it does not write it — the same move D23 made to the twelve `all.rs` headers.
-Three more live counts in the same file went the same way (`24 binaries`, and
-the probe step's *"Sixteen such suites … across five crates"*, today 17 across
-six). The past-tense narratives around them are left as history. See D85.
-
 
 ## Track G — the ground no track owns, and the passes that deleted their own evidence
 

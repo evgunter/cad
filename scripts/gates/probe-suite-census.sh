@@ -143,6 +143,11 @@ RUN_FLOOR=(
 # in `RUN_FLOOR` above or says this sentence in its own header, and never
 # both — a new probe suite has to pick a side, and a reader learns which
 # from the file rather than from an invocation two directories away.
+# Matched only in a `//!` line, for the reason the cfg predicate above is
+# matched only as an attribute: the claim is what the FILE SAYS TO A
+# READER, and a string literal or an inline comment mentioning the
+# sentence is not that. It has no regex metacharacters, so it doubles as
+# its own pattern.
 NOT_RUN_MARKER='CI COMPILES THIS SUITE AND DOES NOT RUN IT'
 
 # The sweep's own wiring. Without it the floor above is removable by
@@ -481,7 +486,7 @@ gate() {
     dcrate=${suite#crates/}; dcrate=${dcrate%%/*}
     rest=${suite#crates/*/tests/}; dmod=${rest%.rs}
     marked=false
-    grep -qF "$NOT_RUN_MARKER" "$suite" && marked=true
+    grep -qE "^//!.*$NOT_RUN_MARKER" "$suite" && marked=true
     if grep -qxF "$dcrate/$dmod" <<<"$rostered"; then
       if [ "$marked" = true ]; then
         gate_error "$(gate_name): $suite is rostered in RUN_FLOOR as a suite CI EXECUTES and its header also says \`$NOT_RUN_MARKER\`. One of the two is false; decide which"
@@ -629,6 +634,14 @@ plant_roster_orphan() {
 }
 # The one line that connects the floor to its producer, deleted.
 plant_sweep_unwired() { printf '#!/usr/bin/env bash\necho sweeping\n' > "$1/$SWEEP_SCRIPT"; }
+# The sentence present, but not where a reader of the file's header would
+# find it — the case a bare substring match cannot tell from a real
+# declaration, and the same mistake the cfg predicate above already
+# refuses from the other side.
+plant_disposition_not_a_doc_comment() {
+  printf '// %s\n#![cfg(feature = "probe")]\n' "$NOT_RUN_MARKER" \
+    > "$1/crates/topo/tests/probe_0.rs"
+}
 plant_step_renamed() { printf 'jobs: {}\n' > "$1/.github/workflows/ci.yml"; }
 # The clippy row loses the flag that promotes `unexpected_cfgs`.
 plant_clippy_undenied() { sed -i 's/ -- -D warnings//' "$1/.github/workflows/ci.yml"; }
@@ -820,6 +833,7 @@ gate_selftest() {
   gate_selftest_case 'no workspace `cargo clippy' plant_clippy_undenied
   gate_selftest_case 'silences `unexpected_cfgs`' plant_cfg_lint_allowed
   gate_selftest_case 'does not say so' plant_disposition_undeclared
+  gate_selftest_case 'does not say so' plant_disposition_not_a_doc_comment
   gate_selftest_case 'One of the two is false' plant_disposition_both
   gate_selftest_case 'no such probe-gated file is censused' plant_roster_orphan
   gate_selftest_case 'no longer feeds its executed-set tally' plant_sweep_unwired
@@ -836,7 +850,7 @@ gate_selftest() {
   gate_plant_clean_exempt_control
   CENSUS_CITATIONS=false
 
-  printf '%s selftest OK: passes a clean fixture, one with a ci.yml long enough to race, a compound gate, a complete listing, and a tally meeting every rostered execution; fires on a listing missing a counted suite, on an empty one, and on an absent tests/ tree, a renamed gate spelling, one file re-gated onto a misspelt feature, a gate line replaced by a prose mention, a clippy row that stopped denying warnings, the cfg lint silenced at the site, a suite with no declared disposition, a rostered suite claiming it is not run, a roster row naming no censused file, and a sweep that stopped feeding --check-executed — and in --check-executed mode, on a suite SELECTED that executed nothing, a dropped invocation, an empty tally, an unrostered execution and a malformed row; and in --citations mode, on a dropped citation, a deleted citing file, a renamed CI step, and an undeclared new citation, while PASSING the same citation in a declared-history file\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture, one with a ci.yml long enough to race, a compound gate, a complete listing, and a tally meeting every rostered execution; fires on a listing missing a counted suite, on an empty one, and on an absent tests/ tree, a renamed gate spelling, one file re-gated onto a misspelt feature, a gate line replaced by a prose mention, a clippy row that stopped denying warnings, the cfg lint silenced at the site, a suite with no declared disposition, the disposition sentence written as an ordinary comment rather than a doc comment, a rostered suite claiming it is not run, a roster row naming no censused file, and a sweep that stopped feeding --check-executed — and in --check-executed mode, on a suite SELECTED that executed nothing, a dropped invocation, an empty tally, an unrostered execution and a malformed row; and in --citations mode, on a dropped citation, a deleted citing file, a renamed CI step, and an undeclared new citation, while PASSING the same citation in a declared-history file\n' "$(gate_name)"
 }
 
 # The negative control for the completeness check: the same planted
