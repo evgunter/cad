@@ -181,14 +181,23 @@ gathered across M2's full pipeline.
   probe suite that is on neither side, so a new one has to pick.
 
   **The roster is floored on what RAN, not on what a filter could
-  match.** The sweep records the runner's own `N passed` line per
-  invocation and `--check-executed` reads it back. Reachability would be
-  the wrong key: `run_dump` passes `--ignored`, so a filter naming a
-  suite of plain `#[test]`s matches the module and executes none of it —
-  a floor built on "some filter names it" scores such a suite covered
-  while it is inert. **The selection is part of the roster key** for the
-  same reason: `--ignored` and the default selection run disjoint halves
-  of a suite.
+  match.** The sweep records the runner's own passed and ignored counts
+  per invocation and `--check-executed` reads them back. Reachability
+  would be the wrong key: `run_dump` passes `--ignored`, so a filter
+  naming a suite of plain `#[test]`s matches the module and executes none
+  of it — a floor built on "some filter names it" scores such a suite
+  covered while it is inert. **The selection is part of the roster key**
+  for the same reason: `--ignored` and the default selection run disjoint
+  halves of a suite.
+
+  **And the floor alone is not the whole check.** A floor catches a suite
+  that stops running; it cannot catch one that grows a test no rostered
+  selection reaches. Every rostered suite is therefore invoked once under
+  the default selection, which reports how many `#[ignore]`d tests it
+  skipped, and that number must equal what the `--ignored` invocation
+  ran. The two selections then cover the suite with nothing left over,
+  from the runner's own numbers rather than from a predicate over the
+  source.
 
   **The distinction that was wrong, stated so it is not re-inferred.**
   Earlier prose put `editor-core`'s suites on the executed side because
@@ -199,9 +208,16 @@ gathered across M2's full pipeline.
   `corpus_evaluates_green_at_probe` sat inside a module the sweep DID
   name while carrying no `#[ignore]` — so the one filter that reached its
   module ran the other test in it and never that one. Both run now, as
-  preconditions, once and outside the ε loop: each asserts bit-identity
-  against the f64 lane rather than a margin distribution, so neither has
-  anything per-ε to say.
+  preconditions, once and outside the ε loop — **and the reason is
+  redundancy, not ε-invariance.** What both actually assert is one-sided
+  *greenness* at `Probe`; neither compares a `Probe` result against an
+  f64 one, and greenness is tolerance-dependent. `m4_pr8_k_probe`'s
+  `run_doc` asserts the same predicate over every corpus document at all
+  three ε on every merge, so the ε sweep of that property is already
+  paid. What running the default selection adds is that these bodies
+  execute at all, and the `#[ignore]`d complement the floor reconciles.
+  It runs at a stated ε (1e-9) rather than at whatever the ambient
+  default happens to be.
 
   The total is deliberately not written here: it is that gate's derived
   tally, recomputed on every merge.

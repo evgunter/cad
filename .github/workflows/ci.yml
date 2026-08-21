@@ -2015,16 +2015,24 @@ jobs:
       # would not have caught what that harness actually did: it compiled
       # perfectly and panicked, unnoticed, for 26 days.
       #
-      # IT ALSO RUNS THE PROBE LANE'S PRECONDITIONS, once and outside the
-      # ε loop, and FLOORS WHAT IT RAN. The preconditions are the plain
-      # `#[test]`s asserting that `Probe` is a wrapper and not a second
-      # arithmetic; they sat compiled and unexecuted because the sweep's
-      # only selections passed `--ignored`. The floor
-      # (`probe-suite-census.sh --check-executed`, called by the script)
-      # is keyed on the runner's own passed count per invocation, never
-      # on which suites a filter could have matched — a filter naming a
-      # suite of plain `#[test]`s selects the module and runs none of it,
-      # so reachability and execution are different questions here.
+      # IT ALSO RUNS THE DEFAULT SELECTION, once per rostered suite and
+      # outside the ε loop, and FLOORS WHAT IT RAN. `--ignored` runs only
+      # `#[ignore]`d tests, so every plain `#[test]` in a probe suite was
+      # unreachable from this job — including one inside a module the
+      # sweep already named. Once and not per ε because the property
+      # those tests assert (one-sided greenness at `Probe`) is already
+      # swept at three ε by the dump's own `run_doc`; what the default
+      # selection adds is that the bodies execute, and the count of
+      # `#[ignore]`d tests they skipped.
+      #
+      # THE FLOOR (`probe-suite-census.sh --check-executed`, called by the
+      # script) reads the runner's own passed and ignored counts, never
+      # which suites a filter could have matched: a filter naming a suite
+      # of plain `#[test]`s selects the module and runs none of it, so
+      # reachability and execution are different questions here. The
+      # skipped count is what closes the set — it must equal what the
+      # `--ignored` half ran, so a suite cannot grow a test no selection
+      # reaches.
       - name: K-telemetry probe sweep (corpus + M2 corpus + demo scenes, 3 eps rows)
         run: scripts/k_probe_sweep.sh target/k-fresh
       - name: large-K lint (gate — a flagged margin fails this row)
