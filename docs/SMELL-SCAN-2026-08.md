@@ -11528,7 +11528,14 @@ things go wrong there by construction, and both did:
   to. **Every `FIXED by #NNN` entry in this document has the same exposure**,
   because every one of them was written inside the diff it describes —
   recorded, not swept; S72's and S127's are the samples to check first if
-  someone takes it.
+  someone takes it. **It recurred inside the fix, twice**: this PR's own G10
+  half moved `sugar.rs`'s lines by six and its merge of `origin/main` moved
+  `geom-brep/src/ssi.rs`'s by fourteen, so three citations written earlier in
+  the same PR — `sugar.rs:911`, `sugar.rs:190,390` and `ssi.rs:974` — were
+  stale before it opened. All of them are cited by name or by expression now.
+  **That is the argument for the remedy being *cite by name*, not *re-check
+  more carefully*:** the re-check catches it only if the citation outlives the
+  edit that breaks it by long enough to be re-read.
 - **(b) One census, written into three documents, drifts inside the PR that
   took it.** #831 put its link census in `SMELL-G-LOG.md`, in this document, in
   §D's D113 row and in its PR body; the re-sweep at its second merge of
