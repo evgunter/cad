@@ -222,7 +222,8 @@ before the merge, so answering saves a round.
 ## Lane roster
 
 **Wave 1 — opened 2026-08-21, four lanes, no file overlap between any two.**
-`crates/mesh/` carried two of this track's five lanes and they were
+**I-e was the fifth and is now dispatched**, its gate lifted by I-c's landing.
+`crates/mesh/` carries two of this track's five lanes and they were
 **sequenced, not concurrent**: I-e waits on I-c because both read
 `mesh/src/curved.rs`, from opposite ends (I-c its module header and the ε
 ledger, I-e `entries_off_bbox` and the guards). **I-c has landed as #872**
@@ -246,10 +247,225 @@ consolidates and the fix comes first. The lane is described in a comment on
 
 | lane | PR | lanes | state |
 |---|---|---|---|
-| **I-c** | **#872** (S64, S115(d), S116(g); issue **#868**; `S231`) | style only, per **I-R6** | **running.** Handed over as the load-bearing claim: **is the two-kind taxonomy exhaustive** — is there an ε read in `mesh` that is neither a refuse/report bar nor a classification picking an emitted `f64`? If a third kind exists the unit swapped a falsifiable wrong list for an **unfalsifiable wrong taxonomy**, which is worse than what it replaced. Also handed over: whether the `fixtures::code_only` unreachability that justifies not computing is real; whether *"for every body this build can mint"* is weaker than the evidence supports; and the lane's own disclosed blind spot, **three sites restating the #653 per-edge/per-side argument**, which the lane moved out of its report and into the PR body as falsification claim 6 so the reviewer meets it as a disclosure rather than never meeting it |
-| **I-b** | **#873** (S60; issue **#870** for the metering half; `S230` for the residue) | style only, per **I-R6** | **running.** The sharpest question is handed over in the lane's own words and unanswered by me: the m5 ceiling **bites on CI's ε = 1e-6 leg and not on the default leg**, where it absorbs ~1500× before firing — *is declining an ε-aware ceiling discipline, or the easier thing?* The lane's argument for declining is that a per-ε table in a test file is how a deferred metering rule gets smuggled past its deferral; the argument against is that a row which cannot fire on the leg a developer actually runs is uncomfortably near the defect S60 is about. Also handed over: whether `3e-4` is anchored on a **structural** maximum or on the one knob the lane turned, and whether the 3× / 1.5× headroom asymmetry is derived or fitted |
+| **I-c** | **#872** — **MERGED** `ecc1d492` (S64, S115(d), S116(g); issue **#868**; `S231`) | style only, per **I-R6** | **running.** Handed over as the load-bearing claim: **is the two-kind taxonomy exhaustive** — is there an ε read in `mesh` that is neither a refuse/report bar nor a classification picking an emitted `f64`? If a third kind exists the unit swapped a falsifiable wrong list for an **unfalsifiable wrong taxonomy**, which is worse than what it replaced. Also handed over: whether the `fixtures::code_only` unreachability that justifies not computing is real; whether *"for every body this build can mint"* is weaker than the evidence supports; and the lane's own disclosed blind spot, **three sites restating the #653 per-edge/per-side argument**, which the lane moved out of its report and into the PR body as falsification claim 6 so the reviewer meets it as a disclosure rather than never meeting it |
+| **I-b** | **#873** — **MERGED** `82887044` (S60; issue **#870** for the metering half; `S230` for the residue) | style only, per **I-R6** | **running.** The sharpest question is handed over in the lane's own words and unanswered by me: the m5 ceiling **bites on CI's ε = 1e-6 leg and not on the default leg**, where it absorbs ~1500× before firing — *is declining an ε-aware ceiling discipline, or the easier thing?* The lane's argument for declining is that a per-ε table in a test file is how a deferred metering rule gets smuggled past its deferral; the argument against is that a row which cannot fire on the leg a developer actually runs is uncomfortably near the defect S60 is about. Also handed over: whether `3e-4` is anchored on a **structural** maximum or on the one knob the lane turned, and whether the 3× / 1.5× headroom asymmetry is derived or fitted |
+
+## Track I — COMPLETE (2026-08-21), except two decisions in front of Evan
+
+**All five lanes landed the day the track was constituted.** I-a **#877**,
+I-b **#873**, I-c **#872**, I-d **#876**, I-e **#887**, plus the constitution
+**#866** and one orchestrator sync **#879**. §D's Track I table holds **one row**:
+**I2**, narrowed to **S65**, which is a decision and not a lane.
+
+**Closed:** S60, S64, S66's style halves, S77, S80, S81, S97, S108, S109,
+S112(d), S114(f), S115(d), S116(g). **Minted:** `S230`–`S237`. **Issues filed:**
+**#868**, **#870**, **#881**, **#882**, **#889** — and **#723 reopened twice**.
+
+### In front of Evan, and neighbours stall on them
+
+**S65** and the **D9 ε promise** are both in **PR #884**, priced and stated.
+**S82** is named there too and is not asked; say if it should be.
+
+### What this track leaves unowned, stated so nobody infers an owner
+
+`S230` (certified widths with no ceiling in `editor-core/` and `pncad-py/`),
+`S231` (`chords.rs`'s absence claim), `S236` (`cert_cylinder` falsified by
+nothing in any build — **a decision about #320's consumer contract, not a
+coverage chore**), `S237` (the monotone ceiling **CI actually runs**), and
+**`topo::fixtures::code_only`'s collapse**, whose deferral pointed at a landed
+lane and a lane that does not own the file. `S232` is the exception that proves
+the rule: it is **Track H's**, and the row says so.
+
+**C-m stays struck behind #723**, which is open and unfixed.
+
+### The five findings this track is least comfortable leaving
+
+- **S108 is closed at bitwise zero and NARROWED, not eliminated.** `lever > 0.0`
+  and `walk::iso_side_starts`' `radial(junction) > eps` are two bars on one
+  `Chart::radial`; a lever of 1e-20 still admits any plausible gap. Nothing in
+  tree produces a non-zero sub-ε lever and **neither review tested one**.
+- **S234** — a guard that computes its roster's keys and recites its content.
+- **S235** — the exact box ships, is public, and has no production caller.
+- **#862 is LIVE, not latent**: 37% over on a fixture the tree ships, through
+  the public API, with 4 of 6 certified `u_ref`s wide.
+- **`props/`'s gate premise is strictly weaker than its flux lane's**, and the
+  gap narrowed rather than closed.
+
+### What the record says about the process, measured on eight reviews
+
+**Every unit failed its first review, and four of five failed it the same way —
+the fix minting a fresh instance of the defect it closed.** Naming the trap in
+the brief did not prevent it; five lanes were warned in writing and five were
+caught. **The only thing that reliably found it was a reader who had not
+written the fix.**
+
+**Two reviews per unit earned their cost, and the split was legible.** On I-e
+the adversary returned **MERGE — no kernel defect**, having confirmed the
+predicate over 1,458 traced entries and reproduced the unit's key contrast to
+five digits; the style lane returned the finding that mattered — **the fix is
+narrowed, not closed**. Neither would have produced the other's answer. On I-a
+the adversary **refuted the lane's central safety claim by execution** where
+three earlier readings had accepted it.
+
+**A lane's own disclosed blind spot came back as a finding four times.** It is
+not a discharge; it is the sentence a reviewer starts from, and it should be
+read as a work order by the lane that writes it.
+
+**A citation and a false statement are usually one defect** — four instances on
+#877 alone, found one at a time. **The sweep should come first, and it costs one
+`grep`** (I-a's own words, after running it and finding no fifth).
+
+**Computing a claim beat reciting one, demonstrably.** #872 replaced a recited
+ε roster with a computed pin; the **first** change to touch an ε read afterwards
+— in a different lane — was caught automatically and re-pinned deliberately. A
+recited list would have gone stale silently, which is how the one it replaced
+got there.
+
+**Three self-inflicted incidents, all mine, all recorded below.** The lesson
+common to them: **a rule I stated and did not mechanise did not hold.** I told a
+lane to scan its PR body for closing keywords and did not scan my own; I wrote
+"grep for conflict markers before every push" and then ran the grep without
+gating on it. **An unconditional check is a log line, not a control.**
+
+---
 
 ## Landings
+
+### I-c — **S64**, the ε ledger, #872 — **MERGED** `ecc1d492`
+
+**Deleted a stale roster, shipped a taxonomy that was wrong, then reversed
+course and computed it.** That arc is the unit. The first review's verdict —
+*a wrong list reds a reader; a wrong taxonomy does not* — was proved on the
+lane itself, in the PR arguing that prose is insufficient: the two-kind
+partition missed `trimmed.rs`'s ε-as-an-addend, and its replacement count
+(*"six reads"*) reached a round number by **two errors cancelling**.
+
+**The fix pass answered ruling I-R8 by computing**, and took the structural
+point rather than disclosing around it: `code_only` **and** the recursive walk
+now live in `crates/test-utils`, because `crate_sources` being `pub(crate)` is
+*the identical obstacle `code_only` was moved to remove*, and re-forking it had
+reproduced exactly the defect the sharing was for. The port is verified
+**semantics-identical over 500,000 adversarial inputs**, so *"the collapse is a
+deletion"* is established rather than claimed.
+
+**The pin reds for the right reason** — a planted read in `mesh/src/sub/hidden.rs`
+names the file — and its disclosures went **2 → 5**, one of them genuinely
+unsound rather than conservative: **production code after a trailing test
+module is invisible to the cut, and nothing checks it.**
+
+**Every cardinal is gone.** `Tol` now says it holds neither a roster of the
+reads nor a partition of their kinds, with the reason at the site: *a partition
+is a count by another name, which is the thing that went stale here.*
+
+**The `br"`/`cr"` hole was fixed before a caller could trust it** — D61's own
+recurring defect, present a **third** time in the shared reader, with the
+demonstration turned into a row asserting both halves.
+
+**Its residues:** **`S231`** (unowned), issues **#868** (the missing typed
+warning channel S115(d) had disclosed and nobody had filed), **#881** and
+**#882** — the last a **pre-existing flake in shared test infrastructure**,
+`vacuity::caught` swapping the process-global panic hook from parallel threads,
+reproduced 15/200 with the lane's own change reverted. **S117 and D61 both
+carried stale claims this unit could not leave standing**, including a
+sequencing pointer that resolved to a landed lane and a lane that does not own
+the file: **`topo::fixtures::code_only`'s collapse is unowned.**
+
+### I-a — **S77, S80, S81, S112(d)**, the `props/` predicate cluster, #877 — **MERGED** `5a820df4`
+
+**The only unit on this track to fail an adversarial review on its central
+claim, and the one that produced the most evidence.**
+
+**S80 removed a wrong answer, confirmed twice independently.** One cylinder
+staircase face gave **8 × `Encoded(Positive)` and 4 × `Encoded(Negative)`**
+across twelve rotations of its own edge cycle — the same face, opposite
+material sides, decided by arena order — while `curved_face` refused all
+twelve. Across the corpus the **16 pre-existing gate hits split exactly
+8 `Positive` / 8 `Negative`**, one of each per body on `cross.step` and
+`tee.step`. All refuse now, and **12 face-instances lose check-6 coverage** —
+stated at `CurvedSenseInverted`'s own doc rather than left to be discovered.
+
+**S81 picked winners and the adversary proved them right.** A 900-case
+differential corpus: the **torus is the only kind whose verdict moves** — 29 of
+225, **all `Err → Ok`, none the other way** — and the branch's acceptance
+boundary sits **exactly at ε in the true point deviation**, where the parent's
+did not. `minor·chord` is the exact Hausdorff distance between the two rim
+circles. No distinct-rim merge could be constructed.
+
+**MAJOR-1: the lane's own exemption was false, and execution found it.** The
+torus arm of the gate was left exempt on the argument that the anchor-end
+choice cancels against `dv/dt`. That **holds at every corner of a rectangle and
+fails at a reflex corner** — an L-domain's notch is flanked by two rims both at
+`d_u = −1`, and six rotations give `+ + − − + +`. **The lane reproduced it
+independently before fixing it**, then fixed it by *running the premise* rather
+than documenting the residue, and factored `torus_ends` so the gate and the
+flux lane derive a face's extremes from one place. The re-check could not break
+the fix on any valid domain — its own L, a mirrored notch, a u-seam crossing,
+v=0 and v=π straddles, a two-notch comb, and a **480-case rectangle control**
+including all four carrier-axis-flip variants: **0 refused, 0 split, areas
+bit-equal.**
+
+**And the refuted claim was still standing twice more after the fix** — once in
+`boundary_material_sign`'s header (caught by the doc gate, as a dangling link
+in the same sentence) and once in `props/mod.rs`, the cluster's most-cited
+paragraph, whose *"stated at the arm"* pointed at a **rebuttal**. **Four
+instances on one unit of a citation and a false statement being one defect.**
+
+**S112(d) was FALSE, not stale** — `boundary_material_sign`'s cone arm never
+calls `du_of_rims` at all — and audit note **N3** carried a stronger and also
+false form, corrected in the same PR.
+
+**Its residues:** **`S233`** (a band constant taken from prose, which made a new
+row **pass for the wrong reason** and was **already red at ε = 1e-12** in the
+tree), and three pre-existing notes the re-check surfaced: the gate's premise is
+strictly weaker than the flux lane's, a v-degenerate torus rectangle answers
+where `curved_face` refuses, and a split-meridian iso-rectangle goes
+accept→refuse at the gate.
+
+### I-d — **S66**'s style halves and **S97**, #876 — **MERGED** `90a3385f`
+
+**The best-evidenced unit on this track.** Every claim was settled by execution,
+by the lane and again by its reviewer. `face_box → [-1e300, 1e300]` reds **only**
+the new row out of **449**; the row reds at **#862's own magnitude** and at
+**#862's own fix**; and the reviewer patched census's `reach_box` to widen
+radially only and found the whole `z0 = 1.05` case goes green — so all 19
+refusals are #862's, and the row's *"belongs here once #862 lands"* is verified
+rather than promised.
+
+**S66 stopped being latent.** The lane measured the over-claim **through the
+public API on a fixture the tree already ships**: a cylinder's cap faces claim
+`x, y ∈ [-0.683, 0.683]` against a true `[-0.5, 0.5]` — **37% over, today** —
+with **4 of 6** certified `u_ref`s wide, because `intersect.rs` mints the rim's
+`u_ref` from the surface and axis-alignment is the coincidence, not the rule.
+#862's title now leads with that correction; the old framing would have been
+triaged as *"loose box, low priority"*.
+
+**The roster is computed, and computed for the right function.** The first draft
+walked `face_box` only while the header's claim was about *"a box"* — so
+`ops.rs:1421`, a **refusing edge-box door**, would have landed green under a
+list computed for a different function. It now walks all four spellings: same
+reader, same loop, three more pinned counts.
+
+**The one disagreement, and the lane was right.** The reviewer found the
+cylinder formula pinned `2.0 * pad` — an implementation detail the rule's docs
+never state — and wanted the inner pad deleted. **The lane refused and said
+why: deleting it is a *tightening*, which changes which pairs three of the four
+doors refuse.** That is an answer, not a doc fix, and it is the same reasoning
+that kept the lane off #862's axial radius all lane. It closed the hazard from
+the rule end instead — `CylinderSlab`'s docs now state the double pad and that
+its removal is #862's — and the degradation still reds, now at a named term
+whose rule states it.
+
+**Its residues:** **`S234`** (the roster computes its keys and recites the
+direction column — **S66's shape one level up, inside the fix for S66** — with
+what would close it written down), **`S235`** (`circle_arc_aabb` computes the
+exact box, ships, is public, and has **no production caller**, while `edge_box`
+re-derives a looser one by hand — S16's class at the curve level, and it
+outlives #862's fix), and **`S232`**, routed to **Track H**.
+
+**Flagged, not fixed, and nothing enforces it:** `census.rs`'s `reach_box`
+carries the identical `- r` on every coordinate, so #862's axial deletion must
+move both copies together or the two derivations diverge silently — which is
+**#700's** own subject.
 
 ### I-c — **S64**, the mesh ε ledger, #872
 
@@ -306,7 +522,41 @@ All four went into the document rather than into a report only I read.
 nobody had filed) — plus **a second copy of that same disclosure** at
 `closing_column` that no finding had noticed.
 
-### I-b — **S60**, the area enclosure's acceptance rows, #873
+### I-b — **S60**, the area enclosure's acceptance rows, #873 — **MERGED**
+
+**The review found the better row inside the lane's own measurement, and the
+fix pass took it.** `area = |r·A_s|` and `flux = r²·A_s + o·A⃗` share one signed
+UV area, so `area_pad / volume_pad ≤ 3/r` — measured to within **5e-7 relative
+at every ε leg**, always below, the shortfall being `o·A⃗`'s own width. The
+landed row pins that coupling from the fixture's own radius.
+
+**What it changed is the whole point.** An area-only widening now trips at
+**2 parts in 10⁹** (green ×1.0000000005, red ×1.000000002). The fitted ceiling
+survives as the explicit outer backstop for the one class the pin cannot see —
+a *joint* widening — which on the binding ε leg trips at **2.05×**, not the
+449× the first draft disclosed as ~1500×. The lane corrected its own number
+twice and published the derivation both times.
+
+**"Structural" was re-derived properly**, the reviewer's way rather than the
+lane's: forcing round 0 and sweeping the piece count directly gives a monotone
+fall 3.049e-4 (16) → 2.893e-9 (4096) with a floor at ~2.9e-9 on accumulated
+rounding. Turning one knob establishes that *that knob* saturates; the sweep
+establishes the lane's maximum, and the word now rests on it.
+
+**The class was five members, not two.** Four fixed here — the loft's
+`Interval` row, `mass_props_interval.rs` (containment against `enc` itself),
+`m6_tube.rs`, and `halves_sum_to_the_cylinder`, whose `+1e-9` slop was deleted:
+its comment called it the *"closed-form rounding scale"* and the real scale is
+`f64::EPSILON·full` = 1.74e-16, **seven orders below**. `editor-core`'s two go
+to **S230**.
+
+**The honest caveat the lane published and I am keeping visible:** three rows'
+liveness was shown by *tightening the constant*, which proves the row executes
+and measures what it claims — **not** that a real degradation was reproduced.
+
+**Its residues:** issue **#870** (the metering proposal #472 deferred, now with
+the measurement that makes it answerable), **`S230`**, and the first sighting of
+the **#723 auto-close**, which it found while checking C-m's gate.
 
 **Two test files, two documents, no kernel change** — `quad.rs` is not in the
 diff, which is **I-R2** executed rather than merely obeyed. `area_pad` gets a
@@ -335,7 +585,141 @@ rigidly coupled through the shared `a_s` (ratio exactly 6.000 at every ε, the
 body's `r = 0.5`). So the unmetered risk is concentrated in the **patch** lanes
 — which is a sharper work order than S26's own text ever produced.
 
+### A dangling citation and a false claim keep turning out to be the same defect
+
+**Observed three times on one PR (#877), and the third time a gate found it.**
+Nesting a helper (the S5 fix) took `s_f_from_rim` out of module scope, and
+`boundary_material_sign`'s header still linked it. `-D warnings` turned the
+unresolved intra-doc link into a **CI failure** — and the sentence carrying the
+link read:
+
+> …anchor-rim traversal × chart orientation for the torus, **which rests on no
+> such premise — see the arm**
+
+**That is the MAJOR-1 claim the adversary had refuted by execution, still
+asserted in the public doc of the very function the fix changed.** The lane had
+rewritten the arm and the finding record and not the header.
+
+**The doc gate caught a stale *link*; reading the line caught a stale *claim*.**
+The gate cannot see the second and was never going to — but the two travelled
+together, and they had already travelled together twice on this PR (the
+`validate.rs` comment and the S83 citation, both genuinely falsified rather than
+tidied). The pattern is worth stating as a search strategy rather than as a
+coincidence: **when a symbol moves, the prose that pointed at it is also the
+prose most likely to be asserting something about it that is no longer true** —
+so a retargeting sweep should re-read each sentence, not just re-aim each link.
+
+**And note which references a gate could not have caught**: two of the four —
+`docs/predicate-dimension-audit.md`'s row and a comment in
+`rim_dim_scale_twins.rs` — were prose, so no gate would ever have fired on
+them. The gate found one of four, and the one it found is the one that also
+happened to be in Rust.
+
+### Disk hit 100% with two lanes live, and the biggest consumer was a finished reviewer
+
+**2026-08-21.** The machine filled to **252K free** mid-run, killing tool output
+twice in lane I-a. The lane freed only its own (`target/debug/incremental`, then
+its whole `target/`, rebuilding with `CARGO_INCREMENTAL=0`) and **reported the
+rest rather than deleting another agent's directory** — correctly: it could not
+know whether `rev-i-a-adv`, at **12G**, was still live.
+
+It was not. **Six finished review lanes and three merged implementer lanes were
+holding 23G**, and every one of them had zero untracked files and nothing
+unpushed. `local-scripts/clean-lanes.sh` checks exactly that before deleting.
+**2.4G free → 27G free.**
+
+**The lesson is about who can safely reclaim.** A lane cannot judge a sibling's
+liveness and should not try; **the orchestrator is the only party that knows
+which agents have reported**, so reclaiming finished lanes is the
+orchestrator's job and should happen **when a review returns**, not when a lane
+runs out of disk. A review lane's `target/` is pure waste the moment its report
+is in hand, and review lanes are the largest consumers on this track — the
+adversarial one alone was 12G, larger than any implementer lane.
+
+**Also worth knowing:** `clean-lanes.sh` needs **absolute paths** — bare lane
+names are refused with *"does not exist / cannot resolve"*, which reads like a
+missing directory rather than a usage error.
+
 ## Incidents
+
+### Conflict markers reached the register, because `&&` swallowed a failed merge
+
+**2026-08-21, orchestrator.** I ran `git merge origin/main --no-edit 2>&1|tail -1
+&& python3 …` in one chain. The merge **failed with a conflict** in
+`SMELL-I-LOG.md`'s spend table — but `tail -1` exited 0, so the chain continued,
+the edit script ran over a conflicted file, and `git add -A && git commit && git
+push` sent **`<<<<<<< HEAD` / `>>>>>>> origin/main` to the branch.**
+
+Caught one command later by grepping for markers rather than by trusting the
+push. **This is Track G's recorded incident of the same name, reproduced** —
+that log has *"A pipe swallowed a merge failure, and conflict markers reached
+the register"* — so a documented incident on a neighbouring track did not
+prevent it here. Reading someone else's postmortem is not a control.
+
+**The conflict itself was benign and is the expected kind**: the lanes had
+written richer versions of the `S232`/`S234`/`S235` rows I had drafted, with
+measurements I did not have. Resolved by keeping **theirs** and adding the one
+row only mine had (`S233`) — which is the recording convention's *keep both
+sides* working exactly as intended.
+
+**The control that would have worked** is not "be careful": it is never putting
+a merge behind a pipe, and grepping the tree for markers before every push.
+
+**IT HAPPENED AGAIN, two hours later, and the second time is the instructive
+one.** I ran the grep. It **printed the markers**. And the commit went ahead
+anyway, because the grep was a *statement in the chain* rather than a *gate on
+it* — `grep …; python3 …; git add -A && git commit && git push`. **An
+unconditional check is not a control; it is a log line.** The only form that
+works is one that **exits non-zero**:
+
+```
+if grep -qn '^<<<<<<< \|^=======$\|^>>>>>>> ' docs/*.md; then exit 1; fi
+```
+
+Both times the conflict itself was benign and both times the resolution kept
+the lanes' richer text over my drafts. **The defect was never the conflict; it
+was that nothing stopped the push.** Same shape as this track's other
+self-inflicted incident: I told a lane to scan its PR body for closing keywords
+and did not gate my own — a rule I stated and did not mechanise. **Twice now,
+the thing I wrote down as the lesson was the thing I then failed to apply.**
+
+### The same defect, committed by the orchestrator, in the PR documenting it
+
+**2026-08-21, two hours after the entry below.** I reopened #723, wrote the
+diagnosis, and **quoted the responsible sentence verbatim into the body of
+#879** — the orchestrator-sync PR whose whole purpose was to land the record of
+that incident. Merging #879 **closed #723 again.** GitHub now lists two merged
+PRs as having closed it; neither changed a line of arithmetic.
+
+In the interval I had told lane I-c to sweep its own PR body for exactly this
+pattern before merging. I did not sweep mine.
+
+**Caught by lane I-a's style reviewer**, which checked the issue's live state
+instead of taking the brief's word for it. The brief in question was mine, and
+the rule it broke is this file's own: *a brief is a claim site*.
+
+**What it changes about the finding, and this is why the entry is worth its
+space.** The entry below concludes that the hazard lives in how PR bodies
+narrate parked lanes. True, and too narrow. The sharper statement is that
+**there is no way to write about this failure mode in a PR body without
+triggering it**: quoting the sentence fires it, describing it accurately fires
+it, and any of the seven keywords adjacent to the reference fires it under any
+grammar or negation. **A postmortem of an accidental close is itself an
+accidental close.** The only safe forms break the token adjacency — dropping
+the `#`, or putting a word between keyword and reference — which is a
+by-hand workaround applied by whoever remembers, and nothing checks it.
+
+Two independent authors hit this on one issue inside three hours. That is the
+argument for a mechanical guard, and it is recorded here rather than filed as
+work on #723, which is about a wrong certified volume and should not accumulate
+process rows.
+
+**Standing rule for this track, effective now: every PR body written by this
+orchestrator or its lanes is scanned for `(close|closes|closed|fix|fixes|fixed|
+resolve|resolves|resolved)` immediately followed by an issue reference, before
+the PR is opened or updated.** I-c ran exactly that scan on its own body when
+told to, and reported zero hits — so the check works when it is run. The
+failure was that I exempted myself from an instruction I had just given.
 
 ### #723 was closed by a document describing it, and three schedules were parked behind it
 
