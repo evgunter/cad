@@ -543,49 +543,15 @@ pub trait Real:
 /// `edge_nurbs::lane`), whose signatures carry `CertifiedEnclosure` and
 /// stay uninstantiable at a dual with or without their lanes.
 ///
-/// **The SOLE-bound class, which none of the amendments above describes
-/// and no gate sees.** Everything from the 2026-07-29 amendment down
+/// **What this rule has no instrument for.** Every amendment above
 /// ratifies a **compound** `Decide + Bounds` seam. A **sole** `T: Bounds`
 /// needs no ratification, and `scripts/gates/bounds-allowlist.sh` plants
 /// exactly that as a must-not-fire self-test case — firing on it would
 /// red every certification file in `geom` and `geom-brep`. So the sole
-/// bound is the form with a rule and no instrument, and the D1 ruling
-/// opened every one of its doors at a dual in one stroke.
-///
-/// The census for this crate and `geom`, derived from the **shape** and
-/// not from the word `Dual` (a door of this class need never mention
-/// one): **`geom-core` has none** — `spline::hull`, the only bracket
-/// consumer with a generic door, is [`CertifiedEnclosure`]-bounded and
-/// therefore still shut. `geom` has **four modules**: `curves::boxes`,
-/// `surfaces::boxes`, `curves::projection`, `surfaces::projection`.
-///
-/// **The two box modules are sound at a dual by DELEGATION** — the
-/// `topo::separation` correction above, verbatim: every box endpoint a
-/// dual produces is its value channel's, which is the plain-`T` run's
-/// bit-identically, so a dual run's box *is* the base scalar's box.
-/// Nothing is owed there, and nothing is written there: the general
-/// statement has one home, at `impl Bounds for Dual` in `dual.rs`.
-///
-/// **The two projection modules are NOT, and delegation is the reason
-/// rather than the defence.** They read a bracket and feed the `f64`
-/// **back into** the computation — `mid()` selects the foot parameter,
-/// which is then frozen as an `f64` field of the returned struct — so
-/// delegation makes the value channel right and says nothing at all
-/// about the tangent. Measured, not argued: the returned foot point's
-/// and orthogonality residual's tangents are partials at fixed `t*`,
-/// short by the `C′(t*)·dt*/dp` term a frozen parameter cannot produce.
-/// (The distance residual survives, by the envelope theorem, and only
-/// because every exit of that lane either converges to the orthogonality
-/// condition or clamps `t*` to a domain end.) That is a reachable wrong
-/// answer rather than a scope question, so it is **issue #874** and not
-/// a line of this rule.
-///
-/// **The distinction is the part worth keeping**, because it is what the
-/// "what opens is the bracket half" enumeration in `dual.rs` was missing:
-/// a bracket read is either **terminal** — into a box, a prune, or the
-/// `f64` margin payload of a typed refusal, where delegation is the whole
-/// story — or it is **fed back**, a selection that becomes a constant in
-/// the dual program, where delegation is not an argument at all.
+/// bound is the form this rule governs and no gate sees, and the D1
+/// ruling opened every one of its doors at a dual in one stroke. What
+/// that opened, and which of the doors it is an argument for, is at
+/// `impl Bounds for Dual` in `dual.rs`; one of them is issue **#874**.
 ///
 /// **Not an extension — a spelling.** The pair
 /// `Bounds + CertifiedEnclosure` — both bracket doors, no `Decide` — is

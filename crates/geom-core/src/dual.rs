@@ -792,16 +792,34 @@ where
 /// **A bracket read that is FED BACK is a fourth kind, and delegation is
 /// not an argument about it.** When the `f64` a bracket yields re-enters
 /// the computation — a selected parameter frozen into the rest of the
-/// program — the value channel is still the plain run's and the TANGENT
-/// is a partial at the frozen value. `geom`'s projection lane is the live
-/// instance and is issue #874. Written here because this paragraph's
-/// three-item list is what made that class invisible; the distinction
-/// itself, and the census behind it, live once in `real.rs`'s scope rule.
+/// program — the value channel is still the plain run's, and the TANGENT
+/// is a partial at the frozen value. Written here because the three-item
+/// list above is what made this class invisible: all three are terminal
+/// reads, into a box, a prune or an error payload, and for those
+/// delegation really is the whole story.
+///
+/// **The census of what this impl opened, for the two crates below the
+/// certification substrate** — derived from the SHAPE rather than from
+/// the word `Dual`, since a door of this class need never mention one.
+/// `geom-core`: **none**. Its one generic bracket consumer,
+/// [`crate::spline::hull`], is [`crate::CertifiedEnclosure`]-bounded and
+/// stays shut. `geom`: **four modules**. `curves::boxes` and
+/// `surfaces::boxes` are terminal and sound by delegation — a dual run's
+/// box IS the base scalar's box — so nothing is owed there and nothing is
+/// written there. `curves::projection` and `surfaces::projection` are fed
+/// back: `mid()` selects the foot parameter and an `f64` field freezes
+/// it, so the returned foot point and orthogonality residuals carry
+/// partial derivatives short by the `C′(t*)·dt*/dp` term. That is a
+/// reachable wrong answer rather than a scope question — issue **#874**,
+/// which carries the measurement and the dispositions. (The distance
+/// residual survives, by the envelope theorem; the two types' own docs
+/// say which field is which.)
 ///
 /// One `Decide + Bounds` door *grants* without the `CertifiedEnclosure`
-/// guard (`topo::separation`, sound at a dual by delegation); the scope
-/// rule in `real.rs` is the home for that, for the fillet seam's
-/// obligation and for the sole-bound class above.
+/// guard (`topo::separation`, sound at a dual by delegation — the
+/// terminal case again); the scope rule in `real.rs` is the home for that
+/// and for the fillet seam's obligation, and records that a sole bracket
+/// bound is the one form it governs that no gate can see.
 ///
 /// # On the spelling
 ///
