@@ -9689,7 +9689,54 @@ The first scan's own closing rule for the retired unscheduled table says
 a finding *"leaves a verdict and no row only if the verdict is
 closed"*. This one is decided-and-open.
 
-**Verdict:**
+**Verdict: ASKED — Evan, 2026-08-21, by Track H on claiming.** Track H
+owns `geom-core/` and this is the one row in its ground that is a
+decision rather than work, so it goes out at constitution rather than
+when a neighbour stalls on it: **`H-c` edits the same `real.rs` doc
+block** (S85 is that block's 234-line growth) and **`H-f` inherits the
+seam** (C7 is the lane-trait collapse this refusal would live in).
+
+**The state of the seam, checked against the tree rather than
+transcribed.** `real.rs:470-477` says *"What is owed is a lane, or a
+written reason it needs none, and it is owed on the **public**
+surface"*, and `scripts/gates/bounds-allowlist.sh:24-31` points at that
+paragraph as the ONE home rather than restating it — calling it a
+**STANDING OBLIGATION** and naming the lapse plainly: *"the fillet seam
+is the one allowlisted seam with NO refusing lane behind it, and the
+guard that made that acceptable — `Bounds` having no `Dual` impl — has
+lapsed."* The enumeration behind it is real and was done twice
+independently (PR #682's body): every predicate's `Ok`/`Err` comes from
+a `decide(...)`, ten reads are typed-error payloads, four are
+selections, and **nothing mints a certificate object**.
+
+**So the question is not whether the seam is understood — it is what
+that understanding discharges.** Three answers, and the row wants one:
+
+1. **The lane is owed now.** The sibling residues from the same D1
+   ruling each got a number — `ContentBits for Dual` → #687, the census
+   box duplication → #700, the `Enclosure` gate gap → #701. This one is
+   the *largest* of them and got neither an issue nor a plan unit, which
+   looks like an oversight rather than a decision. If so it wants an
+   issue and a Track H row, and `H-f` is where it would land.
+2. **The written reason is already sufficient**, in which case the
+   paragraph IS the discharge and the finding closes — but then the
+   sentence *"what is owed is a lane, or a written reason it needs
+   none"* should stop describing the obligation as outstanding, because
+   two documents currently read it as live and a third gate points at
+   it.
+3. **The verdict is closed and the prose is the residue** — i.e. the
+   answer is (2) plus an edit, and the only work is making the three
+   sites agree.
+
+**`real.rs:394`'s *"#643-completeness question … deliberately left open
+here"* is in the same position** and takes the same answer; whichever
+way this goes, it should not need asking twice.
+
+**Track H is not proposing an answer.** The one thing it will say is
+that (1) and (2) differ in cost by roughly a lane, and that the current
+state — decided-and-open, pointed at from a gate, with no register that
+executes — is the state the first scan's closing rule exists to
+forbid.
 
 ## S91. FIXED by #825 — the span search is now checked against a definitional oracle, not against itself
 
