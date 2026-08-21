@@ -10258,12 +10258,15 @@ finding exists to reject. All of them were re-executed by the review.
 **The class ledger, per G-R2**, which re-scoped **G10** to *"(g) plus the
 class ledger"* and made the row's retirement turn on the ledger rather than
 on the closing lane's own member. Every line below was **re-derived from the
-tree** at this branch's merge of `origin/main` (`4cc0dbf3`) and from the merge
-commit named — not taken from a dispatch list; two of the eight came back
-different (below). **Every line number below was re-checked after the last edit
-in this PR**, which is S176(a)'s discipline applied to the entry that records
-it: three had already drifted under the merge and are cited by name or by
-expression instead.
+tree** at this branch's final merge of `origin/main` (`cfdc1c6f`) and from the
+merge commit named — not taken from a dispatch list; two of the eight came back
+different (below). **Every `file:line` in this whole section — the
+table AND the member bullets under it — was re-derived against the tree after
+this PR's final merge of `origin/main`**, which is S176(a)'s discipline applied
+to the entry that records it. Six had drifted and are cited by target name or
+by expression instead; what line numbers remain are the ones that re-derived
+at `cfdc1c6f`, and they are anchored to it rather than to a different commit
+from the one the census names.
 
 | member | site | closed by | how it was verified |
 |---|---|---|---|
@@ -10296,7 +10299,8 @@ expression instead.
    re-scoped to the residue; the general form is **S177**, and **D114** is the
    row that re-homes (a).
 
-- (a) `crates/sweep/src/fillet/naming.rs:34` — *"`editor-core`'s
+- (a) `crates/sweep/src/fillet/naming.rs`, under *"What consumes these
+  rows"* — *"`editor-core`'s
   `names::emit_fillet` … reads every field EXCEPT [`Retired`]"*.
   `emit_fillet.rs:220-221` builds `retired_e`/`retired_v` straight out
   of `rec.dead` and consults them. The diff rewrote the paragraphs
@@ -10322,8 +10326,9 @@ expression instead.
   reorder, `require_rims_at_extremes` runs first. Nothing is wrong yet
   because it is vacuous on an empty rim list; the sentence describes an
   ordering the diff changed, fifteen lines from the code.
-- (e) `crates/geom-brep/src/ssi/exhaust.rs:92` /
-  `crates/geom-brep/src/ssi.rs:975` — `Exhaustiveness::floor`'s public
+- (e) `crates/geom-brep/src/ssi/exhaust.rs:92` / `ssi.rs`'s
+  `account_chart_plane` call (**cited by expression, per S176(a)** — the
+  line moved by 13 under a merge) — `Exhaustiveness::floor`'s public
   doc says *"The floor used, in meters"*; the chart lane stores chart
   units (`domain.floor(band) / speed`). The sibling field on
   `ExhaustivenessInconclusive` gets it right (*"in meters (or chart
@@ -10338,9 +10343,12 @@ expression instead.
   call outside the module, checked workspace-wide) and puts the
   extraction in the past tense, keeping what the extraction still buys:
   the surviving lowering calls the ratified construction instead of
-  carrying a second copy. The three "raw builder" sentences at `:311`,
-  `:821` and `path.rs:1199` are untouched — they read as historical
-  provenance and the finding said so. **This member is why G5's re-read
+  carrying a second copy. The three other *"raw builder"* sentences —
+  `sugar.rs`'s `arm`-mapper comment and its gated-methods comment, and
+  `path.rs`'s `set_leaving_bulge` note — are untouched: they read as
+  historical provenance and the finding said so. (**Cited by target, not by
+  line**, per **S176(a)**: this PR's own edit six lines above moved one of
+  them.) **This member is why G5's re-read
   fence on `sugar.rs` was lifted for it, and only for it** (G-R2); the
   enclosing-candidate machinery §D fences off is unread and unedited.
 - (g) **FIXED by #831 (G-d / G10).** *"What the façade itself contains"*
@@ -10362,15 +10370,16 @@ expression instead.
   return and `main`'s skip-the-scene arm are all gone: neither producer
   can emit that state, and `run_stop` never emits a bodiless scene, so
   the empty-scene path below it was unreachable for the same reason.
-  `render.py` and `render_freecad.py:159` now read `body["stl"]` the
-  same way. The docstring states what the two PRODUCERS do and defers
+  `render.py` and `render_freecad.py`'s `Mesh.insert` call now read
+  `body["stl"]` the same way. The docstring states what the two PRODUCERS do and defers
   what the FORMAT promises to (c) — a guard against a state nothing
   emits is wrong under every schema, so this half did not wait for it.
   Verified by rendering all 35 tour scenes before and after: identical
   PNGs, chunk for chunk.
   **Both twins, after the fix pass.** The first pass closed the
   `render.py` half and left two siblings standing, both found by
-  review: `render_freecad.py:153`'s `if not body.get("step")` guards a
+  review: `render_freecad.py`'s `if not body.get("step")` guard (since
+  deleted, so there is no line to cite) guarded a
   null `step` that this reader's producer (the tour) cannot emit — the
   wild generator writes one for every cell but is rendered by
   `render.py` and never reaches that file — and `render.py`'s own new
@@ -11527,16 +11536,27 @@ Every other document that wants this number **points at this block** rather
 than restating it, which is **S176(b)**'s cure applied to the finding that
 raised it.
 
-**At `4cc0dbf3`** (this branch's merge of `origin/main` at `6a4ccfac`):
+**At `cfdc1c6f`** (this branch's final merge of `origin/main`, at
+`c0d90bc3`; unchanged from the previous merge `4cc0dbf3` — that merge brought
+no test file carrying a link):
 **465 test `.rs` files in the workspace, 106 of them carrying 294
 bracket-link candidates on doc lines.** None of the 294 is ever resolved.
+
+**The branch head carries 293, and saying so is the point.** This PR's last
+edit de-linked one of its own — `review_s2.rs`'s
+`an_enclosing_leg_forces_an_equally_enclosing_partner`, in a paragraph the diff
+re-authored, where leaving a link while converting three siblings twenty lines
+up would be the finding arguing with itself. So the census moves **with the PR
+that states it**, not only with merges: that is why the reproducible
+**definition** and a named **anchor** are the deliverable here and the integer
+is not (**S176(b)**).
 
 **What the sweep counts, exactly** — so that a re-derivation is a
 re-derivation and not a second definition: files tracked by git whose path
 ends in `.rs` and contains a `tests/` component; lines whose trimmed form
 starts with `///` or `//!`; every `[target]` on such a line that is not
 followed by `(`, whose target is identifier-shaped
-(`Ident(::Ident)*`, optionally wrapped in backticks). **57 of the 294 are
+(`Ident(::Ident)*`, optionally wrapped in backticks). **57 of them are
 `#[attribute]` names written in prose** (`#[ignore]`, `#[test]`,
 `#[non_exhaustive]`, `#[path]`, `#[cfg]`) — they are link candidates by the
 same test, and they **resolve**, to the built-in attributes in the prelude;
@@ -11565,21 +11585,25 @@ whose `Type` is in scope was counted as resolving without `method` being looked
 for at all. Resolved root-by-root against each file's own scope, three point at
 names that exist nowhere and six name items that exist but are out of scope
 where they are cited. **Cited by target rather than by line**, because a fix
-renumbers its own file and the line then names something else (see **S176**);
-line numbers below are at merge base `3ddd6011`.
+renumbers its own file and the line then names something else (see **S176**).
+The line numbers that were carried here against merge base `3ddd6011` are gone
+with that second anchor: **this document states one anchor for #831's
+measurements, `cfdc1c6f`**, and a citation that cannot be pinned to it is
+written as a name.
 
 **#831 fixed three of the nine** — `review_s2.rs`'s module-header link to
-`enclosing_tangency_is_constructed_not_stumbled_upon` (`:45`, S71's own, a
-name that exists nowhere), its `Leg::tangent_point` link (`:1347`, a real
-`pub(crate)` item an integration test can never resolve), and
-`geom-core/tests/review_m0_pr4.rs:17`'s link to
-`powi_diverges_from_the_tight_enclosure` (renamed AND inverted by the M5
-backend swap). **The other six are dispositioned in its PR and untouched**:
-`editor-core/tests/corpus/mod.rs:21`'s `Vocab` (never an item — the fix turns
-on what the sentence means, in a crate that lane did not read),
-`editor-core/tests/m9_d1_r1_probes.rs:42`,
-`geom/tests/surfaces/span_window_pairing.rs:2,17`,
-`step-import/tests/freecad.rs:1163` and `topo/tests/common/mod.rs:439`.
+`enclosing_tangency_is_constructed_not_stumbled_upon` (S71's own, a name that
+exists nowhere), its `Leg::tangent_point` link (a real `pub(crate)` item an
+integration test can never resolve), and `geom-core/tests/review_m0_pr4.rs`'s
+link to `powi_diverges_from_the_tight_enclosure` (renamed AND inverted by the
+M5 backend swap). **The other six are dispositioned in its PR and untouched**,
+each named by its target because none of them is this PR's to renumber and all
+six re-derive by grep: `editor-core/tests/corpus/mod.rs`'s `Vocab` (never an
+item — the fix turns on what the sentence means, in a crate that lane did not
+read), `editor-core/tests/m9_d1_r1_probes.rs`'s `m4_pr3_names`,
+`geom/tests/surfaces/span_window_pairing.rs`'s `SurfaceWindow` and `Span`,
+`step-import/tests/freecad.rs`'s `PlacedInstance` and
+`topo/tests/common/mod.rs`'s `BooleanDeclarations`.
 
 **#831 also added four such links before removing them again**, which is the
 finding arguing with itself inside one diff: the replacement prose and
@@ -11664,7 +11688,13 @@ things go wrong there by construction, and both did:
   half moved `sugar.rs`'s lines by six and its merge of `origin/main` moved
   `geom-brep/src/ssi.rs`'s by fourteen, so three citations written earlier in
   the same PR — `sugar.rs:911`, `sugar.rs:190,390` and `ssi.rs:974` — were
-  stale before it opened. All of them are cited by name or by expression now.
+  stale before it opened — and a **third** slipped past the re-check that
+  recorded the first two: the ledger's member bullets still carried
+  `sugar.rs:821`, `ssi.rs:975` and `render_freecad.py:159`, all three wrong,
+  directly under a sentence claiming every line below had been re-derived.
+  **S176(a) recurring inside the entry that documents S176(a)** is the sharpest
+  form of the finding, and it was the PR's re-check that found it, not its
+  author. Every one of them is cited by target name or by expression now.
   **That is the argument for the remedy being *cite by name*, not *re-check
   more carefully*:** the re-check catches it only if the citation outlives the
   edit that breaks it by long enough to be re-read.

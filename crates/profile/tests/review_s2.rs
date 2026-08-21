@@ -71,8 +71,12 @@
 //! swallowed carrier never appears beside a line leg, an opposite-sense
 //! arc, or an arc bigger than the fillet. Those three are geometrically
 //! impossible, not merely rare, and
-//! [`an_enclosing_leg_forces_an_equally_enclosing_partner`] pins each
-//! one's refusal with the inequality that rules it out.
+//! `an_enclosing_leg_forces_an_equally_enclosing_partner` pins each
+//! one's refusal with the inequality that rules it out. (Plain
+//! backticks, not a link: this paragraph was re-authored by the same
+//! PR that measured every `tests/` intra-doc link as inert — S135 — and
+//! converted its three siblings twenty lines up. Leaving one linked in
+//! a line the diff rewrote would be the finding arguing with itself.)
 //!
 //! The principle, since it generalizes past this file: **a witness
 //! belongs in a deterministic fixture, a fuzz belongs on the
@@ -1070,11 +1074,12 @@ fn the_lattice_door_never_emits_an_enclosing_tangency() {
             Err(_) => {}
             Ok(lp) => {
                 // A door or harness change that starts building here
-                // must flip this pin deliberately. The assertions
-                // below run FIRST so the failure names what got
-                // built: whatever it is, it must not be the enclosing
-                // tangency (the emitted fillet swallows neither
-                // carrier).
+                // must flip this pin deliberately.
+                // `report_moved_refuse_pin` checks the boundary BEFORE
+                // it reports the pin as moved, so the failure names
+                // what got built: whatever it is, it must not be the
+                // enclosing tangency (the emitted fillet swallows
+                // neither carrier).
                 let carriers = [case.leg_in, case.leg_out].map(|leg| {
                     let OracleLeg::Arc { center, radius, .. } = leg else {
                         panic!("{name}: the table is arc x arc by construction");
