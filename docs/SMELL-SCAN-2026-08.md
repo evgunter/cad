@@ -9369,7 +9369,11 @@ instead of at its poles and both poles fall in the arcs' interiors:
 `min_max`-over-endpoints on the sphere, i.e. #723's own mechanism,
 reaching the one arm #723's text does not name because the rimless arm
 has no rim to place. **Recorded at the code and on #723; not fixed
-here** (Evan, 2026-08-21: a style track does not fix #723).
+here** (Evan, 2026-08-21: a style track does not fix the defect #723
+reports — phrased to keep the verb away from the number, because a
+closing keyword adjacent to a bare issue reference is what has already
+shut that issue twice by accident, once from a PR body quoting this
+very sentence).
 
 **The exempt arm now has rows**, in `geom-brep/tests/s58_iso_rectangle.rs`
 where the predicate's own suite is:
@@ -15343,6 +15347,99 @@ surface) and the markers start meaning something; or they are deleted
 and the reasons they gesture at stay in the prose that already carries
 them. **Do not do half** — deleting some and keeping others is how
 this got here. **Row: D122.**
+
+## S233. FIXED by #877 — a band stated in prose, in a file that decides against the ambient one
+
+**Found by being bitten.** A lane read
+`crates/geom-brep/tests/rim_dim_scale_twins.rs`'s header — *"the
+ε = 1e-7 band `Band { zero 1e-7, escalate 1e-6 }"* — took it for the
+run's tolerance, and built a row on it. `DEFAULT_EPS` is **`1e-9`**,
+and has been since the commit that introduced it. The row passed at
+the default **for the wrong reason** (its comparands were outside the
+band on both sides of a test about which side they were on) and fired
+on CI's `eps = 1e-6` leg. Recorded here because the next reader is one
+`git grep` away from the same sentence.
+
+**`1e-7` is not fabricated, and that is what makes it durable.** It is
+the ε of the *incident the file narrates* — the M7 in-band K landing
+was found on the hosted sweep's `CAD_TOLERANCE_EPS=1e-7` leg, and
+`step-import/tests/probe_review.rs` still guards two rows with
+`if eps != 1e-7 { SKIP }`. The file carried the incident's ε forward
+and wrote it where the *run's* ε belongs. Nine sites, and **four of
+them are assert messages**, so a failing run prints a band it does not
+have.
+
+**It is a latent wrong test, not a comment defect — executed.** On the
+tree at `e2534c5f`,
+`rim_dim_scale_twins::an_interior_rim_inside_the_band_measures_and_outside_it_refuses`
+asserts that an interior rim `1e-9 m` from the extreme MEASURES,
+against the stated `Band { zero 1e-7 }`. At **ε = 1e-12 it is already
+red** — `1e-9` is a thousand ε there, so it refuses — and it prints
+*"(Band { zero 1e-7, escalate 1e-6 })"* while doing it. Nothing
+observed this, because the suite is off CI's roster.
+
+**Off-roster is registered; the constant inside is not.** That is the
+finding rather than the staleness.
+`scripts/gates/probe-suite-census.sh` requires every probe-gated suite
+either to be rostered in `RUN_FLOOR` as executed or to declare
+`NO TEST IN THIS FILE IS EXECUTED BY CI` in its own header, and this
+file declares it, with its reason. The gate keeps the *disposition*
+honest and has nothing to say about a **band literal decided against
+the ambient one** inside a file it has just certified as unrun. A
+suite whose non-execution is properly registered is exactly where this
+defect survives longest.
+
+**The class has been fixed three times in this crate already, each
+time locally.** All three fixes are recorded at their own sites, none
+of them swept:
+
+- `rim_dim_review_probes.rs` — *"derived from the AMBIENT ε (fix pass:
+  originally hardcoded at the default ε = 1e-9, which inverted both
+  probes on the hosted 1e-6/1e-12 rows)"*. **This is the immediate
+  sibling of the file above** — same unit, same adoption-by-merge,
+  same subject — and the sweep stopped at the file it started in.
+- `m5_pr7_ssi.rs`'s floor-clamp fixture — *"A literal multiplier
+  states a different width at every ε"*; now stated in metres through
+  `SsiDomain::floor_scale_for(…, band())`.
+- `review_m5_pr7_adversarial.rs` — the same clamp, with the arithmetic:
+  *"the `1.0e8` this row carried is 0.1 m at the compiled default and
+  1e-4 m at ε = 1e-12, which is below the 0.008 m cylinder's tube
+  radius."*
+
+**Fixed here**, out of this lane's scope and deliberately: leaving a
+known-false constant in the tree after it has just produced a wrong
+test is worse than the scope impurity, and the lane that established
+the right value is the cheapest one to write it. Every band literal in
+`rim_dim_scale_twins.rs` now comes from `band()` — the two `> 1e-6`
+floors, the accepting/refusing offsets, and the assert messages, which
+print the run's own thresholds. The remaining `1e-7`s name the M7
+sweep leg explicitly and are true as history. **The suite now passes at
+all three matrix ε** (`default`, `1e-6`, `1e-12`), where before it
+passed at two.
+
+**What the pattern could not match.** The sweep was
+*a band or ε constant restated in prose or in an assert message, in a
+file that decides against the ambient band*, over
+`crates/geom-brep/tests/` — one hit (above), three prior fixes, and
+four honest per-leg statements (`intersect_table.rs`,
+`m7_8_plane_nurbs_edge.rs`, `pcurve_parameter_finding.rs`,
+`review_m5_pr7b_ssi.rs`, each of which names the leg it is about or
+says the ambient band is not its input). It could **not** match: a
+band restated without any of `ε`/`eps`/`Band`/`1e-` — a prose
+threshold like *"a tenth of a micron"*; a constant restated in a
+**non-comment** channel other than an assert message (a `const` named
+for a value it no longer has, a fixture filename); the same shape in
+**any other crate's** tests, which was not swept at all and where the
+three prior fixes suggest it exists; and anything in
+`docs/`, where the same `Band { 1e-7, 1e-6 }` appears in `K-REPORT.md`
+correctly, as the incident's band.
+
+**Verdict:** FIXED. The class is not closed — the sweep was one
+crate's test tree — and a **gate** is the answer if it recurs: the
+census script already walks every probe-gated suite, and a rule that
+no suite may name a band literal it does not read from `Band` would
+have caught all four instances. Not built here; that is a decision
+about a gate, not a lane's patch.
 
 ---
 

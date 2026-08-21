@@ -332,8 +332,9 @@ fn require_rim_incidence<T: Decide>(
 /// convention at the comparison site. (The uniform `× arm` this
 /// replaces turned a cone's already-length level difference into an
 /// AREA — two lengths multiplied — and shrank the mm-scale
-/// `cone_trunc` rim separation into the ε = 1e-7 ambiguity band: the
-/// project's first in-band K landing, #89.)
+/// `cone_trunc` rim separation into the ambiguity band of the sweep
+/// leg that found it (`CAD_TOLERANCE_EPS=1e-7`, not the compiled
+/// default): the project's first in-band K landing, #89.)
 #[derive(Clone, Copy)]
 enum RimLevel<T: Real> {
     /// Cylinder/cone: the level is the axial/slant arc length `v`

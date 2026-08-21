@@ -11,8 +11,9 @@
 //!
 //! The defect (M7, found as the project's first in-band K landing —
 //! `props_rim_level_group` margin `5.590169943747308e-7` inside
-//! `Band { 1e-7, 1e-6 }` on the mm-scale `cone_trunc` import fixture
-//! at ε = 1e-7): the grouping metered EVERY rim-level difference as
+//! `Band { 1e-7, 1e-6 }` on the mm-scale `cone_trunc` import fixture,
+//! **on the hosted sweep's `CAD_TOLERANCE_EPS=1e-7` leg**): the
+//! grouping metered EVERY rim-level difference as
 //! `(level difference) × arm`, but a cone/cylinder rim level is the
 //! slant/axial arc length `v` itself — already meters — so `× arm`
 //! manufactured an AREA-dimensioned comparand (two lengths
@@ -29,9 +30,8 @@
 //!
 //! - the grouping margin IS the slant rim separation `√5/2 · scale`
 //!   (a length, bare — no arm);
-//! - at mm scale it lies OUT of the ε = 1e-7 band
-//!   `Band { zero 1e-7, escalate 1e-6 }` — the landing is retired,
-//!   not retuned;
+//! - at mm scale it lies OUT of the run's band, whatever the run's ε
+//!   is — the landing is retired, not retuned;
 //! - the margin scales LINEARLY with model scale (mm twin vs metre
 //!   twin, ratio exactly 1000): the scale-quadratic area comparand
 //!   would answer 1e6 here.
@@ -143,8 +143,10 @@ fn rim_group_margins(scale: f64) -> (Vec<f64>, f64) {
 }
 
 /// The mm twin: the grouping margin is the honest slant separation
-/// `√5/2 mm` — LENGTH-dimensioned, and far OUT of the ε = 1e-7 band
-/// the area-dimensioned comparand landed in (#89 retirement).
+/// `√5/2 mm` — LENGTH-dimensioned, and far OUT of the run's band at
+/// every ε this CI runs. The area-dimensioned comparand landed inside
+/// the band the M7 sweep had (#89 retirement, at that sweep's
+/// ε = 1e-7).
 #[test]
 fn mm_scale_rim_group_margin_is_the_slant_separation() {
     let scale = 1e-3;
@@ -161,11 +163,13 @@ fn mm_scale_rim_group_margin_is_the_slant_separation() {
         "margin {m:e} is not the slant rim separation {expect:e}"
     );
     // The retirement pin: the true separation sits DECISIVELY outside
-    // Band { zero: 1e-7, escalate: 1e-6 } — the ε = 1e-7 band the
-    // area-dimensioned margin (5.590169943747308e-7) landed inside.
+    // the RUN's band — read from it, never from a literal. At the
+    // sweep's ε = 1e-7 that band was { 1e-7, 1e-6 } and the
+    // area-dimensioned margin (5.590169943747308e-7) landed inside it.
+    let escalate = band().escalate();
     assert!(
-        m > 1e-6,
-        "margin {m:e} must clear the ε = 1e-7 escalation threshold"
+        m > escalate,
+        "margin {m:e} must clear this run's escalation threshold {escalate:e}"
     );
     // Fixture sanity: Area = sin α · Δu · (v_hi² − v_lo²)/2.
     let (sin_a, cos_a) = 0.5_f64.atan().sin_cos();
@@ -321,7 +325,8 @@ fn rim_level_margins(surface: &Surface<Probe>, edges: &[LoopEdge<Probe>]) -> (Ve
 /// of the interior rim from the nearer extreme — a LENGTH, bare, with
 /// no `× arm` anywhere. #89's mistake here would multiply it by the
 /// rim radius (~5e-4 m at this scale) and land a 2.2e-4 m separation
-/// at 1e-7 m, deep inside `Band { 1e-7, 1e-6 }`.
+/// at 1e-7 m — inside the band on the sweep leg that found #89, and
+/// inside this run's band at any ε ≥ 1e-7.
 #[test]
 fn mm_scale_cone_rim_level_margin_is_the_slant_separation() {
     let scale = 1e-3;
@@ -336,10 +341,11 @@ fn mm_scale_cone_rim_level_margin_is_the_slant_separation() {
             .any(|m| ((m - expect) / expect).abs() < 1e-12),
         "no margin is the slant separation {expect:e}: {margins:?}"
     );
+    let escalate = band().escalate();
     assert!(
-        margins.iter().all(|m| *m > 1e-6),
-        "every decided margin must clear the ε = 1e-7 escalation \
-         threshold at mm scale: {margins:?}"
+        margins.iter().all(|m| *m > escalate),
+        "every decided margin must clear this run's escalation threshold \
+         {escalate:e} at mm scale: {margins:?}"
     );
 }
 
@@ -394,10 +400,11 @@ fn mm_scale_sphere_rim_level_margin_is_the_axial_separation() {
             .any(|m| ((m - expect) / expect).abs() < 1e-12),
         "no margin is the axial rim separation {expect:e}: {margins:?}"
     );
+    let escalate = band().escalate();
     assert!(
-        margins.iter().all(|m| *m > 1e-6),
-        "every decided margin must clear the ε = 1e-7 escalation \
-         threshold at mm scale: {margins:?}"
+        margins.iter().all(|m| *m > escalate),
+        "every decided margin must clear this run's escalation threshold \
+         {escalate:e} at mm scale: {margins:?}"
     );
 
     let (m, _) = rim_level_margins(
@@ -414,22 +421,34 @@ fn mm_scale_sphere_rim_level_margin_is_the_axial_separation() {
 /// **What ε buys, in metres.** The band is what separates an interior
 /// rim that is a real notch from one that is a wobble, and because the
 /// comparand is a length that separation is a DISTANCE, not a
-/// coordinate. A mm-scale cone whose interior rim sits 1e-9 m from the
-/// bottom extreme — inside `Band { zero 1e-7 }` — must MEASURE; the
-/// same rim at 1e-5 m must REFUSE. Get the dimension wrong and both
-/// rows move together, which is exactly how #89 went unnoticed.
+/// coordinate. A mm-scale cone whose interior rim sits **inside the
+/// run's coincidence threshold** must MEASURE; one **decisively past
+/// its escalation threshold** must REFUSE. Get the dimension wrong and
+/// both rows move together, which is exactly how #89 went unnoticed.
+///
+/// **The offsets come from the run's own band.** They were literals —
+/// `1e-9 m` for the accepting row against a stated
+/// `Band { zero 1e-7 }` — and that row was **already red at
+/// ε = 1e-12** (executed; `1e-9` is a thousand ε there, so it refuses),
+/// unobserved because this suite is off CI's roster. A literal band in
+/// a file that decides against the ambient one is a latent wrong test,
+/// not a comment defect. **S233.**
 #[test]
 fn an_interior_rim_inside_the_band_measures_and_outside_it_refuses() {
     let scale = 1e-3;
     let cos_a = 0.5_f64.atan().cos();
     let slant_extent = scale / cos_a; // vb − va
-    for (offset, want_refusal) in [(1e-9_f64, false), (1e-5_f64, true)] {
+    let band = band();
+    for (offset, want_refusal) in [(0.5 * band.zero(), false), (10.0 * band.escalate(), true)] {
         let (surface, edges) = cone_interior_rim(scale, offset / slant_extent);
         let (_, refused) = rim_level_margins(&surface, &edges);
         assert_eq!(
-            refused, want_refusal,
+            refused,
+            want_refusal,
             "an interior rim {offset:e} m from the extreme: refused = {refused}, \
-             wanted {want_refusal} (Band {{ zero 1e-7, escalate 1e-6 }})"
+             wanted {want_refusal} (Band {{ zero {:e}, escalate {:e} }})",
+            band.zero(),
+            band.escalate()
         );
     }
 }
