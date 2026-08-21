@@ -9959,6 +9959,13 @@ contain no `wireframe`); `doc.rs`'s `"name_serialize"` tags a
 `"unclassified"` is a forced `#[non_exhaustive]` wildcard with a named
 pin.
 
+**The Python suite pinned the catch-all, which is the finding's own evidence.**
+`test_import_of_garbage_is_a_typed_refusal` asserted `variant == "refused"` —
+the only Python-visible pin on that door, and it could not have told a
+malformed file from an unsupported entity from a tier refusal. It now asserts
+`syntax`, and a second row asserts that a parsed-but-bodyless file does NOT
+arrive under the same tag, so the pin is on a MAP rather than on a constant.
+
 **`ValidationError`'s own sentence was amended, because this unit is
 what made it load-bearing.** *"Every match site is forced to say what
 it does with the new failure kinds"* was literally false — several
