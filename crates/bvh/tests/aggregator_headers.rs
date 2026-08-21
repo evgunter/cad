@@ -25,9 +25,7 @@
 //!
 //! **Both patterns are keyed on names, which is the class they hunt**, so
 //! the pool they produce is a floor and never a census: an enumeration
-//! spelled without a numeral or a quantifier does not appear in it. That
-//! is stated here rather than in a PR body because the next taker needs
-//! the blind spot as much as the patterns.
+//! spelled without a numeral or a quantifier does not appear in it.
 
 // A read failure here is a broken checkout, not a test outcome: this suite's
 // subject is the content of files that must exist.
