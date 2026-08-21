@@ -93,14 +93,35 @@
 //! outright):
 //!
 //! * Every **flux/area closed form** runs it before integrating —
-//!   cylinder, cone, rim-bearing sphere, torus — with **two
-//!   exemptions**, so "every curved kind" is not the claim. The first
-//!   is the **rimless sphere band**, which has no rims to place and
-//!   whose whole-latitude-band domain is a rectangle by construction.
-//!   The second is [`boundary_material_sign`], which derives only a
-//!   SIDE from one rim's traversal and integrates nothing; its callers
-//!   must treat any error as exempt, so running the predicate there
-//!   could only convert an answer into an exemption.
+//!   cylinder, cone, rim-bearing sphere, torus — and so does
+//!   [`boundary_material_sign`], whose linearly-leveled arms reach the
+//!   same rim-side derivation and rest on the same premise. **One
+//!   exemption**, so "every curved kind" is still not the claim: the
+//!   **rimless sphere band**, which has no rims to place, so the
+//!   predicate is vacuous on it rather than satisfied by it. What that
+//!   arm does establish (its meridians all lie on one great circle,
+//!   which is where `Δu = π` comes from) and what it does not (its
+//!   `v`-extent, still `min_max` over endpoint latitudes — #723's
+//!   mechanism, on the one arm #723's text does not name) is stated at
+//!   `curved::sphere`, at the arm.
+//!
+//!   [`boundary_material_sign`] was the second exemption, on the
+//!   argument that *"running the predicate there could only convert an
+//!   answer into an exemption"*. That covers the ERROR direction only.
+//!   It derives a side from `lo + hi − 2v` — *which extreme is this
+//!   rim at* — and on a domain that is not a rectangle that returns a
+//!   definite ±1 which depends on where the owning body's loop
+//!   flattening started rather than on the face: two rotations of one
+//!   edge cycle, two opposite signs. Tier 3's curved check 6 turned
+//!   the wrong one into a `CurvedSenseInverted`, and check 7 being
+//!   gated on `errors.is_empty()`, the wrong diagnosis SUPPRESSED the
+//!   honest `NotIsoRectangle` the flux lane raises on the same face.
+//!   The premise and the side now travel together
+//!   (`curved::linear_rim_side`), so the exemption its callers must
+//!   grant an error is what such a face gets. The torus arm derives no
+//!   side from an extreme — it reads the anchor meridian's chart
+//!   orientation and the rim at its `t0` vertex, both structural — and
+//!   is exempt for that reason, stated at the arm.
 //! * `w ≡ Δu` is **one** of the two premises `area = r·Δu·(hi − lo)`
 //!   needs. The other is that `(lo, hi)` is the face's true
 //!   `v`-extent, and **this predicate does not establish it**. The
