@@ -13,7 +13,9 @@
 //! recover — the trim box, the cell count the schedule actually built,
 //! the certified bounds the sizing read, the worst per-triangle
 //! certificate, and (when armed for it) the sampled deviation. One
-//! struct, handed over once per NURBS face, on the path that succeeds.
+//! struct, handed over once per NURBS face, however that face ended —
+//! a REFUSED face is measured too, because a certificate that failed
+//! on a mesh the lane then threw away has still failed.
 //!
 //! Not here: the CSV schema, the slack factors, the counterfactual
 //! schedules, the split optimizer, and the reading of any of it. Those
@@ -67,6 +69,11 @@
 //! instrument compiled in or depending on it would turn the meter on
 //! for everything that depends on IT. The old objection was to
 //! exporting an *instrument*; what is exported is a *record type*.
+//!
+//! A measured face is therefore not a meshed face: the caller's own
+//! `tessellate` result says whether the body was built, and `take()`
+//! can carry rows for a body that refused. Every consumer in tree
+//! reads them after an `Ok`, so nothing downstream changes.
 //!
 //! Armed, nothing here runs in a normal tessellation: arming is
 //! thread-local (tessellation runs on the calling thread, so armed
@@ -132,7 +139,14 @@ pub struct FaceMeasure {
     /// the integral arm, refined cells for the rational one), in the
     /// order the assembly emits them.
     pub cells: Vec<CellMeasure>,
-    /// The largest per-triangle certificate the face emitted.
+    /// The largest per-triangle certificate of the attempt the face
+    /// exited on. **`0.0` can mean two things**: a genuinely tight
+    /// face, or one that refused before the emit pass ever ran (a
+    /// failed insert, an empty realised constraint, a self-touching
+    /// trim loop) and certified nothing — the caller's own
+    /// `tessellate` result is what separates them, and
+    /// [`Self::dev_samples`] is `0` in the second case whenever the
+    /// meter was armed for deviation.
     pub worst_cert: f64,
     /// The largest SAMPLED `|S − Π|`, or `f64::NAN` when the meter was
     /// not armed for deviation.
@@ -153,12 +167,16 @@ pub struct FaceMeasure {
     ///
     /// **Accumulated over every attempt the face made**, retries that
     /// were discarded included, unlike [`Self::worst_dev`] and
-    /// [`Self::dev_samples`], which describe the accepted attempt
-    /// only. A certificate that failed on a triangle the lane then
-    /// threw away has still failed.
+    /// [`Self::dev_samples`], which describe the attempt the face
+    /// exited on. A certificate that failed on a triangle the lane
+    /// then threw away has still failed — which is also why a face
+    /// that ends in a typed REFUSAL is handed over rather than
+    /// dropped: it is the likeliest carrier of a violating sample
+    /// there is, and its triangles are all discarded by definition.
     pub worst_ratio: f64,
     /// How many deviation samples [`Self::worst_dev`] is over, on the
-    /// ACCEPTED attempt (0 when not armed for deviation).
+    /// attempt the face exited on — the accepted one, or, for a
+    /// refusal, the one that lost (0 when not armed for deviation).
     /// [`Self::worst_ratio`] is over more than these — see there.
     pub dev_samples: u64,
 }
@@ -252,8 +270,8 @@ mod live {
         STATE.with(|s| s.borrow_mut().take().map(|st| st.faces).unwrap_or_default())
     }
 
-    /// The lane's one hand-off: this face's measurements, once, on the
-    /// path that kept its triangles.
+    /// The lane's one hand-off: this face's measurements, once,
+    /// whichever way the face ended.
     pub(crate) fn note_face(m: FaceMeasure) {
         STATE.with(|s| {
             if let Some(st) = s.borrow_mut().as_mut() {

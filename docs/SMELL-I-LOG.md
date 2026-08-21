@@ -121,6 +121,8 @@ apart doing exactly that.
 
 | number | spent by | for |
 |---|---|---|
+| **S237** | **I-e** (#887) | `mesh/tests/probe_review.rs`'s `z1_per_triangle_certificate_falsification` carries the same monotone `worst_ratio <= 1` ceiling I-e fixed in `budget_meter.rs` — and **it is the row hosted CI actually runs**, while the one fixed is the row CI runs at default ε only. **Recorded unowned**: the file is in none of the five lanes' file sets, and routing it to I-e is S231's mistake. Carries I-e's measured z1 maxima (0.363–0.500 at three ε legs) so a floor has a starting point |
+| **S236** | **I-e** (#887) | `cert::cert_cylinder` is falsified by **nothing, in any build** — `trimmed`'s deviation pass is NURBS-only and `cert.rs` has no test module, so the one certificate with no empirical falsifier is the one both tessellation lanes use for cylinders. **Recorded unowned, and framed as a decision rather than a chore**: the obvious remedy hands `note_face` a `FaceMeasure` whose NURBS-only columns are meaningless, which changes **#320's consumer contract** in `tools/` — no Track I lane owns those |
 | **S235** | **I-d** (#876) | `geom::curves::boxes::circle_arc_aabb` computes the conic's exact amplitude AND restricts to the certified span, is **public**, and has **no production caller** — while `topo`'s `edge_box` hand-derives a looser, orientation-dependent, span-blind version that in-tree bodies already take (4 of 6 carriers on the extruded three-arc cylinder, factor 1.366). **S16's class, a fourth instance at the CURVE level**, and it outlives #862's fix: the correctness half is #862's (axial = deletion, conic = tightening with the NURBS arm's stated obligation), the *"two constructions, the correct one unused"* half is structural and would not retire with it |
 | **S234** | **I-d** (#876) | The lane's own door-inventory guard computes the roster's **keys** and none of its **content**: it pins where the four doors are and recites which direction each reads looseness in, which is the entire content of the header's argument. A door that changes its reading without moving leaves the docs false and the guard green — **S66's shape one level up, inside the fix for S66** — and the assert message mints a kept-in-step-by-hand invariant in the same diff that removed one. Lifted out of the guard's disclosure list per Q6: a disclosed deviation owes an owner. **Third declared blind spot on this track to come back as a finding.** Closable: one row per door that widens the box and asserts the verdict moves the stated way; #876 demonstrated the mechanism by hand for two of the four |
 | **S233** | **I-a** (#877) | a band restated in prose — `rim_dim_scale_twins.rs`'s *"the ε = 1e-7 band"* against a `DEFAULT_EPS` of **`1e-9`**. **Found by biting this lane**: a row built on the sentence passed at the default for the wrong reason and fired on CI's `eps = 1e-6` leg. The file's own `an_interior_rim_…` row was **already red at ε = 1e-12** and nothing observed it. Off-roster status is registered by `probe-suite-census.sh`; the constant inside it is not covered by that registration, and **that** is the finding. Three prior fixes of the same class exist in this crate, one of them in the immediate sibling file. **Fixed here, out of scope and deliberately** |
@@ -227,9 +229,10 @@ ledger, I-e `entries_off_bbox` and the guards). **I-c has landed as #872**
 and left this roster; `curved.rs` below its module header is untouched, so
 I-e starts from that merge with the guard bodies exactly as it found them.
 
-| lane | rows | scope | review | state |
-|---|---|---|---|---|
-| **I-e** | **I3** (**S108**, **S109**) + **I6**'s **S114(f)**, and **S116(g)**'s residue (the guard bodies — I-c narrowed it to them in #872; routed here by **I-R7**) | `mesh/src/{curved.rs,trimmed.rs,planar.rs,budget.rs}`, `mesh/tests/budget_meter.rs` | **ADVERSARIAL** + style | **sequenced behind I-c** |
+**The roster is empty: every lane has landed and left it** — I-a **#877**,
+I-b **#873**, I-c **#872**, I-d **#876**, I-e **#887**. The rows each lane
+carried, and what it did with them, are in the landing narratives below and
+in §D of `SMELL-SCAN-2026-08.md`.
 
 **Struck from this track's schedule, with a pointer rather than a deletion:**
 **C-m** (S27, `props/quad.rs`'s four quadrature engines) — **not scheduled

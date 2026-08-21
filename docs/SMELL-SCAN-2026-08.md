@@ -11286,47 +11286,94 @@ is what draws attention to it.
 
 **Verdict:**
 
-## S108. `entries_off_bbox` exempts zero-lever entries, and its regression row calls it with a different predicate
+## S108. FIXED by #887 — an axis with no lever arm now admits nothing, and the exemption it used to rest on is asserted
 
-`crates/mesh/src/curved.rs:411-419`'s admit test is
-`gap_is_noise(du, lu, eps) || gap_is_noise(dv, lv, eps)`, i.e.
-`du*lu < eps`. For a pole or apex entry `chart.radial` is exactly 0, so
-the u term is `0 < eps` and the entry is admitted unconditionally
-whatever its `u` — the same fail-open the `unreachable!` at
-`walk.rs:1122-1131` was written to avoid. Probably harmless today (a
-pole entry's `v` is a box extreme anyway) but nothing states the
-exemption. Compounding it, `worst_entry_off_box` (`:1060`) passes
-`eps = 0.0`, which makes `gap_is_noise` uniformly false and turns the
-function into "report every entry's distance" — so the `== 0.0` row and
-production do not exercise the same branch structure.
+**The fail-open was real and is closed at the site.** `entries_off_bbox`'s
+admit test converted each axis' gap to metres through that axis' lever arm
+and banded it — and `Chart::radial` is **exactly 0** at a chart singularity,
+so `gap_is_noise(du, 0, eps)` read `0 < eps` and admitted a pole entry at
+any `u`, and (the two axes being an `||`) at any `v` as well. The predicate
+is now `lever > 0.0 && gap_is_noise(gap, lever, eps)`: **a vanished lever is
+not a zero distance, it is no metric, and an axis without one decides
+nothing.** The refusal payload follows it — the reported distance is taken
+over the axes that HAVE a metric, because `max_distance: 0` on a pole entry
+was the number `require_swept_rectangle` leans on to tell a re-authorable
+part from a kernel bug.
 
-**Verdict:**
+**What made the exemption harmless was a fact in another module, and it is
+now a row.** A pole entry carries the CHART's pole `v` (`Chart::poles`) and
+the box is the entries' own min/max, so its `v` gap is zero bitwise —
+`a_pole_entry_sits_on_its_own_box_in_v` asserts exactly that over the
+fixture sweep, together with the zero `u` lever it is paired with. Demonstrated
+red by moving a pole's `v` off its box: the row fires, and so do the guard
+rows — **while the old predicate meshed that same face**, at 0.107 m off its
+own box, with only the chord certificate downstream to catch it at that δ.
 
-## S109. The falsifier's accumulator is discarded on exactly the paths its docs say it exists for
+**Behaviour: nothing in tree moves** (every fixture's pole entries already sit
+on their box in `v` bitwise, at all three ε legs). What would now REFUSE is a
+pole entry interior in `v` — a cone spanning both nappes is the shape — which
+is what the guard is for.
 
-`crates/mesh/src/trimmed.rs:247-260` hoists `worst_ratio` out of the
-retry loop because *"a certificate that fails on a triangle we then
-threw away has still failed, and a falsifier that stops watching a case
-is the defect it exists to catch"*. But `note_face` is the last
-statement before `return Ok(triangles)` (`:575-591`), skipped by the
-`CertificateExceeded` return sixteen lines above and by the
-`Triangulation` returns inside the loop — so a face that ultimately
-refuses discards every ratio it accumulated, which is the case most
-likely to carry a violating sample. Separately,
-`dev_samples_per_edge` is `None` for `Lane::Cylinder` (`:408-412`), so
-`cert::cert_cylinder` is never falsified in this lane at all, while the
-assertion message at `crates/mesh/tests/budget_meter.rs:165` reads as a
-universal about triangles.
+**The `eps = 0.0` half is answered by naming what that call is.**
+`worst_entry_off_box` is the METRIC, not the guard: at a zero band the admit
+test is uniformly false, so no entry there takes the branch a real
+tessellation takes for all of them. The banded verdict on the same
+split-and-placed population is now **asserted** rather than tolerated — the
+#653 row's `Err(_)` arm grew an `UnsupportedCurvedDomain` case. And the
+degenerate-axis rule **un-blinds the metric at poles**: a pole entry used to
+report `min(0, dv·lv) = 0` whatever its `v`.
 
-And that assertion is monotone the easy way:
-`worst_ratio = d / (bound + eps) ≤ 1` gets *easier* as `bound` grows,
-and a loose bound is precisely what #320 exists to detect. Both rows are
-`#![cfg(feature = "budget")]`, as is
-`every_nurbs_face_is_measured_once_and_by_key` — the only test anywhere
-that exercises `face_bound`'s memo, so a mis-keying memo is invisible to
-`cargo test -p mesh`.
+**Verdict:** closed. The one ε read that left `curved.rs` (two `gap_is_noise`
+calls became one closure) moved `the_eps_inventory_is_pinned`'s count from 7
+to 6 — the pin firing on the first change since it landed.
 
-**Verdict:**
+## S109. FIXED by #887 — `tessellate_trimmed` has one exit, and the falsifier's ceiling grew a floor
+
+**The accumulator now survives every way a face can end.** Every path out of
+the retry loop sets an `outcome` and breaks; the measurement hand-off sits
+after the loop and runs on all of them, refusals included. The per-attempt
+columns (`worst`, `worst_dev`, `worst_dev_cert`, `dev_samples`) moved out with
+it and are cleared at the top of each attempt, so they still describe one
+attempt — the one the face exited on, which for a refusal is the attempt that
+lost. `budget`'s docs were corrected with the code: a measured face is no
+longer a meshed face.
+
+Demonstrated by hand on a forced refusal: the restructured lane hands over
+`worst_ratio = 0.4855` where the old shape handed over nothing. **No shipped
+row covers it, and the reason is recorded rather than hidden**: no in-tree
+body reaches a trimmed-lane refusal at all — `CertificateExceeded` is pinned
+unreachable for valid bodies, and the other two refusals need a self-touching
+trim loop or seven consecutive grid-on-constraint retries.
+
+**The monotone-the-easy-way half is the sharper fix.** `worst_ratio ≤ 1` gets
+EASIER as the bound grows, so the row could not see the direction #320 is
+about. `the_deviation_pass_samples_and_stays_under_its_certificates` now
+asserts a floor beside it, on the faces where the certificate — not ε — is the
+denominator: **`worst_cert > eps`**, because `loft_prism`'s planar wall
+certifies at ~5e-17 against a ~5e-16 deviation and its ratio is
+**5e-7 / 5e-10 / 5e-4** at the default / 1e-6 / 1e-12 legs, three orders apart
+on one face with no mesh change. The three curved walls measure **0.454–0.497**
+over δ ∈ [3e-4, 2e-2] and all three ε legs, so `RATIO_FLOOR = 0.1` sits 4.5×
+under the smallest. Demonstrated red at a 5× loosening of `grid.cert`: the
+ratio falls to 0.0971 and the floor fires **while the ceiling stays green**.
+
+**The cylinder gap is stated, not closed.** `dev_samples_per_edge` is `None`
+for `Lane::Cylinder`, so `cert::cert_cylinder` — which certifies every cylinder
+triangle in BOTH tessellation lanes — is sampled by nothing in this suite. The
+assertion messages now say NURBS and the row's doc says why. Closing it means a
+`FaceMeasure` whose NURBS-only columns have no meaning, i.e. a change to #320's
+consumer contract — which makes it a decision rather than a chore. **Recorded as
+S236, unowned.**
+
+**The same monotone shape survives one file over**, in
+`crates/mesh/tests/probe_review.rs`'s `z1_per_triangle_certificate_falsification`
+— and that is the row hosted CI actually runs as its certificate falsifier,
+while the one fixed here is the row CI runs at default ε only. **Recorded as
+S237, unowned**, with the measurement that makes it actionable (per-face maxima
+0.363–0.500 across that corpus at all three ε legs).
+
+**Verdict:** closed on both halves it named, with the cylinder gap and the
+sibling row routed rather than absorbed.
 
 ---
 
@@ -11854,13 +11901,26 @@ Beyond S64, S67, S74 and S98:
   `crates/geom/src/surfaces.rs:1118` — `fn contains` duplicated with two
   parameter names, in the same crate, beside the four converters the
   dedup did collapse.
-- (f) `crates/mesh/src/planar.rs:326-334` and
-  `crates/mesh/src/trimmed.rs:434-468` — #678's sibling sweep produced a
-  nine-line and a twenty-eight-line comment and **no code and no row**
-  in either lane. Both arguments are load-bearing and both rest on facts
-  that live in another module (`walk::Chart::poles()` being empty for a
-  cylinder; NURBS faces having no `Chart`) and can move without either
-  comment changing.
+- (f) **FIXED by #887** — `crates/mesh/src/planar.rs` and
+  `crates/mesh/src/trimmed.rs`. Both #678-sibling arguments are now
+  **checks at the site whose fact they are**, and both shrank.
+  `trimmed`'s twenty-eight lines became nine plus two `debug_assert`s:
+  *no chart singularity reaches this lane* is asserted where the lane
+  is chosen (`Chart::of(surface).is_none_or(|c| c.poles().is_empty())`
+  — the `walk` fact the comment was quoting, now unable to move
+  silently), and *the seam double-traversal cannot meet a single
+  interior column* is asserted where the count is
+  (`nu != 2 || !id_repeats_apart(&polygon)`). `planar`'s nine became
+  seven plus `cdt.num_vertices() == meta.len()`, which is *"there is no
+  interior grid at all"* stated so that adding one fails the line
+  rather than leaving the comment false. The new helper carries its own
+  row (`a_repeat_at_one_uv_is_not_a_repeat_apart`), including the ulp
+  case that decides whether two seam copies are one CDT vertex or two.
+  Both asserts demonstrated red by hand. **Disclosed**: the mesh suite
+  runs the trimmed cylinder lane on 19 faces with `nu ∈ {5, 16, 50}`
+  and `id_repeats_apart` false on every one, so that assert is a guard
+  rather than a live check and both of its operands had to be forced to
+  see it fire.
 
 ## S115. Disclosed and unscheduled (roll-up)
 
@@ -11967,48 +12027,35 @@ see §C.
   slower. The clause it defends (*"every traversal is bounded"*) was
   already detected by the previous `< 5 s`. No evidence it has flaked;
   the thoroughness of the defence is what draws attention.
-- (g) **NARROWED by #872, and open** — `crates/mesh/src/curved.rs`.
-  S28 ("three parallel tessellation pipelines with no shared core")
-  was answered with a refusal and a long argument; the shared core
-  does not exist, and what exists instead is prose saying this lane
-  does not need one.
+- (g) **FIXED by #887, closing the residue #872 narrowed** —
+  `crates/mesh/src/curved.rs`. S28's shared core still does not exist
+  and this lane's answer is still an argument; what changed is that the
+  argument no longer outweighs the code it defends.
+  `docs/prompts/implementer-discipline.md` §4 was the lever — *comments
+  state the invariant, not the history* — and the three guard docs were
+  roughly 60% history.
 
-  **Numbers re-derived**, production half = everything above
-  `#[cfg(test)]`. **The finding's 712/429 was ACCURATE when written**
-  (`9bfa576a`, 2026-08-19: 711 lines plus the `#[cfg(test)]` line
-  itself, 429 comment, 264 code) — this is drift, not an error in the
-  finding. At `5d4b88ab` the same half is **681 lines, 404 comment
-  (59%), 259 code**: **30 lines fewer, and the drift is DOWNWARD.**
-  **The dispatch brief for I-c was wrong the other way, and it is
-  corrected here rather than in a report only its author reads**: it
-  cited *"the file is now 1630 lines"* as the drift; 1 630 is the whole
-  file and **949 of those are the TEST half**. The argument this bullet
-  is about did not grow; it shrank.
-  The two guard functions carry **146 doc lines over 44 lines of
-  code** (`entries_off_bbox` 52/20, `require_swept_rectangle` 94/24),
-  not ~180/~55. And the finding **missed the sharpest ratio in the
-  file**: `pole_columns` is **82 doc lines over a 3-line body**, more
-  prose per line of code than either function it names, and it is the
-  #678/S65 site.
+  **Re-measured by script at both ends** (production half = everything
+  above `#[cfg(test)]`), merge base `ecc1d492` → #887: the file's
+  production half **681 lines / 404 comment (59%) / 259 code → 631 /
+  348 (55%) / 265**; `entries_off_bbox` **52/20 → 45/26**;
+  `require_swept_rectangle` **94/24 → 57/24**; `pole_columns`
+  **82/3 → 56/3**. The three guard functions together: **228 doc / 47
+  code → 158 / 53**. **Comment down 56 lines, code UP 6** — the ratio
+  moved because argument became check, not because prose was thinned.
 
-  **What #872 could reach:** the module header, which re-derived
-  `pole_columns`' `nu == 2` argument almost verbatim — the same
-  argument at two sites, which is this bullet's own shape one level
-  up. The header now states the claim and its condition and points at
-  `pole_columns` for the derivation. **Header 56 → 61 `//!` lines: 11
-  removed, 16 added**, re-derived from the diff — an earlier draft of
-  this bullet said *"seven out, eleven in"*, which does not sum to the
-  net it claimed. Production **code** is unchanged at 259 lines, which
-  is the honest reading — a duplicate removed and a fact added, not an
-  argument reduced.
+  **What went, and where each claim lives now**, is a per-deletion table
+  in #887's body. Three are worth naming here: the **six-site,
+  four-file sweep roster** is deleted rather than restated — its own
+  text called it *"an unguarded list of the kind S64 was about"* — the
+  `iso_side_starts` qualification is cut to its pointer because it
+  already said *"stated in full at `walk::iso_side_starts`"*, and the
+  A/B sweep behind `pole_columns` is kept but **labelled Historical**,
+  since nothing in the tree re-derives it. Every live invariant, every
+  reader warning and both of #678's answers survive at a named site.
 
-  **Residue, and it is the substance:** the bulk lives in
-  `entries_off_bbox`, `require_swept_rectangle` and `pole_columns` —
-  all guard bodies, all outside #872's scope and inside lane **I-e**'s,
-  **routed there by ruling I-R7** (`SMELL-I-LOG.md`) because they are
-  I-e's function bodies and a reviewer reading that code has both
-  questions in front of them at once. This bullet does not leave until
-  that lane records it.
+  **What this does NOT do** is build S28's shared core, which was
+  answered with a ruling and is not this row's.
 - (h) `crates/mesh/src/nurbs_cert.rs:374-419` — S29's constant count did
   not go down. `SAFE_ASPECT = 5.0` is unchanged and still sits above its
   own derived √15 ≈ 3.87; `MAX_GRID_RETRIES` is still a bare `6`; the
@@ -16545,6 +16592,128 @@ needs a lane, and does not have one.
 
 ---
 
+## S236. `cert_cylinder` is falsified by nothing, in any build — and closing that is a contract question, not a coverage chore
+
+**Raised by lane I-e while fixing S109 (#887); I-e is NOT fixing it, and no
+lane owns it.** `crates/mesh/src/trimmed.rs`'s deviation pass reads
+
+```rust
+let dev_samples_per_edge = if matches!(lane, Lane::Nurbs { .. }) {
+    crate::budget::deviation_samples()
+} else {
+    None
+};
+```
+
+so the per-triangle resampling that produces `worst_ratio` runs on the NURBS
+lane **only**. `cert::cert_cylinder` certifies every cylinder triangle in
+**both** tessellation lanes (`curved.rs`'s `ChartKind::Cylinder` arm and
+`trimmed.rs`'s `Lane::Cylinder` arm), and **nothing anywhere samples a cylinder
+triangle against it** — not the meter, not `probe_review`'s Z1 row, not a unit
+row in `cert.rs`, which has no test module at all. The cylinder certificate is
+the one certificate in this crate with no empirical falsifier in any build.
+
+**What #887 did and deliberately did not do.** It corrected the assertion
+messages, which read as universals about triangles (*"a triangle's samples
+exceeded its own certificate"*), to say NURBS, and stated the gap in
+`the_deviation_pass_samples_and_stays_under_its_certificates`' doc. **That
+makes the limit honest and leaves it in place.**
+
+**Why this is a decision and not a five-minute fix.** The obvious remedy —
+sample the cylinder lane too — means handing `budget::note_face` a
+`FaceMeasure` whose NURBS-only columns have no meaning: `grid_cells`,
+`cells`, `patch_steps`, `muu`/`muv`/`mvv` are all `NurbsCellGrid` and
+`NurbsFaceBound` quantities, and a cylinder face has none of them. That is a
+change to **#320's consumer contract** — `tools/tess-meter` and
+`tools/tess-lint` read those columns per row — so whoever takes it is choosing
+between at least three shapes: a nullable/enum lane discriminant on
+`FaceMeasure` (every consumer grows an arm), a second hand-off channel for
+lanes with no grid (two shapes to keep in step), or a falsifier that is not the
+budget meter at all — a unit row in `cert.rs` sampling synthetic cylinder
+triangles, which needs no contract change and does not measure the tessellation
+lane's real triangles. **The third is the cheap one and the weakest; the row
+exists so that is a decision someone makes rather than a default someone
+falls into.**
+
+**Ownership.** `crates/mesh/` is inside **Track I**'s scope, and this is inside
+I-e's file set — but I-e is a lane that has landed, and a contract change to
+`budget::FaceMeasure` reaches `tools/` which is in no Track I lane. **This row
+needs a lane and does not have one.**
+
+**Verdict:**
+
+---
+
+## S237. The `worst_ratio` ceiling CI actually runs is the one still monotone the easy way — three live instances, not one
+
+**Raised by lane I-e while fixing S109 (#887); I-e is NOT fixing it — one of
+the three is outside the lane's file set and two are in a file it never
+opened.** The class is **four instances, one fixed**: I-e's own sweep saw two
+and #887's adversarial review found the other two, which its declared blind
+spot (*"a bound spelled another way"*) would not have caught **because they
+spell it the same way** — the sweep simply undercounted.
+
+| site | state |
+|---|---|
+| `crates/mesh/tests/budget_meter.rs` | **FIXED by #887** — floor added, gated on `worst_cert > eps` |
+| `crates/mesh/tests/probe_review.rs::z1_per_triangle_certificate_falsification` | open — **the row hosted CI runs** |
+| `crates/mesh/src/nurbs_cert.rs:2167` | open — same `d/cert` accumulation, `assert!(worst_ratio <= 1.0, ...)`, inside `#[cfg(test)]` in `src` |
+| `crates/mesh/src/nurbs_cert.rs:2553` | open — the R1 extreme-weight row, and its assertion carries **no message at all** |
+
+The rest of this row is about the `probe_review.rs` instance, which is the
+load-bearing one; the two `nurbs_cert.rs` rows are the same shape at unit
+scale, over synthetic patches rather than tessellated bodies, and whoever takes
+this takes all three.
+`crates/mesh/tests/probe_review.rs`'s `z1_per_triangle_certificate_falsification`
+asserts, over four fixtures at two deltas:
+
+```rust
+assert!(f.worst_ratio <= 1.0, ...);
+```
+
+`worst_ratio = d / (bound + eps)`, so **the assertion gets EASIER as `bound`
+grows** — a certificate loose enough to be worth #320's attention passes it by a
+wider margin than a tight one, and the row reports green most confidently
+exactly where the budget question is sharpest. #887 fixed this shape in
+`crates/mesh/tests/budget_meter.rs` by adding a measured **floor** beside the
+ceiling, applied on the faces where the certificate rather than ε is the
+denominator (`worst_cert > eps`).
+
+**State the asymmetry plainly, because it inverts the intuition.** The sibling
+that was FIXED (`budget_meter.rs`) is the one CI runs at **default ε only**.
+The one still monotone (`probe_review.rs`) is **the row hosted CI actually
+runs as its certificate falsifier** — ci.yml's *"mesh budget meter +
+certificate falsifier (feature = budget)"*, mirrored by
+`local-scripts/ci-local.sh`. The weaker check is on the more load-bearing row.
+
+**A floor here is feasible and has a measured starting point.** #887 measured
+this corpus' per-face **maxima** at all three ε legs, on `loft_prism`,
+`nonuniform_loft`, `swept_elbow` and `rational_pie` at δ ∈ {3e-2, 6e-3}:
+**0.363–0.500**, stable to three decimals across the ε legs. What a floor needs
+is the per-face **minima**, which #887 did not take here (it took them on
+`loft_prism` alone, through `budget_meter.rs`: **0.1667–0.4966 over
+δ ∈ [1e-4, 1e3] at four ε legs**, bottoming at 1/6 once the sizing reaches its
+coarsest grid — note that #887's first pass reported 0.454 as the minimum from
+a 66× δ band, and both its reviewers were right that the band, not the
+population, produced that figure). Whoever takes this row measures the minima over the four
+fixtures and picks one floor, with `worst_cert > eps` as the applicability
+test — `loft_prism`'s planar wall certifies at ~5e-17 and its ratio is decided
+by ε outright (5e-7, 5e-10, 5e-4 at the three legs), which is the case a bare
+floor would red on.
+
+**What a reader should NOT conclude.** Not that the Z1 row is weak — it is the
+row that killed a planted `0.25 -> 0.05` certificate bug empirically. Only that
+it is one-sided, in the direction #320 exists to measure.
+
+**Ownership.** `crates/mesh/tests/probe_review.rs` is in **none of Track I's
+five lanes' file sets** — the same shape as **S231**, and routed the same way:
+not to I-e, because writing a row at a dispatched lane is how a lane's scope
+grows after dispatch. **This row needs a lane and does not have one.**
+
+**Verdict:**
+
+---
+
 ## Track G — the ground no track owns, and the passes that deleted their own evidence
 
 Two things bind this track. **One:** `interval-transcendentals/`, `demos/`,
@@ -16823,10 +16992,14 @@ waits on the other to start.**
 | # | Work | From |
 |---|---|---|
 | **I2** | **NARROWED to S65 by #872.** S64 is closed: the ε enumeration is **computed and pinned** (`mesh/tests/all.rs`, ruling **I-R8**) rather than recited, and three claim sites now point here. **What is left is S65 alone, and it is Evan's** — the question is stated at S65 with three options and option B priced by measurement. It needs a decision, not a lane. | ~~S64~~, **S65** |
-| **I3** | **A lever that degenerates to zero makes a guard fail open** — the same mechanism as the `props/` cluster, one crate over. | **S108**, **S109** |
-| **I6** | **NARROWED by #872.** S115(d) is closed (issue **#868** is its schedule, cited at both of its claim sites). S116(g) is **narrowed, not closed** — its numbers are re-derived and its module-header half is done; the guard bodies that carry the bulk are **I-e**'s scope. S114(f) is untouched. **I6 leaves when I-e records both**, per I-R5. | S114(f), ~~S115(d)~~, S116(g) *(residue)* |
 
-**Raised inside this track and NOT scheduled by it: S231.** I-c's sweep for
+**Raised inside this track and NOT scheduled by it: S231, S236, S237.**
+**S236** (`cert_cylinder` has no falsifier in any build) and **S237** (the
+`worst_ratio` ceiling hosted CI runs is still monotone the easy way) were both
+raised by I-e while closing S109 and are recorded unrouted, for S231's reason:
+S236's remedy changes `budget::FaceMeasure`, whose consumers are in `tools/`
+and in no Track I lane, and S237's file is in none of the five lanes' file
+sets. **Neither is I-e's to fix, and neither has a lane.** I-c's sweep for
 S64's class found the same shape in `crates/mesh/src/chords.rs` — *"These
 tightenings are the only places adjacent surfaces enter chord counts"*, an
 absence claim over a whole module, true today and unfalsifiable by anything in
@@ -16855,12 +17028,22 @@ narrowed to its guard bodies (I-e's, **I-R7**), S65 equipped and handed to
 Evan, **S231** minted and unowned, and `test_utils::source` landed as S117's
 named shared home;
 **I-e** = I3 plus I6's S114(f) **and S116(g)'s residue** (`mesh/`'s guards; the
-residue routed by **I-R7**) — **adversarial**, and sequenced behind I-c because
-both read `mesh/src/curved.rs`.
+residue routed by **I-R7**) — **adversarial**, sequenced behind I-c because both
+read `mesh/src/curved.rs`, and **landed as #887**: S108's zero-lever fail-open
+closed at the predicate with the exemption it rested on asserted, S109's
+hand-off moved to a single exit so a refusing face is still measured and the
+falsifier's monotone ceiling given a measured floor, S114(f)'s two comments
+turned into three `debug_assert`s and a row, and S116(g)'s residue closed by
+cutting the three guard docs from 228 doc lines to 158 while their code grew.
+#887's two routed residues are **S236** (the cylinder lane carries no deviation
+falsifier, in any build) and **S237** (`probe_review.rs`'s `worst_ratio ≤ 1` is
+the same monotone shape, one file outside the lane's set, and is the row hosted
+CI actually runs) — both recorded unowned rather than absorbed.
 **I-d** held I4 **and** I5 together (I-R4) and **landed as #876**; both rows
 have left the table above.
-**I6 leaves when all three of its members are recorded, not when one lane
-lands.** The rulings behind each split are `SMELL-I-LOG.md` **I-R1**–**I-R8**;
+**I6's three members are all recorded now** — S115(d) and S116(g)'s header half
+by #872, S114(f) and S116(g)'s residue by #887 — so the row has left the table
+above, per **I-R5**. The rulings behind each split are `SMELL-I-LOG.md` **I-R1**–**I-R8**;
 **I-R2** and **I-R3** correct cells in this section rather than complying with
 them.
 
