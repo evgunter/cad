@@ -228,12 +228,20 @@ none of them is near the critical path (`build + archive (interval)` at
 
 (The `rustfmt + rustdoc` row moved again with **#840**, which sites the
 #807 wasm32 guard in that same job: `fmt` is now `rustfmt + rustdoc
-(gate) + wasm32`, measured at **90 s** with the guard and 70 s without
-it — both inside the same 2 billed minutes, so the guard bills nothing.
-It stays off the critical path by the same margin: 20 s of guard
-against a 12.4 min `build + archive (interval)`. The billed cost of
-that choice, and why a step rather than a job of its own, is #840's
-subject.)
+(gate) + wasm32`. **Two readings, and they disagree on the billed
+cost**: cold, 64 s without the guard and 84 s with — both 2 billed
+minutes, so +0; warm, 53 s without and 66 s with — 1 billed minute
+against 2, so **+1**. This job's baseline STRADDLES the 60 s boundary
+(`rustdoc (gate)` alone swings 22-34 s), so the guard bills 0 or 1
+depending on which side the run lands. A job of its own would bill 1
+always. It stays off the critical path either way: 13-20 s of guard
+against a 12.4 min `build + archive (interval)`.
+
+A caution this table earns: **a merged job sitting near a minute
+boundary has an unstable billed cost**, and a single measurement of one
+will read as a flat number when it is not. Both of the merges above
+that land "inside one billed minute" are worth re-reading with that in
+mind.)
 | persistence | 80 s | ~85 s | no |
 | band 4 corpus | 78 s | ~82 s | no |
 
