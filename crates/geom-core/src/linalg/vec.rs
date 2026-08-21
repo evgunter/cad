@@ -306,9 +306,14 @@ impl<T: Real> Vec3<T> {
     /// — every direction near the equator of the y-axis — acquires a
     /// spurious negative lower bound. `b1`'s `(s·n.x)·n.x` is a
     /// different shape: it is scaled BEFORE the second factor, so
-    /// tightening it would reassociate a D9-fixed order rather than
-    /// replace a square, and that is a design change (the same
-    /// distinction `linalg/mat.rs` is allowlisted for).
+    /// tightening it is a REASSOCIATION into `s·(n.x²)` rather than a
+    /// square substitution. That reassociation is admissible — D9 is
+    /// determinism at one kernel, not a pin on last year's output —
+    /// and here it is free, since `s = ±1` multiplies exactly. It is
+    /// scheduled as D109(a) with `linalg/mat.rs`'s `rotation_about`,
+    /// the other site of the same shape, and is deliberately not done
+    /// piecemeal: the matcher that finds this shape reds both files at
+    /// once.
     ///
     /// **Discontinuity, documented honestly:** the frame flips across
     /// the equator `n.z = 0` (`s` jumps) — the construction is

@@ -84,9 +84,17 @@
 #    themselves: `x * x` is definitional (powi is BUILT from it) and
 #    their tests deliberately contrast the plain product with the tight
 #    square;
-#  - geom-core linalg/mat.rs — `rotation_about`'s evaluation order
-#    is D9-ratified and doc'd in-file ("exactly as parenthesized");
-#    tightening `t·x·x` to `t·x²` is a design change, not a cleanup;
+#  - geom-core linalg/mat.rs — `rotation_about` writes `t * x * x`,
+#    which is a SCALED square: tightening it reassociates `(t·x)·x`
+#    into `t·(x²)` rather than replacing a product by a square. That
+#    reassociation is **ratified** (Evan, 2026-08-21 — D9 is
+#    determinism at one kernel, not a pin on last year's output), so
+#    this entry is a SCHEDULED RESIDUE, not a settled exemption: it
+#    holds until D109(a) converts the site and re-cuts whatever
+#    goldens `t = 1 − cos θ` moves. Do not widen the matcher to see
+#    `(k·x)·x` before that lands — it reds this file and
+#    `linalg/vec.rs` together, and greening that by allowlisting is
+#    the outcome this gate's own history is a record of;
 #  - geom-core linalg/svd.rs / lsq.rs — documented f64-only
 #    selection lanes (lsq's hits are usize buffer sizing);
 #  - geom-brep ssi/jet.rs / march.rs / system.rs — f64-only jet and

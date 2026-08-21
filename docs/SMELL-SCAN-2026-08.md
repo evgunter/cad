@@ -8429,8 +8429,9 @@ exists.
 callers of `orthonormal_basis` (`newell.rs`, `recognize.rs`) are
 `let (u_ref, _) = …` — they discard `b2` — so the conversion cannot
 move shipped certified output today, while the **consumed** `b1` still
-carries the unconverted scaled square that **S163(a)** is about and
-that waits on a D9 ratification decision.
+carries the unconverted scaled square of **S163(a)** — **ruled
+admissible** (Evan, 2026-08-21: D9 is determinism at one kernel, not a
+pin on last year's output), and scheduled rather than done here.
 
 **The `scripts/ci-filter.py` half of this finding is NOT closed and is
 relocated to S164**, not dropped: closing it needs a `ci.yml` edit,
@@ -11532,20 +11533,51 @@ the parenthesisation leaves no `x * x` adjacency in the text.
 `geom-core/src/linalg/vec.rs`'s `orthonormal_basis` writes
 `((s * self.x) * self.x) * a` for `b1`, production code generic over
 `Real`, in a file that is not allowlisted — the twin of the `b2` term
-F3 converted, three characters away and invisible. **It was NOT
-converted, deliberately.** The conversion is not a square substitution:
-it reassociates `(s·x)·x` into `s·(x²)`, and the surrounding doc
-comment fixes that order under D9. That is the same distinction
-`linalg/mat.rs` is allowlisted for — its `rotation_about` writes
-`t * x * x` and its entry says in terms that tightening it *"is a
-design change, not a cleanup"*. **So the open question is one
-question asked twice: may a D9-fixed evaluation order be reassociated
-when the reassociation is strictly tighter and the value is unchanged
-at `f64`?** At `f64` both spellings are bit-identical (`s` is
-`±1` exactly, and `powi(2)` is `1.0 * (x*x)`); at `Interval` the
-current order treats the two factors as independent, so an enclosure of
-`n.x` straddling zero gets a spurious sign range that `s·(x²)` does
-not. Q6's shape: this needs an answer, not a matcher.
+F3 converted, three characters away and invisible, and **the term both
+production callers actually consume** (`newell.rs` and `recognize.rs`
+are both `let (u_ref, _) = …`). The conversion is not a square
+substitution: it reassociates `(s·x)·x` into `s·(x²)`. The same shape
+sits in `linalg/mat.rs`'s `rotation_about` as `t * x * x`, which is why
+that file is on the interval-square allowlist.
+
+**RULED YES — Evan, 2026-08-21.** The question was *may a D9-fixed
+evaluation order be reassociated when the reassociation is strictly
+tighter?*, and the answer rests on two grounds, both of which are worth
+carrying because both were nearly got wrong in the asking:
+
+1. **Moving output is not on its own a reason not to act.**
+   `memories/output-stability-as-justification.md` names *arithmetic
+   association* as exactly the kind of decision output stability may
+   not settle, and says committed bytes are *"usually a golden, and
+   regenerating a golden is a chore, not a contract."* The document
+   that asked this question offered the `f64` byte-move at `mat.rs` as
+   a **downside**, two paragraphs after citing that memory — the error
+   the memory exists to prevent, committed in the act of consulting it.
+2. **The D9 carve-out does not reach this.** D9 is **determinism at one
+   kernel, not a pin on last year's output**: the same document
+   evaluated twice must agree, and it need not agree with a build from
+   a year ago. `u_ref` is stored as data under D2, so documents that
+   already exist keep the frames they were built with.
+
+**So the work is scheduled, not blocked.** What the exact-`f64`
+argument decides is **cost, not permission**: at `b1` the scale is
+`s = ±1`, multiplication by which is exact, so the reassociation is
+byte-free; at `mat.rs` the scale is `t = 1 − cos θ`, so it moves `f64`
+bytes and re-cuts whatever goldens sit downstream. Both reassociate;
+one is free and one is a chore. At `Interval` both tighten, which is
+the point — the current order treats the two factors as independent, so
+an enclosure of `n.x` straddling zero gets a spurious sign range that
+`s·(x²)` does not.
+
+**Deliberately NOT done in #849**, which was two review rounds deep on
+its own scope; this wants its own review. **And the warning survives
+the ruling, because it is now the only thing between the ruling and
+someone doing it badly: a taker who reaches for a matcher widening
+first will red two ratified sites** — `mat.rs` and `b1` are exactly
+what a `(k * x) * x` matcher finds, and greening it by allowlisting is
+S63's already-realised outcome for the third time. **Convert the two
+sites, re-cut what moves, and only then widen the matcher**, so that
+the widened gate lands on a tree it passes.
 
 **(b) `bounds-allowlist.sh` is the one gate still on the leading-`//`
 comment filter, the one still keeping a self-test helper that runs
@@ -13328,7 +13360,7 @@ S60/S66's rows; and a general gate re-proposes exactly what Evan declined.
 
 | # | Work |
 |---|---|
-| **D109** | **What the F3 sweep left open in `scripts/gates/`** (**S163**, five members). *(a)* the interval-square matcher cannot see a SCALED square `(k * x) * x`, and `geom-core/src/linalg/vec.rs`'s `orthonormal_basis` has a live one in the `b1` term — **which is the term both production callers actually consume**, the converted `b2` being discarded by `newell.rs` and `recognize.rs` alike. **It is deliberately unconverted, because the fix reassociates a D9-fixed order**, which is the same thing `linalg/mat.rs` is allowlisted for. **That makes the row a DESIGN QUESTION before it is a matcher question** (Q6's shape: may a D9 order be reassociated when the reassociation is strictly tighter and the `f64` value is bit-identical?), and a taker who treats it as a widening will produce a matcher that reds two ratified sites. *(b)* `bounds-allowlist.sh` is the one gate still on the leading-`//` filter, the last with an in-process self-test helper, and still feeds arguments to a default self-test that no longer exists — all three because F-g's brief fenced F1's just-landed file; `probe-suite-census.sh` is off the shared reader for a different and better reason, its needle being a string literal. *(c)* the reader is a lexer — nested block comments, `macro_rules!`, `include!`, ALL-CAPS and indexed squares. *(d)* **14 of 71 `gate_error` call sites are reached by no self-test case**, traced rather than estimated; each is a fixture somebody has to write. *(e)* the real-scan cost is ~10× in aggregate on a lane container and invisible on the runner. **ACCEPTED**, style for (b)–(e); (a) goes to Evan before it goes to a matcher. |
+| **D109** | **What the F3 sweep left open in `scripts/gates/`** (**S163**, five members). *(a)* the interval-square matcher cannot see a SCALED square `(k * x) * x`, and `geom-core/src/linalg/vec.rs`'s `orthonormal_basis` has a live one in the `b1` term — **which is the term both production callers actually consume**, the converted `b2` being discarded by `newell.rs` and `recognize.rs` alike; `linalg/mat.rs`'s `rotation_about` is the second site and the reason that file is allowlisted. **RULED YES, Evan 2026-08-21: the reassociation is admissible** — D9 is determinism at one kernel, not a pin on last year's output, and `u_ref` is stored as data under D2, so existing documents keep their frames. **So this is a WORK ROW, not a question**, and the exact-`f64` argument now predicts **cost, not permission**: `b1`'s scale is `s = ±1`, so that one is byte-free; `mat.rs`'s is `t = 1 − cos θ`, so it moves bytes and re-cuts goldens. **The warning survives the ruling and is now the only thing standing between it and a bad landing: a taker who widens the matcher FIRST reds two ratified sites**, and greening that by allowlisting is S63's already-realised outcome a third time. Convert the two sites, re-cut what moves, then widen. Not #849's — that lane was two review rounds deep and this wants its own. *(b)* `bounds-allowlist.sh` is the one gate still on the leading-`//` filter, the last with an in-process self-test helper, and still feeds arguments to a default self-test that no longer exists — all three because F-g's brief fenced F1's just-landed file; `probe-suite-census.sh` is off the shared reader for a different and better reason, its needle being a string literal. *(c)* the reader is a lexer — nested block comments, `macro_rules!`, `include!`, ALL-CAPS and indexed squares. *(d)* **14 of 71 `gate_error` call sites are reached by no self-test case**, traced rather than estimated; each is a fixture somebody has to write. *(e)* the real-scan cost is ~10× in aggregate on a lane container and invisible on the runner. **ACCEPTED**, style throughout — (a) is now scheduled work with its ruling attached. |
 | **D110** | **`scripts/ci-filter.py` has no test, and it decides whether any gate runs at all** (**S164**) — S63's fourth half, relocated rather than closed, with its counts re-derived (385 lines, `Bail` at `:141`, the fail-open `docs` branch at `:202`). Scope: `scripts/ci-filter.py`, and **`.github/workflows/ci.yml` plus `local-scripts/ci-local.sh` for the wiring** — which is why F-g did not take it, F2 having just landed those files. **Sequence it after F2 settles**, and expect `check-ci-mirror-parity.py` to Bail on an unrecognised workflow shape and ask to be extended. **ACCEPTED**, style. |
 
 ### Rows placed for Track F by lane F-b

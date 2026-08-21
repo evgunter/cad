@@ -487,7 +487,24 @@ not have been. **What happened is that the change dodged a hazard it would
 itself have created, and wrote it up as a hazard it found.** *A fix that dodges
 a hazard it created reads, afterwards, exactly like a fix that found one*, and
 only execution against the OLD tree separates them. Struck from the record, the
-commit comment and the PR body. It carries **F3 (S63)**, **S157** (the harness — F-f's
+commit comment and the PR body.
+
+**CLEARED on the fix pass, 2026-08-20, and its one open design question is now
+answered: D109(a) is RULED YES** (Evan, 2026-08-21). The scaled square
+`(k · x) · x` at `linalg/vec.rs`'s `b1` and `linalg/mat.rs`'s `rotation_about`
+may be reassociated into `k · (x²)`: **D9 is determinism at one kernel, not a
+pin on last year's output**, and `u_ref` is stored as data under D2 so existing
+documents keep their frames. The row moves from *needs a decision* to *scheduled
+work*, and **the exact-`f64` argument now predicts cost rather than
+permission** — `b1`'s `s = ±1` makes it byte-free, `mat.rs`'s `t = 1 − cos θ`
+re-cuts goldens. **The lane's warning survives the ruling and is now the only
+thing between it and a bad landing**: widening the matcher before converting the
+two sites reds both ratified files at once, and greening that by allowlisting is
+S63's own outcome a third time. Recorded at **S163(a)/D109**, at the gate header
+and at the constructor; **deliberately not done in #849**, which was two review
+rounds deep on its own scope.
+
+It carries **F3 (S63)**, **S157** (the harness — F-f's
 row, never placed in §D as `D101`, so there was no row to strike) and
 **S125/D69**. Its row left the table above. **It crossed into three files F1/F2
 had just landed, and every crossing was forced by the harness fix rather than
