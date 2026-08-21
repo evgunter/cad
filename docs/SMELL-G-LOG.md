@@ -112,6 +112,20 @@ waiting for a second CI run** (Evan, 2026-08-20).
 | **G-R6** | **G7's gate on Track E's E-e**, which §D states as *"partly collides … sequence after it"* without naming the file or the PR. | **Confirmed, and it is a file-overlap gate, not a dependency one.** E-e is **#767**, open, in `editor-core/src/eval/`; S106's own load-bearing citation is `editor-core/src/eval/mod.rs:1565-1730` (`feed_step`, the one cross-crate copy that breaks loudly). Same file. **G7 waits for #767 to land**, and per Track E's own E-R4 a lane that later disproves the *reason* for a gate has not disproved the gate — re-read #767's head, not this sentence. | orchestrator, 2026-08-20 |
 | **G-R7** | **G4's gate is recorded in another track's log.** `SMELL-F-LOG`'s sequencing note says *"F-e (F1) lands before G4/S87–S88, per Evan's S87/S88 ruling: the sentence that makes the `CertifiedBounds` conversion safe is currently false, and converting first would leave the ratification requirement unenforced at exactly the moment new code starts relying on it."* | **Read, accepted, and not restated as a mechanism of this track's own.** G4's chain is **G-j ← F1 (Track F's F-e) ← E-a (#753)**, two tracks deep, and none of the three links is Track G's to move. The row is listed as gated in the roster below with the chain written out, because a gate whose reason lives in a file this track's lanes are not told to read is a gate that gets walked through. **Track F owns the reason; Track G owns only the waiting.** | orchestrator, 2026-08-20 |
 
+**Amendment returned by a lane — G-R2, from #831's ledger walk.** G-R2's
+conclusions all hold: the rides-along paragraph was right, S112(a) is not this
+row's, G10's sentence is wrong by one, and the row does not retire on its
+leader's member. **Two things the tree says differently.** (1) The over-count
+is in *"three of them are Track C's"*, not in *"the rest are free"* — the free
+five ((b)(c)(f)(g)(h)) are exactly right and all Track G's; Track C holds two,
+(d) and (e), and the third body in that parenthetical is (e)'s **second file**,
+`ssi.rs`, counted as a member. (2) **(a) has no owner at all, not E-g.** E-g
+landed as #768, its own §D row records S112(a) as not in it, and that row is
+struck — so the ruling's *"→ E-g"* points at a retired lane. That is **S177**
+and **D114**, and it also means **G10 cannot retire on this ledger**: (a) and
+(e) are named by no live row but G10's, so the row stays, re-scoped to the
+residue.
+
 ---
 
 ## Number reservation
@@ -131,10 +145,10 @@ from the orchestrator.
 | lane | §D rows | findings |
 |---|---|---|
 | **G-a** | D71, D72 | S127, S128 |
-| **G-d** (G5 half, #831) | **D72**, **D113** used | **S128**, **S135**, **S136**, **S176** used |
+| **G-d** (G5 + G10, #831) | **D72**, **D113**, **D114** used | **S128**, **S135**, **S136**, **S176**, **S177** used |
 | ~~**G-b**~~ (landed, #787) | D73, D74 — **unused, returned**; **D79** used | S129 and **S130** used; S135 and S136 later taken by G-d |
 | ~~**G-c**~~ (landed, #781) | D75–D77 — **unused, returned** | S131, S132, S133 — **all spent** |
-| unassigned | D73, D74, D75, D76, D77, D80 | **none — the S127–S136 block is spent**; `D113`–`D125` / `S176`–`S181` opened for the fix pass, `D113` and `S176` taken |
+| unassigned | D73, D74, D75, D76, D77, D80 | **none — the S127–S136 block is spent**; `D113`–`D125` / `S176`–`S181` opened for the fix pass, `D113`, `D114`, `S176` and `S177` taken |
 
 **G-a used D71 and D78, and S127 and S134** (see *Landings*); D72 and S128 came
 back. **The `unassigned` line above is a reconciliation across three landings**
@@ -258,7 +272,7 @@ complete; wave 2 is the live one.
 
 | lane | row | scope | review |
 |---|---|---|---|
-| **G-d** | **G10** only (S112, re-scoped by **G-R2**) — **G5/S71 landed as #831** | `profile/src/sugar.rs` (S112(f)), `crates/pncad/src/lib.rs` (S112(g)), plus the eight-member ledger at S112 | style |
+| ~~**G-d**~~ | **G10** (S112, re-scoped by **G-R2**) and **G5/S71** — **both in #831**, G5 with its fix pass | `profile/src/sugar.rs` (S112(f)), `crates/pncad/src/lib.rs` (S112(g)), plus the eight-member ledger at S112 | style |
 | **G-e** | **G6** (S104) | `editor-core/src/assembly.rs`, `pncad-py/src/py/doc.rs`, plus `editor-core/src/mate.rs` and `pncad-py/src/py/select.rs`, which the scan did not read | **ADVERSARIAL** |
 | **G-f** | **G8** (S67) | `topo/src/face_normal.rs` (docs), `topo/src/chord_join.rs` (the real question) | style **+ one ADVERSARIAL sub-unit**, not folded together |
 
@@ -330,6 +344,38 @@ having failed on the legitimate build and passed on the boundary-moving one;
 and the two enclosing pins — one `Ok` arm written twice, neither site
 naming the other — got one home, with the non-swallowing arithmetic
 under it getting another that `check_corner` shares.
+
+**G10 is in the same PR**, as its second unit and its own commits: one lane,
+one branch, and both halves edit `SMELL-SCAN-2026-08.md`, so splitting them
+would have this lane resolving conflicts against itself in that file for no
+reviewer's benefit. Split on request — nothing in the G10 commits touches
+`review_s2.rs`.
+
+- **S112(f)** — `sugar.rs`'s `arc_fillet_trims` header asserted a *current*
+  two-consumer property with no twin and no raw builder in the tree; it now
+  names the one consumer it has (`path::arc_fillet`, checked workspace-wide)
+  and puts the extraction in the past tense. **G5's re-read fence lifted for
+  this member only**, per G-R2; the enclosing-candidate machinery is unread and
+  unedited.
+- **S112(g)** — `pncad`'s *"What the façade itself contains"* now names
+  `tolerance`, and says the thing that made the omission worth fixing:
+  `report()` and `eps_source()` **commit the ambient ε as a side effect of
+  being asked**, which is the one place in a façade claiming *"no numeric
+  behavior"* where calling a wrapper changes the run. `doc-gate.sh` exit 0,
+  `cargo test -p pncad --doc` 34 passing.
+- **The ledger, which is the row's actual deliverable** — all eight members at
+  S112, each with the lane, the PR and the merge commit, **re-derived from the
+  tree**. Five closed: (b)(c) #786, (h) #787, (f)(g) #831. Three open.
+- **Two corrections the walk returned, both against the ruling that assigned
+  it** — see the amendment note under **G-R2** below.
+- **`S177` + `D114`.** Track E's **E-g** row is struck while it is the only
+  live tracker for S111(a)(b)(d), S112(a) and S75, all of which its own row
+  records as *not in #768*. Three re-derived from the tree and standing. The
+  class is *a lane's row is struck while it is the only index for the findings
+  routed to it after dispatch*; **D114** re-homes the five and asks whether any
+  other struck row did the same. **Not taken by this lane**: `sweep/src/fillet/`
+  is outside Track G's constitution, and re-dispatching another track's
+  findings is not a lane's act.
 
 ### G-b — **G2**, `demos/`, #787
 

@@ -9784,7 +9784,44 @@ written for. Beyond S60, S75, S76, S78, S84 and S91 above:
   retired"* comment true of today's surgery; the hole S15 named is
   unchanged, asserted only over two fixtures.
 
-## S112. Prose that describes a world the code has left (roll-up)
+## S112. Prose that describes a world the code has left (roll-up) — **five of eight closed, and the ledger is the deliverable**
+
+**The class ledger, per G-R2**, which re-scoped **G10** to *"(g) plus the
+class ledger"* and made the row's retirement turn on the ledger rather than
+on the closing lane's own member. Every line below was **re-derived from the
+tree** at `01261896` and from the merge commit named — not taken from a
+dispatch list; two of the eight came back different (below).
+
+| member | site | closed by | how it was verified |
+|---|---|---|---|
+| **(a)** | `sweep/src/fillet/naming.rs:32-34` | **NOBODY — open, and its owner has retired** | the sentence stands; `editor-core/src/names/emit_fillet.rs:220-221` still builds `retired_e`/`retired_v` out of `rec.dead` and consults them at `:236-246`, so the defect is intact. Routed to Track E's **E-g** after that lane was dispatched; E-g landed as **#768** and its own §D row says S112(a) is **not in it**, and that row is now struck from §D. See **S177** |
+| **(b)** | `interval-transcendentals/tests/certify.rs` | **#786** (G-a / G1), commit `520f21f1` | the header names `ci.yml`'s `oracle-certify` job, its `ORACLE_PATHS` trigger and `CAD_FUZZ_EFFORT=8` (`:21-24`); `ci.yml` no longer contains *"stays a by-hand gate"* |
+| **(c)** | `interval-transcendentals/src/ops.rs`, `docs/inventory.md` | **#786** (G-a / G1), same commit | `ops.rs:4` now opens *"`copysign` is deliberately NOT here"*; `docs/inventory.md:40` says the same and points at the trait impl. The code did not move and S1 is untouched |
+| **(d)** | `geom-brep/src/props/curved.rs:886-890` | **open — Track C**, and tracked live at §D's frozen table (**C-m, C3**) | `cone_arm`'s doc still says the `T::one()` fallback *"covers the no-rim case, where `du_of_rims` refuses before any margin is metered"* |
+| **(e)** | `geom-brep/src/ssi/exhaust.rs:92` | **open — Track C by mechanism, but named in NO live §D row** | `exhaust.rs:92` still says *"The floor used, in meters"* and `ssi.rs:974` still passes `domain.floor(band) / speed`. The frozen table's C-m/C3 entry lists **S112(d) only**; no row in §D names S112(e) or `geom-brep/src/ssi/`. Its only live mention is G10's own row |
+| **(f)** | `profile/src/sugar.rs` | **#831** (G-d / G10) | below |
+| **(g)** | `crates/pncad/src/lib.rs` | **#831** (G-d / G10) | below |
+| **(h)** | `demos/render.py` | **#787** (G-b / G2), commits `85510376` + fix pass `040fb699` | no `stl is None` branch, no *"#111 pin"*, no `drawn` counter and no boolean return in `render.py`; `render_freecad.py:164` reads `body["step"]` with the guard gone |
+
+**Two corrections the walk returned, both from the tree.**
+
+1. **G10's sentence mis-splits rather than over-counts.** It says *"three of
+   them (`geom-brep/props/curved.rs`, `geom-brep/src/ssi/`) are Track C's …
+   the rest are free"*. **The free five are exactly right** — (b), (c), (f),
+   (g), (h), every one of them Track G's. What is wrong is *"three"*: Track C
+   holds **two** members, (d) and (e); the third body in that parenthetical is
+   **(e)'s second file**, `ssi.rs`, counted as a member. The eighth is **(a)**,
+   which is Track E's and is not in the parenthetical at all, so the sentence
+   reaches the right total by two errors that cancel. **G-R2 located the
+   over-count in *"the rest are free"*; the tree puts it in *"three of them are
+   Track C's"*.** The ruling's conclusion — the sentence is wrong by one, the
+   rides-along paragraph is right, (a) is not this row's — is unaffected.
+2. **This row cannot retire on this ledger.** Three members are open, and only
+   one of the three ((d)) is named by a live §D row. (a) and (e) would become
+   untracked the moment G10's row left the table, which is the half-fix shape
+   G-R2 invoked to require the ledger in the first place. **G10 stays in §D**,
+   re-scoped to the residue; the general form is **S177**, and **D114** is the
+   row that re-homes (a).
 
 - (a) `crates/sweep/src/fillet/naming.rs:34` — *"`editor-core`'s
   `names::emit_fillet` … reads every field EXCEPT [`Retired`]"*.
@@ -9820,20 +9857,33 @@ written for. Beyond S60, S75, S76, S78, S84 and S91 above:
   units)"*), and so does `SweepCell::width`. The one place a caller
   reads the number back out is the one place the unit is wrong. S23's
   refactor made it visible by collapsing two lanes onto one parameter.
-- (f) `crates/profile/src/sugar.rs:389-393` — `arc_fillet_trims`' header
-  still reads *"extracted verbatim from the raw builder's corner door so
-  the twin and the PATHS algebra lowering share one code path"*. There
-  is no twin and no raw builder. The ONARC commit re-pointed four
-  neighbouring references and left this one, which is the one asserting
-  a *current* two-consumer property. (Three more "raw builder" sentences
-  at `:311`, `:821`, `path.rs:1199` read as historical provenance.)
-- (g) `crates/pncad/src/lib.rs:51-82` — the S20 fix rewrote *"What the
-  façade itself contains"* to stop under-claiming about `workspace`, and
-  the section still enumerates only `authoring`/`validated` plus that
-  exception. `tolerance` was added at `lib.rs:187` in the same wave and
-  does not appear. Not nothing: `report()` and `eps_source()` commit the
-  process-global ε as a side effect of being called, which the module
-  itself flags as a hazard.
+- (f) **FIXED by #831 (G-d / G10).** `arc_fillet_trims`' header claimed a
+  *current* two-consumer property — *"extracted verbatim from the raw
+  builder's corner door so the twin and the PATHS algebra lowering share
+  one code path"* — with no twin and no raw builder in the tree. It now
+  states the one consumer it has (`path::arc_fillet`'s lowering, the only
+  call outside the module, checked workspace-wide) and puts the
+  extraction in the past tense, keeping what the extraction still buys:
+  the surviving lowering calls the ratified construction instead of
+  carrying a second copy. The three "raw builder" sentences at `:311`,
+  `:821` and `path.rs:1199` are untouched — they read as historical
+  provenance and the finding said so. **This member is why G5's re-read
+  fence on `sugar.rs` was lifted for it, and only for it** (G-R2); the
+  enclosing-candidate machinery §D fences off is unread and unedited.
+- (g) **FIXED by #831 (G-d / G10).** *"What the façade itself contains"*
+  enumerated `authoring`/`validated` plus the `workspace` exception and
+  did not mention `tolerance`, added in the same wave as the S20 rewrite.
+  The section now names it as the third thing, and states the fact that
+  made the omission worth fixing rather than merely completing the list:
+  `tolerance::report` and `tolerance::eps_source` **commit the ambient ε
+  bootstrap as a side effect of being asked** (exactly `Tolerance::get`'s
+  behaviour), so a program that later loads a document turns that load
+  into a `ToleranceConflict` by having asked — the one place in the
+  façade where calling a wrapper changes the run, against a section whose
+  claim is *"no geometry and no numeric behavior"*.
+  `tolerance::committed_report` is the door that does not, and is named
+  as such. Verified by `scripts/doc-gate.sh` (exit 0) and `cargo test -p
+  pncad --doc` (34 passing).
 - (h) **FIXED by #787** — `demos/render.py`. The `stl is None` branch,
   its `#111 pin` warning, the `drawn` counter, `draw()`'s boolean
   return and `main`'s skip-the-scene arm are all gone: neither producer
@@ -11013,6 +11063,57 @@ things go wrong there by construction, and both did:
 
 **Why this is a roll-up and not two rows:** one mechanism — the record is
 written before the change is final and is never re-derived against it.
+
+**Verdict:**
+
+## S177. A lane's §D row is struck while it is the only live tracker for the findings routed to it after dispatch
+
+**[verified, #831 — found by G10's ledger walk, which G-R2 required be
+re-derived from the tree]** Findings routed to an already-dispatched lane
+ride along on that lane's §D row rather than taking rows of their own. When
+the lane lands, **the row leaves the table under §D's own *live rows only*
+rule — and the rides-along leave with it**, whether or not the lane touched
+them. There is no other index: a finding is tracked by the row that names
+it, and prose in §D pointing at a retired row is not a schedule.
+
+**The instance, re-derived from the tree.** Track E's **E-g** row records,
+in its own words, *"S111(a)(b)(d), S112(a) and S75 were routed to this lane
+after it was dispatched and are **NOT in #768** — #768 partly closes S111(a)
+as a side effect and says so at that finding; the rest are unstarted."* The
+row is struck (`~~E-g~~`, *"both closed, #768"*), E-g is **DONE** in
+`SMELL-E-LOG.md`'s roster, and §D's rides-along paragraph still reads *"…
+belong to Track E's **E-g**, which is already ADVERSARIAL on those files"* —
+present tense, about a lane that has retired. Three of the five checked
+against the tree, all standing:
+
+- **S112(a)** — `sweep/src/fillet/naming.rs:32-34` still says
+  `names::emit_fillet` *"reads every field EXCEPT `Retired`"*, while
+  `editor-core/src/names/emit_fillet.rs:220-221,236-246` builds and consults
+  `retired_e`/`retired_v` from `rec.dead`.
+- **S111(b)** — `surgery.rs:775` is still `pub fn ring_clearance`, and its
+  only caller outside the module is still `sweep/tests/m6_surgery.rs:434`.
+- **S111(d)** — `naming.rs`'s `Retired` still carries `edges` and
+  `vertices` and no face channel.
+
+S75 and S111(a)'s residue are named by the same sentence and are not
+re-derived here. **S111(a) says outright *"this member is not fully closed
+and has no row — the orchestrator owns whether the residue earns one"***,
+which is the same hole seen from the other side: a member that knows it is
+open and knows nothing is holding it.
+
+**Why it is a class and not a clerical slip.** The mechanism is structural,
+not anyone's oversight: rides-along exist so that a late finding reaches a
+lane already reading those files, and the same *live rows only* discipline
+that keeps §D honest is what deletes them. It will recur on every track that
+routes work to an open lane. **The cheap fix is at retirement**, not at
+routing: a lane's row may only be struck once each rides-along it did not
+close has been re-homed or given its own row, and the lane's landing report
+is the natural place to check, since E-g's own report is where the
+five-member sentence was written.
+
+**Not swept.** This finding names one instance because G10's ledger walked
+into it. Every other struck row on every track has the same exposure and
+none of them were checked; that is a sweep with an owner, which is **D114**.
 
 **Verdict:**
 
@@ -13027,12 +13128,16 @@ tessellation pin are red on main).
 | **G8** | **`face_normal.rs`'s one-door module names three flip sites: one does not flip, and at least five that do are unlisted.** The enumeration repair is style — but the sub-question it parks (*is `chord_join`'s missing flip a defect, given it feeds `point_in_loop` for ring re-homing?*) is a **correctness** question and must be a separate adversarial unit, not folded into a doc edit. Overlaps the standing open decision **D6**, whose stated sweep shape is `grep sense_sign`. | **S67** | `topo/src/face_normal.rs` (docs), `topo/src/chord_join.rs` (the real question) | **ACCEPTED**, with the routing caveat | style + one **ADVERSARIAL** sub-unit |
 | **G9** | **Two operand gates with different admitted kind sets and a doc that describes only one** (S95), and **`chord_join`'s top-level-sibling placement argument contradicted by its own imports from `splitting/`** (S96). S96's imports reach `splitting/rules.rs`, which is Track C's — **confirm with Track C before touching it**. | S95, S96 | `topo/src/boolean/{ops,reduce}.rs`, `topo/src/chord_join.rs` | **ACCEPTED** on both | style; S95 escalates only if the drift ever admits a kind |
 | **G11** | **The demo manifest inconsistencies are duplicated READER code.** From S114(c), **closed as a design question by Evan 2026-08-20** — the schema framing was refused and the emitter half ruled *no shared type*. Four pieces, none a schema: **(i)** one home for the `View.up` convention, deriving world→display and display→world from it, so `render.py:51` and `render_freecad.py:105` cannot drift — they are exact inverses today **by coincidence of two independently-written idioms, checked by nothing**, and either is individually "fixable" by someone reading only one; **(ii)** one shared manifest walk for the two Python readers, which is what makes `transparency` and `montage` get defaulted twice; **(iii)** the eight `uv.json` fields written and read by nothing, deleted; **(iv)** the wild emitter's field set brought level with the tour's, **by agreeing rather than by a shared type**. `demos/*.py` are the render harness, not demos — `memories/demo-purpose.md` governs the Rust that drives the kernel, not the tooling that looks at its output. | **S114(c)** | `demos/render.py`, `demos/render_freecad.py`, `demos/wild/src/main.rs`, `demos/tour/src/uvdump.rs` | **RULED — closed** | style |
-| **G10** | **Prose describing a world the code has left** — eight members, the cleanest class in Tier 3, scattered by file. Three of them (`geom-brep/props/curved.rs`, `geom-brep/src/ssi/`) are **Track C's and must be left**; the rest are free. | **S112** | scattered; the free members only | **ACCEPTED** | style |
+| **G10** | **Prose describing a world the code has left** — eight members, the cleanest class in Tier 3, scattered by file. **Five are closed and the ledger G-R2 required is at S112**, re-derived from the tree rather than from any dispatch list: (b)(c) by **#786**, (h) by **#787**, (f)(g) by **#831**. **The row stays for the residue**, which is three members and two of them tracked nowhere else: **(d)** `geom-brep/props/curved.rs` is Track C's and is named at the frozen table (**C-m, C3**); **(e)** `geom-brep/src/ssi/` is Track C's by mechanism and is named by **no live row but this one**; **(a)** `sweep/src/fillet/naming.rs` is Track E's, was routed to **E-g** after dispatch, is not in **#768**, and E-g's row has been struck — see **S177** and **D114**. The original sentence *"three of them are Track C's … the rest are free"* mis-split rather than over-counted: the free five are right, Track C holds two, and the third body in that parenthetical is (e)'s second file. **This row leaves §D when (a) and (e) have live homes**, not when the ledger's closed count rises. | **S112** | the residue only — no member here is Track G's to fix | **ACCEPTED**, re-scoped by **G-R2** and by #831's walk | style |
+| **D114** | **Re-home the findings that E-g's retirement left untracked, and check whether any other struck row did the same.** E-g's own §D row records S111(a)(b)(d), S112(a) and S75 as routed to it after dispatch and **not in #768**; the row is struck, the lane is DONE, and §D's rides-along paragraph still points at it in the present tense. Three of the five re-derived from the tree and standing (**S177**). Two pieces: give those five a live home (they are all `sweep/src/fillet/`, so one lane, and it is **Track E's ground, not Track G's** — this track's constitution excludes `sweep/src/fillet/`), and sweep the other struck rows for the same shape, which nobody has looked at. **Holder: the orchestrators** — re-dispatching another track's findings is not a lane's act, which is why this is a row and not a fix. | **S177** | `docs/SMELL-SCAN-2026-08.md`'s §D and every struck lane row; then `sweep/src/fillet/{naming,surgery,mod}.rs` for the five | proposed: **ACCEPT**, unstaffed | style |
 | **D79** | **`lily.rs`, read end to end for the first time — six members, no owner.** Raised by #787's review over free ground §B2 had flagged as the scan's highest-yield unread file: an orphaned comment block whose live number is wrong (38° vs 28.6°), a shadow tuple vector algebra beside `Vec3` (whose *reason* is issue **#796**), two carrier extractors with different rigor plus a partly-vacuous agreement check, an existential-over-two cap assert, an unchecked arity beside a hard `== 8`, and 41% comment with a 137-line header. **All six sit inside `mod review_probes`' orbit, which no gate runs (S129, #782)** — so the row's first question is whether it waits on that or precedes it. | **S130** | `demos/tour/src/lily.rs` | proposed: **ACCEPT**, after or with S129 | style |
 
-**Rides along, and is not a new row:** S111(a)(b)(d) and S112(a) are
-`sweep/src/fillet/` and belong to Track E's **E-g**, which is already ADVERSARIAL
-on those files. S115(e) is E-e's; S115(f) and S116(e) are `topo/src/euler.rs`,
+**Rides along, and is not a new row — NO LONGER TRUE, see D114.** S111(a)(b)(d)
+and S112(a) are `sweep/src/fillet/` and were routed to Track E's **E-g** while it
+was open on those files. **E-g landed as #768 without them, said so in its own
+row, and that row is struck** — so this paragraph stopped being a schedule and
+became the thing this track scans for. The re-home is **D114**, the class is
+**S177**, and both came out of #831's G10 ledger walk. S115(e) is E-e's; S115(f) and S116(e) are `topo/src/euler.rs`,
 now landed under #755. S116(m)(n)(o) are E-a's.
 
 **Already fixed or already owned, do not staff:** **S115(a) is FIXED** —
