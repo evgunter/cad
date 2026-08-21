@@ -1379,9 +1379,14 @@ fn loop_orientation<T: Decide>(segs: &[Seg<T>], band: Band) -> Result<Sign, Inde
                 let theta = four * s.bulge.atan();
                 // Circular-segment correction: (r²/2)(θ − sin θ),
                 // doubled here since we accumulate 2A. `r²` is the tight
-                // square: the plain product treats the factors as
-                // independent, which widens the enclosure whenever the
-                // radius is not a definite-sign singleton.
+                // square, and here it is the tight square of something
+                // already known nonnegative: `Seg::radius` is
+                // `signed_radius.abs()`, so at `Interval` the enclosure
+                // has `lo >= 0` and the plain product's four-corner
+                // minimum IS the tight square. The conversion changes no
+                // bound at any instantiation — it is here so the file
+                // spells a square the one way the rule names, not
+                // because this site was wide.
                 twice_area = twice_area + g.radius.powi(2) * (theta - theta.sin());
                 perimeter = perimeter + g.radius * theta.abs();
             }

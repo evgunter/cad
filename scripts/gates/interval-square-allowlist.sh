@@ -10,11 +10,27 @@
 # from this one class: squaring via plain `x * x` treats the
 # factors as independent, so a zero-straddling enclosure gets a
 # spurious negative lower bound that poisons downstream
-# sqrt/decoration. `Real::powi(2)` (inari `pown`) knows both
-# factors are the same variable and returns the tight nonnegative
-# enclosure with the decoration preserved. Squares of
-# definitely-nonzero singletons (stored radii, bulges) may stay as
-# `*`. Reviewing new geometry: this grep only sees production code
+# sqrt/decoration. `Real::powi(2)` knows both factors are the same
+# variable and returns the tight nonnegative enclosure with the
+# decoration preserved. Squares of definitely-nonzero singletons
+# (stored radii, bulges) may stay as `*` — for a `lo >= 0`
+# enclosure the plain product's four-corner minimum ALREADY is the
+# tight square, so the conversion is a no-op there and the reason
+# to make it is uniformity, not width.
+#
+# "NEVER WIDER" IS FALSE AS WRITTEN, AND THIS TEXT USED TO SAY IT.
+# It also named `inari` as the backend, which it has not been since
+# M5 PR 1 — the backend is the in-repo `interval-transcendentals`
+# crate. On that backend `powi(2)` is **1 ulp wider on each side
+# once the square drops below `TWO_PROD_VALID_MIN = 2^-960`**, i.e.
+# `|x| < 2^-480 ~ 3.2e-145: the closing `mul_hi(1.0, base)` has no
+# 2Prod witness that can certify a sub-2^-960 product, so it pads a
+# second time. Measured at `x = 2^-481*1.5`; **0 widening cases in
+# 3,000,000 samples with `|x|` in [1e-60, 1e60]**, so it is
+# unreachable in the live regime — which is a reason to state it
+# once, not a reason to keep saying "never". A dead backend named
+# in a numerics justification is S39/S112's class in the worst
+# place it can land. Reviewing new geometry: this grep only sees production code
 # under `crates/*/src`, so also eyeball predicate-path diffs for
 # `* self`, `x * x`, and `.dot(` on possibly-zero vectors.
 #
@@ -144,7 +160,7 @@ gate() {
     | grep -vE '^crates/geom-brep/src/ssi/(jet|march|system)\.rs:' || true)
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits"
-    gate_error "use powi(2): it is never wider than x*x and strictly tighter when the enclosure straddles zero; whether THIS enclosure can straddle zero is a global property of upstream callers that refactors change silently — four live bugs arrived exactly that way. Convert, or ratify this file into the allowlist."
+    gate_error "use powi(2): it is strictly tighter than x*x when the enclosure straddles zero, and equal elsewhere except for a square below 2^-960, where the backend pads once more (see this gate's header — NOT 'never wider'). Whether THIS enclosure can straddle zero is a global property of upstream callers that refactors change silently — four live bugs arrived exactly that way. Convert, or ratify this file into the allowlist."
     exit 1
   fi
   gate_ok "no unratified x*x outside the allowlisted files"

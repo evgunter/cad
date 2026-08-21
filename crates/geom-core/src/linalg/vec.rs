@@ -668,6 +668,18 @@ mod tests {
         /// construction is a fixed formula over `Real` ops, so this
         /// holds by composition; the test guards the claim against
         /// future edits introducing a scalar-specific path).
+        ///
+        /// **The VALUE channel only, and the name says so on purpose.**
+        /// The tangent channel has its own test below, because it is not
+        /// covered by this one and cannot be: `f64` has no tangent to be
+        /// identical to. That gap was live long enough for a change to
+        /// pass through it — replacing `n.y * n.y` with `n.y.powi(2)`
+        /// moves the tangent (product rule `y'·y + y·y'` becomes
+        /// `(2·y)·y'`) while leaving the value alone, and every fixture
+        /// here builds its duals with `Dual::variable`, whose tangent is
+        /// `1.0`, where `y + y` and `2·y` are equal exactly. So this
+        /// test could not have seen it, and neither could any test in
+        /// the tree.
         #[test]
         fn orthonormal_basis_dual_value_channel_bit_identical(v in vec3()) {
             use crate::dual::Dual;
@@ -685,6 +697,54 @@ mod tests {
             ] {
                 prop_assert_eq!(ours.to_bits(), dual.value.to_bits());
             }
+        }
+
+        /// The TANGENT channel of `b2.y`, against its closed-form
+        /// derivative — the channel the test above cannot reach.
+        ///
+        /// `b2.y = s + n.y²·a` with `a = −1/(s + n.z)` and `s` locally
+        /// constant (`copysign`'s kink convention; the seam at
+        /// `n.z = 0` is documented at the constructor), so
+        ///
+        /// ```text
+        /// d(b2.y) = 2·n.y·a·ty + n.y²·tz/(s + n.z)²
+        /// ```
+        ///
+        /// Well conditioned everywhere on the sphere: `|s + n.z|` is
+        /// `1 + |n.z| ≥ 1` by construction, which is the whole reason
+        /// the two-hemisphere form exists.
+        ///
+        /// **The tangents are NOT 1.** `Dual::variable` gives every
+        /// input a tangent of `1.0`, and at `ty = 1` the product rule
+        /// and the power rule agree bit-for-bit (`y + y` is `2·y`) — so
+        /// a fixture built that way exercises the one input at which
+        /// every spelling of a square is identical. Independent random
+        /// tangents are what make this a test of the rule rather than of
+        /// that coincidence.
+        #[test]
+        fn orthonormal_basis_dual_tangent_matches_closed_form(
+            v in vec3(),
+            ty in -4.0f64..4.0,
+            tz in -4.0f64..4.0,
+        ) {
+            use crate::dual::Dual;
+            let n = v.normalize();
+            prop_assume!(n.x.is_finite() && n.y.is_finite() && n.z.is_finite());
+            let nd = Vec3::new(
+                Dual::new(n.x, 0.0),
+                Dual::new(n.y, ty),
+                Dual::new(n.z, tz),
+            );
+            let (_, d2) = nd.orthonormal_basis();
+            let s = 1.0f64.copysign(n.z);
+            let a = -1.0 / (s + n.z);
+            let want = 2.0 * n.y * a * ty + n.y * n.y * tz / ((s + n.z) * (s + n.z));
+            let scale = want.abs().max(1.0);
+            prop_assert!(
+                (d2.y.deriv - want).abs() <= 1e-12 * scale,
+                "tangent {} vs closed form {} (n = {:?}, ty = {}, tz = {})",
+                d2.y.deriv, want, (n.x, n.y, n.z), ty, tz
+            );
         }
     }
 
