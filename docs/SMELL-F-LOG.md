@@ -1061,6 +1061,58 @@ when the review lands, which is why it trails.
 
 
 
+## Track F — CLOSED, 2026-08-21
+
+**All eight rows landed.** F1 (#791), F2 (#798), F3 (#849), F4 (#825), F5 (#788),
+F6 (#783), F7 (#790), F8 (#844). §D's Track F table is empty.
+
+**Every row was returned NOT CLEARED on its first review**, and in every case the
+central work survived while the fix had minted a fresh instance of the defect it
+closed. Three lanes named that trap in their own PR body and it caught them
+anyway. **The only thing that reliably found it was an adversary who did not
+write the fix** — six style reviews and five adversarial or verification passes,
+every one of which found something, including the one row where the verification
+was dispatched hours late because the orchestrator set the lane up and forgot to
+send it.
+
+### What Track F leaves placed, and for whom
+
+**Ruled and waiting on work, not on a decision:** **D109**(a) — reassociate the
+scaled square at `orthonormal_basis`'s `b1` and `mat.rs::rotation_about`; ruled
+YES by Evan, with the sequencing rule *convert the two sites, re-cut what moves,
+then widen the matcher* recorded at S163(a), at D109 and in the gate header.
+**D105 / S160** — pin the split scan's continuous objective, with the lane's
+measurements written into the row so its taker inherits the argument.
+**D106** — split the ratification ledger out of `scripts/gates/`' scripts
+(131 → 157 → 195 lines is the evidence). **D114** — the one-document differential
+S168 implies. **D115 / S169**, **D61 / S117**, **D63/D64**, **D68**, **D102/D103**,
+**D107/S161**, **D110**, **D113**.
+
+**Waiting on Evan:** **D111** — the fourteen unrun probe suites. F-R5's ruled
+population does not exist, so they are undecided rather than decided-as-posture;
+the entry is in §D's *Decisions only Evan can make*.
+
+**Not Track F's:** **D104** (the two hand-run diff artefacts, a test-suite-cost
+question) and **S127/D71** (`oracle-certify`'s missing local mirror, Track G's).
+
+### The three findings worth carrying past this track
+
+**S162 and S167 are one shape on both sides of a merge:** *the record of a
+verification can be destroyed by the act of landing it.* On `main` a code merge's
+run is **cancelled** and a docs-tier successor goes green over it having run two
+jobs; on the branch the run is **killed at checkout**, stays red forever, and the
+retry reproduces it — manufacturing corroborating evidence for the wrong
+conclusion.
+
+**S157's mechanism** — a gate can die under `errexit` before its own error
+message, and the self-test harness suppressed exactly that condition, so fifteen
+passing self-tests were never able to fail this way.
+
+**S117** — twelve source-text guards and five hand-rolled Rust readers, no two
+lexing the same language, **the twelfth arriving during the row's own review**
+from a lane that could not reach the reader that already existed. It closes on a
+decision about reachability, not on a list.
+
 ## Landings
 
 - **F-h — F8 / D84 + D85 (and S110(a))**, PR **#844**, opened 2026-08-20;
