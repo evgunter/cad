@@ -10868,7 +10868,7 @@ finding exists to reject. All of them were re-executed by the review.
   retired"* comment true of today's surgery; the hole S15 named is
   unchanged, asserted only over two fixtures.
 
-## S112. Prose that describes a world the code has left (roll-up) — **five of eight closed, and the ledger is the deliverable**
+## S112. Prose that describes a world the code has left (roll-up) — **six of eight closed, and the ledger is the deliverable**
 
 **The class ledger, per G-R2**, which re-scoped **G10** to *"(g) plus the
 class ledger"* and made the row's retirement turn on the ledger rather than
@@ -10907,12 +10907,15 @@ from the one the census names.
    over-count in *"the rest are free"*; the tree puts it in *"three of them are
    Track C's"*.** The ruling's conclusion — the sentence is wrong by one, the
    rides-along paragraph is right, (a) is not this row's — is unaffected.
-2. **This row cannot retire on this ledger.** Three members are open, and only
-   one of the three ((d)) is named by a live §D row. (a) and (e) would become
-   untracked the moment G10's row left the table, which is the half-fix shape
-   G-R2 invoked to require the ledger in the first place. **G10 stays in §D**,
-   re-scoped to the residue; the general form is **S177**, and **D124** is the
-   row that re-homes (a).
+2. **This row cannot retire on this ledger.** As the walk found it, three
+   members were open and only one of the three ((d)) was named by a live §D
+   row. **(d) closed at #877** (Track I, lane I-a), which leaves **(a) and (e)
+   open and NEITHER named by a live §D row** — the half-fix shape G-R2 invoked
+   to require the ledger in the first place, now with the one tracked member
+   gone. **G10 stays in §D**, re-scoped to the residue; the general form is
+   **S177**, and **D124** is the row that re-homes (a). (e) — `ssi/exhaust.rs`'s
+   *"The floor used, in meters"* against a chart-unit store — still has no row
+   anywhere, and Track I's scope does not reach `geom-brep/src/ssi/`.
 
 - (a) `crates/sweep/src/fillet/naming.rs`, under *"What consumes these
   rows"* — *"`editor-core`'s
