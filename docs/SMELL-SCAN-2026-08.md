@@ -15255,7 +15255,7 @@ waits on the other to start.**
 
 | # | Work | From |
 |---|---|---|
-| **I1** | **The `props/` cluster** — *"the largest cluster in the scan and the one with the most reachable wrong answers"*. S77, S80 and S81 are all descendants of **#723**'s unstated-extent shape. **#723 is an open ISSUE, not a lane**, so this row *inherits* it rather than waits for it — a sphere meridian arc crossing a pole gives a wrong certified volume. Track C's **C-m** (S27, `quad.rs`'s four quadrature engines) is the same files and comes with it: **adversarial** + style, per C-R12. | **S60**, **S77**, **S80**, **S81**, S112(d), **C-m** |
+| **I1** | **The `props/` cluster** — *"the largest cluster in the scan and the one with the most reachable wrong answers"*. S77, S80 and S81 are all descendants of **#723**'s unstated-extent shape. **#723 is an open ISSUE — a wrong certified volume where a sphere meridian arc crosses a pole — and a style track does not fix it** (Evan, 2026-08-21). These four rows are style and stand on their own; the correctness defect is #723's own. | **S60**, **S77**, **S80**, **S81**, S112(d) |
 | **I2** | **`mesh`'s ε ledger and its watertightness backstop** — S64 and S65 are *one conversation*. **S65 is Evan-only** (below) and S64 should not be closed without it. | **S64**, **S65** |
 | **I3** | **A lever that degenerates to zero makes a guard fail open** — the same mechanism as the `props/` cluster, one crate over. | **S108**, **S109** |
 | **I4** | **The cylinder box's remaining halves.** Its *logic* half is filed as **issue #862** (over-width along the axis → false `CensusUndecidable`, plus the single-endpoint axial projection under `Interval`). **What stays here is style**: the acceptance suite in `boxes.rs` that **cannot go red for a box that is too big** (S110's class — `face_box` returning `[-1e300, 1e300]` passes the entire suite), and the module doc's *"looseness is free"* claim, **false for two of its three consumers**. | **S66**'s style halves |
@@ -15270,6 +15270,29 @@ re-derivation in release — against D9's *never a panic* and against tessellati
 cost — or it stays debug-only and the header says so. **Also S82**, in `props/`:
 is the sphere rim predicate's accepting-direction understatement a #723 sibling
 that needs an issue and a row, or conversation input that can wait?
+
+### Struck from the schedule: C-m, until #723 is fixed
+
+**Track C's C-m — S27, `props/quad.rs`'s four independent quadrature engines
+with a triplicated convergence block — is NOT scheduled here.** Never started,
+Track C has closed, and it is **not** picked up by Track I.
+
+**Won't do here: it needs a correctness fix first, and it is scheduled after
+that.** #723 reports a **wrong certified volume** in the very file C-m
+consolidates. Consolidating first would either bake the defect into the shared
+engine or move it somewhere the reproduction no longer points at — and the
+consolidation's own review would be reasoning about code known to be wrong.
+**Fix the defect, then consolidate.**
+
+*An earlier draft of I1 said this row should "inherit #723 rather than wait for
+it". That was wrong — a correctness defect does not get fixed in a style pass —
+and the correction is Evan's.*
+
+**The lane is described in a comment on #723**, including what the fix can settle
+cheaply on its way past: which engine is authoritative afterwards, whether the
+triplicated convergence block needs the same change in all three, and whether
+`QUAD2_AREA_PIECES = 64` is load-bearing for the fix. **A row struck with a
+pointer, not a row deleted** — whoever closes #723 finds C-m waiting there.
 
 ### What is in NEITHER track, and why
 
