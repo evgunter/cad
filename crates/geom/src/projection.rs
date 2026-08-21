@@ -104,7 +104,7 @@
 //! }
 //! ```
 //!
-//! [`project_seed`](NurbsCurve3::project_seed) is deliberately NOT on
+//! [`project_seed`](crate::NurbsCurve3::project_seed) is deliberately NOT on
 //! that bound. It returns `f64`, so it carries no tangent to be wrong
 //! about — and its returning `f64` is what freezes `t*` in the first
 //! place.
