@@ -89,7 +89,7 @@
 //! escalates typed.
 
 use geom::Surface;
-use geom_core::{Band, Bounds, Decide, Indeterminate, Margin, Point2, Sign, Vec2};
+use geom_core::{Band, Bounds, CertifiedBounds, Decide, Indeterminate, Margin, Point2, Sign, Vec2};
 
 use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, LoopKey};
@@ -242,23 +242,24 @@ impl core::fmt::Display for ChartRegionError {
 
 impl std::error::Error for ChartRegionError {}
 
-/// **The per-scalar chart-region lane** — the static split the PR-1
-/// `Decide + Bounds` seam ratification promised its first
-/// `Decide`-generic consumer (the census arms; see the M9-2 entry in
-/// `geom-core/src/real.rs`'s Bounds scope rule): bracket-carrying
-/// scalars (`f64`, `Probe`, the interval scalar) reach
-/// [`chart_region_overlap`]; the dual scalar REFUSES statically — its
-/// impl instantiates none of the predicate (the `PropsQuadLane` shape).
-/// Since the D1 ruling (2026-08-19) a dual DOES carry a bracket, so this
-/// lane is no longer a restatement of what the type system already
-/// forbade: on the census path it is the entire guard, and the
-/// predicate is otherwise instantiable at a dual. Note the scope —
-/// [`chart_region_overlap`] is `pub` and re-exported from `topo`'s
-/// root, and its bound is `Decide + Bounds` with no
-/// [`geom_core::CertifiedEnclosure`], so an **external** caller can
-/// instantiate it at a dual without this lane ever being consulted.
-/// Unlike the other three lanes' doors, nothing but this lane keeps a
-/// dual out, and this lane only covers the census.
+/// **The per-scalar chart-region lane** — the static split that lets a
+/// `Decide`-generic consumer (the census arms) hold a dual body without
+/// holding a chart-region predicate: bracket-carrying scalars (`f64`,
+/// `Probe`, the interval scalar) reach [`chart_region_overlap`]; the
+/// dual scalar REFUSES statically, its impl instantiating none of the
+/// predicate (the `PropsQuadLane` shape). The census maps that `None`
+/// to its typed unsupported refusal.
+///
+/// **What this lane is for, and what it is not.** It is what lets a
+/// MIXED pass keep going at a dual — no bound on a whole function can
+/// say *"this arm certifies, the rest does not"*, so the arm carries
+/// its own refusal. It is **not** what keeps a dual out of the
+/// predicate: [`chart_region_overlap`]'s own bound is
+/// `Decide + `[`CertifiedBounds`], which [`geom_core::Dual`] does not
+/// satisfy, so the door refuses an external caller structurally whether
+/// or not this lane is consulted. That matches the other three lanes'
+/// doors, all of which carry [`geom_core::CertifiedEnclosure`]. See the
+/// M9-2 entry in `geom-core/src/real.rs`'s `Bounds` scope rule.
 pub trait ChartRegionLane: Decide {
     /// The overlap door at this scalar, or `None` when the scalar has
     /// no certified lane (dual) — the census maps `None` to its typed
@@ -352,7 +353,32 @@ fn definite_diag<T: Bounds>(
 /// [`ChartRegionError`] — chart divergence (rung 3), inventory or arm
 /// refusals, seam-branch refusal, touch/degenerate configurations,
 /// in-band escalations, unwalkable topology.
-pub fn chart_region_overlap<T: Decide + Bounds>(
+///
+/// # Scalars
+///
+/// The bound is `Decide + `[`CertifiedBounds`]: this door's `Ok` is a
+/// grant, so it is open to exactly the scalars that can certify. A
+/// bracket-carrying scalar passes —
+///
+/// ```
+/// use geom_core::Band;
+/// use topo::{Body, FaceKey, chart_region_overlap};
+/// fn admitted(b: &Body<f64>, f: FaceKey, band: Band) {
+///     let _ = chart_region_overlap(b, f, b, f, band);
+/// }
+/// ```
+///
+/// — and [`Dual`](geom_core::Dual) does not, whether or not
+/// [`ChartRegionLane`] is consulted:
+///
+/// ```compile_fail,E0277
+/// use geom_core::{Band, Dual64};
+/// use topo::{Body, FaceKey, chart_region_overlap};
+/// fn evicted(b: &Body<Dual64>, f: FaceKey, band: Band) {
+///     let _ = chart_region_overlap(b, f, b, f, band);
+/// }
+/// ```
+pub fn chart_region_overlap<T: Decide + CertifiedBounds>(
     body_a: &Body<T>,
     face_a: FaceKey,
     body_b: &Body<T>,

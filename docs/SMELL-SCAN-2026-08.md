@@ -10319,6 +10319,48 @@ the three-item list rather than a section. The mathematics moved to
 `geom/src/projection.rs`, which is in neither contested block and is
 where the freeze physically happens.
 
+### The structural half, added by H-g (PR 2 of `S90`'s implementation)
+
+**What this PR cost the `real.rs` `Bounds` block, said out loud, in the
+place the section above says it out loud.** #875 shipped `real.rs`
+byte-identical to `main` after finding its first draft grew the block
+`236 → 246`. **This PR grows it `236 → 249`, +13 lines (+5.5%)** —
+measured the same way, as the contiguous `///` block above `pub trait
+Bounds`. That is a real cost against **`S85`**, which `H-c` owns in wave
+2, and it is disclosed rather than absorbed. Reduced from **+29** during
+review by cutting every restatement the block did not need: the "which
+door tightens" rule points at `geom::projection`'s `mid` instead of
+repeating it, and the allowlist's chart_region entry went back to being
+a pointer. **What is left is not compressible without dropping content
+that belongs here** — an open question of this rule's own (#643's
+`separation` half) answered in the rule, and two corrections to entries
+that had become false. A doc block that may not grow to answer a
+question posed inside it is not a doc block, and `S85`'s subject is the
+block's *undirected* growth, not its content.
+
+#875 wrote the census and the corrected mathematics; it left the doors
+open. **`{NurbsCurve2, NurbsCurve3, NurbsSurface}::{project,
+project_from_seed}` now bound `T: CertifiedBounds`**, so the wrong
+tangent is UNREACHABLE rather than fixed — **#874 stays open** for the
+fix that would make it right (carry `dt*/dp` through the
+implicit-function theorem), and the tightening is one of the three
+dispositions that issue lists, taken structurally.
+
+**`project_seed` and the box constructors are deliberately NOT
+tightened** — the census table above already gives each its verdict and
+its reason, and `geom/src/projection.rs`'s `mid` carries the rule they
+share. **The bound follows the defect, not the class of the bound**, so
+a door whose freeze costs no derivative keeps the sole bracket bound
+even though its signature looks identical to one that tightened.
+
+`geom/tests/dual_foot_tangent.rs` survives the eviction with its subject
+changed: it now measures the TRUE derivatives by central difference at
+`f64` — the numbers a #874 fix must reproduce — and records what
+`Dual64` reported as prose, because that half can no longer be executed
+in-tree. The eviction itself is pinned by `compile_fail,E0277` rows in
+`geom/src/projection.rs`'s module docs, which is where a doctest is
+actually collected.
+
 ### Handed off, not taken
 
 - **Track G's G4** (`crates/profile/`): `fillet_select.rs::nearest_joint`
@@ -10391,6 +10433,8 @@ closed"*. This one is decided-and-open.
 **Verdict: ANSWERED — Evan, 2026-08-21: *"tightening to `CertifiedBounds` works at least for now."* Answer (4).** The fillet seam's three public entry points take `<T: Decide + CertifiedBounds>`, which makes an external `Dual64` instantiation a **compile error** rather than a thing an audit has to keep being true about. *"At least for now"* is part of the ruling and is recorded as such: this closes the seam, it does not settle whether a fillet battery should ever be differentiable.
 
 **What the ruling does NOT do — and the distinction is Evan's, drawn on the evidence:** it does **not** delete the four lane traits. `CertifiedBounds` refuses at the **function**; a lane trait refuses at a **sub-operation inside a function that has non-certifying work to do**, and no bound on a whole function can say *"this arm needs certification, the rest does not"*. All four lane traits gate mixed passes, and `topo/tests/geometric_cube.rs:236` calls `validate_geometric` at `Dual64` and asserts it **succeeds** — the quadrature arm declining internally while the rest genuinely validates, after which every certificate's value channel is compared bitwise to the `f64` build. Bounding that pass on `CertifiedBounds` would not harden it; it would delete `Body<Dual64>`'s ability to go through a validation pass at all. **The doors tighten; the passes keep their lanes.** Full ruling and its scope: `docs/SMELL-H-LOG.md`, **H-R3**.
+
+**Implemented in two PRs, split so a decision flagged *"at least for now"* is independently revertible.** **#886** took `topo::chart_region_overlap` and `geom`'s two projection doors: no capability lost, and a wrong answer (#874) made unreachable. **#883** carries the `sweep/fillet` third, which prices one — `Filleted<T>` carries a `Body<T>`, so a fillet stops being differentiable — and it is **open with Evan**, because implementing it turned up `fillet_edges` reachable from `editor_core::eval::evaluate`, a mixed pass. **This sentence is the one home for the split; #883 amends it in place rather than adding its own.**
 
 *(Asked by Track H on claiming, 2026-08-21; the record of the question is below and in PR #867.)*
 
@@ -14391,6 +14435,77 @@ postcondition does not say. `Brk` is the one that may need more than a
 doc link: it is a bracket carrier with no certified door, so the question
 of whether it should have one is a design question, not a doc edit.
 
+## S213. `real.rs` credits the M7-8 lane with a technique it does not use, and the false half is the generalisable one
+
+**Raised by H-g on implementing `S90`'s ruling.** Drawn from Track H's
+`S210`–`S229` block after re-deriving against `main`, which is what the
+track's constitution asked for and which turned out not to be a defence:
+H-e minted `S213` for a different subject on an unmerged branch at the
+same time, and neither lane could see the other. The collision was
+resolved by the orchestrator, who now **allocates** Track H's numbers in
+`docs/SMELL-H-LOG.md` rather than lanes drawing them — this row keeps
+`S213`.
+
+`crates/geom-core/src/real.rs`, the M7-8 entry of the `Bounds` scope
+rule, says of `geom_brep::EdgeNurbsLane`:
+
+> *"…it is precisely what keeps `Bounds` out of `topo`'s signatures: the
+> attach and validate doors take the lane as an injected function, so no
+> `topo` API grows a bracket bound."*
+
+**The second clause is false as a description of the technique.** What
+`topo/src/euler.rs:2173-2199` actually does is open a **separate door**
+carrying the lane bound on its own impl block —
+
+```rust
+impl<T: geom_brep::EdgeNurbsLane> Body<T> {
+    pub fn set_edge_curve_nurbs_lane(...) {
+        self.set_edge_curve_via(edge, curve, Self::certify_edge_spec_nurbs_lane)
+    }
+}
+```
+
+— and the `_via(..., f)` injection is how the shared machinery is
+parameterised *behind* that door, not how the bound is avoided. The
+euler.rs comment beside it is accurate and says the opposite of the
+real.rs sentence: *"Raising the whole Euler surface to that bound would
+push it through hundreds of `T: Decide` signatures … so the lane is a
+SEPARATE DOOR onto the same shared machinery."* **Injection moved the
+bound onto a narrower signature; it never removed one.**
+
+**Why this is a finding and not a typo.** The true half — no *default*
+`topo` door grows a bracket bound — is a claim about this repo's API.
+The false half reads as a claim about the *technique*, and that is what
+a reader carries off: *injection avoids a bound*. It did exactly that
+here. Implementing `S90`'s ruling turned up a door reachable from
+`editor_core::eval::evaluate`, and the lane went to its orchestrator
+offering "function injection" as an option that keeps the bound off
+`evaluate` — sourced from this sentence — which cost a round trip
+before reading `euler.rs` showed there is no such technique in the tree.
+A ratified doc that misdescribes a mechanism is worse than one that
+omits it, because the omission does not get quoted.
+
+**The fix** is one sentence, and it is in H-g's PR: say that the lane is
+a separate door whose own impl block carries the bound, and that
+injection parameterises the machinery behind it.
+
+**The sentence says "the attach AND VALIDATE doors", and the validate
+half is a second instance by a different mechanism** — stated here
+because a fence that covers only the half being fixed is the S8 failure
+mode. `topo::validate_geometric<T: crate::props::PropsQuadLane>` carries
+the obligation on its own signature too, and it reaches there by
+SUPERTRAIT: `PropsQuadLane: … + geom_brep::EdgeNurbsLane`. Nothing is
+injected. That spelling is the one `bounds-allowlist.sh`'s **KNOWN GAP
+2** names as invisible to the gate's grep, so this half is both a
+mis-description and a bound the instrument cannot see — a worse pairing
+than the attach half, and NOT fixed by the one-sentence correction,
+which only stops the doc claiming a technique. **Left open deliberately;
+a taker should read it beside KNOWN GAP 2 rather than as a doc edit.**
+
+**What is NOT claimed:** that the other three lanes' entries
+misdescribe themselves — they were read and they do not. This is one
+sentence about one lane, with two doors under it.
+
 ## S215. The tree's only oblique-axis bit-exact rotation test cannot fail for a change inside the rotation
 
 **Raised by H-e (#885) on closing D109(a)**, out of Track H's `S210`–`S229`
@@ -14460,6 +14575,100 @@ and the doc note — not the whole gap.
 **Ownership.** `editor-core/` is in **neither Track H's nor Track I's scope**,
 so this row has no home track today — the same shape as `S230`/`S231`. Recorded
 rather than taken.
+
+## S216. The repo has ~39 `compile_fail` rows and not one verifies what it claims
+
+**Number allocated by the Track H orchestrator** (`docs/SMELL-H-LOG.md`),
+not drawn from the block by this lane: `main` cannot see an unmerged
+sibling branch, so re-deriving against it is not a defence between two
+open lanes inside one track. `S213` is this lane's; `S214` and `S215`
+were held elsewhere when this was written.
+
+**One finding, two halves, found six hours apart by two lanes, and
+neither half is visible from the other.**
+
+| where | rows | what is wrong |
+|---|---|---|
+| `crates/*/src/` (library targets) | **36**, of which **28 carry an error code** | collected and run, but **the error code is never compared to anything** |
+| `crates/*/tests/` (integration targets) | **11** | **never collected at all** — `S214`, which is where that half is recorded |
+
+**Read the two together or neither is sized right.** `S214`'s rows are
+inert evidence that reads as executable; this half's rows execute but
+verify less than they say. The union is that **no `compile_fail` row in
+this repo currently checks its own stated reason.**
+
+**Raised by H-g on review of #886**, and found in this lane's own new
+rows, which is where it should be read from: the lane wrote *"a mistyped
+path reds rather than passes"* in a PR body, and that sentence was false
+about every `compile_fail` row in the repo.
+
+**The measurement.** Two rows planted in `crates/geom/src/projection.rs`
+on toolchain 1.97.0:
+
+| annotation | what it actually emits |
+|---|---|
+| `compile_fail,E0277` | `E0308` (type mismatch) |
+| `compile_fail,E0308` | `E0425` (undefined symbol) |
+
+`cargo test --doc -p geom`: **`4 passed; 0 failed`**, no warning, no
+diagnostic. **The code after the comma is not compared to anything.**
+Reproduced independently by the reviewer and by the lane.
+
+**The population of this half.** 36 `compile_fail` rows across the
+library targets, of which **28 carry an error code** — 10 `E0599`, 9
+`E0277`, 7 `E0308`, one `E0451`, one `E0382` — spread over 9 files.
+Every one of the 28 asserts *"this fails, and here is why"* and delivers
+only *"this fails"*. The 8 uncoded rows claim less and therefore
+misstate nothing, but they verify no more.
+
+**Why that gap is not academic.** `compile_fail` is satisfied by a
+**typo**. A row that stops compiling because an item was renamed, a path
+went stale, or a feature gate moved is indistinguishable from a row that
+stops compiling because the guarantee it pins is still holding — and the
+green is the same either way. These rows are load-bearing: they are the
+only in-tree evidence for the sealed-trait matrix
+(`profile/src/path.rs`), the key-type discipline (`topo/src/entity.rs`,
+`body.rs`), and now the `CertifiedBounds` evictions (#886). Each is a
+guarantee whose test cannot fail for the right reason.
+
+**The other half, `S214`**, is eleven rows in
+`geom-core/tests/{review_m0_pr2,review_m0_pr3}.rs` that rustdoc never
+gathers, because it collects doctests only from targets with
+`doctest = true` and an integration-test target is not one. Recorded
+there, not restated here.
+
+**THE FLOOR, and it is the part that changes what a fixer should do.**
+Correcting every annotation does not close this, because for an
+**inherent method no annotation exists that would distinguish the proof
+from a typo.** `c.project(p)` at an evicted scalar emits `E0599`
+(*"the method exists but its trait bounds were not satisfied"*), and
+`c.projekt(p)` — a misspelling — emits `E0599` too. Only the **free
+function** case can be pinned by code: `E0277` carrying *"required by a
+bound in …"*, which is what `topo`'s `chart_region_overlap` row emits
+and is why that one row is genuinely sound. So the 28 rows split again,
+into *"could be pinned if the annotation were checked"* and *"could not
+be pinned by any annotation."*
+
+**Whoever takes this decides what the rows are FOR before deciding how
+to spell them.** Annotating the inherent-method rows correctly still
+documents the obligation and is worth doing — but **it buys no
+verification**, and a sweep that stops there and reports the class
+closed leaves a worse state than today, because the rows would then look
+checked.
+
+**What a real closure needs** is machinery, not a sweep: `trybuild`
+(which compares stderr, not a code) or a gate that extracts each row,
+compiles it, and matches the emitted code against the annotation.
+Neither is in the tree — the repo has no `trybuild` dependency. **Not
+takeable as a doc edit**, and sized here so the next lane does not start
+one.
+
+**What is NOT claimed:** that any of the 28 rows is currently passing
+for the wrong reason. They were not audited one by one, and #886's three
+were each confirmed to fail for their stated obligation and to go green
+under `Dual64`→`f64`. The finding is that **nothing would notice if one
+started passing for the wrong reason**, which is a statement about the
+instrument.
 
 # §A. Where I would start
 
