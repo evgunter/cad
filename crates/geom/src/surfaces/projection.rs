@@ -72,6 +72,14 @@ use crate::surfaces::NurbsSurface;
 /// A converged surface foot point WITH its certified residuals (C2.1;
 /// see the module docs' honesty section — the consumer bands all three
 /// together, and this type exists so it *can*).
+///
+/// **At `T = Dual`, three of these fields carry a partial derivative and
+/// not a total one — issue #874.** `u` and `v` are selected as `f64` and
+/// frozen, so `foot`, `orthogonality_u` and `orthogonality_v` are
+/// differentiated at fixed `(u*, v*)` and are short by the terms a frozen
+/// parameter cannot produce. `distance` is unaffected, for the curve
+/// half's reason in both directions. Every VALUE channel is the plain-`T`
+/// run's bit-identically (D9); only the tangents are at stake.
 #[derive(Clone, Copy, Debug)]
 pub struct SurfaceProjection<T: Real> {
     /// The foot parameter `u*` (inside the u knot domain) — **`f64`

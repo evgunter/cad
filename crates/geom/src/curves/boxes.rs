@@ -10,10 +10,17 @@
 //! `bvh`'s crate docs) and each constructor sits next to the invariant
 //! it cites.
 //!
-//! This is certified-box driver code, an allowlisted [`Bounds`] seam
-//! (ratified 2026-07-29 — see geom-core `real.rs`, Bounds scope
+//! This is certified-box driver code, a **sole**-bound [`Bounds`] seam
+//! under the 2026-07-29 amendment (geom-core `real.rs`, Bounds scope
 //! rule): every scalar enters as its `[lo(), hi()]` bracket, poison
 //! (NaN) flows to the poison box, which never prunes.
+//!
+//! **Not "allowlisted", which is what this said before.** The amendment
+//! ratifies the box constructors to write the COMPOUND `Decide + Bounds`
+//! form; these write the sole form, which needs no ratification, so
+//! `scripts/gates/bounds-allowlist.sh` neither lists this file nor is
+//! able to see it — a sole bracket bound is its planted must-not-fire
+//! case. The rule covers this module; the gate does not.
 
 use bvh::Aabb;
 use geom_core::{Bounds, Point3};

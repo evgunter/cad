@@ -97,6 +97,16 @@ macro_rules! nurbs_project {
         /// distance, so a bad projection cannot launder a bad cache —
         /// the consumer re-checks both through its own band machinery;
         /// see the module docs' honesty section).
+        ///
+        /// **At `T = Dual`, two of these fields carry a partial
+        /// derivative and not a total one — issue #874.** `t` is
+        /// selected as `f64` and frozen, so `foot` and `orthogonality`
+        /// are differentiated at fixed `t*` and are short by the
+        /// `C′(t*)·dt*/dp` term. `distance` is unaffected: at a
+        /// converged foot the orthogonality condition IS the vanishing
+        /// of that term's coefficient, and at a clamped domain-end foot
+        /// `dt*/dp` is itself zero. Every VALUE channel is the plain-`T`
+        /// run's bit-identically (D9); only the tangents are at stake.
         #[derive(Clone, Copy, Debug)]
         pub struct $Projection<T: Real> {
             /// The foot parameter `t*` (inside the knot domain) —

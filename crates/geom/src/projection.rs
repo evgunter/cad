@@ -108,6 +108,16 @@ pub const PROJECT_EPS_COSINE: f64 = 1e-12;
 /// The one other departure from the identity is `mid(-0.0) = +0.0`;
 /// every consumer here either takes `.abs()` of the result or divides
 /// it into a difference that is insensitive to the sign of zero.
+///
+/// **At a dual scalar this is where the derivative channel leaves.**
+/// `Bounds for Dual` is the value channel's bracket with the tangent
+/// discarded, so `mid` returns an `f64` that both halves then FREEZE
+/// into the iteration and into the returned foot parameter. The value
+/// channel is unaffected — it is the plain-`T` run's bit-identically
+/// (D9) — but every quantity the frozen parameter feeds carries a
+/// PARTIAL derivative at that parameter rather than a total one. The
+/// two `Projection` types say which of their fields that reaches; the
+/// defect and its dispositions are issue #874.
 pub(crate) fn mid<T: Bounds>(v: T) -> f64 {
     let (lo, hi) = (v.lo(), v.hi());
     lo + 0.5 * (hi - lo)

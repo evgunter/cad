@@ -785,9 +785,23 @@ where
 /// and this impl does not change that: every C9-ring door is bounded by it
 /// and stays uninstantiable at a dual. What opens is the bracket half —
 /// boxes, pruning, and the `f64` margin payloads a typed refusal reports.
-/// One `Decide + Bounds` door *grants* without that guard
-/// (`topo::separation`, sound at a dual by delegation); the scope rule in
-/// `real.rs` is the home for both that and the fillet seam's obligation.
+/// Those three share the property that makes delegation sufficient: the
+/// bracket read is **terminal**, so a dual run's answer is the base
+/// scalar's answer and there is nothing further to establish.
+///
+/// **A bracket read that is FED BACK is a fourth kind, and delegation is
+/// not an argument about it.** When the `f64` a bracket yields re-enters
+/// the computation — a selected parameter frozen into the rest of the
+/// program — the value channel is still the plain run's and the TANGENT
+/// is a partial at the frozen value. `geom`'s projection lane is the live
+/// instance and is issue #874. Written here because this paragraph's
+/// three-item list is what made that class invisible; the distinction
+/// itself, and the census behind it, live once in `real.rs`'s scope rule.
+///
+/// One `Decide + Bounds` door *grants* without the `CertifiedEnclosure`
+/// guard (`topo::separation`, sound at a dual by delegation); the scope
+/// rule in `real.rs` is the home for that, for the fillet seam's
+/// obligation and for the sole-bound class above.
 ///
 /// # On the spelling
 ///
