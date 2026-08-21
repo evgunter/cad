@@ -31,20 +31,25 @@
 //! two corners of the same mesh vertex is degenerate in 3-D and is
 //! dropped, which collapses the strip along the pole side into a fan
 //! around the pole (one dropped triangle per collapsed side; its two
-//! non-collapsed edges become the identified fan edges — manifoldness
-//! is re-checked by the mesh validator).
+//! non-collapsed edges become the identified fan edges).
 //!
 //! **That count — ONE dropped triangle per collapsed side — is a
 //! claim about the grid, not a theorem** (issue #678). It holds only
-//! while the interior grid SEPARATES the two pole entries, and
-//! `nu == 2` does not: the single interior column at `u = (u0+u1)/2`
-//! is equidistant from both, the CDT fans both of them over it, and
-//! the identified edge `(pole, column)` is then used FOUR times —
-//! silently, because `tessellate` does not run the validator.
-//! [`pole_columns`] is what makes the premise true (it floors `nu` at
-//! 3 on a walk carrying a pole), and a `debug_assert` over the
-//! emitted patch re-derives the conclusion (D2 addendum row 5). Read
-//! the sentence above as conditional on both.
+//! while the interior grid SEPARATES the two pole entries;
+//! [`pole_columns`] is what makes that true and carries the argument,
+//! including the one column count that falsifies it.
+//!
+//! **The two things that hold it up are not in the same builds.** The
+//! floor is three lines and runs everywhere. The `debug_assert` in
+//! [`tessellate_curved`]'s emit pass that re-derives the conclusion
+//! over the patch (D2 addendum row 5) is `#[cfg(debug_assertions)]`,
+//! and `tessellate` does not run [`crate::validate::check_mesh`] — so
+//! **in a release build the floor is the entire guard**, for a class
+//! whose failure is a *silently* non-watertight mesh returned as `Ok`.
+//! Read the sentence above as conditional on the floor in every build
+//! and on the re-derivation only in debug. Whether release should pay
+//! it is an open question for Evan, priced at
+//! `SMELL-SCAN-2026-08.md` **S65** and not settled here.
 //!
 //! Grid sizing (heuristic; the certificates are the guarantee), from
 //! δ_s = δ/2 and φ = [`crate::sizing::sagitta_step`]:

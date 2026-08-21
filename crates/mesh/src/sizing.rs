@@ -69,35 +69,74 @@
 use crate::types::TessellateError;
 
 /// The call's tolerance bundle: δ (the promise), δ_s = δ/2 (sizing),
-/// and the run's kernel ε — never sizing, and never a value the mesh
-/// carries. ε reaches three places from here and no more: pole/apex
-/// vertex identification in [`crate::walk`]; the curved lane's banded
-/// domain guard, which only chooses whether to REFUSE; and the
-/// per-triangle certificate assertion in [`crate::trimmed`]'s review
-/// probe, which is absent from a default build.
+/// and the run's kernel ε.
 ///
-/// **No consumer SNAPS a value.** The one that did — the loop-closure
-/// snap — is gone (S22); the domain guard only chooses whether to
-/// refuse, and the probe assertion emits nothing. That is the exact
-/// claim, and it is weaker than "ε cannot move an emitted coordinate",
-/// which is FALSE as stated: pole/apex identification is a
-/// CLASSIFICATION, and its outcome substitutes the pole's exact `v`
-/// for `Chart::v_of(p)` and emits TWO `pole: true` polygon entries
-/// instead of one. Both reach the UV polygon, hence the bounding box,
-/// hence the curved lane's interior grid and the pole fan's triangles.
-/// So an ε that flipped that classification WOULD move emitted
-/// coordinates. What is true is that nothing in the tree flips it: no
-/// in-tree body puts a non-pole vertex within any of the suite's ε
-/// rows of a pole. Whether one is REACHABLE is not established —
-/// `revolve` would very likely refuse such a sliver, and a STEP import
-/// is the plausible route in — so the ε-dependence here is structural
-/// and UNEXERCISED, which is not the same as absent or unreachable.
+/// # ε is never SIZING, and that is the checkable half
+///
+/// No step, count or schedule in this crate takes ε as an input.
+/// [`sagitta_step`], [`ellipse_step`], [`curvature_step`],
+/// [`torus_grid_step`], [`cap_angular`] and [`ceil_count`] are
+/// functions of δ_s and geometry; `eps` appears nowhere in this module
+/// but on the field below. That is the claim D9 and the memo-key
+/// contract are read through, and it is checked by reading the
+/// signatures rather than by trusting a sentence.
+///
+/// # What ε IS here is a bar, and the bars come in two kinds
+///
+/// **Neither kind SNAPS a value** — nothing in this crate replaces a
+/// coordinate with a nearby one because ε says they are close.
+///
+/// - **Bars that only REFUSE or REPORT**, and cannot move a
+///   coordinate whichever way they answer: [`crate::curved`]'s banded
+///   swept-rectangle domain guard (refuses the face), the
+///   [`crate::walk::gap_is_noise`] detectors (report and gate
+///   nothing), and [`crate::trimmed`]'s per-triangle certificate
+///   probe (asserts, and is absent from a default build).
+/// - **Bars that CLASSIFY**, whose answer selects which `f64` an
+///   emitted entry carries: pole/apex vertex identification in
+///   [`crate::walk`], and that module's `iso_side_starts` run
+///   grouping, which decides whether a traversal opens an iso side or
+///   repeats its predecessor's coordinate bitwise.
+///
+/// So *"ε cannot move an emitted coordinate"* is FALSE as stated, and
+/// the second kind is why. Pole identification substitutes the pole's
+/// exact `v` for `Chart::v_of(p)` and emits TWO `pole: true` polygon
+/// entries instead of one; both reach the UV polygon, hence the
+/// bounding box, hence the interior grid and the pole fan's triangles.
+/// `iso_side_starts` decides which of two analytically-equal columns a
+/// side's entries carry.
+///
+/// **What is true is that nothing in the tree flips either
+/// classification**: no in-tree body puts a non-pole vertex within any
+/// of the suite's ε rows of a pole, and no swept junction has landed
+/// at `0 < radial <= eps` (the sweep is recorded on
+/// `walk::iso_side_starts`). Whether one is REACHABLE is not
+/// established — `revolve` would very likely refuse such a sliver, and
+/// a STEP import is the plausible route in — so the ε-dependence here
+/// is structural and UNEXERCISED, which is not the same as absent or
+/// unreachable. Mesh structure is a function of (body, δ) alone **for
+/// every body this build can mint**, and that qualifier is the whole
+/// difference between the memo-key contract and a theorem.
+///
+/// # Deliberately not a roster of read sites
+///
+/// A list of *where* ε is read would be the natural shape for this doc
+/// and it is not used, because nothing can keep one true. Source
+/// locations are guardable only by a source-text walk; the shared one
+/// (`topo`'s `fixtures::code_only`) is `pub(crate)` and does not reach
+/// this crate, and a private copy here would be the thirteenth
+/// unshared such walk in the tree (`SMELL-SCAN-2026-08.md` S117). A
+/// count also answers the wrong question: what a reader of D9 needs is
+/// what a read may DO, which is the two kinds above, each argued at
+/// its own site. `rg eps crates/mesh/src` is the
+/// enumeration; this doc is the invariant.
 pub(crate) struct Tol {
     /// The chordal tolerance δ.
     pub delta: f64,
     /// The sizing target δ_s = δ/2.
     pub delta_s: f64,
-    /// The kernel ε (pole/apex identification; the domain guard's band).
+    /// The kernel ε. Never sizing; a bar of one of the two kinds
+    /// above, at every site that reads it.
     pub eps: f64,
 }
 

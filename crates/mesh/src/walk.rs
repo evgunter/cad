@@ -549,9 +549,17 @@ fn unwrap_tie(raw: f64, prev: f64, anchor: f64) -> f64 {
 ///   float-path twins the way the closure's two paths were; the run's
 ///   first coordinate is used for all of them, and these
 ///   `debug_assert!`s report — and gate nothing on — how far the
-///   discarded value was. `iso_side_starts` does NOT read this
-///   predicate: which traversals share a side is decided structurally,
-///   not by a band (see its docs).
+///   discarded value was.
+///
+/// [`iso_side_starts`] is NOT in that list, and the distinction is
+/// narrow enough to be worth stating rather than leaving to the
+/// absence: it does not read THIS PREDICATE — which traversals share a
+/// side is decided by kind and by a pole test, not by a gap-against-a-
+/// lever band — but it does read **ε**, directly, and its read DECIDES
+/// which `f64` the entries of a side carry. A reader taking the four
+/// consumers above for the crate's ε ledger would be short by one.
+/// [`crate::sizing::Tol`] carries the ledger; this list is
+/// `gap_is_noise`'s callers and nothing wider.
 ///
 /// It is deliberately NOT named for the closure any more: it was
 /// `closure_is_snappable` while a snap read it, and three of its four
@@ -580,7 +588,11 @@ fn unwrap_tie(raw: f64, prev: f64, anchor: f64) -> f64 {
 ///   `step-import`, and no test in this repo tessellates the wild or
 ///   FreeCAD corpora. The input class these are about is untested by
 ///   construction, so "it fires nowhere" means nowhere anything looks.
-///   A typed warning channel would dominate all three; there is none.
+///   A typed warning channel would dominate all three; there is none,
+///   and building one is **issue #868** — the schedule this deviation
+///   owes under Q6, rather than a note that it is deferred. Until that
+///   lands the deviation stands as written, and what it costs is
+///   stated in this same list.
 pub(crate) fn gap_is_noise(gap: f64, lever: f64, eps: f64) -> bool {
     gap * lever < eps
 }
@@ -675,8 +687,9 @@ pub(crate) fn gap_is_noise(gap: f64, lever: f64, eps: f64) -> bool {
 ///   refuse typed. Nothing above 3.6e-9 rad has ever been seen, so the
 ///   practical risk is small — but it is a trade, not a free win.
 ///
-/// A typed warning channel would dominate both; there is none, which
-/// is why this is where it is.
+/// A typed warning channel would dominate both; there is none, and
+/// building one is **issue #868** — which is why this is where it is,
+/// and what would move it.
 fn closing_column(u_raw: f64, anchor: f64, radius: f64, eps: f64) -> f64 {
     let carrier = unwrap_near(u_raw, anchor);
     let gap = (carrier - anchor).abs();
