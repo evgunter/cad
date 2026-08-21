@@ -520,13 +520,13 @@ jobs:
   # EACH KEEPS ITS OWN STEP, with the step names unchanged, because that
   # is what a failure is read by: a red run still says `rustfmt` or
   # `rustdoc (gate)`, matching the rows of the same names in
-  # local-scripts/ci-local.sh. None of the three is on the critical path
-  # (this job finished at 1.4 min of a 13.6 min run against a `build +
-  # archive (interval)` that takes 11.4), so the serialisation costs no
-  # wall-clock for the run as a whole.
+  # local-scripts/ci-local.sh. None of the three is on the critical path:
+  # measured with all three rows the job runs 103 s, against a `build +
+  # archive (interval)` that is ~88% of a ~13 min critical path, so the
+  # serialisation costs no wall-clock for the run as a whole.
   #
-  # NOT MERGED IN, deliberately: `discipline`, whose ~23 s would push the
-  # total past a minute boundary and buy nothing; and `docs-only`, which
+  # NOT MERGED IN, deliberately: `discipline`, whose ~30 s would push the
+  # 103 s total past the 2-minute boundary and buy nothing; and `docs-only`, which
   # carries no `if` because it is the green check a docs-tier run reports
   # when every other job skips — the opposite condition to this job's.
   #
@@ -598,14 +598,19 @@ jobs:
       #
       #   * a job of its own pays set-up + checkout + toolchain + cache
       #     restore (26 s measured on this workflow's light jobs) BEFORE
-      #     it compiles anything, so ~26 + ~50 = ~76 s, which cannot round
+      #     it compiles anything, so 26 + 42 = ~68 s, which cannot round
       #     to less than 2 billed minutes, plus a concurrent runner slot;
       #   * a step here pays only the incremental compile, so it adds at
       #     most 1 billed minute and adds NOTHING at all whenever this job
       #     still lands under the same boundary.
       #
-      # So the guard is worth 1-2 billed minutes per PR run in this seat
-      # rather than that one, which is the whole of Evan's constraint.
+      # MEASURED, hosted, tier `all`: this job is 61 s without the guard
+      # and 103 s with it (target install 3, leg 1 14, leg 2 6, leg 3 19)
+      # — both inside 2 billed minutes, so the guard bills ZERO here while
+      # a job of its own would bill 2. The bound that always holds is <= 1;
+      # the 0 depends on this job still landing under the boundary, which
+      # is stable precisely BECAUSE all three of its rows are unscoped.
+      # `clippy` measured 99 s on the same run and would have cost +1.
       # NOTHING HERE DEPENDS ON sccache: that experiment (#852) is wired
       # into `build` and `build-interval` only, and could be withdrawn by
       # setting vars.SCCACHE = '0' without moving any number above.
