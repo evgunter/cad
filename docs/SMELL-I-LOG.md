@@ -122,7 +122,7 @@ apart doing exactly that.
 | number | spent by | for |
 |---|---|---|
 | **S231** | **I-c** (#872) | `mesh/src/chords.rs`'s *"These tightenings are the only places adjacent surfaces enter chord counts"* — S64's shape, in a file inside Track I's crate scope but in **none** of its five lanes' file sets. **Recorded unowned**, and deliberately not routed to I-e: widening a running lane's brief by writing a row at it is how a lane discovers its scope grew after dispatch |
-| **S230** | **I-b** (#873) | S60's class — certified widths with no ceiling — in `editor-core/tests/`, `pncad-py/tests/` and `sweep/tests/` files outside I-b's own three: a containment-only `volume_pad` row on the same tilted-cut fixture that never reads `area_pad`, a python row bounding `volume_pad` at 1e-6 while saying nothing about an `area_pad` measured at **0.397 m²** on the same loft, and two more found by executing I-b's own declared blind spot. **Recorded as unrouted, and it says so** |
+| **S230** | **I-b** (#873) | S60's class — certified widths with no ceiling — in `editor-core/tests/`, `pncad-py/tests/` and `sweep/tests/` files outside I-b's own three: a containment-only `volume_pad` row on the same tilted-cut fixture that never reads `area_pad`, a python row bounding `volume_pad` at 1e-6 while saying nothing about an `area_pad` measured at **0.199 m²** on the same loft (a bracket 0.397 m² wide), and an `Interval` union row in the same crate. **Recorded as unrouted, and it says so.** Three further members, all in `crates/sweep/tests/`, were fixed in #873 rather than recorded — one of them found by executing I-b's own declared blind spot |
 
 ---
 

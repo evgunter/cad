@@ -4493,11 +4493,13 @@ obligation, and containment-plus-positivity is monotone in the wrong direction
 — every certified **width** needs a row that goes red when it grows.
 
 **Re-opened as S60 and closed there in two pieces.** The acceptance row this
-finding names now carries a ceiling, and so does the loft site (S60's record
-has the numbers). **The metering half is still open, as issue #870** — this
-finding's first paragraph remains an accurate description of the kernel, and
-#870 measures what it costs. Do not read S26 as closed on the strength of
-S60's `FIXED by`.
+finding names now pins `area_pad` to the `volume_pad` the kernel does meter —
+an identity of the lane's arithmetic, so it needs no metering rule to state —
+and both it and the loft site carry outer ceilings (S60's record has the
+derivation and the numbers). **The metering half is still open, as issue
+#870** — this finding's first paragraph remains an accurate description of the
+kernel, and #870 measures what it costs. Do not read S26 as closed on the
+strength of S60's `FIXED by`.
 
 ## S27. `props/quad.rs` is four independent quadrature engines sharing a file
 
@@ -8217,54 +8219,61 @@ seam whose whole purpose is that widening it requires ratification.
 **What the sweep found, and did not close here:** **S124** and **S125**
 below.
 
-## S60. FIXED by #873 — S26's acceptance row now has a ceiling, and the unmetered enclosure is measured and filed
+## S60. FIXED by #873 — the area enclosure is pinned to the flux enclosure it rides on, and the unmetered kernel is measured and filed
 
-**The finding had two halves with different owners, and ruling I-R2 split
-them.** The acceptance row is style and landed here; the in-kernel metering is
-a kernel-logic proposal that **#472 deferred in writing** and it is now
-**issue #870**, carrying the measurement that makes it answerable rather than
-another re-derivation.
+**Ruling I-R2 split the finding.** The acceptance rows are style and landed
+here; the in-kernel metering is a kernel-logic proposal **#472 deferred in
+writing**, and it is now **issue #870**, carrying the measurement that makes it
+answerable. No kernel change.
 
-**The test half.** Both `area_pad` sites now carry a ceiling, so the certified
-width has something that goes red when it grows — S26's own stated lesson,
-which the fix pass applied to `volume_pad` and not to `area_pad`:
+**The row that reports the defect is a COUPLING, not a ceiling.** On
+`cylinder_cut_face`, `area = |r·A_s|` and `flux = r²·A_s + o·A⃗` share one
+signed UV area, and `o·A⃗` is a closed form entering flux alone. With
+`area_pad = width(area)/2` and `volume_pad = width(flux)/6` that makes
 
-- `sweep/tests/m5_pr11_quad_props.rs`, the below-half row: `area_pad <
-  3e-4·exact`, alongside the pre-existing positivity and containment.
-- `sweep/tests/m6_loft_body.rs`: `area_pad < 0.3 m²`, replacing `.is_finite()`.
+    area_pad ≤ (3/r)·volume_pad
 
-**Each ceiling is anchored on what its lane can structurally produce, not on a
-round number.** `cylinder_cut_face` refines a piece count until the *flux*
-meter converges, so its widest attainable area enclosure is its initial
-resolution unrefined — measured at 9.7e-5·exact, where CI's ε = 1e-6 leg
-already sits (it converges at round 0). The patch lane's width is
-resolution-driven and ε-invariant, exactly O(h) in `QUAD2_AREA_PIECES`, so its
-ceiling sits between the measured 0.199 m² and the 0.397 m² a single halving
-of that count produces. Both were demonstrated red by degrading the kernel
-locally: `QUAD2_AREA_PIECES` 64→32 reds the loft row, `QUAD_INIT_PIECES` 16→4
-reds the cut-half row on the ε = 1e-6 leg, and widening the returned area
-bracket by hand reds it at every ε.
+an identity of the lane's arithmetic — measured to hold within 5e-7 relative at
+every ε. `sweep/tests/m5_pr11_quad_props.rs` now asserts it, on **both** halves
+(the two areas are equal, and the previously untested `above` half is the wider
+of the two at ε = 1e-6). This is S26's complaint stated exactly: it goes red
+when the area bracket stops shrinking alongside the flux bracket the kernel
+*does* meter, rather than when the pad merely gets large; it bites identically
+on every ε leg; and **an area-only widening of 2 parts in 10⁹ turns it red**.
+It invents no metering rule, so #472's deferral is untouched — it transports a
+contract the kernel already enforces.
 
-**Deliberately NOT tightened past that.** A ceiling that tracked ε would be
-the metering rule #472 said needs its own proposal, arrived at through a test
-file. The ceilings pin today's behaviour and get out of the way of a fix.
+**Ceilings are the outer backstop, for the one class the pin cannot see** —
+both brackets widening together. `m5_pr11_quad_props.rs` carries
+`area_pad < 3e-4·exact`, measured to fire at a **449×** joint widening at
+default ε and at **2.05×** on the ε = 1e-6 leg, which is where the lane sits at
+its structural maximum. `m6_loft_body.rs` carries `area_pad < 0.3 m²` on the
+patch lane, whose width is resolution-driven and ε-invariant; it fires when
+`QUAD2_AREA_PIECES` halves.
 
-**The kernel half — #870, open.** `area.width()` is still read nowhere in
-`props/quad.rs`; `mean_boundary_displacement` still meters `flux.width()` only
-and still uses `(area.lo()+area.hi())/2` as a bare lever; `QUAD2_AREA_PIECES`
-is still fixed before the refinement rounds. #870 measures what that costs on
-one ordinary body: the loft's flux enclosure refines to **1.2e-14** relative
-while its area enclosure stays at **7.8e-3** — eleven orders apart, on the same
-body, because one is metered and the other is a denominator at a frozen
-resolution.
+**The anchor is a monotonicity, not one knob saturating.** Sweeping the piece
+count over 16..=4096 with the funnel forced to stop at round 0, the area
+half-width falls monotonically 3.05e-4 → 2.89e-9 and floors at ~2.9e-9 on
+accumulated rounding. Because the funnel's reachable set is `16·2^k`, the
+widest enclosure the lane can return is its initial count unrefined:
+**1.47e-4·exact** over both halves and all three ε legs.
 
-**The residue is a row, not a footnote.** Sweeping the class turned up two
-more certified widths with no ceiling, in `editor-core/tests/` and
-`pncad-py/tests/` — **S230**, recorded **unrouted**, because both crates are
-outside every live track's scope.
+**Four more members of the class, fixed in the same file set**: the loft's
+`Interval` row (folded both pads into its bracket and read neither),
+`m6_tube.rs`'s `Interval` row, `mass_props_interval.rs` (which widened its
+admitted band *by the enclosure's own width*), and `halves_sum_to_the_cylinder`
+(whose `+1e-9` slop was seven orders above the rounding scale its comment
+claimed, and whose band was 300× looser than the halves' actual agreement).
+**Three that no lane owns are S230**, recorded unrouted.
+
+**The kernel half — #870, open.** `area.width()` is read nowhere in
+`props/quad.rs`; the funnel meters `flux.width()` only; `QUAD2_AREA_PIECES` is
+fixed before the refinement rounds. #870 measures the cost on one ordinary
+body: the loft's flux enclosure refines to **1.2e-14** relative while its area
+enclosure stays at **7.8e-3**.
 
 **Verdict:** ACCEPTED, closed on the test half; the metering is #870, and the
-residue is S230.
+unrouted residue is S230.
 
 ## S61. FIXED by #798 — two gates were sited in a job that skips on the only change class that can break them
 
@@ -15247,7 +15256,7 @@ and the reasons they gesture at stay in the prose that already carries
 them. **Do not do half** — deleting some and keeping others is how
 this got here. **Row: D122.**
 
-## S230. Two more certified widths with no ceiling, in two crates no live track owns
+## S230. Certified widths with no ceiling, in crates no live track owns
 
 **Raised by lane I-b while closing S60 (#873).** The parent is **S26**, and
 the class is S26's own lesson stated as a rule: *every certified width needs a
@@ -15262,9 +15271,23 @@ degrading direction, which is the sharper and narrower thing.
 track. **Nobody is scheduled to fix this.** Recorded unrouted rather than
 implied-owned; a reader should not infer a lane from its presence here.
 
-Both members carry the numbers I-b measured, because the measurement is what
-makes them actionable. **Measured at `5d4b88ab`**, dev profile, x86_64 Linux,
-across CI's own ε matrix (`CAD_TOLERANCE_EPS` ∈ {default, 1e-6, 1e-12}).
+**The class is five live members, and this row is the two that had no owner.**
+The other three were in `crates/sweep/tests/`, which no lane owns either but
+which #873 was already editing, so it fixed them there: `m6_loft_body.rs`'s
+`Interval` row (folded both pads into its bracket and read neither),
+`m6_tube.rs`'s `Interval` row (containment only on a bracket whose width is the
+scalar's own, both quadrature pads being exactly zero on the closed-form torus
+lane), and `mass_props_interval.rs`, where the admitted band was widened *by
+the enclosure's own width* so every degradation satisfied the row twice over.
+**#873 found the last of those by executing a blind spot it had itself
+declared** — a width computed inline as `hi() - lo()` and never named — which
+is the argument for declaring them.
+
+Both members below carry the numbers I-b measured, because the measurement is
+what makes them actionable. **Measured at `5d4b88ab`**, dev profile, x86_64
+Linux, across CI's own ε matrix (`CAD_TOLERANCE_EPS` ∈ {default, 1e-6,
+1e-12}). Note the unit: `area_pad` and `volume_pad` are **half-widths** — the
+bracket is `value ± pad` — so each figure below is half the bracket it names.
 
 - **`crates/editor-core/tests/m5_pr11_corpus_curved.rs:75`** — containment
   only on `volume_pad`, and it never reads `area_pad` at all. It runs the
@@ -15284,9 +15307,18 @@ across CI's own ε matrix (`CAD_TOLERANCE_EPS` ∈ {default, 1e-6, 1e-12}).
   tolerance-driven. The Python door therefore reports a certified area of
   25.31 ± 0.20 m² with no row that would notice the pad growing.
 
-The kernel-side reason the second number is what it is — the area enclosure is
-never metered — is **issue #870**, not this row. This row is only about the
-missing ceilings.
+- **`crates/editor-core/tests/review_m5_pr9_doc_probe.rs:151`** — the curved
+  boolean's `Interval` union row, containment only on the volume enclosure,
+  with nothing bounding its width. Same crate as the first member and the same
+  disposition: out of every live track's ground.
+
+The kernel-side reason the loft's area half-width is what it is — the area
+enclosure is never metered — is **issue #870**, not this row. This row is only
+about the missing ceilings.
+
+**What would close it**: a ceiling on each, derived from a measurement, at the
+sites named. The two `editor-core` rows and the Python rows are three separate
+crates' test suites; nothing here is a kernel change.
 
 ---
 
@@ -15580,8 +15612,8 @@ waits on the other to start.**
 Recorded here so a reader of two PRs does not read them as one row.
 **I-a** = I1 minus S60, plus S112(d) (`props/{mod,curved}.rs`) — **adversarial**;
 **I-b** = I1's S60 alone (`props/quad.rs` + the two `sweep/tests/` rows) —
-**landed**, and its kernel half went to issue **#870** rather than into the
-diff (I-R2);
+**landed**, its kernel half went to issue **#870** rather than into the diff
+(I-R2), and its unrouted residue is **S230**;
 **I-c** = I2 plus I6's S115(d) and S116(g) (`mesh/` prose and the ε ledger);
 **I-d** = I4 **and** I5 together (`boolean/boxes.rs`'s module doc is one
 header, and I5 is the citation I4's paragraph leans on) — both rows leave
