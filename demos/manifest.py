@@ -19,8 +19,10 @@ Scope is `scenes.json`. The UV lane's `uv.json` has exactly one reader
 a format with one consumer would be the same mistake pointed the other
 way.
 
-`--selftest` checks the camera convention and the walk against
-synthetic manifests in both producers' shapes.
+Two script modes, both thin: `--selftest` checks the camera convention
+and the walk against synthetic manifests in both producers' shapes,
+and `--scene-names <outdir> [montage]` prints the manifest's scene
+names in order for `render.sh` to loop over.
 """
 
 import json
@@ -360,8 +362,36 @@ def _selftest():
     print("manifest selftest: ok")
 
 
+def _scene_names(argv):
+    """`render.sh`'s scene loop, as a mode of the reader rather than as
+    an inline `python -c` in the shell script.
+
+    It lived in the shell as a four-line snippet, which made it the one
+    consumer that reached this module through the CURRENT DIRECTORY
+    rather than through its own location -- `python -c` puts cwd on
+    `sys.path`, `python <script>` puts the script's directory there.
+    Both happened to work because `render.sh` cd's to `demos/` at the
+    top, two hundred lines above the snippet. As a mode here it is a
+    script like the others, so one mechanism covers every consumer that
+    can use one; `render_freecad.py` is the single exception and says
+    why at its own `sys.path` line.
+    """
+    if not argv or len(argv) > 2 or (len(argv) == 2 and argv[1] != "montage"):
+        raise SystemExit("usage: python manifest.py --scene-names <outdir> [montage]")
+    montage_only = len(argv) == 2
+    for scene in read_scenes(argv[0]):
+        if scene.montage or not montage_only:
+            print(scene.name)
+
+
 if __name__ == "__main__":
-    if sys.argv[1:] == ["--selftest"]:
+    mode, rest = (sys.argv[1:2] or [None])[0], sys.argv[2:]
+    if mode == "--selftest" and not rest:
         _selftest()
+    elif mode == "--scene-names":
+        _scene_names(rest)
     else:
-        raise SystemExit("usage: python manifest.py --selftest")
+        raise SystemExit(
+            "usage:  python manifest.py --selftest\n"
+            "        python manifest.py --scene-names <outdir> [montage]"
+        )

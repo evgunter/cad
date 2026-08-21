@@ -55,6 +55,15 @@ def orient(verts, axes):
 
     `axes` is the scene's world -> display spec from `manifest`, which
     is where the convention it encodes is defined.
+
+    This applies the spec rather than calling `manifest.apply_axes`,
+    which does the same thing for one 3-tuple: here the input is an
+    (n, 3, 3) array and the whole point is to move every vertex in one
+    numpy op. The two applications cannot disagree about the CAMERA,
+    which is what the convention is for -- both read the same spec, and
+    a sign or an axis lives only in the table. They could disagree
+    about how a spec is applied, which is arithmetic a reader can check
+    against the line above in full.
     """
     return np.stack([sign * verts[..., src] for src, sign in axes], axis=-1)
 
