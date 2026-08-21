@@ -192,8 +192,11 @@ pub enum ArcData<T: Real> {
 /// missing row is missing from all four, consistently and loudly, and
 /// an inconsistent pair is unwritable because there is no second place
 /// to write it. The round-9 exhaustiveness pressure rides the same
-/// table for free ([`ArcData`], the replay arms and the tags enumerate
-/// its rows by construction).
+/// table for free — the [`Step`] variants, the replay arms and the
+/// tags enumerate its rows by construction, so a site that must handle
+/// every [`ArcData`] mode is generated rather than kept in step by
+/// hand. [`ArcData`] itself is written out above and is not one of the
+/// four.
 ///
 /// # What the table does not reach
 ///
