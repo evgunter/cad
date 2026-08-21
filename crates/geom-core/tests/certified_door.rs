@@ -200,8 +200,8 @@ fn ring_poison_is_reached_by_arithmetic_not_only_by_construction() {
             RingInterval::from_bounds(1.0, 2.0) / RingInterval::point(0.0),
         ),
         (
-            "[0,0]*[0,inf]",
-            RingInterval::point(0.0) * RingInterval::from_bounds(0.0, f64::INFINITY),
+            "[0,1]*[0,inf]",
+            RingInterval::from_bounds(0.0, 1.0) * RingInterval::from_bounds(0.0, f64::INFINITY),
         ),
     ];
     for (tag, r) in derived {
