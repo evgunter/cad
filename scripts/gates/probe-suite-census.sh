@@ -277,6 +277,11 @@ gate_parse_args ${gate_args[@]+"${gate_args[@]}"}
 # (`crates/topo/tests/review_m3_pr2.rs` gates a single test) — with the
 # `probe` condition anywhere inside its parentheses.
 PROBE_GATE_RE='^[[:space:]]*#!?\[cfg\(.*feature = "probe".*\)\][[:space:]]*$'
+# The WHOLE-FILE spelling of the same predicate, derived from it rather
+# than written again: the disposition half needs to tell "no test in this
+# file runs" from "one item is gated and the rest run", and two hand-kept
+# regexes for one shape drift.
+FILE_GATE_RE=${PROBE_GATE_RE/'#!?'/'#!'}
 
 census_files() {
   find crates/*/tests -type f -name '*.rs' 2>/dev/null | sort |
@@ -555,7 +560,7 @@ gate() {
     [ -n "$suite" ] || continue
     dcrate=${suite#crates/}; dcrate=${dcrate%%/*}
     rest=${suite#crates/*/tests/}; dmod=${rest%.rs}
-    if grep -qE '^[[:space:]]*#!\[cfg\(.*feature = "probe".*\)\][[:space:]]*$' "$suite"; then
+    if grep -qE "$FILE_GATE_RE" "$suite"; then
       want_marker=$FILE_NOT_RUN_MARKER; other_marker=$ITEM_NOT_RUN_MARKER
       shape='every test in it is behind a whole-file `#![cfg(feature = "probe")]`'
     else
