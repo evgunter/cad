@@ -53,6 +53,24 @@ use test_utils::fuzz;
 // Oracles, re-derived rather than copied
 // ---------------------------------------------------------------------
 
+/// The break parameters `surface_curve_residual` is contracted to
+/// produce: the shared domain ends, the interior knots of **both**
+/// curves (the entry point merges them so every channel lands on one
+/// span structure), and every caller-supplied extra STRICTLY inside the
+/// domain. Deduplicated on exact `f64`, ascending. Domain ends, signed
+/// zeros, non-finites, out-of-domain values and repeats of a value
+/// already present contribute nothing.
+fn admitted_breaks(pcurve: &KnotVector, carrier: &KnotVector, extra: &[f64]) -> Vec<f64> {
+    let (lo, hi) = pcurve.domain();
+    let mut b: Vec<f64> = vec![lo, hi];
+    b.extend(pcurve.interior_knots().map(|(v, _)| v));
+    b.extend(carrier.interior_knots().map(|(v, _)| v));
+    b.extend(extra.iter().copied().filter(|&v| v > lo && v < hi));
+    b.sort_by(f64::total_cmp);
+    b.dedup();
+    b
+}
+
 /// The distinct interior knots with multiplicities, by **counting every
 /// equal interior entry** for each run-leading index. Shape-independent
 /// of a run-length walk: it would disagree with one if equal values were
@@ -807,6 +825,11 @@ fn caller_supplied_break_parameters_cannot_reach_the_unreachable() {
         lift(&[0.0, 0.2, 0.0, 0.1, 0.3, 0.1, 0.0, 0.1]),
     ];
 
+    // Interior knots the carrier owns and no `ck` below does, so the
+    // merge of the two sets is visible in the result's break list.
+    let ckc =
+        KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.25, 0.75, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+
     for (dname, ck) in [
         (
             "single span",
@@ -831,10 +854,21 @@ fn caller_supplied_break_parameters_cannot_reach_the_unreachable() {
             |scale: f64| -> Vec<f64> { (0..n).map(|i| scale * i as f64 / n as f64).collect() };
         let pw = vec![1.0; n];
         let px = vec![lift(&ramp(0.9)), lift(&ramp(0.8))];
-        let cx = vec![lift(&ramp(1.0)), lift(&ramp(0.5)), lift(&ramp(0.3))];
+        // The carrier carries a DIFFERENT interior knot set on the same
+        // domain, disjoint from every `ck` above. The entry point merges
+        // the two sets, so a fixture sharing one vector between the two
+        // curves makes half that merge unobservable: each side re-adds
+        // its own knots downstream, and dropping the merge changes
+        // nothing anyone can see.
+        let nc = ckc.control_count();
+        #[allow(clippy::cast_precision_loss)]
+        let cramp =
+            |scale: f64| -> Vec<f64> { (0..nc).map(|i| scale * i as f64 / nc as f64).collect() };
+        let cw = vec![1.0; nc];
+        let cx = vec![lift(&cramp(1.0)), lift(&cramp(0.5)), lift(&cramp(0.3))];
         let s = SurfaceRingData::new(&ku, &kv_s, &sw, &sx).unwrap();
         let pd = CurveRingData::new(&ck, &pw, &px).unwrap();
-        let cd = CurveRingData::new(&ck, &pw, &cx).unwrap();
+        let cd = CurveRingData::new(&ckc, &cw, &cx).unwrap();
 
         let one_ulp_in = f64::from_bits(1.0f64.to_bits() - 1);
         let extras: Vec<(&str, Vec<f64>)> = vec![
@@ -871,15 +905,24 @@ fn caller_supplied_break_parameters_cannot_reach_the_unreachable() {
                 ],
             ),
         ];
+        // The decomposition the extras are allowed to produce, derived
+        // from the contract rather than from the implementation: the
         for (ename, extra) in &extras {
-            let out = surface_curve_residual(&s, &pd, &cd, extra);
-            assert!(
-                out.is_ok(),
-                "{dname}/{ename}: the entry point refused a legal call"
+            let out = surface_curve_residual(&s, &pd, &cd, extra).unwrap_or_else(|e| {
+                panic!("{dname}/{ename}: the entry point refused a legal call: {e:?}")
+            });
+            // WHERE the spans were placed, not merely that a number
+            // came back: an extra that mislocated a span, or that was
+            // let through when it should have been filtered, moves this
+            // list while leaving the bound finite.
+            assert_eq!(
+                out.breaks(),
+                admitted_breaks(&ck, &ckc, extra),
+                "{dname}/{ename}: the extras landed a different break structure"
             );
             // The bound must still be a real number: an extra that
             // corrupted the break structure would show up as poison.
-            let sup = out.unwrap().sup_bound();
+            let sup = out.sup_bound();
             assert!(
                 sup.is_finite(),
                 "{dname}/{ename}: sup bound is {sup} — the extras corrupted the decomposition"

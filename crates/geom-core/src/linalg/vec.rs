@@ -299,8 +299,21 @@ impl<T: Real> Vec3<T> {
     /// Evaluation order (fixed, D9): `s = 1.copysign(n.z)`,
     /// `a = −1/(s + n.z)`, `b = (n.x·n.y)·a`, then
     /// `b1 = (1 + ((s·n.x)·n.x)·a, s·b, −(s·n.x))` and
-    /// `b2 = (b, s + (n.y·n.y)·a, −n.y)`, each component exactly as
-    /// parenthesized.
+    /// `b2 = (b, s + (n.y²)·a, −n.y)`, each component exactly as
+    /// parenthesized. `n.y²` is the tight square (`powi(2)`), not the
+    /// product `n.y·n.y`: at `Interval` the product treats the two
+    /// factors as independent, so an enclosure of `n.y` straddling zero
+    /// — every direction near the equator of the y-axis — acquires a
+    /// spurious negative lower bound. `b1`'s `(s·n.x)·n.x` is a
+    /// different shape: it is scaled BEFORE the second factor, so
+    /// tightening it is a REASSOCIATION into `s·(n.x²)` rather than a
+    /// square substitution. That reassociation is admissible — D9 is
+    /// determinism at one kernel, not a pin on last year's output —
+    /// and here it is free, since `s = ±1` multiplies exactly. It is
+    /// scheduled as D109(a) with `linalg/mat.rs`'s `rotation_about`,
+    /// the other site of the same shape, and is deliberately not done
+    /// piecemeal: the matcher that finds this shape reds both files at
+    /// once.
     ///
     /// **Discontinuity, documented honestly:** the frame flips across
     /// the equator `n.z = 0` (`s` jumps) — the construction is
@@ -323,7 +336,7 @@ impl<T: Real> Vec3<T> {
         let a = -T::one() / (s + self.z);
         let b = (self.x * self.y) * a;
         let b1 = Self::new(T::one() + ((s * self.x) * self.x) * a, s * b, -(s * self.x));
-        let b2 = Self::new(b, s + (self.y * self.y) * a, -self.y);
+        let b2 = Self::new(b, s + self.y.powi(2) * a, -self.y);
         (b1, b2)
     }
 }
@@ -660,6 +673,15 @@ mod tests {
         /// construction is a fixed formula over `Real` ops, so this
         /// holds by composition; the test guards the claim against
         /// future edits introducing a scalar-specific path).
+        ///
+        /// **The VALUE channel only, and the name says so on purpose.**
+        /// `f64` has no tangent to be identical to, so this test cannot
+        /// reach the derivative channel at all — that is
+        /// [`orthonormal_basis_dual_tangent_matches_closed_form`]'s job,
+        /// and the two together are what covers the construction. A
+        /// fixture built with `Dual::variable` also cannot distinguish
+        /// spellings of a square: its tangent is `1.0`, and `y + y` and
+        /// `2·y` are equal exactly there.
         #[test]
         fn orthonormal_basis_dual_value_channel_bit_identical(v in vec3()) {
             use crate::dual::Dual;
@@ -677,6 +699,54 @@ mod tests {
             ] {
                 prop_assert_eq!(ours.to_bits(), dual.value.to_bits());
             }
+        }
+
+        /// The TANGENT channel of `b2.y`, against its closed-form
+        /// derivative — the channel the test above cannot reach.
+        ///
+        /// `b2.y = s + n.y²·a` with `a = −1/(s + n.z)` and `s` locally
+        /// constant (`copysign`'s kink convention; the seam at
+        /// `n.z = 0` is documented at the constructor), so
+        ///
+        /// ```text
+        /// d(b2.y) = 2·n.y·a·ty + n.y²·tz/(s + n.z)²
+        /// ```
+        ///
+        /// Well conditioned everywhere on the sphere: `|s + n.z|` is
+        /// `1 + |n.z| ≥ 1` by construction, which is the whole reason
+        /// the two-hemisphere form exists.
+        ///
+        /// **The tangents are NOT 1.** `Dual::variable` gives every
+        /// input a tangent of `1.0`, and at `ty = 1` the product rule
+        /// and the power rule agree bit-for-bit (`y + y` is `2·y`) — so
+        /// a fixture built that way exercises the one input at which
+        /// every spelling of a square is identical. Independent random
+        /// tangents are what make this a test of the rule rather than of
+        /// that coincidence.
+        #[test]
+        fn orthonormal_basis_dual_tangent_matches_closed_form(
+            v in vec3(),
+            ty in -4.0f64..4.0,
+            tz in -4.0f64..4.0,
+        ) {
+            use crate::dual::Dual;
+            let n = v.normalize();
+            prop_assume!(n.x.is_finite() && n.y.is_finite() && n.z.is_finite());
+            let nd = Vec3::new(
+                Dual::new(n.x, 0.0),
+                Dual::new(n.y, ty),
+                Dual::new(n.z, tz),
+            );
+            let (_, d2) = nd.orthonormal_basis();
+            let s = 1.0f64.copysign(n.z);
+            let a = -1.0 / (s + n.z);
+            let want = 2.0 * n.y * a * ty + n.y * n.y * tz / ((s + n.z) * (s + n.z));
+            let scale = want.abs().max(1.0);
+            prop_assert!(
+                (d2.y.deriv - want).abs() <= 1e-12 * scale,
+                "tangent {} vs closed form {} (n = {:?}, ty = {}, tz = {})",
+                d2.y.deriv, want, (n.x, n.y, n.z), ty, tz
+            );
         }
     }
 

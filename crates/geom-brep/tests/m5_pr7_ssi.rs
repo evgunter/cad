@@ -75,10 +75,23 @@
 //! grid; it is kept as the executable record of an open source defect,
 //! and the trade is stated at the row.
 //!
-//! Every ε stand-down in this file is LOUD: the run prints, by name, the
-//! coverage it did not deliver. The retired `fixture_or_return!` /
+//! Every ε stand-down in this file is LOUD **and PROVED**: the run
+//! prints, by name ([`test_utils::vacuity::stood_down`]), the coverage it
+//! did not deliver, and it first asserts that the excuse is the one it
+//! claims — D9's `SSI_MAX_FIT_SAMPLES`, genuinely overrun, at an ε finer
+//! than the compiled default. A stand-down that is only announced is
+//! still a row that greens without entering its own mode the day the
+//! budget starts firing everywhere. The retired `fixture_or_return!` /
 //! `carrier_or_return!` macros returned green in silence, which is the
 //! honesty gap `docs/M5-EXIT-WALK.md` row 15 recorded.
+//!
+//! **Planted quantities are stated in metres, not in multipliers.** The
+//! accounting floor is `SSI_FLOOR · band.zero() · floor_scale`, so a
+//! literal `floor_scale` names a different width at every ε. Every floor
+//! fixture in this file states its width and converts through
+//! [`SsiDomain::floor_scale_for`] — the inverse of `SsiDomain::floor`,
+//! which is where the identity lives rather than in a comment. Four
+//! sites, one spelling.
 
 #![allow(
     clippy::unwrap_used,
@@ -92,11 +105,18 @@ use geom::{NurbsSurface, Surface};
 use geom_brep::CERT_SAMPLES;
 use geom_brep::ssi::BranchEnd;
 use geom_brep::ssi::{
-    self, SSI_FLOOR, SSI_MAX_CELLS, SSI_SEED_FLOOR, SSI_TUBE_RADIUS, SsiDomain, SsiError, SsiLimb,
-    SsiOperand, TubeScale,
+    self, SSI_FLOOR, SSI_MAX_CELLS, SSI_MAX_FIT_SAMPLES, SSI_SEED_FLOOR, SSI_TUBE_RADIUS,
+    SsiDomain, SsiError, SsiLimb, SsiOperand, TubeScale,
 };
 use geom_core::spline::KnotVector;
+use geom_core::tolerance::DEFAULT_EPS;
 use geom_core::{Band, Margin, Point3, Tolerance, Vec3};
+use test_utils::vacuity;
+
+/// The accounting floor the floor-clamped fixture plants, **in metres**
+/// — far wider than any certifiable tube radius on that pair, and the
+/// same width at every ε of the battery.
+const FLOOR_CLAMP_METRES: f64 = 0.1;
 
 fn eps() -> f64 {
     Tolerance::get().eps
@@ -276,14 +296,16 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
             let msg = format!("{}", SsiError::FitSampleBudget { samples, budget });
             assert!(msg.contains("fit budget"), "BUDGET: {msg}");
             assert!(msg.contains("raise the tolerance"), "BUDGET: {msg}");
-            println!(
-                "SKIPPED (planted fixture, eps = {:e}): the SSI door refused typed on its \
-                 named fit-sample budget ({samples} samples vs {budget}). THIS RUN \
-                 CONTRIBUTES NO SHAPE-(iv) COVERAGE — no found-and-certified row, no \
-                 three-limb row, no limb-1/limb-2 separation, no accounting receipt, no \
-                 dedup row, no idealized-vs-realized differential. Only the BUDGET \
-                 assertions above executed.",
-                eps()
+            vacuity::stood_down(
+                &format!("planted fixture, eps = {:e}", eps()),
+                &format!(
+                    "the SSI door refused typed on its named fit-sample budget \
+                     ({samples} samples vs {budget}). THIS RUN CONTRIBUTES NO \
+                     SHAPE-(iv) COVERAGE — no found-and-certified row, no three-limb \
+                     row, no limb-1/limb-2 separation, no accounting receipt, no dedup \
+                     row, no idealized-vs-realized differential. Only the BUDGET \
+                     assertions above executed."
+                ),
             );
             return;
         }
@@ -655,7 +677,13 @@ fn the_floor_clamped_planted_fixture_refuses_typed() {
         extent: 0.4,
         floor_scale: 1.0,
     };
-    d.floor_scale = 1.0e8; // floor = 0.1 m, far wider than any tube
+    // The clamp is stated in METRES, through the same door as this
+    // file's other three floor fixtures. A literal multiplier states a
+    // different width at every ε: a fixed `1.0e8` reads 0.1 m only at
+    // the compiled default, and at ε = 1e-12 it is 1e-4 m — under which
+    // the same fixture, shrunk, returns `Ok` instead of refusing. The
+    // premise this row rests on is the floor's width.
+    d.floor_scale = SsiDomain::floor_scale_for(FLOOR_CLAMP_METRES, band());
     let err = ssi::cylinder_sphere_ssi(&c, &s, d, band()).expect_err("must refuse");
     let msg = format!("{err}");
     match err {
@@ -676,20 +704,38 @@ fn the_floor_clamped_planted_fixture_refuses_typed() {
             assert!(msg.contains("exhaustiveness inconclusive"), "{msg}");
             assert!(msg.contains("refuses"), "{msg}");
         }
-        // At the finest ε the fit budget fires before any branch is
-        // fitted, so the floor never gets its turn. Both are typed
-        // refusals of the same operation and neither is silence, which
-        // is the property this row exists to hold — but a run that
-        // stands down from the floor claim SAYS SO, by name, the way
-        // every other ε stand-down in this file does. A silent accept
-        // here is a row that passes without entering its own mode.
+        // At a fine enough ε the fit budget fires before any branch is
+        // fitted, so the floor never gets its turn — and no fixture
+        // fixes that, because a domain small enough to fit inside the
+        // budget at ε = 1e-12 holds no branch to find, which is the
+        // OTHER row's mode. So this row stands down there. What it must
+        // not do is stand down on trust: the stand-down is only
+        // legitimate for D9's own fit budget, exceeded, at an ε finer
+        // than the compiled default. Assert all three, so a fit budget
+        // that starts firing at the default ε — or a second budget
+        // wearing this variant's name — reds here instead of printing
+        // SKIPPED and passing.
         SsiError::FitSampleBudget { samples, budget } => {
-            println!(
-                "SKIPPED (the floor-clamped refusal, eps = {:e}): the fit budget ({samples} of {budget} \
-                 samples) refused before any branch was fitted, so THIS RUN ASSERTS \
-                 NEITHER that the clamped floor refuses NOR what its refusal says — \
-                 only that the operation did not go silent",
+            assert_eq!(
+                budget, SSI_MAX_FIT_SAMPLES,
+                "the stand-down is D9's fit budget or it is not a stand-down"
+            );
+            assert!(samples > budget, "{samples} of {budget} is not an overrun");
+            assert!(
+                eps() < DEFAULT_EPS,
+                "the fit budget fired at ε = {:e}, which is not finer than the compiled \
+                 default {DEFAULT_EPS:e} — the floor claim is REACHABLE here and this row \
+                 owes it, not a stand-down",
                 eps()
+            );
+            vacuity::stood_down(
+                &format!("the floor-clamped refusal, eps = {:e}", eps()),
+                &format!(
+                    "the fit budget ({samples} of {budget} samples) refused before any \
+                     branch was fitted, so THIS RUN ASSERTS NEITHER that the clamped \
+                     {FLOOR_CLAMP_METRES} m floor refuses NOR what its refusal says — only \
+                     that the refusal is D9's budget, overrun, at a finer-than-default ε"
+                ),
             );
         }
         other => panic!("expected the exhaustiveness refusal, got {other}"),
@@ -749,12 +795,15 @@ fn an_unseeded_run_refuses_typed_rather_than_receipting_an_unprovable_domain() {
         radius: 0.5,
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
-    // `floor_m` is the accounting floor in meters, at every ε.
+    // `floor_m` is the accounting floor in METRES, at every ε — the
+    // width this fixture's premise is about, through the door that
+    // states it (`SsiDomain::floor_scale_for`, the inverse of
+    // `SsiDomain::floor`).
     let domain = |floor_m: f64| SsiDomain {
         center: Point3::new(1.0, 0.0, 0.0),
         half_extent: 0.2,
         extent: 0.4,
-        floor_scale: floor_m / eps(),
+        floor_scale: SsiDomain::floor_scale_for(floor_m, band()),
     };
 
     // ---- Run 1, the MODE PIN: a floor an order finer than the
@@ -884,14 +933,16 @@ fn the_uniqueness_tube_margin_dies_on_a_tangent_pair() {
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     let n = (need as usize).max(64);
     if n > geom_brep::ssi::SSI_MAX_FIT_SAMPLES {
-        println!(
-            "SKIPPED (equator interpolant, eps = {:e}): limbs 1 and 2 would need {n} samples \
-             against a fit budget of {} — THIS RUN DOES NOT EXERCISE THE LIMB-3 TUBE \
-             REFUSAL ON A TANGENT PAIR. The refusal itself is still reached end-to-end by \
-             `a_tangent_pair_refuses_toward_the_c7_regime_and_never_desingularizes`; what \
-             is absent is the isolated limb-3 statement.",
-            eps(),
-            geom_brep::ssi::SSI_MAX_FIT_SAMPLES
+        vacuity::stood_down(
+            &format!("equator interpolant, eps = {:e}", eps()),
+            &format!(
+                "limbs 1 and 2 would need {n} samples against a fit budget of {} — THIS \
+                 RUN DOES NOT EXERCISE THE LIMB-3 TUBE REFUSAL ON A TANGENT PAIR. The \
+                 refusal itself is still reached end-to-end by \
+                 `a_tangent_pair_refuses_toward_the_c7_regime_and_never_desingularizes`; \
+                 what is absent is the isolated limb-3 statement.",
+                SSI_MAX_FIT_SAMPLES
+            ),
         );
         return;
     }
@@ -1050,11 +1101,18 @@ fn wall_outcome() -> Option<geom_brep::SsiOutcome> {
 /// The wall fixture's stand-down, said out loud: which row stood down,
 /// and what it therefore did NOT cover. A bare `return` here reports
 /// coverage the run does not have (`docs/M5-EXIT-WALK.md` row 15).
+///
+/// One argument's worth of local vocabulary over
+/// [`test_utils::vacuity::stood_down`], not a second implementation of
+/// it: every caller stands down for the same reason, so the reason is
+/// written once here rather than at each `return`.
 fn wall_stand_down(row: &str, absent: &str) {
-    println!(
-        "SKIPPED ({row}, eps = {:e}): the plane×NURBS march wants more samples than the \
-         SSI fit budget allows, so the shape-(iii) wall never fitted at this ε — {absent}",
-        eps()
+    vacuity::stood_down(
+        &format!("{row}, eps = {:e}", eps()),
+        &format!(
+            "the plane×NURBS march wants more samples than the SSI fit budget allows, \
+             so the shape-(iii) wall never fitted at this ε — {absent}"
+        ),
     );
 }
 
@@ -1290,8 +1348,25 @@ fn an_inflected_wall_refuses_in_band_at_the_hull_limb_honestly() {
             assert!(value <= definitely_positive(), "{value:e}");
         }
         // The finest ε: the march demands more samples than the fit
-        // budget affords, pinned by its own row.
-        Err(SsiError::FitSampleBudget { .. }) => {}
+        // budget affords, pinned by its own row. Same discipline as the
+        // floor row's stand-down — it is D9's budget, overrun, at a
+        // finer-than-default ε, or it is not this arm.
+        Err(SsiError::FitSampleBudget { samples, budget }) => {
+            assert_eq!(budget, SSI_MAX_FIT_SAMPLES);
+            assert!(samples > budget, "{samples} of {budget} is not an overrun");
+            assert!(
+                eps() < DEFAULT_EPS,
+                "the fit budget fired at ε = {:e}",
+                eps()
+            );
+            vacuity::stood_down(
+                &format!("the limb-2 in-band row, eps = {:e}", eps()),
+                &format!(
+                    "the fit budget ({samples} of {budget} samples) refused before limb 2 \
+                     was reached, so this run asserts nothing about the composite bound"
+                ),
+            );
+        }
         Err(other) => panic!("expected limb 2 in-band, got {other}"),
     }
 }
@@ -1502,9 +1577,9 @@ fn grazing_plane() -> Surface<f64> {
 /// stay green as a second spelling of the floor-clamped row rather than
 /// covering this mode at all.
 ///
-/// Neither run depends on ε: `floor_scale` is stated as `floor_m / ε`,
-/// the seed floor is a fraction of the extent, and the clearance is
-/// checked against the resolved band.
+/// Neither run depends on ε: `floor_scale` comes from
+/// [`SsiDomain::floor_scale_for`], the seed floor is a fraction of the
+/// extent, and the clearance is checked against the resolved band.
 #[test]
 fn an_unseeded_chart_run_refuses_typed_rather_than_receipting_an_unprovable_domain() {
     let (p, w) = (grazing_plane(), hull_slack_wall());
@@ -1545,12 +1620,15 @@ fn an_unseeded_chart_run_refuses_typed_rather_than_receipting_an_unprovable_doma
          ε — sampled clearance {clearance:e} against a net dipping to {dip:e}"
     );
 
-    // `floor_m` is the accounting floor in meters, at every ε.
+    // `floor_m` is the accounting floor in METRES, at every ε — the
+    // width this fixture's premise is about, through the door that
+    // states it (`SsiDomain::floor_scale_for`, the inverse of
+    // `SsiDomain::floor`).
     let domain = |floor_m: f64| SsiDomain {
         center: Point3::new(0.5, 0.0, 0.4),
         half_extent: 2.0,
         extent: 3.0,
-        floor_scale: floor_m / eps(),
+        floor_scale: SsiDomain::floor_scale_for(floor_m, band()),
     };
 
     // ---- Run 1, the MODE PIN: a floor fine enough that the first-order
@@ -1746,7 +1824,8 @@ fn assert_floor_is_the_meters_floor_over_the_chart_speed(floor: f64, meters: f64
 /// chart units, so it is `Ok` for every floor below that and refuses
 /// for every floor at or above the next admitted width, 0.25 — a
 /// half-line in each direction rather than an interval. Stated in
-/// meters as `floor_m / eps()`, so both stay put at every battery ε.
+/// meters through [`SsiDomain::floor_scale_for`], so both stay put at
+/// every battery ε.
 ///
 /// **No ε stand-down, deliberately.** Every other row on this wall
 /// carries a `FitSampleBudget` arm because `nurbs_wall()` outruns the
@@ -1771,9 +1850,12 @@ fn assert_floor_is_the_meters_floor_over_the_chart_speed(floor: f64, meters: f64
 #[test]
 fn the_floor_clamped_chart_run_refuses_typed_with_a_banked_tube_set() {
     let (p, w) = (cutting_plane(), certifiable_wall());
-    // `floor_m` is the accounting floor in meters, at every ε.
+    // `floor_m` is the accounting floor in METRES, at every ε — the
+    // width this fixture's premise is about, through the door that
+    // states it (`SsiDomain::floor_scale_for`, the inverse of
+    // `SsiDomain::floor`).
     let domain = |floor_m: f64| SsiDomain {
-        floor_scale: floor_m / eps(),
+        floor_scale: SsiDomain::floor_scale_for(floor_m, band()),
         ..wall_domain()
     };
 

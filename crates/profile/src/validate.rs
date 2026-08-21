@@ -41,7 +41,7 @@
 //!
 //! # Predicate inventory (margins in meters; lever arms named)
 //!
-//! Every decision goes through the [`crate::k_stats::decide`] funnel
+//! Every decision goes through the [`geom_core::k_stats::decide`] funnel
 //! with one of these names — the unit of the K-experiment margin
 //! statistics:
 //!
@@ -101,12 +101,12 @@
 
 use core::fmt;
 
+use geom_core::k_stats::decide;
 use geom_core::{
     Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point2, Real, Sign,
     Tolerance, Vec2,
 };
 
-use crate::k_stats::decide;
 use crate::seg::{self, CKind, PairOutcome, Seg, SegIssue, SegKind, build_seg};
 use crate::{Profile, ProfileLoop, ProfileVertex};
 
@@ -1378,8 +1378,16 @@ fn loop_orientation<T: Decide>(segs: &[Seg<T>], band: Band) -> Result<Sign, Inde
             SegKind::Arc(g) => {
                 let theta = four * s.bulge.atan();
                 // Circular-segment correction: (r²/2)(θ − sin θ),
-                // doubled here since we accumulate 2A.
-                twice_area = twice_area + g.radius * g.radius * (theta - theta.sin());
+                // doubled here since we accumulate 2A. `r²` is the tight
+                // square, and here it is the tight square of something
+                // already known nonnegative: `Seg::radius` is
+                // `signed_radius.abs()`, so at `Interval` the enclosure
+                // has `lo >= 0` and the plain product's four-corner
+                // minimum IS the tight square. The conversion changes no
+                // bound at any instantiation — it is here so the file
+                // spells a square the one way the rule names, not
+                // because this site was wide.
+                twice_area = twice_area + g.radius.powi(2) * (theta - theta.sin());
                 perimeter = perimeter + g.radius * theta.abs();
             }
         }

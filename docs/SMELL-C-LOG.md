@@ -64,11 +64,13 @@ anything from a transcript.
 
 ### Live at handoff — these were in flight and are not reassigned
 
-| unit | PR | what it still needs |
+**All three closed before the session ended. Nothing is left live.**
+
+| unit | PR | outcome |
 |---|---|---|
-| **C-q / C10** | **#801** | Combined fix pass for **two adversarial MAJORs + twelve style findings**. MAJOR 1 falsified the PR's headline claim (see *"The oracle I called the right shape"* above); the title, two tree sites and three record sites all still carry it. MAJOR 2 (turbofish) is **fixed**. Needs: the MAJOR 1 restatement, the upstream probe added to `seal-oracle.sh`, a stale-body sweep, a re-merge (it has a `SMELL-SCAN` conflict), and a **first-ever valid CI run** — `get_check_runs` on its heads has returned `total_count: 0` throughout. |
-| **C-g / S32** | **#804** | Adversarial + style review returns. Row **C24** is written in it. |
-| **C-j follow-up** | **#816** | Rows **C22** and **C26** being written, then CI, then it merges. |
+| **C-q / C10** | **#801** | **MERGED** `3ddd6011`. Adversarial CLEARED after breaking the PR's headline claim; style CLEARED after a detached-rustdoc blocker. `local-scripts/seal-oracle.sh` is **in the tree and runs from a fresh clone**. Five `FIXED by #801` records; **C10 has left §D**. |
+| **C-g / S32** | **#804** | **MERGED** `df81969a`. `## S32. FIXED IN PART by #804 — the API half; the "second surface enum" half was FALSE`. Row **C24** filed. |
+| **C-j follow-up** | **#816** | **MERGED** `8ad21239`. Rows **C22** and **C26** filed; the prose sweep #803 never ran. |
 
 **If a review lane returns after this session ends**, its findings are in
 `~/.local/share/cad-work/{adv,sty}-8NN-findings.md` — **container-local, and the
@@ -224,7 +226,7 @@ Six things, in the order they will bite:
 | **C-R21** | **C-R20 is not sufficient, and its third instance proved it.** I assigned §D row numbers centrally *within Track C*. Track A's #714 fix pass then landed its own **C11** on `main` — roughly ten minutes after I assigned C11 to #732, and cited from three other places in the document. Neither track could see the other's unmerged branch. | **A row number is not owned until it is on `main`, and a lane mints against the merged tree, never against an assignment.** Central assignment prevents *intra*-track collisions and cannot prevent cross-track ones, because **§D is shared by every track**. So: the orchestrator still assigns, but the assignment is a *reservation against a tree that may move*, and a lane re-verifies against `origin/main` immediately before it writes the number — exactly what C-o did, which is why this cost a relabel instead of a silent duplicate. **Holes in the sequence are named in the gating paragraph** so the next reader does not tidy them away. Settled state: C11 Track A; C12 #731; C13/C14/C16 #732; C15/C17 #738. | orchestrator, 2026-08-20 |
 | **C-R22** *(conditions restored, and the GROUND corrected 2026-08-20 — see both notes below; the row as first written kept the approvals and dropped the conditions, and rested on a claim #801's adversarial lane then falsified)* | **C10 asks for work the ratified design forbids, and nothing in the row knows it.** The row instructs its taker to lift the instrument out of `geom-core`, S30-style. C-q's compile oracle — a scratch crate against `geom-core --features probe` — walked the three escapes and hit an escalating wall: `impl Decide for P` → E0277 (`P: SpanLocate` unsatisfied); `impl SpanLocate for P` → E0277 (`P: locate::sealed::Sealed` unsatisfied); `impl …sealed::Sealed for P` → **E0603, module `sealed` is private**. The seal is what closes **Q1's ratified instantiation set**. | **Refuse the split, and record the refusal as the unit's answer** — C10's own text asks the taker to *"decide whether the instrument can leave a door that certifies, and record that decision"*, so a reasoned no **is** the deliverable, not a declined lane. Take instead: consolidate the three doors' identical bodies into one private `classify<T: Decide>` (in-crate, no public API, no behaviour change); **D32 option (b)** — make `ledger_row` load-bearing by extending `flagged_census.rs`; and **retire `profile::k_stats`** (S40's shim, whose own docs say to stop using it — tier 1.5, executing a decision recorded at M2 PR 7, not making one). Also correct **two wrong premises in C10 itself**: the instrument is **263 lines, not ~96** (the row's figure omits `Probe`'s own trait impls, and a type's impls travel with the type), and *"S30's class one crate over"* is wrong **at the level of the diagnosis** — the volume question S30 found unasked **was** asked here, in `geom-core/Cargo.toml`'s `probe` feature comment, measurement and placement argument attached. **Six conditions, which are part of the ruling and were dropped from the first version of this row.** (a) The identity proof owed is about **order**, not just content — the `VERDICTS` push feeds `editor_core::resolve::vdiff` and a diff consumer is order-sensitive. (b) Say **at the fence** that the consolidation was measured against it and moves in the permitted direction — an unremarked fence reads identically whether it was honoured or missed. (c) The best-way argument is that `classify` converts an **asserted** sameness into a **compiled** one, and both doors' *"verbatim"* sentences get rewritten to what is then true rather than deleted. (d) D32(b) must **close** the census's blind spot, not inherit it — widen the pattern or correct the rustdoc, and the limitation lives **at the pattern**, not in a report. (e) The S40 shim retirement sweeps the three **workspace-excluded** roots explicitly; a green workspace build is no evidence about them. (f) Provenance on the `Cargo.toml` percentages: name the tree, and say whether they were re-measured. | orchestrator, 2026-08-20 (from C-q's oracle) |
 | **C-R23** | **S32's causal sentence is false, and two more of its clauses with it.** The finding says *"the natural query being unavailable at the enum is what created the second enum"* — i.e. give `Surface` a jet door and `geom-brep`'s `Chart` dissolves. C-g's archaeology found `Chart` born at `ffc0b0fa` carrying today's doc verbatim, and `ssi/system.rs:150-235` on main confirms it. | **`Chart` stays; S32 lands as `FIXED IN PART`** (#714/S58's precedent for this exact shape). The API half is real and is fixed — one `jet` door, the five partials and `normal` become projections of it, `normal` and `metric_floor` each drop from two passes to one. The causal half is **corrected, not closed**, on three independent grounds any one of which is sufficient: `Chart` is **third order** (`jet3`, `k+l ≤ 3`) where `SurfaceJet` is second; it **carries a domain** (`u_range`/`v_range`, `domain()`) because a plane is unbounded and `Surface::Plane` has nowhere to put a window; and a `Surface`-wide constructor is **deliberately refused by a named rule**, C12.1's per-arm retirement rule — so the narrowness is a ratified property, not a workaround. **A third clause is also false:** S32 reads the *"hand-filled `SurfaceJet3` of zeros"* as placeholder filler, but a plane's second and third partials **are** exactly zero — the finding mistook a right answer for a smell. The fourth clause, *"re-implementing plane evaluation"*, is the weak one and is to be stated at the notch it can hold: a hoisted cross product plus a window, not an independent implementation. | orchestrator, 2026-08-20 (from C-g's archaeology, verified against main) |
-| **C-R24** | **Where C-R6 stops and C-R19 tier two starts.** C-g found the identical class on the curve side — `NurbsCurve::deriv_in_span`/`deriv2_in_span` discard 2 of 3, and `topo/src/splitting/neighborhood.rs:180,184` runs two full order-2 passes at the same `t` **under a comment calling the result *"the base-endpoint jet"***. It is the **same crate**, which normally puts it under C-R6 (in-crate residues are fixed, not reported). | **File it (row C24), and the row states the discriminator.** The surface side has a **ratified type to project onto**: `SurfaceJet` already exists and is already publicly exported — which is half of S32's own complaint. The curve side has **no `CurveJet` at all**, so the work is not *apply the same fix one type over*, it is **mint a new public type** — a design element, C-R19 tier two, a plan rather than a lane's discretion. That is the line: **using a decision already made is tier one; making one is tier two, in-crate or not.** C-R6 is about *ownership* (do not hand an in-crate residue to someone else), not about *authority* (a lane may not ratify a new public type because it happens to be nearby). | orchestrator, 2026-08-20 |
+| **C-R24** | **Where C-R6 stops and C-R19 tier two starts.** C-g found the identical class on the curve side — `NurbsCurve::deriv_in_span`/`deriv2_in_span` discard 2 of 3, and `topo/src/splitting/neighborhood.rs:180,184` **under a comment calling the result *"the base-endpoint jet"***. **EXEMPLAR CORRECTED, 2026-08-20:** this row originally said that site *"runs two full order-2 passes at the same `t`"*. It does not — that is the `Circle | Ellipse` arm, and the arm directly above routes `Curve3::Nurbs` to the chord branch with `None`, so it never reaches the NURBS discard. For a circle `deriv` builds `azimuth::frame` and `deriv2` builds `azimuth::basis` at the same `t`; for an ellipse both build `basis`. **Same class, different road** — the redundancy is a repeated basis construction, not a discarded order-2 pass. I took C-g's citation and did not read the arm; #804's style lane checked the diagnosis behind the quote rather than only the quote. C24 now carries **two** members and says which is which. It is the **same crate**, which normally puts it under C-R6 (in-crate residues are fixed, not reported). | **File it (row C24), and the row states the discriminator.** The surface side has a **ratified type to project onto**: `SurfaceJet` already exists and is already publicly exported — which is half of S32's own complaint. The curve side has **no `CurveJet` at all**, so the work is not *apply the same fix one type over*, it is **mint a new public type** — a design element, C-R19 tier two, a plan rather than a lane's discretion. That is the line: **using a decision already made is tier one; making one is tier two, in-crate or not.** C-R6 is about *ownership* (do not hand an in-crate residue to someone else), not about *authority* (a lane may not ratify a new public type because it happens to be nearby). | orchestrator, 2026-08-20 |
 
 ---
 
@@ -323,7 +325,7 @@ superseded for Track C by this table.
 | **C-l** | **C7 + S33** — the lane-trait collapse, `RingInterval`, the scalar ladders | `geom-core/`, and W2b's 535 refs across 15 files | **discharged** (#682 merged) | **style only, provisionally** — see C-R12; expect to split into 2–3 lanes, and the sub-lane that rewrites `Dual` arithmetic rather than re-spelling it gets promoted to adversarial |
 | **C-m** | **S27** — `props/quad.rs`'s four quadrature engines | `geom-brep/src/props/quad.rs` | **STILL GATED, and the gate changed identity** — #714 **merged** (`08:42Z`), so A2 is discharged; C3's row now names **#723** as the second gate, and it is **open**. See the note below. | **adversarial** + style |
 | **C-n** | **H17** — the rustdoc spec-code remainder, ~1115 lines / 130 files | per crate: `topo` 300, `editor-core` 267, `geom-brep` 192, `geom-core` 107, `sweep` 64, rest < 70 | **deliberately last** — it touches 130 files and would conflict with every open lane | style, per crate batch |
-| **C-q** | **C10** — `geom_core::k_stats`, S30's class one crate over | `geom-core/src/k_stats.rs`, and `profile::k_stats`'s shim (S40) | none | **adversarial** + style — the recording sits *inside* three load-bearing kernel predicate doors, so #709's split does not transfer mechanically |
+| **C-q** | **C10** — `geom_core::k_stats`, S30's class one crate over | `geom-core/src/k_stats.rs`, and `profile::k_stats`'s shim (S40) | **discharged** (#801 merged) | **adversarial** + style. **The gate cell's reason was wrong and #801 says so**: the *recorder* is not inside the doors (`Probe`'s `Decide` impl is), only a one-line name write and the verdict push are — and the verdict push is a production channel, not instrument. #709's split does not transfer for a different reason: `Decide: SpanLocate` and `SpanLocate` is sealed, so no downstream crate can define a deciding scalar at all |
 
 **C-m's gate is now a live kernel defect, not a queued lane.** #723 is a
 sphere meridian arc crossing a pole: `min_max` folds only edge *endpoint*
@@ -2035,6 +2037,58 @@ C-R22. It happened to be checked out on the branch that has it. Had I been on
 `main`, the reviewer would have read a brief citing a ruling that does not exist
 — which is C-R11's exact subject, from the other side.
 
+### I committed Track F's S162/D108 within minutes of it landing — and my stated remedy for the CI capability gap is FALSE
+
+**Two corrections, and both are mine.**
+
+**1. My docs-only merge cancelled a code merge's verification on `main`.** Run
+2407 on `3ddd6011` — #801's merge commit, full tier — was **`cancelled` at
+22:26:07**, seconds after my #832 docs merge started run 2416 at 22:25:48. Track
+F had just landed exactly this as **S162/D108**: *"a docs-tier push cancels a
+code merge's run, and the board goes green having run two jobs."* The successor
+run is docs-tier, so it skips every code check.
+
+**So `main` now carries #801's code with no completed hosted run over it.** What
+exists instead: #801's own PR head was green on the full matrix (run 2392 on
+`21b51426`), and the lane re-ran `clippy --workspace --all-targets -D warnings`,
+the geom-core probe suite and `probe-suite-census.sh` **on the merged tree**
+before merging. That is real evidence and it is not the verification of record.
+**Stated rather than papered over**, because "the board is green" will be true
+and will mean less than it looks.
+
+*The mechanism is worth naming precisely:* the cancellation is **not** caused by
+the docs push being unimportant. It is caused by concurrency grouping treating
+"a push to `main`" as one class, so **the cheapest possible change evicts the
+most expensive verification.** The ordering is what makes it dangerous — a lane
+that merges docs behind a code merge does the damage, and neither party can see
+the other.
+
+**2. I told a lane to hand CI re-runs to me because "the orchestrator can
+trigger workflow runs and a lane cannot". I cannot.** Both endpoints return
+**403 Resource not accessible by integration** for me too:
+`POST /actions/runs/{id}/rerun` and
+`POST /actions/workflows/ci.yml/dispatches`.
+
+So the capability gap I recorded is real but **misdescribed, and my remedy does
+not work**. The true statement is: **nobody in this session can trigger or
+re-run CI — only a push can.** That makes C-e's empty commit not a workaround
+around a gap it should have escalated, but **the only mechanism available to
+anyone here**, which changes the disposition entirely. The rule I wrote — *"say
+so instead of pushing"* — would have sent a lane to an orchestrator who is
+equally powerless.
+
+**Corrected rule:** a lane that needs a re-run and has established the failure is
+not its own should **say so in its report and stop**, and the *human* decides
+whether to push. Do not tell a lane the orchestrator can do it.
+
+*What this pair costs, honestly:* I recorded a capability I had not tested, and
+built a rule on top of it — **the same defect as the one-directional seal
+oracle, committed in an operational register rather than a technical claim.** A
+capability is a claim like any other and needs its receipt.
+
+**Left for Evan, since it needs a push nobody here can make:** `main` at
+`3ddd6011`/`9626075e` wants one full-tier run to close #801's verification.
+
 **The mechanical fix**, which is what the previous three write-ups all lacked:
 the orchestrator branch merges to `main` **at every ruling**, not at every
 session. A ruling is dispatch-visible the moment it is cited, so the merge has to
@@ -2324,6 +2378,105 @@ what was done carries no such exposure.
 *Found by the post-hoc style lane*, which had to read the pre-PR tree anyway to
 do its job — which is also why a review that runs **after** the merge is not
 worthless: it is the only reader positioned to catch this class at all.
+
+### Standing hazard: the PR-body publish path strips every tag-shaped span
+
+**Measured, not suspected.** C-q noticed a receipt in its own PR body reading
+`left: ["", "name_a", "name_b"]` where it had written `<unnamed>`. #801's
+adversarial lane then swept eleven bodies — **801, 816, 810, 803, 786, 779, 767,
+761, 747, 740, 738** — and found **zero `<` characters and zero `<Word>`
+constructs in any of them.** In a Rust repo whose descriptions discuss
+`Margin<T>`, `Dual<T>`, `Vec<…>` and trait bounds constantly, eleven bodies
+containing not one `<` is a stripper, not eleven authors' discipline.
+
+The signature is **asymmetric**: `<`-opened tag-shaped spans are consumed —
+**inside code spans and fenced blocks alike** — while a lone `>` survives and is
+escaped as text. In C-q's body it had silently emptied **ten** constructs, not
+the one the reviewer caught: `Dual<T>`, `Dual<f64>`, `classify<T: Decide>`, both
+turbofish spellings, `::<Dual<Interval>>`, and more.
+
+**Two things make this worth a standing rule rather than a note.**
+
+- **It fails silently and in the safe-looking direction.** The body still reads
+  as prose; only a receipt quoted verbatim reveals it, and only to someone who
+  knows what the receipt should say. An adversarial lane read the damaged version
+  as *the lane's error* and filed a MINOR against it — **a transport defect was
+  one step from being recorded as a lane's carelessness**, and was withdrawn only
+  because the lane pushed back with the original text.
+- **It attacks exactly the artefact this track trades in.** A byte-exact
+  assertion receipt is how every mutation table in this scan proves its guard is
+  load-bearing, and Rust's most quotable identifiers are generic.
+
+**Rule taken:** **byte-exact receipts belong in the committed record and in the
+tree — never in a PR body.** A PR body may *describe* a receipt and must point at
+the file that carries it. #801's `SMELL-SCAN` D32 row demonstrates the working
+shape: `Dual<f64>` four times, both turbofish spellings, and `left: 9, right: 8`
+all intact, because a committed file is not published through that pipeline.
+
+*And the corollary for reviewers:* **a mangled quotation in a PR body is a
+transport failure until proven an authoring failure.** Check the tree before
+filing against the lane.
+
+### C-R24's exemplar was wrong, and I wrote it
+
+#804's style lane checked the *diagnosis* behind a quote I had ruled on, not just
+the quote. **C-R24 says `topo/src/splitting/neighborhood.rs:180,184` "runs two
+full order-2 passes at the same `t`".** It does not. That is the
+`Circle | Ellipse` arm; the arm directly above routes `Curve3::Nurbs` to the
+chord branch with `None`. For a circle, `deriv`/`deriv2` are **analytic**, so the
+real redundancy there is a repeated `azimuth::basis` — not a discarded order-2
+pass.
+
+**I took the lane's citation and did not check the arm.** The ruling's
+*conclusion* survives — the curve side has no `CurveJet`, minting one is a design
+element, so it is filed rather than fixed — but its **exemplar cannot reach the
+class it was minted to illustrate**, and a filed row whose example is wrong sends
+its taker to the wrong code.
+
+*The pattern is now unmistakable and it is mine.* Three times today I have
+approved a lane's claim at the size the lane stated it: #636 "already broken on a
+case it named" (one notch too strong), C-R22's seal oracle (one direction of
+two), and now C-R24's exemplar (wrong arm). **In each case the lane's evidence
+was real and its scope was wider than the evidence reached, and I did not ask the
+scoping question.** The reviewers asked it every time.
+
+**Rule taken:** when a ruling *cites* a line as an exemplar, the orchestrator
+reads that line before the ruling lands. A quote can be verbatim and still be
+about something else.
+
+### Session 2 close — what landed, and the one number that describes it
+
+**Ten units merged**: #731 (H11), #732 (H16), #734 (H12), #737 (H14), #738 (C9),
+#775 (H15), #779 (H13), #801 (C10), #803 (S29 mechanical), #804 (S32), plus
+#816's follow-up and the orchestrator's own #745 / #754 / #812 / #819.
+
+**§D's Track C table went from C1–C21-with-holes to C2–C26 with two holes**, and
+both holes are legible: **C1** and **C9** landed and left. C22 is a re-issued
+reservation that says so; C24 is filed; C10 left with #801.
+
+*The number that describes this session:* **every unit was returned NOT CLEARED
+on its first review, and every single defect was a claim wider than its
+evidence** — not one shipped wrong answer among them. H11's two residues were
+ten. H12's nine cells were thirteen. H15's three rows were twenty-three. C10's
+~96 lines were 263. S29's five modules were wrong in *both* directions. A cosine
+measured at one level was reported "at every level". A seal oracle that tested
+one direction read as universal. **The code was fine; the sentences about it were
+not.**
+
+*And the orchestrator was not exempt.* Four of my own claims were corrected by
+lanes or reviewers this session — #636 overstated by one notch, C-R22's ground
+falsified, C-R24's exemplar pointing at the wrong match arm, and a ruling
+recorded without the conditions that made it conditional. **In every case a lane
+or reviewer asked the scoping question I had not.** That is the system working,
+and it is the strongest argument in this log for keeping two lanes on the units
+that carry risk.
+
+*The last unit is a fair summary of the whole track.* #801 was cleared by two
+reviewers, then its own lane re-read its fix and found **three more defects,
+including a silent skip in exactly the direction its own prose called unsafe** —
+and stated the lesson better than I could: **writing "fails loudly" and not
+planting the failure is the same defect as a sweep without its blind spot
+stated.**
 
 ### Reviewers age out of their own tree, twice now — and it is not their error
 
