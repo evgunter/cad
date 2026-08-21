@@ -39,7 +39,7 @@ that is a deliberate design choice and not a shortfall.
 Nothing is published to crates.io or PyPI yet — the project is
 unnamed, so there is nothing to publish under. Build from source.
 
-### 1.2 Rust: build, and a first model in ten lines
+### 1.2 Rust: build, and a first model in a dozen lines
 
 ```console
 $ git clone <this repo> && cd cad
@@ -81,6 +81,24 @@ The `quantity` layer (`MM`, `CM`, `M`, `IN`, `DEG`, `RAD`) is there
 when you want the units visible, as above; `25.0 * MM` builds a
 `Length` and `.meters()` unwraps it. The kernel never sees a unit —
 it sees metres.
+
+The first line is the one that needs explaining. `Tol::witness()`
+commits this process's tolerance ε — one value per run, never changed
+after, the thing that decides what "coincident" means — and hands back
+a witness that it is committed. Every call that *decides* something
+takes it, which is why it appears so often below.
+
+`Tol` is zero-sized and has exactly one inhabitant, so passing it
+costs nothing at runtime and cannot introduce a second ε: it carries
+the right to read the run's tolerance, never a copy of the value. Read
+it as punctuation rather than an argument — its job is to make a
+signature say whether the answer depends on ε. The operations that
+*don't* take one, like `validate_closed` above, are telling you
+something: they are exact, and no tolerance can change their answer.
+
+Configure ε per run with `CAD_TOLERANCE_EPS`, or state it in code
+with `Tolerance::init` before the first witness. `pncad::tolerance`
+reports what a run committed to and where the value came from.
 
 ### 1.3 Python: build (maturin), and a first model in ten lines
 
