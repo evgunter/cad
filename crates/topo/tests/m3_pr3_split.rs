@@ -12,12 +12,12 @@
 mod common;
 
 use common::prism;
+use geom_core::Tol;
 use geom_core::{Point3, Vec3};
 use topo::{
     Body, SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane, Surface,
     mass_properties, plane_section, split, validate_closed, validate_geometric,
 };
-use geom_core::Tol;
 
 /// The split plane y = c, Above = +y.
 fn plane_y<T: geom_core::Decide>(c: f64) -> SplitPlane<T> {
@@ -129,11 +129,17 @@ fn holed_box_geometric() -> Body<f64> {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
     let strut = |body: &mut Body<f64>, at, x, y, z| {
-        body.mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, z), Tol::witness())
+        body.mev_line(
+            MevSite::Fan { he1: at, he2: at },
+            pt(x, y, z),
+            Tol::witness(),
+        )
+        .unwrap()
+    };
+    let mef = |body: &mut Body<f64>, he1, he2| {
+        body.mef_chord(MefSite::Chords { he1, he2 }, Tol::witness())
             .unwrap()
     };
-    let mef =
-        |body: &mut Body<f64>, he1, he2| body.mef_chord(MefSite::Chords { he1, he2 }, Tol::witness()).unwrap();
     // Bottom chain A→B→C→D, closed; verticals; sides (§9.4.2).
     let e_ab = body
         .mev_line(
@@ -163,7 +169,11 @@ fn holed_box_geometric() -> Body<f64> {
     let hole = strut(&mut body, f_front.he_plus, 0.5, 0.5, 2.0);
     let kill = body.kemr(hole.he_plus, hole.he_minus).unwrap();
     let s_pq = body
-        .mev_line(MevSite::Lone { r#loop: kill.ring }, pt(1.5, 0.5, 2.0), Tol::witness())
+        .mev_line(
+            MevSite::Lone { r#loop: kill.ring },
+            pt(1.5, 0.5, 2.0),
+            Tol::witness(),
+        )
         .unwrap();
     let s_qr = strut(&mut body, s_pq.he_minus, 1.5, 1.5, 2.0);
     let s_rs = strut(&mut body, s_qr.he_minus, 0.5, 1.5, 2.0);

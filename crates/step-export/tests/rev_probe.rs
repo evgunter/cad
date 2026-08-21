@@ -10,12 +10,12 @@
 mod common;
 
 use geom::Surface;
+use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey, ValidationError, validate_geometric};
-use geom_core::Tol;
 
 /// V2: the ball's curved arm is PROVABLY silent (Unencoded, not
 /// accidentally-agreeing): flipping EITHER single band stays green.

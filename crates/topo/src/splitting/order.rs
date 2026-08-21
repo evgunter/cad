@@ -174,8 +174,8 @@ pub(super) fn sort_indices_by_point<T: Decide>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use geom_core::Tol;
     use super::*;
+    use geom_core::Tol;
 
     fn p3(x: f64, y: f64, z: f64) -> Point3<f64> {
         Point3::new(x, y, z)

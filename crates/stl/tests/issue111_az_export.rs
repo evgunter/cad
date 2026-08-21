@@ -9,6 +9,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec3};
 use mesh::tessellate;
 use mesh::validate::{check_mesh, triangle_count};
@@ -16,7 +17,6 @@ use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanResult};
-use geom_core::Tol;
 
 const A_OUTLINE: [(f64, f64); 8] = [
     (0.0, 0.0),
@@ -40,9 +40,7 @@ fn lp(poly: &[(f64, f64)]) -> ProfileLoop<f64> {
 }
 
 fn validated(plane: SketchPlane<f64>, loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
-    Profile::new(plane, loops)
-        .validate(Tol::witness())
-        .unwrap()
+    Profile::new(plane, loops).validate(Tol::witness()).unwrap()
 }
 
 /// A (counter-hole variant) × Z, the #93 acceptance body.

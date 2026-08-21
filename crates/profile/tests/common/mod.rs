@@ -9,10 +9,10 @@
 #![allow(dead_code)]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Tol;
 use geom_core::{Point2, Real};
 use profile::RawLoop;
 use profile::{ClosedLoop, Open, Profile, ProfileLoop, ProfileVertex, SketchPlane, Start};
-use geom_core::Tol;
 
 /// The run's tolerance (env-driven; the multi-ε matrix parameterizes
 /// it).

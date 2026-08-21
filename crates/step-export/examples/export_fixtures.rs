@@ -20,8 +20,8 @@
 #[path = "../tests/common/mod.rs"]
 mod common;
 
-use step_export::{StepOptions, write_step};
 use geom_core::Tol;
+use step_export::{StepOptions, write_step};
 
 fn main() {
     let tol = Tol::witness();

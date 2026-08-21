@@ -29,12 +29,12 @@ use profile::RawLoop;
 
 use geom::Curve3;
 use geom::Surface;
+use geom_core::Tol;
 use geom_core::{Affine3, Band, Point2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations, BooleanError};
-use geom_core::Tol;
 
 // ---------------------------------------------------------------------
 // Fixtures and helpers (the S12 suite's, radius-generalized).
@@ -63,7 +63,9 @@ fn slab() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0), Tol::witness()).unwrap().body
+    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body
 }
 
 /// A radius-`r` ball (two half-sphere bands on ONE sphere surface, the
@@ -81,7 +83,9 @@ fn ball_at(r: f64, centre: Vec3<f64>) -> Body<f64> {
         origin: p2(0.0, 0.0),
         dir: geom_core::Vec2::new(0.0, 1.0),
     };
-    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness()).unwrap().body;
+    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
+        .unwrap()
+        .body;
     topo::transform_rigid(&ball, &Affine3::translation(centre), Tol::witness()).unwrap()
 }
 
@@ -285,7 +289,8 @@ fn in_band_extent_escalates_instead_of_answering() {
     let mid = 0.5 * (band.zero() + band.escalate());
     // Center above the slab so that r − |s| = mid for the top face.
     let b = ball_at(1.0, Vec3::new(2.0, 2.0, 2.0 - mid));
-    let err = topo::union(&slab(), &b, Tol::witness()).expect_err("an in-band extent must not answer");
+    let err =
+        topo::union(&slab(), &b, Tol::witness()).expect_err("an in-band extent must not answer");
     let BooleanError::Escalated { .. } = err else {
         panic!("expected the extent trilean's escalation, got {err:?}");
     };
@@ -348,7 +353,8 @@ fn overlapping_sphere_pair_refuses_typed_at_the_scan() {
 fn trimmed_sphere_group_operand_refuses_typed_at_the_scan() {
     let pip = both_lanes(BooleanOp::Subtract, &slab(), &pip_ball(2.0, 2.0));
     let far = ball_at(0.5, Vec3::new(2.0, 2.0, 3.5));
-    let err = topo::union(&pip, &far, Tol::witness()).expect_err("a trimmed group cannot be extent-certified");
+    let err = topo::union(&pip, &far, Tol::witness())
+        .expect_err("a trimmed group cannot be extent-certified");
     let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
         panic!("expected the scan's trimmed-group arm, got {err:?}");
     };
@@ -372,9 +378,12 @@ fn cylinder_near_sphere_refuses_typed_at_the_scan() {
     let vp = Profile::new(SketchPlane::xy(), vec![disc])
         .validate(Tol::witness())
         .unwrap();
-    let cyl = extrude(&vp, Extrusion::Distance(1.3), Tol::witness()).unwrap().body;
+    let cyl = extrude(&vp, Extrusion::Distance(1.3), Tol::witness())
+        .unwrap()
+        .body;
     let ball = ball_at(0.2, Vec3::new(0.0, 0.0, 1.75));
-    let err = topo::union(&cyl, &ball, Tol::witness()).expect_err("nearness to a cylinder wall cannot certify");
+    let err = topo::union(&cyl, &ball, Tol::witness())
+        .expect_err("nearness to a cylinder wall cannot certify");
     let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
         panic!("expected the scan's cylinder arm, got {err:?}");
     };

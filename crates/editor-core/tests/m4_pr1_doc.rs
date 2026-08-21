@@ -215,11 +215,14 @@ fn die_authors_replays_and_diffs() {
     // so the node-granular diff reports exactly that node.
     let variant = die
         .doc
-        .apply(&TEdit::SetParam {
-            node: die.pip_extrude,
-            slot: SlotId::Distance,
-            expr: len(0.003),
-        }, Tol::witness())
+        .apply(
+            &TEdit::SetParam {
+                node: die.pip_extrude,
+                slot: SlotId::Distance,
+                expr: len(0.003),
+            },
+            Tol::witness(),
+        )
         .unwrap();
     assert!(!variant.record.structural, "continuous edit");
     let d = die.doc.diff(&variant.doc);
@@ -233,13 +236,16 @@ fn die_authors_replays_and_diffs() {
     // extrude references — node payloads identical, param diff only.
     let variant2 = die
         .doc
-        .apply(&TEdit::SetDocParam {
-            name: ParamName::new("pip_depth"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: 0.003,
+        .apply(
+            &TEdit::SetDocParam {
+                name: ParamName::new("pip_depth"),
+                value: DocParam::Continuous {
+                    dim: Dimension::Length,
+                    value: 0.003,
+                },
             },
-        }, Tol::witness())
+            Tol::witness(),
+        )
         .unwrap();
     let d2 = die.doc.diff(&variant2.doc);
     assert!(d2.nodes.is_empty());

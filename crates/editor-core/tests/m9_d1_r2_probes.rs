@@ -15,12 +15,18 @@ use editor_core::{
     RecipeNodeId, RoleSeg, StableName, evaluate,
 };
 use fixture::{ang, insert, len};
+use geom_core::Tol;
 use geom_core::{Point3, Vec3};
 use profile::SketchPlane;
-use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness())
+    evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
 }
 
 fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {

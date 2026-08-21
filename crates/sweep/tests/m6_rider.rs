@@ -15,12 +15,12 @@
 use core::f64::consts::PI;
 use profile::RawLoop;
 
+use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations, BooleanError};
-use geom_core::Tol;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -39,7 +39,9 @@ fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
         origin: p2(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
-    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness()).unwrap().body;
+    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
+        .unwrap()
+        .body;
     topo::transform_rigid(&ball, &Affine3::translation(c), Tol::witness()).unwrap()
 }
 
@@ -52,9 +54,11 @@ fn union(a: &Body<f64>, b: &Body<f64>, strategy: SweepStrategy) -> Result<f64, B
         strategy,
         Tol::witness(),
     )?;
-    Ok(topo::mass_properties(&out.body().expect("a body").body, Tol::witness())
-        .unwrap()
-        .volume)
+    Ok(
+        topo::mass_properties(&out.body().expect("a body").body, Tol::witness())
+            .unwrap()
+            .volume,
+    )
 }
 
 /// **Definite miss, both strategies**: two far disjoint balls union

@@ -1691,21 +1691,22 @@ fn do_arc_to_point<T: ArcCarrierScalar, F: Flavor>(
             c,
             winding,
             target: Target::Point(t),
-        } => Ok(Applied::Tip(DynTip::DirectedPoint(p.arc_to(Center {
-            c,
-            winding,
-            p: t,
-        }, tol)?))),
+        } => Ok(Applied::Tip(DynTip::DirectedPoint(
+            p.arc_to(Center { c, winding, p: t }, tol)?,
+        ))),
         ArcData::Center {
             c,
             winding,
             target: Target::Start,
         } => Ok(Applied::Closed(
-            p.arc_to(Center {
-                c,
-                winding,
-                p: Start,
-            }, tol)?
+            p.arc_to(
+                Center {
+                    c,
+                    winding,
+                    p: Start,
+                },
+                tol,
+            )?
             .loop_,
         )),
         ArcData::Radius { .. } | ArcData::Sweep { .. } | ArcData::ArcLen { .. } => {
@@ -1743,7 +1744,9 @@ fn do_tangent_arc_to<T: Decide, F: Flavor>(
     tol: Tol,
 ) -> Applying<T> {
     match t {
-        Target::Point(q) => Ok(Applied::Tip(DynTip::DirectedPoint(p.tangent_arc_to(q, tol)?))),
+        Target::Point(q) => Ok(Applied::Tip(DynTip::DirectedPoint(
+            p.tangent_arc_to(q, tol)?,
+        ))),
         Target::Start => Ok(Applied::Closed(p.tangent_arc_to(Start, tol)?.loop_)),
     }
 }
@@ -1972,7 +1975,10 @@ fn do_fused_entry<T: ArcCarrierScalar>(
 /// # Errors
 ///
 /// [`ReplayError`], carrying the offending step index.
-pub fn replay<T: ArcCarrierScalar>(steps: &[Step<T>], tol: Tol) -> Result<ProfileLoop<T>, ReplayError<T>> {
+pub fn replay<T: ArcCarrierScalar>(
+    steps: &[Step<T>],
+    tol: Tol,
+) -> Result<ProfileLoop<T>, ReplayError<T>> {
     let mut tip = DynTip::Entry;
     for (i, step) in steps.iter().enumerate() {
         let applied = apply(tip, *step, tol).map_err(|kind| ReplayError { step: i, kind })?;

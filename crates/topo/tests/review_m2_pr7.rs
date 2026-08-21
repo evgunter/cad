@@ -12,12 +12,12 @@
 
 use geom::Surface;
 use geom_brep::{EdgeCurveSpec, newell_plane};
+use geom_core::Tol;
 use geom_core::{Band, Point3};
 use topo::{
     Body, FaceSurface, MefSite, MevSite, ValidationError, mass_properties, validate,
     validate_closed, validate_geometric,
 };
-use geom_core::Tol;
 
 mod common;
 
@@ -42,7 +42,9 @@ fn mapped_cube(map: impl Fn(Point3<f64>) -> Point3<f64>) -> Body<f64> {
         c(0.0, 1.0, 1.0),
     );
     let line = EdgeCurveSpec::line_between;
-    let plane = |corners: &[Point3<f64>]| newell_plane(corners, Band::linear(Tol::witness()).unwrap()).unwrap();
+    let plane = |corners: &[Point3<f64>]| {
+        newell_plane(corners, Band::linear(Tol::witness()).unwrap()).unwrap()
+    };
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(a).unwrap();
     let e_ab = body
@@ -56,8 +58,13 @@ fn mapped_cube(map: impl Fn(Point3<f64>) -> Point3<f64>) -> Body<f64> {
         )
         .unwrap();
     let strut = |body: &mut Body<f64>, at, from, to| {
-        body.mev(MevSite::Fan { he1: at, he2: at }, to, line(from, to), Tol::witness())
-            .unwrap()
+        body.mev(
+            MevSite::Fan { he1: at, he2: at },
+            to,
+            line(from, to),
+            Tol::witness(),
+        )
+        .unwrap()
     };
     let e_bc = strut(&mut body, e_ab.he_minus, b, cc);
     let e_cd = strut(&mut body, e_bc.he_minus, cc, d);

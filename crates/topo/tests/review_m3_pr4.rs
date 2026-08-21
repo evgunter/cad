@@ -12,8 +12,8 @@ mod common;
 
 use common::{flush_declarations, prism_z};
 use geom_core::Decide;
-use topo::{Body, BooleanError, BooleanOp, BooleanReduction, boolean_reduce, validate};
 use geom_core::Tol;
+use topo::{Body, BooleanError, BooleanOp, BooleanReduction, boolean_reduce, validate};
 
 fn brick<T: Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
     prism_z::<T>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
@@ -44,7 +44,8 @@ fn reduce_ok<T: Decide + geom_core::Bounds>(
 ) -> BooleanReduction<T> {
     let (da, db) = (dump(a), dump(b));
     // M4 PR 5: the review corpus declares its intended flush contacts.
-    let red = topo::boolean_reduce_declared(op, a, b, &flush_declarations(a, b), Tol::witness()).unwrap();
+    let red =
+        topo::boolean_reduce_declared(op, a, b, &flush_declarations(a, b), Tol::witness()).unwrap();
     assert_eq!(dump(a), da, "operand A mutated");
     assert_eq!(dump(b), db, "operand B mutated");
     validate(&red.a).unwrap();

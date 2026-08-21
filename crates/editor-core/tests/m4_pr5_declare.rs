@@ -23,8 +23,8 @@ use editor_core::{
     ProfileVertexRef, RecipeNodeId, RoleSeg, StableName, ValuePayload,
 };
 use fixture::{declare_x_offset_flush, desc, fname, insert, len, wall};
-use topo::validate_pseudomanifold;
 use geom_core::Tol;
+use topo::validate_pseudomanifold;
 
 fn run(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
     editor_core::evaluate(
@@ -235,8 +235,14 @@ fn flush_plane_pair_glues_with_declare_refuses_without() {
     let BooleanValue::Body { body, .. } = boolean_value(&ev, u) else {
         panic!("declared union is a body");
     };
-    assert_eq!(topo::mass_properties(body, Tol::witness()).unwrap().volume, 1.5);
-    assert_eq!(topo::validate::validate_geometric(body, Tol::witness()), Ok(()));
+    assert_eq!(
+        topo::mass_properties(body, Tol::witness()).unwrap().volume,
+        1.5
+    );
+    assert_eq!(
+        topo::validate::validate_geometric(body, Tol::witness()),
+        Ok(())
+    );
     let merged_rows = ev
         .value(u)
         .unwrap()
@@ -265,7 +271,10 @@ fn flush_plane_pair_glues_with_declare_refuses_without() {
         panic!("decoupled union is a body");
     };
     // 1 + (b = 1·0.5·1.25) − (overlap = 0.5·0.5·0.75) = 1.4375.
-    assert_eq!(topo::mass_properties(body, Tol::witness()).unwrap().volume, 1.4375);
+    assert_eq!(
+        topo::mass_properties(body, Tol::witness()).unwrap().volume,
+        1.4375
+    );
 }
 
 /// D6.4 / PR 3 R13: the #90 crossing-slots double subtract as a
@@ -320,7 +329,10 @@ fn crossing_slots_recipe_document_evaluates_and_resolves() {
         topo::mass_properties(body, Tol::witness()).unwrap().volume,
         9.0 - (3.0 * 0.5 + 3.0 * 0.5 - 0.5) * 1.0
     );
-    assert_eq!(topo::validate_pseudomanifold(body, contacts, Tol::witness()), Ok(()));
+    assert_eq!(
+        topo::validate_pseudomanifold(body, contacts, Tol::witness()),
+        Ok(())
+    );
     // Resolution corpus seed (boolean-of-boolean DAG): the two slot
     // floors GLUED (declared) — the wrapped floor lineage retired
     // into the Merged row, fails typed, and OFFERS the merge; the
@@ -486,9 +498,19 @@ fn skipped_declared_merge_recipe_door_is_tier3_green() {
     let BooleanValue::Body { body, contacts, .. } = boolean_value(&ev, u) else {
         panic!("declared flush-caps union is a body");
     };
-    assert_eq!(topo::mass_properties(body, Tol::witness()).unwrap().volume, 1.625);
-    assert_eq!(topo::validate::validate_geometric(body, Tol::witness()), Ok(()), "tier 3");
-    assert_eq!(topo::validate_pseudomanifold(body, contacts, Tol::witness()), Ok(()));
+    assert_eq!(
+        topo::mass_properties(body, Tol::witness()).unwrap().volume,
+        1.625
+    );
+    assert_eq!(
+        topo::validate::validate_geometric(body, Tol::witness()),
+        Ok(()),
+        "tier 3"
+    );
+    assert_eq!(
+        topo::validate_pseudomanifold(body, contacts, Tol::witness()),
+        Ok(())
+    );
     // Review F6: this shape is the corpus's PURE-seam-vertex pin —
     // the skip lane's re-described in-plane chain leaves vertices
     // whose every incident edge is Seam-named from ONE line (single
@@ -569,7 +591,10 @@ fn declare_doors_both_operands_node_gone_and_ambiguous() {
             declare: Some(decl),
         },
     );
-    let doc = doc.apply(&DocEdit::DeleteNode { id: c }, Tol::witness()).unwrap().doc;
+    let doc = doc
+        .apply(&DocEdit::DeleteNode { id: c }, Tol::witness())
+        .unwrap()
+        .doc;
     let ev = run(&doc);
     let k = failed_kind(&ev, u);
     assert!(
@@ -712,7 +737,10 @@ fn crossing_slots_swapped_order_hits_the_junction_arm() {
         topo::mass_properties(body, Tol::witness()).unwrap().volume,
         9.0 - (3.0 * 0.5 + 3.0 * 0.5 - 0.5) * 1.0
     );
-    assert_eq!(topo::validate_pseudomanifold(body, contacts, Tol::witness()), Ok(()));
+    assert_eq!(
+        topo::validate_pseudomanifold(body, contacts, Tol::witness()),
+        Ok(())
+    );
     // The junction arm's product: a vertex named by ≥ 2 Seam
     // segments (the sorted line set).
     let junctions = ev

@@ -65,7 +65,10 @@ fn exemplar(
 fn row1_same_construction_same_pin() {
     let (a, _, _) = exemplar("asm1-row1");
     let (b, _, _) = exemplar("asm1-row1");
-    assert_eq!(content_pin(&a, Tol::witness()).unwrap(), content_pin(&b, Tol::witness()).unwrap());
+    assert_eq!(
+        content_pin(&a, Tol::witness()).unwrap(),
+        content_pin(&b, Tol::witness()).unwrap()
+    );
 }
 
 /// Row 2a — history independence: two DIFFERENT edit paths reaching
@@ -107,7 +110,10 @@ fn row2_two_edit_paths_one_snapshot_equal_pins() {
             },
         },
     );
-    assert_eq!(content_pin(&a, Tol::witness()).unwrap(), content_pin(&b, Tol::witness()).unwrap());
+    assert_eq!(
+        content_pin(&a, Tol::witness()).unwrap(),
+        content_pin(&b, Tol::witness()).unwrap()
+    );
     // And through the persistence door: the two saves carry DIFFERENT
     // edit logs over one origin; both load-replay to the same pin.
     let (origin, _, _) = exemplar("asm1-row2");
@@ -126,8 +132,16 @@ fn row2_two_edit_paths_one_snapshot_equal_pins() {
         },
     }];
     log_b.extend(log_a.clone());
-    let loaded_a = load(&save(&origin, &log_a, Tol::witness()).unwrap(), Tol::witness()).unwrap();
-    let loaded_b = load(&save(&origin, &log_b, Tol::witness()).unwrap(), Tol::witness()).unwrap();
+    let loaded_a = load(
+        &save(&origin, &log_a, Tol::witness()).unwrap(),
+        Tol::witness(),
+    )
+    .unwrap();
+    let loaded_b = load(
+        &save(&origin, &log_b, Tol::witness()).unwrap(),
+        Tol::witness(),
+    )
+    .unwrap();
     assert_ne!(loaded_a.edits, loaded_b.edits, "the histories differ");
     assert_eq!(
         content_pin(&loaded_a.doc, Tol::witness()).unwrap(),
@@ -164,7 +178,11 @@ fn row2_undone_edit_pin_unchanged() {
             },
         },
     );
-    assert_ne!(content_pin(&edited, Tol::witness()).unwrap(), before, "the edit moved it");
+    assert_ne!(
+        content_pin(&edited, Tol::witness()).unwrap(),
+        before,
+        "the edit moved it"
+    );
     let (undone, _) = step(
         edited,
         DocEdit::SetDocParam {

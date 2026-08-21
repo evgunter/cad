@@ -28,6 +28,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Tol;
 use geom_core::{Decide, Point2, Point3, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
@@ -36,7 +37,6 @@ use topo::{
     Body, BooleanBody, BooleanResult, mass_properties, validate, validate_closed,
     validate_pseudomanifold,
 };
-use geom_core::Tol;
 
 /// 880383/327680: A with the counter as a true inner loop (genus 1).
 const ORACLE_COUNTER: f64 = 880383.0 / 327680.0;
@@ -155,7 +155,9 @@ fn check_success(bb: &BooleanBody<f64>, oracle: f64, label: &str) {
         Ok(()),
         "{label}: tier 3′"
     );
-    let v = mass_properties(&bb.body, Tol::witness()).expect("mass properties").volume;
+    let v = mass_properties(&bb.body, Tol::witness())
+        .expect("mass properties")
+        .volume;
     assert!(
         (v - oracle).abs() < 1e-12,
         "{label}: volume {v} vs exact oracle {oracle}"

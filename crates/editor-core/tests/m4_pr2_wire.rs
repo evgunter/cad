@@ -13,11 +13,17 @@ use editor_core::{
     PatternKind, ProfileDoc, ValuePayload, evaluate,
 };
 use fixture::{ang, desc, insert, len, scl};
-use topo::{mass_properties, validate, validate_closed};
 use geom_core::Tol;
+use topo::{mass_properties, validate, validate_closed};
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness())
+    evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
 }
 
 /// A unit-square profile `[x0,x0+1]×[y0,y0+1]` on the xy plane plus

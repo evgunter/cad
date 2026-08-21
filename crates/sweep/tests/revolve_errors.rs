@@ -12,11 +12,11 @@ mod revolve_common;
 use core::f64::consts::{FRAC_PI_8, PI};
 use profile::RawLoop;
 
+use geom_core::Tol;
 use geom_core::Vec2;
 use profile::{ProfileLoop, ProfileVertex};
 use revolve_common::*;
 use sweep::{Revolution, RevolveAxis, RevolveError, revolve};
-use geom_core::Tol;
 
 fn washer() -> ProfileLoop<f64> {
     ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)])
@@ -47,7 +47,13 @@ fn degenerate_and_sliver_and_poisoned_angles_are_typed() {
     let e = revolve(&vp, axis_y(), Revolution::Partial(0.0), Tol::witness()).unwrap_err();
     assert!(matches!(e, RevolveError::DegenerateAngle), "{e:?}");
     // Sliver: θ·r_max in the band (r_max = 2).
-    let e = revolve(&vp, axis_y(), Revolution::Partial(1.5 * eps()), Tol::witness()).unwrap_err();
+    let e = revolve(
+        &vp,
+        axis_y(),
+        Revolution::Partial(1.5 * eps()),
+        Tol::witness(),
+    )
+    .unwrap_err();
     assert!(matches!(e, RevolveError::AngleEscalated { .. }), "{e:?}");
     // Poisoned angle: decides nothing, escalates loudly.
     let e = revolve(&vp, axis_y(), Revolution::Partial(f64::NAN), Tol::witness()).unwrap_err();

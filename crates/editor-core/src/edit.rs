@@ -1480,7 +1480,11 @@ impl<P: Clone + crate::ProfilePayload> Doc<P> {
     /// BIT-IDENTICALLY (floats are stored exactly; ids re-mint
     /// deterministically). The document id is supplied, not replayed:
     /// identity is authored data the log never carries (ASM-1 D-1).
-    pub fn replay(id: crate::DocumentId, edits: &[DocEdit<P>], tol: Tol) -> Result<Doc<P>, EditError> {
+    pub fn replay(
+        id: crate::DocumentId,
+        edits: &[DocEdit<P>],
+        tol: Tol,
+    ) -> Result<Doc<P>, EditError> {
         let mut doc = Doc::empty(id, tol);
         for edit in edits {
             doc = apply(&doc, edit, tol)?.doc;

@@ -17,12 +17,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Band, BandError, BandField, Decide, MarginDiag, Sign};
 use geom_core::Tol;
+use geom_core::{Band, BandError, BandField, Decide, MarginDiag, Sign};
 
 #[test]
 fn bands_track_the_global_tolerance() {
-    let band = Band::linear(Tol::witness()).expect("the run's eps is sane, so K*eps cannot overflow");
+    let band =
+        Band::linear(Tol::witness()).expect("the run's eps is sane, so K*eps cannot overflow");
     let tolerance = Tol::witness().get();
 
     // linear() is exactly (eps, K*eps) of the committed tolerance...
@@ -33,7 +34,8 @@ fn bands_track_the_global_tolerance() {
     // there is no global angular tolerance (D4 ¶1, revised 2026-07-16).
     // At the unit lever arm (r = 1) the derived angle is exactly eps, so
     // the angular band coincides with the linear one.
-    let unit = Band::angular_at(Tol::witness(), 1.0).expect("the run's eps is sane, so eps/1 forms a band");
+    let unit = Band::angular_at(Tol::witness(), 1.0)
+        .expect("the run's eps is sane, so eps/1 forms a band");
     assert_eq!(unit.zero(), tolerance.eps);
     assert_eq!(unit.escalate(), tolerance.k * tolerance.eps);
     assert_eq!(unit, band);

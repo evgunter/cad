@@ -327,9 +327,9 @@ pub fn classify_neighborhood<T: Decide>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use geom_core::Tol;
     use super::*;
     use crate::fixtures::prism;
+    use geom_core::Tol;
 
     /// The split lane has no sphere arm and says so BY NAME, on the
     /// shared walk's report rather than by re-matching the surface —

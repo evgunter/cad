@@ -77,8 +77,8 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::null::NullEdge;
-use slotmap::SecondaryMap;
 use geom_core::Tol;
+use slotmap::SecondaryMap;
 
 pub use crate::chord_join::{ArcWindowCase, SplitJoinError};
 pub use containment::{LoopContainment, PointInLoopError, point_in_loop};
@@ -417,7 +417,13 @@ pub fn split_reduce<T: geom_core::Decide>(
 
     classify::gate_operand(&body)?;
     let (mut sides, mut on_vertices) = classify::classify_vertices(&body, plane, band)?;
-    classify::insert_crossings(&mut body, plane, &mut sides, &mut on_vertices, Tol::witness())?;
+    classify::insert_crossings(
+        &mut body,
+        plane,
+        &mut sides,
+        &mut on_vertices,
+        Tol::witness(),
+    )?;
 
     let mut null_edges = Vec::new();
     for &v in &on_vertices {

@@ -21,8 +21,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Tolerance, ToleranceError};
 use geom_core::Tol;
+use geom_core::{Tolerance, ToleranceError};
 
 /// The real assertions. `#[ignore]`d because it is only valid as the sole
 /// test in a process; the driver below supplies that.

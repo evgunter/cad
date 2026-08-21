@@ -71,7 +71,8 @@ fn cut_cylinder_gains_tessellation_and_props_columns() {
         ("cut_cylinder/below", &**below),
     ] {
         let (ms, tris) = tess_column(label, body);
-        let m = topo::mass_properties(body, Tol::witness()).expect("the PR 11 quadrature lane computes");
+        let m = topo::mass_properties(body, Tol::witness())
+            .expect("the PR 11 quadrature lane computes");
         assert!(
             m.volume - m.volume_pad <= half && half <= m.volume + m.volume_pad,
             "{label}: bracket [{}, {}] vs {half}",

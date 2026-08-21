@@ -111,13 +111,19 @@ fn corrupt_payloads_refuse_typed() {
     let bad_hex = text.replace("\"abcd\"", "\"abxd\"");
     assert_ne!(bad_hex, text, "fixture must contain the hex bytes");
     assert!(
-        matches!(load(&bad_hex, Tol::witness()), Err(PersistError::Parse { .. })),
+        matches!(
+            load(&bad_hex, Tol::witness()),
+            Err(PersistError::Parse { .. })
+        ),
         "non-hex byte string must refuse"
     );
     // An unknown field (deny_unknown_fields — no silent tolerance).
     let extra = text.replace("\"snapshot\":", "\"extra\": 1, \"snapshot\":");
     assert!(
-        matches!(load(&extra, Tol::witness()), Err(PersistError::Parse { .. })),
+        matches!(
+            load(&extra, Tol::witness()),
+            Err(PersistError::Parse { .. })
+        ),
         "unknown field must refuse"
     );
     // An ill-dimensioned expression tree (Length + Angle) — the
@@ -128,7 +134,10 @@ fn corrupt_payloads_refuse_typed() {
     );
     if bad_expr != text {
         assert!(
-            matches!(load(&bad_expr, Tol::witness()), Err(PersistError::Parse { .. })),
+            matches!(
+                load(&bad_expr, Tol::witness()),
+                Err(PersistError::Parse { .. })
+            ),
             "ill-dimensioned expression must refuse"
         );
     } else {
@@ -229,7 +238,12 @@ fn tolerance_conflict_refuses_on_load_and_at_evaluate() {
     // A recorded ε that disagrees with the committed process ε: the
     // LOAD door refuses (one process = one ε, D4).
     let other_eps = ambient * 2.0;
-    let text = save(&doc, &[DocEdit::SetTolerance { eps: other_eps }], Tol::witness()).expect("save");
+    let text = save(
+        &doc,
+        &[DocEdit::SetTolerance { eps: other_eps }],
+        Tol::witness(),
+    )
+    .expect("save");
     match load(&text, Tol::witness()) {
         Err(PersistError::ToleranceConflict { process, document }) => {
             assert_eq!(process.to_bits(), ambient.to_bits());
@@ -238,10 +252,20 @@ fn tolerance_conflict_refuses_on_load_and_at_evaluate() {
         other => panic!("expected ToleranceConflict, got {other:?}"),
     }
     // The EVALUATE door refuses the same conflict per node, typed.
-    let retol = apply(&doc, &DocEdit::SetTolerance { eps: other_eps }, Tol::witness())
-        .expect("SetTolerance applies as a pure doc edit")
-        .doc;
-    let ev = evaluate::<f64>(&retol, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness());
+    let retol = apply(
+        &doc,
+        &DocEdit::SetTolerance { eps: other_eps },
+        Tol::witness(),
+    )
+    .expect("SetTolerance applies as a pure doc edit")
+    .doc;
+    let ev = evaluate::<f64>(
+        &retol,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
     assert_eq!(ev.nodes.len(), 2);
     for result in ev.nodes.values() {
         assert!(
@@ -258,7 +282,12 @@ fn tolerance_conflict_refuses_on_load_and_at_evaluate() {
         "non-positive ε must refuse"
     );
     assert!(
-        apply(&doc, &DocEdit::SetTolerance { eps: f64::NAN }, Tol::witness()).is_err(),
+        apply(
+            &doc,
+            &DocEdit::SetTolerance { eps: f64::NAN },
+            Tol::witness()
+        )
+        .is_err(),
         "NaN ε must refuse"
     );
 }

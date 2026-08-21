@@ -3368,8 +3368,8 @@ fn shell_component<T: Real>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use geom_core::Tol;
     use geom_core::Point3;
+    use geom_core::Tol;
     use proptest::prelude::*;
 
     use super::*;
@@ -3925,7 +3925,9 @@ mod tests {
         // orbit-closure check is exactly what catches it.
         let mut t = pillow(Tol::witness());
         let v0 = t.vertices[0];
-        let curve = t.body.add_curve(crate::fixtures::test_curve(anchor(), Tol::witness()));
+        let curve = t
+            .body
+            .add_curve(crate::fixtures::test_curve(anchor(), Tol::witness()));
         let e2 = t.body.add_edge(
             crate::entity::Edge {
                 he_plus: HalfEdgeKey::default(),
@@ -4101,7 +4103,9 @@ mod tests {
     fn orphan_geometry_is_reported_for_all_three_arenas() {
         let mut t = pillow(Tol::witness());
         let p = t.body.add_point(anchor());
-        let c = t.body.add_curve(crate::fixtures::test_curve(anchor(), Tol::witness()));
+        let c = t
+            .body
+            .add_curve(crate::fixtures::test_curve(anchor(), Tol::witness()));
         let s = t.body.add_surface(crate::fixtures::test_surface(anchor()));
         assert_eq!(
             validate(&t.body),
@@ -4689,7 +4693,10 @@ mod tests {
     fn closed_fixtures_pass_tier_two() {
         // Raw-built closed families…
         assert_eq!(validate_closed(&pillow(Tol::witness()).body), Ok(()));
-        assert_eq!(validate_closed(&ngon_pillow(1, Tol::witness()).body), Ok(()));
+        assert_eq!(
+            validate_closed(&ngon_pillow(1, Tol::witness()).body),
+            Ok(())
+        );
         assert_eq!(validate_closed(&prism(4, Tol::witness()).body), Ok(()));
         // …and the operator-built acceptance bodies, genus 0 through 2.
         assert_eq!(validate_closed(&ops_cube(Tol::witness()).body), Ok(()));
@@ -4782,7 +4789,11 @@ mod tests {
         // computed from the loop windings, which a lone sense flip does
         // not touch — the two bodies meter the SAME volume, so check 7
         // could not refuse the flipped one even if it ran.
-        let volume = |b: &Body<f64>| crate::props::mass_properties(b, Tol::witness()).unwrap().volume;
+        let volume = |b: &Body<f64>| {
+            crate::props::mass_properties(b, Tol::witness())
+                .unwrap()
+                .volume
+        };
         assert_eq!(
             volume(&cube).to_bits(),
             volume(&flipped).to_bits(),
@@ -4851,10 +4862,13 @@ mod tests {
                 Tol::witness(),
             )
             .unwrap();
-        body.mef_chord(MefSite::Chords {
-            he1: seg.he_plus,
-            he2: seg.he_minus,
-        }, Tol::witness())
+        body.mef_chord(
+            MefSite::Chords {
+                he1: seg.he_plus,
+                he2: seg.he_minus,
+            },
+            Tol::witness(),
+        )
         .unwrap();
         let strut = body
             .mev_line(
@@ -4891,10 +4905,13 @@ mod tests {
                 Tol::witness(),
             )
             .unwrap();
-        body.mef_chord(MefSite::Chords {
-            he1: seg.he_plus,
-            he2: seg.he_minus,
-        }, Tol::witness())
+        body.mef_chord(
+            MefSite::Chords {
+                he1: seg.he_plus,
+                he2: seg.he_minus,
+            },
+            Tol::witness(),
+        )
         .unwrap();
         let strut = body
             .mev_line(
@@ -4934,10 +4951,13 @@ mod tests {
                 Tol::witness(),
             )
             .unwrap();
-        body.mef_chord(MefSite::Chords {
-            he1: seg.he_plus,
-            he2: seg.he_minus,
-        }, Tol::witness())
+        body.mef_chord(
+            MefSite::Chords {
+                he1: seg.he_plus,
+                he2: seg.he_minus,
+            },
+            Tol::witness(),
+        )
         .unwrap();
         let strut = body
             .mev_line(
@@ -4953,10 +4973,13 @@ mod tests {
         let grow = body
             .mev_line(MevSite::Lone { r#loop: kill.ring }, p(3.0), Tol::witness())
             .unwrap();
-        body.mef_chord(MefSite::Chords {
-            he1: grow.he_plus,
-            he2: grow.he_minus,
-        }, Tol::witness())
+        body.mef_chord(
+            MefSite::Chords {
+                he1: grow.he_plus,
+                he2: grow.he_minus,
+            },
+            Tol::witness(),
+        )
         .unwrap();
         body.mfkrh_plug(kill.ring).unwrap();
         (body, seed.shell)

@@ -14,6 +14,7 @@ use core::f64::consts::PI;
 use profile::RawLoop;
 
 use geom::Surface;
+use geom_core::Tol;
 use geom_core::{Affine3, Band, Point2, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::fillet::build::fillet_edges;
@@ -21,7 +22,6 @@ use sweep::test_support::cube;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations, EdgeKey};
-use geom_core::Tol;
 
 const DIE_L: f64 = 1.0;
 const DIE_R: f64 = 0.12;
@@ -50,7 +50,9 @@ fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
         origin: p2(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
-    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness()).unwrap().body;
+    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
+        .unwrap()
+        .body;
     topo::transform_rigid(&ball, &Affine3::translation(c), Tol::witness()).unwrap()
 }
 
@@ -206,10 +208,17 @@ fn p2_ring_touch_trio_through_the_front_door() {
             .expect("box fillet")
             .body;
         let rims = rim_edges(&blanked);
-        let out = fillet_edges(&blanked, &rims, RIM_R, band(), Tol::witness()).expect("rim fillet passes at +1cm");
-        assert_eq!(topo::validate_geometric(&out.body, Tol::witness()), Ok(()), "tier 3");
+        let out = fillet_edges(&blanked, &rims, RIM_R, band(), Tol::witness())
+            .expect("rim fillet passes at +1cm");
+        assert_eq!(
+            topo::validate_geometric(&out.body, Tol::witness()),
+            Ok(()),
+            "tier 3"
+        );
         let want = blank_volume() - cap(PIP_R, PIP_H) - rim_fillet_extra(PIP_R, PIP_H, RIM_R);
-        let v = topo::mass_properties(&out.body, Tol::witness()).unwrap().volume;
+        let v = topo::mass_properties(&out.body, Tol::witness())
+            .unwrap()
+            .volume;
         assert!((v - want).abs() <= 1e-9 * want, "volume {v} vs {want}");
         println!("P2a: +1cm passes, volume ok");
     }
@@ -264,7 +273,11 @@ fn p3_one_and_two_pip_ladders_and_tight_pair() {
         let out = fillet_edges(&blanked, &rims, RIM_R, band(), Tol::witness()).expect("rim");
         assert_eq!(out.band_faces.len(), 1);
         let die = &out.body;
-        assert_eq!(topo::validate_geometric(die, Tol::witness()), Ok(()), "tier 3");
+        assert_eq!(
+            topo::validate_geometric(die, Tol::witness()),
+            Ok(()),
+            "tier 3"
+        );
         assert_eq!(die.vertices().count(), 24 + 5);
         assert_eq!(die.edges().count(), 48 + 7);
         assert_eq!(die.faces().count(), 26 + 3);
@@ -335,11 +348,18 @@ fn p3_one_and_two_pip_ladders_and_tight_pair() {
             "P3: two-pip spacing 0.22, ring-ring margin = {}",
             0.22 - 2.0 * s
         );
-        let out = fillet_edges(&blanked, &rims, RIM_R, band(), Tol::witness()).expect("both rims in one call");
+        let out = fillet_edges(&blanked, &rims, RIM_R, band(), Tol::witness())
+            .expect("both rims in one call");
         assert_eq!(out.band_faces.len(), 2);
-        assert_eq!(topo::validate_geometric(&out.body, Tol::witness()), Ok(()), "tier 3");
+        assert_eq!(
+            topo::validate_geometric(&out.body, Tol::witness()),
+            Ok(()),
+            "tier 3"
+        );
         let want = blank_volume() - 2.0 * per_pip;
-        let v = topo::mass_properties(&out.body, Tol::witness()).unwrap().volume;
+        let v = topo::mass_properties(&out.body, Tol::witness())
+            .unwrap()
+            .volume;
         assert!(
             (v - want).abs() <= 1e-9 * want,
             "two-pip volume {v} vs {want}"
@@ -452,7 +472,9 @@ fn p5_seam_azimuth_rotation_certifies_identically() {
             Ok(()),
             "tier 3 at theta {theta}"
         );
-        let v = topo::mass_properties(&out.body, Tol::witness()).unwrap().volume;
+        let v = topo::mass_properties(&out.body, Tol::witness())
+            .unwrap()
+            .volume;
         assert!(
             (v - want).abs() <= 1e-9 * want,
             "theta {theta}: volume {v} vs {want}"
@@ -524,7 +546,8 @@ fn p8_duplicate_edge_refuses() {
     let (pipped, box_edges) = one_pip(0.5, 0.5);
     let mut req = box_edges.clone();
     req.push(box_edges[0]);
-    let err = fillet_edges(&pipped, &req, DIE_R, band(), Tol::witness()).expect_err("duplicate edge");
+    let err =
+        fillet_edges(&pipped, &req, DIE_R, band(), Tol::witness()).expect_err("duplicate edge");
     // The refusal names the repeated key, not just the situation: the
     // caller can act on it without re-deriving which edge doubled.
     assert!(

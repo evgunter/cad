@@ -31,8 +31,8 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::props::{LoopEdge, PropsError, curved_face};
-use geom_core::{Band, Point3, Vec3};
 use geom_core::Tol;
+use geom_core::{Band, Point3, Vec3};
 
 fn v3(x: f64, y: f64, z: f64) -> Vec3<f64> {
     Vec3::new(x, y, z)
@@ -176,7 +176,8 @@ fn a_rim_arc_well_outside_the_band_is_still_refused() {
 fn the_unwobbled_split_rim_measures_exactly() {
     let (va, vb) = (0.2, 0.7);
     let (s, edges) = gasket_band(va, vb, 0.0);
-    let got = curved_face(&s, &edges, 1.0, Band::linear(Tol::witness()).unwrap()).expect("computes");
+    let got =
+        curved_face(&s, &edges, 1.0, Band::linear(Tol::witness()).unwrap()).expect("computes");
     let exact = exact_area(va, vb);
     assert!((got.area - exact).abs() / exact < 1e-12);
 }

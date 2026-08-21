@@ -77,7 +77,11 @@ fn tier_three_refuses_a_hand_flipped_face_sense() {
     let t = geometric_cube::<f64>();
     let mut body = t.body;
     describe_as_intersections(&mut body);
-    assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()), "the fixture is clean");
+    assert_eq!(
+        validate_geometric(&body, Tol::witness()),
+        Ok(()),
+        "the fixture is clean"
+    );
 
     let (face, outer) = body.faces().map(|(k, f)| (k, f.outer)).next().unwrap();
     let flipped = body.flipped_face_sense_for_tests(face).unwrap();
@@ -91,7 +95,11 @@ fn tier_three_refuses_a_hand_flipped_face_sense() {
     );
 
     // Winding-derived, hence blind to a lone sense flip: same volume.
-    let volume = |b: &Body<f64>| topo::props::mass_properties(b, Tol::witness()).unwrap().volume;
+    let volume = |b: &Body<f64>| {
+        topo::props::mass_properties(b, Tol::witness())
+            .unwrap()
+            .volume
+    };
     assert_eq!(
         volume(&body).to_bits(),
         volume(&flipped).to_bits(),
@@ -196,7 +204,9 @@ fn cube_edges_upgrade_to_intersections_and_pass_tier3() {
         s2: foreign1,
         witness: p0.lerp(p1, 0.5),
     };
-    let err = body.set_edge_curve(edge_key, spec, Tol::witness()).unwrap_err();
+    let err = body
+        .set_edge_curve(edge_key, spec, Tol::witness())
+        .unwrap_err();
     assert!(
         matches!(err, EulerOpError::DescriptionNotAdjacent { .. }),
         "{err:?}"
@@ -305,7 +315,9 @@ fn near_tangent_intersection_attachment_escalates() {
         s2: tilted,
         witness: c(0.5, 0.0, 0.0),
     };
-    let err = body.set_edge_curve(split.edge, spec, Tol::witness()).unwrap_err();
+    let err = body
+        .set_edge_curve(split.edge, spec, Tol::witness())
+        .unwrap_err();
     assert!(
         matches!(
             err,

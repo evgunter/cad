@@ -26,7 +26,9 @@ fn p(x: f64) -> Point3<f64> {
 
 /// Builds the digon pillow through ops: 2 vertices, 2 edges, 2 faces.
 /// Returns (body, seed, seg, split).
-fn pillow(tol: Tol) -> (
+fn pillow(
+    tol: Tol,
+) -> (
     Body<f64>,
     crate::MvfsCreated,
     crate::MevCreated,
@@ -44,10 +46,13 @@ fn pillow(tol: Tol) -> (
         )
         .unwrap();
     let split = body
-        .mef_chord(MefSite::Chords {
-            he1: seg.he_plus,
-            he2: seg.he_minus,
-        }, tol)
+        .mef_chord(
+            MefSite::Chords {
+                he1: seg.he_plus,
+                he2: seg.he_minus,
+            },
+            tol,
+        )
         .unwrap();
     assert_eq!(validate(&body), Ok(()));
     (body, seed, seg, split)
@@ -123,10 +128,13 @@ fn stale_argument_keys_leave_the_body_deep_equal() {
             key: EntityId::HalfEdge(null_he),
         },
         |b| {
-            b.mef_chord(MefSite::Chords {
-                he1: null_he,
-                he2: null_he,
-            }, tol)
+            b.mef_chord(
+                MefSite::Chords {
+                    he1: null_he,
+                    he2: null_he,
+                },
+                tol,
+            )
             .unwrap_err()
         },
     );
@@ -175,10 +183,13 @@ fn semantic_precondition_failures_leave_the_body_deep_equal() {
             he2: split.he_plus,
         },
         |b| {
-            b.mef_chord(MefSite::Chords {
-                he1: seg.he_plus,
-                he2: split.he_plus,
-            }, tol)
+            b.mef_chord(
+                MefSite::Chords {
+                    he1: seg.he_plus,
+                    he2: split.he_plus,
+                },
+                tol,
+            )
             .unwrap_err()
         },
     );
@@ -253,10 +264,13 @@ fn raw_corruption_paths_leave_the_body_deep_equal() {
         |b| {
             // seg.he_plus starts at seed.vertex; same loop as the mef
             // half spliced there... use self-loop chords at he_plus.
-            b.mef_chord(MefSite::Chords {
-                he1: seg.he_plus,
-                he2: seg.he_plus,
-            }, tol)
+            b.mef_chord(
+                MefSite::Chords {
+                    he1: seg.he_plus,
+                    he2: seg.he_plus,
+                },
+                tol,
+            )
             .unwrap_err()
         },
     );
@@ -298,10 +312,13 @@ fn raw_corruption_paths_leave_the_body_deep_equal() {
             r#loop: split.r#loop,
         },
         |b| {
-            b.mef_chord(MefSite::Chords {
-                he1: seg.he_plus,
-                he2: split.he_minus,
-            }, tol)
+            b.mef_chord(
+                MefSite::Chords {
+                    he1: seg.he_plus,
+                    he2: split.he_minus,
+                },
+                tol,
+            )
             .unwrap_err()
         },
     );
@@ -317,10 +334,13 @@ fn raw_corruption_paths_leave_the_body_deep_equal() {
             r#loop: seed2.r#loop,
         },
         |b| {
-            b.mef_chord(MefSite::Chords {
-                he1: seg.he_plus,
-                he2: split.he_minus,
-            }, tol)
+            b.mef_chord(
+                MefSite::Chords {
+                    he1: seg.he_plus,
+                    he2: split.he_minus,
+                },
+                tol,
+            )
             .unwrap_err()
         },
     );
@@ -334,10 +354,13 @@ fn raw_corruption_paths_leave_the_body_deep_equal() {
             key: EntityId::Face(FaceKey::default()),
         },
         |b| {
-            b.mef_chord(MefSite::Chords {
-                he1: seg.he_plus,
-                he2: split.he_minus,
-            }, tol)
+            b.mef_chord(
+                MefSite::Chords {
+                    he1: seg.he_plus,
+                    he2: split.he_minus,
+                },
+                tol,
+            )
             .unwrap_err()
         },
     );
@@ -351,10 +374,13 @@ fn raw_corruption_paths_leave_the_body_deep_equal() {
             key: EntityId::Shell(crate::ShellKey::default()),
         },
         |b| {
-            b.mef_chord(MefSite::Chords {
-                he1: seg.he_plus,
-                he2: split.he_minus,
-            }, tol)
+            b.mef_chord(
+                MefSite::Chords {
+                    he1: seg.he_plus,
+                    he2: split.he_minus,
+                },
+                tol,
+            )
             .unwrap_err()
         },
     );

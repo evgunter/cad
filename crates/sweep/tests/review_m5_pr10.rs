@@ -13,11 +13,11 @@
 
 use geom::NurbsCurve3;
 use geom_brep::SketchSegment;
+use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::{Affine3, Band, Point2, Point3};
 use profile::RawLoop;
 use sweep::skin::{SkinError, make_compatible, segment_curve, skin_on, skin_parameters};
-use geom_core::Tol;
 
 fn ring() -> f64 {
     Band::linear(Tol::witness()).expect("band").zero()

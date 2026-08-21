@@ -5,9 +5,9 @@
 
 mod common;
 
+use geom_core::Tol;
 use mesh::tessellate;
 use stl::{AsciiOptions, BinaryOptions, SolidName, write_ascii, write_binary};
-use geom_core::Tol;
 
 fn fnv(bytes: &[u8]) -> u64 {
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;

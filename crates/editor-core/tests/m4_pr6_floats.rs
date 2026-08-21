@@ -16,8 +16,8 @@ use editor_core::{
     Dimension, DocEdit, DocParam, Expr, MetaValue, Node, ParamName, ProfileDoc, load, save,
 };
 use fixture::desc;
-use proptest::prelude::*;
 use geom_core::Tol;
+use proptest::prelude::*;
 
 /// Round-trips one value through every float slot at once; returns
 /// the loaded document for slot-by-slot bit assertions.

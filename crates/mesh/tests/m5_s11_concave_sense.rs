@@ -21,10 +21,10 @@ use core::f64::consts::{FRAC_PI_8, PI};
 use profile::RawLoop;
 
 use common::*;
+use geom_core::Tol;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, extrude};
 use topo::Body;
-use geom_core::Tol;
 
 /// The S11 concave-notched prism (area exactly 3, height 1). Exact
 /// boundary area: 3 sides of the box (2 + 1.5 + 1.5), two arc walls of
@@ -37,10 +37,13 @@ fn notched() -> Body<f64> {
         .unwrap()
         .line_to(p2(2.0, 1.5), Tol::witness())
         .unwrap()
-        .arc_to(profile::Bulge {
-            p: p2(0.0, 1.5),
-            b: -b,
-        }, Tol::witness())
+        .arc_to(
+            profile::Bulge {
+                p: p2(0.0, 1.5),
+                b: -b,
+            },
+            Tol::witness(),
+        )
         .unwrap()
         .line_to(profile::Start, Tol::witness())
         .unwrap()
@@ -48,7 +51,9 @@ fn notched() -> Body<f64> {
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(geom_core::Tol::witness())
         .unwrap();
-    extrude(&vp, Extrusion::Distance(1.0), Tol::witness()).unwrap().body
+    extrude(&vp, Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body
 }
 
 /// The hole plate: 4×4×1 with a unit-radius through hole — the hole
@@ -62,7 +67,9 @@ fn hole_plate() -> Body<f64> {
     let vp = Profile::new(SketchPlane::xy(), vec![outer, hole])
         .validate(geom_core::Tol::witness())
         .unwrap();
-    extrude(&vp, Extrusion::Distance(1.0), Tol::witness()).unwrap().body
+    extrude(&vp, Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body
 }
 
 #[test]

@@ -10,8 +10,8 @@
 mod common;
 
 use common::{expect_sidecar, fixture};
-use step_import::{ImportOptions, StepImport, import_step};
 use geom_core::Tol;
+use step_import::{ImportOptions, StepImport, import_step};
 
 #[test]
 fn k3_scale_corruption_old_accepted_new_catches() {
@@ -36,7 +36,11 @@ fn k3_scale_corruption_old_accepted_new_catches() {
         StepImport::Solid { body, .. } => body,
         StepImport::Wireframe { .. } => panic!("wireframe"),
     };
-    assert_eq!(topo::validate_geometric(&body, Tol::witness()), Ok(()), "tier 3 must pass");
+    assert_eq!(
+        topo::validate_geometric(&body, Tol::witness()),
+        Ok(()),
+        "tier 3 must pass"
+    );
     let props = topo::mass_properties(&body, Tol::witness()).unwrap();
     let expect = expect_sidecar("notched");
     let expected_m3 = expect.kernel_volume_mm3 * 1e-9;

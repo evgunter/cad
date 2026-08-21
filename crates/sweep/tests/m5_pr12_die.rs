@@ -14,6 +14,7 @@
 use core::f64::consts::PI;
 use profile::RawLoop;
 
+use geom_core::Tol;
 use geom_core::{Affine3, Band, Point2, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::fillet::build::fillet_edges;
@@ -21,7 +22,6 @@ use sweep::test_support::cube;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations};
-use geom_core::Tol;
 
 /// The die's side, meters.
 const DIE_L: f64 = 1.0;
@@ -97,7 +97,9 @@ fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
         origin: p2(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
-    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness()).unwrap().body;
+    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
+        .unwrap()
+        .body;
     topo::transform_rigid(&ball, &Affine3::translation(c), Tol::witness()).unwrap()
 }
 
@@ -255,7 +257,11 @@ fn the_die_blank_certifies_and_tessellates_watertight() {
     let die = blank();
     assert_eq!(topo::validate(&die), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&die), Ok(()), "tier 2");
-    assert_eq!(topo::validate_geometric(&die, Tol::witness()), Ok(()), "tier 3");
+    assert_eq!(
+        topo::validate_geometric(&die, Tol::witness()),
+        Ok(()),
+        "tier 3"
+    );
     let props = topo::mass_properties(&die, Tol::witness()).unwrap();
     let want = blank_volume();
     assert!(
@@ -299,14 +305,21 @@ fn the_pips_cut_in_one_group_operation_on_all_six_faces() {
     let pipped = subtract(&cube(DIE_L, Tol::witness()), &tool);
     assert_eq!(topo::validate(&pipped), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&pipped), Ok(()), "tier 2");
-    assert_eq!(topo::validate_geometric(&pipped, Tol::witness()), Ok(()), "tier 3");
+    assert_eq!(
+        topo::validate_geometric(&pipped, Tol::witness()),
+        Ok(()),
+        "tier 3"
+    );
     let want = DIE_L.powi(3) - 21.0 * cap(PIP_R, PIP_H);
-    let vol = topo::mass_properties(&pipped, Tol::witness()).unwrap().volume;
+    let vol = topo::mass_properties(&pipped, Tol::witness())
+        .unwrap()
+        .volume;
     assert!(
         (vol - want).abs() <= 1e-9 * want,
         "pipped cube volume {vol} vs closed form {want}"
     );
-    let mesh = mesh::tessellate(&pipped, 5e-3, Tol::witness()).expect("the pipped cube tessellates");
+    let mesh =
+        mesh::tessellate(&pipped, 5e-3, Tol::witness()).expect("the pipped cube tessellates");
     mesh::validate::check_mesh(&mesh).expect("watertight");
 }
 
@@ -363,9 +376,15 @@ fn deviation_1_flipped_door_b_composes_door_a_reaches_its_real_frontier() {
     let via_surgery = fillet_edges(&pipped, &surviving, DIE_R, band(), Tol::witness())
         .expect("the in-place surgery takes the subset request (M6 unit 1)")
         .body;
-    assert_eq!(topo::validate_geometric(&via_surgery, Tol::witness()), Ok(()), "tier 3");
+    assert_eq!(
+        topo::validate_geometric(&via_surgery, Tol::witness()),
+        Ok(()),
+        "tier 3"
+    );
     let want = blank_volume() - 21.0 * cap(PIP_R, PIP_H);
-    let vb = topo::mass_properties(&via_surgery, Tol::witness()).unwrap().volume;
+    let vb = topo::mass_properties(&via_surgery, Tol::witness())
+        .unwrap()
+        .volume;
     assert!(
         (vb - want).abs() <= 1e-9 * want,
         "door B volume {vb} vs closed form {want}"

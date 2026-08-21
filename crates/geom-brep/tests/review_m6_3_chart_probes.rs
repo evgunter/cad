@@ -16,8 +16,8 @@ use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{ChartWindow, Pcurve, PcurveCache, PcurveCertifyError, chart_pcurve};
-use geom_core::{Band, Point2, Point3, Vec2, Vec3};
 use geom_core::Tol;
+use geom_core::{Band, Point2, Point3, Vec2, Vec3};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()

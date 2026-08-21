@@ -65,7 +65,9 @@ use geom_brep::{
     DihedralClass, EdgeCurveSpec, EdgeGeometry, MappedCurve, NewellError, classify_dihedral,
     newell_plane,
 };
-use geom_core::{Affine3, Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec3};
+use geom_core::{
+    Affine3, Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec3,
+};
 use profile::{SegmentKind, ValidatedLoop, ValidatedProfile};
 use topo::{
     Body, EdgeKey, EulerOpError, FaceKey, FaceSurface, MefSite, MevCreated, MevSite, ShellKey,
@@ -601,7 +603,9 @@ pub fn extrude<T: Decide>(
     let mut top_rims = Vec::with_capacity(loops.len());
     for (li, (segs, base)) in loops.iter().zip(&bases).enumerate() {
         let qs = &points[li];
-        let swept = sweep_loop(&mut body, li, segs, &base.hes, qs, place, top_place, normal, w, w_norm, band, tol)?;
+        let swept = sweep_loop(
+            &mut body, li, segs, &base.hes, qs, place, top_place, normal, w, w_norm, band, tol,
+        )?;
         side_faces.push(swept.faces);
         strut_edges.push(swept.struts);
         top_rims.push(swept.top_rims);

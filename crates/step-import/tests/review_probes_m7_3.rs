@@ -11,10 +11,10 @@
 mod common;
 
 use common::{census, fixture};
+use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec3};
 use profile::RawLoop;
 use step_import::{ImportOptions, StepImport, import_step};
-use geom_core::Tol;
 
 fn import(text: &str) -> Result<StepImport, step_import::StepImportError> {
     import_step(text, &ImportOptions::default())
@@ -176,8 +176,12 @@ fn native_arc_loft_for_probe() -> topo::Body<f64> {
 #[test]
 fn probe_arc_loft_weights_snapped_to_one_refuses() {
     let native = native_arc_loft_for_probe();
-    let text = step_export::step_string(&native, &step_export::StepOptions::default(), Tol::witness())
-        .expect("arc loft exports");
+    let text = step_export::step_string(
+        &native,
+        &step_export::StepOptions::default(),
+        Tol::witness(),
+    )
+    .expect("arc loft exports");
     // Find the RATIONAL_B_SPLINE_SURFACE weight list and replace every
     // weight with 1.0.
     let start = text
@@ -254,8 +258,12 @@ fn probe_arc_loft_weights_snapped_to_one_refuses() {
 #[test]
 fn probe_arm_b_rim_off_wall_arc() {
     let native = native_arc_loft_for_probe();
-    let text = step_export::step_string(&native, &step_export::StepOptions::default(), Tol::witness())
-        .expect("arc loft exports");
+    let text = step_export::step_string(
+        &native,
+        &step_export::StepOptions::default(),
+        Tol::witness(),
+    )
+    .expect("arc loft exports");
     // Find the CIRCLE whose placement's location is (0.0, 0.0, 0.0).
     let mut center_line = None;
     let mut circle_line = None;
@@ -440,7 +448,11 @@ fn probe_rim_same_sense_flip_is_honest() {
             assert_eq!(census(&body), census(&base), "census must match");
             assert_eq!(topo::validate(&body), Ok(()), "t1");
             assert_eq!(topo::validate_closed(&body), Ok(()), "t2");
-            assert_eq!(topo::validate_geometric(&body, Tol::witness()), Ok(()), "t3");
+            assert_eq!(
+                topo::validate_geometric(&body, Tol::witness()),
+                Ok(()),
+                "t3"
+            );
             eprintln!("PROBE same_sense flip: accepted and fully valid");
         }
         Ok(other) => panic!("unexpected disposition: {other:?}"),
@@ -521,7 +533,8 @@ fn probe_reexport_promotion_divergence() {
     );
     // The promoted one-cycle fixed point.
     let body2 = solid(&out, "first re-export");
-    let out2 = step_export::step_string(&body2, &options, Tol::witness()).expect("second re-export");
+    let out2 =
+        step_export::step_string(&body2, &options, Tol::witness()).expect("second re-export");
     assert_eq!(out, out2, "fixed point from the first re-export on");
 }
 

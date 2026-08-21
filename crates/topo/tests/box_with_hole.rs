@@ -45,11 +45,11 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Point3;
+use geom_core::Tol;
 use topo::{
     Body, EntityId, KemrResult, KfmrhResult, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated,
     Provenance, validate, validate_closed,
 };
-use geom_core::Tol;
 
 /// Every operator result of one holed-box construction, in call order.
 /// Comparing two of these key-for-key is the lineage-determinism check.
@@ -82,13 +82,19 @@ fn build_holed_box(body: &mut Body<f64>) -> HoledBox {
         created
     };
     let mef = |body: &mut Body<f64>, he1, he2| {
-        let created = body.mef_chord(MefSite::Chords { he1, he2 }, Tol::witness()).unwrap();
+        let created = body
+            .mef_chord(MefSite::Chords { he1, he2 }, Tol::witness())
+            .unwrap();
         assert_eq!(validate(body), Ok(()));
         created
     };
     let strut_at = |body: &mut Body<f64>, at, x, y, z| {
         let created = body
-            .mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, z), Tol::witness())
+            .mev_line(
+                MevSite::Fan { he1: at, he2: at },
+                pt(x, y, z),
+                Tol::witness(),
+            )
             .unwrap();
         assert_eq!(validate(body), Ok(()));
         created

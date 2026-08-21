@@ -196,7 +196,10 @@ fn bent_tip() -> PartialPath<f64, HasPos<WithIncoming>, HasAng> {
 
 #[test]
 fn turn_zero_refuses_toward_tangent() {
-    let leg = Open.at(p2(0.0, 0.0)).line_to(p2(2.0, 0.0), Tol::witness()).unwrap();
+    let leg = Open
+        .at(p2(0.0, 0.0))
+        .line_to(p2(2.0, 0.0), Tol::witness())
+        .unwrap();
     assert!(matches!(
         leg.turn(0.0, Tol::witness()),
         Err(PathError::JunctionTangent { .. })
@@ -205,7 +208,10 @@ fn turn_zero_refuses_toward_tangent() {
 
 #[test]
 fn turn_pi_refuses_as_cusp_naming_the_absent_declaration_door() {
-    let leg = Open.at(p2(0.0, 0.0)).line_to(p2(2.0, 0.0), Tol::witness()).unwrap();
+    let leg = Open
+        .at(p2(0.0, 0.0))
+        .line_to(p2(2.0, 0.0), Tol::witness())
+        .unwrap();
     let err = leg.turn(std::f64::consts::PI, Tol::witness()).unwrap_err();
     assert!(matches!(err, PathError::JunctionCusp { .. }));
     // The refusal must say that no declaration door for cusps exists,
@@ -219,7 +225,10 @@ fn turn_pi_refuses_as_cusp_naming_the_absent_declaration_door() {
 
 #[test]
 fn declared_straight_continuation_of_a_line_is_same_carrier() {
-    let leg = Open.at(p2(0.0, 0.0)).line_to(p2(2.0, 0.0), Tol::witness()).unwrap();
+    let leg = Open
+        .at(p2(0.0, 0.0))
+        .line_to(p2(2.0, 0.0), Tol::witness())
+        .unwrap();
     assert!(matches!(
         leg.tangent().line(1.0, Tol::witness()),
         Err(PathError::SameCarrierJunction { .. })
@@ -233,10 +242,13 @@ fn cocircular_tangent_arc_is_same_carrier() {
     // constructed arc is the incoming carrier itself.
     let arc_end = Open
         .at(p2(-1.0, 0.0))
-        .arc_to(Bulge {
-            p: p2(1.0, 0.0),
-            b: 1.0,
-        }, Tol::witness())
+        .arc_to(
+            Bulge {
+                p: p2(1.0, 0.0),
+                b: 1.0,
+            },
+            Tol::witness(),
+        )
         .unwrap()
         .tangent();
     assert!(matches!(
@@ -248,7 +260,11 @@ fn cocircular_tangent_arc_is_same_carrier() {
 #[test]
 fn parallel_carriers_refuse_no_corner() {
     // Arrival side parallel to the departure ray.
-    let arrival = bent_tip().fillet(0.5, Tol::witness()).unwrap().at(p2(4.0, 3.0), Tol::witness()).unwrap();
+    let arrival = bent_tip()
+        .fillet(0.5, Tol::witness())
+        .unwrap()
+        .at(p2(4.0, 3.0), Tol::witness())
+        .unwrap();
     assert!(matches!(
         arrival.angle(std::f64::consts::FRAC_PI_2, Tol::witness()),
         Err(PathError::NoCornerForFillet { .. })
@@ -259,7 +275,11 @@ fn parallel_carriers_refuse_no_corner() {
 fn corner_behind_ray_refuses_no_corner() {
     // Ray heads north from (2, 0); the arrival carrier crosses it at
     // y = −1 — behind the ray start.
-    let arrival = bent_tip().fillet(0.5, Tol::witness()).unwrap().at(p2(4.0, -1.0), Tol::witness()).unwrap();
+    let arrival = bent_tip()
+        .fillet(0.5, Tol::witness())
+        .unwrap()
+        .at(p2(4.0, -1.0), Tol::witness())
+        .unwrap();
     assert!(matches!(
         arrival.angle(0.0, Tol::witness()),
         Err(PathError::NoCornerForFillet { .. })
@@ -270,7 +290,11 @@ fn corner_behind_ray_refuses_no_corner() {
 fn trim_eating_an_anchor_refuses_typed() {
     // Corner (2, 2); the arrival anchor sits 0.5 past it but the
     // radius wants a 0.9 setback: the trim would eat the anchor.
-    let arrival = bent_tip().fillet(0.9, Tol::witness()).unwrap().at(p2(2.5, 2.0), Tol::witness()).unwrap();
+    let arrival = bent_tip()
+        .fillet(0.9, Tol::witness())
+        .unwrap()
+        .at(p2(2.5, 2.0), Tol::witness())
+        .unwrap();
     assert!(matches!(
         arrival.angle(0.0, Tol::witness()),
         Err(PathError::AnchorOutsideTrimmedExtent { .. })
@@ -282,12 +306,19 @@ fn trim_eating_an_anchor_refuses_typed() {
 /// is refused, and the refusal names the fused verbs that do the job.
 #[test]
 fn an_arc_leg_on_an_open_fillet_names_the_fused_verbs() {
-    let arrival = bent_tip().fillet(0.5, Tol::witness()).unwrap().at(p2(4.0, 2.0), Tol::witness()).unwrap();
+    let arrival = bent_tip()
+        .fillet(0.5, Tol::witness())
+        .unwrap()
+        .at(p2(4.0, 2.0), Tol::witness())
+        .unwrap();
     let err = arrival
-        .arc_to(Bulge {
-            p: p2(5.0, 3.0),
-            b: 0.4,
-        }, Tol::witness())
+        .arc_to(
+            Bulge {
+                p: p2(5.0, 3.0),
+                b: 0.4,
+            },
+            Tol::witness(),
+        )
         .unwrap_err();
     assert!(matches!(err, PathError::ArcLegOnOpenFillet { .. }));
     assert!(
@@ -309,10 +340,13 @@ fn a_seam_fillet_onto_an_arc_first_side_names_the_closing_door() {
     // its own carrier.
     let tip = Open
         .at(p2(0.0, 0.0))
-        .arc_to(Bulge {
-            p: p2(4.0, 0.0),
-            b: 0.3,
-        }, Tol::witness())
+        .arc_to(
+            Bulge {
+                p: p2(4.0, 0.0),
+                b: 0.3,
+            },
+            Tol::witness(),
+        )
         .unwrap()
         .angle(2.0, Tol::witness())
         .unwrap()
@@ -427,7 +461,11 @@ fn zero_leg_length_refuses_typed() {
 #[test]
 fn nonpositive_fillet_radius_refuses_typed_r7() {
     for r in [-0.5, 0.0] {
-        let refused = Open.at(p2(0.0, 0.0)).angle(0.0, Tol::witness()).unwrap().fillet(r, Tol::witness());
+        let refused = Open
+            .at(p2(0.0, 0.0))
+            .angle(0.0, Tol::witness())
+            .unwrap()
+            .fillet(r, Tol::witness());
         assert!(
             matches!(refused, Err(PathError::NonpositiveFilletRadius { .. })),
             "r = {r} must refuse at the fillet verb"
@@ -474,10 +512,13 @@ fn circle_primitive_leaves_pq4_refusing_for_chains() {
     // still refused.
     let refused = Open
         .at(p2(1.0, 0.0))
-        .arc_to(Bulge {
-            p: p2(-1.0, 0.0),
-            b: 1.0,
-        }, Tol::witness())
+        .arc_to(
+            Bulge {
+                p: p2(-1.0, 0.0),
+                b: 1.0,
+            },
+            Tol::witness(),
+        )
         .unwrap()
         .tangent()
         .tangent_arc_to(Start, Tol::witness());
@@ -508,18 +549,24 @@ fn the_via_mode_refuses_the_whole_collinear_class() {
 fn arc_modes_refuse_a_degenerate_chord() {
     let a = p2(1.0, 0.0);
     assert!(matches!(
-        Open.at(a).arc_to(Via {
-            q: p2(0.0, 1.0),
-            p: a
-        }, Tol::witness()),
+        Open.at(a).arc_to(
+            Via {
+                q: p2(0.0, 1.0),
+                p: a
+            },
+            Tol::witness()
+        ),
         Err(PathError::DegenerateArcChord { .. })
     ));
     assert!(matches!(
-        Open.at(a).arc_to(Center {
-            c: p2(0.0, 0.0),
-            winding: profile::ArcSweep::Ccw,
-            p: a
-        }, Tol::witness()),
+        Open.at(a).arc_to(
+            Center {
+                c: p2(0.0, 0.0),
+                winding: profile::ArcSweep::Ccw,
+                p: a
+            },
+            Tol::witness()
+        ),
         Err(PathError::DegenerateArcChord { .. })
     ));
 }
@@ -529,11 +576,14 @@ fn arc_modes_refuse_a_degenerate_chord() {
 /// leaves all three authored points where the author put them.
 #[test]
 fn the_center_mode_refuses_a_definite_equidistance_mismatch() {
-    let refused = Open.at(p2(1.0, 0.0)).arc_to(Center {
-        c: p2(0.0, 0.0),
-        winding: profile::ArcSweep::Ccw,
-        p: p2(0.0, 2.0),
-    }, Tol::witness());
+    let refused = Open.at(p2(1.0, 0.0)).arc_to(
+        Center {
+            c: p2(0.0, 0.0),
+            winding: profile::ArcSweep::Ccw,
+            p: p2(0.0, 2.0),
+        },
+        Tol::witness(),
+    );
     match refused {
         Err(PathError::ArcCenterNotEquidistant {
             tip_radius,
@@ -546,11 +596,14 @@ fn the_center_mode_refuses_a_definite_equidistance_mismatch() {
     }
     // A centre on an endpoint has no radius for the winding to select.
     assert!(matches!(
-        Open.at(p2(1.0, 0.0)).arc_to(Center {
-            c: p2(1.0, 0.0),
-            winding: profile::ArcSweep::Ccw,
-            p: p2(0.0, 1.0),
-        }, Tol::witness()),
+        Open.at(p2(1.0, 0.0)).arc_to(
+            Center {
+                c: p2(1.0, 0.0),
+                winding: profile::ArcSweep::Ccw,
+                p: p2(0.0, 1.0),
+            },
+            Tol::witness()
+        ),
         Err(PathError::DegenerateArcCenter { .. })
     ));
 }
@@ -563,11 +616,14 @@ fn the_center_mode_stores_its_authored_endpoints_verbatim() {
     let (a, c, b) = (p2(3.0, 0.0), p2(0.0, 0.0), p2(0.0, 3.0));
     let lowered = Open
         .at(a)
-        .arc_to(Center {
-            c,
-            winding: profile::ArcSweep::Ccw,
-            p: b,
-        }, Tol::witness())
+        .arc_to(
+            Center {
+                c,
+                winding: profile::ArcSweep::Ccw,
+                p: b,
+            },
+            Tol::witness(),
+        )
         .unwrap()
         .line_to(c, Tol::witness())
         .unwrap()
@@ -598,7 +654,10 @@ fn toward_refuses_a_zero_direction() {
 /// tangent continuation refuses exactly as an angle-spelled one does.
 #[test]
 fn toward_runs_the_same_junction_check_as_angle() {
-    let leg = Open.at(p2(0.0, 0.0)).line_to(p2(2.0, 0.0), Tol::witness()).unwrap();
+    let leg = Open
+        .at(p2(0.0, 0.0))
+        .line_to(p2(2.0, 0.0), Tol::witness())
+        .unwrap();
     assert!(matches!(
         leg.clone().toward(1.0, 0.0, Tol::witness()),
         Err(PathError::JunctionTangent { .. })
@@ -655,7 +714,9 @@ fn far_end_anchor_refuses_at_the_entry() {
         Err(PathError::FarEndAnchorWithoutFillet)
     ));
     assert!(matches!(
-        Open.toward(1.0, 0.0_f64, Tol::witness()).unwrap().to(p2(1.0, 0.0), Tol::witness()),
+        Open.toward(1.0, 0.0_f64, Tol::witness())
+            .unwrap()
+            .to(p2(1.0, 0.0), Tol::witness()),
         Err(PathError::FarEndAnchorWithoutFillet)
     ));
 }
@@ -762,26 +823,35 @@ fn the_new_funnel_gates_escalate_in_band() {
 
     // toward: a norm in the band names no decidable direction.
     assert!(
-        matches!(Open.toward(band, 0.0, Tol::witness()), Err(PathError::Escalated { .. })),
+        matches!(
+            Open.toward(band, 0.0, Tol::witness()),
+            Err(PathError::Escalated { .. })
+        ),
         "sub-band director norm must escalate"
     );
 
     // arc_to(Center { .. }): an equidistance mismatch in the band.
-    let refused = Open.at(p2(1.0, 0.0)).arc_to(Center {
-        c: p2(0.0, 0.0),
-        winding: profile::ArcSweep::Ccw,
-        p: p2(0.0, 1.0 + band),
-    }, Tol::witness());
+    let refused = Open.at(p2(1.0, 0.0)).arc_to(
+        Center {
+            c: p2(0.0, 0.0),
+            winding: profile::ArcSweep::Ccw,
+            p: p2(0.0, 1.0 + band),
+        },
+        Tol::witness(),
+    );
     assert!(
         matches!(refused, Err(PathError::Escalated { .. })),
         "in-band equidistance mismatch must escalate, got {refused:?}"
     );
 
     // arc_to(Via { .. }): a through-point in the band off the chord line.
-    let refused = Open.at(p2(0.0, 0.0)).arc_to(Via {
-        q: p2(1.0, band),
-        p: p2(2.0, 0.0),
-    }, Tol::witness());
+    let refused = Open.at(p2(0.0, 0.0)).arc_to(
+        Via {
+            q: p2(1.0, band),
+            p: p2(2.0, 0.0),
+        },
+        Tol::witness(),
+    );
     assert!(
         matches!(refused, Err(PathError::Escalated { .. })),
         "in-band via offset must escalate, got {refused:?}"
@@ -804,37 +874,49 @@ fn the_new_funnel_gates_decide_outside_the_band() {
     ));
 
     assert!(matches!(
-        Open.at(p2(1.0, 0.0)).arc_to(Center {
-            c: p2(0.0, 0.0),
-            winding: profile::ArcSweep::Ccw,
-            p: p2(0.0, 1.0 + big),
-        }, Tol::witness()),
+        Open.at(p2(1.0, 0.0)).arc_to(
+            Center {
+                c: p2(0.0, 0.0),
+                winding: profile::ArcSweep::Ccw,
+                p: p2(0.0, 1.0 + big),
+            },
+            Tol::witness()
+        ),
         Err(PathError::ArcCenterNotEquidistant { .. })
     ));
     assert!(
         Open.at(p2(1.0, 0.0))
-            .arc_to(Center {
-                c: p2(0.0, 0.0),
-                winding: profile::ArcSweep::Ccw,
-                p: p2(0.0, 1.0 + tiny),
-            }, Tol::witness())
+            .arc_to(
+                Center {
+                    c: p2(0.0, 0.0),
+                    winding: profile::ArcSweep::Ccw,
+                    p: p2(0.0, 1.0 + tiny),
+                },
+                Tol::witness()
+            )
             .is_ok(),
         "a sub-epsilon radius difference is definitely equidistant"
     );
 
     assert!(
         Open.at(p2(0.0, 0.0))
-            .arc_to(Via {
-                q: p2(1.0, big),
-                p: p2(2.0, 0.0),
-            }, Tol::witness())
+            .arc_to(
+                Via {
+                    q: p2(1.0, big),
+                    p: p2(2.0, 0.0),
+                },
+                Tol::witness()
+            )
             .is_ok()
     );
     assert!(matches!(
-        Open.at(p2(0.0, 0.0)).arc_to(Via {
-            q: p2(1.0, tiny),
-            p: p2(2.0, 0.0),
-        }, Tol::witness()),
+        Open.at(p2(0.0, 0.0)).arc_to(
+            Via {
+                q: p2(1.0, tiny),
+                p: p2(2.0, 0.0),
+            },
+            Tol::witness()
+        ),
         Err(PathError::ArcViaCollinear { .. })
     ));
 }
@@ -1025,15 +1107,19 @@ fn the_new_arc_carrier_gates_escalate_in_band() {
     let r = 8.0f64.sqrt();
     let theta = std::f64::consts::FRAC_PI_4 + band / r;
     let anchor = p2(centre.x + r * theta.cos(), centre.y + r * theta.sin());
-    let refused = Open.at(p2(0.0, 0.0)).toward(1.0, 0.0, Tol::witness()).unwrap().fillet_arc(
-        0.3,
-        Center {
-            c: centre,
-            winding: profile::ArcSweep::Ccw,
-            p: anchor,
-        },
-        Tol::witness(),
-    );
+    let refused = Open
+        .at(p2(0.0, 0.0))
+        .toward(1.0, 0.0, Tol::witness())
+        .unwrap()
+        .fillet_arc(
+            0.3,
+            Center {
+                c: centre,
+                winding: profile::ArcSweep::Ccw,
+                p: anchor,
+            },
+            Tol::witness(),
+        );
     let Err(PathError::Escalated { source }) = refused else {
         panic!("an in-band angular reach must escalate, got {refused:?}");
     };
@@ -1069,15 +1155,19 @@ fn the_new_arc_carrier_gates_decide_outside_the_band() {
     // Well BEHIND the corner: decided the other way, typed refusal.
     let theta = std::f64::consts::FRAC_PI_4 - 0.4;
     let anchor = p2(centre.x + r * theta.cos(), centre.y + r * theta.sin());
-    let refused = Open.at(p2(0.0, 0.0)).toward(1.0, 0.0, Tol::witness()).unwrap().fillet_arc(
-        0.3,
-        Center {
-            c: centre,
-            winding: profile::ArcSweep::Ccw,
-            p: anchor,
-        },
-        Tol::witness(),
-    );
+    let refused = Open
+        .at(p2(0.0, 0.0))
+        .toward(1.0, 0.0, Tol::witness())
+        .unwrap()
+        .fillet_arc(
+            0.3,
+            Center {
+                c: centre,
+                winding: profile::ArcSweep::Ccw,
+                p: anchor,
+            },
+            Tol::witness(),
+        );
     assert!(
         matches!(refused, Err(PathError::NoCornerForFillet { .. })),
         "a decided-behind arrival anchor must refuse typed, got {refused:?}"
@@ -1191,8 +1281,8 @@ proptest! {
 // Transition class (path_program.rs).
 // ------------------------------------------------------------------
 
-use profile::{ArcLen, ArcSide, Bulge, Center, Radius, Sweep, Via};
 use geom_core::Tol;
+use profile::{ArcLen, ArcSide, Bulge, Center, Radius, Sweep, Via};
 
 /// LEG rows `Sweep@Directed` / `ArcLen@Directed`: the endpoint-free
 /// pair are the arc analogs of `line(len)` — and `ArcLen { len }` IS
@@ -1203,11 +1293,14 @@ fn sweep_and_arclen_legs_agree_bitwise() {
         .at(p2(0.0, 0.0))
         .angle(0.0, Tol::witness())
         .unwrap()
-        .arc_to(Sweep {
-            r: 2.0,
-            side: ArcSide::Left,
-            angle: 0.8,
-        }, Tol::witness())
+        .arc_to(
+            Sweep {
+                r: 2.0,
+                side: ArcSide::Left,
+                angle: 0.8,
+            },
+            Tol::witness(),
+        )
         .unwrap()
         .line_to(Start, Tol::witness())
         .map(pinned)
@@ -1216,11 +1309,14 @@ fn sweep_and_arclen_legs_agree_bitwise() {
         .at(p2(0.0, 0.0))
         .angle(0.0, Tol::witness())
         .unwrap()
-        .arc_to(ArcLen {
-            r: 2.0,
-            side: ArcSide::Left,
-            len: 1.6,
-        }, Tol::witness())
+        .arc_to(
+            ArcLen {
+                r: 2.0,
+                side: ArcSide::Left,
+                len: 1.6,
+            },
+            Tol::witness(),
+        )
         .unwrap()
         .line_to(Start, Tol::witness())
         .map(pinned)
@@ -1407,7 +1503,11 @@ fn radius_and_via_arrivals_complete_via_their_binders() {
             .map(pinned)
             .unwrap()
     };
-    let entry = || Open.at(p2(0.0, 0.0)).toward(1.0, 0.0, Tol::witness()).unwrap();
+    let entry = || {
+        Open.at(p2(0.0, 0.0))
+            .toward(1.0, 0.0, Tol::witness())
+            .unwrap()
+    };
     // Radius arrival, anchor-first and director-first.
     let a = close_from(
         entry()
@@ -1521,7 +1621,10 @@ fn via_start_close_and_the_arc_incoming_seam() {
 #[test]
 fn ray_extension_is_tangent_fillet_bitwise() {
     let chain = |extend: bool| {
-        let leg = Open.at(p2(0.0, 0.0)).line_to(p2(3.0, 0.0), Tol::witness()).unwrap();
+        let leg = Open
+            .at(p2(0.0, 0.0))
+            .line_to(p2(3.0, 0.0), Tol::witness())
+            .unwrap();
         let opened = if extend {
             leg.fillet(0.5, Tol::witness())
         } else {

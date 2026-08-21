@@ -8,8 +8,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Band, Decide, Sign, Tolerance};
 use geom_core::Tol;
+use geom_core::{Band, Decide, Sign, Tolerance};
 
 /// Probe (ignored in normal runs): classify a margin of 17ε and print
 /// the outcome plus the recorded env errors.

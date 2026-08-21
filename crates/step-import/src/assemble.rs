@@ -404,10 +404,13 @@ impl<'a> Builder<'a> {
                 self.make_ring_of(edge_id, l1, l2)?;
                 let c = self
                     .body
-                    .mekr_chord(MekrSite::BothEmpty {
-                        target: l1,
-                        ring: l2,
-                    }, tol)
+                    .mekr_chord(
+                        MekrSite::BothEmpty {
+                            target: l1,
+                            ring: l2,
+                        },
+                        tol,
+                    )
                     .map_err(Self::op_err(edge_id))?;
                 (c.he_plus, c.he_minus, v1, v2)
             }
@@ -423,10 +426,13 @@ impl<'a> Builder<'a> {
                 self.make_ring_of(edge_id, l1, dying)?;
                 let c = self
                     .body
-                    .mekr_chord(MekrSite::EmptyTarget {
-                        target: l1,
-                        ring: s_r,
-                    }, tol)
+                    .mekr_chord(
+                        MekrSite::EmptyTarget {
+                            target: l1,
+                            ring: s_r,
+                        },
+                        tol,
+                    )
                     .map_err(Self::op_err(edge_id))?;
                 (c.he_plus, c.he_minus, v1, v2)
             }
@@ -442,10 +448,13 @@ impl<'a> Builder<'a> {
                 self.make_ring_of(edge_id, keep, l2)?;
                 let c = self
                     .body
-                    .mekr_chord(MekrSite::EmptyRing {
-                        target: s_f,
-                        ring: l2,
-                    }, tol)
+                    .mekr_chord(
+                        MekrSite::EmptyRing {
+                            target: s_f,
+                            ring: l2,
+                        },
+                        tol,
+                    )
                     .map_err(Self::op_err(edge_id))?;
                 (c.he_plus, c.he_minus, v1, v2)
             }
@@ -472,10 +481,13 @@ impl<'a> Builder<'a> {
                         self.make_ring_of(edge_id, lf, lr)?;
                         let c = self
                             .body
-                            .mekr_chord(MekrSite::Cycles {
-                                target: s_f,
-                                ring: s_r,
-                            }, tol)
+                            .mekr_chord(
+                                MekrSite::Cycles {
+                                    target: s_f,
+                                    ring: s_r,
+                                },
+                                tol,
+                            )
                             .map_err(Self::op_err(edge_id))?;
                         (c.he_plus, c.he_minus, v1, v2)
                     }
@@ -541,10 +553,13 @@ impl<'a> Builder<'a> {
             .map_err(Self::op_err(edge_id))?;
         let c = self
             .body
-            .mef_chord(MefSite::Chords {
-                he1: s,
-                he2: strut.he_plus,
-            }, tol)
+            .mef_chord(
+                MefSite::Chords {
+                    he1: s,
+                    he2: strut.he_plus,
+                },
+                tol,
+            )
             .map_err(Self::op_err(edge_id))?;
         self.body
             .kev(strut.he_plus)
@@ -716,7 +731,11 @@ impl<'a> Builder<'a> {
 /// Assembles one `MANIFOLD_SOLID_BREP` into a new solid of `body`
 /// (phase A + verification), then hands the realization to the
 /// adoption phases (rings, surfaces, senses, edge descriptions).
-fn assemble_solid(body: &mut Body<f64>, solid: &SolidSpec, tol: Tol) -> Result<(), StepImportError> {
+fn assemble_solid(
+    body: &mut Body<f64>,
+    solid: &SolidSpec,
+    tol: Tol,
+) -> Result<(), StepImportError> {
     let target = Target::build(solid)?;
     // Root: the first non-self-loop edge's start vertex (so the seed
     // grows by `mev`), else the first edge's vertex (an all-self-loop

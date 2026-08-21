@@ -346,10 +346,10 @@ pub(crate) fn face_extent<T: Decide>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use geom_core::Tol;
     use super::*;
     use crate::entity::HalfEdgeKey;
     use crate::splitting::SectorEntryKind;
+    use geom_core::Tol;
 
     fn entries(classes: &[PlaneSide]) -> Vec<SectorEntry> {
         classes

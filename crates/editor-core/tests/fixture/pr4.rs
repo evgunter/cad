@@ -34,7 +34,13 @@ fn run<T>(doc: &ProfileDoc, prior: Option<&Evaluation<T>>) -> Evaluation<T>
 where
     T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane,
 {
-    evaluate::<T>(doc, prior, &CancelToken::new(), &EvalOptions::default(), Tol::witness())
+    evaluate::<T>(
+        doc,
+        prior,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
 }
 
 fn block(

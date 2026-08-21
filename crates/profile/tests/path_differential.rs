@@ -23,10 +23,10 @@
 mod common;
 
 use common::pinned;
+use geom_core::Tol;
 use geom_core::{Point2, Vec2};
 use profile::RawLoop;
 use profile::{ArcSweep, Bulge, Center, Open, Profile, ProfileLoop, SketchPlane, Start, Via};
-use geom_core::Tol;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -670,11 +670,14 @@ fn arc_center_matches_loopbuilder_in_both_windings() {
     // chord and is a shape question, not an authoring one.
     let algebra = Open
         .at(a)
-        .arc_to(Center {
-            c,
-            winding: profile::ArcSweep::Ccw,
-            p: b,
-        }, Tol::witness())
+        .arc_to(
+            Center {
+                c,
+                winding: profile::ArcSweep::Ccw,
+                p: b,
+            },
+            Tol::witness(),
+        )
         .unwrap()
         .line_to(c, Tol::witness())
         .unwrap()
@@ -763,7 +766,9 @@ fn angle_directors_drift_where_toward_is_exact() {
         let arrival = if exact {
             opened.toward(0.0, 1.0, Tol::witness()).unwrap()
         } else {
-            opened.angle(std::f64::consts::FRAC_PI_2, Tol::witness()).unwrap()
+            opened
+                .angle(std::f64::consts::FRAC_PI_2, Tol::witness())
+                .unwrap()
         };
         arrival
             .to(far, Tol::witness())

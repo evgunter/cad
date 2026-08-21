@@ -6,8 +6,8 @@
 mod common;
 
 use common::*;
-use mesh::{TessellateError, tessellate};
 use geom_core::Tol;
+use mesh::{TessellateError, tessellate};
 
 #[test]
 fn zero_delta_is_refused() {

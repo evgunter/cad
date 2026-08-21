@@ -1493,8 +1493,8 @@ fn unreachable_zero<T: Real>() -> (T, T, T, T) {
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod rim_level_review_probe {
-    use geom_core::Tol;
     use super::*;
+    use geom_core::Tol;
 
     /// The structurally-impossible mixed-kind arm must escalate typed
     /// (poisoned classify), never panic and never answer false.

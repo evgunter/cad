@@ -14,13 +14,13 @@
 mod common;
 
 use common::{flush_declarations, prism_z};
+use geom_core::Tol;
 use geom_core::{Band, Decide, Point3};
 use topo::{
     Body, BooleanBody, BooleanError, BooleanResult, BooleanResultKind, SolidContainment,
     mass_properties, point_in_solid, subtract, subtract_with, union_with, validate,
     validate_closed,
 };
-use geom_core::Tol;
 
 fn brick<T: Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
     prism_z::<T>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
@@ -45,8 +45,12 @@ fn uslab() -> Body<f64> {
     .body
 }
 
-type BoolOp<T> =
-    fn(&Body<T>, &Body<T>, &topo::BooleanDeclarations, Tol) -> Result<BooleanResult<T>, BooleanError>;
+type BoolOp<T> = fn(
+    &Body<T>,
+    &Body<T>,
+    &topo::BooleanDeclarations,
+    Tol,
+) -> Result<BooleanResult<T>, BooleanError>;
 
 /// Functional run with the author's flush contacts declared (M4
 /// PR 5): operands bitwise untouched, result tier-1+2 valid.

@@ -28,7 +28,9 @@
 
 use geom_core::k_stats::decide;
 use geom_core::predicate::BandError;
-use geom_core::{Affine3, Band, Decide, Indeterminate, Margin, Mat3, Point2, Point3, Sign, Tol, Vec2, Vec3};
+use geom_core::{
+    Affine3, Band, Decide, Indeterminate, Margin, Mat3, Point2, Point3, Sign, Tol, Vec2, Vec3,
+};
 
 use super::axis::AxisFrame;
 use super::{RevolveAxis, RevolveError, Revolved, SweptSeg, full, partial};
@@ -262,6 +264,7 @@ pub fn tube_along_arc<T: Decide>(
     .map_err(TubeError::Revolve)?;
     // The same final pass as every constructor since M6-3: stored
     // certified pcurves at rest.
-    topo::mint_pcurves(&mut out.body, tol).map_err(|e| TubeError::Revolve(RevolveError::Pcurve(e)))?;
+    topo::mint_pcurves(&mut out.body, tol)
+        .map_err(|e| TubeError::Revolve(RevolveError::Pcurve(e)))?;
     Ok(out)
 }

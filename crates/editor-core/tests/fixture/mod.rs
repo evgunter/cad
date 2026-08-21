@@ -20,9 +20,9 @@ use editor_core::{
     ProfileDoc, ProfileEdgeRef, ProfileProgram, ProfileVertexRef, RecipeNodeId, RoleSeg,
     StableName,
 };
+use geom_core::Tol;
 use geom_core::{Point3, Vec3};
 use profile::SketchPlane;
-use geom_core::Tol;
 
 /// The pip depth the document's `pip_depth` parameter starts at.
 pub const DEPTH: f64 = 0.125;
@@ -111,7 +111,8 @@ impl Recorder {
     /// Applies an edit (the doors refusing is a loud test failure)
     /// and records it; returns any minted id.
     pub fn push(&mut self, edit: DocEdit<ProfileProgram>) -> Option<RecipeNodeId> {
-        let applied = editor_core::apply(&self.doc, &edit, Tol::witness()).expect("recorded edit must apply");
+        let applied =
+            editor_core::apply(&self.doc, &edit, Tol::witness()).expect("recorded edit must apply");
         self.doc = applied.doc;
         self.edits.push(edit);
         applied.record.minted

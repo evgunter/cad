@@ -14,10 +14,10 @@ use core::f64::consts::PI;
 
 use geom_brep::EdgeGeometry;
 use geom_core::Band;
+use geom_core::Tol;
 use sweep::fillet::{FilletError, Filleted, fillet_edges};
 use sweep::test_support::cube;
 use topo::{Body, EdgeKey, FaceKey};
-use geom_core::Tol;
 
 fn band() -> Band {
     let tol = Tol::witness().get();
@@ -44,7 +44,11 @@ fn filleting_every_edge_of_a_box_yields_a_tier3_valid_rounded_solid() {
     // 1. The three validator tiers, coarsest first.
     assert_eq!(topo::validate(&f.body), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&f.body), Ok(()), "tier 2");
-    assert_eq!(topo::validate_geometric(&f.body, Tol::witness()), Ok(()), "tier 3");
+    assert_eq!(
+        topo::validate_geometric(&f.body, Tol::witness()),
+        Ok(()),
+        "tier 3"
+    );
 
     // 2. The Euler counts: 6 shrunk planes + 12 quarter-cylinders + 8
     // sphere octants; 24 trimlines + 24 corner arcs; 3 feet per box
@@ -115,7 +119,11 @@ fn filleting_every_edge_of_a_box_yields_a_tier3_valid_rounded_solid() {
 fn the_die_is_tier3_valid_at_a_second_radius() {
     let (l, r) = (2.0, 0.4);
     let f = die(l, r);
-    assert_eq!(topo::validate_geometric(&f.body, Tol::witness()), Ok(()), "tier 3");
+    assert_eq!(
+        topo::validate_geometric(&f.body, Tol::witness()),
+        Ok(()),
+        "tier 3"
+    );
     let core = l - 2.0 * r;
     let volume = core.powi(3)
         + 6.0 * r * core.powi(2)

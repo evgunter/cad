@@ -26,12 +26,12 @@
 mod common;
 
 use common::{SOLID_FIXTURES, fixture};
+use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec3};
 use profile::RawLoop;
 use step_import::{
     ImportOptions, NormalizationKind, PromotedKind, StepImport, StepImportError, import_step,
 };
-use geom_core::Tol;
 
 fn promotions(
     normalizations: &[step_import::StructureNormalization],
@@ -233,8 +233,12 @@ fn offset_square_prism() -> topo::Body<f64> {
 #[test]
 fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
     let native = offset_square_prism();
-    let text = step_export::step_string(&native, &step_export::StepOptions::default(), Tol::witness())
-        .expect("the offset square prism exports");
+    let text = step_export::step_string(
+        &native,
+        &step_export::StepOptions::default(),
+        Tol::witness(),
+    )
+    .expect("the offset square prism exports");
 
     // ---- The half that WORKS: the body is first-class at rest. ----
     let own = import_step(&text, &ImportOptions::default()).expect("our own dialect imports");
@@ -257,8 +261,10 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
     // THE POINT the arc prism cannot make: tier-valid at rest as
     // `Ok(())`, not as parity with a refusing twin. The integral
     // wall's patch flux is computable, so nothing here is banked.
-    topo::validate_geometric(own_body, Tol::witness()).expect("tier-valid AT REST — the integral wall quadratures");
-    topo::validate_geometric(&native, Tol::witness()).expect("its native twin too: parity here is Ok(())");
+    topo::validate_geometric(own_body, Tol::witness())
+        .expect("tier-valid AT REST — the integral wall quadratures");
+    topo::validate_geometric(&native, Tol::witness())
+        .expect("its native twin too: parity here is Ok(())");
 
     // With OUR bytes the bitwise rung answers, so declare-and-check is
     // never reached — the measurement behind the finding above.
@@ -381,8 +387,12 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
 #[test]
 fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
     let native = straight_arc_prism();
-    let text = step_export::step_string(&native, &step_export::StepOptions::default(), Tol::witness())
-        .expect("the arc prism exports");
+    let text = step_export::step_string(
+        &native,
+        &step_export::StepOptions::default(),
+        Tol::witness(),
+    )
+    .expect("the arc prism exports");
     let eps = geom_core::Tol::witness().get().eps;
 
     match import_step(&text, &ImportOptions::default()) {
@@ -507,8 +517,12 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
 #[test]
 fn a_displaced_seam_carrier_refuses_with_the_measured_residual() {
     let native = straight_arc_prism();
-    let text = step_export::step_string(&native, &step_export::StepOptions::default(), Tol::witness())
-        .expect("the arc prism exports");
+    let text = step_export::step_string(
+        &native,
+        &step_export::StepOptions::default(),
+        Tol::witness(),
+    )
+    .expect("the arc prism exports");
     // #127 is the middle control point of #129, the B-spline carrier
     // of EDGE_CURVE #130 — the seam this unit certifies.
     let doctored = text.replace(

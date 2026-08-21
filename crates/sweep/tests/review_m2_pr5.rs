@@ -19,12 +19,12 @@ use std::f64::consts::{FRAC_PI_2, FRAC_PI_8, PI, TAU};
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::EdgeGeometry;
+use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use revolve_common::*;
 use sweep::{Revolution, RevolveAxis, RevolveError, Revolved, RevolvedKind, revolve};
 use topo::{Body, EdgeKey, FaceKey, LoopBoundary};
-use geom_core::Tol;
 
 // =====================================================================
 // Shared attack helpers
@@ -684,7 +684,10 @@ fn survives_forged_seam_on_pi_meridian_is_refused() {
         param_start: t0,
         param_end: t1,
     };
-    let err = t.body.set_edge_curve(pi_edge, forged, Tol::witness()).unwrap_err();
+    let err = t
+        .body
+        .set_edge_curve(pi_edge, forged, Tol::witness())
+        .unwrap_err();
     assert!(
         matches!(err, topo::EulerOpError::Certification { .. }),
         "forged Seam on the π meridian must be refused by certification: {err:?}"
@@ -828,7 +831,10 @@ fn survives_start_point_witness_on_full_rim_is_refused() {
         param_start: t0,
         param_end: t1,
     };
-    let err = t.body.set_edge_curve(rim, forged, Tol::witness()).unwrap_err();
+    let err = t
+        .body
+        .set_edge_curve(rim, forged, Tol::witness())
+        .unwrap_err();
     assert!(
         matches!(err, topo::EulerOpError::Certification { .. }),
         "start-point witness must fail the mid-parameter pin: {err:?}"
@@ -1143,7 +1149,13 @@ fn dump_for_cross_profile_diff() {
 fn probe_fan_oracle_coned_volume() {
     let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
     let vp = validated(vec![lp]);
-    let t = revolve(&vp, axis_y(), Revolution::Partial(FRAC_PI_2), Tol::witness()).unwrap();
+    let t = revolve(
+        &vp,
+        axis_y(),
+        Revolution::Partial(FRAC_PI_2),
+        Tol::witness(),
+    )
+    .unwrap();
     println!("impl oracle: {}", signed_volume(&t.body));
     for (fk, face) in t.body.faces() {
         let mut six_v = 0.0;
@@ -1221,7 +1233,12 @@ fn survives_theta_near_pi_axis_edge_dihedral() {
     // flip.
     let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
     let vp = validated(vec![lp]);
-    match revolve(&vp, axis_y(), Revolution::Partial(PI - 3.0 * eps()), Tol::witness()) {
+    match revolve(
+        &vp,
+        axis_y(),
+        Revolution::Partial(PI - 3.0 * eps()),
+        Tol::witness(),
+    ) {
         Err(RevolveError::SliverRim { .. }) => {}
         Ok(t) => {
             // If the dihedral band did NOT trip (the margin is metered
@@ -1233,7 +1250,13 @@ fn survives_theta_near_pi_axis_edge_dihedral() {
         other => panic!("theta near pi: unexpected {other:?}"),
     }
     // Definite side: θ = π − 1000ε is transverse — Intersection.
-    let t = revolve(&vp, axis_y(), Revolution::Partial(PI - 1000.0 * eps()), Tol::witness()).unwrap();
+    let t = revolve(
+        &vp,
+        axis_y(),
+        Revolution::Partial(PI - 1000.0 * eps()),
+        Tol::witness(),
+    )
+    .unwrap();
     assert_all_tiers(&t.body);
     let RevolvedKind::Partial {
         start_meridians, ..
@@ -1254,7 +1277,13 @@ fn survives_angle_full_range_boundary_rows() {
     // θ = τ − 1000ε: definite partial — must build.
     let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
     let vp = validated(vec![lp]);
-    let e = revolve(&vp, axis_y(), Revolution::Partial(TAU - 3.0 * eps() / 2.0), Tol::witness()).unwrap_err();
+    let e = revolve(
+        &vp,
+        axis_y(),
+        Revolution::Partial(TAU - 3.0 * eps() / 2.0),
+        Tol::witness(),
+    )
+    .unwrap_err();
     assert!(
         matches!(
             e,
@@ -1262,7 +1291,13 @@ fn survives_angle_full_range_boundary_rows() {
         ),
         "{e:?}"
     );
-    let t = revolve(&vp, axis_y(), Revolution::Partial(TAU - 1000.0 * eps()), Tol::witness()).unwrap();
+    let t = revolve(
+        &vp,
+        axis_y(),
+        Revolution::Partial(TAU - 1000.0 * eps()),
+        Tol::witness(),
+    )
+    .unwrap();
     assert_all_tiers(&t.body);
     assert_eq!(counts(&t.body), (8, 12, 6, 0));
 }
@@ -1300,7 +1335,10 @@ fn survives_forged_seam_on_plane_wall_meridian_is_refused() {
         param_start: t0,
         param_end: t1,
     };
-    let err = t.body.set_edge_curve(plane_meridian, forged, Tol::witness()).unwrap_err();
+    let err = t
+        .body
+        .set_edge_curve(plane_meridian, forged, Tol::witness())
+        .unwrap_err();
     assert!(
         matches!(err, topo::EulerOpError::Certification { .. }),
         "Seam on a plane chart must be refused: {err:?}"
@@ -1392,7 +1430,13 @@ fn probe_sliver_dihedral_arms() {
     let vp = validated(vec![lp]);
     println!(
         "theta = pi - 3eps: {:?}",
-        revolve(&vp, axis_y(), Revolution::Partial(PI - 3.0 * eps()), Tol::witness()).map(|_| "built")
+        revolve(
+            &vp,
+            axis_y(),
+            Revolution::Partial(PI - 3.0 * eps()),
+            Tol::witness()
+        )
+        .map(|_| "built")
     );
 }
 

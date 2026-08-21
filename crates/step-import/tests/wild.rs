@@ -31,8 +31,8 @@ mod common;
 use std::path::PathBuf;
 
 use common::census;
-use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 use geom_core::Tol;
+use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 
 /// The imports-class corpus: files that import to a first-class,
 /// tier-valid body, each with an oracle-derived `.expect` sidecar.
@@ -325,9 +325,14 @@ fn wild_files_import_and_agree_with_the_oracle() {
 
         assert_eq!(topo::validate(&body), Ok(()), "{name}: tier 1");
         assert_eq!(topo::validate_closed(&body), Ok(()), "{name}: tier 2");
-        assert_eq!(topo::validate_geometric(&body, Tol::witness()), Ok(()), "{name}: tier 3");
+        assert_eq!(
+            topo::validate_geometric(&body, Tol::witness()),
+            Ok(()),
+            "{name}: tier 3"
+        );
 
-        let props = topo::mass_properties(&body, Tol::witness()).unwrap_or_else(|e| panic!("{name}: {e}"));
+        let props =
+            topo::mass_properties(&body, Tol::witness()).unwrap_or_else(|e| panic!("{name}: {e}"));
         let volume_mm3 = props.volume * 1e9;
         let tolerance = 1e-11 * e.volume_mm3.abs() + props.volume_pad * 1e9;
         assert!(
@@ -440,8 +445,8 @@ fn wild_bodies_are_a_fixed_point_of_our_own_dialect() {
             product_name: name.to_owned(),
             ..step_export::StepOptions::default()
         };
-        let first =
-            step_export::step_string(&body, &options, Tol::witness()).unwrap_or_else(|e| panic!("{name}: {e}"));
+        let first = step_export::step_string(&body, &options, Tol::witness())
+            .unwrap_or_else(|e| panic!("{name}: {e}"));
         let Ok(StepImport::Solid { body: again, .. }) =
             import_step(&first, &ImportOptions::default())
         else {
@@ -467,7 +472,9 @@ fn wild_bodies_are_a_fixed_point_of_our_own_dialect() {
         // census above, and the byte-identical second export below.
         let (v1, v2) = (
             topo::mass_properties(&body, Tol::witness()).unwrap().volume,
-            topo::mass_properties(&again, Tol::witness()).unwrap().volume,
+            topo::mass_properties(&again, Tol::witness())
+                .unwrap()
+                .volume,
         );
         assert!(
             (v1 - v2).abs() <= 4.0 * f64::EPSILON * v1.abs(),

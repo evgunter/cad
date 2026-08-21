@@ -27,8 +27,8 @@
 mod common;
 
 use common::*;
-use mesh::validate::signed_volume;
 use geom_core::Tol;
+use mesh::validate::signed_volume;
 
 /// **Acceptance row (tessellation).** The unit ball is two rimless
 /// pole-to-pole bands on one sphere surface — the exact face

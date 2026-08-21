@@ -28,7 +28,7 @@
 //! [`ArcData`](super::program::ArcData) enum.
 
 use geom_core::k_stats::decide;
-use geom_core::{Tol, Band, Decide, Margin, Point2, Real, Sign, Vec2};
+use geom_core::{Band, Decide, Margin, Point2, Real, Sign, Tol, Vec2};
 
 use super::arc_fillet::{ArcFilletTrims, FilletSide, SideCarrier};
 use super::{Dir, PathError, unit_from_components};

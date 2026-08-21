@@ -17,20 +17,22 @@ use core::f64::consts::PI;
 use profile::RawLoop;
 
 use geom::Surface;
+use geom_core::Tol;
 use geom_core::{Band, Point3};
 use profile::{ArcSweep, Center, Open, Profile, ProfileLoop, ProfileVertex, SketchPlane, Start};
 use revolve_common::{assert_all_tiers, axis_y, p2, validated};
 use sweep::{Extrusion, Revolution, extrude, revolve};
 use topo::boolean::{SolidContainment, point_in_solid};
 use topo::{Body, FaceKey};
-use geom_core::Tol;
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
 }
 
 fn vol(body: &Body<f64>) -> f64 {
-    topo::props::mass_properties(body, Tol::witness()).unwrap().volume
+    topo::props::mass_properties(body, Tol::witness())
+        .unwrap()
+        .volume
 }
 
 fn sense_of(body: &Body<f64>, f: FaceKey) -> bool {
@@ -56,7 +58,10 @@ fn adv_mixed_convex_concave_hole() {
         .unwrap();
     let t = extrude(&vp, Extrusion::Distance(1.0), Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
-    assert_eq!(topo::validate::validate_geometric(&t.body, Tol::witness()), Ok(()));
+    assert_eq!(
+        topo::validate::validate_geometric(&t.body, Tol::witness()),
+        Ok(())
+    );
     // Equal-sagitta segments cancel: hole area exactly 4, volume 32.
     assert!((vol(&t.body) - 32.0).abs() < 1e-9, "vol {}", vol(&t.body));
     let mut seen = (0, 0, 0); // (false-cyl, true-cyl, true-plane)
@@ -87,7 +92,11 @@ fn adv_mixed_convex_concave_hole() {
         (Point3::new(3.0, 1.2, 0.5), SolidContainment::In),  // below bite
         (Point3::new(5.5, 3.0, 0.5), SolidContainment::In),
     ] {
-        assert_eq!(point_in_solid(&t.body, p, b, Tol::witness()).unwrap(), want, "probe {p:?}");
+        assert_eq!(
+            point_in_solid(&t.body, p, b, Tol::witness()).unwrap(),
+            want,
+            "probe {p:?}"
+        );
     }
 }
 
@@ -144,7 +153,10 @@ fn adv_eye_slot_outer_and_hole_senses() {
         .unwrap();
     let t = extrude(&vp, Extrusion::Distance(1.0), Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
-    assert_eq!(topo::validate::validate_geometric(&t.body, Tol::witness()), Ok(()));
+    assert_eq!(
+        topo::validate::validate_geometric(&t.body, Tol::witness()),
+        Ok(())
+    );
     for &f in &t.side_faces[0] {
         assert!(sense_of(&t.body, f), "outer vesica walls are all convex");
     }
@@ -157,7 +169,10 @@ fn adv_eye_slot_outer_and_hole_senses() {
         .unwrap();
     let t = extrude(&vp, Extrusion::Distance(1.0), Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
-    assert_eq!(topo::validate::validate_geometric(&t.body, Tol::witness()), Ok(()));
+    assert_eq!(
+        topo::validate::validate_geometric(&t.body, Tol::witness()),
+        Ok(())
+    );
     for &f in &t.side_faces[1] {
         assert!(!sense_of(&t.body, f), "every eye-slot hole wall is concave");
     }
@@ -253,7 +268,13 @@ fn adv_reversed_authoring_revolve_same_senses() {
     let ccw = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
     let cw = ProfileLoop::polygon([p2(1.0, 0.0), p2(1.0, 1.0), p2(2.0, 1.0), p2(2.0, 0.0)]);
     let by_kind = |lp: ProfileLoop<f64>| {
-        let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness()).unwrap();
+        let t = revolve(
+            &validated(vec![lp]),
+            axis_y(),
+            Revolution::Full,
+            Tol::witness(),
+        )
+        .unwrap();
         let mut m: Vec<(String, bool)> = t.walls[0]
             .iter()
             .flatten()
@@ -289,9 +310,18 @@ fn adv_bore_groove_torus_band() {
         ProfileVertex::new(p2(1.0, 0.75), -1.0),
         ProfileVertex::new(p2(1.0, 0.25), 0.0),
     ]);
-    let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness()).unwrap();
+    let t = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap();
     assert_all_tiers(&t.body);
-    assert_eq!(topo::validate::validate_geometric(&t.body, Tol::witness()), Ok(()));
+    assert_eq!(
+        topo::validate::validate_geometric(&t.body, Tol::witness()),
+        Ok(())
+    );
     let expect = 3.0 * PI - (PI * PI / 16.0 + PI / 48.0);
     assert!(
         (vol(&t.body) - expect).abs() < 1e-9,
@@ -344,9 +374,14 @@ fn adv_bore_groove_torus_band() {
 #[test]
 fn adv_touching_union_with_reversed_faces_refuses_typed() {
     let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
-    let washer = revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness())
-        .unwrap()
-        .body;
+    let washer = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     // A box poking through the bottom annulus near x = 1.5.
     let sq = ProfileLoop::polygon([p2(1.2, -0.5), p2(1.8, -0.5), p2(1.8, 0.5), p2(1.2, 0.5)]);
     let plane = SketchPlane::from_frame(
@@ -357,7 +392,9 @@ fn adv_touching_union_with_reversed_faces_refuses_typed() {
     let vp = Profile::new(plane, vec![sq])
         .validate(Tol::witness())
         .unwrap();
-    let boxb = extrude(&vp, Extrusion::Distance(0.4), Tol::witness()).unwrap().body;
+    let boxb = extrude(&vp, Extrusion::Distance(0.4), Tol::witness())
+        .unwrap()
+        .body;
     match topo::boolean::union(&washer, &boxb, Tol::witness()) {
         Err(e) => println!("typed refusal (expected today): {e}"),
         Ok(r) => {

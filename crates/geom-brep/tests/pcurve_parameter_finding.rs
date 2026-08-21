@@ -35,8 +35,8 @@ use core::f64::consts::PI;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane};
-use geom_core::{Point3, Vec3};
 use geom_core::Tol;
+use geom_core::{Point3, Vec3};
 
 /// The corpus shape (i) configuration: radius 0.5 m disc, tilt 0.3 rad.
 const R: f64 = 0.5;

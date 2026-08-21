@@ -34,12 +34,12 @@
 mod revolve_common;
 
 use geom_core::Point3;
+use geom_core::Tol;
 use profile::RawLoop;
 use profile::{ProfileLoop, ProfileVertex};
 use revolve_common::*;
 use sweep::{Revolution, revolve};
 use topo::boolean::{PointInSolidError, SolidContainment, point_in_solid};
-use geom_core::Tol;
 
 /// The half-disc of the `ball` acceptance: a unit semicircle from
 /// (0, −1) through (1, 0) to (0, 1), closed by the on-axis diameter.
@@ -53,7 +53,9 @@ fn half_disc() -> ProfileLoop<f64> {
 /// The unit ball: two half-sphere bands on ONE sphere surface.
 fn ball() -> topo::Body<f64> {
     let vp = validated(vec![half_disc()]);
-    revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap().body
+    revolve(&vp, axis_y(), Revolution::Full, Tol::witness())
+        .unwrap()
+        .body
 }
 
 fn band() -> geom_core::Band {
@@ -155,7 +157,8 @@ fn trimmed_sphere_face_refuses_typed_partial_sphere_face() {
         Tol::witness(),
     )
     .unwrap();
-    let err = point_in_solid(&t.body, Point3::new(0.1, 0.1, 0.1), band(), Tol::witness()).unwrap_err();
+    let err =
+        point_in_solid(&t.body, Point3::new(0.1, 0.1, 0.1), band(), Tol::witness()).unwrap_err();
     let PointInSolidError::PartialSphereFace { .. } = err else {
         panic!("expected PartialSphereFace, got {err:?}");
     };
@@ -227,7 +230,10 @@ fn curved_revert_reverts_the_ball_instead_of_refusing() {
         Err(vec![topo::ValidationError::NegativeVolume])
     );
     assert_eq!(
-        topo::mass_properties(&rev, Tol::witness()).unwrap().volume.to_bits(),
+        topo::mass_properties(&rev, Tol::witness())
+            .unwrap()
+            .volume
+            .to_bits(),
         (-v).to_bits()
     );
     assert_eq!(format!("{:?}", rev.revert().unwrap()), format!("{body:?}"));
@@ -296,7 +302,10 @@ fn tangent_schedule_ray_grazes_and_the_retry_answers() {
     let q = Point3::new(-3.0, 1.0, 0.0);
     // The verdict still resolves — a later schedule member is not
     // tangent — and it is the right one.
-    assert_eq!(point_in_solid(&body, q, b, Tol::witness()).unwrap(), SolidContainment::Out);
+    assert_eq!(
+        point_in_solid(&body, q, b, Tol::witness()).unwrap(),
+        SolidContainment::Out
+    );
 }
 
 /// NOTE row (PR 9c review, F4): a MULTI-SHELL sphere body. Two

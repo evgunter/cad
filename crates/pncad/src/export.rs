@@ -27,8 +27,8 @@
 use editor_core::{
     BooleanValue, Evaluation, NodeResult, ProductError, ProfileDoc, RecipeNodeId, ValuePayload,
 };
-use step_export::{StepExportError, StepOptions, step_string};
 use geom_core::Tol;
+use step_export::{StepExportError, StepOptions, step_string};
 
 /// Why [`step_for_node`] refused. Fail-loud and typed, D2-style; the
 /// evaluation-side arms carry the ids to ask the caller's own

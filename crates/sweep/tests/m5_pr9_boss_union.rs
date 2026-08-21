@@ -8,12 +8,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, extrude};
 use topo::Body;
-use geom_core::Tol;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -30,7 +30,9 @@ fn plate() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0), Tol::witness()).unwrap().body
+    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body
 }
 
 /// The boss: a radius-0.5 disc centered at (2, 2) authored as THREE
@@ -56,7 +58,9 @@ fn boss() -> Body<f64> {
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.2), Tol::witness()).unwrap().body
+    extrude(&profile, Extrusion::Distance(1.2), Tol::witness())
+        .unwrap()
+        .body
 }
 
 #[test]
@@ -116,8 +120,8 @@ fn the_curved_inventory_is_admitted_and_the_bogus_record_is_stale() {
     let mut contacts = topo::ContactRecords::default();
     let v = b.vertices().next().unwrap().0;
     contacts.vv.push(topo::VvContact { a: v, b: v });
-    let errs =
-        topo::validate_pseudomanifold(&b, &contacts, Tol::witness()).expect_err("the bogus record is refused");
+    let errs = topo::validate_pseudomanifold(&b, &contacts, Tol::witness())
+        .expect_err("the bogus record is refused");
     assert!(
         errs.iter()
             .all(|e| !matches!(e, topo::ValidationError::CensusUnsupported { .. })),
@@ -154,14 +158,17 @@ fn a_touching_curved_assembly_validates_declared_and_refuses_undeclared() {
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let boss_on_top = extrude(&profile, Extrusion::Distance(0.6), Tol::witness()).unwrap().body;
+    let boss_on_top = extrude(&profile, Extrusion::Distance(0.6), Tol::witness())
+        .unwrap()
+        .body;
     let mut body = a.clone();
     topo::graft_disjoint(&mut body, &boss_on_top, Tol::witness()).unwrap();
 
     // UNDECLARED: the census finds the boss cap's rim-joint vertices
     // resting on the plate's top face — the hard error, typed.
-    let errs = topo::validate_pseudomanifold(&body, &topo::ContactRecords::default(), Tol::witness())
-        .expect_err("an undeclared touching assembly is the F1 hard error");
+    let errs =
+        topo::validate_pseudomanifold(&body, &topo::ContactRecords::default(), Tol::witness())
+            .expect_err("an undeclared touching assembly is the F1 hard error");
     assert!(
         errs.iter()
             .any(|e| matches!(e, topo::ValidationError::UndeclaredContact { .. })),
@@ -230,7 +237,9 @@ fn r1_pin(z0: f64, h: f64) -> Body<f64> {
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(h), Tol::witness()).unwrap().body
+    extrude(&profile, Extrusion::Distance(h), Tol::witness())
+        .unwrap()
+        .body
 }
 
 /// The cradle: a slab with a 60-degree concave bite of radius 0.5
@@ -252,7 +261,9 @@ fn r1_cradle(bulge: f64) -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0), Tol::witness()).unwrap().body
+    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body
 }
 
 /// **R1 probe (claim 1), FIXED by the union pass (F1): a conformal
@@ -285,7 +296,11 @@ fn r1_probe_conformal_touch_between_instances_refuses_undecidable() {
         .expect("one bulge sign yields the valid bitten cradle");
     // Pin taller than the cradle so no cap plane meets a cradle strut.
     let pin = r1_pin(-0.2, 1.4);
-    assert_eq!(topo::validate_geometric(&pin, Tol::witness()), Ok(()), "pin is tier-3");
+    assert_eq!(
+        topo::validate_geometric(&pin, Tol::witness()),
+        Ok(()),
+        "pin is tier-3"
+    );
     let mut body = cradle.clone();
     topo::graft_disjoint(&mut body, &pin, Tol::witness()).unwrap();
     assert_eq!(
@@ -313,8 +328,9 @@ fn r1_probe_conformal_touch_between_instances_refuses_undecidable() {
     // the cross-solid curved pair as UNDECIDABLE — the C9-ring class,
     // named — instead of validating silently. (Pre-fix this probe
     // pinned the silent Ok(()) the R1 review found.)
-    let errs = topo::validate_pseudomanifold(&body, &topo::ContactRecords::default(), Tol::witness())
-        .expect_err("the cross-solid curved proximity refuses loudly");
+    let errs =
+        topo::validate_pseudomanifold(&body, &topo::ContactRecords::default(), Tol::witness())
+            .expect_err("the cross-solid curved proximity refuses loudly");
     assert!(
         errs.iter()
             .any(|e| matches!(e, topo::ValidationError::CensusUndecidable { .. })),
@@ -370,7 +386,11 @@ fn r1_delta_probe_ball_cap_embedded_in_plate() {
     let ball = sweep::revolve(&profile, axis, sweep::Revolution::Full, Tol::witness())
         .unwrap()
         .body;
-    assert_eq!(topo::validate_geometric(&ball, Tol::witness()), Ok(()), "ball is tier-3");
+    assert_eq!(
+        topo::validate_geometric(&ball, Tol::witness()),
+        Ok(()),
+        "ball is tier-3"
+    );
     // The plate: x, y in [-3, 3], z in [0.3, 1.3] — the ball's upper
     // cap (z > 0.3) is inside the plate's material; the ball's poles
     // (y = +/-1, z = 0) and seam circles (z = 0 plane) never meet the
@@ -392,10 +412,15 @@ fn r1_delta_probe_ball_cap_embedded_in_plate() {
     )
     .unwrap()
     .body;
-    assert_eq!(topo::validate_geometric(&plate, Tol::witness()), Ok(()), "plate is tier-3");
+    assert_eq!(
+        topo::validate_geometric(&plate, Tol::witness()),
+        Ok(()),
+        "plate is tier-3"
+    );
     let mut body = plate.clone();
     topo::graft_disjoint(&mut body, &ball, Tol::witness()).unwrap();
-    let verdict = topo::validate_pseudomanifold(&body, &topo::ContactRecords::default(), Tol::witness());
+    let verdict =
+        topo::validate_pseudomanifold(&body, &topo::ContactRecords::default(), Tol::witness());
     println!("ball-cap-in-plate verdict: {verdict:?}");
     let errs = verdict.expect_err(
         "R1 DELTA FINDING if this fires as Ok: a curved x planar transverse \
@@ -443,7 +468,11 @@ fn r1_final_delta_probe_reflex_arc_cap_stays_loud() {
     )
     .unwrap()
     .body;
-    assert_eq!(topo::validate_geometric(&pac, Tol::witness()), Ok(()), "pac prism tier-3");
+    assert_eq!(
+        topo::validate_geometric(&pac, Tol::witness()),
+        Ok(()),
+        "pac prism tier-3"
+    );
     // The ball: radius 0.3, tangent to the top cap (z = 1) at
     // (0.65, 0), i.e. resting on the cap deep inside the reflex zone
     // (the cap's vertex hull is the chord x = cos 135 ~ -0.707, so
@@ -471,10 +500,15 @@ fn r1_final_delta_probe_reflex_arc_cap_stays_loud() {
     )
     .unwrap()
     .body;
-    assert_eq!(topo::validate_geometric(&ball, Tol::witness()), Ok(()), "ball tier-3");
+    assert_eq!(
+        topo::validate_geometric(&ball, Tol::witness()),
+        Ok(()),
+        "ball tier-3"
+    );
     let mut body = pac.clone();
     topo::graft_disjoint(&mut body, &ball, Tol::witness()).unwrap();
-    let verdict = topo::validate_pseudomanifold(&body, &topo::ContactRecords::default(), Tol::witness());
+    let verdict =
+        topo::validate_pseudomanifold(&body, &topo::ContactRecords::default(), Tol::witness());
     println!("reflex-arc cap + tangent ball verdict: {verdict:?}");
     let errs = verdict.expect_err(
         "R1 FINAL-DELTA FINDING if Ok: the reflex-arc lemma gap admits a silent \

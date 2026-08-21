@@ -14,13 +14,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, extrude};
 use topo::Body;
 use topo::splitting::{SplitPlane, split};
-use geom_core::Tol;
 
 fn disc_cylinder() -> Body<f64> {
     let lp = ProfileLoop::new(vec![
@@ -30,7 +30,9 @@ fn disc_cylinder() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0), Tol::witness()).unwrap().body
+    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body
 }
 
 /// Cylinder wall faces of `body`.
@@ -60,7 +62,9 @@ fn sub_period_wall_pieces_remerge_structurally() {
     assert_eq!(wall_count(&part), 2, "two same-key wall fragments");
     let vol_before = topo::mass_properties(&part, Tol::witness()).unwrap().volume;
 
-    let out = part.merge_coplanar_faces(Tol::witness()).expect("the cosurface merge");
+    let out = part
+        .merge_coplanar_faces(Tol::witness())
+        .expect("the cosurface merge");
     assert!(
         out.skipped.is_empty(),
         "sub-period runs commit: {:?}",
@@ -91,7 +95,9 @@ fn full_period_closure_skips_loudly() {
     // is untouched and its volume stays exact.
     let mut body = disc_cylinder();
     let vol_before = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
-    let out = body.merge_coplanar_faces(Tol::witness()).expect("the merge call itself");
+    let out = body
+        .merge_coplanar_faces(Tol::witness())
+        .expect("the merge call itself");
     assert!(out.groups.is_empty(), "no group commits: {:?}", out.groups);
     assert_eq!(out.skipped.len(), 1, "the closure is a loud skip");
     assert!(
@@ -116,8 +122,12 @@ fn distinct_key_curved_neighbors_stay_unmerged() {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let mut body = extrude(&profile, Extrusion::Distance(1.0), Tol::witness()).unwrap().body;
-    let out = body.merge_coplanar_faces(Tol::witness()).expect("no-op merge");
+    let mut body = extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body;
+    let out = body
+        .merge_coplanar_faces(Tol::witness())
+        .expect("no-op merge");
     assert!(out.groups.is_empty(), "no rung licenses: {:?}", out.groups);
     assert!(out.skipped.is_empty());
 }

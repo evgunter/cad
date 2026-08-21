@@ -6,8 +6,8 @@
 
 mod common;
 use common::census;
-use step_import::{ImportOptions, StepImport, import_step};
 use geom_core::Tol;
+use step_import::{ImportOptions, StepImport, import_step};
 
 fn fixture(rel: &str) -> String {
     let path = format!("{}/tests/fixtures/{rel}", env!("CARGO_MANIFEST_DIR"));

@@ -43,11 +43,11 @@ use geom::Surface;
 use geom::{Curve3, NurbsCurve3};
 use geom_brep::keys::SurfaceKey;
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeGeometry};
+use geom_core::Tol;
 use geom_core::k_stats::{self, Probe, SampleOutcome};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, MarginDiag, Point3, Sign, Tolerance, Vec3};
 use slotmap::SlotMap;
-use geom_core::Tol;
 
 fn band() -> Band {
     Band::linear(Tol::witness()).expect("the run's linear band")

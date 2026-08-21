@@ -28,8 +28,8 @@
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-use geom_core::linalg::{Affine3, Mat3, Point3, Vec3};
 use geom_core::Tol;
+use geom_core::linalg::{Affine3, Mat3, Point3, Vec3};
 use geom_core::predicate::Band;
 
 use super::coset::{Coset, FoldStop, Subgroup};
@@ -747,7 +747,11 @@ pub enum ClusterMaintenance {
 /// prior document had it.* When the gauge did not change, that is the
 /// prior row VERBATIM — bit-identical, which is what makes a mate-less
 /// document's registry unchanged by this machinery existing.
-pub(crate) fn reconcile<P>(before: &Doc<P>, after: &mut Doc<P>, tol: Tol) -> Vec<ClusterMaintenance> {
+pub(crate) fn reconcile<P>(
+    before: &Doc<P>,
+    after: &mut Doc<P>,
+    tol: Tol,
+) -> Vec<ClusterMaintenance> {
     // Neither side has a mate: every cluster is a singleton on both,
     // so the registry is already keyed by its own gauges and the
     // maintenance has nothing to do. The invariant below would compute

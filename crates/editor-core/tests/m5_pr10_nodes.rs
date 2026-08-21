@@ -118,12 +118,15 @@ fn a_dangling_profile_ref_refuses_at_the_edit_door() {
     let (doc, ..) = loft_doc();
     let bogus = RecipeNodeId(9999);
     let err = doc
-        .apply(&DocEdit::InsertNode {
-            node: Node::Loft {
-                profiles: vec![bogus],
-                v_degree: count(1),
+        .apply(
+            &DocEdit::InsertNode {
+                node: Node::Loft {
+                    profiles: vec![bogus],
+                    v_degree: count(1),
+                },
             },
-        }, Tol::witness())
+            Tol::witness(),
+        )
         .expect_err("a dangling input must refuse");
     assert!(format!("{err:?}").contains("9999"), "{err:?}");
 }
@@ -134,12 +137,15 @@ fn a_dangling_profile_ref_refuses_at_the_edit_door() {
 fn a_length_expression_in_the_v_degree_slot_refuses() {
     let (doc, _, profiles) = loft_doc();
     let err = doc
-        .apply(&DocEdit::InsertNode {
-            node: Node::Loft {
-                profiles,
-                v_degree: Expr::literal(2.0, Dimension::Length).unwrap(),
+        .apply(
+            &DocEdit::InsertNode {
+                node: Node::Loft {
+                    profiles,
+                    v_degree: Expr::literal(2.0, Dimension::Length).unwrap(),
+                },
             },
-        }, Tol::witness())
+            Tol::witness(),
+        )
         .expect_err("a Length in a Count slot must refuse");
     let text = format!("{err:?}");
     assert!(text.contains("Count") || text.contains("Length"), "{text}");
@@ -161,7 +167,10 @@ fn a_loft_document_round_trips_bit_identically_at_schema_v2() {
         Ok(loaded) => {
             assert!(loaded.snapshot.bit_eq(&doc), "loft snapshot drifted");
             // Save∘load is a fixpoint on the BYTES too.
-            assert_eq!(save(&loaded.doc, &loaded.edits, Tol::witness()).expect("re-saves"), text);
+            assert_eq!(
+                save(&loaded.doc, &loaded.edits, Tol::witness()).expect("re-saves"),
+                text
+            );
         }
         Err(editor_core::PersistError::ToleranceConflict { .. }) => {
             // Only reachable if a prior document pinned another ε in
@@ -196,7 +205,10 @@ fn a_sweep_document_round_trips_bit_identically_at_schema_v2() {
     match load(&text, Tol::witness()) {
         Ok(loaded) => {
             assert!(loaded.snapshot.bit_eq(&doc), "sweep snapshot drifted");
-            assert_eq!(save(&loaded.doc, &loaded.edits, Tol::witness()).expect("re-saves"), text);
+            assert_eq!(
+                save(&loaded.doc, &loaded.edits, Tol::witness()).expect("re-saves"),
+                text
+            );
         }
         Err(editor_core::PersistError::ToleranceConflict { .. }) => {}
         Err(other) => panic!("sweep document failed to load: {other:?}"),
@@ -215,7 +227,13 @@ fn with_failure<R>(
     id: RecipeNodeId,
     inspect: impl FnOnce(&NodeErrorKind) -> R,
 ) -> R {
-    let out = evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness());
+    let out = evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
     match out.nodes.get(&id).expect("the node has a result") {
         NodeResult::Failed(error) => inspect(&error.kind),
         other => panic!("expected a typed failure, got {other:?}"),
@@ -231,7 +249,13 @@ fn with_failure<R>(
 #[test]
 fn a_well_formed_loft_evaluates_to_a_body() {
     let (doc, loft, _) = loft_doc();
-    let out = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness());
+    let out = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
     match out.nodes.get(&loft).expect("the node has a result") {
         NodeResult::Ok(v) => {
             assert!(

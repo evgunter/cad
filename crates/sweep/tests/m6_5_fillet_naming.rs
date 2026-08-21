@@ -14,6 +14,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
 use geom::Surface;
+use geom_core::Tol;
 use geom_core::{Affine3, Band, Point2, Point3, Vec2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
@@ -22,7 +23,6 @@ use sweep::test_support::cube;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations, EdgeKey};
-use geom_core::Tol;
 
 const DIE_L: f64 = 1.0;
 const PIP_R: f64 = 0.09;
@@ -46,7 +46,9 @@ fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
         origin: Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
-    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness()).unwrap().body;
+    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
+        .unwrap()
+        .body;
     topo::transform_rigid(&ball, &Affine3::translation(c), Tol::witness()).unwrap()
 }
 

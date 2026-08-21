@@ -17,8 +17,8 @@ use profile::{ProfileLoop, ProfileVertex};
 use sweep::{Extrusion, Revolution, extrude, revolve};
 use topo::{Body, mass_properties, validate, validate_closed, validate_geometric};
 
-use revolve_common::{axis_y, p2, validated};
 use geom_core::Tol;
+use revolve_common::{axis_y, p2, validated};
 
 fn v(x: f64, y: f64, b: f64) -> ProfileVertex<f64> {
     ProfileVertex::new(p2(x, y), b)
@@ -27,7 +27,11 @@ fn v(x: f64, y: f64, b: f64) -> ProfileVertex<f64> {
 fn check(body: &Body<f64>, what: &str, volume: f64, area: f64) {
     assert_eq!(validate(body), Ok(()), "{what}: tier 1");
     assert_eq!(validate_closed(body), Ok(()), "{what}: tier 2");
-    assert_eq!(validate_geometric(body, Tol::witness()), Ok(()), "{what}: tier 3 (+V)");
+    assert_eq!(
+        validate_geometric(body, Tol::witness()),
+        Ok(()),
+        "{what}: tier 3 (+V)"
+    );
     let props = mass_properties(body, Tol::witness()).expect("mass properties must compute");
     let rel = |got: f64, want: f64| (got - want).abs() / want.abs().max(1.0);
     assert!(
@@ -54,7 +58,13 @@ fn check(body: &Body<f64>, what: &str, volume: f64, area: f64) {
 #[test]
 fn frustum_with_bore_matches_independent_closed_forms() {
     let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(1.0, 1.0)]);
-    let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness()).unwrap();
+    let t = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap();
     check(
         &t.body,
         "frustum",
@@ -79,7 +89,13 @@ fn cup_inner_walls_match_independent_closed_forms() {
         p2(1.5, 0.5),
         p2(0.0, 0.5),
     ]);
-    let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness()).unwrap();
+    let t = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap();
     check(&t.body, "cup", 4.625 * PI, 20.5 * PI);
 }
 
@@ -134,7 +150,12 @@ fn dome_wedge_matches_independent_closed_forms() {
 fn major_arc_prism_matches_independent_closed_forms() {
     let b = (3.0 * PI / 8.0).tan();
     let lp = ProfileLoop::new(vec![v(0.0, 0.0, 0.0), v(1.0, 0.0, b), v(0.0, -1.0, 0.0)]);
-    let t = extrude(&validated(vec![lp]), Extrusion::Distance(1.0), Tol::witness()).unwrap();
+    let t = extrude(
+        &validated(vec![lp]),
+        Extrusion::Distance(1.0),
+        Tol::witness(),
+    )
+    .unwrap();
     check(&t.body, "pac-man prism", 0.75 * PI, 3.0 * PI + 2.0);
 }
 
@@ -162,7 +183,12 @@ fn two_hole_plate_matches_independent_closed_forms() {
 #[test]
 fn negative_extrusion_distance_is_positively_oriented() {
     let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(0.0, 1.0)]);
-    let t = extrude(&validated(vec![lp]), Extrusion::Distance(-1.5), Tol::witness()).unwrap();
+    let t = extrude(
+        &validated(vec![lp]),
+        Extrusion::Distance(-1.5),
+        Tol::witness(),
+    )
+    .unwrap();
     check(&t.body, "negative extrude", 3.0, 2.0 * 2.0 + 9.0);
 }
 
@@ -194,7 +220,13 @@ fn negative_revolve_angle_is_positively_oriented() {
 fn megascale_washer_matches_and_validates() {
     let s = (geom_core::Tol::witness().get().eps * 1e14).max(1.0);
     let lp = ProfileLoop::polygon([p2(s, 0.0), p2(2.0 * s, 0.0), p2(2.0 * s, s), p2(s, s)]);
-    let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness()).unwrap();
+    let t = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap();
     check(
         &t.body,
         "megascale washer",
@@ -327,7 +359,9 @@ fn pappus_cross_checks_review_revolves() {
         Tol::witness(),
     )
     .unwrap();
-    let v = mass_properties(&frustum.body, Tol::witness()).unwrap().volume;
+    let v = mass_properties(&frustum.body, Tol::witness())
+        .unwrap()
+        .volume;
     let pappus = full_pappus_y(&frustum);
     assert!(
         (v - pappus).abs() < 1e-3 * v,

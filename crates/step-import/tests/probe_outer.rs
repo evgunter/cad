@@ -10,8 +10,8 @@
 //! not: the inference answers, and the volume is unchanged to the bit.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use step_import::{ImportOptions, StepImport, import_step};
 use geom_core::Tol;
+use step_import::{ImportOptions, StepImport, import_step};
 
 #[test]
 fn two_outer_bounds_on_a_planar_face_with_a_real_hole() {

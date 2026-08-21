@@ -489,8 +489,8 @@ fn loop_sig(body: &Body<f64>, loop_key: LoopKey) -> String {
 
 #[cfg(test)]
 mod tests {
-    use geom_core::Tol;
     use geom_core::Point3;
+    use geom_core::Tol;
 
     use super::*;
     use crate::euler::{MefSite, MevSite};
@@ -514,10 +514,13 @@ mod tests {
                 Tol::witness(),
             )
             .unwrap();
-        body.mef_chord(MefSite::Chords {
-            he1: seg.he_plus,
-            he2: seg.he_minus,
-        }, Tol::witness())
+        body.mef_chord(
+            MefSite::Chords {
+                he1: seg.he_plus,
+                he2: seg.he_minus,
+            },
+            Tol::witness(),
+        )
         .unwrap();
         body
     }
@@ -529,9 +532,12 @@ mod tests {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
         let circle = body
-            .mef_chord(MefSite::Lone {
-                r#loop: seed.r#loop,
-            }, Tol::witness())
+            .mef_chord(
+                MefSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         body.mev_line(
             MevSite::Fan {
@@ -580,10 +586,13 @@ mod tests {
                 Tol::witness(),
             )
             .unwrap();
-        body.mef_chord(MefSite::Chords {
-            he1: seg.he_plus,
-            he2: seg.he_minus,
-        }, Tol::witness())
+        body.mef_chord(
+            MefSite::Chords {
+                he1: seg.he_plus,
+                he2: seg.he_minus,
+            },
+            Tol::witness(),
+        )
         .unwrap();
         assert!(!isomorphic(&a, &body));
     }
@@ -653,16 +662,23 @@ mod tests {
                 )
                 .unwrap();
             let split_faces = body
-                .mef_chord(MefSite::Chords {
-                    he1: seg.he_plus,
-                    he2: seg.he_minus,
-                }, Tol::witness())
+                .mef_chord(
+                    MefSite::Chords {
+                        he1: seg.he_plus,
+                        he2: seg.he_minus,
+                    },
+                    Tol::witness(),
+                )
                 .unwrap();
             // Two hole anchors planted from face A's side (seg.he_plus
             // lives in the new face after mef; its mate in the old).
             let plant = |body: &mut Body<f64>, at, x| {
                 let strut = body
-                    .mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, 0.0, 0.0), Tol::witness())
+                    .mev_line(
+                        MevSite::Fan { he1: at, he2: at },
+                        pt(x, 0.0, 0.0),
+                        Tol::witness(),
+                    )
                     .unwrap();
                 body.kemr(strut.he_plus, strut.he_minus).unwrap()
             };

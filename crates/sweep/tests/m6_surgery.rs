@@ -12,6 +12,7 @@ use core::f64::consts::PI;
 use profile::RawLoop;
 
 use geom::Surface;
+use geom_core::Tol;
 use geom_core::{Affine3, Band, Point2, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::fillet::build::fillet_edges;
@@ -19,7 +20,6 @@ use sweep::test_support::cube;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations, EdgeKey};
-use geom_core::Tol;
 
 /// The die's side, meters.
 const DIE_L: f64 = 1.0;
@@ -89,7 +89,9 @@ fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
         origin: p2(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
-    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness()).unwrap().body;
+    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
+        .unwrap()
+        .body;
     topo::transform_rigid(&ball, &Affine3::translation(c), Tol::witness()).unwrap()
 }
 
@@ -322,7 +324,11 @@ fn the_pipped_cube_fillets_in_place_with_rings_carried() {
     let body = out.body;
     assert_eq!(topo::validate(&body), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&body), Ok(()), "tier 2");
-    assert_eq!(topo::validate_geometric(&body, Tol::witness()), Ok(()), "tier 3");
+    assert_eq!(
+        topo::validate_geometric(&body, Tol::witness()),
+        Ok(()),
+        "tier 3"
+    );
     assert_eq!(out.blend_faces.len(), 12);
     assert_eq!(out.corner_faces.len(), 8);
     assert_eq!(out.band_faces.len(), 0);
@@ -370,7 +376,11 @@ fn the_composed_die_certifies_and_tessellates_watertight() {
     );
     assert_eq!(topo::validate(&die), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&die), Ok(()), "tier 2");
-    assert_eq!(topo::validate_geometric(&die, Tol::witness()), Ok(()), "tier 3");
+    assert_eq!(
+        topo::validate_geometric(&die, Tol::witness()),
+        Ok(()),
+        "tier 3"
+    );
     // Counts: blank 24/48/26 + per pip: the pole and the two lower
     // meridian pieces survive in the shrunk half-caps; 2 plane-trim
     // feet + 2 meridian split vertices; 2 ta + 2 tb arcs + 1 slit
@@ -405,7 +415,8 @@ fn composed_die() -> Body<f64> {
         .body;
     let rims = rim_edges(&blanked);
     assert_eq!(rims.len(), 42, "21 rims of two arcs each");
-    let out = fillet_edges(&blanked, &rims, RIM_R, band(), Tol::witness()).expect("the rims fillet to tori");
+    let out = fillet_edges(&blanked, &rims, RIM_R, band(), Tol::witness())
+        .expect("the rims fillet to tori");
     assert_eq!(out.band_faces.len(), 21, "one torus band per rim");
     out.body
 }
@@ -508,7 +519,8 @@ fn the_shrunk_faces_keep_their_rings_and_senses() {
         .map(|(k, f)| (k, f.rings.len(), f.sense))
         .collect();
     assert_eq!(rings_before.len(), 6, "six pipped faces");
-    let out = fillet_edges(&pipped, &box_edges, DIE_R, band(), Tol::witness()).expect("the surgery");
+    let out =
+        fillet_edges(&pipped, &box_edges, DIE_R, band(), Tol::witness()).expect("the surgery");
     for (k, n, sense) in rings_before {
         let f = out.body.get_face(k).expect("the shrunk face keeps its key");
         assert_eq!(f.rings.len(), n, "ring count carried");

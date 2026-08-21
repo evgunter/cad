@@ -5,12 +5,12 @@
 #![allow(dead_code)] // each consumer uses a subset
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanResult, BooleanResultKind, subtract, union};
-use geom_core::Tol;
 
 fn validated(plane: SketchPlane<f64>, lp: ProfileLoop<f64>) -> ValidatedProfile<f64> {
     Profile::new(plane, vec![lp])
@@ -192,11 +192,14 @@ pub fn lily_lantern() -> Body<f64> {
         .unwrap()
         // The belly, on the globe's own carrier: past the equator, so
         // the sweep is the CLOCKWISE (descending-angle) one.
-        .arc_to(Center {
-            c: Point2::new(0.0, 0.0),
-            winding: ArcSweep::Cw,
-            p: Point2::new(r_mouth, -mouth),
-        }, Tol::witness())
+        .arc_to(
+            Center {
+                c: Point2::new(0.0, 0.0),
+                winding: ArcSweep::Cw,
+                p: Point2::new(r_mouth, -mouth),
+            },
+            Tol::witness(),
+        )
         .unwrap()
         .line_to(Point2::new(lip_r, -mouth - lip_drop), Tol::witness())
         .unwrap()
@@ -248,7 +251,9 @@ pub fn cut_cylinder() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let cylinder = extrude(&profile, Extrusion::Distance(2.5), Tol::witness()).unwrap().body;
+    let cylinder = extrude(&profile, Extrusion::Distance(2.5), Tol::witness())
+        .unwrap()
+        .body;
     let phi: f64 = 0.3;
     let plane = SplitPlane {
         origin: Point3::new(0.0, 0.0, 1.25),
@@ -320,9 +325,13 @@ pub fn notched() -> Body<f64> {
         ProfileVertex::new(Point2::new(2.0, 1.5), -b),
         ProfileVertex::new(Point2::new(0.0, 1.5), 0.0),
     ]);
-    extrude(&validated(SketchPlane::xy(), lp), Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body
+    extrude(
+        &validated(SketchPlane::xy(), lp),
+        Extrusion::Distance(1.0),
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// S12's two-stub complement: a radius-0.35 cylindrical boss spanning

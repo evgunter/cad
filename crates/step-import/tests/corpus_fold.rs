@@ -33,8 +33,8 @@
 mod common;
 
 use common::{fixture, import_body};
-use step_import::{NormalizationKind, PromotedKind};
 use geom_core::Tol;
+use step_import::{NormalizationKind, PromotedKind};
 
 /// One fold fixture's promotion pin: the fixture name, its two
 /// promoted faces with their kinds, and the residual ceiling both
@@ -127,7 +127,8 @@ fn the_folds_divergence_is_exactly_the_reported_promotion() {
         else {
             panic!("{name}: the re-import must be a solid");
         };
-        let out2 = step_export::step_string(&body2, &options, Tol::witness()).expect("second re-export");
+        let out2 =
+            step_export::step_string(&body2, &options, Tol::witness()).expect("second re-export");
         assert_eq!(out, out2, "{name}: fixed point from the first re-export on");
     }
 }

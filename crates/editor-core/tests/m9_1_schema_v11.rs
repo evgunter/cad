@@ -149,7 +149,9 @@ fn newer_than_this_build_is_unknown_not_too_old() {
 /// two-tolerance message discipline applied to the persistence door.
 #[test]
 fn the_too_old_message_names_the_recourse_exactly_once() {
-    let msg = load(V8, Tol::witness()).expect_err("v8 refuses").to_string();
+    let msg = load(V8, Tol::witness())
+        .expect_err("v8 refuses")
+        .to_string();
     assert_eq!(msg.matches(REGENERATE_RECOURSE).count(), 1, "{msg}");
     assert!(msg.contains("v8"), "the message names the version: {msg}");
 }
@@ -179,7 +181,9 @@ fn a_declaration_round_trips_carrying_its_class() {
         Some(format!("schema: {SCHEMA_VERSION}").as_str())
     );
 
-    let back: ProfileDoc = load(&text, Tol::witness()).expect("the current version loads").doc;
+    let back: ProfileDoc = load(&text, Tol::witness())
+        .expect("the current version loads")
+        .doc;
     let Some(Node::Declare { pairs }) = back.node(decl) else {
         panic!("the Declare node survives the round trip");
     };

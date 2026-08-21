@@ -200,8 +200,8 @@ impl<T: Decide> Body<T> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use geom_core::Tol;
     use geom_core::Point3;
+    use geom_core::Tol;
 
     use super::*;
     use crate::euler::{MefSite, MevSite};
@@ -228,10 +228,13 @@ mod tests {
                 Tol::witness(),
             )
             .unwrap();
-        body.mef_chord(MefSite::Chords {
-            he1: seg.he_plus,
-            he2: seg.he_minus,
-        }, Tol::witness())
+        body.mef_chord(
+            MefSite::Chords {
+                he1: seg.he_plus,
+                he2: seg.he_minus,
+            },
+            Tol::witness(),
+        )
         .unwrap();
         let strut = body
             .mev_line(
@@ -247,10 +250,13 @@ mod tests {
         let grow = body
             .mev_line(MevSite::Lone { r#loop: kill.ring }, p(3.0), Tol::witness())
             .unwrap();
-        body.mef_chord(MefSite::Chords {
-            he1: grow.he_plus,
-            he2: grow.he_minus,
-        }, Tol::witness())
+        body.mef_chord(
+            MefSite::Chords {
+                he1: grow.he_plus,
+                he2: grow.he_minus,
+            },
+            Tol::witness(),
+        )
         .unwrap();
         let promoted = body.mfkrh_plug(kill.ring).unwrap();
         (body, seed.shell, seed.face, promoted.face)

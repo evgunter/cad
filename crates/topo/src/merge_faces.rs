@@ -342,7 +342,10 @@ impl<T: Decide> Body<T> {
     /// # Errors
     ///
     /// [`MergeCoplanarError`], the body untouched in every case.
-    pub fn merge_coplanar_faces(&mut self, tol: Tol) -> Result<MergeCoplanarOutcome, MergeCoplanarError> {
+    pub fn merge_coplanar_faces(
+        &mut self,
+        tol: Tol,
+    ) -> Result<MergeCoplanarOutcome, MergeCoplanarError> {
         self.merge_coplanar_faces_declared(&[], tol)
     }
 
@@ -732,7 +735,11 @@ impl<T: Decide> Body<T> {
 
     /// Merges one group into its first member (see the public op's
     /// docs for order and refusals). Runs on the staged clone.
-    fn merge_group(&mut self, members: &[FaceKey], tol: Tol) -> Result<MergedGroup, MergeCoplanarError> {
+    fn merge_group(
+        &mut self,
+        members: &[FaceKey],
+        tol: Tol,
+    ) -> Result<MergedGroup, MergeCoplanarError> {
         let rep = members[0];
         let mut group = MergedGroup {
             kept: rep,

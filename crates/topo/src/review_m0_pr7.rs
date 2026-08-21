@@ -70,8 +70,8 @@ use crate::{
     Body, EdgeKey, EntityId, Face, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary, LoopKey,
     PointKey, Provenance, Shell, ShellKey, Solid, ValidationError, Vertex, validate,
 };
-use geom_core::{Point3, Real};
 use geom_core::Tol;
+use geom_core::{Point3, Real};
 
 fn prov() -> Provenance {
     Provenance::Primordial {

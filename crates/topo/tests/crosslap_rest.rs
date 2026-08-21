@@ -30,11 +30,11 @@
 mod common;
 
 use common::{flush_declarations, prism_z};
+use geom_core::Tol;
 use topo::{
     BooleanError, BooleanResult, mass_properties, subtract, union, union_with, validate_geometric,
     validate_pseudomanifold,
 };
-use geom_core::Tol;
 
 const NOTCH_VOL: f64 = 0.5 * 0.5 * 0.25;
 const BEAM_VOL: f64 = 4.0 * 0.5 * 0.5;
@@ -50,7 +50,9 @@ fn notched_beams() -> (topo::Body<f64>, topo::Body<f64>) {
         0.25,
         0.75,
     );
-    let BooleanResult::Body(a) = subtract(&beam_a.body, &cut_a.body, Tol::witness()).expect("notch A") else {
+    let BooleanResult::Body(a) =
+        subtract(&beam_a.body, &cut_a.body, Tol::witness()).expect("notch A")
+    else {
         panic!("notch A yields a body");
     };
     let beam_b = prism_z::<f64>(
@@ -63,12 +65,16 @@ fn notched_beams() -> (topo::Body<f64>, topo::Body<f64>) {
         -0.25,
         0.25,
     );
-    let BooleanResult::Body(b) = subtract(&beam_b.body, &cut_b.body, Tol::witness()).expect("notch B") else {
+    let BooleanResult::Body(b) =
+        subtract(&beam_b.body, &cut_b.body, Tol::witness()).expect("notch B")
+    else {
         panic!("notch B yields a body");
     };
     for (label, notched) in [("A", &a), ("B", &b)] {
         assert_eq!(
-            mass_properties(&notched.body, Tol::witness()).unwrap().volume,
+            mass_properties(&notched.body, Tol::witness())
+                .unwrap()
+                .volume,
             BEAM_VOL - NOTCH_VOL,
             "notched beam {label}: exact dyadic volume"
         );
@@ -79,7 +85,9 @@ fn notched_beams() -> (topo::Body<f64>, topo::Body<f64>) {
 /// The glued union (the declared door), shared by the pins below.
 fn glued() -> topo::BooleanBody<f64> {
     let (a, b) = notched_beams();
-    match union_with(&a, &b, &flush_declarations(&a, &b), Tol::witness()).expect("declared mate unions") {
+    match union_with(&a, &b, &flush_declarations(&a, &b), Tol::witness())
+        .expect("declared mate unions")
+    {
         BooleanResult::Body(body) => body,
         BooleanResult::Empty => panic!("mated union cannot be empty"),
     }
@@ -111,7 +119,11 @@ fn declared_crosslap_rest_union_builds() {
         2.0 * (BEAM_VOL - NOTCH_VOL),
         "exact dyadic volume additivity (disjoint interiors)"
     );
-    assert_eq!(validate_geometric(&glued.body, Tol::witness()), Ok(()), "tier 3");
+    assert_eq!(
+        validate_geometric(&glued.body, Tol::witness()),
+        Ok(()),
+        "tier 3"
+    );
     assert_eq!(
         validate_pseudomanifold(&glued.body, &glued.contacts, Tol::witness()),
         Ok(()),
@@ -147,8 +159,12 @@ fn declared_crosslap_union_exports_watertight() {
     let mut stl = Vec::new();
     stl::write_binary(&mesh, &stl::BinaryOptions::default(), &mut stl).expect("STL row");
     assert!(!stl.is_empty());
-    let step = step_export::step_string(&glued.body, &step_export::StepOptions::default(), Tol::witness())
-        .expect("STEP row");
+    let step = step_export::step_string(
+        &glued.body,
+        &step_export::StepOptions::default(),
+        Tol::witness(),
+    )
+    .expect("STEP row");
     assert!(step.contains("ADVANCED_BREP_SHAPE_REPRESENTATION"));
 }
 

@@ -14,8 +14,8 @@ use editor_core::{
 };
 use editor_core::{CapEnd, RoleSeg};
 use fixture::{ang, desc, die, insert, len, scl, square, step};
-use topo::{Body, mass_properties};
 use geom_core::Tol;
+use topo::{Body, mass_properties};
 
 fn run(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>, parallel: bool) -> Evaluation<f64> {
     let opts = EvalOptions {
@@ -748,12 +748,18 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
     };
     let (d_exact, s_exact) = build(false);
     let (d_rot, s_rot) = build(true);
-    let v_exact = mass_properties(boolean_body(&run(&d_exact, None, false), s_exact), Tol::witness())
-        .unwrap()
-        .volume;
-    let v_rot = mass_properties(boolean_body(&run(&d_rot, None, false), s_rot), Tol::witness())
-        .unwrap()
-        .volume;
+    let v_exact = mass_properties(
+        boolean_body(&run(&d_exact, None, false), s_exact),
+        Tol::witness(),
+    )
+    .unwrap()
+    .volume;
+    let v_rot = mass_properties(
+        boolean_body(&run(&d_rot, None, false), s_rot),
+        Tol::witness(),
+    )
+    .unwrap()
+    .volume;
     assert_eq!(
         v_exact,
         8.0 - 0.25 * 0.25 * 0.125,

@@ -17,12 +17,12 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{MappedCurve, SketchSegment, newell_plane};
+use geom_core::Tol;
 use geom_core::{Affine3, Band, Decide, Point2, Point3, Vec3};
 use topo::{
     Body, EdgeCurveSpec, EdgeGeometry, EulerOpError, FaceSurface, MefSite, MevSite, SurfaceKey,
     ValidationError, validate, validate_closed, validate_geometric,
 };
-use geom_core::Tol;
 
 mod common;
 
@@ -123,8 +123,13 @@ fn triangle_prism<T: Decide>() -> (Body<T>, topo::MvfsCreated, [topo::MefCreated
         .unwrap();
     // Struts (ExtrudedPoint descriptions — the real sweep shape).
     let strut = |body: &mut Body<T>, at, s0, p0, p_top| {
-        body.mev(MevSite::Fan { he1: at, he2: at }, p_top, strut_spec(s0, p0), Tol::witness())
-            .unwrap()
+        body.mev(
+            MevSite::Fan { he1: at, he2: at },
+            p_top,
+            strut_spec(s0, p0),
+            Tol::witness(),
+        )
+        .unwrap()
     };
     let e_aa = strut(&mut body, e_ab.he_plus, sa, a, a1);
     let e_bb = strut(&mut body, e_bc.he_plus, sb, b, b1);
@@ -412,10 +417,13 @@ fn lamina() -> (Body<f64>, topo::MvfsCreated, topo::MefCreated) {
         )
         .unwrap();
     let split = body
-        .mef_chord(MefSite::Chords {
-            he1: seg.he_plus,
-            he2: seg.he_minus,
-        }, Tol::witness())
+        .mef_chord(
+            MefSite::Chords {
+                he1: seg.he_plus,
+                he2: seg.he_minus,
+            },
+            Tol::witness(),
+        )
         .unwrap();
     (body, seed, split)
 }
@@ -603,13 +611,15 @@ fn fixed_aliased_interval_refused_at_public_setter() {
     // A 1-turn-wrong interval is refused by the gate (as before —
     // interior samples caught it; now the winding bound names it).
     assert!(matches!(
-        body.set_edge_curve(edge, mk(PI + TAU), Tol::witness()).unwrap_err(),
+        body.set_edge_curve(edge, mk(PI + TAU), Tol::witness())
+            .unwrap_err(),
         EulerOpError::Certification { .. }
     ));
     // The 8-turn-wrong interval — the exact schedule alias — is now
     // refused by the same typed gate, and the body is untouched.
     assert!(matches!(
-        body.set_edge_curve(edge, mk(PI + 8.0 * TAU), Tol::witness()).unwrap_err(),
+        body.set_edge_curve(edge, mk(PI + 8.0 * TAU), Tol::witness())
+            .unwrap_err(),
         EulerOpError::Certification {
             error: geom_brep::CertifyError::WindingExceeded
         }
@@ -658,18 +668,24 @@ fn fixed_self_loop_dihedral_and_containment_have_teeth_at_rest() {
         )
         .unwrap();
     let split = body
-        .mef_chord(MefSite::Chords {
-            he1: seg.he_plus,
-            he2: seg.he_minus,
-        }, Tol::witness())
+        .mef_chord(
+            MefSite::Chords {
+                he1: seg.he_plus,
+                he2: seg.he_minus,
+            },
+            Tol::witness(),
+        )
         .unwrap();
     // Self-loop circular face at B (scaffolding circle in the z = 0
     // plane, center (2,0,0), radius 1).
     let circ = body
-        .mef_chord(MefSite::Chords {
-            he1: seg.he_minus,
-            he2: seg.he_minus,
-        }, Tol::witness())
+        .mef_chord(
+            MefSite::Chords {
+                he1: seg.he_minus,
+                he2: seg.he_minus,
+            },
+            Tol::witness(),
+        )
         .unwrap();
     let z0 = Surface::Plane {
         origin: Point3::origin(),
@@ -771,7 +787,12 @@ fn fixed_n4_raw_mev_precondition_paths() {
     // Lone on a non-empty (cycle) loop: LoopNotEmpty from the raw op.
     let cycle_loop = body.get_half_edge(he1).unwrap().parent_loop;
     let err = body
-        .mev(MevSite::Lone { r#loop: cycle_loop }, p, spec.clone(), Tol::witness())
+        .mev(
+            MevSite::Lone { r#loop: cycle_loop },
+            p,
+            spec.clone(),
+            Tol::witness(),
+        )
         .unwrap_err();
     assert!(matches!(err, EulerOpError::LoopNotEmpty { .. }), "{err:?}");
     assert_eq!(snapshot(&body), before, "lone-on-cycle mutated body");

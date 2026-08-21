@@ -17,8 +17,8 @@ use core::f64::consts::{FRAC_PI_2, FRAC_PI_3, PI, TAU};
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::props::{FaceContribution, LoopEdge, PropsError, curved_face, planar_face};
-use geom_core::{Band, Point3, Vec3};
 use geom_core::Tol;
+use geom_core::{Band, Point3, Vec3};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()

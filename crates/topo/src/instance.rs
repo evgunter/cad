@@ -309,8 +309,8 @@ pub fn graft_disjoint_all_onto_keyed<T: geom_core::Decide>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use geom_core::Tol;
     use geom_core::Point3;
+    use geom_core::Tol;
 
     use crate::body::Body;
     use crate::fixtures::ops_cube;
@@ -417,7 +417,8 @@ mod tests {
     fn a_source_that_is_not_a_single_solid_refuses_typed() {
         // Empty: no solid at all.
         let mut dst = cube();
-        let err = graft_disjoint(&mut dst, &Body::<f64>::new(), Tol::witness()).expect_err("no solid to graft");
+        let err = graft_disjoint(&mut dst, &Body::<f64>::new(), Tol::witness())
+            .expect_err("no solid to graft");
         assert!(format!("{err:?}").contains("JoinDesync"), "{err:?}");
         assert_eq!(dst.solids().count(), 1, "and nothing was written");
 
@@ -426,7 +427,8 @@ mod tests {
         let mut two = cube();
         graft_disjoint(&mut two, &cube(), Tol::witness()).expect("build a two-solid body");
         let mut dst = cube();
-        let err = graft_disjoint(&mut dst, &two, Tol::witness()).expect_err("two solids in the source");
+        let err =
+            graft_disjoint(&mut dst, &two, Tol::witness()).expect_err("two solids in the source");
         assert!(format!("{err:?}").contains("JoinDesync"), "{err:?}");
     }
 

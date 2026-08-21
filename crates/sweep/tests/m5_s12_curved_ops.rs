@@ -43,12 +43,12 @@ use core::f64::consts::PI;
 use profile::RawLoop;
 
 use geom::Surface;
+use geom_core::Tol;
 use geom_core::{Affine3, Point2, Point3, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations};
-use geom_core::Tol;
 
 // ---------------------------------------------------------------------
 // Fixtures and helpers.
@@ -83,7 +83,9 @@ fn plate() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![rect(3.0, 3.0)])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(0.8), Tol::witness()).unwrap().body
+    extrude(&profile, Extrusion::Distance(0.8), Tol::witness())
+        .unwrap()
+        .body
 }
 
 const R: f64 = 0.35;
@@ -102,7 +104,9 @@ fn boss(n: usize, z0: f64, len: f64) -> Body<f64> {
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(len), Tol::witness()).unwrap().body
+    extrude(&profile, Extrusion::Distance(len), Tol::witness())
+        .unwrap()
+        .body
 }
 
 /// A 3 × 3 × 1 plate with a CONCAVE semicircular notch (radius 0.5)
@@ -120,7 +124,9 @@ fn notched() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0), Tol::witness()).unwrap().body
+    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body
 }
 
 /// The notch's own volume debit: a half-disc of radius 0.5 through the
@@ -141,7 +147,9 @@ fn ball_at(centre: Vec3<f64>) -> Body<f64> {
         origin: p2(0.0, 0.0),
         dir: geom_core::Vec2::new(0.0, 1.0),
     };
-    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness()).unwrap().body;
+    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
+        .unwrap()
+        .body;
     topo::transform_rigid(&ball, &Affine3::translation(centre), Tol::witness()).unwrap()
 }
 
@@ -389,7 +397,9 @@ fn a_boolean_that_splits_a_reversed_wall_inherits_the_parent_bit() {
     let sp = Profile::new(plane, vec![sq])
         .validate(Tol::witness())
         .unwrap();
-    let b = extrude(&sp, Extrusion::Distance(0.4), Tol::witness()).unwrap().body;
+    let b = extrude(&sp, Extrusion::Distance(0.4), Tol::witness())
+        .unwrap()
+        .body;
 
     let v_a = 9.0 - NOTCH; // the notched plate, height 1
     let v_b = 2.0 * 2.0 * 0.4;
@@ -449,7 +459,9 @@ fn the_die_pip_sphere_shape_now_cuts_at_the_opened_door() {
     let slab = Profile::new(SketchPlane::xy(), vec![rect(4.0, 4.0)])
         .validate(Tol::witness())
         .unwrap();
-    let a = extrude(&slab, Extrusion::Distance(1.0), Tol::witness()).unwrap().body;
+    let a = extrude(&slab, Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body;
     let b = ball_at(Vec3::new(2.0, 2.0, 0.5));
 
     let zone = 11.0 * PI / 12.0;
@@ -524,13 +536,21 @@ fn finding_row_flipped_containment_fallback_now_sees_the_curved_extent() {
     let slab = Profile::new(SketchPlane::xy(), vec![rect(4.0, 4.0)])
         .validate(Tol::witness())
         .unwrap();
-    let a = extrude(&slab, Extrusion::Distance(1.0), Tol::witness()).unwrap().body;
+    let a = extrude(&slab, Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body;
     let b = ball_at(Vec3::new(2.0, 2.0, 0.5));
 
     // The ball genuinely leaves the slab: its equator reaches z = 1.5.
     let above = Point3::new(2.0, 2.0, 1.4);
     assert_eq!(
-        topo::boolean::point_in_solid(&b, above, geom_core::Band::linear(Tol::witness()).unwrap(), Tol::witness()).unwrap(),
+        topo::boolean::point_in_solid(
+            &b,
+            above,
+            geom_core::Band::linear(Tol::witness()).unwrap(),
+            Tol::witness()
+        )
+        .unwrap(),
         topo::boolean::SolidContainment::In,
         "the ball really does poke out above the slab"
     );

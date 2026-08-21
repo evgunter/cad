@@ -18,10 +18,10 @@
 mod common;
 
 use common::quad;
+use geom_core::Tol;
 use geom_core::{Affine3, Vec3};
 use profile::RawLoop;
 use sweep::{Section, loft_body};
-use geom_core::Tol;
 
 /// The shape (iii) acceptance sections: squares at z = 0 and z = 2,
 /// a trapezoid at z = 1.
@@ -40,7 +40,8 @@ fn shape_iii_sections() -> (Vec<Section>, Vec<Affine3<f64>>) {
 #[test]
 fn shape_iii_loft_body_is_tier3_valid_at_rest() {
     let (sections, places) = shape_iii_sections();
-    let lofted = loft_body::<f64>(&sections, &places, 2, Tol::witness()).expect("shape (iii) loft builds");
+    let lofted =
+        loft_body::<f64>(&sections, &places, 2, Tol::witness()).expect("shape (iii) loft builds");
     let body = &lofted.body;
     assert_eq!(topo::validate(body), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(body), Ok(()), "tier 2 (watertight)");

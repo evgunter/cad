@@ -78,7 +78,8 @@ fn swept_elbow() -> Body<f64> {
 #[test]
 fn loft_prism_tessellates_watertight_and_volume_sane() {
     let body = loft_prism();
-    let mesh = mesh::tessellate(&body, 6e-3, Tol::witness()).expect("the NURBS-walled loft tessellates");
+    let mesh =
+        mesh::tessellate(&body, 6e-3, Tol::witness()).expect("the NURBS-walled loft tessellates");
     check_mesh(&mesh).expect("watertight, manifold, outward");
     let v = signed_volume(&mesh);
     // Derived exact volume 9 m³ (m6_loft_body.rs); the chordal mesh

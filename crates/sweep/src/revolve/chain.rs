@@ -42,6 +42,7 @@ pub(super) struct MeridianChain {
 /// The only thing that can go wrong here is an operator fault, so that
 /// is what it returns; each caller's `?` lifts it through its own
 /// `From<EulerOpError>`.
+#[allow(clippy::too_many_arguments)] // the 8th is the run-tolerance witness, not a duty of its own
 pub(super) fn build_chain<T: Decide>(
     body: &mut Body<T>,
     frame: &AxisFrame<T>,

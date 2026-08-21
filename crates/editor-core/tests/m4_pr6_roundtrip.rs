@@ -35,7 +35,13 @@ use geom_core::Tol;
 /// appearance resolution. `Debug` prints floats shortest-round-trip
 /// (bit-faithful for finite values, sign of zero included).
 fn eval_fingerprint(label: &str, doc: &ProfileDoc) -> String {
-    let ev = evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness());
+    let ev = evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
     // #117: fingerprint identity is BLIND to evaluation health — a sick
     // document (Failed/Poisoned nodes) round-trips just as bit-perfectly
     // as a green one, which is exactly how PR 6's legacy kitchen-sink
@@ -80,10 +86,13 @@ fn save_load_replay_identity() {
         // The expected current state: snapshot + edits.
         let mut expected = snapshot.clone();
         for edit in &edits {
-            expected = apply(&expected, edit, Tol::witness()).expect("corpus edit").doc;
+            expected = apply(&expected, edit, Tol::witness())
+                .expect("corpus edit")
+                .doc;
         }
         let text = save(&snapshot, &edits, Tol::witness()).expect("save");
-        let loaded = load(&text, Tol::witness()).unwrap_or_else(|e| panic!("{label}: load refused: {e:?}"));
+        let loaded =
+            load(&text, Tol::witness()).unwrap_or_else(|e| panic!("{label}: load refused: {e:?}"));
         assert!(
             loaded.snapshot.bit_eq(&snapshot),
             "{label}: snapshot round-trip not bit-identical"

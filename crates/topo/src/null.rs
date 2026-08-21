@@ -304,10 +304,10 @@ impl<T: Real> Body<T> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use geom_core::Tol;
     use super::*;
     use crate::fixtures::{deep_snapshot, ops_cube};
     use crate::validate::{ValidationError, validate, validate_closed};
+    use geom_core::Tol;
 
     /// A null strut (`he1 == he2`) on a cube vertex: coincident point
     /// copy, F9 attribute recorded per side, tier 1 accepts, tier 2

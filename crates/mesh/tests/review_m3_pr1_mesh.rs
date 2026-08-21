@@ -5,12 +5,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Point2;
+use geom_core::Tol;
 use mesh::{TessellateError, tessellate};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
 use sweep::{Extrusion, extrude};
 use topo::{Body, MevSite, NewVertexSide};
-use geom_core::Tol;
 
 /// TARGET 2 (tessellation door): a null strut on an extruded prism
 /// closes tessellation with the typed NullScaffoldEdge - the mesh walk
@@ -29,7 +29,9 @@ fn tessellate_refuses_null_scaffold_typed() {
     )
     .validate(Tol::witness())
     .unwrap();
-    let mut body: Body<f64> = extrude(&profile, Extrusion::Distance(1.0), Tol::witness()).unwrap().body;
+    let mut body: Body<f64> = extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body;
     let mesh_before = tessellate(&body, 0.01, Tol::witness()).unwrap();
     let v = body.vertices().next().map(|(k, _)| k).unwrap();
     let he = body.get_vertex(v).unwrap().emanating.unwrap();

@@ -32,17 +32,23 @@ fn scl(v: f64) -> Expr {
 fn profile_and_extrude() -> (TDoc, RecipeNodeId, RecipeNodeId) {
     let doc = TDoc::empty_derived("m4_pr1_paths", Tol::witness());
     let a = doc
-        .apply(&TEdit::InsertNode {
-            node: Node::Profile(FakeProfile("square")),
-        }, Tol::witness())
+        .apply(
+            &TEdit::InsertNode {
+                node: Node::Profile(FakeProfile("square")),
+            },
+            Tol::witness(),
+        )
         .unwrap();
     let profile = a.record.minted.unwrap();
     let distance = Expr::add(len(0.010), len(0.005)).unwrap();
     let b = a
         .doc
-        .apply(&TEdit::InsertNode {
-            node: Node::Extrude { profile, distance },
-        }, Tol::witness())
+        .apply(
+            &TEdit::InsertNode {
+                node: Node::Extrude { profile, distance },
+            },
+            Tol::witness(),
+        )
         .unwrap();
     (b.doc, profile, b.record.minted.unwrap())
 }
@@ -61,20 +67,26 @@ fn expr_path_survives_edits_to_other_expressions() {
     // Insert an unrelated datum point and edit ITS expression: the
     // ExprPath's referent is untouched (spec D5).
     let c = doc
-        .apply(&TEdit::InsertNode {
-            node: Node::Datum(Datum::Point {
-                position: [len(0.0), len(0.0), len(0.0)],
-            }),
-        }, Tol::witness())
+        .apply(
+            &TEdit::InsertNode {
+                node: Node::Datum(Datum::Point {
+                    position: [len(0.0), len(0.0), len(0.0)],
+                }),
+            },
+            Tol::witness(),
+        )
         .unwrap();
     let datum = c.record.minted.unwrap();
     let d = c
         .doc
-        .apply(&TEdit::SetParam {
-            node: datum,
-            slot: SlotId::Origin(editor_core::Axis3::X),
-            expr: len(0.042),
-        }, Tol::witness())
+        .apply(
+            &TEdit::SetParam {
+                node: datum,
+                slot: SlotId::Origin(editor_core::Axis3::X),
+                expr: len(0.042),
+            },
+            Tol::witness(),
+        )
         .unwrap();
     assert_eq!(d.doc.expr_at(&path).unwrap(), &before);
 }
@@ -97,10 +109,13 @@ fn expr_path_survives_edits_to_unrelated_subtrees() {
         path: vec![0],
     };
     let e = doc
-        .apply(&TEdit::SetExpression {
-            path: first.clone(),
-            expr: len(0.020),
-        }, Tol::witness())
+        .apply(
+            &TEdit::SetExpression {
+                path: first.clone(),
+                expr: len(0.020),
+            },
+            Tol::witness(),
+        )
         .unwrap();
     assert_eq!(e.doc.expr_at(&second).unwrap(), &before);
     assert_eq!(e.doc.expr_at(&first).unwrap(), &len(0.020));
@@ -124,17 +139,26 @@ fn recipe_node_ids_are_never_reused() {
     // N1's substrate contract).
     let doc = TDoc::empty_derived("m4_pr1_paths", Tol::witness());
     let a = doc
-        .apply(&TEdit::InsertNode {
-            node: Node::Profile(FakeProfile("p0")),
-        }, Tol::witness())
+        .apply(
+            &TEdit::InsertNode {
+                node: Node::Profile(FakeProfile("p0")),
+            },
+            Tol::witness(),
+        )
         .unwrap();
     let first = a.record.minted.unwrap();
-    let b = a.doc.apply(&TEdit::DeleteNode { id: first }, Tol::witness()).unwrap();
+    let b = a
+        .doc
+        .apply(&TEdit::DeleteNode { id: first }, Tol::witness())
+        .unwrap();
     let c = b
         .doc
-        .apply(&TEdit::InsertNode {
-            node: Node::Profile(FakeProfile("p1")),
-        }, Tol::witness())
+        .apply(
+            &TEdit::InsertNode {
+                node: Node::Profile(FakeProfile("p1")),
+            },
+            Tol::witness(),
+        )
         .unwrap();
     let second = c.record.minted.unwrap();
     assert_ne!(first, second);
@@ -147,12 +171,15 @@ fn dangling_ref_rejected() {
     let doc = TDoc::empty_derived("m4_pr1_paths", Tol::witness());
     let ghost = RecipeNodeId(99);
     let err = doc
-        .apply(&TEdit::InsertNode {
-            node: Node::Extrude {
-                profile: ghost,
-                distance: len(0.01),
+        .apply(
+            &TEdit::InsertNode {
+                node: Node::Extrude {
+                    profile: ghost,
+                    distance: len(0.01),
+                },
             },
-        }, Tol::witness())
+            Tol::witness(),
+        )
         .unwrap_err();
     assert_eq!(err, EditError::UnresolvedInput { input: ghost });
 }
@@ -164,12 +191,15 @@ fn self_reference_cannot_forge_the_next_id() {
     let doc = TDoc::empty_derived("m4_pr1_paths", Tol::witness());
     let guessed = RecipeNodeId(0); // empty doc will mint 0 next
     let err = doc
-        .apply(&TEdit::InsertNode {
-            node: Node::Extrude {
-                profile: guessed,
-                distance: len(0.01),
+        .apply(
+            &TEdit::InsertNode {
+                node: Node::Extrude {
+                    profile: guessed,
+                    distance: len(0.01),
+                },
             },
-        }, Tol::witness())
+            Tol::witness(),
+        )
         .unwrap_err();
     assert_eq!(err, EditError::UnresolvedInput { input: guessed });
 }
@@ -177,7 +207,9 @@ fn self_reference_cannot_forge_the_next_id() {
 #[test]
 fn delete_of_referenced_node_rejected() {
     let (doc, profile, extrude) = profile_and_extrude();
-    let err = doc.apply(&TEdit::DeleteNode { id: profile }, Tol::witness()).unwrap_err();
+    let err = doc
+        .apply(&TEdit::DeleteNode { id: profile }, Tol::witness())
+        .unwrap_err();
     assert_eq!(
         err,
         EditError::DeleteWouldDangle {
@@ -192,11 +224,14 @@ fn structural_and_continuous_edit_arms_are_disjoint() {
     let (doc, _profile, extrude) = profile_and_extrude();
     // SetStructuralParam on a continuous slot: typed refusal.
     let err = doc
-        .apply(&TEdit::SetStructuralParam {
-            node: extrude,
-            slot: SlotId::Distance,
-            expr: len(0.01),
-        }, Tol::witness())
+        .apply(
+            &TEdit::SetStructuralParam {
+                node: extrude,
+                slot: SlotId::Distance,
+                expr: len(0.01),
+            },
+            Tol::witness(),
+        )
         .unwrap_err();
     assert_eq!(
         err,
@@ -206,11 +241,14 @@ fn structural_and_continuous_edit_arms_are_disjoint() {
     );
     // Slot dimension is enforced on SetParam.
     let err = doc
-        .apply(&TEdit::SetParam {
-            node: extrude,
-            slot: SlotId::Distance,
-            expr: scl(1.0),
-        }, Tol::witness())
+        .apply(
+            &TEdit::SetParam {
+                node: extrude,
+                slot: SlotId::Distance,
+                expr: scl(1.0),
+            },
+            Tol::witness(),
+        )
         .unwrap_err();
     assert_eq!(
         err,
@@ -231,10 +269,13 @@ fn set_expression_path_off_tree_rejected() {
         path: vec![7],
     };
     let err = doc
-        .apply(&TEdit::SetExpression {
-            path: bad.clone(),
-            expr: len(0.01),
-        }, Tol::witness())
+        .apply(
+            &TEdit::SetExpression {
+                path: bad.clone(),
+                expr: len(0.01),
+            },
+            Tol::witness(),
+        )
         .unwrap_err();
     assert_eq!(err, EditError::PathOffTree { path: bad });
 }

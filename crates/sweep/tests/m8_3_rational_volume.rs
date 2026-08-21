@@ -26,12 +26,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_brep::PropsError;
+use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Section, loft_body};
 use topo::{MassProperties, MassPropsError};
-use geom_core::Tol;
 
 /// The convergence target's tolerance factor, mirrored from
 /// `geom_brep::props::quad` (private there; the pin is that the
@@ -196,8 +196,10 @@ fn tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion() {
     let prof = Profile::new(SketchPlane::xy(), arc_section(1.0))
         .validate(Tol::witness())
         .expect("the profile validates");
-    let oracle = sweep::extrude::<f64>(&prof, sweep::Extrusion::Distance(2.0), Tol::witness()).expect("extrude");
-    let want = topo::mass_properties(&oracle.body, Tol::witness()).expect("analytic mass properties");
+    let oracle = sweep::extrude::<f64>(&prof, sweep::Extrusion::Distance(2.0), Tol::witness())
+        .expect("extrude");
+    let want =
+        topo::mass_properties(&oracle.body, Tol::witness()).expect("analytic mass properties");
     assert_eq!(
         want.volume_pad, 0.0,
         "ORACLE: the extrude oracle must be a closed form"

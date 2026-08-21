@@ -12,9 +12,9 @@ use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve3};
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec};
+use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Dual64, Point3, Vec3};
-use geom_core::Tol;
 
 const SQRT2_2: f64 = core::f64::consts::FRAC_1_SQRT_2;
 

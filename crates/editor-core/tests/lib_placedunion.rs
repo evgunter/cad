@@ -430,7 +430,11 @@ fn the_edit_door_refuses_a_two_spelling_count() {
         kind: PatternKind::Explicit(vec![Frame::IDENTITY, Frame::translation([9.0, 0.0, 0.0])]),
     };
     assert!(matches!(
-        apply(&doc, &DocEdit::InsertNode { node: with_count }, Tol::witness()),
+        apply(
+            &doc,
+            &DocEdit::InsertNode { node: with_count },
+            Tol::witness()
+        ),
         Err(EditError::PlacementRuleMismatch { .. })
     ));
     let pattern_explicit = Node::Pattern {
@@ -601,7 +605,11 @@ fn placement_frames_are_held_to_the_cluster_frame_bar() {
         "named for what it is, not as an uncertified separation"
     );
     assert!(matches!(
-        apply(&doc, &DocEdit::InsertNode { node: with(nan) }, Tol::witness()),
+        apply(
+            &doc,
+            &DocEdit::InsertNode { node: with(nan) },
+            Tol::witness()
+        ),
         Err(EditError::NonFinitePlacement { .. })
     ));
 
@@ -622,7 +630,14 @@ fn placement_frames_are_held_to_the_cluster_frame_bar() {
     let turned =
         Frame::rotate_then_translate([0.0, 0.0, 1.0], std::f64::consts::FRAC_PI_2, [0.0; 3]);
     assert_eq!(with(turned).placement_rule_fault(), None);
-    assert!(apply(&doc, &DocEdit::InsertNode { node: with(turned) }, Tol::witness()).is_ok());
+    assert!(
+        apply(
+            &doc,
+            &DocEdit::InsertNode { node: with(turned) },
+            Tol::witness()
+        )
+        .is_ok()
+    );
 }
 
 /// **The Explicit path is bit-compatible with the chain too** — three

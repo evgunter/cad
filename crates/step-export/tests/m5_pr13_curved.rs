@@ -64,8 +64,8 @@ use std::collections::HashMap;
 
 use geom::Curve3;
 use geom::Surface;
-use step_export::{StepExportError, StepOptions, step_string};
 use geom_core::Tol;
+use step_export::{StepExportError, StepOptions, step_string};
 
 /// The fixture options (matching `tests/export.rs` and the fixture
 /// generator: an EXPLICIT uncertainty, so nothing here reads ambient ε

@@ -18,8 +18,8 @@
 mod common;
 
 use common::{census, freecad_fixture};
-use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 use geom_core::Tol;
+use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 
 /// The base fixture: BoxA (rep #36, MSB #37) and SphereB (rep #205,
 /// MSB #206), each placed once at the identity (#194, #225).

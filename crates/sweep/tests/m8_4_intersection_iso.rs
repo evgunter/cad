@@ -26,12 +26,12 @@
 use geom::Curve3;
 use geom::{NurbsSurface, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeGeometry};
+use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::{Affine3, Band, Point2, Point3, Vec3};
 use profile::RawLoop;
 use std::sync::Arc;
 use topo::{Body, FaceSurface, Pcurve, PcurveMintError};
-use geom_core::Tol;
 
 /// The integral mixed prism (`recognize_pins`'s `offset_square_prism`,
 /// natively built): exactly-planar `y = ±1` walls, bowed `x = ±1`

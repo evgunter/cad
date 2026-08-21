@@ -1,9 +1,9 @@
 //! ADVERSARIAL REVIEW PROBES for M6-6 (PR #223). Review-branch only.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Tol;
 use profile::RawLoop;
 use step_import::{ImportOptions, StepImport, import_step};
-use geom_core::Tol;
 
 fn fixture(name: &str, _ext: &str) -> String {
     std::fs::read_to_string(format!(
@@ -141,7 +141,9 @@ fn conic_trimmed_flip_slips_both_gates() {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let cylinder = extrude(&profile, Extrusion::Distance(2.5), Tol::witness()).unwrap().body;
+    let cylinder = extrude(&profile, Extrusion::Distance(2.5), Tol::witness())
+        .unwrap()
+        .body;
     let phi: f64 = 0.3;
     let plane = SplitPlane {
         origin: Point3::new(0.0, 0.0, 1.25),

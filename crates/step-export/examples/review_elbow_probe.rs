@@ -8,10 +8,10 @@
 use core::f64::consts::{FRAC_PI_2, PI};
 use profile::RawLoop;
 
+use geom_core::Tol;
 use geom_core::{Affine3, Point2, Point3, Vec3};
 use step_export::{StepOptions, step_string};
 use sweep::{ProfileLoop, SketchSegment, sweep_body};
-use geom_core::Tol;
 
 const R: f64 = 3.0;
 const H: f64 = 0.25;
@@ -37,9 +37,16 @@ fn duplicate_elbow(tol: Tol) -> topo::Body<f64> {
         ),
     )
     .expect("the elbow path is a well-formed quarter arc");
-    sweep_body::<f64>(&profile, Affine3::identity(), &path, STATIONS, V_DEGREE, tol)
-        .expect("the curved-path sweep body builds")
-        .body
+    sweep_body::<f64>(
+        &profile,
+        Affine3::identity(),
+        &path,
+        STATIONS,
+        V_DEGREE,
+        tol,
+    )
+    .expect("the curved-path sweep body builds")
+    .body
 }
 
 fn main() {

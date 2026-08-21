@@ -97,7 +97,10 @@ fn the_too_old_message_names_the_recourse_exactly_once() {
 fn too_old_beats_a_broken_body() {
     let text = "schema: 2\nnot json at all\n";
     assert!(
-        matches!(load(text, Tol::witness()), Err(PersistError::SchemaTooOld { found: 2, .. })),
+        matches!(
+            load(text, Tol::witness()),
+            Err(PersistError::SchemaTooOld { found: 2, .. })
+        ),
         "version door must precede the body parse"
     );
 }
@@ -137,7 +140,9 @@ fn the_selection_reaches_the_wire_canonical() {
             },
         },
     ] {
-        doc = apply(&doc, &edit, Tol::witness()).expect("the fixture builds").doc;
+        doc = apply(&doc, &edit, Tol::witness())
+            .expect("the fixture builds")
+            .doc;
     }
     let rim = |seg: u32| StableName {
         kind: editor_core::EntityKind::Edge,

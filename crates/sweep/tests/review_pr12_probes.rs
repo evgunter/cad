@@ -2,6 +2,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
 use core::f64::consts::PI;
+use geom_core::Tol;
 use geom_core::{Affine3, Band, Point2, Point3, Vec2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
@@ -11,7 +12,6 @@ use sweep::test_support::cube;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations, EdgeKey};
-use geom_core::Tol;
 
 fn tol() -> Tol {
     Tol::witness()
@@ -31,7 +31,9 @@ fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(tol())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(h), Tol::witness()).unwrap().body
+    extrude(&profile, Extrusion::Distance(h), Tol::witness())
+        .unwrap()
+        .body
 }
 fn all_edges(body: &Body<f64>) -> Vec<EdgeKey> {
     body.edges().map(|(k, _)| k).collect()
@@ -48,7 +50,9 @@ fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
         origin: p2(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
-    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness()).unwrap().body;
+    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
+        .unwrap()
+        .body;
     topo::transform_rigid(&ball, &Affine3::translation(c), Tol::witness()).unwrap()
 }
 
@@ -191,7 +195,10 @@ fn probe_e_hexagon_tier3_error() {
     let body = prism(&pts, 4.0);
     let edges = all_edges(&body);
     let f = fillet_edges(&body, &edges, 0.3, band(), Tol::witness()).expect("builds");
-    println!("PROBE E: tier3 = {:?}", topo::validate_geometric(&f.body, Tol::witness()));
+    println!(
+        "PROBE E: tier3 = {:?}",
+        topo::validate_geometric(&f.body, Tol::witness())
+    );
     println!(
         "PROBE E: props = {:?}",
         topo::mass_properties(&f.body, Tol::witness()).map(|p| (p.volume, p.volume_pad))
@@ -227,7 +234,9 @@ fn probe_e_hexagon_tier3_error() {
 fn probe_g_door_a_fields() {
     let c = cube(1.0, Tol::witness());
     let edges = all_edges(&c);
-    let blank = fillet_edges(&c, &edges, 0.12, band(), Tol::witness()).unwrap().body;
+    let blank = fillet_edges(&c, &edges, 0.12, band(), Tol::witness())
+        .unwrap()
+        .body;
     let ball = ball_at(0.09, Vec3::new(0.5, 0.5, 1.04));
     let err = boolean_op_with(
         BooleanOp::Subtract,
@@ -248,7 +257,9 @@ fn probe_g_door_a_fields() {
 fn probe_h_door_a_closed_tool() {
     let c = cube(1.0, Tol::witness());
     let edges = all_edges(&c);
-    let blank = fillet_edges(&c, &edges, 0.12, band(), Tol::witness()).unwrap().body;
+    let blank = fillet_edges(&c, &edges, 0.12, band(), Tol::witness())
+        .unwrap()
+        .body;
     // Two pips on the top face (the diag pair of face value 2 layout,
     // scaled): a multi-ball closed-group tool, unioned first.
     let b1 = ball_at(0.09, Vec3::new(0.28, 0.28, 1.04));
@@ -285,7 +296,9 @@ fn probe_h_door_a_closed_tool() {
 fn probe_i_door_a_full_tool() {
     let c = cube(1.0, Tol::witness());
     let edges = all_edges(&c);
-    let blank = fillet_edges(&c, &edges, 0.12, band(), Tol::witness()).unwrap().body;
+    let blank = fillet_edges(&c, &edges, 0.12, band(), Tol::witness())
+        .unwrap()
+        .body;
     let (pip_r, pip_h, pip_d, h) = (0.09, 0.05, 0.22, 0.5);
     let layout = |n: u32| -> Vec<(f64, f64)> {
         let c = vec![(0.0, 0.0)];
@@ -429,8 +442,12 @@ fn probe_c_oblique_trihedron() {
         Vec3::new(1.0, -1.0, 0.0).normalize(),
         0.4,
     );
-    let c2 =
-        topo::transform_rigid(&c2, &Affine3::translation(Vec3::new(-1.55, -1.55, -2.45)), Tol::witness()).unwrap();
+    let c2 = topo::transform_rigid(
+        &c2,
+        &Affine3::translation(Vec3::new(-1.55, -1.55, -2.45)),
+        Tol::witness(),
+    )
+    .unwrap();
     let c2 = topo::transform_rigid(&c2, &rot, Tol::witness()).unwrap();
     let out = boolean_op_with(
         BooleanOp::Intersect,

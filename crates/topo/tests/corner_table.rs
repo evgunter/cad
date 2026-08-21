@@ -25,9 +25,9 @@ mod common;
 
 use common::{flush_declarations, prism_z};
 use geom_core::Decide;
+use geom_core::Tol;
 use topo::validate::{validate_closed, validate_geometric};
 use topo::{BooleanError, BooleanResult, BooleanResultKind, mass_properties, union, union_with};
-use geom_core::Tol;
 
 const TOP_VOL: f64 = 4.0 * 3.0 * 0.25; // 3.0
 const PER_LEG_GAIN: f64 = 0.5 * 0.5 * 1.125 - 0.5 * 0.5 * 0.125; // 0.25

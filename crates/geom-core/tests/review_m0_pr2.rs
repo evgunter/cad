@@ -83,9 +83,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Tol;
 use geom_core::tolerance::{DEFAULT_EPS, ENV_EPS};
 use geom_core::{Real, Tolerance, ToleranceEnvErrorKind, ToleranceError};
-use geom_core::Tol;
 
 // ---------------------------------------------------------------------
 // Realistic M0–M2-style consumer code written against `geom_core::Real`

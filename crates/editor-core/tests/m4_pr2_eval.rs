@@ -14,8 +14,8 @@ use editor_core::{
     SlotId, ValuePayload, evaluate,
 };
 use fixture::{die, len};
-use topo::{Body, mass_properties, validate, validate_closed};
 use geom_core::Tol;
+use topo::{Body, mass_properties, validate, validate_closed};
 
 fn run(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>, parallel: bool) -> Evaluation<f64> {
     let opts = EvalOptions {
@@ -115,13 +115,16 @@ fn doc_param_edit_recomputes_the_param_cone() {
     // reused.
     let edited = d
         .doc
-        .apply(&editor_core::DocEdit::SetDocParam {
-            name: editor_core::ParamName::new("pip_depth"),
-            value: editor_core::DocParam::Continuous {
-                dim: editor_core::Dimension::Length,
-                value: 0.0625,
+        .apply(
+            &editor_core::DocEdit::SetDocParam {
+                name: editor_core::ParamName::new("pip_depth"),
+                value: editor_core::DocParam::Continuous {
+                    dim: editor_core::Dimension::Length,
+                    value: 0.0625,
+                },
             },
-        }, Tol::witness())
+            Tol::witness(),
+        )
         .unwrap()
         .doc;
     let memo = run(&edited, Some(&full), false);
@@ -140,18 +143,21 @@ fn poisoning_hits_descendants_only_and_is_walkable() {
     // surfaces with (node, slot) context.
     let broken = d
         .doc
-        .apply(&editor_core::DocEdit::SetParam {
-            node: d.pz_extrude,
-            slot: SlotId::Distance,
-            expr: editor_core::Expr::div(
-                editor_core::Expr::param(
-                    editor_core::ParamName::new("pip_depth"),
-                    editor_core::Dimension::Length,
-                ),
-                fixture::scl(0.0),
-            )
-            .unwrap(),
-        }, Tol::witness())
+        .apply(
+            &editor_core::DocEdit::SetParam {
+                node: d.pz_extrude,
+                slot: SlotId::Distance,
+                expr: editor_core::Expr::div(
+                    editor_core::Expr::param(
+                        editor_core::ParamName::new("pip_depth"),
+                        editor_core::Dimension::Length,
+                    ),
+                    fixture::scl(0.0),
+                )
+                .unwrap(),
+            },
+            Tol::witness(),
+        )
         .unwrap()
         .doc;
     let ev = run(&broken, None, false);
@@ -215,7 +221,13 @@ fn cancelation_returns_a_typed_partial_result() {
 
     // A canceled evaluation is a legal (empty) memo: a fresh run from
     // it completes and computes everything.
-    let full = evaluate::<f64>(&d.doc, Some(&ev), &CancelToken::new(), &opts2, Tol::witness());
+    let full = evaluate::<f64>(
+        &d.doc,
+        Some(&ev),
+        &CancelToken::new(),
+        &opts2,
+        Tol::witness(),
+    );
     assert_eq!(full.outcome, EvalOutcome::Completed);
     assert_eq!((full.recomputed, full.reused), (77, 0));
 }
@@ -339,8 +351,14 @@ fn split_evaluates_both_parts_role_tagged() {
             let (SplitSide::Body(above), SplitSide::Body(below)) = (above, below) else {
                 panic!("both sides carry material");
             };
-            assert_eq!(mass_properties(above, Tol::witness()).unwrap().volume, 2.0 * 2.0 * 1.5);
-            assert_eq!(mass_properties(below, Tol::witness()).unwrap().volume, 2.0 * 2.0 * 0.5);
+            assert_eq!(
+                mass_properties(above, Tol::witness()).unwrap().volume,
+                2.0 * 2.0 * 1.5
+            );
+            assert_eq!(
+                mass_properties(below, Tol::witness()).unwrap().volume,
+                2.0 * 2.0 * 0.5
+            );
             for b in [above, below] {
                 assert_eq!(validate(b), Ok(()));
                 assert_eq!(validate_closed(b), Ok(()));

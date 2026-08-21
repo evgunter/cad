@@ -769,7 +769,8 @@ pub(crate) fn apply(body: &mut Body<f64>, choice: OpChoice, counter: &mut u32, t
             body.ring_move(ring, to_face).unwrap();
         }
         OpChoice::SplitEdge(e) => {
-            let (t, _) = split_site(body, e, tol).expect("a split candidate has a splittable carrier");
+            let (t, _) =
+                split_site(body, e, tol).expect("a split candidate has a splittable carrier");
             body.split_edge(e, t, tol).unwrap();
         }
     }
@@ -937,7 +938,8 @@ pub(crate) fn roundtrip(
                     return RoundtripOutcome::SkippedIrreversible;
                 }
                 body.kef(he).unwrap();
-                body.mef_chord(MefSite::Chords { he1: b, he2: b }, tol).unwrap();
+                body.mef_chord(MefSite::Chords { he1: b, he2: b }, tol)
+                    .unwrap();
             } else {
                 body.kef(he).unwrap();
                 let site = if b == he && d == mate {
@@ -1167,7 +1169,9 @@ mod tests {
                 if matches!(choice, OpChoice::Kev(_) | OpChoice::Kef(_)) {
                     tally.skippable += 1;
                 }
-                if roundtrip(&mut body, choice, &mut counter, Tol::witness()) == RoundtripOutcome::Done {
+                if roundtrip(&mut body, choice, &mut counter, Tol::witness())
+                    == RoundtripOutcome::Done
+                {
                     tally.executed += 1;
                 } else {
                     // Both documented irreversible subcases sit in

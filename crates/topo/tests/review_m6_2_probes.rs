@@ -28,9 +28,9 @@ use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve2};
 use geom_brep::{Pcurve, PcurveCache, PcurveCertifyError, PcurveCheck};
+use geom_core::Tol;
 use geom_core::{Band, Point2};
 use topo::pcurves::{PcurveMintError, validate_pcurves};
-use geom_core::Tol;
 
 /// Species 1: the foreign-arc cache fails the at-rest pass at the
 /// schedule's map residual — the re-derivation compares the stored

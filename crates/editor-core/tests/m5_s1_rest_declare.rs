@@ -89,7 +89,13 @@ fn rest_doc() -> (ProfileDoc, RecipeNodeId) {
 /// discipline: `Debug` prints floats shortest-round-trip, bit-faithful
 /// for the finite values documents carry).
 fn fingerprint(doc: &ProfileDoc) -> String {
-    let ev = evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness());
+    let ev = evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
     format!("{:?}|{:?}|{:?}", ev.order, ev.nodes, ev.appearance)
 }
 
@@ -98,7 +104,13 @@ fn fingerprint(doc: &ProfileDoc) -> String {
 #[test]
 fn declared_rest_union_evaluates_green() {
     let (doc, u) = rest_doc();
-    let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness());
+    let ev = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
     let value = ev.value(u).expect("union evaluated");
     let ValuePayload::Boolean(BooleanValue::Body {
         body,
@@ -109,8 +121,14 @@ fn declared_rest_union_evaluates_green() {
         panic!("expected a boolean body, got {}", value.payload.kind_name());
     };
     assert_eq!(*kind, topo::BooleanResultKind::Seamed);
-    assert_eq!(topo::mass_properties(body, Tol::witness()).unwrap().volume, 8.0);
-    assert_eq!(topo::validate_pseudomanifold(body, contacts, Tol::witness()), Ok(()));
+    assert_eq!(
+        topo::mass_properties(body, Tol::witness()).unwrap().volume,
+        8.0
+    );
+    assert_eq!(
+        topo::validate_pseudomanifold(body, contacts, Tol::witness()),
+        Ok(())
+    );
     assert!(
         contacts.vv.is_empty() && contacts.a_on_b.is_empty() && contacts.b_on_a.is_empty(),
         "REST records consumed into seam structure: {contacts:?}"

@@ -519,7 +519,8 @@ mod pattern_tests {
         let prof = profile::Profile::new(plane, vec![square])
             .validate(geom_core::Tol::witness())
             .unwrap();
-        let built = sweep::extrude(&prof, sweep::Extrusion::Distance(1.0_f64), Tol::witness()).unwrap();
+        let built =
+            sweep::extrude(&prof, sweep::Extrusion::Distance(1.0_f64), Tol::witness()).unwrap();
         let table = name_extrude(node, &built).unwrap();
         (built.body, table)
     }

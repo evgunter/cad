@@ -119,7 +119,10 @@ fn r1_replay_bit_identity_adversarial() {
 /// verification tooling is what conflates.
 #[test]
 fn r1_partialeq_and_diff_conflate_signed_zero_and_nan() {
-    let (pos, _) = apply_all(Doc::empty_derived("review_m4_pr1", Tol::witness()), &[point_edit(len(0.0))]);
+    let (pos, _) = apply_all(
+        Doc::empty_derived("review_m4_pr1", Tol::witness()),
+        &[point_edit(len(0.0))],
+    );
     let (neg, _) = apply_all(
         Doc::empty_derived("review_m4_pr1", Tol::witness()),
         &[point_edit(len(-0.0))],
@@ -250,13 +253,16 @@ fn r2_contradictory_param_dims_caught_downstream() {
     // apply: a slot carrying the contradiction is refused whichever
     // dimension the doc table declares.
     let doc = Doc::empty_derived("review_m4_pr1", Tol::witness())
-        .apply(&Edit::SetDocParam {
-            name: ParamName::new("q"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: 2.0,
+        .apply(
+            &Edit::SetDocParam {
+                name: ParamName::new("q"),
+                value: DocParam::Continuous {
+                    dim: Dimension::Length,
+                    value: 2.0,
+                },
             },
-        }, Tol::witness())
+            Tol::witness(),
+        )
         .unwrap()
         .doc;
     let res = doc.apply(&point_edit(expr), Tol::witness());
@@ -315,7 +321,9 @@ fn r3_ancestor_replace_silently_repoints_exprpath() {
             position: [e0, len(0.0), len(0.0)],
         }),
     };
-    let a = Doc::empty_derived("review_m4_pr1", Tol::witness()).apply(&ins, Tol::witness()).unwrap();
+    let a = Doc::empty_derived("review_m4_pr1", Tol::witness())
+        .apply(&ins, Tol::witness())
+        .unwrap();
     let id = a.record.minted.unwrap();
     let path = ExprPath {
         node: id,
@@ -327,14 +335,17 @@ fn r3_ancestor_replace_silently_repoints_exprpath() {
     // Replace the ANCESTOR (whole slot, path []) with 5.0 + 7.0.
     let replaced = a
         .doc
-        .apply(&Edit::SetExpression {
-            path: ExprPath {
-                node: id,
-                slot: SlotId::Origin(Axis3::X),
-                path: vec![],
+        .apply(
+            &Edit::SetExpression {
+                path: ExprPath {
+                    node: id,
+                    slot: SlotId::Origin(Axis3::X),
+                    path: vec![],
+                },
+                expr: Expr::add(len(5.0), len(7.0)).unwrap(),
             },
-            expr: Expr::add(len(5.0), len(7.0)).unwrap(),
-        }, Tol::witness())
+            Tol::witness(),
+        )
         .unwrap()
         .doc;
     // The old path still RESOLVES — to a different subexpression.
@@ -343,14 +354,17 @@ fn r3_ancestor_replace_silently_repoints_exprpath() {
     // Arity-shrinking ancestor replace: old path now dangles as None
     // (detectable, but an Option, not a typed error).
     let shrunk = replaced
-        .apply(&Edit::SetExpression {
-            path: ExprPath {
-                node: id,
-                slot: SlotId::Origin(Axis3::X),
-                path: vec![],
+        .apply(
+            &Edit::SetExpression {
+                path: ExprPath {
+                    node: id,
+                    slot: SlotId::Origin(Axis3::X),
+                    path: vec![],
+                },
+                expr: len(9.0),
             },
-            expr: len(9.0),
-        }, Tol::witness())
+            Tol::witness(),
+        )
         .unwrap()
         .doc;
     assert!(shrunk.expr_at(&path).is_none(), "dangles as None, untyped");
@@ -369,7 +383,9 @@ fn r3_referent_survives_out_of_claim_edits_bitwise() {
             position: [e0, len(0.0), len(0.0)],
         }),
     };
-    let a = Doc::empty_derived("review_m4_pr1", Tol::witness()).apply(&ins, Tol::witness()).unwrap();
+    let a = Doc::empty_derived("review_m4_pr1", Tol::witness())
+        .apply(&ins, Tol::witness())
+        .unwrap();
     let id = a.record.minted.unwrap();
     let referent = ExprPath {
         node: id,
@@ -386,24 +402,30 @@ fn r3_referent_survives_out_of_claim_edits_bitwise() {
     check(&d);
     // (b) replace the SIBLING subtree [1] of the same slot.
     let d = d
-        .apply(&Edit::SetExpression {
-            path: ExprPath {
-                node: id,
-                slot: SlotId::Origin(Axis3::X),
-                path: vec![1],
+        .apply(
+            &Edit::SetExpression {
+                path: ExprPath {
+                    node: id,
+                    slot: SlotId::Origin(Axis3::X),
+                    path: vec![1],
+                },
+                expr: Expr::mul(scl(3.0), len(8.0)).unwrap(),
             },
-            expr: Expr::mul(scl(3.0), len(8.0)).unwrap(),
-        }, Tol::witness())
+            Tol::witness(),
+        )
         .unwrap()
         .doc;
     check(&d);
     // (c) SetParam a DIFFERENT slot on the same node.
     let d = d
-        .apply(&Edit::SetParam {
-            node: id,
-            slot: SlotId::Origin(Axis3::Z),
-            expr: len(6.0),
-        }, Tol::witness())
+        .apply(
+            &Edit::SetParam {
+                node: id,
+                slot: SlotId::Origin(Axis3::Z),
+                expr: len(6.0),
+            },
+            Tol::witness(),
+        )
         .unwrap()
         .doc;
     check(&d);
@@ -443,7 +465,9 @@ fn r4_stablename_node_refs_escape_ref_validation() {
     let a = doc.apply(&declare(target), Tol::witness()).unwrap();
     let declare_id = a.record.minted.unwrap();
     // (1) Delete the named node — ACCEPTED despite the live Declare.
-    let after = a.doc.apply(&Edit::DeleteNode { id: target }, Tol::witness());
+    let after = a
+        .doc
+        .apply(&Edit::DeleteNode { id: target }, Tol::witness());
     let after = after.expect("WITNESS: delete of name-referenced node accepted");
     assert!(after.doc.node(target).is_none());
     // The Declare survives, holding a stale id.
@@ -456,7 +480,8 @@ fn r4_stablename_node_refs_escape_ref_validation() {
     // (2) Insert a Declare naming an id that never existed: REFUSED
     // (fix pass, ruled carve-out).
     let phantom = RecipeNodeId(9999);
-    let res = Doc::empty_derived("review_m4_pr1", Tol::witness()).apply(&declare(phantom), Tol::witness());
+    let res = Doc::empty_derived("review_m4_pr1", Tol::witness())
+        .apply(&declare(phantom), Tol::witness());
     match res {
         Err(EditError::DeclareNamesMissingNode { name }) => {
             assert_eq!(name.node, phantom, "refusal names the typo'd id");
@@ -464,12 +489,15 @@ fn r4_stablename_node_refs_escape_ref_validation() {
         other => panic!("phantom StableName.node must be refused, got {other:?}"),
     }
     // Contrast: a DAG-edge ref to the same phantom is refused.
-    let res2 = Doc::empty_derived("review_m4_pr1", Tol::witness()).apply(&Edit::InsertNode {
-        node: Node::Extrude {
-            profile: phantom,
-            distance: len(1.0),
+    let res2 = Doc::empty_derived("review_m4_pr1", Tol::witness()).apply(
+        &Edit::InsertNode {
+            node: Node::Extrude {
+                profile: phantom,
+                distance: len(1.0),
+            },
         },
-    }, Tol::witness());
+        Tol::witness(),
+    );
     assert!(matches!(res2, Err(EditError::UnresolvedInput { .. })));
 }
 
@@ -489,26 +517,32 @@ fn r4_cycle_unconstructible_by_any_edit_sequence() {
         }],
     );
     let a = doc
-        .apply(&Edit::InsertNode {
-            node: Node::Extrude {
-                profile: ids[0],
-                distance: len(1.0),
+        .apply(
+            &Edit::InsertNode {
+                node: Node::Extrude {
+                    profile: ids[0],
+                    distance: len(1.0),
+                },
             },
-        }, Tol::witness())
+            Tol::witness(),
+        )
         .unwrap();
     let extrude = a.record.minted.unwrap();
     let doc = a.doc;
     // Forward ref to a FUTURE id (the only way to seed a cycle at
     // insert) is refused: the id isn't live yet.
     let next_would_be = RecipeNodeId(extrude.0 + 1);
-    let res = doc.apply(&Edit::InsertNode {
-        node: Node::Boolean {
-            op: editor_core::BooleanOp::Union,
-            a: extrude,
-            b: next_would_be,
-            declare: None,
+    let res = doc.apply(
+        &Edit::InsertNode {
+            node: Node::Boolean {
+                op: editor_core::BooleanOp::Union,
+                a: extrude,
+                b: next_would_be,
+                declare: None,
+            },
         },
-    }, Tol::witness());
+        Tol::witness(),
+    );
     assert!(matches!(res, Err(EditError::UnresolvedInput { .. })));
     // And no edit arm can touch `Extrude.profile` afterwards: the
     // slot vocabulary for Extrude is exactly [Distance].
@@ -525,13 +559,16 @@ fn r4_cycle_unconstructible_by_any_edit_sequence() {
 fn r4_setdocparam_sweep_and_no_delete_arm() {
     let name = ParamName::new("d");
     let doc = Doc::empty_derived("review_m4_pr1", Tol::witness())
-        .apply(&Edit::SetDocParam {
-            name: name.clone(),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: 0.5,
+        .apply(
+            &Edit::SetDocParam {
+                name: name.clone(),
+                value: DocParam::Continuous {
+                    dim: Dimension::Length,
+                    value: 0.5,
+                },
             },
-        }, Tol::witness())
+            Tol::witness(),
+        )
         .unwrap()
         .doc;
     let (doc, _) = apply_all(
@@ -539,44 +576,56 @@ fn r4_setdocparam_sweep_and_no_delete_arm() {
         &[point_edit(Expr::param(name.clone(), Dimension::Length))],
     );
     // Dimension flip out from under the referencing slot: refused.
-    let flip = doc.apply(&Edit::SetDocParam {
-        name: name.clone(),
-        value: DocParam::Continuous {
-            dim: Dimension::Angle,
-            value: 0.5,
+    let flip = doc.apply(
+        &Edit::SetDocParam {
+            name: name.clone(),
+            value: DocParam::Continuous {
+                dim: Dimension::Angle,
+                value: 0.5,
+            },
         },
-    }, Tol::witness());
+        Tol::witness(),
+    );
     assert!(
         matches!(flip, Err(EditError::DocParamDimensionMismatch { .. })),
         "got {flip:?}"
     );
     // Kind flip Continuous→Count under a reference: also refused.
-    let kind_flip = doc.apply(&Edit::SetDocParam {
-        name: name.clone(),
-        value: DocParam::Count { value: 2 },
-    }, Tol::witness());
+    let kind_flip = doc.apply(
+        &Edit::SetDocParam {
+            name: name.clone(),
+            value: DocParam::Count { value: 2 },
+        },
+        Tol::witness(),
+    );
     assert!(matches!(
         kind_flip,
         Err(EditError::DocParamDimensionMismatch { .. })
     ));
     // Same-dimension value change: accepted, non-structural.
     let ok = doc
-        .apply(&Edit::SetDocParam {
-            name,
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: 0.75,
+        .apply(
+            &Edit::SetDocParam {
+                name,
+                value: DocParam::Continuous {
+                    dim: Dimension::Length,
+                    value: 0.75,
+                },
             },
-        }, Tol::witness())
+            Tol::witness(),
+        )
         .unwrap();
     assert!(!ok.record.structural);
     // An UNREFERENCED param may flip freely (nothing to strand).
     let free = ok
         .doc
-        .apply(&Edit::SetDocParam {
-            name: ParamName::new("unused"),
-            value: DocParam::Count { value: 1 },
-        }, Tol::witness())
+        .apply(
+            &Edit::SetDocParam {
+                name: ParamName::new("unused"),
+                value: DocParam::Count { value: 1 },
+            },
+            Tol::witness(),
+        )
         .unwrap();
     assert!(
         free.record.structural,
@@ -604,9 +653,12 @@ fn r5_apply_pure_and_deterministic_bitwise() {
     assert_bit_identical(&doc, &snapshot);
     // Failing apply: input untouched (delete of a referenced node —
     // build an extrude on a profile to get a refusal).
-    let bad = doc.apply(&Edit::DeleteNode {
-        id: RecipeNodeId(424_242),
-    }, Tol::witness());
+    let bad = doc.apply(
+        &Edit::DeleteNode {
+            id: RecipeNodeId(424_242),
+        },
+        Tol::witness(),
+    );
     assert!(bad.is_err());
     assert_bit_identical(&doc, &snapshot);
     // Determinism: same edit, same input → bit-identical outputs,
@@ -671,13 +723,16 @@ fn r6_nonfinite_doors_closed() {
         DimensionError::NonFiniteLiteral
     );
     for poison in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
-        let res = Doc::empty_derived("review_m4_pr1", Tol::witness()).apply(&Edit::SetDocParam {
-            name: ParamName::new("poison"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: poison,
+        let res = Doc::empty_derived("review_m4_pr1", Tol::witness()).apply(
+            &Edit::SetDocParam {
+                name: ParamName::new("poison"),
+                value: DocParam::Continuous {
+                    dim: Dimension::Length,
+                    value: poison,
+                },
             },
-        }, Tol::witness());
+            Tol::witness(),
+        );
         assert_eq!(
             res.unwrap_err(),
             EditError::NonFiniteDocParam {
@@ -749,10 +804,13 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
     use editor_core::{Node, PatternKind};
     let cnt_param = ParamName::new("n");
     let doc = Doc::empty_derived("review_m4_pr1", Tol::witness())
-        .apply(&Edit::SetDocParam {
-            name: cnt_param.clone(),
-            value: DocParam::Count { value: 4 },
-        }, Tol::witness())
+        .apply(
+            &Edit::SetDocParam {
+                name: cnt_param.clone(),
+                value: DocParam::Count { value: 4 },
+            },
+            Tol::witness(),
+        )
         .unwrap()
         .doc;
     let (doc, ids) = apply_all(doc, &[point_edit(len(0.0))]);
@@ -768,7 +826,10 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
     };
     // Count slot referencing the Count doc param: accepted.
     let a = doc
-        .apply(&pattern(Expr::param(cnt_param.clone(), Dimension::Count)), Tol::witness())
+        .apply(
+            &pattern(Expr::param(cnt_param.clone(), Dimension::Count)),
+            Tol::witness(),
+        )
         .unwrap();
     assert!(a.record.structural);
     let pat_id = a.record.minted.unwrap();
@@ -778,11 +839,14 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
     // direction), and a Length-dim ref in a Count slot is refused at
     // the slot-dimension check — unrepresentable, not just unvalidated.
     let smuggle = Expr::param(ParamName::new("d_len"), Dimension::Length);
-    let res = doc.apply(&Edit::SetStructuralParam {
-        node: pat_id,
-        slot: SlotId::Count,
-        expr: smuggle,
-    }, Tol::witness());
+    let res = doc.apply(
+        &Edit::SetStructuralParam {
+            node: pat_id,
+            slot: SlotId::Count,
+            expr: smuggle,
+        },
+        Tol::witness(),
+    );
     assert!(
         matches!(res, Err(EditError::SlotDimensionMismatch { .. })),
         "got {res:?}"
@@ -795,13 +859,16 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
     )
     .unwrap();
     let a2 = doc
-        .apply(&Edit::SetDocParam {
-            name: ParamName::new("other"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: 9.0,
+        .apply(
+            &Edit::SetDocParam {
+                name: ParamName::new("other"),
+                value: DocParam::Continuous {
+                    dim: Dimension::Length,
+                    value: 9.0,
+                },
             },
-        }, Tol::witness())
+            Tol::witness(),
+        )
         .unwrap();
     assert!(!a2.record.structural);
     let n_after = eval_count(
@@ -814,9 +881,12 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
     // slots, no inputs) is flagged structural under the wide reading.
     let a3 = a2
         .doc
-        .apply(&Edit::InsertNode {
-            node: Node::declare_rest(vec![]),
-        }, Tol::witness())
+        .apply(
+            &Edit::InsertNode {
+                node: Node::declare_rest(vec![]),
+            },
+            Tol::witness(),
+        )
         .unwrap();
     assert!(a3.record.structural, "Declare insert flags structural");
 }

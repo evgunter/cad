@@ -50,10 +50,10 @@ use geom::NurbsCurve3;
 use geom::NurbsSurface;
 use geom::curves::fit::{FitError, interpolate_columns};
 use geom_brep::SketchSegment;
+use geom_core::Tol;
 use geom_core::spline::{KnotAlgebraError, KnotVector, SplineError};
 use geom_core::{Affine3, COINCIDENCE_RECOURSE, Point2, Point3, Real, Vec3};
 use profile::{Profile, ProfileError, ProfileLoop, SketchPlane, ValidatedProfile};
-use geom_core::Tol;
 
 /// The quarter-turn ceiling on one rational-quadratic arc span: every
 /// sub-arc of a converted profile arc is at most this wide, so the

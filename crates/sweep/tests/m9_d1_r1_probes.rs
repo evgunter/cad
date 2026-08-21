@@ -15,10 +15,10 @@ mod revolve_common;
 
 use core::f64::consts::FRAC_PI_2;
 
+use geom_core::Tol;
 use profile::{ProfileLoop, ProfileVertex, RawLoop};
 use revolve_common::*;
 use sweep::{Revolution, Revolved, revolve};
-use geom_core::Tol;
 
 /// The ball meridian, authored CCW: (0,−1) —arc(bulge 1)→ (0,1)
 /// —axis line→ close. Canonical vertex 0 is (0,−1) (lex least).
@@ -68,7 +68,13 @@ fn assert_ball_poles(t: &Revolved<f64>) {
 #[test]
 fn full_ball_reversed_authoring_exports_the_same_canonical_poles() {
     for lp in [ball_ccw(), ball_cw()] {
-        let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness()).unwrap();
+        let t = revolve(
+            &validated(vec![lp]),
+            axis_y(),
+            Revolution::Full,
+            Tol::witness(),
+        )
+        .unwrap();
         assert_all_tiers(&t.body);
         assert_eq!(counts(&t.body), (2, 2, 2, 0));
         assert_ball_poles(&t);
@@ -81,7 +87,13 @@ fn partial_ball_both_sweep_directions_export_the_same_canonical_poles() {
     // one. Both authored orientations, both directions.
     for theta in [FRAC_PI_2, -FRAC_PI_2] {
         for lp in [ball_ccw(), ball_cw()] {
-            let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Partial(theta), Tol::witness()).unwrap();
+            let t = revolve(
+                &validated(vec![lp]),
+                axis_y(),
+                Revolution::Partial(theta),
+                Tol::witness(),
+            )
+            .unwrap();
             // Tiers 1-2 only: the natural wedge's band face has no
             // rims and non-coplanar meridians, so tier 3's sphere
             // volume classification refuses typed (pre-existing
@@ -108,7 +120,13 @@ fn full_subdivided_axis_run_exports_tips_and_omits_the_interior() {
         ProfileVertex::new(p2(0.0, 1.0), 0.0),
         ProfileVertex::new(p2(0.0, 0.0), 0.0),
     ]);
-    let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness()).unwrap();
+    let t = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap();
     assert_all_tiers(&t.body);
     // Same V2 E2 F2 ball; the interior axis vertex does not exist.
     assert_eq!(counts(&t.body), (2, 2, 2, 0));
@@ -156,7 +174,13 @@ fn full_mixed_profile_exports_poles_only_at_pinned_vertices() {
         ProfileVertex::new(p2(1.0, 0.0), b),
         ProfileVertex::new(p2(0.0, 1.0), 0.0),
     ]);
-    let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness()).unwrap();
+    let t = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap();
     assert_all_tiers(&t.body);
     // Canonical v0 = (0,0), v1 = (1,0), v2 = (0,1).
     assert!(pole_y(&t, 0, 0).abs() < 1e-12);

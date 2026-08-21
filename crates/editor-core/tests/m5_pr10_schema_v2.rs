@@ -74,7 +74,10 @@ fn the_too_old_message_names_the_recourse_exactly_once() {
 fn too_old_beats_a_broken_body() {
     let text = "schema: 1\nnot json at all\n";
     assert!(
-        matches!(load(text, Tol::witness()), Err(PersistError::SchemaTooOld { found: 1, .. })),
+        matches!(
+            load(text, Tol::witness()),
+            Err(PersistError::SchemaTooOld { found: 1, .. })
+        ),
         "version door must precede the body parse"
     );
 }

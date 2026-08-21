@@ -618,11 +618,15 @@ impl<T: Decide> Body<T> {
 
         let created = match site {
             MekrSite::Cycles { target, ring } => self.mekr_cycles(site, target, ring, curve, tol),
-            MekrSite::EmptyRing { target, ring } => self.mekr_empty_ring(site, target, ring, curve, tol),
+            MekrSite::EmptyRing { target, ring } => {
+                self.mekr_empty_ring(site, target, ring, curve, tol)
+            }
             MekrSite::EmptyTarget { target, ring } => {
                 self.mekr_empty_target(site, target, ring, curve, tol)
             }
-            MekrSite::BothEmpty { target, ring } => self.mekr_both_empty(site, target, ring, curve, tol),
+            MekrSite::BothEmpty { target, ring } => {
+                self.mekr_both_empty(site, target, ring, curve, tol)
+            }
         }?;
 
         #[cfg(debug_assertions)]
@@ -1383,8 +1387,8 @@ impl<T: Decide> Body<T> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use geom_core::Tol;
     use geom_core::Point3;
+    use geom_core::Tol;
 
     use super::*;
     use crate::entity::{Edge, Face, HalfEdge, Shell, Solid, SolidKey, Vertex};
@@ -1994,10 +1998,13 @@ mod tests {
         let original = starts(&body, strut.he_plus);
         let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
         let restore = body
-            .mekr_chord(MekrSite::EmptyRing {
-                target: seg.he_minus,
-                ring: kill.ring,
-            }, Tol::witness())
+            .mekr_chord(
+                MekrSite::EmptyRing {
+                    target: seg.he_minus,
+                    ring: kill.ring,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         assert_eq!(validate(&body), Ok(()));
         assert_eq!(starts(&body, restore.he_plus), original);
@@ -2024,10 +2031,13 @@ mod tests {
         // The outer loop is now Empty (the target); the ring holds the
         // whole surviving cycle.
         let restore = body
-            .mekr_chord(MekrSite::EmptyTarget {
-                target: seed.r#loop,
-                ring: seg.he_minus,
-            }, Tol::witness())
+            .mekr_chord(
+                MekrSite::EmptyTarget {
+                    target: seed.r#loop,
+                    ring: seg.he_minus,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         assert_eq!(validate(&body), Ok(()));
         assert_eq!(starts(&body, restore.he_plus), original);
@@ -2058,10 +2068,13 @@ mod tests {
         let original = starts(&body, seg.he_plus);
         let kill = body.kemr(seg.he_plus, seg.he_minus).unwrap();
         let restore = body
-            .mekr_chord(MekrSite::BothEmpty {
-                target: seed.r#loop,
-                ring: kill.ring,
-            }, Tol::witness())
+            .mekr_chord(
+                MekrSite::BothEmpty {
+                    target: seed.r#loop,
+                    ring: kill.ring,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         assert_eq!(validate(&body), Ok(()));
         assert_eq!(starts(&body, restore.he_plus), original);
@@ -2096,10 +2109,13 @@ mod tests {
             r#loop: seed.r#loop,
         };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.mekr_chord(MekrSite::Cycles {
-                target: e0.he_plus,
-                ring: e1.he_plus,
-            }, Tol::witness())
+            b.mekr_chord(
+                MekrSite::Cycles {
+                    target: e0.he_plus,
+                    ring: e1.he_plus,
+                },
+                Tol::witness(),
+            )
             .unwrap_err()
         });
     }
@@ -2113,7 +2129,8 @@ mod tests {
             ring: t.loop_b,
         };
         assert_err_deep_unchanged(&mut t.body, &expected, |b| {
-            b.mekr_chord(MekrSite::Cycles { target, ring }, Tol::witness()).unwrap_err()
+            b.mekr_chord(MekrSite::Cycles { target, ring }, Tol::witness())
+                .unwrap_err()
         });
     }
 
@@ -2127,10 +2144,13 @@ mod tests {
             r#loop: seed.r#loop,
         };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.mekr_chord(MekrSite::Cycles {
-                target: e2.he_plus,
-                ring: e0.he_minus,
-            }, Tol::witness())
+            b.mekr_chord(
+                MekrSite::Cycles {
+                    target: e2.he_plus,
+                    ring: e0.he_minus,
+                },
+                Tol::witness(),
+            )
             .unwrap_err()
         });
     }
@@ -2142,10 +2162,13 @@ mod tests {
         // EmptyRing with a cycle ring loop.
         let expected = EulerOpError::LoopNotEmpty { r#loop: kill.ring };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.mekr_chord(MekrSite::EmptyRing {
-                target: e0.he_minus,
-                ring: kill.ring,
-            }, Tol::witness())
+            b.mekr_chord(
+                MekrSite::EmptyRing {
+                    target: e0.he_minus,
+                    ring: kill.ring,
+                },
+                Tol::witness(),
+            )
             .unwrap_err()
         });
         // EmptyTarget with a cycle target loop.
@@ -2153,18 +2176,24 @@ mod tests {
             r#loop: seed.r#loop,
         };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.mekr_chord(MekrSite::EmptyTarget {
-                target: seed.r#loop,
-                ring: e0.he_minus,
-            }, Tol::witness())
+            b.mekr_chord(
+                MekrSite::EmptyTarget {
+                    target: seed.r#loop,
+                    ring: e0.he_minus,
+                },
+                Tol::witness(),
+            )
             .unwrap_err()
         });
         // BothEmpty with cycle loops.
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.mekr_chord(MekrSite::BothEmpty {
-                target: seed.r#loop,
-                ring: kill.ring,
-            }, Tol::witness())
+            b.mekr_chord(
+                MekrSite::BothEmpty {
+                    target: seed.r#loop,
+                    ring: kill.ring,
+                },
+                Tol::witness(),
+            )
             .unwrap_err()
         });
     }
@@ -2178,10 +2207,13 @@ mod tests {
             key: EntityId::HalfEdge(e1.he_plus),
         };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.mekr_chord(MekrSite::Cycles {
-                target: e1.he_plus,
-                ring: e0.he_minus,
-            }, Tol::witness())
+            b.mekr_chord(
+                MekrSite::Cycles {
+                    target: e1.he_plus,
+                    ring: e0.he_minus,
+                },
+                Tol::witness(),
+            )
             .unwrap_err()
         });
         // A null loop key as the ring.
@@ -2190,10 +2222,13 @@ mod tests {
             key: EntityId::Loop(dead_loop),
         };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.mekr_chord(MekrSite::EmptyRing {
-                target: e0.he_minus,
-                ring: dead_loop,
-            }, Tol::witness())
+            b.mekr_chord(
+                MekrSite::EmptyRing {
+                    target: e0.he_minus,
+                    ring: dead_loop,
+                },
+                Tol::witness(),
+            )
             .unwrap_err()
         });
     }
@@ -2215,10 +2250,13 @@ mod tests {
         let expected = EulerOpError::EmptyAnchorsCollide { vertex: t.vertex };
         let target = t.lone_loop;
         assert_err_deep_unchanged(&mut t.body, &expected, |b| {
-            b.mekr_chord(MekrSite::BothEmpty {
-                target,
-                ring: extra,
-            }, Tol::witness())
+            b.mekr_chord(
+                MekrSite::BothEmpty {
+                    target,
+                    ring: extra,
+                },
+                Tol::witness(),
+            )
             .unwrap_err()
         });
     }
@@ -2233,10 +2271,13 @@ mod tests {
         let (mut body_a, _seed_a, [a0, a1, a2]) = chain3();
         let kill_a = body_a.kemr(a1.he_plus, a1.he_minus).unwrap();
         let restore_a = body_a
-            .mekr_chord(MekrSite::Cycles {
-                target: a0.he_minus,
-                ring: a2.he_plus,
-            }, Tol::witness())
+            .mekr_chord(
+                MekrSite::Cycles {
+                    target: a0.he_minus,
+                    ring: a2.he_plus,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         let extra_a = body_a
             .mev_line(
@@ -2254,10 +2295,13 @@ mod tests {
         let (mut body_b, _seed_b, [b0, b1, b2]) = chain3();
         let kill_b = body_b.kemr(b1.he_plus, b1.he_minus).unwrap();
         let restore_b = body_b
-            .mekr_chord(MekrSite::Cycles {
-                target: b0.he_minus,
-                ring: b2.he_plus,
-            }, Tol::witness())
+            .mekr_chord(
+                MekrSite::Cycles {
+                    target: b0.he_minus,
+                    ring: b2.he_plus,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         let extra_b = body_b
             .mev_line(
@@ -2314,10 +2358,13 @@ mod tests {
         let (mut body_a, _seed_a, [a0, a1, a2]) = chain3();
         body_a.kemr(a1.he_plus, a1.he_minus).unwrap();
         body_a
-            .mekr_chord(MekrSite::Cycles {
-                target: a0.he_minus,
-                ring: a2.he_plus,
-            }, Tol::witness())
+            .mekr_chord(
+                MekrSite::Cycles {
+                    target: a0.he_minus,
+                    ring: a2.he_plus,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         let (mut body_c, _seed_c, [c0, c1, c2]) = chain3();
         // chain3 is deterministic, so the two histories share their
@@ -2330,16 +2377,22 @@ mod tests {
         // never touched, curve/edge/half-edge slots were re-consumed by
         // the pair).
         let mef1_a = body_a
-            .mef_chord(MefSite::Chords {
-                he1: a0.he_plus,
-                he2: a2.he_minus,
-            }, Tol::witness())
+            .mef_chord(
+                MefSite::Chords {
+                    he1: a0.he_plus,
+                    he2: a2.he_minus,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         let mef1_c = body_c
-            .mef_chord(MefSite::Chords {
-                he1: c0.he_plus,
-                he2: c2.he_minus,
-            }, Tol::witness())
+            .mef_chord(
+                MefSite::Chords {
+                    he1: c0.he_plus,
+                    he2: c2.he_minus,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         assert_ne!(mef1_a.r#loop, mef1_c.r#loop);
         assert_eq!(mef1_a.face, mef1_c.face);
@@ -2351,16 +2404,22 @@ mod tests {
         // One loop-mint later the loop arena has converged too: the
         // second mef agrees on every key.
         let mef2_a = body_a
-            .mef_chord(MefSite::Chords {
-                he1: a2.he_minus,
-                he2: a0.he_minus,
-            }, Tol::witness())
+            .mef_chord(
+                MefSite::Chords {
+                    he1: a2.he_minus,
+                    he2: a0.he_minus,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         let mef2_c = body_c
-            .mef_chord(MefSite::Chords {
-                he1: c2.he_minus,
-                he2: c0.he_minus,
-            }, Tol::witness())
+            .mef_chord(
+                MefSite::Chords {
+                    he1: c2.he_minus,
+                    he2: c0.he_minus,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         assert_eq!(mef2_a, mef2_c);
         assert_eq!(validate(&body_a), Ok(()));
@@ -2386,10 +2445,13 @@ mod tests {
             )
             .unwrap();
         let split = body
-            .mef_chord(MefSite::Chords {
-                he1: seg.he_plus,
-                he2: seg.he_minus,
-            }, Tol::witness())
+            .mef_chord(
+                MefSite::Chords {
+                    he1: seg.he_plus,
+                    he2: seg.he_minus,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         assert_eq!(validate(&body), Ok(()));
         (body, seed, seg, split)

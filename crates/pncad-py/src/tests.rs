@@ -19,7 +19,6 @@ use pncad::tolerance::Tol;
 use std::collections::BTreeMap;
 use std::path::Path;
 
-
 #[test]
 fn dimension_tags_are_stable() {
     assert_eq!(dimension_tag(Dimension::Length), "length");
@@ -350,9 +349,11 @@ fn replace_first_literal(value: &mut serde_json::Value, with: &serde_json::Value
 /// two tags' spellings against the wire).
 #[test]
 fn persist_error_tags_are_stable() {
-    let header = pncad::document::load("not a header", Tol::witness()).expect_err("garbage refuses");
+    let header =
+        pncad::document::load("not a header", Tol::witness()).expect_err("garbage refuses");
     assert_eq!(persist_error_tag(&header), "header");
-    let unknown = pncad::document::load("schema: 9999\n{}", Tol::witness()).expect_err("a future schema refuses");
+    let unknown = pncad::document::load("schema: 9999\n{}", Tol::witness())
+        .expect_err("a future schema refuses");
     assert_eq!(persist_error_tag(&unknown), "unknown_schema");
 }
 
@@ -550,7 +551,9 @@ fn two_python_authored_documents_are_two_parts_in_one_workspace() {
     std::fs::create_dir_all(&dir).expect("a scratch workspace directory");
 
     let mut store = pncad::workspace::Workspace::open(&dir).expect("an empty workspace opens");
-    let first = store.create(&a, Tol::witness()).expect("the first document writes");
+    let first = store
+        .create(&a, Tol::witness())
+        .expect("the first document writes");
     let second = store
         .create(&b, Tol::witness())
         .expect("the second document writes beside it");

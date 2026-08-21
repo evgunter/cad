@@ -242,7 +242,8 @@ fn attack_all_fourteen_edit_variants_round_trip() {
     let mut doc = ProfileDoc::empty_derived("m4_pr6_review_probes", Tol::witness());
     let mut edits: Vec<DocEdit<ProfileProgram>> = Vec::new();
     let mut push = |doc: &mut ProfileDoc, e: DocEdit<ProfileProgram>| -> Option<RecipeNodeId> {
-        let a = apply(doc, &e, Tol::witness()).unwrap_or_else(|err| panic!("edit {e:?} refused: {err:?}"));
+        let a = apply(doc, &e, Tol::witness())
+            .unwrap_or_else(|err| panic!("edit {e:?} refused: {err:?}"));
         *doc = a.doc;
         edits.push(e);
         a.record.minted
@@ -466,7 +467,12 @@ fn attack_all_fourteen_edit_variants_round_trip() {
     push(&mut doc, DocEdit::SetTolerance { eps: amb });
 
     // Round-trip as a FULL LOG from an empty snapshot.
-    let text = save(&ProfileDoc::empty_derived("m4_pr6_review_probes", Tol::witness()), &edits, Tol::witness()).expect("save log");
+    let text = save(
+        &ProfileDoc::empty_derived("m4_pr6_review_probes", Tol::witness()),
+        &edits,
+        Tol::witness(),
+    )
+    .expect("save log");
     let loaded = load(&text, Tol::witness()).expect("load log");
     assert_eq!(loaded.edits, edits, "edit log round-trip");
     assert!(loaded.doc.bit_eq(&doc), "replayed doc bit-identical");
@@ -476,7 +482,13 @@ fn attack_all_fourteen_edit_variants_round_trip() {
     assert!(loaded2.doc.bit_eq(&doc));
     // Replay identity fingerprint.
     let fp = |d: &ProfileDoc| {
-        let ev = evaluate::<f64>(d, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness());
+        let ev = evaluate::<f64>(
+            d,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            Tol::witness(),
+        );
         format!("{:?}|{:?}|{:?}", ev.order, ev.nodes, ev.appearance)
     };
     assert_eq!(fp(&doc), fp(&loaded.doc), "log replay fingerprint");

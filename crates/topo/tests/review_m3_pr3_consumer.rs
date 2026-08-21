@@ -8,12 +8,12 @@
 mod common;
 
 use common::prism;
+use geom_core::Tol;
 use geom_core::{Point3, Vec3};
 use topo::{
     Body, SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane, mass_properties,
     plane_section, split, validate_closed, validate_geometric,
 };
-use geom_core::Tol;
 
 fn plane_y(c: f64) -> SplitPlane<f64> {
     SplitPlane {
@@ -209,7 +209,10 @@ fn tier3_needs_upgrade_pass_consumers_lack() {
     let r = split(&fx.body, &plane_y(1.0)).unwrap();
     let above = body_of(&r.above);
     assert_eq!(validate_closed(above), Ok(()), "tier 2 at rest holds");
-    assert!(mass_properties(above, Tol::witness()).is_ok(), "mass props work");
+    assert!(
+        mass_properties(above, Tol::witness()).is_ok(),
+        "mass props work"
+    );
     assert_eq!(
         validate_geometric(above, Tol::witness()),
         Ok(()),

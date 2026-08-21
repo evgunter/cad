@@ -36,11 +36,11 @@
 //! onto its own f64-rounding allowance. The lock is the REFUSAL side.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec3};
 use profile::RawLoop;
 use profile::{ProfileLoop, ProfileVertex};
 use sweep::{Section, loft_body};
-use geom_core::Tol;
 
 fn arc_section(s: f64) -> Section {
     let v = |x: f64, y: f64, bulge: f64| ProfileVertex::new(Point2::new(x, y), bulge);

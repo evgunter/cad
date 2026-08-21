@@ -10,9 +10,9 @@ mod common;
 
 use common::prism_z;
 use geom_brep::{CERT_SAMPLES, EdgeGeometry};
+use geom_core::Tol;
 use geom_core::{Affine3, Mat3, Vec3};
 use topo::transform_rigid;
-use geom_core::Tol;
 
 fn rot_trans() -> Affine3<f64> {
     // A rounding-hostile map: rotation by 1 radian about a skew axis

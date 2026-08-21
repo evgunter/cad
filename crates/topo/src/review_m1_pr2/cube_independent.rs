@@ -80,10 +80,13 @@ fn independent_cube_full_verification() {
     // he_plus (A'->D') and the minus halves: A'->D'->C'->B' -- the
     // "everything else" lamina side.
     let f_top = body
-        .mef_chord(MefSite::Chords {
-            he1: h0.he_plus,
-            he2: h2.he_minus,
-        }, tol)
+        .mef_chord(
+            MefSite::Chords {
+                he1: h0.he_plus,
+                he2: h2.he_minus,
+            },
+            tol,
+        )
         .unwrap();
     assert_eq!(validate(&body), Ok(()));
 

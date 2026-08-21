@@ -86,6 +86,7 @@ pub(crate) struct OpEnv<'a, T: Decide> {
 /// `profile_pre` is the profile node's f64 precompute (present exactly
 /// for `Node::Profile` — computed in `eval_node`'s resolution stage,
 /// outside the verdict bracket).
+#[allow(clippy::too_many_arguments)] // the 8th is the run-tolerance witness, not a duty of its own
 pub(crate) fn run_op<T>(
     id: RecipeNodeId,
     node: &Node<ProfileProgram>,
@@ -101,23 +102,42 @@ where
 {
     match node {
         Node::Datum(d) => Ok(OpOut::plain(wire_datum(d, vals, tol)?, names::empty())),
-        Node::Profile(_) => Ok(OpOut::plain(wire_profile(profile_pre, tol)?, names::empty())),
+        Node::Profile(_) => Ok(OpOut::plain(
+            wire_profile(profile_pre, tol)?,
+            names::empty(),
+        )),
         Node::Extrude { profile, .. } => wire_extrude(id, *profile, results, vals, tol),
-        Node::Revolve { profile, axis, .. } => wire_revolve(id, *profile, *axis, results, vals, tol),
+        Node::Revolve { profile, axis, .. } => {
+            wire_revolve(id, *profile, *axis, results, vals, tol)
+        }
         Node::Loft { profiles, .. } => wire_loft(id, profiles, doc, vals, tol),
         Node::Sweep { profile, path, .. } => wire_sweep(*profile, *path, doc, vals, tol),
         Node::Fillet {
             target, selection, ..
         } => wire_fillet(id, *target, selection, doc, results, vals, tol),
         Node::Split { target, tool } => wire_split(id, *target, *tool, results, tol),
-        Node::Boolean { op, a, b, declare } => {
-            wire_boolean(id, *op, *a, *b, *declare, doc, results, env.boolean_sweep, tol)
-        }
+        Node::Boolean { op, a, b, declare } => wire_boolean(
+            id,
+            *op,
+            *a,
+            *b,
+            *declare,
+            doc,
+            results,
+            env.boolean_sweep,
+            tol,
+        ),
         Node::Transform { input, .. } => wire_transform(id, *input, results, vals, tol),
         Node::Pattern { input, kind, .. } => wire_pattern(id, *input, kind, results, vals, tol),
-        Node::PlacedUnion { input, kind, .. } => {
-            wire_placed_union(id, *input, kind, node.placement_rule_fault(), results, vals, tol)
-        }
+        Node::PlacedUnion { input, kind, .. } => wire_placed_union(
+            id,
+            *input,
+            kind,
+            node.placement_rule_fault(),
+            results,
+            vals,
+            tol,
+        ),
         Node::Declare { pairs } => Ok(OpOut::plain(
             ValuePayload::Declarations(pairs.clone()),
             names::empty(),
@@ -207,7 +227,8 @@ where
     let mut placed = if placement.is_identity_bits() {
         (*part.body).clone()
     } else {
-        transform_rigid(&part.body, &placement.affine::<T>(), tol).map_err(NodeErrorKind::Transform)?
+        transform_rigid(&part.body, &placement.affine::<T>(), tol)
+            .map_err(NodeErrorKind::Transform)?
     };
     // N6 composition, the Transform precedent: `transform_rigid`
     // cleared the source records, so each description is re-stamped
@@ -388,7 +409,11 @@ fn wire_datum<T: Decide>(d: &Datum, vals: &SlotValues<T>, tol: Tol) -> PayloadRe
         },
         Datum::Axis { .. } => DatumValue::Axis {
             origin: need_point3(vals, SlotId::Origin)?,
-            dir: unit(need_vec3(vals, SlotId::Direction)?, "datum axis direction", tol)?,
+            dir: unit(
+                need_vec3(vals, SlotId::Direction)?,
+                "datum axis direction",
+                tol,
+            )?,
         },
         Datum::Point { .. } => DatumValue::Point {
             position: need_point3(vals, SlotId::Origin)?,
@@ -420,9 +445,7 @@ pub(crate) fn prepare_profile(
         loops.push(lp);
     }
     let profile_f64 = profile::Profile::new(program.plane, loops);
-    let validated_f64 = profile_f64
-        .validate(tol)
-        .map_err(NodeErrorKind::Profile)?;
+    let validated_f64 = profile_f64.validate(tol).map_err(NodeErrorKind::Profile)?;
     let naming = anchor::derive_naming(&validated_f64, &profile_f64.loops).ok_or({
         // A canonical loop failed to match any program loop — an
         // internal invariant break, typed (the loop coordinate is not
@@ -492,8 +515,8 @@ fn wire_extrude<T: Decide>(
         });
     };
     let distance = need_scalar(vals, SlotId::Distance)?;
-    let mut built =
-        extrude(&vp.validated, Extrusion::Distance(distance), tol).map_err(NodeErrorKind::Extrude)?;
+    let mut built = extrude(&vp.validated, Extrusion::Distance(distance), tol)
+        .map_err(NodeErrorKind::Extrude)?;
     // Eager N4 emission from the emitter's own maps, BEFORE the
     // structural handoff is dropped — then the program-anchor rewrite
     // (canonical → program indices; LIB-SWITCH §6).
@@ -600,7 +623,8 @@ fn wire_revolve<T: Decide>(
             });
         }
     };
-    let mut built = revolve(&vp.validated, axis2, revolution, tol).map_err(NodeErrorKind::Revolve)?;
+    let mut built =
+        revolve(&vp.validated, axis2, revolution, tol).map_err(NodeErrorKind::Revolve)?;
     let table = names::name_revolve(id, &built).map_err(NodeErrorKind::Naming)?;
     let table = anchored(table, &vp.naming)?;
     stamp_minted(&mut built.body, id);
@@ -1239,7 +1263,11 @@ fn stepped_map<T: Decide>(
     let step = T::from_f64(i as f64);
     match kind {
         PatternKind::Linear { .. } => {
-            let dir = unit(need_vec3(vals, SlotId::Direction)?, "pattern direction", tol)?;
+            let dir = unit(
+                need_vec3(vals, SlotId::Direction)?,
+                "pattern direction",
+                tol,
+            )?;
             let spacing = need_scalar(vals, SlotId::Spacing)?;
             Ok(Affine3::translation(dir * (spacing * step)))
         }
@@ -1491,9 +1519,7 @@ fn section_of(
         loops.push(lp);
     }
     let profile_f64 = profile::Profile::new(program.plane, loops.clone());
-    let validated = profile_f64
-        .validate(tol)
-        .map_err(NodeErrorKind::Profile)?;
+    let validated = profile_f64.validate(tol).map_err(NodeErrorKind::Profile)?;
     let naming = anchor::derive_naming(&validated, &loops)
         .ok_or(NodeErrorKind::ProfileAnchor { loop_: 0 })?;
     let place = validated.plane().placement;
@@ -1543,11 +1569,12 @@ fn wire_loft<T: Decide>(
     // The geometry/profile doors keep their historical node-error
     // shapes (the §2 compatibility contract predates the builder);
     // assembly-proper refusals arrive as the M6-3 `Loft` kind.
-    let mut built = sweep::loft_body::<T>(&sections, &places, v_degree, tol).map_err(|e| match e {
-        sweep::LoftError::Skin(s) => NodeErrorKind::Skin(s),
-        sweep::LoftError::Profile(p) => NodeErrorKind::Profile(p),
-        other => NodeErrorKind::Loft(other),
-    })?;
+    let mut built =
+        sweep::loft_body::<T>(&sections, &places, v_degree, tol).map_err(|e| match e {
+            sweep::LoftError::Skin(s) => NodeErrorKind::Skin(s),
+            sweep::LoftError::Profile(p) => NodeErrorKind::Profile(p),
+            other => NodeErrorKind::Loft(other),
+        })?;
     // Eager N4 emission from the builder's own maps, BEFORE the
     // structural handoff is dropped (the extrude idiom).
     let table = names::name_loft(id, &built).map_err(NodeErrorKind::Naming)?;

@@ -13,12 +13,12 @@
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Tol;
 use geom_core::{Band, Interval, Point2, Point3, Real, Tolerance};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{SolidContainment, point_in_solid};
-use geom_core::Tol;
 
 fn iv(x: f64) -> Interval {
     Interval::from_f64(x)

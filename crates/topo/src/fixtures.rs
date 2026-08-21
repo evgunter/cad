@@ -825,7 +825,11 @@ pub(crate) fn ops_holed_box(tol: Tol) -> OpsHoledBox {
     // (h)–(i): grow and close the rim P→Q→R→S; a membrane face covers
     // the opening.
     let s_pq = body
-        .mev_line(MevSite::Lone { r#loop: kill.ring }, pt(0.75, 0.25, 1.0), tol)
+        .mev_line(
+            MevSite::Lone { r#loop: kill.ring },
+            pt(0.75, 0.25, 1.0),
+            tol,
+        )
         .unwrap(); // Q
     let s_qr = strut(&mut body, s_pq.he_minus, 0.75, 0.75, 1.0); // R
     let s_rs = strut(&mut body, s_qr.he_minus, 0.25, 0.75, 1.0); // S
@@ -903,10 +907,13 @@ pub(crate) fn ops_genus2(tol: Tol) -> Body<f64> {
         );
     }
     let membrane = body
-        .mef_chord(MefSite::Chords {
-            he1: rim[0].he_plus,
-            he2: rim.last().unwrap().he_minus,
-        }, tol)
+        .mef_chord(
+            MefSite::Chords {
+                he1: rim[0].he_plus,
+                he2: rim.last().unwrap().he_minus,
+            },
+            tol,
+        )
         .unwrap();
     // Drop the verticals, cut the tube walls, and connect the sum.
     let mut drops: Vec<MevCreated> = Vec::new();
@@ -929,19 +936,25 @@ pub(crate) fn ops_genus2(tol: Tol) -> Body<f64> {
         );
     }
     for i in 0..drops.len() - 1 {
-        body.mef_chord(MefSite::Chords {
-            he1: drops[i].he_minus,
-            he2: drops[i + 1].he_minus,
-        }, tol)
+        body.mef_chord(
+            MefSite::Chords {
+                he1: drops[i].he_minus,
+                he2: drops[i + 1].he_minus,
+            },
+            tol,
+        )
         .unwrap();
     }
     let he_first_far = body
         .find_half_edge(membrane.face, drops[0].vertex, drops[1].vertex)
         .unwrap();
-    body.mef_chord(MefSite::Chords {
-        he1: drops.last().unwrap().he_minus,
-        he2: he_first_far,
-    }, tol)
+    body.mef_chord(
+        MefSite::Chords {
+            he1: drops.last().unwrap().he_minus,
+            he2: he_first_far,
+        },
+        tol,
+    )
     .unwrap();
     body.kfmrh(f_back, membrane.face).unwrap();
     // Genus-2 checkpoint.

@@ -97,7 +97,9 @@ fn build_lamina<T: Decide>(
     // with nothing pinned; rotated copies at the original coordinates
     // and the original placement — full period is the identity). ----
     let axis_c = turn_axis(Sign::Positive, frame.a3);
-    let swept = sweep_loop(&mut body, 0, segs, cls, &hes, &qs, &qs, frame, theta, axis_c, place, frame.n3, band, tol)?;
+    let swept = sweep_loop(
+        &mut body, 0, segs, cls, &hes, &qs, &qs, frame, theta, axis_c, place, frame.n3, band, tol,
+    )?;
 
     // ---- Phase 3: seam closure — kfmrh + the loopglue zip (see the
     // file docs). ----
@@ -365,13 +367,19 @@ fn build_wire<T: Decide>(
             continue;
         }
         let vertex_index = segs[wseg(i)].canonical_vertex;
-        upgrade_intersection(&mut body, strut.edge, k_prev, k_next, band, |source| {
-            RevolveError::SliverJoin {
+        upgrade_intersection(
+            &mut body,
+            strut.edge,
+            k_prev,
+            k_next,
+            band,
+            |source| RevolveError::SliverJoin {
                 loop_index: 0,
                 vertex_index,
                 source,
-            }
-        }, tol)?;
+            },
+            tol,
+        )?;
     }
 
     // ---- Phase 3: band 2 — one rim-closing mef per interior vertex
@@ -444,13 +452,19 @@ fn build_wire<T: Decide>(
             continue;
         }
         let vertex_index = segs[wseg(i)].canonical_vertex;
-        upgrade_intersection(&mut body, rim2, k_prev, k_next, band, |source| {
-            RevolveError::SliverJoin {
+        upgrade_intersection(
+            &mut body,
+            rim2,
+            k_prev,
+            k_next,
+            band,
+            |source| RevolveError::SliverJoin {
                 loop_index: 0,
                 vertex_index,
                 source,
-            }
-        }, tol)?;
+            },
+            tol,
+        )?;
     }
 
     // ---- Phase 4: meridian upgrades — angle-0 chain edges sit on the

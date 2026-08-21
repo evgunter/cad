@@ -119,7 +119,9 @@ fn assembly(label: &str, refs: &[DocRef], spacing: f64) -> (ProfileDoc, Vec<Reci
 }
 
 fn volume(body: &topo::Body<f64>) -> f64 {
-    topo::mass_properties(body, Tol::witness()).expect("mass properties").volume
+    topo::mass_properties(body, Tol::witness())
+        .expect("mass properties")
+        .volume
 }
 
 /// Every x of a body's vertices in ascending total order — the
@@ -352,7 +354,11 @@ fn row4_a_placement_moves_every_solid_of_a_multi_solid_instance() {
             frame: Frame::translation([7.0, 0.0, 0.0]),
         },
     );
-    assert_ne!(content_pin(&moved, Tol::witness()).expect("pins"), pin0, "the pin moves");
+    assert_ne!(
+        content_pin(&moved, Tol::witness()).expect("pins"),
+        pin0,
+        "the pin moves"
+    );
 
     let after = run(&moved, &opts);
     let body1 = product(&moved, &after, Tol::witness()).expect("gathers");
@@ -466,7 +472,9 @@ fn the_at_rest_gate_does_not_see_instance_interference_single_or_multi() {
         "ASM-2A's own shape: interference is not caught at rest"
     );
     assert_eq!(
-        product(&multi, &multi_ev, Tol::witness()).map(|b| b.solids().count()).ok(),
+        product(&multi, &multi_ev, Tol::witness())
+            .map(|b| b.solids().count())
+            .ok(),
         Some(4),
         "and a multi-solid instance reaches exactly the same decision"
     );

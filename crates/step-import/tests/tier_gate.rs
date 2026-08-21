@@ -75,8 +75,8 @@
 use std::path::{Path, PathBuf};
 
 use Disposition::{EpsSensitive, Pass, Refused, Wireframe};
-use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 use geom_core::Tol;
+use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 
 /// What a corpus file does at import, at every tolerance in the sweep.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

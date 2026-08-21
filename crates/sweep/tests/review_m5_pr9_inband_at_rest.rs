@@ -9,10 +9,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Point2;
+use geom_core::Tol;
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, extrude};
-use geom_core::Tol;
 
 #[test]
 fn an_in_band_second_order_margin_at_rest_escalates_somewhere_loud() {

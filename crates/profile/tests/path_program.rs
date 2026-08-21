@@ -27,11 +27,11 @@ mod common;
 
 use common::pinned;
 use geom_core::Point2;
+use geom_core::Tol;
 use profile::{
     ArcSweep, ClosedLoop, Open, PathError, ProfileLoop, ReplayError, ReplayErrorKind, Start, Step,
     Target, TipState, Verb, replay,
 };
-use geom_core::Tol;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -125,11 +125,14 @@ fn the_fused_family_records_and_replays_bit_identically() {
         .at(p2(0.0, 0.0))
         .angle(0.0, Tol::witness())
         .unwrap()
-        .arc_to(Sweep {
-            r: 2.0,
-            side: ArcSide::Left,
-            angle: 0.6,
-        }, Tol::witness())
+        .arc_to(
+            Sweep {
+                r: 2.0,
+                side: ArcSide::Left,
+                angle: 0.6,
+            },
+            Tol::witness(),
+        )
         .unwrap()
         .fillet(0.2, Tol::witness())
         .unwrap()
@@ -392,10 +395,13 @@ fn arc_continue_subdivides_the_carrier_structurally() {
     let q = std::f64::consts::FRAC_PI_8.tan();
     let closed = Open
         .at(p2(0.0, -0.5))
-        .arc_to(Bulge {
-            p: p2(0.5, 0.0),
-            b: q,
-        }, Tol::witness())
+        .arc_to(
+            Bulge {
+                p: p2(0.5, 0.0),
+                b: q,
+            },
+            Tol::witness(),
+        )
         .unwrap()
         .arc_continue(p2(0.0, 0.5), Tol::witness())
         .unwrap()
@@ -428,7 +434,10 @@ fn arc_continue_subdivides_the_carrier_structurally() {
 #[test]
 fn arc_continue_refuses_lines_and_off_carrier_targets() {
     use profile::Bulge;
-    let after_line = Open.at(p2(0.0, 0.0)).line_to(p2(1.0, 0.0), Tol::witness()).unwrap();
+    let after_line = Open
+        .at(p2(0.0, 0.0))
+        .line_to(p2(1.0, 0.0), Tol::witness())
+        .unwrap();
     match after_line.arc_continue(p2(2.0, 0.0), Tol::witness()) {
         Err(PathError::ArcContinueNeedsArcCarrier) => {}
         other => panic!("a straight leg must refuse arc_continue, got {other:?}"),
@@ -436,10 +445,13 @@ fn arc_continue_refuses_lines_and_off_carrier_targets() {
     let q = std::f64::consts::FRAC_PI_8.tan();
     let after_arc = Open
         .at(p2(0.0, -0.5))
-        .arc_to(Bulge {
-            p: p2(0.5, 0.0),
-            b: q,
-        }, Tol::witness())
+        .arc_to(
+            Bulge {
+                p: p2(0.5, 0.0),
+                b: q,
+            },
+            Tol::witness(),
+        )
         .unwrap();
     match after_arc.arc_continue(p2(0.3, 0.5), Tol::witness()) {
         Err(PathError::ArcContinueOffCarrier { .. }) => {}
@@ -522,11 +534,14 @@ fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
         .at(p2(0.0, 0.0))
         .angle(0.0, Tol::witness())
         .unwrap()
-        .arc_to(Sweep {
-            r: 2.0,
-            side: ArcSide::Left,
-            angle: 0.6,
-        }, Tol::witness())
+        .arc_to(
+            Sweep {
+                r: 2.0,
+                side: ArcSide::Left,
+                angle: 0.6,
+            },
+            Tol::witness(),
+        )
         .unwrap()
         .fillet(0.2, Tol::witness())
         .unwrap()
@@ -627,10 +642,13 @@ fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
     // 6. The declared-subdivision step on an arc carrier.
     let subdivided = Open
         .at(p2(0.0, -0.5))
-        .arc_to(Bulge {
-            p: p2(0.5, 0.0),
-            b: FRAC_PI_8.tan(),
-        }, Tol::witness())
+        .arc_to(
+            Bulge {
+                p: p2(0.5, 0.0),
+                b: FRAC_PI_8.tan(),
+            },
+            Tol::witness(),
+        )
         .unwrap()
         .arc_continue(p2(0.0, 0.5), Tol::witness())
         .unwrap()
@@ -884,21 +902,27 @@ fn geometry_refusals_are_the_path_class_and_are_binding_dependent() {
     }
 
     // The sign gates are the same class, carried straight through.
-    match replay(&[Step::Circle {
-        centre: p2(0.0, 0.0),
-        radius: 0.0,
-    }], Tol::witness()) {
+    match replay(
+        &[Step::Circle {
+            centre: p2(0.0, 0.0),
+            radius: 0.0,
+        }],
+        Tol::witness(),
+    ) {
         Err(ReplayError {
             step: 0,
             kind: ReplayErrorKind::Path(PathError::NonpositiveCircleRadius { .. }),
         }) => {}
         other => panic!("a zero radius must refuse NonpositiveCircleRadius, got {other:?}"),
     }
-    match replay(&[
-        Step::At(p2(0.0, 0.0)),
-        Step::Angle(0.0),
-        Step::Fillet { radius: -1.0 },
-    ], Tol::witness()) {
+    match replay(
+        &[
+            Step::At(p2(0.0, 0.0)),
+            Step::Angle(0.0),
+            Step::Fillet { radius: -1.0 },
+        ],
+        Tol::witness(),
+    ) {
         Err(ReplayError {
             step: 2,
             kind: ReplayErrorKind::Path(PathError::NonpositiveFilletRadius { .. }),

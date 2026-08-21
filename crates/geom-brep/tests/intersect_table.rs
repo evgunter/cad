@@ -13,8 +13,8 @@ use geom_brep::intersect::{
     SectionError, SurfaceKind, cylinder_cylinder_section, plane_cone_section,
     plane_cylinder_section, route,
 };
-use geom_core::{Band, Point3, Vec3};
 use geom_core::Tol;
+use geom_core::{Band, Point3, Vec3};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()

@@ -30,10 +30,10 @@ mod common;
 use core::f64::consts::FRAC_PI_8;
 
 use geom_core::Point2;
+use geom_core::Tol;
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use step_export::{StepOptions, step_string};
 use sweep::{Extrusion, extrude};
-use geom_core::Tol;
 
 fn export(body: &topo::Body<f64>) -> String {
     let options = StepOptions {
@@ -99,7 +99,9 @@ fn notched_body_exports_with_exactly_one_reversed_cylinder_wall() {
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let body = extrude(&vp, Extrusion::Distance(1.0), Tol::witness()).unwrap().body;
+    let body = extrude(&vp, Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body;
     // The kernel-side fact this row mirrors: one reversed face.
     assert_eq!(
         body.faces().filter(|(_, f)| !f.sense).count(),

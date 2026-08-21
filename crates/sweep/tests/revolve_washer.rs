@@ -9,11 +9,11 @@ mod revolve_common;
 
 use geom::Surface;
 use geom_brep::EdgeGeometry;
+use geom_core::Tol;
 use profile::ProfileLoop;
 use profile::RawLoop;
 use revolve_common::*;
 use sweep::{Revolution, RevolvedKind, revolve};
-use geom_core::Tol;
 
 /// The rectangle x ∈ [1, 2], y ∈ [0, 1], counterclockwise.
 fn washer_profile() -> ProfileLoop<f64> {

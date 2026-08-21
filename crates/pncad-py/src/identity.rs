@@ -17,9 +17,8 @@
 //! tested on the default (no-Python) build path.
 
 use pncad::document::ProfileDoc;
-use pncad::workspace::{WorkspaceError, random_document_id};
 use pncad::tolerance::Tol;
-
+use pncad::workspace::{WorkspaceError, random_document_id};
 
 /// An empty document under a FRESH random identity — the interactive
 /// spelling, and the default one from Python.

@@ -18,10 +18,10 @@
 )]
 
 use geom_brep::ssi::{self, BranchEnd, SSI_MAX_FIT_SAMPLES, SsiDomain, SsiError};
+use geom_core::Tol;
 use geom_core::tolerance::DEFAULT_EPS;
 use geom_core::{Band, Point3, Vec3};
 use test_utils::vacuity;
-use geom_core::Tol;
 
 /// The accounting floor this file's floor-clamped fixture plants, **in
 /// metres** — above the tube radius of a 0.008 m cylinder, and the same

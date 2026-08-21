@@ -9,6 +9,7 @@
 mod common;
 
 use common::{flush_declarations, prism_z};
+use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
 use topo::boolean::contact_verify::tangent_locus_relation;
 use topo::boolean::plane_eq::PlaneIdentity;
@@ -17,7 +18,6 @@ use topo::{
     ContactRefusal, ContactVerdict, CurveContact, FacePairDeclaration, PatchContact,
     ValidationError, carrier_eq, validate_pseudomanifold,
 };
-use geom_core::Tol;
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
@@ -266,7 +266,8 @@ fn probe_at_rest_gate_contradicts_a_false_curve_record() {
         }],
         ..ContactRecords::default()
     };
-    let errs = validate_pseudomanifold(&body, &contacts, Tol::witness()).expect_err("false record must fail");
+    let errs = validate_pseudomanifold(&body, &contacts, Tol::witness())
+        .expect_err("false record must fail");
     assert!(
         errs.iter()
             .any(|e| matches!(e, ValidationError::ContactContradicted { .. })),
@@ -288,8 +289,8 @@ fn probe_patch_contact_is_never_certified_at_rest() {
         }],
         ..ContactRecords::default()
     };
-    let errs =
-        validate_pseudomanifold(&body, &contacts, Tol::witness()).expect_err("a patch record cannot be confirmed");
+    let errs = validate_pseudomanifold(&body, &contacts, Tol::witness())
+        .expect_err("a patch record cannot be confirmed");
     // Since M9-2 the certifier EXISTS: two arbitrary brick faces are
     // DISTINCT carriers, so the fabricated record is CONTRADICTED —
     // the probe's real claim (a fabricated patch never blesses)
@@ -310,7 +311,8 @@ fn probe_records_partialeq_bites_on_mutation() {
     let a = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     let b = brick((0.5, 1.5), (0.25, 1.25), (1.0, 2.0));
     let decls = flush_declarations(&a, &b);
-    let topo::BooleanResult::Body(out) = topo::union_with(&a, &b, &decls, Tol::witness()).unwrap() else {
+    let topo::BooleanResult::Body(out) = topo::union_with(&a, &b, &decls, Tol::witness()).unwrap()
+    else {
         panic!("union is a body");
     };
     let mut mutated = out.contacts.clone();

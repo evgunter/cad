@@ -14,13 +14,13 @@
 
 use geom::Curve3;
 use geom_brep::EdgeGeometry;
+use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, extrude};
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::{Body, validate, validate_closed, validate_geometric};
-use geom_core::Tol;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -40,7 +40,9 @@ fn disc() -> ValidatedProfile<f64> {
 }
 
 fn cylinder_body() -> Body<f64> {
-    extrude(&disc(), Extrusion::Distance(1.0), Tol::witness()).unwrap().body
+    extrude(&disc(), Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body
 }
 
 /// Every certified `Ellipse` edge of a body, with its curve.
@@ -256,8 +258,8 @@ fn tangent_plane_refuses_typed() {
 /// surfaces (the exact-in-ℝ claim, certified).
 #[cfg(feature = "interval")]
 mod interval {
-    use geom_core::Tol;
     use super::*;
+    use geom_core::Tol;
     use geom_core::{Bounds, Interval, Real};
 
     #[test]

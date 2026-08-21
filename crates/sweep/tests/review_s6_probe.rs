@@ -4,11 +4,11 @@
 //! reviewer's probe set in the S6 fix pass.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Tol;
 use geom_core::{COINCIDENCE_RECOURSE, Point2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
 use sweep::{ExtrudeError, Extrusion, extrude};
-use geom_core::Tol;
 
 fn square() -> ValidatedProfile<f64> {
     let l = ProfileLoop::polygon([
@@ -35,7 +35,12 @@ fn assert_unified(msg: &str) {
 fn probe_extrusion_pair_e2e() {
     let vp = square();
     // Definite arm: in-plane vector, no normal component at all.
-    let err = extrude(&vp, Extrusion::Vector(Vec3::new(1.0, 0.0, 0.0)), Tol::witness()).unwrap_err();
+    let err = extrude(
+        &vp,
+        Extrusion::Vector(Vec3::new(1.0, 0.0, 0.0)),
+        Tol::witness(),
+    )
+    .unwrap_err();
     assert_eq!(err, ExtrudeError::DegenerateExtrusion);
     let msg = err.to_string();
     eprintln!("[probe] extrude definite:\n  {msg}\n");

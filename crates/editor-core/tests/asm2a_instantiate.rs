@@ -201,7 +201,9 @@ fn assembly(label: &str, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
 }
 
 fn volume(body: &topo::Body<f64>) -> f64 {
-    topo::mass_properties(body, Tol::witness()).expect("mass properties").volume
+    topo::mass_properties(body, Tol::witness())
+        .expect("mass properties")
+        .volume
 }
 
 fn part_fault(ev: &Evaluation<f64>, node: RecipeNodeId) -> PartFault {
@@ -299,7 +301,10 @@ fn row2_one_part_two_instances_one_evaluation() {
         "three instances of one part evaluate it once"
     );
     assert_eq!(
-        product(&doc, &ev, Tol::witness()).expect("gathers").solids().count(),
+        product(&doc, &ev, Tol::witness())
+            .expect("gathers")
+            .solids()
+            .count(),
         3,
         "sharing the evaluation does not share the SOLIDS"
     );
@@ -702,14 +707,26 @@ fn row6_placement_is_part_of_the_content_key() {
             frame: Frame::translation([4.0, 0.0, 0.0]),
         },
     );
-    let second = evaluate::<f64>(&moved, Some(&first), &CancelToken::new(), &opts, Tol::witness());
+    let second = evaluate::<f64>(
+        &moved,
+        Some(&first),
+        &CancelToken::new(),
+        &opts,
+        Tol::witness(),
+    );
     assert_eq!(second.reused, 0, "the placement edit invalidates the memo");
     let body = product(&moved, &second, Tol::witness()).expect("gathers");
     assert!((min_x(&body) - 3.5).abs() < 1e-12);
 
     // And a re-evaluation with NO edit reuses — and asks the seam
     // nothing at all (the lazy cache's whole point).
-    let third = evaluate::<f64>(&moved, Some(&second), &CancelToken::new(), &opts, Tol::witness());
+    let third = evaluate::<f64>(
+        &moved,
+        Some(&second),
+        &CancelToken::new(),
+        &opts,
+        Tol::witness(),
+    );
     assert_eq!(third.reused, 1, "an unchanged instance is a memo hit");
     assert_eq!(
         third.part_evaluations, 0,
@@ -759,7 +776,11 @@ fn row7_v7_round_trips_and_v6_refuses() {
     assert!(
         matches!(loaded.node(ids[0]), Some(Node::InstantiatePart { doc_ref: r, .. }) if *r == doc_ref)
     );
-    assert_eq!(save(&loaded, &[], Tol::witness()).expect("saves"), text, "byte-stable");
+    assert_eq!(
+        save(&loaded, &[], Tol::witness()).expect("saves"),
+        text,
+        "byte-stable"
+    );
 
     assert_eq!(V6.lines().next(), Some("schema: 6"));
     match load(V6, Tol::witness()) {

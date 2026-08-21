@@ -19,8 +19,8 @@
 mod common;
 
 use common::{flush_declarations, prism_z};
-use topo::{Body, BooleanResult, mass_properties, subtract, union_with};
 use geom_core::Tol;
+use topo::{Body, BooleanResult, mass_properties, subtract, union_with};
 
 fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
     prism_z::<f64>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
@@ -92,7 +92,10 @@ fn control_same_shape_via_subtract() {
     let BooleanResult::Body(s) = subtract(&big, &notch, Tol::witness()).unwrap() else {
         panic!("control subtract yields a body");
     };
-    assert_eq!(mass_properties(&s.body, Tol::witness()).unwrap().volume, 5.5);
+    assert_eq!(
+        mass_properties(&s.body, Tol::witness()).unwrap().volume,
+        5.5
+    );
     let v = checked_mesh_volume(&s.body);
     assert!(((v - 5.5) / 5.5).abs() < 1e-9, "control mesh volume {v}");
 }
@@ -126,7 +129,14 @@ fn ring_sense_bridge_census() {
     let BooleanResult::Body(bb) = subtract(&blank, &notch, Tol::witness()).unwrap() else {
         panic!("bridge subtract yields a body");
     };
-    let g = match union_with(&a, &bb.body, &flush_declarations(&a, &bb.body), Tol::witness()).unwrap() {
+    let g = match union_with(
+        &a,
+        &bb.body,
+        &flush_declarations(&a, &bb.body),
+        Tol::witness(),
+    )
+    .unwrap()
+    {
         BooleanResult::Body(g) => g,
         BooleanResult::Empty => panic!("bridge union cannot be empty"),
     };

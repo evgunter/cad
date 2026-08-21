@@ -261,8 +261,8 @@ impl<T: Real> Body<T> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use geom_core::Tol;
     use crate::fixtures::ops_cube;
+    use geom_core::Tol;
 
     /// **CONSTRUCTION row, flipped from the M3 refusal pin** (S9
     /// pattern; the retired `UnsupportedSurface` record is on

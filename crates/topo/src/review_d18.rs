@@ -72,9 +72,9 @@ use crate::body::Body;
 use crate::entity::{EntityId, HalfEdgeKey};
 use crate::euler::{EulerOpError, MefSite, MevSite};
 use crate::fixtures::{deep_snapshot, ops_cube};
+use geom_core::Tol;
 #[cfg(not(debug_assertions))]
 use test_utils::vacuity::Exposure;
-use geom_core::Tol;
 
 fn p(x: f64) -> Point3<f64> {
     Point3::new(x, 0.0, 0.0)
@@ -190,10 +190,13 @@ fn kef_dangling_prev_of_he_is_typed_and_atomic() {
         )
         .unwrap();
     let split = body
-        .mef_chord(MefSite::Chords {
-            he1: seg.he_plus,
-            he2: strut.he_minus,
-        }, tol)
+        .mef_chord(
+            MefSite::Chords {
+                he1: seg.he_plus,
+                he2: strut.he_minus,
+            },
+            tol,
+        )
         .unwrap();
     let recycled = recycled_dead_half_edge(&mut body, tol);
     let base = body;
@@ -296,10 +299,13 @@ fn split_edge_new_check_covers_every_coincidence_shape() {
                     )
                     .unwrap();
                 let circ = body
-                    .mef_chord(MefSite::Chords {
-                        he1: seg.he_minus,
-                        he2: seg.he_minus,
-                    }, tol)
+                    .mef_chord(
+                        MefSite::Chords {
+                            he1: seg.he_minus,
+                            he2: seg.he_minus,
+                        },
+                        tol,
+                    )
                     .unwrap();
                 (body, circ.edge)
             }),

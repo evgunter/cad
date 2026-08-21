@@ -26,12 +26,12 @@ mod common;
 
 use common::{profile, tol};
 use geom_core::Point2;
+use geom_core::Tol;
 use profile::path::PathNoCornerReason;
 use profile::{
     ArcSweep, Center, FilletLeg, FilletLegCarrier, NoCornerReason, Open, PathError, Profile,
     ProfileLoop, Start,
 };
-use geom_core::Tol;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)

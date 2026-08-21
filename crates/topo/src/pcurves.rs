@@ -154,9 +154,9 @@ use geom::Surface;
 use geom_brep::{
     ChartWindow, Pcurve, PcurveCache, PcurveCertifyError, PcurveFittedLane, chart_pcurve,
 };
+use geom_core::Tol;
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
-use geom_core::Tol;
 use geom_core::{Decide, Indeterminate, Margin, Real, Sign};
 
 use crate::body::Body;

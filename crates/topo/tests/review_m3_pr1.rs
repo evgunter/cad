@@ -142,24 +142,43 @@ fn plant_detached_box(
         )
         .unwrap();
     let fan = |he| MevSite::Fan { he1: he, he2: he };
-    let e_bc = body.mev_line(fan(e_ab.he_minus), q(0.2, 0.2, 0.0), Tol::witness()).unwrap();
-    let e_cd = body.mev_line(fan(e_bc.he_minus), q(0.0, 0.2, 0.0), Tol::witness()).unwrap();
+    let e_bc = body
+        .mev_line(fan(e_ab.he_minus), q(0.2, 0.2, 0.0), Tol::witness())
+        .unwrap();
+    let e_cd = body
+        .mev_line(fan(e_bc.he_minus), q(0.0, 0.2, 0.0), Tol::witness())
+        .unwrap();
     let host = body.get_loop(planted.ring).unwrap().face;
     let he_dc = body.find_half_edge(host, e_cd.vertex, e_bc.vertex).unwrap();
     let f_bot = body
-        .mef_chord(MefSite::Chords {
-            he1: he_dc,
-            he2: e_ab.he_plus,
-        }, Tol::witness())
+        .mef_chord(
+            MefSite::Chords {
+                he1: he_dc,
+                he2: e_ab.he_plus,
+            },
+            Tol::witness(),
+        )
         .unwrap();
-    let e_aa = body.mev_line(fan(e_ab.he_plus), q(0.0, 0.0, 0.2), Tol::witness()).unwrap();
-    let e_bb = body.mev_line(fan(e_bc.he_plus), q(0.2, 0.0, 0.2), Tol::witness()).unwrap();
-    let e_cc = body.mev_line(fan(e_cd.he_plus), q(0.2, 0.2, 0.2), Tol::witness()).unwrap();
-    let e_dd = body.mev_line(fan(f_bot.he_plus), q(0.0, 0.2, 0.2), Tol::witness()).unwrap();
+    let e_aa = body
+        .mev_line(fan(e_ab.he_plus), q(0.0, 0.0, 0.2), Tol::witness())
+        .unwrap();
+    let e_bb = body
+        .mev_line(fan(e_bc.he_plus), q(0.2, 0.0, 0.2), Tol::witness())
+        .unwrap();
+    let e_cc = body
+        .mev_line(fan(e_cd.he_plus), q(0.2, 0.2, 0.2), Tol::witness())
+        .unwrap();
+    let e_dd = body
+        .mev_line(fan(f_bot.he_plus), q(0.0, 0.2, 0.2), Tol::witness())
+        .unwrap();
     let chord = |he1, he2| MefSite::Chords { he1, he2 };
-    let f_front = body.mef_chord(chord(e_aa.he_minus, e_bb.he_minus), Tol::witness()).unwrap();
-    body.mef_chord(chord(e_bb.he_minus, e_cc.he_minus), Tol::witness()).unwrap();
-    body.mef_chord(chord(e_cc.he_minus, e_dd.he_minus), Tol::witness()).unwrap();
+    let f_front = body
+        .mef_chord(chord(e_aa.he_minus, e_bb.he_minus), Tol::witness())
+        .unwrap();
+    body.mef_chord(chord(e_bb.he_minus, e_cc.he_minus), Tol::witness())
+        .unwrap();
+    body.mef_chord(chord(e_cc.he_minus, e_dd.he_minus), Tol::witness())
+        .unwrap();
     body.mef_chord(chord(e_dd.he_minus, f_front.he_plus), Tol::witness())
         .unwrap();
     body.mfkrh_plug(planted.ring).unwrap().face
@@ -189,21 +208,34 @@ fn ops_cube_public() -> (Body<f64>, topo::MvfsCreated) {
         .find_half_edge(seed.face, e_cd.vertex, e_bc.vertex)
         .unwrap();
     let f_bot = body
-        .mef_chord(MefSite::Chords {
-            he1: he_dc,
-            he2: e_ab.he_plus,
-        }, Tol::witness())
+        .mef_chord(
+            MefSite::Chords {
+                he1: he_dc,
+                he2: e_ab.he_plus,
+            },
+            Tol::witness(),
+        )
         .unwrap();
-    let e_aa = body.mev_line(fan(e_ab.he_plus), pt(0.0, 0.0, 1.0), Tol::witness()).unwrap();
-    let e_bb = body.mev_line(fan(e_bc.he_plus), pt(1.0, 0.0, 1.0), Tol::witness()).unwrap();
-    let e_cc = body.mev_line(fan(e_cd.he_plus), pt(1.0, 1.0, 1.0), Tol::witness()).unwrap();
+    let e_aa = body
+        .mev_line(fan(e_ab.he_plus), pt(0.0, 0.0, 1.0), Tol::witness())
+        .unwrap();
+    let e_bb = body
+        .mev_line(fan(e_bc.he_plus), pt(1.0, 0.0, 1.0), Tol::witness())
+        .unwrap();
+    let e_cc = body
+        .mev_line(fan(e_cd.he_plus), pt(1.0, 1.0, 1.0), Tol::witness())
+        .unwrap();
     let e_dd = body
         .mev_line(fan(f_bot.he_plus), pt(0.0, 1.0, 1.0), Tol::witness())
         .unwrap();
     let chord = |he1, he2| MefSite::Chords { he1, he2 };
-    let f_front = body.mef_chord(chord(e_aa.he_minus, e_bb.he_minus), Tol::witness()).unwrap();
-    body.mef_chord(chord(e_bb.he_minus, e_cc.he_minus), Tol::witness()).unwrap();
-    body.mef_chord(chord(e_cc.he_minus, e_dd.he_minus), Tol::witness()).unwrap();
+    let f_front = body
+        .mef_chord(chord(e_aa.he_minus, e_bb.he_minus), Tol::witness())
+        .unwrap();
+    body.mef_chord(chord(e_bb.he_minus, e_cc.he_minus), Tol::witness())
+        .unwrap();
+    body.mef_chord(chord(e_cc.he_minus, e_dd.he_minus), Tol::witness())
+        .unwrap();
     body.mef_chord(chord(e_dd.he_minus, f_front.he_plus), Tol::witness())
         .unwrap();
     (body, seed)
@@ -425,7 +457,10 @@ fn null_scaffold_fail_loud_audit() {
     assert!(!errs.is_empty());
     // Door 4: split_edge on the scaffold refuses, typed and atomic.
     let before = dump(&cube.body);
-    let err = cube.body.split_edge(created.edge, 0.5, Tol::witness()).unwrap_err();
+    let err = cube
+        .body
+        .split_edge(created.edge, 0.5, Tol::witness())
+        .unwrap_err();
     assert!(matches!(err, EulerOpError::NullScaffoldCurve { curve } if curve == created.curve));
     assert_eq!(dump(&cube.body), before, "failed split mutated the body");
     // Door 5: merge_coplanar_faces refuses non-tier-2 input whole.
@@ -463,7 +498,9 @@ fn null_scaffold_fail_loud_audit() {
 fn split_edge_double_split_preserves_tier3_and_volume() {
     let mut cube = geometric_cube::<f64>();
     describe_as_intersections(&mut cube.body);
-    let vol0 = topo::mass_properties(&cube.body, Tol::witness()).unwrap().volume;
+    let vol0 = topo::mass_properties(&cube.body, Tol::witness())
+        .unwrap()
+        .volume;
     let edge = cube.mevs[0].edge; // A->B, unit line, params [0, 1]
     let first = cube.body.split_edge(edge, 0.25, Tol::witness()).unwrap();
     assert_eq!(validate_geometric(&cube.body, Tol::witness()), Ok(()));
@@ -485,7 +522,10 @@ fn split_edge_double_split_preserves_tier3_and_volume() {
     let p = cube.body.get_point(first.point).unwrap();
     assert_eq!((p.x, p.y, p.z), (0.25, 0.0, 0.0));
     // Split the SECOND child (already-restricted geometry re-splits).
-    let second = cube.body.split_edge(first.new_edge, 0.5, Tol::witness()).unwrap();
+    let second = cube
+        .body
+        .split_edge(first.new_edge, 0.5, Tol::witness())
+        .unwrap();
     assert_eq!(validate_geometric(&cube.body, Tol::witness()), Ok(()));
     let c3 = cube
         .body
@@ -497,7 +537,9 @@ fn split_edge_double_split_preserves_tier3_and_volume() {
     let p2 = cube.body.get_point(second.point).unwrap();
     assert_eq!((p2.x, p2.y, p2.z), (0.5, 0.0, 0.0));
     // Splitting is geometry-neutral: exact volume identical bitwise.
-    let vol1 = topo::mass_properties(&cube.body, Tol::witness()).unwrap().volume;
+    let vol1 = topo::mass_properties(&cube.body, Tol::witness())
+        .unwrap()
+        .volume;
     assert_eq!(vol0.to_bits(), vol1.to_bits(), "split changed the solid");
 }
 
@@ -587,7 +629,10 @@ fn split_edge_interiority_band_edges() {
     }
     // In the ESCALATION region (between zero-band and escalate-band):
     // typed escalation, atomic.
-    let err = cube.body.split_edge(edge, 5.0 * eps, Tol::witness()).unwrap_err();
+    let err = cube
+        .body
+        .split_edge(edge, 5.0 * eps, Tol::witness())
+        .unwrap_err();
     assert!(matches!(err, EulerOpError::SplitParamEscalated { .. }));
     assert_eq!(dump(&cube.body), before);
     // Beyond the escalation band: definitely interior, splits.
@@ -604,11 +649,17 @@ fn split_edge_interiority_band_edges() {
 fn revert_on_split_body_involution_and_posture() {
     let mut cube = geometric_cube::<f64>();
     describe_as_intersections(&mut cube.body);
-    cube.body.split_edge(cube.mevs[0].edge, 0.5, Tol::witness()).unwrap();
-    cube.body.split_edge(cube.mevs[5].edge, 0.25, Tol::witness()).unwrap();
+    cube.body
+        .split_edge(cube.mevs[0].edge, 0.5, Tol::witness())
+        .unwrap();
+    cube.body
+        .split_edge(cube.mevs[5].edge, 0.25, Tol::witness())
+        .unwrap();
     assert_eq!(validate_geometric(&cube.body, Tol::witness()), Ok(()));
     let original = dump(&cube.body);
-    let vol = topo::mass_properties(&cube.body, Tol::witness()).unwrap().volume;
+    let vol = topo::mass_properties(&cube.body, Tol::witness())
+        .unwrap()
+        .volume;
     let reverted = cube.body.revert().unwrap();
     // Source untouched (functional, both-results-free).
     assert_eq!(dump(&cube.body), original);
@@ -619,7 +670,9 @@ fn revert_on_split_body_involution_and_posture() {
         Err(vec![ValidationError::NegativeVolume]),
         "tier 3 on the reverted body must fail with exactly NegativeVolume"
     );
-    let rvol = topo::mass_properties(&reverted, Tol::witness()).unwrap().volume;
+    let rvol = topo::mass_properties(&reverted, Tol::witness())
+        .unwrap()
+        .volume;
     assert_eq!(rvol.to_bits(), (-vol).to_bits());
     // Bitwise involution + determinism.
     assert_eq!(dump(&reverted.revert().unwrap()), original);
@@ -730,9 +783,18 @@ fn annulus_top_cube() -> (common::GeoCube<f64>, topo::FaceKey, [topo::VertexKey;
         )
         .unwrap();
     let fan = |he| MevSite::Fan { he1: he, he2: he };
-    let e_pq = cube.body.mev(fan(e_ap.he_minus), pq, line(pp, pq), Tol::witness()).unwrap();
-    let e_qr = cube.body.mev(fan(e_pq.he_minus), pr, line(pq, pr), Tol::witness()).unwrap();
-    let e_rs = cube.body.mev(fan(e_qr.he_minus), ps, line(pr, ps), Tol::witness()).unwrap();
+    let e_pq = cube
+        .body
+        .mev(fan(e_ap.he_minus), pq, line(pp, pq), Tol::witness())
+        .unwrap();
+    let e_qr = cube
+        .body
+        .mev(fan(e_pq.he_minus), pr, line(pq, pr), Tol::witness())
+        .unwrap();
+    let e_rs = cube
+        .body
+        .mev(fan(e_qr.he_minus), ps, line(pr, ps), Tol::witness())
+        .unwrap();
     // Close the interior square: chord s -> p; the new face is the
     // side of the cycle from he2 (at p, the p->q half) around to he1 -
     // i.e. the center square.
@@ -875,7 +937,9 @@ fn merge_coplanar_annulus_makes_ring_and_spares_numeric_center() {
     let build = || annulus_top_cube();
     let (mut cube, center, square) = build();
     assert_eq!(cube.body.faces().count(), 10); // 5 cube sides + 5 top
-    let vol0 = topo::mass_properties(&cube.body, Tol::witness()).unwrap().volume;
+    let vol0 = topo::mass_properties(&cube.body, Tol::witness())
+        .unwrap()
+        .volume;
     let outcome = cube.body.merge_coplanar_faces(Tol::witness()).unwrap();
     // One group: the four quadrants; the numeric center is spared.
     assert_eq!(outcome.groups.len(), 1, "expected exactly one merged run");
@@ -912,7 +976,9 @@ fn merge_coplanar_annulus_makes_ring_and_spares_numeric_center() {
     // chord-line descriptions), volume unchanged (analytically the
     // same solid; allow only summation-order noise).
     assert_eq!(validate_closed(&cube.body), Ok(()));
-    let vol1 = topo::mass_properties(&cube.body, Tol::witness()).unwrap().volume;
+    let vol1 = topo::mass_properties(&cube.body, Tol::witness())
+        .unwrap()
+        .volume;
     assert!((vol0 - vol1).abs() < 1e-12, "merge changed the volume");
     // D9 determinism across a full independent replay.
     let (mut cube2, _, _) = build();
@@ -925,7 +991,9 @@ fn merge_coplanar_annulus_makes_ring_and_spares_numeric_center() {
     let original = dump(&cube.body);
     let reverted = cube.body.revert().unwrap();
     assert_eq!(validate_closed(&reverted), Ok(()));
-    let rvol = topo::mass_properties(&reverted, Tol::witness()).unwrap().volume;
+    let rvol = topo::mass_properties(&reverted, Tol::witness())
+        .unwrap()
+        .volume;
     assert_eq!(rvol.to_bits(), (-vol1).to_bits());
     assert_eq!(dump(&reverted.revert().unwrap()), original);
 }
@@ -996,7 +1064,13 @@ fn merge_coplanar_uref_and_signed_zero_teeth() {
             u_ref: swapped,
         }
     });
-    assert_eq!(uref.body.merge_coplanar_faces(Tol::witness()).unwrap().groups, vec![]);
+    assert_eq!(
+        uref.body
+            .merge_coplanar_faces(Tol::witness())
+            .unwrap()
+            .groups,
+        vec![]
+    );
     assert_eq!(uref.body.faces().count(), 7, "u_ref-only variant merged");
     // Tooth 2: identical except normal.x = -0.0 instead of 0.0 -
     // numerically equal everywhere, one sign bit apart. Must stay
@@ -1017,7 +1091,13 @@ fn merge_coplanar_uref_and_signed_zero_teeth() {
             u_ref,
         }
     });
-    assert_eq!(zero.body.merge_coplanar_faces(Tol::witness()).unwrap().groups, vec![]);
+    assert_eq!(
+        zero.body
+            .merge_coplanar_faces(Tol::witness())
+            .unwrap()
+            .groups,
+        vec![]
+    );
     assert_eq!(zero.body.faces().count(), 7, "-0.0 variant merged");
 }
 
@@ -1253,7 +1333,11 @@ fn null_edge_cannot_be_laundered_through_set_edge_curve() {
         .unwrap();
     let err = cube
         .body
-        .set_edge_curve(created.edge, line(p, pt(p.x + 1.0, p.y, p.z)), Tol::witness())
+        .set_edge_curve(
+            created.edge,
+            line(p, pt(p.x + 1.0, p.y, p.z)),
+            Tol::witness(),
+        )
         .unwrap_err();
     assert!(
         matches!(err, EulerOpError::Certification { .. }),

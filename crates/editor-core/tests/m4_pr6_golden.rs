@@ -51,7 +51,9 @@ const GOLDEN_PATH: &str = "tests/golden/v14_golden.cad";
 /// loader.
 fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     let mut doc = ProfileDoc::empty_derived("m4_pr6_golden", Tol::witness());
-    let push = |d: &ProfileDoc, e: &DocEdit<ProfileProgram>| apply(d, e, Tol::witness()).expect("golden edit").doc;
+    let push = |d: &ProfileDoc, e: &DocEdit<ProfileProgram>| {
+        apply(d, e, Tol::witness()).expect("golden edit").doc
+    };
     let lpt = |x: f64, y: f64| {
         [
             Expr::literal(x, Dimension::Length).expect("finite"),
@@ -277,7 +279,13 @@ fn golden_document_evaluates_green_at_its_pinned_eps() {
     for e in &edits {
         doc = apply(&doc, e, Tol::witness()).expect("golden edit").doc;
     }
-    let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness());
+    let ev = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
     let bad: Vec<String> = ev
         .nodes
         .iter()

@@ -7,11 +7,11 @@
 
 use geom_brep::EdgeGeometry;
 use geom_core::Point2;
+use geom_core::Tol;
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, extrude};
 use topo::{Body, ValidationError, validate_closed, validate_geometric};
-use geom_core::Tol;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -213,7 +213,9 @@ fn revert_extruded_prism_posture() {
         Err(vec![ValidationError::NegativeVolume]),
         "tier 3 on a reverted prism must be exactly NegativeVolume"
     );
-    let rvol = topo::mass_properties(&reverted, Tol::witness()).unwrap().volume;
+    let rvol = topo::mass_properties(&reverted, Tol::witness())
+        .unwrap()
+        .volume;
     assert_eq!(rvol.to_bits(), (-vol).to_bits());
     // Involution + determinism, bitwise through the Debug channel.
     assert_eq!(format!("{:?}", reverted.revert().unwrap()), original);
@@ -272,7 +274,9 @@ fn revert_curved_body_reverts_via_the_sense_bit() {
         Err(vec![ValidationError::NegativeVolume]),
         "tier 3 on a reverted curved body must be exactly NegativeVolume"
     );
-    let rvol = topo::mass_properties(&reverted, Tol::witness()).unwrap().volume;
+    let rvol = topo::mass_properties(&reverted, Tol::witness())
+        .unwrap()
+        .volume;
     assert_eq!(rvol.to_bits(), (-vol).to_bits());
     assert_eq!(format!("{:?}", reverted.revert().unwrap()), before);
     assert_eq!(
@@ -299,10 +303,14 @@ fn split_then_null_lifecycle_on_prism() {
         })
         .unwrap();
     let (t0, t1) = curve.params();
-    body.split_edge(edge, t0 + (t1 - t0) * 0.5, Tol::witness()).unwrap();
+    body.split_edge(edge, t0 + (t1 - t0) * 0.5, Tol::witness())
+        .unwrap();
     assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
     assert_eq!(
-        topo::mass_properties(&body, Tol::witness()).unwrap().volume.to_bits(),
+        topo::mass_properties(&body, Tol::witness())
+            .unwrap()
+            .volume
+            .to_bits(),
         vol0.to_bits(),
         "split changed the prism's exact volume"
     );

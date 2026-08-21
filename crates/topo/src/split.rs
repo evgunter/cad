@@ -142,7 +142,12 @@ impl<T: Decide> Body<T> {
     ///
     /// The first failing precondition above; the body is untouched on
     /// `Err`.
-    pub fn split_edge(&mut self, edge: EdgeKey, t: T, tol: Tol) -> Result<SplitEdgeCreated, EulerOpError> {
+    pub fn split_edge(
+        &mut self,
+        edge: EdgeKey,
+        t: T,
+        tol: Tol,
+    ) -> Result<SplitEdgeCreated, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
 
@@ -326,8 +331,8 @@ impl<T: Decide> Body<T> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use geom_core::Tol;
     use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
+    use geom_core::Tol;
 
     use geom::Curve3;
     use geom_brep::{EdgeCurveSpec, EdgeGeometry, MappedCurve, SketchSegment};
@@ -421,7 +426,9 @@ mod tests {
                 Tol::witness(),
             )
             .unwrap();
-        let created = body.split_edge(arc.edge, FRAC_PI_4, Tol::witness()).unwrap();
+        let created = body
+            .split_edge(arc.edge, FRAC_PI_4, Tol::witness())
+            .unwrap();
         assert_eq!(validate(&body), Ok(()));
         let p = body.get_point(created.point).unwrap();
         let r = FRAC_PI_4.cos();
@@ -466,10 +473,13 @@ mod tests {
         // One-edge circular face at the far vertex (self-loop edge with
         // the canonical scaffolding circle).
         let circ = body
-            .mef_chord(MefSite::Chords {
-                he1: seg.he_minus,
-                he2: seg.he_minus,
-            }, Tol::witness())
+            .mef_chord(
+                MefSite::Chords {
+                    he1: seg.he_minus,
+                    he2: seg.he_minus,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         let created = body.split_edge(circ.edge, PI, Tol::witness()).unwrap();
         assert_eq!(validate(&body), Ok(()));
@@ -573,8 +583,10 @@ mod tests {
         let build = || {
             let cube = ops_cube(Tol::witness());
             let mut body = cube.body;
-            body.split_edge(cube.mevs[0].edge, 0.25, Tol::witness()).unwrap();
-            body.split_edge(cube.mevs[3].edge, 0.75, Tol::witness()).unwrap();
+            body.split_edge(cube.mevs[0].edge, 0.25, Tol::witness())
+                .unwrap();
+            body.split_edge(cube.mevs[3].edge, 0.75, Tol::witness())
+                .unwrap();
             body
         };
         assert_eq!(deep_snapshot(&build()), deep_snapshot(&build()));

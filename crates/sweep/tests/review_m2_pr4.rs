@@ -18,6 +18,7 @@ use profile::RawLoop;
 
 use geom::Surface;
 use geom_brep::{EdgeGeometry, newell_plane};
+use geom_core::Tol;
 use geom_core::{Band, Point2, Point3, Real, Vec3};
 use profile::{LoopRole, Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{ExtrudeError, Extruded, Extrusion, extrude};
@@ -25,7 +26,6 @@ use topo::{
     Body, EdgeKey, EulerOpError, FaceKey, LoopBoundary, LoopKey, validate, validate_closed,
     validate_geometric,
 };
-use geom_core::Tol;
 
 fn eps() -> f64 {
     Tol::witness().get().eps
@@ -112,7 +112,9 @@ fn loop_probe_points(body: &Body<f64>, r#loop: LoopKey) -> Vec<Point3<f64>> {
 fn outward_normal(body: &Body<f64>, face: FaceKey) -> Vec3<f64> {
     let outer = body.get_face(face).unwrap().outer;
     let pts = loop_probe_points(body, outer);
-    let Surface::Plane { normal, .. } = newell_plane(&pts, Band::linear(Tol::witness()).unwrap()).unwrap() else {
+    let Surface::Plane { normal, .. } =
+        newell_plane(&pts, Band::linear(Tol::witness()).unwrap()).unwrap()
+    else {
         panic!("newell returns a plane");
     };
     normal
@@ -224,11 +226,9 @@ fn dump(t: &Extruded<f64>) -> String {
 fn survives_digon_outer_both_directions() {
     for d in [1.0, -1.0] {
         let t = extrude(
-        &validated(vec![circle_loop(0.0, 0.0, 0.5)]),
-        {
-            Extrusion::Distance(d)
-        },
-        Tol::witness(),
+            &validated(vec![circle_loop(0.0, 0.0, 0.5)]),
+            Extrusion::Distance(d),
+            Tol::witness(),
         )
         .unwrap();
         assert_all_tiers(&t.body);
@@ -330,7 +330,12 @@ fn survives_hole_near_outer_canonical_start() {
     // Hole lex-min vertex at (0.006, 0.011): bridge chord ~0.0125 m,
     // clearance to the outer edges 0.006 m — all definite at every CI ε.
     let hole = circle_loop(0.011, 0.011, 0.005);
-    let t = extrude(&validated(vec![outer, hole]), Extrusion::Distance(0.3), Tol::witness()).unwrap();
+    let t = extrude(
+        &validated(vec![outer, hole]),
+        Extrusion::Distance(0.3),
+        Tol::witness(),
+    )
+    .unwrap();
     assert_all_tiers(&t.body);
     let (v, e, f, r) = counts(&t.body);
     assert_eq!((v, e, f, r), (12, 18, 8, 2));
@@ -619,7 +624,12 @@ fn survives_collinear_lines_share_the_plane_key() {
         p2(2.0, 2.0),
         p2(0.0, 2.0),
     ]);
-    let t = extrude(&validated(vec![lp]), Extrusion::Distance(1.0), Tol::witness()).unwrap();
+    let t = extrude(
+        &validated(vec![lp]),
+        Extrusion::Distance(1.0),
+        Tol::witness(),
+    )
+    .unwrap();
     assert_all_tiers(&t.body);
     let k0 = t.body.get_face(t.side_faces[0][0]).unwrap().surface;
     let k1 = t.body.get_face(t.side_faces[0][1]).unwrap().surface;
@@ -913,11 +923,9 @@ fn survives_digon_caps_apex_determined() {
     let r = 0.5;
     let h = 0.75;
     let t = extrude(
-    &validated(vec![circle_loop(0.0, 0.0, r)]),
-    {
-        Extrusion::Distance(h)
-    },
-    Tol::witness(),
+        &validated(vec![circle_loop(0.0, 0.0, r)]),
+        Extrusion::Distance(h),
+        Tol::witness(),
     )
     .unwrap();
     let cap_plane = |face| {
@@ -957,7 +965,12 @@ fn survives_far_offset_profiles_honest() {
         p2(off + 2.0, off + 1.0),
         p2(off, off + 1.0),
     ]);
-    let t = extrude(&validated(vec![lp]), Extrusion::Distance(1.5), Tol::witness()).unwrap();
+    let t = extrude(
+        &validated(vec![lp]),
+        Extrusion::Distance(1.5),
+        Tol::witness(),
+    )
+    .unwrap();
     assert_all_tiers(&t.body);
     assert!(signed_volume(&t.body) > 0.0);
 
@@ -1055,7 +1068,12 @@ fn survives_error_paths_extended() {
     ));
     // Oblique with a definite in-plane part riding a definite normal.
     assert_eq!(
-        extrude(&vp, Extrusion::Vector(Vec3::new(0.0, 2e-3, 1.0)), Tol::witness()).unwrap_err(),
+        extrude(
+            &vp,
+            Extrusion::Vector(Vec3::new(0.0, 2e-3, 1.0)),
+            Tol::witness()
+        )
+        .unwrap_err(),
         ExtrudeError::ObliqueExtrusion
     );
     // NaN placement: 2-D validation cannot see it; the geometry gate

@@ -470,8 +470,8 @@ fn mint_run<T: Decide>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use geom_core::Tol;
     use super::*;
+    use geom_core::Tol;
 
     /// The survivor-validation invariants: odd counts and dirty codes
     /// refuse loudly (unit-level; the geometric paths are pinned by the

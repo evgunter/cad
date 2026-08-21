@@ -2,8 +2,8 @@
 //! against the independently re-run oracle numbers.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use step_import::{ImportOptions, StepImport, import_step};
 use geom_core::Tol;
+use step_import::{ImportOptions, StepImport, import_step};
 
 /// (fixture, oracle volume mm3) — from MY OWN freecadcmd re-run on the
 /// UPSTREAM candidates/ originals, not from the committed sidecars.

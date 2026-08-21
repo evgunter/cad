@@ -335,7 +335,14 @@ pub fn intersect_with<T: Decide + Bounds>(
     decls: &BooleanDeclarations,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
-    boolean_op_with(BooleanOp::Intersect, a, b, decls, SweepStrategy::Realized, tol)
+    boolean_op_with(
+        BooleanOp::Intersect,
+        a,
+        b,
+        decls,
+        SweepStrategy::Realized,
+        tol,
+    )
 }
 
 /// A ∖* B with declared coincidence intents ([`union_with`]).
@@ -349,7 +356,14 @@ pub fn subtract_with<T: Decide + Bounds>(
     decls: &BooleanDeclarations,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
-    boolean_op_with(BooleanOp::Subtract, a, b, decls, SweepStrategy::Realized, tol)
+    boolean_op_with(
+        BooleanOp::Subtract,
+        a,
+        b,
+        decls,
+        SweepStrategy::Realized,
+        tol,
+    )
 }
 
 /// The shared pipeline (module docs), with an explicit
@@ -542,7 +556,8 @@ fn boolean_op_recut<T: Decide + Bounds>(
     // the finished body — the same pass the split lane runs. A planar
     // body mints nothing (no curved faces), so the M3 lane is
     // untouched bit-identically.
-    crate::pcurves::mint_pcurves(&mut body, tol).map_err(|source| BooleanError::Pcurves { source })?;
+    crate::pcurves::mint_pcurves(&mut body, tol)
+        .map_err(|source| BooleanError::Pcurves { source })?;
     gate(&body)?;
     volume_backstop(op, a, b, &body, band, tol)?;
     let (graft_vertices, graft_edges, graft_faces) = graft_rows(&fin.graft);
@@ -711,7 +726,8 @@ pub(super) fn volume_backstop<T: Decide>(
     // Volume AND surface area: the area is this gate's metering lever
     // (fn docs, audit F3), read from the same closed-form pass.
     let props = |body: &Body<T>| -> Result<(T, T), BooleanError> {
-        let p = crate::props::mass_properties_closed_form(body, band, tol).map_err(|_| corrupt())?;
+        let p =
+            crate::props::mass_properties_closed_form(body, band, tol).map_err(|_| corrupt())?;
         Ok((p.volume, p.surface_area))
     };
     // The exact (bit-hairline) band for the sign arm below — the same
@@ -1954,7 +1970,9 @@ fn finish_fallback<T: Decide>(
     // Cross-operand declared pairs are inapplicable here (one operand
     // is absent from the result); the surviving operand's CARRIED
     // records still apply.
-    let merged = body.merge_coplanar_faces(tol).map_err(BooleanError::Merge)?;
+    let merged = body
+        .merge_coplanar_faces(tol)
+        .map_err(BooleanError::Merge)?;
     let mut desc = Descendants::default();
     desc.absorb_merge(&merged);
     describe_minted_edges(&mut body, &[], &merged, band, tol)?;
@@ -2021,11 +2039,34 @@ mod tests {
             );
         };
         // vol(∪) ≥ max: a union "result" smaller than an operand.
-        implausible(volume_backstop(BooleanOp::Union, &cube, &cube, &small, band, Tol::witness()).unwrap_err());
+        implausible(
+            volume_backstop(BooleanOp::Union, &cube, &cube, &small, band, Tol::witness())
+                .unwrap_err(),
+        );
         // vol(∖) ≤ vol(A): a subtract "result" larger than A.
-        implausible(volume_backstop(BooleanOp::Subtract, &small, &cube, &cube, band, Tol::witness()).unwrap_err());
+        implausible(
+            volume_backstop(
+                BooleanOp::Subtract,
+                &small,
+                &cube,
+                &cube,
+                band,
+                Tol::witness(),
+            )
+            .unwrap_err(),
+        );
         // vol(∩) ≤ min: an intersect "result" larger than an operand.
-        implausible(volume_backstop(BooleanOp::Intersect, &small, &cube, &cube, band, Tol::witness()).unwrap_err());
+        implausible(
+            volume_backstop(
+                BooleanOp::Intersect,
+                &small,
+                &cube,
+                &cube,
+                band,
+                Tol::witness(),
+            )
+            .unwrap_err(),
+        );
         // Equal volumes: every bound is non-strict — all pass.
         for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
             volume_backstop(op, &cube, &cube, &cube, band, Tol::witness()).unwrap();
@@ -2034,8 +2075,26 @@ mod tests {
         // vacuous and must be SKIPPED — A ∩ revert(B) legitimately
         // exceeds vol(revert B); the A-side bound still applies.
         let rev = quad_prism(&square, 0.5, Tol::witness()).revert().unwrap();
-        volume_backstop(BooleanOp::Intersect, &cube, &rev, &cube, band, Tol::witness()).unwrap();
-        implausible(volume_backstop(BooleanOp::Intersect, &small, &rev, &cube, band, Tol::witness()).unwrap_err());
+        volume_backstop(
+            BooleanOp::Intersect,
+            &cube,
+            &rev,
+            &cube,
+            band,
+            Tol::witness(),
+        )
+        .unwrap();
+        implausible(
+            volume_backstop(
+                BooleanOp::Intersect,
+                &small,
+                &rev,
+                &cube,
+                band,
+                Tol::witness(),
+            )
+            .unwrap_err(),
+        );
     }
 
     /// **The #200 review's MAJ-1, end to end through the real gate.**
@@ -2059,14 +2118,30 @@ mod tests {
         // over the 4 m² footprint — the volume of a 3 mm cube).
         let kept = 0.003_f64.powi(3);
         let wrong = quad_prism(&plate_profile, 0.1 + kept / 4.0, Tol::witness());
-        let err = volume_backstop(BooleanOp::Subtract, &plate, &plate, &wrong, band, Tol::witness()).unwrap_err();
+        let err = volume_backstop(
+            BooleanOp::Subtract,
+            &plate,
+            &plate,
+            &wrong,
+            band,
+            Tol::witness(),
+        )
+        .unwrap_err();
         assert!(
             matches!(err, BooleanError::ResultVolumeImplausible { .. }),
             "a macroscopic wrong component must refuse however much \
              boundary area it is smeared over, got {err:?}"
         );
         // The exact-zero pass direction is untouched by the sign arm.
-        volume_backstop(BooleanOp::Subtract, &plate, &plate, &plate, band, Tol::witness()).unwrap();
+        volume_backstop(
+            BooleanOp::Subtract,
+            &plate,
+            &plate,
+            &plate,
+            band,
+            Tol::witness(),
+        )
+        .unwrap();
     }
 
     /// **The NURBS re-gate, pinned (M5 S13 §1), and the placeholder's
@@ -2108,11 +2183,16 @@ mod tests {
                 )
                 .unwrap();
             let strut = |body: &mut crate::Body<f64>, at, x, y, z| {
-                body.mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, z), Tol::witness())
-                    .unwrap()
+                body.mev_line(
+                    MevSite::Fan { he1: at, he2: at },
+                    pt(x, y, z),
+                    Tol::witness(),
+                )
+                .unwrap()
             };
             let mef = |body: &mut crate::Body<f64>, he1, he2| {
-                body.mef_chord(MefSite::Chords { he1, he2 }, Tol::witness()).unwrap()
+                body.mef_chord(MefSite::Chords { he1, he2 }, Tol::witness())
+                    .unwrap()
             };
             let e_bc = strut(&mut body, e_ab.he_minus, 1.0, 1.0, 0.0);
             let e_cd = strut(&mut body, e_bc.he_minus, 0.0, 1.0, 0.0);

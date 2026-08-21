@@ -60,6 +60,7 @@ use common::orient::{
 };
 use common::quad;
 use geom::Surface;
+use geom_core::Tol;
 use geom_core::{Affine3, Band, Point3, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use revolve_common::{assert_all_tiers, axis_y, p2, validated};
@@ -69,14 +70,15 @@ use sweep::{
 };
 use topo::boolean::{SolidContainment, point_in_solid};
 use topo::{Body, FaceKey};
-use geom_core::Tol;
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
 }
 
 fn vol(body: &Body<f64>) -> f64 {
-    topo::props::mass_properties(body, Tol::witness()).unwrap().volume
+    topo::props::mass_properties(body, Tol::witness())
+        .unwrap()
+        .volume
 }
 
 fn sense_of(body: &Body<f64>, f: FaceKey) -> bool {
@@ -129,7 +131,12 @@ fn holed_loops() -> Vec<ProfileLoop<f64>> {
 }
 
 fn notched() -> sweep::Extruded<f64> {
-    extrude(&validated(notched_loops()), Extrusion::Distance(1.0), Tol::witness()).unwrap()
+    extrude(
+        &validated(notched_loops()),
+        Extrusion::Distance(1.0),
+        Tol::witness(),
+    )
+    .unwrap()
 }
 
 /// **The concave-notched body, end-to-end (this crate's half).** The
@@ -142,7 +149,10 @@ fn notched() -> sweep::Extruded<f64> {
 fn notched_body_validates_meters_and_carries_one_reversed_wall() {
     let t = notched();
     assert_all_tiers(&t.body);
-    assert_eq!(topo::validate::validate_geometric(&t.body, Tol::witness()), Ok(()));
+    assert_eq!(
+        topo::validate::validate_geometric(&t.body, Tol::witness()),
+        Ok(())
+    );
     assert!(
         (vol(&t.body) - 3.0).abs() < 1e-9,
         "the notch region's area is exactly 3 (equal-area segments), \
@@ -176,7 +186,10 @@ fn downward_extrusion_keeps_the_same_senses() {
     )
     .unwrap();
     assert_all_tiers(&t.body);
-    assert_eq!(topo::validate::validate_geometric(&t.body, Tol::witness()), Ok(()));
+    assert_eq!(
+        topo::validate::validate_geometric(&t.body, Tol::witness()),
+        Ok(())
+    );
     assert!((vol(&t.body) - 3.0).abs() < 1e-9);
     // side_faces is per canonical segment? No — per swept segment; the
     // reversal retraces the canonical chain backwards, so the concave
@@ -210,9 +223,17 @@ fn downward_extrusion_keeps_the_same_senses() {
 /// hole interior as void.
 #[test]
 fn hole_walls_mint_sense_false_and_the_door_reads_the_hole_as_void() {
-    let t = extrude(&validated(holed_loops()), Extrusion::Distance(1.0), Tol::witness()).unwrap();
+    let t = extrude(
+        &validated(holed_loops()),
+        Extrusion::Distance(1.0),
+        Tol::witness(),
+    )
+    .unwrap();
     assert_all_tiers(&t.body);
-    assert_eq!(topo::validate::validate_geometric(&t.body, Tol::witness()), Ok(()));
+    assert_eq!(
+        topo::validate::validate_geometric(&t.body, Tol::witness()),
+        Ok(())
+    );
     assert!(
         (vol(&t.body) - (16.0 - PI)).abs() < 1e-9,
         "plate minus unit-radius hole: 16 − π; got {}",
@@ -259,9 +280,18 @@ fn hole_walls_mint_sense_false_and_the_door_reads_the_hole_as_void() {
 #[test]
 fn washer_bore_and_under_annulus_mint_sense_false() {
     let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
-    let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness()).unwrap();
+    let t = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap();
     assert_all_tiers(&t.body);
-    assert_eq!(topo::validate::validate_geometric(&t.body, Tol::witness()), Ok(()));
+    assert_eq!(
+        topo::validate::validate_geometric(&t.body, Tol::witness()),
+        Ok(())
+    );
     assert!(
         (vol(&t.body) - 3.0 * PI).abs() < 1e-9,
         "π(2² − 1²)·1 = 3π; got {}",
@@ -298,7 +328,10 @@ fn washer_wedge_partial_revolve_mints_the_same_wall_senses() {
     )
     .unwrap();
     assert_all_tiers(&t.body);
-    assert_eq!(topo::validate::validate_geometric(&t.body, Tol::witness()), Ok(()));
+    assert_eq!(
+        topo::validate::validate_geometric(&t.body, Tol::witness()),
+        Ok(())
+    );
     assert!(
         (vol(&t.body) - 3.0 * PI / 4.0).abs() < 1e-9,
         "a quarter of the washer: 3π/4; got {}",
@@ -328,7 +361,11 @@ fn washer_wedge_partial_revolve_mints_the_same_wall_senses() {
         (Point3::new(1.5 * c, 1.5, -1.5 * c), SolidContainment::Out),
         (Point3::new(2.5 * c, 0.5, -2.5 * c), SolidContainment::Out),
     ] {
-        assert_eq!(point_in_solid(&t.body, p, b, Tol::witness()).unwrap(), want, "probe {p:?}");
+        assert_eq!(
+            point_in_solid(&t.body, p, b, Tol::witness()).unwrap(),
+            want,
+            "probe {p:?}"
+        );
     }
 }
 
@@ -340,9 +377,18 @@ fn washer_wedge_partial_revolve_mints_the_same_wall_senses() {
 #[test]
 fn countersink_cone_wall_mints_sense_false() {
     let lp = ProfileLoop::polygon([p2(0.5, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
-    let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness()).unwrap();
+    let t = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap();
     assert_all_tiers(&t.body);
-    assert_eq!(topo::validate::validate_geometric(&t.body, Tol::witness()), Ok(()));
+    assert_eq!(
+        topo::validate::validate_geometric(&t.body, Tol::witness()),
+        Ok(())
+    );
     // Pappus: A = 1.25, x̄ = 41/30 ⇒ V = 2π·x̄·A = 10.25π/3.
     assert!(
         (vol(&t.body) - 10.25 * PI / 3.0).abs() < 1e-9,
@@ -374,9 +420,18 @@ fn dimple_sphere_wall_mints_sense_false() {
         ProfileVertex::new(p2(0.5, 2.0), -b),
         ProfileVertex::new(p2(0.0, 1.5), 0.0),
     ]);
-    let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness()).unwrap();
+    let t = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap();
     assert_all_tiers(&t.body);
-    assert_eq!(topo::validate::validate_geometric(&t.body, Tol::witness()), Ok(()));
+    assert_eq!(
+        topo::validate::validate_geometric(&t.body, Tol::witness()),
+        Ok(())
+    );
     assert!(
         (vol(&t.body) - (2.0 * PI - PI / 12.0)).abs() < 1e-9,
         "cylinder 2π minus half-ball π/12; got {}",
@@ -416,9 +471,18 @@ fn notched_ring_torus_band_mints_sense_false() {
         ProfileVertex::new(p2(3.0, 1.5), -b),
         ProfileVertex::new(p2(1.0, 1.5), 0.0),
     ]);
-    let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness()).unwrap();
+    let t = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap();
     assert_all_tiers(&t.body);
-    assert_eq!(topo::validate::validate_geometric(&t.body, Tol::witness()), Ok(()));
+    assert_eq!(
+        topo::validate::validate_geometric(&t.body, Tol::witness()),
+        Ok(())
+    );
     // Pappus: area exactly 3 (equal-area segments), centroid x̄ = 2
     // (both segments are symmetric about x = 2), V = 2π·2·3 = 12π.
     assert!(
@@ -465,9 +529,13 @@ fn loft_pair(loops: &[ProfileLoop<f64>], h: f64) -> Lofted<f64> {
 }
 
 fn extruded_twin(loops: &[ProfileLoop<f64>], h: f64) -> Body<f64> {
-    extrude(&validated(loops.to_vec()), Extrusion::Distance(h), Tol::witness())
-        .unwrap()
-        .body
+    extrude(
+        &validated(loops.to_vec()),
+        Extrusion::Distance(h),
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// A rational body's volume, pinned across the ε schedule (the m8-3
@@ -671,7 +739,8 @@ fn a_tapered_concave_loft_keeps_the_prism_wall_directions() {
         Affine3::identity(),
         Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
     ];
-    let tapered = loft_body::<f64>(&sections, &places, 1, Tol::witness()).expect("the tapered pair lofts");
+    let tapered =
+        loft_body::<f64>(&sections, &places, 1, Tol::witness()).expect("the tapered pair lofts");
     assert_eq!(topo::validate(&tapered.body), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&tapered.body), Ok(()), "tier 2");
     for (li, walls) in tapered.side_faces.iter().enumerate() {
@@ -721,7 +790,9 @@ fn a_lofted_operand_refuses_the_union_check_typed() {
     let vp = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let pellet = extrude(&vp, Extrusion::Distance(0.4), Tol::witness()).unwrap().body;
+    let pellet = extrude(&vp, Extrusion::Distance(0.4), Tol::witness())
+        .unwrap()
+        .body;
 
     let err = match topo::boolean::union(&lofted.body, &pellet, Tol::witness()) {
         Err(e) => e.to_string(),
@@ -731,7 +802,12 @@ fn a_lofted_operand_refuses_the_union_check_typed() {
         err.contains("rung-3"),
         "the refusal names the operand: {err}"
     );
-    let door = point_in_solid(&lofted.body, Point3::new(1.0, 1.3, 0.5), band(), Tol::witness());
+    let door = point_in_solid(
+        &lofted.body,
+        Point3::new(1.0, 1.3, 0.5),
+        band(),
+        Tol::witness(),
+    );
     assert!(
         door.is_err(),
         "point_in_solid has no NURBS door: it must refuse, not guess: {door:?}"
@@ -796,8 +872,8 @@ fn a_convexity_flipping_loft_faces_out_at_every_level() {
         Affine3::identity(),
         Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
     ];
-    let lofted =
-        loft_body::<f64>(&sections, &places, 1, Tol::witness()).expect("the convexity-flipping pair lofts");
+    let lofted = loft_body::<f64>(&sections, &places, 1, Tol::witness())
+        .expect("the convexity-flipping pair lofts");
     assert_eq!(topo::validate(&lofted.body), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&lofted.body), Ok(()), "tier 2");
 
@@ -955,8 +1031,8 @@ fn a_curved_path_swept_body_faces_out_along_the_whole_turn() {
     .expect("the elbow path is a well-formed quarter arc");
     let h = 0.25;
     let profile = quad([(-h, -h), (h, -h), (h, h), (-h, h)]);
-    let swept =
-        sweep_body::<f64>(&profile, Affine3::identity(), &path, 9, 3, Tol::witness()).expect("the elbow sweeps");
+    let swept = sweep_body::<f64>(&profile, Affine3::identity(), &path, 9, 3, Tol::witness())
+        .expect("the elbow sweeps");
     assert_eq!(topo::validate(&swept.body), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&swept.body), Ok(()), "tier 2");
 

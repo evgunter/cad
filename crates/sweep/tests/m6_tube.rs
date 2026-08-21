@@ -16,11 +16,11 @@ use core::f64::consts::PI;
 use profile::RawLoop;
 
 use geom::Surface;
+use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Revolution, RevolveAxis, TubeError, TubeWindow, revolve, tube_along_arc};
 use topo::Body;
-use geom_core::Tol;
 
 const R: f64 = 2.0;
 const MINOR: f64 = 0.5;
@@ -80,7 +80,11 @@ fn tube_donut_matches_the_revolve_donut() {
     for (name, body) in [("tube", &tube), ("revolve", &rev)] {
         assert_eq!(topo::validate(body), Ok(()), "{name} tier 1");
         assert_eq!(topo::validate_closed(body), Ok(()), "{name} tier 2");
-        assert_eq!(topo::validate_geometric(body, Tol::witness()), Ok(()), "{name} tier 3");
+        assert_eq!(
+            topo::validate_geometric(body, Tol::witness()),
+            Ok(()),
+            "{name} tier 3"
+        );
     }
 }
 
@@ -171,11 +175,23 @@ fn tube_window_and_refusal_doors() {
     .expect("the wedge builds")
     .body;
     assert_eq!(topo::validate_closed(&wedge), Ok(()), "wedge tier 2");
-    assert_eq!(topo::validate_geometric(&wedge, Tol::witness()), Ok(()), "wedge tier 3");
+    assert_eq!(
+        topo::validate_geometric(&wedge, Tol::witness()),
+        Ok(()),
+        "wedge tier 3"
+    );
     assert_eq!(wedge.faces().count(), 4, "two walls + two caps");
 
     let build = |axis: Vec3<f64>, u_ref: Vec3<f64>, window| {
-        tube_along_arc::<f64>(Point3::new(0.0, 0.0, 0.0), axis, u_ref, R, window, MINOR, Tol::witness())
+        tube_along_arc::<f64>(
+            Point3::new(0.0, 0.0, 0.0),
+            axis,
+            u_ref,
+            R,
+            window,
+            MINOR,
+            Tol::witness(),
+        )
     };
     assert!(matches!(
         build(Vec3::unit_y() * 1.5, Vec3::unit_x(), TubeWindow::Full),

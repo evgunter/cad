@@ -9,6 +9,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Tol;
 use geom_core::{Affine3, Point2, Point3, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
@@ -17,7 +18,6 @@ use topo::{
     Body, BooleanResult, BooleanResultKind, mass_properties, subtract, union, validate,
     validate_closed,
 };
-use geom_core::Tol;
 
 fn slab(x0: f64, y0: f64, side: f64, z0: f64, height: f64) -> Body<f64> {
     let lp = ProfileLoop::polygon([
@@ -45,7 +45,10 @@ fn extruded_two_bricks_all_ops() {
     let a = slab(0.0, 0.0, 2.0, 0.0, 2.0); // [0,2]³
     let b = slab(1.0, 1.0, 2.0, 1.0, 2.0); // [1,3]³
     for (op, volume) in [
-        (topo::intersect as fn(&Body<f64>, &Body<f64>, Tol) -> _, 1.0_f64),
+        (
+            topo::intersect as fn(&Body<f64>, &Body<f64>, Tol) -> _,
+            1.0_f64,
+        ),
         (union, 15.0),
         (subtract, 7.0),
     ] {

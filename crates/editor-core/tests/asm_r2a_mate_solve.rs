@@ -305,7 +305,9 @@ fn row1_evaluation_and_save_bytes_are_bit_identical_across_runs() {
     let second = run(&doc, &o);
     let volume = |ev: &Evaluation<f64>| {
         let body = product(&doc, ev, Tol::witness()).expect("gathers");
-        topo::mass_properties(&body, Tol::witness()).expect("props").volume
+        topo::mass_properties(&body, Tol::witness())
+            .expect("props")
+            .volume
     };
     assert_eq!(
         volume(&first).to_bits(),
@@ -314,7 +316,11 @@ fn row1_evaluation_and_save_bytes_are_bit_identical_across_runs() {
     );
     let _ = ids;
     let text = save(&doc, &[], Tol::witness()).expect("saves");
-    assert_eq!(text, save(&doc, &[], Tol::witness()).expect("saves"), "byte-stable");
+    assert_eq!(
+        text,
+        save(&doc, &[], Tol::witness()).expect("saves"),
+        "byte-stable"
+    );
     let back = load(&text, Tol::witness()).expect("loads").doc;
     assert!(back.bit_eq(&doc), "the mates round-trip bit for bit");
 }
@@ -487,7 +493,8 @@ fn row4b_a_mate_delete_splits_and_re_mints_from_the_solved_pose() {
         },
     );
     let before = doc.clone();
-    let applied = apply(&doc, &DocEdit::DeleteNode { id: joint }, Tol::witness()).expect("the mate deletes");
+    let applied =
+        apply(&doc, &DocEdit::DeleteNode { id: joint }, Tol::witness()).expect("the mate deletes");
     assert_eq!(clusters(&applied.doc).len(), 2, "the cluster split");
     assert_eq!(
         applied.maintenance,
@@ -520,7 +527,8 @@ fn row4c_deleting_the_gauge_rewrites_the_key_and_holds_world_poses() {
         },
     );
     let before = doc.clone();
-    let applied = apply(&doc, &DocEdit::DeleteNode { id: ids[0] }, Tol::witness()).expect("the gauge deletes");
+    let applied = apply(&doc, &DocEdit::DeleteNode { id: ids[0] }, Tol::witness())
+        .expect("the gauge deletes");
     assert_eq!(
         applied.maintenance,
         vec![ClusterMaintenance::GaugeRewrite {
@@ -621,8 +629,13 @@ fn row4e_a_whole_cluster_cut_hoists_the_cluster_frame() {
     use std::collections::BTreeSet;
     let (doc, ids, mates) = two_clusters();
     let cut = BTreeSet::from([ids[0], ids[1], mates[0]]);
-    let out = editor_core::split(&doc, &cut, editor_core::DocumentId::derive("asm-r2a-4e"), Tol::witness())
-        .expect("a whole-cluster cut splits");
+    let out = editor_core::split(
+        &doc,
+        &cut,
+        editor_core::DocumentId::derive("asm-r2a-4e"),
+        Tol::witness(),
+    )
+    .expect("a whole-cluster cut splits");
     assert!(
         out.part.placements().is_empty(),
         "the part holds the cluster UNPLACED — its world pose belongs \
@@ -662,7 +675,12 @@ fn row4f_a_torn_cluster_cut_refuses_typed_naming_both_sides() {
     let (doc, ids, mates) = two_clusters();
     // One whole cluster PLUS one instance torn out of the other.
     let cut = BTreeSet::from([ids[0], ids[1], mates[0], ids[2]]);
-    match editor_core::split(&doc, &cut, editor_core::DocumentId::derive("asm-r2a-4f"), Tol::witness()) {
+    match editor_core::split(
+        &doc,
+        &cut,
+        editor_core::DocumentId::derive("asm-r2a-4f"),
+        Tol::witness(),
+    ) {
         Err(editor_core::SplitError::TornCluster {
             gauge,
             instance,
@@ -675,9 +693,14 @@ fn row4f_a_torn_cluster_cut_refuses_typed_naming_both_sides() {
         other => panic!("expected TornCluster, got {other:?}"),
     }
     // The message names the cluster, both sides, and the repair.
-    let message = editor_core::split(&doc, &cut, editor_core::DocumentId::derive("asm-r2a-4f2"), Tol::witness())
-        .expect_err("refuses")
-        .to_string();
+    let message = editor_core::split(
+        &doc,
+        &cut,
+        editor_core::DocumentId::derive("asm-r2a-4f2"),
+        Tol::witness(),
+    )
+    .expect_err("refuses")
+    .to_string();
     assert!(message.contains("tears the placement cluster"), "{message}");
     assert!(message.contains("widen the cut"), "{message}");
     // The tear is refused in the OTHER direction too: keeping the
@@ -1066,7 +1089,9 @@ fn row6c_the_gather_ignores_the_mate_root() {
         ));
     }
     let body = product(&doc, &ev, Tol::witness()).expect("the product gathers");
-    let volume = topo::mass_properties(&body, Tol::witness()).expect("props").volume;
+    let volume = topo::mass_properties(&body, Tol::witness())
+        .expect("props")
+        .volume;
     assert!(
         (volume - 2.0).abs() < 1e-9,
         "the gather took the two instances and ignored the mates: {volume}"
@@ -1200,10 +1225,13 @@ fn row6f_rebind_repairs_a_mate_head_that_is_the_only_reference() {
         "the stranded head contributes NO edge (N5)"
     );
     let applied = doc
-        .apply(&DocEdit::Rebind {
-            from: in_part(ids[1], RecipeNodeId(1)),
-            to: in_part(ids[2], RecipeNodeId(1)),
-        }, Tol::witness())
+        .apply(
+            &DocEdit::Rebind {
+                from: in_part(ids[1], RecipeNodeId(1)),
+                to: in_part(ids[2], RecipeNodeId(1)),
+            },
+            Tol::witness(),
+        )
         .expect("a mate head is a rebind site");
     assert_eq!(
         editor_core::reading_edges(&applied.doc),
@@ -1260,10 +1288,13 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
     );
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: ids[1] });
     let applied = doc
-        .apply(&DocEdit::Rebind {
-            from: in_part(ids[1], RecipeNodeId(1)),
-            to: in_part(ids[2], RecipeNodeId(1)),
-        }, Tol::witness())
+        .apply(
+            &DocEdit::Rebind {
+                from: in_part(ids[1], RecipeNodeId(1)),
+                to: in_part(ids[2], RecipeNodeId(1)),
+            },
+            Tol::witness(),
+        )
         .expect("the declare pair alone makes this a rebind site");
     let Some(Node::Declare { pairs }) = applied.doc.node(declare_id) else {
         panic!("the declare is still there");
@@ -1289,17 +1320,20 @@ fn row6h_the_insert_door_refuses_a_mate_head_naming_no_node() {
     let (doc, ids, _) = assembly("asm-r2a-mate-insert-door", 1);
     let ghost = RecipeNodeId(9_999);
     let err = doc
-        .apply(&DocEdit::InsertNode {
-            node: mate(
-                ids[0],
-                ghost,
-                MatePrimitive::Coaxial,
-                AxisSense::Aligned,
-                z_up(),
-                z_up(),
-                Some(0.0),
-            ),
-        }, Tol::witness())
+        .apply(
+            &DocEdit::InsertNode {
+                node: mate(
+                    ids[0],
+                    ghost,
+                    MatePrimitive::Coaxial,
+                    AxisSense::Aligned,
+                    z_up(),
+                    z_up(),
+                    Some(0.0),
+                ),
+            },
+            Tol::witness(),
+        )
         .expect_err("the head names no node");
     assert!(
         matches!(&err, EditError::DeclareNamesMissingNode { name } if name.node == ghost),

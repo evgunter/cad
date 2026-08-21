@@ -23,7 +23,13 @@ use fixture::{desc, insert, len, scl, step};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness())
+    evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
 }
 
 fn rerun(doc: &ProfileDoc, prior: &Evaluation<f64>) -> Evaluation<f64> {
@@ -400,7 +406,13 @@ fn indeterminate_losses_enrich_to_the_matching_indeterminate_arm() {
     let doc2 = set(doc2, cap, red());
     let cancel = CancelToken::new();
     cancel.cancel();
-    let ev2 = evaluate::<f64>(&doc2, None, &cancel, &EvalOptions::default(), Tol::witness());
+    let ev2 = evaluate::<f64>(
+        &doc2,
+        None,
+        &cancel,
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
     assert_eq!(ev2.appearance.losses.len(), 1);
     let loss2 = &ev2.appearance.losses[0];
     assert_eq!(loss2.cause, AppearanceLossCause::TargetNotEvaluated);
@@ -457,10 +469,13 @@ fn suggestions_offer_the_final_wrapping_derivation_and_rebind_repairs_the_gap() 
     // attribute rides the name) and is presentation-only here — no
     // Declare pair moved, nothing recomputes.
     let applied = doc
-        .apply(&DocEdit::Rebind {
-            from: cap.clone(),
-            to: target.clone(),
-        }, Tol::witness())
+        .apply(
+            &DocEdit::Rebind {
+                from: cap.clone(),
+                to: target.clone(),
+            },
+            Tol::witness(),
+        )
         .expect("an appearance key is a rebind site");
     assert!(!applied.record.structural);
     assert!(applied.doc.appearance_of(&cap).is_none());
@@ -488,10 +503,13 @@ fn appearance_only_rebind_counts_as_a_site_not_no_references() {
     let suggestions = appearance_rebind_suggestions(doc.appearance(), &ev);
     let target = union_suggestion(&suggestions, &cap, uni);
     assert!(
-        doc.apply(&DocEdit::Rebind {
-            from: cap,
-            to: target
-        }, Tol::witness())
+        doc.apply(
+            &DocEdit::Rebind {
+                from: cap,
+                to: target
+            },
+            Tol::witness()
+        )
         .is_ok()
     );
 }
@@ -506,10 +524,13 @@ fn rebind_appearance_collision_is_refused_typed() {
     // survives would be an auto-pick — refused loudly.
     let doc = set(doc, target.clone(), Attr::Color(Rgba8::opaque(1, 2, 3)));
     assert_eq!(
-        doc.apply(&DocEdit::Rebind {
-            from: cap.clone(),
-            to: target.clone(),
-        }, Tol::witness())
+        doc.apply(
+            &DocEdit::Rebind {
+                from: cap.clone(),
+                to: target.clone(),
+            },
+            Tol::witness()
+        )
         .unwrap_err(),
         EditError::RebindAppearanceCollision {
             name: target.clone(),
@@ -527,10 +548,13 @@ fn rebind_appearance_collision_is_refused_typed() {
     );
     let doc = set(doc, cap.clone(), Attr::Label("lid".into()));
     let applied = doc
-        .apply(&DocEdit::Rebind {
-            from: cap,
-            to: target.clone(),
-        }, Tol::witness())
+        .apply(
+            &DocEdit::Rebind {
+                from: cap,
+                to: target.clone(),
+            },
+            Tol::witness(),
+        )
         .expect("disjoint attribute kinds merge");
     let merged = applied.doc.appearance_of(&target).unwrap();
     assert_eq!(merged.attrs.len(), 2);

@@ -732,10 +732,10 @@ mod attribution {
     use topo::{CensusContact, DeclaredContact, EntityId, StaleDeclaration, ValidationError};
 
     use super::{Attribution, FaceKey, MintedDeclaration, attribute};
-    use geom_core::Tol;
     use crate::mate::ContactClass;
     use crate::names::{EntityKind, RoleSeg, StableName};
     use crate::node::RecipeNodeId;
+    use geom_core::Tol;
 
     /// A body with three unrelated faces, and one declaration over the
     /// first two — the shape every row below asks a question against:

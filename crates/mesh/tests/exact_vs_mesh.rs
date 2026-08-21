@@ -13,10 +13,10 @@
 
 mod common;
 
+use geom_core::Tol;
 use mesh::tessellate;
 use mesh::validate::signed_volume;
 use topo::mass_properties;
-use geom_core::Tol;
 
 fn check_at(body: &topo::Body<f64>, what: &str, delta: f64) {
     let props = mass_properties(body, Tol::witness()).expect("mass properties must compute");

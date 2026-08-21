@@ -400,13 +400,12 @@ pub fn product_recorded<P, T: Decide + PropsQuadLane>(
         if body.solids().next().is_none() {
             continue;
         }
-        let keys =
-            topo::graft_disjoint_all_keyed(&mut aggregate, body.as_ref(), tol).map_err(|source| {
-                ProductError::Graft {
-                    node: *node,
-                    source: Box::new(source),
-                }
-            })?;
+        let keys = topo::graft_disjoint_all_keyed(&mut aggregate, body.as_ref(), tol).map_err(
+            |source| ProductError::Graft {
+                node: *node,
+                source: Box::new(source),
+            },
+        )?;
         carry_names(&mut names, table, *ix, &keys)
             .map_err(|name| ProductError::Naming { node: *node, name })?;
         carry_contacts(&mut contacts, records, &keys)

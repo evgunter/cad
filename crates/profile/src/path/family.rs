@@ -122,7 +122,7 @@
 //! [`TangentIncoming`]); the fused verbs take their incoming mode the
 //! same way.
 
-use geom_core::{Tol, Point2, Real, Sign};
+use geom_core::{Point2, Real, Sign, Tol};
 
 use super::arc_fillet::{self, ArcCarrierScalar, carrier_tangent};
 use super::program::{ArcData, ClosedLoop, Step, Target};
@@ -383,7 +383,14 @@ pub trait ArrivalSpec<T: ArcCarrierScalar> {
 impl<T: ArcCarrierScalar> ArrivalSpec<T> for Center<T, Point2<T>> {
     type Out = Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>;
     fn apply(core: Core<T>, spec: Self, tol: Tol) -> Self::Out {
-        resolve_arc_arrival(core, arc_fillet::resolve::<T>, spec.p, spec.c, spec.winding, tol)
+        resolve_arc_arrival(
+            core,
+            arc_fillet::resolve::<T>,
+            spec.p,
+            spec.c,
+            spec.winding,
+            tol,
+        )
     }
     fn fail(err: PathError<T>) -> Self::Out {
         Err(err)
@@ -404,7 +411,13 @@ impl<T: ArcCarrierScalar> ArrivalSpec<T> for Center<T, Start> {
     type Out = Result<ClosedLoop<T>, PathError<T>>;
     fn apply(mut core: Core<T>, spec: Self, tol: Tol) -> Self::Out {
         let Start = spec.p;
-        resolve_arc_close(&mut core, arc_fillet::resolve::<T>, spec.c, spec.winding, tol)
+        resolve_arc_close(
+            &mut core,
+            arc_fillet::resolve::<T>,
+            spec.c,
+            spec.winding,
+            tol,
+        )
     }
     fn fail(err: PathError<T>) -> Self::Out {
         Err(err)
@@ -703,7 +716,13 @@ impl<T: geom_core::Decide> ViaArrivalStart<T> {
         tol: Tol,
     ) -> Result<ClosedLoop<T>, PathError<T>> {
         self.core.record(step);
-        via_close(self.core, self.q, Dir::from_angle(theta), self.resolver, tol)
+        via_close(
+            self.core,
+            self.q,
+            Dir::from_angle(theta),
+            self.resolver,
+            tol,
+        )
     }
 
     /// The kernel behind the table's Via-close row (recording is the
@@ -951,7 +970,9 @@ pub enum FusedIncoming<T: Real> {
 
 impl<T: ArcCarrierScalar> LegEndIncoming<T> for verbs::Bulge<T, Point2<T>> {
     fn incoming(&self, dp: DirectedPoint<T>, tol: Tol) -> Result<FusedIncoming<T>, PathError<T>> {
-        Ok(FusedIncoming::Anchored(PointIncoming::carrier(self, dp.at, tol)?))
+        Ok(FusedIncoming::Anchored(PointIncoming::carrier(
+            self, dp.at, tol,
+        )?))
     }
     fn to_wire(&self, _tol: Tol) -> ArcData<T> {
         PointIncoming::to_wire(self)
@@ -960,7 +981,9 @@ impl<T: ArcCarrierScalar> LegEndIncoming<T> for verbs::Bulge<T, Point2<T>> {
 
 impl<T: ArcCarrierScalar> LegEndIncoming<T> for Via<T, Point2<T>> {
     fn incoming(&self, dp: DirectedPoint<T>, tol: Tol) -> Result<FusedIncoming<T>, PathError<T>> {
-        Ok(FusedIncoming::Anchored(PointIncoming::carrier(self, dp.at, tol)?))
+        Ok(FusedIncoming::Anchored(PointIncoming::carrier(
+            self, dp.at, tol,
+        )?))
     }
     fn to_wire(&self, _tol: Tol) -> ArcData<T> {
         PointIncoming::to_wire(self)
@@ -969,7 +992,9 @@ impl<T: ArcCarrierScalar> LegEndIncoming<T> for Via<T, Point2<T>> {
 
 impl<T: ArcCarrierScalar> LegEndIncoming<T> for Center<T, Point2<T>> {
     fn incoming(&self, dp: DirectedPoint<T>, tol: Tol) -> Result<FusedIncoming<T>, PathError<T>> {
-        Ok(FusedIncoming::Anchored(PointIncoming::carrier(self, dp.at, tol)?))
+        Ok(FusedIncoming::Anchored(PointIncoming::carrier(
+            self, dp.at, tol,
+        )?))
     }
     fn to_wire(&self, _tol: Tol) -> ArcData<T> {
         PointIncoming::to_wire(self)
@@ -1064,7 +1089,12 @@ fn entry_arc_open<T: ArcCarrierScalar>(
 impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
     /// The kernel behind the table's line-incoming/arc-arrival row
     /// (recording is the row's, not the kernel's).
-    pub(super) fn fillet_arc_kernel<S: ArrivalSpec<T>>(mut self, radius: T, spec: S, tol: Tol) -> S::Out {
+    pub(super) fn fillet_arc_kernel<S: ArrivalSpec<T>>(
+        mut self,
+        radius: T,
+        spec: S,
+        tol: Tol,
+    ) -> S::Out {
         let (at, ang) = match self.dep() {
             Ok(v) => v,
             Err(e) => return S::fail(e),
@@ -1271,7 +1301,12 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
 
     /// The kernel behind the table's leg-end ray-extension/arrival row
     /// (recording is the row's, not the kernel's).
-    pub(super) fn fillet_arc_kernel<S: ArrivalSpec<T>>(mut self, radius: T, spec: S, tol: Tol) -> S::Out {
+    pub(super) fn fillet_arc_kernel<S: ArrivalSpec<T>>(
+        mut self,
+        radius: T,
+        spec: S,
+        tol: Tol,
+    ) -> S::Out {
         if let Err(e) = self.ray_extend(radius, tol) {
             return S::fail(e);
         }

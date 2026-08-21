@@ -8,10 +8,10 @@
 
 use geom::{NurbsSurface, Surface};
 use geom_brep::ssi::{self, SsiDomain, SsiError, SsiOperand, TubeScale};
+use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::spline::compose::ComposeError;
 use geom_core::{Band, Point3, Vec3};
-use geom_core::Tol;
 
 fn eps() -> f64 {
     Tol::witness().get().eps

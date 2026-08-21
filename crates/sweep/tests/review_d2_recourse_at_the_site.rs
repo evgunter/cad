@@ -19,6 +19,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Band;
+use geom_core::Tol;
 use sweep::fillet::build::fillet_edges;
 use sweep::fillet::{
     FILLET3_ASSEMBLY_RECOURSE, FILLET3_BODY_RECOURSE, FILLET3_CHAIN_RECOURSE,
@@ -28,7 +29,6 @@ use sweep::fillet::{
 };
 use sweep::test_support::cube;
 use topo::{Body, EdgeKey};
-use geom_core::Tol;
 
 const L: f64 = 1.0;
 const R: f64 = 0.1;
@@ -128,7 +128,8 @@ fn a_repeated_edge_refusal_gives_no_recourse_at_all() {
 fn a_multi_solid_body_gives_body_advice_and_no_chain_advice() {
     let mut body = cube(L, Tol::witness());
     let other = cube(L, Tol::witness());
-    topo::instance::graft_disjoint_all(&mut body, &other, Tol::witness()).expect("a disjoint graft");
+    topo::instance::graft_disjoint_all(&mut body, &other, Tol::witness())
+        .expect("a disjoint graft");
     let edges = edges_of(&body);
     let err = fillet_edges(&body, &edges[..1], R, band(), Tol::witness())
         .expect_err("the in-place surgery is built for one solid");

@@ -2078,9 +2078,9 @@ fn ring_representative<T: Decide>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use geom_core::Tol;
     use super::*;
     use crate::entity::FaceKey;
+    use geom_core::Tol;
 
     // -----------------------------------------------------------------
     // DIRECT rows for the arc-side selector. Since M5 S9 the selector is

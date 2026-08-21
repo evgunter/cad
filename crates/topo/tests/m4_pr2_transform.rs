@@ -8,12 +8,12 @@ mod common;
 use std::f64::consts::FRAC_PI_2;
 
 use common::prism_z;
+use geom_core::Tol;
 use geom_core::{Affine3, Point3, Vec3};
 use topo::{
     Body, BooleanResult, mass_properties, transform_rigid, validate, validate_closed,
     validate_geometric,
 };
-use geom_core::Tol;
 
 /// A dyadic brick `[x0,x1]×[y0,y1]×[0,h]` (the M3 fixture builder).
 fn brick(x: (f64, f64), y: (f64, f64), h: f64) -> Body<f64> {
@@ -30,7 +30,12 @@ fn tiers_ok(b: &Body<f64>) {
 fn translation_is_exact_and_key_stable() {
     let b = brick((0.0, 2.0), (0.0, 1.0), 0.5);
     let keys: Vec<_> = b.points().map(|(k, _)| k).collect();
-    let t = transform_rigid(&b, &Affine3::translation(Vec3::new(0.25, -1.5, 8.0)), Tol::witness()).unwrap();
+    let t = transform_rigid(
+        &b,
+        &Affine3::translation(Vec3::new(0.25, -1.5, 8.0)),
+        Tol::witness(),
+    )
+    .unwrap();
     tiers_ok(&t);
     // Same keys, exactly translated coordinates (dyadic in, dyadic out).
     for k in keys {
@@ -38,7 +43,10 @@ fn translation_is_exact_and_key_stable() {
         let p1 = *t.get_point(k).unwrap();
         assert_eq!((p1.x, p1.y, p1.z), (p0.x + 0.25, p0.y - 1.5, p0.z + 8.0));
     }
-    let (m0, m1) = (mass_properties(&b, Tol::witness()).unwrap(), mass_properties(&t, Tol::witness()).unwrap());
+    let (m0, m1) = (
+        mass_properties(&b, Tol::witness()).unwrap(),
+        mass_properties(&t, Tol::witness()).unwrap(),
+    );
     assert_eq!(m0.volume.to_bits(), m1.volume.to_bits());
     assert_eq!(m0.surface_area.to_bits(), m1.surface_area.to_bits());
 }
@@ -68,7 +76,10 @@ fn quarter_turn_recertifies_and_preserves_mass_properties_close() {
     );
     let t = transform_rigid(&b, &map, Tol::witness()).unwrap();
     tiers_ok(&t);
-    let (m0, m1) = (mass_properties(&b, Tol::witness()).unwrap(), mass_properties(&t, Tol::witness()).unwrap());
+    let (m0, m1) = (
+        mass_properties(&b, Tol::witness()).unwrap(),
+        mass_properties(&t, Tol::witness()).unwrap(),
+    );
     assert!((m0.volume - m1.volume).abs() < 1e-12);
     assert!((m0.surface_area - m1.surface_area).abs() < 1e-12);
 }
@@ -83,8 +94,13 @@ fn transformed_tool_subtracts_exactly() {
     let map = Affine3::translation(Vec3::new(1.0, 1.0, 1.75));
     let placed = transform_rigid(&tool, &map, Tol::witness()).unwrap();
     tiers_ok(&placed);
-    let out = match topo::subtract_with(&base, &placed, &common::flush_declarations(&base, &placed), Tol::witness())
-        .unwrap()
+    let out = match topo::subtract_with(
+        &base,
+        &placed,
+        &common::flush_declarations(&base, &placed),
+        Tol::witness(),
+    )
+    .unwrap()
     {
         BooleanResult::Body(b) => b.body,
         BooleanResult::Empty => panic!("nonempty subtract"),

@@ -70,7 +70,13 @@ fn review_every_sweep_node_hits_the_one_collapsed_frontier_arm() {
                 v_degree: Expr::count(2),
             },
         );
-        let out = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness());
+        let out = evaluate::<f64>(
+            &doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            Tol::witness(),
+        );
         match out.nodes.get(&sweep).expect("result") {
             NodeResult::Failed(e) => {
                 println!("{name}: {:?}", e.kind);
@@ -137,7 +143,13 @@ fn review_recipe_doors_precede_the_sweep_frontier() {
             v_degree: Expr::count(2),
         },
     );
-    let out = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness());
+    let out = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
     match out.nodes.get(&sweep).expect("result") {
         NodeResult::Failed(e) => match &e.kind {
             NodeErrorKind::WrongOperand { input, .. } => assert_eq!(*input, datum),

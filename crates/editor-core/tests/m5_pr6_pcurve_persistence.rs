@@ -21,8 +21,8 @@ mod fixture;
 use editor_core::{
     CancelToken, EvalOptions, NodeResult, ProfileDoc, SplitSide, ValuePayload, evaluate, load, save,
 };
-use topo::Body;
 use geom_core::Tol;
+use topo::Body;
 
 /// Every body in an evaluation, with its node, in evaluation order.
 fn bodies(ev: &editor_core::Evaluation<f64>) -> Vec<Body<f64>> {
@@ -63,7 +63,13 @@ fn cache_dump(bodies: &[Body<f64>]) -> Vec<String> {
 }
 
 fn evaluated(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness())
+    evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
 }
 
 /// The shape (i) corpus document (`cut_cylinder`) really does carry

@@ -21,7 +21,13 @@ use editor_core::{
 use geom_core::Tol;
 
 fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness())
+    evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
 }
 
 /// The plants build their own documents through the public authoring
@@ -47,7 +53,9 @@ fn planted(selection: Vec<StableName>) -> (ProfileDoc, RecipeNodeId) {
             },
         },
     ] {
-        doc = apply(&doc, &edit, Tol::witness()).expect("the fixture builds").doc;
+        doc = apply(&doc, &edit, Tol::witness())
+            .expect("the fixture builds")
+            .doc;
     }
     let applied = apply(
         &doc,
@@ -70,7 +78,8 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
     let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
     let mut doc = ProfileDoc::empty_derived("m6_5_selection_refusals", Tol::witness());
     let insert = |doc: &ProfileDoc, node: Node<editor_core::ProfileProgram>| {
-        let a = apply(doc, &DocEdit::InsertNode { node }, Tol::witness()).expect("the fixture builds");
+        let a =
+            apply(doc, &DocEdit::InsertNode { node }, Tol::witness()).expect("the fixture builds");
         let id = a.record.minted.expect("a minted id");
         (a.doc, id)
     };
@@ -210,9 +219,13 @@ fn a_selection_naming_a_deleted_node_is_node_gone() {
     )
     .expect("the fillet inserts while the spare is live");
     let fillet = with_fillet.record.minted.expect("a minted id");
-    let after = apply(&with_fillet.doc, &DocEdit::DeleteNode { id: spare_id }, Tol::witness())
-        .expect("deleting a node a NAME references is allowed (N5)")
-        .doc;
+    let after = apply(
+        &with_fillet.doc,
+        &DocEdit::DeleteNode { id: spare_id },
+        Tol::witness(),
+    )
+    .expect("deleting a node a NAME references is allowed (N5)")
+    .doc;
     refuses(&after, fillet, |kind| match kind {
         NodeErrorKind::FilletSelectionResolve { error } => match error.as_ref() {
             ResolveError::NodeGone { name, edit } => {

@@ -37,7 +37,10 @@ fn die(x0: f64, y0: f64, z0: f64) -> Body<f64> {
         panic!("die subtract is a body");
     };
     assert!(b.contacts.vv.is_empty() && b.contacts.a_on_b.is_empty());
-    assert_eq!(mass_properties(&b.body, Tol::witness()).unwrap().volume, 0.875);
+    assert_eq!(
+        mass_properties(&b.body, Tol::witness()).unwrap().volume,
+        0.875
+    );
     b.body
 }
 
@@ -54,7 +57,9 @@ fn r6_pocketed_dice_kiss_e2e() {
         validate_pseudomanifold(&assembly.body, &assembly.contacts, Tol::witness()),
         Ok(())
     );
-    let withheld = validate_pseudomanifold(&assembly.body, &ContactRecords::default(), Tol::witness()).unwrap_err();
+    let withheld =
+        validate_pseudomanifold(&assembly.body, &ContactRecords::default(), Tol::witness())
+            .unwrap_err();
     assert!(
         withheld
             .iter()

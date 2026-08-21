@@ -7,9 +7,9 @@ mod common;
 use common::{
     arc_kisses_line, bowtie, chain, circle_h, near_tangent_hole, profile, rect, tangent_hole, tol,
 };
-use geom_core::Tol;
 use geom_core::MarginDiag;
 use geom_core::Point2;
+use geom_core::Tol;
 use profile::{ContactKind, EscalationSite, Open, ProfileError, SegmentRef, SketchPlane, Start};
 
 fn err(p: &profile::Profile<f64>) -> ProfileError {

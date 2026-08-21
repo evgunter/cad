@@ -39,6 +39,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
@@ -46,7 +47,6 @@ use sweep::{Extrusion, Section, extrude, loft_body};
 use topo::{
     Body, BooleanError, ContactRecords, EntityId, ValidationError, validate_pseudomanifold,
 };
-use geom_core::Tol;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -69,7 +69,9 @@ fn cylinder() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0), Tol::witness()).unwrap().body
+    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body
 }
 
 /// A small axis-aligned box of half-width `h` centred at `(cx, 0, ·)`,
@@ -85,7 +87,9 @@ fn small_box(cx: f64, h: f64, z0: f64) -> Body<f64> {
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(0.4), Tol::witness()).unwrap().body
+    extrude(&profile, Extrusion::Distance(0.4), Tol::witness())
+        .unwrap()
+        .body
 }
 
 /// The same box at `z in [0.3, 0.7]`. Against section 1's cylinder
@@ -223,7 +227,9 @@ fn lofted() -> Body<f64> {
         Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
         Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
     ];
-    loft_body::<f64>(&sections, &places, 2, Tol::witness()).unwrap().body
+    loft_body::<f64>(&sections, &places, 2, Tol::witness())
+        .unwrap()
+        .body
 }
 
 /// **Why `NurbsExtentUnsupported` has no end-to-end row, pinned so the
@@ -259,7 +265,8 @@ fn a_lofted_operand_is_refused_at_its_nurbs_edges_before_any_face_box() {
     );
 
     let b = nested_box(20.0, 0.5);
-    let err = topo::boolean::union(&a, &b, Tol::witness()).expect_err("a NURBS operand must refuse typed");
+    let err = topo::boolean::union(&a, &b, Tol::witness())
+        .expect_err("a NURBS operand must refuse typed");
     assert!(
         matches!(err, BooleanError::CurvedEdgeUnsupported { .. }),
         "the operand gate's edge arm is what a lofted body meets, got {err:?}"

@@ -19,6 +19,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec3};
 use mesh::tessellate;
 use mesh::validate::{check_mesh, signed_volume};
@@ -26,7 +27,6 @@ use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanResult};
-use geom_core::Tol;
 
 /// 880383/327680: A with the counter as a true inner loop (genus 1).
 const ORACLE_COUNTER: f64 = 880_383.0 / 327_680.0;
@@ -86,9 +86,13 @@ fn a_prism(loops: Vec<ProfileLoop<f64>>) -> Body<f64> {
         Vec3::new(1.0, 0.0, 0.0),
         Vec3::new(0.0, 1.0, 0.0),
     );
-    extrude(&validated(plane, loops), Extrusion::Distance(2.125), Tol::witness())
-        .expect("extrude A")
-        .body
+    extrude(
+        &validated(plane, loops),
+        Extrusion::Distance(2.125),
+        Tol::witness(),
+    )
+    .expect("extrude A")
+    .body
 }
 
 fn z_prism() -> Body<f64> {

@@ -624,10 +624,12 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
                         let s2 = side(pv).map_err(|diag| BooleanError::Escalated { diag })?;
                         let mut hit = false;
                         if s1 == Sign::Zero {
-                            hit |= vertex_on_face(x_is, y, u, pu, face, &plane, contacts, band, tol)?;
+                            hit |=
+                                vertex_on_face(x_is, y, u, pu, face, &plane, contacts, band, tol)?;
                         }
                         if s2 == Sign::Zero {
-                            hit |= vertex_on_face(x_is, y, v, pv, face, &plane, contacts, band, tol)?;
+                            hit |=
+                                vertex_on_face(x_is, y, v, pv, face, &plane, contacts, band, tol)?;
                         }
                         if hit && let Some(tr) = trace.as_deref_mut() {
                             tr.accepted.push((edge_key, face));

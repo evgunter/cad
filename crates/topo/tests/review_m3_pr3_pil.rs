@@ -7,9 +7,9 @@
 mod common;
 
 use common::prism;
+use geom_core::Tol;
 use geom_core::{Point3, Vec3};
 use topo::{LoopContainment, PointInLoopError, point_in_loop};
-use geom_core::Tol;
 
 fn n_z() -> Vec3<f64> {
     Vec3::new(0.0, 0.0, 1.0)

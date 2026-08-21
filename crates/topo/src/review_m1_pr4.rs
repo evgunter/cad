@@ -185,10 +185,13 @@ fn mk_kill_roundtrip_every_mev_site_case() {
     // vertex).
     let (mut body, _seed, seg) = segment(tol);
     let split_faces = body
-        .mef_chord(MefSite::Chords {
-            he1: seg.he_plus,
-            he2: seg.he_minus,
-        }, tol)
+        .mef_chord(
+            MefSite::Chords {
+                he1: seg.he_plus,
+                he2: seg.he_minus,
+            },
+            tol,
+        )
         .unwrap();
     let before = canonical_form(&body);
     let fan = body
@@ -221,10 +224,13 @@ fn mk_kill_roundtrip_every_mef_site_case() {
     };
     let cycle = body.loop_cycle(first).unwrap();
     let cut = body
-        .mef_chord(MefSite::Chords {
-            he1: cycle[0],
-            he2: cycle[2],
-        }, tol)
+        .mef_chord(
+            MefSite::Chords {
+                he1: cycle[0],
+                he2: cycle[2],
+            },
+            tol,
+        )
         .unwrap();
     body.kef(cut.he_minus).unwrap();
     assert_eq!(validate(&body), Ok(()));
@@ -234,10 +240,13 @@ fn mk_kill_roundtrip_every_mef_site_case() {
     let (mut body, _seed, seg) = segment(tol);
     let before = canonical_form(&body);
     let circ = body
-        .mef_chord(MefSite::Chords {
-            he1: seg.he_plus,
-            he2: seg.he_plus,
-        }, tol)
+        .mef_chord(
+            MefSite::Chords {
+                he1: seg.he_plus,
+                he2: seg.he_plus,
+            },
+            tol,
+        )
         .unwrap();
     body.kef(circ.he_minus).unwrap();
     assert_eq!(validate(&body), Ok(()));
@@ -248,9 +257,12 @@ fn mk_kill_roundtrip_every_mef_site_case() {
     let seed = body.mvfs(p(0.0)).unwrap();
     let before = deep_snapshot(&body);
     let circ = body
-        .mef_chord(MefSite::Lone {
-            r#loop: seed.r#loop,
-        }, tol)
+        .mef_chord(
+            MefSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            tol,
+        )
         .unwrap();
     body.kef(circ.he_minus).unwrap();
     assert_eq!(validate(&body), Ok(()));
@@ -266,10 +278,13 @@ fn mk_kill_roundtrip_every_mef_site_case() {
     let rc = body.loop_cycle(first).unwrap();
     assert!(rc.len() >= 2);
     let cut = body
-        .mef_chord(MefSite::Chords {
-            he1: rc[0],
-            he2: rc[1],
-        }, tol)
+        .mef_chord(
+            MefSite::Chords {
+                he1: rc[0],
+                he2: rc[1],
+            },
+            tol,
+        )
         .unwrap();
     body.kef(cut.he_minus).unwrap();
     assert_eq!(validate(&body), Ok(()));
@@ -281,10 +296,13 @@ fn mk_kill_roundtrip_every_mef_site_case() {
 fn body_with_cycle_ring(tol: Tol) -> (Body<f64>, LoopKey) {
     let (mut body, _seed, seg) = segment(tol);
     let _faces = body
-        .mef_chord(MefSite::Chords {
-            he1: seg.he_plus,
-            he2: seg.he_minus,
-        }, tol)
+        .mef_chord(
+            MefSite::Chords {
+                he1: seg.he_plus,
+                he2: seg.he_minus,
+            },
+            tol,
+        )
         .unwrap();
     let strut = body
         .mev_line(
@@ -378,7 +396,12 @@ fn kev_from_both_ends_of_an_asymmetric_valence_five_split() {
 /// sites with the given candidate coordinates, all mekr sites, all
 /// mfkrh rings, mvfs at the coords) and returns true iff any of them is
 /// isomorphic to `target`.
-fn some_single_op_reaches(body: &Body<f64>, target: &str, coords: &[Point3<f64>], tol: Tol) -> bool {
+fn some_single_op_reaches(
+    body: &Body<f64>,
+    target: &str,
+    coords: &[Point3<f64>],
+    tol: Tol,
+) -> bool {
     let mut candidates: Vec<Body<f64>> = Vec::new();
     // mev Fan (all orbit pairs incl. he1==he2), all candidate coords.
     let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
@@ -521,17 +544,22 @@ fn kef_mate_alone_has_a_single_op_remake_when_survivor_is_bare_outer() {
     // is the pre-kill structure up to face identity (oracle-equal).
     let (mut body, _seed, seg) = segment(tol);
     let circ = body
-        .mef_chord(MefSite::Chords {
-            he1: seg.he_minus,
-            he2: seg.he_minus,
-        }, tol)
+        .mef_chord(
+            MefSite::Chords {
+                he1: seg.he_minus,
+                he2: seg.he_minus,
+            },
+            tol,
+        )
         .unwrap();
     let before = canonical_form(&body);
     let b = body.get_half_edge(circ.he_plus).unwrap().next;
     body.kef(circ.he_plus).unwrap();
     assert_eq!(validate(&body), Ok(()));
     // The single-op re-make:
-    let remake = body.mef_chord(MefSite::Chords { he1: b, he2: b }, tol).unwrap();
+    let remake = body
+        .mef_chord(MefSite::Chords { he1: b, he2: b }, tol)
+        .unwrap();
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(
         canonical_form(&body),
@@ -549,10 +577,13 @@ fn kef_mate_alone_with_ring_on_survivor_has_no_single_op_remake() {
     // the ringed face — wrong body. Exhaustive single-op search.
     let (mut body, _seed, seg) = segment(tol);
     let circ = body
-        .mef_chord(MefSite::Chords {
-            he1: seg.he_minus,
-            he2: seg.he_minus,
-        }, tol)
+        .mef_chord(
+            MefSite::Chords {
+                he1: seg.he_minus,
+                he2: seg.he_minus,
+            },
+            tol,
+        )
         .unwrap();
     // Plant an empty ring on the circular face B (via strut + kemr in
     // B's loop [circ−]).
@@ -718,10 +749,13 @@ fn mfkrh_on_a_planted_ring_disconnects_the_shell_not_negative_genus() {
     // Pillow + planted empty ring: v3 e2 f2 r1, h = 0.
     let (mut body, _seed, seg) = segment(tol);
     let _faces = body
-        .mef_chord(MefSite::Chords {
-            he1: seg.he_plus,
-            he2: seg.he_minus,
-        }, tol)
+        .mef_chord(
+            MefSite::Chords {
+                he1: seg.he_plus,
+                he2: seg.he_minus,
+            },
+            tol,
+        )
         .unwrap();
     let strut = body
         .mev_line(
@@ -816,10 +850,13 @@ fn ngon_pillow(pts: &[Point3<f64>], tol: Tol) -> Body<f64> {
             )
             .unwrap();
     }
-    body.mef_chord(MefSite::Chords {
-        he1: first.he_plus,
-        he2: last.he_minus,
-    }, tol)
+    body.mef_chord(
+        MefSite::Chords {
+            he1: first.he_plus,
+            he2: last.he_minus,
+        },
+        tol,
+    )
     .unwrap();
     assert_eq!(validate(&body), Ok(()));
     body
@@ -962,10 +999,13 @@ fn oracle_distinguishes_ring_attachment_even_at_shared_coordinates() {
     let build = |split: bool| {
         let (mut body, _seed, seg) = segment(tol);
         let faces = body
-            .mef_chord(MefSite::Chords {
-                he1: seg.he_plus,
-                he2: seg.he_minus,
-            }, tol)
+            .mef_chord(
+                MefSite::Chords {
+                    he1: seg.he_plus,
+                    he2: seg.he_minus,
+                },
+                tol,
+            )
             .unwrap();
         let plant = |body: &mut Body<f64>, at: HalfEdgeKey| {
             let strut = body
@@ -1028,10 +1068,13 @@ fn carve_hole(
         );
     }
     let membrane = body
-        .mef_chord(MefSite::Chords {
-            he1: rim[0].he_plus,
-            he2: rim.last().unwrap().he_minus,
-        }, tol)
+        .mef_chord(
+            MefSite::Chords {
+                he1: rim[0].he_plus,
+                he2: rim.last().unwrap().he_minus,
+            },
+            tol,
+        )
         .unwrap();
     let mut drops: Vec<MevCreated> = Vec::new();
     for (i, dp) in drop_pts.iter().enumerate() {
@@ -1055,20 +1098,26 @@ fn carve_hole(
     let mut walls: Vec<crate::euler::MefCreated> = Vec::new();
     for i in 0..drops.len() - 1 {
         walls.push(
-            body.mef_chord(MefSite::Chords {
-                he1: drops[i].he_minus,
-                he2: drops[i + 1].he_minus,
-            }, tol)
+            body.mef_chord(
+                MefSite::Chords {
+                    he1: drops[i].he_minus,
+                    he2: drops[i + 1].he_minus,
+                },
+                tol,
+            )
             .unwrap(),
         );
     }
     let he_first_far = body
         .find_half_edge(membrane.face, drops[0].vertex, drops[1].vertex)
         .unwrap();
-    body.mef_chord(MefSite::Chords {
-        he1: drops.last().unwrap().he_minus,
-        he2: he_first_far,
-    }, tol)
+    body.mef_chord(
+        MefSite::Chords {
+            he1: drops.last().unwrap().he_minus,
+            he2: he_first_far,
+        },
+        tol,
+    )
     .unwrap();
     body.kfmrh(f_to, membrane.face).unwrap();
     assert_eq!(validate(body), Ok(()));
@@ -1126,10 +1175,13 @@ fn failing_kill_calls_consume_no_keys_between_kills() {
             assert!(body.kev(HalfEdgeKey::default()).is_err()); // stale
         }
         let split = body
-            .mef_chord(MefSite::Chords {
-                he1: seg.he_plus,
-                he2: seg.he_minus,
-            }, tol)
+            .mef_chord(
+                MefSite::Chords {
+                    he1: seg.he_plus,
+                    he2: seg.he_minus,
+                },
+                tol,
+            )
             .unwrap();
         if with_failures {
             assert!(body.kef(HalfEdgeKey::default()).is_err()); // stale
@@ -1151,10 +1203,13 @@ fn failing_kill_calls_consume_no_keys_between_kills() {
             assert!(body.kvfs(seed.solid).is_err());
         }
         let cut = body
-            .mef_chord(MefSite::Chords {
-                he1: split.he_minus,
-                he2: seg.he_plus,
-            }, tol)
+            .mef_chord(
+                MefSite::Chords {
+                    he1: split.he_minus,
+                    he2: seg.he_plus,
+                },
+                tol,
+            )
             .unwrap();
         body.kef(cut.he_minus).unwrap();
         body
@@ -1213,10 +1268,13 @@ fn kef_rejects_a_corrupt_edge_bijection() {
     let tol = Tol::witness();
     let (mut body, _seed, seg) = segment(tol);
     let split = body
-        .mef_chord(MefSite::Chords {
-            he1: seg.he_plus,
-            he2: seg.he_minus,
-        }, tol)
+        .mef_chord(
+            MefSite::Chords {
+                he1: seg.he_plus,
+                he2: seg.he_minus,
+            },
+            tol,
+        )
         .unwrap();
     // Corrupt: seg.edge no longer claims seg.he_plus.
     body.get_edge_mut(seg.edge).unwrap().he_plus = split.he_plus;
@@ -1618,9 +1676,12 @@ fn same_face_self_loop_bridge_has_no_direct_killer_but_mfkrh_frees_it() {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(p(0.0)).unwrap();
     let circ = body
-        .mef_chord(MefSite::Lone {
-            r#loop: seed.r#loop,
-        }, tol)
+        .mef_chord(
+            MefSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            tol,
+        )
         .unwrap();
     body.kfmrh(seed.face, circ.face).unwrap();
     assert_eq!(validate(&body), Ok(()));

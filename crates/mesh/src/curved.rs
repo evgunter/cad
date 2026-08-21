@@ -689,8 +689,8 @@ mod tests {
     //! argument rests on, the refusal itself, and the sweep showing
     //! nothing this build authors trips it.
 
-    use geom_core::Tol;
     use super::*;
+    use geom_core::Tol;
     use geom_core::{Affine3, Point2, Vec2, Vec3};
     use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile};
     use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
@@ -805,9 +805,14 @@ mod tests {
             ProfileVertex::new(p2(0.0, -1.0), 1.0),
             ProfileVertex::new(p2(0.0, 1.0), 0.0),
         ]);
-        revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness())
-            .unwrap()
-            .body
+        revolve(
+            &validated(vec![lp]),
+            axis_y(),
+            Revolution::Full,
+            Tol::witness(),
+        )
+        .unwrap()
+        .body
     }
 
     /// A partial-revolve sphere band — the pole-to-pole wedge whose
@@ -818,23 +823,38 @@ mod tests {
             ProfileVertex::new(p2(0.0, -1.0), 1.0),
             ProfileVertex::new(p2(0.0, 1.0), 0.0),
         ]);
-        revolve(&validated(vec![lp]), axis_y(), Revolution::Partial(theta), Tol::witness())
-            .unwrap()
-            .body
+        revolve(
+            &validated(vec![lp]),
+            axis_y(),
+            Revolution::Partial(theta),
+            Tol::witness(),
+        )
+        .unwrap()
+        .body
     }
 
     fn cone_body() -> Body<f64> {
         let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(0.0, 1.0)]);
-        revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness())
-            .unwrap()
-            .body
+        revolve(
+            &validated(vec![lp]),
+            axis_y(),
+            Revolution::Full,
+            Tol::witness(),
+        )
+        .unwrap()
+        .body
     }
 
     fn washer() -> Body<f64> {
         let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
-        revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness())
-            .unwrap()
-            .body
+        revolve(
+            &validated(vec![lp]),
+            axis_y(),
+            Revolution::Full,
+            Tol::witness(),
+        )
+        .unwrap()
+        .body
     }
 
     fn donut() -> Body<f64> {
@@ -842,16 +862,26 @@ mod tests {
             ProfileVertex::new(p2(2.0, -0.5), 1.0),
             ProfileVertex::new(p2(2.0, 0.5), 1.0),
         ]);
-        revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness())
-            .unwrap()
-            .body
+        revolve(
+            &validated(vec![lp]),
+            axis_y(),
+            Revolution::Full,
+            Tol::witness(),
+        )
+        .unwrap()
+        .body
     }
 
     fn wedge(theta: f64) -> Body<f64> {
         let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
-        revolve(&validated(vec![lp]), axis_y(), Revolution::Partial(theta), Tol::witness())
-            .unwrap()
-            .body
+        revolve(
+            &validated(vec![lp]),
+            axis_y(),
+            Revolution::Partial(theta),
+            Tol::witness(),
+        )
+        .unwrap()
+        .body
     }
 
     /// Axis-touching partial wedge (`tests/common::axis_wedge`): the
@@ -860,9 +890,14 @@ mod tests {
     /// *because the walk is hardest there*.
     fn axis_wedge(theta: f64) -> Body<f64> {
         let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
-        revolve(&validated(vec![lp]), axis_y(), Revolution::Partial(theta), Tol::witness())
-            .unwrap()
-            .body
+        revolve(
+            &validated(vec![lp]),
+            axis_y(),
+            Revolution::Partial(theta),
+            Tol::witness(),
+        )
+        .unwrap()
+        .body
     }
 
     /// The mirror-nappe diamond (`review_m2_pr6_walk_shapes.rs`'s
@@ -871,9 +906,14 @@ mod tests {
     /// the other hardest-walk shape.
     fn mirror_nappe(theta: f64) -> Body<f64> {
         let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 1.0), p2(1.0, 2.0)]);
-        revolve(&validated(vec![lp]), axis_y(), Revolution::Partial(theta), Tol::witness())
-            .unwrap()
-            .body
+        revolve(
+            &validated(vec![lp]),
+            axis_y(),
+            Revolution::Partial(theta),
+            Tol::witness(),
+        )
+        .unwrap()
+        .body
     }
 
     fn rounded_prism() -> Body<f64> {
@@ -892,9 +932,13 @@ mod tests {
         ]);
         let n = lp.vertices().len();
         lp = lp.with_tangent_joints((0..n).collect());
-        extrude(&validated(vec![lp]), Extrusion::Distance(1.0), Tol::witness())
-            .unwrap()
-            .body
+        extrude(
+            &validated(vec![lp]),
+            Extrusion::Distance(1.0),
+            Tol::witness(),
+        )
+        .unwrap()
+        .body
     }
 
     /// The die pip (`sweep`'s `m5_s13_pips` shape): a 4 × 4 × 1 slab
@@ -908,18 +952,31 @@ mod tests {
             p2(4.0, 4.0),
             p2(0.0, 4.0),
         ]);
-        let slab = extrude(&validated(vec![lp]), Extrusion::Distance(1.0), Tol::witness())
-            .unwrap()
-            .body;
+        let slab = extrude(
+            &validated(vec![lp]),
+            Extrusion::Distance(1.0),
+            Tol::witness(),
+        )
+        .unwrap()
+        .body;
         let half = ProfileLoop::new(vec![
             ProfileVertex::new(p2(0.0, -0.5), 1.0),
             ProfileVertex::new(p2(0.0, 0.5), 0.0),
         ]);
-        let ball = revolve(&validated(vec![half]), axis_y(), Revolution::Full, Tol::witness())
-            .unwrap()
-            .body;
-        let ball =
-            topo::transform_rigid(&ball, &Affine3::translation(Vec3::new(2.0, 2.0, 1.2)), Tol::witness()).unwrap();
+        let ball = revolve(
+            &validated(vec![half]),
+            axis_y(),
+            Revolution::Full,
+            Tol::witness(),
+        )
+        .unwrap()
+        .body;
+        let ball = topo::transform_rigid(
+            &ball,
+            &Affine3::translation(Vec3::new(2.0, 2.0, 1.2)),
+            Tol::witness(),
+        )
+        .unwrap();
         topo::boolean::subtract(&slab, &ball, Tol::witness())
             .expect("the die pip cuts")
             .body()
@@ -1575,8 +1632,10 @@ mod tests {
             .certified()
             .unwrap()
             .params();
-        body.split_edge(ek, t0 + (t1 - t0) * 0.312_9, Tol::witness()).unwrap();
-        body.split_edge(ek, t0 + (t1 - t0) * 0.156_45, Tol::witness()).unwrap();
+        body.split_edge(ek, t0 + (t1 - t0) * 0.312_9, Tol::witness())
+            .unwrap();
+        body.split_edge(ek, t0 + (t1 - t0) * 0.156_45, Tol::witness())
+            .unwrap();
         // Deliberately irrational-ish: an axis-aligned or dyadic
         // placement keeps the sub-edge azimuths bitwise equal and the
         // row goes green for the wrong reason.

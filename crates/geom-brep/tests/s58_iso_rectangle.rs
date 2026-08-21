@@ -30,8 +30,8 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::props::{LoopEdge, MaterialSign, PropsError, boundary_material_sign, curved_face};
-use geom_core::{Band, Point3, Sign, Vec3};
 use geom_core::Tol;
+use geom_core::{Band, Point3, Sign, Vec3};
 
 fn v3(x: f64, y: f64, z: f64) -> Vec3<f64> {
     Vec3::new(x, y, z)

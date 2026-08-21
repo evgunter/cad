@@ -22,9 +22,9 @@
 use geom::NurbsCurve3;
 use geom::{NurbsSurface, Surface};
 use geom_brep::{EdgeNurbsLane, PlaneNurbsRefusal};
+use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point3, Vec3};
-use geom_core::Tol;
 
 fn quarter_cylinder_wall() -> NurbsSurface<f64> {
     let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();

@@ -83,7 +83,9 @@ fn p(x: f64) -> Point3<f64> {
     Point3::new(x, 0.0, 0.0)
 }
 
-fn pillow(tol: Tol) -> (
+fn pillow(
+    tol: Tol,
+) -> (
     Body<f64>,
     crate::MvfsCreated,
     crate::MevCreated,
@@ -101,10 +103,13 @@ fn pillow(tol: Tol) -> (
         )
         .unwrap();
     let split = body
-        .mef_chord(MefSite::Chords {
-            he1: seg.he_plus,
-            he2: seg.he_minus,
-        }, tol)
+        .mef_chord(
+            MefSite::Chords {
+                he1: seg.he_plus,
+                he2: seg.he_minus,
+            },
+            tol,
+        )
         .unwrap();
     (body, seed, seg, split)
 }
@@ -137,10 +142,13 @@ fn torn_cycle_yields_typed_error() {
     let (mut body, _, seg, split) = pillow(tol);
     body.get_half_edge_mut(seg.he_plus).unwrap().next = split.he_plus;
     let err = body
-        .mef_chord(MefSite::Chords {
-            he1: seg.he_plus,
-            he2: split.he_minus,
-        }, tol)
+        .mef_chord(
+            MefSite::Chords {
+                he1: seg.he_plus,
+                he2: split.he_minus,
+            },
+            tol,
+        )
         .unwrap_err();
     assert!(matches!(err, EulerOpError::LoopCycleBroken { .. }));
 }
@@ -186,10 +194,13 @@ fn large_torn_body_terminates_quickly() {
     body.get_half_edge_mut(seg.he_plus).unwrap().next = seg.he_plus;
     let start = std::time::Instant::now();
     let err = body
-        .mef_chord(MefSite::Chords {
-            he1: seg.he_plus,
-            he2: target,
-        }, tol)
+        .mef_chord(
+            MefSite::Chords {
+                he1: seg.he_plus,
+                he2: target,
+            },
+            tol,
+        )
         .unwrap_err();
     assert!(matches!(err, EulerOpError::LoopCycleBroken { .. }));
     let walked = start.elapsed();
@@ -283,10 +294,13 @@ fn debug_postcondition_fires_on_corrupt_input() {
         let foreign = seed.r#loop;
         body.get_half_edge_mut(seg.he_plus).unwrap().parent_loop = foreign;
         body.get_half_edge_mut(split.he_minus).unwrap().parent_loop = foreign;
-        let _ = body.mef_chord(MefSite::Chords {
-            he1: seg.he_plus,
-            he2: split.he_minus,
-        }, tol);
+        let _ = body.mef_chord(
+            MefSite::Chords {
+                he1: seg.he_plus,
+                he2: split.he_minus,
+            },
+            tol,
+        );
     });
     std::panic::set_hook(previous);
     assert!(
@@ -321,9 +335,12 @@ fn empty_body_error_paths() {
         .is_err()
     );
     assert!(
-        body.mef_chord(MefSite::Lone {
-            r#loop: crate::LoopKey::default()
-        }, tol)
+        body.mef_chord(
+            MefSite::Lone {
+                r#loop: crate::LoopKey::default()
+            },
+            tol
+        )
         .is_err()
     );
     assert!(
@@ -338,10 +355,13 @@ fn empty_body_error_paths() {
         .is_err()
     );
     assert!(
-        body.mef_chord(MefSite::Chords {
-            he1: crate::HalfEdgeKey::default(),
-            he2: crate::HalfEdgeKey::default(),
-        }, tol)
+        body.mef_chord(
+            MefSite::Chords {
+                he1: crate::HalfEdgeKey::default(),
+                he2: crate::HalfEdgeKey::default(),
+            },
+            tol
+        )
         .is_err()
     );
     assert_eq!(body.vertices().count(), 0);

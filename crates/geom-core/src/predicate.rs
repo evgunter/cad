@@ -865,8 +865,8 @@ impl Decide for f64 {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use crate::tolerance::Tol;
     use super::*;
+    use crate::tolerance::Tol;
     use proptest::prelude::*;
 
     // Global-state discipline (see `crate::tolerance`'s test module):
@@ -1017,7 +1017,9 @@ mod tests {
         // The lever-arm variant (an invalid arm returns before the global
         // tolerance is read, so this stays pure).
         assert_eq!(
-            Band::angular_at(Tol::witness(), f64::NEG_INFINITY).unwrap_err().to_string(),
+            Band::angular_at(Tol::witness(), f64::NEG_INFINITY)
+                .unwrap_err()
+                .to_string(),
             "invalid band: lever arm = -inf (must be finite and > 0)"
         );
     }
@@ -1058,7 +1060,8 @@ mod tests {
             );
         }
         // NaN separately (NaN != NaN defeats assert_eq on the error).
-        let err = Band::angular_at(Tol::witness(), f64::NAN).expect_err("NaN lever arm must be rejected");
+        let err =
+            Band::angular_at(Tol::witness(), f64::NAN).expect_err("NaN lever arm must be rejected");
         assert!(matches!(
             err,
             BandError::InvalidLeverArm { value } if value.is_nan()

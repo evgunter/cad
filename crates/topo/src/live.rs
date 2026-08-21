@@ -113,11 +113,11 @@ impl<T: Real> Body<T> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
-    use geom_core::Tol;
     use super::Live;
     use crate::body::Body;
     use crate::entity::{EdgeKey, HalfEdge, HalfEdgeKey, LoopKey, VertexKey};
     use crate::fixtures::pillow;
+    use geom_core::Tol;
 
     fn scaffold() -> HalfEdge {
         HalfEdge {

@@ -14,11 +14,11 @@
 mod revolve_common;
 
 use geom_core::Point2;
+use geom_core::Tol;
 use profile::{ProfileLoop, ProfileVertex, RawLoop, ValidatedProfile};
 use revolve_common::*;
 use sweep::{Revolution, Revolved, revolve};
 use topo::{validate, validate_closed};
-use geom_core::Tol;
 
 /// The canonical vertex index whose authored sketch point is `p`.
 fn canon_index(vp: &ValidatedProfile<f64>, li: usize, p: Point2<f64>) -> usize {

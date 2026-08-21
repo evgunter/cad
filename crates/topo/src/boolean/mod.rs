@@ -81,7 +81,9 @@ pub mod tables;
 pub(crate) mod vtxfac;
 mod zip;
 
-use geom_core::{Band, BandError, Bounds, COINCIDENCE_RECOURSE, Decide, Indeterminate, MarginDiag, Real, Tol};
+use geom_core::{
+    Band, BandError, Bounds, COINCIDENCE_RECOURSE, Decide, Indeterminate, MarginDiag, Real, Tol,
+};
 
 use crate::body::Body;
 use crate::chord_join::SplitJoinError;
@@ -1231,7 +1233,14 @@ pub fn boolean_reduce_declared<T: Decide + Bounds>(
     decls: &BooleanDeclarations,
     tol: Tol,
 ) -> Result<BooleanReduction<T>, BooleanError> {
-    boolean_reduce_declared_strategy(op, a_operand, b_operand, decls, SweepStrategy::Realized, tol)
+    boolean_reduce_declared_strategy(
+        op,
+        a_operand,
+        b_operand,
+        decls,
+        SweepStrategy::Realized,
+        tol,
+    )
 }
 
 /// The differential suite's sweep-level door (PERF-PLAN §4.4 / C10,
@@ -1382,15 +1391,31 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
 
     // Vertex-on-face classification (sonva then sonvb, as 15.5).
     for &c in &contacts.a_on_b {
-        let out =
-            vtxfac::classify_vertex_on_face(&mut a, &mut b, Operand::A, c, op, &declared, band, tol)?;
+        let out = vtxfac::classify_vertex_on_face(
+            &mut a,
+            &mut b,
+            Operand::A,
+            c,
+            op,
+            &declared,
+            band,
+            tol,
+        )?;
         null_edges.extend(out.edges);
         null_pairs.extend(out.pairs);
         pierce_rings.extend(out.ring);
     }
     for &c in &contacts.b_on_a {
-        let out =
-            vtxfac::classify_vertex_on_face(&mut b, &mut a, Operand::B, c, op, &declared, band, tol)?;
+        let out = vtxfac::classify_vertex_on_face(
+            &mut b,
+            &mut a,
+            Operand::B,
+            c,
+            op,
+            &declared,
+            band,
+            tol,
+        )?;
         null_edges.extend(out.edges);
         null_pairs.extend(out.pairs);
         pierce_rings.extend(out.ring);

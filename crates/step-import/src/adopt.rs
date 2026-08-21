@@ -539,14 +539,17 @@ fn adopt_edges(
                 }
             }
             conventional = nurbs_rim
-                || (coincident_surfaces(body.get_surface(fs_plus), body.get_surface(fs_minus), tol)
-                    && carrier_on_surface(
-                        body.get_surface(fs_plus),
-                        &spec.carrier,
-                        spec.t0,
-                        spec.t1,
-                        tol,
-                    ));
+                || (coincident_surfaces(
+                    body.get_surface(fs_plus),
+                    body.get_surface(fs_minus),
+                    tol,
+                ) && carrier_on_surface(
+                    body.get_surface(fs_plus),
+                    &spec.carrier,
+                    spec.t0,
+                    spec.t1,
+                    tol,
+                ));
         } else {
             let periodic = body.get_surface(fs_plus).is_some_and(|s| {
                 matches!(

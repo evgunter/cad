@@ -20,12 +20,13 @@
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Band, Bounds, Decide, Indeterminate, Interval, MarginDiag, Real, Sign, Tolerance};
 use geom_core::Tol;
+use geom_core::{Band, Bounds, Decide, Indeterminate, Interval, MarginDiag, Real, Sign, Tolerance};
 
 #[test]
 fn interval_classification_tracks_the_global_tolerance() {
-    let band = Band::linear(Tol::witness()).expect("the run's eps is sane, so K*eps cannot overflow");
+    let band =
+        Band::linear(Tol::witness()).expect("the run's eps is sane, so K*eps cannot overflow");
     let eps = Tol::witness().get().eps;
 
     // Point enclosures land where their f64 margins would (the two

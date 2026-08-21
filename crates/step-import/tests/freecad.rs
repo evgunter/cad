@@ -21,8 +21,8 @@ mod common;
 use std::f64::consts::PI;
 
 use common::{FREECAD_FIXTURES, census, freecad_fixture};
-use step_import::{ImportOptions, StepImport, import_step};
 use geom_core::Tol;
+use step_import::{ImportOptions, StepImport, import_step};
 
 /// What a FreeCAD fixture must import to.
 struct Expect {
@@ -351,7 +351,8 @@ fn foreign_corpus() {
             "{name}: reported structure normalizations"
         );
 
-        let props = topo::mass_properties(&body, Tol::witness()).unwrap_or_else(|err| panic!("{name}: {err}"));
+        let props = topo::mass_properties(&body, Tol::witness())
+            .unwrap_or_else(|err| panic!("{name}: {err}"));
         // mm³ → m³ (the generator's unit is FreeCAD's mm).
         let expected_m3 = e.volume_mm3 * 1e-9;
         // Roundoff: the volume is a fixed-order sum of per-face
@@ -375,7 +376,11 @@ fn foreign_corpus() {
 
         assert_eq!(topo::validate(&body), Ok(()), "{name}: tier 1");
         assert_eq!(topo::validate_closed(&body), Ok(()), "{name}: tier 2");
-        assert_eq!(topo::validate_geometric(&body, Tol::witness()), Ok(()), "{name}: tier 3");
+        assert_eq!(
+            topo::validate_geometric(&body, Tol::witness()),
+            Ok(()),
+            "{name}: tier 3"
+        );
     }
 }
 
@@ -494,8 +499,12 @@ fn cross_dialect_fixed_point() {
             export1, export2,
             "{name}: the second export must be byte-identical to the first"
         );
-        let v1 = topo::mass_properties(&body1, Tol::witness()).unwrap().volume;
-        let v2 = topo::mass_properties(&body2, Tol::witness()).unwrap().volume;
+        let v1 = topo::mass_properties(&body1, Tol::witness())
+            .unwrap()
+            .volume;
+        let v2 = topo::mass_properties(&body2, Tol::witness())
+            .unwrap()
+            .volume;
         // Bit-identity everywhere but ONE named fixture. Byte-identical
         // exports already prove both bodies carry the same stated
         // geometry, so any residue is arithmetic, not data — and the
@@ -529,7 +538,10 @@ fn cross_dialect_fixed_point() {
 /// S9 flip rows, where what matters is that two imports describe the
 /// same solid (or a stated multiple of it).
 fn volume_mm3(body: &topo::Body<f64>) -> f64 {
-    topo::mass_properties(body, Tol::witness()).expect("mass properties").volume * 1e9
+    topo::mass_properties(body, Tol::witness())
+        .expect("mass properties")
+        .volume
+        * 1e9
 }
 
 /// The least x over a body's points, in mm — the one scalar that
@@ -1365,7 +1377,11 @@ fn pi_derived_truncation_adopts_under_the_flat_budget() {
         );
         let (body, eps_in, _) = freecad_body(name);
         assert_eq!(eps_in, 1e-10);
-        assert_eq!(topo::validate_geometric(&body, Tol::witness()), Ok(()), "{name}: tier 3");
+        assert_eq!(
+            topo::validate_geometric(&body, Tol::witness()),
+            Ok(()),
+            "{name}: tier 3"
+        );
         println!(
             "{name}: semi-angle {printed} misses its identity by {miss:e}, adopted at ε_in {eps_in:e}"
         );

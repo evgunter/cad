@@ -35,7 +35,13 @@ use fixture::{desc, insert, len};
 use geom_core::Tol;
 
 fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness())
+    evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
 }
 
 /// A box extruded from a square footprint sketched at height `z0`.
@@ -142,7 +148,11 @@ fn separated_and_unevaluated_answer_empty() {
     );
     let (doc, far) = box_at(doc, 3.0, (2.0, 2.0), (3.0, 3.0), 1.0);
     let ev = eval(&doc);
-    assert!(find_flush_candidates(&ev, base, far, Tol::witness()).unwrap().is_empty());
+    assert!(
+        find_flush_candidates(&ev, base, far, Tol::witness())
+            .unwrap()
+            .is_empty()
+    );
     // A foreign id has no value here.
     let foreign = RecipeNodeId(999);
     assert!(

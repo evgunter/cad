@@ -8,12 +8,12 @@
 
 use geom::Surface;
 use geom_brep::EdgeGeometry;
+use geom_core::Tol;
 use geom_core::{Bounds, Interval, Point2, Real, Tolerance};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, extrude};
 use topo::{validate, validate_closed, validate_geometric};
-use geom_core::Tol;
 
 fn p2(x: f64, y: f64) -> Point2<Interval> {
     Point2::new(Interval::from_f64(x), Interval::from_f64(y))

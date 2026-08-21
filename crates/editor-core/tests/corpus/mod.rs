@@ -38,8 +38,8 @@ use editor_core::{
     evaluate,
 };
 use geom_core::Decide;
-use topo::Body;
 use geom_core::Tol;
+use topo::Body;
 
 pub mod boss;
 pub mod cut_cylinder;
@@ -194,7 +194,13 @@ pub fn cone(doc: &ProfileDoc, root: RecipeNodeId) -> BTreeSet<RecipeNodeId> {
 pub fn eval<T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane>(
     doc: &ProfileDoc,
 ) -> Evaluation<T> {
-    evaluate::<T>(doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness())
+    evaluate::<T>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
 }
 
 /// The per-node failure report of an evaluation (empty when green).

@@ -27,8 +27,8 @@
 //! make this suite green.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use step_import::{ImportOptions, StepImport, import_step};
 use geom_core::Tol;
+use step_import::{ImportOptions, StepImport, import_step};
 
 fn fixture(name: &str) -> String {
     let path = format!(

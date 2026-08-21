@@ -13,13 +13,13 @@
 mod common;
 
 use common::{mapped_cube, prism_z};
+use geom_core::Tol;
 use geom_core::{Decide, Point3, Vec3};
 use topo::{
     Body, BooleanBody, BooleanError, BooleanResult, ContactRecords, ValidationError,
     intersect_with, mass_properties, subtract_with, union, union_with, validate_geometric,
     validate_pseudomanifold,
 };
-use geom_core::Tol;
 
 fn brick<T: Decide + geom_core::Bounds + topo::PropsQuadLane>(
     x: (f64, f64),
@@ -29,8 +29,12 @@ fn brick<T: Decide + geom_core::Bounds + topo::PropsQuadLane>(
     prism_z::<T>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
 }
 
-type BoolOp<T> =
-    fn(&Body<T>, &Body<T>, &topo::BooleanDeclarations, Tol) -> Result<BooleanResult<T>, BooleanError>;
+type BoolOp<T> = fn(
+    &Body<T>,
+    &Body<T>,
+    &topo::BooleanDeclarations,
+    Tol,
+) -> Result<BooleanResult<T>, BooleanError>;
 
 /// Runs one declared op (M4 PR 5: the corpus declares its intended
 /// flush contacts — the recipe intent, test form).
@@ -48,8 +52,12 @@ fn run_body<T: Decide + geom_core::Bounds + topo::PropsQuadLane>(
 /// The green/red promotion pair: 3′ passes with the carried contacts,
 /// and withholding them yields `UndeclaredContact` (and nothing else).
 fn assert_promoted<T: Decide + geom_core::Bounds + topo::PropsQuadLane>(b: &BooleanBody<T>) {
-    assert_eq!(validate_pseudomanifold(&b.body, &b.contacts, Tol::witness()), Ok(()));
-    let withheld = validate_pseudomanifold(&b.body, &ContactRecords::default(), Tol::witness()).unwrap_err();
+    assert_eq!(
+        validate_pseudomanifold(&b.body, &b.contacts, Tol::witness()),
+        Ok(())
+    );
+    let withheld =
+        validate_pseudomanifold(&b.body, &ContactRecords::default(), Tol::witness()).unwrap_err();
     assert!(!withheld.is_empty());
     for e in &withheld {
         assert!(
@@ -110,15 +118,25 @@ fn skew_edges_scenario<T: Decide + geom_core::Bounds + topo::PropsQuadLane>() {
     let body = run_body(union_with as BoolOp<T>, &a, &b);
     assert!(body.contacts.vv.is_empty());
     assert!(body.contacts.a_on_b.is_empty() && body.contacts.b_on_a.is_empty());
-    assert_eq!(validate_pseudomanifold(&body.body, &body.contacts, Tol::witness()), Ok(()));
-    assert_eq!(validate_geometric(&body.body, Tol::witness()), Ok(()), "3′ ≡ tier 3 here");
+    assert_eq!(
+        validate_pseudomanifold(&body.body, &body.contacts, Tol::witness()),
+        Ok(())
+    );
+    assert_eq!(
+        validate_geometric(&body.body, Tol::witness()),
+        Ok(()),
+        "3′ ≡ tier 3 here"
+    );
     assert!(matches!(
         intersect_with(&a, &b, &common::flush_declarations(&a, &b), Tol::witness()).unwrap(),
         BooleanResult::Empty
     ));
     let sub = run_body(subtract_with as BoolOp<T>, &a, &b);
     assert!(sub.contacts.vv.is_empty() && sub.contacts.b_on_a.is_empty());
-    assert_eq!(validate_pseudomanifold(&sub.body, &sub.contacts, Tol::witness()), Ok(()));
+    assert_eq!(
+        validate_pseudomanifold(&sub.body, &sub.contacts, Tol::witness()),
+        Ok(())
+    );
 }
 
 #[test]
@@ -191,7 +209,10 @@ fn flush_rests_scenario<T: Decide + geom_core::Bounds + topo::PropsQuadLane>() {
     let pillar = brick::<T>((1.0, 2.0), (1.0, 2.0), (1.0, 3.0));
     let body = run_body(union_with as BoolOp<T>, &slab, &pillar);
     assert!(body.contacts.vv.is_empty() && body.contacts.b_on_a.is_empty());
-    assert_eq!(validate_pseudomanifold(&body.body, &body.contacts, Tol::witness()), Ok(()));
+    assert_eq!(
+        validate_pseudomanifold(&body.body, &body.contacts, Tol::witness()),
+        Ok(())
+    );
     assert_eq!(validate_geometric(&body.body, Tol::witness()), Ok(()));
 
     let corner = brick::<T>((0.0, 1.0), (0.0, 1.0), (1.0, 3.0));
@@ -219,7 +240,10 @@ fn flush_rests_scenario<T: Decide + geom_core::Bounds + topo::PropsQuadLane>() {
     );
     assert_eq!(validate_geometric(&glued.body, Tol::witness()), Ok(()));
     let sub = run_body(subtract_with as BoolOp<T>, &slab, &corner);
-    assert_eq!(validate_pseudomanifold(&sub.body, &sub.contacts, Tol::witness()), Ok(()));
+    assert_eq!(
+        validate_pseudomanifold(&sub.body, &sub.contacts, Tol::witness()),
+        Ok(())
+    );
 }
 
 #[test]
@@ -260,7 +284,10 @@ fn tier3_equivalence_scenario<T: Decide + geom_core::Bounds + topo::PropsQuadLan
     let body = run_body(union_with as BoolOp<T>, &a, &b);
     assert!(body.contacts.vv.is_empty());
     assert_eq!(validate_geometric(&body.body, Tol::witness()), Ok(()));
-    assert_eq!(validate_pseudomanifold(&body.body, &body.contacts, Tol::witness()), Ok(()));
+    assert_eq!(
+        validate_pseudomanifold(&body.body, &body.contacts, Tol::witness()),
+        Ok(())
+    );
 }
 
 #[test]
@@ -315,7 +342,8 @@ fn hand_built_self_intersection_is_undeclared() {
     common::cube_into(&mut body, |x, y, z| {
         Point3::new(1.0 + 2.0 * x, 1.0 + 2.0 * y, 1.0 + 2.0 * z)
     });
-    let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness()).unwrap_err();
+    let errors =
+        validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness()).unwrap_err();
     assert!(!errors.is_empty());
     assert!(
         errors
@@ -365,7 +393,10 @@ fn closure_kiss_vs_mover() {
     // records — and the 3′ gate refuses it LOUDLY (the documented
     // closure gap; row 1 of the table).
     let r = run_body(union_with as BoolOp<f64>, &base.body, &mover);
-    assert_eq!(mass_properties(&r.body, Tol::witness()).unwrap().volume, 2.875);
+    assert_eq!(
+        mass_properties(&r.body, Tol::witness()).unwrap().volume,
+        2.875
+    );
     let errors = validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()).unwrap_err();
     assert!(
         errors
@@ -376,7 +407,10 @@ fn closure_kiss_vs_mover() {
 
     // ∖: same shape — closes, kiss persists, gate refuses loudly.
     let r = run_body(subtract_with as BoolOp<f64>, &base.body, &mover);
-    assert_eq!(mass_properties(&r.body, Tol::witness()).unwrap().volume, 1.875);
+    assert_eq!(
+        mass_properties(&r.body, Tol::witness()).unwrap().volume,
+        1.875
+    );
     let errors = validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()).unwrap_err();
     assert!(
         errors
@@ -388,8 +422,14 @@ fn closure_kiss_vs_mover() {
     // ∩: the kiss shell drops out of the result — certified 3′ green
     // with the exact volume (row 3: closes cleanly).
     let r = run_body(intersect_with as BoolOp<f64>, &base.body, &mover);
-    assert_eq!(mass_properties(&r.body, Tol::witness()).unwrap().volume, 0.125);
-    assert_eq!(validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()), Ok(()));
+    assert_eq!(
+        mass_properties(&r.body, Tol::witness()).unwrap().volume,
+        0.125
+    );
+    assert_eq!(
+        validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()),
+        Ok(())
+    );
 }
 
 /// Closure vs a SECOND toucher at the same locus: a third brick
@@ -433,11 +473,20 @@ fn closure_consumed_base_stays_certified() {
     let slab = brick::<f64>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
     let pillar = brick::<f64>((1.0, 2.0), (1.0, 2.0), (1.0, 3.0));
     let boss = run_body(union_with as BoolOp<f64>, &slab, &pillar);
-    assert_eq!(mass_properties(&boss.body, Tol::witness()).unwrap().volume, 18.0);
+    assert_eq!(
+        mass_properties(&boss.body, Tol::witness()).unwrap().volume,
+        18.0
+    );
     let cutter = brick::<f64>((3.0, 3.5), (3.0, 3.5), (0.5, 1.5));
     let r = run_body(subtract_with as BoolOp<f64>, &boss.body, &cutter);
-    assert_eq!(mass_properties(&r.body, Tol::witness()).unwrap().volume, 18.0 - 0.125);
-    assert_eq!(validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()), Ok(()));
+    assert_eq!(
+        mass_properties(&r.body, Tol::witness()).unwrap().volume,
+        18.0 - 0.125
+    );
+    assert_eq!(
+        validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()),
+        Ok(())
+    );
 }
 
 // ---- Interval lane (the same generic scenarios at T = Interval). ----

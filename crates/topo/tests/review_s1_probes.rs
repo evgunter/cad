@@ -21,25 +21,33 @@
 mod common;
 
 use common::{flush_declarations, prism_z};
+use geom_core::Tol;
 use topo::{
     Body, BooleanError, BooleanResult, BooleanResultKind, mass_properties, subtract, subtract_with,
     union_with, validate_geometric, validate_pseudomanifold,
 };
-use geom_core::Tol;
 
 fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
     prism_z::<f64>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
 }
 
 fn glued(a: &Body<f64>, b: &Body<f64>, volume: f64) -> topo::BooleanBody<f64> {
-    let g = match union_with(a, b, &flush_declarations(a, b), Tol::witness()).expect("declared union builds") {
+    let g = match union_with(a, b, &flush_declarations(a, b), Tol::witness())
+        .expect("declared union builds")
+    {
         BooleanResult::Body(g) => g,
         BooleanResult::Empty => panic!("REST union cannot be empty"),
     };
     assert_eq!(g.kind, BooleanResultKind::Seamed);
-    assert_eq!(mass_properties(&g.body, Tol::witness()).unwrap().volume, volume);
+    assert_eq!(
+        mass_properties(&g.body, Tol::witness()).unwrap().volume,
+        volume
+    );
     assert_eq!(validate_geometric(&g.body, Tol::witness()), Ok(()));
-    assert_eq!(validate_pseudomanifold(&g.body, &g.contacts, Tol::witness()), Ok(()));
+    assert_eq!(
+        validate_pseudomanifold(&g.body, &g.contacts, Tol::witness()),
+        Ok(())
+    );
     let mesh = mesh::tessellate(&g.body, 1e-2, Tol::witness()).expect("tessellate");
     mesh::validate::check_mesh(&mesh).expect("watertight, consistently oriented");
     let v = mesh::validate::signed_volume(&mesh);

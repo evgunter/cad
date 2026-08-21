@@ -12,10 +12,10 @@ use core::f64::consts::{FRAC_PI_2, PI};
 use profile::RawLoop;
 
 use geom_brep::EdgeGeometry;
+use geom_core::Tol;
 use profile::ProfileLoop;
 use revolve_common::*;
 use sweep::{Revolution, RevolvedKind, revolve};
-use geom_core::Tol;
 
 /// The unit square with its left edge ON the axis. Canonical segments:
 /// 0 bottom (⊥ axis, plane), 1 right (∥ axis, cylinder), 2 top
@@ -117,7 +117,13 @@ fn off_axis_wedge_with_hole_is_extrude_shaped() {
     let outer = ProfileLoop::polygon([p2(1.0, 0.0), p2(3.0, 0.0), p2(3.0, 2.0), p2(1.0, 2.0)]);
     let hole = ProfileLoop::polygon([p2(1.5, 0.5), p2(2.5, 0.5), p2(2.5, 1.5), p2(1.5, 1.5)]);
     let vp = validated(vec![outer, hole]);
-    let t = revolve(&vp, axis_y(), Revolution::Partial(FRAC_PI_2), Tol::witness()).unwrap();
+    let t = revolve(
+        &vp,
+        axis_y(),
+        Revolution::Partial(FRAC_PI_2),
+        Tol::witness(),
+    )
+    .unwrap();
     assert_all_tiers(&t.body);
     // Wedge with a through-tunnel: genus 1 (v − e + f − r = 0 with
     // r = 2 cap rings): V16 E24 F10 R2.

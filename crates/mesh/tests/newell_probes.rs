@@ -7,6 +7,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec3};
 use mesh::tessellate;
 use mesh::validate::{check_mesh, signed_volume, triangle_count};
@@ -14,7 +15,6 @@ use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, extrude};
 use topo::Body;
-use geom_core::Tol;
 
 fn lp(poly: &[(f64, f64)]) -> ProfileLoop<f64> {
     ProfileLoop::polygon(
@@ -31,9 +31,13 @@ fn validated(plane: SketchPlane<f64>, loops: Vec<ProfileLoop<f64>>) -> Validated
 }
 
 fn prism_on(plane: SketchPlane<f64>, poly: &[(f64, f64)], h: f64) -> Body<f64> {
-    extrude(&validated(plane, vec![lp(poly)]), Extrusion::Distance(h), Tol::witness())
-        .expect("extrude")
-        .body
+    extrude(
+        &validated(plane, vec![lp(poly)]),
+        Extrusion::Distance(h),
+        Tol::witness(),
+    )
+    .expect("extrude")
+    .body
 }
 
 fn prism(poly: &[(f64, f64)], h: f64) -> Body<f64> {

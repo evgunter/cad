@@ -325,7 +325,10 @@ fn r7_die_reauthored_different_order_isomorphic_and_diff_exact() {
         TDoc::replay(theirs.doc.id(), &theirs.log, Tol::witness()).unwrap(),
         theirs.doc
     );
-    assert_eq!(TDoc::replay(mine.doc.id(), &mine.log, Tol::witness()).unwrap(), mine.doc);
+    assert_eq!(
+        TDoc::replay(mine.doc.id(), &mine.log, Tol::witness()).unwrap(),
+        mine.doc
+    );
 
     // The two authorings are payload-isomorphic under relabeling.
     assert_role_isomorphic(&theirs, &mine);

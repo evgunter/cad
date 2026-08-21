@@ -18,12 +18,12 @@
 use core::f64::consts::PI;
 use profile::RawLoop;
 
+use geom_core::Tol;
 use geom_core::{Affine3, Mat3, Point2, Point3, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations, BooleanError};
-use geom_core::Tol;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -47,7 +47,9 @@ fn boxy(x0: f64, y0: f64, x1: f64, y1: f64, h: f64) -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(h), Tol::witness()).unwrap().body
+    extrude(&profile, Extrusion::Distance(h), Tol::witness())
+        .unwrap()
+        .body
 }
 
 fn slab() -> Body<f64> {
@@ -66,7 +68,9 @@ fn ball_at(r: f64, centre: Vec3<f64>) -> Body<f64> {
         origin: p2(0.0, 0.0),
         dir: geom_core::Vec2::new(0.0, 1.0),
     };
-    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness()).unwrap().body;
+    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
+        .unwrap()
+        .body;
     topo::transform_rigid(&ball, &Affine3::translation(centre), Tol::witness()).unwrap()
 }
 
@@ -180,18 +184,32 @@ fn probe_flipped_row_replays_bit_identical() {
     let a = slab();
     let b = ball_at(1.0, Vec3::new(2.0, 2.0, 0.5));
     let decls = BooleanDeclarations::none();
-    let one = boolean_op_with(BooleanOp::Union, &a, &b, &decls, SweepStrategy::Realized, Tol::witness())
-        .unwrap()
-        .body()
-        .unwrap()
-        .body
-        .clone();
-    let two = boolean_op_with(BooleanOp::Union, &a, &b, &decls, SweepStrategy::Realized, Tol::witness())
-        .unwrap()
-        .body()
-        .unwrap()
-        .body
-        .clone();
+    let one = boolean_op_with(
+        BooleanOp::Union,
+        &a,
+        &b,
+        &decls,
+        SweepStrategy::Realized,
+        Tol::witness(),
+    )
+    .unwrap()
+    .body()
+    .unwrap()
+    .body
+    .clone();
+    let two = boolean_op_with(
+        BooleanOp::Union,
+        &a,
+        &b,
+        &decls,
+        SweepStrategy::Realized,
+        Tol::witness(),
+    )
+    .unwrap()
+    .body()
+    .unwrap()
+    .body
+    .clone();
     assert_eq!(format!("{one:?}"), format!("{two:?}"));
     assert!((vol(&one) - 17.30899693899575).abs() < slack());
 }
@@ -279,7 +297,8 @@ fn probe_nested_spheres_union_to_the_outer_ball() {
     use core::f64::consts::PI;
     let big = ball_at(1.0, Vec3::new(2.0, 2.0, 0.0));
     let small = ball_at(0.3, Vec3::new(2.0, 2.0, 0.2));
-    let out = topo::union(&big, &small, Tol::witness()).expect("the whole-sphere containment arm answers");
+    let out = topo::union(&big, &small, Tol::witness())
+        .expect("the whole-sphere containment arm answers");
     let body = &out.body().expect("a body").body;
     assert_eq!(body.shells().count(), 1, "one shell: the outer ball");
     let vol = topo::mass_properties(body, Tol::witness()).unwrap().volume;

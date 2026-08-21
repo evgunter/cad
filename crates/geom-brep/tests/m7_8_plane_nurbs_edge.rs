@@ -29,10 +29,10 @@ use geom_brep::keys::SurfaceKey;
 use geom_brep::{
     CertifyError, EdgeCurve, EdgeCurveSpec, EdgeGeometry, EdgeNurbsLane, PlaneNurbsRefusal,
 };
+use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point3, Vec3};
 use slotmap::SlotMap;
-use geom_core::Tol;
 
 /// The rational quarter cylinder `x² + y² = 1`, `0 ≤ z ≤ 1`: degree 2
 /// in `u` (the classic three-point rational arc, middle weight

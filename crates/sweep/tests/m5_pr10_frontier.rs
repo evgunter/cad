@@ -16,13 +16,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
+use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
 use sweep::skin::{lift_surface, loft_geometry};
 use sweep::{Extrusion, extrude};
 use topo::{FaceSurface, validate_geometric};
-use geom_core::Tol;
 
 mod common;
 
@@ -31,7 +31,13 @@ mod common;
 fn geometry() -> sweep::LoftGeometry {
     let chain = common::chain;
     let places = [0.0, 1.0, 2.0].map(|z| Affine3::translation(Vec3::new(0.0, 0.0, z)));
-    loft_geometry(&[chain(1.0), chain(1.6), chain(1.0)], &places, 2, Tol::witness()).expect("the loft skins")
+    loft_geometry(
+        &[chain(1.0), chain(1.6), chain(1.0)],
+        &places,
+        2,
+        Tol::witness(),
+    )
+    .expect("the loft skins")
 }
 
 /// The walls exist, are real NURBS (not the placeholder), and carry
@@ -84,7 +90,8 @@ fn tier_three_certifies_the_kind_and_refuses_the_geometry() {
     body.set_face_surface(face, FaceSurface::New(Surface::Nurbs(wall.into())))
         .expect("the arena takes a real NURBS surface");
 
-    let errors = validate_geometric(&body, Tol::witness()).expect_err("tier 3 must refuse the mismatched geometry");
+    let errors = validate_geometric(&body, Tol::witness())
+        .expect_err("tier 3 must refuse the mismatched geometry");
     assert!(
         !errors
             .iter()

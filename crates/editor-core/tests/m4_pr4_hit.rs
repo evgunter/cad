@@ -13,11 +13,17 @@ use editor_core::{
     body_name, entity_name, evaluate, resolve,
 };
 use fixture::{ang, desc, die, insert, len, scl};
-use topo::Body;
 use geom_core::Tol;
+use topo::Body;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness())
+    evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
 }
 
 /// Every output body of a node's value, with its body index.

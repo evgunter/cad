@@ -4,8 +4,8 @@
 
 mod common;
 use common::census;
-use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 use geom_core::Tol;
+use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 
 fn twobody() -> String {
     let path = concat!(

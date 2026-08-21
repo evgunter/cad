@@ -341,7 +341,7 @@ use crate::RawLoop;
 use core::marker::PhantomData;
 
 use geom_core::k_stats::decide;
-use geom_core::{Tol, Band, Decide, Indeterminate, Margin, Point2, Real, Sign, Vec2};
+use geom_core::{Band, Decide, Indeterminate, Margin, Point2, Real, Sign, Tol, Vec2};
 
 use crate::path::program::{ClosedLoop, Step, Target};
 use crate::sugar::{
@@ -1371,7 +1371,11 @@ fn junction_check<T: Decide>(
 /// a new tangent carrier constructed at the tip. Both outcomes are
 /// legal spellings, which is what deletes the old mismatched-r hole
 /// structurally: every authored `r` names a sound construction.
-fn carriers_are_identical<T: Decide>(a: &ArcData<T>, b: &ArcData<T>, tol: Tol) -> Result<bool, PathError<T>> {
+fn carriers_are_identical<T: Decide>(
+    a: &ArcData<T>,
+    b: &ArcData<T>,
+    tol: Tol,
+) -> Result<bool, PathError<T>> {
     let band = linear_band(tol)?;
     let d = (a.center - b.center).norm_squared().sqrt();
     let margin = d + (a.radius - b.radius).abs();
@@ -1540,7 +1544,8 @@ impl<T: Decide> Core<T> {
             // arrival completes it through the boundary machinery — the
             // old carrier-keyed refusal is gone with the register.
             verbs::Pending::Arc(arc) => {
-                return self.resolve_arc_pending_ray_arrival(arc, meta, arr_pos, arr_ang, kind, tol);
+                return self
+                    .resolve_arc_pending_ray_arrival(arc, meta, arr_pos, arr_ang, kind, tol);
             }
         };
         let band = linear_band(tol)?;
@@ -1887,7 +1892,11 @@ fn unit_from_components<T: Decide>(dx: T, dy: T, tol: Tol) -> Result<Dir<T>, Pat
 
 /// The kernel behind the table's circle row: the lowered loop (the
 /// row supplies the one-step program).
-fn circle_kernel<T: Decide>(center: Point2<T>, radius: T, tol: Tol) -> Result<ProfileLoop<T>, PathError<T>> {
+fn circle_kernel<T: Decide>(
+    center: Point2<T>,
+    radius: T,
+    tol: Tol,
+) -> Result<ProfileLoop<T>, PathError<T>> {
     let band = linear_band(tol)?;
     match decide("path_circle_radius", Margin::of(radius), band) {
         Ok(Sign::Positive) => {}
@@ -1943,10 +1952,15 @@ impl<T: Decide, A: AngMarker> PartialPath<T, NoPos, A> {
     /// The kernel behind the table's position-binding rows: resolves a
     /// bound-angle fillet arrival, or seeds the chain (recording is the
     /// row's, not the kernel's).
-    fn at_kernel(mut self, p: Point2<T>, tol: Tol) -> Result<PartialPath<T, HasPos<Plain>, A>, PathError<T>> {
+    fn at_kernel(
+        mut self,
+        p: Point2<T>,
+        tol: Tol,
+    ) -> Result<PartialPath<T, HasPos<Plain>, A>, PathError<T>> {
         match (self.tip.ang, self.core.pending.is_some()) {
             (Some(theta), true) => {
-                self.core.resolve_fillet(p, theta, ArrivalKind::Continues, tol)?;
+                self.core
+                    .resolve_fillet(p, theta, ArrivalKind::Continues, tol)?;
             }
             (Some(theta), false) => {
                 self.core.seed(p);
@@ -1971,14 +1985,19 @@ impl<T: Decide, A: AngMarker> PartialPath<T, NoPos, A> {
 }
 
 impl<T: Decide, P: PosMarker> PartialPath<T, P, NoAng> {
-    fn director(mut self, dir: Dir<T>, tol: Tol) -> Result<PartialPath<T, P, HasAng>, PathError<T>> {
+    fn director(
+        mut self,
+        dir: Dir<T>,
+        tol: Tol,
+    ) -> Result<PartialPath<T, P, HasAng>, PathError<T>> {
         if let Some(pos) = &self.tip.pos {
             if let Some(inc) = &pos.incoming {
                 junction_check(inc, dir, false, tol)?;
             }
             let at = pos.at;
             if self.core.pending.is_some() {
-                self.core.resolve_fillet(at, dir, ArrivalKind::Continues, tol)?;
+                self.core
+                    .resolve_fillet(at, dir, ArrivalKind::Continues, tol)?;
             } else if self.core.start_ang.is_none() {
                 self.core.start_ang = Some(dir);
             }
@@ -2123,7 +2142,11 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
 
     /// The kernel behind the table's corner-fillet row (recording is the
     /// row's, not the kernel's).
-    fn fillet_kernel(mut self, radius: T, tol: Tol) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>> {
+    fn fillet_kernel(
+        mut self,
+        radius: T,
+        tol: Tol,
+    ) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>> {
         let (at, ang) = self.dep()?;
         let band = linear_band(tol)?;
         match decide("path_fillet_radius", Margin::of(radius), band) {
@@ -2480,9 +2503,9 @@ impl<T: Decide> PartialPath<T, NoPos, HasAng> {
         if self.core.pending.is_none() {
             return Err(PathError::FarEndAnchorWithoutFillet);
         }
-        let (arc, fit_out) = self
-            .core
-            .resolve_fillet(anchor, dir, ArrivalKind::EndsAtAnchor, tol)?;
+        let (arc, fit_out) =
+            self.core
+                .resolve_fillet(anchor, dir, ArrivalKind::EndsAtAnchor, tol)?;
         if fit_out == Sign::Positive {
             let head = self.core.head()?;
             let arm = (anchor - head).norm_squared().sqrt();
@@ -2566,12 +2589,20 @@ pub trait TangentArcTarget<T: Decide, F: Flavor>: sealed::Sealed {
     /// [`Start`].
     type Out;
     #[doc(hidden)]
-    fn tangent_arc_from(path: PartialPath<T, HasPos<F>, HasAng>, target: Self, tol: Tol) -> Self::Out;
+    fn tangent_arc_from(
+        path: PartialPath<T, HasPos<F>, HasAng>,
+        target: Self,
+        tol: Tol,
+    ) -> Self::Out;
 }
 
 impl<T: Decide, F: Flavor> TangentArcTarget<T, F> for Point2<T> {
     type Out = Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>;
-    fn tangent_arc_from(mut path: PartialPath<T, HasPos<F>, HasAng>, target: Self, tol: Tol) -> Self::Out {
+    fn tangent_arc_from(
+        mut path: PartialPath<T, HasPos<F>, HasAng>,
+        target: Self,
+        tol: Tol,
+    ) -> Self::Out {
         path.core.record(Step::TangentArcTo(Target::Point(target)));
         path.tangent_arc_to_point(target, tol)
     }
@@ -2579,7 +2610,11 @@ impl<T: Decide, F: Flavor> TangentArcTarget<T, F> for Point2<T> {
 
 impl<T: Decide, F: Flavor> TangentArcTarget<T, F> for Start {
     type Out = Result<ClosedLoop<T>, PathError<T>>;
-    fn tangent_arc_from(mut path: PartialPath<T, HasPos<F>, HasAng>, _target: Self, tol: Tol) -> Self::Out {
+    fn tangent_arc_from(
+        mut path: PartialPath<T, HasPos<F>, HasAng>,
+        _target: Self,
+        tol: Tol,
+    ) -> Self::Out {
         path.core.record(Step::TangentArcTo(Target::Start));
         path.tangent_arc_to_start(tol)
     }

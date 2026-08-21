@@ -155,7 +155,13 @@ fn the_homogeneous_lane_still_drifts_where_the_shipped_lane_does_not() {
 /// compared byte-for-byte by the golden-file suite.)
 #[test]
 fn the_uniform_loft_is_bitwise_unchanged() {
-    let g = loft_geometry(&prism_sections(), &at_z(&[0.0, 1.0, 2.0]), 2, Tol::witness()).expect("geometry");
+    let g = loft_geometry(
+        &prism_sections(),
+        &at_z(&[0.0, 1.0, 2.0]),
+        2,
+        Tol::witness(),
+    )
+    .expect("geometry");
     for (l, loop_walls) in g.walls.iter().enumerate() {
         for (j, wall) in loop_walls.iter().enumerate() {
             let (old_c, old_w) = homogeneous_lane(&g.sections[l][j], 2, &g.section_params);
@@ -186,11 +192,16 @@ fn the_uniform_loft_is_bitwise_unchanged() {
 fn nonuniform_prism_loft_body_matches_the_derived_volume() {
     let sections = [square(1.0), square(1.0), square(1.0)];
     let places = at_z(&[0.0, 1.0, 3.0]);
-    let lofted = loft_body::<f64>(&sections, &places, 2, Tol::witness()).expect("the non-uniform loft builds");
+    let lofted = loft_body::<f64>(&sections, &places, 2, Tol::witness())
+        .expect("the non-uniform loft builds");
     let body = &lofted.body;
     assert_eq!(topo::validate(body), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(body), Ok(()), "tier 2 (watertight)");
-    assert_eq!(topo::validate_geometric(body, Tol::witness()), Ok(()), "tier 3 at rest");
+    assert_eq!(
+        topo::validate_geometric(body, Tol::witness()),
+        Ok(()),
+        "tier 3 at rest"
+    );
     let m = topo::props::mass_properties(body, Tol::witness()).expect("mass properties");
     assert!(
         (m.volume - 12.0).abs() <= m.volume_pad + 1e-9,
@@ -213,7 +224,11 @@ fn nonuniform_trapezoid_loft_body_is_tier3_valid() {
     );
     let lofted = loft_body::<f64>(&prism_sections(), &places, 2, Tol::witness()).expect("builds");
     assert_eq!(topo::validate_closed(&lofted.body), Ok(()), "tier 2");
-    assert_eq!(topo::validate_geometric(&lofted.body, Tol::witness()), Ok(()), "tier 3");
+    assert_eq!(
+        topo::validate_geometric(&lofted.body, Tol::witness()),
+        Ok(()),
+        "tier 3"
+    );
 }
 
 // ---------------------------------------------------------------------
@@ -282,16 +297,34 @@ fn curved_path_sweep_body_builds_validates_and_brackets_pappus() {
     let stations = 9;
     let v_degree = 3;
 
-    let geometry = sweep_geometry(&profile, Affine3::identity(), &path, stations, v_degree, Tol::witness())
-        .expect("the elbow skins");
+    let geometry = sweep_geometry(
+        &profile,
+        Affine3::identity(),
+        &path,
+        stations,
+        v_degree,
+        Tol::witness(),
+    )
+    .expect("the elbow skins");
     walls_are_integral(&geometry, "curved-path sweep");
 
-    let swept = sweep_body::<f64>(&profile, Affine3::identity(), &path, stations, v_degree, Tol::witness())
-        .expect("the curved-path sweep body builds");
+    let swept = sweep_body::<f64>(
+        &profile,
+        Affine3::identity(),
+        &path,
+        stations,
+        v_degree,
+        Tol::witness(),
+    )
+    .expect("the curved-path sweep body builds");
     let body = &swept.body;
     assert_eq!(topo::validate(body), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(body), Ok(()), "tier 2 (watertight)");
-    assert_eq!(topo::validate_geometric(body, Tol::witness()), Ok(()), "tier 3 at rest");
+    assert_eq!(
+        topo::validate_geometric(body, Tol::witness()),
+        Ok(()),
+        "tier 3 at rest"
+    );
 
     let m = topo::props::mass_properties(body, Tol::witness()).expect("mass properties");
     let pappus = (2.0 * ELBOW_H) * (2.0 * ELBOW_H) * ELBOW_R * FRAC_PI_2;
@@ -316,8 +349,15 @@ fn curved_path_sweep_body_builds_validates_and_brackets_pappus() {
 /// `nurbs_span_meter` input that came back `Invalid` before.
 #[test]
 fn the_swept_bodys_seam_carriers_meter_positively() {
-    let swept = sweep_body::<f64>(&square(ELBOW_H), Affine3::identity(), &elbow_path(), 9, 3, Tol::witness())
-        .expect("the curved-path sweep body builds");
+    let swept = sweep_body::<f64>(
+        &square(ELBOW_H),
+        Affine3::identity(),
+        &elbow_path(),
+        9,
+        3,
+        Tol::witness(),
+    )
+    .expect("the curved-path sweep body builds");
     let body = &swept.body;
     let mut seen = 0usize;
     for (_, edge) in body.edges() {

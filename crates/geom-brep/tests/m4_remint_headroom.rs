@@ -9,8 +9,8 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{CERT_SAMPLES, EdgeCurve, EdgeCurveSpec, EdgeGeometry};
-use geom_core::{Affine3, Band, Mat3, Point3, Vec3};
 use geom_core::Tol;
+use geom_core::{Affine3, Band, Mat3, Point3, Vec3};
 
 fn table(
     surfs: Vec<Surface<f64>>,

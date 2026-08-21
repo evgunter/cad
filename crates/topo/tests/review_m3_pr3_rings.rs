@@ -10,12 +10,12 @@
 
 mod common;
 
+use geom_core::Tol;
 use geom_core::{Point3, Real, Vec3};
 use topo::{
     Body, FaceSurface, LoopBoundary, MefSite, MevSite, SplitPart, SplitPlane, mass_properties,
     split, validate_closed,
 };
-use geom_core::Tol;
 
 fn body_of<T: Real>(part: &SplitPart<T>) -> &Body<T> {
     part.body().expect("side has material")
@@ -29,10 +29,17 @@ fn holed_box<T: geom_core::Decide>(w: f64, holes: &[f64]) -> Body<T> {
     let mut body = Body::<T>::new();
     let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
     let strut = |body: &mut Body<T>, at, x, y, z| {
-        body.mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, z), Tol::witness())
+        body.mev_line(
+            MevSite::Fan { he1: at, he2: at },
+            pt(x, y, z),
+            Tol::witness(),
+        )
+        .unwrap()
+    };
+    let mef = |body: &mut Body<T>, he1, he2| {
+        body.mef_chord(MefSite::Chords { he1, he2 }, Tol::witness())
             .unwrap()
     };
-    let mef = |body: &mut Body<T>, he1, he2| body.mef_chord(MefSite::Chords { he1, he2 }, Tol::witness()).unwrap();
     let e_ab = body
         .mev_line(
             MevSite::Lone {
@@ -61,7 +68,11 @@ fn holed_box<T: geom_core::Decide>(w: f64, holes: &[f64]) -> Body<T> {
         let hole = strut(&mut body, f_front.he_plus, x0, y0, 2.0);
         let kill = body.kemr(hole.he_plus, hole.he_minus).unwrap();
         let s_pq = body
-            .mev_line(MevSite::Lone { r#loop: kill.ring }, pt(x1, y0, 2.0), Tol::witness())
+            .mev_line(
+                MevSite::Lone { r#loop: kill.ring },
+                pt(x1, y0, 2.0),
+                Tol::witness(),
+            )
             .unwrap();
         let s_qr = strut(&mut body, s_pq.he_minus, x1, y1, 2.0);
         let s_rs = strut(&mut body, s_qr.he_minus, x0, y1, 2.0);

@@ -1565,10 +1565,10 @@ mod tests {
         clippy::unreachable
     )]
 
-    use geom_core::Tol;
     use super::*;
     use crate::names::emit_sweep::name_extrude;
     use crate::node::RecipeNodeId;
+    use geom_core::Tol;
     use profile::RawLoop;
 
     #[test]
@@ -1587,7 +1587,12 @@ mod tests {
         let profile = profile::Profile::new(plane, vec![square])
             .validate(geom_core::Tol::witness())
             .unwrap();
-        let built = sweep::extrude(&profile, sweep::Extrusion::Distance(1.0_f64), Tol::witness()).unwrap();
+        let built = sweep::extrude(
+            &profile,
+            sweep::Extrusion::Distance(1.0_f64),
+            Tol::witness(),
+        )
+        .unwrap();
         let ext_node = RecipeNodeId(1);
         let a_table = name_extrude(ext_node, &built).unwrap();
 
@@ -1668,7 +1673,12 @@ mod tests {
         let profile = profile::Profile::new(plane, vec![square])
             .validate(geom_core::Tol::witness())
             .unwrap();
-        let built = sweep::extrude(&profile, sweep::Extrusion::Distance(1.0_f64), Tol::witness()).unwrap();
+        let built = sweep::extrude(
+            &profile,
+            sweep::Extrusion::Distance(1.0_f64),
+            Tol::witness(),
+        )
+        .unwrap();
         let ext_node = RecipeNodeId(1);
         let a_table = name_extrude(ext_node, &built).unwrap();
         let laterals: Vec<_> = a_table
@@ -1707,8 +1717,15 @@ mod tests {
             table: &empty,
             body: &built.body,
         };
-        let err = name_boolean(RecipeNodeId(9), &built.body, &naming, &a, &b, Tol::witness())
-            .expect_err("same-constituent merge groups must refuse loudly");
+        let err = name_boolean(
+            RecipeNodeId(9),
+            &built.body,
+            &naming,
+            &a,
+            &b,
+            Tol::witness(),
+        )
+        .expect_err("same-constituent merge groups must refuse loudly");
         let _ = err; // typed NamingError, never a silent alias
     }
 }

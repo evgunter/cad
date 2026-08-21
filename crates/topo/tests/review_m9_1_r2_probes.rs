@@ -7,13 +7,13 @@
 mod common;
 
 use common::{flush_declarations, prism_z};
+use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
 use topo::boolean::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation, carrier_eq};
 use topo::boolean::contact_verify::tangent_locus_relation;
 use topo::boolean::plane_eq::PlaneIdentity;
 use topo::contact::{ContactRefusal, ContactVerdict};
 use topo::{BooleanResult, ContactRecords, Surface, ValidationError, union_with};
-use geom_core::Tol;
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()

@@ -9,8 +9,8 @@
 
 mod common;
 
-use step_export::{StepExportError, StepOptions, step_string};
 use geom_core::Tol;
+use step_export::{StepExportError, StepOptions, step_string};
 
 /// Exports with the fixed test options: product name per shape, and an
 /// EXPLICIT uncertainty (the default ε) so the suite and the golden

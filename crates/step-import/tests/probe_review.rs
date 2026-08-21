@@ -3,8 +3,8 @@
 //! that failed deliberately there now assert the fix.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod common;
-use step_import::{ImportOptions, StepImport, import_step};
 use geom_core::Tol;
+use step_import::{ImportOptions, StepImport, import_step};
 
 fn fixture(name: &str) -> String {
     std::fs::read_to_string(format!(
@@ -220,7 +220,11 @@ fn a1_double_flipped_torus() {
         v > 0.0,
         "a right-side-out ring has positive volume, got {v}"
     );
-    assert_eq!(topo::validate_geometric(&body, Tol::witness()), Ok(()), "tier 3");
+    assert_eq!(
+        topo::validate_geometric(&body, Tol::witness()),
+        Ok(()),
+        "tier 3"
+    );
 }
 
 /// A1, **resolved**: the original imports; the sense-flip does not.
@@ -518,7 +522,10 @@ fn a4_inference_on_demoted_bounds() {
     );
     match import_step(&text, &ImportOptions::default()) {
         Ok(StepImport::Solid { body, .. }) => {
-            println!("a4inf imported t3={:?}", topo::validate_geometric(&body, Tol::witness()));
+            println!(
+                "a4inf imported t3={:?}",
+                topo::validate_geometric(&body, Tol::witness())
+            );
         }
         Ok(_) => panic!("wireframe"),
         Err(e) => {

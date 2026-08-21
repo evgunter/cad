@@ -95,11 +95,11 @@ use geom_brep::ssi::{
     self, SSI_FLOOR, SSI_MAX_CELLS, SSI_MAX_FIT_SAMPLES, SSI_SEED_FLOOR, SSI_TUBE_RADIUS,
     SsiDomain, SsiError, SsiLimb, SsiOperand, TubeScale,
 };
+use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::tolerance::DEFAULT_EPS;
 use geom_core::{Band, Margin, Point3, Vec3};
 use test_utils::vacuity;
-use geom_core::Tol;
 
 /// The accounting floor the floor-clamped fixture plants, **in metres**
 /// — far wider than any certifiable tube radius on that pair, and the

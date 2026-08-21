@@ -146,7 +146,9 @@ fn pin_at(doc: &ProfileDoc, node: RecipeNodeId) -> DocRef {
 }
 
 fn volume(body: &topo::Body<f64>) -> f64 {
-    topo::mass_properties(body, Tol::witness()).expect("mass properties").volume
+    topo::mass_properties(body, Tol::witness())
+        .expect("mass properties")
+        .volume
 }
 
 /// The assembly's whole-product volume, gathered through the shelf.
@@ -170,10 +172,13 @@ fn row1a_update_moves_the_pin_and_only_the_pin() {
 
     let (doc, ids) = assembly("asm-upd-r1a-asm", &[DocRef { id, pin: v1 }]);
     let applied = doc
-        .apply(&DocEdit::UpdateReference {
-            node: ids[0],
-            new_pin: v2,
-        }, Tol::witness())
+        .apply(
+            &DocEdit::UpdateReference {
+                node: ids[0],
+                new_pin: v2,
+            },
+            Tol::witness(),
+        )
         .expect("the update is accepted");
 
     assert_eq!(pin_at(&applied.doc, ids[0]).pin, v2, "the version moved");
@@ -227,10 +232,13 @@ fn row1c_the_three_refusals_each_name_their_subject() {
     );
 
     // Same pin: a semantically empty edit refuses rather than records.
-    match doc.apply(&DocEdit::UpdateReference {
-        node: ids[0],
-        new_pin: v1,
-    }, Tol::witness()) {
+    match doc.apply(
+        &DocEdit::UpdateReference {
+            node: ids[0],
+            new_pin: v1,
+        },
+        Tol::witness(),
+    ) {
         Err(EditError::PinUnchanged { node, pin }) => {
             assert_eq!(node, ids[0]);
             assert_eq!(pin, v1);
@@ -242,10 +250,13 @@ fn row1c_the_three_refusals_each_name_their_subject() {
     }
 
     // A live node that instantiates nothing.
-    match doc.apply(&DocEdit::UpdateReference {
-        node: profile,
-        new_pin: v2,
-    }, Tol::witness()) {
+    match doc.apply(
+        &DocEdit::UpdateReference {
+            node: profile,
+            new_pin: v2,
+        },
+        Tol::witness(),
+    ) {
         Err(EditError::UpdateOnNonInstance { node }) => {
             assert_eq!(node, profile);
             let msg = EditError::UpdateOnNonInstance { node }.to_string();
@@ -256,10 +267,13 @@ fn row1c_the_three_refusals_each_name_their_subject() {
 
     // An id no node ever had.
     let ghost = RecipeNodeId(9_999);
-    match doc.apply(&DocEdit::UpdateReference {
-        node: ghost,
-        new_pin: v2,
-    }, Tol::witness()) {
+    match doc.apply(
+        &DocEdit::UpdateReference {
+            node: ghost,
+            new_pin: v2,
+        },
+        Tol::witness(),
+    ) {
         Err(EditError::UnknownNode { id }) => {
             assert_eq!(id, ghost);
             let msg = EditError::UnknownNode { id }.to_string();
@@ -311,7 +325,10 @@ fn row2_elaboration_updates_every_matching_site_and_only_those() {
 
     let mut moved = doc.clone();
     for e in &edits {
-        moved = moved.apply(e, Tol::witness()).expect("the group applies").doc;
+        moved = moved
+            .apply(e, Tol::witness())
+            .expect("the group applies")
+            .doc;
     }
     assert_eq!(pin_at(&moved, ids[0]).pin, x2);
     assert_eq!(pin_at(&moved, ids[2]).pin, x2);
@@ -345,10 +362,13 @@ fn row2b_no_such_reference_and_already_pinned_refuse_separately() {
     // Staged: one site already moved, so the elaboration covers the
     // remaining one and stays appliable.
     let staged = doc
-        .apply(&DocEdit::UpdateReference {
-            node: ids[0],
-            new_pin: x2,
-        }, Tol::witness())
+        .apply(
+            &DocEdit::UpdateReference {
+                node: ids[0],
+                new_pin: x2,
+            },
+            Tol::witness(),
+        )
         .expect("the first site moves")
         .doc;
     assert_eq!(
@@ -361,10 +381,13 @@ fn row2b_no_such_reference_and_already_pinned_refuse_separately() {
     );
 
     let done = staged
-        .apply(&DocEdit::UpdateReference {
-            node: ids[1],
-            new_pin: x2,
-        }, Tol::witness())
+        .apply(
+            &DocEdit::UpdateReference {
+                node: ids[1],
+                new_pin: x2,
+            },
+            Tol::witness(),
+        )
         .expect("the second site moves")
         .doc;
     match update_references(&done, x, x2) {
@@ -408,10 +431,13 @@ fn row4_the_lint_reports_staged_multiplicity_and_nothing_else() {
     );
 
     let staged = uniform
-        .apply(&DocEdit::UpdateReference {
-            node: ids[2],
-            new_pin: x2,
-        }, Tol::witness())
+        .apply(
+            &DocEdit::UpdateReference {
+                node: ids[2],
+                new_pin: x2,
+            },
+            Tol::witness(),
+        )
         .expect("the staged half applies")
         .doc;
     let report = mixed_pins(&staged);
@@ -433,14 +459,20 @@ fn row4_the_lint_reports_staged_multiplicity_and_nothing_else() {
 
     // Reports, never gates: the mixed-pin document is a first-class
     // value at every door.
-    assert!(save(&staged, &[], Tol::witness()).is_ok(), "a mixed-pin document saves");
+    assert!(
+        save(&staged, &[], Tol::witness()).is_ok(),
+        "a mixed-pin document saves"
+    );
     assert_eq!(
         mixed_pins(
             &staged
-                .apply(&DocEdit::UpdateReference {
-                    node: ids[0],
-                    new_pin: x2,
-                }, Tol::witness())
+                .apply(
+                    &DocEdit::UpdateReference {
+                        node: ids[0],
+                        new_pin: x2,
+                    },
+                    Tol::witness()
+                )
                 .expect("finishing the migration applies")
                 .doc
         ),
@@ -469,10 +501,13 @@ fn row5a_a_moved_pin_is_a_different_memo_entry() {
     let vol_before = volume(&product(&doc, &before, Tol::witness()).expect("gathers"));
 
     let staged = doc
-        .apply(&DocEdit::UpdateReference {
-            node: ids[1],
-            new_pin: r2.pin,
-        }, Tol::witness())
+        .apply(
+            &DocEdit::UpdateReference {
+                node: ids[1],
+                new_pin: r2.pin,
+            },
+            Tol::witness(),
+        )
         .expect("the update applies")
         .doc;
     let after = run(&staged, &opts);
@@ -491,10 +526,13 @@ fn row5a_a_moved_pin_is_a_different_memo_entry() {
 
     // Fully updated: the OLD content is not served at all.
     let done = staged
-        .apply(&DocEdit::UpdateReference {
-            node: ids[0],
-            new_pin: r2.pin,
-        }, Tol::witness())
+        .apply(
+            &DocEdit::UpdateReference {
+                node: ids[0],
+                new_pin: r2.pin,
+            },
+            Tol::witness(),
+        )
         .expect("the second site moves")
         .doc;
     let ev = run(&done, &opts);
@@ -532,10 +570,13 @@ fn row5b_the_nested_case_serves_the_new_content_through_two_seams() {
     );
 
     let updated = top
-        .apply(&DocEdit::UpdateReference {
-            node: ids[0],
-            new_pin: s2.pin,
-        }, Tol::witness())
+        .apply(
+            &DocEdit::UpdateReference {
+                node: ids[0],
+                new_pin: s2.pin,
+            },
+            Tol::witness(),
+        )
         .expect("the update applies")
         .doc;
     let vol_after = product_volume(&updated, &opts);
@@ -598,10 +639,13 @@ fn row5c_a_warm_prior_never_serves_the_old_content_after_an_update() {
     // moved reference is re-keyed and re-resolved, the untouched one
     // is served from the prior, and the product is one solid of each.
     let staged = doc
-        .apply(&DocEdit::UpdateReference {
-            node: ids[1],
-            new_pin: r2.pin,
-        }, Tol::witness())
+        .apply(
+            &DocEdit::UpdateReference {
+                node: ids[1],
+                new_pin: r2.pin,
+            },
+            Tol::witness(),
+        )
         .expect("the update applies")
         .doc;
     let warm_staged = run_warm(&staged, &cold, &opts);
@@ -615,10 +659,13 @@ fn row5c_a_warm_prior_never_serves_the_old_content_after_an_update() {
     // The second site moves over the STAGED prior: the old version is
     // now named nowhere, and nothing serves it.
     let done = staged
-        .apply(&DocEdit::UpdateReference {
-            node: ids[0],
-            new_pin: r2.pin,
-        }, Tol::witness())
+        .apply(
+            &DocEdit::UpdateReference {
+                node: ids[0],
+                new_pin: r2.pin,
+            },
+            Tol::witness(),
+        )
         .expect("the update applies")
         .doc;
     let warm_done = run_warm(&done, &warm_staged, &opts);
@@ -655,10 +702,13 @@ fn row5d_a_warm_prior_carries_a_nested_update_through_two_seams() {
     assert!((vol_before - 1.0).abs() < 1e-9, "one v1 solid");
 
     let updated = top
-        .apply(&DocEdit::UpdateReference {
-            node: ids[0],
-            new_pin: s2.pin,
-        }, Tol::witness())
+        .apply(
+            &DocEdit::UpdateReference {
+                node: ids[0],
+                new_pin: s2.pin,
+            },
+            Tol::witness(),
+        )
         .expect("the update applies")
         .doc;
     let warm = run_warm(&updated, &cold, &opts);
@@ -682,10 +732,13 @@ fn row6_the_assembly_pin_moves_on_update_and_states_history() {
 
     let (before, ids) = assembly("asm-upd-r6-asm", &[DocRef { id, pin: v1 }]);
     let after = before
-        .apply(&DocEdit::UpdateReference {
-            node: ids[0],
-            new_pin: v2,
-        }, Tol::witness())
+        .apply(
+            &DocEdit::UpdateReference {
+                node: ids[0],
+                new_pin: v2,
+            },
+            Tol::witness(),
+        )
         .expect("applies")
         .doc;
     let pin_before = content_pin(&before, Tol::witness()).expect("pin");
@@ -717,7 +770,10 @@ fn row6_the_assembly_pin_moves_on_update_and_states_history() {
         .apply(&update, Tol::witness())
         .expect("applies")
         .doc;
-    let b = after.apply(&unrelated, Tol::witness()).expect("applies").doc;
+    let b = after
+        .apply(&unrelated, Tol::witness())
+        .expect("applies")
+        .doc;
     assert_eq!(
         content_pin(&a, Tol::witness()).expect("pin"),
         content_pin(&b, Tol::witness()).expect("pin"),
@@ -749,7 +805,12 @@ fn row7_a_logged_update_round_trips_and_undoes_across_the_load() {
 
     // Snapshot = the EMPTY document, log = everything: the load
     // replays the update through `apply`'s own doors.
-    let text = save(&ProfileDoc::empty(asm_id, Tol::witness()), &rec.edits, Tol::witness()).expect("the document saves");
+    let text = save(
+        &ProfileDoc::empty(asm_id, Tol::witness()),
+        &rec.edits,
+        Tol::witness(),
+    )
+    .expect("the document saves");
     let loaded = load(&text, Tol::witness()).expect("the document loads");
     assert_eq!(loaded.edits.len(), rec.edits.len(), "the log persisted");
     assert_eq!(pin_at(&loaded.doc, node).pin, v2, "the replay lands on v2");
@@ -759,8 +820,12 @@ fn row7_a_logged_update_round_trips_and_undoes_across_the_load() {
     );
 
     // Undo across the load: replay every edit but the last.
-    let undone = ProfileDoc::replay(asm_id, &loaded.edits[..loaded.edits.len() - 1], Tol::witness())
-        .expect("the shortened log replays");
+    let undone = ProfileDoc::replay(
+        asm_id,
+        &loaded.edits[..loaded.edits.len() - 1],
+        Tol::witness(),
+    )
+    .expect("the shortened log replays");
     assert_eq!(
         pin_at(&undone, node).pin,
         v1,

@@ -16,7 +16,13 @@ use fixture::{DEPTH, desc, die, insert, len, scl, square, step};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness())
+    evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
 }
 
 fn rerun(doc: &ProfileDoc, prior: &Evaluation<f64>) -> Evaluation<f64> {
@@ -85,10 +91,13 @@ fn set_appearance_validates_and_applies_purely() {
     let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::Top));
 
     let applied = doc
-        .apply(&DocEdit::SetAppearance {
-            name: cap.clone(),
-            attr: red(),
-        }, Tol::witness())
+        .apply(
+            &DocEdit::SetAppearance {
+                name: cap.clone(),
+                attr: red(),
+            },
+            Tol::witness(),
+        )
         .unwrap();
     // Non-structural, nothing minted; the input document untouched.
     assert!(!applied.record.structural);
@@ -117,10 +126,13 @@ fn set_appearance_validates_and_applies_purely() {
         ),
     );
     assert_eq!(
-        doc.apply(&DocEdit::SetAppearance {
-            name: edge.clone(),
-            attr: red(),
-        }, Tol::witness())
+        doc.apply(
+            &DocEdit::SetAppearance {
+                name: edge.clone(),
+                attr: red(),
+            },
+            Tol::witness()
+        )
         .unwrap_err(),
         EditError::AppearanceWrongKind { name: edge }
     );
@@ -132,10 +144,13 @@ fn set_appearance_validates_and_applies_purely() {
         RoleSeg::Cap(CapEnd::Top),
     );
     assert_eq!(
-        doc.apply(&DocEdit::SetAppearance {
-            name: bogus.clone(),
-            attr: red(),
-        }, Tol::witness())
+        doc.apply(
+            &DocEdit::SetAppearance {
+                name: bogus.clone(),
+                attr: red(),
+            },
+            Tol::witness()
+        )
         .unwrap_err(),
         EditError::AppearanceNamesMissingNode { name: bogus }
     );
@@ -154,10 +169,13 @@ fn multi_attribute_per_entity_and_clear_semantics() {
 
     // Clearing an attribute that is not set: loud.
     assert_eq!(
-        doc.apply(&DocEdit::ClearAppearance {
-            name: body.clone(),
-            kind: AttrKind::Color,
-        }, Tol::witness())
+        doc.apply(
+            &DocEdit::ClearAppearance {
+                name: body.clone(),
+                kind: AttrKind::Color,
+            },
+            Tol::witness()
+        )
         .unwrap_err(),
         EditError::AppearanceNotSet {
             name: body.clone(),

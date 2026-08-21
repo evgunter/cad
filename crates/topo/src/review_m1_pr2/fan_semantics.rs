@@ -182,10 +182,13 @@ fn cross_loop_fan_on_the_digon_pillow_stack() {
     // (A->B)... run [C->B, B->A) -- new edge C->A? start(he1)=C,
     // start(he2)=A: new edge C->A. Triangle lamina: two faces.
     let tri = body
-        .mef_chord(MefSite::Chords {
-            he1: bc.he_minus,
-            he2: ab.he_plus,
-        }, tol)
+        .mef_chord(
+            MefSite::Chords {
+                he1: bc.he_minus,
+                he2: ab.he_plus,
+            },
+            tol,
+        )
         .unwrap();
     assert_eq!(validate(&body), Ok(()));
 

@@ -192,8 +192,8 @@ mod units;
 
 pub use error::{AdoptionAttempt, AdoptionCandidate, StepImportError};
 
-use topo::Body;
 use geom_core::Tol;
+use topo::Body;
 
 /// A boundary-graph census: what a region contributes to the body.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -774,16 +774,19 @@ pub fn import_step(text: &str, options: &ImportOptions) -> Result<StepImport, St
 /// convention 2). If this function ever grows a condition, the gate has
 /// grown an opinion.
 fn gate(body: &topo::Body<f64>, solid: Option<u64>) -> Result<(), StepImportError> {
-    topo::validate_geometric(body, Tol::witness()).map_err(|errors| StepImportError::TierInvalid { solid, errors })
+    topo::validate_geometric(body, Tol::witness())
+        .map_err(|errors| StepImportError::TierInvalid { solid, errors })
 }
 
 /// The aggregate subject's gate: the tier-3′ form over the resolved
 /// declaration records — the same function a native declared-contact
 /// body's caller runs, with the same no-opinion contract as [`gate`].
 fn gate3(body: &topo::Body<f64>, records: &topo::ContactRecords) -> Result<(), StepImportError> {
-    topo::validate_pseudomanifold(body, records, Tol::witness()).map_err(|errors| StepImportError::TierInvalid {
-        solid: None,
-        errors,
+    topo::validate_pseudomanifold(body, records, Tol::witness()).map_err(|errors| {
+        StepImportError::TierInvalid {
+            solid: None,
+            errors,
+        }
     })
 }
 

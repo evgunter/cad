@@ -2235,8 +2235,8 @@ impl<T: geom_brep::EdgeNurbsLane> Body<T> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use geom_core::Tol;
     use geom_core::Point3;
+    use geom_core::Tol;
 
     use super::*;
     use crate::fixtures::{NgonPillow, arena_snapshot, deep_snapshot, pillow, prov};
@@ -2529,10 +2529,13 @@ mod tests {
             )
             .unwrap();
         let split = body
-            .mef_chord(MefSite::Chords {
-                he1: seg.he_plus,
-                he2: seg.he_minus,
-            }, Tol::witness())
+            .mef_chord(
+                MefSite::Chords {
+                    he1: seg.he_plus,
+                    he2: seg.he_minus,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         assert_eq!(
             body.vertex_orbit(seg.he_plus),
@@ -2629,9 +2632,12 @@ mod tests {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(p(0.0)).unwrap();
         let circ = body
-            .mef_chord(MefSite::Lone {
-                r#loop: seed.r#loop,
-            }, Tol::witness())
+            .mef_chord(
+                MefSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         assert_eq!(validate(&body), Ok(()));
 
@@ -2948,10 +2954,13 @@ mod tests {
         });
         // Same rejection through mef's addressing.
         assert_err_and_unchanged(&mut t.body, &expected, |body| {
-            body.mef_chord(MefSite::Chords {
-                he1: dead,
-                he2: dead,
-            }, Tol::witness())
+            body.mef_chord(
+                MefSite::Chords {
+                    he1: dead,
+                    he2: dead,
+                },
+                Tol::witness(),
+            )
             .unwrap_err()
         });
     }
@@ -2977,7 +2986,8 @@ mod tests {
                 .unwrap_err()
         });
         assert_err_and_unchanged(&mut t.body, &expected, |body| {
-            body.mef_chord(MefSite::Lone { r#loop: dead }, Tol::witness()).unwrap_err()
+            body.mef_chord(MefSite::Lone { r#loop: dead }, Tol::witness())
+                .unwrap_err()
         });
     }
 
@@ -2995,10 +3005,13 @@ mod tests {
         // precondition (same loop, cycle walk, prevs, face, shell)
         // passes, so the anchor resolution is what fires.
         assert_err_and_unchanged(&mut t.body, &expected, |body| {
-            body.mef_chord(MefSite::Chords {
-                he1: t.hes_a[0],
-                he2: t.hes_a[1],
-            }, Tol::witness())
+            body.mef_chord(
+                MefSite::Chords {
+                    he1: t.hes_a[0],
+                    he2: t.hes_a[1],
+                },
+                Tol::witness(),
+            )
             .unwrap_err()
         });
     }
@@ -3055,10 +3068,13 @@ mod tests {
             he2: t.hes_b[0],
         };
         assert_err_and_unchanged(&mut t.body, &expected, |body| {
-            body.mef_chord(MefSite::Chords {
-                he1: t.hes_a[0],
-                he2: t.hes_b[0],
-            }, Tol::witness())
+            body.mef_chord(
+                MefSite::Chords {
+                    he1: t.hes_a[0],
+                    he2: t.hes_b[0],
+                },
+                Tol::witness(),
+            )
             .unwrap_err()
         });
     }
@@ -3071,10 +3087,13 @@ mod tests {
         t.body.get_half_edge_mut(t.hes_a[0]).unwrap().next = t.hes_b[0];
         let expected = EulerOpError::LoopCycleBroken { r#loop: t.loop_a };
         assert_err_and_unchanged(&mut t.body, &expected, |body| {
-            body.mef_chord(MefSite::Chords {
-                he1: t.hes_a[0],
-                he2: t.hes_a[1],
-            }, Tol::witness())
+            body.mef_chord(
+                MefSite::Chords {
+                    he1: t.hes_a[0],
+                    he2: t.hes_a[1],
+                },
+                Tol::witness(),
+            )
             .unwrap_err()
         });
     }
@@ -3116,10 +3135,13 @@ mod tests {
         t.body.get_half_edge_mut(t.hes_a[1]).unwrap().parent_loop = empty;
         let expected = EulerOpError::LoopNotCycle { r#loop: empty };
         assert_err_and_unchanged(&mut t.body, &expected, |body| {
-            body.mef_chord(MefSite::Chords {
-                he1: t.hes_a[0],
-                he2: t.hes_a[1],
-            }, Tol::witness())
+            body.mef_chord(
+                MefSite::Chords {
+                    he1: t.hes_a[0],
+                    he2: t.hes_a[1],
+                },
+                Tol::witness(),
+            )
             .unwrap_err()
         });
     }
@@ -3136,10 +3158,13 @@ mod tests {
             key: EntityId::Vertex(t.vertices[1]),
         };
         assert_err_and_unchanged(&mut t.body, &expected, |body| {
-            body.mef_chord(MefSite::Chords {
-                he1: t.hes_a[0],
-                he2: t.hes_a[1],
-            }, Tol::witness())
+            body.mef_chord(
+                MefSite::Chords {
+                    he1: t.hes_a[0],
+                    he2: t.hes_a[1],
+                },
+                Tol::witness(),
+            )
             .unwrap_err()
         });
     }
@@ -3189,17 +3214,23 @@ mod tests {
             assert!(matches!(err, EulerOpError::FanStartMismatch { .. }));
         }
         let split = body
-            .mef_chord(MefSite::Chords {
-                he1: seg.he_plus,
-                he2: seg.he_minus,
-            }, Tol::witness())
+            .mef_chord(
+                MefSite::Chords {
+                    he1: seg.he_plus,
+                    he2: seg.he_minus,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         if with_failures {
             // Lone site on a loop that is a cycle now.
             let err = body
-                .mef_chord(MefSite::Lone {
-                    r#loop: seed.r#loop,
-                }, Tol::witness())
+                .mef_chord(
+                    MefSite::Lone {
+                        r#loop: seed.r#loop,
+                    },
+                    Tol::witness(),
+                )
                 .unwrap_err();
             assert!(matches!(err, EulerOpError::LoopNotEmpty { .. }));
         }
@@ -3216,18 +3247,24 @@ mod tests {
         if with_failures {
             // Chords across the two digon loops.
             let err = body
-                .mef_chord(MefSite::Chords {
-                    he1: seg.he_plus,
-                    he2: split.he_plus,
-                }, Tol::witness())
+                .mef_chord(
+                    MefSite::Chords {
+                        he1: seg.he_plus,
+                        he2: split.he_plus,
+                    },
+                    Tol::witness(),
+                )
                 .unwrap_err();
             assert!(matches!(err, EulerOpError::NotSameLoop { .. }));
         }
         let circ = body
-            .mef_chord(MefSite::Chords {
-                he1: strut.he_minus,
-                he2: strut.he_minus,
-            }, Tol::witness())
+            .mef_chord(
+                MefSite::Chords {
+                    he1: strut.he_minus,
+                    he2: strut.he_minus,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         assert_eq!(validate(body), Ok(()));
         (seed, seg, split, strut, circ)

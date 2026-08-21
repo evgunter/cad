@@ -7,12 +7,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
+use geom_core::Tol;
 use geom_core::{Point2, Vec2};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::Body;
-use geom_core::Tol;
 
 fn validated(lp: ProfileLoop<f64>) -> profile::ValidatedProfile<f64> {
     Profile::new(SketchPlane::xy(), vec![lp])
@@ -30,7 +30,11 @@ fn axis_y() -> RevolveAxis<f64> {
 /// Every half-edge of every NON-PLANAR face carries a stored cache
 /// (planar faces keep derive-on-demand — C4), and tier 3 is green.
 fn assert_curved_faces_fully_minted(name: &str, body: &Body<f64>) {
-    assert_eq!(topo::validate_geometric(body, Tol::witness()), Ok(()), "{name} tier 3");
+    assert_eq!(
+        topo::validate_geometric(body, Tol::witness()),
+        Ok(()),
+        "{name} tier 3"
+    );
     let mut curved_hes = 0usize;
     for (_, face) in body.faces() {
         let surface = body.get_surface(face.surface).expect("surface resolves");

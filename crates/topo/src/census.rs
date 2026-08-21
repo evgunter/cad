@@ -1989,12 +1989,12 @@ mod tests {
     //! pattern), below tier 3's closed-body bar — which is exactly
     //! why these rows call [`census_and_certify`] directly. The
     //! closed-body end-to-end rows live in the acceptance suites.
-    use geom_core::Tol;
     use super::*;
     use crate::boolean::PatchContact;
     use crate::entity::FaceKey;
     use crate::euler::{FaceSurface, MefSite, MevSite};
     use geom::Surface;
+    use geom_core::Tol;
     use geom_core::Vec3;
 
     fn band() -> Band {

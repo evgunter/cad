@@ -15,8 +15,8 @@ use editor_core::{
     ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, StableName, ValuePayload,
     evaluate,
 };
-use profile::SketchPlane;
 use geom_core::Tol;
+use profile::SketchPlane;
 
 /// A quad whose LAST authored corner x is a document parameter: at
 /// x0 = 0.5 that corner (0.5, 1) is lex-min (canonical offset 3); at
@@ -27,13 +27,16 @@ fn param_rect_doc(x0: f64) -> ProfileDoc {
     let lit = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
     let x0e = || Expr::param(ParamName::new("x0"), Dimension::Length);
     let doc = ProfileDoc::empty_derived("switch_naming", Tol::witness())
-        .apply(&DocEdit::SetDocParam {
-            name: ParamName::new("x0"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: x0,
+        .apply(
+            &DocEdit::SetDocParam {
+                name: ParamName::new("x0"),
+                value: DocParam::Continuous {
+                    dim: Dimension::Length,
+                    value: x0,
+                },
             },
-        }, Tol::witness())
+            Tol::witness(),
+        )
         .unwrap()
         .doc;
     let loop_ = LoopProgram::Chain(vec![
@@ -44,26 +47,38 @@ fn param_rect_doc(x0: f64) -> ProfileDoc {
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     let doc = doc
-        .apply(&DocEdit::InsertNode {
-            node: Node::Profile(ProfileProgram {
-                plane: SketchPlane::xy(),
-                loops: vec![loop_],
-            }),
-        }, Tol::witness())
+        .apply(
+            &DocEdit::InsertNode {
+                node: Node::Profile(ProfileProgram {
+                    plane: SketchPlane::xy(),
+                    loops: vec![loop_],
+                }),
+            },
+            Tol::witness(),
+        )
         .unwrap()
         .doc;
-    doc.apply(&DocEdit::InsertNode {
-        node: Node::Extrude {
-            profile: RecipeNodeId(0),
-            distance: lit(1.0),
+    doc.apply(
+        &DocEdit::InsertNode {
+            node: Node::Extrude {
+                profile: RecipeNodeId(0),
+                distance: lit(1.0),
+            },
         },
-    }, Tol::witness())
+        Tol::witness(),
+    )
     .unwrap()
     .doc
 }
 
 fn names_of(doc: &ProfileDoc, id: RecipeNodeId) -> BTreeSet<StableName> {
-    let ev = evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness());
+    let ev = evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
     ev.value(id)
         .expect("node evaluates")
         .name_table
@@ -73,7 +88,13 @@ fn names_of(doc: &ProfileDoc, id: RecipeNodeId) -> BTreeSet<StableName> {
 }
 
 fn anchor_offset(doc: &ProfileDoc) -> (u32, bool) {
-    let ev = evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness());
+    let ev = evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
     let ValuePayload::Profile(pv) = &ev.value(RecipeNodeId(0)).expect("profile").payload else {
         panic!("profile payload");
     };
@@ -108,7 +129,13 @@ fn lex_min_swap_cannot_renumber_program_names() {
     // program segment 0 — Lateral(0)'s referent — is the leg leaving
     // the authored entry corner (1, 0), read through the anchor.
     for doc in [&before, &after] {
-        let ev = evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness());
+        let ev = evaluate::<f64>(
+            doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            Tol::witness(),
+        );
         let ValuePayload::Profile(pv) = &ev.value(RecipeNodeId(0)).expect("profile").payload else {
             panic!("profile payload");
         };
@@ -128,20 +155,26 @@ fn lex_min_swap_cannot_renumber_program_names() {
 fn circle_radius_edit_keeps_names() {
     let mk = |r: f64| {
         let doc = ProfileDoc::empty_derived("switch_naming", Tol::witness())
-            .apply(&DocEdit::InsertNode {
-                node: Node::Profile(ProfileProgram {
-                    plane: SketchPlane::xy(),
-                    loops: vec![LoopProgram::circle(0.0, 0.0, r).unwrap()],
-                }),
-            }, Tol::witness())
+            .apply(
+                &DocEdit::InsertNode {
+                    node: Node::Profile(ProfileProgram {
+                        plane: SketchPlane::xy(),
+                        loops: vec![LoopProgram::circle(0.0, 0.0, r).unwrap()],
+                    }),
+                },
+                Tol::witness(),
+            )
             .unwrap()
             .doc;
-        doc.apply(&DocEdit::InsertNode {
-            node: Node::Extrude {
-                profile: RecipeNodeId(0),
-                distance: Expr::literal(1.0, Dimension::Length).unwrap(),
+        doc.apply(
+            &DocEdit::InsertNode {
+                node: Node::Extrude {
+                    profile: RecipeNodeId(0),
+                    distance: Expr::literal(1.0, Dimension::Length).unwrap(),
+                },
             },
-        }, Tol::witness())
+            Tol::witness(),
+        )
         .unwrap()
         .doc
     };
@@ -159,7 +192,13 @@ fn circle_radius_edit_keeps_names() {
 fn stale_program_refs_refuse_vanished() {
     use editor_core::{CapEnd, EntityKind, ProfileEdgeRef, RoleSeg};
     let doc = param_rect_doc(0.5);
-    let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness());
+    let ev = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
     let ghost = StableName {
         kind: EntityKind::Edge,
         node: RecipeNodeId(1),
@@ -201,7 +240,13 @@ fn stale_program_refs_refuse_vanished() {
 fn program_vertex_zero_is_the_authored_entry() {
     for x0 in [0.5, 1.5] {
         let doc = param_rect_doc(x0);
-        let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness());
+        let ev = evaluate::<f64>(
+            &doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            Tol::witness(),
+        );
         let ValuePayload::Profile(pv) = &ev.value(RecipeNodeId(0)).expect("profile").payload else {
             panic!("profile payload");
         };
@@ -235,24 +280,36 @@ fn hole_circle_anchor_recovers_reversal() {
     let outer = LoopProgram::polygon([(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]).unwrap();
     let hole = LoopProgram::circle(2.0, 2.0, 0.5).unwrap();
     let doc = ProfileDoc::empty_derived("switch_naming", Tol::witness())
-        .apply(&DocEdit::InsertNode {
-            node: Node::Profile(ProfileProgram {
-                plane: SketchPlane::xy(),
-                loops: vec![outer, hole],
-            }),
-        }, Tol::witness())
+        .apply(
+            &DocEdit::InsertNode {
+                node: Node::Profile(ProfileProgram {
+                    plane: SketchPlane::xy(),
+                    loops: vec![outer, hole],
+                }),
+            },
+            Tol::witness(),
+        )
         .unwrap()
         .doc;
     let doc = doc
-        .apply(&DocEdit::InsertNode {
-            node: Node::Extrude {
-                profile: RecipeNodeId(0),
-                distance: lit(1.0),
+        .apply(
+            &DocEdit::InsertNode {
+                node: Node::Extrude {
+                    profile: RecipeNodeId(0),
+                    distance: lit(1.0),
+                },
             },
-        }, Tol::witness())
+            Tol::witness(),
+        )
         .unwrap()
         .doc;
-    let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness());
+    let ev = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
     let ValuePayload::Profile(pv) = &ev.value(RecipeNodeId(0)).expect("profile").payload else {
         panic!("profile payload");
     };

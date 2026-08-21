@@ -19,9 +19,9 @@ use editor_core::{
     ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, ValuePayload, apply, evaluate, load,
     save,
 };
+use geom_core::Tol;
 use geom_core::{Affine3, Vec3};
 use profile::SketchPlane;
-use geom_core::Tol;
 
 struct Rec {
     doc: ProfileDoc,
@@ -97,7 +97,13 @@ fn union_body<T: geom_core::Decide>(
 #[test]
 fn the_boss_union_document_row_f64_volume_and_roundtrip() {
     let (doc, _edits, union) = boss_union_doc();
-    let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness());
+    let ev = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
     let body = union_body(&ev, union);
     let vol = topo::mass_properties(body, Tol::witness()).unwrap().volume;
     let expect = 7.2 + std::f64::consts::PI * 0.35 * 0.35 * 0.5;
@@ -198,7 +204,13 @@ fn tangent_intersection_edges_survive_save_load_at_rest() {
         distance: len(1.0),
     });
     let count = |doc: &ProfileDoc| -> usize {
-        let ev = evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness());
+        let ev = evaluate::<f64>(
+            doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            Tol::witness(),
+        );
         let body = match &ev.value(ex).expect("extrude evaluated").payload {
             ValuePayload::Body(b) => b.clone(),
             other => panic!("expected a body, got {}", other.kind_name()),

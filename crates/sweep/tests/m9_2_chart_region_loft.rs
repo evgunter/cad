@@ -12,10 +12,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
+use geom_core::Tol;
 use geom_core::{Affine3, Band, Point2, Vec3};
 use profile::{ProfileLoop, ProfileVertex, RawLoop};
 use topo::{Body, ChartRegionError, FaceKey, Pcurve, chart_region_overlap};
-use geom_core::Tol;
 
 fn band() -> Band {
     Band::new(1e-9, 1e-8).unwrap()

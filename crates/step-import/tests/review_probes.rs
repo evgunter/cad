@@ -5,8 +5,8 @@
 mod common;
 
 use common::{census, fixture};
-use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 use geom_core::Tol;
+use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 
 fn import_text(text: &str) -> Result<StepImport, StepImportError> {
     import_step(text, &ImportOptions::default())
@@ -223,7 +223,9 @@ fn d4_reversed_data_lines_still_assemble() {
     let reference = solid(&text, "die");
     assert_eq!(census(&body), census(&reference));
     let v1 = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
-    let v2 = topo::mass_properties(&reference, Tol::witness()).unwrap().volume;
+    let v2 = topo::mass_properties(&reference, Tol::witness())
+        .unwrap()
+        .volume;
     assert_eq!(v1.to_bits(), v2.to_bits());
     let e1 = export(&body, "die");
     let body2 = solid(&e1, "reversed die reimport");
@@ -258,7 +260,9 @@ fn d4_renumbered_kiss_assembly_still_assembles() {
     let reference = solid(&text, "kiss");
     assert_eq!(census(&body), census(&reference));
     let v1 = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
-    let v2 = topo::mass_properties(&reference, Tol::witness()).unwrap().volume;
+    let v2 = topo::mass_properties(&reference, Tol::witness())
+        .unwrap()
+        .volume;
     assert_eq!(v1.to_bits(), v2.to_bits());
     let e1 = export(&body, "kiss_assembly");
     let body2 = solid(&e1, "renumbered kiss reimport");
@@ -325,9 +329,10 @@ fn f6_reversed_face_unflip_is_not_healed() {
             let out = export(&body, "washer");
             let flipped_back = out.contains(", #5, .F.);");
             let v = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
-            let v0 = topo::mass_properties(&solid(&fixture("washer", "step"), "washer"), Tol::witness())
-                .unwrap()
-                .volume;
+            let v0 =
+                topo::mass_properties(&solid(&fixture("washer", "step"), "washer"), Tol::witness())
+                    .unwrap()
+                    .volume;
             // Finding data, not a hard assert: tier-3 detectability of a
             // curved-face sense flip is kernel scope, not import scope.
             println!(
@@ -527,7 +532,9 @@ fn e5_closed_forms() {
     println!(
         "e5 die_pips imported volume is {:.2} ulps from the sidecar (pad {})",
         (v - expected).abs() / ulp,
-        topo::mass_properties(&body, Tol::witness()).unwrap().volume_pad
+        topo::mass_properties(&body, Tol::witness())
+            .unwrap()
+            .volume_pad
     );
 }
 

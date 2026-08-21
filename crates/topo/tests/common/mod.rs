@@ -15,9 +15,9 @@
 
 use geom::Surface;
 use geom_brep::{EdgeCurveSpec, EdgeGeometry, newell_plane};
+use geom_core::Tol;
 use geom_core::{Band, Point3, Real};
 use topo::{Body, FaceSurface, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
-use geom_core::Tol;
 
 /// Key bundle for the geometric unit cube.
 #[allow(dead_code)]
@@ -74,8 +74,13 @@ pub fn geometric_cube<T: geom_core::Decide>() -> GeoCube<T> {
         )
         .unwrap();
     let strut = |body: &mut Body<T>, at, from, to| {
-        body.mev(MevSite::Fan { he1: at, he2: at }, to, line(from, to), Tol::witness())
-            .unwrap()
+        body.mev(
+            MevSite::Fan { he1: at, he2: at },
+            to,
+            line(from, to),
+            Tol::witness(),
+        )
+        .unwrap()
     };
     let e_bc = strut(&mut body, e_ab.he_minus, b, cc);
     let e_cd = strut(&mut body, e_bc.he_minus, cc, d);
@@ -385,8 +390,13 @@ pub fn cube_into(body: &mut Body<f64>, map: impl Fn(f64, f64, f64) -> Point3<f64
         )
         .unwrap();
     let strut = |body: &mut Body<f64>, at, from, to| {
-        body.mev(MevSite::Fan { he1: at, he2: at }, to, line(from, to), Tol::witness())
-            .unwrap()
+        body.mev(
+            MevSite::Fan { he1: at, he2: at },
+            to,
+            line(from, to),
+            Tol::witness(),
+        )
+        .unwrap()
     };
     let e_bc = strut(body, e_ab.he_minus, b, cc);
     let e_cd = strut(body, e_bc.he_minus, cc, d);

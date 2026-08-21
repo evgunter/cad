@@ -26,11 +26,11 @@
 mod common;
 
 use geom_core::Point3;
+use geom_core::Tol;
 use topo::{
     Body, CensusContact, ContactRecords, EntityId, FaceKey, LoopBoundary, ValidationError,
     VertexKey, VfContact, VvContact, validate_pseudomanifold,
 };
-use geom_core::Tol;
 
 /// A cube of side `side` with its minimum corner at `(dx, dy, dz)`.
 fn cube(side: f64, dx: f64, dy: f64, dz: f64) -> Body<f64> {

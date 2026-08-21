@@ -14,6 +14,7 @@ mod common;
 
 use common::{axis_y, ball, cone, donut, eps, p2, validated, washer};
 use geom::Surface;
+use geom_core::Tol;
 use geom_core::{Point3, Vec3};
 use mesh::tessellate;
 use mesh::validate::{check_mesh, signed_volume};
@@ -21,7 +22,6 @@ use profile::RawLoop;
 use profile::{ProfileLoop, ProfileVertex};
 use sweep::{Extrusion, Revolution, extrude, revolve};
 use topo::Body;
-use geom_core::Tol;
 
 // ---- independent exact-distance oracles (re-derived) ----------------
 
@@ -160,9 +160,13 @@ fn tall_thin_bar() -> Body<f64> {
     // All eight joints are exact corner-arc/side tangencies (#101).
     let n = lp.vertices().len();
     lp = lp.with_tangent_joints((0..n).collect());
-    extrude(&validated(vec![lp]), Extrusion::Distance(25.0), Tol::witness())
-        .unwrap()
-        .body
+    extrude(
+        &validated(vec![lp]),
+        Extrusion::Distance(25.0),
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// Mirror-nappe ring: triangle (1,0)-(2,1)-(1,2) revolved fully —
@@ -170,17 +174,27 @@ fn tall_thin_bar() -> Body<f64> {
 /// cylinder wall; genus 1, no axis contact.
 fn diamond_ring() -> Body<f64> {
     let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 1.0), p2(1.0, 2.0)]);
-    revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness())
-        .unwrap()
-        .body
+    revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// Megaphone: very wide cone (half-angle atan 3 ≈ 71.6°) + top disc.
 fn megaphone() -> Body<f64> {
     let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(3.0, 1.0), p2(0.0, 1.0)]);
-    revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness())
-        .unwrap()
-        .body
+    revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// Silo: cylinder wall + quarter-arc dome cap onto the axis pole.
@@ -195,9 +209,14 @@ fn silo() -> Body<f64> {
     // The dome cap leaves the cylinder wall tangentially at (1, 1) --
     // intended smooth cap, declared (#101).
     lp = lp.with_tangent_joints(vec![2]);
-    revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness())
-        .unwrap()
-        .body
+    revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// Many-band dome: three unit-circle arcs pole to pole (stacked
@@ -214,9 +233,14 @@ fn dome() -> Body<f64> {
         ),
         ProfileVertex::new(p2(0.0, 1.0), 0.0),
     ]);
-    revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness())
-        .unwrap()
-        .body
+    revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 // ---- the hunts ------------------------------------------------------

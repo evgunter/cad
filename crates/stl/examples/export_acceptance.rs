@@ -13,8 +13,8 @@
 #[path = "../tests/common/mod.rs"]
 mod common;
 
-use mesh::validate::{check_mesh, signed_volume, triangle_count};
 use geom_core::Tol;
+use mesh::validate::{check_mesh, signed_volume, triangle_count};
 
 fn main() {
     let tol = Tol::witness();

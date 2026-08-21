@@ -22,10 +22,10 @@ use common::{
     bracket, chain, circle_h, circle_v, l_profile, lens, quarter_bulge, rect, rounded_rect,
 };
 use geom_core::Point2;
+use geom_core::Tol;
 use profile::RawLoop;
 use profile::lift::{Fidelity, LiftOutcome, LiftRefusal, lift, lift_checked};
 use profile::{ProfileLoop, ProfileVertex, circle, circle_split};
-use geom_core::Tol;
 
 /// The coarse bucket a census row falls in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -135,7 +135,9 @@ fn corpus() -> Vec<(&'static str, ProfileLoop<f64>, Class)> {
         ("circle_v", circle_v(0.0, 0.0, 1.0), Class::Value),
         (
             "circle_primitive",
-            circle(Point2::new(0.5, -0.25), 1.5, Tol::witness()).expect("circle").loop_,
+            circle(Point2::new(0.5, -0.25), 1.5, Tol::witness())
+                .expect("circle")
+                .loop_,
             Class::Bits,
         ),
         ("circle_split_3", thirds(), Class::Bits),
@@ -353,6 +355,12 @@ fn geometric_walls_are_the_drivers_own() {
 /// AT THE SEAM it still refuses.
 #[test]
 fn the_same_carrier_class_splits_in_two() {
-    assert_eq!(classify(&lift_checked(&half_disc(), Tol::witness())), Class::Bits);
-    assert_eq!(classify(&lift_checked(&unequal_split(), Tol::witness())), Class::Refused);
+    assert_eq!(
+        classify(&lift_checked(&half_disc(), Tol::witness())),
+        Class::Bits
+    );
+    assert_eq!(
+        classify(&lift_checked(&unequal_split(), Tol::witness())),
+        Class::Refused
+    );
 }

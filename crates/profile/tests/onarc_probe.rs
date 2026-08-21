@@ -8,8 +8,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Point2;
-use profile::{ArcSide, ArcSweep, Center, Open, Profile, Radius, SketchPlane, Start};
 use geom_core::Tol;
+use profile::{ArcSide, ArcSweep, Center, Open, Profile, Radius, SketchPlane, Start};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)

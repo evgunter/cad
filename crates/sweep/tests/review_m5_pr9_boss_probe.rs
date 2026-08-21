@@ -7,13 +7,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Tol;
 use geom_core::{Affine3, Point2, Point3, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, extrude};
 use topo::Body;
 use topo::splitting::{SplitPlane, split};
-use geom_core::Tol;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -33,7 +33,9 @@ fn plate() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![rect(3.0, 3.0)])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(0.8), Tol::witness()).unwrap().body
+    extrude(&profile, Extrusion::Distance(0.8), Tol::witness())
+        .unwrap()
+        .body
 }
 
 /// My boss: r = 0.35 at (1.2, 1.7), authored as `n` equal arcs,
@@ -50,7 +52,9 @@ fn boss(n: usize, z0: f64, len: f64) -> Body<f64> {
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(len), Tol::witness()).unwrap().body
+    extrude(&profile, Extrusion::Distance(len), Tol::witness())
+        .unwrap()
+        .body
 }
 
 /// Tier-3 + closed-form volume + seam inventory + pcurve coverage.
@@ -124,21 +128,27 @@ fn my_boss_subtract_makes_a_blind_hole_honestly() {
     // flips from a refusal pin to the construction row it always wanted
     // to be, audited exactly like the union twin above: exact
     // closed-form volume, tier 3, intrinsic seam arcs, pcurve coverage.
-    let out = topo::subtract(&plate(), &boss(3, 0.3, 1.0), Tol::witness()).expect("curved subtract is live");
+    let out = topo::subtract(&plate(), &boss(3, 0.3, 1.0), Tol::witness())
+        .expect("curved subtract is live");
     let body = &out.body().expect("a body").body;
     // The pocket runs from z = 0.3 to the top face at z = 0.8.
     let expect = 3.0 * 3.0 * 0.8 - std::f64::consts::PI * 0.35 * 0.35 * 0.5;
     audit(body, expect, 3, 0.8);
     // Intersect takes the same live lane, and the pair is additive.
-    let met = topo::intersect(&plate(), &boss(3, 0.3, 1.0), Tol::witness()).expect("curved intersect is live");
+    let met = topo::intersect(&plate(), &boss(3, 0.3, 1.0), Tol::witness())
+        .expect("curved intersect is live");
     let met_body = &met.body().expect("a body").body;
-    let met_vol = topo::mass_properties(met_body, Tol::witness()).unwrap().volume;
+    let met_vol = topo::mass_properties(met_body, Tol::witness())
+        .unwrap()
+        .volume;
     assert!(
         (met_vol - std::f64::consts::PI * 0.35 * 0.35 * 0.5).abs() < 1e-9,
         "intersect meters the plug: {met_vol}"
     );
     assert!(
-        (topo::mass_properties(body, Tol::witness()).unwrap().volume + met_vol - 3.0 * 3.0 * 0.8).abs() < 1e-9,
+        (topo::mass_properties(body, Tol::witness()).unwrap().volume + met_vol - 3.0 * 3.0 * 0.8)
+            .abs()
+            < 1e-9,
         "A∖B + A∩B must meter A"
     );
 }
@@ -181,7 +191,9 @@ fn a_second_curved_boolean_chains_on_the_first_result() {
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let slab = extrude(&profile, Extrusion::Distance(0.15), Tol::witness()).unwrap().body;
+    let slab = extrude(&profile, Extrusion::Distance(0.15), Tol::witness())
+        .unwrap()
+        .body;
     match topo::union(&first, &slab, Tol::witness()) {
         Ok(out) => {
             let body = &out.body().expect("body").body;
@@ -221,16 +233,22 @@ fn du_of_rims_sums_equal_span_arcs_the_shape_the_old_rule_silently_halved() {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let body = extrude(&profile, Extrusion::Distance(1.0), Tol::witness()).unwrap().body;
+    let body = extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body;
     let plane = SplitPlane {
         origin: Point3::new(0.0, 0.0, 0.0),
         normal: Vec3::new(1.0, 0.0, 0.0),
     };
     let parts = split(&body, &plane).expect("split at x=0");
     let mut below = parts.below.body().expect("below").clone();
-    let out = below.merge_coplanar_faces(Tol::witness()).expect("cosurface merge");
+    let out = below
+        .merge_coplanar_faces(Tol::witness())
+        .expect("cosurface merge");
     assert_eq!(out.groups.len(), 1, "one wall re-merge: {:?}", out.groups);
-    let vol = topo::mass_properties(&below, Tol::witness()).unwrap().volume;
+    let vol = topo::mass_properties(&below, Tol::witness())
+        .unwrap()
+        .volume;
     let expect = std::f64::consts::PI * 0.25 / 2.0;
     assert!(
         (vol - expect).abs() < 1e-9,
@@ -256,14 +274,18 @@ fn a_genuinely_non_maximal_curved_operand_slips_the_f7_gate_what_then() {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let body = extrude(&profile, Extrusion::Distance(1.0), Tol::witness()).unwrap().body;
+    let body = extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body;
     let plane = SplitPlane {
         origin: Point3::new(0.2, 0.0, 0.0),
         normal: Vec3::new(1.0, 0.0, 0.0),
     };
     let parts = split(&body, &plane).expect("split");
     let below = parts.below.body().expect("below").clone(); // NOT merged
-    let vol_below = topo::mass_properties(&below, Tol::witness()).unwrap().volume;
+    let vol_below = topo::mass_properties(&below, Tol::witness())
+        .unwrap()
+        .volume;
     // A thin slab through the fragments: 2 x 2 x [0.4, 0.6] centered.
     let lp2 = ProfileLoop::new(
         [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]
@@ -275,7 +297,9 @@ fn a_genuinely_non_maximal_curved_operand_slips_the_f7_gate_what_then() {
     let profile2 = Profile::new(plane2, vec![lp2])
         .validate(Tol::witness())
         .unwrap();
-    let slab = extrude(&profile2, Extrusion::Distance(0.2), Tol::witness()).unwrap().body;
+    let slab = extrude(&profile2, Extrusion::Distance(0.2), Tol::witness())
+        .unwrap()
+        .body;
     match topo::union(&below, &slab, Tol::witness()) {
         Ok(out) => {
             let b = &out.body().expect("body").body;
@@ -313,7 +337,9 @@ fn a_boss_overhanging_the_plate_edge_hits_the_curved_pierce_frontier() {
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let boss_over = extrude(&profile, Extrusion::Distance(1.0), Tol::witness()).unwrap().body;
+    let boss_over = extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body;
     match topo::union(&plate(), &boss_over, Tol::witness()) {
         Err(e @ topo::BooleanError::CurvedPierceUnsupported { .. }) => {
             let msg = format!("{e}");

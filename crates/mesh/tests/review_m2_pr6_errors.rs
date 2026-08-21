@@ -10,11 +10,11 @@
 mod common;
 
 use common::{axis_y, ball, cone, donut, p2, validated, washer};
+use geom_core::Tol;
 use mesh::{TessellateError, tessellate};
 use profile::ProfileLoop;
 use profile::RawLoop;
 use sweep::{Revolution, revolve};
-use geom_core::Tol;
 
 #[test]
 fn survives_negative_zero_delta_refused() {
@@ -65,17 +65,27 @@ fn survives_certificate_exceeded_unreachable_over_body_sweep() {
             profile::ProfileVertex::new(p2(10.0, -0.05), 1.0),
             profile::ProfileVertex::new(p2(10.0, 0.05), 1.0),
         ]);
-        revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness())
-            .unwrap()
-            .body
+        revolve(
+            &validated(vec![lp]),
+            axis_y(),
+            Revolution::Full,
+            Tol::witness(),
+        )
+        .unwrap()
+        .body
     };
     let flat_cone = {
         // Nearly flat cone (half-angle → π/2) — cosα·sinα maximal
         // sensitivity region for the cone bound.
         let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(4.0, 0.2), p2(0.0, 0.2)]);
-        revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness())
-            .unwrap()
-            .body
+        revolve(
+            &validated(vec![lp]),
+            axis_y(),
+            Revolution::Full,
+            Tol::witness(),
+        )
+        .unwrap()
+        .body
     };
     for body in [ball(), cone(), donut(), extreme_torus, flat_cone] {
         for delta in [3.0, 0.7, 0.09, 0.013] {

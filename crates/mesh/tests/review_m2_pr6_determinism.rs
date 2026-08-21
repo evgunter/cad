@@ -11,11 +11,11 @@ mod common;
 use common::{
     axis_y, ball, cone, donut, dump, eps, l_prism, p2, rounded_prism, validated, washer, wedge,
 };
+use geom_core::Tol;
 use mesh::tessellate;
 use profile::ProfileLoop;
 use profile::RawLoop;
 use sweep::{Revolution, revolve};
-use geom_core::Tol;
 
 /// FNV-1a over a string (independent tiny hash, no deps).
 fn fnv(s: &str) -> u64 {

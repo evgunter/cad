@@ -54,10 +54,10 @@
 //! means and this unit solves coincidence only.
 
 use crate::node::RecipeNodeId;
+use geom_core::Tol;
 use geom_core::linalg::frame::FrameError;
 use geom_core::linalg::{Affine3, Point3, Vec3};
 use geom_core::predicate::{BandError, Indeterminate};
-use geom_core::Tol;
 
 pub mod coset;
 pub mod solve;

@@ -22,13 +22,13 @@ use geom::Surface;
 use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom_brep::ssi::{self, SsiDomain, SsiError};
 use geom_brep::{Pcurve, PcurveCache};
+use geom_core::Tol;
 use geom_core::{Band, Point2, Point3, Vec3};
 use mesh::TessellateError;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, extrude, loft_body};
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::{Body, HalfEdgeKey};
-use geom_core::Tol;
 
 mod common;
 
@@ -104,12 +104,16 @@ fn build_fitted_cache() -> Option<PcurveCache<f64>> {
         extent: 2.0,
         floor_scale: 1.0,
     };
-    let branch =
-        match ssi::cylinder_sphere_ssi(&cylinder(), &sphere(), slab, Band::linear(Tol::witness()).unwrap()) {
-            Ok(out) => out.branches.into_iter().next().expect("two loops"),
-            Err(SsiError::FitSampleBudget { .. }) => return None,
-            Err(e) => panic!("the planted fixture: {e}"),
-        };
+    let branch = match ssi::cylinder_sphere_ssi(
+        &cylinder(),
+        &sphere(),
+        slab,
+        Band::linear(Tol::witness()).unwrap(),
+    ) {
+        Ok(out) => out.branches.into_iter().next().expect("two loops"),
+        Err(SsiError::FitSampleBudget { .. }) => return None,
+        Err(e) => panic!("the planted fixture: {e}"),
+    };
     let Curve3::Nurbs(ref loop_carrier) = branch.carrier else {
         panic!("a rung-3 carrier is a NURBS curve")
     };
@@ -183,7 +187,9 @@ fn split_cylinder_half() -> Body<f64> {
     let disc = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let cylinder = extrude(&disc, Extrusion::Distance(2.0), Tol::witness()).unwrap().body;
+    let cylinder = extrude(&disc, Extrusion::Distance(2.0), Tol::witness())
+        .unwrap()
+        .body;
     let plane = SplitPlane {
         origin: Point3::new(0.0, 0.0, 1.0),
         normal: Vec3::new(0.3f64.sin(), 0.0, 0.3f64.cos()),

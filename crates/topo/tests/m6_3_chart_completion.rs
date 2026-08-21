@@ -36,9 +36,9 @@ use std::sync::Arc;
 use geom::Surface;
 use geom::{Curve3, NurbsCurve2};
 use geom_brep::{EdgeCurveSpec, EdgeGeometry, EnvelopeStatement, Pcurve, PcurveCache};
+use geom_core::Tol;
 use geom_core::{Band, Point2, Point3, Real, Vec3};
 use topo::Body;
-use geom_core::Tol;
 
 /// The chart sphere: unit-ish radius, polar axis +z.
 fn sphere<T: Real>() -> Surface<T> {

@@ -9,12 +9,12 @@ mod common;
 
 use common::{flush_declarations, prism_z};
 use geom_core::Decide;
+use geom_core::Tol;
 use topo::test_support::arena_counts;
 use topo::{
     Body, BooleanError, BooleanOp, BooleanReduction, boolean_reduce, boolean_reduce_declared,
     validate,
 };
-use geom_core::Tol;
 
 fn brick<T: Decide + geom_core::Bounds>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
     prism_z::<T>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body

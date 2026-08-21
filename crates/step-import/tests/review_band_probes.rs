@@ -19,8 +19,8 @@ mod common;
 use std::collections::BTreeMap;
 
 use common::census;
-use step_import::{ImportOptions, StepImport, import_step};
 use geom_core::Tol;
+use step_import::{ImportOptions, StepImport, import_step};
 
 fn wild(rel: &str) -> String {
     let p = format!("{}/tests/fixtures/wild/{rel}", env!("CARGO_MANIFEST_DIR"));
@@ -264,7 +264,11 @@ fn r1_washer90_imports_the_true_region() {
         );
     };
     assert_eq!(census(&body), (1, 1, 3, 5, 4), "washer90 census");
-    assert_eq!(topo::validate_geometric(&body, Tol::witness()), Ok(()), "washer90 tier 3");
+    assert_eq!(
+        topo::validate_geometric(&body, Tol::witness()),
+        Ok(()),
+        "washer90 tier 3"
+    );
     let v = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
     assert!(
         ((v - v_true) / v_true).abs() < 1e-12,

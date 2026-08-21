@@ -20,12 +20,12 @@
 mod common;
 
 use common::{flush_declarations, line, plane, prism_z};
+use geom_core::Tol;
 use geom_core::{Decide, Point3};
 use topo::{
     Body, BooleanBody, BooleanError, BooleanResult, BooleanResultKind, FaceSurface, MefSite,
     MevSite, mass_properties, subtract_with, union_with, validate, validate_closed,
 };
-use geom_core::Tol;
 
 fn brick<T: Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
     prism_z::<T>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
@@ -142,8 +142,12 @@ fn tprism<T: Decide>(profile: &[(f64, f64)], z0: f64, z1: f64, m: [[f64; 3]; 3])
     body
 }
 
-type BoolOp<T> =
-    fn(&Body<T>, &Body<T>, &topo::BooleanDeclarations, Tol) -> Result<BooleanResult<T>, BooleanError>;
+type BoolOp<T> = fn(
+    &Body<T>,
+    &Body<T>,
+    &topo::BooleanDeclarations,
+    Tol,
+) -> Result<BooleanResult<T>, BooleanError>;
 
 /// Functional run with the author's flush contacts declared (M4
 /// PR 5): operands bitwise untouched, result tier-1+2 valid, D9
@@ -233,7 +237,8 @@ fn assert_typed_refusal<T: Decide>(op: BoolOp<T>, a: &Body<T>, b: &Body<T>) -> S
 /// matched slots) and the (d, -d) strut opposite-sense claim.
 /// Returns the germ counts by how the two sides' senses relate.
 fn sense_census(op: topo::BooleanOp, a: &Body<f64>, b: &Body<f64>) -> SenseCensus {
-    let red = topo::boolean_reduce_declared(op, a, b, &flush_declarations(a, b), Tol::witness()).unwrap();
+    let red =
+        topo::boolean_reduce_declared(op, a, b, &flush_declarations(a, b), Tol::witness()).unwrap();
     // Edge keys are body-lineage-scoped (F9): the pair's a_edge must be
     // resolved among A-operand records only (keys can collide across
     // arenas).
@@ -1010,9 +1015,14 @@ fn g_boundary_on_boundary_refusals_sharp() {
 fn g_stacked_full_on_edge_germ_dump() {
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = brick::<f64>((0.0, 2.0), (0.0, 2.0), (2.0, 3.0));
-    let red =
-        topo::boolean_reduce_declared(topo::BooleanOp::Union, &a, &b, &flush_declarations(&a, &b), Tol::witness())
-            .unwrap();
+    let red = topo::boolean_reduce_declared(
+        topo::BooleanOp::Union,
+        &a,
+        &b,
+        &flush_declarations(&a, &b),
+        Tol::witness(),
+    )
+    .unwrap();
     assert_eq!(red.contacts.vv.len(), 4, "four shared rim corners");
     assert!(!red.null_edges.is_empty(), "seam scaffolding minted");
     let mut horizontal_axis = 0;

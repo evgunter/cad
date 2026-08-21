@@ -49,7 +49,10 @@ fn corner_kiss_assembly_exports() {
     let BooleanResult::Body(r) = union(&a, &b, Tol::witness()).unwrap() else {
         panic!("kiss union is a body");
     };
-    assert_eq!(validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()), Ok(()));
+    assert_eq!(
+        validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()),
+        Ok(())
+    );
     // Shell count pinned alongside exact volume: admesh's parts=N alone
     // cannot distinguish a legit assembly from a wrongly-disconnected
     // one-part result (review R7b).
@@ -76,7 +79,10 @@ fn tangent_edge_assembly_exports() {
     let BooleanResult::Body(r) = union(&a, &b, Tol::witness()).unwrap() else {
         panic!("tangent-edge union is a body");
     };
-    assert_eq!(validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()), Ok(()));
+    assert_eq!(
+        validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()),
+        Ok(())
+    );
     // Shell count pinned alongside exact volume: admesh's parts=N alone
     // cannot distinguish a legit assembly from a wrongly-disconnected
     // one-part result (review R7b).

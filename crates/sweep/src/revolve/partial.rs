@@ -307,7 +307,15 @@ fn finish_partial<T: Decide>(
                 }
                 None => {
                     debug_assert!(matches!(classes[li].walls[j], WallClass::OnAxis));
-                    upgrade_intersection(body, bottom, start_surface, end_surface, band, sliver, tol)?;
+                    upgrade_intersection(
+                        body,
+                        bottom,
+                        start_surface,
+                        end_surface,
+                        band,
+                        sliver,
+                        tol,
+                    )?;
                 }
             }
         }
@@ -480,13 +488,19 @@ pub(super) fn sweep_loop<T: Decide>(
             continue;
         }
         let vertex_index = segs[j].canonical_vertex;
-        upgrade_intersection(body, strut.edge, k_prev, k_next, band, |source| {
-            RevolveError::SliverJoin {
+        upgrade_intersection(
+            body,
+            strut.edge,
+            k_prev,
+            k_next,
+            band,
+            |source| RevolveError::SliverJoin {
                 loop_index,
                 vertex_index,
                 source,
-            }
-        }, tol)?;
+            },
+            tol,
+        )?;
     }
 
     Ok(LoopSwept { faces, rims, tops })

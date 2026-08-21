@@ -25,9 +25,9 @@
 
 use geom_brep::props::PropsError;
 use geom_brep::props::quad::nurbs_patch_face;
+use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::{Band, MarginDiag, RingInterval};
-use geom_core::Tol;
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
@@ -969,7 +969,10 @@ fn probe_determinism_bits() {
             );
         }
         (Err(a), Err(b)) => {
-            println!("DETBITS refusal @ eps={:e}: {a:?}", Tol::witness().get().eps);
+            println!(
+                "DETBITS refusal @ eps={:e}: {a:?}",
+                Tol::witness().get().eps
+            );
             assert!(
                 matches!(
                     a,

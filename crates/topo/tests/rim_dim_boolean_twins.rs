@@ -68,9 +68,9 @@ use std::collections::BTreeMap;
 
 use common::prism_z;
 use geom_core::Sign;
+use geom_core::Tol;
 use geom_core::k_stats::{self, Probe, SampleOutcome};
 use topo::{BooleanResult, subtract};
-use geom_core::Tol;
 
 /// Audited, documented non-length comparands still awaiting their own
 /// units (docs/predicate-dimension-audit.md FLAG rows). Everything

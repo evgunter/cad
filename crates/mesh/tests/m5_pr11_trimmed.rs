@@ -9,13 +9,13 @@
 use profile::RawLoop;
 use std::collections::HashMap;
 
+use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec3};
 use mesh::validate::{check_mesh, signed_volume, triangle_count};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, extrude};
 use topo::Body;
 use topo::splitting::{SplitPart, SplitPlane, split};
-use geom_core::Tol;
 
 const R: f64 = 1.0;
 const H: f64 = 2.5;
@@ -33,7 +33,9 @@ fn disc() -> ValidatedProfile<f64> {
 }
 
 fn halves() -> (Body<f64>, Body<f64>) {
-    let cylinder = extrude(&disc(), Extrusion::Distance(H), Tol::witness()).unwrap().body;
+    let cylinder = extrude(&disc(), Extrusion::Distance(H), Tol::witness())
+        .unwrap()
+        .body;
     let plane = SplitPlane {
         origin: Point3::new(0.0, 0.0, H / 2.0),
         normal: Vec3::new(PHI.sin(), 0.0, PHI.cos()),

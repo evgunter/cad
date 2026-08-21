@@ -591,10 +591,10 @@ fn first_program_fault(snapshot: &ProfileDoc, tol: Tol) -> Option<(RecipeNodeId,
 mod tests {
     #![allow(clippy::panic)]
 
-    use geom_core::Tol;
     use crate::node::RecipeNodeId;
     use crate::persist::{PersistError, SnapshotError, save};
     use crate::program::ProfileDoc;
+    use geom_core::Tol;
 
     /// Convention 2's point, pinned at the unit level: a document
     /// that would refuse to load cannot be saved. Both corruptions

@@ -358,8 +358,9 @@ pub(super) fn fillet_surgery<T: Decide + Bounds>(
     };
 
     let mut rec = FilletNaming::default();
-    let (blend_faces, corner_faces, mut described) =
-        blank_phase(&mut body, &opens, &corners, &supports, radius, &mut rec, tol)?;
+    let (blend_faces, corner_faces, mut described) = blank_phase(
+        &mut body, &opens, &corners, &supports, radius, &mut rec, tol,
+    )?;
     let mut band_faces = Vec::with_capacity(rims.len());
     let mut band_surfaces = Vec::with_capacity(rims.len());
     for rim in &rims {
@@ -1882,8 +1883,12 @@ mod tests {
     #[test]
     fn the_entry_gate_is_what_makes_the_solid_and_shell_reads_provable() {
         let mut dst = cube(L, Tol::witness());
-        topo::instance::graft_disjoint_all(&mut dst, &cube(L * 0.5, Tol::witness()), Tol::witness())
-            .expect("the public transplant door accepts a disjoint cube");
+        topo::instance::graft_disjoint_all(
+            &mut dst,
+            &cube(L * 0.5, Tol::witness()),
+            Tol::witness(),
+        )
+        .expect("the public transplant door accepts a disjoint cube");
         assert_eq!(dst.solids().count(), 2, "the graft made a second solid");
         assert_eq!(dst.shells().count(), 2, "and a second shell");
         let edges: Vec<topo::EdgeKey> = dst.edges().map(|(k, _)| k).collect();

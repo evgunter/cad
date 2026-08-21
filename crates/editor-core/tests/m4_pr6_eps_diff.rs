@@ -87,7 +87,13 @@ fn child_eps_probe() {
         return; // Normal suite run: the parent drives this test.
     };
     let doc = thin_profile_doc();
-    let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness());
+    let ev = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
     let summary = verdict_summary(&ev);
     let json = serde_json::to_string(&summary).expect("summary serializes");
     std::fs::write(&out, json).expect("probe output writable");
@@ -217,7 +223,12 @@ fn set_tolerance_round_trips_and_gates_replay() {
     // the matching side: a fresh child at the NEW ε loads the file
     // and reports the recorded value).
     let doc = thin_profile_doc();
-    let text = save(&doc, &[editor_core::DocEdit::SetTolerance { eps: 1e-4 }], Tol::witness()).expect("save");
+    let text = save(
+        &doc,
+        &[editor_core::DocEdit::SetTolerance { eps: 1e-4 }],
+        Tol::witness(),
+    )
+    .expect("save");
     // In THIS process the recorded ε (ambient) plus the edit's 1e-4
     // conflicts unless ambient IS 1e-4 — assert the door's decision
     // matches the committed ε, whichever matrix row we run under.

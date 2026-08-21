@@ -38,12 +38,12 @@
 mod common;
 
 use common::import_body;
+use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec3};
 use profile::RawLoop;
 use profile::{ProfileLoop, ProfileVertex};
 use step_import::{ImportOptions, import_step};
 use sweep::{Section, loft_body};
-use geom_core::Tol;
 
 /// The arc-bearing profile loft the substrate measured (one bulged
 /// side per section → 3 non-rational walls + 1 RATIONAL wall): the
@@ -255,8 +255,12 @@ fn arc_loft_natively_computes_its_rational_volume() {
     }
 
     // ---- The ROUND TRIP, which the bank used to block entirely. ----
-    let text = step_export::step_string(&native, &step_export::StepOptions::default(), Tol::witness())
-        .expect("the writer exports the rational-walled body");
+    let text = step_export::step_string(
+        &native,
+        &step_export::StepOptions::default(),
+        Tol::witness(),
+    )
+    .expect("the writer exports the rational-walled body");
     match import_step(&text, &ImportOptions::default()) {
         Ok(step_import::StepImport::Solid { body, .. }) => {
             assert!(
@@ -265,7 +269,8 @@ fn arc_loft_natively_computes_its_rational_volume() {
                  quadrature certified — it cannot happen at an ε where the native \
                  body's own flux ran out of schedule"
             );
-            let got = topo::mass_properties(&body, Tol::witness()).expect("imported rational mass properties");
+            let got = topo::mass_properties(&body, Tol::witness())
+                .expect("imported rational mass properties");
             let want = native_props.as_ref().expect("the native side certified");
             // **BIT identity, not overlap** (R1 MINOR-2). Overlap is
             // what soundness needs — two certified enclosures of one
@@ -312,7 +317,8 @@ fn arc_loft_natively_computes_its_rational_volume() {
                      order — the as-written file imported first-class, got {other:?}"
                 ),
             };
-            let back = topo::mass_properties(&again, Tol::witness()).expect("reversed-DATA mass properties");
+            let back = topo::mass_properties(&again, Tol::witness())
+                .expect("reversed-DATA mass properties");
             assert_eq!(
                 back.volume.to_bits(),
                 got.volume.to_bits(),
@@ -482,5 +488,6 @@ fn an_adopted_iso_column_is_a_knot_domain_end() {
         vec![0.0, 3.0],
         "both of the wall's seams adopt on ITS OWN knot-domain ends"
     );
-    topo::validate_geometric(&body, Tol::witness()).expect("and the reparameterized body is valid at rest");
+    topo::validate_geometric(&body, Tol::witness())
+        .expect("and the reparameterized body is valid at rest");
 }

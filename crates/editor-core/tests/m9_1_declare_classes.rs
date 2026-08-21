@@ -77,7 +77,13 @@ fn cap(node: RecipeNodeId, end: CapEnd) -> editor_core::StableName {
 #[test]
 fn declare_node_preserves_the_findings_class() {
     let (doc, a, b) = stacked();
-    let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness());
+    let ev = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
     let detected = find_flush_candidates(&ev, a, b, Tol::witness()).expect("the detector runs");
     assert!(!detected.is_empty(), "the stack has a flush cap to find");
 
@@ -164,21 +170,27 @@ fn a_wrong_class_declaration_refuses_at_the_op() {
     // needs while the borrow lives.
     let run = |class| -> (bool, String) {
         let applied = doc
-            .apply(&DocEdit::InsertNode {
-                node: declare(class),
-            }, Tol::witness())
+            .apply(
+                &DocEdit::InsertNode {
+                    node: declare(class),
+                },
+                Tol::witness(),
+            )
             .expect("the Declare inserts");
         let d = applied.record.minted.unwrap();
         let applied = applied
             .doc
-            .apply(&DocEdit::InsertNode {
-                node: Node::Boolean {
-                    op: BooleanOp::Union,
-                    a,
-                    b,
-                    declare: Some(d),
+            .apply(
+                &DocEdit::InsertNode {
+                    node: Node::Boolean {
+                        op: BooleanOp::Union,
+                        a,
+                        b,
+                        declare: Some(d),
+                    },
                 },
-            }, Tol::witness())
+                Tol::witness(),
+            )
             .expect("the boolean inserts");
         let id = applied.record.minted.unwrap();
         let ev = evaluate::<f64>(
@@ -215,7 +227,13 @@ fn a_wrong_class_declaration_refuses_at_the_op() {
 #[test]
 fn the_detectors_class_is_the_kernels_enum() {
     let (doc, a, b) = stacked();
-    let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness());
+    let ev = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
     let findings = find_flush_candidates(&ev, a, b, Tol::witness()).expect("the detector runs");
     for f in &findings {
         assert_eq!(f.class, ContactClass::Rest);

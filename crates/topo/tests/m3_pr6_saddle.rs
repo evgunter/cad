@@ -37,9 +37,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod common;
 use common::{mapped_cube, prism_z};
+use geom_core::Tol;
 use geom_core::{Point3, Vec3};
 use topo::{Body, BooleanError, union};
-use geom_core::Tol;
 
 /// The L-prism with its reflex wedge edge along z at (2, 2).
 fn l_prism() -> Body<f64> {
@@ -69,7 +69,8 @@ fn prism_reflex_kiss_takes_edge_edge_lane() {
     // M4 PR 5: the coplanar top/bottom contacts are declared so the
     // classification reaches the edge-edge lane (undeclared, it now
     // refuses earlier at the coincidence door — rung (b)).
-    let err = topo::union_with(&a, &b, &common::flush_declarations(&a, &b), Tol::witness()).unwrap_err();
+    let err =
+        topo::union_with(&a, &b, &common::flush_declarations(&a, &b), Tol::witness()).unwrap_err();
     assert!(
         matches!(err, BooleanError::ClassificationInvariant { .. }),
         "expected the edge-edge lane's typed refusal, got {err:?}"

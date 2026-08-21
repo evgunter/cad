@@ -267,7 +267,8 @@ fn z5_positions_hash_stamp() {
 #[test]
 fn z3_fine_nurbs_vs_coarse_planar_neighbor_watertight() {
     for delta in [5e-4, 2e-4] {
-        let mesh = mesh::tessellate(&loft_at(&[0.0, 1.0, 2.0]), delta, Tol::witness()).expect("tessellates");
+        let mesh = mesh::tessellate(&loft_at(&[0.0, 1.0, 2.0]), delta, Tol::witness())
+            .expect("tessellates");
         mesh::validate::check_mesh(&mesh).expect("watertight at fine delta");
     }
 }

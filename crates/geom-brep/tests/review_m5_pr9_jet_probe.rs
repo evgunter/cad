@@ -7,8 +7,8 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeGeometry, SurfaceKey};
-use geom_core::{Band, Point3, Vec3};
 use geom_core::Tol;
+use geom_core::{Band, Point3, Vec3};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()

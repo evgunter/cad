@@ -10,12 +10,12 @@ use core::f64::consts::TAU;
 use profile::RawLoop;
 
 use geom::Surface;
+use geom_core::Tol;
 use geom_core::{Band, Point2, Point3, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::{Body, Pcurve, validate_geometric};
-use geom_core::Tol;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -52,11 +52,15 @@ fn revolved_tube() -> Body<f64> {
         origin: p2(0.0, 0.0),
         dir: geom_core::Vec2::new(0.0, 1.0),
     };
-    revolve(&profile, axis, Revolution::Full, Tol::witness()).unwrap().body
+    revolve(&profile, axis, Revolution::Full, Tol::witness())
+        .unwrap()
+        .body
 }
 
 fn cylinder_body() -> Body<f64> {
-    extrude(&disc(), Extrusion::Distance(1.0), Tol::witness()).unwrap().body
+    extrude(&disc(), Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body
 }
 
 /// The corpus shape (i) cut: a tilted plane through a cylinder.
@@ -229,7 +233,9 @@ fn planar_bodies_carry_zero_stored_pcurves() {
     let profile = Profile::new(SketchPlane::xy(), vec![square])
         .validate(Tol::witness())
         .unwrap();
-    let mut prism = extrude(&profile, Extrusion::Distance(1.0), Tol::witness()).unwrap().body;
+    let mut prism = extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body;
     assert_eq!(prism.pcurves().count(), 0);
     topo::mint_pcurves(&mut prism, Tol::witness()).unwrap();
     assert_eq!(prism.pcurves().count(), 0, "no speculative planar caches");
@@ -393,7 +399,9 @@ fn a_rigid_transform_re_derives_the_caches() {
     let map = geom_core::Affine3::translation(Vec3::new(1.0, -2.0, 0.5));
     let moved = topo::transform::transform_rigid(&above, &map, Tol::witness()).unwrap();
     assert_eq!(moved.pcurves().count(), before);
-    assert!(topo::pcurves::validate_pcurves(&moved, Band::linear(Tol::witness()).unwrap()).is_empty());
+    assert!(
+        topo::pcurves::validate_pcurves(&moved, Band::linear(Tol::witness()).unwrap()).is_empty()
+    );
 }
 
 /// Determinism (D9): the same cut replayed produces byte-identical
@@ -463,7 +471,9 @@ fn caches_certify_on_the_interval_lane() {
             assert!(geom_core::Bounds::hi(c.max_residual) < 1e-11);
             assert!(geom_core::Bounds::hi(c.envelope) < 1e-11);
         }
-        assert!(topo::pcurves::validate_pcurves(part, Band::linear(Tol::witness()).unwrap()).is_empty());
+        assert!(
+            topo::pcurves::validate_pcurves(part, Band::linear(Tol::witness()).unwrap()).is_empty()
+        );
     }
     assert!(seen > 0);
 }

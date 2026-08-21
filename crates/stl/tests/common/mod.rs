@@ -3,12 +3,12 @@
 //! acceptance suites and the CI export example).
 #![allow(dead_code)] // each consumer uses a subset
 
+use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, BooleanResult};
-use geom_core::Tol;
 
 pub fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -110,9 +110,13 @@ pub fn tiltedcut() -> (Body<f64>, Body<f64>) {
         ProfileVertex::new(p2(-1.0, 0.0), 1.0),
         ProfileVertex::new(p2(1.0, 0.0), 1.0),
     ]);
-    let cylinder = extrude(&validated(vec![lp]), Extrusion::Distance(2.5), Tol::witness())
-        .unwrap()
-        .body;
+    let cylinder = extrude(
+        &validated(vec![lp]),
+        Extrusion::Distance(2.5),
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     let phi: f64 = 0.3;
     let plane = SplitPlane {
         origin: Point3::new(0.0, 0.0, 1.25),
@@ -131,9 +135,13 @@ pub fn tiltedcut() -> (Body<f64>, Body<f64>) {
 pub fn boss_plate() -> Body<f64> {
     use geom_core::Affine3;
     let plate_loop = ProfileLoop::polygon([p2(0.0, 0.0), p2(4.0, 0.0), p2(4.0, 4.0), p2(0.0, 4.0)]);
-    let plate = extrude(&validated(vec![plate_loop]), Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body;
+    let plate = extrude(
+        &validated(vec![plate_loop]),
+        Extrusion::Distance(1.0),
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     let b120 = (core::f64::consts::PI / 6.0).tan();
     let at = |deg: f64| {
         let th = deg.to_radians();
@@ -232,9 +240,13 @@ pub fn l_prism() -> Body<f64> {
         p2(1.0, 2.0),
         p2(0.0, 2.0),
     ]);
-    extrude(&validated(vec![lp]), Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body
+    extrude(
+        &validated(vec![lp]),
+        Extrusion::Distance(1.0),
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// 4×4 square with a centered circular hole (two-vertex closed
@@ -245,9 +257,13 @@ pub fn holed_prism() -> Body<f64> {
         ProfileVertex::new(p2(1.0, 0.0), 1.0),
         ProfileVertex::new(p2(-1.0, 0.0), 1.0),
     ]);
-    extrude(&validated(vec![outer, hole]), Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body
+    extrude(
+        &validated(vec![outer, hole]),
+        Extrusion::Distance(1.0),
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 pub fn ball() -> Body<f64> {
@@ -255,23 +271,38 @@ pub fn ball() -> Body<f64> {
         ProfileVertex::new(p2(0.0, -1.0), 1.0),
         ProfileVertex::new(p2(0.0, 1.0), 0.0),
     ]);
-    revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness())
-        .unwrap()
-        .body
+    revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 pub fn cone() -> Body<f64> {
     let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(0.0, 1.0)]);
-    revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness())
-        .unwrap()
-        .body
+    revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 pub fn washer() -> Body<f64> {
     let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
-    revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness())
-        .unwrap()
-        .body
+    revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 pub fn donut() -> Body<f64> {
@@ -279,9 +310,14 @@ pub fn donut() -> Body<f64> {
         ProfileVertex::new(p2(2.0, -0.5), 1.0),
         ProfileVertex::new(p2(2.0, 0.5), 1.0),
     ]);
-    revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness())
-        .unwrap()
-        .body
+    revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 pub fn wedge() -> Body<f64> {

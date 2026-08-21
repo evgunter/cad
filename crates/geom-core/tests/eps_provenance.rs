@@ -23,8 +23,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::tolerance::{DEFAULT_EPS, ENV_EPS, EpsilonSource, Tolerance};
 use geom_core::Tol;
+use geom_core::tolerance::{DEFAULT_EPS, ENV_EPS, EpsilonSource, Tolerance};
 
 /// Prints the run's provenance and ε in one greppable line.
 fn announce(tag: &str) {
@@ -125,7 +125,11 @@ fn probe_document_over_env_bootstrap() {
 #[test]
 #[ignore]
 fn probe_env_bootstrap_then_agreeing_document() {
-    assert_eq!(Tol::witness().get().eps, 1e-6, "env bootstrap commits first");
+    assert_eq!(
+        Tol::witness().get().eps,
+        1e-6,
+        "env bootstrap commits first"
+    );
     assert_eq!(Tolerance::eps_source(), EpsilonSource::Env);
     // A matching document is a benign reload: `AlreadyInitialized`
     // carrying the equal value, which the persistence layer treats as

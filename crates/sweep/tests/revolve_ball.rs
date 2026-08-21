@@ -19,11 +19,11 @@ mod revolve_common;
 
 use geom::Surface;
 use geom_brep::EdgeGeometry;
+use geom_core::Tol;
 use profile::RawLoop;
 use profile::{ProfileLoop, ProfileVertex};
 use revolve_common::*;
 use sweep::{Revolution, RevolvedKind, revolve};
-use geom_core::Tol;
 
 /// The half-disc: semicircle from (0, −1) through (1, 0) to (0, 1)
 /// (bulge tan(π/4) = 1), closed by the on-axis diameter. CCW.

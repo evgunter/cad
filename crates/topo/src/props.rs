@@ -463,10 +463,10 @@ where
 /// consumer). Key-free math stays in `geom_brep::props::quad`; this
 /// module owns everything that needs half-edges and vertex points.
 mod quad_lane {
-    use geom_core::Tol;
     use geom_brep::Pcurve;
     use geom_brep::props::quad::{self, FaceCutBounds, HarmChan, TrimEdgeQ};
     use geom_brep::props::{LoopEdge, PropsError, loop_vector_area};
+    use geom_core::Tol;
     use geom_core::ring_interval::RingInterval;
     // The compound `Decide + Bounds` bound below is a RATIFIED seam
     // (M5 PR 11, Evan's lane-split ruling; discipline allowlist row):

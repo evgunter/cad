@@ -14,12 +14,18 @@ use editor_core::{
     RecipeNodeId, RoleSeg, StableName, evaluate,
 };
 use fixture::{ang, insert, len, scl};
+use geom_core::Tol;
 use geom_core::{Point3, Vec3};
 use profile::SketchPlane;
-use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness())
+    evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
 }
 
 fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {
@@ -105,7 +111,9 @@ fn subdivided_axis_run_is_refused_upstream_of_the_emitter() {
             }),
         ])],
     });
-    let err = doc.apply(&DocEdit::InsertNode { node }, Tol::witness()).unwrap_err();
+    let err = doc
+        .apply(&DocEdit::InsertNode { node }, Tol::witness())
+        .unwrap_err();
     let msg = format!("{err:?}");
     assert!(
         msg.contains("carrier identity is not tangency"),

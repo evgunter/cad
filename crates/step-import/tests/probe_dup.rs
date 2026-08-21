@@ -4,8 +4,8 @@
 
 mod common;
 use common::census;
-use step_import::{ImportOptions, StepImport, import_step};
 use geom_core::Tol;
+use step_import::{ImportOptions, StepImport, import_step};
 
 fn box_step() -> String {
     let path = concat!(

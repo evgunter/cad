@@ -21,9 +21,9 @@ use geom::Surface;
 use geom::{Curve3, NurbsCurve3};
 use geom_brep::ssi::{self, SsiDomain, SsiError};
 use geom_brep::{EdgeCurve, EdgeCurveSpec};
+use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point3, Vec3};
-use geom_core::Tol;
 
 /// A gentle cubic advancing steadily in `+x` — the shape a fitted SSI
 /// carrier has.
@@ -54,8 +54,14 @@ fn a_nurbs_carrier_under_a_conventional_description_still_refuses() {
         param_start: 0.0,
         param_end: 1.0,
     };
-    let err = EdgeCurve::certify(spec, p0, p1, |_| None, Band::linear(Tol::witness()).unwrap())
-        .expect_err("conventional-description Nurbs carriers do not certify");
+    let err = EdgeCurve::certify(
+        spec,
+        p0,
+        p1,
+        |_| None,
+        Band::linear(Tol::witness()).unwrap(),
+    )
+    .expect_err("conventional-description Nurbs carriers do not certify");
     let msg = format!("{err}");
     assert!(
         msg.contains("Nurbs") && msg.contains("Intersection"),
@@ -194,7 +200,9 @@ fn the_end_to_end_nurbs_split_row() {
     // (their witnesses re-minted at their own mid-parameters), the
     // meter having stated the interiority margin in metres.
     let t_split = h0 + (h1 - h0) * 0.375;
-    let created = body.split_edge(edge, t_split, Tol::witness()).expect("the split row");
+    let created = body
+        .split_edge(edge, t_split, Tol::witness())
+        .expect("the split row");
     let c1 = body
         .get_curve_geom(created.first_curve)
         .and_then(|g| g.certified())

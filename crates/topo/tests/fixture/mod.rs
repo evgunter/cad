@@ -46,9 +46,9 @@ use geom::Surface;
 use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom_brep::ssi::{self, SsiDomain, SsiError};
 use geom_brep::{ChartWindow, EdgeCurveSpec, EdgeGeometry, Pcurve, PcurveCache};
+use geom_core::Tol;
 use geom_core::{Band, Point2, Point3, Real, Vec3};
 use topo::{Body, HalfEdgeKey};
-use geom_core::Tol;
 
 /// The fixture's cylinder: offset from the sphere's centre so the two
 /// intersection loops differ wildly in size (the PR 7 planted shape).

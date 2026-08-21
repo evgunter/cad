@@ -24,12 +24,12 @@
 mod common;
 
 use geom::Surface;
+use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
 use topo::{
     Body, CensusContact, ContactRecords, TangentLocus, TangentLocusError, ValidationError,
     VvContact, tangent_locus, validate_pseudomanifold,
 };
-use geom_core::Tol;
 
 fn band() -> Band {
     Band::new(1e-9, 1e-8).unwrap()

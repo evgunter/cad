@@ -20,9 +20,9 @@
 
 use std::path::PathBuf;
 
+use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 use topo::ValidationError;
-use geom_core::Tol;
 
 fn fixture(rel: &str) -> String {
     std::fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(rel)).unwrap()

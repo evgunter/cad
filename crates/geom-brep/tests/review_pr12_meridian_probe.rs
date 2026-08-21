@@ -7,9 +7,9 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeGeometry, SurfaceKey, tangent_certificate_lane};
+use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
 use slotmap::SlotMap;
-use geom_core::Tol;
 
 fn band() -> Band {
     let tol = Tol::witness().get();

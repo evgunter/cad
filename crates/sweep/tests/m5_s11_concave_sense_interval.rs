@@ -15,12 +15,12 @@
 use core::f64::consts::{FRAC_PI_8, PI};
 use profile::RawLoop;
 
+use geom_core::Tol;
 use geom_core::{Band, Bounds, Interval, Point2, Point3, Real, Tolerance, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::boolean::{SolidContainment, point_in_solid};
 use topo::{Body, mass_properties};
-use geom_core::Tol;
 
 fn iv(x: f64) -> Interval {
     Interval::from_f64(x)

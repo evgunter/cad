@@ -125,10 +125,13 @@ fn pillow(tol: Tol) -> (Body<f64>, crate::MevCreated, crate::MefCreated) {
         )
         .unwrap();
     let split = body
-        .mef_chord(MefSite::Chords {
-            he1: seg.he_plus,
-            he2: seg.he_minus,
-        }, tol)
+        .mef_chord(
+            MefSite::Chords {
+                he1: seg.he_plus,
+                he2: seg.he_minus,
+            },
+            tol,
+        )
         .unwrap();
     (body, seg, split)
 }

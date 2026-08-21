@@ -20,9 +20,9 @@
 mod common;
 
 use common::prism;
+use geom_core::Tol;
 use geom_core::{Point3, Vec3};
 use topo::{Body, PlaneSide, SplitPlane, SplitReduceError, VertexKey, split_reduce};
-use geom_core::Tol;
 
 fn plane_y<T: geom_core::Decide>(y: f64, ny: f64) -> SplitPlane<T> {
     SplitPlane {

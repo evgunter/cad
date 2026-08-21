@@ -10,11 +10,11 @@ mod revolve_common;
 use core::f64::consts::FRAC_PI_2;
 use profile::RawLoop;
 
+use geom_core::Tol;
 use geom_core::{Point2, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use revolve_common::*;
 use sweep::{Revolution, RevolveAxis, revolve};
-use geom_core::Tol;
 
 /// The four acceptance shapes as (profile loops, revolution).
 fn shapes() -> Vec<(Vec<ProfileLoop<f64>>, Revolution<f64>)> {

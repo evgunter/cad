@@ -618,12 +618,12 @@ mod tests {
     //! reads source, not geometry, and guards the module docs' door
     //! list rather than any box.
 
-    use geom_core::Tol;
     use super::*;
     use crate::euler::{FaceSurface, MefSite, MevSite};
     use geom::Curve3;
     use geom::Surface;
     use geom_brep::{EdgeCurveSpec, EdgeGeometry};
+    use geom_core::Tol;
     use geom_core::{Point3, Vec3};
 
     /// The pad every row boxes with — the sweep's own, so a row that

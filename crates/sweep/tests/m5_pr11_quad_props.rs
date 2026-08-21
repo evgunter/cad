@@ -13,13 +13,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, extrude};
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::{Body, validate_geometric};
-use geom_core::Tol;
 
 const R: f64 = 0.5;
 const H: f64 = 1.0;
@@ -36,7 +36,9 @@ fn disc() -> ValidatedProfile<f64> {
 }
 
 fn halves() -> (Body<f64>, Body<f64>) {
-    let cylinder = extrude(&disc(), Extrusion::Distance(H), Tol::witness()).unwrap().body;
+    let cylinder = extrude(&disc(), Extrusion::Distance(H), Tol::witness())
+        .unwrap()
+        .body;
     let plane = SplitPlane {
         origin: Point3::new(0.0, 0.0, H / 2.0),
         normal: Vec3::new(PHI.sin(), 0.0, PHI.cos()),
@@ -220,7 +222,9 @@ fn dual_lane_keeps_the_closed_form_refusal() {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let cylinder = extrude(&profile, Extrusion::Distance(d(H)), Tol::witness()).unwrap().body;
+    let cylinder = extrude(&profile, Extrusion::Distance(d(H)), Tol::witness())
+        .unwrap()
+        .body;
     let plane = SplitPlane {
         origin: Point3::new(d(0.0), d(0.0), d(H / 2.0)),
         normal: Vec3::new(d(PHI.sin()), d(0.0), d(PHI.cos())),

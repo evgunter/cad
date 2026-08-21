@@ -29,12 +29,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
+use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, extrude};
 use topo::{Body, ContactRecords, EntityId, FaceKey, ValidationError, validate_pseudomanifold};
-use geom_core::Tol;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -58,7 +58,9 @@ fn cylinder(z0: f64, rot: f64) -> Body<f64> {
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0), Tol::witness()).unwrap().body
+    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body
 }
 
 /// A planar-only brick: half-width `h` about the axis, `z ∈ [z0, z0 +
@@ -74,7 +76,9 @@ fn brick(z0: f64, h: f64) -> Body<f64> {
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0), Tol::witness()).unwrap().body
+    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body
 }
 
 /// The pair as one two-instance arena.
@@ -365,8 +369,8 @@ fn a_vf_record_defers_the_faces_at_its_own_interface_and_no_others() {
     assert_eq!(holding.len(), 2, "two walls share each rim vertex");
     assert_eq!(apart.len(), 1, "one wall holds neither of its ends");
 
-    let errors =
-        validate_pseudomanifold(&body, &records, Tol::witness()).expect_err("an undeclared rest must be reported");
+    let errors = validate_pseudomanifold(&body, &records, Tol::witness())
+        .expect_err("an undeclared rest must be reported");
     assert!(
         !errors
             .iter()

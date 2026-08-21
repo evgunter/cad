@@ -34,13 +34,13 @@ use core::f64::consts::{FRAC_PI_8, PI};
 use profile::RawLoop;
 
 use geom::Surface;
+use geom_core::Tol;
 use geom_core::{Band, Point2, Point3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use revolve_common::{axis_y, p2, validated};
 use sweep::{Extrusion, Revolution, extrude, revolve};
 use topo::boolean::point_in_solid;
 use topo::{Body, FaceKey};
-use geom_core::Tol;
 
 /// The unit ball centred at the origin: two half-sphere bands on ONE
 /// sphere surface, each **rimless** (bounded by meridians only).
@@ -57,9 +57,14 @@ fn ball_at(cy: f64) -> Body<f64> {
         ProfileVertex::new(p2(0.0, cy - 1.0), 1.0),
         ProfileVertex::new(p2(0.0, cy + 1.0), 0.0),
     ]);
-    revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness())
-        .unwrap()
-        .body
+    revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// The first face of `body` in arena order.
@@ -172,7 +177,9 @@ fn assembly_flip_is_wrong_but_nonzero() {
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let cuboid = extrude(&vp, Extrusion::Distance(3.0), Tol::witness()).unwrap().body;
+    let cuboid = extrude(&vp, Extrusion::Distance(3.0), Tol::witness())
+        .unwrap()
+        .body;
     let r = topo::boolean::union(&ball, &cuboid, Tol::witness()).unwrap();
     let body = &r.body().expect("a disjoint assembly is a body").body;
     let honest = topo::props::mass_properties(body, Tol::witness()).unwrap();
@@ -217,8 +224,13 @@ fn tier_three_refusal_is_surgical() {
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let body = extrude(&vp, Extrusion::Distance(1.0), Tol::witness()).unwrap().body;
-    assert_eq!(topo::validate::validate_geometric(&body, Tol::witness()), Ok(()));
+    let body = extrude(&vp, Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body;
+    assert_eq!(
+        topo::validate::validate_geometric(&body, Tol::witness()),
+        Ok(())
+    );
     for (face, _) in body.faces() {
         let flipped = body.flipped_face_sense_for_tests(face).unwrap();
         let errs = topo::validate::validate_geometric(&flipped, Tol::witness()).unwrap_err();
@@ -328,7 +340,13 @@ fn fixed_concave_arc_wall_sense_is_false() {
     }
     // And still In just below the true arc boundary.
     assert_eq!(
-        point_in_solid(&t.body, Point3::new(1.0, truth_hi - 0.05, 0.5), band, Tol::witness()).unwrap(),
+        point_in_solid(
+            &t.body,
+            Point3::new(1.0, truth_hi - 0.05, 0.5),
+            band,
+            Tol::witness()
+        )
+        .unwrap(),
         topo::boolean::SolidContainment::In,
         "the fix must not overshoot: just inside the arc is material"
     );
@@ -353,7 +371,9 @@ fn pellet() -> Body<f64> {
     let vp = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&vp, Extrusion::Distance(0.4), Tol::witness()).unwrap().body
+    extrude(&vp, Extrusion::Distance(0.4), Tol::witness())
+        .unwrap()
+        .body
 }
 
 /// **Construction row (M5 S11, e2e half — flipped from S10's
@@ -372,8 +392,12 @@ fn pellet() -> Body<f64> {
 fn fixed_union_keeps_a_pellet_in_a_concave_notch() {
     let a = mixed_turn_arcs().body;
     let b = pellet();
-    let vol_a = topo::props::mass_properties(&a, Tol::witness()).unwrap().volume;
-    let vol_b = topo::props::mass_properties(&b, Tol::witness()).unwrap().volume;
+    let vol_a = topo::props::mass_properties(&a, Tol::witness())
+        .unwrap()
+        .volume;
+    let vol_b = topo::props::mass_properties(&b, Tol::witness())
+        .unwrap()
+        .volume;
     assert!(
         (vol_b - 0.008).abs() < 1e-12,
         "the pellet meters 0.008, got {vol_b}"
@@ -381,7 +405,9 @@ fn fixed_union_keeps_a_pellet_in_a_concave_notch() {
 
     let r = topo::boolean::union(&a, &b, Tol::witness()).unwrap();
     let out = r.body().expect("union of two non-empty solids");
-    let vol = topo::props::mass_properties(&out.body, Tol::witness()).unwrap().volume;
+    let vol = topo::props::mass_properties(&out.body, Tol::witness())
+        .unwrap()
+        .volume;
     let shells = out.body.shells().count();
 
     assert!(
