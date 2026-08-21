@@ -419,13 +419,7 @@ pub fn split_reduce<T: geom_core::Decide>(
 
     classify::gate_operand(&body)?;
     let (mut sides, mut on_vertices) = classify::classify_vertices(&body, plane, band)?;
-    classify::insert_crossings(
-        &mut body,
-        plane,
-        &mut sides,
-        &mut on_vertices,
-        tol,
-    )?;
+    classify::insert_crossings(&mut body, plane, &mut sides, &mut on_vertices, tol)?;
 
     let mut null_edges = Vec::new();
     for &v in &on_vertices {

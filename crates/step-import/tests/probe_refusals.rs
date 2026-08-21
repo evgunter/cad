@@ -2,8 +2,8 @@
 //! mixed content, orphan curve set, 2D-context-only files.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use step_import::{ImportOptions, StepImportError, import_step};
 use geom_core::Tol;
+use step_import::{ImportOptions, StepImportError, import_step};
 
 fn box_step() -> String {
     let path = concat!(

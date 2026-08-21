@@ -19,7 +19,8 @@ use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 #[test]
 fn nurbs_wireframe_disposition() {
     let text = fixture("nurbs_wireframe", "step");
-    let import = import_step(&text, &ImportOptions::default(), Tol::witness()).expect("the wireframe imports");
+    let import = import_step(&text, &ImportOptions::default(), Tol::witness())
+        .expect("the wireframe imports");
     let StepImport::Wireframe { curves, eps_in, .. } = import else {
         panic!("a curve-only file must take the wireframe disposition, not claim a body");
     };
@@ -163,7 +164,8 @@ fn prefixed_unit_scales_instead_of_refusing() {
     );
     assert_ne!(metres, millimetres, "the unit record must actually differ");
     let of = |text: &str| -> (f64, f64) {
-        let import = import_step(text, &ImportOptions::default(), Tol::witness()).expect("the cube imports");
+        let import =
+            import_step(text, &ImportOptions::default(), Tol::witness()).expect("the cube imports");
         let StepImport::Solid { body, eps_in, .. } = import else {
             panic!("expected a solid");
         };
@@ -200,7 +202,8 @@ fn prefixed_unit_scales_instead_of_refusing() {
 fn a_conversion_based_unit_resolves_from_the_file_s_own_factor() {
     let plain = fixture("cube", "step");
     let volume = |text: &str| {
-        let StepImport::Solid { body, .. } = import_step(text, &ImportOptions::default(), Tol::witness()).unwrap()
+        let StepImport::Solid { body, .. } =
+            import_step(text, &ImportOptions::default(), Tol::witness()).unwrap()
         else {
             panic!("a solid")
         };
@@ -237,7 +240,8 @@ fn a_conversion_based_unit_resolves_from_the_file_s_own_factor() {
     );
     assert!(
         matches!(
-            import_step(&dangling, &ImportOptions::default(), Tol::witness()).expect_err("no factor"),
+            import_step(&dangling, &ImportOptions::default(), Tol::witness())
+                .expect_err("no factor"),
             StepImportError::DanglingReference { to: 9990, .. }
         ),
         "a conversion whose factor entity is missing refuses typed"

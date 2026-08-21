@@ -20,8 +20,8 @@
 
 use std::time::{Duration, Instant};
 
-use step_import::{ImportOptions, StepImportError, import_step};
 use geom_core::Tol;
+use step_import::{ImportOptions, StepImportError, import_step};
 
 fn box_step() -> String {
     std::fs::read_to_string(concat!(

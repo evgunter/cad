@@ -67,10 +67,12 @@ fn the_folds_divergence_is_exactly_the_reported_promotion() {
         let (body, _eps) = import_body(name);
         let normalizations = {
             // Re-import through the public door to read the report.
-            let step_import::StepImport::Solid { normalizations, .. } =
-                step_import::import_step(&committed, &step_import::ImportOptions::default(), Tol::witness())
-                    .expect("the fold fixture imports")
-            else {
+            let step_import::StepImport::Solid { normalizations, .. } = step_import::import_step(
+                &committed,
+                &step_import::ImportOptions::default(),
+                Tol::witness(),
+            )
+            .expect("the fold fixture imports") else {
                 panic!("{name}: must import as a solid");
             };
             normalizations

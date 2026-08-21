@@ -12,8 +12,8 @@
 
 use std::path::PathBuf;
 
-use topo::Body;
 use geom_core::Tol;
+use topo::Body;
 
 /// The committed solid corpus, in `fixture_corpus()` file order.
 /// `loft_prism` joined at M7-3 (14 → 15): the first NURBS-walled
@@ -152,7 +152,8 @@ pub fn import_fixture(name: &str) -> step_import::StepImport {
     } else {
         step_import::ImportOptions::default()
     };
-    step_import::import_step(&text, &options, Tol::witness()).unwrap_or_else(|e| panic!("importing {name}: {e}"))
+    step_import::import_step(&text, &options, Tol::witness())
+        .unwrap_or_else(|e| panic!("importing {name}: {e}"))
 }
 
 /// The imported solid body, panicking on a wireframe disposition.

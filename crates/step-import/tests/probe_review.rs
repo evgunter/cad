@@ -31,7 +31,12 @@ fn a3_cone_trunc_all_tiers_green_at_1e7_landing_retired() {
         println!("a3: SKIP (needs CAD_TOLERANCE_EPS=1e-7, have {eps:e})");
         return;
     }
-    let imp = import_step(&fixture("cone_trunc"), &ImportOptions::default(), Tol::witness()).unwrap();
+    let imp = import_step(
+        &fixture("cone_trunc"),
+        &ImportOptions::default(),
+        Tol::witness(),
+    )
+    .unwrap();
     let StepImport::Solid { body, .. } = imp else {
         panic!("wireframe")
     };
@@ -267,7 +272,8 @@ fn a1_bound_flip_torus_senses() {
 #[test]
 fn a1_torus_halfedge_diff() {
     let sig = |text: &str| {
-        let Ok(StepImport::Solid { body, .. }) = import_step(text, &ImportOptions::default(), Tol::witness())
+        let Ok(StepImport::Solid { body, .. }) =
+            import_step(text, &ImportOptions::default(), Tol::witness())
         else {
             panic!("expected a body")
         };
@@ -593,7 +599,11 @@ fn review_f5_cylinder_refusal_predicate() {
         println!("SKIP (needs 1e-7, have {eps:e})");
         return;
     }
-    let got = import_step(&fixture("cylinder"), &ImportOptions::default(), Tol::witness());
+    let got = import_step(
+        &fixture("cylinder"),
+        &ImportOptions::default(),
+        Tol::witness(),
+    );
     match got {
         Err(e) => println!("FULL REFUSAL: {e:?}"),
         Ok(_) => println!("IMPORTED (no refusal)"),

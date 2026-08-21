@@ -459,7 +459,8 @@ fn an_adopted_iso_column_is_a_knot_domain_end() {
     );
     assert_ne!(text, orig, "the reparameterization applied");
     let step_import::StepImport::Solid { body, .. } =
-        import_step(&text, &ImportOptions::default(), Tol::witness()).expect("the reparameterized wall imports")
+        import_step(&text, &ImportOptions::default(), Tol::witness())
+            .expect("the reparameterized wall imports")
     else {
         panic!("loft_prism is a solid");
     };

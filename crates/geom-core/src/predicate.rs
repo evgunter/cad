@@ -72,8 +72,11 @@
 //! predicates it evaluates. Predicates and the classifier take the band as
 //! given and only ever return [`Indeterminate`].
 //!
-//! [`Band::linear`] reads the run's global ε directly. [`Band::angular_at`]
-//! takes a lever arm r and derives its coincidence threshold as the angle
+//! [`Band::linear`] takes the run's tolerance witness
+//! ([`Tol`](crate::tolerance::Tol)) and reads ε through it — so a function
+//! that builds a band says so in its own signature, and one that does not
+//! is visibly ε-free. [`Band::angular_at`] takes the same witness plus a
+//! lever arm r, and derives its coincidence threshold as the angle
 //! ε/r — there is deliberately **no** global angular tolerance (D4 ¶1, as
 //! revised 2026-07-16): an angle's tolerance is meaningless without the
 //! length scale it acts through, so every angular threshold is derived per
@@ -1046,7 +1049,7 @@ mod tests {
 
     /// `Band::angular_at` validates the lever arm *before* it reads the
     /// global tolerance (early return), so a rejected arm never touches the
-    /// global `OnceLock` — these ca(Tol::witness(), f64::MAX)re and safe alongside the
+    /// global `OnceLock` — these cases are pure and safe alongside the
     /// funnel discipline. The valid-arm paths (θ = ε/r, the κ-scaled case,
     /// and the escalate-overflow residue) are global-coupled and live in
     /// `tests/band_tolerance.rs`.

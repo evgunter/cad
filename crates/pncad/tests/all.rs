@@ -33,8 +33,8 @@
 #![allow(clippy::panic, clippy::unwrap_used, clippy::expect_used)]
 
 // The ONLY import root permitted in this file.
-use geom_core::Tol;
 use pncad::prelude::*;
+use pncad::tolerance::Tol;
 
 /// Consumes a value without executing anything — the sink that makes
 /// each payload's type appear in a signature.
@@ -981,7 +981,8 @@ fn the_export_door_serves_the_one_shot_journey() {
             .expect("a body value exports");
     // The oracle is the kernel's own STEP importer: the exported text
     // parses and adopts as a first-class solid whose volume agrees.
-    let imported = import_step(&step, &ImportOptions::default(), Tol::witness()).expect("the export re-imports");
+    let imported = import_step(&step, &ImportOptions::default(), Tol::witness())
+        .expect("the export re-imports");
     match imported {
         pncad::step_import::StepImport::Solid { body, .. } => {
             let v = mass_properties(&body, Tol::witness())
@@ -1044,7 +1045,8 @@ fn the_document_export_door_ships_the_multi_solid_product() {
     let text =
         pncad::export::export_document_step(&ev, &doc, &StepOptions::default(), Tol::witness())
             .expect("the product exports");
-    let imported = import_step(&text, &ImportOptions::default(), Tol::witness()).expect("the export re-imports");
+    let imported = import_step(&text, &ImportOptions::default(), Tol::witness())
+        .expect("the export re-imports");
     match imported {
         pncad::step_import::StepImport::Solid { body, .. } => {
             assert_eq!(body.solids().count(), 2, "two disjoint solids ship");

@@ -9,8 +9,8 @@
 
 use std::time::Instant;
 
-use step_import::{ImportOptions, import_step};
 use geom_core::Tol;
+use step_import::{ImportOptions, import_step};
 
 fn main() {
     let tol = Tol::witness();

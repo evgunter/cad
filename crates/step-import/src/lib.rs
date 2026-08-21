@@ -610,7 +610,11 @@ impl StepImport {
 /// refuses ([`StepImportError::TierInvalid`]). Files written by
 /// `step_export::step_string` from finished kernel bodies import
 /// cleanly.
-pub fn import_step(text: &str, options: &ImportOptions, tol: Tol) -> Result<StepImport, StepImportError> {
+pub fn import_step(
+    text: &str,
+    options: &ImportOptions,
+    tol: Tol,
+) -> Result<StepImport, StepImportError> {
     if let Some(eps) = options.eps_in
         && !(eps.is_finite() && eps > 0.0)
     {
@@ -781,7 +785,11 @@ fn gate(body: &topo::Body<f64>, solid: Option<u64>, tol: Tol) -> Result<(), Step
 /// The aggregate subject's gate: the tier-3′ form over the resolved
 /// declaration records — the same function a native declared-contact
 /// body's caller runs, with the same no-opinion contract as [`gate`].
-fn gate3(body: &topo::Body<f64>, records: &topo::ContactRecords, tol: Tol) -> Result<(), StepImportError> {
+fn gate3(
+    body: &topo::Body<f64>,
+    records: &topo::ContactRecords,
+    tol: Tol,
+) -> Result<(), StepImportError> {
     topo::validate_pseudomanifold(body, records, tol).map_err(|errors| {
         StepImportError::TierInvalid {
             solid: None,

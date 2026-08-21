@@ -4,8 +4,8 @@
 //! whether eps_in comes back RAISED.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use step_import::{ImportOptions, StepImport, import_step};
 use geom_core::Tol;
+use step_import::{ImportOptions, StepImport, import_step};
 
 fn box_step() -> String {
     std::fs::read_to_string(concat!(

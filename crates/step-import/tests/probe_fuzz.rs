@@ -3,10 +3,10 @@
 //! counts — hunting for panics or hangs.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Tol;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use step_import::{ImportOptions, import_step};
-use geom_core::Tol;
 
 const WILD: [&str; 13] = [
     "adafruit/328_2500mAh_battery.step",

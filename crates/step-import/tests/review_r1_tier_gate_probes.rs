@@ -205,7 +205,8 @@ fn r1_multisolid_of_honest_solids_still_imports() {
     let identity: &dyn Fn(&str) -> String = &|l: &str| l.to_owned();
     let text = multi_cube(&[(1000, identity), (3000, normal)]);
     let StepImport::Solid { body, .. } =
-        import_step(&text, &ImportOptions::default(), Tol::witness()).expect("two honest cubes import")
+        import_step(&text, &ImportOptions::default(), Tol::witness())
+            .expect("two honest cubes import")
     else {
         panic!("expected a solid");
     };
@@ -632,7 +633,8 @@ fn r1_finding_retired_kiss_refuses_undeclared_and_certifies_declared() {
         }],
         ..ImportOptions::default()
     };
-    let StepImport::Solid { body, .. } = import_step(&text, &options, Tol::witness()).unwrap() else {
+    let StepImport::Solid { body, .. } = import_step(&text, &options, Tol::witness()).unwrap()
+    else {
         panic!("the declared kiss imports as a solid");
     };
     assert_eq!(body.solids().count(), 2, "both kissing solids ship");

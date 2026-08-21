@@ -9,6 +9,12 @@
 //! test suite run at several ε values (the multi-ε CI matrix) with zero
 //! test-code cooperation.
 //!
+//! The value lives in that lock and never leaves it. What travels is
+//! [`Tol`], a zero-sized witness that the lock is committed — see its
+//! docs for why the parameter carries evidence rather than the number,
+//! and `scripts/gates/witness-not-ambient.sh` for the half of that
+//! discipline the type system cannot enforce.
+//!
 //! # One number, not two
 //!
 //! There is exactly one global tolerance: the linear ε. There is
@@ -49,7 +55,9 @@
 //! model is a pure function of (parameter vector, ε). The `OnceLock` is
 //! what makes "one ε per process" structural rather than documentary,
 //! and it is kept for that reason — see `docs/SMELL-SCAN-2026-08.md`
-//! S22. What it lacked was a way to say *where the committed value came
+//! S22. (That ruling's other half, *"do not thread ε"*, was reversed on
+//! 2026-08-21 once the parameter could be a witness rather than a value;
+//! the lock it defended is untouched by that reversal.) What it lacked was a way to say *where the committed value came
 //! from*, which is why a stale `CAD_TOLERANCE_EPS` in a shell could
 //! change what "coincident" means with no output line saying so
 //! (issues #415, #497).

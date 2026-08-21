@@ -449,7 +449,9 @@ fn a_placement_no_chain_reaches_refuses_typed() {
         ),
         &extra_instance(9300, 4_000_000_000_001, 100.0, 0.0, 0.0, 0.0),
     );
-    match import_step(&text, &ImportOptions::default(), Tol::witness()).expect_err("an unreachable placement") {
+    match import_step(&text, &ImportOptions::default(), Tol::witness())
+        .expect_err("an unreachable placement")
+    {
         StepImportError::Structure { id, what } => {
             assert_eq!(id, 4_000_000_000_001, "the refusal names the relationship");
             assert!(what.contains("no component's placement chain"), "{what}");
@@ -479,7 +481,8 @@ fn a_cyclic_placement_chain_refuses_typed() {
         ),
         &extra_instance_into(9400, 9300, 4_000_000_000_011, 2.0, 0.0, 0.0, 0.0),
     );
-    match import_step(&text, &ImportOptions::default(), Tol::witness()).expect_err("a cyclic chain") {
+    match import_step(&text, &ImportOptions::default(), Tol::witness()).expect_err("a cyclic chain")
+    {
         StepImportError::Structure { what, .. } => {
             assert!(what.contains("returns to a representation"), "{what}");
         }

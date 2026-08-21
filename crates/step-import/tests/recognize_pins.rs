@@ -241,7 +241,8 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
     .expect("the offset square prism exports");
 
     // ---- The half that WORKS: the body is first-class at rest. ----
-    let own = import_step(&text, &ImportOptions::default(), Tol::witness()).expect("our own dialect imports");
+    let own = import_step(&text, &ImportOptions::default(), Tol::witness())
+        .expect("our own dialect imports");
     let StepImport::Solid {
         body: own_body,
         normalizations,
