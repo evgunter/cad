@@ -2453,6 +2453,15 @@ its own.)
 
 ## S14. `Span` validity is prose, and the guard's removal turned poison into a documented panic
 
+**Half one of S14(a) FIXED by #845** — `NurbsSurface::window_of` is private,
+so the argument-order hazard below is no longer spellable outside the module
+that mints windows, and the doc comment conceding it is gone with the door.
+**S14 is NOT closed and neither is S14(a).** Half two — the two-integer
+structural refusal at the doors that hold their own vector — is lane **E-t**,
+running now; **S14(b)** (the graft, of which §S70 is the documentation residue)
+is open and unscheduled. The problem statement below stands as written, and the
+paragraph it stands on is marked where the tree has moved under it.
+
 - **Where**: `crates/geom-core/src/spline/knots.rs:166`,
   `crates/geom-core/src/spline/hull.rs:74`,
   `crates/geom-core/src/spline/basis.rs:9`
@@ -2536,7 +2545,12 @@ concede: *"The **argument order is load-bearing and nothing checks
 it**: a `Span` carries no direction, so `window_of(span_v, span_u)`
 typechecks and builds a window that is **wrong rather than refused**."*
 A swapped-but-valid pair from the correct surface yields a silently
-wrong answer through a public method with no bug involved.
+wrong answer through a public method with no bug involved. **That method
+is private as of #845 and the quoted concession no longer exists**; the
+two public mints take indices (`window`) or parameters (`window_at`),
+neither of which is a value advertising that it has been validated. The
+paragraph is otherwise unchanged — it is the statement of the finding,
+not a claim about today's tree.
 
 *The "no cheap guard" premise is false, and the cost was already
 measured.* The deleted guard was one three-way check **per call**, not
@@ -9675,18 +9689,47 @@ Tier 3 is grouped into class roll-ups rather than one ID per instance,
 the way the first scan handled S35 and S40. Each bullet is a distinct
 site; cite them as e.g. `S110(d)`.
 
-## S110. Tests and assertions that cannot go red (roll-up)
+## S110. FIXED IN PART — the sort ran; #790 closed four members, #786 and #787 three more, three are routed
 
-The largest class in this scan, and the one the brief's Q3 was
-written for. Beyond S60, S75, S76, S78, S84 and S91 above:
+**The sort is the deliverable, and re-deriving it moved one member.** §D
+proposed three dispositions — *(a)* vacuous assertions in shipped test
+files, *(b)* hand-run diff artefacts whose comparison no longer exists,
+*(c)* equal-by-construction asserts in `demos/`. Re-derived against the
+tree, **(c)(d)(e)(f)** landed in lane F-c and are closed by **#790**;
+**(g)(h)(j)** are disposition (c) and were closed by **#787** and
+**#786**; **(a)(b)(i)** are disposition (b). **(d) is not disposition
+(a)** and is recorded below as what it turned out to be.
+
+**§D's proposed destination for (a)(b)(i) — "C23's class … the
+test-suite-cost sweep" — was checked by #790's review and does not
+exist**, and #790 had already written it into this record. Bare `C23` is
+§D's *rational refinement schedule* row, `§C23` is an unrelated process
+observation, and the *"test-suite-cost sweep"* is named in §A2 and was
+never a lane, a row or an owner. The three members now go to **F8/D44**
+and **D104**, per the ruling above F8. A lane that complies with a
+citation is not at fault; the citation is the claim site (C-R11), and
+this one was tested only after it had been copied twice.
+
+**Two of this finding's own claims did not survive re-derivation**, both
+in member (c): the second test is *not* a byte-for-byte copy (it inlines
+`boolean(op)` where the first binds it, and its message differs), and it
+sits 29 lines later, not eleven. A literal-duplicate detector does not
+find it; that is a blind spot #790's sweep reports.
+
+**Every member #790 closed carries a mutation receipt** — the guarded
+thing was changed and the assertion was watched go red — because an
+argument that an assertion *can* fail is the same kind of evidence this
+finding exists to reject. All of them were re-executed by the review.
 
 - (a) `crates/topo/tests/probe_s5_sectors.rs:164-172` — six per-lane
   coverage assertions added so that *"delete the splitting fixtures and
-  six assertions go red"*. They cannot: `ci.yml:1862` runs
+  six assertions go red"*. They cannot: `ci.yml` runs
   `cargo check -p "$c" --features probe --all-targets` and **nothing
   anywhere runs `cargo test -p topo --features probe`.** The file
   discloses the type-check at `:24-36` and then adds assertions whose
-  stated purpose is gating.
+  stated purpose is gating. **Confirmed, and TAKEN BY Track F's F8
+  (D84)** — it is not a homeless member of this roll-up, it is that
+  row's probe-suite finding stated from the other end.
 - (b) `crates/sweep/tests/review_m6_5_pr2_sweep_probes.rs:70` — `x3b`
   computes a `Debug` hash and `println!`s it; no assertion. It existed
   to be diffed between the merge-base and HEAD of #220 — a comparison
@@ -9695,27 +9738,65 @@ written for. Beyond S60, S75, S76, S78, S84 and S91 above:
   this.** `memories/test-suite-cost.md` names this the class to drop
   first; the change that touched it made it permanent. The file header
   also now claims the probes *"measure rather than assert"*, false of
-  `x4` two functions above.
-- (c) `crates/editor-core/tests/boolean_op_wire.rs:84` —
-  `the_write_door_admits_every_operation_it_can_read_back` is a
-  byte-for-byte copy of `every_operation_round_trips` eleven lines
-  earlier. Its doc says it exercises the write door's own refusal;
-  nothing in the body can reach that path, and the doc concedes the
-  check *"must be INVISIBLE"*.
-- (d) `crates/sweep/tests/s16_box_soundness.rs:201` —
-  `a_lofted_operand_is_refused_at_its_nurbs_edges_before_any_face_box`
-  exists to record why `NurbsExtentUnsupported` has no end-to-end row
-  and asserts `CurvedEdgeUnsupported` instead. Its premise structurally
-  excludes the case the re-gate exists for. Goes red only if a
-  *neighbouring* gate changes.
-- (e) `crates/profile/tests/onarc_probe.rs:147` —
-  `assert!(!lp.tangent_joints().contains(&anchor_idx))` is green for any
-  regression that empties or shortens `tangent_joints()`. The positive
-  half lives in a different test on a different chain.
-- (f) `crates/geom-core/tests/d8_knot_queries_adversarial.rs:880-887` —
-  drives `surface_curve_residual` with adversarial break parameters and
-  asserts only `Ok` and finiteness. A break parameter that mislocated a
-  span but produced a finite bound passes.
+  `x4` two functions above. **Confirmed, and ROUTED to D104.** #790
+  added the clause the memory was missing: the cross-build differential
+  licence **expires with the comparison**.
+- (c) `crates/editor-core/tests/boolean_op_wire.rs` — **CLOSED by #790.**
+  `the_write_door_admits_every_operation_it_can_read_back` was a
+  semantic duplicate of `every_operation_round_trips` and is deleted;
+  the file is not. The write door's refusal fires when an operation is
+  present in `tag` but missing from `ALL`, and **nothing — inside the
+  module or outside it — can construct that state** in a build whose
+  `ALL` is complete, so the row was documentation calling itself a
+  test. The argument now lives once, beside the check. **Receipt:**
+  dropping `Subtract` from `ALL` reddens `every_operation_round_trips`
+  *and* `the_operation_rides_the_wire_as_its_variant_name` with the
+  door's own refusal message — the deleted row guarded nothing they do
+  not. **The other direction is not covered and is not coverable
+  here**: an operation added to the kernel that reaches `tag` but not
+  `ALL` reddens nothing, because every row iterates a hand-written
+  vocabulary literal. #790 folded four such literals into one; the tie
+  to the enum needs a proc macro the workspace does not have, which the
+  `with` module's own doc already states.
+- (d) `crates/sweep/tests/s16_box_soundness.rs` — **CLOSED by #790, and
+  re-derived out of disposition (a); this finding over-stated it.** The
+  row is a working tripwire, not a vacuous assertion: **mutating
+  `gate_operand_kinds` to admit NURBS edges makes the lofted operand
+  refuse with `NurbsExtentUnsupported { operand: A, face: FaceKey(3v1) }`**
+  — the end-to-end path the re-gate exists for, reachable the moment the
+  neighbouring gate lifts, exactly as the row's doc says. What was
+  missing was the **premise**: nothing said the operand is NURBS-*faced*,
+  so the row would have stayed green over a loft that stopped producing
+  NURBS walls. That premise is now asserted, with its own receipt — the
+  fixture swapped for an extruded box reddens it. A second candidate
+  assertion, that the operand carries NURBS *edges*, was written and
+  removed: it is implied by the `CurvedEdgeUnsupported` refusal below
+  it, and minting an implied assertion is this finding's own defect.
+- (e) `crates/profile/tests/onarc_probe.rs` — **CLOSED by #790.**
+  `assert!(!lp.tangent_joints().contains(&anchor_idx))` now runs against
+  a **populated** set asserted on the same chain (the opening fillet's
+  two joints), and the row states its subject positively: the leg
+  leaving the anchor departs on the authored heading of 2.6 rad.
+  **Receipt:** with `ProfileLoop::tangent_joints` returning `&[]`, the
+  pre-#790 row is green and the post-#790 row is red. **The delta is
+  locality, not new coverage** — the same mutation already reddened the
+  sibling test 45 lines up, which is what this finding said when it
+  named the positive half as living elsewhere.
+- (f) `crates/geom-core/tests/d8_knot_queries_adversarial.rs` —
+  **CLOSED by #790.** The row asserted `Ok` and finiteness, so a break
+  parameter that mislocated a span passed. It now asserts **where the
+  spans were placed**: `SurfaceResidual::breaks()` against the
+  decomposition the contract admits — the domain ends, **both** curves'
+  interior knots, and every extra strictly inside the domain,
+  deduplicated on exact `f64`. **Receipt:** with
+  `surface_curve_residual` silently dropping the caller's refinement,
+  the pre-#790 row is green and the post-#790 row is red on
+  `single span / one ULP inside each end`; with it dropping the
+  pcurve's interior knots instead, the same row is red only once the
+  fixture gives the two curves different knot sets, which #790's review
+  found and #790 fixed. The rest of the file, whose case count and
+  per-regime floors S78 holds up as the discipline other suites lack, is
+  untouched.
 - (g) **FIXED by #787** — `demos/wild/src/main.rs`. The vacuous
   `assert_eq!(scenes.len(), WILD_CELLS.len())` is replaced by the two
   properties it stood in for, neither of which was checked: cell NAMES
@@ -9742,7 +9823,8 @@ written for. Beyond S60, S75, S76, S78, S84 and S91 above:
   checks), which will explore the same 24 points for the rest of the
   project's life. Two shapes in one test, of which only one is safe to
   pin. The merge-base comparison that motivated it has happened;
-  nothing schedules another.
+  nothing schedules another. **Confirmed, and ROUTED to D104**: the fix
+  is a seed policy, not an assertion rewording.
 - (j) **FIXED by #787** — `demos/tour/tests/eps_regression.rs`. The
   finding's "appears to" is confirmed: the tour's only
   `std::process::exit` sites are the two feature-gated modes reporting
@@ -10848,6 +10930,116 @@ scope and dispositioning what it returns. The one-command version is in
 ---
 
 # Findings raised by the Track F lanes (2026-08-20)
+
+## S121. Bound-domination rows with no ceiling and no floor — five sites, four crates
+
+A recurring test shape: a certified bound is compared against a sampled
+true value and asserted to **dominate** it, and nothing else is
+asserted. `sup >= max` is monotone in the safe direction — an
+implementation that returned `f64::MAX`, or that lost a cancellation,
+satisfies it forever. Several of the rows are *named* for domination,
+so the geometry each was written to cover is the one thing it never
+constrains.
+
+The discipline exists in the tree and is written down where it is
+applied: `geom-core/tests/m5_pr7b_tensor_compose.rs:195-207` carries
+both halves — `assert!(max > 1e-3, "the fixture's residual must be
+genuine")` as an anti-vacuity floor, and `sup <= 10.0 * max` as the
+ceiling, with the reason stated: *"the bound is TIGHT — the whole point
+of the composition … the composite must track the residual's own
+scale."* **A row missing the ceiling can be arbitrarily loose; a row
+missing the floor is satisfied for free by a fixture whose sampled
+residual collapsed.** Most of the sites below are missing both.
+
+- `geom-core/tests/m5_pr7b_tensor_compose.rs:222` —
+  `the_bound_dominates_when_the_two_curves_disagree_on_knots`.
+- `geom-core/tests/m5_pr7b_tensor_compose.rs:244` —
+  `the_bound_dominates_when_the_pcurve_straddles_surface_cells`.
+- `geom-core/tests/m5_pr7b_tensor_compose.rs:425-426` —
+  `a_bicubic_bicubic_composition_completes_within_the_budget`, whose
+  doc says the composition *"must complete with a finite, sound
+  bound"*; `is_finite` plus `sup >= max` is exactly that and no more.
+- `mesh/src/nurbs_cert.rs:1538` —
+  `hessian_hull_dominates_sampled_second_partials`, doc *"the convexity
+  claim, measured (never the other way round)"*; the measurement has no
+  upper side.
+- `geom-brep/tests/r1_pxn_probes.rs:176` — `hull_sup >= truth * 0.99`,
+  labelled `UNSOUND:` on failure, with no companion ceiling.
+- `geom/tests/curves/m5_pr7_speed_meter.rs:36` —
+  `the_meter_lower_bounds_the_real_speed`, a one-sided meter claim with
+  only a positivity check above it.
+
+**The floors and ceilings have to be measured, not copied.** `10.0` is
+one row's number for one row's geometry; a constant transplanted from
+the row above, or a threshold that re-pins today's output, is
+`memories/output-stability-as-justification.md`'s shape rather than a
+fix. Whoever takes this owes a ratio per site at more than one ε, and
+is entitled to conclude for some site that no honest ceiling exists —
+which is a written verdict, not a silent omission. Placed as **D65**.
+
+Found by lane F-c's sweep for S110's shapes: the second of the style
+brief's Q3 shapes, *an assertion monotone in the safe direction*. F-c's
+first pass filed only the two `tensor_compose` rows and called the
+class a single-file instance; #790's review found the other three.
+
+## S122. The NURBS re-gate's comment sends a reader to the wrong crate for half of its evidence
+
+`topo/src/boolean/ops.rs`'s door-2 comment, on the `NurbsExtentUnsupported`
+re-gate, reads: *"NO end-to-end path reaches it today (a lofted operand
+is refused at its NURBS EDGES first, a placeholder's poison box is never
+pruned) — `sweep`'s `s16_box_soundness` pins both blockers, so the day
+one lifts is loud."*
+
+`sweep/tests/s16_box_soundness.rs` pins **one** — the lofted operand,
+refused at its NURBS edges. The placeholder blocker is pinned in
+`ops.rs` itself, as **door 1** at `crates/topo/src/boolean/ops.rs:2126-2132`
+— a `let … else { panic! }`, thirteen lines above the comment, not an
+`assert!` (the function's three `assert!`s are at `:2150-2152`, after
+door 2). So the sentence is wrong in both directions at once: it credits
+a sibling crate with a row it does not have, and it hides a row the
+reader is standing in.
+
+Nothing checks it — a comment naming a test file in another crate is
+the one cross-reference shape no compiler and no gate in this tree can
+see (C-R11's class, and S39's).
+
+Two answers, and the choice is the deliverable: correct the sentence, or
+write the missing row. The second is available — `sweep` can build the
+placeholder operand, and a row there would make both blockers loud in
+the file the sentence already points at. Placed as **D66**.
+
+## S123. Assertions whose condition is the value's own codomain
+
+The narrowest member of S110's class and the one a reader is most
+likely to walk past, because it looks like a soundness check:
+
+- `geom-core/tests/review_m5_pr7b_tensor.rs:520` —
+  `assert!(sup_far >= 0.0 || sup_far.is_nan(), "bound must stay sound")`.
+  `SurfaceResidual::sup_bound`'s own doc (`tensor.rs:252-255`) says the
+  value is a fold of **nonnegative magnitudes**, `NaN` on every poison
+  path. The disjunction is the function's entire range, so the row can
+  only ever change a panic message — **S110(h)'s exact shape**, and it
+  sits one line above a genuine ceiling (`sup_far <= 1e-8`) that does
+  the work. This is in the file S121's text cites as its cancellation
+  witness.
+- `geom-core/src/real.rs:1393` — `prop_assert!(r >= 0.0)` on
+  `Real::sqrt(x)` for `x in 1.0e-12..1.0e12`. IEEE `sqrt` of a positive
+  finite is positive finite; the line below it (`(r*r - x).abs() <=
+  1e-15 * x`) is the property.
+
+Both are cheap deletions rather than repairs: the real assertion is
+already adjacent in each case, and removing the redundant one makes the
+surviving message unambiguous, which is what
+`memories/test-suite-cost.md` asks of a merged row. Neither is a
+correctness risk. Placed as **D67**.
+
+**This shape is invisible to the obvious detector**, which is why it is
+recorded separately from S121: a rule of the form *"a test whose EVERY
+assertion is weak"* cannot see a vacuous assertion standing beside a
+real one, and both members here do exactly that — as does S110(h), and
+as did the `nurbs_edges > 0` assertion #790 wrote and removed in
+S110(d). Anyone sweeping for this must key on the assertion, not the
+test.
 
 ## S124. A compound bound given a NAME is invisible at its use sites, and the gate header says the opposite
 
@@ -12338,6 +12530,7 @@ has been discharged.
 | ~~**E-o**~~ | ~~**D86**~~ | ~~`scripts/interval-only-selection.py`, and whatever the class sweep finds~~ | ~~style~~ | **Landed as #821 — Track E closed a Track F row.** The bare substring was satisfied by ONE doc-comment line, and that line is identical boilerplate in **five** `tests/all.rs` files, so the block covered any closure inside {`bvh`, `mesh`, `step-export`, `step-import`, `stl`} — not `step-import` alone. Fixed in #753's shape and then one step further: the predicate has ONE home, `carries_interval_cfg` in `check-interval-cfg-additive.py`, which the selection **imports** rather than restating, so the two cannot drift again. Guarded in the tripwire's `--selftest` — the only wiring both CI halves already run, and the one that did not require a file #798 holds — and falsified both ways. Demonstrated on the tier it is about: a throwaway `step-import`-only closure (#822, closed) went green, all four interval legs, run 32419509144. **E-R8 is this row's own finding.** |
 | **E-p** | **S14** | `docs/` — a design conversation, plus one reachability test in `geom/tests/` | **no review; it goes to Evan** | **Dispatched 2026-08-20 as #823, and it is NOT a fix.** S14 had been open since 2026-08-18 with **no channel and no owner**: no design PR existed, and §S70's *"whoever takes S14"* pointed at nothing. The PR's own finding is that **S14 is two questions under one label** — the `Span` pairing (**S14(a)**, `geom-core`/`geom`) and the graft (**S14(b)**, of which §S70 is the documentation residue) — and that row 0's ratified text describes only the second. It answers (a) and scopes (b). Placed **D97**, **D98**, **D99**. **Waits for Evan; never self-merges** (`CLAUDE.md`: PRs that ratify design questions are design conversations). |
 | ~~**E-q**~~ | **#681**, still open | `memories/` | style | **Swept as #826 — the TENTH surface, which #681's list does not contain.** E-l reported it and did not sweep it; adding a surface is the issue owner's call, and Evan made it. **The disposition rule is NOT §Q6's**: *"most of the stuff in memories that cites a specific measurement should just be deleted. memories is definitely not the place for historical anecdotes, but it's also not really the place for live data."* So each block is an **anecdote** (delete the number, keep the rule — the default), **live data** (repoint at whatever re-takes it), or **neither** (a ratified constant or protocol threshold — kept, with the reason). **21 blocks re-derived at `e1500076`, E-l's count exactly, and it did not move.** Instrument run not retyped, but `--marker ''` alone yields **one block per file** — `find("")` is 0 on every line, so nothing ends a block; #681's `.md` row names *"paragraph-blocking"* as the replacement and that is not in the script, so it was added as a flag. That is the variant E-l ran. **Its own blind spot, and `min` is the sharp one**: the time-unit arm lists `seconds?|minutes?` and **not `min`**, so `memories/git-workflow.md` scored **zero blocks** while carrying `~5-7 min` / `35-70 min` / `30G cache` / `(then-5G-RAM)/251G box`. **Eight files carry measurement edits and in five of them at least one edit site was reached by reading, not by the instrument** — including `tessellation-budget.md`'s densest numbers, its findings list, which sits outside every flagged block. #681's carried hole (bytes, percent, counts and bare factors reach only through the vocabulary arm) is worst on exactly this surface. 21 is a floor, not a census. **The one live-data case the brief warned about checks out**: `docs/ASM-LOG.md:292` and `:361` route the **TESS-SPLIT dispatch** through this memory, so `SAFE_ASPECT = 5` could not simply be deleted — it now names `mesh::nurbs_cert::SAFE_ASPECT`, whose own doc carries the derivation. The two copies had **already diverged** (ASM-LOG says *"≤ ~4"*), as had `agent-lane-operations.md`'s `4–8 GB target/` against `disk-watchdog.sh`'s own `5-8G`. Second half of the unit: `memories/cad-working-style.md`'s memory-writing criteria gain the rule, in one bullet after *No live counters*. **D97 handed back unused.** |
+| **E-s** | **S14(a), half one** | `geom/src/surfaces/{nurbs,projection}.rs`, `mesh/src/nurbs_cert.rs`, `step-import/src/recognize.rs` | style | **DONE — #845.** Evan's ruling on #823, first of its two changes: `NurbsSurface::window_of` leaves the public surface. **Private, not deleted** — `window`, `window_at` and the three located-span seeds in `ders`/`ders3`/`eval` all mint through it inside `nurbs.rs`, so there is an internal use; nothing outside the module has one. **The caller list re-derived: 8 call sites, not the ruling's ‘eleven’** — 3 out of module (all three the ruling names, all resolving) and 5 in, the count of *eleven* being `window_of` grep hits including the definition and two doc mentions. **The ruling's ‘each becomes shorter’ is right once in three, and the reason is mechanical**: rustfmt's default `single_line_let_else_max_width` is 50 and this tree has no `rustfmt.toml`, so `let Some(win) = surface.window(u, v) else { continue };` is 52–55 columns and formats across three lines, where each of the two one-line span lookups it replaces fits on one. `mesh` shrinks by 3 code lines (its lookups were already three-line); `projection.rs` and `recognize.rs` are line-neutral. What does drop everywhere is a lookup (2 → 1) and two live bindings. **One behaviour note, stated because it is real and small**: the u-direction emptiness skip moves from the outer loop into the inner one at all three sites, so an empty u-span now costs one `window()` per v-span instead of being skipped whole; results are identical. **The model idiom is `geom-brep/src/ssi/enclose.rs:540`** — the ruling and the brief both site it under `geom/src/surfaces/`, where there is no `ssi` module. |
 
 ### The rows
 
@@ -12594,7 +12787,7 @@ while a row that never enters a log is read by no one.
 |---|---|---|---|---|---|
 | **F4** | **Guards whose failure mode is their pass condition** — four instances bound by one missing idiom rather than by files. The spent-graft hammer row lacks the `oks > 0` its twin has, and `ci.yml` cites it by name (**S76**); a fuzz corpus is built entirely behind `if let Ok` with no floor (**S78**); a floor row matches into a `println!("SKIPPED")` arm and returns green (**S84**); a new differential test compares an expression against itself (**S91**). | S76, S78, S84, S91 | `topo/src/review_d18.rs`, `sweep/tests/review_d2_adv_probes.rs`, `geom-brep/tests/*`, `geom-core/src/spline/knots.rs` | **ACCEPTED** on all four | **ADVERSARIAL** for S76 and S78 (each is a guard on a soundness contract); style for S84, S91 |
 | **F5** | **Two scraped-source registries of "what is a public mutation door", both classifying by `body.contains("literal")`** — so a comment satisfies the guard. The undisclosed string-match blind spot is the sharper half. | **S92** | `topo/src/review_m1_pr5_internal.rs`, `topo/src/pcurves.rs` | **ACCEPTED** | style |
-| **F7** | **Assertions that cannot go red, sorted.** The roll-up is **three dispositions, not one**: *(a)* genuinely vacuous assertions in shipped test files — a normal fix lane, cheap and edge-free; *(b)* hand-run diff artefacts whose comparison no longer exists (`probe_s5_sectors.rs` has no runner and says so in the file; `review_m6_5_pr2_sweep_probes.rs`'s printed hash; `review_d8_consumer_differential.rs`'s pinned seeds) — **§C23's class, and §A2 already routes them to the test-suite-cost sweep**; *(c)* equal-by-construction asserts in `demos/`, which go to **Track G**. **The skip-reads-as-a-pass shape is deliberately NOT here** — Evan ruled it un-rolled-up (C21), because a floor concedes the skip and *whether the test should skip at all* comes first. **Do not re-propose the floors.** | **S110** (10 members, enumerated) | six crates' `tests/`, plus `memories/test-suite-cost.md` | **ACCEPTED, SORT REQUIRED** — the sort is above and is the row's first deliverable | style |
+| **F6** | **`tess-lint` resolves broken measurements in the cannot-fire direction**: `ratio` returns `1.0` on a non-positive denominator or non-finite numerator and feeds `recoverable()`; `GROWTH_TOLERANCE = 1.05` is unpinned. **Part two of the finding — the positional-ordinal join — is already Track C's row C15 (#746) and is NOT this track's.** | **S73**, parts 1 and 3 | `tools/tess-lint/src/lib.rs` | **ACCEPTED IN PART** — parts 1 and 3 only | style |
 > **S110(a) joins F8, 2026-08-20 — it was D84's defect all along.** F7's review
 > found that S110(a)(b)(i) were routed to *"C23's class … the test-suite-cost
 > sweep"* and that **no such target exists**: bare `C23` is §D's *rational
@@ -12659,6 +12852,66 @@ S60/S66's rows; and a general gate re-proposes exactly what Evan declined.
 
 ---
 
+## S167. Merging a PR destroys its in-flight checks, and the wreckage is permanently unreproducible
+
+**The branch-side twin of S162, found by lane F-c diagnosing its own merge.**
+
+Merging a PR deletes `refs/pull/<n>/merge`. Any check still running then fails
+at **checkout**, not at its subject:
+
+    ##[error]fatal: couldn't find remote ref refs/pull/790/merge
+
+**And it cannot be re-run.** A `pull_request`-event run can never check out a
+merged PR's ref again, so `--failed` re-fails identically, forever. The record
+keeps two red jobs on a landed PR that **nothing was rendered or compared** in.
+
+**The verified instance, in two attempts — and the second is what makes this a
+finding rather than a footnote.**
+
+**Attempt 1 is the race.** #790 merged at `23:19:42Z` while
+`render lanes / demo tour (scene inputs)` and
+`render lanes / wild-corpus montage` were still running; both failed at
+`23:19:44Z`, then `:20:00` and `:20:15`, on the checkout.
+
+**Attempt 2 is the trap.** A `gh run rerun --failed` seventeen minutes later —
+quiet repo, no race left to lose — failed **identically** at `23:36:30Z`
+(`run_attempt 2`, confirmed via the jobs API). The wreckage is not a flake that
+clears on retry; **the obvious remedy reproduces it exactly, forever**, because
+the ref it needs no longer exists.
+
+So anyone who finds two red `render lanes` jobs on a merged PR and does the
+natural thing gets two red `render lanes` jobs again — and *that* reads as a
+real, reproducible defect rather than a dead ref. **The retry does not just fail
+to help; it manufactures corroborating evidence for the wrong conclusion.**
+
+What actually settled it was a run **neither party created**: `1c760e94`, on
+another track's branch, which **contains** the merge commit `2866eb99` and shows
+both lanes `success`.
+
+**Why it is worth a finding rather than a shrug.** *It looks exactly like a
+defect.* Two red jobs named `render lanes` on a merged PR read as a rendering
+regression, they are the last word that PR's board will ever carry, and the
+obvious remedy — re-run the failures — is structurally guaranteed to reproduce
+them. A reader six weeks from now has no way to tell this from a real failure
+except by knowing this paragraph exists.
+
+**The operational tension it exposes, which had not been stated.** *Do not sit
+CONFLICTING* — a PR in that state runs **no** checks at all, a silent CI outage —
+pulls toward merging the moment a PR is clean. *Do not merge with checks in
+flight* pulls the other way. **Both are correct.** The resolution costs seconds
+and is compatible with merging fast: **filter the check runs, then merge** —
+`gh api …/check-runs`, reject anything whose `conclusion` is not `success`.
+`MERGEABLE / UNSTABLE` means *some check is not green and this word will not
+tell you which*; it is a status whose method is hidden, which is why it reads as
+settled.
+
+**Together with S162 this is one shape, on both sides of the merge:** *the record
+of a verification can be destroyed by the act of landing it.* On `main` the run
+is **cancelled** and a docs-tier successor goes green over it; on the branch the
+run is **killed at checkout** and stays red forever. Row: **D113**.
+
+---
+
 ## S162. A code merge's full run is cancelled by the docs-tier pushes behind it, and the board goes green having run two jobs
 
 **Found by Track F's lane F-b, 2026-08-20, in the composition of two
@@ -12709,10 +12962,40 @@ remedy**, because the re-run competes in the same concurrency group as every
 subsequent push. An orchestrator trying to close this hole by hand is racing the
 mechanism that opened it.
 
+**A remedy that does work, found by trying the obvious one first.** A full
+`gh run rerun` re-queues **every** job, so it occupies the concurrency group for
+the whole matrix duration and is itself easy to evict — attempt 2 was cancelled
+that way. **`rerun-failed-jobs` re-queues only what did not already succeed**, so
+its window is a fraction as wide. Attempt 3 of `32421453391`, issued that way,
+completed **36 success / 0 failed / 0 cancelled** — a complete verdict for F6's
+merge commit, obtained without a push. **The smaller the re-run, the smaller the
+target it presents to the next push.**
+
+**And the capability is per session, not per repo.** A parallel orchestrator
+recorded that *"nobody in this session can trigger or re-run CI — only a push
+can"*, having hit `403 Resource not accessible by integration` on both
+endpoints, and published a rule telling lanes not to escalate re-runs. Both
+endpoints work from Track F's session; `gh run view --json attempt` reads **3**
+on the run above. **Re-run capability must be tested per session, never assumed
+either way** — and a rule built on an untested capability sends lanes to a human
+for something an orchestrator can do in one call.
+
 **What is NOT claimed.** No defect is known to have reached `main` this way; the
 frequency is unmeasured; and whether the concurrency setting is right for `main`
 at all is a decision, not a defect — `cancel-in-progress` on a *branch* is
 plainly correct and is why the setting exists. **Row: D108.**
+
+
+### Rows placed by lane F-c, out of F7's sweep
+
+The shapes F7's sort was looking for, found outside S110's ten. None is
+a general gate; each names its sites.
+
+| # | Work |
+|---|---|
+| **D65** | **Bound-domination rows with no ceiling and no floor** (**S121**) — five sites in four crates: `geom-core/tests/m5_pr7b_tensor_compose.rs:222, :244, :425-426`; `mesh/src/nurbs_cert.rs:1538`; `geom-brep/tests/r1_pxn_probes.rs:176`; `geom/tests/curves/m5_pr7_speed_meter.rs:36`. Each asserts that a certified bound dominates a sampled true value and nothing else — monotone in the safe direction, so an arbitrarily loose bound passes; most also lack the anti-vacuity floor that keeps a collapsed fixture from satisfying the comparison for free. The discipline is written down in the tree at `m5_pr7b_tensor_compose.rs:195-207`, which carries both halves and says why. **The deliverable is a measured ratio per site at more than one ε, not a transplanted `10.0`** — a threshold that re-pins today's output is `memories/output-stability-as-justification.md`'s shape. A written verdict that some site admits no honest ceiling is a passing answer. Scope: `geom-core/tests/`, `mesh/src/`, `geom-brep/tests/`, `geom/tests/` — check `geom-brep/tests/m5_pr7_ssi.rs`'s neighbourhood against Track C's **#734** before opening. |
+| **D66** | **`topo`'s NURBS re-gate cites a sibling suite as pinning two blockers; it pins one** (**S122**). `topo/src/boolean/ops.rs`'s door-2 comment says *"`sweep`'s `s16_box_soundness` pins both blockers"*. That file pins one. The placeholder blocker is pinned in `ops.rs` itself at `:2126-2132`, thirteen lines above the comment, as a `let … else { panic! }`. C-R11's class: a cross-reference is a claim site, and this one sends a reader to the wrong crate for half of it. The fix is either the sentence or the missing row, and whoever takes it should decide which — `sweep` can build the placeholder operand, so the second row is writable. Scope: `topo/src/boolean/ops.rs`, and `sweep/tests/s16_box_soundness.rs` if the answer is the row. |
+| **D67** | **Assertions whose condition is the value's own codomain** (**S123**) — `geom-core/tests/review_m5_pr7b_tensor.rs:520` and `geom-core/src/real.rs:1393`. Both are S110(h)'s shape standing beside a real assertion rather than alone, so both are deletions, not repairs; the surviving message is then unambiguous, which is what `memories/test-suite-cost.md` asks of a merged row. Cheap and edge-free. Recorded apart from D65 because the detector shape differs: an "every assertion is weak" rule cannot see either of them, and that blind spot is what made F-c's first pass under-report the class. Scope: two files in two crates. |
 
 ---
 
@@ -12988,6 +13271,7 @@ decisions* table above rather than any track.
 | **S90** | **The largest D1 residue is the only one without a schedule.** It says a lane is owed *"on the **public** surface"*, and every smaller residue got a number. Is that lane owed now, is the written reason sufficient, or is the verdict closed — and if closed, does §D's *"a verdict and no row only if the verdict is closed"* rule apply to it? |
 | **S107** | **The `DimensionError` untangling renamed the Rust type and left the Python-visible confusion in place**, now defended in prose. Is that a defect or a deliberate compatibility choice — and if deliberate, may the tree stop re-documenting it? |
 | **S116(p)** | **`MultipleAxisRuns` changed what the kernel promises**, from *"deferred to M3"* to *"a **permanent** refusal under the ratified sweeps-vs-voids invariant"*. That rests on an unstated geometric claim — that every profile with ≥2 disjoint on-axis runs encloses a void when fully revolved — with no test, no proof, and the reporting agent's own confidence at `unsure`. It is a promise already shipped to callers. |
+| **D111 — the fourteen unrun probe suites** | **Placed by Track F's F8 (#844), which found the premise of the ruling it was executing to be false.** Evan's F-R5 split *"thirteen `--ignored` dump harnesses (posture) versus one accidental plain test (run it)"*. Re-derived: of 17 censused probe-gated suites **exactly two carry any `#[ignore]`d test, and both are already executed**. The unexecuted **fourteen are plain `#[test]`s**, unrun because nothing runs `cargo test -p <crate> --features probe` at all — and several are not dump harnesses but the **Probe-lane halves of ordinary suites** (`profile/tests/validate_ok_probe.rs`, `geom-core/tests/k_stats_doors.rs`, `geom-brep/tests/span_meter_dim_twins.rs`), split out purely because `probe` monomorphizes every generic-over-`Real` body — **a compile-cost decision that silently became an execution decision.** The ruled disposition was applied where it fit (both accidental tests now run); **the population it was ruled over does not exist**, so the fourteen are undecided rather than decided-as-posture. **Cheap on one side:** CI's `compile and list every probe-gated test target` step already builds each crate `--features probe --all-targets --no-run`, so the marginal cost is execution only. **A decision anyway:** it is `k-lint`'s wall clock, and F-R5's ~2.1 min slack was one sample offered as an argument for placing *one* test, not a licence for fourteen. **And not free in the other direction:** none has ever executed, so a red is as likely to be a kernel finding as a harness one — an argument for taking them deliberately rather than in a batch. The live instance is **S110(a)**. Full brief in §D row **D111**; this entry exists so the decision sits with the others rather than inside a schedule row. |
 | **The C-namespace** | After the merge renumbered the second scan's observations to **C18–C25**, §D's Track C rows still occupy **C15** and **C17** for different things. One sentence giving Track C's rows a distinct prefix closes it permanently. |
 
 ### What §B2 says nobody has looked at
