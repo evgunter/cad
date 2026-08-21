@@ -188,12 +188,42 @@ pub enum ArcData<T: Real> {
 /// state it is well-typed at, and the macro expands each row into all
 /// four artifacts: the **typed method** on that state, the **driver
 /// arm** in [`apply`], the [`Step`] variant, and the [`Verb`] tag. So
-/// nothing is written twice and nothing can drift: a missing row is
-/// missing EVERYWHERE, consistently and loudly, and an inconsistent
-/// pair is unwritable because there is no second place to write it.
-/// The round-9 exhaustiveness pressure rides the same table for free
-/// (the wire enum, the replay arms and the tags enumerate its rows by
-/// construction).
+/// none of those four is written twice and no two of them can drift: a
+/// missing row is missing from all four, consistently and loudly, and
+/// an inconsistent pair is unwritable because there is no second place
+/// to write it. Those four are the whole of what the macro expands.
+///
+/// **The round-9 exhaustiveness pressure does NOT ride this table.**
+/// That pressure is over the ARC-MODE vocabulary — [`ArcData`] — and
+/// this table is over the VERB vocabulary. `ArcData` is written out
+/// above by hand and has no `ALL`; every site that must handle each of
+/// its modes is hand-written too, including `do_arc_to_point`,
+/// `do_arc_to_directed` and the fused dispatchers below this
+/// invocation, none of which the macro produces. The pressure is real
+/// — rustc enforces it at each of those matches — but it is bought by
+/// hand at every site, not projected from one declaration. That the
+/// two vocabularies are unified to different depths is smell-scan
+/// **S193**.
+///
+/// # What the table does not reach
+///
+/// The count is FOUR because four is what fits inside this crate, not
+/// because four is all there are. `editor-core` spells the same
+/// vocabulary twice more — an expression-valued document form and a
+/// serde-bearing persisted form — because a step there carries `Expr`s
+/// and must serialize, and G1 layering keeps both out of `profile`.
+///
+/// Adding a row here does not add a verb there. It breaks that crate's
+/// two exhaustive matches on [`Step`] (its content-key tag table and
+/// its lifting door) and stops. The function that goes the other way —
+/// document form to [`Step`] — matches the DOCUMENT type and
+/// CONSTRUCTS this one, so it cannot see a row added here, and the
+/// document, wire and expression-slot vocabularies can stay short
+/// while everything compiles. That they do not is a census rather than
+/// a compile error, and it lives where it can see both sides:
+/// `editor-core/tests/switch_program_vocabulary.rs`, anchored on
+/// [`Verb::ALL`] exactly as this crate's own replay-coverage census
+/// is.
 ///
 /// # Row grammar
 ///
