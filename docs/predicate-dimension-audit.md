@@ -315,11 +315,11 @@ which is what actually moves the number.
 | pcurve_cache.rs (chart derivation) | pcurve_cone_chart_nappe (h0/h data) | axial heights (m) | m | OK; the hs COSINE fallback is FLAG F13 |
 | pcurve_cache.rs (chart derivation) | pcurve_chart_azimuth_frame / sphere_chart_pole_frame / polar & meridional rates | metre projections/norms at six of the seven frame callers; on the CONE ruling lane's F13 fallback the frame input is a UNIT radial's projection — dimensionless. Tie-break-only either way (N5: the trilean picks between two formulas identical mod τ — verdict-neutral), and that lane is F13-flagged one decision earlier | m (mixed on the F13 lane) | OK as tie-break (N5; row corrected at the clause-(i) fix pass, review MIN-1) |
 | props/curved.rs:145/150 | props_rim_axis_parallel / center_on_axis | sin×r_c; perpendicular offset | m | OK |
-| props/curved.rs:208 | props_rim_level_group (Length) | level difference BARE (v is arc length) | m | FIXED (this unit) |
-| props/curved.rs:211–212 | props_rim_level_group (Unit) | Δ(sin,cos) × arm | m | OK (note N1) |
-| props/curved.rs:250 | props_rim_dir_group | (±1 diff) × arm ∈ {0, ±2·arm} | m | OK (note N2) |
-| props/curved.rs:263 | props_du_consistent | Δu (rad) × arm | m | OK |
-| props/curved.rs:286 | props_rim_side | per-kind: bare (Length) / ×arm (Unit) | m | FIXED (this unit) |
+| props/curved.rs (`level_coincides`, `props_rim_level_group` call) | props_rim_level_group (Length) | level difference BARE (v is arc length) | m | FIXED (#89's unit) |
+| props/curved.rs (`level_coincides`, `props_rim_level_group` call) | props_rim_level_group (Unit) | rooted (sin,cos) CHORD × `RimArms::level` (sphere ×R, torus ×minor) | m | **FIXED — N1 RETIRED** (S81: one rule, one arm. Was Δ(sin,cos) componentwise × `major` on the torus) |
+| props/curved.rs (`du_of_rims`) | props_rim_dir_group | (±1 diff) × `RimArms::azimuth` ∈ {0, ±2·arm} | m | OK (note N2) |
+| props/curved.rs (`du_of_rims`) | props_du_consistent | Δu (rad) × `RimArms::azimuth` | m | OK |
+| props/curved.rs (`s_f_from_rim`) | props_rim_side | per-kind: bare (Length) / × `RimArms::level` (Unit) | m | FIXED (#89's unit) |
 | props/curved.rs:313/421 | props_meridian_axial / generator | sin (or cos-diff) × parameter span (m for lines) | m | OK |
 | props/curved.rs:323/343/451/553/677 | props_meridian_on_surface / rim_fit (all kinds) | residuals; sphere/torus fits ROOTED before compare | m | OK |
 | props/curved.rs:337/444/549/671 | props_circle_axis_class | cos × r_c | m | OK (note N3) |
@@ -327,7 +327,7 @@ which is what actually moves the number.
 | props/curved.rs:430 | props_meridian_apex | apex-line distance | m | OK |
 | props/curved.rs:487/488 | props_cone_nappe | slant levels (m) bare | m | OK |
 | props/curved.rs:576/598/695/706/728 | sphere/torus meridian checks | lengths / sin×R / cos×minor | m | OK |
-| props/curved.rs (`require_rims_at_extremes`) | props_rim_level | per-kind: bare level difference (cylinder/cone `Length`) / rooted (sin,cos) chord × arm (sphere ×R, torus ×minor) | m | OK (notes N1, N7; generalised from the torus-only site to all four kinds by S58/#649 — one predicate, metering still carried by [`RimLevel`]. N1 now has a second, sharper reading: the torus levers THIS predicate at `minor`, the exact arm, and its sibling `props_rim_level_group` at `major` one line later — the two are reconciled in `du_of_rims`' docs rather than unified, because unifying them resolves N1. N7's near-polar sphere understatement applies here too, and here it is a REFUSAL that is affected. Pinned as scale twins by `geom-brep/tests/rim_dim_scale_twins.rs`.) |
+| props/curved.rs (`require_rims_at_extremes`, through `level_coincides`) | props_rim_level | per-kind: bare level difference (cylinder/cone `Length`) / rooted (sin,cos) chord × `RimArms::level` (sphere ×R, torus ×minor) | m | OK (note N7; N1 RETIRED. Generalised from the torus-only site to all four kinds by S58/#649, and unified with its sibling `props_rim_level_group` by S81 — ONE rule (`level_coincides`), one metric (the chord), one arm (`RimArms::level`), one fail direction; the two names are the funnel's recording channels, not two rules, and the metering is still carried by [`RimLevel`]. N7's near-polar sphere understatement applies here too, and here it is a REFUSAL that is affected. Pinned as scale twins by `geom-brep/tests/rim_dim_scale_twins.rs` and, in a suite CI runs, by `geom-brep/tests/s81_one_rim_level_rule.rs`.) |
 | props/quad.rs:453 | props_quad_converged | ε·F − flux-width(m³)/(3·area(m²)) | m | OK |
 | props/quad.rs:461 | props_quad_face_extent | area/perimeter (mean width) | m | OK |
 | ssi.rs:645 | ssi_cs_tangency | radius/axis distance differences | m | OK |
@@ -697,29 +697,40 @@ Flagged, NOT fixed here (dispositions):
 
 Notes (verified honest, kept for the design conversation):
 
-- **N1** Torus `props_rim_level_group` levers Δ(sin v, cos v) at
-  `major`, while the induced point deviation levers at `minor` (the
-  sibling `props_rim_level` uses × minor). Overstates by R/r —
-  conservative (escalates a truly-coincident pair, never merges a
-  distinct one). Lever-magnitude question, deferred to typed-margin.
-  **Sharper since #714** (S58): the two now sit on consecutive lines in
-  `torus()` — `require_rims_at_extremes(&rims, …, minor, …)` then
-  `du_of_rims(&rims, major, …)` — so the discrepancy is visible at a
-  glance and reads as an inconsistency unless N1 is known. #714's fix
-  pass reconciled them in `du_of_rims`' own docs (which arm is exact,
-  which is N1, and why the safe direction is the overstating one)
-  rather than unifying them, because splitting `du_of_rims`' single
-  `arm` in two would resolve this note in passing. The unification is
-  still the thing to do when typed margins land: `arm` there is doing
-  double duty for a minor-circle level difference AND an azimuthal
-  angle difference.
+- **N1 — RETIRED by S81.** Torus `props_rim_level_group` levered
+  Δ(sin v, cos v) at `major` while the induced point deviation levers
+  at `minor` (the sibling `props_rim_level` used × minor). It
+  overstated by R/r — conservative in the sense that it escalates or
+  splits a truly-coincident pair rather than merging a distinct one,
+  but conservative is not exact, and the split it produced was a
+  **refusal**: on a 1 m / 1 mm gasket, a rim arc whose split vertex sat
+  **0.5 nm** off level — half of ε — was metered as 0.5 µm, grouped
+  apart, and the face refused `props_du_consistent`
+  (`geom-brep/tests/s81_one_rim_level_rule.rs` is that face).
+  **The resolution is the one this note named**: `du_of_rims`' single
+  `arm` was doing double duty for a minor-circle LEVEL difference and
+  for an azimuthal angle difference, and it is now two fields
+  (`RimArms { level, azimuth }`). The level rule itself is one function
+  (`level_coincides`) for both call sites, so the arm cannot drift
+  again without both moving. Deferring this to "when typed margins
+  land" is what left the two spellings 90 lines apart for eight months;
+  typed margins will still find one rule here rather than two.
+
 - **N2** `props_rim_dir_group` compares a structural ±1 through the
   numeric funnel (margin 0 or ±2·arm). Guarded upstream: a rim with
   arm ≲ K·ε cannot reach it (`props_circle_axis_class` escalates
   first, cos·r_c in-band).
 - **N3** The cone's `du_of_rims` arm is the FIRST rim's radius
-  |v|·sinα (bounded below ≳ K·ε by the same axis-class guard); the
-  `T::one()` fallback is unreachable (empty-rims refusal precedes).
+  |v|·sinα (bounded below ≳ K·ε by the same axis-class guard). The
+  `T::one()` fallback is REACHED — both callers compute the arm before
+  they know whether there is a rim — but **never metered against**:
+  every route from it to a margin refuses on the empty rim list first,
+  by `du_of_rims`' opening `is_empty` on the flux lane and by
+  `linear_rim_side`'s `rims.first()` at the material-side gate. "The
+  empty-rims refusal precedes" named one of those two routes and was
+  false at the other (S112(d)); the invariant is what both establish,
+  and `s58_iso_rectangle::a_rim_free_cone_refuses_at_both_doors` is the
+  row.
 - **N4** `tangent_normal_parallel`'s arm 1/κ_rel is the ratified D4 ¶1
   tangency lever ("normal-parallel within θ ⟺ within ε of the locus");
   unbounded only in the refusing direction, and the second-order gate
@@ -740,7 +751,13 @@ Notes (verified honest, kept for the design conversation):
   rims can group as coincident although their true point separation is
   ~`R·Δv`. Dimensionally honest (the margin IS a length, and it is the
   quantity the area formula consumes), but the LEVER understates the
-   3-D deviation near the poles — the same lever-magnitude family as
-  N1, opposite direction (merges rather than escalates). Cone/cylinder
-  bare levels and the torus two-component pair do not share this.
-  Typed-margin conversation input.
+  3-D deviation near the poles — the same lever-magnitude family as
+  N1 (now retired), opposite direction: N1 escalated, this merges, and
+  it merges in the ACCEPTING direction. Cone/cylinder bare levels and
+  the torus two-component pair do not share this. Typed-margin
+  conversation input, and **smell-scan S82** — Evan's to answer, not a
+  lane's. S81's unification does not answer it and does not try to; it
+  makes it **cheaper**, because the sphere's lever is now one field
+  (`RimArms::uniform(radius)`'s `level`) at one site, feeding one rule,
+  rather than a scalar passed to two functions that metered it two
+  ways. Whatever the answer, it is a change to that field.

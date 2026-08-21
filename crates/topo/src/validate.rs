@@ -2262,9 +2262,21 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     // way the flux lanes read it:
     // `geom_brep::props::boundary_material_sign` re-runs the rim-side
     // / meridian-orientation sub-derivations (`props_rim_side`,
-    // `props_circle_axis_class`, `props_meridian_orient` — already
-    // length-metered named decides). No new comparand exists: the
-    // final comparison is two exact ±1s, genuinely combinatorial.
+    // `props_rim_level`, `props_circle_axis_class`,
+    // `props_meridian_orient` — already length-metered named decides).
+    // No new comparand exists: the final comparison is two exact ±1s,
+    // genuinely combinatorial.
+    //
+    // `props_rim_level` — the iso-rectangle premise — is on that list
+    // because the rim-side derivation rests on it: `lo + hi − 2v` is a
+    // material side only on a domain whose rims all sit at an extreme,
+    // and without it a plus-shaped face answered a definite ±1 that
+    // depended on where `loop_edges` started the cycle. Such a face now
+    // arrives here as `Err`, i.e. EXEMPT by the posture below, which is
+    // what it always should have been: this arm firing on it pushed a
+    // `CurvedSenseInverted` that suppressed check 7's honest
+    // `VolumeUncomputable { NotIsoRectangle }` through the
+    // `errors.is_empty()` gate.
     // Fires BEFORE check 7, which cannot see this defect — the flux is
     // traversal-derived, so a lone sense flip on a rim-bearing curved
     // face leaves the volume BIT-IDENTICAL (M6-6 substrate truth

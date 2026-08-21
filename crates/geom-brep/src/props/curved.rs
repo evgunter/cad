@@ -1269,11 +1269,11 @@ fn torus<T: Decide>(
     // generalising it is the fix. The torus's `v` is periodic, so its
     // two extreme levels come from the anchor meridian's stored
     // `[v0, v1]` rather than from `min_max`, and they are dimensionless
-    // `Unit` direction pairs metered at the minor radius — which is
-    // NOT the arm `du_of_rims` gets on the next line. See its docs:
-    // `minor` is the exact lever for a minor-circle direction pair and
-    // is used where the answer is a refusal; the `major` below is
-    // audit note N1, overstating conservatively, deferred there.
+    // `Unit` direction pairs. This is the ONE kind whose level and
+    // azimuth turn about different radii, which is what [`RimArms`]
+    // exists for: `minor` is the exact lever for a minor-circle
+    // direction pair, `major` for the Δu angle and the ±1 traversal
+    // difference `du_of_rims` meters on the next line.
     let arms = RimArms::split(minor, major);
     require_rims_at_extremes(
         &rims,
