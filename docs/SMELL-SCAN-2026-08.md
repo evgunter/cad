@@ -9620,7 +9620,7 @@ reader finds the rule. (C5, still running.)
 
 **Verdict:**
 
-## S86. FIXED by #PRNUM — the certified door refuses poison instead of certifying a NaN bracket
+## S86. FIXED by #880 — the certified door refuses poison instead of certifying a NaN bracket
 
 `CertifiedEnclosure::certified_bracket` now refuses on poison at **every**
 implementor, and the refusal is the door's own rather than a loan from a
