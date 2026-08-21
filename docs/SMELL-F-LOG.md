@@ -249,7 +249,7 @@ sub-block, from the orchestrator.
 | **F-b** | D63, D64 | S119, S120 |
 | **F-c** | D65, D66, D67 | S121, S122, S123 |
 | **F-e** | D68, D69 — **both used** | S124, S125 — **both used** |
-| **F-d** | D70, **D107** — both used | S126, **S161** — both used |
+| **F-d** | D70, **D107**, **D115** — all used | S126, **S161**, **S169** — all used |
 | **F-f** | **D101** | **S157** |
 | **F-e** (2nd) | D102, D103, **D106** — all used | S158, S159 — **both used** |
 | unassigned (2nd block) | D108–D110 | S162–S166 |
@@ -1123,6 +1123,11 @@ halves.
   counted over. **Naming the trap in the PR body did not prevent either.** Fixed
   by flooring `Filleted::band_faces`, the receipt `rim_phase` leaves, and by
   splitting `LINK_OPS` out of `OPS`.
+- **The LINK_OPS slack is documented as deliberate at the constant**, per the
+  clearance: 4 against today's 5, because at 5 the floor becomes a coverage
+  *target* pinned to a measurement and the next legitimate precondition change
+  reds a healthy row, while at 4 a genuine loss still reds and the exposure line
+  reports the drop for anyone reading. The comment says *do not "fix" it to 5*.
 - **A floor that fired on something true, caught before it shipped.** The first
   version of the tear-planting floor required every trial to have corrupted its
   body and reds at **26 of 27** on an intact tree — a single draw may legitimately
@@ -1140,12 +1145,17 @@ halves.
   because `SSI_FLOOR == 1.0` and `band().zero() == eps()`, neither stated
   anywhere. Putting the identity beside the thing it inverts gives all five sites
   across two files one door. No behaviour change.
-- **`stood_down` is not the tree's only spelling, and the module now says so.**
-  Converted the three unconverted sites in the file this lane edited
-  (`wall_stand_down` included, now a thin local vocabulary over it); left the
-  ~nine elsewhere, two of whose files are under another lane's hand, and named
-  them in the module doc. **Whether that residue wants a row is the
-  orchestrator's call; I did not take a number for it.**
+- **`stood_down` is not the tree's only spelling, and the residue is now a row.**
+  Converted the three sites in the file this lane edited (`wall_stand_down`
+  included, now a thin local vocabulary over it); the rest are **S169 / D115**.
+  Re-derived on the merged tree rather than transcribed: **ten in-row sites in
+  four files**, of which the finding is really **three byte-identical
+  `println!("SKIPPED: FitSampleBudget stand-down at this ε")`** that announce a
+  stand-down and nothing about what was not asserted. **A claim of mine was wrong
+  and is corrected in the module doc**: I had written that two of those files were
+  under another lane's hand — #790 is merged and touches none of them, and no live
+  lane names any. Four further `SKIPPED` sites are the ratified whole-binary
+  `interval_lane_skipped_no_certified_coverage_here` idiom and are excluded.
 - **No GitHub issue and no design PR.** Nothing found here was a kernel-logic
   defect: the ε-relative floor clamp under S84 is a fixture defect in a test,
   not a defect in `ssi`, and the fit budget it was hiding is D9's documented

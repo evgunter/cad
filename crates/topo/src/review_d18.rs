@@ -679,8 +679,16 @@ fn torn_bodies_never_reach_a_row_four_unreachable() {
         ),
     );
     // 4 of the 6 link-reaching operators, against 5 measured on an
-    // intact tree (`kemr` reaches none — S161). One operator of slack,
-    // deliberately: a coverage loss should be visible, not absorbed.
+    // intact tree (`kemr` reaches none — S161).
+    //
+    // THE ONE OPERATOR OF SLACK IS DELIBERATE AND IS NOT A ROUNDING
+    // ERROR. Do not "fix" it to 5. At 5 the floor would be a coverage
+    // TARGET pinned to today's measurement, and the next legitimate
+    // change to a plan-phase precondition reds a row that is still
+    // attacking the arms perfectly well. At 4 a genuine loss — a second
+    // operator joining `kemr` at the door — reds it, which is the
+    // behaviour the row exists for, while the exposure line above
+    // reports the drop from 5 to 4 on every run for anyone reading.
     census.require_nonzero_among(
         &LINK_OPS,
         4,
@@ -739,7 +747,8 @@ fn a_spent_graft_destination_never_reaches_a_row_four_unreachable() {
     // 4 of the 6 link-reaching operators, against 5 measured on an
     // intact tree (`kef` 24, `kev` 24, `mef_chord` 64, `mev_line` 60,
     // `split_edge` 72; `kemr` 0 — S161). Not over the total, and not
-    // over `OPS`: see `LINK_OPS`.
+    // over `OPS`: see `LINK_OPS`. The one operator of slack is
+    // deliberate — see the twin row above for what it buys.
     census.require_nonzero_among(
         &LINK_OPS,
         4,

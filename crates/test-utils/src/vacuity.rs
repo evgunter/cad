@@ -64,13 +64,23 @@
 //! ε before they announce.
 //!
 //! **This is not yet the tree's only spelling**, and saying so is the
-//! point of the sentence. `rg 'SKIPPED \('` over `crates/*/{src,tests}`
-//! finds hand-rolled stand-down `println!`s in `review_m5_pr7b_ssi.rs`,
-//! `topo/tests/{m6_2_fitted_at_rest,review_m6_2_probes}.rs` and
-//! `mesh/tests/fitted_refusals.rs` that predate this module and are not
-//! converted. Two of those files are under another lane's hand. A module
-//! that claimed to be the one spelling while nine sites said otherwise
-//! would be making this file's own mistake.
+//! point of the sentence. A grep for `SKIPPED (` / `SKIPPED:` over
+//! `crates/*/{src,tests}` finds **ten** hand-rolled in-row stand-down
+//! `println!`s that predate this module and are not converted:
+//! `geom-brep/tests/review_m5_pr7b_ssi.rs` (3),
+//! `topo/tests/review_m6_2_probes.rs` (3, byte-identical and saying only
+//! *"FitSampleBudget stand-down at this ε"* — which names no coverage),
+//! `topo/tests/m6_2_fitted_at_rest.rs` (3) and
+//! `mesh/tests/fitted_refusals.rs` (1). They are scheduled as **S169 /
+//! D115**, not silently left. A module that claimed to be the one
+//! spelling while ten sites said otherwise would be making this file's
+//! own mistake.
+//!
+//! Four further sites are a **different, already-ratified idiom** and
+//! are not in that count: the whole-binary
+//! `interval_lane_skipped_no_certified_coverage_here` test that
+//! `memories/test-suite-cost.md` names, whose entire body is the
+//! announcement.
 
 use std::collections::BTreeMap;
 

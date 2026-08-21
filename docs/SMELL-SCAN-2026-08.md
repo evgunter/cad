@@ -12996,6 +12996,7 @@ S60/S66's rows; and a general gate re-proposes exactly what Evan declined.
 |---|---|
 | **D58** | **S61's docs-tier conditionality as it lands on `probe-suite-census.sh`'s citation half.** Re-derived by E-a at `ci-filter.py:108-114`: an all-`.md` change is docs-tier, so the citation half cannot fire on the only change class that breaks it. Now **ruled** (re-site), so this is scoped work rather than an open question. |
 | **D59** | **The executable bit is the registration mechanism.** Both halves derive the roster with `[ -x "$script" ] || continue`, so a gate landing mode `0644` is invisible to both — **confirmed by planting** a mode-0644 `zz-unwired-nonexec.sh`, which `gate-roster.sh` reports as *"all 14 gates"*, exit 0. Squarely D34's subject and past its one-move budget. |
+| **D115** | **The loud stand-down's ten hand-rolled spellings** (S169, placed by lane F-d). `test_utils::vacuity::stood_down` is the home; F-d converted the three under its own hand and left ten, in `topo/tests/{review_m6_2_probes,m6_2_fitted_at_rest}.rs`, `geom-brep/tests/review_m5_pr7b_ssi.rs` and `mesh/tests/fitted_refusals.rs`. **Three of the ten are the actual finding** — byte-identical `println!("SKIPPED: FitSampleBudget stand-down at this ε")`, which announces that a stand-down happened and nothing about what the run therefore did not assert; the other seven already say it and want only the one door. **NOT C21's floors and not D70's class**: these sites already announce, so the prior question D70 carries does not gate this one. Edge-free as of #825 — #790 is merged and touched none of the four files, and no live lane names them. Ten is a floor, not an enumeration; the blind spot is a stand-down announced without the word `SKIPPED`. |
 | **D107** | **`review_d18`'s `kemr` reaches no mutation phase, in either hammer row** (S161, placed by lane F-d). Not the `mfkrh_plug` half, which #825 closed by taking it out of the floor's class — this is the coverage gap: `kemr` IS an operator that reaches `link_half_edges`, and nothing `ops_cube()` or a torn cube presents gets it past its plan phase, so the row-4 arms below it are attacked by nothing. Scoped work: a fixture whose ring-merge shape `kemr` accepts, **or** the written finding that those arms have no input witness from this door. The prose at both sites now says *calls* rather than *reaches*, so the file no longer asserts what the exposure line disproves. |
 | **D70** | **The silent whole-row stand-down: a population of 13 (a FLOOR, not an enumeration), in three files** (S126, placed by lane F-d). `let … else { return; }` at the top of a `#[test]`, announcing nothing. NOT the floors Evan declined in C21 — the prior question is whether these rows should skip, and for all thirteen the fixture that fails is ε-conditional and its classification IS asserted inside the helper, so what is missing is only the announcement in the battery log. Scoped work: give each the tree's loud-stand-down spelling, or decide the row should not be ε-conditional at all. |
 | **D104** | **The two hand-run diff artefacts S110 could not place** — `sweep/tests/review_m6_5_pr2_sweep_probes.rs`'s printed `Debug` hash (no assertion; the merge-base comparison it existed for no longer exists) and `sweep/tests/review_d8_consumer_differential.rs`'s pinned seeds (licensed for a digest half that is printed and never asserted, while the same draws feed real counterexample searches). **§A2 routes both to "the test-suite-cost sweep", which has never existed** — no lane, no row, no owner; `memories/test-suite-cost.md` is a memory, not a schedule. Placed here so the two stop being *"routed"* to nothing. **Not Track F's to execute** — it is a test-suite-cost question, and whoever opens that conversation inherits both; but a row that exists can be handed over, and a phantom cannot. |
@@ -13018,6 +13019,66 @@ S60/S66's rows; and a general gate re-proposes exactly what Evan declined.
 |---|---|
 | **D63** | **`k-lint` admits `NaN`, `inf` and negative floats and scores the row clean** (**S119**) — S73's part one in the sibling instrument, in the lint whose own site comment makes exactly this argument for the column next door. Scope: `tools/k-lint/src/lib.rs` (`lint_csv`'s three `f64::parse` calls, and `lint_sample`'s `_ => {}` arm, which a `NaN` `band_zero` falls through while still counting as scanned). **ACCEPTED**, style. The fix is the per-column admission F6 landed in `tess-lint`, in the harness voice `lint_csv` already has. **Edge:** F8/D44 reaches `scripts/k_probe_sweep.sh` and not this file, so the two are expected to be disjoint — check the branch, not this cell (F-R1). |
 | **D64** | **What the tessellation and K instruments still cannot see, after F6** (**S120**, four members). *(a)* **a fallback inside a comparison has two sides** — `tess-meter`'s `divisions`/`INFINITY` fallbacks move in the **pass** direction on the **baseline** side, which F6's sweep dispositioned by looking at the fresh side only, so the class is *direction arguments taken on one side of a differential gate* and not two sites; *(b)* `dev_samples` already separates "not resampled" from "resampled to NaN" and `tess_lint::parse` discards it; *(c)* `SPLIT_SCAN_*` has a test and no CI register, and the register that exists structurally cannot see a degraded scan; *(d)* `k-lint`'s `PROXIMITY_FACTOR`, `EPS_COUPLED_FLOOR_RATIO`, `AMBIENT_BAND_MIN` unpinned, plus two sweep shapes F6 disclosed and could not match. Scope: `tools/tess-meter/src/lib.rs`, `tools/tess-lint/src/lib.rs`, `tools/k-lint/src/lib.rs`, and — for *(c)* only — `.github/workflows/ci.yml`. **ACCEPTED**, style. **Sequence *(c)* behind whoever owns `ci.yml`**; the other three are edge-free. *(a)* is a decision (which columns may carry a fallback at all), not a one-line edit — do not take it as one. |
+
+---
+
+## S169. The loud stand-down has ten hand-rolled spellings, and three of them announce no coverage
+
+**Placed by lane F-d (#825) at its stopping point, not left to evaporate.**
+F4 gave the tree a home for the idiom —
+`test_utils::vacuity::stood_down`, one line, `SKIPPED (label): what
+this run did not assert` — and converted the sites under its own hand:
+three in `geom-brep/tests/m5_pr7_ssi.rs`, including the local helper
+`wall_stand_down`, which is now one argument's worth of vocabulary over
+`stood_down` rather than a second implementation of it.
+
+**The residue, re-derived on the merged tree rather than transcribed**
+(`SKIPPED (` / `SKIPPED:` over `crates/*/{src,tests}`): **ten in-row
+sites, four files.**
+
+| file | sites | what they say |
+|---|---|---|
+| `crates/topo/tests/review_m6_2_probes.rs` | `:42`, `:78`, `:158` | three **byte-identical** copies of `println!("SKIPPED: FitSampleBudget stand-down at this ε")` |
+| `crates/topo/tests/m6_2_fitted_at_rest.rs` | `:49`, `:138`, `:210` | one of them the same one-liner; the other two name the fixture |
+| `crates/geom-brep/tests/review_m5_pr7b_ssi.rs` | `:168`, `:216`, `:229` | full sentences, naming the ε and the reason |
+| `crates/mesh/tests/fitted_refusals.rs` | `:249` | names the fixture and the door |
+
+**The three one-liners are the finding, and the other seven are
+tidying.** *"FitSampleBudget stand-down at this ε"* announces that a
+stand-down happened and nothing about **what the run therefore did not
+assert** — which is the whole content of a loud skip. A reader of the
+battery log learns that a row stood down and cannot learn what coverage
+went missing, so the announcement is only marginally better than the
+silence it replaced. Three byte-identical copies of it is also S13's
+shape.
+
+**Not a floors proposal.** C21's ruling stands: whether these rows
+should be ε-conditional at all comes first, and D70 already carries that
+question for the *silent* whole-row form. This row is narrower — these
+sites already announce; the ask is that they announce **through one
+door** and **say what was lost**.
+
+**No edge today.** #790 (F-c) is merged and touched none of these four
+files; no live Track F lane names any of them. `review_m5_pr7b_ssi.rs`
+is inside F4's own `geom-brep/tests/` scope and F-d deliberately did not
+convert it: its stand-downs are sound in content, and F4's finding was
+about the tolerant *arm* at `:349`, which F-d examined and judged sound
+for its own disjunctive claim. Converting prose that is already correct
+was outside what that row asked for.
+
+**Four further sites are a different idiom and are NOT in this
+population**: the whole-binary
+`interval_lane_skipped_no_certified_coverage_here` test
+(`sweep/tests/{m5_s13_pips_interval,m5_s12_curved_ops_interval,m6_surgery_interval}.rs`,
+`topo/tests/m6_2_fitted_at_rest.rs:171`), which `memories/test-suite-cost.md`
+names by name and whose entire body is the announcement.
+
+**What the grep could not match**: a stand-down announced without the
+word `SKIPPED` — `eprintln!("standing down …")`, a `dbg!`, or a comment
+where a print should be; one that returns green through a helper that
+prints elsewhere; and `demos/`, `tools/` and `interval-transcendentals/`
+were scanned and clean but are not this row's scope. **Ten is a floor,
+not an enumeration.**
 
 ---
 
