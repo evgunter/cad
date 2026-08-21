@@ -719,17 +719,26 @@ impl<T: Bounds> Enclosure for T {
 ///
 /// # Implementors
 ///
-/// - `f64` — always certified. The bracket is the value; a poisoned `f64`
-///   is NaN and surfaces as NaN through the bracket, which fails every
-///   downstream `residual ≤ ε` on its own (D4 ¶2). There is no separate
-///   domain-violation channel at `f64` to consult, so the accessor never
-///   refuses and this lane's numbers are exactly what they were.
+/// - `f64` — refuses on NaN, which is this lane's poison (D4's Q1
+///   residue: *∞ is not f64 poison*, so an infinity still certifies the
+///   degenerate bracket it is). The bracket is the value, so the value
+///   being poison IS the domain-violation channel; there is no second
+///   one to consult, and every finite or infinite `f64` certifies.
 /// - [`crate::Interval`] — refuses below `Decoration::Def`, the same
 ///   threshold [`crate::predicate::Decide::sign_within`] refuses at, and
-///   for the same reason.
-/// - [`crate::RingInterval`] — always certified. The ring has two states
-///   and no decorations: poison is NaN endpoints, which
-///   `RingInterval::from_bounds` already rejects.
+///   for the same reason. Empty and NaI sit below it, so the NaN
+///   brackets they store never leave the door.
+/// - [`crate::RingInterval`] — refuses on poison. The ring has two
+///   states and no decorations, so `is_poison` is its whole
+///   domain-violation channel.
+/// - `k_stats::Probe` (feature `probe`) — refuses on NaN, byte-for-byte
+///   as `f64` does; D9 forbids the recording lane diverging.
+///
+/// Every one of them therefore honours one postcondition, which is what
+/// a generic `T: CertifiedEnclosure` body may rely on: **a `Some` never
+/// carries a NaN end**. An infinite end is still possible and is not
+/// poison — `[−∞, ∞]` is a sound (useless) bracket of a real, and
+/// `Interval` certifies it at `Def`.
 ///
 /// **[`crate::Dual`] is deliberately absent, and that absence is now the
 /// ruling rather than a deferral.** Evan settled it as Wave 0 decision
@@ -753,11 +762,13 @@ pub trait CertifiedEnclosure: Copy {
     fn certified_bracket(self) -> Option<(f64, f64)>;
 }
 
-/// `f64` always certifies: it has no domain-violation channel to consult
-/// (see the trait docs).
+/// `f64` refuses on NaN and only on NaN: the bracket is the value, so
+/// the value being poison is the whole of its domain-violation channel
+/// (see the trait docs, and D4's Q1 residue for why ∞ is not poison
+/// here).
 impl CertifiedEnclosure for f64 {
     fn certified_bracket(self) -> Option<(f64, f64)> {
-        Some((self, self))
+        (!self.is_nan()).then_some((self, self))
     }
 }
 

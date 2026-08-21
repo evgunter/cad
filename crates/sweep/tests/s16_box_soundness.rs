@@ -22,6 +22,13 @@
 //! the cylinder's starts at −0.5. Every nested probe below lives in
 //! that annulus.
 //!
+//! The two counter-rows — the ones that keep the row above from
+//! passing by refusing everything — separate in **x** and in **z**.
+//! Both directions are needed and neither is decorative: the cylinder
+//! arm widens the reach box radially by construction and axially by
+//! over-width (#862), so a rule that lost the axial extent, or grew
+//! it without bound, would keep an x-only file green.
+//!
 //! # 2. The NURBS extent re-gate's blocker
 //!
 //! `topo`'s fallback re-gate has no end-to-end path today, and one of
@@ -64,23 +71,28 @@ fn cylinder() -> Body<f64> {
     extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
 }
 
-/// A small axis-aligned box of half-width `h` centred at `(cx, 0, 0.5)`.
-fn nested_box(cx: f64, h: f64) -> Body<f64> {
+/// A small axis-aligned box of half-width `h` centred at `(cx, 0, ·)`,
+/// spanning `z in [z0, z0 + 0.4]`.
+fn small_box(cx: f64, h: f64, z0: f64) -> Body<f64> {
     let lp = ProfileLoop::new(
         [(cx - h, -h), (cx + h, -h), (cx + h, h), (cx - h, h)]
             .into_iter()
             .map(|(x, y)| ProfileVertex::new(p2(x, y), 0.0))
             .collect(),
     );
-    // z in [0.3, 0.7]. Against section 1's cylinder (z in [0, 1]) that
-    // is clear of both caps, so a pair there is nested or separated in
-    // x alone, never touching; section 2 uses the same box only as a
-    // far operand, where the lift carries no claim.
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.3)));
+    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp])
         .validate(Tolerance::get())
         .unwrap();
     extrude(&profile, Extrusion::Distance(0.4)).unwrap().body
+}
+
+/// The same box at `z in [0.3, 0.7]`. Against section 1's cylinder
+/// (`z in [0, 1]`) that is clear of both caps, so a pair there is
+/// nested or separated in x alone, never touching; section 2 uses the
+/// same box only as a far operand, where the lift carries no claim.
+fn nested_box(cx: f64, h: f64) -> Body<f64> {
+    small_box(cx, h, 0.3)
 }
 
 /// The nested pair as one two-instance arena.
@@ -152,6 +164,42 @@ fn a_body_beside_the_cylinder_is_still_cleared_by_containment() {
     assert!(
         verdict.is_ok(),
         "a separated pair must validate cleanly, not refuse: {verdict:?}"
+    );
+}
+
+/// **The same claim in z, which nothing in this file separated in.**
+/// The row above separates at `cx = 3.0` in **x** — the axis the
+/// cylinder arm does not widen — so a reach box that grew along its
+/// own AXIS would leave this file entirely green. Here the probe sits
+/// directly over the cylinder's top cap, radially INSIDE it, so `z`
+/// is the only axis that can clear the pair: the row goes red for any
+/// rule that loses the containing solid's axial extent, and for any
+/// that unbounds it.
+///
+/// **How far over, and why not closer.** The cylinder arm widens the
+/// reach box by a full radius along its own axis (**#862**), so this
+/// solid's arm-2 extent runs to `z = 1.5` rather than to `z = 1.0`,
+/// and a probe in `z in (1.0, 1.5]` — genuinely above the solid and
+/// touching nothing — is refused as `CensusUndecidable` today. That
+/// witness belongs on #862, not here: a style pass does not fix a
+/// correctness defect, and a row calibrated to the over-width would
+/// assert it is acceptable. The offset below is clear of it, so this
+/// row pins what the arm gets right without ruling on what it gets
+/// wrong. **When #862 lands, the near case becomes assertable and
+/// belongs here.**
+#[test]
+fn a_body_above_the_cylinder_is_still_cleared_by_containment() {
+    let outer = cylinder();
+    // z in [2.0, 2.4]; the cylinder tops out at z = 1, and its
+    // over-wide axial reach at z = 1.5.
+    // Half-width 0.2 against radius 0.5: radially inside the wall, so
+    // no x or y separation exists to clear the pair instead.
+    let above = small_box(0.0, 0.2, 2.0);
+    let body = assembly(&outer, &above);
+    let verdict = validate_pseudomanifold(&body, &ContactRecords::default());
+    assert!(
+        verdict.is_ok(),
+        "a pair separated in z alone must validate cleanly, not refuse: {verdict:?}"
     );
 }
 

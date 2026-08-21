@@ -84,6 +84,8 @@ mod curves_review_m5_pr4_adversarial;
 mod curves_span_window_pairing;
 #[path = "curves/split_at.rs"]
 mod curves_split_at;
+#[path = "dual_foot_tangent.rs"]
+mod dual_foot_tangent;
 
 // ---- surfaces ----
 #[path = "surfaces/boxes.rs"]

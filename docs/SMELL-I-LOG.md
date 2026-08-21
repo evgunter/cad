@@ -121,9 +121,12 @@ apart doing exactly that.
 
 | number | spent by | for |
 |---|---|---|
+| **S235** | **I-d** (#876) | `geom::curves::boxes::circle_arc_aabb` computes the conic's exact amplitude AND restricts to the certified span, is **public**, and has **no production caller** — while `topo`'s `edge_box` hand-derives a looser, orientation-dependent, span-blind version that in-tree bodies already take (4 of 6 carriers on the extruded three-arc cylinder, factor 1.366). **S16's class, a fourth instance at the CURVE level**, and it outlives #862's fix: the correctness half is #862's (axial = deletion, conic = tightening with the NURBS arm's stated obligation), the *"two constructions, the correct one unused"* half is structural and would not retire with it |
+| **S234** | **I-d** (#876) | The lane's own door-inventory guard computes the roster's **keys** and none of its **content**: it pins where the four doors are and recites which direction each reads looseness in, which is the entire content of the header's argument. A door that changes its reading without moving leaves the docs false and the guard green — **S66's shape one level up, inside the fix for S66** — and the assert message mints a kept-in-step-by-hand invariant in the same diff that removed one. Lifted out of the guard's disclosure list per Q6: a disclosed deviation owes an owner. **Third declared blind spot on this track to come back as a finding.** Closable: one row per door that widens the box and asserts the verdict moves the stated way; #876 demonstrated the mechanism by hand for two of the four |
 | **S233** | **I-a** (#877) | a band restated in prose — `rim_dim_scale_twins.rs`'s *"the ε = 1e-7 band"* against a `DEFAULT_EPS` of **`1e-9`**. **Found by biting this lane**: a row built on the sentence passed at the default for the wrong reason and fired on CI's `eps = 1e-6` leg. The file's own `an_interior_rim_…` row was **already red at ε = 1e-12** and nothing observed it. Off-roster status is registered by `probe-suite-census.sh`; the constant inside it is not covered by that registration, and **that** is the finding. Three prior fixes of the same class exist in this crate, one of them in the immediate sibling file. **Fixed here, out of scope and deliberately** |
+| **S232** | **I-d** (#876) | `crates/geom/src/{surfaces,curves}/boxes.rs`'s *"looser is conservative"* / *"the poison box, which never prunes"* — six instances, one crate below the four doors `face_box` feeds, **three of which do not prune**. **Routed to Track H** (§D: Track H's scope is `crates/geom-core/` and `crates/geom/`), which is live on #865. The row carries I-d's corrected door count as the reason the sentence is false there too: `geom`'s copies inherit S66's *"two of three consumers"* arithmetic, and `boolean/ops.rs:1486` is the refusing door nobody counted. **A row that names its owner**, unlike S230 and S231 |
 | **S231** | **I-c** (#872) | `mesh/src/chords.rs`'s *"These tightenings are the only places adjacent surfaces enter chord counts"* — S64's shape, in a file inside Track I's crate scope but in **none** of its five lanes' file sets. **Recorded unowned**, and deliberately not routed to I-e: widening a running lane's brief by writing a row at it is how a lane discovers its scope grew after dispatch |
-| **S230** | **I-b** (#873) | S60's class, two live members outside every live track's ground: a containment-only `volume_pad` row on the same tilted-cut fixture that never reads `area_pad`, and a python row bounding `volume_pad` at 1e-6 while saying nothing about an `area_pad` measured at **0.199 m²** on the same loft. **Recorded as unrouted, and it says so** |
+| **S230** | **I-b** (#873) | S60's class — certified widths with no ceiling — in `editor-core/tests/`, `pncad-py/tests/` and `sweep/tests/` files outside I-b's own three: a containment-only `volume_pad` row on the same tilted-cut fixture that never reads `area_pad`, a python row bounding `volume_pad` at 1e-6 while saying nothing about an `area_pad` measured at **0.199 m²** on the same loft (a bracket 0.397 m² wide), and an `Interval` union row in the same crate. **Recorded as unrouted, and it says so.** Three further members, all in `crates/sweep/tests/`, were fixed in #873 rather than recorded — one of them found by executing I-b's own declared blind spot |
 
 ---
 
@@ -217,18 +220,17 @@ before the merge, so answering saves a round.
 ## Lane roster
 
 **Wave 1 — opened 2026-08-21, four lanes, no file overlap between any two.**
-`crates/mesh/` carries two of this track's five lanes and they are
+`crates/mesh/` carried two of this track's five lanes and they were
 **sequenced, not concurrent**: I-e waits on I-c because both read
 `mesh/src/curved.rs`, from opposite ends (I-c its module header and the ε
-ledger, I-e `entries_off_bbox` and the guards).
+ledger, I-e `entries_off_bbox` and the guards). **I-c has landed as #872**
+and left this roster; `curved.rs` below its module header is untouched, so
+I-e starts from that merge with the guard bodies exactly as it found them.
 
 | lane | rows | scope | review | state |
 |---|---|---|---|---|
-| **I-a** | **I1** minus S60 — **S77, S80, S81, S112(d)** (+ **S233**) | `geom-brep/src/props/{mod.rs,curved.rs}` | **ADVERSARIAL** + style | **#877, in the combined fix pass.** Row restored — it was deleted in the recording commit while the unit was still under review, which is S15(c); it leaves in the landing commit, not before |
-| **I-b** | **I1**'s **S60** | `geom-brep/src/props/quad.rs`, `sweep/tests/m5_pr11_quad_props.rs`, `sweep/tests/m6_loft_body.rs` | style | dispatching |
-| **I-c** | **I2** (**S64**; **S65** to Evan) + **I6**'s **S115(d)**, **S116(g)** | `mesh/src/{lib.rs,sizing.rs,walk.rs}`, `mesh/src/curved.rs` **header only** | style | dispatching |
-| **I-d** | **I4** + **I5** — **S66**'s style halves, **S97** | `topo/src/boolean/boxes.rs`, `topo/src/census.rs` (**doc only**), `sweep/tests/s16_box_soundness.rs` | style | dispatching |
-| **I-e** | **I3** (**S108**, **S109**) + **I6**'s **S114(f)** | `mesh/src/{curved.rs,trimmed.rs,planar.rs,budget.rs}`, `mesh/tests/budget_meter.rs` | **ADVERSARIAL** + style | **sequenced behind I-c** |
+| **I-a** | **I1** minus S60 — **S77, S80, S81, S112(d)** | `geom-brep/src/props/{mod.rs,curved.rs}` | **ADVERSARIAL** + style | **#877 — combined pass applied, awaiting the torus re-check.** Adversarial + style returned DO-NOT-MERGE on **MAJOR-1** (the fix's own torus exemption, refuted by execution); the premise now runs on all four gate arms. Also carries **S233** |
+| **I-e** | **I3** (**S108**, **S109**) + **I6**'s **S114(f)**, and **S116(g)**'s residue (the guard bodies — I-c narrowed it to them in #872; routed here by **I-R7**) | `mesh/src/{curved.rs,trimmed.rs,planar.rs,budget.rs}`, `mesh/tests/budget_meter.rs` | **ADVERSARIAL** + style | **sequenced behind I-c** |
 
 **Struck from this track's schedule, with a pointer rather than a deletion:**
 **C-m** (S27, `props/quad.rs`'s four quadrature engines) — **not scheduled
