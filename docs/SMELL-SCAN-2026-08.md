@@ -10125,16 +10125,20 @@ finding exists to reject. All of them were re-executed by the review.
 **The class ledger, per G-R2**, which re-scoped **G10** to *"(g) plus the
 class ledger"* and made the row's retirement turn on the ledger rather than
 on the closing lane's own member. Every line below was **re-derived from the
-tree** at `01261896` and from the merge commit named — not taken from a
-dispatch list; two of the eight came back different (below).
+tree** at this branch's merge of `origin/main` (`4cc0dbf3`) and from the merge
+commit named — not taken from a dispatch list; two of the eight came back
+different (below). **Every line number below was re-checked after the last edit
+in this PR**, which is S176(a)'s discipline applied to the entry that records
+it: three had already drifted under the merge and are cited by name or by
+expression instead.
 
 | member | site | closed by | how it was verified |
 |---|---|---|---|
-| **(a)** | `sweep/src/fillet/naming.rs:32-34` | **NOBODY — open, and its owner has retired** | the sentence stands; `editor-core/src/names/emit_fillet.rs:220-221` still builds `retired_e`/`retired_v` out of `rec.dead` and consults them at `:236-246`, so the defect is intact. Routed to Track E's **E-g** after that lane was dispatched; E-g landed as **#768** and its own §D row says S112(a) is **not in it**, and that row is now struck from §D. See **S177** |
+| **(a)** | `sweep/src/fillet/naming.rs`, the *"What consumes these rows"* header | **NOBODY — open, and its owner has retired** | the sentence stands; `editor-core/src/names/emit_fillet.rs:220-221` still builds `retired_e`/`retired_v` out of `rec.dead` and consults them at `:236-246`, so the defect is intact. Routed to Track E's **E-g** after that lane was dispatched; E-g landed as **#768** and its own §D row says S112(a) is **not in it**, and that row is now struck from §D. See **S177** |
 | **(b)** | `interval-transcendentals/tests/certify.rs` | **#786** (G-a / G1), commit `520f21f1` | the header names `ci.yml`'s `oracle-certify` job, its `ORACLE_PATHS` trigger and `CAD_FUZZ_EFFORT=8` (`:21-24`); `ci.yml` no longer contains *"stays a by-hand gate"* |
 | **(c)** | `interval-transcendentals/src/ops.rs`, `docs/inventory.md` | **#786** (G-a / G1), same commit | `ops.rs:4` now opens *"`copysign` is deliberately NOT here"*; `docs/inventory.md:40` says the same and points at the trait impl. The code did not move and S1 is untouched |
 | **(d)** | `geom-brep/src/props/curved.rs:886-890` | **open — Track C**, and tracked live at §D's frozen table (**C-m, C3**) | `cone_arm`'s doc still says the `T::one()` fallback *"covers the no-rim case, where `du_of_rims` refuses before any margin is metered"* |
-| **(e)** | `geom-brep/src/ssi/exhaust.rs:92` | **open — Track C by mechanism, but named in NO live §D row** | `exhaust.rs:92` still says *"The floor used, in meters"* and `ssi.rs:974` still passes `domain.floor(band) / speed`. The frozen table's C-m/C3 entry lists **S112(d) only**; no row in §D names S112(e) or `geom-brep/src/ssi/`. Its only live mention is G10's own row |
+| **(e)** | `geom-brep/src/ssi/exhaust.rs:92` | **open — Track C by mechanism, but named in NO live §D row** | `exhaust.rs:92` still says *"The floor used, in meters"* while `ssi.rs`'s `account_chart_plane` call still passes `domain.floor(band) / speed` (cited by expression, per **S176(a)**). The frozen table's C-m/C3 entry lists **S112(d) only**; no row in §D names S112(e) or `geom-brep/src/ssi/`. Its only live mention is G10's own row |
 | **(f)** | `profile/src/sugar.rs` | **#831** (G-d / G10) | below |
 | **(g)** | `crates/pncad/src/lib.rs` | **#831** (G-d / G10) | below |
 | **(h)** | `demos/render.py` | **#787** (G-b / G2), commits `85510376` + fix pass `040fb699` | no `stl is None` branch, no *"#111 pin"*, no `drawn` counter and no boolean return in `render.py`; `render_freecad.py:164` reads `body["step"]` with the guard gone |
@@ -11563,7 +11567,7 @@ belong to Track E's **E-g**, which is already ADVERSARIAL on those files"* —
 present tense, about a lane that has retired. Three of the five checked
 against the tree, all standing:
 
-- **S112(a)** — `sweep/src/fillet/naming.rs:32-34` still says
+- **S112(a)** — `sweep/src/fillet/naming.rs`'s *"What consumes these rows"* header still says
   `names::emit_fillet` *"reads every field EXCEPT `Retired`"*, while
   `editor-core/src/names/emit_fillet.rs:220-221,236-246` builds and consults
   `retired_e`/`retired_v` from `rec.dead`.
