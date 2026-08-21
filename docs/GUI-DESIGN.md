@@ -383,15 +383,32 @@ Fornjot was archived 2026-06 and CADmium 2025-09, so "no CAD-ness to
 borrow" is now *stronger*; and the wasm row below is **wrong in our
 favor** — the whole kernel plus `editor-core` compiles to
 `wasm32-unknown-unknown` today, `--features interval` included
-(measured, not surveyed). **Guarded** since #807: CI re-takes the
-reading on every code-tier run, in three `wasm32 check` steps. They
-are `cargo check` against the wasm32 target, so they establish that
-the crates *compile*, not that they link or run. (Named by step and
-not by job on purpose: the job this first landed in was deleted by the
-CI-minutes audit that landed the same day, which is the drift this
-whole sweep is about. `local-scripts/ci-local.sh` carries the `HOSTED
-MIRROR:` marker that `scripts/check-ci-mirror-parity.py` checks, and
-that is the citation which cannot go stale silently.)
+(measured, not surveyed). **Guarded** since #807, by **one** step on
+every code-tier pull-request run — `cargo check --workspace --exclude
+pncad --exclude pncad-py --features interval --target
+wasm32-unknown-unknown`. That is the `--features interval` half
+directly; the default-features half rides on it, because enabling a
+cargo feature is additive for the dependency graph and
+`scripts/check-interval-cfg-additive.py` forbids any
+`cfg(not(feature = "interval"))` in this repo's crates, so the interval
+build compiles a superset. **Evan's ruling, 2026-08-21:** *"do add wasm
+cross compiling for the interval build only. the lint for having
+interval be purely additive suffices."*
+
+**Two limits, both inherited rather than introduced.** That lint is
+**syntactic** — its header states it cannot see through a gated `mod`
+whose contents are non-additive — so its residual is now this guard's.
+And the guard is `cargo check`, so it establishes that the crates
+*compile*, not that they link or run. `docs/GQ6-RESURVEY.md` §4 carries
+the full row-by-row split, including the one row this leaves unguarded
+(`pncad` under the `wasm_js` backend cfg) and the dated dependency-graph
+measurement the subsumption rests on.
+
+(Named by step and not by job on purpose: the job this first landed in
+was deleted by the CI-minutes audit that landed the same day, which is
+the drift this whole sweep is about. `local-scripts/ci-local.sh` carries
+the `HOSTED MIRROR:` marker that `scripts/check-ci-mirror-parity.py`
+checks, and that is the citation which cannot go stale silently.)
 
 Ecosystem snapshot 2026-07 (SUPERSEDED by the re-survey — kept as
 the record of what was believed when GQ6 was banked): the

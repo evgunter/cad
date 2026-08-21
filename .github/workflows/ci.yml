@@ -520,13 +520,14 @@ jobs:
   # EACH KEEPS ITS OWN STEP, with the step names unchanged, because that
   # is what a failure is read by: a red run still says `rustfmt` or
   # `rustdoc (gate)`, matching the rows of the same names in
-  # local-scripts/ci-local.sh. None of the three is on the critical path:
-  # measured with all three rows the job runs 103 s, against a `build +
-  # archive (interval)` that is ~88% of a ~13 min critical path, so the
-  # serialisation costs no wall-clock for the run as a whole.
+  # local-scripts/ci-local.sh. None of the three is on the critical path,
+  # which is `build + archive (interval)` at ~88% of a ~13 min run, so the
+  # serialisation costs no wall-clock for the run as a whole. The measured
+  # figures live at the wasm32 step.
   #
-  # NOT MERGED IN, deliberately: `discipline`, whose ~30 s would push the
-  # 103 s total past the 2-minute boundary and buy nothing; and
+  # NOT MERGED IN, deliberately: `discipline`, whose ~30 s buys nothing
+  # here and would eat the headroom this job keeps under its billing
+  # boundary; and
   # `docs-only`, which carries no `if` because it is the green check a
   # docs-tier run reports when every other job skips — the opposite
   # condition to this job's.
@@ -581,54 +582,103 @@ jobs:
         if: '!cancelled()'
         run: scripts/doc-gate.sh
 
-      # WASM32 GUARD (#807). docs/GUI-DESIGN.md §GQ6 and
-      # docs/GQ6-RESURVEY.md §4 both state, as a MEASURED fact that a
-      # ratified toolkit row rests on, that the kernel plus `editor-core`
-      # compiles to wasm32-unknown-unknown, `--features interval`
-      # included. Nothing re-took that reading: before this step no CI
-      # row named a wasm target at all, so a dependency bump could
-      # falsify the sentence with every other row green — a transitive
-      # crate growing a `std::os::unix`, `getrandom` or `mmap` path on a
-      # default feature is enough, and the two documents would still read
-      # as checked fact.
+      # WASM32 GUARD (#807), THE INTERVAL BUILD ONLY.
       #
-      # SITED IN THIS JOB, not in one of its own (Evan's constraint: the
-      # guard must not add runner time). Actions bills PER JOB, ROUNDED UP
-      # TO THE MINUTE — docs/CI-MINUTES-2026-08.md — so the currency is
-      # billed minutes, not seconds, and the two shapes differ in kind:
+      # docs/GUI-DESIGN.md §GQ6 and docs/GQ6-RESURVEY.md §4 both state, as
+      # a MEASURED fact that a ratified toolkit row rests on, that the
+      # kernel plus `editor-core` compiles to wasm32-unknown-unknown,
+      # `--features interval` included. Nothing re-took that reading:
+      # before this step no CI row named a wasm target at all, so a
+      # dependency bump could falsify the sentence with every other row
+      # green — a transitive crate growing a `std::os::unix`, `getrandom`
+      # or `mmap` path is enough, and the documents would still read as
+      # checked fact.
       #
-      #   * a job of its own pays set-up + checkout + toolchain + cache
-      #     restore (26 s measured on this workflow's light jobs) BEFORE
-      #     it compiles anything, so 26 + 42 = ~68 s, which cannot round
-      #     to less than 2 billed minutes, plus a concurrent runner slot;
-      #   * a step here pays only the incremental compile, so it adds at
-      #     most 1 billed minute and adds NOTHING at all whenever this job
-      #     still lands under the same boundary.
+      # ONE LEG, and it is the interval one. Evan's ruling, 2026-08-21:
+      # *"do add wasm cross compiling for the interval build only. the
+      # lint for having interval be purely additive suffices."* The
+      # default-features leg and a whole-workspace `wasm_js` leg were both
+      # dropped to that ruling. What each one guarded, and what now
+      # guards it, is written at both claim sites — a claim whose guard
+      # goes away needs a written reason where the claim is, not silence.
       #
-      # MEASURED, hosted, tier `all`: this job is 61 s without the guard
-      # and 103 s with it (target install 3, leg 1 14, leg 2 6, leg 3 19)
-      # — both inside 2 billed minutes, so the guard bills ZERO here while
-      # a job of its own would bill 2. The bound that always holds is <= 1;
-      # the 0 depends on this job still landing under the boundary, which
-      # is stable precisely BECAUSE all three of its rows are unscoped.
-      # `clippy` measured 99 s on the same run and would have cost +1.
-      # NOTHING HERE DEPENDS ON sccache: that experiment (#852) is wired
-      # into `build` and `build-interval` only, and could be withdrawn by
-      # setting vars.SCCACHE = '0' without moving any number above.
+      # WHY ONE LEG COVERS THE DEFAULT BUILD, i.e. why this is subsumption
+      # and not a narrowing. `--features interval` compiles a SUPERSET of
+      # what default features compile, for two independent reasons:
+      #
+      #   1. Cargo features are purely additive for the DEPENDENCY GRAPH.
+      #      Enabling a feature can add crates and features; it cannot
+      #      remove them. That is cargo's design, not this repo's.
+      #   2. `scripts/check-interval-cfg-additive.py` forbids any
+      #      `cfg(not(feature = "interval"))` under crates/*/{src,tests},
+      #      so no source in this repo compiles ONLY when the feature is
+      #      off. That gate runs in `discipline`, on the same code-tier
+      #      pull-request runs as this step — the premise is checked
+      #      wherever it is relied on.
+      #
+      # THE LINT'S OWN RESIDUAL IS NOW THIS GUARD'S RESIDUAL, and its
+      # header states it: the check is SYNTACTIC. It cannot see through a
+      # gated `mod` whose contents are non-additive, nor a gated impl of a
+      # trait with a blanket default method that an f64 path then calls.
+      # It narrows the hole; it does not close it. Read it there before
+      # relying on this comment.
+      #
+      # THE THIRD-PARTY HOLE, MEASURED 2026-08-21 — the one direction the
+      # subsumption above can fail, and it is outside the lint's scope
+      # because the lint reads only this repo's crates. Feature
+      # unification can ENABLE a feature on a shared third-party crate,
+      # and a crate carrying an internal `#[cfg(not(feature = "f"))]`
+      # block then compiles LESS of itself under `interval` than under
+      # default features. A wasm-hostile path living in such a block
+      # would be exercised by a default-features check and skipped here.
+      #
+      #   $ cargo tree --workspace --exclude pncad --exclude pncad-py \
+      #       --target wasm32-unknown-unknown -e features [--features interval]
+      #
+      #   Diffed between the two configurations: NOT ONE LINE present
+      #   under default features is absent under `--features interval`.
+      #   The entire delta is one duplicate-reachability marker.
+      #
+      # So the hole is UNOCCUPIED at this dependency set. That is a
+      # property of the current graph, not a theorem — RE-TAKE IT with the
+      # command above if this guard ever looks like it is missing
+      # something, and do not weaken the claim without re-taking it.
+      #
+      # (`interval-transcendentals` is already in the DEFAULT graph: it is
+      # an unconditional dependency of `geom-core`, and the feature gates
+      # the code that USES it rather than the edge. So this leg is not
+      # pulling in a subtree the default build lacks; it is adding this
+      # repo's gated source over the same crates. `inari`, `gmp` and `rug`
+      # appear in NEITHER graph — the gmp-backed oracle is a
+      # dev-dependency of a path dependency and never enters either.)
+      #
+      # WHAT IS NOW UNGUARDED, stated because §Q6's whole subject is
+      # claims nothing re-takes: the `pncad`/`pncad-py` façade under
+      # `--cfg getrandom_backend="wasm_js"`. GQ6-RESURVEY §4's third table
+      # row and its "verified fix" paragraph are a one-time reading again,
+      # and §4 now says so at the row. Same ruling, same reason.
+      #
+      # SITED IN THIS JOB, not in one of its own (Evan's earlier
+      # constraint: the guard must not add runner time). Actions bills PER
+      # JOB, ROUNDED UP TO THE MINUTE — docs/CI-MINUTES-2026-08.md — so a
+      # job of its own pays set-up, checkout, toolchain and cache restore
+      # (26 s measured on this workflow's light jobs) BEFORE it compiles
+      # anything, which cannot round to less than 2 billed minutes, plus a
+      # concurrent runner slot. A step pays only the incremental compile.
       #
       # This job rather than `clippy` because the guard is an UNSCOPED
-      # workspace-wide ratchet and so are this job's other two rows,
-      # while `clippy` runs `${{ needs.filter.outputs.cargo_scope }}` and
-      # is the filter's per-closure row — see this job's header.
+      # workspace-wide ratchet and so are this job's other two rows, while
+      # `clippy` runs `${{ needs.filter.outputs.cargo_scope }}` and is the
+      # filter's per-closure row — see this job's header.
       #
       # SITING (S61): the inputs are the kernel crates and the dependency
-      # graph. Cargo.toml/Cargo.lock are not `_is_docs` paths, so a
-      # dependency bump classifies TIER=all and this job runs. The only
-      # change class that skips it is a docs-tier one (`*.md`,
-      # `memories/`, `local-scripts/`, `.claude/`), none of which can move
-      # a wasm build — plus, since #852, a push to main, which now runs no
-      # gate at all and is a property of the workflow rather than of this
-      # step's siting.
+      # graph, so the gate has to fire on the change that would break it.
+      # Cargo.toml and Cargo.lock are not `_is_docs` paths, so a dependency
+      # bump classifies TIER=all and this job runs. The only change class
+      # that skips it is a docs-tier one (`*.md`, `memories/`,
+      # `local-scripts/`, `.claude/`), none of which can move a wasm build
+      # — plus, since #852, a push to main, which runs no gate at all and
+      # is a property of the workflow rather than of this step's siting.
       #
       # `check`, NOT `build`: the guarded sentence is "compiles clean".
       # This step runs no codegen and no linker, and therefore establishes
@@ -641,54 +691,15 @@ jobs:
       # pins 1.97.0, and `rustup` resolves that directory override, so the
       # std artifacts land on the toolchain cargo will actually use.
       #
-      # `!cancelled()` on all four, for this job's stated reason: a
-      # formatting or rustdoc failure is a different verdict from a wasm
-      # one, and the matrix-free merge must not turn two findings into
-      # one.
+      # `!cancelled()` on both, for this job's stated reason: a formatting
+      # or a rustdoc failure is a different verdict from a wasm one, and
+      # the matrix-free merge must not turn two findings into one.
       - name: install the wasm32 target (pinned toolchain)
         if: '!cancelled()'
         run: rustup target add wasm32-unknown-unknown
-      # THREE LEGS, and the order is load-bearing. The two unflagged legs
-      # run FIRST so the third's `getrandom` backend cfg can never mask a
-      # kernel result: if a kernel crate ever grows a dependency that
-      # needs a wasm randomness backend, that has to fail here rather
-      # than be absorbed by the flag the façade needs. Each leg also
-      # carries `!cancelled()`, so a red leg reports its own verdict
-      # instead of hiding the ones after it.
-      #
-      #  1. the kernel + editor-core, default features, NO flags — the
-      #     exact sentence GUI-DESIGN §GQ6 states. `pncad` is excluded
-      #     because it is the one member that needs the backend cfg (leg
-      #     3 covers it); `pncad-py` rides with it because its `getrandom`
-      #     edge comes through `pncad`.
-      #  2. the same set with `--features interval`. The `interval`
-      #     backend is the in-repo `interval-transcendentals` crate —
-      #     pure libm, no C — and its gmp-backed `inari` oracle is a
-      #     DEV-dependency of a path dependency, so it never enters this
-      #     graph. That is why this leg crosses at all, and it is exactly
-      #     the property a dependency bump could take away.
-      #  3. the whole workspace, façade and bindings included, with the
-      #     backend cfg and `getrandom`'s `wasm_js` feature — the
-      #     "verified fix" GQ6-RESURVEY §4 records for `pncad`. RUSTFLAGS
-      #     is set INLINE, not as step or job env, so Swatinem/rust-cache
-      #     (which hashes CARGO_*/RUST* env into its key before any step
-      #     runs) sees one stable key; the cost is that the wasm dep graph
-      #     is fingerprinted twice in target/.
-      #
-      #     `pncad-py` needs no exclusion here: `pyo3` is behind its
-      #     non-default `python` feature, so the default path this checks
-      #     has no Python involvement at all. The "PyO3 targets a native
-      #     CPython" exclusion is about `--features python`, not about
-      #     this command.
-      - name: wasm32 check (kernel + editor-core, default features)
-        if: '!cancelled()'
-        run: cargo check --workspace --exclude pncad --exclude pncad-py --target wasm32-unknown-unknown
       - name: wasm32 check (kernel + editor-core, --features interval)
         if: '!cancelled()'
         run: cargo check --workspace --exclude pncad --exclude pncad-py --features interval --target wasm32-unknown-unknown
-      - name: wasm32 check (whole workspace, wasm_js getrandom backend)
-        if: '!cancelled()'
-        run: RUSTFLAGS='--cfg getrandom_backend="wasm_js"' cargo check --workspace --features getrandom/wasm_js --target wasm32-unknown-unknown
 
   clippy:
     name: clippy
