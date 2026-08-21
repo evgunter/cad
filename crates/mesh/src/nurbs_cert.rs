@@ -1231,18 +1231,18 @@ fn rational_cell_bounds(
     let mut cells: Vec<CellRaw> = Vec::new();
     let two = RingInterval::point(2.0);
     for su in kv_u.first_span()..=kv_u.last_span() {
-        // Emptiness skip and window validation in one operation. The
-        // `checked_sub` pair this replaces — and its
-        // `MissingEntity { what: "NURBS span below its degree" }`
-        // return — are unrepresentable now: `iu0`/`jv0` ARE
-        // `first_control()`, subtracted once inside `Span`'s invariant.
-        let Some(span_u) = kv_u.span(su) else {
-            continue;
-        };
         for sv in kv_v.first_span()..=kv_v.last_span() {
-            let Some(span_v) = kv_v.span(sv) else {
+            // Emptiness skip, span validation and window construction
+            // in one operation, both directions. The `checked_sub`
+            // pair this replaces — and its
+            // `MissingEntity { what: "NURBS span below its degree" }`
+            // return — are unrepresentable now: `iu0`/`jv0` ARE
+            // `first_control()`, subtracted once inside `Span`'s
+            // invariant.
+            let Some(win) = r.window(su, sv) else {
                 continue;
             };
+            let (span_u, span_v) = (win.span_u(), win.span_v());
             // Active windows on span (su, sv): value indices
             // [su−p, su]; each u/v differencing drops the top index —
             // which is `derived_window`, so `su − 1` and `su − 2` are
@@ -1250,7 +1250,6 @@ fn rational_cell_bounds(
             // order-2 windows are `None` exactly when their derived
             // NETS are (degree < 2), so the two `Option`s are zipped
             // rather than independently discharged.
-            let win = r.window_of(span_u, span_v);
             let wu_val = span_u.window();
             let wv_val = span_v.window();
             let wu_d1 = span_u.first_derived_window();
