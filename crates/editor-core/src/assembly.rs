@@ -130,9 +130,16 @@ pub enum Attribution {
     /// The kernel REFUTED this declaration — the faces do not meet as
     /// it says. A finding against the document.
     Refuted(MintedDeclaration),
-    /// The census DECLINED this declaration: the pair has no certifier
-    /// lane, so it was neither certified nor contradicted and nothing
+    /// The census DECLINED to certify this declaration: it has no
+    /// certifier lane for a face the declaration names, so the
+    /// declaration was neither certified nor contradicted and nothing
     /// was decided about the geometry either way.
+    ///
+    /// **The finding names ONE face and a declaration names two**, so
+    /// WHICH declaration this is can be settled by arena order rather
+    /// than by the census's own subject ([`attribute`] says how). What
+    /// the relation itself guarantees — and all the two
+    /// [`AssemblyError`] arms read — is that nothing was refuted.
     Declined(MintedDeclaration),
     /// The finding names no declaration. An UNDECLARED contact is
     /// exactly this — by definition no mate authored it, which is what
@@ -268,7 +275,7 @@ impl core::fmt::Display for AssemblyError {
                 write!(
                     f,
                     "assembly: the at-rest gate could not certify {} declared \
-                     pair(s) and did not refute any — no certifier lane, so \
+                     face(s) and did not refute any — no certifier lane, so \
                      nothing was decided about this geometry either way (the \
                      declared direction's frontier, not a finding against the \
                      document)",
@@ -508,9 +515,8 @@ fn attribute(error: &ValidationError, minted: &[MintedDeclaration]) -> Attributi
             .find(|m| m.faces == (a, b) || m.faces == (b, a))
     };
     let by_face = |f: FaceKey| minted.iter().find(|m| m.faces.0 == f || m.faces.1 == f);
-    // The relation is chosen in the same arm as the lookup, so the
-    // two cannot disagree; a lookup that misses is a finding about a
-    // record no mate of THIS document minted.
+    // A lookup that misses is a finding about a record no mate of THIS
+    // document minted.
     let named = |m: Option<&MintedDeclaration>, relation: fn(MintedDeclaration) -> Attribution| {
         m.map_or(Attribution::Unattributed, |m| relation(m.clone()))
     };
@@ -547,7 +553,7 @@ fn attribute(error: &ValidationError, minted: &[MintedDeclaration]) -> Attributi
         // row in the same change.
         ValidationError::StaleContactDeclaration {
             declaration:
-                topo::StaleDeclaration::Patch { face_a, face_b, .. }
+                topo::StaleDeclaration::Patch { face_a, face_b }
                 | topo::StaleDeclaration::CurveLocus { face_a, face_b, .. },
         } => named(by_pair(*face_a, *face_b), Attribution::Refuted),
         // A carrier kind the census inventory cannot certify: it
@@ -682,27 +688,42 @@ fn attribute(error: &ValidationError, minted: &[MintedDeclaration]) -> Attributi
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod attribution {
-    //! **[`attribute`]'s classification, pinned per arm.**
+    //! **[`attribute`]'s classification, one row per arm.**
     //!
-    //! The arms this unit had to decide are exactly the ones no
-    //! end-to-end row reaches — that is why a wildcard could hold them
-    //! for as long as it did — and they are the ones whose label
-    //! decides [`AssemblyError::AtRest`] against
-    //! [`AssemblyError::Uncertified`]. Calling the classifier directly
-    //! is what makes them assertable at all.
+    //! **Two of the six arms are already driven end to end**, and the
+    //! module does not stand in for those: `asm_r2b_assembly.rs`
+    //! reaches `CensusEscalated` through [`assemble`] with an in-band
+    //! authored gap and `CensusUnsupported` through a touching pair
+    //! the certifier declines. What the rest have in common is that
+    //! **no fixture provokes them**, so their label is settled by the
+    //! argument at the arm or not at all — which is how one wildcard
+    //! held five of them with every row green.
     //!
-    //! The keys are real arena keys from a real body; the findings are
-    //! constructed rather than provoked, because attribution is key
-    //! algebra over what was minted and nothing here depends on the
-    //! geometry those keys describe. What that CANNOT show is that the
-    //! kernel ever produces a given finding for a given configuration
-    //! — those are the arguments at the arms, and the two that carry
-    //! weight (a declared pair never reaches the cross-solid backstop;
-    //! `mint` makes `PatchContact` and nothing else) are properties of
+    //! The cost of that is measured rather than asserted, and it is
+    //! why these rows exist. Relabelling `UncertifiableSurface`
+    //! `Declined` promotes an [`AssemblyError::AtRest`] refusal into
+    //! [`AssemblyError::Uncertified`] — an unrefuted frontier over a
+    //! body the kernel refused — and **the whole of `editor-core` goes
+    //! green over it**: 576 integration rows pass, and the one failure
+    //! is `a_structural_finding_on_a_declared_face_is_unattributed`
+    //! here. Relabelling `CensusUnsupported` `Refuted`, by contrast,
+    //! reds three rows of `asm_r2b_assembly.rs` — which is the
+    //! difference between an arm a fixture reaches and an arm only an
+    //! argument reaches.
+    //!
+    //! The keys come from a real body, so they are distinct and not
+    //! invented; the body itself is dropped, because attribution is
+    //! key algebra over what was minted and nothing here reads the
+    //! geometry those keys describe. The findings are constructed
+    //! rather than provoked, which CANNOT show that the kernel ever
+    //! produces a given finding for a given configuration — those are
+    //! the arguments at the arms, and the two that carry weight (a
+    //! declared pair never reaches the cross-solid backstop; `mint`
+    //! makes `PatchContact` and nothing else) are properties of
     //! `topo::census` and [`mint`], not of this module.
 
     use geom_core::predicate::{Band, MarginDiag};
-    use topo::{EntityId, StaleDeclaration, ValidationError};
+    use topo::{CensusContact, DeclaredContact, EntityId, StaleDeclaration, ValidationError};
 
     use super::{Attribution, FaceKey, MintedDeclaration, attribute};
     use crate::mate::ContactClass;
@@ -730,15 +751,18 @@ mod attribution {
         let (a, _) = mint_face();
         let (b, _) = mint_face();
         let (odd, vertex) = mint_face();
-        let name = |kind| StableName {
-            kind,
-            node: RecipeNodeId(1),
+        // Two DIFFERENT references, as a mate's are: a same-instance
+        // pair refuses `SelfMate` at the solve door, so a declaration
+        // naming one entity twice is a state `mint` cannot produce.
+        let name = |node| StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(node),
             path: vec![RoleSeg::OutputBody],
         };
         let minted = vec![MintedDeclaration {
             mate: RecipeNodeId(7),
-            a: name(EntityKind::Face),
-            b: name(EntityKind::Face),
+            a: name(1),
+            b: name(2),
             class: ContactClass::Rest,
             faces: (a, b),
         }];
@@ -751,6 +775,58 @@ mod attribution {
             band: Band::linear().expect("the ambient tolerance builds a band"),
             predicate: None,
         }
+    }
+
+    /// A declared pair the kernel CONTRADICTED — the only `Refuted`
+    /// producer reachable through [`assemble`] today, and the one arm
+    /// whose lookup is `by_pair` rather than `by_face`: the
+    /// declaration travels in the error, so an order-swapped
+    /// declaration must still be found and a pair no mate declared
+    /// must not be.
+    #[test]
+    fn a_contradicted_declaration_is_refuted_by_pair_in_either_order() {
+        let (minted, a, b, odd, _) = fixture();
+        let contradicted = |x, y| ValidationError::ContactContradicted {
+            declaration: DeclaredContact {
+                a: x,
+                b: y,
+                class: topo::ContactClass::Rest,
+            },
+            witness: String::new(),
+            margin: escalation(),
+            steer: None,
+        };
+        for (x, y) in [(a, b), (b, a)] {
+            assert!(matches!(
+                attribute(&contradicted(x, y), &minted),
+                Attribution::Refuted(m) if m.mate == RecipeNodeId(7)
+            ));
+        }
+        assert_eq!(
+            attribute(&contradicted(a, odd), &minted),
+            Attribution::Unattributed,
+            "a pair no mate declared has no declaration to refute"
+        );
+    }
+
+    /// An UNDECLARED contact is the definition of unattributed: by
+    /// definition no mate authored it, which is what makes it F1's
+    /// hard error. Held against a finding that names a face a mate DID
+    /// declare — the case a coarser rule would attribute, and the one
+    /// where attributing it would report the hard error as a frontier.
+    #[test]
+    fn an_undeclared_contact_is_unattributed_over_a_declared_face() {
+        let (minted, a, _, _, vertex) = fixture();
+        assert_eq!(
+            attribute(
+                &ValidationError::UndeclaredContact {
+                    contact: CensusContact::VertexOnFace { vertex, face: a },
+                    witness: String::new(),
+                },
+                &minted
+            ),
+            Attribution::Unattributed
+        );
     }
 
     /// The declared direction: a face the census inventory cannot
