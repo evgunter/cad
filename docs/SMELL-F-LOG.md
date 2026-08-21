@@ -302,7 +302,15 @@ sub-block, from the orchestrator.
 | **F-f** | **D101** | **S157** |
 | **F-e** (2nd) | D102, D103, **D106** — all used | S158, S159 — **both used** |
 | **F-g** | **D109, D110 — both used** | **S163, S164 — both used** |
-| unassigned (2nd block) | D108 | S162, S165, S166 |
+| unassigned (2nd block) | **none — the block is spent** | **none — the block is spent** |
+
+**Both blocks are exhausted, verified against the tree rather than against this
+table** (2026-08-21): `D108` is S162's row, `S162` is the concurrency finding,
+and `S165`/`S166` are F-h's — all four appear in `docs/SMELL-SCAN-2026-08.md`,
+so the line that called them unassigned was wrong when written. **A reservation
+table is a claim like any other**, and this one had drifted three times: once
+into a merge conflict, once into the conflict markers that reached `main`, and
+once here. The third block (`D111`–`D120` / `S167`–`S176`) is the live one.
 
 **Second block claimed 2026-08-20: `D101`–`D110` and `S157`–`S166`.** The first
 block is spent. Taken beyond Track E's `D81`–`D100` / `S137`–`S156` and Track
