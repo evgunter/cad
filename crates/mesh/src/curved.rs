@@ -337,7 +337,7 @@ pub(crate) fn tessellate_curved(
 /// valid part, while an over-loose one lets through a wobble six
 /// orders of magnitude smaller than the feature it would have to be
 /// confused with. What makes the entries bitwise straight, and what
-/// would stop doing so, is [`crate::walk::iso_side_starts`].
+/// would stop doing so, is `walk::iso_side_starts`.
 ///
 /// **A lever of ZERO is not a zero distance, it is NO metric — and an
 /// axis without one admits nothing.** [`Chart::radial`] vanishes
@@ -439,66 +439,26 @@ fn entries_off_bbox(
 ///
 /// The check here still earns its place, because it also answers a
 /// SECOND question `props` cannot (*did the walk produce a consistent
-/// polygon* — #653's ulp wobble, which is why the bar is spatial);
+/// polygon*, which is why the bar is spatial — [`entries_off_bbox`]);
 /// folding the first question into a call on the face-level predicate
 /// is the open follow-up, **issue #726**, not this unit.
 ///
-/// **With one qualification `mesh` now owes itself.**
-/// `walk::iso_side_starts` (#653) is a line IN `mesh` that can defeat
-/// this check, because it collapses consecutive same-kind traversals
-/// onto one coordinate on a premise `walk::classify` never verifies:
-/// that every boundary edge is an iso-curve of the chart. Where that
-/// premise fails — an obliquely-cut SPHERE face, whose every plane
-/// section is a `Circle` and so is not diverted to the trimmed lane —
-/// the collapse can turn a polygon this guard would have REFUSED into
-/// one that is its own bounding rectangle and is admitted. Two
-/// upstream gates keep it unreachable today (`topo::boolean` refuses
-/// the tilted plane × sphere section typed; `import_step`'s tier-3
-/// `props::curved::sphere_boundary` admits only coaxial rims and
-/// centre-centred great circles), which is the same shape as the
-/// sentence above rather than an exception to it. Stated in full,
-/// with what would harden it, at `walk::iso_side_starts`.
+/// **One line in `mesh` can defeat it.** `walk::iso_side_starts`
+/// collapses consecutive same-kind traversals onto one coordinate on a
+/// premise `walk::classify` never verifies — that every boundary edge
+/// is an iso-curve of the chart — and where that premise fails the
+/// collapse can turn a polygon this guard would have REFUSED into one
+/// that is its own bounding rectangle. The failing case (an obliquely
+/// cut SPHERE, whose every plane section is a `Circle` and so is not
+/// diverted to the trimmed lane), the two upstream gates that keep it
+/// unreachable today, and what would harden it are all stated at
+/// `walk::iso_side_starts`. It is the same shape as the paragraph
+/// above rather than an exception to it.
 ///
-/// **The bar is spatial** ([`entries_off_bbox`]): comparing exactly
-/// produced FALSE REFUSALS on bodies whose domain is the swept
-/// rectangle to within an ulp (issue #653).
-///
-/// **#653 removed the band's live evidence, and the band is kept
-/// anyway.** `walk` now assigns one coordinate per ISO SIDE rather than
-/// per edge, so every walk entry this build produces sits on its box
-/// **bitwise**: the banded and exact forms agree everywhere the suite
-/// looks, and what the band guards is asserted directly upstream by
-/// `a_multiply_carried_iso_side_is_bitwise_straight_and_meshes_watertight`
-/// (`== 0.0`). So the band's own red-when-reverted row had to be
-/// SYNTHETIC —
-/// `the_band_admits_a_sub_eps_entry_that_the_exact_form_refuses` — and
-/// [`entries_off_bbox`] states why keeping it is the right call. What a
-/// reader must NOT do is read
-/// `a_split_then_placed_swept_face_is_not_refused` as evidence about
-/// the band: since #653 that row is evidence about the invariant.
-///
-/// **A class note, because this fix invalidated more than one
-/// sentence** (§C13's `face_box` precedent). Every doc in `crates/mesh`
-/// that argued a tolerance from a MEASURED number measured a
-/// population #653 has eliminated, and no convention covers those
-/// sentences. The two that argued from a NUMBER were
-/// `entries_off_bbox`'s 1.4985e-15 m and `the_band_separates_…`'s
-/// hardcoded copy of it; both now derive their live half from the tree
-/// and label the sweep figure as historical. **The rule: a measured
-/// constant in this crate is re-derivable from the tree, or it says it
-/// is not.**
-///
-/// The sweep for the weaker form — prose asserting the per-edge
-/// premise without a number — took **six** more sites, in **four**
-/// files: this module's header, the interior-grid comment in
-/// [`tessellate_curved`], [`entries_off_bbox`],
-/// `TessellateError::UnsupportedCurvedDomain`'s doc in `types.rs`,
-/// `mesh/lib.rs`'s crate header, and `crate::walk`'s module header,
-/// which states the premise more fully than any of the other five.
-/// **Three** of the six are in the file the guard lives in, which is
-/// the §C10 point: a claim lives wherever it was written down — and
-/// this roster is itself an unguarded list of the kind S64 was about,
-/// which is why it now carries a count it can be checked against.
+/// **A measured constant in this crate is re-derivable from the tree,
+/// or it says it is not.** The band's own doc ([`entries_off_bbox`])
+/// is where that bites hardest, and `walk`'s module header states the
+/// straight-iso-side premise more fully than any other site.
 fn require_swept_rectangle(
     fk: FaceKey,
     poly: &[UvPoint],
@@ -550,71 +510,48 @@ fn require_swept_rectangle(
 /// rim and splits between them at one shared vertex. At `nu >= 3` each
 /// entry's nearest column occludes the other's.
 ///
-/// # Corrective on the cone, prophylactic on the sphere
+/// **Corrective on the cone.** A cone's meridian is a straight RULING
+/// carrying ZERO interior chord points (`npoly = 5` = 2 apex + 3 rim),
+/// so nothing sits between an apex entry and the rim and `nv` alone
+/// decides: clean at `nv <= 3`, dirty at `nv >= 4`.
+/// `cone_wedge(1, pi/4)` is clean at delta = 0.1 and dirty at
+/// delta = 0.05 — one delta-step from the defect.
 ///
-/// A/B over 281 public-API configurations (cone wedges, sphere lunes,
-/// sphere caps): **7 rows go dirty -> clean, every one of them cone**;
-/// 57 clean rows re-size, **49 of them sphere**; and **no sphere row
-/// has ever been measured dirty**, out of ~200.
-///
-/// **Cone — corrective, and genuinely clean-by-luck when it is clean.**
-/// A cone's meridian is a straight RULING, so it carries ZERO interior
-/// chord points (`npoly = 5` = 2 apex + 3 rim) and nothing sits between
-/// an apex entry and the rim. `nv` alone then decides: `nu == 2` is
-/// clean at `nv <= 3` — too few interior rows for the overlap to
-/// contain an edge — and dirty at `nv >= 4`. `cone_wedge(1, pi/4)` is
-/// clean at delta = 0.1 (`nv = 3`) and dirty at delta = 0.05
-/// (`nv = 4`): one delta-step from the defect.
-///
-/// **Sphere — prophylactic, and NOT clean by luck.** The same reading
-/// is false here, and a single row falsifies it: `sphere_wedge(pi/4)`
-/// at delta = 0.05 is `nu = 2, nv = 8` — seven interior column
-/// vertices, an overlap that could hold six edges — and it is clean. A
-/// sphere's meridian is an ARC and always carries interior chord
-/// points (lune `npoly = 10`, cap `npoly = 6`); those points occlude
-/// the cross-fan. Structural, not lucky: dirty needs `nv >= 3`, and
-/// the meridian's chord step `phi(delta_s, r)` and the grid's
+/// **Prophylactic on the sphere, and not clean by luck.** A sphere's
+/// meridian is an ARC and always carries interior chord points, which
+/// occlude the cross-fan; dirty needs `nv >= 3`, and the meridian's
+/// chord step `phi(delta_s, r)` and the grid's
 /// `phi(delta_s / SPHERE_SIZING_MARGIN, r)` are never more than ~12%
-/// apart with both capped, so `nv >= 3` FORCES at least two interior
-/// meridian points. The sphere arm is kept anyway (Evan, 2026-08-19) so the
-/// rule reads as one sentence rather than one chart but not the other
-/// — and what it rests on is CHECKED, not just written down: see the
-/// `debug_assert` in [`grid_counts`]'s sphere arm, which asserts the
-/// mechanism (the occluding points exist) rather than the conclusion.
+/// apart with both capped, so `nv >= 3` FORCES at least two of those
+/// points. The arm is kept (Evan, 2026-08-19) so the rule reads as one
+/// sentence rather than one chart but not the other, and the mechanism
+/// it rests on — the occluding points EXIST — is asserted in
+/// [`grid_counts`]'s sphere arm rather than written down here.
 ///
-/// # The option this doc used to exclude by silence
+/// Both readings come from an A/B over 281 public-API configurations:
+/// 7 rows dirty -> clean, every one of them cone; 57 clean rows
+/// re-size, 49 of them sphere; no sphere row ever measured dirty, out
+/// of ~200; zero drift in the three render corpora. Those last two are
+/// #678's own open questions — *does the sphere lane reach the defect
+/// in practice*, *is any corpus body in the changed class* — answered,
+/// and this is their only home. **Historical** — that sweep is not in
+/// the tree and nothing here re-derives it.
 ///
-/// The choice here is three-way, and an earlier draft of this comment
-/// offered two — floor-as-written versus per-face manifoldness
-/// re-derivation — which makes the missing one look unconsidered
-/// rather than rejected. It is `nu == 2 && nv >= 3`: available right
-/// here, since both counts are in the same arm, and it would preserve
-/// all eight cone re-sizings. Not taken, for two reasons — it makes
-/// `nu` a function of `nv`, so the schedule's two axes stop being
-/// independent, and it leaves the `ceil` knife edge live at `nv <= 3`
-/// instead of removing the class. The remaining option, per-face
-/// manifoldness re-derivation over the emitted patch, is the
-/// D2-addendum row-5
-/// mechanism (`DESIGN.md`'s row 5 says `debug_assert`, not "make it
-/// unreachable"), which now ships BESIDE this floor in
-/// [`tessellate_curved`]'s emit pass rather than instead of it.
+/// **The option not taken** is `nu == 2 && nv >= 3`, available right
+/// here since both counts are in the same arm: it would preserve all
+/// eight cone re-sizings, but it makes `nu` a function of `nv` — the
+/// schedule's two axes stop being independent — and it leaves the
+/// `ceil` knife edge live at `nv <= 3` instead of removing the class.
+/// The third option, per-face manifoldness re-derivation over the
+/// emitted patch, is the D2-addendum row-5 mechanism and ships BESIDE
+/// this floor in [`tessellate_curved`]'s emit pass rather than instead
+/// of it.
 ///
-/// # Blast radius, and #678's two open questions
-///
-/// Only pole faces with `nu == 2` re-size. A full revolve can never be
+/// Only pole faces with `nu == 2` re-size, and a full revolve is never
 /// one: [`sagitta_step`] hard-caps at
-/// [`crate::sizing::MAX_ANGULAR_STEP`] on both branches, and
+/// [`crate::sizing::MAX_ANGULAR_STEP`] on both branches and
 /// [`torus_grid_step`] is capped against the same value here, so a
-/// `2*pi` span gives `nu >= 8` — confirmed in the A/B, where no
-/// full-revolve face appears with `nu <= 2`.
-///
-/// `Fixes #678` closes the only other home of that issue's two open
-/// questions, so both answers live here. *Does the sphere lane reach
-/// the defect in practice?* **No** — ~200 configurations, including
-/// the cap shape the issue named and nobody had built. *Is any corpus
-/// body in the changed class?* **No** — `demos/renders`,
-/// `demos/renders-wild` and `demos/renders-freecad` all report zero
-/// drift.
+/// `2*pi` span gives `nu >= 8`.
 fn pole_columns(nu: usize, has_pole: bool) -> usize {
     if has_pole && nu == 2 { 3 } else { nu }
 }
