@@ -8,25 +8,30 @@
 //!
 //! # The span contract (binding, shared by every consumer)
 //!
-//! **Checked, in two integer compares.** A [`Span`] is proven nonempty
-//! and in range *for the vector it was drawn from*, but it carries no
-//! borrow of that vector, so a span of some **other** `KnotVector` is a
+//! **Checked, not structural.** A [`Span`] is proven nonempty and in
+//! range *for the vector it was drawn from*, but it carries no borrow
+//! of that vector, so a span of some **other** `KnotVector` is a
 //! representable input here. Every entry point below therefore asks
 //! [`KnotVector::admits`] first and returns an **all-poison** row for a
 //! span this `kv` does not admit (fail-loud, D4) — never an
-//! out-of-bounds knot read.
+//! out-of-bounds knot read and never a row divided by a zero knot gap.
 //!
-//! What the two compares buy, exactly: the degree agreeing gives
-//! `span.index() >= kv.first_span()`, which is what keeps the low knot
-//! read `u[span + 1 + r − j] >= u[span + 1 − p]` at a non-negative
-//! index, and makes the returned row the same length as the window the
-//! caller will index with; `span.index() <= kv.last_span()` bounds the
-//! high reads, `u[span + p]` here and `u[i + p + 1]` in the derivative
-//! ladder, at `u.len() − 1`. What they do **not** buy is the right
-//! vector: a span from a different vector of the same degree and
-//! control count is admitted, and the answer is then that vector's
-//! polynomial rather than a refusal ([`KnotVector::admits`] states the
-//! residue).
+//! What the check buys here, exactly. Degree agreement gives
+//! `span.index() >= kv.first_span()`, which keeps the low knot read
+//! `u[span + 1 + r − j] >= u[span + 1 − p]` at a non-negative index,
+//! and makes the returned row the same length as the window the caller
+//! will index with. `span.index() <= kv.last_span()` bounds the high
+//! reads — `u[span + p]` here, `u[i + p + 1]` in the derivative ladder
+//! — at `u.len() − 1`, exactly. Nonemptiness is what the division
+//! safety note below rests on: it is the `> 0` in
+//! `knots[span+1] − knots[span] > 0`, and a foreign span can be an
+//! empty span of *this* vector even when both index bounds hold.
+//!
+//! What the check does **not** buy is the right vector: a span from a
+//! different vector of the same degree and control count, nonempty at
+//! that index in both, is admitted, and the answer is then this
+//! vector's polynomial on the wrong span rather than a refusal
+//! ([`KnotVector::admits`] states the residue).
 //!
 //! Within a span the result is the span's polynomial: for `t` outside
 //! the span's knot interval the values are the **polynomial extension**
@@ -62,7 +67,7 @@ fn poison_row<T: Real>(len: usize) -> Vec<T> {
 /// an all-poison row of the same length, and a poisoned `t` propagates
 /// through the arithmetic. Division safety: every denominator is
 /// `knots[span+1+r] − knots[span+1+r−j] ≥ knots[span+1] − knots[span] > 0`,
-/// which is exactly the nonemptiness [`Span`] carries.
+/// which is exactly the nonemptiness [`KnotVector::admits`] checks.
 ///
 /// That estimate is why the inner loop stops at `r = j − 1` and the
 /// level's high end is written after it as `n[j] = saved`. It needs

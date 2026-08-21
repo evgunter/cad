@@ -71,19 +71,22 @@
 //! of that vector, so a span of a *different* one is a representable
 //! input: [`span_indices`] therefore asks [`KnotVector::admits`]
 //! alongside the coefficient-length check, and either failing is
-//! poison. Emptiness is **not** re-checked: `admits` relates a span to
-//! this vector's shape, so a foreign span that is empty here is
-//! admitted, and the bound below is then the hull of a window this
-//! vector's basis never reads — finite, and wrong. It cannot index out
-//! of bounds, which is what the check is for.
+//! poison. **Emptiness is part of that**, and it matters most here
+//! rather than least: an empty span reads no knots at all in this
+//! module, so without it a foreign span could yield a perfectly
+//! finite hull over a window this vector's basis never reads — and
+//! [`sup_norm_bound_span`] is the C2.2 honesty limb, where a finite
+//! wrong bound **certifies a span it never bounded**. That is a worse
+//! outcome than the panic, and it is refused.
 //!
-//! # The two length-only relations, and the one that is a residue
+//! # The relation that is still length-only, and is a residue
 //!
-//! Both remaining checks are relations of *length*, not of identity.
+//! One check here is a relation of *length*, not of identity.
 //! `coeffs.len() == kv.control_count()` says nothing about which curve
 //! the coefficients came from, and [`KnotVector::admits`] says nothing
-//! about which vector the span came from: a same-degree, same-control-count
-//! vector admits the span, and a same-length `coeffs` passes the count.
+//! about which vector the span came from: a same-degree,
+//! same-control-count vector whose index `i` is nonempty too admits the
+//! span, and a same-length `coeffs` passes the count.
 //! In both cases the bound is then computed over the wrong data and is
 //! **wrong rather than refused** — a silent answer, and a deliberate
 //! residue.

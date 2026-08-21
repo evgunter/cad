@@ -158,10 +158,14 @@ pub struct KnotVector {
 ///
 /// Its fields are private and its only constructors are
 /// [`KnotVector::span`] (checked) and [`KnotVector::span_at`] (total),
-/// so "invalid span index" is not a representable state: evaluation
-/// needs no guard and has no poison-on-bad-index path. The window is
-/// computed once, at construction, so `span − degree` never appears at
-/// a use site and cannot underflow there.
+/// so an index invalid **for the vector that minted it** is not a
+/// representable state. That is a fact about one vector, not about the
+/// value: nothing stops the `Span` being carried to a *different*
+/// `KnotVector`, so evaluation does carry a guard and does have a
+/// poison-on-bad-index path — [`KnotVector::admits`], asked at every
+/// door. The window is computed once, at construction, so
+/// `span − degree` never appears at a use site and cannot underflow
+/// there.
 ///
 /// **Not branded to its knot vector — the pairing is checked, not
 /// structural.** A `Span` is a plain value with no borrow of the
@@ -177,9 +181,10 @@ pub struct KnotVector {
 /// way, and its evaluators still index a foreign window's base.
 ///
 /// What `admits` does **not** buy is exactness. Two vectors of equal
-/// degree and equal control count but different interior knots admit
-/// each other's spans, and evaluation against the wrong one is then a
-/// **wrong answer rather than a refusal**. That residue is deliberate
+/// degree and equal control count, whose index `i` is a nonempty span
+/// in both, admit each other's span `i`, and evaluation against the
+/// wrong one is then a **wrong answer rather than a refusal**. That
+/// residue is deliberate
 /// and it is the same species as the one
 /// [`super::hull::span_hull`] already leaves: its `coeffs` are related
 /// to the vector by length alone, so a same-length coefficient array
@@ -413,39 +418,52 @@ impl KnotVector {
         })
     }
 
-    /// Whether `span` may be evaluated against **this** knot vector:
-    /// its degree agrees and its index is no higher than this vector's
-    /// last span.
+    /// Whether `span` may be evaluated against **this** knot vector —
+    /// the three-way agreement every door here asks before it indexes.
     ///
-    /// Two integer compares, and they are exactly what the indexing
-    /// arithmetic downstream needs. `last_span() == control_count() − 1`,
-    /// so `index <= last_span()` puts the whole window
-    /// `[index − degree, index]` — and the knot reads centred on it,
-    /// which reach `index + degree + 1` — inside this vector's arrays;
-    /// degree agreement supplies the other end, `index >= first_span()`,
-    /// because a `Span` always satisfies `index >= degree`, and makes
-    /// the basis row and the window the same length.
+    /// - `span.degree() == degree`. Supplies the low end,
+    ///   `index >= first_span()`, because a `Span` always satisfies
+    ///   `index >= degree` (both constructors set
+    ///   `first_control = index − degree`), and makes the basis row and
+    ///   the control window the same length.
+    /// - `span.index() <= last_span()`. `last_span() ==
+    ///   control_count() − 1`, so this puts the whole window
+    ///   `[index − degree, index]` inside the control arrays, and the
+    ///   knot reads centred on it — which reach `index + degree + 1` in
+    ///   the derivative ladder — inside `knots`. That upper bound is
+    ///   **exact**, not slack: one higher reads past the end.
+    /// - `span_is_nonempty(index)`. Not a bounds fact — the other two
+    ///   already close every index. This one is about the answer: an
+    ///   empty span's knot difference is zero, which divides in
+    ///   [`super::basis::basis_funs`] and lets
+    ///   [`super::hull::span_hull`] return a *finite* bound over a
+    ///   window this vector's basis never reads. A wrong number that
+    ///   passes `sup_norm_bound_span(..) <= eps` is worse than a panic,
+    ///   so it is refused.
+    ///
+    /// **It refuses nothing correctly paired.** Every `Span` this
+    /// vector mints satisfies all three against it: [`KnotVector::span`]
+    /// returns `None` on exactly the second and third conditions, and
+    /// [`KnotVector::span_at`] establishes them structurally (its
+    /// `debug_assert` is the teeth on the third). So `kv.admits(s)` is
+    /// true for every `s` drawn from `kv`, and the check is pure
+    /// refusal of foreign spans.
     ///
     /// **What it does not decide.** It relates a span to a vector's
-    /// *shape*, never to its knot values: a span from a different
-    /// vector of the same degree and the same control count is admitted
-    /// and evaluates to a wrong answer rather than a refusal. That is
-    /// the same length-only relation [`super::hull::span_hull`] holds
-    /// its `coeffs` to, and closing either wants a brand, not a check.
-    ///
-    /// Nonemptiness is **not** re-checked, and the consequence is
-    /// stated rather than implied: a `Span` carries nonemptiness from
-    /// its own vector, so an admitted span of a *different* vector can
-    /// name an **empty** span of this one. That is inside the residue
-    /// above and it is the ugliest corner of it — the zero knot
-    /// difference divides in [`super::basis::basis_funs`], which at
-    /// `f64` yields a row of `±inf` and `NaN` rather than all-poison,
-    /// and [`super::hull::span_hull`] reads no knots at all and returns
-    /// a finite bound over the wrong window. Neither indexes out of
-    /// bounds, which is what this check is for; neither is a refusal,
-    /// which it is not.
+    /// *shape* — degree, length, and whether that one index is a real
+    /// interval — never to its knot **values**. Two vectors of equal
+    /// degree and equal control count whose index `i` is nonempty in
+    /// both admit each other's span `i`, and evaluation against the
+    /// wrong one is a **wrong answer rather than a refusal**. That
+    /// residue is deliberate: it is the same length-only relation
+    /// [`super::hull::span_hull`] holds its `coeffs` to, and closing
+    /// either wants the `Span` (and the coefficients) to carry their
+    /// vector — a borrow or an invariant-lifetime brand — which is a
+    /// design change and not paid for here.
     pub fn admits(&self, span: Span) -> bool {
-        span.degree() == self.degree && span.index() <= self.last_span()
+        span.degree() == self.degree
+            && span.index() <= self.last_span()
+            && self.span_is_nonempty(span.index())
     }
 
     /// [`KnotVector::find_span`] as a validated [`Span`] — total on all
