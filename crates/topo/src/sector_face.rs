@@ -63,7 +63,6 @@ use geom_core::Decide;
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::face_normal::face_outward_normal;
-use geom_core::Tol;
 
 /// Which charted carrier a sector's face sits on — the arms with a
 /// wired outward-normal-at-the-vertex construction.

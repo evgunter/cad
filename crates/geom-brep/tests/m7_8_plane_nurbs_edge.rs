@@ -30,7 +30,7 @@ use geom_brep::{
     CertifyError, EdgeCurve, EdgeCurveSpec, EdgeGeometry, EdgeNurbsLane, PlaneNurbsRefusal,
 };
 use geom_core::spline::KnotVector;
-use geom_core::{Band, Point3, Tolerance, Vec3};
+use geom_core::{Band, Point3, Vec3};
 use slotmap::SlotMap;
 use geom_core::Tol;
 

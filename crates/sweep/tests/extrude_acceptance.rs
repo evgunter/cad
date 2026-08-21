@@ -12,7 +12,7 @@ use profile::RawLoop;
 
 use geom::Surface;
 use geom_brep::{EdgeGeometry, newell_plane};
-use geom_core::{Band, Point2, Point3, Tolerance, Vec3};
+use geom_core::{Band, Point2, Point3, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{ExtrudeError, Extruded, Extrusion, extrude};
 use topo::{

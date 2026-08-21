@@ -94,7 +94,6 @@ use geom_core::Real;
 use crate::body::Body;
 use crate::entity::HalfEdgeKey;
 use crate::geometry::SurfaceKey;
-use geom_core::Tol;
 
 /// A failed [`Body::revert`] precondition (closed enum, D3 style); the
 /// source body is never touched (revert is `&self`).

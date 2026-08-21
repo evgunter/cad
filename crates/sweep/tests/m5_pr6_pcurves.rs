@@ -10,7 +10,7 @@ use core::f64::consts::TAU;
 use profile::RawLoop;
 
 use geom::Surface;
-use geom_core::{Band, Point2, Point3, Tolerance, Vec3};
+use geom_core::{Band, Point2, Point3, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::splitting::{SplitPart, SplitPlane, split};

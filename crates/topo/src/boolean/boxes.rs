@@ -80,7 +80,6 @@ use geom_core::{Band, Bounds, Decide, Point3, Real, Vec3};
 use super::BooleanError;
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, LoopKey, VertexKey};
-use geom_core::Tol;
 
 /// The sweep's box pad in meters — what candidate generation must add
 /// so pruning can never lose an accepted pair. Derivation (each term

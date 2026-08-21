@@ -37,7 +37,7 @@ struct StubStore {
 
 impl StubStore {
     fn insert(&mut self, doc: ProfileDoc, tol: Tol) -> DocRef {
-        let pin = content_pin(&doc, Tol::witness()).expect("the pin computes");
+        let pin = content_pin(&doc, tol).expect("the pin computes");
         let id = doc.id();
         self.docs.insert(id, doc);
         DocRef { id, pin }

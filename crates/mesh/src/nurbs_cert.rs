@@ -183,7 +183,6 @@ use geom_core::spline::hull::derivative_coeffs;
 use topo::FaceKey;
 
 use crate::types::TessellateError;
-use geom_core::Tol;
 
 /// Certified sup bounds on the three second partials of one described
 /// non-rational NURBS face, over its whole chart rectangle (module

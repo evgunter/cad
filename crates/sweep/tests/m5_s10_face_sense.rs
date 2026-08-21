@@ -34,7 +34,7 @@ use core::f64::consts::{FRAC_PI_8, PI};
 use profile::RawLoop;
 
 use geom::Surface;
-use geom_core::{Band, Point2, Point3, Tolerance};
+use geom_core::{Band, Point2, Point3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use revolve_common::{axis_y, p2, validated};
 use sweep::{Extrusion, Revolution, extrude, revolve};

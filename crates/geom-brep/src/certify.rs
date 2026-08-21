@@ -60,7 +60,6 @@ use crate::dihedral::{DihedralClass, classify_dihedral, decide};
 use crate::edge_geometry::EdgeGeometry;
 use crate::implicit::{implicit_residual, seam_frame};
 use crate::keys::SurfaceKey;
-use geom_core::Tol;
 
 /// The fixed certification sample count (module docs): 9 uniform
 /// parameters, endpoints included.
@@ -1570,7 +1569,7 @@ fn plane_nurbs_pair<T: Real>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use geom_core::Tol;
-    use geom_core::{Affine3, Point2, Tolerance, Vec3};
+    use geom_core::{Affine3, Point2, Vec3};
 
     use crate::edge_geometry::{MappedCurve, SketchSegment};
 

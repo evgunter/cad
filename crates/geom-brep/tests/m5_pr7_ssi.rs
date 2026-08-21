@@ -97,7 +97,7 @@ use geom_brep::ssi::{
 };
 use geom_core::spline::KnotVector;
 use geom_core::tolerance::DEFAULT_EPS;
-use geom_core::{Band, Margin, Point3, Tolerance, Vec3};
+use geom_core::{Band, Margin, Point3, Vec3};
 use test_utils::vacuity;
 use geom_core::Tol;
 

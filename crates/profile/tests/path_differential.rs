@@ -23,7 +23,7 @@
 mod common;
 
 use common::pinned;
-use geom_core::{Point2, Tolerance, Vec2};
+use geom_core::{Point2, Vec2};
 use profile::RawLoop;
 use profile::{ArcSweep, Bulge, Center, Open, Profile, ProfileLoop, SketchPlane, Start, Via};
 use geom_core::Tol;

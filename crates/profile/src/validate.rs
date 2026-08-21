@@ -103,8 +103,7 @@ use core::fmt;
 
 use geom_core::k_stats::decide;
 use geom_core::{Tol, 
-    Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point2, Real, Sign,
-    Tolerance, Vec2,
+    Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point2, Real, Sign, Vec2,
 };
 
 use crate::seg::{self, CKind, PairOutcome, Seg, SegIssue, SegKind, build_seg};

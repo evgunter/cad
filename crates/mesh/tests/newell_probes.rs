@@ -7,7 +7,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Point3, Tolerance, Vec3};
+use geom_core::{Point2, Point3, Vec3};
 use mesh::tessellate;
 use mesh::validate::{check_mesh, signed_volume, triangle_count};
 use profile::RawLoop;

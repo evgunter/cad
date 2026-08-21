@@ -42,7 +42,6 @@ use editor_core::{
     ProgramStep, ProgramTarget, SlotId,
 };
 use profile::{SketchPlane, Verb};
-use geom_core::Tol;
 
 fn len(v: f64) -> Expr {
     Expr::literal(v, Dimension::Length).unwrap()
@@ -167,7 +166,7 @@ fn variant_name(debug: &str) -> String {
 fn every_table_verb_is_a_document_program() {
     let authored = chain_steps();
     let resolved = corpus()
-        .resolve(&ParamEnv::default(), Tol::witness())
+        .resolve(&ParamEnv::default())
         .expect("the corpus resolves at f64");
 
     let chain: Vec<Verb> = resolved[0].iter().map(profile::Step::verb).collect();

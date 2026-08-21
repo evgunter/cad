@@ -10,7 +10,7 @@ use profile::RawLoop;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
-use geom_core::{Band, Point2, Tolerance};
+use geom_core::{Band, Point2};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::fillet::build::fillet_edges;
 use sweep::{Extrusion, extrude};

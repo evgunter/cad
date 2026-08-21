@@ -65,7 +65,6 @@
 //! `classify_dihedral` pattern.
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Real, Sign, Vec3};
-use geom_core::Tol;
 
 /// The verdict of [`enters_material`]: where `dir` goes relative to the
 /// face's material.

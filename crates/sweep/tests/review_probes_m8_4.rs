@@ -13,7 +13,7 @@
 use geom::Curve3;
 use geom::{NurbsSurface, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeGeometry};
-use geom_core::{Affine3, Band, Point2, Point3, Tolerance, Vec3};
+use geom_core::{Affine3, Band, Point2, Point3, Vec3};
 use profile::RawLoop;
 use std::sync::Arc;
 use topo::{Body, FaceSurface, Pcurve};

@@ -10,7 +10,6 @@
 mod fixture;
 
 use fixture::pr4::diagnosis_corpus;
-use geom_core::Tol;
 
 /// FNV-1a 64 over the labeled Debug encodings (the same digest idiom
 /// as the PR 3 name-table golden — arena keys inside tombstones are

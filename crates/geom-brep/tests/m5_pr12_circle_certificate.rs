@@ -19,7 +19,7 @@ use geom::Surface;
 use geom_brep::{
     EdgeCurve, EdgeCurveSpec, EdgeGeometry, SurfaceKey, tangent_certificate_lane, tangent_jet,
 };
-use geom_core::{Band, Point3, Tolerance, Vec3};
+use geom_core::{Band, Point3, Vec3};
 use slotmap::SlotMap;
 use geom_core::Tol;
 

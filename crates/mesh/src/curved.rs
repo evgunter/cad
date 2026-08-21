@@ -67,7 +67,6 @@ use crate::cert;
 use crate::sizing::{SizingTols, cap_angular, ceil_count, sagitta_step, torus_grid_step};
 use crate::types::TessellateError;
 use crate::walk::{Chart, ChartKind, UvPoint, gap_is_noise, loop_polygon};
-use geom_core::Tol;
 
 /// Tessellates one curved face into outward-wound triangles,
 /// appending interior grid points to `positions`.
@@ -692,7 +691,7 @@ mod tests {
 
     use geom_core::Tol;
     use super::*;
-    use geom_core::{Affine3, Point2, Tolerance, Vec2, Vec3};
+    use geom_core::{Affine3, Point2, Vec2, Vec3};
     use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile};
     use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 

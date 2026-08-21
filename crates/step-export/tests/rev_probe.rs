@@ -10,7 +10,7 @@
 mod common;
 
 use geom::Surface;
-use geom_core::{Point2, Point3, Tolerance, Vec3};
+use geom_core::{Point2, Point3, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
 use sweep::{Revolution, RevolveAxis, revolve};

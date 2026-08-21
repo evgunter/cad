@@ -61,7 +61,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Band, BandError, BandField, DEFAULT_K, Decide, Indeterminate, MarginDiag, Sign};
-use geom_core::Tol;
 
 /// The review-run band: (ε, K·ε) at the ratified default ε = 1e-9,
 /// constructed purely (see the module docs).

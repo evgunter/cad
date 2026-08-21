@@ -9,7 +9,6 @@ mod common;
 
 use common::{near_tangent_hole, tangent_hole, tol};
 use geom_core::COINCIDENCE_RECOURSE;
-use geom_core::Tol;
 
 fn assert_unified(msg: &str) {
     assert_eq!(

@@ -26,7 +26,7 @@
 mod common;
 
 use common::pinned;
-use geom_core::{Point2, Tolerance};
+use geom_core::Point2;
 use profile::{
     ArcSweep, ClosedLoop, Open, PathError, ProfileLoop, ReplayError, ReplayErrorKind, Start, Step,
     Target, TipState, Verb, replay,

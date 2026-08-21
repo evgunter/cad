@@ -852,7 +852,7 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
     // Replaying the LIFTED program reproduces the AUTHORED loop bit
     // for bit — the lift re-spells the verbs, it does not re-lower.
     let steps = lifted
-        .resolve(&ParamEnv::<f64>::default(), 0, Tol::witness())
+        .resolve(&ParamEnv::<f64>::default(), 0)
         .expect("literal arguments resolve");
     let replayed = pncad::profile::replay(&steps, Tol::witness()).expect("the lifted program replays");
     assert_eq!(replayed.vertices().len(), authored.loop_.vertices().len());

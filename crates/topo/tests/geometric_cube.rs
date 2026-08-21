@@ -10,7 +10,7 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{CertCheck, CertifyError, EdgeCurveSpec, EdgeGeometry};
-use geom_core::{Point3, Tolerance, Vec3};
+use geom_core::{Point3, Vec3};
 use topo::{
     Body, EulerOpError, FaceSurface, MefSite, MevSite, validate, validate_closed,
     validate_geometric,

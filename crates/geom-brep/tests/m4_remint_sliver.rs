@@ -11,7 +11,7 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{CERT_SAMPLES, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeGeometry};
-use geom_core::{Band, Point3, Tolerance, Vec3};
+use geom_core::{Band, Point3, Vec3};
 use geom_core::Tol;
 
 fn table(

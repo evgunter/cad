@@ -60,7 +60,7 @@ use common::orient::{
 };
 use common::quad;
 use geom::Surface;
-use geom_core::{Affine3, Band, Point3, Tolerance, Vec3};
+use geom_core::{Affine3, Band, Point3, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use revolve_common::{assert_all_tiers, axis_y, p2, validated};
 use sweep::{

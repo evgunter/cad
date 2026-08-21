@@ -36,7 +36,7 @@
 //! telemetry or interval scalar for a certified one.
 
 use ::profile::{Profile, ProfileError, ProfileLoop, SketchPlane, ValidatedProfile};
-use geom_core::{Decide, Point2, Point3, Real, Tolerance, Vec2, Vec3};
+use geom_core::{Decide, Point2, Point3, Real, Vec2, Vec3};
 use geom_core::Tol;
 
 /// Embeds an `f64` literal as the working scalar.

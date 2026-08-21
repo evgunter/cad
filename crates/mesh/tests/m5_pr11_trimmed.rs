@@ -9,7 +9,7 @@
 use profile::RawLoop;
 use std::collections::HashMap;
 
-use geom_core::{Point2, Point3, Tolerance, Vec3};
+use geom_core::{Point2, Point3, Vec3};
 use mesh::validate::{check_mesh, signed_volume, triangle_count};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, extrude};

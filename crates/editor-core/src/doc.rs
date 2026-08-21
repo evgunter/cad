@@ -8,7 +8,6 @@
 use std::collections::BTreeMap;
 
 use geom_core::Real;
-use geom_core::tolerance::Tolerance;
 
 use crate::appearance::{AppearanceMap, AppearanceRecord};
 use crate::expr::{Dimension, Expr, ExprPath, ParamEnv, ParamValue};

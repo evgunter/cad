@@ -3,7 +3,7 @@
 //! acceptance suites and the CI export example).
 #![allow(dead_code)] // each consumer uses a subset
 
-use geom_core::{Point2, Point3, Tolerance, Vec2, Vec3};
+use geom_core::{Point2, Point3, Vec2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};

@@ -26,7 +26,6 @@ use crate::entity::{EntityId, FaceKey, LoopBoundary, Shell, ShellKey};
 use crate::euler::ArenaDelta;
 use crate::euler::EulerOpError;
 use crate::provenance::Provenance;
-use geom_core::Tol;
 
 impl<T: Decide> Body<T> {
     /// Partitions `shell`'s faces into connected components of the

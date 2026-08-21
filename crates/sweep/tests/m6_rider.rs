@@ -15,7 +15,7 @@
 use core::f64::consts::PI;
 use profile::RawLoop;
 
-use geom_core::{Affine3, Point2, Tolerance, Vec2, Vec3};
+use geom_core::{Affine3, Point2, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};

@@ -1170,7 +1170,7 @@ fn failing_kill_calls_consume_no_keys_between_kills() {
 
 #[test]
 fn kvfs_slot_recycling_is_generation_safe() {
-    let tol = Tol::witness();
+    let _tol = Tol::witness();
     let mut body = Body::<f64>::new();
     let first = body.mvfs(p(0.0)).unwrap();
     body.kvfs(first.solid).unwrap();

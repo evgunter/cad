@@ -51,7 +51,6 @@
 
 use std::path::PathBuf;
 use step_import::{ImportOptions, StepImportError, import_step};
-use geom_core::Tol;
 
 fn dm1() -> String {
     let path: PathBuf = [

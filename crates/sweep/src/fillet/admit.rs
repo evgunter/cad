@@ -42,7 +42,6 @@ use super::surgery::{
     unbuilt_run_out,
 };
 use super::{CornerConfig, FilletError};
-use geom_core::Tol;
 
 /// **A chain admitted through the open-chain door**: exactly one link,
 /// plane–plane supports, convex.

@@ -122,7 +122,7 @@
 //! [`TangentIncoming`]); the fused verbs take their incoming mode the
 //! same way.
 
-use geom_core::{Tol, Point2, Real, Sign, Tolerance};
+use geom_core::{Tol, Point2, Real, Sign};
 
 use super::arc_fillet::{self, ArcCarrierScalar, carrier_tangent};
 use super::program::{ArcData, ClosedLoop, Step, Target};
@@ -423,7 +423,7 @@ impl<T: ArcCarrierScalar> ArrivalSpec<T> for Center<T, Start> {
 /// awaits `.at(p)` and a director, in either order.
 impl<T: ArcCarrierScalar> ArrivalSpec<T> for Radius<T> {
     type Out = Result<RadiusArrival<T>, PathError<T>>;
-    fn apply(core: Core<T>, spec: Self, tol: Tol) -> Self::Out {
+    fn apply(core: Core<T>, spec: Self, _tol: Tol) -> Self::Out {
         Ok(RadiusArrival {
             core,
             spec,
@@ -446,7 +446,7 @@ impl<T: ArcCarrierScalar> ArrivalSpec<T> for Radius<T> {
 /// director is left free.
 impl<T: ArcCarrierScalar> ArrivalSpec<T> for Via<T, Point2<T>> {
     type Out = Result<ViaArrival<T>, PathError<T>>;
-    fn apply(core: Core<T>, spec: Self, tol: Tol) -> Self::Out {
+    fn apply(core: Core<T>, spec: Self, _tol: Tol) -> Self::Out {
         Ok(ViaArrival {
             core,
             q: spec.q,
@@ -469,7 +469,7 @@ impl<T: ArcCarrierScalar> ArrivalSpec<T> for Via<T, Point2<T>> {
 /// entry, director pending, `q` picks the carrier.
 impl<T: ArcCarrierScalar> ArrivalSpec<T> for Via<T, Start> {
     type Out = Result<ViaArrivalStart<T>, PathError<T>>;
-    fn apply(core: Core<T>, spec: Self, tol: Tol) -> Self::Out {
+    fn apply(core: Core<T>, spec: Self, _tol: Tol) -> Self::Out {
         Ok(ViaArrivalStart {
             core,
             q: spec.q,
@@ -953,7 +953,7 @@ impl<T: ArcCarrierScalar> LegEndIncoming<T> for verbs::Bulge<T, Point2<T>> {
     fn incoming(&self, dp: DirectedPoint<T>, tol: Tol) -> Result<FusedIncoming<T>, PathError<T>> {
         Ok(FusedIncoming::Anchored(PointIncoming::carrier(self, dp.at, tol)?))
     }
-    fn to_wire(&self, tol: Tol) -> ArcData<T> {
+    fn to_wire(&self, _tol: Tol) -> ArcData<T> {
         PointIncoming::to_wire(self)
     }
 }
@@ -962,7 +962,7 @@ impl<T: ArcCarrierScalar> LegEndIncoming<T> for Via<T, Point2<T>> {
     fn incoming(&self, dp: DirectedPoint<T>, tol: Tol) -> Result<FusedIncoming<T>, PathError<T>> {
         Ok(FusedIncoming::Anchored(PointIncoming::carrier(self, dp.at, tol)?))
     }
-    fn to_wire(&self, tol: Tol) -> ArcData<T> {
+    fn to_wire(&self, _tol: Tol) -> ArcData<T> {
         PointIncoming::to_wire(self)
     }
 }
@@ -971,7 +971,7 @@ impl<T: ArcCarrierScalar> LegEndIncoming<T> for Center<T, Point2<T>> {
     fn incoming(&self, dp: DirectedPoint<T>, tol: Tol) -> Result<FusedIncoming<T>, PathError<T>> {
         Ok(FusedIncoming::Anchored(PointIncoming::carrier(self, dp.at, tol)?))
     }
-    fn to_wire(&self, tol: Tol) -> ArcData<T> {
+    fn to_wire(&self, _tol: Tol) -> ArcData<T> {
         PointIncoming::to_wire(self)
     }
 }
@@ -981,7 +981,7 @@ impl<T: ArcCarrierScalar> LegEndIncoming<T> for Radius<T> {
         let (centre, winding) = verbs::radius_carrier(dp, *self, linear_band(tol)?)?;
         Ok(FusedIncoming::FromTip(centre, winding))
     }
-    fn to_wire(&self, tol: Tol) -> ArcData<T> {
+    fn to_wire(&self, _tol: Tol) -> ArcData<T> {
         ArcData::Radius {
             r: self.r,
             side: self.side,

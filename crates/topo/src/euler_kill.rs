@@ -279,7 +279,6 @@ use crate::euler::{EulerOpError, FaceSurface};
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::live::Live;
 use crate::provenance::Provenance;
-use geom_core::Tol;
 
 /// The outcome of one [`Body::kvfs`] call: five dead topology keys plus
 /// the reaped geometry.

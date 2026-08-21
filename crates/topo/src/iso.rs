@@ -99,7 +99,6 @@ use slotmap::SecondaryMap;
 
 use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, VertexKey};
-use geom_core::Tol;
 
 /// `true` iff the two bodies are structurally isomorphic (see the
 /// [module docs](self) for the exact relation and its limits).

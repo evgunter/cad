@@ -33,7 +33,7 @@
 
 mod revolve_common;
 
-use geom_core::{Point3, Tolerance};
+use geom_core::Point3;
 use profile::RawLoop;
 use profile::{ProfileLoop, ProfileVertex};
 use revolve_common::*;

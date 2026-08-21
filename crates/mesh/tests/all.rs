@@ -309,4 +309,3 @@ fn the_eps_inventory_is_pinned() {
          REFUSE, CLASSIFY, or SCALE a number? — then re-pin."
     );
 }
-use geom_core::Tol;

@@ -63,7 +63,6 @@ use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::sector_face::{SectorCarrier, SectorFaceError};
 use crate::sector_shape::{SectorShape, sector_shape};
 use crate::validate::decide;
-use geom_core::Tol;
 
 /// Resolves the sector face for the sector CW-after `he` (module docs:
 /// `face(loop(mate(he)))`) together with its outward normal **at the

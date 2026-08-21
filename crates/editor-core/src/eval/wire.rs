@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use geom_core::k_stats::decide;
-use geom_core::{Affine3, Band, Decide, Margin, Mat3, Point2, Point3, Sign, Tol, Tolerance, Vec2, Vec3};
+use geom_core::{Affine3, Band, Decide, Margin, Mat3, Point2, Point3, Sign, Tol, Vec2, Vec3};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::transform::transform_rigid;
@@ -1480,7 +1480,7 @@ fn section_of(
     // library door re-gates it — and the f64 canonical form yields
     // the program-anchor naming map for the loft emitter's refs.
     let resolved = program
-        .resolve(&doc.param_env::<f64>(), tol)
+        .resolve(&doc.param_env::<f64>())
         .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
     let mut loops = Vec::with_capacity(resolved.len());
     for (li, steps) in resolved.iter().enumerate() {

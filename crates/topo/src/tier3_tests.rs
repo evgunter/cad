@@ -14,7 +14,7 @@
 
 use geom::Surface;
 use geom_brep::EdgeCurveSpec;
-use geom_core::{Point3, Tolerance, Vec3};
+use geom_core::{Point3, Vec3};
 
 use crate::euler::FaceSurface;
 use crate::fixtures::test_curve;

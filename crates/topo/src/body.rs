@@ -62,7 +62,6 @@ use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::null::{CurveGeom, NullEdge, NullFacePair};
 use crate::provenance::Provenance;
 use crate::source::{GeomSource, SourceAttachError};
-use geom_core::Tol;
 
 /// Outcome of a bounded half-edge traversal (crate-internal; the public
 /// wrappers collapse the failure cases to `None`).

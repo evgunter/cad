@@ -690,7 +690,6 @@ fn res_step(
     env: &ParamEnv<f64>,
     loop_: u32,
     i: u32,
-    tol: Tol,
 ) -> Result<Step<f64>, (SlotId, EvalError)> {
     use StepArg as A;
     let pt = |p: &[Expr; 2], ax: StepArg, ay: StepArg| -> Result<Point2<f64>, _> {
@@ -710,7 +709,7 @@ fn res_step(
         ProgramStep::Turn(e) => Step::Turn(res(e, env, loop_, i, A::TurnVal)?),
         ProgramStep::Line(e) => Step::Line(res(e, env, loop_, i, A::Length)?),
         ProgramStep::LineTo(t) => Step::LineTo(res_target(t, env, loop_, i)?),
-        ProgramStep::ArcTo(spec) => Step::ArcTo(res_spec(spec, env, loop_, i, false, tol)?),
+        ProgramStep::ArcTo(spec) => Step::ArcTo(res_spec(spec, env, loop_, i, false)?),
         ProgramStep::TangentArcTo(t) => Step::TangentArcTo(res_target(t, env, loop_, i)?),
         ProgramStep::ArcContinue(p) => Step::ArcContinue(pt(p, A::TargetX, A::TargetY)?),
         ProgramStep::Fillet(e) => Step::Fillet {
@@ -718,10 +717,10 @@ fn res_step(
         },
         ProgramStep::FilletArc { radius, spec } => Step::FilletArc {
             radius: res(radius, env, loop_, i, A::Radius)?,
-            spec: res_spec(spec, env, loop_, i, true, tol)?,
+            spec: res_spec(spec, env, loop_, i, true)?,
         },
         ProgramStep::ArcFillet { spec, radius } => Step::ArcFillet {
-            spec: res_spec(spec, env, loop_, i, false, tol)?,
+            spec: res_spec(spec, env, loop_, i, false)?,
             radius: res(radius, env, loop_, i, A::Radius)?,
         },
         ProgramStep::ArcFilletArc {
@@ -729,9 +728,9 @@ fn res_step(
             radius,
             spec2,
         } => Step::ArcFilletArc {
-            spec: res_spec(spec, env, loop_, i, false, tol)?,
+            spec: res_spec(spec, env, loop_, i, false)?,
             radius: res(radius, env, loop_, i, A::Radius)?,
-            spec2: res_spec(spec2, env, loop_, i, true, tol)?,
+            spec2: res_spec(spec2, env, loop_, i, true)?,
         },
         ProgramStep::FarEndTo(p) => Step::FarEndTo(pt(p, A::PointX, A::PointY)?),
         ProgramStep::CloseTo => Step::CloseTo,
@@ -746,7 +745,6 @@ fn res_spec(
     loop_: u32,
     i: u32,
     second: bool,
-    tol: Tol,
 ) -> Result<profile::ArcData<f64>, (SlotId, EvalError)> {
     use StepArg as A;
     let pick = |a: StepArg, b: StepArg| if second { b } else { a };
@@ -814,14 +812,13 @@ impl LoopProgram {
         &self,
         env: &ParamEnv<f64>,
         loop_: u32,
-        tol: Tol,
     ) -> Result<Vec<Step<f64>>, (SlotId, EvalError)> {
         use StepArg as A;
         match self {
             LoopProgram::Chain(steps) => steps
                 .iter()
                 .enumerate()
-                .map(|(i, s)| res_step(s, env, loop_, i as u32, tol))
+                .map(|(i, s)| res_step(s, env, loop_, i as u32))
                 .collect(),
             LoopProgram::Circle { centre, radius } => Ok(vec![Step::Circle {
                 centre: Point2::new(
@@ -859,11 +856,11 @@ impl ProfileProgram {
     /// # Errors
     ///
     /// The failing slot plus the evaluator's refusal, unaltered.
-    pub fn resolve(&self, env: &ParamEnv<f64>, tol: Tol) -> Result<Vec<Vec<Step<f64>>>, (SlotId, EvalError)> {
+    pub fn resolve(&self, env: &ParamEnv<f64>) -> Result<Vec<Vec<Step<f64>>>, (SlotId, EvalError)> {
         self.loops
             .iter()
             .enumerate()
-            .map(|(li, lp)| lp.resolve(env, li as u32, tol))
+            .map(|(li, lp)| lp.resolve(env, li as u32))
             .collect()
     }
 
@@ -874,7 +871,7 @@ impl ProfileProgram {
     /// ladder per binding with full typed errors.
     pub fn check(&self, env: &ParamEnv<f64>, tol: Tol) -> Result<(), ProgramRefusal> {
         let resolved = self
-            .resolve(env, tol)
+            .resolve(env)
             .map_err(|(slot, source)| ProgramRefusal::Resolve { slot, source })?;
         let mut loops = Vec::with_capacity(resolved.len());
         for (li, steps) in resolved.iter().enumerate() {

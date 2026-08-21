@@ -49,7 +49,7 @@ struct StubStore {
 
 impl StubStore {
     fn insert(&mut self, doc: ProfileDoc, tol: Tol) -> DocRef {
-        let pin = content_pin(&doc, Tol::witness()).expect("the pin computes");
+        let pin = content_pin(&doc, tol).expect("the pin computes");
         let id = doc.id();
         self.docs.insert(id, doc);
         DocRef { id, pin }
@@ -846,11 +846,11 @@ fn the_named_gather_agrees_with_the_plain_one() {
 
 /// The innermost cause of a chained seam fault — what the author has
 /// to be told, however many documents down it lies.
-fn root_cause(fault: &PartFault, tol: Tol) -> &PartFault {
+fn root_cause(fault: &PartFault) -> &PartFault {
     match fault {
         PartFault::PartRootFailed {
             cause: Some(inner), ..
-        } => root_cause(inner, Tol::witness()),
+        } => root_cause(inner),
         other => other,
     }
 }
@@ -905,7 +905,7 @@ fn r1_a_reference_cycle_refuses_naming_the_loop() {
     // Terminates at the FIRST revisit — the guard is structural, not a
     // depth counter waiting 1024 levels out.
     let fault = part_fault(&run(&doc, &opts), ids[0]);
-    match root_cause(&fault, Tol::witness()) {
+    match root_cause(&fault) {
         PartFault::ReferenceCycle { cycle } => {
             assert_eq!(
                 cycle,

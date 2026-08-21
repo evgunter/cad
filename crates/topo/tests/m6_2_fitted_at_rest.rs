@@ -38,7 +38,7 @@
 mod fixture;
 
 use geom_brep::{EnvelopeStatement, Pcurve};
-use geom_core::{Band, Tolerance};
+use geom_core::Band;
 use geom_core::Tol;
 
 /// The full at-rest run at `f64`: build, validate, and read the

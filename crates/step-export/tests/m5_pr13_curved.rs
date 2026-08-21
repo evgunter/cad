@@ -64,7 +64,6 @@ use std::collections::HashMap;
 
 use geom::Curve3;
 use geom::Surface;
-use geom_core::Tolerance;
 use step_export::{StepExportError, StepOptions, step_string};
 use geom_core::Tol;
 

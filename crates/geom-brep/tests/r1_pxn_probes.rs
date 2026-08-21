@@ -23,7 +23,7 @@ use geom::NurbsCurve3;
 use geom::{NurbsSurface, Surface};
 use geom_brep::{EdgeNurbsLane, PlaneNurbsRefusal};
 use geom_core::spline::KnotVector;
-use geom_core::{Band, Point3, Tolerance, Vec3};
+use geom_core::{Band, Point3, Vec3};
 use geom_core::Tol;
 
 fn quarter_cylinder_wall() -> NurbsSurface<f64> {

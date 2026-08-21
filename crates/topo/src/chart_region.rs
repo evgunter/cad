@@ -96,7 +96,6 @@ use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, LoopKey};
 use crate::null::CurveGeom;
 use crate::ray_parity::{self, ParityRows};
 use crate::validate::decide;
-use geom_core::Tol;
 
 /// The certified overlap answer (both outcomes are *definite*; every
 /// non-definite configuration is a typed error).

@@ -61,7 +61,7 @@
 //! rule.
 
 use geom_core::k_stats::decide;
-use geom_core::{Tol, Band, Bounds, Decide, Margin, Point2, Real, Sign, Tolerance, Vec2};
+use geom_core::{Tol, Band, Bounds, Decide, Margin, Point2, Real, Sign, Vec2};
 
 use super::{ArcData, Dir, PathError, PathNoCornerReason};
 use crate::fillet_select::nearest_joint;

@@ -1017,7 +1017,7 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             if slot.is_structural() {
                 return Err(EditError::StructuralSlotNeedsStructuralEdit { slot: *slot });
             }
-            set_slot(&mut new, *node, *slot, expr, tol)?;
+            set_slot(&mut new, *node, *slot, expr)?;
             check_profile_after_slot_edit(&new, *node, *slot, tol)?;
             EditRecord {
                 minted: None,
@@ -1028,7 +1028,7 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             if !slot.is_structural() {
                 return Err(EditError::NotStructuralSlot { slot: *slot });
             }
-            set_slot(&mut new, *node, *slot, expr, tol)?;
+            set_slot(&mut new, *node, *slot, expr)?;
             EditRecord {
                 minted: None,
                 structural: true,
@@ -1049,7 +1049,7 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
                 .ok_or_else(|| EditError::PathOffTree { path: path.clone() })?
                 .map_err(EditError::Dimension)?;
             let structural = path.slot.is_structural();
-            set_slot(&mut new, path.node, path.slot, &rebuilt, tol)?;
+            set_slot(&mut new, path.node, path.slot, &rebuilt)?;
             check_profile_after_slot_edit(&new, path.node, path.slot, tol)?;
             EditRecord {
                 minted: None,
@@ -1446,7 +1446,6 @@ fn set_slot<P: Clone + crate::ProfilePayload>(
     id: RecipeNodeId,
     slot: SlotId,
     expr: &Expr,
-    tol: Tol,
 ) -> Result<(), EditError> {
     let Some(node) = new.nodes.get(&id) else {
         return Err(EditError::UnknownNode { id });

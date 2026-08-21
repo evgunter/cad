@@ -231,4 +231,3 @@ mod certified {
         );
     }
 }
-use geom_core::Tol;

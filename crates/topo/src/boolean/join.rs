@@ -1334,7 +1334,7 @@ fn resolve_roles_geometric<T: Decide>(
         /// and 2 sit ON the region boundary by construction (the
         /// trilean's `OnBoundary` skips the ones that matter); tiers 3
         /// and 4 are GUESSES until a reified predicate certifies them.
-        fn needs_interior_certificate(self, tol: Tol) -> bool {
+        fn needs_interior_certificate(self) -> bool {
             matches!(self, Anchor::RegionInterior | Anchor::RegionVertexChord)
         }
     }
@@ -1410,7 +1410,7 @@ fn resolve_roles_geometric<T: Decide>(
                             .collect(),
                     };
                     for p in cands {
-                        if anchor.needs_interior_certificate(tol) {
+                        if anchor.needs_interior_certificate() {
                             // The normal is only a projection frame for
                             // `point_in_face`'s ray parity, which is
                             // blind to its sign; `face_plane` hands out

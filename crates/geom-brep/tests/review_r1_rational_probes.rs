@@ -26,7 +26,7 @@
 use geom_brep::props::PropsError;
 use geom_brep::props::quad::nurbs_patch_face;
 use geom_core::spline::KnotVector;
-use geom_core::{Band, MarginDiag, RingInterval, Tolerance};
+use geom_core::{Band, MarginDiag, RingInterval};
 use geom_core::Tol;
 
 fn band() -> Band {

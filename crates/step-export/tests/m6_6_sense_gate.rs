@@ -76,7 +76,7 @@ fn flip_all(body: &Body<f64>) -> Body<f64> {
 /// whose material lies radially OUTSIDE it, so S11 mints `sense:
 /// false` with the winding still interior-left.
 fn countersink() -> Body<f64> {
-    use geom_core::Tolerance;
+    
     use profile::{Profile, ProfileLoop, SketchPlane};
     use sweep::{Revolution, RevolveAxis, revolve};
     let lp = ProfileLoop::polygon([

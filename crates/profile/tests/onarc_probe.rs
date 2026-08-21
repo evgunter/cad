@@ -7,7 +7,7 @@
 //! and validates.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Tolerance};
+use geom_core::Point2;
 use profile::{ArcSide, ArcSweep, Center, Open, Profile, Radius, SketchPlane, Start};
 use geom_core::Tol;
 

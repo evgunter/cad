@@ -16,7 +16,7 @@ use core::f64::consts::PI;
 use profile::RawLoop;
 
 use geom::Surface;
-use geom_core::{Point2, Point3, Tolerance, Vec2, Vec3};
+use geom_core::{Point2, Point3, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Revolution, RevolveAxis, TubeError, TubeWindow, revolve, tube_along_arc};
 use topo::Body;

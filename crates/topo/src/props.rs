@@ -452,7 +452,7 @@ where
         _outer: &[LoopEdge<Self>],
         _hes: &[HalfEdgeKey],
         _band: Band,
-        tol: Tol,
+        _tol: Tol,
     ) -> Result<Option<FaceCutBounds>, PropsError> {
         Ok(None)
     }
@@ -480,7 +480,7 @@ mod quad_lane {
     // (2026-08-19) and still may not certify.
     use geom::Curve3;
     use geom::Surface;
-    use geom_core::{Band, Bounds, CertifiedEnclosure, Decide, Point3, Tolerance};
+    use geom_core::{Band, Bounds, CertifiedEnclosure, Decide, Point3};
 
     use crate::body::Body;
     use crate::entity::HalfEdgeKey;

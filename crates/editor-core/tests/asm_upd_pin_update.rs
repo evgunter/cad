@@ -48,7 +48,7 @@ struct VersionShelf {
 impl VersionShelf {
     /// Shelves `doc` under its own true pin and returns the reference.
     fn shelve(&mut self, doc: ProfileDoc, tol: Tol) -> DocRef {
-        let pin = content_pin(&doc, Tol::witness()).expect("the pin computes");
+        let pin = content_pin(&doc, tol).expect("the pin computes");
         let id = doc.id();
         self.docs.insert((id, pin), doc);
         DocRef { id, pin }

@@ -52,7 +52,6 @@ use crate::contact::ContactVerdict;
 use crate::validate::decide;
 
 use super::plane_eq::{PlaneDesc, PlaneIdentity, oriented_plane_eq_verdict};
-use geom_core::Tol;
 
 /// The relation between two oriented carriers: the three outcomes
 /// every kind's ladder produces.

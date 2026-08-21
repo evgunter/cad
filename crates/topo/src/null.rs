@@ -62,7 +62,6 @@ use crate::entity::{EntityId, FaceKey, LoopKey, VertexKey};
 use crate::euler::ArenaDelta;
 use crate::euler::{EulerOpError, MevCreated, MevSite};
 use crate::provenance::Provenance;
-use geom_core::Tol;
 
 /// The F9 typed attribute of a null (zero-length) edge: **which side
 /// each end faces is data**. The two end vertices are geometrically

@@ -69,7 +69,6 @@ use geom::Surface;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use crate::dihedral::decide;
-use geom_core::Tol;
 
 /// Typed failure of [`newell_plane`] (closed enum, D4 ¶3).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -178,7 +177,7 @@ pub fn newell_plane<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use geom_core::Tol;
-    use geom_core::Tolerance;
+    
 
     use super::*;
 

@@ -19,7 +19,6 @@ use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
 
 use super::{FaceContribution, LoopEdge, PropsError, loop_vector_area};
 use crate::dihedral::decide;
-use geom_core::Tol;
 
 /// The flux and area of a curved face from its **outer** loop (curved
 /// M2 faces carry no rings — the owning body refuses ringed curved

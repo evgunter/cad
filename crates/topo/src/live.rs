@@ -33,7 +33,6 @@ use crate::body::Body;
 use crate::entity::{EntityId, HalfEdge, HalfEdgeKey};
 use crate::euler::EulerOpError;
 use geom_core::Real;
-use geom_core::Tol;
 
 /// A [`HalfEdgeKey`] a lookup has returned — see the [module
 /// docs](self) for the precise claim and its one residue.

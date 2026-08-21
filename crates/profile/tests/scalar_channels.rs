@@ -16,7 +16,6 @@ use common::{
 use geom_core::{Dual, Dual64, Sign};
 use profile::RawLoop;
 use profile::{LoopRole, SegmentKind, ValidatedProfile};
-use geom_core::Tol;
 
 /// The decision skeleton of a canonical form: roles, per-segment kind
 /// and turn, and the value-channel bits of every canonical vertex — the

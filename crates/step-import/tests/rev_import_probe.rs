@@ -130,7 +130,7 @@ fn cone_trunc_flipped_wall_refuses() {
 /// volume is winding-derived (bit-free). Does anything refuse?
 #[test]
 fn conic_trimmed_flip_slips_both_gates() {
-    use geom_core::{Point2, Point3, Tolerance, Vec3};
+    use geom_core::{Point2, Point3, Vec3};
     use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
     use sweep::{Extrusion, extrude};
     use topo::splitting::{SplitPart, SplitPlane, split};

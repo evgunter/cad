@@ -4,7 +4,7 @@
 //! four equal-span rim arcs on one face — the first-arc rule sees
 //! consistent dts and returns HALF the true du.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-use geom_core::{Point2, Tolerance};
+use geom_core::Point2;
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, extrude};

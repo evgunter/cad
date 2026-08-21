@@ -99,7 +99,6 @@ use geom_core::spline::{KnotVector, Span};
 use geom_core::{Band, Decide, Margin, Sign};
 
 use super::PropsError;
-use geom_core::Tol;
 
 /// The initial piece count of the composite rule (round 0).
 const QUAD_INIT_PIECES: usize = 16;
@@ -2661,7 +2660,7 @@ pub fn nurbs_patch_face<T: Decide>(
 mod tests {
     use geom_core::Tol;
     use super::*;
-    use geom_core::Tolerance;
+    
 
     /// The corpus's declared ambient uncertainty — the ε the fixed
     /// quadrature schedule (D9) is dimensioned for, and the boundary

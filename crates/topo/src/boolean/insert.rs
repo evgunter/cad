@@ -41,7 +41,6 @@ use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey, VertexKey};
 use crate::euler::MevSite;
 use crate::null::{NewVertexSide, NullEdge};
-use geom_core::Tol;
 
 /// Output of one vertex-pair insertion.
 #[derive(Debug)]

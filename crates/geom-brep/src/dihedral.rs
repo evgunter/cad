@@ -72,7 +72,6 @@ use geom::Surface;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign};
 
 use crate::implicit::{curvature_lever_arm, implicit_gradient};
-use geom_core::Tol;
 
 /// A definite dihedral classification (the indeterminate outcome is the
 /// typed [`Indeterminate`] error — the sliver escalation, D4 ¶3).
@@ -169,7 +168,7 @@ pub fn classify_dihedral<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use geom_core::Tol;
-    use geom_core::{Point3, Tolerance, Vec3};
+    use geom_core::{Point3, Vec3};
 
     use super::*;
 

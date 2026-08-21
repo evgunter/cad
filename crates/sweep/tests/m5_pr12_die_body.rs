@@ -13,7 +13,7 @@
 use core::f64::consts::PI;
 
 use geom_brep::EdgeGeometry;
-use geom_core::{Band, Tolerance};
+use geom_core::Band;
 use sweep::fillet::{FilletError, Filleted, fillet_edges};
 use sweep::test_support::cube;
 use topo::{Body, EdgeKey, FaceKey};

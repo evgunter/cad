@@ -122,7 +122,6 @@ use crate::boolean::{ContactRecords, ContainError, FaceContainment, contfp};
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, VertexKey};
 use crate::null::CurveGeom;
 use crate::validate::{CensusContact, StaleDeclaration, ValidationError, decide};
-use geom_core::Tol;
 
 /// One edge's exact census geometry (post-gate: a `Line` carrier).
 struct EdgeGeo<T: Real> {

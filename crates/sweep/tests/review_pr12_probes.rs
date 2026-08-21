@@ -2,7 +2,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
 use core::f64::consts::PI;
-use geom_core::{Affine3, Band, Point2, Point3, Tolerance, Vec2, Vec3};
+use geom_core::{Affine3, Band, Point2, Point3, Vec2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::fillet::battery::{FilletRequest, run_battery};

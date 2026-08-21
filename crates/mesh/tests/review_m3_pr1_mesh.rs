@@ -4,7 +4,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Tolerance};
+use geom_core::Point2;
 use mesh::{TessellateError, tessellate};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};

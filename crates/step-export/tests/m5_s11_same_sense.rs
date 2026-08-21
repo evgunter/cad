@@ -29,7 +29,7 @@ mod common;
 
 use core::f64::consts::FRAC_PI_8;
 
-use geom_core::{Point2, Tolerance};
+use geom_core::Point2;
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use step_export::{StepOptions, step_string};
 use sweep::{Extrusion, extrude};

@@ -11,7 +11,6 @@ use geom::NurbsCurve3;
 use geom::curves::compose::{ComposeError, SeamSide, compose_chain};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point3, Vec3};
-use geom_core::Tol;
 
 /// A pure band, per the geom-core test discipline (never
 /// `Band::linear(Tol::witness())` in a test: it forces the global `Tolerance`).

@@ -14,7 +14,6 @@ use profile::ValidatedProfile;
 
 use super::{RevolveAxis, RevolveError, SweptSeg};
 use crate::swept::{SweptKind, arc_apex, arc_span, decide};
-use geom_core::Tol;
 
 /// The classified axis in both coordinate systems: the sketch-plane
 /// line plus its placed 3-D frame. `a3`/`u3` are the **shared
@@ -538,7 +537,7 @@ pub(super) fn analyze_contact<T: Real>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use geom_core::Tol;
-    use geom_core::Tolerance;
+    
     use profile::RawLoop;
     use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 

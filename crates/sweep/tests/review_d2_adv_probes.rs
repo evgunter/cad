@@ -55,7 +55,7 @@
 
 use core::f64::consts::PI;
 
-use geom_core::{Affine3, Band, Point2, Tolerance, Vec2, Vec3};
+use geom_core::{Affine3, Band, Point2, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::fillet::{FilletError, fillet_edges};
 use sweep::test_support::cube;

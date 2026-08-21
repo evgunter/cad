@@ -47,7 +47,6 @@ use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point3, Sign, Ve
 
 use super::SplitPlane;
 use crate::validate::decide;
-use geom_core::Tol;
 
 /// The exact-order band (module docs; identical to profile's).
 ///

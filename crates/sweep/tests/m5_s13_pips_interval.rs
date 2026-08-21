@@ -139,4 +139,3 @@ mod certified {
         encloses(v_cut + v_met, 16.0, "∖/∩ additivity");
     }
 }
-use geom_core::Tol;

@@ -47,7 +47,6 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 use crate::contact::ContactVerdict;
 use crate::source::GeomSource;
 use crate::validate::decide;
-use geom_core::Tol;
 
 /// The relation between two oriented planes — the PLANE SPELLING of
 /// the one carrier verdict.

@@ -49,7 +49,6 @@ use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::sector_face::{SectorCarrier, SectorFaceError};
 use crate::sector_shape::{SectorShape, sector_shape};
 use crate::validate::decide;
-use geom_core::Tol;
 
 /// One (convex) sector of a vertex neighborhood.
 #[derive(Clone, Debug)]

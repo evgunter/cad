@@ -20,7 +20,6 @@ use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
 use super::role::{EntityKind, StableName};
 use super::table::{DuplicateName, EntityKey, EntityRef, NameTable};
 use crate::node::RecipeNodeId;
-use geom_core::Tol;
 
 /// Typed failure of name emission (spec D4's loud assertions, as
 /// in-band errors — this crate has no panic paths). Every variant is

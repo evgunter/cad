@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 
 use geom::Surface;
-use geom_core::{Tol, Tolerance};
+use geom_core::Tol;
 use topo::Body;
 
 use crate::chords::{compute_chords, edge_vertices};

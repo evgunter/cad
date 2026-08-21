@@ -15,7 +15,7 @@
 use core::f64::consts::FRAC_PI_2;
 
 use geom::Surface;
-use geom_core::{Affine3, Point2, Point3, Tolerance, Vec3};
+use geom_core::{Affine3, Point2, Point3, Vec3};
 use mesh::cert::dist_point_triangle;
 use mesh::validate::{check_mesh, signed_volume, triangle_count};
 use sweep::{SketchSegment, loft_body, segment_curve, sweep_body};

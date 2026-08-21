@@ -19,7 +19,7 @@
 
 use geom_brep::ssi::{self, BranchEnd, SSI_MAX_FIT_SAMPLES, SsiDomain, SsiError};
 use geom_core::tolerance::DEFAULT_EPS;
-use geom_core::{Band, Point3, Tolerance, Vec3};
+use geom_core::{Band, Point3, Vec3};
 use test_utils::vacuity;
 use geom_core::Tol;
 

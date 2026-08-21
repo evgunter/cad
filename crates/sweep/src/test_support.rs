@@ -40,7 +40,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use geom_core::{Band, Point2, Tolerance};
+use geom_core::{Band, Point2};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use topo::{Body, EdgeKey};
 

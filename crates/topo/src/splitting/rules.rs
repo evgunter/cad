@@ -117,7 +117,6 @@ use super::{PlaneSide, SectorEntry, SplitPlane, SplitReduceError};
 use crate::body::Body;
 use crate::entity::{FaceKey, VertexKey};
 use crate::validate::decide;
-use geom_core::Tol;
 
 /// Rule (a): reclassify both bounding entries of every
 /// plane-coplanar sector (module docs for the derivation). Sweeps

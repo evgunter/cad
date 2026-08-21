@@ -70,7 +70,6 @@ use crate::contact::{ContactClass, ContactRefusal, ContactVerdict, FIT_DEFERRAL}
 use crate::entity::FaceKey;
 
 use super::carrier_eq::{CarrierEqError, CarrierRelation};
-use geom_core::Tol;
 
 /// **The class-dispatching contact door**: does this face pair hold
 /// the declared contact, and on whose evidence?

@@ -16,7 +16,7 @@ use std::fmt::Write as _;
 use geom::Curve3;
 use geom::Surface;
 use geom_core::spline::KnotVector;
-use geom_core::{Point3, Tolerance, Vec3};
+use geom_core::{Point3, Vec3};
 use topo::{Body, CurveGeom, Edge, EdgeKey, FaceKey, LoopBoundary, LoopKey, ShellKey, VertexKey};
 
 use crate::real::fmt_real;

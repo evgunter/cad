@@ -20,7 +20,7 @@
 mod common;
 
 use common::pinned;
-use geom_core::{Point2, Tolerance};
+use geom_core::Point2;
 use profile::path::{HasAng, HasPos, WithIncoming};
 use profile::{Open, PartialPath, PathError, Profile, ProfileLoop, SketchPlane, Start};
 use proptest::prelude::*;

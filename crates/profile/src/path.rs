@@ -341,7 +341,7 @@ use crate::RawLoop;
 use core::marker::PhantomData;
 
 use geom_core::k_stats::decide;
-use geom_core::{Tol, Band, Decide, Indeterminate, Margin, Point2, Real, Sign, Tolerance, Vec2};
+use geom_core::{Tol, Band, Decide, Indeterminate, Margin, Point2, Real, Sign, Vec2};
 
 use crate::path::program::{ClosedLoop, Step, Target};
 use crate::sugar::{

@@ -18,7 +18,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Band, Tolerance};
+use geom_core::Band;
 use sweep::fillet::build::fillet_edges;
 use sweep::fillet::{
     FILLET3_ASSEMBLY_RECOURSE, FILLET3_BODY_RECOURSE, FILLET3_CHAIN_RECOURSE,

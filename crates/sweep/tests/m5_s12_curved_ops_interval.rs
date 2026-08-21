@@ -285,4 +285,3 @@ mod certified {
         assert!(topo::subtract(&plate(), &boss(0.3, 1.0)).is_ok());
     }
 }
-use geom_core::Tol;

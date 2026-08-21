@@ -8,7 +8,7 @@
 use core::f64::consts::PI;
 use profile::RawLoop;
 
-use geom_core::{Affine3, Band, Point2, Point3, Tolerance, Vec3};
+use geom_core::{Affine3, Band, Point2, Point3, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::fillet::FilletError;
 use sweep::fillet::build::fillet_edges;

@@ -4,7 +4,7 @@
 #![allow(dead_code)] // each test binary uses a subset
 
 use geom_brep::EdgeGeometry;
-use geom_core::{Point2, Point3, Tolerance, Vec2};
+use geom_core::{Point2, Point3, Vec2};
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
 use sweep::RevolveAxis;
 use topo::{Body, EdgeKey, LoopBoundary, LoopKey, validate, validate_closed, validate_geometric};

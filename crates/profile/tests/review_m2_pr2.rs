@@ -40,7 +40,6 @@ use profile::{
     ArcSweep, ContactKind, LoopRole, ProfileError, ProfileLoop, ProfileVertex, SegmentKind,
     SegmentRef, ValidatedProfile, bulge_from_center, bulge_from_via,
 };
-use geom_core::Tol;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
