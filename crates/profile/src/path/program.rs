@@ -203,7 +203,7 @@ pub enum ArcData<T: Real> {
 /// — rustc enforces it at each of those matches — but it is bought by
 /// hand at every site, not projected from one declaration. That the
 /// two vocabularies are unified to different depths is smell-scan
-/// **S193**.
+/// **S195**.
 ///
 /// # What the table does not reach
 ///
