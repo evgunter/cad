@@ -105,11 +105,17 @@ waiting for a second CI run** (Evan, 2026-08-20).
 | # | The question | Ruling | By |
 |---|---|---|---|
 | **G-R1** | **G2's note says S113(a)(b) collide with Track E's E-b on `demos/tour/Cargo.toml`**, and routes them to E-b to be consumed back. | **The collision does not exist, and there is nothing to consume.** E-b is **#763**, and its file set was read from the branch rather than from §D's Scope cell: sixteen files — thirteen `crates/*/tests/all.rs`, `geom-core/tests/tolerance_init.rs`, `step-import/tests/tier_gate.rs`, `topo/tests/common/mod.rs`, plus `docs/K-REPORT.md` and the scan doc. **Nothing under `demos/`.** S113(a)(b) stay with G2 and are its work. Recorded rather than silently acted on, because a §D cell is a claim site (`SMELL-C-LOG` C-R11) and this is the third such cell on this scan found describing a branch nobody opened. | orchestrator, 2026-08-20 |
-| **G-R2** | **G10 says *"three of them are Track C's … the rest are free"*, and the same section's rides-along paragraph says S112(a) is Track E's E-g.** Both cannot be operative, and the row's member count decides how it retires. | **The rides-along paragraph is right; G10's sentence over-counts by one.** S112's eight members: **(a)** `sweep/src/fillet/naming.rs` → **E-g**; **(d)** and **(e)** `geom-brep/` → **Track C**; **(b)** and **(c)** `interval-transcendentals/` → **G-a**, which owns that workspace; **(f)** `profile/src/sugar.rs` → **G-d**, which is already in that file for G5; **(h)** `demos/render.py` → **G-b**, which §D already names. **(g)** `crates/pncad/src/lib.rs` is the only member with no other home. **G10 is therefore re-scoped to (g) plus the class ledger**, and assigned to **G-d**: it closes (f) and (g) in its own files and records at S112 *which lane and which PR* closed each of the eight members. **The row leaves §D when that ledger is complete, not when G-d's own member lands** — a class row retiring on its leader's member is §C13's half-fix, and this document exists partly to stop minting those. | orchestrator, 2026-08-20 |
+| **G-R2** | **G10 says *"three of them are Track C's … the rest are free"*, and the same section's rides-along paragraph says S112(a) is Track E's E-g.** Both cannot be operative, and the row's member count decides how it retires. | **The rides-along paragraph is right; G10's sentence over-counts by one.** S112's eight members: **(a)** `sweep/src/fillet/naming.rs` → **E-g**; **(d)** and **(e)** `geom-brep/` → **Track C**; **(b)** and **(c)** `interval-transcendentals/` → **G-a**, which owns that workspace; **(f)** `profile/src/sugar.rs` → **G-d**, which is already in that file for G5; **(h)** `demos/render.py` → **G-b**, which §D already names. **(g)** `crates/pncad/src/lib.rs` is the only member with no other home. **G10 is therefore re-scoped to (g) plus the class ledger**, and assigned to **G-d**: it closes (f) and (g) in its own files and records at S112 *which lane and which PR* closed each of the eight members. **The row leaves §D when that ledger is complete, not when G-d's own member lands** — a class row retiring on its leader's member is §C13's half-fix, and this document exists partly to stop minting those. | **AMENDED 2026-08-21 — this ruling was wrong on member (a), and lane G-d refused to execute it rather than complying.** I routed **S112(a)** to Track E's **E-g**. **E-g landed as #768, its own §D row says S112(a) is not in it, and that row is now struck** — so (a) is owned by nothing. Verified at source before accepting: `sweep/src/fillet/naming.rs:35` still says *"It reads every field EXCEPT [`Retired`]"* while `editor-core/src/names/emit_fillet.rs` builds and consults `retired_e`/`retired_v` in four places. The defect is live and unfixed. **The same struck sentence orphaned `S111(a)(b)(d)` and `S75`**, two of which the lane re-derived and found standing. **Second correction:** the over-count is in *"three of them are Track C's"*, not in *"the rest are free"* — Track C holds **two**, (d) and (e), and the third body in that parenthetical is (e)'s *second file* counted as a member. My conclusion survives both; only its location moves. **What the lane did with this is the part worth keeping:** the ruling said G10 retires when the ledger is complete, and the ledger proved two members have no home — so **it left the row in §D, re-scoped to the residue, and recorded the orphaning as a class (S177) with a row (D114) it deliberately did not take**, because re-homing another track's findings is not a lane's act. **A ruling that would have produced a half-fix was refused by the lane the ruling bound.** That is the mechanism working exactly as intended, and it is the third time this session a lane has corrected this orchestrator from the tree. | orchestrator, 2026-08-20; amended 2026-08-21 |
 | **G-R3** | **G1 must edit `.github/workflows/ci.yml`** — S72's overreach claim is at `:1097-1099` and S112(b)'s stale *"stays a by-hand gate"* at `:1106-1107` — and Track E's **#753** holds that file. Track F treated an overlap on `ci.yml` as a hard gate (F-R1). | **G-a opens, and declares the fence rather than assuming it.** #753's `ci.yml` diff is **two hunks**, re-derived from the branch: `:73-79` (the mold retirement comment's script path) and `:302-308` (the test-aggregation step). G1's sites are ~790 lines away, in the `oracle-*` job region. F-R1's gate was real because F8's fix *lands in* the hunk #753 rewrites; this one does not, and holding an edge-free row against a disjoint hunk in a 2000-line file is how a register stops executing (§C3). **The fence is the lane's to publish**: its PR says its `ci.yml` edits are confined to the `oracle-certify` / `oracle-inari` job comments, and that it touched neither the gate roster nor the test-aggregation step. If a conflict arrives anyway, merge `origin/main` — the recorded remedy, and cheap here. | orchestrator, 2026-08-20 |
-| **G-R4** | **G8 and G9 both name `topo/src/chord_join.rs`.** §D carries no edge between them. | **G-f (G8) opens first; G9 sequences behind it, and they are not merged.** The two questions are different kinds: G8's is *does `chord_join::face_plane_normal`'s missing `sense_sign` matter, given it feeds `point_in_loop` for ring re-homing* — a predicate, and G8's own row already requires it be a **separate adversarial sub-unit**. G9's is *does the module header's top-level-sibling argument survive its own imports from `splitting/`* — a paragraph. Folding them puts an adversarial correctness unit inside a doc edit, which is exactly what the row forbids one level down. | orchestrator, 2026-08-20 |
-| **G-R5** | **S67 quotes `face_normal.rs:26-31` as *"Three such sites exist and are NAMED (smell-scan D6: …)"*.** That sentence is not in the tree. | **The quote is a paraphrase; the substance holds, and the brief quotes the tree.** What `face_normal.rs:26-31` actually says is *"**"One door" is true of these consumers, not of the workspace.** `boolean::solid_contain::face_plane`, `chord_join`'s `face_plane_normal` and `merge_faces.rs` each still carry their own hand-multiply (smell-scan D6)."* — three sites named, `chord_join` among them, so the finding's defect is intact: `chord_join.rs:2020-2026` returns the raw chart normal with **no `sense_sign` at all** (verified), and the paragraph's *"naming them here rather than leaving the claim unqualified is the point"* is what makes an inaccurate list the whole gap. **A brief is a claim site**; three of five briefs in one session on another track carried a citation that did not resolve, and this one would have made a lane rewrite a sentence that does not exist. | orchestrator, 2026-08-20 |
+| **G-R4** | **G8 and G9 both name `topo/src/chord_join.rs`.** §D carries no edge between them. | **The G8 lane opens first; G9 sequences behind it, and they are not merged.** *(This ruling originally said "G-f (G8)", from the planning table since deleted; G8 was dispatched as **G-g**. Rewritten to name the row rather than a letter — a ruling that outlives a roster should not depend on one.)* The two questions are different kinds: G8's is *does `chord_join::face_plane_normal`'s missing `sense_sign` matter, given it feeds `point_in_loop` for ring re-homing* — a predicate, and G8's own row already requires it be a **separate adversarial sub-unit**. G9's is *does the module header's top-level-sibling argument survive its own imports from `splitting/`* — a paragraph. Folding them puts an adversarial correctness unit inside a doc edit, which is exactly what the row forbids one level down. | orchestrator, 2026-08-20 |
+| **G-R5** | **S67 quotes `face_normal.rs:26-31` as *"Three such sites exist and are NAMED (smell-scan D6: …)"*.** That sentence is not in the tree. | **The quote is a paraphrase; the substance holds, and the brief quotes the tree.** What `face_normal.rs:26-31` actually says is *"**"One door" is true of these consumers, not of the workspace.** `boolean::solid_contain::face_plane`, `chord_join`'s `face_plane_normal` and `merge_faces.rs` each still carry their own hand-multiply (smell-scan D6)."* — three sites named, `chord_join` among them, so the finding's defect is intact: `chord_join.rs:2020-2026` returns the raw chart normal with **no `sense_sign` at all** (verified), and the paragraph's *"naming them here rather than leaving the claim unqualified is the point"* is what makes an inaccurate list the whole gap. **A brief is a claim site**; three of five briefs in one session on another track carried a citation that did not resolve, and this one would have made a lane rewrite a sentence that does not exist. | **AMENDED 2026-08-20 — this ruling was half wrong, and lane G-g caught it by re-deriving rather than complying.** The sentence **is** in the tree, **verbatim**, at `face_normal.rs:93-98` — the guard test's gap-#1 bullet, which the finding itself cites as `:88-92`. So it was a **line-number misattribution, not a paraphrase**, and my correction was itself the thing it warned about: a claim about the tree made without re-deriving it. Worse for the original ruling and better for the finding: `:26-31` held a **second copy** of the same three names, and a **third** sat at `boolean/reduce.rs:248-251`, which the finding never named. The lane also found three of the finding's five "unlisted" citations off — `rest.rs:512` is the `let sign =` binding (the multiply is `:521`), `validate.rs` is `:2168` not `:2161`, and **`props.rs:264` is not a normal multiply at all** (the ±1 is an argument to `curved_face`'s closed form). **Both corrections verified from the tree by the orchestrator before acceptance.** The finding's shape held; its count was **low, not high**. | orchestrator, 2026-08-20 |
 | **G-R6** | **G7's gate on Track E's E-e**, which §D states as *"partly collides … sequence after it"* without naming the file or the PR. | **Confirmed, and it is a file-overlap gate, not a dependency one.** E-e is **#767**, open, in `editor-core/src/eval/`; S106's own load-bearing citation is `editor-core/src/eval/mod.rs:1565-1730` (`feed_step`, the one cross-crate copy that breaks loudly). Same file. **G7 waits for #767 to land**, and per Track E's own E-R4 a lane that later disproves the *reason* for a gate has not disproved the gate — re-read #767's head, not this sentence. | orchestrator, 2026-08-20 |
+| **G-R8** | **May `interval-transcendentals`' `DInterval::intersection` be deleted?** S111(c) reads as a deletion warrant — *"outside the crate's declared scope, in neither of `docs/inventory.md`'s lists, and **zero call sites anywhere** (every other public method has 1–1375)"* — and the orchestrator put that framing to Evan as a small take-it-unless-you-object. Evan pushed back: *"is that making it private, or deleting functionality? i also don't really see the benefit of either?"* | **No, and the finding does not survive contact with the tree.** Three corrections, all from `interval-transcendentals/` itself. **(a)** `docs/semantics-diffs.md` §D7 documents the `Trv` cap in full, and **`intersection` is load-bearing inside `hull`'s justification**: §D7's subject is that `hull()` deliberately diverges from 1788 by keeping `min(dec)`, and its stated recourse for a consumer wanting 1788-strict behaviour is that they *"can call `intersection`-style code or drop the decoration themselves."* Deleting it removes the thing a surviving argument points at — **S74's mechanism, committed on the track constituted to catch it.** **(b)** *"Zero call sites anywhere"* is false **as stated**: five, at `ops.rs:196-209`, in `intersection_trv_cap_and_taxonomy`, which pins the `Trv` cap, the empty/disjoint taxonomy and NaI propagation. **AMENDED 2026-08-20, and the amendment matters more than the original point** — #786's style reviewer ran `git grep '\.intersection('` over the whole tree and got **only that `#[cfg(test)]` block**, and the lane's own new inventory table honestly records `intersection | none today`. So the finding's diagnostic — *a `pub` function with no production caller* — was **correct about the code**; what it got wrong was only the **remedy**, because §D7 points at it. My ruling said *"the finding does not survive contact with the tree"*, which overstates it, and the lane wrote that overstatement into the register before the reviewer caught it. **The lane has withdrawn it at the finding, in the PR body and in its Landings row.** This is G-R9's shape a third time and the first instance where the unchecked claim was *mine and exculpatory* — a correction that made my own earlier error look smaller than it was. **(c)** The surviving half indicts the **document**: `inventory.md`'s exact-surface list omits `hull` too, and `hull` is unquestionably used — so the finding's own diagnostic convicts a function nobody would delete. **Disposition:** inventory both set ops (or narrow the scope sentence to what it actually claims), and treat **S116(r)** as what it now is — *a pointer problem, not a missing caveat*: §D7 has the analysis, and the reader who needs it is at the type or at `geom-core/src/interval.rs:135-143`. **Do not restate §D7 at the type**; a second home for that argument is S13's defect. | orchestrator, from Evan's question, 2026-08-20 |
+| **G-R9** | **What G-R8 is an instance of.** Two of this track's first three rulings and now a third are the same shape: a finding's citation or count did not survive being checked (**G-R1** a collision that does not exist, **G-R5** a quoted sentence not in the tree, **G-R8** a call-site count off by five and a deletion warrant that inverts). | **The dispatcher checks a finding's *warrant*, not only its line numbers, before building a brief on it.** The reviewer brief already says *"the dispatch is a hypothesis"* and the dispatch notes already say *"check a lane's claim before you build a brief on it"* — G-R8 is that rule failing at the orchestrator, and it failed in the direction that costs most: an unchecked framing arrived at the lane carrying the dispatcher's authority and pointed at a deletion. **What caught it was Evan asking what the benefit was**, which is not a mechanism. So: **a member whose disposition is delete, privatize, or consolidate gets its warrant re-derived from the tree before dispatch**, and every Track G lane is told in its brief to run the same check on its own members and report any that come back overstated as findings in their own right. G-a has been sent the correction and the instruction. | orchestrator, 2026-08-20 |
+| **G-R13** | **Three number collisions in one session, from three different mistakes, all this orchestrator's.** *(i)* Track G's second block was **derived from the highest number in use** instead of read off §D's published reservations — so it drove through Track F's `S157`–`S168`, and `S167`/`S168` went to a lane while Track F findings already occupied them. *(ii)* It was recorded **only in `SMELL-G-LOG.md`**, where no other orchestrator reads, so nobody could have caught it. *(iii)* Two Track G lanes were both told *"take from `D113`–`D125` / `S176`–`S181`"* — **a shared pool, not disjoint sub-blocks** — and both minted `D113` and `S176` for different findings. Separately, Track F's F-d and a Track G lane minted `S169` an hour apart because **both tracks drew from above their spent block rather than reserving a new one.** | **Three rules, and the third is the one I had already been told.** **(a) A block is read off §D's reservation list, never derived from usage** — usage is a lower bound on what is *taken*; only the list says what is *claimed*. **(b) A block is published in §D before a lane is given a number from it**, because a reservation only the reserver can see is not one. **(c) Lanes get disjoint per-lane sub-blocks, never a shared free pool** — this is Track F's own convention, stated in its log as *"so a lane does not have to ask for the common case"*, which I read at session start and then did not apply. **Sub-blocks are now assigned in the table below and a lane takes its own numbers only.** The deeper point, and the reason this is a ruling rather than three fixes: **every one of these is the register's own failure mode — a claim published where its audience cannot read it, or derived from evidence that was never the authority.** That is the thing this scan exists to find, committed three ways by the orchestrator running it. | **AMENDED — a fourth collision, and it proves the three rules above are not sufficient.** Lane G-h merged `origin/main` and the merge **brought in Track F's own `D111`** (F8, #844), colliding with a row the lane already had open. **Per-lane sub-blocks fix the *pool* collision and do nothing about this one**, because the number arrived from outside the track entirely, into a range this track had claimed while that claim was still unpublished. Nor would publishing have stopped it — Track F drew the number before the publication existed. **So a fourth rule, and it is a post-condition rather than a reservation:** a lane **re-derives its whole number set against `origin/main` after every merge**, not only at mint time. The lane caught it exactly that way and renumbered by exact anchor, since `D111` by then named someone else's live row in three places. **The general form, which is the useful part:** a reservation is a claim about the future made by one party, and every other party is merging concurrently — so a number is only *yours* as of a tree, and the tree moves. That is the same shape as this scan's `file:line` citations, which the same lane keyed onto job/step pairs in the same pass after observing that **a hit list keyed on line numbers had the identical defect as the citations it audits.** **AMENDED AGAIN — a fifth collision, on a *returned* number.** `S136` was minted by **both** #831 and #833, from the `S135`/`S136` pair this log records as *returned free by G-b*, while both branches were open. **A returned number goes back into a pool, and a pool is the thing the sub-blocks exist to abolish** — so the return re-created the defect the reservation had closed. The merged row wins; the later lane renumbered to `S194`. **Fifth rule: a returned number is not a reserved one.** It is only safe once it has been *re-issued to a named lane* in the sub-block table; until then it is unallocated, and unallocated is exactly where two lanes both reach. **Note which rule caught it:** not the sub-blocks, and not mint-time checking — only the post-merge re-derivation added one amendment earlier. That is now three of five collisions this rule caught and nothing else would have. | orchestrator, from lanes G-f, G-h and G-e, 2026-08-21 |
+| **G-R12** | **Two lanes, in one session, damaged register text they never looked at — via the same one-line commit.** G-g's *"record #834 in the register"* overwrote the **`#NNN` placeholder in this track's standing protocol text**, so the log instructed every future lane to write another lane's PR number. G-h's *"G11: PR number in the register"* (`29472089`) overwrote **Track E's row E-l**, turning *"One class handed off: **#808**"* into *"#837"* — verified: `#808` occurs once on `main` and **zero** times on that branch, so the pointer to a handed-off class was destroyed with no surviving trace. **Neither was caught by CI, by the author, or by the correctness half of a review** — both were found by a style reviewer diffing text nobody had a reason to read. | **The mechanism is a global substitution over a 12,000-line register four orchestrators share, and the fix is mechanical, not attentional.** *"Be careful"* has now failed twice in one session by lanes that were being careful about their own rows. **Binding on every Track G lane:** a PR-number edit to `docs/SMELL-SCAN-2026-08.md` or any `docs/SMELL-*-LOG.md` is made **at named line ranges the lane can enumerate**, never by a pattern applied file-wide; and before committing it, the lane runs `git diff` **on the register files alone** and reads every hunk, because a number edit that touches a row the lane cannot name is by definition the defect. **Two properties make this class nastier than it looks:** the damage lands on *other tracks'* records, so the author has no reason to look and the victim has no way to see it until it merges; and a destroyed pointer leaves **no residue** — `#808` did not become wrong, it became absent, which no grep for a wrong value would find. **G-h's PR must answer how it will make the edit non-global**, and that answer is the durable half of the fix. | orchestrator, from #837's and #834's style reviews, 2026-08-21 |
+| **G-R10** | **Is recording `FIXED by #NNN` in the branch that is still under review premature?** #786's style reviewer flagged it (S23): the G-a roster row is deleted and the finding marked FIXED **in the same branch two reviewers are reading**, so *"if either lane lands a MAJOR, the register already says FIXED and the row is already gone from the table people read."* | **The convention is right and the reviewer's worry is answerable, but it was worth naming and is now named.** The record lands **with the merge, not with the push**: nothing on `main` says FIXED until the PR merges, and a PR that comes back NOT CLEARED never merges — its FIXED lead dies with the branch or is rewritten by the fix pass. That is the whole reason the *Recording convention* puts the record in the landing PR: with four orchestrators editing one document, a record written *after* the merge is a second PR that races the other three. **What the reviewer is right about is that this is invisible from inside a review** — a reviewer reading a branch cannot tell a written-but-unmerged record from a landed one. So the convention gains one clause: **a review that finds a MAJOR says so against the branch's own FIXED text**, and the fix pass rewrites that text rather than leaving it. Recorded here rather than only in the reviewer's report, because the next reviewer will ask the same question. | orchestrator, from #786's style review, 2026-08-20 |
+| **G-R11** | **May the S114(c) design PR open on G-b's census?** Evan asked what was waiting on him; I said the demo-manifest schema question would come to him *with the census in hand*. The census is complete and decision-ready. | **No — it waits for its verification, and this is G-R9 binding on me one turn after I wrote it.** The census **is** the warrant for the question, it is a single lane's unreviewed survey, and §D's own version of it was already wrong (it says *four readers*; the lane found **five**, the extra being an inline Python reader at `render.sh:326` nobody had counted). Putting an unverified census in front of the project owner is the exact shape G-R9 exists to stop, and *"the finding said four and I passed it through"* is how G-R1 and G-R8 happened. **The style review is verifying three specific claims** — the emitter/reader count, `transparency`'s single producer, and the one I most want independent: that `render.py:51-57` and `render_freecad.py:105-118` encode `View.up` in **opposite directions** and compose to the identity, so the two cameras agree today by coincidence rather than by construction. The PR opens when those come back. **A question to Evan is a claim site with the highest cost of being wrong on the track.** | orchestrator, 2026-08-20 |
 | **G-R7** | **G4's gate is recorded in another track's log.** `SMELL-F-LOG`'s sequencing note says *"F-e (F1) lands before G4/S87–S88, per Evan's S87/S88 ruling: the sentence that makes the `CertifiedBounds` conversion safe is currently false, and converting first would leave the ratification requirement unenforced at exactly the moment new code starts relying on it."* | **Read, accepted, and not restated as a mechanism of this track's own.** G4's chain is **G-j ← F1 (Track F's F-e) ← E-a (#753)**, two tracks deep, and none of the three links is Track G's to move. The row is listed as gated in the roster below with the chain written out, because a gate whose reason lives in a file this track's lanes are not told to read is a gate that gets walked through. **Track F owns the reason; Track G owns only the waiting.** | orchestrator, 2026-08-20 |
 
 **Amendment returned by a lane — G-R2, from #831's ledger walk.** G-R2's
@@ -150,7 +156,7 @@ from the orchestrator.
 | ~~**G-c**~~ (landed, #781) | D75–D77 — **unused, returned** | S131, S132, S133 — **all spent** |
 | ~~**G-g**~~ (G8, landed #834) | **D77** and **D80** used | **S171**, **S172** and **S173** used |
 | ~~**G-f**~~ (G7, landed #836) | **D75** used; D76 returned | **S170** used; **S169** abandoned on a collision with Track F. Fix pass: **D121** and **S193** |
-| unassigned | D73, D74, D76 — **D77 and D80 went to G-g, D75 to G-f** | **none — the S127–S136 block is spent** (`D72`, `S128`, `S135` and `S136` are G-d's and are used, not returned — #831); `D113`–`D125` / `S176`–`S181` opened for the fix pass, `D113`, `D114`, `D121`, `S176` and `S177` taken |
+| unassigned | D73, D74, D76 — **D77 and D80 went to G-g, D75 to G-f** | **none — the S127–S136 block is spent** (`D72`, `S128`, `S135` and `S136` are G-d's and are used, not returned — #831); the second block is **`D120`–`D139` / `S190`–`S209`** — `D121` and `S193` taken from it by G-f. `D113`, `D114`, `S176` and `S177` were minted under the **retracted** first attempt and stand as issued; the retracted range itself is not restated here, because a withdrawn reservation left standing is what sent a lane looking |
 
 **G-a used D71 and D78, and S127 and S134** (see *Landings*); D72 and S128 came
 back. **The `unassigned` line above is a reconciliation across three landings**
@@ -174,18 +180,20 @@ exhausted block wants a second reservation, not another draw. No `D` number
 collided.
 
 **G-f also holds `S193`/`D121`**, assigned after #836's review raised a second
-finding (the arc-mode vocabulary) out of the unit's own claim site. Both were
-checked free against the tree before being taken — the highest `S` in the scan
-doc was `S173` and the highest `D` row `D115`, so neither was in use.
+finding (the arc-mode vocabulary) out of the unit's own claim site. **Both sit
+inside Track G's second block, `D120`–`D139` / `S190`–`S209`**, re-derived
+against `origin/main` after the merge that published it — per **G-R13**, not
+only at mint time.
 
-**Two things about that assignment a reader should not take from this line.**
-`D121` sits inside the fix-pass block `D113`–`D125` recorded in the row above,
-but **`S193` is above `S176`–`S181`, not inside it** — the same draw-from-above
-that produced the `S169` collision, done once more, this time on an
-orchestrator's explicit assignment. It is recorded here rather than quietly
-used. And **`G-R12` and `G-R13`, which the assignment cites, are not in this
-file**; they are the orchestrator's to record, and the lane is noting the gap
-rather than paraphrasing rulings it has not read.
+**The lane read this wrong once, and the record is worth keeping.** At mint
+time the only block text on this branch was the retracted first attempt, and
+against that text `S193` read as a draw from *above* the reservation — the
+shape that had just produced the `S169` collision. The lane flagged it in both
+ledgers instead of using it quietly, and asked whether `G-R12`/`G-R13` existed
+at all, since neither was in this file. Both questions were answered by the
+merge: the rulings are here, and the block that made `S193` look out of range
+was itself withdrawn. **Raising it was right; the reading was stale**, which is
+precisely what G-R13's post-merge rule exists to catch.
 
 **G-f was dispatched under a lane letter this roster gives to G8.** The brief
 opens *"implementer lane G-f on Track G, row G7, finding S106"*; the wave-2
@@ -201,6 +209,47 @@ needs no row. **S131 and S132 are unscheduled and may want one** — that is a
 scheduling call, not a lane's.
 
 ---
+
+## Track G's second number block
+
+**`D111`–`D125` and `S167`–`S181` are Track G's**, taken 2026-08-20 when the
+first block (`D71`–`D80` / `S127`–`S136`) ran out mid-wave-2. **Derived, not
+guessed:** the highest numbers in use anywhere across the three tracks' logs and
+the scan were `D110` and `S166`, so this block starts clear of every other
+orchestrator's — including the ones in unmerged branches I cannot see, which is
+the reason the per-track block exists at all (Track F's reservation note says
+why).
+
+Wave-2 allocation, spending the **returned** first-block numbers before touching
+the new ones — those came back unused from lanes that declined to mint a row to
+have minted one, and a returned number that is never re-spent is a slow leak:
+
+| lane | row | §D rows | findings |
+|---|---|---|---|
+| **G-d** | G5 | D72 | S128, S135 |
+| ~~**G-e**~~ (#833, in review) | G6 | D73, D74 — **unused, returned** | **S136, S167, S168 spent** |
+| **G-f** | G7 | D75, D76 | S169, S170 |
+| **G-g** | G8 | D77, D80 | S171, S172, S173 |
+| **G-h** | G11 | D111, D112 | S174, S175 |
+| **G-d** | G5 + G10 | D113, D114 | S176, S177 |
+| **G-e** | G6 | — | **S190, S191** (renumbered from S167/S168, which are Track F's) |
+| **G-f** | G7 | D75 | S170 |
+| **G-g** | G8 | D77, D80 | S171, S172, S173 |
+| **G-h** | G11 | **D120** (renumbered from D113) | D111 spent; **S192** (renumbered from S176), S174 spent |
+| unassigned | — | D73, D74, D121–D139 | S193–S209 |
+
+**Sub-blocks, not a pool — G-R13(c).** Each lane takes only its own row. The
+`D113`/`S176` double-mint happened because G-d and G-h were handed the same
+range and both drew the first free number from it, which is what a shared pool
+guarantees given two lanes that cannot see each other's branches.
+
+**`S136` is spent, by G-e, and the `unassigned` line above no longer lists it.**
+It was allocated to G-e in this table and *also* left in the free pool by the
+wave-2 reconciliation — my error, caught by the lane, which declined to edit the
+table itself on the grounds that the line says reconciliation is the
+orchestrator's. That was the right call: **a lane silently correcting a number
+table is how two lanes mint the same number**, which is the incident the whole
+per-track block exists to prevent.
 
 ## The standing lane header
 
@@ -300,38 +349,171 @@ before the merge, so answering saves a round.
 
 ## Lane roster
 
-**Wave 1 — open now.** These lanes share no file with each other, with Track
-C's open lanes (#732, `stl/`), with Track E's (#753 `scripts/`+`ci.yml`, #763
-`crates/*/tests/all.rs`, #767 `editor-core/src/eval/`, #768
-`sweep/src/fillet/`), or with Track F's. **All three have landed and left this
-roster** — G-c as #781, G-b as #787, G-a as #786 (see *Landings*). Wave 1 is
-complete; wave 2 is the live one.
+**Wave 2 — opened 2026-08-20, five lanes, after Evan restored the CI budget.**
+Gates re-checked against the new `main` rather than against §D's text: Track E's
+**E-e landed as #767** and Track C's **C-f as #731**, so `editor-core/` is free;
+nothing live sits on `topo/chord_join.rs` or `topo/boolean/`. **G4 remains gated
+on Track F's F1 (#791, still open)** — Evan's own S87/S88 sequencing ruling, and
+the one constraint on this track that is not mine to lift.
 
+| lane | row | scope | review | state |
+|---|---|---|---|---|
+| **G-d** | **G5** (S71) | `profile/tests/review_s2.rs`; re-read only of `profile/src/sugar.rs` | style | running |
+| **G-e** | **G6** (S104) | `editor-core/src/assembly.rs`, `pncad-py/src/py/doc.rs`, **plus the two files the scan never read** (`editor-core/src/mate.rs`, `pncad-py/src/py/select.rs`) | **ADVERSARIAL** + style | running |
+| **G-f** | **G7** (S106) | `profile/src/path/program.rs`, `editor-core/src/{program,persist/wire,eval/mod}.rs` | style | running |
+| **G-g** | **G8** (S67) | `topo/src/face_normal.rs` (docs) + `topo/src/chord_join.rs` (the real question) | style **+ one ADVERSARIAL sub-unit** | running |
+| **G-h** | **G11** (S114(c)'s residue) | `demos/render.py`, `demos/render_freecad.py`, `demos/wild/src/main.rs`, `demos/tour/src/uvdump.rs` | style | running |
 
-**Wave 2 — opens as wave 1 lanes free up; edge-free today.**
+**The constitution-time planning table that used to sit here is DELETED.**
+It assigned different lane letters to every row than the live roster above —
+G-f to G8, G-g to G9, G-h to G7 — and **three separate lanes tripped on it**:
+G-g flagged the collision from inside its own lane rather than guessing which
+letter it was, G-d found its own row saying something its brief did not, and
+G-h found itself listed against a row it was never given. Marking it *void* was
+not enough, because a void table still reads like a table. **Version control
+keeps it.** The live roster is the table above and the number-reservation table
+is the one under *Track G's second number block*; nothing else in this file
+assigns a lane letter.
 
-| lane | row | scope | review |
-|---|---|---|---|
-| **G-d** | **G10** (S112, re-scoped by **G-R2**) and **G5/S71** — **both in #831**, open, G5 with its fix pass. **G10's row does NOT leave §D on this PR**: its ledger says three members are open and two are tracked nowhere else (see the G-R2 amendment above) | `profile/src/sugar.rs` (S112(f)), `crates/pncad/src/lib.rs` (S112(g)), plus the eight-member ledger at S112 | style |
-| **G-e** | **G6** (S104) | `editor-core/src/assembly.rs`, `pncad-py/src/py/doc.rs`, plus `editor-core/src/mate.rs` and `pncad-py/src/py/select.rs`, which the scan did not read | **ADVERSARIAL** |
+Recorded rather than quietly deleted, because it is this track's own subject
+turned on its own log: **a stale artifact that is still true-looking outlives
+every warning attached to it, and the third lane to trip on it was tripping on
+the warning.**
 
 **Lane-name collision, flagged not resolved.** G8's lane was dispatched as
-**G-g**, which is also this roster's name for G9's lane. Names are the
-orchestrator's; recorded here so a reader of two PRs does not read them as one
-lane.
+**G-g**, which the deleted table also used for G9's lane. Names are the
+orchestrator's; recorded so a reader of two PRs does not read them as one lane.
 
-**Wave 3 — gated, and on what.**
+**Sequenced, not gated:** **G9** waits on G-g because both edit
+`topo/src/chord_join.rs` — G-g's question there is whether a missing
+`sense_sign` flip is a defect, G9's is the top-level-sibling placement argument;
+different questions, one file. **G10** goes last because its members are
+scattered by file and would collide with whatever is open.
 
-| lane | row | gated on | why |
-|---|---|---|---|
-| **G-g** | **G9** (S95, S96) | ~~G-f~~ **LIFTED** (G8 landed as #834); Track C still gates S96 | **G-R4** — the `chord_join.rs` overlap is gone. S96's imports still reach `splitting/rules.rs`, which §D says to confirm with Track C before touching. G9 also inherits **S171** and the `chord_join.rs` half of **S133**, both already discharged by G8's PR |
-| **G-j** | **G4** (S87, S88's `profile` half) | Track F's **F1** ← Track E's **#753** | **G-R7** — Evan's S87/S88 ruling, recorded in `SMELL-F-LOG`; two tracks deep and none of it Track G's to move |
+**Why G6 is adversarial and G7 is not**, since both are "de-duplicate a
+vocabulary": G6's wildcard **decides `AssemblyError::AtRest` vs
+`Uncertified`**, and every existing CI row passes whichever way a new arm is
+classified — so the unit's own failure mode is invisible to the gate. G7's three
+copies go *silently short* rather than wrong, which is a real defect and a
+visible one. That is Evan's criterion (`SMELL-C-LOG` C-R12) applied, not row
+size.
 
----
+**Gate state, carried forward from the deleted table because these three facts
+are live** (a lane had updated that table on its own branch while this one was
+deleting it — the merge kept the facts and dropped the table): **G9's gate on
+G8 is LIFTED**, G8 having landed as **#834**; **Track C still gates S96**, per
+**G-R4**. **G4 remains gated on Track F's F1, itself gated on Track E's #753**,
+per **G-R7** — Evan's own S87/S88 sequencing ruling, and the one constraint on
+this track that is not the orchestrator's to lift.
 
 ## Reviews
 
-*(none yet)*
+| lane | PR | lanes | state |
+|---|---|---|---|
+| **G-a** | **#786** (G1/S72 + 7 members) | **ADVERSARIAL + style**, then a targeted ADVERSARIAL re-check | **CLEARING — one sentence outstanding.** Both first-round reviews split cleanly and both were right: the adversary said **merge** (no MAJOR; it proved claim 1 by reinstating main's four bodies as `*_old` and asserting bit-identity over **12,000,020 intervals × 4 functions**, zero divergences — far harder than the lane's distribution argument, which is blind to a width-preserving endpoint shift), while the style lane supplied the verdict in one finding: the new ceiling returned on `n == 0` **before** its assert. The adversary also corrected the lane **in its favour** — `2·pad+1` counts representable steps but the ratio is on widths, and a step crossing a binade boundary is twice the oracle's ulp, so the bound is `≈4·pad+1` = 17, which is why `atan2` measures 10 against a stated 9 and `atan` hits 12 adversarially. **The fix pass rebuilt the ceiling into three asserts and earned a second adversarial pass on its own terms** — new asserts in the crate every certified bound is downstream of is the criterion exactly. All three CONFIRMED: assert 2's floor is generator *structure* (3/8 of divisors touch zero) so it cannot move on a seed; assert 3's class is empty **by construction** (`log_mag` returns `±m·2^e`, `m ∈ [1,2)`, never 0) and its allowance was measured directly at 2× the worst case the class could ever contain, so it is an entitlement rather than a constant fitted to an empty set. **One MINOR outstanding**, and it is this track's failure mode in miniature: the lane recorded the window-placement dependency correctly **against the wrong assert** — assert 1's real protection is the ~1e-14 measure of a few-ulp band around each `tan` pole, 24 binades below the `2^32` onset, so a future near-pole-but-pole-free generator class would red it on sound output and send the reader to `emax`. Sent as a one- or two-sentence fix; merges on green. **Was: NOT CLEARED**, and the fix pass is held so the lane gets one combined pass rather than two. The review's **S1 is the row failing at its own thesis**: `Tightness::report`'s new ceiling is defeated by exactly the degradation it was added to catch — `record` drops any sample with non-finite our-width or zero oracle-width, and `report` returns on `n == 0` **before** the assert, so an operation that regressed to `entire()` on every draw contributes no ratios, prints *"no finite-ratio samples"*, and passes. No floor on `n`, in a PR that gave its own new fuzz lanes exactly such floors. **S2 answers the lane's own sharpest disclosure against it**: `pad_contract.rs` uses `point(x)` on every row but one, so non-degenerate boxes are constrained only by a scale-free ratio with 6× headroom, and the two instruments are **not** equivalent cover for a two-sided `assert_contains`. **S12** finds the rewritten sentence still standing in `local-scripts/ci-local.sh:432-438` — which has no `oracle_certify` row at all, so *"nothing is left to a convention"* is false on the fallback gate. Twenty-four findings; two corrections to the dispatcher, one of them to **my** account of G-R8 (see below). Original claims: **running.** Claims handed to the falsification lane, ranked by cost: **the `sin`/`cos` and `asin`/`acos` unifications preserve behaviour** — if `cos` is anywhere a *phase shift* of `sin` that is unsound and no containment assertion catches it, and the lane's evidence (*"the tightness distribution is identical in every column"*) is **necessary, not sufficient**, being blind to a systematic endpoint shift that preserves width; **the `pad_contract` bound is derived and cannot fire on sound output**; **the ceilings 8 / 64 have real rather than accidental headroom** — the lane's own report has a measured transcendental maximum of *8–10* against a derived structural bound of *9*, and a measurement exceeding its own derivation by one means either the derivation omits a term or the measurement includes a case it does not model; **`neg_frac_pi_2` did not move** when it changed from a hand-written endpoint pair to `-frac_pi_2()`; **the four FMA-witness spellings really were one function**. The style lane has the disclosure the lane itself called sharpest — `assert_contains` is *still* one-directional for the transcendentals, which was the finding's core complaint |
+| **G-b** | **#787** (G2, nine members) | style only, then a targeted re-check | **fix pass done, re-check running.** All ten must-fixes taken and **no disagreements** — because, as the lane put it, *three of the ten were defects its own first fix introduced*, and it names finding 3 as the one it is least happy about, having read G-a's `assert_contains` finding in its own brief and reproduced it anyway one tree over. **That record is why a second pass gets a look**, not ritual. Best fix of the pass: the `LEGEND` was closed **by computing it** against the emitter, and the computation immediately caught two live drifts (`#777777` appearing in no cell; `#333333` against the emitter's `#333`). The volume pin's `9.0` literal is gone — the expected volume is derived from the sections and checked *before* the kernel is asked — and `volume_pad` is now bounded above. The winding alarm became a **fatal assert**, with the lane arguing fatal-in-the-tour over a kernel issue on the ground that **nothing fires today, so an issue now would be a placeholder for a hypothetical, while the assert is the thing that would produce that issue with a witness attached**. Issues **#795** (the typed-refusal exit convention, flagged as possibly Evan's) and **#796** (the shadow tuple algebra beside `Vec3`, in the #757–#759 channel). `S130` + `D79` record the `lily.rs` roll-up. Spent `S129`, `S130`, `D79`; `D73`, `D74`, `S135`, `S136` returned free | CI green (36 success, 1 skipped). Weight put on: **a printed number is not a guarded number** — the lane's governing choice was *compute or delete, never restate*, and every closed count is now *printed by the run that produces it* or is a Rust array length; **the array length enforces, the printing does not**, and a number printed and never compared is S110(b)'s class and the exact defect G-a is fixing one tree over. Also: this unit **deleted a great deal** and a frontier arm now panics where something previously did not, which changes what a render lane sees; S114(b)'s replacement of a false *"VERBATIM"* with a computed volume pin is the right shape but **two different prisms can share a volume**; and `lily.rs` (2,446 lines, §B2's *"sampled, not read"*, the scan's highest-yield uncovered file) is the Q8 candidate |
+| **G-c** | **#781** (G3/S74) | style only | **CLEARED and MERGED** (35 checks green, 2 skipped, 0 failed, `k-lint (gate)` included). The fix pass took all seven must-fixes and every judgement call, and **disagreed twice, correctly, on both** — verified independently by the orchestrator before the merge. *(i)* No visibility widening happened: `pub(super)` written in `crate::revolve` **already means** `pub(crate)`, because `revolve` is a child of the crate root — proved by compiling a sibling construction rather than by argument. The substantive worry is real, pre-existing and unchanged by the diff, and is recorded as **S131** rather than presented as fixed. *(ii)* The marker recount is **7 = 5 + 2**, not the reviewer's 4 + 2: `cap_points` and `cosurface` do carry markers. Re-derived by the orchestrator from `6b9c1236` — eight marker lines, one excluded — and the lane **published the criterion** (*a marker is a sentence declaring this item is the same code as a named item elsewhere*), which is what makes a contested count re-derivable rather than asserted. **The best thing in the pass:** S-9/S-14/S-15 were closed **in code, not prose** — the arc rule is now one body, `swept::centre_on_material_side`, called from both verbs, with the `Zero` posture decided once and the reconciling comment deleted. That is the correct answer to *"you closed a prose fence by writing prose fences"*. Spent `S131`, `S132`, `S133`; returned `D75`–`D77`. Took `revolve/axis.rs`, outside §D's Scope cell, and named it in the PR. **Was: NOT CLEARED** The reviewer's verdict on the track's own question: *"the instance is gone; the mechanism is not."* Claim 1 **confirmed two independent ways** and the code shape endorsed (*"how I would have done it"*), with the guarding row named — `m5_s11_concave_sense.rs:165` goes red on a mis-indexed bit. But claim 6 **fails** (a self-declared hand-copy of the involution at `revolve/tube.rs:216-239`, inside scope, that neither sweep surfaced) and claim 5 **fails on its arithmetic** (5+2≠7; re-derived as 4 correct + 2 standing, and two names in the list carried no deleted marker at all). **Two findings are S74's own mechanism committed by the fix for S74** — a replacement funnel count already wrong in the other direction, and S6's own copy of the false sentence left standing by the class re-check that read it. Seven must-fixes; `S131`–`S133` / `D75`–`D77` reassigned to the pass. Reviewer asked, and answered, whether this should have been adversarial: **no** | CI 22 green / 0 failed / 3 in flight at dispatch. Claims handed over for falsification: *geometry does not move* (the index algebra of the reverse arm is the one where a wrong answer ships wrong geometry), *the duplication is removed not relocated*, *loft's orientation bit is now structurally absent*, and the deleted-marker sweep's **"no third"** negative result. Emphasis: **a unification is the shape that mints duplicates**, the lane's two disclosed blind spots are work orders, and the reviewer is asked to say explicitly if the unit should have carried an adversarial review after all |
+
+## Wave-2 review outcomes
+
+**#834 (G-g, G8) — NOT CLEARED on style, Unit 2 CONFIRMED on adversarial.** The
+split was worth it and both halves earned their posture.
+
+*Unit 2 is the strongest single result on this track.* The reviewer confirmed
+`point_in_loop`'s sign-invariance by reading the real loop (the normal enters at
+exactly three places and only there), then by **320k bitwise projection/side-axis
+cases, 2M FP-lemma pairs, 14k f64 probes over 5 profiles × 7 planar faces, 1.26k
+probes on the certified lane, and a mutation test** — and it holds **for the
+structural reason**, so reachability changes only how much is at stake.
+
+*Two reviewers converged on one line from opposite directions*, which is the
+strongest signal this process generates. The style lane flagged the pin's
+`Debug`-string equality and could only mark it **`unsure`, taste**; the
+adversarial lane built the witness — a vertex 3e-9 off the first ray line
+escalates with the same variant, predicate and band, but the diagnostic carries
+the **signed** margin, so 12 of 12 such refusals differ and the row false-reds.
+**Neither lane alone would have produced a fix; together they produced a
+witness.** Worth remembering when deciding whether a row gets one review or two.
+
+*And the adversarial lane refuted a limit in the safe direction.* The pin's docs
+said it would not fire on an unsigned crossing lever, *"because a closed loop
+has an even number of straddles"*; the reviewer **mutated `ray_parity.rs` to
+exactly that and the row failed** — the tilted block pins absolute verdicts. A
+lane understating its own instrument is rarer than the reverse and still wrong:
+the sentence is disproved by the file's own code. (The parity claim is also
+*true but vacuous where invoked* — `sides` only ever holds `Positive`/`Negative`,
+so adjacent-unequal pairs are even for any cyclic two-valued sequence.)
+
+**#831 (G-d, G5) — NOT CLEARED on style.** The reviewer read all 1,590 lines,
+**re-derived the geometry numerically** rather than taking it on report, and
+cleared the substance: the new assertion is non-vacuous (a wrong crossing misses
+the 1e-9 bound by ~2r), issue #827 does not quietly decide the capability
+question, and both scope calls were endorsed. Then it found that **the PR
+re-minted S71's shape at the site it was correcting** — `check_corner`'s doc
+contradicts itself inside one paragraph, and the replacement still opens with
+*"So the class is built"*, the exact phrase the finding was raised about, with a
+rider appended. **A rider is a narrowing, not a removal**, and that is now the
+third time this track has had to say so.
+
+*The printed-number class, for the third time.* `n_enclosing` is accumulated,
+never asserted, and printed with `eprintln!` — which `cargo test` swallows
+without `--nocapture` — under a header claiming the sweep *corroborates* the
+boundary. Its consequence is worse than the instance: the arm it feeds **would
+pass if the door ever did emit an enclosing tangency**, so it cannot be the
+tripwire its presence implies.
+
+*A finding worth generalising:* the PR that measures **285 inert `tests/`
+intra-doc links** adds **four fresh ones** in the same diff, when plain
+backticks were already in use for the same targets two crates over.
+
+*And the amnesty channel, caught by precedent rather than by argument.* The lane
+declined a §D row for S135 on the grounds that its disposition is *"a policy
+call"* — while **D71 sits in the same register as `ACCEPTED, unstaffed`**, which
+is exactly a decision-shaped row with no patch. The channel exists and was used
+one screen up. A finding whose fix is *someone should decide something* owes a
+named decision-holder, and the same lane routed its other decision correctly, to
+a numbered issue with an owner.
+
+## Live state — 2026-08-21
+
+**Landed: G1 (#786), G2 (#787), G3 (#781), G8 (#834).** Four of eleven rows.
+
+| row | PR | state |
+|---|---|---|
+| **G5 + G10** | **#831** | re-check says **merge**; citation pass in; CI 21 green / 0 failed, k-lint and two render lanes still running |
+| **G6** | **#833** | adversarial **MERGE, no claim refuted**; style NOT CLEARED (18); fix pass running, plus an `S167`/`S168` renumber forced by **G-R13** |
+| **G7** | **#836** | style review running |
+| **G11** | **#837** | fix pass done; **`dirty` against `main`**, merging, which also clears a stalled `synchronize` |
+| **G4** | — | gated on Track F's **F1** ← Track E's **#753**. Evan's own S87/S88 ruling; not this orchestrator's to lift |
+| **G9** | — | gate on G8 **lifted** (#834 landed); Track C still gates S96 |
+
+**Issues filed:** #782 (nothing runs `cargo test` under `demos/`; two assertions
+red on `main`), #795, #796, #827, #829, and S167's `topo` signature change.
+
+**What the reviews are actually catching.** Every unit has gone NOT CLEARED on
+its first style review, and in **every** case the reviewer found the lane had
+re-minted its own finding's shape at the site it was correcting: a rider
+appended where a claim needed removing; a printed number replacing a stale
+number; a not-a-read error caught one level down and made one level up; a
+pointer *"listed at S67"* where nothing was listed; a sentence *"every line
+number below was re-checked"* above four that were not — that last one **inside
+the entry documenting the finding about stale citations**, found by a re-check
+and not by its author.
+
+That is consistent enough to be a property of the work rather than of the lanes.
+The provisional reading, to be written up when wave 2 closes: **a fix pass is
+executed at the altitude of the instance while the finding lives at the altitude
+of the class**, so the pass discharges the instance and re-creates the class one
+level up. The counter-measure that has actually worked is not care — it is
+**computing the claim**: the `sense_sign` inventory, the legend read out of the
+emitter, the census with a published definition and an anchor, the mirror
+citations resolved against a parsed `ci.yml`. Every one of those closed a class;
+every restated sentence re-opened one.
+
+**Two reviewers converging from opposite directions has now happened twice**
+(#834's `Debug`-string comparison, #833's *"exactly the ones no end-to-end row
+reaches"*), and both times neither lane alone would have produced the fix. That
+is the argument for the adversarial+style pairing on the rows that carry it.
 
 ## Landings
 
@@ -538,6 +720,36 @@ over a document, wire, slot and Python vocabulary that never learned it.
 
 ## Incidents
 
+### The Python suite silently exempts every lane on this track
+
+**2026-08-21, lane G-e, found by CI rather than by the lane.**
+`crates/pncad-py/run-python-tests.sh` builds the extension module and then
+looks for the cdylib at a **hard-coded** `$root/target/debug/libpncad_py.so`.
+Every lane on this track exports its own `CARGO_TARGET_DIR` — the standing
+header requires it — so the artifact is never at that path and the script
+exits `no cdylib at …` **before running a single test**.
+
+**It fails loudly and is still a silent exemption**, which is the whole point:
+the message reads as an environment problem, the natural response is to move
+on, and the lane then verifies its Rust and believes it has verified its
+bindings. G-e did exactly that. **CI caught what the lane could have**:
+`test_import_of_garbage_is_a_typed_refusal` pinned `variant == "refused"` — the
+literal #833 replaced — so the row went red on the hosted matrix after the lane
+had run every Rust suite green. Staged by hand, the suite runs in ~20 s and
+**168 rows pass**; the cost of the exemption is that nobody pays those 20 s.
+
+**Not fixed here, deliberately.** The fix is one line — honour
+`CARGO_TARGET_DIR` when it is set, as `with-build-slot.sh` callers all do — but
+the file is under `crates/`, and #833 was green and holding Evan's
+merge-without-a-second-CI-run allowance on a ledger-only conflict. Spending
+that allowance on a tooling one-liner is the wrong trade; the one-liner is
+owed by whoever next opens `pncad-py`, and this row is the work order.
+
+**The general shape, which is this track's own subject one level out:** a
+*"run the suite"* door that cannot run in the environment the standing header
+mandates is a claim the mechanism no longer supports — the `new-lane.sh`
+incident above, in a different file, four weeks later.
+
 ### `new-lane.sh` could not create a lane in this container
 
 **2026-08-20, at track start.** `local-scripts/new-lane.sh` clones from a
@@ -559,3 +771,155 @@ one level out — *a claim in prose ("the standard way") that a mechanism no
 longer supports*, invisible until someone stood in an environment the author
 did not have. It is local tooling and not a smell-scan row, so it is recorded
 here and nowhere else.
+
+### The container was reclaimed with five agents live, and one had 7 files uncommitted
+
+**2026-08-21.** The container restarted (`uptime` = 1 min) with **five agents
+running**: lane G-f implementing G7, lane G-d's fix pass, lane G-g's fix pass,
+and three reviewers (two on #833, one on #837). **All five died. The three
+reviewers had produced no output and their work is simply gone.**
+
+**What survived, and why.** Everything pushed. Every lane clone under
+`~/.local/share/cad-work/` — those are on a persistent volume, which is the
+whole reason `memories/agent-lane-operations.md` forbids putting a working clone
+in the session scratchpad. Four of five lanes were clean and fully pushed.
+
+**Lane G-g was not**: **7 modified files, uncommitted**, a substantial fix pass
+including the restored `#NNN` protocol template, the `geom-brep` removal, ~154
+new lines of shared comment-test home in `fixtures.rs`, and ~90 in the
+sign-invariance pin. **Recovered by the orchestrator** and pushed as `a63b05df`
+with an explicit `RECOVERY` message stating it is **UNVERIFIED** — never
+compiled, never tested, never checked against its brief — so a successor audits
+it rather than inheriting it as finished work. (The committed pre-push fmt hook
+rejected the first attempt, correctly, and was satisfied rather than bypassed.)
+
+**The lesson is one the standing header already carries and this proves the cost
+of:** *commit and push at every seam.* G-g committed nothing for the whole pass
+and came within one non-persistent directory of losing all of it. The successor
+briefs now say so **with this incident named**, because an abstract rule did not
+produce the behaviour and a concrete loss might.
+
+**What the orchestrator got right by accident and should do on purpose:** the
+diagnosis started from `uptime` and per-lane `git status`/`@{u}..HEAD` rather
+than from assuming, which is what separated *four lanes fine* from *one lane
+nearly lost*. **On any suspected restart, that sweep comes first** — before
+re-dispatching anything, because a re-dispatch into a dirty clone would have
+silently destroyed the recovery.
+
+**And a dispatch change that outlives this incident:** the two lost implementer
+assignments had been delivered **only as messages** to agents that then died, so
+they died too. Briefs now go to **files** under `~/.local/share/cad-work/`, and
+the message points at the path. A message is not a durable channel.
+
+### Reviewers were pointed at the orchestrator's own checkout, and one left it detached
+
+**2026-08-20, and the cause is a brief I wrote five times.** Every wave-1 and
+wave-2 **reviewer** dispatch said *"work read-only from `/home/user/cad`"* — the
+orchestrator's own working checkout. Read-only was the intent and no reviewer
+edited a file; but **`git checkout` is not an edit**, and one reviewer resolving
+a branch left the shared checkout in **detached HEAD from
+`origin/smellg/g8-face-normal-enumeration`**. The orchestrator's next
+`git pull --no-rebase origin main` then merged `main` **into that detached
+HEAD**, producing a commit belonging to no branch.
+
+**Nothing was lost** — the last orchestrator commit had already pushed, the
+working tree was clean, and `git checkout <branch>` restored it. **But the
+failure mode is bad**: for one turn the orchestrator was reading a *lane's*
+branch while believing it was reading `main`, and it very nearly filed a defect
+against `main` that existed only on an unmerged branch. The tell was a
+disagreement between `grep` on the working tree and `git show origin/main:`,
+which is the only reason it was caught.
+
+**The rule: reviewers never work in `/home/user/cad`.** `memories/agent-lane-operations.md`
+already says working clones go under `~/.local/share/cad-work/<purpose>/`, and I
+read that at session start and then wrote the opposite into five briefs, because
+"read-only" felt like it made the location harmless. It does not — **a shared
+checkout has one HEAD, and a reviewer needs to move it to do its job.** Future
+reviewer dispatches get their own clone, or are told to read via
+`git show <ref>:<path>` and `git diff <a>...<b>` without ever checking anything
+out.
+
+**And for the orchestrator specifically:** `git pull` and `git merge` in a
+directory other agents can touch must be preceded by confirming the branch —
+`git branch --show-current` returning empty is the whole signal, and it costs
+nothing. This is the third incident on this track in the same family: **a
+command whose failure or misdirection is silent** (a pipe swallowing a merge's
+exit status; a marker-bearing merge landing green; a pull onto a detached HEAD).
+The family, not the instances, is the thing to design against.
+
+### The same defect reached `main`, and the orchestrator merged it there
+
+**2026-08-20, ~one hour after the incident below, and this one is the
+orchestrator's.** #787's merge commit `6fe672b3` carried **two unresolved
+conflict-marker pairs** in `docs/SMELL-G-LOG.md` — the number-reservation table
+and the wave-1 roster — and **I merged it to `main` without checking.** The
+register was broken on `main` for roughly an hour. `docs/SMELL-SCAN-2026-08.md`
+was unaffected; no code file was.
+
+**Found by lane G-a**, resolving its own conflict against that `main` — the same
+lane that had hit the identical failure a round earlier and written it up. It
+repaired both pairs as part of its merge, and #786 landing is what fixed `main`.
+
+**Why the existing guard did not catch it.** The incident below made me scan
+`main`, this branch and every `docs/*.md`: all clean, and I said so. **That scan
+was a snapshot, and I then merged two PRs without repeating it.** A one-time
+sweep is not a guard — which is this scan's own thesis (S72, S110) applied to
+the orchestrator's own process, and it is the second time on this track that a
+rule I wrote for lanes bound me first (cf. **G-R9**, **G-R11**).
+
+**The rule, and it is now mechanical:** *before every merge, and again after,*
+`git grep -c -e '^<<<<<<< ' -e '^>>>>>>> ' origin/<branch>` over `docs/`,
+`crates/`, `.github/`, `scripts/`, `local-scripts/` and
+`interval-transcendentals/`. It costs one call. **CI cannot substitute**: a
+marker pair inside a Markdown ledger breaks no build, fails no gate, and every
+one of #787's 36 checks was green over it. That is the whole reason it reached
+`main`.
+
+### A pipe swallowed a merge failure, and conflict markers reached the register
+
+**2026-08-20, lane G-a, self-reported and self-fixed** (`385c9c10`, before its
+PR merged). A `git merge … | tail -2 && git commit` chain **took the pipe's exit
+status, not the merge's**, so a failed merge reported success and two conflicted
+ledger hunks were committed with their markers intact.
+
+**The lane found it, resolved both properly, swept every file it had touched
+(0 remaining), and flagged it unprompted** — on the reasoning that *a lane that
+pushes conflict markers into the register is a worse failure than the one under
+review*. That is the correct instinct and the reason this row exists rather than
+a reprimand.
+
+**The mechanism is general and this orchestrator was exposed to it too.** Every
+`git pull --no-rebase origin main -q 2>&1 | tail -2` in this log's own history
+has the identical defect. Swept `main`, this branch, and every `docs/*.md` on
+both: **zero markers, zero unmerged paths** — the orchestrator got away with it,
+which is not the same as having been careful.
+
+**The rule, and it costs nothing:** in a chain that commits, **never pipe the
+command whose exit status decides whether committing is safe.** Let `git merge`
+or `git pull` stand alone, or check `git ls-files -u` before the commit. Four
+concurrent orchestrators are merging one 11 000-line document all day; this will
+bite someone else.
+
+### Wave 1 was dispatched before this file was on `main`
+
+**2026-08-20, and the mistake is the orchestrator's.** The three wave-1 lanes
+were dispatched with briefs pointing at `docs/SMELL-G-LOG.md` **by path**, two
+minutes before #772 merged it. G-c hit it immediately: the file was not on
+`main`, not on any branch it could see, and not an open PR. It recovered by
+working from `SMELL-F-LOG.md`'s equivalent sections — correctly, since #772's
+own body says Track G's policy is Track F's verbatim — then merged `main`
+mid-lane, read the standing header and rulings, and confirmed nothing
+contradicted what it had already done.
+
+**No damage, and the recovery was the right one**, but the near-miss is worth
+the row: *point, never paste* (`docs/prompts/README.md`) makes a dispatch a
+promise that the path resolves, and this dispatch made that promise against a
+branch. **Merge the constitution before dispatching against it** — the ordering
+is free and there is no version of this that fails loudly.
+
+It is also the third instance this track has recorded of one shape (**G-R9**):
+a claim in a brief that did not survive being checked. The first two were
+citations; this one was the brief's own foundation. The lane checked rather
+than complied, which is exactly what the standing header asks for — so the
+mechanism that is supposed to catch this worked, on its first day, on the
+orchestrator.

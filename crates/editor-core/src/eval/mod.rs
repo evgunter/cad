@@ -1811,6 +1811,16 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
 /// Feeds a mate's alignment datum: the structural choices as tags, the
 /// authored coordinates as bits — the same (tag, payload) convention
 /// every other structural payload uses here.
+///
+/// The primitive's own lengths come from
+/// [`crate::mate::MatePrimitive::authored_lengths`], which is where
+/// they are enumerated for the lever arm and the finiteness admission
+/// as well. This is the reader where leaving one out is WORST: the tag
+/// match below breaks on a new variant, so the variant cannot arrive
+/// untagged — but a length it carries would silently not be hashed,
+/// and two documents differing only in that length would share a memo
+/// entry. Reading the list rather than naming a variant is what makes
+/// the tag and its payload arrive together.
 fn feed_alignment(h: &mut KeyHasher, a: &crate::mate::Alignment) {
     use crate::mate::{AxisSense, MatePrimitive};
     h.write_tag(match a.primitive {
@@ -1819,8 +1829,14 @@ fn feed_alignment(h: &mut KeyHasher, a: &crate::mate::Alignment) {
         MatePrimitive::PlanarRest { .. } => 3,
         MatePrimitive::Clocking => 4,
     });
-    if let MatePrimitive::PlanarRest { offset } = a.primitive {
-        h.write_f64_bits(offset);
+    for length in a.primitive.authored_lengths() {
+        match length {
+            Some(l) => {
+                h.write_tag(1);
+                h.write_f64_bits(l);
+            }
+            None => h.write_tag(0),
+        }
     }
     h.write_tag(match a.sense {
         AxisSense::Aligned => 1,
@@ -2139,5 +2155,71 @@ mod verb_tag_tests {
             seen.push((*verb, tag));
         }
         assert_eq!(seen.len(), profile::Verb::ALL.len());
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod alignment_key {
+    //! The mate datum's authored LENGTHS reach the content key.
+    //!
+    //! No fixture in the suite authors a `PlanarRest` — every mate in
+    //! `asm_r2b_assembly` is `FrameCoincidence`, and a lone planar
+    //! rest is under-determined, so no end-to-end row can carry this.
+    //! Which is exactly the condition under which a length silently
+    //! stops being hashed: two documents differing only in the
+    //! standoff would share a memo entry and one would be served the
+    //! other's answer. Dropping the length from the key reds this row
+    //! and nothing else in the crate.
+
+    use super::{KeyHasher, feed_alignment};
+    use crate::mate::{Alignment, AxisSense, MateFrame, MatePrimitive};
+
+    fn datum(primitive: MatePrimitive) -> Alignment {
+        let frame = MateFrame {
+            origin: [0.0, 0.0, 0.0],
+            axis: [0.0, 0.0, 1.0],
+            reference: [1.0, 0.0, 0.0],
+        };
+        Alignment {
+            a: frame,
+            b: frame,
+            primitive,
+            sense: AxisSense::Opposed,
+            clocking: None,
+        }
+    }
+
+    fn key(primitive: MatePrimitive) -> crate::eval::ContentKey {
+        let mut h = KeyHasher::new();
+        feed_alignment(&mut h, &datum(primitive));
+        h.finish()
+    }
+
+    #[test]
+    fn a_planar_rest_standoff_moves_the_key() {
+        assert_ne!(
+            key(MatePrimitive::PlanarRest { offset: 0.0 }),
+            key(MatePrimitive::PlanarRest { offset: 0.25 }),
+            "the standoff is authored data and must reach the key"
+        );
+    }
+
+    /// And the primitives that author no length still separate from
+    /// each other and from a rest at zero standoff — the tag is doing
+    /// its own job, so the row above is testing the payload.
+    #[test]
+    fn the_primitive_choice_separates_on_its_own() {
+        let keys = [
+            key(MatePrimitive::FrameCoincidence),
+            key(MatePrimitive::Coaxial),
+            key(MatePrimitive::Clocking),
+            key(MatePrimitive::PlanarRest { offset: 0.0 }),
+        ];
+        for (i, a) in keys.iter().enumerate() {
+            for b in &keys[i + 1..] {
+                assert_ne!(a, b, "each primitive keys distinctly");
+            }
+        }
     }
 }
