@@ -120,7 +120,7 @@ apart doing exactly that.
 
 | number | spent by | for |
 |---|---|---|
-| — | — | — |
+| **S230** | **I-b** (#873) | S60's class, two live members outside every live track's ground: a containment-only `volume_pad` row on the same tilted-cut fixture that never reads `area_pad`, and a python row bounding `volume_pad` at 1e-6 while saying nothing about an `area_pad` measured at **0.199 m²** on the same loft. **Recorded as unrouted, and it says so** |
 
 ---
 
@@ -239,12 +239,67 @@ consolidates and the fix comes first. The lane is described in a comment on
 
 | lane | PR | lanes | state |
 |---|---|---|---|
-| — | — | — | — |
+| **I-b** | **#873** (S60; issue **#870** for the metering half; `S230` for the residue) | style only, per **I-R6** | **running.** The sharpest question is handed over in the lane's own words and unanswered by me: the m5 ceiling **bites on CI's ε = 1e-6 leg and not on the default leg**, where it absorbs ~1500× before firing — *is declining an ε-aware ceiling discipline, or the easier thing?* The lane's argument for declining is that a per-ε table in a test file is how a deferred metering rule gets smuggled past its deferral; the argument against is that a row which cannot fire on the leg a developer actually runs is uncomfortably near the defect S60 is about. Also handed over: whether `3e-4` is anchored on a **structural** maximum or on the one knob the lane turned, and whether the 3× / 1.5× headroom asymmetry is derived or fitted |
 
 ## Landings
 
-*(none yet)*
+### I-b — **S60**, the area enclosure's acceptance rows, #873
+
+**Two test files, two documents, no kernel change** — `quad.rs` is not in the
+diff, which is **I-R2** executed rather than merely obeyed. `area_pad` gets a
+ceiling at both of its tightness-relevant sites, and the in-kernel metering
+went to **issue #870** with the measurement attached, because #472 had already
+deferred it in writing.
+
+**The measurement is the deliverable, and it is what #870 was missing.** On the
+patch lane (`m6_loft_body`'s `shape_iii_sections`) the area bracket is
+**7.8e-3 relative while the same body's volume bracket is 1.2e-14** — eleven
+orders apart, on one body. That number is S26 stated as a fact rather than as a
+worry, and it is the first time this scan has had one. The area pad there is
+**bit-identical at all three ε legs** and exactly O(h) in `QUAD2_AREA_PIECES`
+(64/32/16/8 → 0.1986 / 0.3971 / 0.7943 / 1.5885), so the ceiling is set below
+what one halving would produce.
+
+**Every new row was demonstrated red**, by degrading `quad.rs` locally and
+reverting: `QUAD2_AREA_PIECES` 64→32 reds m6; `QUAD_INIT_PIECES` 16→4 at
+ε = 1e-6 reds m5; a hand-widened `area` reds m5 at default ε. In all three
+`area_pad > 0.0` and containment stayed green — which is the finding
+reproduced as a demonstration, and the right way to prove a row can fail.
+
+**Two facts found while measuring, both in #870:** `cylinder_cut_face` does not
+read `QUAD2_AREA_PIECES` at all, and on that lane the area and flux pads are
+rigidly coupled through the shared `a_s` (ratio exactly 6.000 at every ε, the
+body's `r = 0.5`). So the unmetered risk is concentrated in the **patch** lanes
+— which is a sharper work order than S26's own text ever produced.
 
 ## Incidents
 
-*(none yet)*
+### #723 was closed by a document describing it, and three schedules were parked behind it
+
+**Found by lane I-b while measuring; verified and reopened by the orchestrator,
+2026-08-21.** GitHub closed **#723** — *a wrong certified volume where a sphere
+meridian arc crosses a pole* — as `completed`, attributed to **#863**, the
+track-definition PR that created Tracks H and I. #863 edits
+`docs/SMELL-SCAN-2026-08.md` **and nothing else**: no arithmetic, no predicate,
+no test. It picked up the close from a closing keyword in §D's own prose about
+the C-m lane — the sentences *"the lane is described in a comment on #723"* and
+*"whoever closes #723 finds C-m waiting there"*.
+
+**Three schedules were parked behind that register while it read `completed`:**
+Track C's **C-m** (struck *until #723 is fixed*), Track I's **I1** (the style
+half, which stands on its own *because* the correctness defect is #723's), and
+**S82**, which is in front of Evan partly as *"is this a #723 sibling?"*.
+
+This is **§C3** — *deferrals must land in a register that executes* — for at
+least the fourth time on this scan, and the first time where **the register was
+retired by a document describing it**. The three earlier instances were
+pointers that resolved to nothing; this one is a pointer that resolved to
+*success*, which is strictly worse: a reader checking C-m's gate would have
+found it green.
+
+**The generalisation, and it is cheap to act on:** this scan's documents cite
+issue numbers constantly, and §D's own convention is to describe a parked lane
+*at* the issue it waits on. Any of those sentences can close the issue it
+names. Nothing in the repo guards it, and the failure is silent in both
+directions — the issue closes without a fix, and the PR that closed it says
+nothing about having done so.
