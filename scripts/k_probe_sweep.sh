@@ -170,10 +170,18 @@ run_plain() {
 # DERIVED FROM THE ROSTER, not hand-listed beside it. The roster is the
 # executed set; a hand list here is a second copy of it that drifts, and
 # `--check-executed` would then be floored on rows nothing produces.
+#
+# BOUND FIRST, deliberately: a command substitution inside a process
+# substitution or a `for` list is not subject to `set -e`, so a census
+# that refused would print its error and leave this loop running zero
+# invocations — the silence one level up from the one the census exists
+# to remove. `ci.yml`'s probe loop is bound first for the same reason.
+roster=$(scripts/gates/probe-suite-census.sh --executed)
+[ -n "$roster" ] || { echo "ERROR: the probe census printed no executed-set roster." >&2; exit 1; }
 while IFS=$'\t' read -r mode pkg module _; do
   [ "$mode" = plain ] || continue
   run_plain "$pkg" "$module"
-done < <(scripts/gates/probe-suite-census.sh --executed)
+done <<<"$roster"
 
 for eps in 1e-6 1e-9 1e-12; do
   corpus="$outdir/.corpus-$eps.csv"
