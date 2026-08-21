@@ -9,6 +9,44 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# THE PUSH RUN CARRIES ONLY WHAT IS UNIQUE TO IT (2026-08-20, Evan's
+# authorisation; measured in docs/CI-MINUTES-2026-08.md, finding F3).
+#
+# A merge ran the whole gate a SECOND time: ~87 billed minutes on the
+# pull_request, then ~87 again on the push to main. The PR run tests
+# the MERGE-REF — main plus the branch — so with this repo's merge-only
+# rule the tree the push run re-tested was, in the ordinary case, the
+# tree the PR run had already tested.
+#
+# Auditing what a push run alone could do turned up exactly TWO things,
+# and both are WRITE SIDE-EFFECTS rather than gates:
+#
+#   * `rebuild-latency`'s "commit measurement to the timing history
+#     (main only)" step, appending to docs/perf-data/rebuild-latency/;
+#   * `renders`' `push_to`, which re-baselines the render cells.
+#
+# Neither can move onto the PR side, and the PUSH_TO note on the
+# `renders` job records the measurement that says why: a GITHUB_TOKEN
+# bot commit onto a PR branch becomes that PR's head, triggers no run
+# of its own, and strands every green check on the parent commit.
+#
+# So every OTHER job is gated to `pull_request` below, and a push to
+# main now runs `filter` + `rebuild-latency` + `renders`.
+# `cleanup-archives` is deliberately NOT gated: its `needs` (test,
+# test-interval) skip on a push, which skips it too — one mechanism
+# rather than two saying the same thing.
+#
+# WHAT THIS GIVES UP, AND THE MITIGATION IT WANTS. The commit that
+# actually lands on main is now never itself built or tested. When main
+# moves between a PR's last run and its merge — frequent here — that
+# exact combination went untested, and a semantic conflict between two
+# independently-green PRs would now surface at the NEXT PR's merge-ref
+# rather than at the merge that caused it. The intended pairing is a
+# SCHEDULED full run on main (one cheap run, not one per merge); it is
+# not in this commit, and until it exists that gap is real. Anything
+# that must fail-fast on the landed tree belongs on the PR side of this
+# line, not restored to the push side.
+
 # BUILD ONCE PER COMPILE MODE (2026-08-03, Evan's ask: "compile the code
 # for each mode, then shard the tests"). The eps test rows run
 # BIT-IDENTICAL binaries — CAD_TOLERANCE_EPS is read at RUNTIME
@@ -224,6 +262,7 @@ jobs:
     name: docs-only ok
     runs-on: ubuntu-latest
     needs: filter
+    if: github.event_name == 'pull_request'
     steps:
       - run: echo "tier=${{ needs.filter.outputs.tier }} pkgs=${{ needs.filter.outputs.pkgs }}"
 
@@ -231,7 +270,7 @@ jobs:
     name: discipline (evaluation-code)
     runs-on: ubuntu-latest
     needs: filter
-    if: needs.filter.outputs.run_build == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_build == 'true'
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -430,7 +469,7 @@ jobs:
     name: rustfmt + rustdoc (gate)
     runs-on: ubuntu-latest
     needs: filter
-    if: needs.filter.outputs.run_build == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_build == 'true'
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -460,7 +499,7 @@ jobs:
     name: clippy
     runs-on: ubuntu-latest
     needs: filter
-    if: needs.filter.outputs.run_build == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_build == 'true'
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -504,7 +543,7 @@ jobs:
     # Unset today, so this is `ubuntu-latest` and nothing changes.
     runs-on: ${{ vars.BUILD_RUNNER || 'ubuntu-latest' }}
     needs: filter
-    if: needs.filter.outputs.run_build == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_build == 'true'
     # OPT LEVEL — reverses the #52/#53 verdict, because both of its
     # premises expired. That decision ("blanket opt 2 is net-slower on
     # core-crate PRs") was measured when this workspace had 261 test
@@ -644,7 +683,7 @@ jobs:
     name: test (eps = ${{ matrix.eps }}, ${{ matrix.shard }}/2)
     runs-on: ubuntu-latest
     needs: [filter, build]
-    if: needs.filter.outputs.run_build == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_build == 'true'
     strategy:
       fail-fast: false
       # THE BATTERY IS {default, 1e-6, 1e-12} (Evan's ruling, 2026-07-30):
@@ -787,7 +826,7 @@ jobs:
     name: corrupt input (release profile)
     runs-on: ubuntu-latest
     needs: filter
-    if: needs.filter.outputs.run_topo_release == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_topo_release == 'true'
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL — see the full note on the `filter` job above.
@@ -841,7 +880,7 @@ jobs:
     # Same BUILD_RUNNER variable as the default build job; unset today.
     runs-on: ${{ vars.BUILD_RUNNER || 'ubuntu-latest' }}
     needs: filter
-    if: needs.filter.outputs.run_build == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_build == 'true'
     # Same link/debuginfo/opt knobs, same job-level-not-step-level
     # reasoning, as the default build job — see the LINK/DEBUGINFO and
     # OPT LEVEL notes there. This job is the run's critical path (its
@@ -938,7 +977,7 @@ jobs:
     name: clippy + doc-tests (interval)
     runs-on: ubuntu-latest
     needs: filter
-    if: needs.filter.outputs.run_build == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_build == 'true'
     env:
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
@@ -995,7 +1034,7 @@ jobs:
     # finishes well before build-interval, which is the run's critical
     # path, so this adds no wall-clock.
     needs: [filter, build, build-interval]
-    if: needs.filter.outputs.run_build == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_build == 'true'
     # ONE JOB, BOTH ε ROWS, UNSHARDED (2026-08-20, minutes audit).
     # This was a 2x2 matrix — eps {default, 1e-6} x shard {1,2} — and
     # every one of the four legs billed a full minute to do 12-20 s of
@@ -1152,7 +1191,7 @@ jobs:
     needs: filter
     # Tier `closure` never reaches this: interval-transcendentals/ is its
     # own workspace, so ANY change under it is tier `all`.
-    if: needs.filter.outputs.run_interval_backend == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_interval_backend == 'true'
     # The `interval` feature's backend lives in its own workspace
     # (interval-transcendentals/), so the kernel's workspace rows never
     # build its tests. Its pad tripwire therefore had no CI at all until
@@ -1240,7 +1279,7 @@ jobs:
     name: interval oracle (certify vs inari+MPFR)
     runs-on: ubuntu-latest
     needs: filter
-    if: needs.filter.outputs.run_interval_oracle == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_interval_oracle == 'true'
     # inari's rounding primitives sit behind
     # cfg(all(target_feature = "avx", target_feature = "fma")) and it raises
     # a compile_error! without them. The repo sets no target-cpu floor
@@ -1295,7 +1334,7 @@ jobs:
     # (dev-)dependency graph is the whole profile -> sweep -> topo -> mesh
     # chain this job exercises, so `stl in closure` is exactly the
     # condition under which any of it can have moved.
-    if: needs.filter.outputs.run_stl == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_stl == 'true'
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -1329,7 +1368,7 @@ jobs:
     # Root package `step-export`: this job builds nothing — it runs FreeCAD
     # over the committed fixtures under crates/step-export/tests/fixtures,
     # which are byte-golden against that crate's writer.
-    if: needs.filter.outputs.run_step_export == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_step_export == 'true'
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -1399,7 +1438,7 @@ jobs:
     name: python suite (wheel + guide + north-star)
     runs-on: ubuntu-latest
     needs: filter
-    if: needs.filter.outputs.run_pncad_py == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_pncad_py == 'true'
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -1485,7 +1524,7 @@ jobs:
     name: persistence (eps = ${{ matrix.eps }})
     runs-on: ubuntu-latest
     needs: filter
-    if: needs.filter.outputs.run_editor_core == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_editor_core == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -1684,7 +1723,7 @@ jobs:
     name: band 4 corpus (eps = ${{ matrix.eps }})
     runs-on: ubuntu-latest
     needs: filter
-    if: needs.filter.outputs.run_editor_core == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_editor_core == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -1735,7 +1774,7 @@ jobs:
     # demos/tour (a path-dependent of nine members) and tools/k-lint, and
     # its probe sweep records margins from every kernel crate. So it runs
     # whenever anything builds at all.
-    if: needs.filter.outputs.run_k_lint == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_k_lint == 'true'
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
