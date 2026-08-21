@@ -9828,50 +9828,88 @@ each group cites it.
 
 **The five arms the wildcard used to hold were decided, not swept up**,
 and the two whose classification could have gone either way are argued
-from `topo::census` rather than from taste:
-
-- `CensusUndecidable` is **unattributed in both its arms** — the
-  cross-solid backstop `continue`s on a pair the records declare (in
-  both orientations, `Declared::index`), so a declared pair never
-  reaches it, and the instance-containment arm names SOLIDS, which no
-  lookup over face keys can match.
-- `CensusEscalated` is unattributed because an escalation is
-  indeterminate geometry at rest — a refusal under the trilean
-  discipline, never the census declining a lane — and it carries no
-  entity, so there is nothing to attribute either way.
-- The **vertex-granular** staleness arms and every **non-face**
-  `CensusUnsupported` entity are unattributable by construction:
-  `mint` makes `PatchContact` and nothing else, so no declaration of
-  this document is their subject.
+from `topo::census` rather than from taste. **The adversarial review
+re-derived all of it in `topo` rather than accepting the argument**:
+`census.rs:1588` guards both cross-solid pushes and `Declared::index`
+inserts both orientations, so a declared pair cannot reach the
+backstop; the instance-containment arm pushes `EntityId::Solid` on both
+sides; `CensusEscalated` carries no entity; and `mint`'s single `Mints`
+arm is the only `contacts.*.push` in the module, so the one non-face
+`CensusUnsupported` in production is `census.rs:1894`'s witness EDGE,
+exactly as the arm claims.
 
 `Attribution::Refuted` in the old wildcard was dead **by
 construction** — the arm hard-coded `None`, which the `(None, _)` arm
 discarded — so the `(Option, constructor)` tuple went with it; each arm
 now returns its `Attribution` directly, with the lookup and the
-relation still chosen together in one arm.
+relation still chosen together in one arm. (Scoped to that arm: the
+contradiction and staleness arms construct `Refuted` and both survive.)
 
-**Seven rows pin the classification per arm** (`assembly::attribution`),
-including the three no end-to-end row can reach — which is what let a
-wildcard hold them, and why the pins call the classifier directly.
-Both directions were mutation-checked: relabelling `CensusUnsupported`
-`Refuted` and `CensusUndecidable` `Declined` reds two rows.
+**Nine rows pin the classification, one per arm** (`assembly::attribution`).
+The measurements, all re-derived in the lane's own clone at the fix
+pass's head:
+
+- relabelling `UncertifiableSurface` `Declined` promotes an
+  `AssemblyError::AtRest` refusal into `AssemblyError::Uncertified` —
+  and **the whole of `editor-core` stays green over it**, 576
+  integration rows included. The only failure is the new unit row.
+  That mutation is the adversarial reviewer's, and it is the strongest
+  argument for the unit;
+- relabelling `CensusUnsupported` `Refuted` reds **three** rows of
+  `asm_r2b_assembly.rs`, which is the difference between an arm a
+  fixture reaches and an arm only an argument reaches.
+
+**Correction the fix pass owes its own first draft**: the test module
+said the arms it decided *"are exactly the ones no end-to-end row
+reaches."* **False, and both reviewers found it independently** —
+`asm_r2b_assembly.rs`'s `row4_b` drives `CensusEscalated` through
+`assemble` and its declined-pair rows drive `CensusUnsupported`. The
+module now says which two are covered end to end and what the rest have
+in common (no fixture provokes them), and `ContactContradicted` and
+`UndeclaredContact`, previously unpinned while the module claimed "per
+arm", have rows.
 
 `crates/pncad-py/src/py/doc.rs`'s `"randomness_unavailable"` literal is
 gone; the tag comes from `tags::workspace_error_tag`, exhaustive over
 `WorkspaceError` and pinned in `src/tests.rs`. **The finding's count is
-one short**: the enum has **ten** variants, not nine (`Update`), as of
-`c3983195`. `pncad.pyi`'s claim is narrowed to what is now true — the
-tag names the refusal that occurred, and the single-reachable-arm fact
-is marked as a fact about `random_document_id`, in another crate.
+one short**: the enum has **ten** variants, not nine (`Update`).
+
+**A second, worse instance of that half, in a file the first pass
+opened and did not sweep** (raised by the style review):
+`crates/pncad-py/src/py/value.rs`'s `import_step` collapsed **every**
+`StepImportError` to the literal `"refused"`. Worse than the `doc.rs`
+one because every arm of that enum is reachable through the door and
+the entity id and line that would tell them apart live in prose — so
+all of them arrived in Python indistinguishable. Routed through a new
+`tags::step_import_error_tag`, pinned, and `pncad.pyi` now publishes
+the vocabulary. **The enum has 21 variants, not the nineteen the review
+counted.** The four lesser candidates the review named are dispositioned
+at their sites: `value.rs`'s `"wireframe"` is one arm of an exhaustive
+match on a SUCCESS enum (and shares a namespace with the 21, which
+contain no `wireframe`); `doc.rs`'s `"name_serialize"` tags a
+`serde_json::Error` with no closed variant set worth mapping;
+`doc.rs`'s `"no_minted_id"` has no error value at all; `flush.rs`'s
+`"unclassified"` is a forced `#[non_exhaustive]` wildcard with a named
+pin.
+
+**`ValidationError`'s own sentence was amended, because this unit is
+what made it load-bearing.** *"Every match site is forced to say what
+it does with the new failure kinds"* was literally false — several
+`find_map` extraction sites answer `_ => None` — and `attribute` was
+quoting it as a rule. `validate.rs` now distinguishes a site that
+**classifies** (maps the enum onto a smaller vocabulary; owes an
+exhaustive match) from one that **extracts** (`_` is the question it is
+asking) and from one that **renders** (the wildcard's answer is the
+enum's own `Display`). The third category is why
+`pncad/src/workspace.rs:432`'s wildcard, twelve lines above the
+paragraph forbidding one, is not an exception — now labelled as such at
+the site.
 
 **The two files the scan flagged and never read come back split.**
-`crates/editor-core/src/mate.rs` **is** a member, in two places, and is
-fixed — **S136**. `crates/pncad-py/src/py/select.rs` is **not**: it
-carries `growth_tripwire`, a never-called exhaustive match per mirrored
-kernel enum, and its one wildcard is forced by a `#[non_exhaustive]`
-kernel type with a named test pin standing in for the compile alarm.
-It is the crate's own best answer to this defect, not an instance of
-it.
+`crates/editor-core/src/mate.rs` **is** a member and is fixed —
+**S136**. `crates/pncad-py/src/py/select.rs` is **not**: `growth_tripwire`
+is a never-called exhaustive match per mirrored kernel enum, and its
+one wildcard is *forced* by `#[non_exhaustive]` with a named test pin.
 
 ## S136. FIXED by #833 — `MatePrimitive`'s two wildcards, where the omission is the unsound direction
 
@@ -9880,73 +9918,151 @@ it.
 
 `Alignment::lever_arm` and `Alignment::is_finite` each matched the
 **local, closed** `MatePrimitive` with a `_ =>` arm. A primitive that
-grows an authored length would therefore contribute nothing to the
-lever arm — and a smaller lever admits a **bigger** angle for the same
-induced gap, so the mate's angular threshold loosens — and would skip
-the finiteness admission the edit door runs, whose own doc says a
-non-finite alignment could never decide anything. Both are the unsound
-direction; neither has a row that can go red, because the variants that
-exist today are the ones the named arm already handles. `Fit` is the
-class the crate has already reserved (`CLASS_DEFERRAL`) and a designed
-clearance is a length.
+grows an authored length would contribute nothing to the lever arm —
+and the adversarial review confirmed the direction from the predicate
+rather than the prose: `Band::angular_at` is
+`from_zero_threshold(eps / lever_arm)`, so a smaller lever gives a
+LOOSER angular threshold, and `mate/solve.rs`'s `arm.max(lever_arm())`
+is where the exposure lands. `is_finite`'s `_ => true` likewise admits
+a future non-finite datum. A latent hole, not a tidy-up.
 
-Closed **in code, not by two exhaustive matches that must agree**:
-`MatePrimitive::authored_lengths` is the one home for *what does a
-primitive carry that has a scale*, read by both. Its array is as wide
-as the widest variant, and `None` means *carries fewer than the widest
-does* rather than a zero standing in for an absent length. No number
-moves today — the compile break is the whole point.
+Closed **in code**: `MatePrimitive::authored_lengths` is the one home
+for *what does a primitive carry that has a scale*.
 
-**Not a member, checked: `class_admission`** in the same file. Its
-wildcard is FORCED (`ContactClass` is `#[non_exhaustive]`, in `topo`),
-documented at the site, and defaults to the safe side (`NotAdmitted` —
-refuse); `asm_r2b_assembly.rs` already carries roster rows with that
-blind spot disclosed, which is the same remedy `pncad-py` adopted after
-`Tangent` sat behind the sibling wildcard for a whole PR.
+**The style review then falsified the "one home" claim, and the third
+reader was the dangerous one.** `eval/mod.rs`'s `feed_alignment`
+extracted `PlanarRest`'s offset through a special-cased `if let` after
+an exhaustive tag match — so a future variant could not arrive
+*untagged*, but a length it carried would silently not be hashed, and
+**two documents differing only in that length would share a memo
+entry**. Now routed through `authored_lengths` as well, and guarded:
+`eval::alignment_key` pins that a standoff moves the key. **Nothing
+else could**: every mate in the suite is `FrameCoincidence`, and a lone
+planar rest is under-determined, so no end-to-end row can author one.
+Dropping the length from the key reds that row and **nothing else** —
+576 integration rows stay green.
 
-## S167. `attribute`'s decline lookup is width-1 where the finding's subject is a pair
+The method's doc now states what the compile break actually buys: a
+forced **visit**, not a correct answer — `[None]` still compiles for a
+variant that does carry a length. What it guarantees is that the answer
+is given ONCE, so three readers cannot disagree.
 
-**Found by lane G-e** closing S104, and **left open: the fix is
-`topo`'s.**
+**Not a member, checked: `class_admission`** in the same file — forced
+`#[non_exhaustive]` wildcard, documented, defaulting to refusal, with
+roster rows disclosing the blind spot.
+
+## S176. `attribute`'s decline lookup consults ONE of the pair's two faces, and arena order picks which
+
+**Found by lane G-e** closing S104; **filed as an issue** rather than
+fixed, because the fix is `topo`'s. Sharpened by the adversarial
+review, which added the half that matters.
 
 `crates/editor-core/src/assembly.rs`'s `CensusUnsupported` arm resolves
 the declaration from the ONE face the error carries, but the census's
-subject is a face **pair**. Two consequences, both now stated at the
-site and neither guarded:
+subject is a face **pair**:
 
 - a face that **two** mates declare answers to whichever declaration
-  comes first in document order;
+  comes first in document order — realistic, since `SelfMate` refuses
+  only same-*instance* pairs, so `(f,g)` and `(f,h)` can both be minted;
 - `topo::census`'s conformal-patch sweep reaches this refusal on an
-  **undeclared** pair (the `None` and typed-refusal arms of
-  `chart_overlap` fire before declaredness is consulted), and one of
-  that pair's faces may still be declared against a third — so the
-  finding is attributed to a mate whose declaration the census never
-  looked at.
+  **undeclared** pair, before declaredness is consulted, and one of
+  that pair's faces may still be declared against a third;
+- **and `sweep_conformal_patches` always carries `EntityId::Face(fa)`,
+  the first face of the pair in arena order, never `fb`** — so when
+  `fb` is the declared one and `fa` is not, the lookup misses
+  entirely, the finding is `Unattributed`, and the assembly falls to
+  `AtRest` instead of `Uncertified`. The defect is not *"picks the
+  first of two declarations"*; it is *"only ever consults one of the
+  two faces"*, and which one gets a chance is decided by arena order
+  rather than by declaredness.
 
-The **relation** survives both: `CensusUnsupported` refutes nothing, so
-the `AtRest`/`Uncertified` split stays sound and only the mate the
-message names can be wrong. `AssemblyError::Uncertified`'s doc claimed
-*"every finding is the census DECLINING a declared pair"*, which is not
-what the code establishes; it is corrected to the claim `attribute`
-does establish — *declining to certify a face that a declaration
-names*.
+**The `AtRest`/`Uncertified` split stays sound, structurally.** Both
+reviewers checked it independently: every production `CensusUnsupported`
+push is a *cannot-decide* path, and the **refuting** direction at the
+same door goes to a **different variant** — `census.rs:1955`'s
+`ChartOverlap::Empty` raises `StaleContactDeclaration`, which attributes
+`Refuted`. The split reads only the relation, never the identity. What
+can be wrong is the mate a message names, and the day a GUI highlights
+"the offending mate" that becomes user-visible.
+
+`AssemblyError::Uncertified`'s doc claimed *"every finding is the census
+DECLINING a declared pair"*, which the code never established. It, the
+`Display` string a caller actually reads, and `Attribution::Declined`'s
+own doc are corrected to what `attribute` does establish — *declining to
+certify a face that a declaration names* — and `Declined` now carries
+the width-1 caveat where a caller meets it.
 
 Narrowing the lookup needs the PAIR in
 `ValidationError::CensusUnsupported`, which is `topo`'s to carry.
 
-## S168. FIXED by #833 — the validator door's doc says `ValidationError` has no `Display`
+## S177. FIXED by #833 — the validator door's doc says `ValidationError` has no `Display`
 
 **Found by lane G-e** sweeping `ValidationError`'s match sites.
 
-`crates/pncad-py/src/py/value.rs`'s `run_validator` says
+`crates/pncad-py/src/py/value.rs`'s `run_validator` said
 *"`ValidationError` has no `Display` and no curated tag mapping"*. The
 second half is true — `crate::tags` maps the document layer's refusals
 and not the kernel validator's. The first has not been true since
 `validate.rs`'s `impl fmt::Display for ValidationError`, which is
 exhaustive and renders one prose sentence with recourse per finding.
-The sentence now says what is DEFERRED — the tag map, and the choice to
+The sentence now names what is DEFERRED — the tag map, and the choice to
 render the list with `Debug` — instead of denying a capability the
 kernel has, which is what would have sent the next reader to build one.
+
+## S178. S104's own defect, one layer upstream: `topo::census` decides `Escalated` vs `Unsupported` behind a wildcard
+
+**Raised by #833's style review** over `crates/topo/src/census.rs`, which
+is outside that lane's scope cell. **Not fixed there** — §D row **D116**.
+
+`census.rs:1018` and `census.rs:1962` are both `Some(Err(_)) =>` over
+`ChartRegionError`, whose own doc says *"closed enum, D3 style: every arm
+names its recourse"*, and both decide between
+`ValidationError::CensusEscalated` and
+`ValidationError::CensusUnsupported`. That is **precisely the
+discrimination `editor_core::attribute` then turns into `Unattributed`
+against `Declined`, i.e. `AssemblyError::AtRest` against
+`AssemblyError::Uncertified`** — so an arm added to `ChartRegionError`
+becomes `CensusUnsupported`, becomes `Declined`, and is reported to the
+caller as an unrefuted frontier over geometry nothing decided. **The
+enum has ten variants today**, so the arm at risk is the eleventh (the
+review said tenth). `:1962` is the *declared* record's confirm pass, so
+the pair reaching it is one a mate minted — the promotion is not
+hypothetical for that site.
+
+By the taxonomy #833 wrote into `ValidationError`'s doc these are
+**classification** sites, not rendering or extraction: the wildcard's
+answer is a different, smaller vocabulary, chosen here.
+
+**Where else to look**, and the sweep this row owes: every
+`Err(_)`/`Some(Err(_))` over a `topo` refusal enum in `census.rs` and
+`boolean/`.
+
+## S179. A classification spelled as a let-else — the hit a disclosed blind spot produced
+
+**Found by #833's adversarial reviewer**, running a differently-shaped
+sweep: it extracted all 59 `ValidationError` variant NAMES and grepped
+for the names rather than the type, which catches aliased imports,
+`matches!`, `if let` and let-else at once. That sweep also returned
+**zero aliases**, closing #833's disclosed blind spot #2 more strongly
+than the lane could claim it, and confirmed `attribute` is the only
+production classification site on that enum.
+
+`crates/editor-core/src/eval/wire.rs:993`'s `refusal_menu` classifies
+`topo::BooleanError` with a **let-else**: one variant gets the refusal
+menu, everything else falls through to `NodeErrorKind::Boolean(err)`.
+
+**Disposition, on inspection: benign, for the reason
+`pncad/src/workspace.rs:432` is** — the fallback preserves the error
+verbatim, so the `else` answer is the value itself and a variant added
+later answers for itself. It is a **rendering** site by #833's own
+taxonomy, not a classifying one.
+
+**The record is worth keeping for the sweep, not for the site.** #833's
+sweep pattern could not have found this whatever its disposition,
+because it greps the type name and this site never spells it in a match.
+A lane sweeping `BooleanError` — or any `topo` refusal enum — should
+sweep by VARIANT NAME, and should expect let-else and `matches!` shapes.
+A disclosed blind spot that produces a real hit is a work order.
 
 ## S105. The shared refusal ladder retired one duplication and minted a documented hand-synced one
 
@@ -13918,6 +14034,8 @@ orchestrator"* rule was written for lanes inside one track and does not survive
 four concurrent orchestrators drawing on one sequence from branches none of them
 can see.
 
+**#833 (G6) drew outside that block, and one of its allocations had already been spent.** The lane was assigned `S167`/`S168`; **Track F had minted both on `main`** (S167 with `D113`, S168 with `D114`) before the branch merged, so #833's two are renumbered **S176** and **S177**, and its fix pass took **S178**/**D116** and **S179** from the `S176`–`S181` / `D113`–`D125` block its brief named. **`D113`, `D114` and `D115` are taken there too.** Recorded as the lane's own spend, for the orchestrator to reconcile — this is the collision the standing header warns about, reaching an allocation rather than a lane.
+
 **Three edges this table did not carry, and one it carried wrongly**, all
 re-derived from the branches rather than from the schedule (G-R1 through G-R7 in
 the track log):
@@ -13959,6 +14077,7 @@ tessellation pin are red on main).
 |---|---|---|---|---|---|
 | **D71** | **The local gate has no `oracle-certify` mirror, and nothing enforces ci.yml ↔ ci-local.sh JOB parity.** Fell out of G1's fix pass: `ci-local.sh` carried both sentences G1 corrected in `ci.yml`, and under it the transcendental and `+ −` pads have no containment guard at all. Two decisions, neither a patch: does the local gate carry a ~250s GMP build, and is job parity enforced (like `gate-roster.sh` does for gate scripts) or declared per job? | **S127** | `local-scripts/{ci-local.sh,gate.sh}`, `scripts/gates/` | **ACCEPTED**, unstaffed | style |
 | **D78** | **What is still one-directional in the interval backend after G1.** Three items: `powi`'s tightness ceiling is a deferral with a downstream consumer, not an unguardable; the oracle tier's upper constraint is a scale-free ratio and misses a fixed absolute over-widening on non-monotone shapes with wide boxes; S116(r)'s consumer-side caveat at `crates/geom-core/src/interval.rs:135-143` is outside G1's fence and unclosed. **`copysign`'s placement is NOT on this list — it is S1's.** | **S134** | `interval-transcendentals/tests/`, and `crates/geom-core/src/interval.rs` for the third item | **ACCEPTED**, unstaffed | ADVERSARIAL for the first two |
+| **D116** | **S104's own defect one layer upstream, in `topo`.** `census.rs:1018` and `:1962` are `Some(Err(_))` over the CLOSED `ChartRegionError` (ten variants; its own doc says every arm names its recourse), and they decide `CensusEscalated` against `CensusUnsupported` — the discrimination `editor_core::attribute` turns into `AtRest` against `Uncertified`. An eleventh arm becomes an unrefuted frontier. `:1962` is the DECLARED record's confirm pass. Owes the sweep the row names: every `Err(_)`/`Some(Err(_))` over a `topo` refusal enum in `census.rs` and `boolean/`. | **S178** | `topo/src/census.rs`, and the sweep across `topo/src/boolean/` | **ACCEPTED**, unstaffed | **ADVERSARIAL** — the classification decides what the kernel tells a caller about an assembly, and CI cannot tell a right answer from a wrong one |
 | **G4** | **`profile`'s fifth lane trait, blanket-implemented, which D1 never looked at** — `ArcCarrierScalar` over `T: Decide + Bounds`, so `Dual64` carries the whole `path::family` arc surface today, re-exported from `pncad`. **Per Evan's ruling this is mechanical**: `CertifiedBounds` is the bound that excludes a dual. **Was gated on F1; that gate lifts with #791** (see the note below). **Two corrections #791's lane owes this row.** (a) The widened matcher fires on **none of G4's own sites** — `arc_fillet.rs` is allowlisted by file, the ~49 uses in `family.rs`/`program.rs` reach the bound through the alias NAME and are invisible to any grep, and `geom`'s doors are sole bounds outside the class — so a **green gate here is not ratification evidence**; what #791 delivers is that `real.rs`'s rule is true and enforced against new spellings. (b) **D68/S124 is a VISIBILITY defect and G4 does not discharge it**: changing what `ArcCarrierScalar` is bound to leaves all ~49 uses exactly as invisible. | **S87** (and S88's `profile` half) | `profile/src/path/{arc_fillet,family}.rs`, `profile/src/lib.rs`, `pncad/src/profile.rs` | **ACCEPTED — RULED** (the admitting set) | **ADVERSARIAL** |
 
 > **G4's gate: cleared by Track F, 2026-08-20.** F1's fix is #791; its style review re-derived the widened matcher's effect independently and found the ratification precondition met in both operand orders — `real.rs`'s sentence is now true. **One correction G4 must carry, from that review: the widened matcher fires on nothing G4 actually writes**, because every `CertifiedBounds` use in the tree is a *sole* bound and the gate's class is compound bounds only. So **a green gate on G4's conversion is not ratification evidence** — G4 owes its own argument that each converted door should exclude a dual, and cannot cite the gate as having checked it. (#791 is NOT CLEARED on other grounds — two matcher blindnesses, F-R10 — none of which bear on this precondition.)
