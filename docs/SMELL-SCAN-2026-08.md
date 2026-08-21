@@ -8575,28 +8575,95 @@ what makes the divergence visible.
 
 **Verdict:**
 
-## S67. `face_normal.rs`'s one-door module names three flip sites: one of them does not flip, and at least five that do are unlisted
+## S67. FIXED by #834 — the enumeration is COMPUTED, and `chord_join`'s missing flip is not a defect
 
-`crates/topo/src/face_normal.rs:26-31` says: *"Three such sites exist
-and are NAMED (smell-scan D6: `solid_contain::face_plane`,
-`chord_join::face_plane_normal`, `merge_faces.rs`)."*
+**The list is gone, replaced by a gate.** The three copies of the
+three-name enumeration — `face_normal.rs:31-36` (module header),
+`face_normal.rs:93-98` (the guard test's admitted gap #1) and
+`boolean/reduce.rs:248-251` — no longer name anything. `face_normal`'s
+new row **`every_hand_multiply_of_the_face_sign_is_inventoried`** walks
+`topo/src`, counts every OCCURRENCE of `Face::sense_sign` in code —
+comments and literal bodies blanked by the shared
+`fixtures::code_only`, never by a `starts_with("//")` line test — and
+pins the per-file inventory with a one-line disposition each:
+`boolean/join.rs` 1, `boolean/rest.rs` 1, `boolean/solid_contain.rs` 2,
+`entity.rs` 1, `face_normal.rs` **0**, `merge_faces.rs` 3, `props.rs` 1,
+`validate.rs` 1 — **ten reads across seven files**, against an
+enumeration that claimed three. `reduce.rs` now points at that home
+instead of restating it, so the claim has one home rather than three.
+D6's stated sweep shape *is* the gate, which is why it could replace the
+sentence rather than correct it; **D6 itself is untouched** and the
+consolidation it schedules is still open.
 
-`chord_join::face_plane_normal` (`crates/topo/src/chord_join.rs:2020-2026`)
-returns the raw chart normal with **no `sense_sign` at all**, so it is
-not one of them. Five sites that *do* multiply are unlisted:
-`crates/topo/src/boolean/join.rs:986`, `boolean/rest.rs:512`,
-`boolean/solid_contain.rs:316`, `validate.rs:2161`, `props.rs:264`.
+**The out-of-crate half is inventoried HERE, and the gate deliberately
+does not recite it.** `topo`'s guard walks `topo/src`, which is the tree
+that crate can see; D6's scope is the workspace. A roster of other
+crates sitting beside a computed inventory would mint this finding's own
+defect one level out, so the roster lives in this document instead —
+where a work order belongs — and the code points at it. Re-derived for
+this record rather than copied from the sentence it replaces: the
+production hand-multiplies of `Face::sense_sign` outside `topo` are
+**four** — `editor-core/src/names/emit_topo.rs:57` (a plane normal),
+`mesh/src/walk.rs:976-1015` (the chart area's sign, bound to a local at
+`:976-979` and applied at `:1015`), `sweep/src/fillet/build.rs:235` (a
+plane normal) and `sweep/src/fillet/battery.rs:232` (a normalized
+gradient) — plus two in a test oracle, `sweep/tests/common/orient.rs:93`
+and `:205`. Two crates that look like readers are not: **`geom-brep`
+reads nothing** — it does not depend on `topo` at all, and its eight
+`sense_sign` occurrences in `props/curved.rs` are a **parameter name**
+on a value `topo/src/props.rs:264` passes in, the rest being prose; and
+**`step-export`** reads `Face::sense` as the `same_sense` bit
+(`step-export/src/writer.rs:562`), never the `±1`, which is a different
+consumer and a legitimate one. **This list is recited, not computed,
+and says so**: it is D6's work order, and it goes stale the moment D6
+executes.
 
-The enumeration is the only thing standing in for the guard test's
-admitted gap #1 (`face_normal.rs:88-92`), so an inaccurate enumeration
-**is** the whole gap. It is also the disclosed-blind-spot-read-as-a-
-discharge shape: the list is presented as the point of the paragraph.
+**The finding's own citations, re-derived** (G-R5 corrects the quotation
+and is itself half right): the sentence *"Three such sites exist and are
+NAMED …"* **is** in the tree, verbatim — at `face_normal.rs:93-98`, the
+gap-#1 bullet the finding cites separately as `:88-92`, not at `:26-31`,
+which held a second copy of the same three names in the module header.
+So it was a line-number misattribution, not a paraphrase. Of the five
+unlisted sites: `join.rs:986`, `solid_contain.rs:316` confirmed exactly;
+`rest.rs:512` binds the `±1` to a local and multiplies at `:521`;
+`validate.rs`'s is at **`:2168`**, not `:2161`; and **`props.rs:264` is
+not a normal multiply at all** — it hands the `±1` to `curved_face`'s
+closed form. The finding's shape holds and its arithmetic was low: with
+`solid_contain.rs:197` and `merge_faces.rs:990` (both named) the plane
+hand-multiplies in `topo/src` are **six**, and the sense-sign reads ten.
 
-Worth checking separately: whether `chord_join`'s *missing* flip is
-itself a defect — it hands that normal to `point_in_loop` for ring
-re-homing.
+**`chord_join::face_plane_normal`'s missing flip is NOT a defect**
+(the adversarial sub-unit; `chord_join.rs:2019-2026` returns the raw
+chart normal, verified). Its one consumer, `point_in_loop`, reads the
+normal only to recover the loop's PLANE: the schedule projection
+`r − n̂(n̂·r)` is invariant under `n̂ ↦ −n̂`, and the parity frame's second
+axis `n̂ × d` merely negates every vertex ordinate — leaving the straddle
+test `sign(yᵢ) ≠ sign(yⱼ)`, the on-the-ray `Zero` graze and the crossing
+advance `(xᵢyⱼ − xⱼyᵢ)/(yⱼ − yᵢ)` (numerator and denominator both
+negated) unchanged. Negation is exact and both `sign_within` classifiers
+are symmetric about zero, so **the verdict is bit-identical either
+way**, and a refusal is identical in variant, predicate and band.
 
-**Verdict:**
+One thing is NOT bit-identical, and stating it is what keeps the
+sentence above true: an escalation carries the **signed** margin it
+refused on, so two mirrored refusals render as `Value(−m)` against
+`Value(m)`. `Indeterminate` documents those fields as diagnostic data
+for error messages and telemetry, and nothing in the walk reads a
+margin back — but a differential row comparing whole `Debug` strings
+would red on it alone. The pin
+therefore compares variant, predicate and band, and separately asserts
+the two margins are exact negations. The derivation is written at
+`point_in_loop`, whose property it is, with a pointer from the producer
+that omits the flip; `review_m3_pr3_pil.rs`'s row pins it over six
+fixtures across four profiles, including an oblique carrier, a probe
+placed strictly inside the ambiguity band, and the typed `RayExhausted`
+arm. `solid_contain`'s
+`face_plane` threads the sign although its consumer is equally
+sign-blind; the difference is a **naming contract** — that door promises
+an outward normal — not a correctness one.
+
+**Raised on the way: S171**, the S11 sense-inheritance hazard that S12
+discharged and that three comments still describe as open.
 
 ## S68. The W2c discard sweep stopped inside the function it was editing
 
@@ -11295,6 +11362,179 @@ scope and dispositioning what it returns. The one-command version is in
 
 **Verdict:**
 
+**chord_join.rs discharged by #834 (G8).** The vocabulary
+(`verbatim|re-derived|ported from|mirror|copy|copies|duplicat|identical|twin|hand-appl|hand-writ|parallel`,
+case-insensitive) returns **37 hits** in that file, re-derived on `origin/main` at the
+merge (`3ddd6011`), and S131's warning that the grep is a candidate list
+rather than a count holds hard: **36 are false positives**, and four
+shapes account for most of them. Mäntylä citations (`:18`, `:29`,
+`:1895` — the book's *mirror site*). `derive(Clone, Copy)` (`:101`,
+`:424`). **Values** copied or compared, never bodies: an arena copy of
+the mate's wall surface (`:1318`), two spellings of one azimuth
+(`:1482-88`), and the seven *"bit-identical"* claims about OUTPUT, which
+are the single largest family. And records of duplication **already
+removed**, including the guard row that forbids re-forking it (`:808`,
+`:1347`, `:2462-2510`). The remainder are the word *copy* used for a
+split's above-side vertex duplicates (`:39`, `:176-202`, `:1554`), which
+is the one shape the vocabulary cannot be narrowed against without
+losing real markers.
+
+**One was stale, and is fixed by #834:** `:1232` said the boolean
+planar-side lane's *"selection logic mirrors `chord_spec`'s S9 block
+deliberately — same margins, same predicate names, same refusal
+cases"*, but since S5 both lanes call the one `select_arc` body
+(`:1180` and `:1317`) and `:2472-2479`'s guard exists to keep it that
+way. A marker asserting a copy that is now shared code sends the next
+reader to unify what is already unified — **S133's mechanism with the
+sign reversed**, and it costs the same. The vocabulary found it
+because the marker was written in the vocabulary's own words; S131's
+blind spot (a marker in fresh words) is untested here and stays open.
+
+---
+
+## S171. The S11 sense-inheritance hazard was discharged by S12, and three comments still describe it as open
+
+**[verified]** `Body::set_face_sense` (`topo/src/attach.rs:123-137`)
+carries a **KNOWN HAZARD** block (`:123-138`): *"splitting does not
+inherit the bit yet … Every `mef` mints its new face `sense: true`, including the
+boolean splitting/reassembly re-mints (`chord_join.rs`,
+`splitting/reassembly.rs`), so splitting a `sense: false` face today
+would silently stamp `true` on the pieces."*
+
+**That is false today.** `Body::mef_chords` reads the parent's
+`face_data.sense` as `inherit_sense` (`euler.rs:1725-1726`) and hands it
+to `mint_face_surface_and_sense` (`euler.rs:1981-1994`), which returns
+the parent's bit whenever the fragment lands on the parent's surface and
+`true` only when it mints a new one; `mef_lone` and `euler_kill`'s
+`mfkrh` take the same decision from the same helper. `chord_join`'s two
+re-mints both pass `FaceSurface::Inherit`, so both inherit. The guard
+exists and is green: `sweep/tests/m5_s12_curved_ops.rs`'s
+`a_boolean_that_splits_a_reversed_wall_inherits_the_parent_bit`.
+
+**Three copies, and the hit list.**
+`chord_join.rs:1788-1794` (*"SENSE HAZARD (M5 S11, banked)"*) —
+**FIXED by #834**, replaced by the invariant and its guard.
+`attach.rs:104-105` and `:123-138` — **not this unit**: outside G8's
+scope cell, and §C and §B each cite `attach.rs:119`'s KNOWN HAZARD
+block as the exemplar of *a named-and-pinned gap*, so correcting it
+edits prose belonging to other sections (and those two citations are
+themselves four lines off the block they name). `entity.rs:258`
+(*"The Euler operators mint `sense: true`"*) — **not this unit**, same
+reason, and it needs the qualifier rather than deletion: `mvfs` still
+mints `true`, and so does `mef` on a NEW surface.
+
+**Why it matters more than a stale sentence usually does.** The block
+is what a reader consults before touching orientation, it names two
+files by path, and it says the hazard is *unreachable in the current
+battery* — an argument that was already weakening independently, since
+`revolve` mints a **planar** `sense: false` face (the under-side
+annulus, `sweep/src/revolve/axis.rs:373-374`) and needs no curved
+boolean to do it. A reader who trusts the block will add the
+inheritance that is already there, or will avoid a split that is
+already safe.
+
+**The replacement sentence must stay CONDITIONAL, and here is why**
+(re-derived on this branch after #834's style review raised it). A
+corrected block saying *"splitting inherits"* unqualified would be the
+next false sentence, on two counts:
+
+- `splitting/finish.rs:280` promotes a section ring through
+  `mfkrh(ring, FaceSurface::New(plane_for(ring_side)))` on a **live**
+  path — a new surface, so `mint_face_surface_and_sense` returns
+  `true` and the promoted face is stamped, correctly, rather than
+  inherited. Inheritance is conditioned on the fragment keeping the
+  parent's surface, and this path deliberately does not.
+- of the block's two named sites, `splitting/reassembly.rs` is a
+  **test-only** oracle (`reassembly.rs:1`: *"The reassembly oracle
+  (test-only)"*), so naming it beside `chord_join.rs` reads as two live
+  re-mints when it is one.
+
+So the fix is *"splitting inherits the parent bit whenever the fragment
+keeps the parent surface, and mints `true` when it mints a new one —
+`finish.rs`'s section promotion is the live case of the latter"*, not a
+flat retraction.
+
+**Scope:** `topo/src/attach.rs` and `topo/src/entity.rs`, plus the two
+`§C`/`§B` citations of `attach.rs:119` in this document. **Row: D77.**
+
+## S172. Five spellings of "is this line code", beside seven guards that already share the walk
+
+**[verified]** Raised by #834's style review over its own new guard.
+The textual guards that walk a crate's own sources each carry their own
+answer to *is this text code or comment* — `trim_start().starts_with("//")`
+— and each inherits the same blind spots: a `/* … */` block, a
+`#[doc = "…"]` attribute, the needle inside a string literal or a
+`macro_rules!` body, and any code that FOLLOWS a comment on the same
+line. Four instances:
+
+- `topo/src/face_normal.rs` — **FIXED by #834**, the instance this row
+  was raised from. Its predicate now comes from
+  `topo::fixtures::code_only`, which blanks comments and literal bodies
+  while preserving byte offsets and line structure, and is pinned on
+  all four shapes above plus the one a naive quote scanner breaks on (a
+  lifetime, `&'a str`, which must not open a char literal).
+- `topo/src/review_d18_probes.rs:263`
+- `geom-core/tests/flagged_census.rs:182`
+- `step-import/tests/tier_gate.rs:787`
+
+**The class is the finding, and the walk was already consolidated.**
+Seven guards in `topo/src` share `fixtures::crate_sources()`
+(`chord_join.rs:2490`, `pcurves.rs:1621`,
+`review_m1_pr5_internal.rs:323`, `sector_shape.rs:508`,
+`review_d18_probes.rs:252`, and two rows in `face_normal.rs`) — the
+style review counted eight; it is seven, and its `chord_join` line
+number is six lines off. `fixtures.rs:74` says outright that *"a guard
+against duplication should not be the next copy of its own walk"*, which
+is the argument for the predicate as much as for the walk. **A home
+existed and the comment test is the part that kept being copied
+instead.**
+
+**Why it is not cosmetic.** A guard whose comment test is wrong is
+green for the wrong reason. `face_normal.rs`'s inventory pins that file
+at **zero** reads of `Face::sense_sign` while the file names the method
+five times in `//!`/`///` prose — the whole zero rested on one prefix
+test, so a single block comment in that file would have reddened its
+own guard.
+
+**Scope:** the three remaining instances, in three crates. `topo`'s is
+a lift into `fixtures::code_only`; the other two are in crates with no
+such shared home, and whether one is minted or the predicate is copied
+twice more is the scheduling question, not the lane's. **Row: D80.**
+
+## S173. The curved generalization of the one door lives inside `boolean/`, which is what the door's own header argues against
+
+**[verified]** Raised by #834's style review; recorded rather than
+acted on, because the fix is a move, not a sentence.
+
+`face_normal`'s module header spends nine lines (`face_normal.rs:14-24`)
+on why the planar sense flip moved to the crate root: when
+`sector_face` became a crate-root module shared with the splitting
+lane, a door inside `boolean/` could no longer be the one door, because
+*"a crate-root module importing from `boolean/` would be the same
+wrong-way edge, pointed the other way."*
+
+`boolean::rest::face_carrier` (`rest.rs:510`) is documented at its own
+site (`rest.rs:502-504`) as *"the curved generalization of
+[`face_plane`], folding the face's sense into the material side exactly
+as that door does (S10)"*. It is `pub`, re-exported from the crate root
+(`topo/src/lib.rs:258`), and folds the `±1` itself (`rest.rs:512`). So
+the curved half of the one door sits inside the consumer the planar
+half was deliberately moved out of, and reaches the crate root by
+re-export rather than by living there.
+
+**Not a defect today, which is why it is a row and not a fix.**
+`face_carrier` has no consumer outside `boolean/`, so the wrong-way
+edge the header warns about does not exist yet; what exists is a
+placement contradicting a stated argument next door, and that argument
+is load-bearing — it is why `face_normal.rs` exists at all. The
+question is whether the two halves want one home, which is issue
+**#695**'s territory (where `face_outward_normal`'s own placement
+question is already banked) rather than a prose fix.
+
+**Scope:** `topo/src/boolean/rest.rs`, `topo/src/face_normal.rs`. **No
+§D row** — scheduling is the orchestrator's call and it may want this
+to ride #695 instead.
+
 ---
 
 # Findings raised by the Track F lanes (2026-08-20)
@@ -13828,7 +14068,11 @@ the track log):
   G8 goes first; G9 sequences behind it. They are not merged — G8's row already
   requires its `chord_join` question be a separate adversarial sub-unit, and
   folding G9's placement argument in would put that sub-unit inside a doc edit.
-  (G-R4.)
+  (G-R4.) **Landed: #834.** The sub-unit came back *not a defect*
+  (`point_in_loop` is exactly sign-blind, and the derivation is now at the
+  site), so nothing of G8's is owed to an issue and G9 is unblocked; G9
+  inherits **S171** and the `chord_join.rs` half of **S133**, both discharged
+  in that PR.
 - **G1's `ci.yml` sites are not #753's.** #753's two hunks are at `:73-79` and
   `:302-308`; S72's and S112(b)'s are ~790 lines away in the `oracle-*` job
   region. Unlike F8 (F-R1), G1's fix does not land in a hunk #753 rewrites, so
@@ -13836,9 +14080,12 @@ the track log):
   **Landed: #786**, whose three `ci.yml` hunks are all inside the
   `interval-backend` job's header comment.
 
-**S67's quotation of `face_normal.rs:26-31` is a paraphrase, not the tree's
-sentence** — the finding survives on its substance, and the correction is
-recorded at G-R5 so a lane does not go looking for text that is not there.
+**S67's quotation of `face_normal.rs:26-31` was a line-number
+misattribution, not a paraphrase** — the quoted sentence *is* in the tree,
+verbatim, at `:93-98`, and `:26-31` held a SECOND copy of the same three
+names. G-R5 corrected the citation in the right direction and overstated the
+defect; the lane re-derived both and says so at S67. There were three copies
+of that enumeration, and the finding named one.
 
 **`demos/` has left this table.** Its row (G2, nine roll-up members) landed as
 **#787**, G-R1 included: S110(g)(j), S112(h), S113(a)(b), S114(b) and S116(d)
@@ -13870,11 +14117,12 @@ tessellation pin are red on main).
 | **G5** | **`profile`'s ONARC prose outlived the boundary it describes.** Per the ruling above, this is **not** the capability question the finding posed: `review_s2.rs:45` claims the class *"is built"* and cites a test the deleting commit removed, while the shipped pin records the boundary the commit deliberately established. Correct the prose to state the boundary; **do not delete `sugar.rs`'s machinery**, which is the raw-builder path the boundary is defined against. | **S71** | `profile/tests/review_s2.rs`, and only a re-read of `profile/src/sugar.rs` | **ACCEPTED IN PART — RULED** | style |
 | **G6** | **A wildcard over a deliberately closed enum, in the wave that de-wildcarded two siblings** — `attribute()`'s `_ =>` decides `AtRest` vs `Uncertified`, and a literal tag string bypasses the one-home tag map; the dead `Attribution::Refuted` corroborates. | **S104** | `editor-core/src/assembly.rs`, `pncad-py/src/py/doc.rs`, and two files the scan did not read | **ACCEPTED** | **ADVERSARIAL** |
 | **G7** | **The `Step` vocabulary was unified inside `profile` only** — of the three cross-crate copies, one breaks loudly and two go silently short. S4 named five copies across three crates; one crate was swept. **Partly collides with Track E's E-e** (`editor-core/src/eval/`) — sequence after it. | **S106** | `profile/src/path/program.rs`, `editor-core/src/{program,persist/wire,eval/mod}.rs` | **ACCEPTED** | style |
-| **G8** | **`face_normal.rs`'s one-door module names three flip sites: one does not flip, and at least five that do are unlisted.** The enumeration repair is style — but the sub-question it parks (*is `chord_join`'s missing flip a defect, given it feeds `point_in_loop` for ring re-homing?*) is a **correctness** question and must be a separate adversarial unit, not folded into a doc edit. Overlaps the standing open decision **D6**, whose stated sweep shape is `grep sense_sign`. | **S67** | `topo/src/face_normal.rs` (docs), `topo/src/chord_join.rs` (the real question) | **ACCEPTED**, with the routing caveat | style + one **ADVERSARIAL** sub-unit |
 | **G9** | **Two operand gates with different admitted kind sets and a doc that describes only one** (S95), and **`chord_join`'s top-level-sibling placement argument contradicted by its own imports from `splitting/`** (S96). S96's imports reach `splitting/rules.rs`, which is Track C's — **confirm with Track C before touching it**. | S95, S96 | `topo/src/boolean/{ops,reduce}.rs`, `topo/src/chord_join.rs` | **ACCEPTED** on both | style; S95 escalates only if the drift ever admits a kind |
 | **G11** | **The demo manifest inconsistencies are duplicated READER code.** From S114(c), **closed as a design question by Evan 2026-08-20** — the schema framing was refused and the emitter half ruled *no shared type*. Four pieces, none a schema: **(i)** one home for the `View.up` convention, deriving world→display and display→world from it, so `render.py:51` and `render_freecad.py:105` cannot drift — they are exact inverses today **by coincidence of two independently-written idioms, checked by nothing**, and either is individually "fixable" by someone reading only one; **(ii)** one shared manifest walk for the two Python readers, which is what makes `transparency` and `montage` get defaulted twice; **(iii)** the eight `uv.json` fields written and read by nothing, deleted; **(iv)** the wild emitter's field set brought level with the tour's, **by agreeing rather than by a shared type**. `demos/*.py` are the render harness, not demos — `memories/demo-purpose.md` governs the Rust that drives the kernel, not the tooling that looks at its output. | **S114(c)** | `demos/render.py`, `demos/render_freecad.py`, `demos/wild/src/main.rs`, `demos/tour/src/uvdump.rs` | **RULED — closed** | style |
 | **G10** | **Prose describing a world the code has left** — eight members, the cleanest class in Tier 3, scattered by file. Three of them (`geom-brep/props/curved.rs`, `geom-brep/src/ssi/`) are **Track C's and must be left**; the rest are free. | **S112** | scattered; the free members only | **ACCEPTED** | style |
 | **D79** | **`lily.rs`, read end to end for the first time — six members, no owner.** Raised by #787's review over free ground §B2 had flagged as the scan's highest-yield unread file: an orphaned comment block whose live number is wrong (38° vs 28.6°), a shadow tuple vector algebra beside `Vec3` (whose *reason* is issue **#796**), two carrier extractors with different rigor plus a partly-vacuous agreement check, an existential-over-two cap assert, an unchecked arity beside a hard `== 8`, and 41% comment with a 137-line header. **All six sit inside `mod review_probes`' orbit, which no gate runs (S129, #782)** — so the row's first question is whether it waits on that or precedes it. | **S130** | `demos/tour/src/lily.rs` | proposed: **ACCEPT**, after or with S129 | style |
+| **D77** | **The S11 sense-inheritance hazard is discharged and three comments still say it is open.** `mef` inherits the parent's sense whenever the fragment keeps the parent surface (S12, `mint_face_surface_and_sense`), and `set_face_sense`'s **KNOWN HAZARD** block still says splitting stamps `true` — a block a reader consults before touching orientation. `chord_join`'s copy is fixed by G8; `attach.rs` and `entity.rs` are not, and §C and §B each cite the block as an exemplar, so the row also owns those two citations. `entity.rs` needs the QUALIFIER, not deletion: `mvfs` still mints `true`, and so does `mef` on a new surface. **So does the corrected block**: `splitting/finish.rs:280` promotes a section ring through `mfkrh(ring, FaceSurface::New(…))` on a LIVE path and correctly stamps `true`, and the block's second named site (`splitting/reassembly.rs`) is a **test-only** oracle — a flat *"splitting inherits"* would be the next false sentence. S171 carries the wording. | **S171** | `topo/src/attach.rs`, `topo/src/entity.rs`, and this document's two `attach.rs:119` citations | proposed: **ACCEPT** | style |
+| **D80** | **Five spellings of "is this line code", beside seven guards that already share the walk.** Raised by #834's style review over the guard #834 itself added: each source-walking guard carries its own `trim_start().starts_with("//")`, blind to `/* … */`, to `#[doc = "…"]`, to a needle inside a string literal, and to code FOLLOWING a comment on one line. `topo/src/face_normal.rs`'s instance is **fixed** — lifted into `fixtures::code_only` beside the walk those guards already share, pinned on all five shapes. Three remain, in three crates. **The class is the deliverable, not the instance** (§C13): `topo`'s is a lift into the existing home; `geom-core` and `step-import` have no such home, and whether to mint one or copy the predicate twice more is the scheduling question this row asks. | **S172** | `topo/src/review_d18_probes.rs`, `geom-core/tests/flagged_census.rs`, `step-import/tests/tier_gate.rs` | proposed: **ACCEPT** | style |
 
 **Rides along, and is not a new row:** S111(a)(b)(d) and S112(a) are
 `sweep/src/fillet/` and belong to Track E's **E-g**, which is already ADVERSARIAL

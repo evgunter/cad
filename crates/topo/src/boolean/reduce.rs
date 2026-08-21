@@ -245,10 +245,13 @@ pub(super) fn face_source<T: Decide>(
 /// the crate root rather than here), one flip, so those consumers stay
 /// orientation-blind.
 ///
-/// "One door" is true of those consumers, not of the workspace:
-/// `solid_contain::face_plane`, `chord_join`'s `face_plane_normal` and
-/// `merge_faces.rs` each carry their own hand-multiply (smell-scan
-/// D6).
+/// "One door" is true of those consumers, not of the workspace: other
+/// faces' outward normals are still hand-multiplied. The ones **in
+/// this crate** are inventoried by [`crate::face_normal`]'s guard,
+/// which COMPUTES them rather than reciting them. The four outside it
+/// — in `editor-core`, `mesh` and `sweep` — are beyond any `topo`
+/// walk; they are listed once in `docs/SMELL-SCAN-2026-08.md` at S67,
+/// beside D6's work order, and nowhere in this tree (smell-scan D6).
 ///
 /// Consumers that only compare the plane RESIDUAL `(p − o)·n̂` against
 /// Zero, or that hand the normal to a ray-parity test, are unaffected
