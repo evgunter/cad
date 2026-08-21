@@ -48,17 +48,13 @@
 //! therefore δ + ε (+ rounding); grid sizing targets δ/2 so the slack
 //! never decides in practice.
 //!
-//! **No sizing function reads ε** — no step or grid rule in this crate
-//! has it in its signature. A COUNT can still move:
-//! `curved::pole_columns` returns 3 rather than 2 on a walk carrying a
-//! pole, and that bit is set by an ε comparison in [`walk`]. So *"mesh
-//! structure is a function of (body, δ)"* holds **for every body in
-//! the tree** — a statement about the tree, not a theorem, and it is
-//! weaker than *"ε cannot move an emitted coordinate"*, which is
-//! false. ε arrives once, in [`fn@tessellate`], and is carried on
-//! `sizing::Tol`, whose doc states what a read may do; where the
-//! reads ARE is pinned by `tests/all.rs`'s
-//! `the_eps_inventory_is_pinned` rather than written down (D9).
+//! **No sizing function reads ε**, and *"mesh structure is a function
+//! of (body, δ)"* holds **for every body in the tree** — a statement
+//! about the tree, not a theorem, and weaker than *"ε cannot move an
+//! emitted coordinate"*, which is false. ε arrives once, in
+//! [`fn@tessellate`]; `sizing::Tol`'s doc states what its reads may do
+//! and where that claim stops, and `tests/all.rs`'s
+//! `the_eps_inventory_is_pinned` computes where they are (D9).
 //!
 //! # Watertightness and the memo-key contract
 //!
@@ -71,9 +67,8 @@
 //! [`validate::check_mesh`] re-derives that over an emitted mesh and
 //! is what the acceptance suites run — but **[`fn@tessellate`] does
 //! not call it**, so a mesh whose construction argument failed is
-//! returned as `Ok` unless the caller runs it. The same qualifier is
-//! owed wherever `check_mesh` is named as a backstop; it is stated at
-//! [`Mesh`], at [`fn@tessellate`] and in the `curved` module header.
+//! returned as `Ok` unless the caller runs it — a qualifier this crate
+//! now carries at every site that names `check_mesh` as a backstop.
 //!
 //! **Invariant (ratified via PR #32): per-face tessellation is a pure
 //! function of (face surface, loops, per-edge chord points, δ).** This
@@ -150,12 +145,10 @@
 //! corner points; `curved::pole_columns` is what guarantees that
 //! (issue #678 — at `nu == 2` a single equidistant column gives both
 //! corners a fan over it and the identified edge is used four times).
-//! A `debug_assert` in `curved`'s emit pass re-derives the conclusion
-//! over each pole patch — **in debug builds only**, so a release build
-//! carries the floor and nothing else. Whether that re-derivation
-//! should also run in release is an open question for Evan, priced at
-//! `SMELL-SCAN-2026-08.md` S65; `curved`'s module header states the
-//! same asymmetry at the site.
+//! The `debug_assert` that re-derives the conclusion over each pole
+//! patch is **debug-only**, so a release build carries the floor and
+//! nothing else; `curved`'s module header states that asymmetry and
+//! points at the open decision (`SMELL-SCAN-2026-08.md` S65).
 //!
 //! `Surface::normal` is never sampled anywhere (winding
 //! needs no normals), so the ∂u → 0 poison is unreachable. Pole-to-pole

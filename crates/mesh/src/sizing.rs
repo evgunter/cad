@@ -90,21 +90,20 @@ use crate::types::TessellateError;
 /// classify a vertex, or scale a measurement — **which one each is, is
 /// stated at the read**, not restated here.
 ///
-/// Two of them make *"ε cannot move an emitted coordinate"* FALSE as
-/// stated: pole identification substitutes the pole's exact `v` for
-/// `Chart::v_of(p)` and emits TWO `pole: true` entries instead of one,
-/// and `walk::iso_side_starts` picks which of two analytically-equal
-/// columns a side carries. **Nothing in the tree flips either** — no
-/// in-tree body puts a non-pole vertex within any of the suite's ε rows
-/// of a pole, and no swept junction has landed at `0 < radial <= eps`.
-/// Whether one is REACHABLE is not established (`revolve` would very
-/// likely refuse such a sliver; a STEP import is the plausible route
-/// in), so the dependence is structural and UNEXERCISED, which is not
-/// the same as absent. *"Mesh structure is a function of (body, δ)"* is
-/// a statement about the tree, not a theorem.
+/// The two CLASSIFYING reads make *"ε cannot move an emitted
+/// coordinate"* FALSE as stated — pole identification substitutes the
+/// pole's exact `v` and emits two entries instead of one;
+/// `walk::iso_side_starts` picks which of two analytically-equal
+/// columns a side carries. Each argues its own reachability where it
+/// is; what belongs here is the summary: **nothing in the tree flips
+/// either, and whether anything COULD is not established** (a STEP
+/// import is the plausible route in). The dependence is structural and
+/// UNEXERCISED, which is not the same as absent, and it is why *"mesh
+/// structure is a function of (body, δ)"* is a statement about the
+/// tree rather than a theorem.
 ///
-/// One read is no bar at all: [`crate::trimmed`]'s deviation probe
-/// computes `d / (bound + eps)`, so ε scales the `worst_ratio` it
+/// The SCALING read is no bar at all: [`crate::trimmed`]'s deviation
+/// probe computes `d / (bound + eps)`, so ε moves the `worst_ratio` it
 /// publishes at **every** call, monotonically. No mesh coordinate
 /// moves; a reported number does.
 ///
