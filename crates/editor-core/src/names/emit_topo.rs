@@ -20,6 +20,7 @@ use super::emit::{
 use super::role::{EntityKind, Qualifier, RoleSeg, SplitHalf, StableName};
 use super::table::{EntityKey, Entry, NameTable};
 use crate::node::RecipeNodeId;
+use geom_core::Tol;
 
 /// One split-side body under naming.
 struct Side<'a, T: Decide> {
@@ -1581,7 +1582,7 @@ mod tests {
                 .map(|(x, y)| geom_core::Point2::new(x, y)),
         );
         let profile = profile::Profile::new(plane, vec![square])
-            .validate(geom_core::Tolerance::get())
+            .validate(geom_core::Tol::witness().get())
             .unwrap();
         let built = sweep::extrude(&profile, sweep::Extrusion::Distance(1.0_f64)).unwrap();
         let ext_node = RecipeNodeId(1);
@@ -1662,7 +1663,7 @@ mod tests {
                 .map(|(x, y)| geom_core::Point2::new(x, y)),
         );
         let profile = profile::Profile::new(plane, vec![square])
-            .validate(geom_core::Tolerance::get())
+            .validate(geom_core::Tol::witness().get())
             .unwrap();
         let built = sweep::extrude(&profile, sweep::Extrusion::Distance(1.0_f64)).unwrap();
         let ext_node = RecipeNodeId(1);

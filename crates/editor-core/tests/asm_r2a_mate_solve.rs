@@ -24,6 +24,7 @@ use editor_core::{
     load, product, relative_freedom_components, save, solve_document,
 };
 use fixture::{desc, insert, len, square, step};
+use geom_core::Tol;
 
 /// `step`, with the minted id unwrapped — every insert in this suite
 /// mints one.
@@ -705,7 +706,7 @@ fn row5_the_closure_set_is_closed_under_intersection() {
     use editor_core::Subgroup;
     use geom_core::linalg::{Point3, Vec3};
     use geom_core::predicate::Band;
-    let band = Band::linear().expect("a band");
+    let band = Band::linear(Tol::witness()).expect("a band");
     let x = Vec3::new(1.0, 0.0, 0.0);
     let y = Vec3::new(0.0, 1.0, 0.0);
     let z = Vec3::new(0.0, 0.0, 1.0);
@@ -868,7 +869,7 @@ fn row5b_the_folded_representative_is_the_solved_clocking() {
     use editor_core::mate::coset::{Coset, Subgroup, intersect};
     use geom_core::linalg::{Affine3, Mat3, Point3, Vec3};
     use geom_core::predicate::Band;
-    let band = Band::linear().expect("a band");
+    let band = Band::linear(Tol::witness()).expect("a band");
     let z = Vec3::new(0.0, 0.0, 1.0);
     // Pin 1 pins the shared axis through the origin; pin 2's A-side
     // axis is at +x while its representative carries B's at +y.
@@ -1529,7 +1530,7 @@ fn row7c_an_unadmitted_class_refuses_naming_the_fit_deferral() {
 /// sweeps.
 #[test]
 fn row7d_an_in_band_case_split_escalates_typed() {
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     // Two planar rests whose normals differ by an angle whose induced
     // displacement at the mate's lever arm is 3ε — definitely inside
     // (ε, Kε) for the default K = 10.

@@ -58,9 +58,10 @@ use geom::Surface;
 use geom_brep::props::{LoopEdge, curved_face};
 use geom_core::k_stats::{self, Probe};
 use geom_core::{Band, Point3, Vec3};
+use geom_core::Tol;
 
 fn band() -> Band {
-    Band::linear().unwrap()
+    Band::linear(Tol::witness()).unwrap()
 }
 
 fn p(x: f64, y: f64, z: f64) -> Point3<Probe> {

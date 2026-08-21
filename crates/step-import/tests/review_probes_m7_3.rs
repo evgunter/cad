@@ -14,6 +14,7 @@ use common::{census, fixture};
 use geom_core::{Affine3, Point2, Vec3};
 use profile::RawLoop;
 use step_import::{ImportOptions, StepImport, import_step};
+use geom_core::Tol;
 
 fn import(text: &str) -> Result<StepImport, step_import::StepImportError> {
     import_step(text, &ImportOptions::default())
@@ -66,7 +67,7 @@ fn native_loft_prism() -> topo::Body<f64> {
 fn probe_refit_seam_refuses_typed() {
     /// The plant's displacement, in metres.
     const PLANT: f64 = 1e-7;
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     let text = fixture("loft_prism", "step").replace(
         "#90 = CARTESIAN_POINT('', (-1.75, -1.0, 1.0));",
         "#90 = CARTESIAN_POINT('', (-1.7499999, -1.0, 1.0));",

@@ -19,6 +19,7 @@ use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile
 use sweep::{Extrusion, extrude};
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::{Body, validate_geometric};
+use geom_core::Tol;
 
 const R: f64 = 0.5;
 const H: f64 = 1.0;
@@ -30,7 +31,7 @@ fn disc() -> ValidatedProfile<f64> {
         ProfileVertex::new(Point2::new(R, 0.0), 1.0),
     ]);
     Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap()
 }
 
@@ -217,7 +218,7 @@ fn dual_lane_keeps_the_closed_form_refusal() {
         ProfileVertex::new(Point2::new(d(R), d(0.0)), d(1.0)),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let cylinder = extrude(&profile, Extrusion::Distance(d(H))).unwrap().body;
     let plane = SplitPlane {

@@ -8,9 +8,10 @@ use geom_core::{Point2, Point3, Tolerance, Vec2};
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
 use sweep::RevolveAxis;
 use topo::{Body, EdgeKey, LoopBoundary, LoopKey, validate, validate_closed, validate_geometric};
+use geom_core::Tol;
 
 pub fn eps() -> f64 {
-    Tolerance::get().eps
+    Tol::witness().get().eps
 }
 
 pub fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -19,7 +20,7 @@ pub fn p2(x: f64, y: f64) -> Point2<f64> {
 
 pub fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
     Profile::new(SketchPlane::xy(), loops)
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap()
 }
 

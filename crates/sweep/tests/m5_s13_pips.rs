@@ -34,6 +34,7 @@ use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations, BooleanError};
+use geom_core::Tol;
 
 // ---------------------------------------------------------------------
 // Fixtures and helpers (the S12 suite's, radius-generalized).
@@ -44,7 +45,7 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 }
 
 fn slack() -> f64 {
-    (1e3 * Tolerance::get().eps).max(1e-9)
+    (1e3 * Tol::witness().get().eps).max(1e-9)
 }
 
 fn vol(body: &Body<f64>) -> f64 {
@@ -60,7 +61,7 @@ fn slab() -> Body<f64> {
             .collect(),
     );
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
 }
@@ -74,7 +75,7 @@ fn ball_at(r: f64, centre: Vec3<f64>) -> Body<f64> {
         ProfileVertex::new(p2(0.0, r), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let axis = RevolveAxis {
         origin: p2(0.0, 0.0),
@@ -154,7 +155,7 @@ fn die_pip_subtract_is_green() {
     // The seam circle: an exact Circle carrier of radius √(r² − d²)
     // (never a fitted chord), described as a surface intersection.
     let rho = (PIP_R * PIP_R - (PIP_R - PIP_H) * (PIP_R - PIP_H)).sqrt();
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     let mut seam_arcs = 0;
     for (ek, e) in cut.edges() {
         let Some(curve) = cut.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
@@ -280,7 +281,7 @@ fn two_pips_cut_under_the_group_arm() {
 /// half, placed FROM the band so the row is honest at every ε.
 #[test]
 fn in_band_extent_escalates_instead_of_answering() {
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     let mid = 0.5 * (band.zero() + band.escalate());
     // Center above the slab so that r − |s| = mid for the top face.
     let b = ball_at(1.0, Vec3::new(2.0, 2.0, 2.0 - mid));
@@ -369,7 +370,7 @@ fn cylinder_near_sphere_refuses_typed_at_the_scan() {
         ProfileVertex::new(p2(-0.35, 0.0), 1.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![disc])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let cyl = extrude(&vp, Extrusion::Distance(1.3)).unwrap().body;
     let ball = ball_at(0.2, Vec3::new(0.0, 0.0, 1.75));

@@ -17,9 +17,10 @@ use topo::{
     ContactRefusal, ContactVerdict, CurveContact, FacePairDeclaration, PatchContact,
     ValidationError, carrier_eq, validate_pseudomanifold,
 };
+use geom_core::Tol;
 
 fn band() -> Band {
-    Band::linear().unwrap()
+    Band::linear(Tol::witness()).unwrap()
 }
 
 fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
@@ -102,7 +103,7 @@ fn probe_sphere_length_margins_ignore_the_arm() {
 /// in-band at 1 m must become a definite distinction at a large arm.
 #[test]
 fn probe_cylinder_angular_margin_is_levered_at_the_arm() {
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     let tilt = eps / 10.0; // sin ~ tilt: sub-band at unit arm
     let a = cyl([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 3.0, true);
     let axis = Vec3::new(tilt, 0.0, 1.0).normalize();
@@ -197,7 +198,7 @@ fn probe_tangent_definite_crossing_contradicts() {
 /// actual behaviour the docs deny.
 #[test]
 fn probe_tangent_bridges_inband_residual_beyond_the_stated_residue() {
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     let up = plane_s([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
     // A genuine (authored) gap of 3 eps: in the sliver band, so not
     // definite separation — but also NOT the #175 kappa_rel residue.

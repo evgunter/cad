@@ -48,6 +48,7 @@ use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations};
+use geom_core::Tol;
 
 // ---------------------------------------------------------------------
 // Fixtures and helpers.
@@ -61,7 +62,7 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 /// each ε lane compares at its own scale (floor at the f64 lane's
 /// historical 1e-9).
 fn slack() -> f64 {
-    (1e3 * Tolerance::get().eps).max(1e-9)
+    (1e3 * Tol::witness().get().eps).max(1e-9)
 }
 
 fn vol(body: &Body<f64>) -> f64 {
@@ -80,7 +81,7 @@ fn rect(w: f64, h: f64) -> ProfileLoop<f64> {
 /// The 3 × 3 × 0.8 plate (the PR 9 boss consumer's own dimensions).
 fn plate() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![rect(3.0, 3.0)])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     extrude(&profile, Extrusion::Distance(0.8)).unwrap().body
 }
@@ -99,7 +100,7 @@ fn boss(n: usize, z0: f64, len: f64) -> Body<f64> {
     let lp = ProfileLoop::new((0..n).map(|i| ProfileVertex::new(at(i), bulge)).collect());
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     extrude(&profile, Extrusion::Distance(len)).unwrap().body
 }
@@ -117,7 +118,7 @@ fn notched() -> Body<f64> {
         ProfileVertex::new(p2(0.0, 3.0), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
 }
@@ -134,7 +135,7 @@ fn ball_at(centre: Vec3<f64>) -> Body<f64> {
         ProfileVertex::new(p2(0.0, 1.0), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let axis = RevolveAxis {
         origin: p2(0.0, 0.0),
@@ -386,7 +387,7 @@ fn a_boolean_that_splits_a_reversed_wall_inherits_the_parent_bit() {
     );
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.3)));
     let sp = Profile::new(plane, vec![sq])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let b = extrude(&sp, Extrusion::Distance(0.4)).unwrap().body;
 
@@ -446,7 +447,7 @@ fn a_boolean_that_splits_a_reversed_wall_inherits_the_parent_bit() {
 #[test]
 fn the_die_pip_sphere_shape_now_cuts_at_the_opened_door() {
     let slab = Profile::new(SketchPlane::xy(), vec![rect(4.0, 4.0)])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let a = extrude(&slab, Extrusion::Distance(1.0)).unwrap().body;
     let b = ball_at(Vec3::new(2.0, 2.0, 0.5));
@@ -521,7 +522,7 @@ fn the_die_pip_sphere_shape_now_cuts_at_the_opened_door() {
 #[test]
 fn finding_row_flipped_containment_fallback_now_sees_the_curved_extent() {
     let slab = Profile::new(SketchPlane::xy(), vec![rect(4.0, 4.0)])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let a = extrude(&slab, Extrusion::Distance(1.0)).unwrap().body;
     let b = ball_at(Vec3::new(2.0, 2.0, 0.5));
@@ -529,7 +530,7 @@ fn finding_row_flipped_containment_fallback_now_sees_the_curved_extent() {
     // The ball genuinely leaves the slab: its equator reaches z = 1.5.
     let above = Point3::new(2.0, 2.0, 1.4);
     assert_eq!(
-        topo::boolean::point_in_solid(&b, above, geom_core::Band::linear().unwrap()).unwrap(),
+        topo::boolean::point_in_solid(&b, above, geom_core::Band::linear(Tol::witness()).unwrap()).unwrap(),
         topo::boolean::SolidContainment::In,
         "the ball really does poke out above the slab"
     );

@@ -24,7 +24,7 @@
 //! reduction sweep (M3 PRs 2 and 4).
 
 use geom_brep::CertifyError;
-use geom_core::{Band, Decide, Margin, Sign};
+use geom_core::{Band, Decide, Margin, Sign, Tol};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, GeomRef, HalfEdgeKey, VertexKey};
@@ -142,7 +142,7 @@ impl<T: Decide> Body<T> {
     ///
     /// The first failing precondition above; the body is untouched on
     /// `Err`.
-    pub fn split_edge(&mut self, edge: EdgeKey, t: T) -> Result<SplitEdgeCreated, EulerOpError> {
+    pub fn split_edge(&mut self, edge: EdgeKey, t: T, tol: Tol) -> Result<SplitEdgeCreated, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
 
@@ -197,7 +197,7 @@ impl<T: Decide> Body<T> {
             // in meters.
             geom::Curve3::Nurbs(ref n) => n.speed_lower_bound(),
         };
-        let band = Band::linear().map_err(|e| EulerOpError::Certification {
+        let band = Band::linear(tol).map_err(|e| EulerOpError::Certification {
             error: CertifyError::Band(e),
         })?;
         for margin in [
@@ -519,7 +519,7 @@ mod tests {
         let cube = ops_cube();
         let mut body = cube.body;
         let edge = cube.mevs[0].edge;
-        let band = Band::linear().unwrap();
+        let band = Band::linear(Tol::witness()).unwrap();
         let before = deep_snapshot(&body);
         for (t, expect_escalated) in [
             (0.0, false),

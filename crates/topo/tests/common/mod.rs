@@ -17,6 +17,7 @@ use geom::Surface;
 use geom_brep::{EdgeCurveSpec, EdgeGeometry, newell_plane};
 use geom_core::{Band, Point3, Real};
 use topo::{Body, FaceSurface, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
+use geom_core::Tol;
 
 /// Key bundle for the geometric unit cube.
 #[allow(dead_code)]
@@ -35,7 +36,7 @@ pub fn line<T: Real>(p0: Point3<T>, p1: Point3<T>) -> EdgeCurveSpec<T> {
 
 /// A Newell-certified plane from an outward-CCW-ordered corner list.
 pub fn plane<T: geom_core::Decide>(corners: &[Point3<T>]) -> Surface<T> {
-    newell_plane(corners, Band::linear().unwrap()).unwrap()
+    newell_plane(corners, Band::linear(Tol::witness()).unwrap()).unwrap()
 }
 
 /// Builds the geometric unit cube through the public operators: the
@@ -306,7 +307,7 @@ pub fn prism_z<T: geom_core::Decide>(profile: &[(f64, f64)], z0: f64, z1: f64) -
 /// (coplanar neighbors — collinear profile runs) keep their
 /// conventional chord, mirroring the pipeline's D2 split.
 pub fn describe_as_intersections<T: geom_core::Decide>(body: &mut Body<T>) {
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
     for (edge_key, edge) in edges {
         let face_surface = |body: &Body<T>, he| {
@@ -451,7 +452,7 @@ pub fn flush_declarations<T: geom_core::Decide>(
 ) -> topo::BooleanDeclarations {
     use geom_core::k_stats::{decide, decide_flagged};
     use geom_core::{Margin, Sign};
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     let planes = |body: &Body<T>| -> Vec<(topo::FaceKey, Point3<T>, geom_core::Vec3<T>)> {
         body.faces()
             .filter_map(|(k, f)| match body.get_surface(f.surface) {

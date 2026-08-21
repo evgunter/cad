@@ -18,6 +18,7 @@ use sweep::{Extrusion, Revolution, extrude, revolve};
 use topo::{Body, mass_properties, validate, validate_closed, validate_geometric};
 
 use revolve_common::{axis_y, p2, validated};
+use geom_core::Tol;
 
 fn v(x: f64, y: f64, b: f64) -> ProfileVertex<f64> {
     ProfileVertex::new(p2(x, y), b)
@@ -187,7 +188,7 @@ fn negative_revolve_angle_is_positively_oriented() {
 /// D4 posture, not a defect).
 #[test]
 fn megascale_washer_matches_and_validates() {
-    let s = (geom_core::Tolerance::get().eps * 1e14).max(1.0);
+    let s = (geom_core::Tol::witness().get().eps * 1e14).max(1.0);
     let lp = ProfileLoop::polygon([p2(s, 0.0), p2(2.0 * s, 0.0), p2(2.0 * s, s), p2(s, s)]);
     let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full).unwrap();
     check(

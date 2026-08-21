@@ -28,7 +28,7 @@
 //! [`ArcData`](super::program::ArcData) enum.
 
 use geom_core::k_stats::decide;
-use geom_core::{Band, Decide, Margin, Point2, Real, Sign, Tolerance, Vec2};
+use geom_core::{Tol, Band, Decide, Margin, Point2, Real, Sign, Tolerance, Vec2};
 
 use super::arc_fillet::{ArcFilletTrims, FilletSide, SideCarrier};
 use super::{Dir, PathError, unit_from_components};
@@ -41,7 +41,7 @@ use crate::sugar::ArcSweep;
 /// later complete the arrival call through this pointer without ever
 /// naming the bound.
 pub(crate) type ArcResolver<T> =
-    fn(FilletSide<T>, FilletSide<T>, T, Tolerance) -> Result<ArcFilletTrims<T>, PathError<T>>;
+    fn(FilletSide<T>, FilletSide<T>, T, Tol) -> Result<ArcFilletTrims<T>, PathError<T>>;
 
 // ------------------------------------------------------------------
 // Bare state values (the binding bits, nothing else).
@@ -359,6 +359,6 @@ pub(crate) fn tangent_arc_leg<T: Decide>(
 
 /// Re-exported director construction so arrival builders normalize
 /// components through the ONE shared door.
-pub(crate) fn director<T: Decide>(dx: T, dy: T) -> Result<Dir<T>, PathError<T>> {
-    unit_from_components(dx, dy)
+pub(crate) fn director<T: Decide>(dx: T, dy: T, tol: Tol) -> Result<Dir<T>, PathError<T>> {
+    unit_from_components(dx, dy, tol)
 }

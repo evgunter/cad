@@ -13,6 +13,7 @@ use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, extrude};
 use topo::Body;
 use topo::splitting::{SplitPlane, split};
+use geom_core::Tol;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -30,7 +31,7 @@ fn rect(w: f64, h: f64) -> ProfileLoop<f64> {
 /// My plate: 3 x 3 x 0.8.
 fn plate() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![rect(3.0, 3.0)])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     extrude(&profile, Extrusion::Distance(0.8)).unwrap().body
 }
@@ -47,7 +48,7 @@ fn boss(n: usize, z0: f64, len: f64) -> Body<f64> {
     let lp = ProfileLoop::new((0..n).map(|i| ProfileVertex::new(at(i), bulge)).collect());
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     extrude(&profile, Extrusion::Distance(len)).unwrap().body
 }
@@ -178,7 +179,7 @@ fn a_second_curved_boolean_chains_on_the_first_result() {
     let lp = rect(3.0, 3.0);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 1.0)));
     let profile = Profile::new(plane, vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let slab = extrude(&profile, Extrusion::Distance(0.15)).unwrap().body;
     match topo::union(&first, &slab) {
@@ -218,7 +219,7 @@ fn du_of_rims_sums_equal_span_arcs_the_shape_the_old_rule_silently_halved() {
         ProfileVertex::new(p2(0.5, 0.0), 1.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let body = extrude(&profile, Extrusion::Distance(1.0)).unwrap().body;
     let plane = SplitPlane {
@@ -253,7 +254,7 @@ fn a_genuinely_non_maximal_curved_operand_slips_the_f7_gate_what_then() {
         ProfileVertex::new(p2(0.5, 0.0), 1.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let body = extrude(&profile, Extrusion::Distance(1.0)).unwrap().body;
     let plane = SplitPlane {
@@ -272,7 +273,7 @@ fn a_genuinely_non_maximal_curved_operand_slips_the_f7_gate_what_then() {
     );
     let plane2 = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.4)));
     let profile2 = Profile::new(plane2, vec![lp2])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let slab = extrude(&profile2, Extrusion::Distance(0.2)).unwrap().body;
     match topo::union(&below, &slab) {
@@ -310,7 +311,7 @@ fn a_boss_overhanging_the_plate_edge_hits_the_curved_pierce_frontier() {
     let lp = ProfileLoop::new((0..3).map(|i| ProfileVertex::new(at(i), bulge)).collect());
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.3)));
     let profile = Profile::new(plane, vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let boss_over = extrude(&profile, Extrusion::Distance(1.0)).unwrap().body;
     match topo::union(&plate(), &boss_over) {

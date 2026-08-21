@@ -12,9 +12,10 @@ use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::Body;
+use geom_core::Tol;
 
 pub fn eps() -> f64 {
-    Tolerance::get().eps
+    Tol::witness().get().eps
 }
 
 /// A one-loop, four-line quad SECTION for the loft/sweep doors
@@ -32,7 +33,7 @@ pub fn p2(x: f64, y: f64) -> Point2<f64> {
 
 pub fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
     Profile::new(SketchPlane::xy(), loops)
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap()
 }
 

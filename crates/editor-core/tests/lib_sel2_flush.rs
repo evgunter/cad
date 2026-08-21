@@ -32,6 +32,7 @@ use editor_core::{
 use topo::{PlaneRelation, mass_properties};
 
 use fixture::{desc, insert, len};
+use geom_core::Tol;
 
 fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
     evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default())
@@ -240,7 +241,7 @@ fn detect_declare_boolean_round_trip() {
 /// no sites of its own).
 #[test]
 fn in_band_gap_refuses_pair_in_band() {
-    let tol = geom_core::Tolerance::get();
+    let tol = geom_core::Tol::witness().get();
     // The band's midpoint: strictly inside (eps, k·eps) for any k > 1.
     let gap = 0.5 * (tol.eps + tol.k * tol.eps);
     let (doc, base) = box_at(
@@ -309,7 +310,7 @@ fn declare_inserts_the_pair() {
 /// hand-mirrored (review MINOR-1).
 #[test]
 fn tilted_in_band_pairs_pin_the_verification_arm() {
-    let tol = geom_core::Tolerance::get();
+    let tol = geom_core::Tol::witness().get();
     for theta in [1.01 * tol.eps, 0.99 * tol.k * tol.eps] {
         let (c, s) = (theta.cos(), theta.sin());
         let (doc, base) = box_at(

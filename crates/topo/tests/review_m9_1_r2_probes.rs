@@ -13,9 +13,10 @@ use topo::boolean::contact_verify::tangent_locus_relation;
 use topo::boolean::plane_eq::PlaneIdentity;
 use topo::contact::{ContactRefusal, ContactVerdict};
 use topo::{BooleanResult, ContactRecords, Surface, ValidationError, union_with};
+use geom_core::Tol;
 
 fn band() -> Band {
-    Band::linear().unwrap()
+    Band::linear(Tol::witness()).unwrap()
 }
 
 fn declared() -> PlaneIdentity<'static> {

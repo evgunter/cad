@@ -19,6 +19,7 @@ use sweep::test_support::cube;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations, EdgeKey};
+use geom_core::Tol;
 
 /// The die's side, meters.
 const DIE_L: f64 = 1.0;
@@ -34,7 +35,7 @@ const PIP_D: f64 = 0.22;
 const RIM_R: f64 = 0.02;
 
 fn band() -> Band {
-    let tol = Tolerance::get();
+    let tol = Tol::witness().get();
     Band::new(tol.eps, tol.k * tol.eps).unwrap()
 }
 
@@ -80,7 +81,7 @@ fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
         ProfileVertex::new(p2(0.0, r), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let axis = RevolveAxis {
         origin: p2(0.0, 0.0),
@@ -431,7 +432,7 @@ fn ring_clearance_trio_definite_pass_definite_refuse_in_band_escalate() {
     use sweep::fillet::surgery::ring_clearance;
     let (pipped, _) = pipped_and_box_edges();
     let face = pipped.faces().next().unwrap().0;
-    let tol = Tolerance::get();
+    let tol = Tol::witness().get();
     // Definite pass.
     ring_clearance(face, 0.05, band()).expect("a definite clearance carries the ring");
     // Definite refuse, typed with the margin as payload.

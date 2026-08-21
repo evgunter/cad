@@ -15,6 +15,7 @@ use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile
 use sweep::{Extrusion, extrude};
 use topo::Body;
 use topo::splitting::{SplitPart, SplitPlane, split};
+use geom_core::Tol;
 
 const R: f64 = 1.0;
 const H: f64 = 2.5;
@@ -27,7 +28,7 @@ fn disc() -> ValidatedProfile<f64> {
         ProfileVertex::new(Point2::new(R, 0.0), 1.0),
     ]);
     Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap()
 }
 

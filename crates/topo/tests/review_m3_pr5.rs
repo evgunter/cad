@@ -20,6 +20,7 @@ use topo::{
     mass_properties, point_in_solid, subtract, subtract_with, union_with, validate,
     validate_closed,
 };
+use geom_core::Tol;
 
 fn brick<T: Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
     prism_z::<T>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
@@ -449,7 +450,7 @@ fn single_prong_cut_nonconvex_cap_subtract() {
 
 #[test]
 fn point_in_solid_complement_and_void() {
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     let cube = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     let inside = Point3::new(0.5, 0.5, 0.5);
     let outside = Point3::new(2.0, 2.0, 2.0);
@@ -497,7 +498,7 @@ fn point_in_solid_complement_and_void() {
 
 #[test]
 fn point_in_solid_on_entities_and_grazes() {
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     let cube = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     // On a face interior / an edge / a vertex: OnBoundary, typed.
     for q in [

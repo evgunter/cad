@@ -12,6 +12,7 @@ use geom_core::{Point2, Tolerance};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, extrude};
+use geom_core::Tol;
 
 #[test]
 fn an_in_band_second_order_margin_at_rest_escalates_somewhere_loud() {
@@ -20,7 +21,7 @@ fn an_in_band_second_order_margin_at_rest_escalates_somewhere_loud() {
     // = 1, margin = 1/(2R). Choose S from the RESOLVED band so the
     // margin is mid-band: margin = sqrt(zero * escalate) (geometric
     // mean), R = 1/(2*margin).
-    let band = geom_core::Band::linear().unwrap();
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let margin = (band.zero() * band.escalate()).sqrt();
     let r_fillet = 1.0 / (2.0 * margin);
     let s = r_fillet / 0.25;
@@ -33,7 +34,7 @@ fn an_in_band_second_order_margin_at_rest_escalates_somewhere_loud() {
         ProfileVertex::new(Point2::new(0.0, s), 0.0),
     ]);
     lp = lp.with_tangent_joints(vec![2, 3]);
-    let profile = match Profile::new(SketchPlane::xy(), vec![lp]).validate(Tolerance::get()) {
+    let profile = match Profile::new(SketchPlane::xy(), vec![lp]).validate(Tol::witness()) {
         Ok(p) => p,
         Err(e) => {
             // A typed profile-stage refusal is loud enough — record it.

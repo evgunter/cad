@@ -27,7 +27,7 @@
 //! sugar never guesses and never panics.
 
 use geom_core::k_stats::decide;
-use geom_core::{
+use geom_core::{Tol, 
     Band, BandError, Decide, Indeterminate, Margin, Point2, Real, Sign, Tolerance, Vec2,
 };
 
@@ -414,9 +414,9 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
     outgoing: FilletLegShape<T>,
     next: Point2<T>,
     radius: T,
-    tol: Tolerance,
+    tol: Tol,
 ) -> Result<ArcFilletOutcome<T>, ArcTrimRefusal<T>> {
-    let band = Band::new(tol.eps, tol.k * tol.eps).map_err(ArcTrimRefusal::Band)?;
+    let band = Band::new(tol.eps(), tol.k() * tol.eps()).map_err(ArcTrimRefusal::Band)?;
     // The exact-order band (validate module docs): no representable
     // f64 lies strictly inside it, so f64 classification is total.
     let exact = Band::new(f64::from_bits(1), f64::from_bits(2)).map_err(ArcTrimRefusal::Band)?;

@@ -26,7 +26,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Band, Point3, Vec3};
+use geom_core::{Band, Point3, Tol, Vec3};
 
 use super::SplitPlane;
 use super::split_scratch;
@@ -41,14 +41,14 @@ use geom_brep::EdgeCurveSpec;
 /// A geometric quad prism (profile in x–y, extruded +z; the
 /// tests/common builder's minimal in-crate copy): planar Newell
 /// surfaces, certified chord-line carriers.
-pub(crate) fn quad_prism(profile: &[(f64, f64); 4], height: f64) -> Body<f64> {
+pub(crate) fn quad_prism(profile: &[(f64, f64); 4], height: f64, tol: Tol) -> Body<f64> {
     let c = |&(x, y): &(f64, f64), z: f64| Point3::new(x, y, z);
     let bot: Vec<Point3<f64>> = profile.iter().map(|p| c(p, 0.0)).collect();
     let top: Vec<Point3<f64>> = profile.iter().map(|p| c(p, height)).collect();
     let n = 4;
     let line = EdgeCurveSpec::line_between;
     let plane = |corners: &[Point3<f64>]| {
-        geom_brep::newell_plane(corners, Band::linear().unwrap()).unwrap()
+        geom_brep::newell_plane(corners, Band::linear(tol).unwrap()).unwrap()
     };
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(bot[0]).unwrap();
@@ -217,7 +217,7 @@ fn reglue_pair<T: geom_core::Decide>(body: &mut Body<T>, below_face: FaceKey, ab
 /// the pre-carve seam, merge the same-key coplanar pairs, and compare
 /// against the operand-with-crossings reference.
 #[test]
-fn reassembly_oracle_generic_cube() {
+fn reassembly_oracle_generic_cube(tol: Tol) {
     let operand = quad_prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0);
     let plane = SplitPlane {
         origin: Point3::new(0.0, 0.5, 0.0),
@@ -258,7 +258,7 @@ fn reassembly_oracle_generic_cube() {
 
     // Reference: operand + the same crossing insertions only.
     let reference = {
-        let band = geom_core::Band::linear().unwrap();
+        let band = geom_core::Band::linear(tol).unwrap();
         let mut b = operand.clone();
         let (mut sides, mut on) = super::classify::classify_vertices(&b, &plane, band).unwrap();
         super::classify::insert_crossings(&mut b, &plane, &mut sides, &mut on).unwrap();

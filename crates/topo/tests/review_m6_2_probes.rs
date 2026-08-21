@@ -30,6 +30,7 @@ use geom::{Curve3, NurbsCurve2};
 use geom_brep::{Pcurve, PcurveCache, PcurveCertifyError, PcurveCheck};
 use geom_core::{Band, Point2};
 use topo::pcurves::{PcurveMintError, validate_pcurves};
+use geom_core::Tol;
 
 /// Species 1: the foreign-arc cache fails the at-rest pass at the
 /// schedule's map residual — the re-derivation compares the stored
@@ -42,7 +43,7 @@ fn the_foreign_arc_cache_fails_on_the_map_residual_against_the_edges_carrier() {
         println!("SKIPPED: FitSampleBudget stand-down at this ε");
         return;
     };
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     let foreign = fixture::foreign_cache(&built);
     built.body.attach_pcurve(built.he_plus, foreign);
     let findings = validate_pcurves(&built.body, band);
@@ -78,7 +79,7 @@ fn a_between_samples_image_corruption_survives_the_full_c2_certificate() {
         println!("SKIPPED: FitSampleBudget stand-down at this ε");
         return;
     };
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     let (t0, t1) = built.image.domain();
 
     // 64 uniform spans: schedule samples (i/8 of the span) land ON
@@ -158,7 +159,7 @@ fn a_sub_interval_cache_is_caught_by_loop_continuity() {
         println!("SKIPPED: FitSampleBudget stand-down at this ε");
         return;
     };
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     let (t0, t1) = built.image.domain();
     let tm = t0 + (t1 - t0) * 0.5;
     let window = Pcurve::Fitted(Arc::clone(&built.image)).chart_box(t0, t1);

@@ -165,6 +165,7 @@ use geom_core::{Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec2,
 
 use crate::certify::CERT_SAMPLES;
 use crate::ssi::{SsiCertificate, SsiLimb, SsiOperand};
+use geom_core::Tol;
 
 /// A pcurve: the 2-D chart image of an edge's carrier, parameterized by
 /// **the carrier's own parameter** (module docs).
@@ -3745,7 +3746,7 @@ mod tests {
     use super::*;
 
     fn band() -> Band {
-        Band::linear().unwrap()
+        Band::linear(Tol::witness()).unwrap()
     }
 
     /// A unit-frame cylinder of radius `r` about `+z`, seam at `+x`.

@@ -21,9 +21,10 @@ use geom_brep::{
 };
 use geom_core::{Band, Point3, Tolerance, Vec3};
 use slotmap::SlotMap;
+use geom_core::Tol;
 
 fn band() -> Band {
-    let tol = Tolerance::get();
+    let tol = Tol::witness().get();
     Band::new(tol.eps, tol.k * tol.eps).unwrap()
 }
 

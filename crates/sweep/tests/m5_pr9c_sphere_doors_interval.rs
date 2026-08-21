@@ -18,6 +18,7 @@ use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{SolidContainment, point_in_solid};
+use geom_core::Tol;
 
 fn iv(x: f64) -> Interval {
     Interval::from_f64(x)
@@ -34,7 +35,7 @@ fn ball() -> topo::Body<Interval> {
         ProfileVertex::new(Point2::new(iv(0.0), iv(1.0)), iv(0.0)),
     ]);
     let vp = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let axis = RevolveAxis {
         origin: Point2::new(iv(0.0), iv(0.0)),
@@ -46,7 +47,7 @@ fn ball() -> topo::Body<Interval> {
 #[test]
 fn interval_sphere_doors_classify_in_out_and_boundary() {
     let body = ball();
-    let b = Band::linear().unwrap();
+    let b = Band::linear(Tol::witness()).unwrap();
     // Dyadic probes: exactly representable, so the enclosures are
     // points and every margin decides definitely.
     assert_eq!(

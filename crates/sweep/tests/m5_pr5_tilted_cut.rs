@@ -20,6 +20,7 @@ use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile
 use sweep::{Extrusion, extrude};
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::{Body, validate, validate_closed, validate_geometric};
+use geom_core::Tol;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -34,7 +35,7 @@ fn disc() -> ValidatedProfile<f64> {
         ProfileVertex::new(p2(0.5, 0.0), 1.0),
     ]);
     Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap()
 }
 
@@ -266,7 +267,7 @@ mod interval {
             ProfileVertex::new(Point2::new(iv(0.5), iv(0.0)), iv(1.0)),
         ]);
         let vp = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
-            .validate(Tolerance::get())
+            .validate(Tol::witness())
             .unwrap();
         let body = extrude(&vp, Extrusion::Distance(iv(1.0))).unwrap().body;
         let phi = 0.3f64;
@@ -556,7 +557,7 @@ fn rotated_belly_cut_is_seam_placement_independent() {
 /// and for each side prints every certified `Curve3::Ellipse` edge's
 /// `params()` span, the min/max `z` of `carrier().eval` over a dense
 /// sweep of that interval, `topo::pcurves::validate_pcurves(part,
-/// Band::linear())`, and `topo::mint_pcurves(&mut part.clone())`.
+/// Band::linear(Tol::witness()))`, and `topo::mint_pcurves(&mut part.clone())`.
 /// It reports, per side:
 ///
 ///   * two section-arc edges, each span 5.8957988 rad
@@ -614,7 +615,7 @@ fn repaired_belly_bodies_mint_certified_pcurves() {
     };
     let result = split(&body, &plane).unwrap();
     let (above, below) = assert_two_sided(&result);
-    let band = geom_core::Band::linear().unwrap();
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
     for part in [above, below] {
         // The split's own caches re-validate at rest.
         assert!(topo::pcurves::validate_pcurves(&part, band).is_empty());
@@ -651,7 +652,7 @@ fn even_crossing_belly_cut_at_interval() {
         profile::ProfileVertex::new(Point2::new(iv(0.5), iv(0.0)), iv(1.0)),
     ]);
     let vp = profile::Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let body = extrude(&vp, Extrusion::Distance(iv(1.0))).unwrap().body;
     // The tilted-belly even-crossing configuration (both rims crossed
@@ -781,7 +782,7 @@ fn definite_roots_mint_four_crossings() {
 #[test]
 fn near_graze_escalates_typed() {
     let body = cylinder_body();
-    let eps = Tolerance::get().eps;
+    let eps = Tol::witness().get().eps;
     let plane = SplitPlane {
         origin: Point3::new(0.0, 0.5 + 3.0 * eps, 0.0),
         normal: Vec3::unit_y(),

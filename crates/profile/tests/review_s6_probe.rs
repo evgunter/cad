@@ -9,6 +9,7 @@ mod common;
 
 use common::{near_tangent_hole, tangent_hole, tol};
 use geom_core::COINCIDENCE_RECOURSE;
+use geom_core::Tol;
 
 fn assert_unified(msg: &str) {
     assert_eq!(
@@ -27,7 +28,7 @@ fn probe_profile_tangency_pair_e2e() {
     eprintln!("[probe] profile definite:\n  {msg}\n");
     assert_unified(&msg);
 
-    let msg = near_tangent_hole(tol().eps)
+    let msg = near_tangent_hole(tol().eps())
         .validate(tol())
         .expect_err("in-band clearance must escalate")
         .to_string();

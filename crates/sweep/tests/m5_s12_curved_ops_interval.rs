@@ -54,7 +54,7 @@ mod certified {
 
     fn validated(loops: Vec<ProfileLoop<Interval>>) -> ValidatedProfile<Interval> {
         Profile::new(SketchPlane::xy(), loops)
-            .validate(Tolerance::get())
+            .validate(Tol::witness())
             .unwrap()
     }
 
@@ -93,7 +93,7 @@ mod certified {
             Vec3::new(iv(0.0), iv(1.0), iv(0.0)),
         );
         let vp = Profile::new(plane, vec![lp])
-            .validate(Tolerance::get())
+            .validate(Tol::witness())
             .unwrap();
         extrude(&vp, Extrusion::Distance(iv(len))).unwrap().body
     }
@@ -206,7 +206,7 @@ mod certified {
             Vec3::new(iv(0.0), iv(1.0), iv(0.0)),
         );
         let vp = Profile::new(plane, vec![lp])
-            .validate(Tolerance::get())
+            .validate(Tol::witness())
             .unwrap();
         let b = extrude(&vp, Extrusion::Distance(iv(0.4))).unwrap().body;
 
@@ -284,3 +284,4 @@ mod certified {
         assert!(topo::subtract(&plate(), &boss(0.3, 1.0)).is_ok());
     }
 }
+use geom_core::Tol;

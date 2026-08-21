@@ -14,6 +14,7 @@ use mesh::{TessellateError, tessellate};
 use profile::ProfileLoop;
 use profile::RawLoop;
 use sweep::{Revolution, revolve};
+use geom_core::Tol;
 
 #[test]
 fn survives_negative_zero_delta_refused() {
@@ -114,6 +115,6 @@ fn survives_self_intersecting_profile_never_reaches_spade() {
     // boundary, which profile validation refuses upstream — typed.
     let bowtie = ProfileLoop::polygon([p2(0.5, 0.0), p2(2.0, 1.0), p2(2.0, 0.0), p2(0.5, 1.0)]);
     let res = profile::Profile::new(profile::SketchPlane::xy(), vec![bowtie])
-        .validate(geom_core::Tolerance::get());
+        .validate(geom_core::Tol::witness().get());
     assert!(res.is_err(), "self-intersecting profile must be refused");
 }

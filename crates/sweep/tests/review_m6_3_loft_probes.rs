@@ -12,6 +12,7 @@ use sweep::{LoftError, Revolution, RevolveAxis, loft_body, revolve};
 
 mod common;
 use common::quad;
+use geom_core::Tol;
 
 /// Deviation 3's substituted behavior, executed: sections stacking
 /// definitely AGAINST the base normal refuse
@@ -66,7 +67,7 @@ fn probe_measure_revolve_minor_radius_drift() {
         ProfileVertex::new(Point2::new(major + minor, 0.0), 1.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let axis = RevolveAxis {
         origin: Point2::new(0.0, 0.0),

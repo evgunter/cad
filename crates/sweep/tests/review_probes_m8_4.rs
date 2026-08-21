@@ -17,6 +17,7 @@ use geom_core::{Affine3, Band, Point2, Point3, Tolerance, Vec3};
 use profile::RawLoop;
 use std::sync::Arc;
 use topo::{Body, FaceSurface, Pcurve};
+use geom_core::Tol;
 
 fn offset_square_prism() -> Body<f64> {
     let square = || -> sweep::Section {
@@ -40,7 +41,7 @@ fn offset_square_prism() -> Body<f64> {
 }
 
 fn band() -> Band {
-    Band::linear().unwrap()
+    Band::linear(Tol::witness()).unwrap()
 }
 
 fn is_flat_wall(body: &Body<f64>, key: topo::SurfaceKey) -> bool {
@@ -153,7 +154,7 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
             }),
         )
         .expect("the exactly-planar wall restates as a plane");
-    let eps = Tolerance::get().eps;
+    let eps = Tol::witness().get().eps;
     match body.set_edge_curve_nurbs_lane(
         edge,
         EdgeCurveSpec {
@@ -277,7 +278,7 @@ fn probe_e_reversed_chart_takes_the_backward_candidate() {
     );
     println!(
         "P-E @ eps={:e}: u = {}, v slope {}",
-        Tolerance::get().eps,
+        Tol::witness().get().eps,
         p0.x,
         pl.y
     );

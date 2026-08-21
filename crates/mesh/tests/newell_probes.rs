@@ -14,6 +14,7 @@ use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, extrude};
 use topo::Body;
+use geom_core::Tol;
 
 fn lp(poly: &[(f64, f64)]) -> ProfileLoop<f64> {
     ProfileLoop::polygon(
@@ -25,7 +26,7 @@ fn lp(poly: &[(f64, f64)]) -> ProfileLoop<f64> {
 
 fn validated(plane: SketchPlane<f64>, loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
     Profile::new(plane, loops)
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .expect("profile validation")
 }
 
@@ -136,7 +137,7 @@ fn probe_c_needle_extent_ratio() {
     ] {
         let poly = [(0.0, 0.0), (len, 0.0), (len, 1.0), (0.0, 1.0)];
         let profile = Profile::new(SketchPlane::xy(), vec![lp(&poly)]);
-        let Ok(vp) = profile.validate(Tolerance::get()) else {
+        let Ok(vp) = profile.validate(Tol::witness()) else {
             eprintln!("{label}: profile validation refuses (typed, upstream)");
             continue;
         };

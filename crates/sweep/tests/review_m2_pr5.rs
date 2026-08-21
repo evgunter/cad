@@ -25,6 +25,7 @@ use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use revolve_common::*;
 use sweep::{Revolution, RevolveAxis, RevolveError, Revolved, RevolvedKind, revolve};
 use topo::{Body, EdgeKey, FaceKey, LoopBoundary};
+use geom_core::Tol;
 
 // =====================================================================
 // Shared attack helpers
@@ -724,7 +725,7 @@ fn survives_seam_alignment_under_rotated_placement_and_oblique_axis() {
         Vec3::new(0.0, 1.0, 0.0),
     );
     let vp = Profile::new(plane, vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let t = revolve(&vp, axis, Revolution::Full).unwrap();
     assert_all_tiers(&t.body);
@@ -1079,7 +1080,7 @@ fn survives_near_collinear_cone_join_is_refused_upstream() {
     // sliver is caught one layer up, loudly, and never reaches the
     // cosurface predicate.
     let err = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap_err();
     let msg = format!("{err:?}");
     assert!(
@@ -1196,7 +1197,7 @@ fn survives_near_tangent_arc_join_classification() {
         ProfileVertex::new(p2(1.0, 2.0), 0.0),
         ProfileVertex::new(p2(1.0, 0.0), 0.0),
     ]);
-    match Profile::new(SketchPlane::xy(), vec![lp]).validate(Tolerance::get()) {
+    match Profile::new(SketchPlane::xy(), vec![lp]).validate(Tol::witness()) {
         Err(e) => {
             // Upstream tangency/join escalation: loud, typed. Fine.
             let msg = format!("{e:?}");
@@ -1380,7 +1381,7 @@ fn probe_sliver_dihedral_arms() {
         ProfileVertex::new(p2(1.0, 2.0), 0.0),
         ProfileVertex::new(p2(1.0, 0.0), 0.0),
     ]);
-    match Profile::new(SketchPlane::xy(), vec![lp]).validate(Tolerance::get()) {
+    match Profile::new(SketchPlane::xy(), vec![lp]).validate(Tol::witness()) {
         Err(e) => println!("near-tangent arc: upstream validation: {e:?}"),
         Ok(vp) => println!(
             "near-tangent arc: revolve says {:?}",

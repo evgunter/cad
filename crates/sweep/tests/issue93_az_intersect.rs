@@ -36,6 +36,7 @@ use topo::{
     Body, BooleanBody, BooleanResult, mass_properties, validate, validate_closed,
     validate_pseudomanifold,
 };
+use geom_core::Tol;
 
 /// 880383/327680: A with the counter as a true inner loop (genus 1).
 const ORACLE_COUNTER: f64 = 880383.0 / 327680.0;
@@ -92,7 +93,7 @@ fn lp<T: Decide>(poly: &[(f64, f64)]) -> ProfileLoop<T> {
 
 fn validated<T: Decide>(plane: SketchPlane<T>, loops: Vec<ProfileLoop<T>>) -> ValidatedProfile<T> {
     Profile::new(plane, loops)
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .expect("profile validation")
 }
 

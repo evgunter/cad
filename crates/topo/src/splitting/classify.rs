@@ -4,7 +4,7 @@
 //! `split_edge` lane — with the conic crossing-root lane for
 //! circle/ellipse carriers.
 
-use geom_core::{Band, Decide, Margin, Sign};
+use geom_core::{Band, Decide, Margin, Sign, Tol};
 use slotmap::SecondaryMap;
 
 use super::{PlaneSide, SplitPlane, SplitReduceError};
@@ -333,8 +333,9 @@ pub(super) fn insert_crossings<T: Decide>(
     plane: &SplitPlane<T>,
     sides: &mut SecondaryMap<VertexKey, PlaneSide>,
     on_vertices: &mut Vec<VertexKey>,
+    tol: Tol,
 ) -> Result<(), SplitReduceError> {
-    let band = geom_core::Band::linear()?;
+    let band = geom_core::Band::linear(tol)?;
     // Snapshot: splitting adds edges; only operand edges can cross (a
     // split child's remaining crossing is handled through the parent's
     // precomputed root list below).

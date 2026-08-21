@@ -13,6 +13,7 @@ use topo::{
     Body, SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane, mass_properties,
     plane_section, split, validate_closed, validate_geometric,
 };
+use geom_core::Tol;
 
 fn plane_y(c: f64) -> SplitPlane<f64> {
     SplitPlane {
@@ -153,7 +154,7 @@ fn tiny_real_sliver_not_wrongly_refused() {
 /// stage earlier — the test accepts either typed outcome.)
 #[test]
 fn in_band_section_escalates_typed_not_misclassified() {
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     let t = 5.0 * eps; // inside (ε, 10ε)
     let profile = [(2.0, 0.0), (2.0 + t, 0.0), (2.0 + t, 2.0), (2.0, 2.0)];
     let built = std::panic::catch_unwind(|| prism::<f64>(&profile, 1.0));
@@ -289,7 +290,7 @@ fn add_quad_prism(body: &mut Body<f64>, x0: f64) {
     let top: Vec<Point3<f64>> = profile.iter().map(|p| c(p, 1.0)).collect();
     let n = 4;
     let line = EdgeCurveSpec::line_between;
-    let band = geom_core::Band::linear().unwrap();
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let plane = |corners: &[Point3<f64>]| geom_brep::newell_plane(corners, band).unwrap();
     let seed = body.mvfs(bot[0]).unwrap();
     let mut chain = vec![

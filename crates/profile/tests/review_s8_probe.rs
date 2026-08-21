@@ -40,6 +40,7 @@
 mod common;
 use geom_core::Point2;
 use profile::{ArcSweep, Center, Open, Start};
+use geom_core::Tol;
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
 }
@@ -70,9 +71,10 @@ fn check(
                 winding: s2,
                 p: p2(far2.0, far2.1),
             },
+            Tol::witness(),
         )
         .expect("two-survivor corner must construct")
-        .line_to(Start)
+        .line_to(Start, Tol::witness())
         .expect("the sharp seam closes")
         .loop_;
     let t1 = lp.vertices()[1].pos();

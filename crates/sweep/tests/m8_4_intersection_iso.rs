@@ -31,6 +31,7 @@ use geom_core::{Affine3, Band, Point2, Point3, Tolerance, Vec3};
 use profile::RawLoop;
 use std::sync::Arc;
 use topo::{Body, FaceSurface, Pcurve, PcurveMintError};
+use geom_core::Tol;
 
 /// The integral mixed prism (`recognize_pins`'s `offset_square_prism`,
 /// natively built): exactly-planar `y = ±1` walls, bowed `x = ±1`
@@ -57,7 +58,7 @@ fn offset_square_prism() -> Body<f64> {
 }
 
 fn band() -> Band {
-    Band::linear().unwrap()
+    Band::linear(Tol::witness()).unwrap()
 }
 
 /// Is this face's surface a described NURBS wall whose control net lies
@@ -177,7 +178,7 @@ fn intrinsic_seam(
 /// number and no mint happens at all. `None` IS that cell — pinned as a
 /// refusal whose own number explains it, never widened away.
 fn seam_at_eps(swap: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo::SurfaceKey)> {
-    let eps = Tolerance::get().eps;
+    let eps = Tol::witness().get().eps;
     match intrinsic_seam(swap) {
         Ok(seam) => {
             assert!(
@@ -310,7 +311,7 @@ fn a_boundary_column_intersection_mints_its_iso_image() {
     );
     println!(
         "M8-4 boundary column @ eps={:e}: u = {}, v slope {}",
-        Tolerance::get().eps,
+        Tol::witness().get().eps,
         p0.x,
         pl.y
     );
@@ -417,7 +418,7 @@ fn an_interior_column_intersection_refuses_typed() {
         p @ (MintPosture::Refused | MintPosture::Escalated) => {
             println!(
                 "M8-4 interior column @ eps={:e}: {p:?} — {out:?}",
-                Tolerance::get().eps
+                Tol::witness().get().eps
             );
         }
         MintPosture::Certified(p) => panic!(
@@ -467,7 +468,7 @@ fn an_imported_domain_chart_mints_the_boundary_intersection() {
     );
     println!(
         "M8-4 imported chart @ eps={:e}: u = {}, v slope {}",
-        Tolerance::get().eps,
+        Tol::witness().get().eps,
         p0.x,
         pl.y
     );

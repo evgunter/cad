@@ -29,6 +29,7 @@ use editor_core::{
     evaluate, load, save,
 };
 use fixture::desc;
+use geom_core::Tol;
 
 const GOLDEN: &str = include_str!("golden/v14_golden.cad");
 const GOLDEN_PATH: &str = "tests/golden/v14_golden.cad";
@@ -237,7 +238,7 @@ fn golden_bytes_are_frozen() {
 
 #[test]
 fn golden_bytes_load() {
-    let ambient = geom_core::Tolerance::get().eps;
+    let ambient = geom_core::Tol::witness().get().eps;
     match load(GOLDEN) {
         Ok(loaded) => {
             // Only reachable when the process ε IS the golden's 1e-9.
@@ -269,7 +270,7 @@ fn golden_bytes_load() {
 /// door, asserted above), so other rows skip.
 #[test]
 fn golden_document_evaluates_green_at_its_pinned_eps() {
-    if geom_core::Tolerance::get().eps.to_bits() != 1e-9f64.to_bits() {
+    if geom_core::Tol::witness().get().eps.to_bits() != 1e-9f64.to_bits() {
         return;
     }
     let (mut doc, edits) = golden();

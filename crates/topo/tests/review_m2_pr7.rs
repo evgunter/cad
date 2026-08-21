@@ -17,6 +17,7 @@ use topo::{
     Body, FaceSurface, MefSite, MevSite, ValidationError, mass_properties, validate,
     validate_closed, validate_geometric,
 };
+use geom_core::Tol;
 
 mod common;
 
@@ -41,7 +42,7 @@ fn mapped_cube(map: impl Fn(Point3<f64>) -> Point3<f64>) -> Body<f64> {
         c(0.0, 1.0, 1.0),
     );
     let line = EdgeCurveSpec::line_between;
-    let plane = |corners: &[Point3<f64>]| newell_plane(corners, Band::linear().unwrap()).unwrap();
+    let plane = |corners: &[Point3<f64>]| newell_plane(corners, Band::linear(Tol::witness()).unwrap()).unwrap();
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(a).unwrap();
     let e_ab = body
@@ -189,7 +190,7 @@ fn unmirrored_twin_is_tier3_valid() {
 ///   if the design ever tightens, this flips.
 #[test]
 fn thin_inverted_slab_exemption_boundary() {
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     // (a) sub-2ε thickness: refused upstream, Zero branch unreachable.
     let sub = std::panic::catch_unwind(|| mapped_cube(|p| Point3::new(-p.x, p.y, p.z * eps)));
     assert!(

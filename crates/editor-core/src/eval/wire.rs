@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use geom_core::k_stats::decide;
-use geom_core::{Affine3, Band, Decide, Margin, Mat3, Point2, Point3, Sign, Tolerance, Vec2, Vec3};
+use geom_core::{Affine3, Band, Decide, Margin, Mat3, Point2, Point3, Sign, Tol, Tolerance, Vec2, Vec3};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::transform::transform_rigid;
@@ -337,8 +337,8 @@ fn body_operand<T: Decide>(
 }
 
 /// The linear classification band (kernel-ambient tolerance).
-fn band() -> Result<Band, NodeErrorKind> {
-    Band::linear().map_err(NodeErrorKind::Band)
+fn band(tol: Tol) -> Result<Band, NodeErrorKind> {
+    Band::linear(tol).map_err(NodeErrorKind::Band)
 }
 
 /// Normalizes a direction-valued vector; decided-zero length refuses,

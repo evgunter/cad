@@ -31,6 +31,7 @@ use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Section, loft_body};
 use topo::{MassProperties, MassPropsError};
+use geom_core::Tol;
 
 /// The convergence target's tolerance factor, mirrored from
 /// `geom_brep::props::quad` (private there; the pin is that the
@@ -53,7 +54,7 @@ enum EpsPosture {
 /// posture's own invariants. Anything outside the three is a real
 /// failure and panics.
 fn body_posture(row: &str, out: &Result<MassProperties<f64>, MassPropsError>) -> EpsPosture {
-    let target = QUAD_TARGET_LEN_FACTOR * Tolerance::get().eps;
+    let target = QUAD_TARGET_LEN_FACTOR * Tol::witness().get().eps;
     match out {
         Ok(_) => EpsPosture::Certified,
         Err(MassPropsError::Face {
@@ -168,7 +169,7 @@ fn tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion() {
     let posture = body_posture("arc prism", &got);
     eprintln!(
         "EPS-ROW arc prism @ eps={:e}: {posture:?}{}",
-        Tolerance::get().eps,
+        Tol::witness().get().eps,
         match &got {
             Ok(m) => format!(" volume {} ± {}", m.volume, m.volume_pad),
             Err(e) => format!(" ({e})"),
@@ -192,7 +193,7 @@ fn tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion() {
     // The oracle: the same solid through `extrude`, whose bulged wall
     // is an analytic cylinder (closed form, pad 0).
     let prof = Profile::new(SketchPlane::xy(), arc_section(1.0))
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .expect("the profile validates");
     let oracle = sweep::extrude::<f64>(&prof, sweep::Extrusion::Distance(2.0)).expect("extrude");
     let want = topo::mass_properties(&oracle.body).expect("analytic mass properties");
@@ -214,7 +215,7 @@ fn tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion() {
     // absorb assertion 1 without tripping this. The ceiling is keyed
     // to ε because the schedule is fixed and the pad is what the
     // schedule achieves — never widened past the run's own target.
-    let ceiling = 2.0 * QUAD_TARGET_LEN_FACTOR * Tolerance::get().eps;
+    let ceiling = 2.0 * QUAD_TARGET_LEN_FACTOR * Tol::witness().get().eps;
     assert!(
         got.volume_pad < ceiling,
         "PAD CEILING: volume pad {} vs {ceiling} (M8-3 measured {} at ε=1e-9)",
@@ -254,7 +255,7 @@ fn arc_loft_is_volume_computable_with_a_pinned_pad() {
     let posture = body_posture("arc loft", &got);
     eprintln!(
         "EPS-ROW arc loft @ eps={:e}: {posture:?}{}",
-        Tolerance::get().eps,
+        Tol::witness().get().eps,
         match &got {
             Ok(m) => format!(" volume {} ± {}", m.volume, m.volume_pad),
             Err(e) => format!(" ({e})"),
@@ -270,7 +271,7 @@ fn arc_loft_is_volume_computable_with_a_pinned_pad() {
         "arc-loft volume out of band: {}",
         got.volume,
     );
-    let ceiling = 2.0 * QUAD_TARGET_LEN_FACTOR * Tolerance::get().eps;
+    let ceiling = 2.0 * QUAD_TARGET_LEN_FACTOR * Tol::witness().get().eps;
     assert!(
         got.volume_pad < ceiling,
         "volume pad ceiling: {} vs {ceiling} (M8-3 measured {} at ε=1e-9)",

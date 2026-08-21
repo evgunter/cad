@@ -53,13 +53,13 @@ mod certified {
     }
 
     fn band() -> Band {
-        let tol = Tolerance::get();
+        let tol = Tol::witness().get();
         Band::new(tol.eps, tol.k * tol.eps).unwrap()
     }
 
     fn validated(loops: Vec<ProfileLoop<Interval>>) -> ValidatedProfile<Interval> {
         Profile::new(SketchPlane::xy(), loops)
-            .validate(Tolerance::get())
+            .validate(Tol::witness())
             .unwrap()
     }
 
@@ -97,7 +97,7 @@ mod certified {
             ),
             vec![lp],
         )
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
         let axis = RevolveAxis {
             origin: p2(0.0, 0.0),
@@ -230,3 +230,4 @@ mod certified {
         );
     }
 }
+use geom_core::Tol;

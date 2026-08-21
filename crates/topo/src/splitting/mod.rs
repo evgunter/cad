@@ -78,6 +78,7 @@ use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::null::NullEdge;
 use slotmap::SecondaryMap;
+use geom_core::Tol;
 
 pub use crate::chord_join::{ArcWindowCase, SplitJoinError};
 pub use containment::{LoopContainment, PointInLoopError, point_in_loop};
@@ -389,7 +390,7 @@ pub fn vertex_sides<T: geom_core::Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
 ) -> Result<(SecondaryMap<VertexKey, PlaneSide>, Vec<VertexKey>), SplitReduceError> {
-    let band = geom_core::Band::linear()?;
+    let band = geom_core::Band::linear(Tol::witness())?;
     classify::gate_operand(body)?;
     classify::classify_vertices(body, plane, band)
 }
@@ -411,7 +412,7 @@ pub fn split_reduce<T: geom_core::Decide>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
 ) -> Result<SplitReduction<T>, SplitReduceError> {
-    let band = geom_core::Band::linear()?;
+    let band = geom_core::Band::linear(Tol::witness())?;
     let mut body = operand.clone();
 
     classify::gate_operand(&body)?;
@@ -511,7 +512,7 @@ pub(crate) fn split_scratch<T: geom_core::Decide>(
     ),
     SplitError,
 > {
-    let band = geom_core::Band::linear().map_err(SplitReduceError::from)?;
+    let band = geom_core::Band::linear(Tol::witness()).map_err(SplitReduceError::from)?;
     let mut red = split_reduce(operand, plane)?;
     let (completed, fragments) = join::split_connect(&mut red, band)?;
     Ok((red, completed, fragments))

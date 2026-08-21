@@ -9,6 +9,7 @@ mod common;
 use common::prism;
 use geom_core::{Point3, Vec3};
 use topo::{LoopContainment, PointInLoopError, point_in_loop};
+use geom_core::Tol;
 
 fn n_z() -> Vec3<f64> {
     Vec3::new(0.0, 0.0, 1.0)
@@ -36,7 +37,7 @@ fn concave_loop_in_out() {
     ];
     let fx = prism::<f64>(&profile, 1.0);
     let top = fx.body.get_face(fx.top_face).unwrap();
-    let band = geom_core::Band::linear().unwrap();
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let q = |x: f64, y: f64| Point3::new(x, y, 1.0);
     let pil = |p| point_in_loop(&fx.body, top.outer, n_z(), p, band).unwrap();
     assert_eq!(pil(q(0.5, 0.5)), LoopContainment::In); // bottom arm
@@ -55,7 +56,7 @@ fn ray_graze_retries_deterministically() {
     let profile = [(0.0, 0.0), (4.0, 0.0), (3.0, 1.0), (4.0, 2.0), (0.0, 2.0)];
     let fx = prism::<f64>(&profile, 1.0);
     let top = fx.body.get_face(fx.top_face).unwrap();
-    let band = geom_core::Band::linear().unwrap();
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let pil = |x: f64, y: f64| {
         point_in_loop(&fx.body, top.outer, n_z(), Point3::new(x, y, 1.0), band).unwrap()
     };
@@ -116,7 +117,7 @@ fn ray_exhausted_is_reachable() {
     let profile = all_rays_graze_profile();
     let fx = prism::<f64>(&profile, 1.0);
     let top = fx.body.get_face(fx.top_face).unwrap();
-    let band = geom_core::Band::linear().unwrap();
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let err =
         point_in_loop(&fx.body, top.outer, n_z(), Point3::new(0.0, 0.0, 1.0), band).unwrap_err();
     assert!(
@@ -141,7 +142,7 @@ fn ray_exhausted_is_reachable() {
 fn boundary_pre_pass_edges() {
     let fx = prism::<f64>(&[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)], 1.0);
     let top = fx.body.get_face(fx.top_face).unwrap();
-    let band = geom_core::Band::linear().unwrap();
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let pil = |x: f64, y: f64| {
         point_in_loop(&fx.body, top.outer, n_z(), Point3::new(x, y, 1.0), band).unwrap()
     };
@@ -149,7 +150,7 @@ fn boundary_pre_pass_edges() {
     assert_eq!(pil(2.0, 2.0), LoopContainment::OnBoundary);
     // 100·K·ε off the wall: decisively In/Out at every ε row (the
     // pre-pass must not swallow a clean margin).
-    let off = 1000.0 * geom_core::Tolerance::get().eps;
+    let off = 1000.0 * geom_core::Tol::witness().get().eps;
     assert_eq!(pil(1.0, off), LoopContainment::In);
     assert_eq!(pil(1.0, -off), LoopContainment::Out);
 }
@@ -195,7 +196,7 @@ fn boundary_pre_pass_edges() {
 /// absolutely, so a symmetric error has to survive them first.
 #[test]
 fn the_verdict_is_blind_to_the_normals_sign() {
-    let band = geom_core::Band::linear().unwrap();
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let flipped = Vec3::new(0.0, 0.0, -1.0);
     // A refusal's sign-INVARIANT content: the variant, and for an
     // escalation the predicate, the band and the margin's KIND. The

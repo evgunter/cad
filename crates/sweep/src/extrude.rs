@@ -65,9 +65,7 @@ use geom_brep::{
     DihedralClass, EdgeCurveSpec, EdgeGeometry, MappedCurve, NewellError, classify_dihedral,
     newell_plane,
 };
-use geom_core::{
-    Affine3, Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec3,
-};
+use geom_core::{Affine3, Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec3};
 use profile::{SegmentKind, ValidatedLoop, ValidatedProfile};
 use topo::{
     Body, EdgeKey, EulerOpError, FaceKey, FaceSurface, MefSite, MevCreated, MevSite, ShellKey,
@@ -425,8 +423,9 @@ struct LoopBase {
 pub fn extrude<T: Decide>(
     profile: &ValidatedProfile<T>,
     extrusion: Extrusion<T>,
+    tol: Tol,
 ) -> Result<Extruded<T>, ExtrudeError> {
-    let band = Band::linear().map_err(ExtrudeError::Band)?;
+    let band = Band::linear(tol).map_err(ExtrudeError::Band)?;
     let place = profile.plane().placement;
     let normal = place.linear.c2;
 

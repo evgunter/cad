@@ -11,6 +11,7 @@ use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, extrude};
 use topo::{Body, ValidationError, validate_closed, validate_geometric};
+use geom_core::Tol;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -18,7 +19,7 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 
 fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
     Profile::new(SketchPlane::xy(), loops)
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap()
 }
 
@@ -166,7 +167,7 @@ fn split_circle_carrier_intersection_edge() {
     // ask for a split whose arc-length margin (angle * radius,
     // r = 1/sqrt(2)) sits inside the zero band although the raw
     // angular margin is above eps.
-    let eps = Tolerance::get().eps;
+    let eps = Tol::witness().get().eps;
     let geom::Curve3::Circle { radius, .. } = parent.carrier().clone() else {
         panic!("circle carrier vanished");
     };

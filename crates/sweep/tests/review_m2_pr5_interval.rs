@@ -12,6 +12,7 @@ use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{validate, validate_closed, validate_geometric};
+use geom_core::Tol;
 
 fn p2(x: f64, y: f64) -> Point2<Interval> {
     Point2::new(Interval::from_f64(x), Interval::from_f64(y))
@@ -19,7 +20,7 @@ fn p2(x: f64, y: f64) -> Point2<Interval> {
 
 fn validated(loops: Vec<ProfileLoop<Interval>>) -> ValidatedProfile<Interval> {
     Profile::new(SketchPlane::xy(), loops)
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap()
 }
 

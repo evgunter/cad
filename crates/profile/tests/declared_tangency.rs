@@ -19,6 +19,7 @@ mod common;
 use common::{bracket, chain, circle_h, pinned, profile, quarter_bulge, tol};
 use geom_core::Point2;
 use profile::{Open, PathError, ProfileError, ProfileLoop, RawLoop, Start};
+use geom_core::Tol;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -293,17 +294,17 @@ fn fillet_of_an_acute_corner_validates_at_run_eps() {
     let sqrt3 = 3.0f64.sqrt();
     let lp = pinned(
         Open.at(p2(0.0, 0.0))
-            .toward(1.0, 0.0)
+            .toward(1.0, 0.0, Tol::witness())
             .expect("the incoming ray runs +x")
-            .fillet(0.25)
+            .fillet(0.25, Tol::witness())
             .expect("positive radius")
-            .toward(1.0, sqrt3)
+            .toward(1.0, sqrt3, Tol::witness())
             .expect("the arrival side runs toward (3, √3)")
-            .to(p2(3.0, sqrt3))
+            .to(p2(3.0, sqrt3), Tol::witness())
             .expect("acute fillet fits")
-            .line_to(p2(0.0, 2.5))
+            .line_to(p2(0.0, 2.5), Tol::witness())
             .expect("the far side")
-            .line_to(Start)
+            .line_to(Start, Tol::witness())
             .expect("the straight seam closes"),
     );
     profile(vec![lp])
@@ -323,15 +324,15 @@ fn oversized_fillet_radius_is_refused_typed_both_legs() {
     // anchor (0, 2).
     match Open
         .at(p2(0.0, 0.0))
-        .line_to(p2(3.0, 0.0))
+        .line_to(p2(3.0, 0.0), Tol::witness())
         .expect("bottom side")
-        .toward(0.0, 1.0)
+        .toward(0.0, 1.0, Tol::witness())
         .expect("the incoming ray runs +y")
-        .fillet(10.0)
+        .fillet(10.0, Tol::witness())
         .expect("positive radius")
-        .toward(-1.0, 0.0)
+        .toward(-1.0, 0.0, Tol::witness())
         .expect("the arrival side runs −x")
-        .to(p2(0.0, 2.0))
+        .to(p2(0.0, 2.0), Tol::witness())
         .expect_err("oversized radius must refuse")
     {
         PathError::AnchorOutsideTrimmedExtent {
@@ -357,13 +358,13 @@ fn oversized_fillet_radius_is_refused_for_one_overrun_leg() {
     // r = 2.5, so the refusal names the outgoing anchor.
     match Open
         .at(p2(0.0, 0.0))
-        .toward(1.0, 0.0)
+        .toward(1.0, 0.0, Tol::witness())
         .expect("the incoming ray runs +x")
-        .fillet(2.5)
+        .fillet(2.5, Tol::witness())
         .expect("positive radius")
-        .toward(0.0, 1.0)
+        .toward(0.0, 1.0, Tol::witness())
         .expect("the arrival side runs +y")
-        .to(p2(3.0, 2.0))
+        .to(p2(3.0, 2.0), Tol::witness())
         .expect_err("outgoing overrun must refuse")
     {
         PathError::AnchorOutsideTrimmedExtent {
@@ -391,17 +392,17 @@ fn largest_fitting_radius_succeeds_with_exact_tangency() {
     // declared and verifies.
     let lp = pinned(
         Open.at(p2(0.0, 0.0))
-            .line_to(p2(3.0, 0.0))
+            .line_to(p2(3.0, 0.0), Tol::witness())
             .expect("bottom side")
-            .toward(0.0, 1.0)
+            .toward(0.0, 1.0, Tol::witness())
             .expect("the incoming ray runs +y")
-            .fillet(2.0)
+            .fillet(2.0, Tol::witness())
             .expect("positive radius")
-            .toward(-1.0, 0.0)
+            .toward(-1.0, 0.0, Tol::witness())
             .expect("the arrival side runs −x")
-            .to(p2(0.0, 2.0))
+            .to(p2(0.0, 2.0), Tol::witness())
             .expect("exact-fit radius must succeed")
-            .line_to(Start)
+            .line_to(Start, Tol::witness())
             .expect("the straight seam closes"),
     );
     // 4 vertices: (0,0), (3,0) [arc springs here], T2, (0,2).
@@ -421,13 +422,13 @@ fn doubled_back_fillet_corner_refuses_as_parallel_carriers() {
     // divide by a vanishing turn.
     match Open
         .at(p2(0.0, 0.0))
-        .toward(1.0, 0.0)
+        .toward(1.0, 0.0, Tol::witness())
         .expect("the incoming ray runs +x")
-        .fillet(0.5)
+        .fillet(0.5, Tol::witness())
         .expect("positive radius")
-        .toward(-1.0, 0.0)
+        .toward(-1.0, 0.0, Tol::witness())
         .expect("the arrival side runs back along it")
-        .to(p2(1.0, 0.0))
+        .to(p2(1.0, 0.0), Tol::witness())
         .expect_err("doubled-back corner must refuse")
     {
         PathError::NoCornerForFillet {

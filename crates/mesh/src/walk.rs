@@ -106,6 +106,7 @@ use geom_core::{Point3, Vec3};
 use topo::{Body, EdgeKey, FaceKey, LoopBoundary, LoopKey};
 
 use crate::types::TessellateError;
+use geom_core::Tol;
 
 /// A curved surface's chart data for inversion (everything but the
 /// plane, which takes the planar path).

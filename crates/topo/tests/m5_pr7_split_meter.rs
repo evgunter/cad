@@ -23,6 +23,7 @@ use geom_brep::ssi::{self, SsiDomain, SsiError};
 use geom_brep::{EdgeCurve, EdgeCurveSpec};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point3, Vec3};
+use geom_core::Tol;
 
 /// A gentle cubic advancing steadily in `+x` — the shape a fitted SSI
 /// carrier has.
@@ -53,7 +54,7 @@ fn a_nurbs_carrier_under_a_conventional_description_still_refuses() {
         param_start: 0.0,
         param_end: 1.0,
     };
-    let err = EdgeCurve::certify(spec, p0, p1, |_| None, Band::linear().unwrap())
+    let err = EdgeCurve::certify(spec, p0, p1, |_| None, Band::linear(Tol::witness()).unwrap())
         .expect_err("conventional-description Nurbs carriers do not certify");
     let msg = format!("{err}");
     assert!(
@@ -85,7 +86,7 @@ fn ssi_branch_or_budget() -> Option<ssi::SsiBranch> {
         extent: 2.0,
         floor_scale: 1.0,
     };
-    match ssi::cylinder_sphere_ssi(&cyl, &sph, slab, Band::linear().unwrap()) {
+    match ssi::cylinder_sphere_ssi(&cyl, &sph, slab, Band::linear(Tol::witness()).unwrap()) {
         Ok(out) => Some(out.branches.into_iter().next().expect("two loops")),
         Err(SsiError::FitSampleBudget { .. }) => None,
         Err(e) => panic!("the planted fixture: {e}"),
@@ -226,7 +227,7 @@ fn a_split_at_the_endpoint_band_escalates_or_refuses_in_metres() {
     // the band the run resolved, through the carrier's own meter.
     let meter = carrier.speed_lower_bound();
     assert!(meter > 0.0);
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     let t_bad = h0 + 0.5 * (band.zero() + band.escalate()) / meter;
     assert!(
         body.split_edge(edge, t_bad).is_err(),
@@ -447,7 +448,7 @@ fn a_rational_carrier_splits_with_a_metered_interiority() {
             },
         )
         .unwrap();
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     let t_bad = h0 + 0.5 * (band.zero() + band.escalate()) / m;
     assert!(
         body2.split_edge(made2.edge, t_bad).is_err(),

@@ -22,6 +22,7 @@ mod common;
 use common::prism;
 use geom_core::{Point3, Vec3};
 use topo::{Body, PlaneSide, SplitPlane, SplitReduceError, VertexKey, split_reduce};
+use geom_core::Tol;
 
 fn plane_y<T: geom_core::Decide>(y: f64, ny: f64) -> SplitPlane<T> {
     SplitPlane {
@@ -314,7 +315,7 @@ fn r5_crossing_vertex_on_is_declared_not_measured() {
         normal: Vec3::new(1.0 / l, 3.0 / l, 0.0),
     };
     let fx = prism::<f64>(&profile, 1.0);
-    let band = geom_core::Band::linear().unwrap();
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
 
     let red = match split_reduce(&fx.body, &plane) {
         Ok(red) => red,
@@ -420,8 +421,8 @@ fn r5_crossing_vertex_on_is_declared_not_measured() {
 /// clean, null-edge-free reduction when nothing crosses.
 #[test]
 fn r6_band_honesty_both_sides_and_no_conscription() {
-    let eps = geom_core::Tolerance::get().eps;
-    let band = geom_core::Band::linear().unwrap();
+    let eps = geom_core::Tol::witness().get().eps;
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
     // In-band below the plane (the shipped teeth only test above).
     let profile = [
         (0.0, 0.0),
@@ -459,7 +460,7 @@ fn r6_band_honesty_both_sides_and_no_conscription() {
 #[test]
 fn r7_enters_material_oblique_independent() {
     use geom_brep::{EntersMaterial, OutwardNormal, enters_material};
-    let band = geom_core::Band::linear().unwrap();
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
     // Chart normal along (1,-2,2)/3. On a `sense == true` face that IS
     // the outward normal; on its `sense == false` twin the outward
     // normal is its negation — the two faces are the same chart read
@@ -559,7 +560,7 @@ fn r9_interval_lane_equivariance_and_nondyadic_crossing() {
     }
     assert_eq!(red.null_edges.len(), 4);
     // (c) In-band vertex: typed escalation, no snap, same as f64.
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     let profile = [
         (0.0, 0.0),
         (2.0, 0.0),

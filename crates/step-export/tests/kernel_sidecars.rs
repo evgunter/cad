@@ -56,7 +56,7 @@ const CORPUS_EPS: f64 = 1e-9;
 /// corpus's declared 1e-9, module docs).
 #[test]
 fn kernel_sidecar_fields_match_live_kernel() {
-    let at_corpus_eps = geom_core::Tolerance::get().eps == CORPUS_EPS;
+    let at_corpus_eps = geom_core::Tol::witness().get().eps == CORPUS_EPS;
     let mut failures: Vec<String> = Vec::new();
     for (name, body) in common::fixture_corpus() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -137,3 +137,4 @@ fn kernel_sidecar_fields_match_live_kernel() {
         failures.join("\n")
     );
 }
+use geom_core::Tol;

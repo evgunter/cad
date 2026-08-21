@@ -16,6 +16,7 @@ use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanResult};
+use geom_core::Tol;
 
 const A_OUTLINE: [(f64, f64); 8] = [
     (0.0, 0.0),
@@ -40,7 +41,7 @@ fn lp(poly: &[(f64, f64)]) -> ProfileLoop<f64> {
 
 fn validated(plane: SketchPlane<f64>, loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
     Profile::new(plane, loops)
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap()
 }
 

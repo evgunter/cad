@@ -223,7 +223,7 @@ use core::fmt;
 
 use geom::Surface;
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec};
-use geom_core::{Band, Decide, Point3, Real};
+use geom_core::{Band, Decide, Point3, Real, Tol};
 
 use crate::body::Body;
 use crate::entity::{
@@ -1914,8 +1914,9 @@ impl<T: Decide> Body<T> {
         spec: EdgeCurveSpec<T>,
         p_start: Point3<T>,
         p_end: Point3<T>,
+        tol: Tol,
     ) -> Result<EdgeCurve<T>, EulerOpError> {
-        let band = Band::linear().map_err(|e| EulerOpError::Certification {
+        let band = Band::linear(tol).map_err(|e| EulerOpError::Certification {
             error: CertifyError::Band(e),
         })?;
         EdgeCurve::certify(
@@ -2204,8 +2205,9 @@ impl<T: geom_brep::EdgeNurbsLane> Body<T> {
         spec: EdgeCurveSpec<T>,
         p_start: Point3<T>,
         p_end: Point3<T>,
+        tol: Tol,
     ) -> Result<EdgeCurve<T>, EulerOpError> {
-        let band = Band::linear().map_err(|e| EulerOpError::Certification {
+        let band = Band::linear(tol).map_err(|e| EulerOpError::Certification {
             error: CertifyError::Band(e),
         })?;
         EdgeCurve::certify_nurbs_lane(

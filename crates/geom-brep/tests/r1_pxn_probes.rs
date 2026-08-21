@@ -24,6 +24,7 @@ use geom::{NurbsSurface, Surface};
 use geom_brep::{EdgeNurbsLane, PlaneNurbsRefusal};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point3, Tolerance, Vec3};
+use geom_core::Tol;
 
 fn quarter_cylinder_wall() -> NurbsSurface<f64> {
     let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
@@ -54,7 +55,7 @@ fn segment(a: Point3<f64>, b: Point3<f64>) -> NurbsCurve3<f64> {
 }
 
 fn band() -> Band {
-    Band::linear().unwrap()
+    Band::linear(Tol::witness()).unwrap()
 }
 
 /// A spline carrier that interpolates `(1 + a·sin(32πt), 0, t)` at 257
@@ -190,7 +191,7 @@ fn the_certified_sup_bounds_the_dense_sampled_true_sup() {
 fn displacement_scan_finds_the_refusal_boundary_typed() {
     let wall = quarter_cylinder_wall();
     let plane = transverse_plane();
-    let eps = Tolerance::get().eps;
+    let eps = Tol::witness().get().eps;
     for dir in ["radial(+x, on-plane)", "off-plane(+y)"] {
         let mut smallest_refused = f64::INFINITY;
         let mut largest_certified: f64 = 0.0;
@@ -250,7 +251,7 @@ fn a_drifted_subsegment_of_the_true_locus_certifies_at_the_lane() {
 fn near_tangential_scan_is_typed_at_every_angle() {
     let wall = quarter_cylinder_wall();
     let carrier = segment(Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0));
-    let eps = Tolerance::get().eps;
+    let eps = Tol::witness().get().eps;
     for k in [1, 2, 3, 6, 8, 9, 10, 12] {
         let alpha = 10f64.powi(-k);
         // Normal (cos α, sin α, 0), plane through (1,0,0) containing z:

@@ -10,10 +10,11 @@ use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanResult, BooleanResultKind, subtract, union};
+use geom_core::Tol;
 
 fn validated(plane: SketchPlane<f64>, lp: ProfileLoop<f64>) -> ValidatedProfile<f64> {
     Profile::new(plane, vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap()
 }
 
@@ -115,7 +116,7 @@ pub fn ball() -> Body<f64> {
         ProfileVertex::new(Point2::new(0.0, 1.0), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     revolve(&profile, revolve_y(), Revolution::Full)
         .unwrap()
@@ -134,7 +135,7 @@ pub fn cone() -> Body<f64> {
         Point2::new(0.0, 1.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     revolve(&profile, revolve_y(), Revolution::Full)
         .unwrap()
@@ -152,7 +153,7 @@ pub fn donut() -> Body<f64> {
         ProfileVertex::new(Point2::new(2.0, 0.5), 1.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     revolve(&profile, revolve_y(), Revolution::Full)
         .unwrap()
@@ -204,7 +205,7 @@ pub fn lily_lantern() -> Body<f64> {
         .unwrap()
         .loop_;
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     revolve(&profile, revolve_y(), Revolution::Full)
         .unwrap()
@@ -224,7 +225,7 @@ pub fn washer() -> Body<f64> {
         Point2::new(1.0, 1.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     revolve(&profile, revolve_y(), Revolution::Full)
         .unwrap()
@@ -244,7 +245,7 @@ pub fn cut_cylinder() -> Body<f64> {
         ProfileVertex::new(Point2::new(1.0, 0.0), 1.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let cylinder = extrude(&profile, Extrusion::Distance(2.5)).unwrap().body;
     let phi: f64 = 0.3;
@@ -291,7 +292,7 @@ pub fn boss_union() -> Body<f64> {
     ]);
     let sketch = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.4)));
     let boss_profile = Profile::new(sketch, vec![boss_loop])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let boss = extrude(&boss_profile, Extrusion::Distance(1.2))
         .unwrap()
@@ -358,7 +359,7 @@ pub fn two_stub_complement() -> Body<f64> {
     let sketch = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -0.2)));
     let boss = extrude(
         &Profile::new(sketch, vec![boss_loop])
-            .validate(Tolerance::get())
+            .validate(Tol::witness())
             .unwrap(),
         Extrusion::Distance(1.2),
     )
@@ -490,7 +491,7 @@ pub fn fixture_corpus() -> Vec<(&'static str, Body<f64>)> {
 /// The M5 PR 12 die blank: a unit cube with every edge blended at
 /// r = 0.12 — 6 shrunk planes, 12 quarter-cylinders, 8 sphere octants.
 pub fn filleted_die() -> Body<f64> {
-    let tol = geom_core::Tolerance::get();
+    let tol = geom_core::Tol::witness().get();
     let band = geom_core::Band::new(tol.eps, tol.k * tol.eps).expect("band");
     let lp = profile::ProfileLoop::polygon([
         Point2::new(0.0, 0.0),
@@ -542,7 +543,7 @@ pub fn die_pips() -> Body<f64> {
             ProfileVertex::new(Point2::new(0.0, PIP_R), 0.0),
         ]);
         let vp = Profile::new(SketchPlane::xy(), vec![lp])
-            .validate(Tolerance::get())
+            .validate(Tol::witness())
             .unwrap();
         revolve(
             &vp,
@@ -671,7 +672,7 @@ pub fn census(body: &Body<f64>) -> (usize, usize, usize) {
 pub fn composed_die() -> Body<f64> {
     use sweep::fillet::build::fillet_edges;
 
-    let tol = Tolerance::get();
+    let tol = Tol::witness().get();
     let band = geom_core::Band::new(tol.eps, tol.k * tol.eps).expect("band");
     let (die_r, rim_r) = (0.12, 0.02);
     let pipped = die_pips();

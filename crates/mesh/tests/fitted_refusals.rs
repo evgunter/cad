@@ -28,6 +28,7 @@ use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, extrude, loft_body};
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::{Body, HalfEdgeKey};
+use geom_core::Tol;
 
 mod common;
 
@@ -104,7 +105,7 @@ fn build_fitted_cache() -> Option<PcurveCache<f64>> {
         floor_scale: 1.0,
     };
     let branch =
-        match ssi::cylinder_sphere_ssi(&cylinder(), &sphere(), slab, Band::linear().unwrap()) {
+        match ssi::cylinder_sphere_ssi(&cylinder(), &sphere(), slab, Band::linear(Tol::witness()).unwrap()) {
             Ok(out) => out.branches.into_iter().next().expect("two loops"),
             Err(SsiError::FitSampleBudget { .. }) => return None,
             Err(e) => panic!("the planted fixture: {e}"),
@@ -147,7 +148,7 @@ fn build_fitted_cache() -> Option<PcurveCache<f64>> {
             &cylinder(),
             Some(&sphere()),
             window,
-            Band::linear().unwrap(),
+            Band::linear(Tol::witness()).unwrap(),
         )
         .expect("the fitted cache certifies through the M6-2 door"),
     )
@@ -180,7 +181,7 @@ fn split_cylinder_half() -> Body<f64> {
         ProfileVertex::new(Point2::new(1.0, 0.0), 1.0),
     ]);
     let disc = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let cylinder = extrude(&disc, Extrusion::Distance(2.0)).unwrap().body;
     let plane = SplitPlane {

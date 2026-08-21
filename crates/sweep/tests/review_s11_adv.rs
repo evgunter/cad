@@ -23,9 +23,10 @@ use revolve_common::{assert_all_tiers, axis_y, p2, validated};
 use sweep::{Extrusion, Revolution, extrude, revolve};
 use topo::boolean::{SolidContainment, point_in_solid};
 use topo::{Body, FaceKey};
+use geom_core::Tol;
 
 fn band() -> Band {
-    Band::linear().unwrap()
+    Band::linear(Tol::witness()).unwrap()
 }
 
 fn vol(body: &Body<f64>) -> f64 {
@@ -51,7 +52,7 @@ fn adv_mixed_convex_concave_hole() {
         ProfileVertex::new(p2(2.0, 4.0), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![outer, hole])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let t = extrude(&vp, Extrusion::Distance(1.0)).unwrap();
     assert_all_tiers(&t.body);
@@ -138,7 +139,7 @@ fn eye_slot(radius: f64) -> ProfileLoop<f64> {
 fn adv_eye_slot_outer_and_hole_senses() {
     // Outer rocker.
     let vp = Profile::new(SketchPlane::xy(), vec![eye_slot(0.3)])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let t = extrude(&vp, Extrusion::Distance(1.0)).unwrap();
     assert_all_tiers(&t.body);
@@ -151,7 +152,7 @@ fn adv_eye_slot_outer_and_hole_senses() {
     // Same loop as a hole in a 6x6 plate.
     let outer = ProfileLoop::polygon([p2(-3.0, -3.0), p2(3.0, -3.0), p2(3.0, 3.0), p2(-3.0, 3.0)]);
     let vp = Profile::new(SketchPlane::xy(), vec![outer, eye_slot(0.3)])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let t = extrude(&vp, Extrusion::Distance(1.0)).unwrap();
     assert_all_tiers(&t.body);
@@ -195,14 +196,14 @@ fn adv_asymmetric_downward_invariance() {
     };
     let up = extrude(
         &Profile::new(SketchPlane::xy(), vec![mk()])
-            .validate(Tolerance::get())
+            .validate(Tol::witness())
             .unwrap(),
         Extrusion::Distance(1.0),
     )
     .unwrap();
     let down = extrude(
         &Profile::new(SketchPlane::xy(), vec![mk()])
-            .validate(Tolerance::get())
+            .validate(Tol::witness())
             .unwrap(),
         Extrusion::Vector(geom_core::Vec3::new(0.0, 0.0, -1.0)),
     )
@@ -351,7 +352,7 @@ fn adv_touching_union_with_reversed_faces_refuses_typed() {
         geom_core::Vec3::new(0.0, 1.0, 0.0),
     );
     let vp = Profile::new(plane, vec![sq])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let boxb = extrude(&vp, Extrusion::Distance(0.4)).unwrap().body;
     match topo::boolean::union(&washer, &boxb) {

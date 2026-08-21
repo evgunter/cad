@@ -101,7 +101,7 @@ mod upgrade;
 use core::fmt;
 
 use geom_brep::NewellError;
-use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point2, Real, Sign, Vec2};
+use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point2, Real, Sign, Tol, Vec2};
 use profile::ValidatedProfile;
 use topo::readback::{Pose, ReadbackError, face_pose};
 use topo::{Body, EdgeKey, EulerOpError, FaceKey, ShellKey, SolidKey, VertexKey};
@@ -625,8 +625,9 @@ pub fn revolve<T: Decide>(
     profile: &ValidatedProfile<T>,
     axis: RevolveAxis<T>,
     revolution: Revolution<T>,
+    tol: Tol,
 ) -> Result<Revolved<T>, RevolveError> {
-    let band = Band::linear().map_err(RevolveError::Band)?;
+    let band = Band::linear(tol).map_err(RevolveError::Band)?;
     let place = profile.plane().placement;
     let frame = axis::AxisFrame::build(place, &axis, band)?;
 

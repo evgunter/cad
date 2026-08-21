@@ -41,6 +41,7 @@ use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey, VertexKey};
 use crate::euler::MevSite;
 use crate::null::{NewVertexSide, NullEdge};
+use geom_core::Tol;
 
 /// Output of one vertex-pair insertion.
 #[derive(Debug)]
@@ -499,7 +500,7 @@ mod tests {
             &[],
             &[],
             &recs,
-            geom_core::Band::linear().unwrap(),
+            geom_core::Band::linear(Tol::witness()).unwrap(),
         )
         .unwrap_err();
         assert!(matches!(err, BooleanError::ClassificationInvariant { .. }));
@@ -511,7 +512,7 @@ mod tests {
             &[],
             &[],
             &recs,
-            geom_core::Band::linear().unwrap(),
+            geom_core::Band::linear(Tol::witness()).unwrap(),
         )
         .unwrap_err();
         assert!(matches!(err, BooleanError::ClassificationInvariant { .. }));
@@ -553,7 +554,7 @@ mod tests {
             &[],
             &[],
             &recs,
-            geom_core::Band::linear().unwrap(),
+            geom_core::Band::linear(Tol::witness()).unwrap(),
         )
         .unwrap_err();
         assert!(
@@ -635,7 +636,7 @@ mod tests {
             &a_sectors,
             &b_sectors,
             &recs,
-            geom_core::Band::linear().unwrap(),
+            geom_core::Band::linear(Tol::witness()).unwrap(),
         )
         .unwrap();
         assert_eq!(out.pairs.len(), 2);

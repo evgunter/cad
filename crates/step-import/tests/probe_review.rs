@@ -4,6 +4,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod common;
 use step_import::{ImportOptions, StepImport, import_step};
+use geom_core::Tol;
 
 fn fixture(name: &str) -> String {
     std::fs::read_to_string(format!(
@@ -25,7 +26,7 @@ fn fixture(name: &str) -> String {
 /// `geom-brep/tests/rim_dim_scale_twins.rs`.
 #[test]
 fn a3_cone_trunc_all_tiers_green_at_1e7_landing_retired() {
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     if eps != 1e-7 {
         println!("a3: SKIP (needs CAD_TOLERANCE_EPS=1e-7, have {eps:e})");
         return;
@@ -44,7 +45,7 @@ fn a3_cone_trunc_all_tiers_green_at_1e7_landing_retired() {
 /// A3 sweep: every fixture, all three tiers, report refusals/tier-fails.
 #[test]
 fn a3_sweep_all_tiers() {
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     let names = [
         "box",
         "cylinder",
@@ -579,7 +580,7 @@ fn a6_two_length_scales_refuse() {
 /// CORPUS_EPS_CEILING refusals actually rest on (F5 linkage).
 #[test]
 fn review_f5_cylinder_refusal_predicate() {
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     if eps != 1e-7 {
         println!("SKIP (needs 1e-7, have {eps:e})");
         return;

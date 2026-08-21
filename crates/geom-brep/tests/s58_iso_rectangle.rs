@@ -31,6 +31,7 @@ use geom::Curve3;
 use geom::Surface;
 use geom_brep::props::{LoopEdge, MaterialSign, PropsError, boundary_material_sign, curved_face};
 use geom_core::{Band, Point3, Sign, Vec3};
+use geom_core::Tol;
 
 fn v3(x: f64, y: f64, z: f64) -> Vec3<f64> {
     Vec3::new(x, y, z)
@@ -146,7 +147,7 @@ fn plus_loop(
 /// The control must be ACCEPTED and its area EXACT (relative, since the
 /// closed form is a product of stored quantities).
 fn accepts_exactly(kind: &str, s: &Surface<f64>, edges: &[LoopEdge<f64>], exact_area: f64) {
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     match curved_face(s, edges, 1.0, band) {
         Ok(fc) => {
             let rel = (fc.area - exact_area).abs() / exact_area;
@@ -165,7 +166,7 @@ fn accepts_exactly(kind: &str, s: &Surface<f64>, edges: &[LoopEdge<f64>], exact_
 /// the whole point of S58 (the torus was already protected, by a
 /// private rule, and that is what made the fragmentation invisible).
 fn refuses_on_rim_level(kind: &str, s: &Surface<f64>, edges: &[LoopEdge<f64>]) {
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     match curved_face(s, edges, 1.0, band) {
         Err(PropsError::NotIsoRectangle {
             what: "props_rim_level",
@@ -425,7 +426,7 @@ fn the_whole_649_family_refuses() {
     ];
     assert!(
         matches!(
-            curved_face(&s, &l_shape, 1.0, Band::linear().unwrap()),
+            curved_face(&s, &l_shape, 1.0, Band::linear(Tol::witness()).unwrap()),
             Err(PropsError::NotIsoRectangle { .. })
         ),
         "the L-shape must stay refused"
@@ -492,7 +493,7 @@ fn rotations(edges: &[LoopEdge<f64>]) -> Vec<Vec<LoopEdge<f64>>> {
 fn the_material_side_gate_refuses_a_plus_domain_at_every_rotation() {
     let r = 0.010;
     let (s, rim, mer) = cylinder_kit(r);
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     let edges = plus_loop(&rim, &mer, 0.0, 0.016, 0.018, 0.020, UC, UO);
     // The flux lane's own verdict on this face, for the comparison the
     // row is about.
@@ -519,7 +520,7 @@ fn the_material_side_gate_refuses_a_plus_domain_at_every_rotation() {
 fn the_material_side_gate_answers_one_sign_on_a_rectangle() {
     let r = 0.010;
     let (s, rim, mer) = cylinder_kit(r);
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     let edges = rect_loop(&rim, &mer, 0.0, 0.020, -UO, UO);
     let sides: Vec<Sign> = rotations(&edges)
         .into_iter()
@@ -569,7 +570,7 @@ fn a_rim_free_cone_refuses_at_both_doors() {
     };
     // Two generators and nothing else: no rim to take a lever from.
     let edges = vec![mer(0.0, 0.010, 0.020, 0, 1), mer(1.0, 0.020, 0.010, 1, 0)];
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     assert!(
         matches!(
             boundary_material_sign(&s, &edges, band),
@@ -682,7 +683,7 @@ fn a_lune_on_two_great_circles_is_not_a_rimless_band() {
     ];
     assert!(
         matches!(
-            curved_face(&s, &lune, 1.0, Band::linear().unwrap()),
+            curved_face(&s, &lune, 1.0, Band::linear(Tol::witness()).unwrap()),
             Err(PropsError::NotIsoRectangle {
                 what: "props_band_coplanar"
             })
@@ -745,7 +746,7 @@ fn the_material_side_gate_refuses_a_torus_l_domain_at_every_rotation() {
             b,
         )
     };
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     // L: [0, 1.1] x [0.2, 0.45]  u  [0, 0.5] x [0.45, 0.7].
     let l = vec![
         rim(0.2, 0.0, 1.1, 0, 1),

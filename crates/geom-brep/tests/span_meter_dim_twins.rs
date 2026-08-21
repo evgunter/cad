@@ -47,9 +47,10 @@ use geom_core::k_stats::{self, Probe, SampleOutcome};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, MarginDiag, Point3, Sign, Tolerance, Vec3};
 use slotmap::SlotMap;
+use geom_core::Tol;
 
 fn band() -> Band {
-    Band::linear().expect("the run's linear band")
+    Band::linear(Tol::witness()).expect("the run's linear band")
 }
 
 fn p(x: f64, y: f64, z: f64) -> Point3<Probe> {
@@ -196,7 +197,7 @@ fn the_span_meter_margin_is_reparametrization_invariant() {
 /// the fixture is sized in units of the run's own ε.
 #[test]
 fn a_sub_band_carrier_escalates_on_its_meter_not_its_span() {
-    let eps = Tolerance::get().eps;
+    let eps = Tol::witness().get().eps;
     let (length, domain) = (3.0 * eps, 1e-6);
     let ((outcome, margin), got) = span_meter_sample(length, domain);
     let b = band();

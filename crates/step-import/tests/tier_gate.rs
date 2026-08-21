@@ -76,6 +76,7 @@ use std::path::{Path, PathBuf};
 
 use Disposition::{EpsSensitive, Pass, Refused, Wireframe};
 use step_import::{ImportOptions, StepImport, StepImportError, import_step};
+use geom_core::Tol;
 
 /// What a corpus file does at import, at every tolerance in the sweep.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -681,7 +682,7 @@ fn expected(rel: &str, row: Disposition, eps_tag: &str) -> Option<Disposition> {
     if row != EpsSensitive {
         return Some(row);
     }
-    let ambient = geom_core::Tolerance::get().eps;
+    let ambient = geom_core::Tol::witness().get().eps;
     EPS_ROWS
         .iter()
         .find(|(p, a, t, _)| *p == rel && *a == ambient && *t == eps_tag)

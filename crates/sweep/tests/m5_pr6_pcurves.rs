@@ -15,6 +15,7 @@ use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::{Body, Pcurve, validate_geometric};
+use geom_core::Tol;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -29,7 +30,7 @@ fn disc() -> ValidatedProfile<f64> {
         ProfileVertex::new(p2(0.5, 0.0), 1.0),
     ]);
     Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap()
 }
 
@@ -45,7 +46,7 @@ fn revolved_tube() -> Body<f64> {
         ProfileVertex::new(p2(0.4, 0.6), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let axis = RevolveAxis {
         origin: p2(0.0, 0.0),
@@ -226,7 +227,7 @@ fn planar_bodies_carry_zero_stored_pcurves() {
         ProfileVertex::new(p2(0.0, 1.0), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![square])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let mut prism = extrude(&profile, Extrusion::Distance(1.0)).unwrap().body;
     assert_eq!(prism.pcurves().count(), 0);
@@ -247,7 +248,7 @@ fn planar_bodies_carry_zero_stored_pcurves() {
     }
 
     // Derive-on-demand still answers, exactly (the chart is affine).
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     let (he, _) = prism.half_edges().next().unwrap();
     let derived = topo::pcurve_of(&prism, he, band).unwrap();
     let Pcurve::Harmonic { pa, pb, .. } = derived else {
@@ -313,7 +314,7 @@ fn a_tampered_branch_is_refused_at_rest() {
             .carrier()
             .clone()
     };
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     // A window wide enough that trim containment is not what fires —
     // the finding must be the BRANCH, not the box.
     let window = topo::ChartWindow {
@@ -368,7 +369,7 @@ fn a_cache_certified_against_another_edge_fails_the_tier_gate() {
         .expect("two half-edges with different carrier intervals");
     let donor = above.pcurve(a).unwrap().clone();
     above.attach_pcurve(b, donor);
-    let findings = topo::pcurves::validate_pcurves(&above, Band::linear().unwrap());
+    let findings = topo::pcurves::validate_pcurves(&above, Band::linear(Tol::witness()).unwrap());
     assert!(!findings.is_empty(), "the swap must be caught");
     assert!(
         findings.iter().any(|f| matches!(
@@ -392,7 +393,7 @@ fn a_rigid_transform_re_derives_the_caches() {
     let map = geom_core::Affine3::translation(Vec3::new(1.0, -2.0, 0.5));
     let moved = topo::transform::transform_rigid(&above, &map).unwrap();
     assert_eq!(moved.pcurves().count(), before);
-    assert!(topo::pcurves::validate_pcurves(&moved, Band::linear().unwrap()).is_empty());
+    assert!(topo::pcurves::validate_pcurves(&moved, Band::linear(Tol::witness()).unwrap()).is_empty());
 }
 
 /// Determinism (D9): the same cut replayed produces byte-identical
@@ -429,7 +430,7 @@ fn caches_certify_on_the_interval_lane() {
         ProfileVertex::new(ip2(0.5, 0.0), Interval::from_f64(1.0)),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let body = extrude(&profile, Extrusion::Distance(Interval::from_f64(1.0)))
         .unwrap()
@@ -462,7 +463,7 @@ fn caches_certify_on_the_interval_lane() {
             assert!(geom_core::Bounds::hi(c.max_residual) < 1e-11);
             assert!(geom_core::Bounds::hi(c.envelope) < 1e-11);
         }
-        assert!(topo::pcurves::validate_pcurves(part, Band::linear().unwrap()).is_empty());
+        assert!(topo::pcurves::validate_pcurves(part, Band::linear(Tol::witness()).unwrap()).is_empty());
     }
     assert!(seen > 0);
 }
@@ -488,7 +489,7 @@ fn a_seam_closed_tube_split_is_typed_either_way() {
     };
     match split(&tube, &plane) {
         Ok(result) => {
-            let band = Band::linear().unwrap();
+            let band = Band::linear(Tol::witness()).unwrap();
             for part in [result.above.body(), result.below.body()]
                 .into_iter()
                 .flatten()
@@ -530,7 +531,7 @@ fn a_rotated_tilted_cut_mints_branch_consistent_caches() {
         normal: Vec3::new(phi.sin() * rot.cos(), phi.sin() * rot.sin(), phi.cos()),
     };
     let result = split(&body, &plane).unwrap();
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     let mut caches = 0usize;
     for part in [result.above.body(), result.below.body()]
         .into_iter()

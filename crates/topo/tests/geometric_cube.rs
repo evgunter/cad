@@ -18,6 +18,7 @@ use topo::{
 
 mod common;
 use common::{GeoCube, describe_as_intersections, geometric_cube};
+use geom_core::Tol;
 
 #[test]
 fn geometric_cube_passes_all_three_tiers() {
@@ -124,7 +125,7 @@ fn wrong_cache_is_rejected_at_attachment() {
     // A carrier displaced by 100·ε (definitely beyond the escalation
     // band at every CI ε row) must be refused by the op itself, body
     // untouched.
-    let eps = Tolerance::get().eps;
+    let eps = Tol::witness().get().eps;
     let c = |x: f64, y: f64, z: f64| Point3::new(x, y, z);
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(c(0.0, 0.0, 0.0)).unwrap();
@@ -256,7 +257,7 @@ fn near_tangent_intersection_attachment_escalates() {
     // arm 1 for every CI ε row) — an Intersection description across
     // them is refused as a sliver escalation, typed, at the upgrade
     // path. Built standalone (plane × plane through one line).
-    let eps = Tolerance::get().eps;
+    let eps = Tol::witness().get().eps;
     let theta = 3.0 * eps;
     let c = |x: f64, y: f64, z: f64| Point3::new(x, y, z);
     let mut body = Body::<f64>::new();

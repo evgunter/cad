@@ -11,12 +11,13 @@ use sweep::test_support::cube;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations, EdgeKey};
+use geom_core::Tol;
 
-fn tol() -> Tolerance {
-    Tolerance::get()
+fn tol() -> Tol {
+    Tol::witness()
 }
 fn band() -> Band {
-    Band::new(tol().eps, tol().k * tol().eps).unwrap()
+    Band::new(tol().eps(), tol().k() * tol().eps()).unwrap()
 }
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)

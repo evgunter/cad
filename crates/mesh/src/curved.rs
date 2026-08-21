@@ -700,7 +700,7 @@ mod tests {
 
     fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
         Profile::new(SketchPlane::xy(), loops)
-            .validate(Tolerance::get())
+            .validate(Tol::witness())
             .unwrap()
     }
 
@@ -729,7 +729,7 @@ mod tests {
     /// The run's kernel ε — the length this lane's band measures
     /// against, read from the same place `tessellate` reads it.
     fn eps() -> f64 {
-        Tolerance::get().eps
+        Tol::witness().get().eps
     }
 
     /// Unit lever arms for a synthetic polygon, so its UV units ARE
@@ -762,7 +762,7 @@ mod tests {
     /// router's own screens (`tessellate.rs`), so a face that survives
     /// them is a face `tessellate_curved` receives.
     fn curved_walks(body: &Body<f64>) -> Vec<Walked> {
-        let eps = Tolerance::get().eps;
+        let eps = Tol::witness().get().eps;
         let mut positions = Vec::new();
         let mut vids = HashMap::new();
         for (vk, v) in body.vertices() {

@@ -16,6 +16,7 @@ use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
 use sweep::{Extrusion, extrude};
 use topo::{validate, validate_closed, validate_geometric};
+use geom_core::Tol;
 
 fn p2(x: f64, y: f64) -> Point2<Interval> {
     Point2::new(Interval::from_f64(x), Interval::from_f64(y))
@@ -44,7 +45,7 @@ fn interval_reversed_l_profile_all_tiers() {
         p2(0.0, 2.0),
     ]);
     let vp = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let t = extrude(&vp, Extrusion::Distance(Interval::from_f64(-1.5))).unwrap();
     assert_eq!(validate(&t.body), Ok(()));
@@ -81,7 +82,7 @@ fn interval_axis_aligned_bridge_ring_path_genus_one() {
     ]);
     let hole = square(0.5, 0.5, 0.25);
     let vp = Profile::new(SketchPlane::<Interval>::xy(), vec![outer, hole])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let t = extrude(&vp, Extrusion::Distance(Interval::from_f64(1.0))).unwrap();
     assert_eq!(validate(&t.body), Ok(()));
@@ -115,7 +116,7 @@ fn fixed_interval_diagonal_bridge_builds_tier_valid() {
     let outer = square(0.0, 0.0, 1.0);
     let hole = square(0.25, 0.25, 0.5);
     let vp = Profile::new(SketchPlane::<Interval>::xy(), vec![outer, hole])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let t = extrude(&vp, Extrusion::Distance(Interval::from_f64(1.0))).unwrap();
     assert_eq!(validate(&t.body), Ok(()));
@@ -157,7 +158,7 @@ fn fixed_interval_rotated_placement_builds_tier_valid() {
     );
     let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
     let vp = Profile::new(plane, vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let t = extrude(&vp, Extrusion::Distance(Interval::from_f64(1.0))).unwrap();
     assert_eq!(validate(&t.body), Ok(()));

@@ -17,6 +17,7 @@ use topo::{
     Body, BooleanResult, BooleanResultKind, mass_properties, subtract, union, validate,
     validate_closed,
 };
+use geom_core::Tol;
 
 fn slab(x0: f64, y0: f64, side: f64, z0: f64, height: f64) -> Body<f64> {
     let lp = ProfileLoop::polygon([
@@ -30,7 +31,7 @@ fn slab(x0: f64, y0: f64, side: f64, z0: f64, height: f64) -> Body<f64> {
         Point3::new(0.0, 0.0, z0) - Point3::origin(),
     ));
     let validated = Profile::new(plane, vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     extrude(&validated, Extrusion::Distance(height))
         .unwrap()

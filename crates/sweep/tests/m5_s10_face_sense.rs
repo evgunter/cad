@@ -40,6 +40,7 @@ use revolve_common::{axis_y, p2, validated};
 use sweep::{Extrusion, Revolution, extrude, revolve};
 use topo::boolean::point_in_solid;
 use topo::{Body, FaceKey};
+use geom_core::Tol;
 
 /// The unit ball centred at the origin: two half-sphere bands on ONE
 /// sphere surface, each **rimless** (bounded by meridians only).
@@ -169,7 +170,7 @@ fn assembly_flip_is_wrong_but_nonzero() {
         p2(5.0, 2.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let cuboid = extrude(&vp, Extrusion::Distance(3.0)).unwrap().body;
     let r = topo::boolean::union(&ball, &cuboid).unwrap();
@@ -214,7 +215,7 @@ fn tier_three_refusal_is_surgical() {
         p2(0.0, 1.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let body = extrude(&vp, Extrusion::Distance(1.0)).unwrap().body;
     assert_eq!(topo::validate::validate_geometric(&body), Ok(()));
@@ -255,7 +256,7 @@ fn mixed_turn_arcs() -> sweep::Extruded<f64> {
         ProfileVertex::new(p2(0.0, 1.5), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     extrude(&vp, Extrusion::Distance(1.0)).unwrap()
 }
@@ -312,7 +313,7 @@ fn fixed_concave_arc_wall_sense_is_false() {
     assert!(saw_concave, "the fixture must contain a concave arc wall");
 
     // (2) The consequence: point_in_solid is honest in the notch.
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     let truth_hi = 2.5 - 2.0_f64.sqrt(); // ≈ 1.0858
     let inside = point_in_solid(&t.body, Point3::new(1.0, 0.5, 0.5), band).unwrap();
     assert_eq!(inside, topo::boolean::SolidContainment::In);
@@ -350,7 +351,7 @@ fn pellet() -> Body<f64> {
         geom_core::Vec3::new(0.0, 1.0, 0.0),
     );
     let vp = Profile::new(plane, vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     extrude(&vp, Extrusion::Distance(0.4)).unwrap().body
 }

@@ -139,7 +139,7 @@ fn every_suite_file_is_aggregated() {
 /// on; a **terminal read** compares or adds it.
 ///
 /// - **`tessellate.rs` — 3.** ε ENTERS the crate here and nowhere
-///   else: `Tolerance::get().eps` (two tokens on one line) and the
+///   else: `Tol::witness().get().eps` (two tokens on one line) and the
 ///   `Tol` field initialiser.
 /// - **`sizing.rs` — 1.** The `Tol::eps` field declaration. This
 ///   module computes every step and count in the crate and reads ε in
@@ -192,7 +192,7 @@ fn every_suite_file_is_aggregated() {
 ///
 /// # What this cannot match, and it is a work order
 ///
-/// 1. **A read that does not spell `eps`.** `Tolerance::get().eps`
+/// 1. **A read that does not spell `eps`.** `Tol::witness().get().eps`
 ///    bound to another name, or ε reached through a helper that
 ///    already applied it, is invisible here. The mechanism that would
 ///    close that is a TYPE — ε as a newtype whose only operations are
@@ -309,3 +309,4 @@ fn the_eps_inventory_is_pinned() {
          REFUSE, CLASSIFY, or SCALE a number? — then re-pin."
     );
 }
+use geom_core::Tol;

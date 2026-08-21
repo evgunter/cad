@@ -94,7 +94,7 @@
 //!   the unforced window. Face-interior and convex-corner crossings
 //!   of the same shape succeed exactly.
 
-use geom_core::{Band, Bounds, Decide, Margin, MarginDiag, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Bounds, Decide, Margin, MarginDiag, Point3, Real, Sign, Tol, Vec3};
 
 use super::boxes;
 use super::combine::{GraftMap, graft_solid};
@@ -415,8 +415,9 @@ fn boolean_op_recut<T: Decide + Bounds>(
     decls: &BooleanDeclarations,
     strategy: SweepStrategy,
     recut: bool,
+    tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
-    let band = Band::linear()?;
+    let band = Band::linear(tol)?;
     let mut red = super::boolean_reduce_declared_strategy(op, a, b, decls, strategy)?;
 
     if red.null_pairs.is_empty() {
@@ -1623,8 +1624,9 @@ fn apply_recuts<T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
     recuts: &[SphereRecut<T>],
+    tol: Tol,
 ) -> Result<(Body<T>, Body<T>), BooleanError> {
-    let band = Band::linear()?;
+    let band = Band::linear(tol)?;
     let mut out_a = a.clone();
     let mut out_b = b.clone();
     for (operand, out) in [(Operand::A, &mut out_a), (Operand::B, &mut out_b)] {
@@ -1991,7 +1993,7 @@ mod tests {
     /// all three ops.
     #[test]
     fn volume_backstop_wiring() {
-        let band = Band::linear().unwrap();
+        let band = Band::linear(Tol::witness()).unwrap();
         let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
         let cube = quad_prism(&square, 1.0);
         let small = quad_prism(&square, 0.5);
@@ -2032,7 +2034,7 @@ mod tests {
     /// test goes red while every other row stays green.
     #[test]
     fn volume_backstop_refuses_a_wrong_component_hidden_by_a_large_area() {
-        let band = Band::linear().unwrap();
+        let band = Band::linear(Tol::witness()).unwrap();
         let plate_profile = [(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)];
         let plate = quad_prism(&plate_profile, 0.1);
         // The "result" of `plate ∖ tool` that wrongly KEPT a 3 mm cube:
@@ -2137,7 +2139,7 @@ mod tests {
         // operand is refused at its NURBS EDGES first, a placeholder's
         // poison box is never pruned) — `sweep`'s `s16_box_soundness`
         // pins both blockers, so the day one lifts is loud.
-        let band = Band::linear().unwrap();
+        let band = Band::linear(Tol::witness()).unwrap();
         let Err(err) = super::sphere_extent_scan(&a, &b, band) else {
             panic!("the NURBS fallback must be re-gated, never vertex-probed");
         };

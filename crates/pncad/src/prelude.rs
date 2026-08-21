@@ -36,7 +36,7 @@
 pub use crate::authoring::{p2, p3, real, v2, v3, validated};
 // `Band` is here because `fillet_edges` (group 3) takes one: a prelude
 // operation whose arguments are not prelude-constructible is a rung the
-// user cannot start from. The recipe is `Band::linear()` — the run's
+// user cannot start from. The recipe is `Band::linear(tol)` — the run's
 // tolerance ε as the coincidence threshold, K·ε as the escalation
 // threshold — which is what every kernel operation builds internally.
 pub use geom_core::{Affine3, Band, BandError, Mat3, Point2, Point3, Real, Tolerance, Vec2, Vec3};

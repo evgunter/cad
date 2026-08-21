@@ -99,6 +99,7 @@ use geom_core::spline::KnotVector;
 use geom_core::tolerance::DEFAULT_EPS;
 use geom_core::{Band, Margin, Point3, Tolerance, Vec3};
 use test_utils::vacuity;
+use geom_core::Tol;
 
 /// The accounting floor the floor-clamped fixture plants, **in metres**
 /// — far wider than any certifiable tube radius on that pair, and the
@@ -106,11 +107,11 @@ use test_utils::vacuity;
 const FLOOR_CLAMP_METRES: f64 = 0.1;
 
 fn eps() -> f64 {
-    Tolerance::get().eps
+    Tol::witness().get().eps
 }
 
 fn band() -> Band {
-    Band::linear().unwrap()
+    Band::linear(Tol::witness()).unwrap()
 }
 
 /// A margin the resolved band calls **definitely positive**, at any ε.
@@ -118,7 +119,7 @@ fn band() -> Band {
 /// The battery runs this suite at ε ∈ {1e-6, 1e-9, 1e-12} and at the
 /// interval scalar, so every probe value and every planted corruption
 /// has to be placed *relative to the band the run resolved*, never at a
-/// literal that happens to straddle the default one. `Band::linear()`
+/// literal that happens to straddle the default one. `Band::linear(Tol::witness())`
 /// puts `zero` at ε and `escalate` at K·ε; these three helpers name the
 /// three regions.
 fn definitely_positive() -> f64 {

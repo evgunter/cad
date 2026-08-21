@@ -29,7 +29,7 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use geom_core::linalg::{Affine3, Mat3, Point3, Vec3};
-use geom_core::predicate::Band;
+use geom_core::predicate::{Band, Tol};
 
 use super::coset::{Coset, FoldStop, Subgroup};
 use super::{Alignment, AxisSense, MateFault, MatePrimitive, MateSide};
@@ -504,9 +504,9 @@ pub fn fold_pair<P>(
 ///
 /// Total by construction — a refusing cluster records its fault against
 /// its own mates and instances and leaves every other cluster solved.
-pub fn solve_document<P>(doc: &Doc<P>) -> SolvedPoses {
+pub fn solve_document<P>(doc: &Doc<P>, tol: Tol) -> SolvedPoses {
     let mut out = SolvedPoses::default();
-    let band = match Band::linear() {
+    let band = match Band::linear(tol) {
         Ok(band) => band,
         Err(error) => {
             // No band, no decisions: every mate and instance refuses

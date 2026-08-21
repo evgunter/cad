@@ -27,9 +27,10 @@ use geom_brep::props::PropsError;
 use geom_brep::props::quad::nurbs_patch_face;
 use geom_core::spline::KnotVector;
 use geom_core::{Band, MarginDiag, RingInterval, Tolerance};
+use geom_core::Tol;
 
 fn band() -> Band {
-    Band::linear().unwrap()
+    Band::linear(Tol::witness()).unwrap()
 }
 
 /// The engine's convergence target as a multiple of ε
@@ -437,7 +438,7 @@ fn probe(
         },
         perimeter,
         0.0,
-        Tolerance::get().eps,
+        Tol::witness().get().eps,
         band(),
     );
     match out {
@@ -518,7 +519,7 @@ fn probe(
         // margin, and anything else is an unsound outcome.
         Err(e) => {
             println!("{name}: typed refusal (sound): {e}");
-            let target = TARGET_LEN_FACTOR * Tolerance::get().eps;
+            let target = TARGET_LEN_FACTOR * Tol::witness().get().eps;
             match e {
                 PropsError::QuadratureBudget {
                     width_len,
@@ -766,7 +767,7 @@ fn quarter_cylinder_probe(name: &str, r: f64, h: f64) -> Posture {
 #[test]
 fn probe_scale_extremes() {
     let tiny = quarter_cylinder_probe("tiny-cylinder", 1e-6, 2e-6);
-    let expected = if Tolerance::get().eps <= CORPUS_EPS {
+    let expected = if Tol::witness().get().eps <= CORPUS_EPS {
         Posture::Certified
     } else {
         Posture::Degenerate
@@ -777,7 +778,7 @@ fn probe_scale_extremes() {
         "the 1 µm quarter cylinder's posture is ε-keyed: certified at the corpus ε \
          and below, degenerate above it (its 0.22 µm mean width is under the run's \
          own tolerance there) — got {tiny:?} at ε = {:e}",
-        Tolerance::get().eps
+        Tol::witness().get().eps
     );
     pin_floor(
         "huge-cylinder",
@@ -833,16 +834,16 @@ fn probe_suite_still_certifies_something() {
         "ANTI-VACUITY: the exact-lane unit square no longer certifies at ε = {:e}. \
          Nothing in this file certifies any more, so every refusal assertion in it \
          is vacuously satisfiable",
-        Tolerance::get().eps
+        Tol::witness().get().eps
     );
-    if Tolerance::get().eps >= CORPUS_EPS {
+    if Tol::witness().get().eps >= CORPUS_EPS {
         assert_eq!(
             quarter_cylinder_probe("anti-vacuity-quarter-cylinder", 1.0, 2.0),
             Posture::Certified,
             "ANTI-VACUITY: no RATIONAL carrier certifies at ε = {:e}, which is the \
              corpus ε or coarser — the lane has stopped answering, not just stopped \
              reaching a tighter target",
-            Tolerance::get().eps
+            Tol::witness().get().eps
         );
     }
 }
@@ -937,7 +938,7 @@ fn probe_determinism_bits() {
             (0.0, 1.0, 0.0, 1.0),
             4.0 + PI,
             0.0,
-            Tolerance::get().eps,
+            Tol::witness().get().eps,
             band(),
         )
     };
@@ -964,11 +965,11 @@ fn probe_determinism_bits() {
             println!(
                 "METER quarter-cylinder {:.6e} target {:.6e}",
                 meter,
-                1024.0 * Tolerance::get().eps
+                1024.0 * Tol::witness().get().eps
             );
         }
         (Err(a), Err(b)) => {
-            println!("DETBITS refusal @ eps={:e}: {a:?}", Tolerance::get().eps);
+            println!("DETBITS refusal @ eps={:e}: {a:?}", Tol::witness().get().eps);
             assert!(
                 matches!(
                     a,
@@ -993,7 +994,7 @@ fn probe_determinism_bits() {
         (0.0, 1.0, 0.0, 1.0),
         4.0 + PI,
         0.0,
-        Tolerance::get().eps * 1e-6,
+        Tol::witness().get().eps * 1e-6,
         band(),
     );
     // A million-fold-tighter target must REFUSE, never answer — but
@@ -1132,7 +1133,7 @@ fn diag_uniform_weight_twins() {
             (0.0, 1.0, 0.0, 1.0),
             2.0 * h + 2.0 * PI,
             0.0,
-            Tolerance::get().eps,
+            Tol::witness().get().eps,
             band(),
         )
     };
@@ -1179,7 +1180,7 @@ fn diag_uniform_weight_twins() {
         Err(e) => {
             println!(
                 "rational twin refuses typed @ eps={:e}: {e:?}",
-                Tolerance::get().eps
+                Tol::witness().get().eps
             );
             assert!(
                 matches!(
@@ -1213,7 +1214,7 @@ fn probe_interval_scalar_agrees() {
     ];
     let weights = [1.0, 1.0, W2, W2, 1.0, 1.0];
     let rect = (0.0, 1.0, 0.0, 1.0);
-    let eps = Tolerance::get().eps;
+    let eps = Tol::witness().get().eps;
     let a = nurbs_patch_face::<f64>(&ku, &kv, &net, &weights, rect, 4.0 + PI, 0.0, eps, band());
     let b =
         nurbs_patch_face::<Interval>(&ku, &kv, &net, &weights, rect, 4.0 + PI, 0.0, eps, band());

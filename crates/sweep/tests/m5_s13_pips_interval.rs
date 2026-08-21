@@ -44,7 +44,7 @@ mod certified {
 
     fn validated(loops: Vec<ProfileLoop<Interval>>) -> ValidatedProfile<Interval> {
         Profile::new(SketchPlane::xy(), loops)
-            .validate(Tolerance::get())
+            .validate(Tol::witness())
             .unwrap()
     }
 
@@ -138,3 +138,4 @@ mod certified {
         encloses(v_cut + v_met, 16.0, "∖/∩ additivity");
     }
 }
+use geom_core::Tol;

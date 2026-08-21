@@ -51,6 +51,7 @@
 
 use std::path::PathBuf;
 use step_import::{ImportOptions, StepImportError, import_step};
+use geom_core::Tol;
 
 fn dm1() -> String {
     let path: PathBuf = [
@@ -83,7 +84,7 @@ fn dm1_no_longer_refuses_at_the_instancing_gate() {
     // (1) and (3): the disposition — a two-cell claim, because the
     // ambient band selects which frontier is first (see the coarse
     // arm below).
-    let coarse = geom_core::Tolerance::get().eps > 1e-9;
+    let coarse = geom_core::Tol::witness().get().eps > 1e-9;
     match import_step(&text, &ImportOptions::default()) {
         Err(StepImportError::Structure { id, what }) => {
             panic!("the assembly layer must not refuse dm1 any more: #{id} {what}")

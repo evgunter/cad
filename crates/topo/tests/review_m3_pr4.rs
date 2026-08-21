@@ -13,6 +13,7 @@ mod common;
 use common::{flush_declarations, prism_z};
 use geom_core::Decide;
 use topo::{Body, BooleanError, BooleanOp, BooleanReduction, boolean_reduce, validate};
+use geom_core::Tol;
 
 fn brick<T: Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
     prism_z::<T>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
@@ -374,7 +375,7 @@ fn notch_fill_dense_ties() {
 fn plane_eq_nan_and_negzero() {
     use geom_core::{Band, Point3, Vec3};
     use topo::{GeomSource, PlaneIdentity, PlaneRelation, oriented_plane_eq};
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     let mk = |n: Vec3<f64>, o: Point3<f64>| topo::boolean::plane_eq::PlaneDesc {
         origin: o,
         normal: n,

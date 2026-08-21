@@ -14,13 +14,14 @@ use geom_brep::intersect::{
     plane_cylinder_section, route,
 };
 use geom_core::{Band, Point3, Tolerance, Vec3};
+use geom_core::Tol;
 
 fn band() -> Band {
-    Band::linear().unwrap()
+    Band::linear(Tol::witness()).unwrap()
 }
 
 fn eps() -> f64 {
-    Tolerance::get().eps
+    Tol::witness().get().eps
 }
 
 /// The general rung EXISTS (M5 PR 7). So an arm that still refuses owes

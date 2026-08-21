@@ -38,6 +38,7 @@ use geom::{Curve3, NurbsCurve2};
 use geom_brep::{EdgeCurveSpec, EdgeGeometry, EnvelopeStatement, Pcurve, PcurveCache};
 use geom_core::{Band, Point2, Point3, Real, Vec3};
 use topo::Body;
+use geom_core::Tol;
 
 /// The chart sphere: unit-ish radius, polar axis +z.
 fn sphere<T: Real>() -> Surface<T> {
@@ -137,7 +138,7 @@ fn build<T>() -> (Body<T>, topo::HalfEdgeKey)
 where
     T: geom_brep::PcurveFittedLane,
 {
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     let carrier = general_circle::<T>();
     let (f0, f1) = ARC;
     let (t0, t1) = (T::from_f64(f0), T::from_f64(f1));
@@ -199,7 +200,7 @@ where
 /// the ONLY route (never a silent fallback, C5).
 #[test]
 fn a_general_circle_refuses_the_closed_form_sphere_door_typed() {
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     let err = geom_brep::chart_pcurve(&general_circle::<f64>(), &sphere::<f64>(), band)
         .expect_err("azimuth-non-harmonic");
     assert!(matches!(
@@ -222,7 +223,7 @@ fn a_general_circle_sphere_cache_survives_the_at_rest_pass() {
     // Schedule residual: every CERT sample is a collocation point of
     // the fit, so the sampled max sits at floating-point noise —
     // asserted against the band, not a literal.
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     assert!(cert.max_residual.abs() <= band.zero());
     let findings = topo::pcurves::validate_pcurves(&body, band);
     assert!(findings.is_empty(), "{findings:?}");
@@ -242,7 +243,7 @@ mod certified {
         let cache = body.pcurve(he).expect("the cache is stored");
         let cert = cache.certificate();
         assert_eq!(cert.statement, EnvelopeStatement::OnLocusHull);
-        let band = Band::linear().unwrap();
+        let band = Band::linear(Tol::witness()).unwrap();
         // Enclosure-style: the certified envelope's SUPREMUM is inside
         // the band — a bracketing claim, never an equality.
         assert!(geom_core::Bounds::hi(cert.envelope) <= band.zero());

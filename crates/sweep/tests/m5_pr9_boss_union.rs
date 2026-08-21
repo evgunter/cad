@@ -13,6 +13,7 @@ use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, extrude};
 use topo::Body;
+use geom_core::Tol;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -27,7 +28,7 @@ fn plate() -> Body<f64> {
         ProfileVertex::new(p2(0.0, 4.0), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
 }
@@ -53,7 +54,7 @@ fn boss() -> Body<f64> {
     ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.4)));
     let profile = Profile::new(plane, vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     extrude(&profile, Extrusion::Distance(1.2)).unwrap().body
 }
@@ -151,7 +152,7 @@ fn a_touching_curved_assembly_validates_declared_and_refuses_undeclared() {
     ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 1.0)));
     let profile = Profile::new(plane, vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let boss_on_top = extrude(&profile, Extrusion::Distance(0.6)).unwrap().body;
     let mut body = a.clone();
@@ -227,7 +228,7 @@ fn r1_pin(z0: f64, h: f64) -> Body<f64> {
     ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     extrude(&profile, Extrusion::Distance(h)).unwrap().body
 }
@@ -249,7 +250,7 @@ fn r1_cradle(bulge: f64) -> Body<f64> {
         ProfileVertex::new(p2(xw, 1.0), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
 }
@@ -364,7 +365,7 @@ fn r1_delta_probe_ball_cap_embedded_in_plate() {
         dir: geom_core::Vec2::new(0.0, 1.0),
     };
     let profile = Profile::new(SketchPlane::xy(), vec![ball_lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let ball = sweep::revolve(&profile, axis, sweep::Revolution::Full)
         .unwrap()
@@ -384,7 +385,7 @@ fn r1_delta_probe_ball_cap_embedded_in_plate() {
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.3)));
     let plate = extrude(
         &Profile::new(plane, vec![lp])
-            .validate(Tolerance::get())
+            .validate(Tol::witness())
             .unwrap(),
         Extrusion::Distance(1.0),
     )
@@ -434,7 +435,7 @@ fn r1_final_delta_probe_reflex_arc_cap_stays_loud() {
     ]);
     let pac = extrude(
         &Profile::new(SketchPlane::xy(), vec![lp])
-            .validate(Tolerance::get())
+            .validate(Tol::witness())
             .unwrap(),
         Extrusion::Distance(1.0),
     )
@@ -460,7 +461,7 @@ fn r1_final_delta_probe_reflex_arc_cap_stays_loud() {
     let ball_plane = SketchPlane::new(Affine3::translation(Vec3::new(0.65, 0.0, 1.3)));
     let ball = sweep::revolve(
         &Profile::new(ball_plane, vec![ball_lp])
-            .validate(Tolerance::get())
+            .validate(Tol::witness())
             .unwrap(),
         axis,
         sweep::Revolution::Full,

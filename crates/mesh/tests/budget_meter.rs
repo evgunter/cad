@@ -26,6 +26,7 @@ use topo::Body;
 
 mod common;
 use common::quad;
+use geom_core::Tol;
 
 /// The tightness floor `the_deviation_pass_samples_and_stays_under_its_certificates`
 /// asserts, and the argument for its value is there.
@@ -210,7 +211,7 @@ fn the_deviation_pass_samples_and_stays_under_its_certificates() {
     // transcribed: the floor's applicability test is a comparison
     // against it, and CI drives this suite at one leg while the ε
     // battery drives the crate at three.
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     for m in &measures {
         assert!(m.dev_samples > 0, "resampling ran: {m:?}");
         // The falsification, in the one form that carries it:

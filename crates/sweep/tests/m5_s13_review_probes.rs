@@ -23,13 +23,14 @@ use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations, BooleanError};
+use geom_core::Tol;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
 }
 
 fn slack() -> f64 {
-    (1e3 * Tolerance::get().eps).max(1e-9)
+    (1e3 * Tol::witness().get().eps).max(1e-9)
 }
 
 fn vol(body: &Body<f64>) -> f64 {
@@ -44,7 +45,7 @@ fn boxy(x0: f64, y0: f64, x1: f64, y1: f64, h: f64) -> Body<f64> {
             .collect(),
     );
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     extrude(&profile, Extrusion::Distance(h)).unwrap().body
 }
@@ -59,7 +60,7 @@ fn ball_at(r: f64, centre: Vec3<f64>) -> Body<f64> {
         ProfileVertex::new(p2(0.0, r), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let axis = RevolveAxis {
         origin: p2(0.0, 0.0),
@@ -290,7 +291,7 @@ fn probe_nested_spheres_union_to_the_outer_ball() {
 #[test]
 fn probe_plane_sphere_section_dense_residual() {
     use geom::Surface;
-    let band = geom_core::Band::linear().unwrap();
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let n = Vec3::new(0.3, -0.55, 0.9).normalize();
     let plane = Surface::Plane {
         origin: Point3::new(0.1, -0.2, 0.35),

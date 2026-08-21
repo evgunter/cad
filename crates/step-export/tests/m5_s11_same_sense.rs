@@ -33,6 +33,7 @@ use geom_core::{Point2, Tolerance};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use step_export::{StepOptions, step_string};
 use sweep::{Extrusion, extrude};
+use geom_core::Tol;
 
 fn export(body: &topo::Body<f64>) -> String {
     let options = StepOptions {
@@ -96,7 +97,7 @@ fn notched_body_exports_with_exactly_one_reversed_cylinder_wall() {
         ProfileVertex::new(Point2::new(0.0, 1.5), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let body = extrude(&vp, Extrusion::Distance(1.0)).unwrap().body;
     // The kernel-side fact this row mirrors: one reversed face.

@@ -69,9 +69,10 @@ use sweep::{
 };
 use topo::boolean::{SolidContainment, point_in_solid};
 use topo::{Body, FaceKey};
+use geom_core::Tol;
 
 fn band() -> Band {
-    Band::linear().unwrap()
+    Band::linear(Tol::witness()).unwrap()
 }
 
 fn vol(body: &Body<f64>) -> f64 {
@@ -476,7 +477,7 @@ fn extruded_twin(loops: &[ProfileLoop<f64>], h: f64) -> Body<f64> {
 /// really missed a target that really is `1024·ε`, and only the
 /// convergence predicate may escalate. Anything else is a real failure.
 fn assert_rational_volume(row: &str, body: &Body<f64>, want: f64) {
-    let target = 1024.0 * Tolerance::get().eps;
+    let target = 1024.0 * Tol::witness().get().eps;
     match topo::props::mass_properties(body) {
         Ok(m) => {
             // ACCURACY: the certified enclosure must CONTAIN the
@@ -716,7 +717,7 @@ fn a_lofted_operand_refuses_the_union_check_typed() {
         Vec3::new(0.0, 1.0, 0.0),
     );
     let vp = Profile::new(plane, vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let pellet = extrude(&vp, Extrusion::Distance(0.4)).unwrap().body;
 

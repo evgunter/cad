@@ -25,9 +25,10 @@ use topo::{
     Body, EdgeKey, EulerOpError, FaceKey, LoopBoundary, LoopKey, validate, validate_closed,
     validate_geometric,
 };
+use geom_core::Tol;
 
 fn eps() -> f64 {
-    Tolerance::get().eps
+    Tol::witness().get().eps
 }
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -36,7 +37,7 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 
 fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
     Profile::new(SketchPlane::xy(), loops)
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap()
 }
 
@@ -111,7 +112,7 @@ fn loop_probe_points(body: &Body<f64>, r#loop: LoopKey) -> Vec<Point3<f64>> {
 fn outward_normal(body: &Body<f64>, face: FaceKey) -> Vec3<f64> {
     let outer = body.get_face(face).unwrap().outer;
     let pts = loop_probe_points(body, outer);
-    let Surface::Plane { normal, .. } = newell_plane(&pts, Band::linear().unwrap()).unwrap() else {
+    let Surface::Plane { normal, .. } = newell_plane(&pts, Band::linear(Tol::witness()).unwrap()).unwrap() else {
         panic!("newell returns a plane");
     };
     normal
@@ -386,7 +387,7 @@ fn survives_sliver_gap_holes_die_typed() {
         SketchPlane::xy(),
         core::iter::once(outer).chain(holes).collect(),
     )
-    .validate(Tolerance::get());
+    .validate(Tol::witness());
     assert!(res.is_err(), "sliver-gap holes validated silently");
 }
 
@@ -752,7 +753,7 @@ fn survives_near_cosurface_dies_typed_at_the_profile_gate() {
     // (a) Lines: next chord's far endpoint 3ε off the prev carrier.
     let d = 3.0 * eps();
     let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(2.0, d), p2(1.0, 2.0)]);
-    let profile_result = Profile::new(SketchPlane::xy(), vec![lp]).validate(Tolerance::get());
+    let profile_result = Profile::new(SketchPlane::xy(), vec![lp]).validate(Tol::witness());
     match profile_result {
         Err(_) => {} // typed at the profile gate — honest
         Ok(vp) => {
@@ -787,7 +788,7 @@ fn survives_near_cosurface_dies_typed_at_the_profile_gate() {
         ProfileVertex::new(p2(r2, 1.2), 0.0),
         ProfileVertex::new(p2(-r1, 1.2), 0.0),
     ]);
-    let profile_result = Profile::new(SketchPlane::xy(), vec![lp]).validate(Tolerance::get());
+    let profile_result = Profile::new(SketchPlane::xy(), vec![lp]).validate(Tol::witness());
     match profile_result {
         Err(_) => {} // typed at the profile gate — honest
         Ok(vp) => {
@@ -948,7 +949,7 @@ fn survives_far_offset_profiles_honest() {
 
     // Arc carrier at 1e8: honesty check (typed either way).
     let lp = circle_loop(off, off, 0.5);
-    match Profile::new(SketchPlane::xy(), vec![lp]).validate(Tolerance::get()) {
+    match Profile::new(SketchPlane::xy(), vec![lp]).validate(Tol::witness()) {
         Err(_) => {} // typed refusal at the profile gate is honest
         Ok(vp) => match extrude(&vp, Extrusion::Distance(1.0)) {
             Ok(t) => assert_all_tiers(&t.body),
@@ -1051,7 +1052,7 @@ fn survives_error_paths_extended() {
         Vec3::unit_y(),
     );
     let vp_bad = Profile::new(bad_plane, vec![l_loop()])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .expect("validation is 2-D; the poisoned placement passes through");
     let err = extrude(&vp_bad, Extrusion::Distance(1.0)).unwrap_err();
     assert!(

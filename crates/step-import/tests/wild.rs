@@ -32,6 +32,7 @@ use std::path::PathBuf;
 
 use common::census;
 use step_import::{ImportOptions, StepImport, StepImportError, import_step};
+use geom_core::Tol;
 
 /// The imports-class corpus: files that import to a first-class,
 /// tier-valid body, each with an oracle-derived `.expect` sidecar.
@@ -228,7 +229,7 @@ const WILD_EPS_CEILING: f64 = 1e-8;
 /// skip. Three rows call it; running the sweep here ran the whole
 /// corpus three extra times for one claim.
 fn wild_scale_gate(row: &str) -> bool {
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     if (WILD_EPS_FLOOR..=WILD_EPS_CEILING).contains(&eps) {
         return true;
     }
@@ -249,7 +250,7 @@ fn wild_scale_gate(row: &str) -> bool {
 /// foreign file the kernel cannot certify at the ambient tolerance is
 /// REFUSED, not handed out wrong.
 fn assert_sub_tolerance_obligation(row: &str) {
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     let mut certified = 0;
     for name in WILD_IMPORTS
         .iter()
@@ -651,7 +652,7 @@ fn no_wild_file_panics() {
         .copied()
         .collect();
     assert_eq!(names.len(), 13, "the whole committed wild corpus");
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     if (WILD_EPS_FLOOR..=WILD_EPS_CEILING).contains(&eps) {
         println!(
             "no_wild_file_panics: ambient ε {eps:e} m is inside [{WILD_EPS_FLOOR:e}, \

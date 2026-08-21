@@ -8,6 +8,7 @@ use geom_core::{Point2, Tolerance};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, extrude};
+use geom_core::Tol;
 
 #[test]
 fn symmetric_double_rim_split_volume_at_base() {
@@ -16,7 +17,7 @@ fn symmetric_double_rim_split_volume_at_base() {
         ProfileVertex::new(Point2::new(0.5, 0.0), 1.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let mut body = extrude(&profile, Extrusion::Distance(1.0)).unwrap().body;
     let true_vol = std::f64::consts::PI * 0.25 * 1.0;

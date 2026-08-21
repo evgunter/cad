@@ -52,6 +52,7 @@ use crate::contact::ContactVerdict;
 use crate::validate::decide;
 
 use super::plane_eq::{PlaneDesc, PlaneIdentity, oriented_plane_eq_verdict};
+use geom_core::Tol;
 
 /// The relation between two oriented carriers: the three outcomes
 /// every kind's ladder produces.
@@ -380,7 +381,7 @@ mod tests {
     use super::*;
 
     fn band() -> Band {
-        Band::linear().unwrap()
+        Band::linear(Tol::witness()).unwrap()
     }
 
     fn sphere(c: [f64; 3], r: f64, outward: bool) -> CarrierDesc<f64> {

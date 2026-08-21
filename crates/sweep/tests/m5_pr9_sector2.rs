@@ -23,6 +23,7 @@ use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, extrude};
 use topo::Body;
 use topo::splitting::{SplitPlane, SplitReduceError, split};
+use geom_core::Tol;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -37,7 +38,7 @@ fn cylinder_body() -> Body<f64> {
         ProfileVertex::new(p2(0.5, 0.0), 1.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
 }
@@ -127,7 +128,7 @@ fn filleted_block() -> Body<f64> {
     // discipline): joints 3 (arc→line) and 2 (line→arc).
     lp = lp.with_tangent_joints(vec![2, 3]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
 }

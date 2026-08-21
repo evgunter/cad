@@ -21,6 +21,7 @@ use sweep::test_support::cube;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations, EdgeKey};
+use geom_core::Tol;
 
 const DIE_L: f64 = 1.0;
 const DIE_R: f64 = 0.12;
@@ -29,7 +30,7 @@ const PIP_H: f64 = 0.05;
 const RIM_R: f64 = 0.02;
 
 fn band() -> Band {
-    let tol = Tolerance::get();
+    let tol = Tol::witness().get();
     Band::new(tol.eps, tol.k * tol.eps).unwrap()
 }
 
@@ -43,7 +44,7 @@ fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
         ProfileVertex::new(p2(0.0, r), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let axis = RevolveAxis {
         origin: p2(0.0, 0.0),
@@ -195,7 +196,7 @@ fn p1_rim_edge_orientation_recon() {
 #[test]
 fn p2_ring_touch_trio_through_the_front_door() {
     let s = ((PIP_R + RIM_R).powi(2) - (PIP_R - PIP_H + RIM_R).powi(2)).sqrt();
-    let tol = Tolerance::get();
+    let tol = Tol::witness().get();
     // (a) definite pass: widened circle clears the trimline by 1 cm.
     {
         let (pipped, box_edges) = one_pip(0.12 + s + 0.01, 0.5);

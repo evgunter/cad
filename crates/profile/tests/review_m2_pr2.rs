@@ -40,6 +40,7 @@ use profile::{
     ArcSweep, ContactKind, LoopRole, ProfileError, ProfileLoop, ProfileVertex, SegmentKind,
     SegmentRef, ValidatedProfile, bulge_from_center, bulge_from_via,
 };
+use geom_core::Tol;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -318,7 +319,7 @@ fn externally_tangent_loops_are_tangential_contact() {
 /// definitely-corner joins.
 #[test]
 fn near_tangent_join_escalates() {
-    let eps = tol().eps;
+    let eps = tol().eps();
     // Quarter arc leaving (2,0) with chord rotated by phi off the
     // exact-tangency direction (45 deg): carrier clearance to the
     // incoming line y=0 is r(1 - cos phi) ~ phi^2/2 with r = 1.
@@ -511,7 +512,7 @@ fn near_full_arc_with_chord_closure_validates() {
     // Half-gap angle, sized so the chord-to-carrier clearance
     // r(1 - cos delta) ~ delta^2/2 clears the escalation band (>= 20
     // eps) at whatever eps the CI row runs.
-    let delta = (44.0 * tol().eps).sqrt();
+    let delta = (44.0 * tol().eps()).sqrt();
     let (s, c) = (delta.sin(), delta.cos());
     let a = p2(c, s);
     let b = p2(c, -s);
@@ -554,7 +555,7 @@ fn near_full_arc_with_chord_closure_validates() {
 fn hair_thin_near_full_arc_is_refused_but_mislabeled() {
     // Clearance r(1-cos delta) ~ delta^2/2 well below eps (and the
     // diameter clearance ~ delta^2/4 below it too).
-    let delta = (0.02 * tol().eps).sqrt();
+    let delta = (0.02 * tol().eps()).sqrt();
     let (s, c) = (delta.sin(), delta.cos());
     let theta = std::f64::consts::TAU - 2.0 * delta;
     let bulge = (theta / 4.0).tan();

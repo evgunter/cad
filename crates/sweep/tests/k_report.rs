@@ -42,6 +42,7 @@ use geom_core::{Point2, Tolerance, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{mass_properties, validate, validate_closed, validate_geometric};
+use geom_core::Tol;
 
 fn p2(x: f64, y: f64) -> Point2<Probe> {
     Point2::new(Probe(x), Probe(y))
@@ -53,7 +54,7 @@ fn v(x: f64, y: f64, b: f64) -> ProfileVertex<Probe> {
 
 fn validated(loops: Vec<ProfileLoop<Probe>>) -> ValidatedProfile<Probe> {
     Profile::new(SketchPlane::xy(), loops)
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap()
 }
 
@@ -234,7 +235,7 @@ fn outcome_str(o: SampleOutcome) -> &'static str {
 #[test]
 #[ignore]
 fn dump_k_samples() {
-    let eps = Tolerance::get().eps;
+    let eps = Tol::witness().get().eps;
     let mut csv = String::from("shape,predicate,margin,band_zero,band_escalate,outcome\n");
     let mut total = 0usize;
     let mut unnamed = 0usize;

@@ -19,9 +19,10 @@ use topo::{
     Body, EdgeKey, EulerOpError, FaceKey, LoopBoundary, validate, validate_closed,
     validate_geometric,
 };
+use geom_core::Tol;
 
 fn eps() -> f64 {
-    Tolerance::get().eps
+    Tol::witness().get().eps
 }
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -30,7 +31,7 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 
 fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
     Profile::new(SketchPlane::xy(), loops)
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap()
 }
 
@@ -118,7 +119,7 @@ fn loop_probe_points(body: &Body<f64>, r#loop: topo::LoopKey) -> Vec<Point3<f64>
 fn outward_normal(body: &Body<f64>, face: FaceKey) -> Vec3<f64> {
     let outer = body.get_face(face).unwrap().outer;
     let pts = loop_probe_points(body, outer);
-    let Surface::Plane { normal, .. } = newell_plane(&pts, Band::linear().unwrap()).unwrap() else {
+    let Surface::Plane { normal, .. } = newell_plane(&pts, Band::linear(Tol::witness()).unwrap()).unwrap() else {
         panic!("newell returns a plane");
     };
     normal
@@ -226,7 +227,7 @@ fn extruded_profile_with_hole_builds_the_ring_path() {
         let outward = outward_normal(&t.body, cap);
         let ring = t.body.get_face(cap).unwrap().rings[0];
         let pts = loop_probe_points(&t.body, ring);
-        let Surface::Plane { normal, .. } = newell_plane(&pts, Band::linear().unwrap()).unwrap()
+        let Surface::Plane { normal, .. } = newell_plane(&pts, Band::linear(Tol::witness()).unwrap()).unwrap()
         else {
             panic!("plane");
         };
@@ -404,7 +405,7 @@ fn placed_profile_extrudes_along_its_own_normal() {
     // normal +y (u = ẑ, v = x̂), offset from the origin.
     let plane = SketchPlane::from_frame(Point3::new(2.0, 1.0, 3.0), Vec3::unit_z(), Vec3::unit_x());
     let vp = Profile::new(plane, vec![l_loop()])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let t = extrude(&vp, Extrusion::Distance(1.0)).unwrap();
     assert_all_tiers(&t.body);
@@ -559,7 +560,7 @@ fn dual_lane_value_channel_matches_f64_bitwise() {
     };
     let f = extrude(&validated(vec![l_loop()]), Extrusion::Distance(1.0)).unwrap();
     let dp = Profile::new(SketchPlane::<Dual64>::xy(), vec![lift(&l_loop())])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let d = extrude(&dp, Extrusion::Distance(Dual::constant(1.0))).unwrap();
     assert_eq!(validate_geometric(&d.body), Ok(()));

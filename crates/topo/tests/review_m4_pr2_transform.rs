@@ -15,6 +15,7 @@ use topo::{
     Body, TransformError, mass_properties, transform_rigid, validate, validate_closed,
     validate_geometric,
 };
+use geom_core::Tol;
 
 fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
     prism_z::<f64>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
@@ -67,7 +68,7 @@ fn non_finite_translation_is_refused_not_laundered() {
 /// refuse typed.
 #[test]
 fn near_rigid_door_band_behavior() {
-    let tol = geom_core::Tolerance::get();
+    let tol = geom_core::Tol::witness().get();
     let (eps, kesc) = (tol.eps, tol.eps * tol.k);
     let b = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     let with_c0x = |s: f64| {

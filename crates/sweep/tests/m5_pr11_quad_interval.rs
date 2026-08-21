@@ -12,6 +12,7 @@ use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, extrude};
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::{Body, validate_geometric};
+use geom_core::Tol;
 
 const R: f64 = 0.5;
 const H: f64 = 1.0;
@@ -27,7 +28,7 @@ fn halves() -> (Body<Interval>, Body<Interval>) {
         ProfileVertex::new(Point2::new(i(R), i(0.0)), i(1.0)),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let cylinder = extrude(&profile, Extrusion::Distance(i(H))).unwrap().body;
     let plane = SplitPlane {

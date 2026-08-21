@@ -56,6 +56,7 @@ use geom::Curve3;
 use geom::Surface;
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeGeometry, MappedCurve};
 use geom_core::predicate::{Band, BandError};
+use crate::tolerance::Tol;
 use geom_core::{Affine3, Decide, Margin, Point3, Real, Vec3};
 
 use crate::body::Body;
@@ -347,8 +348,9 @@ fn map_carrier<T: Real>(map: &Affine3<T>, c: &Curve3<T>) -> Result<Curve3<T>, Tr
 pub fn transform_rigid<T: Decide>(
     body: &Body<T>,
     map: &Affine3<T>,
+    tol: Tol,
 ) -> Result<Body<T>, TransformError> {
-    let band = Band::linear().map_err(TransformError::Band)?;
+    let band = Band::linear(tol).map_err(TransformError::Band)?;
     check_rigid(map, band)?;
     let mut out = body.clone();
 

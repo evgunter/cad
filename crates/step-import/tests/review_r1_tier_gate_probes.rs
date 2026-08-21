@@ -22,6 +22,7 @@ use std::path::PathBuf;
 
 use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 use topo::ValidationError;
+use geom_core::Tol;
 
 fn fixture(rel: &str) -> String {
     std::fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(rel)).unwrap()
@@ -333,7 +334,7 @@ fn perturb_corner_consistently(src: &str, delta: f64) -> String {
 #[test]
 fn r1_in_band_vertex_defect_refuses_loudly_at_adoption() {
     let src = fixture("../step-export/tests/fixtures/cube.step");
-    let tol = geom_core::Tolerance::get();
+    let tol = geom_core::Tol::witness().get();
     let (eps, escalate) = (tol.eps, tol.k * tol.eps);
     for (delta, want_escalated) in [
         (2.0 * eps, true),
@@ -571,7 +572,7 @@ fn r1_in_band_dihedral_wedge_never_ships_silently() {
     // (where these are the recorded 3/5/8e-8 rad). The far edge's
     // margin is alpha*leg = 100× that, decidedly positive throughout.
     let (leg, h) = (10.0_f64, 0.1_f64);
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     for alpha in [3.0 * eps / h, 5.0 * eps / h, 8.0 * eps / h] {
         let text = sliver_wedge_step(alpha, leg, h);
         match import_step(&text, &ImportOptions::default()) {

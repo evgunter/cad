@@ -16,6 +16,7 @@ use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanResult, mass_properties, subtract, validate, validate_closed};
+use geom_core::Tol;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -23,7 +24,7 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 
 fn validated(plane: SketchPlane<f64>, lp: ProfileLoop<f64>) -> ValidatedProfile<f64> {
     Profile::new(plane, vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap()
 }
 

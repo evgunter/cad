@@ -14,6 +14,7 @@ use editor_core::{
     WitnessBifurcation, WitnessDatum, evaluate, resolve,
 };
 use fixture::{desc, insert, len, step};
+use geom_core::Tol;
 
 fn run(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
     evaluate::<f64>(doc, prior, &CancelToken::new(), &EvalOptions::default())
@@ -377,7 +378,7 @@ fn witness_change_moves_the_content_key_and_reproduces_bits() {
 fn witness_bifurcation_payload_and_diagnosis_arm_compose() {
     // Payload values derived from the ambient tolerance (discipline:
     // no hard-coded ε anywhere, even in constructed evidence).
-    let tol = geom_core::Tolerance::get();
+    let tol = geom_core::Tol::witness().get();
     let bif = WitnessBifurcation {
         kind: BifurcationKind::FoldProximity,
         margin: BranchMarginEvidence {

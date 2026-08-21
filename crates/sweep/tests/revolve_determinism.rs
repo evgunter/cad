@@ -15,6 +15,7 @@ use geom_core::{Point2, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use revolve_common::*;
 use sweep::{Revolution, RevolveAxis, revolve};
+use geom_core::Tol;
 
 /// The four acceptance shapes as (profile loops, revolution).
 fn shapes() -> Vec<(Vec<ProfileLoop<f64>>, Revolution<f64>)> {
@@ -76,7 +77,7 @@ fn dual_value_channel_matches_f64_bitwise() {
             SketchPlane::<Dual64>::xy(),
             loops.iter().map(&lift).collect(),
         )
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
         let drev = match rev {
             Revolution::Full => Revolution::Full,

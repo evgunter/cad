@@ -240,7 +240,7 @@ use core::fmt;
 
 use geom::Surface;
 use geom_brep::{CertifyError, DihedralClass, classify_dihedral};
-use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Real, Sign};
+use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Real, Sign, Tol};
 use slotmap::{Key, SecondaryMap};
 
 use crate::body::{Body, Walk};
@@ -1738,11 +1738,12 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 /// any, else the tier-3 failures in the documented order.
 pub fn validate_geometric<T: crate::props::PropsQuadLane>(
     body: &Body<T>,
+    tol: Tol,
 ) -> Result<(), Vec<ValidationError>> {
     // Coarse gate: structural tiers first, verbatim.
     validate_closed(body)?;
 
-    let band = match Band::linear() {
+    let band = match Band::linear(tol) {
         Ok(band) => band,
         Err(error) => return Err(vec![ValidationError::Band { error }]),
     };
@@ -1779,9 +1780,10 @@ pub(crate) fn tier3_local_checks<T: crate::props::PropsQuadLane>(
 /// As [`validate_geometric`].
 pub fn contact_marks<T: crate::props::PropsQuadLane>(
     body: &Body<T>,
+    tol: Tol,
 ) -> Result<slotmap::SecondaryMap<EdgeKey, ContactMark>, Vec<ValidationError>> {
     validate_closed(body)?;
-    let band = match Band::linear() {
+    let band = match Band::linear(tol) {
         Ok(band) => band,
         Err(error) => return Err(vec![ValidationError::Band { error }]),
     };
@@ -2465,9 +2467,10 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
 pub fn validate_pseudomanifold<T: crate::props::PropsQuadLane>(
     body: &Body<T>,
     contacts: &crate::boolean::ContactRecords,
+    tol: Tol,
 ) -> Result<(), Vec<ValidationError>> {
     validate_closed(body)?;
-    let band = match Band::linear() {
+    let band = match Band::linear(tol) {
         Ok(band) => band,
         Err(error) => return Err(vec![ValidationError::Band { error }]),
     };
@@ -4698,7 +4701,7 @@ mod tests {
     /// The loop order is the stored one, so the minted normal is the
     /// face's OUTWARD normal — which is what `sense: true` claims.
     fn plane_every_face(body: &mut Body<f64>) {
-        let band = Band::linear().unwrap();
+        let band = Band::linear(Tol::witness()).unwrap();
         let keys: Vec<FaceKey> = body.faces.keys().collect();
         for face_key in keys {
             let outer = body.get_face(face_key).unwrap().outer;

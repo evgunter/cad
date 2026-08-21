@@ -15,6 +15,7 @@ use mesh::tessellate;
 use profile::ProfileLoop;
 use profile::RawLoop;
 use sweep::{Revolution, revolve};
+use geom_core::Tol;
 
 /// FNV-1a over a string (independent tiny hash, no deps).
 fn fnv(s: &str) -> u64 {
@@ -73,7 +74,7 @@ fn survives_eps_row_bitwise_independence() {
     // What ε is allowed to do in `mesh`, precisely — this comment used
     // to say "read once, for pole identification", which stopped being
     // true and stayed on the page (S22's own lesson). `mesh` calls
-    // `Tolerance::get()` exactly once (`tessellate.rs`) and threads the
+    // `Tol::witness().get()` exactly once (`tessellate.rs`) and threads the
     // value down to three places: pole/apex vertex identification
     // (`walk`); the banded swept-rectangle domain guard (`curved`,
     // #648), which only decides whether a face is REFUSED; and the
@@ -187,7 +188,7 @@ fn survives_near_axis_vertex_arc_endpoint() {
         profile::ProfileVertex::new(p2(d, 1.0), 0.0),
     ]);
     let profile = profile::Profile::new(profile::SketchPlane::xy(), vec![lp])
-        .validate(geom_core::Tolerance::get());
+        .validate(geom_core::Tol::witness().get());
     let Ok(vp) = profile else {
         return; // refused at profile validation on this row — typed, fine
     };

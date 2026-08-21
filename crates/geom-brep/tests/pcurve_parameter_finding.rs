@@ -36,6 +36,7 @@ use geom::Curve3;
 use geom::Surface;
 use geom_brep::{ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane};
 use geom_core::{Point3, Vec3};
+use geom_core::Tol;
 
 /// The corpus shape (i) configuration: radius 0.5 m disc, tilt 0.3 rad.
 const R: f64 = 0.5;
@@ -172,7 +173,7 @@ fn the_stored_harmonic_form_is_pointwise_exact() {
     let (t0, t1) = (0.0, PI);
     let cyl = cylinder();
     let carrier = section();
-    let band = geom_core::Band::linear().expect("band");
+    let band = geom_core::Band::linear(Tol::witness()).expect("band");
     let p = geom_brep::chart_pcurve(&carrier, &cyl, band).expect("chart image");
     let mut worst: f64 = 0.0;
     for i in 0..9 {

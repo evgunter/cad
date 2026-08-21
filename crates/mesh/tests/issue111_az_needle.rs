@@ -26,6 +26,7 @@ use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanResult};
+use geom_core::Tol;
 
 /// 880383/327680: A with the counter as a true inner loop (genus 1).
 const ORACLE_COUNTER: f64 = 880_383.0 / 327_680.0;
@@ -75,7 +76,7 @@ fn lp(poly: &[(f64, f64)]) -> ProfileLoop<f64> {
 
 fn validated(plane: SketchPlane<f64>, loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
     Profile::new(plane, loops)
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .expect("profile validation")
 }
 

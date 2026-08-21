@@ -24,7 +24,7 @@
 //!   retire (the S9 flip pattern: every refusal is re-pinned as its
 //!   construction row);
 //! - **multi-ε honesty**: every probe offset is derived from the
-//!   RESOLVED band (`Tolerance::get().eps`), never a literal, so the
+//!   RESOLVED band (`Tol::witness().get().eps`), never a literal, so the
 //!   rows mean the same thing in each ε lane.
 //!
 //! The Interval lane lives in `m5_pr9c_sphere_doors_interval.rs`.
@@ -39,6 +39,7 @@ use profile::{ProfileLoop, ProfileVertex};
 use revolve_common::*;
 use sweep::{Revolution, revolve};
 use topo::boolean::{PointInSolidError, SolidContainment, point_in_solid};
+use geom_core::Tol;
 
 /// The half-disc of the `ball` acceptance: a unit semicircle from
 /// (0, −1) through (1, 0) to (0, 1), closed by the on-axis diameter.
@@ -56,13 +57,13 @@ fn ball() -> topo::Body<f64> {
 }
 
 fn band() -> geom_core::Band {
-    geom_core::Band::linear().unwrap()
+    geom_core::Band::linear(Tol::witness()).unwrap()
 }
 
 /// The probe offset: a multiple of the RESOLVED band, so each ε lane
 /// probes at its own scale rather than at a hard-coded distance.
 fn away() -> f64 {
-    (1e6 * Tolerance::get().eps).max(0.25)
+    (1e6 * Tol::witness().get().eps).max(0.25)
 }
 
 #[test]

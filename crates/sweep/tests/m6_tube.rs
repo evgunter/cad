@@ -20,6 +20,7 @@ use geom_core::{Point2, Point3, Tolerance, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Revolution, RevolveAxis, TubeError, TubeWindow, revolve, tube_along_arc};
 use topo::Body;
+use geom_core::Tol;
 
 const R: f64 = 2.0;
 const MINOR: f64 = 0.5;
@@ -45,7 +46,7 @@ fn revolve_donut() -> Body<f64> {
         ProfileVertex::new(Point2::new(R + MINOR, 0.0), 1.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let axis = RevolveAxis {
         origin: Point2::new(0.0, 0.0),

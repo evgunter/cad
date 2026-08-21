@@ -96,6 +96,7 @@ use super::{
 };
 use crate::ProfileLoop;
 use crate::sugar::ArcSweep;
+use geom_core::Tol;
 
 // ------------------------------------------------------------------
 // The step vocabulary
@@ -256,6 +257,11 @@ pub enum ArcData<T: Real> {
 /// them so their public paths are the module's own.
 macro_rules! transition_table {
     (
+        // The witness's identifier comes from the INVOCATION so that the
+        // `tol` an arm expression writes and the `tol` the generated
+        // `apply` binds share a hygiene context (a name minted inside the
+        // macro would be invisible to the arms).
+        witness $tolid:ident ;
         $(
             $(#[doc = $doc:literal])*
             verb $name:ident
@@ -336,7 +342,7 @@ macro_rules! transition_table {
         /// (state, verb) pair no row declares, which is therefore a
         /// pair the authoring surface cannot spell.
         #[allow(clippy::too_many_lines)]
-        fn apply<T: ArcCarrierScalar>(tip: DynTip<T>, step: Step<T>) -> Applying<T> {
+        fn apply<T: ArcCarrierScalar>(tip: DynTip<T>, step: Step<T>, $tolid: Tol) -> Applying<T> {
             match (tip, step) {
                 $($(
                     ($tip0, Step::$name $bind) => $arm0,
@@ -355,6 +361,7 @@ macro_rules! transition_table {
 }
 
 transition_table! {
+    witness tol;
     #[doc = " `.at(p)` — bind the position bit."]
     verb At(Point2<T>) bind (p) rows {
         row {
@@ -382,14 +389,14 @@ transition_table! {
             /// `p` is absolute (profile frame), a real on-path point (the
             /// side's anchor).
             on [T: Decide, A: super::AngMarker] PartialPath<T, NoPos, A>;
-            fn at [(mut self, p: Point2<T>)
+            fn at [(mut self, p: Point2<T>, tol: Tol)
                 -> Result<PartialPath<T, HasPos<Plain>, A>, PathError<T>>] {
                 self.core.record(Step::At(p));
-                self.at_kernel(p)
+                self.at_kernel(p, tol)
             }
             arms {
-                DynTip::Open(p0) => Ok(Applied::Tip(DynTip::PlainPoint(p0.at(p)?))),
-                DynTip::Angle(p0) => Ok(Applied::Tip(DynTip::DirectedPlain(p0.at(p)?))),
+                DynTip::Open(p0) => Ok(Applied::Tip(DynTip::PlainPoint(p0.at(p, tol)?))),
+                DynTip::Angle(p0) => Ok(Applied::Tip(DynTip::DirectedPlain(p0.at(p, tol)?))),
             }
         }
         row {
@@ -406,12 +413,12 @@ transition_table! {
         row {
             /// Completes the arrival with its anchor; the fillet resolves.
             on [T: Decide] super::family::RadiusArrivalDir<T>;
-            fn at [(self, p: Point2<T>)
+            fn at [(self, p: Point2<T>, tol: Tol)
                 -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
-                self.at_kernel(Step::At(p), p)
+                self.at_kernel(Step::At(p), p, tol)
             }
             arms {
-                DynTip::RadiusArrivalDir(p0) => Ok(Applied::Tip(DynTip::DirectedPoint(p0.at(p)?))),
+                DynTip::RadiusArrivalDir(p0) => Ok(Applied::Tip(DynTip::DirectedPoint(p0.at(p, tol)?))),
             }
         }
     }
@@ -448,16 +455,16 @@ transition_table! {
             /// happens at the seam). On a fillet arrival whose position is
             /// already bound, completing the direction resolves the fillet.
             on [T: Decide, P: super::PosMarker] PartialPath<T, P, NoAng>;
-            fn angle [(mut self, theta: T)
+            fn angle [(mut self, theta: T, tol: Tol)
                 -> Result<PartialPath<T, P, HasAng>, PathError<T>>] {
                 self.core.record(Step::Angle(theta));
-                self.director(super::Dir::from_angle(theta))
+                self.director(super::Dir::from_angle(theta), tol)
             }
             arms {
-                DynTip::Open(p0) => Ok(Applied::Tip(DynTip::Angle(p0.angle(theta)?))),
-                DynTip::PlainPoint(p0) => Ok(Applied::Tip(DynTip::DirectedPlain(p0.angle(theta)?))),
+                DynTip::Open(p0) => Ok(Applied::Tip(DynTip::Angle(p0.angle(theta, tol)?))),
+                DynTip::PlainPoint(p0) => Ok(Applied::Tip(DynTip::DirectedPlain(p0.angle(theta, tol)?))),
                 DynTip::DirectedPoint(p0) =>
-                    Ok(Applied::Tip(DynTip::DirectedIncoming(p0.angle(theta)?))),
+                    Ok(Applied::Tip(DynTip::DirectedIncoming(p0.angle(theta, tol)?))),
             }
         }
         row {
@@ -474,34 +481,34 @@ transition_table! {
         row {
             /// Completes the arrival with its direction; the fillet resolves.
             on [T: Decide] super::family::RadiusArrivalAt<T>;
-            fn angle [(self, theta: T)
+            fn angle [(self, theta: T, tol: Tol)
                 -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
-                self.angle_kernel(Step::Angle(theta), theta)
+                self.angle_kernel(Step::Angle(theta), theta, tol)
             }
             arms {
                 DynTip::RadiusArrivalAt(p0) =>
-                    Ok(Applied::Tip(DynTip::DirectedPoint(p0.angle(theta)?))),
+                    Ok(Applied::Tip(DynTip::DirectedPoint(p0.angle(theta, tol)?))),
             }
         }
         row {
             /// Completes the directed anchor with an angle; the fillet resolves.
             on [T: Decide] super::family::ViaArrival<T>;
-            fn angle [(self, theta: T)
+            fn angle [(self, theta: T, tol: Tol)
                 -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
-                self.angle_kernel(Step::Angle(theta), theta)
+                self.angle_kernel(Step::Angle(theta), theta, tol)
             }
             arms {
-                DynTip::ViaArrival(p0) => Ok(Applied::Tip(DynTip::DirectedPoint(p0.angle(theta)?))),
+                DynTip::ViaArrival(p0) => Ok(Applied::Tip(DynTip::DirectedPoint(p0.angle(theta, tol)?))),
             }
         }
         row {
             /// Completes the close with an angle at the entry anchor.
             on [T: Decide] super::family::ViaArrivalStart<T>;
-            fn angle [(self, theta: T) -> Result<ClosedLoop<T>, PathError<T>>] {
-                self.angle_kernel(Step::Angle(theta), theta)
+            fn angle [(self, theta: T, tol: Tol) -> Result<ClosedLoop<T>, PathError<T>>] {
+                self.angle_kernel(Step::Angle(theta), theta, tol)
             }
             arms {
-                DynTip::ViaArrivalStart(p0) => Ok(Applied::Closed(p0.angle(theta)?.loop_)),
+                DynTip::ViaArrivalStart(p0) => Ok(Applied::Closed(p0.angle(theta, tol)?.loop_)),
             }
         }
     }
@@ -523,13 +530,14 @@ transition_table! {
                 self,
                 dx: T,
                 dy: T,
+                tol: Tol,
             ) -> Result<PartialPath<T, NoPos, HasAng>, PathError<T>>] {
-                let mut path = self.director(super::unit_from_components(dx, dy)?);
+                let mut path = self.director(super::unit_from_components(dx, dy, tol)?);
                 path.core.record(Step::Toward { dx, dy });
                 Ok(path)
             }
             arms {
-                DynTip::Entry => Ok(Applied::Tip(DynTip::Angle(Open.toward(dx, dy)?))),
+                DynTip::Entry => Ok(Applied::Tip(DynTip::Angle(Open.toward(dx, dy, tol)?))),
             }
         }
         row {
@@ -550,63 +558,63 @@ transition_table! {
             /// [`angle`](Self::angle), including the §4 item 1 check on a
             /// directed point and the fillet resolution on a bound arrival.
             on [T: Decide, P: super::PosMarker] PartialPath<T, P, NoAng>;
-            fn toward [(mut self, dx: T, dy: T)
+            fn toward [(mut self, dx: T, dy: T, tol: Tol)
                 -> Result<PartialPath<T, P, HasAng>, PathError<T>>] {
                 self.core.record(Step::Toward { dx, dy });
-                self.director(super::unit_from_components(dx, dy)?)
+                self.director(super::unit_from_components(dx, dy, tol)?, tol)
             }
             arms {
-                DynTip::Open(p0) => Ok(Applied::Tip(DynTip::Angle(p0.toward(dx, dy)?))),
+                DynTip::Open(p0) => Ok(Applied::Tip(DynTip::Angle(p0.toward(dx, dy, tol)?))),
                 DynTip::PlainPoint(p0) =>
-                    Ok(Applied::Tip(DynTip::DirectedPlain(p0.toward(dx, dy)?))),
+                    Ok(Applied::Tip(DynTip::DirectedPlain(p0.toward(dx, dy, tol)?))),
                 DynTip::DirectedPoint(p0) =>
-                    Ok(Applied::Tip(DynTip::DirectedIncoming(p0.toward(dx, dy)?))),
+                    Ok(Applied::Tip(DynTip::DirectedIncoming(p0.toward(dx, dy, tol)?))),
             }
         }
         row {
             /// Binds the arrival direction as exact components.
             on [T: Decide] super::family::RadiusArrival<T>;
-            fn toward [(self, dx: T, dy: T)
+            fn toward [(self, dx: T, dy: T, tol: Tol)
                 -> Result<super::family::RadiusArrivalDir<T>, PathError<T>>] {
-                self.toward_kernel(Step::Toward { dx, dy }, dx, dy)
+                self.toward_kernel(Step::Toward { dx, dy }, dx, dy, tol)
             }
             arms {
                 DynTip::RadiusArrival(p0) =>
-                    Ok(Applied::Tip(DynTip::RadiusArrivalDir(p0.toward(dx, dy)?))),
+                    Ok(Applied::Tip(DynTip::RadiusArrivalDir(p0.toward(dx, dy, tol)?))),
             }
         }
         row {
             /// Completes the arrival with exact components; the fillet resolves.
             on [T: Decide] super::family::RadiusArrivalAt<T>;
-            fn toward [(self, dx: T, dy: T)
+            fn toward [(self, dx: T, dy: T, tol: Tol)
                 -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
-                self.toward_kernel(Step::Toward { dx, dy }, dx, dy)
+                self.toward_kernel(Step::Toward { dx, dy }, dx, dy, tol)
             }
             arms {
                 DynTip::RadiusArrivalAt(p0) =>
-                    Ok(Applied::Tip(DynTip::DirectedPoint(p0.toward(dx, dy)?))),
+                    Ok(Applied::Tip(DynTip::DirectedPoint(p0.toward(dx, dy, tol)?))),
             }
         }
         row {
             /// Completes the directed anchor with exact components.
             on [T: Decide] super::family::ViaArrival<T>;
-            fn toward [(self, dx: T, dy: T)
+            fn toward [(self, dx: T, dy: T, tol: Tol)
                 -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
-                self.toward_kernel(Step::Toward { dx, dy }, dx, dy)
+                self.toward_kernel(Step::Toward { dx, dy }, dx, dy, tol)
             }
             arms {
                 DynTip::ViaArrival(p0) =>
-                    Ok(Applied::Tip(DynTip::DirectedPoint(p0.toward(dx, dy)?))),
+                    Ok(Applied::Tip(DynTip::DirectedPoint(p0.toward(dx, dy, tol)?))),
             }
         }
         row {
             /// Completes the close with exact components at the entry anchor.
             on [T: Decide] super::family::ViaArrivalStart<T>;
-            fn toward [(self, dx: T, dy: T) -> Result<ClosedLoop<T>, PathError<T>>] {
-                self.toward_kernel(Step::Toward { dx, dy }, dx, dy)
+            fn toward [(self, dx: T, dy: T, tol: Tol) -> Result<ClosedLoop<T>, PathError<T>>] {
+                self.toward_kernel(Step::Toward { dx, dy }, dx, dy, tol)
             }
             arms {
-                DynTip::ViaArrivalStart(p0) => Ok(Applied::Closed(p0.toward(dx, dy)?.loop_)),
+                DynTip::ViaArrivalStart(p0) => Ok(Applied::Closed(p0.toward(dx, dy, tol)?.loop_)),
             }
         }
     }
@@ -643,13 +651,14 @@ transition_table! {
             fn turn [(
                 mut self,
                 delta: T,
+                tol: Tol,
             ) -> Result<PartialPath<T, HasPos<WithIncoming>, HasAng>, PathError<T>>] {
                 self.core.record(Step::Turn(delta));
-                self.turn_kernel(delta)
+                self.turn_kernel(delta, tol)
             }
             arms {
                 DynTip::DirectedPoint(p0) =>
-                    Ok(Applied::Tip(DynTip::DirectedIncoming(p0.turn(delta)?))),
+                    Ok(Applied::Tip(DynTip::DirectedIncoming(p0.turn(delta, tol)?))),
             }
         }
     }
@@ -676,14 +685,15 @@ transition_table! {
             fn line [(
                 mut self,
                 len: T,
+                tol: Tol,
             ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
                 self.core.record(Step::Line(len));
-                self.line_kernel(len)
+                self.line_kernel(len, tol)
             }
             arms {
-                DynTip::DirectedPlain(p0) => Ok(Applied::Tip(DynTip::DirectedPoint(p0.line(len)?))),
+                DynTip::DirectedPlain(p0) => Ok(Applied::Tip(DynTip::DirectedPoint(p0.line(len, tol)?))),
                 DynTip::DirectedIncoming(p0) =>
-                    Ok(Applied::Tip(DynTip::DirectedPoint(p0.line(len)?))),
+                    Ok(Applied::Tip(DynTip::DirectedPoint(p0.line(len, tol)?))),
             }
         }
     }
@@ -700,12 +710,12 @@ transition_table! {
             /// junction checks run; a within-band-tangent straight closer is
             /// the overdetermined tangent line close and refuses always).
             on [T: Decide, F: Flavor] PartialPath<T, HasPos<F>, NoAng>;
-            fn line_to [<Tgt: super::LineTarget<T, F>>(self, target: Tgt) -> Tgt::Out] {
-                <Tgt as super::LineTarget<T, F>>::line_from(self, target)
+            fn line_to [<Tgt: super::LineTarget<T, F>>(self, target: Tgt, tol: Tol) -> Tgt::Out] {
+                <Tgt as super::LineTarget<T, F>>::line_from(self, target, tol)
             }
             arms {
-                DynTip::PlainPoint(p0) => do_line_to(p0, target),
-                DynTip::DirectedPoint(p0) => do_line_to(p0, target),
+                DynTip::PlainPoint(p0) => do_line_to(p0, target, tol),
+                DynTip::DirectedPoint(p0) => do_line_to(p0, target, tol),
             }
         }
     }
@@ -734,12 +744,12 @@ transition_table! {
             /// item 3 forbids) or sits within ε_input of an endpoint
             /// ([`PathError::DegenerateArcCenter`]).
             on [T: Decide, F: Flavor] PartialPath<T, HasPos<F>, NoAng>;
-            fn arc_to [<S: super::family::PointLeg<T, F>>(self, spec: S) -> S::Out] {
-                <S as super::family::PointLeg<T, F>>::leg_from(self, spec)
+            fn arc_to [<S: super::family::PointLeg<T, F>>(self, spec: S, tol: Tol) -> S::Out] {
+                <S as super::family::PointLeg<T, F>>::leg_from(self, spec, tol)
             }
             arms {
-                DynTip::PlainPoint(p0) => do_arc_to_point(p0, spec, TipState::PlainPoint),
-                DynTip::DirectedPoint(p0) => do_arc_to_point(p0, spec, TipState::DirectedPoint),
+                DynTip::PlainPoint(p0) => do_arc_to_point(p0, spec, TipState::PlainPoint, tol),
+                DynTip::DirectedPoint(p0) => do_arc_to_point(p0, spec, TipState::DirectedPoint, tol),
             }
         }
         row {
@@ -751,15 +761,16 @@ transition_table! {
             fn arc_to [<S: super::family::TangentIncoming<T>>(
                 mut self,
                 spec: S,
+                tol: Tol,
             ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
                 self.core
                     .record(Step::ArcTo(super::family::TangentIncoming::to_wire(&spec)));
-                self.arc_to_kernel(spec)
+                self.arc_to_kernel(spec, tol)
             }
             arms {
-                DynTip::DirectedPlain(p0) => do_arc_to_directed(p0, spec, TipState::DirectedPlain),
+                DynTip::DirectedPlain(p0) => do_arc_to_directed(p0, spec, TipState::DirectedPlain, tol),
                 DynTip::DirectedIncoming(p0) =>
-                    do_arc_to_directed(p0, spec, TipState::DirectedIncoming),
+                    do_arc_to_directed(p0, spec, TipState::DirectedIncoming, tol),
             }
         }
     }
@@ -773,13 +784,13 @@ transition_table! {
             /// junction check runs at `Start` with both directions known).
             on [T: Decide, F: Flavor] PartialPath<T, HasPos<F>, HasAng>;
             fn tangent_arc_to [
-                <Tgt: super::TangentArcTarget<T, F>>(self, target: Tgt) -> Tgt::Out
+                <Tgt: super::TangentArcTarget<T, F>>(self, target: Tgt, tol: Tol) -> Tgt::Out
             ] {
-                <Tgt as super::TangentArcTarget<T, F>>::tangent_arc_from(self, target)
+                <Tgt as super::TangentArcTarget<T, F>>::tangent_arc_from(self, target, tol)
             }
             arms {
-                DynTip::DirectedPlain(p0) => do_tangent_arc_to(p0, target),
-                DynTip::DirectedIncoming(p0) => do_tangent_arc_to(p0, target),
+                DynTip::DirectedPlain(p0) => do_tangent_arc_to(p0, target, tol),
+                DynTip::DirectedIncoming(p0) => do_tangent_arc_to(p0, target, tol),
             }
         }
     }
@@ -814,13 +825,14 @@ transition_table! {
             fn arc_continue [(
                 mut self,
                 target: Point2<T>,
+                tol: Tol,
             ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
                 self.core.record(Step::ArcContinue(target));
-                self.arc_continue_kernel(target)
+                self.arc_continue_kernel(target, tol)
             }
             arms {
                 DynTip::DirectedPoint(p0) =>
-                    Ok(Applied::Tip(DynTip::DirectedPoint(p0.arc_continue(p)?))),
+                    Ok(Applied::Tip(DynTip::DirectedPoint(p0.arc_continue(p, tol)?))),
             }
         }
     }
@@ -848,13 +860,14 @@ transition_table! {
             fn fillet [(
                 mut self,
                 radius: T,
+                tol: Tol,
             ) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>>] {
                 self.core.record(Step::Fillet { radius });
-                self.fillet_kernel(radius)
+                self.fillet_kernel(radius, tol)
             }
             arms {
-                DynTip::DirectedPlain(p0) => Ok(Applied::Tip(DynTip::Open(p0.fillet(radius)?))),
-                DynTip::DirectedIncoming(p0) => Ok(Applied::Tip(DynTip::Open(p0.fillet(radius)?))),
+                DynTip::DirectedPlain(p0) => Ok(Applied::Tip(DynTip::Open(p0.fillet(radius, tol)?))),
+                DynTip::DirectedIncoming(p0) => Ok(Applied::Tip(DynTip::Open(p0.fillet(radius, tol)?))),
             }
         }
         row {
@@ -868,12 +881,13 @@ transition_table! {
             fn fillet [(
                 mut self,
                 radius: T,
+                tol: Tol,
             ) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>>] {
                 self.core.record(Step::Fillet { radius });
-                self.fillet_kernel(radius)
+                self.fillet_kernel(radius, tol)
             }
             arms {
-                DynTip::DirectedPoint(p0) => Ok(Applied::Tip(DynTip::Open(p0.fillet(radius)?))),
+                DynTip::DirectedPoint(p0) => Ok(Applied::Tip(DynTip::Open(p0.fillet(radius, tol)?))),
             }
         }
     }
@@ -894,25 +908,28 @@ transition_table! {
                 mut self,
                 radius: T,
                 spec: S,
+                tol: Tol,
             ) -> S::Out] {
                 self.core.record(Step::FilletArc {
                     radius,
                     spec: super::family::ArrivalSpec::to_wire(&spec),
                 });
-                self.fillet_arc_kernel(radius, spec)
+                self.fillet_arc_kernel(radius, spec, tol)
             }
             arms {
                 DynTip::DirectedPlain(p0) => do_arrival(
-                    p0.fillet(radius)?,
+                    p0.fillet(radius, tol)?,
                     spec,
                     TipState::DirectedPlain,
                     Verb::FilletArc,
+                    tol,
                 ),
                 DynTip::DirectedIncoming(p0) => do_arrival(
-                    p0.fillet(radius)?,
+                    p0.fillet(radius, tol)?,
                     spec,
                     TipState::DirectedIncoming,
                     Verb::FilletArc,
+                    tol,
                 ),
             }
         }
@@ -923,19 +940,21 @@ transition_table! {
                 mut self,
                 radius: T,
                 spec: S,
+                tol: Tol,
             ) -> S::Out] {
                 self.core.record(Step::FilletArc {
                     radius,
                     spec: super::family::ArrivalSpec::to_wire(&spec),
                 });
-                self.fillet_arc_kernel(radius, spec)
+                self.fillet_arc_kernel(radius, spec, tol)
             }
             arms {
                 DynTip::DirectedPoint(p0) => do_arrival(
-                    p0.fillet(radius)?,
+                    p0.fillet(radius, tol)?,
                     spec,
                     TipState::DirectedPoint,
                     Verb::FilletArc,
+                    tol,
                 ),
             }
         }
@@ -962,15 +981,16 @@ transition_table! {
                 self,
                 spec: Center<T, Point2<T>>,
                 radius: T,
+                tol: Tol,
             ) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>>] {
                 let step = Step::ArcFillet {
                     spec: super::family::PointIncoming::to_wire(&spec),
                     radius,
                 };
-                self.arc_fillet_kernel(step, spec, radius)
+                self.arc_fillet_kernel(step, spec, radius, tol)
             }
             arms {
-                DynTip::Entry => Ok(Applied::Tip(DynTip::Open(do_fused_entry(spec, radius)?))),
+                DynTip::Entry => Ok(Applied::Tip(DynTip::Open(do_fused_entry(spec, radius, tol)?))),
             }
         }
         row {
@@ -982,12 +1002,13 @@ transition_table! {
                 mut self,
                 spec: S,
                 radius: T,
+                tol: Tol,
             ) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>>] {
                 self.core.record(Step::ArcFillet {
                     spec: super::family::PointIncoming::to_wire(&spec),
                     radius,
                 });
-                self.arc_fillet_kernel(spec, radius)
+                self.arc_fillet_kernel(spec, radius, tol)
             }
             arms {
                 DynTip::PlainPoint(p0) => Ok(Applied::Tip(DynTip::Open(do_fused_point(
@@ -996,6 +1017,7 @@ transition_table! {
                     radius,
                     TipState::PlainPoint,
                     Verb::ArcFillet,
+                    tol,
                 )?))),
             }
         }
@@ -1009,12 +1031,13 @@ transition_table! {
                 mut self,
                 spec: S,
                 radius: T,
+                tol: Tol,
             ) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>>] {
                 self.core.record(Step::ArcFillet {
-                    spec: super::family::LegEndIncoming::to_wire(&spec),
+                    spec: super::family::LegEndIncoming::to_wire(&spec, tol),
                     radius,
                 });
-                self.arc_fillet_kernel(spec, radius)
+                self.arc_fillet_kernel(spec, radius, tol)
             }
             arms {
                 DynTip::DirectedPoint(p0) => Ok(Applied::Tip(DynTip::Open(do_fused_leg_end(
@@ -1023,6 +1046,7 @@ transition_table! {
                     radius,
                     TipState::DirectedPoint,
                     Verb::ArcFillet,
+                    tol,
                 )?))),
             }
         }
@@ -1036,12 +1060,13 @@ transition_table! {
                 mut self,
                 spec: S,
                 radius: T,
+                tol: Tol,
             ) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>>] {
                 self.core.record(Step::ArcFillet {
                     spec: super::family::TangentIncoming::to_wire(&spec),
                     radius,
                 });
-                self.arc_fillet_kernel(spec, radius)
+                self.arc_fillet_kernel(spec, radius, tol)
             }
             arms {
                 DynTip::DirectedPlain(p0) => Ok(Applied::Tip(DynTip::Open(do_fused_directed(
@@ -1050,6 +1075,7 @@ transition_table! {
                     radius,
                     TipState::DirectedPlain,
                     Verb::ArcFillet,
+                    tol,
                 )?))),
                 DynTip::DirectedIncoming(p0) => Ok(Applied::Tip(DynTip::Open(do_fused_directed(
                     p0,
@@ -1057,6 +1083,7 @@ transition_table! {
                     radius,
                     TipState::DirectedIncoming,
                     Verb::ArcFillet,
+                    tol,
                 )?))),
             }
         }
@@ -1082,20 +1109,22 @@ transition_table! {
                 spec: Center<T, Point2<T>>,
                 radius: T,
                 spec2: S2,
+                tol: Tol,
             ) -> S2::Out] {
                 let step = Step::ArcFilletArc {
                     spec: super::family::PointIncoming::to_wire(&spec),
                     radius,
                     spec2: super::family::ArrivalSpec::to_wire(&spec2),
                 };
-                self.arc_fillet_arc_kernel(step, spec, radius, spec2)
+                self.arc_fillet_arc_kernel(step, spec, radius, spec2, tol)
             }
             arms {
                 DynTip::Entry => do_arrival(
-                    do_fused_entry(spec, radius)?,
+                    do_fused_entry(spec, radius, tol)?,
                     spec2,
                     TipState::Entry,
                     Verb::ArcFilletArc,
+                    tol,
                 ),
             }
         }
@@ -1108,6 +1137,7 @@ transition_table! {
                     spec: Si,
                     radius: T,
                     spec2: S2,
+                    tol: Tol,
                 ) -> S2::Out
             ] {
                 self.core.record(Step::ArcFilletArc {
@@ -1115,14 +1145,15 @@ transition_table! {
                     radius,
                     spec2: super::family::ArrivalSpec::to_wire(&spec2),
                 });
-                self.arc_fillet_arc_kernel(spec, radius, spec2)
+                self.arc_fillet_arc_kernel(spec, radius, spec2, tol)
             }
             arms {
                 DynTip::PlainPoint(p0) => do_arrival(
-                    do_fused_point(p0, spec, radius, TipState::PlainPoint, Verb::ArcFilletArc)?,
+                    do_fused_point(p0, spec, radius, TipState::PlainPoint, Verb::ArcFilletArc, tol)?,
                     spec2,
                     TipState::PlainPoint,
                     Verb::ArcFilletArc,
+                    tol,
                 ),
             }
         }
@@ -1136,14 +1167,15 @@ transition_table! {
                     spec: Si,
                     radius: T,
                     spec2: S2,
+                    tol: Tol,
                 ) -> S2::Out
             ] {
                 self.core.record(Step::ArcFilletArc {
-                    spec: super::family::LegEndIncoming::to_wire(&spec),
+                    spec: super::family::LegEndIncoming::to_wire(&spec, tol),
                     radius,
                     spec2: super::family::ArrivalSpec::to_wire(&spec2),
                 });
-                self.arc_fillet_arc_kernel(spec, radius, spec2)
+                self.arc_fillet_arc_kernel(spec, radius, spec2, tol)
             }
             arms {
                 DynTip::DirectedPoint(p0) => do_arrival(
@@ -1153,10 +1185,12 @@ transition_table! {
                         radius,
                         TipState::DirectedPoint,
                         Verb::ArcFilletArc,
+                        tol,
                     )?,
                     spec2,
                     TipState::DirectedPoint,
                     Verb::ArcFilletArc,
+                    tol,
                 ),
             }
         }
@@ -1169,6 +1203,7 @@ transition_table! {
                     spec: Si,
                     radius: T,
                     spec2: S2,
+                    tol: Tol,
                 ) -> S2::Out
             ] {
                 self.core.record(Step::ArcFilletArc {
@@ -1176,7 +1211,7 @@ transition_table! {
                     radius,
                     spec2: super::family::ArrivalSpec::to_wire(&spec2),
                 });
-                self.arc_fillet_arc_kernel(spec, radius, spec2)
+                self.arc_fillet_arc_kernel(spec, radius, spec2, tol)
             }
             arms {
                 DynTip::DirectedPlain(p0) => do_arrival(
@@ -1186,10 +1221,12 @@ transition_table! {
                         radius,
                         TipState::DirectedPlain,
                         Verb::ArcFilletArc,
+                        tol,
                     )?,
                     spec2,
                     TipState::DirectedPlain,
                     Verb::ArcFilletArc,
+                    tol,
                 ),
                 DynTip::DirectedIncoming(p0) => do_arrival(
                     do_fused_directed(
@@ -1198,10 +1235,12 @@ transition_table! {
                         radius,
                         TipState::DirectedIncoming,
                         Verb::ArcFilletArc,
+                        tol,
                     )?,
                     spec2,
                     TipState::DirectedIncoming,
                     Verb::ArcFilletArc,
+                    tol,
                 ),
             }
         }
@@ -1259,12 +1298,13 @@ transition_table! {
             fn to [(
                 mut self,
                 anchor: Point2<T>,
+                tol: Tol,
             ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
                 self.core.record(Step::FarEndTo(anchor));
-                self.end_side_at(anchor)
+                self.end_side_at(anchor, tol)
             }
             arms {
-                DynTip::Angle(p0) => Ok(Applied::Tip(DynTip::DirectedPoint(p0.to(anchor)?))),
+                DynTip::Angle(p0) => Ok(Applied::Tip(DynTip::DirectedPoint(p0.to(anchor, tol)?))),
             }
         }
     }
@@ -1279,13 +1319,13 @@ transition_table! {
             /// pending, loop closed. (Curve-pose arguments — `c.start()` /
             /// `c.end()` — arrive with NURBS legs in v2; see the module docs.)
             on [T: Decide] PartialPath<T, NoPos, NoAng>;
-            fn to [(mut self, target: Start) -> Result<ClosedLoop<T>, PathError<T>>] {
+            fn to [(mut self, target: Start, tol: Tol) -> Result<ClosedLoop<T>, PathError<T>>] {
                 let Start = target;
                 self.core.record(Step::CloseTo);
-                self.close_at_seam()
+                self.close_at_seam(tol)
             }
             arms {
-                DynTip::Open(p0) => Ok(Applied::Closed(p0.to(Start)?.loop_)),
+                DynTip::Open(p0) => Ok(Applied::Closed(p0.to(Start, tol)?.loop_)),
             }
         }
     }
@@ -1321,9 +1361,10 @@ transition_table! {
             fn circle [<T: Decide>(
                 center: Point2<T>,
                 radius: T,
+                tol: Tol,
             ) -> Result<ClosedLoop<T>, PathError<T>>] {
                 Ok(ClosedLoop {
-                    loop_: super::circle_kernel(center, radius)?,
+                    loop_: super::circle_kernel(center, radius, tol)?,
                     program: vec![Step::Circle {
                         centre: center,
                         radius,
@@ -1331,7 +1372,7 @@ transition_table! {
                 })
             }
             arms {
-                DynTip::Entry => Ok(Applied::Closed(circle(centre, radius)?.loop_)),
+                DynTip::Entry => Ok(Applied::Closed(circle(centre, radius, tol)?.loop_)),
             }
         }
     }
@@ -1375,9 +1416,10 @@ transition_table! {
                 radius: T,
                 n: usize,
                 phase: T,
+                tol: Tol,
             ) -> Result<ClosedLoop<T>, PathError<T>>] {
                 Ok(ClosedLoop {
-                    loop_: super::circle_split_kernel(center, radius, n, phase)?,
+                    loop_: super::circle_split_kernel(center, radius, n, phase, tol)?,
                     program: vec![Step::CircleSplit {
                         centre: center,
                         radius,
@@ -1388,7 +1430,7 @@ transition_table! {
             }
             arms {
                 DynTip::Entry => Ok(Applied::Closed(
-                    circle_split(centre, radius, n, phase)?.loop_,
+                    circle_split(centre, radius, n, phase, tol)?.loop_,
                 )),
             }
         }
@@ -1607,10 +1649,11 @@ fn violation<T: Real>(state: TipState, verb: Verb) -> Applying<T> {
 fn do_line_to<T: Decide, F: Flavor>(
     p: PartialPath<T, HasPos<F>, NoAng>,
     t: Target<T>,
+    tol: Tol,
 ) -> Applying<T> {
     match t {
-        Target::Point(q) => Ok(Applied::Tip(DynTip::DirectedPoint(p.line_to(q)?))),
-        Target::Start => Ok(Applied::Closed(p.line_to(Start)?.loop_)),
+        Target::Point(q) => Ok(Applied::Tip(DynTip::DirectedPoint(p.line_to(q, tol)?))),
+        Target::Start => Ok(Applied::Closed(p.line_to(Start, tol)?.loop_)),
     }
 }
 
@@ -1621,28 +1664,29 @@ fn do_arc_to_point<T: ArcCarrierScalar, F: Flavor>(
     p: PartialPath<T, HasPos<F>, NoAng>,
     spec: ArcData<T>,
     state: TipState,
+    tol: Tol,
 ) -> Applying<T> {
     match spec {
         ArcData::Bulge {
             target: Target::Point(q),
             b,
         } => Ok(Applied::Tip(DynTip::DirectedPoint(
-            p.arc_to(Bulge { p: q, b })?,
+            p.arc_to(Bulge { p: q, b }, tol)?,
         ))),
         ArcData::Bulge {
             target: Target::Start,
             b,
-        } => Ok(Applied::Closed(p.arc_to(Bulge { p: Start, b })?.loop_)),
+        } => Ok(Applied::Closed(p.arc_to(Bulge { p: Start, b }, tol)?.loop_)),
         ArcData::Via {
             q,
             target: Target::Point(t),
         } => Ok(Applied::Tip(DynTip::DirectedPoint(
-            p.arc_to(Via { q, p: t })?,
+            p.arc_to(Via { q, p: t }, tol)?,
         ))),
         ArcData::Via {
             q,
             target: Target::Start,
-        } => Ok(Applied::Closed(p.arc_to(Via { q, p: Start })?.loop_)),
+        } => Ok(Applied::Closed(p.arc_to(Via { q, p: Start }, tol)?.loop_)),
         ArcData::Center {
             c,
             winding,
@@ -1651,7 +1695,7 @@ fn do_arc_to_point<T: ArcCarrierScalar, F: Flavor>(
             c,
             winding,
             p: t,
-        })?))),
+        }, tol)?))),
         ArcData::Center {
             c,
             winding,
@@ -1661,7 +1705,7 @@ fn do_arc_to_point<T: ArcCarrierScalar, F: Flavor>(
                 c,
                 winding,
                 p: Start,
-            })?
+            }, tol)?
             .loop_,
         )),
         ArcData::Radius { .. } | ArcData::Sweep { .. } | ArcData::ArcLen { .. } => {
@@ -1675,13 +1719,14 @@ fn do_arc_to_directed<T: ArcCarrierScalar, F: Flavor>(
     p: PartialPath<T, HasPos<F>, HasAng>,
     spec: ArcData<T>,
     state: TipState,
+    tol: Tol,
 ) -> Applying<T> {
     match spec {
         ArcData::Sweep { r, side, angle } => Ok(Applied::Tip(DynTip::DirectedPoint(
-            p.arc_to(super::Sweep { r, side, angle })?,
+            p.arc_to(super::Sweep { r, side, angle }, tol)?,
         ))),
         ArcData::ArcLen { r, side, len } => Ok(Applied::Tip(DynTip::DirectedPoint(
-            p.arc_to(super::ArcLen { r, side, len })?,
+            p.arc_to(super::ArcLen { r, side, len }, tol)?,
         ))),
         // Spelled out rather than `_`: a mode the table gains must be
         // ADJUDICATED at every dispatcher, not silently refused here.
@@ -1695,10 +1740,11 @@ fn do_arc_to_directed<T: ArcCarrierScalar, F: Flavor>(
 fn do_tangent_arc_to<T: Decide, F: Flavor>(
     p: PartialPath<T, HasPos<F>, HasAng>,
     t: Target<T>,
+    tol: Tol,
 ) -> Applying<T> {
     match t {
-        Target::Point(q) => Ok(Applied::Tip(DynTip::DirectedPoint(p.tangent_arc_to(q)?))),
-        Target::Start => Ok(Applied::Closed(p.tangent_arc_to(Start)?.loop_)),
+        Target::Point(q) => Ok(Applied::Tip(DynTip::DirectedPoint(p.tangent_arc_to(q, tol)?))),
+        Target::Start => Ok(Applied::Closed(p.tangent_arc_to(Start, tol)?.loop_)),
     }
 }
 
@@ -1710,6 +1756,7 @@ fn do_arrival<T: ArcCarrierScalar>(
     spec: ArcData<T>,
     state: TipState,
     verb: Verb,
+    tol: Tol,
 ) -> Applying<T> {
     use super::family::ArrivalSpec;
     let core = open.core;
@@ -1721,6 +1768,7 @@ fn do_arrival<T: ArcCarrierScalar>(
         } => Ok(Applied::Tip(DynTip::DirectedPoint(ArrivalSpec::apply(
             core,
             super::Center { c, winding, p },
+            tol,
         )?))),
         ArcData::Center {
             c,
@@ -1734,12 +1782,14 @@ fn do_arrival<T: ArcCarrierScalar>(
                     winding,
                     p: Start,
                 },
+                tol,
             )?
             .loop_,
         )),
         ArcData::Radius { r, side } => Ok(Applied::Tip(DynTip::RadiusArrival(ArrivalSpec::apply(
             core,
             super::Radius { r, side },
+            tol,
         )?))),
         ArcData::Via {
             q,
@@ -1747,6 +1797,7 @@ fn do_arrival<T: ArcCarrierScalar>(
         } => Ok(Applied::Tip(DynTip::ViaArrival(ArrivalSpec::apply(
             core,
             super::Via { q, p },
+            tol,
         )?))),
         ArcData::Via {
             q,
@@ -1754,6 +1805,7 @@ fn do_arrival<T: ArcCarrierScalar>(
         } => Ok(Applied::Tip(DynTip::ViaArrivalStart(ArrivalSpec::apply(
             core,
             super::Via { q, p: Start },
+            tol,
         )?))),
         ArcData::Bulge { .. } | ArcData::Sweep { .. } | ArcData::ArcLen { .. } => {
             violation(state, verb)
@@ -1768,21 +1820,22 @@ fn do_fused_point<T: ArcCarrierScalar>(
     radius: T,
     state: TipState,
     verb: Verb,
+    tol: Tol,
 ) -> Result<PartialPath<T, NoPos, NoAng>, ReplayErrorKind<T>> {
     match spec {
         ArcData::Bulge {
             target: Target::Point(q),
             b,
-        } => Ok(p.arc_fillet(super::Bulge { p: q, b }, radius)?),
+        } => Ok(p.arc_fillet(super::Bulge { p: q, b }, radius, tol)?),
         ArcData::Via {
             q,
             target: Target::Point(t),
-        } => Ok(p.arc_fillet(super::Via { q, p: t }, radius)?),
+        } => Ok(p.arc_fillet(super::Via { q, p: t }, radius, tol)?),
         ArcData::Center {
             c,
             winding,
             target: Target::Point(t),
-        } => Ok(p.arc_fillet(super::Center { c, winding, p: t }, radius)?),
+        } => Ok(p.arc_fillet(super::Center { c, winding, p: t }, radius, tol)?),
         ArcData::Bulge {
             target: Target::Start,
             ..
@@ -1812,22 +1865,23 @@ fn do_fused_leg_end<T: ArcCarrierScalar>(
     radius: T,
     state: TipState,
     verb: Verb,
+    tol: Tol,
 ) -> Result<PartialPath<T, NoPos, NoAng>, ReplayErrorKind<T>> {
     match spec {
         ArcData::Bulge {
             target: Target::Point(q),
             b,
-        } => Ok(p.arc_fillet(super::Bulge { p: q, b }, radius)?),
+        } => Ok(p.arc_fillet(super::Bulge { p: q, b }, radius, tol)?),
         ArcData::Via {
             q,
             target: Target::Point(t),
-        } => Ok(p.arc_fillet(super::Via { q, p: t }, radius)?),
+        } => Ok(p.arc_fillet(super::Via { q, p: t }, radius, tol)?),
         ArcData::Center {
             c,
             winding,
             target: Target::Point(t),
-        } => Ok(p.arc_fillet(super::Center { c, winding, p: t }, radius)?),
-        ArcData::Radius { r, side } => Ok(p.arc_fillet(super::Radius { r, side }, radius)?),
+        } => Ok(p.arc_fillet(super::Center { c, winding, p: t }, radius, tol)?),
+        ArcData::Radius { r, side } => Ok(p.arc_fillet(super::Radius { r, side }, radius, tol)?),
         ArcData::Bulge {
             target: Target::Start,
             ..
@@ -1855,13 +1909,14 @@ fn do_fused_directed<T: ArcCarrierScalar, F: Flavor>(
     radius: T,
     state: TipState,
     verb: Verb,
+    tol: Tol,
 ) -> Result<PartialPath<T, NoPos, NoAng>, ReplayErrorKind<T>> {
     match spec {
         ArcData::Sweep { r, side, angle } => {
-            Ok(p.arc_fillet(super::Sweep { r, side, angle }, radius)?)
+            Ok(p.arc_fillet(super::Sweep { r, side, angle }, radius, tol)?)
         }
         ArcData::ArcLen { r, side, len } => {
-            Ok(p.arc_fillet(super::ArcLen { r, side, len }, radius)?)
+            Ok(p.arc_fillet(super::ArcLen { r, side, len }, radius, tol)?)
         }
         ArcData::Radius { .. }
         | ArcData::Bulge { .. }
@@ -1877,13 +1932,14 @@ fn do_fused_directed<T: ArcCarrierScalar, F: Flavor>(
 fn do_fused_entry<T: ArcCarrierScalar>(
     spec: ArcData<T>,
     radius: T,
+    tol: Tol,
 ) -> Result<PartialPath<T, NoPos, NoAng>, ReplayErrorKind<T>> {
     match spec {
         ArcData::Center {
             c,
             winding,
             target: Target::Point(t),
-        } => Ok(Open.arc_fillet(super::Center { c, winding, p: t }, radius)?),
+        } => Ok(Open.arc_fillet(super::Center { c, winding, p: t }, radius, tol)?),
         ArcData::Center {
             target: Target::Start,
             ..
@@ -1916,10 +1972,10 @@ fn do_fused_entry<T: ArcCarrierScalar>(
 /// # Errors
 ///
 /// [`ReplayError`], carrying the offending step index.
-pub fn replay<T: ArcCarrierScalar>(steps: &[Step<T>]) -> Result<ProfileLoop<T>, ReplayError<T>> {
+pub fn replay<T: ArcCarrierScalar>(steps: &[Step<T>], tol: Tol) -> Result<ProfileLoop<T>, ReplayError<T>> {
     let mut tip = DynTip::Entry;
     for (i, step) in steps.iter().enumerate() {
-        let applied = apply(tip, *step).map_err(|kind| ReplayError { step: i, kind })?;
+        let applied = apply(tip, *step, tol).map_err(|kind| ReplayError { step: i, kind })?;
         match applied {
             Applied::Tip(next) => tip = next,
             Applied::Closed(lowered) => {

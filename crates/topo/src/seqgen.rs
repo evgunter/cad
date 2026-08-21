@@ -77,7 +77,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_brep::EdgeCurveSpec;
-use geom_core::{Band, Decide, Point3, Sign};
+use geom_core::{Band, Decide, Point3, Sign, Tol};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, SolidKey};
@@ -599,7 +599,7 @@ const SPLIT_FRACTION: f64 = 0.618_033_988_749_895;
 /// captured spec is what completes the inverse — exactly, for any
 /// carrier (the self-loop circles `mef_chord` mints included), which
 /// a `line_between` guess would not be.
-fn split_site(body: &Body<f64>, edge: EdgeKey) -> Option<(f64, EdgeCurveSpec<f64>)> {
+fn split_site(body: &Body<f64>, edge: EdgeKey, tol: Tol) -> Option<(f64, EdgeCurveSpec<f64>)> {
     let edge_data = body.get_edge(edge)?;
     let hp = edge_data.he_plus;
     let start = body.get_half_edge(hp)?.start;
@@ -607,7 +607,7 @@ fn split_site(body: &Body<f64>, edge: EdgeKey) -> Option<(f64, EdgeCurveSpec<f64
     let p0 = *body.get_point(body.get_vertex(start)?.point)?;
     let p1 = *body.get_point(body.get_vertex(end)?.point)?;
     let curve = body.get_curve_geom(edge_data.curve)?.certified()?;
-    let band = Band::linear().ok()?;
+    let band = Band::linear(tol).ok()?;
     curve
         .recertify(p0, p1, |k| body.get_surface(k).cloned(), band)
         .ok()?;

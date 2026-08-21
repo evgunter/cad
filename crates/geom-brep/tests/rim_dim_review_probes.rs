@@ -33,6 +33,7 @@ use geom::Surface;
 use geom_brep::props::{LoopEdge, curved_face};
 use geom_core::k_stats::Probe;
 use geom_core::{Band, Point3, Vec3};
+use geom_core::Tol;
 
 fn p(x: f64, y: f64, z: f64) -> Point3<Probe> {
     Point3::new(Probe(x), Probe(y), Probe(z))
@@ -90,9 +91,9 @@ fn split_rim_patch(r: f64, h: f64, delta: f64) -> (Surface<Probe>, Vec<LoopEdge<
 /// Small body, split 50ε (ε ambient): honest verdict is typed refusal.
 #[test]
 fn small_body_rims_50eps_apart_refuse() {
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     let (surface, edges) = split_rim_patch(1e-4, 1e-3, 50.0 * eps);
-    let got = curved_face(&surface, &edges, Probe(1.0), Band::linear().unwrap());
+    let got = curved_face(&surface, &edges, Probe(1.0), Band::linear(Tol::witness()).unwrap());
     assert!(
         got.is_err(),
         "50eps-separated split rim must NOT silently group (pre-fix the area \
@@ -104,9 +105,9 @@ fn small_body_rims_50eps_apart_refuse() {
 /// (coincident at tolerance).
 #[test]
 fn large_body_rims_half_eps_apart_compute() {
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     let (surface, edges) = split_rim_patch(1e3, 1e4, 0.5 * eps);
-    let got = curved_face(&surface, &edges, Probe(1.0), Band::linear().unwrap());
+    let got = curved_face(&surface, &edges, Probe(1.0), Band::linear(Tol::witness()).unwrap());
     assert!(
         got.is_ok(),
         "0.5eps-separated split rim is coincident at tolerance; pre-fix the \

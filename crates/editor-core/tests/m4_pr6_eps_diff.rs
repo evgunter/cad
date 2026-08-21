@@ -29,6 +29,7 @@ use editor_core::{
 };
 use fixture::{desc, insert};
 use geom_core::Sign;
+use geom_core::Tol;
 
 /// The env var carrying the child probe's output path.
 const PROBE_OUT: &str = "M4_PR6_EPS_PROBE_OUT";
@@ -220,7 +221,7 @@ fn set_tolerance_round_trips_and_gates_replay() {
     // In THIS process the recorded ε (ambient) plus the edit's 1e-4
     // conflicts unless ambient IS 1e-4 — assert the door's decision
     // matches the committed ε, whichever matrix row we run under.
-    let ambient = geom_core::Tolerance::get().eps;
+    let ambient = geom_core::Tol::witness().get().eps;
     match load(&text) {
         Ok(loaded) => {
             assert_eq!(ambient.to_bits(), 1e-4f64.to_bits());

@@ -15,6 +15,7 @@ use editor_core::{
     apply, evaluate, load, save,
 };
 use fixture::{desc, insert, len};
+use geom_core::Tol;
 
 /// A small valid document (profile + extrude + witness) and its save.
 fn small() -> (ProfileDoc, String) {
@@ -223,7 +224,7 @@ fn non_finite_floats_refuse_at_save_naming_the_site() {
 #[test]
 fn tolerance_conflict_refuses_on_load_and_at_evaluate() {
     let (doc, _) = small();
-    let ambient = geom_core::Tolerance::get().eps;
+    let ambient = geom_core::Tol::witness().get().eps;
     // A recorded ε that disagrees with the committed process ε: the
     // LOAD door refuses (one process = one ε, D4).
     let other_eps = ambient * 2.0;

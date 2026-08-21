@@ -72,6 +72,7 @@ use geom::Surface;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign};
 
 use crate::implicit::{curvature_lever_arm, implicit_gradient};
+use geom_core::Tol;
 
 /// A definite dihedral classification (the indeterminate outcome is the
 /// typed [`Indeterminate`] error — the sliver escalation, D4 ¶3).
@@ -172,11 +173,11 @@ mod tests {
     use super::*;
 
     fn band() -> Band {
-        Band::linear().unwrap()
+        Band::linear(Tol::witness()).unwrap()
     }
 
     fn eps() -> f64 {
-        Tolerance::get().eps
+        Tol::witness().get().eps
     }
 
     fn plane(normal: Vec3<f64>, u_ref: Vec3<f64>) -> Surface<f64> {

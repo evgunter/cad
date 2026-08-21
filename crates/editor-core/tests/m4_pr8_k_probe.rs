@@ -41,6 +41,7 @@ use geom_core::{Sign, Tolerance};
 use topo::{mass_properties, validate, validate_closed};
 
 use corpus::{body_of, documents, eval, failures};
+use geom_core::Tol;
 
 fn outcome_str(o: SampleOutcome) -> &'static str {
     match o {
@@ -80,7 +81,7 @@ fn run_doc(d: &corpus::CorpusDoc) -> Vec<MarginSample> {
 #[test]
 #[ignore = "K-telemetry collection run; one process per eps (see module docs)"]
 fn dump_corpus_k_samples() {
-    let eps = Tolerance::get().eps;
+    let eps = Tol::witness().get().eps;
     let mut csv = String::from("shape,predicate,margin,band_zero,band_escalate,outcome\n");
     let mut total = 0usize;
     let mut unnamed = 0usize;

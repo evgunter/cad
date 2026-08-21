@@ -16,6 +16,7 @@ use sweep::{
     revolved_caps,
 };
 use topo::readback::{edge_pose, face_pose, vertex_point};
+use geom_core::Tol;
 
 fn unit_square() -> Profile<f64> {
     let square = ProfileLoop::polygon(
@@ -29,7 +30,7 @@ fn unit_square() -> Profile<f64> {
 #[test]
 fn face_pose_reads_an_extruded_cap_plane() {
     let profile = unit_square()
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .expect("the unit square validates");
     let block = extrude::<f64>(&profile, Extrusion::Distance(1.0)).expect("it extrudes");
 
@@ -48,7 +49,7 @@ fn face_pose_reads_an_extruded_cap_plane() {
 #[test]
 fn vertex_point_reads_every_corner_of_a_block() {
     let profile = unit_square()
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .expect("the unit square validates");
     let block = extrude::<f64>(&profile, Extrusion::Distance(1.0)).expect("it extrudes");
 
@@ -64,7 +65,7 @@ fn vertex_point_reads_every_corner_of_a_block() {
 #[test]
 fn edge_pose_reads_a_line_without_inventing_a_perpendicular() {
     let profile = unit_square()
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .expect("the unit square validates");
     let block = extrude::<f64>(&profile, Extrusion::Distance(1.0)).expect("it extrudes");
 
@@ -80,7 +81,7 @@ fn edge_pose_reads_a_line_without_inventing_a_perpendicular() {
 #[test]
 fn both_extrusion_caps_read_off_the_result_s_own_handles() {
     let profile = unit_square()
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .expect("the unit square validates");
     let block = extrude::<f64>(&profile, Extrusion::Distance(2.0)).expect("it extrudes");
 
@@ -124,7 +125,7 @@ fn both_loft_caps_read_off_the_result_s_own_handles() {
 fn a_full_revolve_has_no_caps_to_read() {
     let circle = profile::circle(Point2::new(5.0, 0.0), 0.5).expect("a positive radius");
     let sketch = Profile::new(SketchPlane::xy(), vec![circle.into()])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .expect("the circle validates");
     let axis = RevolveAxis {
         origin: Point2::new(0.0, 0.0),

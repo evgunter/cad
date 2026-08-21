@@ -17,9 +17,10 @@ use geom_core::{Band, Tolerance};
 use sweep::fillet::{FilletError, Filleted, fillet_edges};
 use sweep::test_support::cube;
 use topo::{Body, EdgeKey, FaceKey};
+use geom_core::Tol;
 
 fn band() -> Band {
-    let tol = Tolerance::get();
+    let tol = Tol::witness().get();
     Band::new(tol.eps, tol.k * tol.eps).unwrap()
 }
 

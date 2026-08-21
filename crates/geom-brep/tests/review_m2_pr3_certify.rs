@@ -18,13 +18,14 @@ use geom_brep::{
     NewellError, SketchSegment, SurfaceKey, classify_dihedral, newell_plane,
 };
 use geom_core::{Affine3, Band, Point2, Point3, Tolerance, Vec3};
+use geom_core::Tol;
 
 fn band() -> Band {
-    Band::linear().unwrap()
+    Band::linear(Tol::witness()).unwrap()
 }
 
 fn eps() -> f64 {
-    Tolerance::get().eps
+    Tol::witness().get().eps
 }
 
 /// A resolver over a fixed table (keys minted through a local slotmap,

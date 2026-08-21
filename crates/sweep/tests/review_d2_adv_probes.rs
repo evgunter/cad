@@ -64,6 +64,7 @@ use test_utils::fuzz::{self, Rng};
 use test_utils::vacuity::Exposure;
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations, EdgeKey};
+use geom_core::Tol;
 
 /// How many random edge subsets each corpus body gets — one multiple
 /// of `CAD_FUZZ_EFFORT` per body. `CAD_FUZZ_SEED` pins the draws.
@@ -72,7 +73,7 @@ fn effort() -> usize {
 }
 
 fn band() -> Band {
-    let tol = Tolerance::get();
+    let tol = Tol::witness().get();
     Band::new(tol.eps, tol.k * tol.eps).unwrap()
 }
 
@@ -86,7 +87,7 @@ fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
         ProfileVertex::new(p2(0.0, r), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let axis = RevolveAxis {
         origin: p2(0.0, 0.0),

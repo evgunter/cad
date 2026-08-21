@@ -16,6 +16,7 @@ use topo::{
 
 mod common;
 use common::{describe_as_intersections, geometric_cube, line, plane};
+use geom_core::Tol;
 
 fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
     Point3::new(x, y, z)
@@ -560,7 +561,7 @@ fn split_edge_intersection_witness_bitwise_remint() {
 /// executed across all three rows in CI).
 #[test]
 fn split_edge_interiority_band_edges() {
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     let mut cube = geometric_cube::<f64>();
     describe_as_intersections(&mut cube.body);
     let edge = cube.mevs[0].edge; // line, params [0, 1], scale 1 m

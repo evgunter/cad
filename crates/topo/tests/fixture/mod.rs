@@ -48,6 +48,7 @@ use geom_brep::ssi::{self, SsiDomain, SsiError};
 use geom_brep::{ChartWindow, EdgeCurveSpec, EdgeGeometry, Pcurve, PcurveCache};
 use geom_core::{Band, Point2, Point3, Real, Vec3};
 use topo::{Body, HalfEdgeKey};
+use geom_core::Tol;
 
 /// The fixture's cylinder: offset from the sphere's centre so the two
 /// intersection loops differ wildly in size (the PR 7 planted shape).
@@ -138,7 +139,7 @@ fn trace_branch() -> Option<ssi::SsiBranch> {
         &cylinder::<f64>(),
         &sphere::<f64>(),
         slab,
-        Band::linear().unwrap(),
+        Band::linear(Tol::witness()).unwrap(),
     ) {
         Ok(out) => Some(out.branches.into_iter().next().expect("two loops")),
         Err(SsiError::FitSampleBudget { .. }) => None,
@@ -308,7 +309,7 @@ pub fn certify_at_dual(built: &Built<f64>) -> geom_brep::PcurveCertifyError {
         &cylinder::<D>(),
         Some(&sphere::<D>()),
         window,
-        Band::linear().unwrap(),
+        Band::linear(Tol::witness()).unwrap(),
     )
     .expect_err("a dual scalar has no fitted lane")
 }
@@ -320,7 +321,7 @@ fn assemble<T>(s: &Structure) -> Built<T>
 where
     T: geom_brep::PcurveFittedLane + geom_core::Bounds,
 {
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     let carrier = Arc::new(lift3::<T>(&s.carrier));
     let image = Arc::new(lift2::<T>(&s.image));
     let (f0, f1) = s.carrier.domain();

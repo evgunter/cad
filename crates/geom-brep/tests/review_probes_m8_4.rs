@@ -14,6 +14,7 @@ use geom::{NurbsSurface, Surface};
 use geom_brep::{ChartWindow, Pcurve, PcurveCache};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point2, Point3, Vec2};
+use geom_core::Tol;
 
 const R: f64 = 0.005;
 const H: f64 = 0.01;
@@ -59,7 +60,7 @@ fn imported_wall() -> Surface<f64> {
 }
 
 fn band() -> Band {
-    Band::linear().unwrap()
+    Band::linear(Tol::witness()).unwrap()
 }
 
 fn window() -> ChartWindow<f64> {

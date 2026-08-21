@@ -32,6 +32,7 @@ use geom_brep::{
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point3, Tolerance, Vec3};
 use slotmap::SlotMap;
+use geom_core::Tol;
 
 /// The rational quarter cylinder `x² + y² = 1`, `0 ≤ z ≤ 1`: degree 2
 /// in `u` (the classic three-point rational arc, middle weight
@@ -69,7 +70,7 @@ fn transverse_plane() -> Surface<f64> {
 }
 
 fn band() -> Band {
-    Band::linear().expect("the run's linear band")
+    Band::linear(Tol::witness()).expect("the run's linear band")
 }
 
 /// **The certifying row.** The file's carrier IS the locus, and every
@@ -94,7 +95,7 @@ fn the_stated_carrier_certifies_against_both_surfaces() {
         limbs.tube_boxes,
         limbs.min_sin_theta,
     );
-    let eps = Tolerance::get().eps;
+    let eps = Tol::witness().get().eps;
     assert!(
         limbs.hull_sup <= eps,
         "the certified sup bound must be within ε: {:e} > {eps:e}",
@@ -118,7 +119,7 @@ fn a_displaced_carrier_refuses_with_the_measured_residual() {
     // displacement SCALES with the run's ε — a fixed 1e-6 m is not a
     // falsifier at the 1e-6 matrix row, where it sits inside the
     // budget and the honest verdict is acceptance.
-    let off = 1e3 * Tolerance::get().eps;
+    let off = 1e3 * Tol::witness().get().eps;
     let carrier = segment(Point3::new(1.0, off, 0.0), Point3::new(1.0, off, 1.0));
     match f64::plane_nurbs_limbs(&carrier, &plane, &wall, 1.0, band()) {
         Err(PlaneNurbsRefusal::Limb { limb, value }) => {
@@ -152,7 +153,7 @@ fn an_on_plane_off_wall_carrier_is_refused_by_the_nurbs_side() {
     let plane = transverse_plane();
     // Scales with the run's ε, like its sibling: a fixed displacement
     // is not a falsifier at the coarse matrix row.
-    let off = 1e3 * Tolerance::get().eps;
+    let off = 1e3 * Tol::witness().get().eps;
     let carrier = segment(
         Point3::new(1.0 + off, 0.0, 0.0),
         Point3::new(1.0 + off, 0.0, 1.0),
@@ -252,7 +253,7 @@ fn the_door_certifies_the_true_carrier_and_records_the_lane_sup() {
         edge.certificate().samples
     );
     assert!(
-        edge.certificate().max_residual <= Tolerance::get().eps,
+        edge.certificate().max_residual <= Tol::witness().get().eps,
         "the recorded residual is inside ε_in: {:e}",
         edge.certificate().max_residual
     );
@@ -264,7 +265,7 @@ fn the_door_certifies_the_true_carrier_and_records_the_lane_sup() {
 #[test]
 fn the_door_refuses_a_displaced_carrier_with_the_measured_bound() {
     // Scaled with ε, exactly as the lane row above (same reason).
-    let off = 1e3 * Tolerance::get().eps;
+    let off = 1e3 * Tol::witness().get().eps;
     let carrier = segment(Point3::new(1.0, off, 0.0), Point3::new(1.0, off, 1.0));
     let ends = (carrier.eval(0.0), carrier.eval(1.0));
     let (arena, spec) = door_spec(transverse_plane(), quarter_cylinder_wall(), carrier);

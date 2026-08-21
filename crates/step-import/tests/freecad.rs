@@ -22,6 +22,7 @@ use std::f64::consts::PI;
 
 use common::{FREECAD_FIXTURES, census, freecad_fixture};
 use step_import::{ImportOptions, StepImport, import_step};
+use geom_core::Tol;
 
 /// What a FreeCAD fixture must import to.
 struct Expect {
@@ -180,7 +181,7 @@ const CORPUS_EPS_CEILING: f64 = 1e-5;
 /// Whether the ambient ε is fine enough for this millimetre corpus to
 /// certify; prints a loud skip naming the numbers when it is not.
 fn corpus_scale_gate(row: &str) -> bool {
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     if eps <= CORPUS_EPS_CEILING {
         return true;
     }
@@ -219,7 +220,7 @@ fn corpus_scale_gate(row: &str) -> bool {
 /// been handed out. This is the row's whole claim, and it is asserted
 /// rather than scoped away.
 fn assert_sub_tolerance_obligation(row: &str) {
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     let mut refused = Vec::new();
     for name in FREECAD_FIXTURES {
         match import_step(&freecad_fixture(name), &ImportOptions::default()) {

@@ -33,6 +33,7 @@ use geom::Surface;
 use geom_core::Point2;
 use profile::RawLoop;
 use topo::{Body, FaceKey, ValidationError, validate_geometric};
+use geom_core::Tol;
 
 /// The faces of `body` whose surface matches `pred`, with their S10
 /// sense bits.
@@ -85,7 +86,7 @@ fn countersink() -> Body<f64> {
         Point2::new(0.5, 1.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     revolve(
         &profile,

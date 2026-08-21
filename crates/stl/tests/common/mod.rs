@@ -8,6 +8,7 @@ use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, BooleanResult};
+use geom_core::Tol;
 
 pub fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -15,7 +16,7 @@ pub fn p2(x: f64, y: f64) -> Point2<f64> {
 
 pub fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
     Profile::new(SketchPlane::xy(), loops)
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap()
 }
 
@@ -48,7 +49,7 @@ pub fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
 /// [`validated`] on an explicit sketch plane rather than `xy`.
 fn validated_on(plane: SketchPlane<f64>, lp: ProfileLoop<f64>) -> ValidatedProfile<f64> {
     Profile::new(plane, vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap()
 }
 
@@ -144,7 +145,7 @@ pub fn boss_plate() -> Body<f64> {
     ]);
     let sketch = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.4)));
     let boss_profile = Profile::new(sketch, vec![boss_loop])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let boss = extrude(&boss_profile, Extrusion::Distance(1.2))
         .unwrap()
@@ -179,7 +180,7 @@ pub fn az_intersect() -> Body<f64> {
     let a_counter = ProfileLoop::polygon([p2(0.90625, 1.4375), p2(1.09375, 1.4375), p2(1.0, 2.0)]);
     let a = extrude(
         &Profile::new(xy(-0.0625), vec![a_outline, a_counter])
-            .validate(Tolerance::get())
+            .validate(Tol::witness())
             .unwrap(),
         Extrusion::Distance(2.125),
     )
@@ -207,7 +208,7 @@ pub fn az_intersect() -> Body<f64> {
             ),
             vec![z_poly],
         )
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap(),
         Extrusion::Distance(2.125),
     )

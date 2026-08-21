@@ -19,19 +19,20 @@ use sweep::fillet::battery::{
 use sweep::fillet::{CornerConfig, FilletError, FilletSite, RunOutPolicy};
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey, FaceKey, VertexKey};
+use geom_core::Tol;
 
-fn tol() -> Tolerance {
-    Tolerance::get()
+fn tol() -> Tol {
+    Tol::witness()
 }
 
 fn band() -> Band {
-    Band::new(tol().eps, tol().k * tol().eps).unwrap()
+    Band::new(tol().eps(), tol().k() * tol().eps()).unwrap()
 }
 
 /// A margin strictly inside the band: escalation territory, never a
 /// classification (the S2 trio idiom).
 fn in_band() -> f64 {
-    5.0 * tol().eps
+    5.0 * tol().eps()
 }
 
 fn p2(x: f64, y: f64) -> Point2<f64> {

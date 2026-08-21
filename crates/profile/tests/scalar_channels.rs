@@ -16,6 +16,7 @@ use common::{
 use geom_core::{Dual, Dual64, Sign};
 use profile::RawLoop;
 use profile::{LoopRole, SegmentKind, ValidatedProfile};
+use geom_core::Tol;
 
 /// The decision skeleton of a canonical form: roles, per-segment kind
 /// and turn, and the value-channel bits of every canonical vertex — the
@@ -108,7 +109,7 @@ fn dual_rejects_with_the_identical_typed_error() {
     for fixture in [
         profile(vec![bowtie()]),
         tangent_hole(),
-        near_tangent_hole(tol().eps),
+        near_tangent_hole(tol().eps()),
         arc_kisses_line(),
     ] {
         let f_err = fixture.validate(tol()).expect_err("fixture rejects at f64");

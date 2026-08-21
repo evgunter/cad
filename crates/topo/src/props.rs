@@ -27,7 +27,7 @@ use core::fmt;
 use geom::Surface;
 use geom_brep::props::quad::FaceCutBounds;
 use geom_brep::props::{FaceContribution, LoopEdge, PropsError, curved_face, planar_face};
-use geom_core::{Band, BandError, Decide, Real};
+use geom_core::{Band, BandError, Decide, Real, Tol};
 
 use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
@@ -151,8 +151,9 @@ impl std::error::Error for MassPropsError {}
 /// per-source breakdown.
 pub fn mass_properties<T: PropsQuadLane>(
     body: &Body<T>,
+    tol: Tol,
 ) -> Result<MassProperties<T>, MassPropsError> {
-    let band = Band::linear().map_err(|error| MassPropsError::Band { error })?;
+    let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
     mass_properties_with(body, band)
 }
 

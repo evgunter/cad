@@ -28,6 +28,7 @@ use sweep::fillet::{
 };
 use sweep::test_support::cube;
 use topo::{Body, EdgeKey};
+use geom_core::Tol;
 
 const L: f64 = 1.0;
 const R: f64 = 0.1;
@@ -53,7 +54,7 @@ const ALL: [(&str, &str); 12] = [
 ];
 
 fn band() -> Band {
-    let tol = Tolerance::get();
+    let tol = Tol::witness().get();
     Band::new(tol.eps, tol.k * tol.eps).unwrap()
 }
 

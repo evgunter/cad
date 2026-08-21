@@ -43,6 +43,7 @@ use profile::RawLoop;
 use profile::{ProfileLoop, ProfileVertex};
 use step_import::{ImportOptions, import_step};
 use sweep::{Section, loft_body};
+use geom_core::Tol;
 
 /// The arc-bearing profile loft the substrate measured (one bulged
 /// side per section → 3 non-rational walls + 1 RATIONAL wall): the
@@ -124,7 +125,7 @@ fn reverse_data_section(text: &str) -> String {
 /// enclosure — the caller reuses it rather than paying a second
 /// rational quadrature, which is the expensive thing in these rows.
 fn rational_props_posture(body: &topo::Body<f64>, who: &str) -> Option<topo::MassProperties<f64>> {
-    let target = 1024.0 * geom_core::Tolerance::get().eps;
+    let target = 1024.0 * geom_core::Tol::witness().get().eps;
     match topo::mass_properties(body) {
         Ok(props) => Some(props),
         Err(err) => {
@@ -219,7 +220,7 @@ fn arc_loft_natively_computes_its_rational_volume() {
     let native = native_arc_loft();
     assert_eq!(topo::validate(&native), Ok(()), "native tier 1");
     assert_eq!(topo::validate_closed(&native), Ok(()), "native tier 2");
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     // Computed ONCE: a rational quadrature is the expensive thing in
     // this row, and the round trip below reuses this enclosure. Tier 3
     // consumes exactly this number through its +V invariant, and the

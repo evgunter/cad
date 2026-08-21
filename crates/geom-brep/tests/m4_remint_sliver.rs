@@ -4,7 +4,7 @@
 //! TYPED at certification — in-band offsets escalate, definite ones
 //! refuse `ResidualExceeded` — never a silent acceptance, never a
 //! panic. All probe magnitudes derive from the ambient
-//! `Tolerance::get()` (the ε matrix reruns this at every row).
+//! `Tol::witness().get()` (the ε matrix reruns this at every row).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -12,6 +12,7 @@ use geom::Curve3;
 use geom::Surface;
 use geom_brep::{CERT_SAMPLES, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeGeometry};
 use geom_core::{Band, Point3, Tolerance, Vec3};
+use geom_core::Tol;
 
 fn table(
     surfs: Vec<Surface<f64>>,
@@ -29,7 +30,7 @@ fn table(
 /// witness offset of `offset` along the line from the pinned mid
 /// point; returns the certification outcome.
 fn certify_with_offset(offset: f64) -> Result<EdgeCurve<f64>, CertifyError> {
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     let (keys, resolve) = table(vec![
         Surface::Plane {
             origin: Point3::new(0.0, 0.0, 0.0),
@@ -75,7 +76,7 @@ fn certify_with_offset(offset: f64) -> Result<EdgeCurve<f64>, CertifyError> {
 
 #[test]
 fn witness_offset_definitely_past_the_band_refuses_residual_exceeded() {
-    let tol = Tolerance::get();
+    let tol = Tol::witness().get();
     // Definitely past the escalation band: (k + 1)·ε.
     let outcome = certify_with_offset(tol.eps * (tol.k + 1.0));
     match outcome {
@@ -86,7 +87,7 @@ fn witness_offset_definitely_past_the_band_refuses_residual_exceeded() {
 
 #[test]
 fn witness_offset_in_the_sliver_band_refuses_typed_never_accepts() {
-    let tol = Tolerance::get();
+    let tol = Tol::witness().get();
     // Just past ε, inside the escalation band: mid of (ε, kε) if the
     // band has width, else nudged past ε.
     let offset = if tol.k > 1.0 {
@@ -105,6 +106,6 @@ fn witness_offset_in_the_sliver_band_refuses_typed_never_accepts() {
 fn the_accepting_side_still_accepts() {
     // The companion boundary from the headroom test, re-stated here
     // so the two-class contract lives in one file's assertions too.
-    let tol = Tolerance::get();
+    let tol = Tol::witness().get();
     certify_with_offset(tol.eps * 0.9).expect("0.9eps stays marginal but VALID");
 }

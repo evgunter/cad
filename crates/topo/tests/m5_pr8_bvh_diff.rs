@@ -24,6 +24,7 @@ use topo::{
     Body, BooleanOp, BooleanResult, PlantedDegradation, SweepStrategy, SweepTrace, boolean_op_with,
     sweep_traces, sweep_traces_with_pad,
 };
+use geom_core::Tol;
 
 type Pair = (topo::EdgeKey, topo::FaceKey);
 
@@ -231,7 +232,7 @@ fn tower(gap: f64) -> (Body<f64>, Body<f64>) {
 /// 2·zero), so the pin holds at every ε row.
 #[test]
 fn sweep_pad_derivation_transitions() {
-    let tol = geom_core::Tolerance::get();
+    let tol = geom_core::Tol::witness().get();
     let (zero, escalate) = (tol.eps, tol.k * tol.eps);
     let pad = escalate + 2.0 * zero;
 
@@ -301,7 +302,7 @@ fn sweep_pad_derivation_transitions() {
 /// predicates) is pruned, and the superset comparator reports it.
 #[test]
 fn pad_zero_regression_is_caught() {
-    let gap = 0.5 * geom_core::Tolerance::get().eps;
+    let gap = 0.5 * geom_core::Tol::witness().get().eps;
     let (a, b) = tower(gap);
     let (i_ab, i_ba) = sweep_traces(&a, &b, SweepStrategy::Idealized, None).unwrap();
     let (r_ab, r_ba) =
@@ -329,7 +330,7 @@ fn pad_zero_regression_is_caught() {
 /// - k > K (definite): both green, results bit-equal.
 #[test]
 fn grazing_infinite_plane_divergence_is_exactly_as_documented() {
-    let tol = geom_core::Tolerance::get();
+    let tol = geom_core::Tol::witness().get();
     let zero = tol.eps;
     // Multipliers straddling the band edges (K = tol.k, default 10);
     // interior points only (threshold-exact gaps are fp-fragile

@@ -4,7 +4,7 @@
 //! native AP214 entities — so most rows here are ε-INDEPENDENT by
 //! construction and say so where it matters. The one place the ambient
 //! tolerance reaches the file is the `UNCERTAINTY_MEASURE_WITH_UNIT`
-//! value, which the writer copies from `Tolerance::get()` (or the
+//! value, which the writer copies from `Tol::witness().get()` (or the
 //! explicit override the fixtures use); that single dependence is
 //! pinned by [`epsilon_reaches_only_the_uncertainty_record`], and the
 //! one new refusal arm is run at two tolerances by
@@ -66,6 +66,7 @@ use geom::Curve3;
 use geom::Surface;
 use geom_core::Tolerance;
 use step_export::{StepExportError, StepOptions, step_string};
+use geom_core::Tol;
 
 /// The fixture options (matching `tests/export.rs` and the fixture
 /// generator: an EXPLICIT uncertainty, so nothing here reads ambient ε
@@ -972,7 +973,7 @@ fn curved_multi_shell_refuses_at_both_tolerances() {
     let stubs = common::two_stub_complement();
     assert_eq!(stubs.shells().count(), 2, "two disjoint stubs");
     assert!(
-        Tolerance::get().eps > 0.0,
+        Tol::witness().get().eps > 0.0,
         "the body above was built at the run's ambient tolerance"
     );
     for eps in [1e-9, 1e-6] {

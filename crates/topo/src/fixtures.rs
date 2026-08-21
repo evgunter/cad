@@ -51,6 +51,7 @@ use crate::euler_ring::{KemrResult, KfmrhResult};
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::provenance::Provenance;
 use crate::test_support_impl::ArenaCounts;
+use geom_core::Tol;
 
 /// The fixture provenance (all fixture entities share it).
 pub(crate) fn prov() -> Provenance {
@@ -63,14 +64,14 @@ pub(crate) fn prov() -> Provenance {
 /// no geometric claims about the fixture's topology (raw fixtures make
 /// no validity promises anyway; the anchor keeps snapshots
 /// per-call-site distinct like the M0 placeholder anchors did).
-pub(crate) fn test_curve(anchor: Point3<f64>) -> geom_brep::EdgeCurve<f64> {
+pub(crate) fn test_curve(anchor: Point3<f64>, tol: Tol) -> geom_brep::EdgeCurve<f64> {
     let spec = geom_brep::EdgeCurveSpec::self_loop_circle_at(anchor);
     geom_brep::EdgeCurve::certify(
         spec,
         anchor,
         anchor,
         |_| None,
-        geom_core::Band::linear().unwrap(),
+        geom_core::Band::linear(tol).unwrap(),
     )
     .unwrap()
 }

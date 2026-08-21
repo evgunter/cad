@@ -44,6 +44,7 @@ use crate::entity::{
 };
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::null::CurveGeom;
+use geom_core::Tol;
 
 /// The source→result key bridge (module docs). Only the maps the
 /// pipeline consumes are exposed; the rest are internal to the graft.
@@ -124,6 +125,7 @@ pub(crate) fn graft_solids_with<T: geom_core::Decide>(
     dst_solids: &[SolidKey],
     src: &Body<T>,
     bridge: Bridge,
+    tol: Tol,
 ) -> Result<GraftMap, BooleanError> {
     let corrupt = || BooleanError::JoinDesync {
         what: "graft source is not a well-formed body",
@@ -421,7 +423,7 @@ pub(crate) fn graft_solids_with<T: geom_core::Decide>(
             param_start: curve.params().0,
             param_end: curve.params().1,
         };
-        let band = geom_core::Band::linear().map_err(|_| corrupt())?;
+        let band = geom_core::Band::linear(tol).map_err(|_| corrupt())?;
         let recert = geom_brep::EdgeCurve::certify(
             spec,
             point(start_v)?,

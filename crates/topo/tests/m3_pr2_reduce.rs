@@ -15,6 +15,7 @@ use geom_core::{Band, Point3, Vec3};
 use topo::{
     Body, PlaneSide, SplitPlane, SplitReduceError, VertexKey, classify_neighborhood, split_reduce,
 };
+use geom_core::Tol;
 
 /// The split plane y = 1, Above = +y (the fixtures' tool).
 fn plane_y1<T: geom_core::Decide>() -> SplitPlane<T> {
@@ -176,7 +177,7 @@ fn bucket_entries(
 ) -> (Vec<PlaneSide>, Vec<PlaneSide>, Vec<PlaneSide>) {
     let (sides, _) = topo::vertex_sides(body, plane).unwrap();
     let entries =
-        classify_neighborhood(body, plane, &sides, vertex, Band::linear().unwrap()).unwrap();
+        classify_neighborhood(body, plane, &sides, vertex, Band::linear(Tol::witness()).unwrap()).unwrap();
     let (mut to_other, mut edges, mut dups) = (vec![], vec![], vec![]);
     for e in &entries {
         match e.kind {
@@ -378,7 +379,7 @@ fn cube_coplanar_top_both_senses() {
         // sense; convex corners mint no bisector duplicates.
         let (sides, on) = topo::vertex_sides(&cube.body, &plane).unwrap();
         let entries =
-            classify_neighborhood(&cube.body, &plane, &sides, on[0], Band::linear().unwrap())
+            classify_neighborhood(&cube.body, &plane, &sides, on[0], Band::linear(Tol::witness()).unwrap())
                 .unwrap();
         assert_eq!(entries.len(), 3);
         assert!(
@@ -400,7 +401,7 @@ fn cube_coplanar_top_both_senses() {
 /// conscription engineered out.
 #[test]
 fn sliver_vertex_escalates() {
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     let profile = [
         (0.0, 0.0),
         (2.0, 0.0),

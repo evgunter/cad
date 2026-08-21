@@ -102,7 +102,7 @@
 use core::fmt;
 
 use geom_core::k_stats::decide;
-use geom_core::{
+use geom_core::{Tol, 
     Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point2, Real, Sign,
     Tolerance, Vec2,
 };
@@ -892,8 +892,8 @@ impl<T: Decide> Profile<T> {
     /// escalation (in-band margin, poisoned coordinate) surfaces as
     /// [`ProfileError::Escalated`] with the named predicate's
     /// diagnostic, never a guess.
-    pub fn validate(&self, tol: Tolerance) -> Result<ValidatedProfile<T>, ProfileError> {
-        let band = Band::new(tol.eps, tol.k * tol.eps).map_err(ProfileError::Band)?;
+    pub fn validate(&self, tol: Tol) -> Result<ValidatedProfile<T>, ProfileError> {
+        let band = Band::new(tol.eps(), tol.k() * tol.eps()).map_err(ProfileError::Band)?;
         // The exact-order band for canonical-start selection (module
         // docs): no representable f64 lies strictly inside it.
         let exact = Band::new(f64::from_bits(1), f64::from_bits(2)).map_err(ProfileError::Band)?;

@@ -20,6 +20,7 @@ use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::boolean::{SolidContainment, point_in_solid};
 use topo::{Body, mass_properties};
+use geom_core::Tol;
 
 fn iv(x: f64) -> Interval {
     Interval::from_f64(x)
@@ -35,7 +36,7 @@ fn p3(x: f64, y: f64, z: f64) -> Point3<Interval> {
 
 fn validated(loops: Vec<ProfileLoop<Interval>>) -> ValidatedProfile<Interval> {
     Profile::new(SketchPlane::xy(), loops)
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap()
 }
 
@@ -69,7 +70,7 @@ fn pellet() -> Body<Interval> {
         geom_core::Vec3::new(iv(0.0), iv(1.0), iv(0.0)),
     );
     let vp = Profile::new(plane, vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     extrude(&vp, Extrusion::Distance(iv(0.4))).unwrap().body
 }
@@ -77,7 +78,7 @@ fn pellet() -> Body<Interval> {
 #[test]
 fn interval_notch_door_reads_out() {
     let body = notched();
-    let b = Band::linear().unwrap();
+    let b = Band::linear(Tol::witness()).unwrap();
     assert_eq!(
         point_in_solid(&body, p3(1.0, 0.5, 0.5), b).unwrap(),
         SolidContainment::In

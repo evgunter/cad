@@ -18,9 +18,10 @@ use geom::Curve3;
 use geom::Surface;
 use geom_brep::props::{FaceContribution, LoopEdge, PropsError, curved_face, planar_face};
 use geom_core::{Band, Point3, Vec3};
+use geom_core::Tol;
 
 fn band() -> Band {
-    Band::linear().unwrap()
+    Band::linear(Tol::witness()).unwrap()
 }
 
 // ---------------------------------------------------------------------

@@ -22,15 +22,16 @@ use topo::{
     Body, EdgeCurveSpec, EdgeGeometry, EulerOpError, FaceSurface, MefSite, MevSite, SurfaceKey,
     ValidationError, validate, validate_closed, validate_geometric,
 };
+use geom_core::Tol;
 
 mod common;
 
 fn band() -> Band {
-    Band::linear().unwrap()
+    Band::linear(Tol::witness()).unwrap()
 }
 
 fn eps() -> f64 {
-    Tolerance::get().eps
+    Tol::witness().get().eps
 }
 
 // =====================================================================

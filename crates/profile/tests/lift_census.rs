@@ -25,6 +25,7 @@ use geom_core::Point2;
 use profile::RawLoop;
 use profile::lift::{Fidelity, LiftOutcome, LiftRefusal, lift, lift_checked};
 use profile::{ProfileLoop, ProfileVertex, circle, circle_split};
+use geom_core::Tol;
 
 /// The coarse bucket a census row falls in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -92,7 +93,7 @@ fn half_disc() -> ProfileLoop<f64> {
 
 /// Boss's rim: one closed carrier declared into three equal arcs.
 fn thirds() -> ProfileLoop<f64> {
-    circle_split(Point2::new(1.2, 1.7), 0.35, 3, 0.0)
+    circle_split(Point2::new(1.2, 1.7), 0.35, 3, 0.0, Tol::witness())
         .expect("boss rim splits")
         .loop_
 }
@@ -134,7 +135,7 @@ fn corpus() -> Vec<(&'static str, ProfileLoop<f64>, Class)> {
         ("circle_v", circle_v(0.0, 0.0, 1.0), Class::Value),
         (
             "circle_primitive",
-            circle(Point2::new(0.5, -0.25), 1.5).expect("circle").loop_,
+            circle(Point2::new(0.5, -0.25), 1.5, Tol::witness()).expect("circle").loop_,
             Class::Bits,
         ),
         ("circle_split_3", thirds(), Class::Bits),
@@ -155,7 +156,7 @@ fn the_census() {
     let mut rows = Vec::new();
     let mut tally = [0usize; 5];
     for (name, loop_, expected) in corpus() {
-        let outcome = lift_checked(&loop_);
+        let outcome = lift_checked(&loop_, Tol::witness());
         let got = classify(&outcome);
         rows.push(format!("{name:18} {}", describe(&outcome)));
         // Tally what was OBSERVED, not what was expected, so the totals
@@ -191,7 +192,7 @@ fn the_fidelity_report_is_honest() {
     // A declared junction is spelled `.tangent()`, and the arc that
     // follows re-derives its bulge — so the bracket's fillet arc is
     // value-equal, never bit-identical, and the tool says exactly that.
-    match lift_checked(&bracket()) {
+    match lift_checked(&bracket(), Tol::witness()) {
         LiftOutcome::Lifted {
             fidelity,
             worst_ulps,
@@ -212,7 +213,7 @@ fn the_fidelity_report_is_honest() {
         ("rect", rect(0.0, 0.0, 2.0, 1.0)),
         ("l_profile", l_profile()),
     ] {
-        match lift_checked(&loop_) {
+        match lift_checked(&loop_, Tol::witness()) {
             LiftOutcome::Lifted {
                 fidelity,
                 worst_ulps,
@@ -233,7 +234,7 @@ fn the_fidelity_report_is_honest() {
 /// phase is the residue, and this row is its receipt.
 #[test]
 fn the_carrier_phase_is_the_surviving_angle_residue() {
-    match lift_checked(&circle_v(0.0, 0.0, 1.0)) {
+    match lift_checked(&circle_v(0.0, 0.0, 1.0), Tol::witness()) {
         LiftOutcome::Lifted {
             fidelity,
             worst_abs,
@@ -250,7 +251,7 @@ fn the_carrier_phase_is_the_surviving_angle_residue() {
     // The +x-seamed twin is exact, which is what makes the diagnosis
     // "the angle", not "the carrier form".
     assert_eq!(
-        classify(&lift_checked(&circle_h(0.0, 0.0, 1.0))),
+        classify(&lift_checked(&circle_h(0.0, 0.0, 1.0), Tol::witness())),
         Class::Bits
     );
 }
@@ -262,7 +263,7 @@ fn the_carrier_phase_is_the_surviving_angle_residue() {
 /// The lift's refusal, if it refused (`Step` carries no equality by
 /// design, so the Ok side is not comparable).
 fn refusal(loop_: &ProfileLoop<f64>) -> Option<LiftRefusal> {
-    lift(loop_).err()
+    lift(loop_, Tol::witness()).err()
 }
 
 fn vert(x: f64, y: f64, bulge: f64) -> ProfileVertex<f64> {
@@ -330,7 +331,7 @@ fn structural_walls_are_named() {
 /// predicate, so the wall of record is the binder's own typed error.
 #[test]
 fn geometric_walls_are_the_drivers_own() {
-    match lift_checked(&collinear_run()) {
+    match lift_checked(&collinear_run(), Tol::witness()) {
         LiftOutcome::ReplayRefused { error, .. } => {
             // The collinear continuation is carrier identity, and the
             // chain vocabulary has no `line_continue` to spell it.
@@ -352,6 +353,6 @@ fn geometric_walls_are_the_drivers_own() {
 /// AT THE SEAM it still refuses.
 #[test]
 fn the_same_carrier_class_splits_in_two() {
-    assert_eq!(classify(&lift_checked(&half_disc())), Class::Bits);
-    assert_eq!(classify(&lift_checked(&unequal_split())), Class::Refused);
+    assert_eq!(classify(&lift_checked(&half_disc(), Tol::witness())), Class::Bits);
+    assert_eq!(classify(&lift_checked(&unequal_split(), Tol::witness())), Class::Refused);
 }

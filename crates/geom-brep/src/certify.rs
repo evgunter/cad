@@ -60,6 +60,7 @@ use crate::dihedral::{DihedralClass, classify_dihedral, decide};
 use crate::edge_geometry::EdgeGeometry;
 use crate::implicit::{implicit_residual, seam_frame};
 use crate::keys::SurfaceKey;
+use geom_core::Tol;
 
 /// The fixed certification sample count (module docs): 9 uniform
 /// parameters, endpoints included.
@@ -494,7 +495,7 @@ impl<T: Decide> EdgeCurve<T> {
     /// resolves the description's arena keys (injected by the owning
     /// body — this layer never touches arenas, see [`crate::keys`]);
     /// `band` is the run's linear band (callers build it once at
-    /// operation entry via `Band::linear()`).
+    /// operation entry via `Band::linear(tol)`).
     ///
     /// The check sequence (fixed order, D9; every check's margin is
     /// meters against `band`):
@@ -1575,11 +1576,11 @@ mod tests {
     use super::*;
 
     fn band() -> Band {
-        Band::linear().unwrap()
+        Band::linear(Tol::witness()).unwrap()
     }
 
     fn eps() -> f64 {
-        Tolerance::get().eps
+        Tol::witness().get().eps
     }
 
     /// A resolver over a tiny fixed table (keys minted through a local

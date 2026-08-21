@@ -3,6 +3,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use step_import::{ImportOptions, StepImport, import_step};
+use geom_core::Tol;
 
 /// (fixture, oracle volume mm3) — from MY OWN freecadcmd re-run on the
 /// UPSTREAM candidates/ originals, not from the committed sidecars.
@@ -26,7 +27,7 @@ const REORACLE: [(&str, f64); 9] = [
 
 #[test]
 fn measured_relative_volume_agreement() {
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     let mut worst = 0.0f64;
     let mut compared = 0;
     for (name, oracle) in REORACLE {

@@ -29,6 +29,7 @@ use std::f64::consts::PI;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::boolean::{BooleanDeclarations, BooleanOp, boolean_op_with};
 use topo::{Body, SweepStrategy};
+use geom_core::Tol;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -47,7 +48,7 @@ fn boxy(x0: f64, y0: f64, w: f64, h: f64, z0: f64, t: f64) -> Body<f64> {
     );
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     extrude(&profile, Extrusion::Distance(t)).unwrap().body
 }
@@ -62,7 +63,7 @@ fn disc2(r: f64, phi: f64, z0: f64, len: f64) -> Body<f64> {
     ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     extrude(&profile, Extrusion::Distance(len)).unwrap().body
 }
@@ -78,7 +79,7 @@ fn probe_torus_union_is_never_silently_wrong() {
         ProfileVertex::new(p2(1.9, 0.0), 1.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let axis = RevolveAxis {
         origin: p2(0.0, 0.0),
@@ -245,7 +246,7 @@ fn probe_involution_on_a_boolean_result_body() {
         );
         let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.3)));
         let profile = Profile::new(plane, vec![lp])
-            .validate(Tolerance::get())
+            .validate(Tol::witness())
             .unwrap();
         extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
     };

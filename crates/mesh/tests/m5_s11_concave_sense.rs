@@ -24,6 +24,7 @@ use common::*;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, extrude};
 use topo::Body;
+use geom_core::Tol;
 
 /// The S11 concave-notched prism (area exactly 3, height 1). Exact
 /// boundary area: 3 sides of the box (2 + 1.5 + 1.5), two arc walls of
@@ -45,7 +46,7 @@ fn notched() -> Body<f64> {
         .unwrap()
         .loop_;
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(geom_core::Tolerance::get())
+        .validate(geom_core::Tol::witness().get())
         .unwrap();
     extrude(&vp, Extrusion::Distance(1.0)).unwrap().body
 }
@@ -59,7 +60,7 @@ fn hole_plate() -> Body<f64> {
         ProfileVertex::new(p2(3.0, 2.0), 1.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![outer, hole])
-        .validate(geom_core::Tolerance::get())
+        .validate(geom_core::Tol::witness().get())
         .unwrap();
     extrude(&vp, Extrusion::Distance(1.0)).unwrap().body
 }

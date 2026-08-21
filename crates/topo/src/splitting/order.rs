@@ -47,6 +47,7 @@ use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point3, Sign, Ve
 
 use super::SplitPlane;
 use crate::validate::decide;
+use geom_core::Tol;
 
 /// The exact-order band (module docs; identical to profile's).
 ///
@@ -192,7 +193,7 @@ mod tests {
     /// keep insertion order.
     #[test]
     fn lex_sort_total_and_stable() {
-        let band = Band::linear().unwrap();
+        let band = Band::linear(Tol::witness()).unwrap();
         let exact = exact_band().unwrap();
         let pts = [
             p3(2.0, 1.0, 0.0),
@@ -211,7 +212,7 @@ mod tests {
     /// engineered-out fragility).
     #[test]
     fn one_ulp_apart_orders_strictly() {
-        let band = Band::linear().unwrap();
+        let band = Band::linear(Tol::witness()).unwrap();
         let exact = exact_band().unwrap();
         let plane = plane_y1();
         let frame = in_plane_frame(&plane, 1.0, band).unwrap();

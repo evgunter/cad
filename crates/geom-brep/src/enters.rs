@@ -65,6 +65,7 @@
 //! `classify_dihedral` pattern.
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Real, Sign, Vec3};
+use geom_core::Tol;
 
 /// The verdict of [`enters_material`]: where `dir` goes relative to the
 /// face's material.
@@ -285,7 +286,7 @@ mod tests {
     use super::*;
 
     fn band() -> Band {
-        Band::linear().unwrap()
+        Band::linear(Tol::witness()).unwrap()
     }
 
     /// Mirror check (F3): on a face whose outward normal is −z (a

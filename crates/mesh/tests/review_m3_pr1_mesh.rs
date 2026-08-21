@@ -10,6 +10,7 @@ use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
 use sweep::{Extrusion, extrude};
 use topo::{Body, MevSite, NewVertexSide};
+use geom_core::Tol;
 
 /// TARGET 2 (tessellation door): a null strut on an extruded prism
 /// closes tessellation with the typed NullScaffoldEdge - the mesh walk
@@ -26,7 +27,7 @@ fn tessellate_refuses_null_scaffold_typed() {
             Point2::new(0.0, 1.0),
         ])],
     )
-    .validate(Tolerance::get())
+    .validate(Tol::witness())
     .unwrap();
     let mut body: Body<f64> = extrude(&profile, Extrusion::Distance(1.0)).unwrap().body;
     let mesh_before = tessellate(&body, 0.01).unwrap();

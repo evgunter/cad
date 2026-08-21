@@ -13,6 +13,7 @@ use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, extrude};
 use topo::{validate, validate_closed, validate_geometric};
+use geom_core::Tol;
 
 fn p2(x: f64, y: f64) -> Point2<Interval> {
     Point2::new(Interval::from_f64(x), Interval::from_f64(y))
@@ -29,7 +30,7 @@ fn interval_l_profile_extrudes_and_passes_all_tiers() {
         p2(0.0, 2.0),
     ]);
     let vp = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let t = extrude(&vp, Extrusion::Distance(Interval::from_f64(1.5))).unwrap();
     assert_eq!(validate(&t.body), Ok(()));
@@ -77,7 +78,7 @@ fn interval_disc_extrudes_a_shared_cylinder() {
         ProfileVertex::new(p2(0.5, 0.0), Interval::from_f64(1.0)),
     ]);
     let vp = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let t = extrude(&vp, Extrusion::Distance(Interval::from_f64(1.0))).unwrap();
     assert_eq!(validate(&t.body), Ok(()));

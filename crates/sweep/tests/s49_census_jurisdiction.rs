@@ -34,6 +34,7 @@ use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, extrude};
 use topo::{Body, ContactRecords, EntityId, FaceKey, ValidationError, validate_pseudomanifold};
+use geom_core::Tol;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -55,7 +56,7 @@ fn cylinder(z0: f64, rot: f64) -> Body<f64> {
     ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
 }
@@ -71,7 +72,7 @@ fn brick(z0: f64, h: f64) -> Body<f64> {
     );
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
 }

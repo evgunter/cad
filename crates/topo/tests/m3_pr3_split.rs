@@ -17,6 +17,7 @@ use topo::{
     Body, SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane, Surface,
     mass_properties, plane_section, split, validate_closed, validate_geometric,
 };
+use geom_core::Tol;
 
 /// The split plane y = c, Above = +y.
 fn plane_y<T: geom_core::Decide>(c: f64) -> SplitPlane<T> {
@@ -177,7 +178,7 @@ fn holed_box_geometric() -> Body<f64> {
     body.kfmrh(f_bottom.face, mef_top.face).unwrap();
     // Plating pass: every face gets its own outward Newell plane.
     let faces: Vec<_> = body.faces().map(|(k, _)| k).collect();
-    let band = geom_core::Band::linear().unwrap();
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
     for f in faces {
         let outer = body.get_face(f).unwrap().outer;
         let topo::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
@@ -598,7 +599,7 @@ fn point_in_loop_trilean() {
     let fx = prism::<f64>(&[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)], 1.0);
     let body = &fx.body;
     let top = body.get_face(fx.top_face).unwrap();
-    let band = geom_core::Band::linear().unwrap();
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let n = Vec3::new(0.0, 0.0, 1.0);
     let q = |x: f64, y: f64| Point3::new(x, y, 1.0);
     assert_eq!(

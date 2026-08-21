@@ -54,9 +54,7 @@ use std::sync::Arc;
 use geom::Curve3;
 use geom::{NurbsSurface, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeGeometry, NewellError, newell_plane};
-use geom_core::{
-    Affine3, Band, BandError, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3,
-};
+use geom_core::{Affine3, Band, BandError, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3};
 use profile::{
     Profile, ProfileError, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile,
 };
@@ -260,8 +258,9 @@ fn assemble<T: Decide>(
     sections: &[Section],
     places: &[Affine3<f64>],
     geometry: &LoftGeometry,
+    tol: Tol,
 ) -> Result<Lofted<T>, LoftError> {
-    let band = Band::linear().map_err(LoftError::Band)?;
+    let band = Band::linear(tol).map_err(LoftError::Band)?;
     let (Some(sec_bottom), Some(sec_top), Some(place_bottom), Some(place_top)) = (
         sections.first(),
         sections.last(),

@@ -16,6 +16,7 @@ use editor_core::{
     apply, evaluate, load, save,
 };
 use fixture::{desc, insert, len};
+use geom_core::Tol;
 
 fn small() -> (ProfileDoc, String) {
     let doc = ProfileDoc::empty_derived("m4_pr6_review_probes");
@@ -460,7 +461,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         },
     );
     // 14 SetTolerance (ambient value: keeps this process evaluable)
-    let amb = geom_core::Tolerance::get().eps;
+    let amb = geom_core::Tol::witness().get().eps;
     push(&mut doc, DocEdit::SetTolerance { eps: amb });
 
     // Round-trip as a FULL LOG from an empty snapshot.

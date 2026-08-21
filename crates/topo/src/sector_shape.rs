@@ -156,6 +156,7 @@ use geom_brep::OutwardNormal;
 use geom_core::{Band, Decide, Indeterminate, Margin, MarginDiag, Real, Sign, Vec3};
 
 use crate::validate::decide;
+use geom_core::Tol;
 
 /// Rung 1's K name: the metering arm is positive.
 ///
@@ -293,7 +294,7 @@ mod tests {
     use super::*;
 
     fn band() -> Band {
-        Band::linear().unwrap()
+        Band::linear(Tol::witness()).unwrap()
     }
 
     fn v(x: f64, y: f64, z: f64) -> Vec3<f64> {

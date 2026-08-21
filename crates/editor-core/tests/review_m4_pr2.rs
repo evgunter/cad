@@ -15,6 +15,7 @@ use editor_core::{
 use editor_core::{CapEnd, RoleSeg};
 use fixture::{ang, desc, die, insert, len, scl, square, step};
 use topo::{Body, mass_properties};
+use geom_core::Tol;
 
 fn run(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>, parallel: bool) -> Evaluation<f64> {
     let opts = EvalOptions {
@@ -621,7 +622,7 @@ fn revolve_tau_door_is_margined_not_raw() {
     // Probes derived from the AMBIENT tolerance so this test is valid
     // on every ε row of the gate matrix (the first draft hard-coded
     // the 1e-9 default and failed the 1e-6/1e-12 rows).
-    let tol = geom_core::Tolerance::get();
+    let tol = geom_core::Tol::witness().get();
     let (eps, kesc) = (tol.eps, tol.eps * tol.k);
     // ±1 ulp and ±eps/10: inside the zero band ⇒ silently Full,
     // bit-identical volume to exact τ.

@@ -28,9 +28,7 @@
 
 use geom_core::k_stats::decide;
 use geom_core::predicate::BandError;
-use geom_core::{
-    Affine3, Band, Decide, Indeterminate, Margin, Mat3, Point2, Point3, Sign, Vec2, Vec3,
-};
+use geom_core::{Affine3, Band, Decide, Indeterminate, Margin, Mat3, Point2, Point3, Sign, Tol, Vec2, Vec3};
 
 use super::axis::AxisFrame;
 use super::{RevolveAxis, RevolveError, Revolved, SweptSeg, full, partial};
@@ -136,8 +134,9 @@ pub fn tube_along_arc<T: Decide>(
     major_radius: T,
     window: TubeWindow<T>,
     minor_radius: T,
+    tol: Tol,
 ) -> Result<Revolved<T>, TubeError> {
-    let band = Band::linear().map_err(TubeError::Band)?;
+    let band = Band::linear(tol).map_err(TubeError::Band)?;
     // The angle lever arm: the outer equator (D4 ¶1).
     let arm = major_radius + minor_radius;
     let esc = |source| TubeError::Escalated { source };

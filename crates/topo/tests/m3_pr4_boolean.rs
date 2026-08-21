@@ -14,6 +14,7 @@ use topo::{
     Body, BooleanError, BooleanOp, BooleanReduction, boolean_reduce, boolean_reduce_declared,
     validate,
 };
+use geom_core::Tol;
 
 fn brick<T: Decide + geom_core::Bounds>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
     prism_z::<T>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
@@ -124,7 +125,7 @@ fn corner_kiss<T: Decide + geom_core::Bounds>() {
 #[test]
 fn corner_kiss_touch_and_near_miss() {
     corner_kiss::<f64>();
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     // In-band gap (3ε with K = 10): a genuine sliver — typed
     // escalation, never a silent contact and never a silent miss (F6).

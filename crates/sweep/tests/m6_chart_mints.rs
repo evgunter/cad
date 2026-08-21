@@ -12,10 +12,11 @@ use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::Body;
+use geom_core::Tol;
 
 fn validated(lp: ProfileLoop<f64>) -> profile::ValidatedProfile<f64> {
     Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap()
 }
 
@@ -103,7 +104,7 @@ fn the_donut_carries_stored_torus_pcurves_at_rest() {
 /// through the pole with the zero local azimuth lever.
 #[test]
 fn the_die_octants_carry_stored_sphere_pcurves_at_rest() {
-    let tol = Tolerance::get();
+    let tol = Tol::witness().get();
     let band = geom_core::Band::new(tol.eps, tol.k * tol.eps).expect("band");
     let lp = ProfileLoop::polygon([
         Point2::new(0.0, 0.0),

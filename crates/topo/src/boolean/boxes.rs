@@ -80,6 +80,7 @@ use geom_core::{Band, Bounds, Decide, Point3, Real, Vec3};
 use super::BooleanError;
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, LoopKey, VertexKey};
+use geom_core::Tol;
 
 /// The sweep's box pad in meters — what candidate generation must add
 /// so pruning can never lose an accepted pair. Derivation (each term
@@ -628,7 +629,7 @@ mod tests {
     /// The pad every row boxes with — the sweep's own, so a row that
     /// only passes because of a generous pad would have to say so.
     fn pad() -> f64 {
-        sweep_pad(Band::linear().unwrap())
+        sweep_pad(Band::linear(Tol::witness()).unwrap())
     }
 
     /// `p` is inside `b` — the containment the contract promises.

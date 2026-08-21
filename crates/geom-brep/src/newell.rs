@@ -69,6 +69,7 @@ use geom::Surface;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use crate::dihedral::decide;
+use geom_core::Tol;
 
 /// Typed failure of [`newell_plane`] (closed enum, D4 ¶3).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -181,7 +182,7 @@ mod tests {
     use super::*;
 
     fn band() -> Band {
-        Band::linear().unwrap()
+        Band::linear(Tol::witness()).unwrap()
     }
 
     fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
@@ -278,7 +279,7 @@ mod tests {
 
     #[test]
     fn non_planar_loop_is_rejected() {
-        let lift = 1000.0 * Tolerance::get().eps; // ≥ K·ε at every CI row
+        let lift = 1000.0 * Tol::witness().get().eps; // ≥ K·ε at every CI row
         let pts = [
             pt(0.0, 0.0, 0.0),
             pt(1.0, 0.0, 0.0),
@@ -291,7 +292,7 @@ mod tests {
         // 3/4 of a single-vertex lift (the Newell normal tilts toward
         // the best fit), so the worst residual is lift/4 — put THAT in
         // the band: lift = 12ε ⇒ residual ≈ 3ε ∈ (ε, 10ε).
-        let lift = 12.0 * Tolerance::get().eps;
+        let lift = 12.0 * Tol::witness().get().eps;
         let pts = [
             pt(0.0, 0.0, 0.0),
             pt(1.0, 0.0, 0.0),

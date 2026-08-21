@@ -15,6 +15,7 @@ use topo::{
     Body, FaceSurface, LoopBoundary, MefSite, MevSite, SplitPart, SplitPlane, mass_properties,
     split, validate_closed,
 };
+use geom_core::Tol;
 
 fn body_of<T: Real>(part: &SplitPart<T>) -> &Body<T> {
     part.body().expect("side has material")
@@ -76,7 +77,7 @@ fn holed_box<T: geom_core::Decide>(w: f64, holes: &[f64]) -> Body<T> {
     }
     // Plating pass: outward Newell plane per face outer loop.
     let faces: Vec<_> = body.faces().map(|(k, _)| k).collect();
-    let band = geom_core::Band::linear().unwrap();
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
     for f in faces {
         let outer = body.get_face(f).unwrap().outer;
         let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {

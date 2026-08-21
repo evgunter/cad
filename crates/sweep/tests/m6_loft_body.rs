@@ -21,6 +21,7 @@ use common::quad;
 use geom_core::{Affine3, Vec3};
 use profile::RawLoop;
 use sweep::{Section, loft_body};
+use geom_core::Tol;
 
 /// The shape (iii) acceptance sections: squares at z = 0 and z = 2,
 /// a trapezoid at z = 1.
@@ -177,7 +178,7 @@ fn cut_loft_refuses_typed_naming_the_missing_boolean_layer() {
             Point2::new(0.0, 2.0),
         ]);
         let vp = Profile::new(SketchPlane::xy(), vec![lp])
-            .validate(geom_core::Tolerance::get())
+            .validate(geom_core::Tol::witness().get())
             .unwrap();
         sweep::extrude(&vp, sweep::Extrusion::Distance(3.0))
             .unwrap()

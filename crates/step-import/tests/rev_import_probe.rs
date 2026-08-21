@@ -3,6 +3,7 @@
 
 use profile::RawLoop;
 use step_import::{ImportOptions, StepImport, import_step};
+use geom_core::Tol;
 
 fn fixture(name: &str, _ext: &str) -> String {
     std::fs::read_to_string(format!(
@@ -138,7 +139,7 @@ fn conic_trimmed_flip_slips_both_gates() {
         ProfileVertex::new(Point2::new(1.0, 0.0), 1.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let cylinder = extrude(&profile, Extrusion::Distance(2.5)).unwrap().body;
     let phi: f64 = 0.3;

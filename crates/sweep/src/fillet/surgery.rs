@@ -115,6 +115,7 @@ use super::blend::{BlendArm, EdgeBlend, corner_ball};
 use super::build::{Filleted, face_cycle, outward_of};
 use super::naming::{FilletNaming, RimSide};
 use super::{CornerConfig, FilletError, FilletSite, RunOutPolicy, decide};
+use geom_core::Tol;
 
 // ------------------------------------------------------------------
 // The three refusal classes this module can produce (D2 addendum).
@@ -1874,7 +1875,7 @@ mod tests {
         assert_eq!(dst.solids().count(), 2, "the graft made a second solid");
         assert_eq!(dst.shells().count(), 2, "and a second shell");
         let edges: Vec<topo::EdgeKey> = dst.edges().map(|(k, _)| k).collect();
-        let tol = geom_core::Tolerance::get();
+        let tol = geom_core::Tol::witness().get();
         let band = geom_core::Band::new(tol.eps, tol.k * tol.eps).expect("a band");
         let err = fillet_edges(&dst, &edges, R, band)
             .expect_err("a two-solid body is outside the in-place surgery's door");

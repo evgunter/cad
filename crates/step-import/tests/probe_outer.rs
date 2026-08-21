@@ -11,6 +11,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use step_import::{ImportOptions, StepImport, import_step};
+use geom_core::Tol;
 
 #[test]
 fn two_outer_bounds_on_a_planar_face_with_a_real_hole() {
@@ -30,7 +31,7 @@ fn two_outer_bounds_on_a_planar_face_with_a_real_hole() {
     let m = base.replace("FACE_BOUND(", "FACE_OUTER_BOUND(");
     assert_ne!(m, base);
     let Ok(StepImport::Solid { body, .. }) = baseline else {
-        let eps = geom_core::Tolerance::get().eps;
+        let eps = geom_core::Tol::witness().get().eps;
         println!(
             "baseline refuses at ambient ε {eps:e}: {:?}",
             baseline.err()

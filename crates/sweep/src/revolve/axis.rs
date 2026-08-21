@@ -14,6 +14,7 @@ use profile::ValidatedProfile;
 
 use super::{RevolveAxis, RevolveError, SweptSeg};
 use crate::swept::{SweptKind, arc_apex, arc_span, decide};
+use geom_core::Tol;
 
 /// The classified axis in both coordinate systems: the sketch-plane
 /// line plus its placed 3-D frame. `a3`/`u3` are the **shared
@@ -555,7 +556,7 @@ mod tests {
             ProfileVertex::new(at(phi_b), 0.0),
         ]);
         Profile::new(SketchPlane::xy(), vec![lp])
-            .validate(Tolerance::get())
+            .validate(Tol::witness())
             .unwrap()
     }
 
@@ -564,7 +565,7 @@ mod tests {
             origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         };
-        AxisFrame::build(vp.plane().placement, &axis, Band::linear().unwrap()).unwrap()
+        AxisFrame::build(vp.plane().placement, &axis, Band::linear(Tol::witness()).unwrap()).unwrap()
     }
 
     /// NIT-1 regression: an arc from −90° to 130° contains the carrier

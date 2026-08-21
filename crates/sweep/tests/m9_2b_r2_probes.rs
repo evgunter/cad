@@ -14,6 +14,7 @@ use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, extrude};
 use topo::Body;
+use geom_core::Tol;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -32,7 +33,7 @@ fn holed_plate() -> Body<f64> {
         ProfileVertex::new(p2(1.5, 2.0), 1.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![outer, hole])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
 }
@@ -54,7 +55,7 @@ fn through_boss() -> Body<f64> {
     ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -0.2)));
     let profile = Profile::new(plane, vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     extrude(&profile, Extrusion::Distance(1.6)).unwrap().body
 }

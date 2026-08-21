@@ -40,6 +40,7 @@ use geom_core::{Affine3, Point2, Vec3};
 use profile::RawLoop;
 use profile::{ProfileLoop, ProfileVertex};
 use sweep::{Section, loft_body};
+use geom_core::Tol;
 
 fn arc_section(s: f64) -> Section {
     let v = |x: f64, y: f64, bulge: f64| ProfileVertex::new(Point2::new(x, y), bulge);
@@ -250,7 +251,7 @@ fn probe_foreign_segmentation_certifies_through_the_same_door() {
         v_min: 0.0,
         v_max: 1.0,
     };
-    let band = geom_core::Band::linear().unwrap();
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let cache = PcurveCache::certify(pcurve, 0.0, theta, &carrier, &surface, window, band)
         .expect("a FOREIGN 4-sub-arc chart certifies through the same door (carrier-keyed)");
     println!(

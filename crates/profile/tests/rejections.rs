@@ -7,6 +7,7 @@ mod common;
 use common::{
     arc_kisses_line, bowtie, chain, circle_h, near_tangent_hole, profile, rect, tangent_hole, tol,
 };
+use geom_core::Tol;
 use geom_core::MarginDiag;
 use geom_core::Point2;
 use profile::{ContactKind, EscalationSite, Open, ProfileError, SegmentRef, SketchPlane, Start};
@@ -55,7 +56,7 @@ fn repeated_vertex_is_a_degenerate_segment() {
 fn near_coincident_vertices_escalate() {
     // Vertices 5ε apart: inside the sliver band — a typed escalation
     // naming the distance predicate, not a guess either way.
-    let eps = tol().eps;
+    let eps = tol().eps();
     let p = profile(vec![chain(&[
         (0.0, 0.0, 0.0),
         (1.0, 0.0, 0.0),
@@ -74,7 +75,7 @@ fn near_coincident_vertices_escalate() {
 #[test]
 fn sliver_arc_bulge_escalates() {
     // A unit chord with sagitta 5ε: neither line nor sound arc.
-    let eps = tol().eps;
+    let eps = tol().eps();
     let p = profile(vec![chain(&[
         (0.0, 0.0, 10.0 * eps), // sagitta = L·b/2 = 5ε
         (1.0, 0.0, 0.0),
@@ -109,10 +110,10 @@ fn sliver_arc_bulge_escalates() {
 fn the_bowtie_authors_cleanly_and_refuses_at_validation() {
     let authored = Open
         .at(Point2::new(0.0, 0.0))
-        .line_to(Point2::new(2.0, 2.0))
-        .and_then(|t| t.line_to(Point2::new(2.0, 0.0)))
-        .and_then(|t| t.line_to(Point2::new(0.0, 2.0)))
-        .and_then(|t| t.line_to(Start))
+        .line_to(Point2::new(2.0, 2.0), Tol::witness())
+        .and_then(|t| t.line_to(Point2::new(2.0, 0.0), Tol::witness()))
+        .and_then(|t| t.line_to(Point2::new(0.0, 2.0), Tol::witness()))
+        .and_then(|t| t.line_to(Start, Tol::witness()))
         .expect("every corner is sharp: the lattice's LOCAL checks pass a bowtie");
 
     let p = profile(vec![authored.into()]);
@@ -295,14 +296,14 @@ fn arc_kissing_a_line_is_a_tangential_contact() {
 
 #[test]
 fn near_tangent_hole_escalates_on_the_internal_clearance() {
-    match err(&near_tangent_hole(tol().eps)) {
+    match err(&near_tangent_hole(tol().eps())) {
         ProfileError::Escalated { site, source } => {
             assert_eq!(site, EscalationSite::SegmentPair(sref(0, 0), sref(1, 0)));
             assert_eq!(source.predicate, Some("carrier_circles_internal"));
             match source.margin {
                 MarginDiag::Value(m) => {
                     // The clearance is −5ε (up to the cancellation ulp).
-                    let eps = tol().eps;
+                    let eps = tol().eps();
                     assert!(
                         (m + 5.0 * eps).abs() < 0.5 * eps,
                         "margin {m:e} should be ≈ −5ε"
@@ -321,7 +322,7 @@ fn near_full_arc_is_a_typed_rejection() {
     // ~ delta^2/4 lands at 0.5 eps: within tolerance of a full circle
     // (M2 PR 2 review SHOULD-2 fix). r = 1 keeps rounding noise (~1e-15)
     // far below every CI row's eps.
-    let eps = tol().eps;
+    let eps = tol().eps();
     let delta = (2.0 * eps).sqrt();
     let bulge = 1.0 / (delta / 2.0).tan();
     let (s, c) = delta.sin_cos();
@@ -333,7 +334,7 @@ fn near_full_arc_is_a_typed_rejection() {
 fn almost_near_full_arc_escalates_on_diameter_clearance() {
     // Same construction with clearance ~ 5 eps: inside the ambiguity
     // band, so the gate escalates naming its predicate.
-    let eps = tol().eps;
+    let eps = tol().eps();
     let delta = (20.0 * eps).sqrt();
     let bulge = 1.0 / (delta / 2.0).tan();
     let (s, c) = delta.sin_cos();
@@ -436,7 +437,7 @@ fn error_display_is_actionable() {
         "{msg}"
     );
 
-    let e = err(&near_tangent_hole(tol().eps));
+    let e = err(&near_tangent_hole(tol().eps()));
     let msg = e.to_string();
     assert!(msg.contains("carrier_circles_internal"), "{msg}");
     assert!(msg.contains("ambiguity band"), "{msg}");
@@ -466,7 +467,7 @@ fn cw_and_ccw_inputs_reject_identically() {
 fn concentric_circles_of_close_radii_escalate_as_sliver_annulus() {
     // Radii 5ε apart, concentric: the loci sit inside each other's
     // sliver band everywhere — the identity margin escalates.
-    let eps = tol().eps;
+    let eps = tol().eps();
     let p = profile(vec![
         circle_h(0.0, 0.0, 1.0),
         circle_h(0.0, 0.0, 1.0 + 5.0 * eps),

@@ -31,6 +31,7 @@ use editor_core::{
 use geom_brep::SurfaceKind;
 
 use fixture::{insert, len};
+use geom_core::Tol;
 
 fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
     evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default())
@@ -300,7 +301,7 @@ fn datum_distance_reads_face_frames() {
 fn an_in_band_margin_refuses_typed() {
     let (doc, cube, datum) = box_doc();
     let ev = eval(&doc);
-    let tol = geom_core::Tolerance::get();
+    let tol = geom_core::Tol::witness().get();
     // Inside (eps, k*eps): definite neither way.
     let sliver = tol.eps * (1.0 + tol.k) / 2.0;
     let refusal = select_where(

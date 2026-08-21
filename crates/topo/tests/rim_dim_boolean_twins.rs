@@ -70,6 +70,7 @@ use common::prism_z;
 use geom_core::Sign;
 use geom_core::k_stats::{self, Probe, SampleOutcome};
 use topo::{BooleanResult, subtract};
+use geom_core::Tol;
 
 /// Audited, documented non-length comparands still awaiting their own
 /// units (docs/predicate-dimension-audit.md FLAG rows). Everything
@@ -160,7 +161,7 @@ fn margins_at(scale: f64) -> BTreeMap<&'static str, Vec<(SampleOutcome, f64)>> {
 /// sample by sample.
 #[test]
 fn boolean_margin_streams_scale_linearly_with_the_model() {
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     // Since the F3+F4 fixes there is no skip arm: EVERY ε row in the
     // hosted matrix runs the full elementwise comparison below.
     println!("ε {eps:e}: both twins computed — running the full linearity pin");

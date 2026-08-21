@@ -31,6 +31,7 @@ use profile::RawLoop;
 use step_import::{
     ImportOptions, NormalizationKind, PromotedKind, StepImport, StepImportError, import_step,
 };
+use geom_core::Tol;
 
 fn promotions(
     normalizations: &[step_import::StructureNormalization],
@@ -269,7 +270,7 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
 
     // ---- The half the Intersection arm opened: a foreign
     // restatement, first-class and charted. ----
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     let foreign = text.replace(
         "#90 = CARTESIAN_POINT('', (0.0, -1.0, 1.0));",
         "#90 = CARTESIAN_POINT('', (0.0, -1.0, 1.0000000000000002));",
@@ -382,7 +383,7 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
     let native = straight_arc_prism();
     let text = step_export::step_string(&native, &step_export::StepOptions::default())
         .expect("the arc prism exports");
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
 
     match import_step(&text, &ImportOptions::default()) {
         // **First-class, end to end.** The three exactly-planar walls

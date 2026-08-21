@@ -35,6 +35,7 @@ use editor_core::{
     product_recorded, split,
 };
 use fixture::{desc, insert, len, step};
+use geom_core::Tol;
 
 // ---- The stub store (the ASM-2A/R2a shape, verbatim in spirit) ----
 
@@ -549,14 +550,14 @@ fn row3_b_the_declared_touching_pair_is_not_an_undeclared_contact() {
 /// literal: the hosted matrix runs ε = 1e-12 and 1e-6 as well as the
 /// default, and a hard-coded 3e-9 is definitely-separated in one lane
 /// and definitely-zero in another — the row would pin an ε, not an
-/// invariant. `Band::linear()` is the same band the at-rest door
+/// invariant. `Band::linear(Tol::witness())` is the same band the at-rest door
 /// builds, and the geometric mean of its two thresholds is strictly
 /// between them in every lane, which is exactly what "in band" means.
 /// (Row adopted from the review's probe; the band-relative derivation
 /// is the repo's own precedent for literal-ε rows.)
 #[test]
 fn row4_b_an_in_band_authored_gap_escalates_typed_and_predicate_named() {
-    let band = geom_core::predicate::Band::linear().expect("the committed band builds");
+    let band = geom_core::predicate::Band::linear(Tol::witness()).expect("the committed band builds");
     let gap = (band.zero() * band.escalate()).sqrt();
     assert!(
         gap > band.zero() && gap < band.escalate(),

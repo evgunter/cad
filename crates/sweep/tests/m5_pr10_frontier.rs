@@ -22,6 +22,7 @@ use profile::{Profile, ProfileLoop, SketchPlane};
 use sweep::skin::{lift_surface, loft_geometry};
 use sweep::{Extrusion, extrude};
 use topo::{FaceSurface, validate_geometric};
+use geom_core::Tol;
 
 mod common;
 
@@ -70,7 +71,7 @@ fn tier_three_certifies_the_kind_and_refuses_the_geometry() {
             Point2::new(0.0, 1.0),
         ])],
     )
-    .validate(Tolerance::get())
+    .validate(Tol::witness())
     .expect("the square validates");
     let built = extrude(&profile, Extrusion::Distance(2.0)).expect("extrudes");
     let mut body = built.body;

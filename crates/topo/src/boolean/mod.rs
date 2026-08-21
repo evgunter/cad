@@ -81,9 +81,7 @@ pub mod tables;
 pub(crate) mod vtxfac;
 mod zip;
 
-use geom_core::{
-    Band, BandError, Bounds, COINCIDENCE_RECOURSE, Decide, Indeterminate, MarginDiag, Real,
-};
+use geom_core::{Band, BandError, Bounds, COINCIDENCE_RECOURSE, Decide, Indeterminate, MarginDiag, Real, Tol};
 
 use crate::body::Body;
 use crate::chord_join::SplitJoinError;
@@ -1276,8 +1274,9 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds>(
     strategy: SweepStrategy,
     plant: Option<PlantedDegradation>,
     pad_override: Option<f64>,
+    tol: Tol,
 ) -> Result<(SweepTrace, SweepTrace), BooleanError> {
-    let band = Band::linear()?;
+    let band = Band::linear(tol)?;
     reduce::gate_operand_kinds(a_operand, Operand::A)?;
     reduce::gate_operand_kinds(b_operand, Operand::B)?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
@@ -1331,8 +1330,9 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
     b_operand: &Body<T>,
     decls: &BooleanDeclarations,
     strategy: SweepStrategy,
+    tol: Tol,
 ) -> Result<BooleanReduction<T>, BooleanError> {
-    let band = Band::linear()?;
+    let band = Band::linear(tol)?;
     validate_declarations(a_operand, b_operand, decls)?;
     verify_declared_contacts(a_operand, b_operand, decls, band)?;
     let declared = DeclaredPairs::build(decls);

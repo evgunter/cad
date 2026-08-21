@@ -20,6 +20,7 @@ use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, extrude};
 use topo::Body;
 use topo::splitting::{SplitPlane, split};
+use geom_core::Tol;
 
 fn disc_cylinder() -> Body<f64> {
     let lp = ProfileLoop::new(vec![
@@ -27,7 +28,7 @@ fn disc_cylinder() -> Body<f64> {
         ProfileVertex::new(Point2::new(0.5, 0.0), 1.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
 }
@@ -113,7 +114,7 @@ fn distinct_key_curved_neighbors_stay_unmerged() {
         ProfileVertex::new(Point2::new(0.5, 0.0), 0.3),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let mut body = extrude(&profile, Extrusion::Distance(1.0)).unwrap().body;
     let out = body.merge_coplanar_faces().expect("no-op merge");

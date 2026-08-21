@@ -20,6 +20,7 @@ use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations, BooleanError};
+use geom_core::Tol;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -32,7 +33,7 @@ fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
         ProfileVertex::new(p2(0.0, r), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let axis = RevolveAxis {
         origin: p2(0.0, 0.0),
@@ -92,7 +93,7 @@ fn overlapping_balls_keep_the_pierce_frontier() {
 /// band, so neither "miss" nor "meet" may be asserted.
 #[test]
 fn in_band_clearance_escalates_through_the_funnel() {
-    let tol = Tolerance::get();
+    let tol = Tol::witness().get();
     let delta = 5.0 * tol.eps; // strictly inside [eps, K*eps)
     let a = ball_at(1.0, Vec3::new(2.0, 2.0, 0.0));
     let b = ball_at(1.0, Vec3::new(4.0 + delta, 2.0, 0.0));
