@@ -678,17 +678,18 @@ fn du_of_rims<T: Decide>(rims: &[Rim<T>], arms: RimArms<T>, band: Band) -> Resul
 /// this is the ONLY route to `s_f_from_rim` for these three kinds, and
 /// both the flux lanes and [`boundary_material_sign`] take it.
 ///
-/// The door that did not was [`boundary_material_sign`]. On a
-/// plus-shaped domain it read the side off whichever rim the owning
-/// body's loop flattening happened to put first, and answered a
-/// DEFINITE ±1 that is a property of the flattening rather than of the
-/// face — two rotations of one edge cycle answering opposite signs.
-/// Its callers must treat an error as exempt (the check-7 posture), so
-/// what the premise converts there is a wrong answer into an
-/// exemption; tier 3's curved check 6 turned that wrong answer into a
-/// `CurvedSenseInverted`, which — check 7 being gated on
-/// `errors.is_empty()` — SUPPRESSED the honest `NotIsoRectangle` the
-/// flux lane would have raised on the same face.
+/// **Why a caller cannot be left to run the premise itself.** Without
+/// it the derivation reads the side off whichever rim the owning body's
+/// loop flattening happens to put first, and answers a DEFINITE ±1
+/// that is a property of the flattening rather than of the face — two
+/// rotations of one edge cycle answer opposite signs.
+/// [`boundary_material_sign`]'s callers must treat an error as exempt
+/// (the check-7 posture), so pairing the premise with the side turns
+/// that into the exemption they already handle. Unpaired it does the
+/// opposite: tier 3's curved check 6 raises a `CurvedSenseInverted`
+/// from the wrong ±1 and, check 7 being gated on `errors.is_empty()`,
+/// SUPPRESSES the honest `NotIsoRectangle` the flux lane raises on the
+/// same face.
 ///
 /// `as_level` lifts the face's extreme levels into the rims' own
 /// representation: `RimLevel::Length` for the cylinder and cone,
