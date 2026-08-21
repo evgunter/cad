@@ -64,8 +64,11 @@ pub(crate) mod sealed {
 /// Both ends are [`Span`]s rather than bare indices: span validity
 /// originates *here*, in the locator, and every locator route is
 /// [`KnotVector::span_at`], which is total. Carrying the proof out
-/// means no consumer re-derives it — an evaluator that took a `usize`
-/// would have to re-check (or assert) what the locator already knew.
+/// means no consumer re-derives *nonemptiness* or the window base — an
+/// evaluator taking a `usize` would have to. What a consumer does
+/// still check is that the span belongs to the vector it is evaluating
+/// against ([`KnotVector::admits`]), which a `SpanSet` cannot say
+/// because it carries no borrow of the `knots` it was located in.
 /// Iterate the interior with `first.index() + 1 ..= last.index()` and
 /// [`KnotVector::span`], which refuses the empty spans in between.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

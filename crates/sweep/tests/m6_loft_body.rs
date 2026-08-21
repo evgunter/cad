@@ -126,26 +126,32 @@ fn shape_iii_volume_matches_the_derived_closed_form() {
         m.volume_pad
     );
     // The caps' closed forms contribute pad-free; the walls' area is
-    // an honest enclosure — positive, and NARROW. The ceiling is what
-    // reports a widening: containment and positivity are both monotone
-    // in the degrading direction, so a certified width with only those
-    // two rows under it has nothing that goes red when it grows.
+    // an honest enclosure — positive, and NARROW. Positivity and
+    // containment are both monotone in the degrading direction, so a
+    // ceiling is the only thing that reports a widening.
     //
-    // This lane's area width is RESOLUTION-driven, not tolerance-driven
-    // — the patch area rule is O(h) at a fixed cell count — so the
-    // measured 0.199 m² (0.79% of the 25.31 m² surface) is identical at
-    // every ε CI runs, and it doubles exactly when the cell count
-    // halves. The ceiling is 1.5x the measured width, which leaves it
-    // below the 0.397 m² a single halving of that count produces.
+    // This lane's pad is RESOLUTION-driven, not tolerance-driven — the
+    // patch area rule is O(h) at a fixed cell count — so the measured
+    // half-width of 0.199 m² (a bracket 0.397 m² wide, on a 25.31 m²
+    // surface) is identical at every ε CI runs, and it doubles exactly
+    // when the cell count halves. The ceiling is 1.5x the measured
+    // half-width, which leaves it below the 0.397 m² one halving
+    // produces.
     //
     // The contrast is the point: this same body's certified VOLUME
-    // bracket is 1.1e-13 m³ wide. The flux lane refines to machine
+    // half-width is 1.1e-13 m³. The flux lane refines to machine
     // precision; the area lane stays at whatever its fixed resolution
-    // bought.
+    // bought, and nothing in the kernel meters it.
+    //
+    // Spelled as a bare absolute because this loft has no closed-form
+    // area to scale to (its walls are degree-2 skins); the cut-cylinder
+    // rows in `m5_pr11_quad_props.rs` scale to theirs. The tree spells
+    // this kind of ceiling four ways and unifying them is not this
+    // row's job.
     assert!(m.surface_area > 0.0);
     assert!(
         m.area_pad < 0.3,
-        "the walls' area enclosure is {} m² wide (surface area {} m²)",
+        "the walls' area half-width is {} m² (surface area {} m²)",
         m.area_pad,
         m.surface_area
     );
@@ -214,5 +220,23 @@ mod certified {
             geom_core::Bounds::hi(m.volume) + geom_core::Bounds::hi(m.volume_pad),
         );
         assert!(lo <= 9.0 && 9.0 <= hi, "9 ∈ [{lo}, {hi}]");
+        // The same two ceilings the f64 row carries, against the same
+        // measured half-widths — this row folds the pads into the
+        // bracket, so without them any widening of either makes it
+        // easier, and it is the only row that reads this body at
+        // `Interval`. Both pads come out bit-identical to the f64
+        // lane's, so the constants are shared deliberately.
+        let (vpad, apad) = (
+            geom_core::Bounds::hi(m.volume_pad),
+            geom_core::Bounds::hi(m.area_pad),
+        );
+        assert!(
+            vpad < 1e-6,
+            "the exact per-span lane is tight, pad = {vpad}"
+        );
+        assert!(
+            apad < 0.3,
+            "the walls' area half-width is {apad} m² at Interval"
+        );
     }
 }
