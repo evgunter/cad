@@ -393,7 +393,7 @@ seam.
 | **H-a** | H1 | **S86** | `geom-core/src/{ring_interval,real,k_stats}.rs`, `geom-brep/src/ssi/enclose.rs`, +3 test files | **adversarial** + style | **#880 open, CI green; review dispatched** 2026-08-21 |
 | **H-b** | H2 (+H8) | **S99**–**S103**, **S116(b)** | `geom/src/{net,scalar_lift,surfaces,azimuth}.rs`, `curves/nurbs.rs`, `surfaces/nurbs.rs`, `geom-brep/src/nurbs_iso.rs` | **adversarial** + style | — |
 | **H-c** | H3 + H4 | **S85**, **S89** | `geom-core/src/real.rs`, `ring_interval.rs`, `geom-brep/src/ssi/enclose.rs`, `topo/src/props.rs`, `geom-core/tests/decoration_seam.rs` | style | — |
-| **H-d** | H6 | **S88** (`geom` half only) | `geom/src/projection.rs`, `curves/projection.rs`, `surfaces/projection.rs`, `curves/boxes.rs`, `bvh/src/aabb.rs` | style | **dispatched** 2026-08-21, lane `smellh-d`, branch `smellh/h-d` |
+| **H-d** | H6 | **S88** (`geom` half), **S210**, **S211** minted | `geom/src/{projection,curves/*,surfaces/*}.rs`, `geom-core/src/dual.rs`, `geom/tests/dual_foot_tangent.rs` | style | **LANDED #875** 2026-08-21, after one fix pass |
 | **H-e** | H7 | **D109(a)** | `geom-core/src/linalg/{vec,mat}.rs`, `scripts/gates/`, whatever goldens move | **adversarial** + style | **dispatched** 2026-08-21, lane `smellh-e`, branch `smellh/h-e` |
 | **H-f** | H5 | **C7** (+ S44 residue, S55), **S33** | `geom-core/src/real.rs`, `ring_interval.rs`, `geom/src/{curves,surfaces}.rs`, +11 | style; **`Dual` sub-lane adversarial** | — |
 | **H-g** | **H-R4** (new) | **S90**'s implementation, **#874**'s structural half | `geom/src/{projection,curves/projection,surfaces/projection}.rs`, `topo/src/chart_region.rs`, `sweep/src/fillet/{build,surgery,battery}.rs`, `geom-core/src/real.rs`, `scripts/gates/bounds-allowlist.sh` | **adversarial** + style | **dispatched** 2026-08-21, lane `smellh-g`, branch `smellh/h-g` |
@@ -538,6 +538,37 @@ unchecked causal story arrives carrying the dispatcher's authority. The
 standing practice for this track: **an orchestrator hypothesis ships with
 an explicit instruction to falsify it, or it does not ship.** A third one
 should also be cheaper to test than to believe.
+
+### H-R9. A lane contested a review finding with a receipt and was right
+
+**#875's reviewer, finding 15, claimed `nurbs_curve_aabb`'s census row was
+inaccurate** — that it *"funnels through `Brk::{add, sub, mul,
+sqrt_nonneg}`, which is `f64` interval arithmetic after the bracket
+read"*, so the row's *"bracket reads only — no arithmetic"* was wrong.
+
+**H-d contested it and the tree is with the lane.** The whole body is one
+line:
+
+```rust
+pub fn nurbs_curve_aabb<T: Bounds>(curve: &NurbsCurve3<T>) -> Aabb {
+    Aabb::from_points(curve.control().iter().copied()).unwrap_or_else(Aabb::poison)
+}
+```
+
+`grep -c Brk` over the function is **0**; `Brk` belongs to
+`circle_arc_aabb`/`ellipse_arc_aabb`. Verified independently at
+`curves/boxes.rs:383` before merging. The lane named the path in both the
+module doc and the census row so it is not re-raised.
+
+**Recorded because the direction is the rare one.** This track has spent
+the day on reviewers correcting lanes and on a reviewer correcting the
+orchestrator twice. **A lane refusing a finding, with a one-line receipt,
+is the same mechanism running the other way** — and the reviewer brief
+invites exactly this by telling reviewers they need not be sure. A style
+finding is *"recorded, not gating"*, which only works if a lane may decline
+one on evidence. **The cost of getting this wrong is asymmetric**: a lane
+that accepts every finding to be agreeable edits code on a false premise,
+and the false premise is what survives in the record.
 
 ## Incidents
 
