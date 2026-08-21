@@ -246,9 +246,12 @@ pub(super) fn face_source<T: Decide>(
 /// orientation-blind.
 ///
 /// "One door" is true of those consumers, not of the workspace: other
-/// faces' outward normals are still hand-multiplied, and
-/// [`crate::face_normal`] holds the inventory of them and the guard
-/// that keeps it current (smell-scan D6).
+/// faces' outward normals are still hand-multiplied.
+/// [`crate::face_normal`] holds the inventory of the ones **in this
+/// crate**, computed and pinned by a guard there; the hand-multiplies
+/// in `editor-core`, `mesh` and `sweep` are outside any `topo` walk
+/// and are D6's, listed at S67 and nowhere in the tree (smell-scan
+/// D6).
 ///
 /// Consumers that only compare the plane RESIDUAL `(p − o)·n̂` against
 /// Zero, or that hand the normal to a ray-parity test, are unaffected

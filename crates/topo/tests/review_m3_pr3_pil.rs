@@ -14,6 +14,14 @@ fn n_z() -> Vec3<f64> {
     Vec3::new(0.0, 0.0, 1.0)
 }
 
+/// The margin an escalation refused on, for the sign-blindness row.
+fn escalated_margin(r: &Result<LoopContainment, PointInLoopError>) -> geom_core::MarginDiag {
+    match r {
+        Err(PointInLoopError::Escalated { diag, .. }) => diag.margin,
+        other => panic!("expected an escalation, got {other:?}"),
+    }
+}
+
 /// Concave (L-shaped) loop: points in the notch are Out even though
 /// they sit inside the convex hull; points in both arms are In.
 #[test]
@@ -160,19 +168,43 @@ fn boundary_pre_pass_edges() {
 /// moved a REFUSAL would be just as much a defect as one that moved a
 /// verdict.
 ///
+/// **A refusal is compared by variant, predicate and band, not by its
+/// `Debug` rendering**, and the difference is real: an `Indeterminate`
+/// carries the SIGNED margin it refused on, so two mirrored escalations
+/// legitimately render as `Value(−m)` and `Value(m)`. That is payload
+/// the type's own docs forbid branching on; comparing the rendering
+/// would red this row on a probe that merely escalated.
+///
 /// **What this row can and cannot catch.** It fires on a branch inside
 /// the walk that reads the normal's sign, which is the drift it
-/// guards. It does NOT fire on an arithmetic error in the parity walk
-/// — an unsigned crossing lever, or a projection that loses the
-/// invariance — because a closed loop has an even number of straddles
-/// and the count's PARITY survives both. That is why the invariance
-/// argument at `chord_join::face_plane_normal` is stated as algebra
-/// rather than left to this row, and why the walk's own arithmetic is
-/// pinned by the rows above.
+/// guards; and the tilted block below pins ABSOLUTE verdicts, so gross
+/// walk arithmetic reds it too. What no differential row can catch is
+/// an error that moves both signs equally — the invariance argument at
+/// `chord_join::face_plane_normal` is therefore stated as algebra
+/// rather than left to this row. The cost of that limit is bounded:
+/// the four rows above pin the walk's arithmetic absolutely, so a
+/// symmetric error has to survive them first.
 #[test]
 fn the_verdict_is_blind_to_the_normals_sign() {
     let band = geom_core::Band::linear().unwrap();
     let flipped = Vec3::new(0.0, 0.0, -1.0);
+    // A refusal's sign-INVARIANT content: the variant, and for an
+    // escalation the predicate, the band and the margin's KIND. The
+    // margin's value is signed and is meant to differ (fn docs).
+    fn shape(r: &Result<LoopContainment, PointInLoopError>) -> String {
+        match r {
+            Ok(v) => format!("{v:?}"),
+            Err(PointInLoopError::Escalated { r#loop, diag }) => {
+                let kind = match diag.margin {
+                    geom_core::MarginDiag::Value(_) => "Value",
+                    geom_core::MarginDiag::Enclosure { .. } => "Enclosure",
+                    geom_core::MarginDiag::Invalid => "Invalid",
+                };
+                format!("Escalated{loop:?}/{:?}/{:?}/{kind}", diag.predicate, diag.band)
+            }
+            Err(e) => format!("{e:?}"),
+        }
+    }
     // Returns how many of `probes` DECIDED, so the row cannot pass by
     // comparing two refusals.
     let agree = |profile: &[(f64, f64)], probes: &[(f64, f64)]| -> usize {
@@ -185,8 +217,8 @@ fn the_verdict_is_blind_to_the_normals_sign() {
             let down = point_in_loop(&fx.body, top.outer, flipped, q, band);
             definite += usize::from(up.is_ok());
             assert_eq!(
-                format!("{up:?}"),
-                format!("{down:?}"),
+                shape(&up),
+                shape(&down),
                 "the sign of the plane normal moved the verdict at {q:?}"
             );
         }
@@ -217,6 +249,38 @@ fn the_verdict_is_blind_to_the_normals_sign() {
         definite, 10,
         "every probe above must decide, or the row compares two refusals and pins nothing"
     );
+
+    // **The escalation arm, which is why `shape` exists.** A probe
+    // whose ordinate against the first schedule member lands strictly
+    // inside the ambiguity band — the geometric mean of the band's two
+    // thresholds, so the row survives every eps in the matrix — and
+    // sits ~1 unit from every edge, so the boundary pre-pass does not
+    // absorb it first. Both signs must refuse the SAME way; their
+    // margins are meant to be opposite in sign, and comparing the
+    // whole `Debug` here would red on that alone.
+    let delta = (band.zero() * band.escalate()).sqrt();
+    assert!(delta > band.zero() && delta < band.escalate());
+    let fx = prism::<f64>(
+        &[(0.0, 0.0), (4.0, 0.0), (3.0, 1.0), (4.0, 2.0), (0.0, 2.0)],
+        1.0,
+    );
+    let top = fx.body.get_face(fx.top_face).unwrap();
+    let q = Point3::new(1.0, 1.0 + delta, 1.0);
+    let up = point_in_loop(&fx.body, top.outer, n_z(), q, band);
+    let down = point_in_loop(&fx.body, top.outer, flipped, q, band);
+    let geom_core::MarginDiag::Value(m_up) = escalated_margin(&up) else {
+        panic!("expected an f64 escalation, got {up:?}");
+    };
+    let geom_core::MarginDiag::Value(m_down) = escalated_margin(&down) else {
+        panic!("expected an f64 escalation, got {down:?}");
+    };
+    assert_eq!(m_up, -m_down, "the two margins must be exact negations");
+    assert_ne!(
+        format!("{up:?}"),
+        format!("{down:?}"),
+        "if the renderings ever agree here, this row has stopped exercising `shape`"
+    );
+    assert_eq!(shape(&up), shape(&down));
 
     // A TILTED carrier, because every probe above lies on a `+z` face
     // where the deciding schedule members have `n̂·r = 0` and the
@@ -257,11 +321,11 @@ fn the_verdict_is_blind_to_the_normals_sign() {
     let fx = prism::<f64>(&all_rays_graze_profile(), 1.0);
     let top = fx.body.get_face(fx.top_face).unwrap();
     let centre = Point3::new(0.0, 0.0, 1.0);
-    let up = point_in_loop(&fx.body, top.outer, n_z(), centre, band).unwrap_err();
-    let down = point_in_loop(&fx.body, top.outer, flipped, centre, band).unwrap_err();
+    let up = point_in_loop(&fx.body, top.outer, n_z(), centre, band);
+    let down = point_in_loop(&fx.body, top.outer, flipped, centre, band);
     assert!(
-        matches!(up, PointInLoopError::RayExhausted { .. }),
+        matches!(up, Err(PointInLoopError::RayExhausted { .. })),
         "got {up:?}"
     );
-    assert_eq!(format!("{up:?}"), format!("{down:?}"));
+    assert_eq!(shape(&up), shape(&down));
 }

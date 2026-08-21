@@ -2032,10 +2032,19 @@ impl ChordJoiner {
 /// unchanged, the vertex-on-the-ray `Zero` graze is unchanged, and the
 /// crossing's advance `(xᵢyⱼ − xⱼyᵢ)/(yⱼ − yᵢ)` has numerator and
 /// denominator both negated. Negation is exact and both classifiers
-/// are symmetric about zero, so the verdict and the graze and
-/// escalation arms with it are bit-identical either way: ring re-homing
-/// cannot move a ring on the sense bit. `tests/review_m3_pr3_pil.rs`
-/// pins that.
+/// are symmetric about zero, so **the verdict is bit-identical either
+/// way** and a refusal is identical in variant, predicate and band:
+/// ring re-homing cannot move a ring on the sense bit.
+/// `tests/review_m3_pr3_pil.rs` pins that.
+///
+/// One thing is NOT identical, and saying so is what keeps the
+/// sentence above true: an [`Indeterminate`] carries the **signed**
+/// margin it refused on, so the two signs escalate with
+/// `MarginDiag::Value(−m)` against `Value(m)`. That is diagnostic
+/// payload the type's own docs forbid branching on, so no verdict
+/// depends on it — but a differential test comparing whole `Debug`
+/// renderings would see it, which is why the pin compares the variant
+/// and the predicate rather than the rendering.
 ///
 /// The contrast with [`crate::boolean::solid_contain`]'s `face_plane`,
 /// which multiplies although its own consumer is equally sign-blind,

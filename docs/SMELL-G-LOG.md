@@ -83,7 +83,7 @@ Three destinations, and a lane picks by the finding's kind, not by its size:
 orchestrators never read a document that is behind the tree. Each unit
 makes two edits to `docs/SMELL-SCAN-2026-08.md` in its own PR:
 
-1. the finding's heading becomes `## SNN. FIXED by #834 — …`, and its
+1. the finding's heading becomes `## SNN. FIXED by #NNN — …`, and its
    **original problem statement is replaced** by the record of what was
    done. Version control keeps the original; leaving it in place makes a
    closed finding read as open. A roll-up **member** gets the same
@@ -183,7 +183,7 @@ and say what they were.
 
 **Recording your own completion.** Your PR makes two edits to
 `docs/SMELL-SCAN-2026-08.md`: the finding's heading becomes
-`## SNN. FIXED by #834 — …` with its **original problem statement replaced** by
+`## SNN. FIXED by #NNN — …` with its **original problem statement replaced** by
 the record of what was done (version control keeps the original), and your row
 **leaves** §D's Track G table. A roll-up member gets the same treatment at its
 own bullet. Check the surrounding prose as well — Track G's preamble names rows

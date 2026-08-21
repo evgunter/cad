@@ -33,9 +33,10 @@
 //! normal by [`Face::sense_sign`](crate::entity::Face::sense_sign),
 //! and this module is where they belong when smell-scan D6 is
 //! executed. **Where they are is computed, not recited**: the guard
-//! test below walks `topo/src`, inventories every code read of that
-//! method with its disposition, and fails on a read its table does
-//! not carry.
+//! test below walks `topo/src`, counts every occurrence of that method
+//! in code, and fails on one its dispositioned table does not carry.
+//! The count is of the whole tree this crate can see; the rest of the
+//! workspace is D6's scope and is not enumerated here.
 //!
 //! **A better home exists and is not reachable from this lane.** The
 //! function is a `Body` query, exactly like `Body::mate` or
@@ -134,10 +135,12 @@ mod tests {
 
     /// **The hand-multiply inventory** — smell-scan D6's `grep
     /// sense_sign` written as a gate rather than as a sentence. Every
-    /// CODE read of [`Face::sense_sign`](crate::entity::Face::sense_sign)
-    /// under `topo/src` is counted per file and pinned below with its
-    /// disposition, so a new hand-multiply cannot land without either
-    /// going through the door or being argued for in the table:
+    /// **occurrence** of [`Face::sense_sign`](crate::entity::Face::sense_sign)
+    /// in the CODE of `topo/src` (comments and literal bodies removed
+    /// by [`crate::fixtures::code_only`]) is counted per file and
+    /// pinned below with its disposition, so a new hand-multiply
+    /// cannot land without either going through the door or being
+    /// argued for in the table:
     ///
     /// - `entity.rs` — the definition itself.
     /// - `boolean/solid_contain.rs` — `face_plane` and `face_geo`, two
@@ -162,13 +165,32 @@ mod tests {
     ///   is why the walk below reads the method name out of `concat!`
     ///   — spelled whole, this file would be its own first hit.
     ///
+    /// **The pin is per FILE, and that is wider than the invariant.**
+    /// Moving a read from one file to another changes nothing about
+    /// the sense flip and still reds this row; so does adding a second
+    /// occurrence to a line that already has one. The narrower pin — a
+    /// total plus the dispositions — would red for fewer wrong
+    /// reasons, and the per-file shape is chosen because *which* file
+    /// carries a read is the only thing that makes the disposition
+    /// list above checkable. The cost is a tripwire over all of
+    /// `topo/src` in a tree several lanes are editing at once.
+    ///
     /// **What this cannot match**, and it is a work order rather than
-    /// a discharge: a flip written through a helper that already
-    /// returns an outward normal; a `Face::sense` bool read and
-    /// branched on without the `±1`; and every crate but this one —
-    /// `sweep/src/fillet/`, `editor-core/src/names/`, `geom-brep` and
-    /// `mesh` each read the sense in their own trees, which is D6's
-    /// full scope and not this walk's.
+    /// a discharge:
+    ///
+    /// 1. A flip written through a helper that already returns an
+    ///    outward normal — `face_plane(..).normal` multiplied again.
+    /// 2. A [`crate::entity::Face::sense`] bool read and branched on
+    ///    without the `±1` (`step-export`'s `same_sense` bit is such a
+    ///    consumer, and a legitimate one).
+    /// 3. An identifier a macro assembles, which no textual walk sees.
+    /// 4. **Every crate but this one.** The walk is `topo/src` because
+    ///    that is the tree this crate can see, and the workspace half
+    ///    is D6's. **It is deliberately not enumerated here**: a roster
+    ///    of other crates is exactly the artifact this row replaced,
+    ///    and reciting one beside a computed inventory would mint the
+    ///    same defect one level out. The out-of-crate readers are
+    ///    inventoried once, at S67 in the scan document, where D6 is.
     #[test]
     fn every_hand_multiply_of_the_face_sign_is_inventoried() {
         const PINNED: [(&str, usize); 8] = [
@@ -186,10 +208,7 @@ mod tests {
         let mut found: Vec<(String, usize)> = Vec::new();
         for path in crate::fixtures::crate_sources() {
             let text = std::fs::read_to_string(&path).expect("a readable source file");
-            let reads = text
-                .lines()
-                .filter(|l| !l.trim_start().starts_with("//") && l.contains(needle))
-                .count();
+            let reads = crate::fixtures::code_only(&text).matches(needle).count();
             let rel = path
                 .strip_prefix(&root)
                 .expect("a walked file lies under topo/src")
@@ -206,9 +225,9 @@ mod tests {
             .collect();
         assert_eq!(
             found, pinned,
-            "the inventory of hand-multiplies moved: a read of the face's own ±1 was added, \
-             removed or relocated. Route it through `face_outward_normal` if it wants an \
-             outward normal; otherwise add it to this table with its disposition (D6)."
+            "the inventory of hand-multiplies moved: an occurrence of the face's own ±1 was \
+             added, removed or relocated. Route it through `face_outward_normal` if it wants \
+             an outward normal; otherwise add it to this table with its disposition (D6)."
         );
     }
 }
