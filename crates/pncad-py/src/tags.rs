@@ -27,6 +27,7 @@ use pncad::document::{
 };
 use pncad::geom_core::{FrameError, FrameInput};
 use pncad::profile::PathError;
+use pncad::step_import::StepImportError;
 use pncad::workspace::WorkspaceError;
 
 /// The stable tag for a PATHS authoring refusal.
@@ -370,6 +371,45 @@ pub fn workspace_error_tag(err: &WorkspaceError) -> &'static str {
         WorkspaceError::Save { .. } => "save",
         WorkspaceError::RandomnessUnavailable { .. } => "randomness_unavailable",
         WorkspaceError::Update { .. } => "update",
+    }
+}
+
+/// The stable tag for a STEP IMPORT refusal.
+///
+/// `StepImportError` implements `Display`, so the human message is the
+/// importer's own prose naming the entity id and line; this is the
+/// branchable discriminant. Twenty-one arms, and unlike
+/// [`workspace_error_tag`]'s door **every one of them is reachable**
+/// through `import_step` — a caller distinguishing a malformed file
+/// from an unsupported entity from a tier refusal has no other way to
+/// do it, because the id and line live in prose.
+///
+/// The nested arms keep their own tag rather than carrying the inner
+/// refusal's through: what the caller branches on is which STAGE of
+/// the import refused, and the inner error is in the message.
+pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
+    match err {
+        StepImportError::Syntax { .. } => "syntax",
+        StepImportError::DanglingReference { .. } => "dangling_reference",
+        StepImportError::WrongEntityType { .. } => "wrong_entity_type",
+        StepImportError::MalformedRecord { .. } => "malformed_record",
+        StepImportError::UnsupportedEntity { .. } => "unsupported_entity",
+        StepImportError::UnsupportedUnit { .. } => "unsupported_unit",
+        StepImportError::NothingToImport => "nothing_to_import",
+        StepImportError::Structure { .. } => "structure",
+        StepImportError::MissingUncertainty => "missing_uncertainty",
+        StepImportError::InvalidEpsOverride { .. } => "invalid_eps_override",
+        StepImportError::DeclarationUnresolved { .. } => "declaration_unresolved",
+        StepImportError::MalformedReal { .. } => "malformed_real",
+        StepImportError::Topology { .. } => "topology",
+        StepImportError::Assembly { .. } => "assembly",
+        StepImportError::Adoption { .. } => "adoption",
+        StepImportError::RimOffWallBoundary { .. } => "rim_off_wall_boundary",
+        StepImportError::RecognitionAmbiguous { .. } => "recognition_ambiguous",
+        StepImportError::Pcurves { .. } => "pcurves",
+        StepImportError::Placement { .. } => "placement",
+        StepImportError::Instance { .. } => "instance",
+        StepImportError::TierInvalid { .. } => "tier_invalid",
     }
 }
 
