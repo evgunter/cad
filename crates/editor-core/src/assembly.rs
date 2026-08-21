@@ -492,9 +492,10 @@ fn resolve_face(
 /// is exactly what makes it the hard error.
 ///
 /// **The match is EXHAUSTIVE, with no wildcard arm**, which is
-/// [`ValidationError`]'s own rule (*every match site is forced to say
-/// what it does with the new failure kinds*) and load-bearing here
-/// rather than tidy: [`Attribution::Declined`] is the only relation
+/// [`ValidationError`]'s own rule for a site that CLASSIFIES — one
+/// that maps the enum onto a smaller vocabulary, as against one that
+/// extracts a variant and answers `None` to the rest — and it is
+/// load-bearing here rather than tidy: [`Attribution::Declined`] is the only relation
 /// that can reach [`AssemblyError::Uncertified`], so this
 /// classification decides whether the kernel refused THIS DOCUMENT or
 /// merely could not certify it. A wildcard hands that decision to
@@ -908,8 +909,16 @@ mod attribution {
     }
 
     /// An escalation is indeterminate geometry at rest — a refusal,
-    /// never the census declining a lane. It carries no entity, so
-    /// there is nothing to attribute either way.
+    /// never the census declining a lane.
+    ///
+    /// **The weakest row here, kept deliberately.** `row4_b` of
+    /// `asm_r2b_assembly.rs` already drives this arm through
+    /// [`assemble`]; what it cannot separate is the classification
+    /// from the rest of the verdict, which is what this asserts. And
+    /// because the finding carries no entity, no lookup is possible:
+    /// only a mutation that invents a declaration out of `minted` can
+    /// red it. The arm's label is an ARGUMENT rather than a lookup,
+    /// and this is where the argument is written down.
     #[test]
     fn an_escalated_census_predicate_is_unattributed() {
         let (minted, ..) = fixture();
