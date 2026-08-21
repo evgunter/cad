@@ -337,6 +337,23 @@ fn triangulate_chart(
 
     let inside = classify_faces(&cdt, &crossings);
 
+    // WHAT MAKES #678's FAN INERT HERE, checked rather than written
+    // down: this lane's CDT holds the boundary polygons' vertices and
+    // nothing else. `meta` grows only in the insertion pass above, so
+    // an equal count says no interior point was ever added — there is
+    // no column for two entries sharing a mesh vertex to be fanned
+    // over, which is the ingredient `curved::pole_columns` is about.
+    // An interior grid added here would not have to touch the skip
+    // below to break it; it would fail this line (D2 addendum row 5).
+    debug_assert_eq!(
+        cdt.num_vertices(),
+        meta.len(),
+        "face {fk:?}: the planar CDT carries {} vertices for {} boundary entries — \
+         something other than the boundary walk inserted one",
+        cdt.num_vertices(),
+        meta.len()
+    );
+
     // Emit the interior triangles.
     let mut triangles = Vec::new();
     for f in cdt.inner_faces() {
@@ -349,15 +366,13 @@ fn triangulate_chart(
             meta[vs[1].fix().index()],
             meta[vs[2].fix().index()],
         ];
-        // #678's sibling sweep (C10): the curved lane's identical
-        // idiom hid a silent non-manifold fan when a SINGLE interior
-        // grid column sat equidistant from two entries sharing one
-        // mesh vertex. Inert here, structurally: this lane inserts
-        // boundary polygon vertices ONLY — there is no interior grid
-        // at all — so there is no column to be equidistant from
-        // anything. The duplicate ids it does see are a slit's two
-        // traversals, which land at the SAME UV and dedupe to one CDT
-        // vertex (the `a == b` skip in the constraint pass above).
+        // A triangle with two corners on one mesh vertex is
+        // degenerate. Dropping it is `curved`'s idiom, and there it
+        // collapses a pole fan (#678); here the drop is all it is —
+        // the duplicate ids this lane sees are a slit's two
+        // traversals, at the SAME UV and deduped by spade to one CDT
+        // vertex, and there is no interior column for anything to fan
+        // over. That second half is asserted above, not argued.
         if ids[0] == ids[1] || ids[1] == ids[2] || ids[0] == ids[2] {
             continue; // slit-degenerate sliver
         }

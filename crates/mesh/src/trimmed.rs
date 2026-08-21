@@ -196,6 +196,20 @@ pub(crate) fn tessellate_trimmed(
         }
         _ => return Err(trim_frontier(body, fk, face.outer)?),
     };
+    // NO CHART SINGULARITY REACHES THIS LANE, checked where the lane
+    // is chosen. The emit pass keeps `curved`'s duplicate-id skip
+    // without `curved`'s pole-fan hazard (#678) only because of this:
+    // a repeated boundary id here is never a pole pair. The fact is
+    // `walk`'s — `Chart::poles()` is empty for a cylinder and a NURBS
+    // face has no `Chart` at all — so it can move without a line
+    // changing in this file, which is exactly why it is asserted here
+    // rather than written down (D2 addendum row 5).
+    debug_assert!(
+        crate::walk::Chart::of(surface).is_none_or(|c| c.poles().is_empty()),
+        "face {fk:?}: the trimmed lane took a chart with a pole, so the \
+         duplicate-id skip in the emit pass may be collapsing a pole fan — see \
+         curved::pole_columns, issue #678"
+    );
 
     // The UV polygon: per half-edge, the pcurve evaluated at the
     // shared chord parameters (each traversal contributes all but its
@@ -228,6 +242,20 @@ pub(crate) fn tessellate_trimmed(
             let hu = sagitta_step(tol.delta_s, radius);
             let nu = ceil_count(u1 - u0, hu)?;
             let nv = ceil_count(v1 - v0, radius * hu)?;
+            // The other half of #678's shape, checked where the count
+            // is: the fan needs ONE interior column between two
+            // boundary entries that share a mesh vertex, which is
+            // `nu == 2`. The only repeated id at two DISTINCT UVs in
+            // this lane is the full-2π seam double-traversal, and
+            // there `u1 - u0` is 2π against an `hu` the sagitta cap
+            // holds at ≤ π/4 — so the two never meet. Arithmetic, not
+            // an argument, and this is the line that says so.
+            debug_assert!(
+                nu != 2 || !id_repeats_apart(&polygon),
+                "face {fk:?}: a trim polygon repeats a mesh id at two UV locations \
+                 with a single interior column (nu = 2, nv = {nv}) — the shape \
+                 #678's non-manifold fan needs (curved::pole_columns)"
+            );
             (uniform_candidates((u0, u1), (v0, v1), nu, nv), None)
         }
         Lane::Nurbs {
@@ -459,32 +487,15 @@ pub(crate) fn tessellate_trimmed(
                     Slot::Grid(c) => grid_ids[&c],
                 };
             }
-            // #678's sibling sweep (C10 makes it part of acceptance,
-            // not a follow-up). `curved`'s identical idiom hid a
-            // silent non-manifold fan: two boundary entries sharing
-            // one mesh vertex, far apart in u, with a SINGLE interior
-            // grid column equidistant from both, so the CDT fanned
-            // both over it and the identified edge was used four
-            // times. This lane is CLEAR of that shape, for two
-            // reasons rather than by measurement.
-            //
-            // 1. No chart singularity can reach here. The two
-            //    constructing lanes are cylinder and described NURBS
-            //    (module docs): `walk::Chart::poles()` is empty for a
-            //    cylinder, a NURBS face has no `Chart` at all, and a
-            //    conic trim on a cone/sphere/torus chart refuses typed
-            //    (`trim_frontier`). So a repeated `Slot::Boundary(id)`
-            //    is never a pole pair.
-            // 2. The only other source of one repeated id at two
-            //    DISTINCT UV locations is the full-2π seam
-            //    double-traversal, and there `uspan = 2π` against an
-            //    `hu` the sagitta cap holds at ≤ π/4, so `nu ≥ 8` —
-            //    `nu == 2` is unreachable, the same containment
-            //    argument `curved::pole_columns` records. A loop that
-            //    revisits a vertex puts both entries at the SAME UV,
-            //    where spade dedupes them to one CDT vertex; a
-            //    self-touch landing on a constraint instead refuses
-            //    typed (`SelfTouchingTrimLoop`).
+            // A triangle with two corners on one mesh vertex is
+            // degenerate in 3-D. Dropping it is `curved`'s idiom, and
+            // there it collapses a pole fan (#678); here the drop is
+            // all it is, because neither ingredient of that fan
+            // reaches this lane — no chart singularity, and no
+            // repeated id at two UV locations with a single interior
+            // column between them. Both are asserted above, at the
+            // lane choice and at the column count, rather than argued
+            // from facts that live in another module.
             if ids[0] == ids[1] || ids[1] == ids[2] || ids[0] == ids[2] {
                 continue; // boundary-degenerate sliver
             }
@@ -652,6 +663,20 @@ pub(crate) fn tessellate_trimmed(
     }
     // The retries-exhausted path leaves no verdict of its own.
     outcome.unwrap_or(Err(TessellateError::Triangulation { face: fk }))
+}
+
+/// Whether any mesh id appears at two DIFFERENT UV locations in the
+/// trim polygon — the second ingredient of #678's non-manifold fan
+/// (`curved::pole_columns` carries the argument; the first ingredient
+/// is a single interior column between them). Bitwise, because that
+/// is what spade's dedup is: two entries at the same UV are ONE CDT
+/// vertex and cannot be fanned apart.
+fn id_repeats_apart(polygon: &[(f64, f64, u32)]) -> bool {
+    let mut seen: HashMap<u32, (u64, u64)> = HashMap::new();
+    polygon.iter().any(|&(u, v, id)| {
+        seen.insert(id, (u.to_bits(), v.to_bits()))
+            .is_some_and(|p| p != (u.to_bits(), v.to_bits()))
+    })
 }
 
 /// The uniform interior grid candidates of the cylinder lane: the trim
@@ -881,4 +906,43 @@ fn trim_polygon(
         }
     }
     Ok(out)
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::id_repeats_apart;
+
+    /// The ingredient test #678's fan needs, pinned on its own: a mesh
+    /// id at two DIFFERENT UV locations is the thing that can be
+    /// fanned apart; the same id twice at the SAME location is one CDT
+    /// vertex after spade's dedup and cannot be.
+    ///
+    /// The distinction is bitwise, and that is the half worth a row:
+    /// an ulp between two copies of a seam vertex would be a genuine
+    /// repeat-apart, and reading it as "the same point" is how the
+    /// check would go quietly wrong.
+    #[test]
+    fn a_repeat_at_one_uv_is_not_a_repeat_apart() {
+        let same = [(0.0, 0.0, 7u32), (1.0, 0.5, 8), (0.0, 0.0, 7)];
+        assert!(!id_repeats_apart(&same), "one location, one CDT vertex");
+
+        let apart = [(0.0, 0.0, 7u32), (1.0, 0.5, 8), (2.0, 0.0, 7)];
+        assert!(id_repeats_apart(&apart), "the seam double-traversal shape");
+
+        let ulp = [
+            (0.0, 0.0, 7u32),
+            (1.0, 0.5, 8),
+            (f64::from_bits(0.0f64.to_bits() + 1), 0.0, 7),
+        ];
+        assert!(
+            id_repeats_apart(&ulp),
+            "an ulp apart is two CDT vertices, so it is apart"
+        );
+
+        // No repeat at all, and distinct ids at one location (a
+        // self-touch) is not this shape either.
+        let none = [(0.0, 0.0, 7u32), (0.0, 0.0, 8), (2.0, 0.0, 9)];
+        assert!(!id_repeats_apart(&none), "distinct ids are not a repeat");
+    }
 }
