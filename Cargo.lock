@@ -2025,6 +2025,7 @@ dependencies = [
  "geom",
  "geom-brep",
  "geom-core",
+ "getrandom 0.3.4",
  "mesh",
  "proptest",
  "slotmap",
