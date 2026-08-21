@@ -272,7 +272,7 @@ complete; wave 2 is the live one.
 
 | lane | row | scope | review |
 |---|---|---|---|
-| ~~**G-d**~~ | **G10** (S112, re-scoped by **G-R2**) and **G5/S71** — **both in #831**, G5 with its fix pass | `profile/src/sugar.rs` (S112(f)), `crates/pncad/src/lib.rs` (S112(g)), plus the eight-member ledger at S112 | style |
+| **G-d** | **G10** (S112, re-scoped by **G-R2**) and **G5/S71** — **both in #831**, open, G5 with its fix pass. **G10's row does NOT leave §D on this PR**: its ledger says three members are open and two are tracked nowhere else (see the G-R2 amendment above) | `profile/src/sugar.rs` (S112(f)), `crates/pncad/src/lib.rs` (S112(g)), plus the eight-member ledger at S112 | style |
 | **G-e** | **G6** (S104) | `editor-core/src/assembly.rs`, `pncad-py/src/py/doc.rs`, plus `editor-core/src/mate.rs` and `pncad-py/src/py/select.rs`, which the scan did not read | **ADVERSARIAL** |
 | **G-f** | **G8** (S67) | `topo/src/face_normal.rs` (docs), `topo/src/chord_join.rs` (the real question) | style **+ one ADVERSARIAL sub-unit**, not folded together |
 
