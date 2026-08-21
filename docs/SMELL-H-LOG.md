@@ -180,11 +180,11 @@ seam.
 
 | Lane | Row | Findings | Files | Review | State |
 |---|---|---|---|---|---|
-| **H-a** | H1 | **S86** | `geom-core/src/ring_interval.rs` | **adversarial** + style | — |
+| **H-a** | H1 | **S86** | `geom-core/src/ring_interval.rs` | **adversarial** + style | **dispatched** 2026-08-21, lane `smellh-a`, branch `smellh/h-a` |
 | **H-b** | H2 (+H8) | **S99**–**S103**, **S116(b)** | `geom/src/{net,scalar_lift,surfaces,azimuth}.rs`, `curves/nurbs.rs`, `surfaces/nurbs.rs`, `geom-brep/src/nurbs_iso.rs` | **adversarial** + style | — |
 | **H-c** | H3 + H4 | **S85**, **S89** | `geom-core/src/real.rs`, `ring_interval.rs`, `geom-brep/src/ssi/enclose.rs`, `topo/src/props.rs`, `geom-core/tests/decoration_seam.rs` | style | — |
-| **H-d** | H6 | **S88** (`geom` half only) | `geom/src/projection.rs`, `curves/projection.rs`, `surfaces/projection.rs`, `curves/boxes.rs`, `bvh/src/aabb.rs` | style | — |
-| **H-e** | H7 | **D109(a)** | `geom-core/src/linalg/{vec,mat}.rs`, `scripts/gates/`, whatever goldens move | **adversarial** + style | — |
+| **H-d** | H6 | **S88** (`geom` half only) | `geom/src/projection.rs`, `curves/projection.rs`, `surfaces/projection.rs`, `curves/boxes.rs`, `bvh/src/aabb.rs` | style | **dispatched** 2026-08-21, lane `smellh-d`, branch `smellh/h-d` |
+| **H-e** | H7 | **D109(a)** | `geom-core/src/linalg/{vec,mat}.rs`, `scripts/gates/`, whatever goldens move | **adversarial** + style | **dispatched** 2026-08-21, lane `smellh-e`, branch `smellh/h-e` |
 | **H-f** | H5 | **C7** (+ S44 residue, S55), **S33** | `geom-core/src/real.rs`, `ring_interval.rs`, `geom/src/{curves,surfaces}.rs`, +11 | style; **`Dual` sub-lane adversarial** | — |
 
 **Why each adversarial row is adversarial**, since the criterion is
@@ -204,6 +204,61 @@ narrower than "load-bearing":
   `mat.rs::rotation_about`. The sequencing is non-negotiable (convert,
   re-cut, *then* widen the matcher), and getting it backwards reds two
   ratified sites — an outcome S63 has already realised twice.
+
+## Standing rules inherited from other tracks
+
+Landed on `main` 2026-08-21 by Track E (#869). **Lanes read the standing
+header from `main`**, which is why these are recorded here rather than
+pasted into a brief — and why this log lands at every pipeline seam
+rather than at session end.
+
+- **A restart loses the inbox and keeps the worktree.** Two container
+  restarts have happened on this project in one day. A lane that wakes
+  holding uncommitted work it cannot account for must **revert first,
+  ask second, and not conclude**: the restart drops the *delivery
+  record* of orchestrator messages while the work done for them survives
+  on disk, so the tree can hold a half-completed transition between two
+  instructions whose record is gone. *"I cannot find the authority for
+  this change"* is evidence about the records, and after a restart the
+  records are the unreliable half. One lane reported itself for
+  fabricating a ruling from Evan on exactly this; it had not.
+  **`H-e` carries extra exposure here** — a re-cut golden reads as
+  somebody's intention even when it is a mid-transition artifact — and
+  its dispatch says so.
+- **A fence's track is derivable from the branch prefix.** Every branch
+  carries its track as a prefix, verified across all 81 `smell*`
+  branches. So a head on **another** track is a fence and the lane
+  stops; a head on **its own** is the orchestrator's to sequence, and
+  the question is only *which lands first*. A lane does not need to ask
+  who owns a head it bumped into. `smellh/` is this track's.
+
+## Open with Evan
+
+- **#867 — `S90`.** Does the twice-done enumeration discharge the fillet
+  seam's lapsed guard, or is the lane owed? Three answers stated in the
+  PR; the doc is edited in place and will be updated in place with the
+  answer. **Nothing waits on it** — wave 1 does not read this seam — but
+  `H-c` edits the same `real.rs` doc block and `H-f` inherits the seam,
+  so the answer is wanted before wave 2 opens. `real.rs:394`'s
+  *"#643-completeness question"* is in the same position and takes the
+  same answer.
+
+## Neighbours, live as of 2026-08-21
+
+- **Track I** — `docs/SMELL-I-LOG.md`, constituted the same day (#866).
+  The edge is a **dependency, not a file overlap**: `geom-brep` and
+  `mesh` build on `geom`/`geom-core`, so every Track H public-signature
+  change is published in the lane's PR body. Every Track H brief carries
+  that instruction.
+- **Track G** — `docs/SMELL-G-LOG.md`. Ground is `demos/`, `profile/`,
+  `interval-transcendentals/`, `sweep/src/` outside `fillet/`. **`S88`'s
+  `profile` half is Track G's `G4` and is explicitly out of `H-d`'s
+  scope**; `H-d` hands its `profile` hits over as a receipt rather than
+  taking them.
+
+Both edit `docs/SMELL-SCAN-2026-08.md`. Conflicts there are expected;
+see the recording convention above for how they resolve and when a merge
+may precede a green run.
 
 ## Incidents
 
