@@ -775,13 +775,6 @@ applied to error handling. Five commitments:
    mixed-tolerance semantics one level up). Per-run initialization also
    enables running the test suite at several ε values to smoke out
    tolerance-sensitive algorithms.
-   **ε is named in signatures** *(2026-08-21)*: every function whose
-   result depends on ε takes a `Tol`, a witness that the run's tolerance
-   is committed rather than a copy of it — so the invariant above stays
-   structural while the dependence becomes visible, and the ε-free parts
-   of the kernel are identifiable by the absence of the parameter. This
-   reverses the "do not thread ε" half of S22 row 1 (2026-08-19), where
-   the reasoning lives.
    **Angular thresholds are always derived, never a second global**: an
    angle only means anything through the displacement it induces at a
    lever arm (d = r·θ), so a fixed εₐ would silently privilege the
