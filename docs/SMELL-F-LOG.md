@@ -285,11 +285,15 @@ sub-block, from the orchestrator.
 | **F-b** | D63, D64 | S119, S120 |
 | **F-c** | D65, D66, D67 | S121, S122, S123 |
 | **F-e** | D68, D69 — **both used** | S124, S125 — **both used** |
-| **F-d** | D70 | S126 |
+| **F-d** | D70, **D107**, **D115** — all used | S126, **S161**, **S169** — all used |
 | **F-f** | **D101** | **S157** |
 | **F-e** (2nd) | D102, D103, **D106** — all used | S158, S159 — **both used** |
+<<<<<<< HEAD
 | **F-g** | **D109, D110 — both used** | **S163, S164 — both used** |
 | unassigned (2nd block) | D107, D108 | S161, S162, S165, S166 |
+=======
+| unassigned (2nd block) | D108–D110 | S162–S166 |
+>>>>>>> origin/main
 
 **Second block claimed 2026-08-20: `D101`–`D110` and `S157`–`S166`.** The first
 block is spent. Taken beyond Track E's `D81`–`D100` / `S137`–`S156` and Track
@@ -450,7 +454,17 @@ live in that directory and two of them share `scripts/ci-filter.py`.
 
 | lane | row | branch | scope | review | state |
 |---|---|---|---|---|---|
+<<<<<<< HEAD
 | **F-d** | **F4** (S76, S78, S84, S91) | `smellf/f4-guards-that-pass` | `topo/src/review_d18.rs`, `sweep/tests/review_d2_adv_probes.rs`, `geom-brep/tests/`, `geom-core/src/spline/knots.rs` | **ADVERSARIAL** (S76, S78) + style | **dispatched** |
+=======
+| **F-g** | **F3** (S63) | — | `scripts/gates/{no-extra-real-bounds,bit-identity-debug-only,interval-square-allowlist,lib.sh}`, `ci-filter.py` | style; **ADVERSARIAL** for the `x*x → powi(2)` conversions | queued — owns `lib.sh` |
+>>>>>>> origin/main
+
+**F-d landed** (#825, merge `335f267e`); its roster row left the table above per
+the recording convention, and the landing is recorded below. **It left late**:
+the row was deleted from the *gated* wave-2 table in the landing PR, then
+reappeared in the *dispatched* table above when wave 2 opened, and four
+`origin/main` merges carried it back in without the lane noticing. Removed here.
 
 **F-h's PR is open** (#844) and its roster row left the table above per the
 recording convention; the landing is recorded below.
@@ -500,7 +514,6 @@ to place or decline.
 
 | lane | row | gated on | why |
 |---|---|---|---|
-| **F-d** | **F4** (S76, S78, S84, S91) | Track C's **#734** | F-R2 — file overlap at `geom-brep/tests/m5_pr7_ssi.rs` |
 | **F-e** | **F1** (S59) | Track E's **#753** | `scripts/gates/`, and the widened matcher's own conversions |
 | **F-f** | **F2** (S61/S62 + D58–D60) | Track E's **#753** | the same two files, plus `ci-local.sh` |
 | **F-g** | **F3** (S63) | Track E's **#753** | `scripts/gates/`, `scripts/ci-filter.py` |
@@ -1238,7 +1251,111 @@ halves.
   instances are fixed, and its cases now run the gate as a subprocess. The
   harness itself is `lib.sh`, lane F-g's, escalated as **S157**.
 
+### F4 (S76, S78, S84, S91) — landed by lane F-d
+
+- **F-d — F4 (S76, S78, S84, S91), PR #825**, opened 2026-08-20 off
+  `origin/main` at 80f0ae1c, re-merged through round 2. All four closed. **The
+  missing idiom has a home**: `crates/test-utils/src/vacuity.rs` — `Exposure`,
+  a tally reported before every floor and asserted, plus `stood_down`.
+  `test_utils`' own header said it held *"exactly one thing"*; it now holds two.
+  Named `vacuity`/`Exposure` rather than `census`/`Census` because the style
+  review found the latter colliding head-on with `topo`'s production `census`
+  module, which is why three call sites in that very crate had been spelled out
+  in full.
+- **S76 was measured before it was asserted**, because `ci.yml` cites the row by
+  name. Mutation phases reached: **6 of 7** operators on the spent-graft row and
+  **5 of 7** on its twin, so the floors are green and **no `ci.yml` edit is
+  needed** — the F4 brief's stop-and-report condition did not fire. The measuring
+  also showed the twin's own `oks > 0` to be nearly unfalsifiable on that fixture
+  (one loop-keyed operator survives a fully nulled arena), which is why both rows
+  floor over operators rather than over a total.
+- **`kemr` / `mfkrh_plug`: landed as S161 / D107** on the orchestrator's
+  assignment, and the prose is fixed at both sites. Two different defects wore one
+  sentence: `mfkrh_plug` is a **classification** error (it reaches no
+  `link_half_edges` at all, so it is out of the floor's class — `LINK_OPS` — while
+  still being driven and printed), and `kemr` is a **coverage** gap (it is in the
+  class and nothing gets it past its plan phase). Only the first is closed here.
+- **Both reviews found the row's own subject reproduced inside its fix**, in
+  different places, and neither was mine. The all-rim floor counted a request
+  *shape* rather than an outcome and was strictly implied by a floor twenty lines
+  above it; and `mfkrh_plug` — the operator whose survival of a nulled arena is the
+  whole reason `oks > 0` was unfalsifiable — was in the list the replacement floor
+  counted over. **Naming the trap in the PR body did not prevent either.** Fixed
+  by flooring `Filleted::band_faces`, the receipt `rim_phase` leaves, and by
+  splitting `LINK_OPS` out of `OPS`.
+- **The LINK_OPS slack is documented as deliberate at the constant**, per the
+  clearance: 4 against today's 5, because at 5 the floor becomes a coverage
+  *target* pinned to a measurement and the next legitimate precondition change
+  reds a healthy row, while at 4 a genuine loss still reds and the exposure line
+  reports the drop for anyone reading. The comment says *do not "fix" it to 5*.
+- **A floor that fired on something true, caught before it shipped.** The first
+  version of the tear-planting floor required every trial to have corrupted its
+  body and reds at **26 of 27** on an intact tree — a single draw may legitimately
+  find no eligible entity for its kind. Rewritten per *kind* (all nine landed
+  somewhere, list derived from `TEARS`), which is the claim the sweep's own docs
+  make; measured over three seeds, every kind lands 6–13 times. The fixture was
+  not touched.
+- **Placed**: **S126** (the silent whole-row stand-down, population 13 in three
+  files) and **D70**, which schedules it. Reserved numbers used exactly; none
+  taken beyond the assignment.
+- **One additive production hunk, declared**: `SsiDomain::floor_scale_for`
+  (`geom-brep/src/ssi.rs`), six lines beside `SsiDomain::floor`. The metre-clamp
+  fix had minted a *second* spelling of a conversion `m5_pr7_ssi.rs` already had
+  at three sites as `floor_m / eps()` — which agrees with the derivation only
+  because `SSI_FLOOR == 1.0` and `band().zero() == eps()`, neither stated
+  anywhere. Putting the identity beside the thing it inverts gives all five sites
+  across two files one door. No behaviour change.
+- **`stood_down` is not the tree's only spelling, and the residue is now a row.**
+  Converted the three sites in the file this lane edited (`wall_stand_down`
+  included, now a thin local vocabulary over it); the rest are **S169 / D115**.
+  Re-derived on the merged tree rather than transcribed: **ten in-row sites in
+  four files**, of which the finding is really **three byte-identical
+  `println!("SKIPPED: FitSampleBudget stand-down at this ε")`** that announce a
+  stand-down and nothing about what was not asserted. **A claim of mine was wrong
+  and is corrected in the module doc**: I had written that two of those files were
+  under another lane's hand — #790 is merged and touches none of them, and no live
+  lane names any. Four further `SKIPPED` sites are the ratified whole-binary
+  `interval_lane_skipped_no_certified_coverage_here` idiom and are excluded.
+- **No GitHub issue and no design PR.** Nothing found here was a kernel-logic
+  defect: the ε-relative floor clamp under S84 is a fixture defect in a test,
+  not a defect in `ssi`, and the fit budget it was hiding is D9's documented
+  constant behaving as documented.
+
+
 ## Incidents
+
+### F-d shipped a planted mutation and a template-corrupting substitution (2026-08-20)
+
+**One cause, two symptoms: a mechanical edit that reached further than intended
+and was not read back before committing.**
+
+1. **`geom-core/src/spline/knots.rs`'s `span_offset_in` shipped with
+   `if t < knots[p]` in place of `!(t > knots[p])`**, so NaN stopped routing to
+   the first span. Six `test` jobs red (run 32420701703). It was F-d's own
+   red-demonstration mutation for S91: the mutation script edits, runs, then
+   `git checkout --` reverts — and a `git add -A && git commit` issued from
+   another shell **while the script was mid-run** captured the mutated file, after
+   which the script's revert restored it *to the mutated committed state*. The
+   commit is `cd6b1f9e`, message *"S78 record: the corpus is 8 of 11 today"*.
+2. **A blanket `#NNN` → `#825` substitution over `docs/SMELL-F-LOG.md`** hit the
+   two **templates** — the *Recording convention* line and the standing lane
+   header's — so the instruction telling the next lane what to write would have
+   read *"FIXED by #825"*. Both restored.
+
+**Neither was caught by anything F-d ran**, and that is the transferable part.
+Clippy passes on the mutation; the failing NaN row was in a suite not re-run after
+the merge; and the branch's own `git diff --stat` was read on the final tree,
+where the mutation looked intentional. **The remedies are mechanical, not
+resolutions to be careful:** never `git add -A` while a mutation script is
+running (stage explicit paths, or commit before it starts), and never run a
+blanket substitution over a document that contains a *template* of the string
+being substituted — the two sites were spelled identically to the four real ones.
+
+**The standing obligation this hardens:** a lane that produces red demonstrations
+by mutation must diff its branch against `origin/main` **restricted to production
+files** before opening, and read every `docs/` hunk rather than the summary.
+`git diff origin/main...HEAD --name-only -- ':(exclude)docs'` is a two-second check
+that would have shown one non-test hunk in a lane whose whole subject was tests.
 
 ### F-a claimed its record edits and shipped without them (2026-08-20)
 
