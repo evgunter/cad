@@ -263,12 +263,36 @@ non-generic boxes, and a door that merely *decides* is safe by delegation
 type", which a grep can approximate and a trait walk can confirm** — far
 short of resolved bound sets.
 
-**I have not verified it and it may well be wrong**; the obvious stressor
-is a door that returns a non-`T` classification but reaches it through a
-`T` it computed badly. **The taker tests the hypothesis first and reports
-it as false if it is false** — that is a cheap experiment against an
-expensive tool, and enshrining it as an instruction is exactly the
-dispatcher failure `docs/REVIEW-STYLE-DISPATCH.md` §3 names.
+**RETRACTED the same day — #875's style reviewer killed it, which is what
+it was recorded for.** The signal has good precision and useless recall:
+it fires on all six true positives (`NurbsCurve{2,3}` and `NurbsSurface`'s
+`project`/`project_from_seed`, all returning `Projection<T>`) and stays
+silent on the five box constructors — **and it is silent on
+`projection::mid<T: Bounds>(v: T) -> f64`, the freeze site, the function
+this entire finding is about.** Also silent on `project_seed`, on
+`fillet_select.rs:169`'s `nearest_joint<T: Bounds>(…) -> usize`, and on
+`ssi/certify.rs`'s `exact<T: Bounds>(v: T) -> Option<f64>`.
+
+**The mechanism is the reverse of what I guessed.** The defect is a door
+that **strips** `T` — returns an `f64` or an index — whose result *the
+caller* then feeds back. A door returning `T` is only where the damage
+becomes **visible**. So my signal finds symptoms and misses causes, and
+**its canonical false negative sits inside the very census that would have
+been used to validate it** — which is how a plausible screen gets adopted.
+
+**The better screen was already in the tree**, and it is `real.rs:461-463`'s
+**payloads versus selections** split: *"sole `T: Bounds`, returns a non-`T`
+scalar or index, and the call site uses the result as an **input** rather
+than as a payload."* Whoever takes `S210` starts there and not from
+scratch.
+
+**Kept rather than deleted, because the retraction is the useful part.**
+The hypothesis was cheap, wrong, and killed by the first person who
+looked — which is the outcome recording it as a hypothesis was for. Had it
+gone into a brief as an instruction it would have arrived carrying the
+orchestrator's authority and been one commit from a ratified doc, which is
+the failure `docs/REVIEW-STYLE-DISPATCH.md` §3 names and which this track
+has now demonstrated on itself.
 
 **`S211` needs no ruling** — H-d minted and fixed it in the same PR: two
 `geom` box modules called themselves *"allowlisted `Bounds` seams"* while
