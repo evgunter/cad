@@ -327,7 +327,9 @@ judgement call taken; nothing disputed. The three that mattered: `n_enclosing`
 is **asserted** rather than printed (0 at 24 000 corners on all three bands
 locally); `check_corner`'s enclosing arm was **inverted onto the boundary**,
 having failed on the legitimate build and passed on the boundary-moving one;
-and three copies of the non-swallowing check got one home.
+and the two enclosing pins — one `Ok` arm written twice, neither site
+naming the other — got one home, with the non-swallowing arithmetic
+under it getting another that `check_corner` shares.
 
 ### G-b — **G2**, `demos/`, #787
 

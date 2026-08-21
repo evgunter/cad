@@ -8564,9 +8564,11 @@ floor's monotone-safe inverse, where a printed number `cargo test`
 swallows was corroborating nothing); `check_corner`'s enclosing arm was
 **inverted onto the boundary**, because as written it failed on the
 legitimate non-swallowing build and PASSED on exactly the emission that
-would mean the boundary had moved; and the three copies of that
-non-swallowing check got one home. See **S133** for why no vocabulary
-sweep could have found the duplication.
+would mean the boundary had moved; and the two enclosing pins, which
+were one `Ok` arm written twice with neither site naming the other, got
+one home (`report_moved_refuse_pin`) — as did the three copies of the
+non-swallowing arithmetic underneath it (`assert_swallows_nothing`).
+See **S133** for why no vocabulary sweep could have found either.
 
 ## S72. FIXED by #786 — `interval-transcendentals`: the pads had no upper constraint, and the cheap tier caught a dropped outward round for division only
 
@@ -10840,9 +10842,11 @@ over: `review_s2.rs`'s two enclosing pins carried the SAME `Ok`-branch body —
 the same panic with the same literal — plus a third copy of that arithmetic,
 inverted, in `check_corner`'s enclosing arm. Three copies, **none of them
 declaring the other**, so no marker vocabulary could have found them; #831's
-style review found them by reading, and its fix pass gave them one home
-(`assert_swallows_nothing`). That is the argument for the reading, not for a
-longer word list.
+style review found them by reading, and its fix pass gave them two homes —
+`assert_swallows_nothing` for the arithmetic (which `check_corner` shares) and
+`report_moved_refuse_pin` for the whole `Ok` arm (which only the two pins
+share) — with each pin's doc now naming the other. That is the argument for
+the reading, not for a longer word list.
 
 **Verdict:**
 
