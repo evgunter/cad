@@ -9600,8 +9600,11 @@ nothing in the workspace names `MarchTolMismatch`; and the MARCH-TOL
 acceptance row (`tests/m5_pr7_ssi.rs:309`) asserts an identity
 `seam_tol` has already forced.
 
-Note the contrast **inside the same batch**: `du_of_rims`' new doc
-(`props/curved.rs:531-543`) worries at length that an unreachable
+Note the contrast **inside the same batch**: `du_of_rims`' doc
+(`props/curved.rs`, the *"`props_du_consistent`'s reachability is
+`unsure`"* paragraph — cited by target name per **S176(a)**; the line
+range moved under #877, which left the paragraph itself verbatim)
+worries at length that an unreachable
 `require_zero` is *"a value computation wearing a typed-refusal
 costume"*. The SSI seam is that shape and got no such treatment.
 
