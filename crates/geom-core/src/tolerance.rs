@@ -57,8 +57,10 @@
 //! and it is kept for that reason — see `docs/SMELL-SCAN-2026-08.md`
 //! S22. (That ruling's other half, *"do not thread ε"*, was reversed on
 //! 2026-08-21 once the parameter could be a witness rather than a value;
-//! the lock it defended is untouched by that reversal.) What it lacked was a way to say *where the committed value came
-//! from*, which is why a stale `CAD_TOLERANCE_EPS` in a shell could
+//! the lock it defended is untouched by that reversal.)
+//!
+//! What the lock lacked was a way to say *where the committed value
+//! came from*, which is why a stale `CAD_TOLERANCE_EPS` in a shell could
 //! change what "coincident" means with no output line saying so
 //! (issues #415, #497).
 //!
