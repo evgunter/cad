@@ -27,6 +27,10 @@ use topo::Body;
 mod common;
 use common::quad;
 
+/// The tightness floor `the_deviation_pass_samples_and_stays_under_its_certificates`
+/// asserts, and the argument for its value is there.
+const RATIO_FLOOR: f64 = 0.1;
+
 /// The `loft_prism` corpus body (#212): squares at z = 0 and 2, the
 /// non-affine trapezoid at z = 1, v-degree 2.
 fn loft_prism() -> Body<f64> {
@@ -139,6 +143,40 @@ fn every_nurbs_face_is_measured_once_and_by_key() {
 /// own triangle's certificate — `worst_ratio` is that check for the
 /// whole face, one number, carried out of the kernel instead of
 /// asserted inside it.
+///
+/// # The ceiling is monotone in the safe direction, so there is a floor
+///
+/// `worst_ratio = d / (cert + ε) ≤ 1` gets EASIER as the certificate
+/// grows: a bound loose enough to be worth #320's attention passes it
+/// by a wider margin than a tight one, and the row would report green
+/// hardest exactly where the budget question is sharpest. The floor
+/// below is the other side of that bracket.
+///
+/// **It applies where the CERTIFICATE is the denominator, and ε is
+/// what decides where that is.** This loft's fourth wall is planar: it
+/// certifies at ~5e-17 while its sampled deviation is ~5e-16, so ε
+/// dominates its ratio outright — measured 5e-7, 5e-10 and 5e-4 at the
+/// default, 1e-6 and 1e-12 legs, three orders apart on one face with no
+/// mesh change at all. `worst_cert > eps` separates that face from the
+/// three curved walls with orders of margin at every leg (7e-4 against
+/// 1e-6 on one side, 5e-17 against 1e-12 on the other), and it is the
+/// condition under which a floor is about the certificate at all.
+///
+/// **The floor is measured, on this fixture, through this row's own
+/// arming**: the three curved walls report 0.454–0.497 over
+/// δ ∈ [3e-4, 2e-2] — a 66× span — and over all three ε legs. The
+/// ratio has an asymptote near 0.5 and barely moves, so
+/// [`RATIO_FLOOR`] sits a factor of 4.5 under the smallest measured
+/// value: it fires when a certificate becomes more than ~4.5× looser
+/// than the deviation it bounds, and not on ordinary sizing drift.
+///
+/// # What this row is NOT about
+///
+/// Only the NURBS lane resamples (`trimmed`'s `dev_samples_per_edge`
+/// is `None` for `Lane::Cylinder`), so `cert::cert_cylinder` — which
+/// certifies every cylinder triangle in both tessellation lanes — is
+/// falsified by nothing here. The assertion messages say NURBS for
+/// that reason; the gap is real and is not this row's to close.
 #[test]
 fn the_deviation_pass_samples_and_stays_under_its_certificates() {
     let body = loft_prism();
@@ -149,6 +187,11 @@ fn the_deviation_pass_samples_and_stays_under_its_certificates() {
     mesh::tessellate(&body, 6e-3).expect("tessellates");
     let measures = budget::take();
     assert!(!measures.is_empty());
+    // The run's own ε, read the way the kernel reads it rather than
+    // transcribed: the floor's applicability test is a comparison
+    // against it, and CI drives this suite at one leg while the ε
+    // battery drives the crate at three.
+    let eps = geom_core::Tolerance::get().eps;
     for m in &measures {
         assert!(m.dev_samples > 0, "resampling ran: {m:?}");
         // The falsification, in the one form that carries it:
@@ -163,8 +206,20 @@ fn the_deviation_pass_samples_and_stays_under_its_certificates() {
         // one does.
         assert!(
             m.worst_ratio <= 1.0,
-            "a triangle's samples exceeded its own certificate: {m:?}"
+            "a NURBS triangle's samples exceeded its own certificate: {m:?}"
         );
+        // The floor, on the faces whose ratio the certificate decides.
+        if m.worst_cert > eps {
+            assert!(
+                m.worst_ratio >= RATIO_FLOOR,
+                "a NURBS face's certificate is more than {:.0}x looser than the \
+                 deviation it bounds (worst d/(cert+eps) = {}, floor {RATIO_FLOOR}) — \
+                 the ceiling above cannot see this direction, which is the one #320 \
+                 is about: {m:?}",
+                1.0 / RATIO_FLOOR,
+                m.worst_ratio
+            );
+        }
     }
 }
 

@@ -259,6 +259,19 @@ pub(crate) fn tessellate_trimmed(
     // catch. So `worst_ratio` accumulates across attempts and is
     // handed over once, at the end.
     let (mut worst_ratio, mut ratio_samples) = (f64::NAN, 0u64);
+    // The CSV's deviation columns and the face's worst certificate.
+    // These describe ONE attempt — the one the face exits on — and are
+    // reset at the top of each; `worst_ratio` above deliberately is
+    // not. They live out here so the single hand-off below can read
+    // them whichever way the loop ends.
+    let (mut worst_dev, mut worst_dev_cert) = (f64::NAN, f64::NAN);
+    let (mut dev_samples, mut worst) = (0u64, 0.0f64);
+    // THE FACE'S ONE EXIT. Every path out of the retry loop lands
+    // here, so the measurement hand-off below is on all of them —
+    // including the two typed REFUSALS, which is the case the
+    // falsification accumulator above exists for. `None` after the
+    // loop is the retries-exhausted path.
+    let mut outcome: Option<Result<Vec<[u32; 3]>, TessellateError>> = None;
     'retry: for attempt in 0..=MAX_GRID_RETRIES {
         let mut cdt: ConstrainedDelaunayTriangulation<SpadePoint<f64>> =
             ConstrainedDelaunayTriangulation::new();
@@ -271,9 +284,10 @@ pub(crate) fn tessellate_trimmed(
         let mut meta: Vec<(f64, f64, Slot)> = Vec::new();
         let mut handles = Vec::with_capacity(polygon.len());
         for &(u, v, id) in &polygon {
-            let h = cdt
-                .insert(SpadePoint::new(u, v))
-                .map_err(|_| TessellateError::Triangulation { face: fk })?;
+            let Ok(h) = cdt.insert(SpadePoint::new(u, v)) else {
+                outcome = Some(Err(TessellateError::Triangulation { face: fk }));
+                break 'retry;
+            };
             if h.index() == meta.len() {
                 meta.push((u, v, Slot::Boundary(id)));
             }
@@ -283,9 +297,10 @@ pub(crate) fn tessellate_trimmed(
             if dropped.contains(&k) {
                 continue;
             }
-            let h = cdt
-                .insert(SpadePoint::new(u, v))
-                .map_err(|_| TessellateError::Triangulation { face: fk })?;
+            let Ok(h) = cdt.insert(SpadePoint::new(u, v)) else {
+                outcome = Some(Err(TessellateError::Triangulation { face: fk }));
+                break 'retry;
+            };
             if h.index() == meta.len() {
                 meta.push((u, v, Slot::Grid(k)));
             }
@@ -303,7 +318,8 @@ pub(crate) fn tessellate_trimmed(
             }
             let realised = cdt.try_add_constraint(a, b);
             if realised.is_empty() {
-                return Err(TessellateError::Triangulation { face: fk });
+                outcome = Some(Err(TessellateError::Triangulation { face: fk }));
+                break 'retry;
             }
             if realised.len() > 1 {
                 // Classify every intermediate vertex (a vertex of a
@@ -330,7 +346,9 @@ pub(crate) fn tessellate_trimmed(
                                 split_offender = true;
                             }
                             Slot::Boundary(_) => {
-                                return Err(TessellateError::SelfTouchingTrimLoop { face: fk });
+                                outcome =
+                                    Some(Err(TessellateError::SelfTouchingTrimLoop { face: fk }));
+                                break 'retry;
                             }
                         }
                     }
@@ -343,7 +361,8 @@ pub(crate) fn tessellate_trimmed(
         }
         if split_offender {
             if attempt == MAX_GRID_RETRIES {
-                return Err(TessellateError::Triangulation { face: fk });
+                outcome = Some(Err(TessellateError::Triangulation { face: fk }));
+                break 'retry;
             }
             continue 'retry;
         }
@@ -412,14 +431,13 @@ pub(crate) fn tessellate_trimmed(
             None
         };
         let mut triangles = Vec::new();
-        let mut worst: f64 = 0.0;
-        // The CSV's deviation columns. LOCAL to this attempt, so a
-        // retry's samples start over with them — a discarded attempt's
+        // THIS ATTEMPT's columns, cleared here: a discarded attempt's
         // triangles must not contribute to numbers that describe the
-        // mesh that was KEPT. (`worst_ratio` deliberately does not
-        // live here; see above.)
-        let (mut worst_dev, mut worst_dev_cert) = (f64::NAN, f64::NAN);
-        let mut dev_samples = 0u64;
+        // mesh the face exits on. (`worst_ratio` deliberately is not
+        // among them; see above.)
+        worst = 0.0;
+        (worst_dev, worst_dev_cert) = (f64::NAN, f64::NAN);
+        dev_samples = 0;
         // CERT-DRIVEN REFINEMENT (TESS-SPAN; module docs): NURBS
         // triangles certifying above the per-face sizing target get
         // their UV centroid queued as a new candidate for the next
@@ -577,53 +595,63 @@ pub(crate) fn tessellate_trimmed(
             continue 'retry;
         }
         if worst.is_nan() || worst > tol.delta {
-            return Err(TessellateError::CertificateExceeded {
+            outcome = Some(Err(TessellateError::CertificateExceeded {
                 face: fk,
                 bound: worst,
                 requested: tol.delta,
-            });
-        }
-        // BUDGET METER (dead in normal runs): this face's
-        // measurements, handed over ONCE, on the path that kept its
-        // triangles — everything derivable downstream is derived
-        // downstream (`crate::budget`, issue #320 / TESS-SPAN). The
-        // certified bounds are the ones the sizing above already read;
-        // nothing is recomputed for the meter.
-        if crate::budget::armed()
-            && let (Some(grid_cells), Lane::Nurbs { grid, patch }) = (nurbs_grid_cells, &lane)
-        {
-            crate::budget::note_face(crate::budget::FaceMeasure {
-                face: fk,
-                u: (u0, u1),
-                v: (v0, v1),
-                delta_s: tol.delta_s,
-                grid_cells,
-                muu: patch.muu,
-                muv: patch.muv,
-                mvv: patch.mvv,
-                patch_steps: patch.grid_steps(tol.delta_s),
-                cells: grid
-                    .cells()
-                    .map(|c| crate::budget::CellMeasure {
-                        u: c.u,
-                        v: c.v,
-                        muu: c.bound.muu,
-                        muv: c.bound.muv,
-                        mvv: c.bound.mvv,
-                        steps: c.bound.grid_steps(tol.delta_s),
-                    })
-                    .collect(),
-                worst_cert: worst,
-                worst_dev,
-                worst_dev_cert,
-                worst_ratio,
-                dev_samples,
-            });
+            }));
+            break 'retry;
         }
         positions.extend(staged);
-        return Ok(triangles);
+        outcome = Some(Ok(triangles));
+        break 'retry;
     }
-    Err(TessellateError::Triangulation { face: fk })
+
+    // BUDGET METER (dead in normal runs): this face's measurements,
+    // handed over ONCE, however the face ENDED — everything derivable
+    // downstream is derived downstream (`crate::budget`, issue #320 /
+    // TESS-SPAN). The certified bounds are the ones the sizing above
+    // already read; nothing is recomputed for the meter.
+    //
+    // A refused face is measured too, and that is the point: the
+    // falsification `worst_ratio` carries is about every triangle this
+    // face TESSELLATED, and a face whose certificate was exceeded is
+    // the likeliest carrier of a violating sample there is. The other
+    // columns describe the attempt the face exited on — for a refusal
+    // that is the attempt that lost, which is the only mesh there was.
+    if crate::budget::armed()
+        && let (Some(grid_cells), Lane::Nurbs { grid, patch }) = (nurbs_grid_cells, &lane)
+    {
+        crate::budget::note_face(crate::budget::FaceMeasure {
+            face: fk,
+            u: (u0, u1),
+            v: (v0, v1),
+            delta_s: tol.delta_s,
+            grid_cells,
+            muu: patch.muu,
+            muv: patch.muv,
+            mvv: patch.mvv,
+            patch_steps: patch.grid_steps(tol.delta_s),
+            cells: grid
+                .cells()
+                .map(|c| crate::budget::CellMeasure {
+                    u: c.u,
+                    v: c.v,
+                    muu: c.bound.muu,
+                    muv: c.bound.muv,
+                    mvv: c.bound.mvv,
+                    steps: c.bound.grid_steps(tol.delta_s),
+                })
+                .collect(),
+            worst_cert: worst,
+            worst_dev,
+            worst_dev_cert,
+            worst_ratio,
+            dev_samples,
+        });
+    }
+    // The retries-exhausted path leaves no verdict of its own.
+    outcome.unwrap_or(Err(TessellateError::Triangulation { face: fk }))
 }
 
 /// The uniform interior grid candidates of the cylinder lane: the trim

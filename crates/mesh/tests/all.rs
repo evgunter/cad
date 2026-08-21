@@ -220,7 +220,7 @@ fn every_suite_file_is_aggregated() {
 #[allow(clippy::expect_used)]
 fn the_eps_inventory_is_pinned() {
     const PINNED: [(&str, usize); 5] = [
-        ("curved.rs", 7),
+        ("curved.rs", 6),
         ("sizing.rs", 1),
         ("tessellate.rs", 3),
         ("trimmed.rs", 1),
