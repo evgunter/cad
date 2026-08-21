@@ -6,9 +6,12 @@
 //! [`crate::curves::nurbs`]; the conventions are
 //! stated once there and once here — clamped-v1 per direction, f64
 //! structure, positive weights, span contract with documented
-//! polynomial-extension garbage-out). There is no poison-on-invalid-
-//! span path: the `*_in_span` cores take a [`SurfaceWindow`], so an
-//! invalid span pair is not a representable argument.
+//! polynomial-extension garbage-out). A [`SurfaceWindow`] pairs two
+//! validated spans with the layout that flattens them, but it carries
+//! no borrow of the surface it was minted from, so each `*_in_span`
+//! core asks [`NurbsSurface::admits`] and answers a window this
+//! surface does not admit with all-poison rather than an
+//! out-of-bounds index.
 //!
 //! # Grid layout (binding)
 //!
@@ -90,6 +93,39 @@ pub struct SurfaceJet3<T: Real> {
     pub dvvv: Vec3<T>,
 }
 
+/// The all-poison vector — the refusal payload the three `_in_span`
+/// doors return for a window this surface does not admit
+/// ([`NurbsSurface::admits`]), matching the curve doors' shape.
+fn poison_vec<T: Real>() -> Vec3<T> {
+    let nan = T::from_f64(f64::NAN);
+    Vec3::new(nan, nan, nan)
+}
+
+/// The all-poison second-order jet.
+fn poison_jet<T: Real>() -> SurfaceJet<T> {
+    let d = poison_vec();
+    SurfaceJet {
+        point: net::poison_point::<T, Point3<T>>(),
+        du: d,
+        dv: d,
+        duu: d,
+        duv: d,
+        dvv: d,
+    }
+}
+
+/// The all-poison third-order jet.
+fn poison_jet3<T: Real>() -> SurfaceJet3<T> {
+    let d = poison_vec();
+    SurfaceJet3 {
+        jet: poison_jet(),
+        duuu: d,
+        duuv: d,
+        duvv: d,
+        dvvv: d,
+    }
+}
+
 /// The tensor-product control window a span PAIR selects, together
 /// with the row-major layout that flattens it — `geom_core`'s
 /// [`Span`] one dimension up.
@@ -113,23 +149,45 @@ pub struct SurfaceJet3<T: Real> {
 ///
 /// Evaluation then reads `base + i·stride + j` for
 /// `(i, j) ∈ [0, pu] × [0, pv]`, which is exactly `[0, nu) × [0, nv)`
-/// flattened — the `spans_valid` guard and the four poison-on-bad-span
-/// returns have no use site left.
+/// flattened — for the surface the window was minted from. That last
+/// clause is the whole of [`NurbsSurface::admits`]'s job, and it is
+/// why the per-basis-term arithmetic below is free of guards while the
+/// door above it has one.
 ///
 /// `Copy`, four `usize`s wide, allocation-free, built once per
 /// evaluation. That is deliberate: PR #447 measured a 2.4–2.8×
 /// regression from a window abstraction that allocated per basis
 /// term, and this one is shaped so it cannot.
 ///
-/// **Not branded to its surface**, exactly as [`Span`] is not branded
-/// to its knot vector. A window built from surface A and used to
-/// evaluate surface B is in-range-but-wrong if B's control counts are
-/// at least A's, and panics (loudly, correctly) otherwise. Every
-/// consumer builds the window from the surface it evaluates, through
-/// [`NurbsSurface::window`] or [`NurbsSurface::window_at`] — the two
-/// public mints, both of which take indices or parameters rather than
-/// spans. Making that a type-level fact needs an invariant-lifetime
-/// brand, the same one `Span` deliberately does not pay for yet.
+/// **Not branded to its surface — the pairing is checked, not
+/// structural**, exactly as [`Span`]'s is. A window is a plain value
+/// with no borrow of the surface it was minted from, so one built from
+/// surface A is a representable argument to surface B's evaluators.
+/// Each of the three therefore asks [`NurbsSurface::admits`] first and
+/// answers a window this surface does not admit with **all-poison**,
+/// never with an out-of-bounds index into `control`/`weights` (D9: the
+/// kernel never panics on any input).
+///
+/// [`NurbsSurface::admits`] is [`geom_core::spline::KnotVector::admits`]
+/// in both directions plus `stride == knots_v.control_count()`, and
+/// what those three compares establish is exactly this: an admitted
+/// window is **bit-identical to the one this surface would have minted
+/// for the same span pair**, so every `row(i) + j` the evaluators read
+/// is inside this net.
+///
+/// **What they do not establish**, stated rather than implied away:
+/// they relate the window to this surface's *shape*, never to its knot
+/// values. A window from a different surface of the same two degrees
+/// and the same two control counts is admitted, and evaluation against
+/// it is a **wrong answer rather than a refusal** — including when its
+/// spans are empty here, which no compare re-checks. That is the same
+/// species of residue [`geom_core::spline::KnotVector::admits`] leaves
+/// one dimension down, and closing it wants the invariant-lifetime
+/// brand `Span` deliberately does not pay for either. Every consumer
+/// in this workspace still builds the window from the surface it
+/// evaluates, through [`NurbsSurface::window`] or
+/// [`NurbsSurface::window_at`] — the two public mints, both of which
+/// take indices or parameters rather than spans.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SurfaceWindow {
     span_u: Span,
@@ -267,10 +325,11 @@ impl<T: Real> NurbsSurface<T> {
     /// THIS surface's own knot vectors — the one primitive
     /// constructor, behind [`Self::window`] and [`Self::window_at`].
     ///
-    /// The stride is taken from THIS surface, never from the caller,
-    /// so a window can never disagree with the net it indexes (see the
-    /// non-branding note on [`SurfaceWindow`] for the residual hazard:
-    /// spans drawn from a DIFFERENT surface's knot vectors).
+    /// The stride is taken from THIS surface, never from the caller, so
+    /// a window minted here can never disagree with the net it indexes.
+    /// A window minted on a DIFFERENT surface is a separate question,
+    /// and it is [`NurbsSurface::admits`]'s, asked at each of the three
+    /// doors rather than here.
     ///
     /// The **argument order is load-bearing** and nothing checks it: a
     /// `Span` carries no direction, so the two arguments are
@@ -287,6 +346,41 @@ impl<T: Real> NurbsSurface<T> {
             base: span_u.first_control() * stride + span_v.first_control(),
             stride,
         }
+    }
+
+    /// Whether `win` may be evaluated against **this** surface: both
+    /// of its spans are admitted by this surface's own knot vectors
+    /// ([`geom_core::spline::KnotVector::admits`]) and its row-major
+    /// stride is this surface's v control count.
+    ///
+    /// Three integer compares, and they are exactly what the tensor
+    /// indexing needs. The three `_in_span` doors read
+    /// `base + i·stride + j` for `(i, j) ∈ [0, pu] × [0, pv]`, where
+    /// `pu`/`pv` are THIS surface's degrees (the basis rows are sized
+    /// from `self.knots_*`, never from the window), so the highest
+    /// index read is
+    /// `(span_u.first_control() + pu)·stride + span_v.first_control() + pv`.
+    /// Degree agreement in each direction turns each `first_control + p`
+    /// back into that direction's `span.index()`; `index <= last_span()`
+    /// bounds them by `nu − 1` and `nv − 1`; and `stride == nv` makes
+    /// the whole expression `span_u.index()·nv + span_v.index()`, at
+    /// most `nu·nv − 1` — one below `control.len()`, which
+    /// [`NurbsSurface::new`] pins at `nu·nv`. The stride compare is the
+    /// term with no one-dimensional analogue and it is **not** implied
+    /// by the other two: a window whose spans both fit but whose stride
+    /// came from a wider net walks past the end of a shorter row.
+    ///
+    /// Equivalently, and this is the whole guarantee: an admitted
+    /// window is bit-identical to `self`'s own window for that span
+    /// pair, because `base` is a function of the two `first_control`s
+    /// and the stride alone.
+    ///
+    /// **What it does not decide** is which surface the window came
+    /// from — see the residue on [`SurfaceWindow`].
+    pub fn admits(&self, win: SurfaceWindow) -> bool {
+        self.knots_u.admits(win.span_u())
+            && self.knots_v.admits(win.span_v())
+            && win.stride() == self.knots_v.control_count()
     }
 
     /// The window at span indices `(span_u, span_v)`, or `None` when
@@ -310,21 +404,29 @@ impl<T: Real> NurbsSurface<T> {
     /// ascending pass (outer `iu`, inner `iv`), then one division per
     /// coordinate.
     ///
-    /// There is no invalid-input branch: the window is a proof, so the
-    /// former `spans_valid` guard and its all-poison return have no
-    /// use site. Garbage-in on the PARAMETERS still gives garbage-out
-    /// (the polynomial extension of the window's patch), unchanged.
+    /// A window this surface does not admit ([`NurbsSurface::admits`])
+    /// yields the **all-poison** point: a `SurfaceWindow` carries no
+    /// borrow of the surface it was minted from, so a foreign one is a
+    /// representable input here and the three compares are what keep
+    /// `row(i) + j` inside this net. Garbage-in on the PARAMETERS still
+    /// gives garbage-out (the polynomial extension of the window's
+    /// patch), unchanged.
     pub fn eval_in_span(&self, win: SurfaceWindow, u: T, v: T) -> Point3<T> {
+        // The pairing check, before any indexing — see `admits` for
+        // why these three compares are what the arithmetic below needs.
+        if !self.admits(win) {
+            return net::poison_point::<T, Point3<T>>();
+        }
         let bu = spline::basis::basis_funs(&self.knots_u, win.span_u(), u);
         let bv = spline::basis::basis_funs(&self.knots_v, win.span_v(), v);
         let (mut x, mut y, mut z, mut w) = (T::zero(), T::zero(), T::zero(), T::zero());
         for (i, bui) in bu.iter().enumerate() {
             // Indexed off the window base, deliberately: the basis row
             // length and the window length are two derivations of the
-            // same degree, and if they ever disagree indexing PANICS
-            // where a `zip` would silently drop control points and
-            // return a plausible wrong point (D4; PR #447's reverted
-            // revision).
+            // same degree — one degree by the check above — and if they
+            // ever disagree indexing PANICS where a `zip` would
+            // silently drop control points and return a plausible wrong
+            // point (D4; PR #447's reverted revision).
             let row = win.row(i);
             for (j, bvj) in bv.iter().enumerate() {
                 let idx = row + j;
@@ -345,7 +447,14 @@ impl<T: Real> NurbsSurface<T> {
     /// written: `S = A₀₀/w₀₀`, `S_u = (A₁₀ − S·w₁₀)/w₀₀` (v symmetric),
     /// `S_uu = (A₂₀ − S·w₂₀ − S_u·w₁₀·2)/w₀₀` (v symmetric),
     /// `S_uv = (A₁₁ − S·w₁₁ − S_u·w₀₁ − S_v·w₁₀)/w₀₀`.
+    ///
+    /// Same totality contract as [`Self::eval_in_span`]: a window this
+    /// surface does not admit yields an all-poison jet.
     pub fn ders_in_span(&self, win: SurfaceWindow, u: T, v: T) -> SurfaceJet<T> {
+        // The pairing check, as in [`Self::eval_in_span`].
+        if !self.admits(win) {
+            return poison_jet();
+        }
         let du = spline::basis::ders_basis_funs(&self.knots_u, win.span_u(), u, 2);
         let dv = spline::basis::ders_basis_funs(&self.knots_v, win.span_v(), v, 2);
         // Homogeneous partials A_kl for the six (k, l) with k + l ≤ 2,
@@ -422,6 +531,12 @@ impl<T: Real> NurbsSurface<T> {
     /// S03 = (A03 − 3·w01·S02 − 3·w02·S01 −   w03·S00) / w00
     /// ```
     pub fn ders3_in_span(&self, win: SurfaceWindow, u: T, v: T) -> SurfaceJet3<T> {
+        // The pairing check, as in [`Self::eval_in_span`]; the poison
+        // jet's `k + l ≤ 2` block is [`Self::ders_in_span`]'s own, so
+        // the two agree on the refusal path as they do on every other.
+        if !self.admits(win) {
+            return poison_jet3();
+        }
         let du = spline::basis::ders_basis_funs(&self.knots_u, win.span_u(), u, 3);
         let dv = spline::basis::ders_basis_funs(&self.knots_v, win.span_v(), v, 3);
         // Homogeneous partials A_kl for the ten (k, l) with k + l ≤ 3,
