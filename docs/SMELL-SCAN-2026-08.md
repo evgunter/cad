@@ -2453,11 +2453,11 @@ its own.)
 
 ## S14. `Span` validity is prose, and the guard's removal turned poison into a documented panic
 
-**HALF TWO OF S14(a) FIXED by #846 — and S14 stays open, with its
-problem statement, because two of its halves do not.** #823 split this
-row into **S14(a)** (the `Span`/`KnotVector` pairing) and **S14(b)** (the
-graft, of which §S70 is the documentation residue); Evan's ruling on
-#823 then split S14(a) itself. State:
+**S14(a) IS CLOSED — all three halves are in (#845, #846, #PRNUM) — and
+S14 STAYS OPEN, with its problem statement, because S14(b) does not.**
+#823 split this row into **S14(a)** (the `Span`/`KnotVector` pairing) and
+**S14(b)** (the graft, of which §S70 is the documentation residue);
+Evan's ruling on #823 then split S14(a) itself. State:
 
 - **S14(a), half one — lane E-s:** `NurbsSurface::window_of` off the
   public surface, closing the argument-order hazard.
@@ -2468,30 +2468,41 @@ graft, of which §S70 is the documentation residue); Evan's ruling on
   families. The panic this row is about no longer happens at the curve
   doors; #846 verified the sufficiency argument site by site and
   falsified each compare against a row written for it.
-- **S14(a), half three — open, dispatched as E-u after E-s:** the three
-  `pub` `NurbsSurface::{eval,ders,ders3}_in_span` doors take an
-  unbranded `SurfaceWindow` and index `self.control` off its foreign
-  `base`. **Still a live D9 violation**, demonstrated on #846's branch
-  through `window_at` (a *total* public door, so E-s's removal of
-  `window_of` does not reach it) and reported there rather than
-  committed as a `should_panic`. Neither half one nor half two reaches
-  it: poison in a basis row does not stop an index.
+- **S14(a), half three — #PRNUM, done:** `NurbsSurface::admits` — both
+  directions' `KnotVector::admits` plus
+  `win.stride() == knots_v.control_count()` — refused at the three
+  `pub` `NurbsSurface::{eval,ders,ders3}_in_span` doors, which took an
+  unbranded `SurfaceWindow` and indexed `self.control`/`self.weights`
+  off its foreign `base`. **Neither of the other two halves reached
+  it**, and the reason is the asymmetry worth carrying: half one closed
+  the argument-order hazard but `window`/`window_at` stay public mints
+  and `window_at` is *total*; half two poisons the basis ROW, and
+  **poison in a row does not stop an index** — the row is still
+  `degree + 1` long, the loop still runs, and the flat index is still
+  computed from the foreign `base`/`stride`. The panic #823
+  demonstrated and #846 re-demonstrated is deleted; the same
+  construction is now a refusal, pinned by
+  `geom/tests/surfaces/span_window_pairing.rs`.
 - **S14(b) — open and unscheduled.** Row 0 reframed its first question
   and did not answer it.
 
-**The residue #846 accepts, deliberately:** two vectors of equal degree
-and equal control count but different interior knots admit each other's
-spans, so evaluation is a wrong answer rather than a refusal. That is
-the same species as `hull::span_indices`'s length-only `coeffs` check
-one line away, and it is stated at the type rather than implied away.
+**The residue #846 and #PRNUM accept, deliberately, in both
+dimensions:** two vectors — or two surfaces — of equal degree and equal
+control count but different interior knots admit each other's spans and
+windows, so evaluation is a wrong answer rather than a refusal, and an
+admitted foreign span can even be EMPTY here, which no compare
+re-checks. That is the same species as `hull::span_indices`'s
+length-only `coeffs` check one line away, and it is stated at both
+types rather than implied away. Closing it wants the brand, not a
+compare, and nothing here pays for one.
 
-**The `Where` citations below are the ORIGINAL ones and they no longer
-resolve to what they quoted** — #846 rewrote all three module docs,
+**The `Where` citations below are the ORIGINAL ones and none of them
+resolves to what it quoted** — #846 rewrote all three module docs,
 including `hull.rs:80`'s self-declared panic, which was this row's own
-evidence. Re-derived at #846's head, the row's surviving half is
-`crates/geom/src/surfaces/nurbs.rs:124-131` (`SurfaceWindow`'s
-not-branded concession) and its three `_in_span` doors at `:316`,
-`:347`, `:423`.
+evidence, and #PRNUM rewrote `SurfaceWindow`'s not-branded concession,
+whose *"panics (loudly, correctly)"* was the surviving copy of the same
+sentence. **S14(a) has no live claim site left.** What stands is
+S14(b): §S70's graft footnote, unscheduled.
 
 - **Where**: `crates/geom-core/src/spline/knots.rs:166`,
   `crates/geom-core/src/spline/hull.rs:74`,
@@ -12473,6 +12484,7 @@ has been discharged.
 | ~~**E-t**~~ | **S14(a), half two** | `geom-core/src/spline/{knots,basis,hull,locate}.rs`, the `_in_span` families in `geom/src/curves/nurbs.rs` | **ADVERSARIAL** | **Landed as #846 — the D9 violation at the curve doors is closed.** `KnotVector::admits`, two integer compares, at `basis_funs`, `ders_basis_funs`, `hull::span_indices` (which five `hull` doors funnel through) and the four `NurbsCurve{2,3}::*_in_span` families; #463's `poison_row` restored as the refusal shape. The ruling's sufficiency argument was **verified per site, not accepted**, and two refinements came out of it: `last_span` is not merely sufficient but the **exact** bound `ders_basis_funs`' a-ladder needs (`u[i + p + 1] <= u.len() - 1`), and at `hull` the two compares are **not symmetric** — the index compare closes the panic alone, the degree compare closes a silent wrong-window. #823's `should_panic` demonstration recovered from its branch and **inverted**; each compare then deleted in turn, both suites red, with the two panics named (`basis.rs:92` subtract-with-overflow, `hull.rs:149`/`nurbs.rs:1103` index-out-of-bounds). **The falsification caught a defect in itself**: on the shared `span_fixtures::vectors()` spread — five vectors, four distinct degrees, two cubics of equal length — deleting the index compare left the sweep **green**, because that fixture cannot separate on the index. Fixed by adding same-degree-different-length vectors locally rather than reordering a fixture whose order is load-bearing for `span_basis_identity`'s golden table. **Found and did not close S14(a)'s third half** (the surface `_in_span` doors, §S14) — demonstrated, reported, not minted as a row, because §S14 already owns the twin the tree itself declares to be the same thing. No performance number claimed: *a timing is worth nothing without its box.* |
 | ~~**E-q**~~ | **#681**, still open | `memories/` | style | **Swept as #826 — the TENTH surface, which #681's list does not contain.** E-l reported it and did not sweep it; adding a surface is the issue owner's call, and Evan made it. **The disposition rule is NOT §Q6's**: *"most of the stuff in memories that cites a specific measurement should just be deleted. memories is definitely not the place for historical anecdotes, but it's also not really the place for live data."* So each block is an **anecdote** (delete the number, keep the rule — the default), **live data** (repoint at whatever re-takes it), or **neither** (a ratified constant or protocol threshold — kept, with the reason). **21 blocks re-derived at `e1500076`, E-l's count exactly, and it did not move.** Instrument run not retyped, but `--marker ''` alone yields **one block per file** — `find("")` is 0 on every line, so nothing ends a block; #681's `.md` row names *"paragraph-blocking"* as the replacement and that is not in the script, so it was added as a flag. That is the variant E-l ran. **Its own blind spot, and `min` is the sharp one**: the time-unit arm lists `seconds?|minutes?` and **not `min`**, so `memories/git-workflow.md` scored **zero blocks** while carrying `~5-7 min` / `35-70 min` / `30G cache` / `(then-5G-RAM)/251G box`. **Eight files carry measurement edits and in five of them at least one edit site was reached by reading, not by the instrument** — including `tessellation-budget.md`'s densest numbers, its findings list, which sits outside every flagged block. #681's carried hole (bytes, percent, counts and bare factors reach only through the vocabulary arm) is worst on exactly this surface. 21 is a floor, not a census. **The one live-data case the brief warned about checks out**: `docs/ASM-LOG.md:292` and `:361` route the **TESS-SPLIT dispatch** through this memory, so `SAFE_ASPECT = 5` could not simply be deleted — it now names `mesh::nurbs_cert::SAFE_ASPECT`, whose own doc carries the derivation. The two copies had **already diverged** (ASM-LOG says *"≤ ~4"*), as had `agent-lane-operations.md`'s `4–8 GB target/` against `disk-watchdog.sh`'s own `5-8G`. Second half of the unit: `memories/cad-working-style.md`'s memory-writing criteria gain the rule, in one bullet after *No live counters*. **D97 handed back unused.** |
 | **E-s** | **S14(a), half one** | `geom/src/surfaces/{nurbs,projection}.rs`, `mesh/src/nurbs_cert.rs`, `step-import/src/recognize.rs` | style | **DONE — #845.** Evan's ruling on #823, first of its two changes: `NurbsSurface::window_of` leaves the public surface. **Private, not deleted** — `window`, `window_at` and the three located-span seeds in `ders`/`ders3`/`eval` all mint through it inside `nurbs.rs`, so there is an internal use; nothing outside the module has one. **The caller list re-derived: 8 call sites, not the ruling's ‘eleven’** — 3 out of module (all three the ruling names, all resolving) and 5 in, the count of *eleven* being `window_of` grep hits including the definition and two doc mentions. **The ruling's ‘each becomes shorter’ is right once in three, and the reason is mechanical**: rustfmt's default `single_line_let_else_max_width` is 50 and this tree has no `rustfmt.toml`, so `let Some(win) = surface.window(u, v) else { continue };` is 52–55 columns and formats across three lines, where each of the two one-line span lookups it replaces fits on one. `mesh` shrinks by 3 code lines (its lookups were already three-line); `projection.rs` and `recognize.rs` are line-neutral. What does drop everywhere is a lookup (2 → 1) and two live bindings. **One behaviour note, stated because it is real and small**: the u-direction emptiness skip moves from the outer loop into the inner one at all three sites, so an empty u-span now costs one `window()` per v-span instead of being skipped whole; results are identical. **The model idiom is `geom-brep/src/ssi/enclose.rs:540`** — the ruling and the brief both site it under `geom/src/surfaces/`, where there is no `ssi` module. |
+| ~~**E-u**~~ | **S14(a), half three** | `geom/src/surfaces/nurbs.rs`, `geom/tests/surfaces/span_window_pairing.rs` | **ADVERSARIAL** | **Landed as #PRNUM — S14(a) is closed and the last live D9 violation on this row is deleted.** `NurbsSurface::admits` = both directions' `KnotVector::admits` + `win.stride() == knots_v.control_count()`, asked at `eval_in_span`, `ders_in_span` and `ders3_in_span` before any indexing; the refusal is **all-poison**, matching the shape `hull` already has (private fallible check, total public door returning poison) and the one #846 gave the curve doors. **Reproduced before it was fixed**, exactly as dispatched: `small.eval_in_span(big.window_at(0.75, 0.75), 0.5, 0.5)` on 4x4 and 3x3 degree-2 nets, public doors and safe Rust throughout, panicking `index out of bounds: the len is 9 but the index is 9` at `nurbs.rs:331` (`self.weights[idx]`). **Why neither other half reached it**: `window_at` is a TOTAL public mint, so E-s's privatisation of `window_of` does not touch it, and #846's guard poisons a basis ROW while the loop bound and the flat index both come from elsewhere — **poison in a row does not stop an index**. **Sufficiency derived per door, not accepted**: all three read exactly `{base + i*stride + j : 0 <= i <= pu, 0 <= j <= pv}` with `pu`/`pv` taken from THIS surface's knot vectors (the basis rows are sized from `self.knots_*`, never from the window, and #846's poison row keeps that length), so the three doors share one derivation — degree agreement turns `first_control + p` back into `span.index()`, `index <= last_span()` bounds it by `n - 1` per direction, and `stride == nv` collapses the maximum to `span_u.index()*nv + span_v.index() <= nu*nv - 1`, one below the `control.len()` `new` pins. Equivalently: an admitted window is **bit-identical to the one this surface would have minted** for that span pair. **The stride compare is not implied by the other two** and the brief's expected surprise is real: a 4x4 net's window at `(3, 1)` has both spans admitted by a 4x2 net and still puts `row(1)` at flat index 12 in an 8-element array. **Each compare falsified separately, and the first attempt at it was wrong** — the demonstrated 4x4/3x3 pair is OVER-DETERMINED (index and stride both refuse it), so deleting the index compare left the suite **green**, the same failure mode #846 hit on `span_fixtures::vectors()`. Fixed with a fourth, isolating fixture (4x3 vs 3x3, shared v vector) added locally. With the predicate assertion suppressed, each deletion produces a real out-of-bounds panic at `eval_in_span`: len 16/index 16 (degree), len 9/index 9 (index), len 8/index 8 (stride). **Callers: 11 sites, none migrated and all read** — every one mints its window from the surface it evaluates, so the guard is unreachable in-tree and the signatures did not move. **The residue is stated, not implied away**: equal degrees and equal control counts with different knots are admitted and answer wrongly, and an admitted foreign span may be EMPTY here — pinned as a test so it is a decision. **No performance number claimed**: three integer compares per call, but *a timing is worth nothing without its box*, and this container is not one. |
 
 ### The rows
 
