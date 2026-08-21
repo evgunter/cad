@@ -11349,8 +11349,9 @@ construction no longer has any 1/ρ amplification left to spend"*.
 corner's fillet.** Found by making `check_corner`'s doc claim true instead of
 narrowing it — the doc said every hand-built row runs the battery, one did not,
 and adding the call turned the row red with a ρ-predictor residual of
-`1.134 = 2r`. The pair's carriers sit within 3e-4 of external tangency
-(`|O₁O₂| = 2.26646` against `R₁+R₂ = 2.26655`), so the crossings are 1.7115e-2
+`1.134 = 2r`. The pair's carriers sit within **8.61e-5** of external tangency
+(`|O₁O₂| = 2.2664641` against `R₁+R₂ = 2.2665502`) — **not the 3e-4 the row
+asserts, which bounds ρ and is a different quantity** — so the crossings are 1.7115e-2
 apart, `mirror_excluded` is **false**, and the ladder rounds the twin: the
 returned fillet has `|P−O| = R−r` on the incoming leg and `R+r` on the
 outgoing, the opposite offset sign on both from the ρ the row re-derives. The

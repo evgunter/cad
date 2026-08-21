@@ -1322,12 +1322,13 @@ fn an_uncertifiable_tangent_point_refuses_instead_of_being_returned() {
     // the ULP FLOOR rather than merely within the band.
     //
     // WHAT THE BUILDING BANDS DO NOT CHECK, and it is not a tolerance
-    // question. This pin's two carriers sit within 3e-4 of external
-    // tangency (|O1O2| = 2.2663 against R1 + R2 = 2.2666), so the pair
-    // is a hairline lens whose two crossings are 1.7e-2 apart, and the
-    // harness's bracketing does not exclude the twin: `mirror_excluded`
-    // is FALSE here. The ladder rounds the twin crossing, where the turn
-    // side is the other one — the returned fillet has |P - O_out| =
+    // question. This pin's two carriers sit within 8.61e-5 of external
+    // tangency (|O1O2| = 2.266 464 1 against R1 + R2 = 2.266 550 2 —
+    // NOT the 3e-4 asserted above, which bounds rho and is a different
+    // quantity), so the pair is a hairline lens whose two crossings are
+    // 1.71e-2 apart, and the harness's bracketing does not exclude the
+    // twin: `mirror_excluded` is FALSE here. The ladder rounds the twin
+    // crossing, where the turn side is the other one — the returned fillet has |P - O_out| =
     // R_out + r and |P - O_in| = R_in - r, i.e. the opposite offset sign
     // on BOTH legs from the rho this row re-derives above, which the
     // build arm now ASSERTS rather than merely recording. So the
